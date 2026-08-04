@@ -16,12 +16,45 @@
  *
  * There is no waitstate constraint here, so this file is what the library was
  * always doing underneath: copy and compare bytes.  SRAM itself is real memory
- * at 0x0E000000, like the rest of the GBA map.
+ * inside the reserved GBA map, like every other region.
  *
- * The contents are not yet persisted between sessions -- see docs/STATUS.md.
+ * ---------------------------------------------------------------------------
+ * Keeping the save
+ *
+ * A cartridge holds its save with the console switched off; a wasm linear
+ * memory does not survive the tab being closed.  The page owns the storage --
+ * IndexedDB, the same database that already remembers the player's ROM -- and
+ * this file is the two hooks it needs.  See web/shell.html.
+ *
+ *   restore   The stored bytes are copied in the first time the *game* touches
+ *             save memory, rather than at page load.  That ordering is not a
+ *             detail: main() calls PortMemInit(), which memsets the whole GBA
+ *             map -- this region included -- and it does so after the page has
+ *             mapped the ROM and resolved the promise main() is parked on.
+ *             Anything the shell wrote into save memory beforehand would be
+ *             zeroed a moment later, and the failure would be invisible: a
+ *             blank save reads as "no file yet", not as an error.  Restoring
+ *             from inside a call the game itself made cannot lose that race,
+ *             because the game does not run until PortMemInit has returned.
+ *
+ *   dirty     Every write that actually changes a byte tells the page, which
+ *             debounces and writes the region out.  Hooking the write rather
+ *             than polling memory is what makes a missed save impossible:
+ *             src/save.c is the only file in the game that names this region
+ *             at all, and it reaches it exclusively through WriteSramEx ->
+ *             WriteSram, so every byte that ever lands in save memory passes
+ *             through the function below.  The page re-checksums on a slow
+ *             timer anyway, as a backstop against some future writer that does
+ *             not come through here.
+ *
+ * Neither hook exists outside a browser.  The headless harness has no Module
+ * functions to call, both EM_JS bodies fall straight through, and the port
+ * behaves as it always did -- save memory that lives and dies with the run.
  */
 
 #include <string.h>
+
+#include <emscripten.h>
 
 #include "port/port.h"
 #include "gba/gba.h"
@@ -29,19 +62,82 @@
 
 const char gAgbSramLibVer[] = "NINTENDOSRAM_V113";
 
+/* --- persistence hooks ---------------------------------------------------- */
+
+/* Hands the page an address to fill.  Returns 1 if it put a stored save there,
+ * 0 if it had none for this ROM -- or if there is no page at all. */
+EM_JS(int, PortSramRestoreFromPage, (u8 *dest, u32 size), {
+    if (!Module.portSramRestore)
+        return 0;
+    return Module.portSramRestore(dest, size) ? 1 : 0;
+});
+
+EM_JS(void, PortSramMarkDirty, (void), {
+    if (Module.portSramDirty)
+        Module.portSramDirty();
+});
+
+static int sRestored;
+
+/* The whole region is asked for at once, not just the range being read.  The
+ * game reads a checksum out of one part of save memory and then the section
+ * that checksum covers out of another, so filling only what was asked for
+ * would hand it a save that fails its own verification. */
+static void SramRestoreOnce(void)
+{
+    if (sRestored)
+        return;
+    /* Set before the call, not after: the page is free to log, and anything
+     * that ran back into the game here would restore a second time on top of
+     * whatever had already been written. */
+    sRestored = 1;
+    if (PortSramRestoreFromPage((u8 *)GBA_SRAM_BASE, GBA_SRAM_SIZE))
+        PortLog("[katam-port] save memory restored from browser storage");
+}
+
+/* The library's contract lets a caller name any two addresses, and the game
+ * does read save data straight into its own EWRAM buffers.  Only a write whose
+ * destination is really inside the region is worth persisting. */
+static int InSram(const void *p, u32 size)
+{
+    uintptr_t addr = (uintptr_t)p;
+
+    return addr >= GBA_SRAM_BASE
+        && size <= GBA_SRAM_SIZE
+        && addr - GBA_SRAM_BASE <= GBA_SRAM_SIZE - size;
+}
+
+/* --- the library ---------------------------------------------------------- */
+
 void ReadSram(const u8 *src, u8 *dest, u32 size)
 {
+    SramRestoreOnce();
     memcpy(dest, src, size);
 }
 
 void WriteSram(const u8 *src, u8 *dest, u32 size)
 {
+    SramRestoreOnce();
+
+    /* Compare before copying.  WriteSramEx writes, verifies and retries, and
+     * the game re-writes sections it has just verified as unchanged; reporting
+     * those as changes would have the page push an identical 64K into storage
+     * several times over for one in-game save.  At these sizes -- the largest
+     * buffer in gWorldProps is a few hundred bytes -- the compare costs
+     * nothing next to the storage write it avoids. */
+    if (size == 0 || memcmp(dest, src, size) == 0)
+        return;
+
     memcpy(dest, src, size);
+    if (InSram(dest, size))
+        PortSramMarkDirty();
 }
 
 u32 VerifySram(const u8 *src, u8 *target, u32 size)
 {
     u32 i;
+
+    SramRestoreOnce();
 
     /* Returns the address of the first mismatching byte, 0 when identical --
      * the same contract as the original. */
