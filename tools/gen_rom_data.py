@@ -311,10 +311,33 @@ def main():
     mapping = parse_map(args.map) if args.map and args.map.exists() else {}
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
     defined = set()
-    for cp in (args.tree / 'src').rglob('*.c'):
+    # The platform layer counts too -- it defines replacements for things the
+    # decomp has in ROM (the SRAM library's version string, for one), and those
+    # must not be turned into address macros either.
+    sources = list((args.tree / 'src').rglob('*.c'))
+    sources += sorted(Path('platform').rglob('*.c'))
+    for cp in sources:
+        text = cp.read_text(errors='replace')
+        # Functions.
         for m in re.finditer(r'^[A-Za-z_][\w \t\*]*?\b(\w+)\s*\([^;]*?\)\s*\{',
-                             cp.read_text(errors='replace'), re.M):
+                             text, re.M):
             defined.add(m.group(1))
+        # File-scope data.  These matter as much as functions here: a symbol the
+        # port defines itself must never be turned into an address macro, or its
+        # own definition stops parsing.  Anchoring at column 0 keeps locals out.
+        #
+        # This set only ever *excludes* symbols from being macro'd, so a false
+        # positive costs nothing and a miss breaks the build -- hence the loose
+        # rule: on any line starting a declaration with an initialiser, take the
+        # last identifier before the '[' or '='.  Declarators here come in every
+        # shape, `struct RoomTiledBG *const gUnk_082D8D74[] =` among them.
+        for line in text.splitlines():
+            if not line[:1].isalpha() or '=' not in line:
+                continue
+            head = line.split('=', 1)[0].split('[', 1)[0]
+            names = re.findall(r'\b(\w+)\b', head)
+            if names:
+                defined.add(names[-1])
 
     # Extents, so an unparseable symbol can be given storage of the right size.
     # The .incbin length is authoritative; the gap to the next label is only a
@@ -405,6 +428,42 @@ def main():
             continue
         resolved.append((name, labels[name], macro))
 
+
+    # data/*.s is not the only place ROM symbols live.  The sound tables are
+    # assembled from sound/, so `gSongTable` never appears as a data label --
+    # and without it the port stubbed the table as four zero entries.  That is
+    # far worse than it sounds: PlaySfxInternal does
+    #
+    #     gUnk_08D60FA4[gSongTable[num].ms]->unk4
+    #
+    # so any real sound id read past the stub, took a garbage `.ms` as an index
+    # into a ROM pointer table, and dereferenced whatever came back.  It is
+    # what was killing the port a few seconds into gameplay.
+    #
+    # The link map knows where all of these live.  Any symbol a header declares
+    # that the port does not define, and that the map places in ROM, becomes an
+    # address macro like every other piece of ROM data.
+    from_map = []
+    if mapping:
+        resolved_names = {n for n, _, _ in resolved} | set(typedef_tables)
+        for addr, sym in sorted(mapping.items()):
+            if sym in resolved_names or sym in labels or sym in defined:
+                continue
+            if not (ROM_START <= addr < ROM_END) or sym not in present:
+                continue
+            decl = None
+            for hp in headers:
+                m = re.search(DECL_RE_TMPL % re.escape(sym), header_text[hp], re.M)
+                if m:
+                    decl = m.group(0)
+                    break
+            if decl is None:
+                continue
+            macro = declaration_to_macro(decl, sym, addr)
+            if macro is None:
+                continue
+            resolved.append((sym, addr, macro))
+            from_map.append(sym)
 
     # Referenced symbols that no macro can express get storage + a ROM copy.
     copies = []
@@ -618,6 +677,10 @@ def main():
 
     print('gen_rom_data: %d data labels, %d referenced by C and resolved'
           % (len(labels), len(resolved)))
+    if from_map:
+        print('  %d further ROM symbols resolved from katam.map: %s'
+              % (len(from_map), ', '.join(from_map[:8])
+                 + (' ...' if len(from_map) > 8 else '')))
     if patches:
         print('  %d function pointers inside ROM structs, %d resolved'
               % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))

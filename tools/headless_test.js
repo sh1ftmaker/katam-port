@@ -155,6 +155,8 @@ function finish() {
 // proof that something ARM-shaped leaked into one.
 process.on('uncaughtException', function (err) {
     console.error('\nTRAP: ' + (err && err.message));
+    // The stack is the point; printing the dump without it was a own-goal.
+    if (err && err.stack) console.error(err.stack.split('\n').slice(0, 12).join('\n'));
     try {
         const H = Module.HEAPU8;
         const u16 = (a) => H[a] | (H[a + 1] << 8);

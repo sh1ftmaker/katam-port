@@ -86,6 +86,24 @@ DECL_FIXES = {
 }
 
 
+# Every object in the game reaches its own state through TaskGetStructPtr, so
+# it is the one place worth range-checking when a bad pointer is trashing
+# memory.  Under CHECK_POINTERS the macro is redirected into platform/checks.c;
+# otherwise the original text is used unchanged.
+TASK_PTR_ORIGINAL = """#define TaskGetStructPtr(taskp) \\
+    ((taskp)->flags & TASK_USE_EWRAM \\
+    ? (void *)EWRAM_START + ((taskp)->structOffset << 2) \\
+    : (void *)IWRAM_START + (taskp)->structOffset)"""
+
+TASK_PTR_CHECKED = """#ifdef PORT_CHECK_POINTERS
+struct Task;
+void *PortTaskStruct(struct Task *);
+#define TaskGetStructPtr(taskp) PortTaskStruct(taskp)
+#else
+""" + TASK_PTR_ORIGINAL + """
+#endif"""
+
+
 # Save memory is the only thing that pushes the reserved GBA map past the ROM.
 # The hardware puts it at 0x0E000000, which leaves an 80 MiB hole between the
 # end of the ROM and the start of it -- and the whole map has to be reserved as
@@ -461,6 +479,9 @@ def main():
             if old in new:
                 new = new.replace(old, repl)
                 rep.bump('save-memory address relocated')
+        if path.name == 'task.h' and TASK_PTR_ORIGINAL in new:
+            new = new.replace(TASK_PTR_ORIGINAL, TASK_PTR_CHECKED)
+            rep.bump('TaskGetStructPtr made checkable')
         if new != text:
             path.write_text(new)
 

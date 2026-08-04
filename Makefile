@@ -46,6 +46,14 @@ INITIAL_MEMORY := 201326592
 # ---------------------------------------------------------------------------
 DEFINES := -DPORTABLE -DNONMATCHING -DMODERN=1
 
+# CHECK_POINTERS=1 range-checks every TaskGetStructPtr result (see
+# platform/checks.c).  Object files do not record the flag, so switch with a
+# clean build: rm -rf build/obj.
+CHECK_POINTERS ?= 0
+ifeq ($(CHECK_POINTERS),1)
+DEFINES += -DPORT_CHECK_POINTERS
+endif
+
 INCLUDES := -I$(PORT_SRC)/include -I$(GENERATED) -Iplatform
 
 # The generated headers replace declarations that used to live in the game's
