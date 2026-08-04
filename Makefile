@@ -125,7 +125,8 @@ sync:
 	python3 tools/portify.py --decomp $(KATAM_DECOMP) --out $(PORT_SRC)
 	python3 tools/gen_ram_symbols.py \
 	    --linker-script $(KATAM_DECOMP)/linker.ld \
-	    --tree $(PORT_SRC) --out $(GENERATED)/port/ram_symbols.h
+	    --tree $(PORT_SRC) --out $(GENERATED)/port/ram_symbols.h \
+	    --map $(KATAM_DECOMP)/katam.map
 	python3 tools/gen_rom_data.py \
 	    --data-dir $(KATAM_DECOMP)/data \
 	    --tree $(PORT_SRC) --out $(GENERATED)/port/rom_data.h \

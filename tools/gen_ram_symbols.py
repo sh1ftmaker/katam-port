@@ -213,15 +213,51 @@ ADDR_OVERRIDES = {
 }
 
 
+def check_overrides_against_map(map_path, report):
+    """Fail loudly if a hardcoded override no longer matches the link map.
+
+    A hardcoded address that quietly goes stale is exactly how this symbol
+    caused trouble in the first place: the wrong value cost nothing for weeks,
+    then took the game down in a way that pointed nowhere near the cause.  The
+    map is the authority and it is already in the tree, so there is no reason
+    to let the two drift in silence.
+    """
+    if not map_path or not Path(map_path).exists():
+        return
+    text = Path(map_path).read_text(errors='replace')
+    for name, addr in ADDR_OVERRIDES.items():
+        m = re.search(r'^\s*0x([0-9a-fA-F]+)\s+%s\s*=' % re.escape(name),
+                      text, re.M)
+        if not m:
+            report.append('%s: not found in the link map -- the override '
+                          'cannot be checked' % name)
+            continue
+        actual = int(m.group(1), 16)
+        if actual != addr:
+            sys.exit('gen_ram_symbols: %s is 0x%08X in %s but the override '
+                     'says 0x%08X.\n'
+                     '  Update ADDR_OVERRIDES.  Leaving this wrong puts the '
+                     'symbol on top of another one,\n'
+                     '  which fails far away from here and looks like '
+                     'anything but an address problem.'
+                     % (name, actual, map_path, addr))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--linker-script', required=True, type=Path)
     ap.add_argument('--tree', required=True, type=Path,
                     help='portified source tree (its headers are edited in place)')
     ap.add_argument('--out', required=True, type=Path)
+    ap.add_argument('--map', type=Path,
+                    help='katam.map, used to verify ADDR_OVERRIDES still hold')
     args = ap.parse_args()
 
     syms = parse_linker_script(args.linker_script)
+    override_notes = []
+    check_overrides_against_map(args.map, override_notes)
+    for note in override_notes:
+        print('  NOTE %s' % note)
     syms.update(ADDR_OVERRIDES)
     # .c files re-declare these symbols too, and a declaration left
     # standing would expand the macro into a declarator.
