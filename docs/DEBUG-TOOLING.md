@@ -1,0 +1,469 @@
+# Debug tooling
+
+Everything below was tried against this build on 2026-08-04, emscripten 6.0.5,
+201 objects, node v22.22.3, using `tools/headless_test.js` with a real ROM.
+Sizes are the linked `.wasm`; timings are wall-clock for 5400 frames with the
+scripted input that reaches a level.
+
+## Recommendation
+
+**Adopt two things.**
+
+1. **DWARF plus `llvm-symbolizer`.** Compile with `-g`, link with
+   `-gseparate-dwarf`, and every wasm frame in a trap — from node, from Chrome,
+   from the crash report the shell already collects on a phone — turns into
+   `file:line:column`. This is the single largest change to what a crash tells
+   you, it costs 100 KB on the shipped wasm and ~7% run time, and it needs no
+   browser extension. Verified end to end below: an `Out of bounds memory
+   access` resolved to `task.c:122:31` and a synthetic bad function-pointer call
+   resolved to the exact call site.
+
+2. **UndefinedBehaviorSanitizer**, as an occasional sweep, not a shipped build.
+   It works here, it needs no shadow memory and therefore does not care about
+   the fixed-address map, and on its first run it reported five distinct classes
+   of real bug with file, line and column — including the null dereference that
+   is currently the first thing to go wrong at boot. It costs 2.1× run time and
+   makes the wasm 25 MB, which is fine under node and not shippable.
+
+**Do not spend time on AddressSanitizer.** It is not merely unsupported here, it
+is geometrically incompatible with the memory map. Evidence in its section.
+
+Also worth knowing right now: `-sSAFE_HEAP=1` **aborts at boot in this tree**
+(`TaskCreate` → `task.c:122`, `gNextTask->prev` with `gNextTask == NULL`), and
+`-sSAFE_HEAP=2` is a *downgrade* from `=1`, not an upgrade — it turns the
+alignment check into a one-time warning, which is the only part of SAFE_HEAP
+that has ever caught anything in this port.
+
+| variant | wasm | 5400 frames | verdict |
+|---|---|---|---|
+| baseline `-O2 --profiling-funcs` | 2.45 MB | 28.9 s | — |
+| `-g` + `-gseparate-dwarf` | 2.55 MB (+7.3 MB side file) | 30.9 s | **adopt** |
+| `-fsanitize=undefined` | 25 MB | 62.3 s | **adopt, as a sweep** |
+| `-sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2` | 2.50 MB | 28.9 s | free, keep on in debug builds |
+| `-sSAFE_HEAP=1` | 2.70 MB | dies at boot | fix `task.c:122` first |
+| `-sSAFE_HEAP=2` | 2.70 MB | dies at boot | weaker than `=1`; skip |
+| `-fsanitize=undefined -fsanitize-minimal-runtime` | 5.0 MB | not measured | offsets only, no source lines |
+| `-gsource-map` | 2.4 MB (+1.2 MB `.map`) | not measured | DevTools only; drops names |
+| `-fsanitize=address` | — | — | **cannot link** |
+
+## What a trap tells you today, and what is missing
+
+A trap arrives as `RuntimeError: Out of bounds memory access` or `null function
+or function signature mismatch`. WebAssembly does not carry a faulting address
+in either, and nothing in emscripten adds one. What the engine *does* carry is a
+frame list with a code offset per frame:
+
+```
+at safe1.wasm.TaskCreate  (wasm://wasm/safe1.wasm-00a7610a:wasm-function[3790]:0x24283b)
+at safe1.wasm.CreateLogo  (wasm://wasm/safe1.wasm-00a7610a:wasm-function[2936]:0x1c1991)
+```
+
+`--profiling-funcs` (already on) is what supplies the names. The offsets are the
+part nothing currently uses, and they are the part that carries the line number.
+
+## 1. AddressSanitizer — does not work here, and cannot be made to
+
+`emcc -fsanitize=address` refuses to link this build, twice over:
+
+```
+$ emcc -fsanitize=address -sGLOBAL_BASE=167772160 ... t.c -o a.js
+emcc: error: ASan does not support custom GLOBAL_BASE
+
+$ emcc -fsanitize=address -sSAFE_HEAP=1 t.c -o a.js
+emcc: error: ASan does not work with SAFE_HEAP
+```
+
+Both are hard errors in `emsdk/upstream/emscripten/tools/link.py`
+(`setup_sanitizers`). They are not conservatism. ASan's shadow memory **starts
+at address zero** and occupies the bottom eighth of linear memory, and
+emscripten then sets `GLOBAL_BASE` to the *end* of the shadow, so its static
+data, stack and heap begin immediately above it. link.py computes:
+
+```
+user_mem  = INITIAL_MEMORY (+50 MiB, because ALLOW_MEMORY_GROWTH=0)
+total_mem = user_mem * 8/7, rounded up to a wasm page
+shadow    = total_mem / 8      ->  GLOBAL_BASE = shadow
+```
+
+For our `INITIAL_MEMORY=201326592` that is a 290,062,336-byte memory and a
+shadow of `[0, 0x02294000)`. I built a toy with those settings to check the
+arithmetic rather than trust it — `wasm-dis` reports `(memory $0 4426 4426)`,
+which is exactly the predicted 290,062,336 bytes, and an initial stack pointer
+of `0x027551C0`.
+
+So under ASan:
+
+- **EWRAM at 0x02000000 is inside ASan's shadow region.** The port writing a
+  tilemap would be scribbling on ASan's bookkeeping for user address
+  0x10000000.
+- **`GLOBAL_BASE` would be 0x02294000**, i.e. emscripten's static data would
+  start inside the reserved map, with the stack at 0x027551C0 and the heap
+  growing up through IWRAM at 0x03000000.
+
+There is no `INITIAL_MEMORY` that fixes this, because the two constraints are
+opposite. The map must be above the shadow (`shadow ≤ 0x02000000`) *and* below
+`GLOBAL_BASE` (`shadow ≥ 0x0A000000`), and `GLOBAL_BASE == shadow` by
+construction. Pushing the shadow above the map needs `total_mem = 8 ×
+0x0A000000 = 1.25 GiB` of linear memory — and at that size the shadow is
+`[0, 0x0A000000)`, which contains the entire map including the 16 MB ROM at
+0x08000000. Either way they overlap.
+
+And it would not even pay off if it linked. ASan only reports an access whose
+shadow byte is poisoned, and poison comes from `malloc`, from stack frames and
+from globals it laid out itself. The game allocates out of its own EWRAM/IWRAM
+heaps at fixed addresses; to ASan those are unremarkable unpoisoned bytes. A
+`TaskGetStructPtr` result landing 4 KB into the wrong place — the failure this
+port actually has — would be silent. Making it not silent means calling
+`__asan_poison_memory_region` from `EwramMalloc`/`IwramMalloc`, which is a
+project, not a flag.
+
+`-fsanitize=leak` *does* link with our settings (verified). It has nothing to
+find: the port's allocation lives in the game's own heaps, not in `malloc`.
+
+## 2. UndefinedBehaviorSanitizer — works, and found real bugs immediately
+
+```sh
+# compile: every object, same CFLAGS as the Makefile plus
+-fsanitize=undefined
+# link: same LDFLAGS plus
+-fsanitize=undefined
+```
+
+Nothing else changes. UBSan needs no shadow memory and no address-space
+reservation — every check is a branch emitted next to the operation, with the
+source location baked into a static record — so `GLOBAL_BASE`, the fixed map
+and `ALLOW_MEMORY_GROWTH=0` are all irrelevant to it. That is precisely why it
+works where ASan cannot.
+
+Compiling 201 objects: 23 s versus 9 s (`-P 8`). Linking: 14 s versus 4 s.
+Result: 25 MB wasm, 62.3 s for 5400 frames against 28.9 s. It reached the same
+frame as the baseline — the instrumentation does not change what the game does.
+
+What one 5400-frame run reported, deduplicated:
+
+| site | what UBSan says |
+|---|---|
+| `task.c:122:42` | member access within null pointer of type `struct Task` — `gNextTask->prev`, `gNextTask` is NULL |
+| `code_080023A4.c:1182:12` | member access within null pointer of type `struct Task` |
+| `platform/dma.c:68:13` | store to null pointer of type `u16` |
+| `sprite_2.c:228–278` (14 sites) | `OamData` accessed at a misaligned address; `load/store of misaligned address … requires 4 byte alignment` |
+| `main.c:161:25` | index 14 out of bounds for `const IntrFunc[14]` — one past the end of `gIntrTable` |
+| `intro.c:3309:30` | index **-1** out of bounds for `struct Sprite[32]` |
+| `intro.c:1280:36` | index 56 out of bounds for `const struct Unk_08387814[56]` |
+| `code_08026044.c:324,332` | index 4 out of bounds for `s16[4]` |
+| `demo.c:27:15` | index 2 out of bounds for `u16[2]` |
+| `bg.c:372:51` | pointer index expression overflowed |
+
+None of these are visible in the baseline build. Note what the array-bounds
+checks are doing: `gIntrTable` is at a fixed address in IWRAM
+(`#define gIntrTable ((IntrFunc *)0x03000560)`), and UBSan still bounds-checks
+it, because the check comes from the declared type, not from any knowledge of
+the heap. The whole reserved map is checkable this way.
+
+The misaligned `OamData` cluster is the same class of bug `SAFE_HEAP` caught
+once, found at 14 more sites and with the line number attached.
+
+Caveats, all measured:
+
+- **25 MB.** Nearly all of it is UBSan's location records. Not something to put
+  on a phone. `-fsanitize-minimal-runtime` brings it to 5.0 MB but the messages
+  degrade to `ubsan: out-of-bounds by 0x004b032d` — a code offset, which is
+  recoverable only if that same build also carries `-g` and you symbolize it.
+- **`-fno-sanitize-recover=all` is not usable here.** Built and run: the game
+  stalls at frame 0 and the port's own DMA guard starts firing. The first UB it
+  hits is the benign one-past-the-end read of `gIntrTable`, so halting there
+  buys nothing anyway. Stay with the default recovering mode, which reports
+  every site and keeps running — one session gives you the whole list.
+- Objects do not record the flag, exactly as `CHECK_POINTERS` warns. Build into
+  a separate object directory or `rm -rf build/obj` when switching.
+
+Narrower subsets link fine if 25 MB is a problem
+(`-fsanitize=alignment,pointer-overflow,shift,signed-integer-overflow,integer-divide-by-zero`,
+verified to link with the full `LDFLAGS`).
+
+## 3. `SAFE_HEAP`, `ASSERTIONS`, `STACK_OVERFLOW_CHECK`
+
+It is worth knowing exactly what SAFE_HEAP checks, because for this port it is
+much less than it sounds. Binaryen rewrites every load and store into a call to
+a checker; disassembling `safe1.wasm` gives, for each access:
+
+```wat
+(if (i32.or (i32.or
+      (i32.lt_u (i32.load (i32.const 167979204))   ;; the sbrk pointer
+                (i32.add (local.tee $1 (i32.add (local.get $0) (local.get $1)))
+                         (i32.const 2)))
+      (i32.gt_u (local.get $0) (local.get $1)))    ;; offset overflow
+      (i32.lt_u (local.get $1) (i32.const 1024)))  ;; near-null
+  (then (call $segfault) (unreachable)))
+(if (i32.and (local.get $1) (i32.const 1))
+  (then (call $alignfault)))
+```
+
+That is the whole spatial check: **`1024 ≤ addr` and `addr + size ≤ sbrk(0)`**.
+Because the port puts its map *below* `GLOBAL_BASE`, every address from 1024 up
+to the top of the heap passes — the entire GBA map, every hole in it, and every
+ARM code address like `0x0802FE84` that leaks out of a ROM table. SAFE_HEAP
+cannot see a wild pointer that stays inside 192 MB, which is nearly all of them.
+
+What it does catch here is (a) near-null dereferences and (b) misalignment. And:
+
+- **`SAFE_HEAP=2` downgrades the alignment check to `warnOnce`**
+  (`src/runtime_safe_heap.js`: `alignfault()` aborts under `=1`, warns under
+  `=2`). Since the alignment check is the part that has earned its keep in this
+  port, `=2` is strictly worse. Use `=1`.
+- **`segfault()` takes no arguments.** The abort message is
+  `Aborted(segmentation fault)` with no address, in either mode, with or
+  without `ASSERTIONS`. SAFE_HEAP gives you a stack, not an address.
+- **In this tree, `SAFE_HEAP=1` aborts during boot**, 0.15 s in:
+  `segfault ← TaskCreate ← CreateLogo ← sub_080001CC ← AgbMain`. UBSan names the
+  same line independently: `task.c:122` is `if (slow->next == gNextTask->prev)`,
+  and `TasksInit` leaves `gNextTask` NULL, so this reads address 2. On hardware
+  that reads BIOS ROM and is harmless; in the port it reads emscripten's null
+  page and is equally harmless — which is why the normal build never notices.
+  Guarding that one line is what it would take to get SAFE_HEAP back.
+
+`-sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2` together: 2.50 MB (+50 KB), 28.9 s
+(no measurable cost), nothing reported over 5400 frames. Per emscripten's
+`settings.js`, `STACK_OVERFLOW_CHECK=1` puts a cookie at the top of the stack
+and checks it at each tick; `=2` adds a binaryen pass that checks every stack
+pointer assignment. Both are cheap enough to leave on in any non-shipping
+build. Note that neither watches the **Asyncify** stack
+(`ASYNCIFY_STACK_SIZE=32768`), which is a separate allocation; an Asyncify stack
+overflow is its own failure mode and is reported by Asyncify's own assertion
+when `ASSERTIONS` is on.
+
+`ASSERTIONS` also renames the Asyncify export wrapper from `wrapper` to
+`__asyncify_wrapper_3990` in stack traces, which is a small readability win.
+
+## 4. DWARF — the recommendation, with the evidence
+
+The current `build/katam-dbg.js` rule does not do what it looks like it does.
+It passes `-O0 -g2` at *link* time over objects compiled with `-O2 -g0`. Debug
+information comes from the compile step; there is none in the objects, so there
+is none in the binary. Confirmed by section headers: linking the existing
+objects with `-g` produces a `.debug_info` of 57 KB — all of it from
+emscripten's own libraries — while recompiling the game with `-g` and linking
+the same way produces 1.5 MB of `.debug_info` and 2.2 MB of `.debug_line`.
+
+With real DWARF, the offsets in a trap become source locations:
+
+```sh
+$ node tools/headless_test.js build/katam-dbg.js "$ROM" 60
+TRAP: Aborted(segmentation fault)
+    at dwarf-safe.wasm            (…:wasm-function[4598]:0x2761e1)
+    at dwarf-safe.wasm.TaskCreate (…:wasm-function[4293]:0x25b07d)
+    at dwarf-safe.wasm.CreateLogo (…:wasm-function[3332]:0x1d2415)
+    at dwarf-safe.wasm.sub_080001CC (…:wasm-function[2710]:0x14ceae)
+
+$ ~/emsdk/upstream/bin/llvm-symbolizer --obj=build/katam-dbg.wasm 0x25b07d
+TaskCreate
+/home/agent-tom/Desktop/katam-port/build/port-src/src/task.c:122:31
+$ … 0x1d2415  ->  CreateLogo   src/logo.c:36:10
+$ … 0x14ceae  ->  sub_080001CC src/init.c:57:5
+```
+
+Column 31 of line 122 is `gNextTask->prev`. That is the faulting expression,
+recovered from a trap that reported no address.
+
+It works for the other trap message too. A synthetic module calling a function
+pointer holding an ARM code address:
+
+```
+RuntimeError: table index is out of bounds
+    at fp.wasm.callThrough (…:wasm-function[4]:0x299)
+$ llvm-symbolizer --obj=fp.wasm 0x299  ->  callThrough  fp.c:10:5
+```
+
+`fp.c:10` is the indirect call. The trapping frame is the *caller*, so
+`null function or function signature mismatch` symbolizes to the call site — the
+question `docs/ARCHITECTURE.md` describes as unanswerable for function pointers
+inside ROM structs.
+
+**DWARF survives Asyncify.** This was the thing most likely to break: binaryen
+rewrites every function for Asyncify, and the line numbers above are still
+correct afterwards. emcc does warn
+`running limited binaryen optimizations because DWARF info requested`, and the
+measured price is 30.9 s against 28.9 s, about 7%.
+
+### Ship it without shipping 7 MB
+
+`-gseparate-dwarf=<file>` writes the debug sections to a side file and leaves an
+`external_debug_info` section in the wasm pointing at it. Measured:
+
+| | wasm | side file |
+|---|---|---|
+| `-O2 --profiling-funcs` | 2,452,962 | — |
+| `-O2 -g` | 7.1 MB | — |
+| `-O2 --profiling-funcs -gseparate-dwarf` | 2,551,716 | 7,345,950 |
+
+**The code offsets are identical between the two files**, so a stack captured
+from a shipped build symbolizes against the side file kept locally — checked by
+symbolizing offsets taken from a run of the stripped module against the
+separate `.debug.wasm` and getting `task.c:122:31` back. That makes it viable to
+put a symbolizable build on the deployed page for the price of 100 KB, which is
+the only way the tester's crashes on a phone become readable.
+
+### Chrome DevTools C/C++ extension
+
+The [C/C++ DevTools Support (DWARF) extension](https://developer.chrome.com/docs/devtools/wasm)
+consumes exactly the DWARF produced above and gives source-level stepping,
+breakpoints and variable inspection over `build/port-src/src/*.c`. Two things to
+know before trying it:
+
+- Chrome's documentation recommends `-gseparate-dwarf` for load time; the
+  extension follows `external_debug_info`.
+- The DWARF here records `DW_AT_comp_dir = /home/agent-tom/Desktop/katam-port`
+  with *relative* names (`build/port-src/src/task.c`), so `make serve` from the
+  repo root, or the extension's path substitution, is what makes sources resolve.
+
+Not tested in a browser from this machine; the DWARF itself was validated with
+`llvm-dwarfdump`, which is the input the extension reads.
+
+### Source maps, as the lighter option
+
+`-gsource-map` produces a 1.2 MB `.wasm.map` and leaves the wasm at 2.4 MB.
+Two catches, both measured: on its own it **drops the `name` section** — the
+`-gsource-map` build has no names at all, so pass `--profiling-funcs` as well —
+and a source map carries line numbers only, no columns, no variables, and no
+`llvm-symbolizer` support. It is strictly less than DWARF for a build this size,
+and the size argument for it disappears once `-gseparate-dwarf` exists.
+
+## 5. Safari and iOS
+
+Cannot be tested from this machine; what follows separates what was measured
+from what is documented.
+
+The `original(...args)` in the tester's report is emscripten's Asyncify import
+wrapper (`instrumentWasmImports`, `src/lib/libasync.js`). Checked: it is present
+in **every** build, including `-O2` with `ASSERTIONS` off, so there is no build
+setting that removes it. Safari is naming the innermost *JavaScript* frame it
+has and nothing below it, and this matches a known JavaScriptCore limitation —
+[wasm frames missing from stack traces in Safari 17.2 and mobile Safari](https://github.com/getsentry/sentry-javascript/issues/9968),
+where the same error yields a full frame list in Chrome and Firefox.
+
+Three things can be done about it, in order of cost:
+
+1. **Symbolize whatever offsets do arrive.** `web/shell.html` already installs a
+   `window.onerror` crash reporter that prints `err.stack`. If any wasm frame
+   with an offset survives on the tester's device, the previous section turns it
+   into a line number offline. This costs nothing beyond building with `-g`, so
+   do it first and find out.
+
+2. **Capture the stack from C, before the trap.** `emscripten_get_callstack()`
+   asks the *engine* for a stack at a moment of your choosing, so it does not
+   depend on the trap being catchable. Verified to work through Asyncify — it
+   returns frames both before and after an `emscripten_sleep`, i.e. across a
+   rewind:
+
+   ```c
+   char buf[4096];
+   emscripten_get_callstack(EM_LOG_C_STACK | EM_LOG_JS_STACK, buf, sizeof buf);
+   PortLog("%s", buf);
+   ```
+
+   `platform/checks.c` already knows the two moments worth capturing: a task
+   pointer that leaves the map, and a destructor the game never installed. It
+   currently prints the task; adding the callstack there gives the caller too.
+   The quality of the result is still whatever Safari supplies — but combined
+   with `-g` a single offset is enough.
+
+3. **Keep instrumenting the C side.** `PortTaskStruct` is the model, and the
+   reason it exists is sound: a check at the point where a pointer is *born*
+   does not need a stack at all. Nothing off the shelf replaces it on a platform
+   whose engine will not produce frames.
+
+`Asyncify.exportCallStack` is maintained by the runtime in every build and holds
+the exported wasm functions currently on the stack. It is coarse — exports only,
+which for this port is roughly `main` — so it is not worth wiring into the crash
+report.
+
+## 6. Everything else
+
+**`--emit-symbol-map`** writes `katam.js.symbols`, `index:name` per line
+(`3790:TitleScreenMain`). It is the offline form of what `--profiling-funcs`
+already embeds, and its use is to *drop* `--profiling-funcs` from the shipped
+wasm and translate `wasm-function[3790]` afterwards. Since names cost little and
+`-gseparate-dwarf` gives strictly more, this is only interesting if wasm size
+becomes critical.
+
+**Disassembling one function.** `llvm-objdump` reads the name section directly:
+
+```sh
+~/emsdk/upstream/bin/llvm-objdump -d --disassemble-symbols=TaskCreate build/katam.wasm
+```
+
+which prints `001fee69 <TaskCreate>:` and the body with byte offsets in the same
+space as the offsets in a trap stack — so you can find the trapping instruction
+even without DWARF. `wasm-dis` produces readable `.wat` for the whole module but
+numbers its functions rather than naming them; prefer `llvm-objdump` for this.
+
+**Wasmtime / wasmer.** Neither is installed, and neither can load this module:
+it is an emscripten module with JS imports (the PPU present callback, Asyncify's
+`js_sleep`), not a WASI one. Getting there means `-sSTANDALONE_WASM` and a
+WASI-side replacement for `platform/main.c`, which is the same work as the
+native build below without the mature tooling as a payoff.
+
+**A native x86-64 build — evaluated, and blocked on pointer size.** The
+attraction is real: run the game's C under a native debugger, get `SIGSEGV` with
+a faulting address, and leave the holes in the GBA map unmapped so that a wild
+`TaskGetStructPtr` result faults instead of quietly landing in the wrong
+structure. The address space cooperates — `mmap(MAP_FIXED_NOREPLACE)` at
+0x02000000 for 128 MB succeeds in an ordinary 64-bit PIE process on this machine
+and the write goes through (`vm.mmap_min_addr` is 65536, well below).
+
+What does not cooperate is `sizeof(void *)`. The port's fixed addresses come with
+fixed *extents*: `gTasks` is at 0x030019F0 and `gTaskPtrs` at 0x03002560, 0xB70
+bytes apart, and `MAX_TASK_NUM` is 0x80. `struct Task` holds two function
+pointers, so it is 0x14 bytes with 4-byte pointers — 0x80 × 0x14 = 0xA00, fits —
+and 0x20 bytes with 8-byte pointers — 0x80 × 0x20 = 0x1000, which runs 0x490
+bytes into `gTaskPtrs`, whose own elements have also doubled. Repeat for 189
+generated symbols and for every ROM structure holding a pointer. A 64-bit native
+build corrupts the RAM map by construction.
+
+So it has to be `-m32`, and this machine cannot do that: `gcc -m32` and
+`clang -m32` both fail with `bits/libc-header-start.h: No such file or
+directory` (no 32-bit libc headers), `valgrind` is not installed, and `sudo`
+needs a password. Verdict: **not blocked in principle, blocked in practice.** If
+it is ever wanted, the shape is a 32-bit build with an `mmap`-ed map, a native
+`platform/main.c` (much simpler than the wasm one — nothing needs Asyncify when
+blocking in `VBlankIntrWait` is allowed), and `-fsanitize=address` at i386, whose
+shadow lives at 0x20000000 and leaves `[0x02000000, 0x0A000000)` alone. Weigh
+that against the fact that UBSan already runs today and finds this class of bug.
+
+## Next steps
+
+1. **Add `-g` to `CFLAGS` for a debug object tree** and a target that links it
+   with `-gseparate-dwarf`. It should not share `build/obj` with the release
+   build — objects do not record their flags, which the `CHECK_POINTERS` comment
+   already warns about:
+
+   ```make
+   build/obj-dbg/%.o: %.c
+   	@mkdir -p $(dir $@)
+   	@$(CC) $(CFLAGS) -g -c $< -o $@
+
+   build/katam-dbg.js: $(DBG_OBJS)
+   	$(CC) -O2 --profiling-funcs -gseparate-dwarf=build/katam-dbg.debug.wasm \
+   	    -sASSERTIONS=2 -sSTACK_OVERFLOW_CHECK=2 \
+   	    $(NODE_LDFLAGS) $(DBG_OBJS) -o $@
+   ```
+
+   and drop the `-O0 -g2` from the current rule, which does nothing.
+
+2. **Add a `symbolize` helper**, because the offsets arrive as text:
+
+   ```sh
+   # tools/symbolize.sh — feed it a stack, get file:line back
+   grep -o '0x[0-9a-f]*' | xargs -n1 \
+       $(EMSDK)/upstream/bin/llvm-symbolizer --obj=build/katam-dbg.debug.wasm
+   ```
+
+3. **Add a `ubsan` target** building into `build/obj-ubsan` and running the
+   headless test, and run it after each `make sync`. The list in section 2 is
+   what one run produces; it is a to-do list.
+
+4. **Fix `task.c:122`** (guard `gNextTask`) so `-sSAFE_HEAP=1` boots again, and
+   keep `SAFE_HEAP=1` rather than `=2` wherever it is used.
+
+5. **Consider shipping `-gseparate-dwarf`** on the deployed page. 100 KB buys
+   the ability to read the tester's crash reports.

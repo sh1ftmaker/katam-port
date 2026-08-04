@@ -45,6 +45,10 @@ INITIAL_MEMORY := 201326592
 #                 instead of the byte-matching branch.
 # ---------------------------------------------------------------------------
 DEFINES := -DPORTABLE -DNONMATCHING -DMODERN=1
+# Where the compiler's own data starts, so the DMA range check can tell the
+# port's C variables from a stale GBA pointer.  DmaFill sources its value from
+# a local, which lives up here rather than anywhere on the GBA map.
+DEFINES += -DPORT_GLOBAL_BASE=$(GLOBAL_BASE)u
 
 # CHECK_POINTERS=1 range-checks every TaskGetStructPtr result (see
 # platform/checks.c).  Object files do not record the flag, so switch with a
@@ -52,6 +56,21 @@ DEFINES := -DPORTABLE -DNONMATCHING -DMODERN=1
 CHECK_POINTERS ?= 0
 ifeq ($(CHECK_POINTERS),1)
 DEFINES += -DPORT_CHECK_POINTERS
+endif
+
+# DEBUG_INFO=1 compiles the game itself with DWARF, so a trap's code offset
+# resolves to file:line:column instead of a bare function name.  This has to be
+# set at *compile* time: linking -g over -g0 objects produces a module with
+# debug info for emscripten's own libraries and none for the game, which looked
+# like a working debug build and was not.  The objects do not record the flag,
+# so they get their own directory rather than silently mixing.
+DEBUG_INFO ?= 0
+ifeq ($(DEBUG_INFO),1)
+OBJDIR   := $(BUILD)/obj-g
+DBG_CFLAG := -g
+else
+OBJDIR   := $(BUILD)/obj
+DBG_CFLAG := -g0
 endif
 
 INCLUDES := -I$(PORT_SRC)/include -I$(GENERATED) -Iplatform
@@ -66,7 +85,7 @@ WARN := -Wno-everything
 # (gcc 2.95), where a plain `inline` definition also emits an external one.
 # C99 inverted that rule, so without this flag every `inline void Foo(...)` in
 # the game becomes an undefined symbol at link time.
-CFLAGS := -O2 -g0 -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
+CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
           $(WARN) $(DEFINES) $(INCLUDES) $(FORCE_INCLUDE) -MMD -MP
 
 # --profiling-funcs keeps the wasm name section, so a trap on someone's phone
@@ -89,7 +108,7 @@ GAME_SRCS     := $(shell find $(PORT_SRC)/src -name '*.c' 2>/dev/null)
 PLATFORM_SRCS := $(wildcard platform/*.c)
 GEN_SRCS      := $(wildcard $(GENERATED)/*.c)
 SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
-OBJS          := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS))
+OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
@@ -124,15 +143,15 @@ stubs:
 # A source that disappears (replaced by the platform layer, or renamed
 # upstream) leaves its object behind, and a stale object is still a definition.
 prune:
-	@find $(BUILD)/obj -name '*.o' 2>/dev/null | while read o; do \
-	    src=$${o#$(BUILD)/obj/}; src=$${src%.o}.c; \
+	@find $(OBJDIR) -name '*.o' 2>/dev/null | while read o; do \
+	    src=$${o#$(OBJDIR)/}; src=$${src%.o}.c; \
 	    [ -f "$$src" ] || { echo "  PRUNE   $$o"; rm -f "$$o" "$${o%.o}.d"; }; \
 	done
 
 $(PORT_SRC)/src: ; @$(MAKE) sync
 
 # --- compile --------------------------------------------------------------
-$(BUILD)/obj/%.o: %.c
+$(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
@@ -153,8 +172,12 @@ $(TARGET): $(OBJS) web/shell.html
 # path is yours to supply and nothing here is committed.
 ROM ?= $(KATAM_DECOMP)/baserom.gba
 
+# --profiling-funcs keeps the name section, which costs a little size and
+# nothing in speed.  Without it a trap's stack is `wasm-function[1911]` and
+# resolve_fnptr.py has nothing to resolve it to -- the harness's whole reason
+# for existing is to name the thing that broke.
 $(BUILD)/katam-node.js: $(OBJS)
-	$(CC) -O2 -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	$(CC) -O2 --profiling-funcs -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
 	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded \
@@ -162,11 +185,36 @@ $(BUILD)/katam-node.js: $(OBJS)
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
 
-# Same as the node build but with names and assertions, for reading a trap's
-# stack.  Uses $(OBJS) rather than a hand-written file list -- getting that
-# list stale is how you end up diagnosing a binary you did not build.
+# Same as the node build but with full DWARF, for turning a trap into a source
+# line.  Only meaningful with DEBUG_INFO=1 -- use `make debug`, which sets it;
+# building this rule against -g0 objects yields debug info for emscripten's
+# libraries and none for the game.
+#
+# -gseparate-dwarf keeps the debug section out of the .wasm and in a side file,
+# which llvm-symbolizer reads directly.  -O1 rather than -O0: -O0 is slow
+# enough to change what the game does, and line info survives -O1 well.
 $(BUILD)/katam-dbg.js: $(OBJS)
-	$(CC) -O0 -g2 -sASSERTIONS=1 -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	$(CC) -O1 -g --profiling-funcs \
+	    -gseparate-dwarf=$(BUILD)/katam-dbg.debug.wasm \
+	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
+	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded \
+	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
+	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
+	    -sINVOKE_RUN=1 $(OBJS) -o $@
+# Deliberately no -sASSERTIONS here.  Its handleException runs the stack-cookie
+# check first, aborts inside it, and replaces the real trap and its wasm stack
+# with "the application has corrupted its heap memory area" -- which names
+# nothing.  The bare trap carries the frames the DWARF is for.
+
+# Every load and store bounds-checked.  Slow, but it is the only build that
+# says *which address* was touched -- plain wasm reports "out of bounds" with
+# no address at all, and -O0 -sASSERTIONS only reports that something near zero
+# was clobbered.  Keep the names, or the report has no function to blame.
+$(BUILD)/katam-safe.js: $(OBJS)
+	$(CC) -O1 --profiling-funcs -sSAFE_HEAP=1 -sASSERTIONS=1 \
+	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
 	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded \
@@ -174,7 +222,15 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
 
-debug: $(BUILD)/katam-dbg.js
+safe: $(BUILD)/katam-safe.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	node tools/headless_test.js $(BUILD)/katam-safe.js $(ROM) $(FRAMES)
+
+# Recurses with DEBUG_INFO=1 so the game is *compiled* with DWARF, into its own
+# object directory.  Asking for `make debug` and getting a module built from
+# release objects is the failure this exists to prevent.
+debug:
+	@$(MAKE) --no-print-directory DEBUG_INFO=1 $(BUILD)/katam-dbg.js
 	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
 	node tools/headless_test.js $(BUILD)/katam-dbg.js $(ROM) $(FRAMES)
 

@@ -102,6 +102,24 @@ FNPTR_CASTS = {
     ],
 }
 
+# Reads through a pointer built from a field that is not initialised yet.  On
+# ARM these land on an address the GBA does not decode, which returns open bus
+# and costs nothing -- and in each case here the value is discarded before it
+# reaches the screen.  WebAssembly has no open bus: the address is outside
+# linear memory and the load traps.
+#
+# Each read is redirected through a helper in platform/adapters.c that checks
+# the pointer before following it.  The helpers carry the full reasoning, and
+# docs/DECOMP-REQUESTS.md asks the decompilation for a guard so the port does
+# not have to patch the text.
+WILD_READS = {
+    'code_08032E98.c': (
+        [('gUnk_08D6CD0C[gKirbys[gUnk_0203AD3C].base.base.base.roomId]->unk46',
+          'PortRoomTilesetIndex(gKirbys[gUnk_0203AD3C].base.base.base.roomId)')],
+        'u16 PortRoomTilesetIndex(u16 roomId);\n',
+    ),
+}
+
 FNPTR_ADAPTER_DECLS = {
     'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
     'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
@@ -496,6 +514,17 @@ def main():
                         hit = True
                 if hit:
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
+            wild = WILD_READS.get(path.name)
+            if wild:
+                reads, decl = wild
+                hit = False
+                for old, new in reads:
+                    if old in text:
+                        text = text.replace(old, new)
+                        rep.bump('reads through not-yet-valid pointers guarded')
+                        hit = True
+                if hit:
+                    text = decl + text
             for old, new in DECL_FIXES.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)

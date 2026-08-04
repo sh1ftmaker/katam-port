@@ -24,6 +24,20 @@ const SAVE_AT = (process.env.SAVE_AT || '').split(',').filter(Boolean).map(Numbe
 const PRESSES = (process.env.PRESS_AT || '').split(',').filter(Boolean)
     .map((s) => s.split(':').map(Number));
 
+// Getting through a menu means pressing a button over and over, which PRESS_AT
+// cannot express without hundreds of entries.  MASH="600:1:6" starts at frame
+// 600 and taps A (mask 1) with a six-frame period -- three down, three up.
+// The release matters: the game edge-triggers menu confirmation, so a held
+// button registers once and then does nothing.
+const MASH = (process.env.MASH || '').split(':').filter(Boolean).map(Number);
+
+function mashMask(frame) {
+    if (MASH.length !== 3) return null;
+    const [start, mask, period] = MASH;
+    if (frame < start) return null;
+    return ((frame - start) % period) < (period >> 1) ? mask : 0;
+}
+
 function savePpm(data, w, h, path) {
     const rgb = Buffer.alloc(w * h * 3);
     for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
@@ -53,7 +67,10 @@ function savePpm(data, w, h, path) {
             }
         }
     };
+    // Both object trees: release objects live in build/obj, the DWARF ones
+    // DEBUG_INFO=1 produces in build/obj-g.
     walk('build/obj');
+    walk('build/obj-g');
     if (newest > built + 1000) {
         console.error('STALE: %s was built before %s.', wasm, newestName);
         console.error('       Rebuild it; the run would have tested the wrong binary.');
@@ -92,6 +109,8 @@ const Module = {
         // PRESS_AT="1300:8,1310:0" holds Start at frame 1300, releases at 1310.
         for (const [at, mask] of PRESSES)
             if (at === frames) Module._PortSetKeys(mask);
+        const mash = mashMask(frames);
+        if (mash !== null) Module._PortSetKeys(mash);
         if (SAVE_AT.includes(frames)) savePpm(data, w, h, 'build/frame-' + frames + '.ppm');
         if (frames % 60 === 0) {
             const io = (off) => Module.HEAPU8[0x04000000 + off]
@@ -214,16 +233,36 @@ process.on('uncaughtException', function (err) {
                 romish(main), romish(dtor));
             shown++;
         }
+        // Whatever the current investigation needs, without teaching this
+        // script the game's struct layouts -- those change under us every
+        // time the decompilation names another field.
+        //   DUMP="0x0203AD3C:1,0x02020F40:2:4:0x1A8"
+        //     address : width in bytes [: count [: stride]]
+        for (const spec of (process.env.DUMP || '').split(',').filter(Boolean)) {
+            const [a, w, n, stride] = spec.split(':');
+            const addr = parseInt(a, 0), width = parseInt(w || '4', 0);
+            const count = parseInt(n || '1', 0);
+            const step = parseInt(stride || String(width), 0);
+            const read = (p) => width === 1 ? H[p] : width === 2 ? u16(p) : u32(p);
+            const out = [];
+            for (let i = 0; i < count; i++)
+                out.push('0x' + read(addr + i * step).toString(16));
+            console.error('dump %s (%d x %d bytes): %s', a, count, width, out.join(' '));
+        }
     } catch (e) { console.error('(could not read the heap: ' + e.message + ')'); }
     process.exit(1);
 });
 
-// A hard stop, in case the game never reaches a frame at all.
+// A hard stop, in case the game never reaches a frame at all.  Scaled to the
+// run: a fixed 60s silently truncated long menu-driving runs and made a game
+// that was still going look like a game that had stopped.
+const TIMEOUT_MS = Math.max(60000, TARGET_FRAMES * 40);
 setTimeout(() => {
-    console.error('TIMEOUT: only %d frames in 60s', frames);
+    console.error('TIMEOUT: only %d of %d frames in %ds',
+                  frames, TARGET_FRAMES, TIMEOUT_MS / 1000);
     if (logs.length) console.error(logs.join('\n'));
     process.exit(1);
-}, 60000);
+}, TIMEOUT_MS);
 
 // The module is built with MODULARIZE, so it takes our object as the base of
 // its own Module rather than us hoping a global gets picked up.

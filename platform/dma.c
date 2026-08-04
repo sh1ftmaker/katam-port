@@ -44,6 +44,72 @@ static struct DmaChannel sChannels[4];
 #define CTRL_FIXED      2
 #define CTRL_INC_RELOAD 3
 
+/* Is [addr, addr+len) inside a region the console actually decodes?
+ *
+ * The port's whole memory map lives at its true GBA addresses inside one wasm
+ * linear memory, so a DMA with a stale pointer does not fault at the pointer:
+ * it faults inside the copy loop, tens of frames after whatever queued it, and
+ * wasm reports "out of bounds memory access" with no address.  The VBlank
+ * queue in main.c makes this worse -- an entry is enqueued in one frame and
+ * drained in the next, so the stack at the fault names the drain, never the
+ * code that supplied the pointer.
+ *
+ * Checking the endpoints here catches it at the transfer, where the channel
+ * still knows its source, destination, count and flags.
+ */
+static int RangeOk(uintptr_t addr, u32 len)
+{
+    /* The regions the GBA decodes, in map order.  ROM is sized to the real
+     * cartridge address space rather than the loaded image: the game reads
+     * past the end of its own data in a few places and the hardware simply
+     * returns open bus. */
+    static const struct { uintptr_t base; u32 size; } kRegions[] = {
+        { 0x00000000u,    0x00004000u    },          /* BIOS */
+        { GBA_EWRAM_BASE, GBA_EWRAM_SIZE }, { GBA_IWRAM_BASE, GBA_IWRAM_SIZE },
+        { GBA_IO_BASE,    GBA_IO_SIZE    }, { GBA_PLTT_BASE,  GBA_PLTT_SIZE  },
+        { GBA_VRAM_BASE,  GBA_VRAM_SIZE  }, { GBA_OAM_BASE,   GBA_OAM_SIZE   },
+        { GBA_ROM_BASE,   GBA_ROM_MAX    }, { GBA_SRAM_BASE,  GBA_SRAM_SIZE  },
+    };
+    u32 i;
+
+    if (addr + len < addr)                           /* wrapped */
+        return 0;
+
+    /* The port's own C data, above the reserved map and below the end of
+     * linear memory.  DmaFill passes the address of a local holding the fill
+     * value, so a perfectly ordinary transfer has a source up here -- reading
+     * the bound from the module rather than hardcoding it keeps this honest if
+     * INITIAL_MEMORY changes. */
+    if (addr >= PORT_GLOBAL_BASE
+     && addr + len <= (uintptr_t)__builtin_wasm_memory_size(0) * 65536u)
+        return 1;
+
+    for (i = 0; i < sizeof(kRegions) / sizeof(kRegions[0]); i++)
+        if (addr >= kRegions[i].base
+         && addr + len <= kRegions[i].base + kRegions[i].size)
+            return 1;
+    return 0;
+}
+
+static u32 sBadTransfers;
+
+/* Both endpoints of a run, given the address-control mode: a decrementing
+ * transfer ends below where it started, a fixed one never moves. */
+static void SpanOf(uintptr_t start, u32 ctrl, u32 unit, u32 count,
+                   uintptr_t *lo, u32 *len)
+{
+    if (ctrl == CTRL_DEC) {
+        *len = count * unit;
+        *lo = start - (count - 1) * unit;
+    } else if (ctrl == CTRL_FIXED) {
+        *len = unit;
+        *lo = start;
+    } else {
+        *len = count * unit;
+        *lo = start;
+    }
+}
+
 static void RunTransfer(struct DmaChannel *ch)
 {
     u32 unit = (ch->flags & DMA_32BIT) ? 4 : 2;
@@ -60,6 +126,32 @@ static void RunTransfer(struct DmaChannel *ch)
 
     if (ch->count == 0)
         return;
+
+    {
+        uintptr_t srcLo, destLo;
+        u32 srcLen, destLen;
+
+        SpanOf((uintptr_t)src, srcCtrl, unit, ch->count, &srcLo, &srcLen);
+        SpanOf((uintptr_t)dest, destCtrl, unit, ch->count, &destLo, &destLen);
+
+        if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
+            sBadTransfers++;
+            if (sBadTransfers <= 20)
+                PortLog("[katam-port] DMA leaves the map: src=0x%08X%s "
+                        "dest=0x%08X%s count=%u unit=%u flags=0x%04X",
+                        (unsigned)srcLo, RangeOk(srcLo, srcLen) ? "" : " <-- bad",
+                        (unsigned)destLo, RangeOk(destLo, destLen) ? "" : " <-- bad",
+                        (unsigned)ch->count, (unsigned)unit,
+                        (unsigned)ch->flags);
+            else if (sBadTransfers == 21)
+                PortLog("[katam-port] further bad DMA transfers suppressed");
+            /* Skip it rather than trap.  On hardware an undecoded address
+             * reads open bus and writes nowhere -- the transfer is garbage
+             * either way, but the game keeps running, and one session then
+             * reports every bad transfer instead of only the first. */
+            return;
+        }
+    }
 
     for (i = 0; i < ch->count; i++) {
         if (unit == 4)

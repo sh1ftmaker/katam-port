@@ -158,6 +158,10 @@ def main():
     ap.add_argument('wasm', type=Path)
     ap.add_argument('values', nargs='+',
                     help='function-pointer values (table indices), decimal or 0x hex')
+    ap.add_argument('--index', action='store_true',
+                    help='treat the values as function indices rather than table '
+                         'slots -- this is what a wasm stack trace prints, e.g. '
+                         'wasm-function[1911]')
     args = ap.parse_args()
 
     types, funcs, elements, names = parse(args.wasm)
@@ -169,6 +173,11 @@ def main():
 
     for value in args.values:
         v = int(value, 0)
+        if args.index:
+            print('  %-10s -> %s   %s'
+                  % (value, names.get(v, 'function #%d' % v),
+                     describe(types, funcs, v)))
+            continue
         if v not in elements:
             print('  %-10s not in the table (0 is the null slot; a value this '
                   'large may be data, not a pointer)' % value)
