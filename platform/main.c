@@ -124,8 +124,8 @@ void PortWatchCheck(const char *who, uintptr_t dest, u32 bytes, uintptr_t src)
  * machine stuck in a loop therefore shows exactly one line, holding the
  * numbers that explain why. */
 
-#define MAX_TRACED     48   /* distinct tuples remembered in total */
-#define MAX_PER_TAG     8   /* lines any single site may ever print */
+#define MAX_TRACED    256   /* distinct tuples remembered in total */
+#define MAX_PER_TAG     4   /* lines any single site may ever print */
 
 static struct { const char *tag; u32 a, b, c; } sTraced[MAX_TRACED];
 static int sNumTraced;
