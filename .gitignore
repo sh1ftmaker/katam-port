@@ -13,3 +13,4 @@ web/katam.wasm
 
 __pycache__/
 *.pyc
+.wrangler/

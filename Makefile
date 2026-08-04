@@ -93,7 +93,7 @@ OBJS          := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages
 
 all: $(TARGET)
 
@@ -191,15 +191,21 @@ FRAMES ?= 180
 # file or a URL they choose.
 DIST           := $(BUILD)/dist
 PAGES_PROJECT  ?= katam-port
-CF_ACCOUNT_ID  ?= ab77c04897c9dcc5f04b753c51dbe517
+# Set CF_ACCOUNT_ID in your environment; wrangler needs it when the token
+# can see more than one account.
+CF_ACCOUNT_ID  ?=
 
 dist: all
 	@rm -rf $(DIST) && mkdir -p $(DIST)
 	@cp $(OUT)/katam.html $(DIST)/index.html
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
+	@python3 tools/stamp_build.py --dir $(DIST)
+	@# The URLs carry a build id, so the payloads can be cached hard.  The page
+	@# itself must not be: it is what points at the current build.
 	@printf '/*.wasm\n  Cache-Control: public, max-age=31536000, immutable\n' > $(DIST)/_headers
 	@printf '/*.js\n  Cache-Control: public, max-age=31536000, immutable\n' >> $(DIST)/_headers
-	@printf '/\n  Cache-Control: no-cache\n' >> $(DIST)/_headers
+	@printf '/\n  Cache-Control: no-cache, must-revalidate\n' >> $(DIST)/_headers
+	@printf '/index.html\n  Cache-Control: no-cache, must-revalidate\n' >> $(DIST)/_headers
 	@printf 'User-agent: *\nDisallow: /\n' > $(DIST)/robots.txt
 	@echo "  DIST    $(DIST) ($$(du -sh $(DIST) | cut -f1))"
 
@@ -222,6 +228,10 @@ check-dist:
 # nvm-installed node that wrangler needs.
 release:
 	@bash scripts/release.sh
+
+# Publish to GitHub Pages instead of (or as well as) Cloudflare.
+pages:
+	@bash scripts/publish-pages.sh
 
 deploy: dist check-dist
 	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \

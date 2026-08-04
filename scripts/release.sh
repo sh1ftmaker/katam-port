@@ -48,7 +48,7 @@ EMSDK=${EMSDK:-$HOME/emsdk}
 [ -x "$EMSDK/upstream/emscripten/emcc" ] || { echo "no emscripten at $EMSDK" >&2; exit 1; }
 
 PROJECT=${PAGES_PROJECT:-katam-port}
-ACCOUNT=${CF_ACCOUNT_ID:-ab77c04897c9dcc5f04b753c51dbe517}
+ACCOUNT=${CF_ACCOUNT_ID:-}
 SITE=${SITE_URL:-https://$PROJECT.pages.dev/}
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
@@ -81,7 +81,7 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 step "deploy to Cloudflare Pages ($PROJECT)"
-CLOUDFLARE_ACCOUNT_ID="$ACCOUNT" npx --yes wrangler@latest pages deploy build/dist \
+${ACCOUNT:+CLOUDFLARE_ACCOUNT_ID=$ACCOUNT} npx --yes wrangler@latest pages deploy build/dist \
     --project-name="$PROJECT" --branch=main --commit-dirty=true 2>&1 | tail -3
 
 step "verify the live page matches what was built"
