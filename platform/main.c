@@ -68,6 +68,32 @@ void PortMissingFunction(const char *name)
                 "(still ARM assembly in the decomp)", name);
 }
 
+/* --- write watchpoint ---------------------------------------------------- */
+
+u32 gPortWatchAddr;
+static u32 sWatchHits;
+
+void PortSetWatch(u32 addr)
+{
+    gPortWatchAddr = addr;
+    sWatchHits = 0;
+}
+
+void PortWatchCheck(const char *who, uintptr_t dest, u32 bytes, uintptr_t src)
+{
+    if (gPortWatchAddr < dest || gPortWatchAddr >= dest + bytes)
+        return;
+    /* Frame number included because the same transfer runs every frame in
+     * most of these paths; what matters is which one ran at the moment the
+     * memory changed. */
+    if (++sWatchHits <= 30)
+        PortLog("[katam-port] WATCH 0x%08X written by %s: dest=0x%08X..0x%08X "
+                "src=0x%08X (frame %u)",
+                (unsigned)gPortWatchAddr, who, (unsigned)dest,
+                (unsigned)(dest + bytes), (unsigned)src,
+                (unsigned)sFrameCount);
+}
+
 void PortUnimplemented(const char *what)
 {
     if (ReportOnce(what))

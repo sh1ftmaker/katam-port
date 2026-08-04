@@ -113,6 +113,9 @@ const Module = {
         if (mash !== null) Module._PortSetKeys(mash);
         // LAYERS=0b0001 renders BG0 alone, so "which layer holds the room"
         // stops being a guess.  Bits 0-3 are BG0-3, bit 4 is OBJ.
+        // WATCH=0x06003FE0 names every block move that covers that address.
+        if (process.env.WATCH && Module._PortSetWatch && frames === 0)
+            Module._PortSetWatch(parseInt(process.env.WATCH, 0));
         // FORCE=0x04 draws BG2 even though the game disabled it.
         if ((process.env.LAYERS || process.env.FORCE) && Module._PortSetLayerMask)
             Module._PortSetLayerMask(parseInt(process.env.LAYERS || '0x1F', 0),
@@ -143,6 +146,17 @@ const Module = {
             // Per-layer state, because "the room does not draw" is answered by
             // the control registers long before it is answered by the pixels:
             // which char/screen base, which size, what priority, where scrolled.
+            // The VBlank transfer queue: head, tail, and how many entries are
+            // still waiting.  A queue that never empties means the port's
+            // VBlank window is too small, which would leave uploads undone.
+            if (process.env.QUEUE) {
+                const head = Module.HEAPU8[0x03006078], tail = Module.HEAPU8[0x030039A4];
+                let pending = (tail - head) & 0x3f, bytes = 0;
+                for (let i = 0; i < pending; i++)
+                    bytes += u32(0x03002EC0 + (((head + i) & 0x3f) * 12) + 8);
+                console.log('    vblank queue: head=%d tail=%d pending=%d (%d bytes)',
+                            head, tail, pending, bytes);
+            }
             if (process.env.BG) {
                 for (let bg = 0; bg < 4; bg++) {
                     const cnt = io(8 + bg * 2);

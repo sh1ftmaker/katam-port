@@ -153,6 +153,8 @@ static void RunTransfer(struct DmaChannel *ch)
         }
     }
 
+    PORT_WATCH("DMA", dest, ch->count * unit, src);
+
     for (i = 0; i < ch->count; i++) {
         if (unit == 4)
             *(u32 *)dest = *(const u32 *)src;

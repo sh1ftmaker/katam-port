@@ -68,6 +68,7 @@ void CpuSet(const void *src, void *dest, u32 control)
     u32 i;
 
     PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
+    PORT_WATCH("CpuSet", dest, count * ((control & CPU_SET_32BIT) ? 4 : 2), src);
 
     /* Like DMA, the BIOS aligns to the transfer width rather than faulting. */
     if (control & CPU_SET_32BIT) {
@@ -94,6 +95,7 @@ void CpuFastSet(const void *src, void *dest, u32 control)
     u32 i;
 
     PortVBlankConsume(count * 4);
+    PORT_WATCH("CpuFastSet", dest, count * 4, src);
 
     for (i = 0; i < count; i++)
         d[i] = fixed ? *s : s[i];
@@ -107,6 +109,9 @@ void CpuFastSet(const void *src, void *dest, u32 control)
 static void LZ77UnComp(const u32 *srcp, void *dest)
 {
     const u8 *src = (const u8 *)srcp;
+    PORT_WATCH("LZ77UnComp", dest, ((const u8 *)srcp)[1]
+               | (((const u8 *)srcp)[2] << 8) | (((const u8 *)srcp)[3] << 16),
+               srcp);
     u8 *dst = (u8 *)dest;
     u32 size = (src[1] | (src[2] << 8) | (src[3] << 16));
     u32 written = 0;

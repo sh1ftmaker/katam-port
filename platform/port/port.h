@@ -60,6 +60,25 @@ void PortRomLoaded(u32 size);
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortLog(const char *fmt, ...);
+
+/* --- write watchpoint -----------------------------------------------------
+ * "Which transfer clobbered this byte?" is the question every stale-or-wrong
+ * VRAM bug reduces to, and neither a stack trace nor a memory dump answers it:
+ * the damage is done by a bulk move that finished frames ago.  Set an address
+ * and every block move that covers it reports itself and its caller.
+ *
+ * PortSetWatch(0) disables it, which is the default, so the check is one
+ * compare against a global on paths that already move kilobytes. */
+extern u32 gPortWatchAddr;
+void PortSetWatch(u32 addr);
+void PortWatchCheck(const char *who, uintptr_t dest, u32 bytes,
+                    uintptr_t src);
+#define PORT_WATCH(who, dest, bytes, src)                                   \
+    do {                                                                    \
+        if (gPortWatchAddr)                                                 \
+            PortWatchCheck((who), (uintptr_t)(dest), (bytes),               \
+                           (uintptr_t)(src));                               \
+    } while (0)
 void PortReportGaps(void);
 
 /* BIOS Halt (`swi 3`).  Nothing here generates interrupts, so a halt that
