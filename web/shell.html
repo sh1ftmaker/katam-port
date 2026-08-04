@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kirby &amp; The Amazing Mirror — native port (WebAssembly)</title>
+<style>
+  :root {
+    --bg:      #14161a;
+    --panel:   #1c1f25;
+    --edge:    #2b3038;
+    --text:    #d5d9e0;
+    --dim:     #838b98;
+    --accent:  #6fb2ff;
+    --warn:    #e8b23a;
+    --err:     #ff7b72;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 13px/1.5 var(--mono);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    overflow: hidden;          /* the screen sizes itself to the window; page never scrolls */
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    margin: 0;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+
+  /* ---- screen ------------------------------------------------------- */
+
+  #screen-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #screen {
+    display: block;
+    background: #000;
+    border: 1px solid var(--edge);
+    /* Belt-and-braces with ctx.imageSmoothingEnabled: if the window is smaller
+       than 240x160 we fall back to a fractional CSS scale, and this keeps that
+       downscale from turning to mush. */
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  /* Covers the screen until a ROM is supplied. */
+  #curtain {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 20px;
+    background: rgba(20, 22, 26, .94);
+    pointer-events: none;      /* re-enabled on the inner box only */
+  }
+  #curtain.hidden { display: none; }
+  #curtain > * { pointer-events: auto; }
+
+  #curtain h2 {
+    font-size: 14px;
+    margin: 0;
+  }
+
+  #curtain p {
+    margin: 0;
+    max-width: 46ch;
+    color: var(--dim);
+  }
+
+  /* ---- controls ------------------------------------------------------ */
+
+  .bar {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+  }
+
+  button, label.filebtn {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover, label.filebtn:hover { border-color: var(--accent); color: #fff; }
+  input[type=file] { display: none; }
+
+  #fps  { color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
+  #rominfo { color: var(--dim); }
+
+  /* ---- legend -------------------------------------------------------- */
+
+  #legend {
+    width: 100%;
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 2px 18px;
+    color: var(--dim);
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 8px 12px;
+  }
+  #legend b { color: var(--text); font-weight: 600; }
+  kbd {
+    display: inline-block;
+    background: #262a31;
+    border: 1px solid var(--edge);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 0 4px;
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+  }
+
+  /* ---- log ----------------------------------------------------------- */
+
+  #log {
+    width: 100%;
+    max-width: 900px;
+    height: 132px;
+    flex: 0 0 auto;
+    overflow-y: auto;
+    background: #101216;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: var(--dim);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #log .err  { color: var(--err); }
+  #log .warn { color: var(--warn); }
+  #log .ok   { color: var(--accent); }
+
+  /* Whole-page drop target feedback. */
+  body.dragging::after {
+    content: "drop a .gba ROM";
+    position: fixed;
+    inset: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    background: rgba(111, 178, 255, .07);
+    color: var(--accent);
+    font-size: 16px;
+    pointer-events: none;      /* must not eat the drop event itself */
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<h1>Kirby &amp; The Amazing Mirror — decompilation port</h1>
+
+<div id="screen-wrap">
+  <canvas id="screen" width="240" height="160"></canvas>
+  <div id="curtain">
+    <h2>Supply your own ROM</h2>
+    <p>
+      This port ships no game data. To play, load your own legally obtained
+      <b>Kirby &amp; The Amazing Mirror</b> (GBA) ROM file. It is read locally in
+      your browser and never uploaded anywhere.
+    </p>
+    <label class="filebtn" for="romfile">Choose ROM file…</label>
+    <p>…or drag and drop the <code>.gba</code> file anywhere on this page.</p>
+  </div>
+</div>
+
+<div class="bar">
+  <label class="filebtn" for="romfile">Load ROM…</label>
+  <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
+  <span id="rominfo">no ROM loaded</span>
+  <span id="fps">-- fps</span>
+</div>
+
+<div id="legend">
+  <div><b>D-pad</b> &nbsp;<kbd>&#8592;&#8593;&#8595;&#8594;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+  <div><b>A</b> &nbsp;<kbd>J</kbd> / <kbd>Z</kbd></div>
+  <div><b>B</b> &nbsp;<kbd>K</kbd> / <kbd>X</kbd></div>
+  <div><b>L</b> &nbsp;<kbd>Q</kbd> &nbsp;&nbsp; <b>R</b> &nbsp;<kbd>E</kbd></div>
+  <div><b>Start</b> &nbsp;<kbd>Enter</kbd></div>
+  <div><b>Select</b> &nbsp;<kbd>Backspace</kbd> / <kbd>R-Shift</kbd></div>
+</div>
+
+<div id="log" aria-live="polite"></div>
+
+<script>
+//======================================================================
+// Host shell for the katam native port.
+//
+// `Module` MUST exist, fully configured, before emscripten's generated
+// loader script runs (the placeholder at the end of this file) — the
+// loader reads these fields as it boots. Everything here is therefore
+// plain synchronous
+// setup; nothing waits on the runtime.
+//======================================================================
+
+var Module = (function () {
+
+  // ---- log pane -----------------------------------------------------
+  var logEl = document.getElementById('log');
+  var logLines = 0;
+
+  function log(text, cls) {
+    var line = document.createElement('div');
+    if (cls) line.className = cls;
+    line.textContent = text;
+    logEl.appendChild(line);
+    // Keep the DOM bounded: the C side chatters about stubbed-out functions.
+    if (++logLines > 400) { logEl.removeChild(logEl.firstChild); logLines--; }
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ---- ROM handshake ------------------------------------------------
+  // The C entry point does `await Module.portRomReady` before touching any
+  // cartridge data, so this promise must exist *now*, before the wasm
+  // module is instantiated. We only resolve it once the ROM bytes are
+  // actually sitting in linear memory.
+  var resolveRomReady;
+  var portRomReady = new Promise(function (res) { resolveRomReady = res; });
+
+  // Same trick for the runtime itself: ROM bytes can arrive before or after
+  // the wasm finishes loading, and we need both before we can copy.
+  var resolveRuntime;
+  var runtimeReady = new Promise(function (res) { resolveRuntime = res; });
+
+  // ---- framebuffer presentation -------------------------------------
+  var GBA_W = 240, GBA_H = 160;
+
+  var screen  = document.getElementById('screen');
+  var screenCtx = screen.getContext('2d', { alpha: false });
+
+  // Native-resolution scratch canvas: putImageData ignores transforms, so we
+  // land the pixels here 1:1 and then drawImage them up to the visible canvas.
+  var back = document.createElement('canvas');
+  back.width = GBA_W; back.height = GBA_H;
+  var backCtx = back.getContext('2d', { alpha: false });
+
+  // Allocated once and refilled each frame — a fresh ImageData per frame at
+  // 60 Hz is pure garbage-collector pressure.
+  var frame = new ImageData(new Uint8ClampedArray(GBA_W * GBA_H * 4), GBA_W, GBA_H);
+
+  var fpsEl = document.getElementById('fps');
+  var fpsCount = 0, fpsSince = 0;
+
+  // Called from C once per rendered frame.
+  //   ptr  – byte offset into the wasm heap of the RGBA8888 framebuffer
+  //   w, h – always 240x160, but honour them anyway
+  // The C layout (R,G,B,A in ascending memory order) is exactly ImageData's,
+  // so this is a straight copy with no channel shuffling.
+  function portPresent(ptr, w, h) {
+    // Re-read HEAPU8 every call: a memory growth swaps the backing
+    // ArrayBuffer and detaches any view we cached earlier.
+    var src = Module.HEAPU8.subarray(ptr, ptr + w * h * 4);
+
+    if (w !== GBA_W || h !== GBA_H) {          // defensive; shouldn't happen
+      back.width = GBA_W = w; back.height = GBA_H = h;
+      frame = new ImageData(new Uint8ClampedArray(w * h * 4), w, h);
+      fitScreen();
+    }
+    frame.data.set(src);
+    backCtx.putImageData(frame, 0, 0);
+    blit();
+
+    // FPS, sampled over half-second windows.
+    fpsCount++;
+    var now = performance.now();
+    if (!fpsSince) fpsSince = now;
+    if (now - fpsSince >= 500) {
+      fpsEl.textContent = (fpsCount * 1000 / (now - fpsSince)).toFixed(1) + ' fps';
+      fpsCount = 0; fpsSince = now;
+    }
+  }
+
+  function blit() {
+    screenCtx.imageSmoothingEnabled = false;   // reset by any canvas resize
+    screenCtx.drawImage(back, 0, 0, screen.width, screen.height);
+  }
+
+  // Integer upscale that fits the available space, preserving 3:2.
+  function fitScreen() {
+    var wrap = document.getElementById('screen-wrap');
+    var availW = Math.max(1, wrap.clientWidth);
+    var availH = Math.max(1, wrap.clientHeight);
+    var raw = Math.min(availW / GBA_W, availH / GBA_H);
+
+    // Backing store is always a whole multiple so nearest-neighbour is exact.
+    var s = Math.max(1, Math.floor(raw));
+    screen.width  = GBA_W * s;
+    screen.height = GBA_H * s;
+
+    // Only on a viewport too small for 1x do we let CSS shrink it fractionally.
+    var css = raw >= 1 ? s : raw;
+    screen.style.width  = Math.round(GBA_W * css) + 'px';
+    screen.style.height = Math.round(GBA_H * css) + 'px';
+
+    blit();                                    // resizing cleared the canvas
+  }
+
+  window.addEventListener('resize', fitScreen);
+  fitScreen();
+
+  // ---- the Module object emscripten will pick up ---------------------
+  return {
+    portRomReady:  portRomReady,
+    portPresent:   portPresent,
+
+    print:    function (text) { log(text); },
+    printErr: function (text) { log(text, 'err'); },
+
+    onRuntimeInitialized: function () {
+      log('wasm runtime initialised.', 'ok');
+      resolveRuntime();
+    },
+
+    // Exposed for the ROM loader below (kept off the global scope).
+    _shell: {
+      log: log,
+      runtimeReady: runtimeReady,
+      resolveRomReady: function () { resolveRomReady(); },
+      fitScreen: fitScreen
+    }
+  };
+})();
+</script>
+
+<script>
+//======================================================================
+// ROM loading + input. Independent of the wasm loader; safe either side
+// of it, but kept ahead of the loader placeholder so the drop target is
+// live while the wasm is still downloading.
+//======================================================================
+(function () {
+  var shell = Module._shell;
+  var log   = shell.log;
+
+  // The port reserves the real GBA memory map *inside* wasm linear memory,
+  // so cartridge ROM lives at its hardware address rather than wherever a
+  // malloc would put it. C code can then follow GBA pointers verbatim.
+  var ROM_BASE     = 0x08000000;
+  var EXPECTED_SIZE = 16 * 1024 * 1024;   // 16 MiB — katam's cart size
+
+  var romLoaded = false;
+  var infoEl    = document.getElementById('rominfo');
+  var curtain   = document.getElementById('curtain');
+
+  function loadRom(bytes, name) {
+    if (romLoaded) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+
+    if (bytes.length !== EXPECTED_SIZE) {
+      log('warning: "' + name + '" is ' + bytes.length + ' bytes; expected ' +
+          EXPECTED_SIZE + ' (16 MiB). Loading anyway — it may not be the right ROM.', 'warn');
+    }
+
+    log('waiting for the wasm runtime…');
+    shell.runtimeReady.then(function () {
+      var heap = Module.HEAPU8;
+      var need = ROM_BASE + bytes.length;
+      if (heap.length < need) {
+        log('fatal: wasm heap is ' + heap.length + ' bytes but the ROM must be mapped at 0x' +
+            ROM_BASE.toString(16) + ' (needs ' + need + '). Rebuild with a larger ' +
+            'INITIAL_MEMORY / ALLOW_MEMORY_GROWTH.', 'err');
+        return;
+      }
+
+      heap.set(bytes, ROM_BASE);
+      Module._PortRomLoaded(bytes.length);   // tells C the cart is mapped and how big
+
+      romLoaded = true;
+      infoEl.textContent = name + ' — ' + (bytes.length / 1048576).toFixed(2) + ' MiB';
+      curtain.classList.add('hidden');
+      shell.fitScreen();
+      log('ROM mapped at 0x' + ROM_BASE.toString(16) + '. Starting.', 'ok');
+
+      // Releases the C entry point, which has been parked on this promise.
+      shell.resolveRomReady();
+    });
+  }
+
+  function readFile(file) {
+    if (!file) return;
+    if (/\.(zip|7z|rar)$/i.test(file.name)) {
+      log('"' + file.name + '" is an archive; extract the .gba file first.', 'err');
+      return;
+    }
+    log('reading ' + file.name + '…');
+    file.arrayBuffer()
+      .then(function (buf) { loadRom(new Uint8Array(buf), file.name); })
+      .catch(function (e) { log('could not read file: ' + e, 'err'); });
+  }
+
+  document.getElementById('romfile').addEventListener('change', function (e) {
+    readFile(e.target.files[0]);
+    e.target.value = '';                       // allow re-picking the same file
+  });
+
+  // ---- whole-page drag and drop -------------------------------------
+  var dragDepth = 0;                           // dragenter/leave fire per child
+  window.addEventListener('dragenter', function (e) {
+    e.preventDefault();
+    if (++dragDepth === 1) document.body.classList.add('dragging');
+  });
+  window.addEventListener('dragover', function (e) {
+    e.preventDefault();                        // without this, drop never fires
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('dragleave', function (e) {
+    e.preventDefault();
+    if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); }
+  });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    if (e.dataTransfer.files && e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]);
+  });
+
+  //====================================================================
+  // Input
+  //====================================================================
+
+  // GBA KEYINPUT bit order. We send "1 = pressed"; the C side inverts it for
+  // the active-low hardware register.
+  var A = 1 << 0, B = 1 << 1, SELECT = 1 << 2, START = 1 << 3,
+      RIGHT = 1 << 4, LEFT = 1 << 5, UP = 1 << 6, DOWN = 1 << 7,
+      BTN_R = 1 << 8, BTN_L = 1 << 9;
+
+  // KeyboardEvent.code -> button bit. Layout-independent, and lets two
+  // physical keys share one button (arrows + WASD, J/Z, K/X).
+  var KEYMAP = {
+    ArrowUp: UP,     KeyW: UP,
+    ArrowDown: DOWN, KeyS: DOWN,
+    ArrowLeft: LEFT, KeyA: LEFT,
+    ArrowRight: RIGHT, KeyD: RIGHT,
+    KeyJ: A, KeyZ: A,
+    KeyK: B, KeyX: B,
+    KeyQ: BTN_L,
+    KeyE: BTN_R,
+    Enter: START, NumpadEnter: START,
+    Backspace: SELECT, ShiftRight: SELECT
+  };
+
+  // Track held *codes*, not the mask, so releasing one of two keys bound to
+  // the same button doesn't clear it while the other is still down.
+  var held = Object.create(null);
+  var lastMask = -1;
+
+  function pushMask() {
+    var mask = 0;
+    for (var code in held) mask |= KEYMAP[code];
+    if (mask === lastMask) return;
+    lastMask = mask;
+    // Guard: keys can be pressed before the wasm exports exist.
+    if (Module._PortSetKeys) Module._PortSetKeys(mask);
+  }
+
+  window.addEventListener('keydown', function (e) {
+    var bit = KEYMAP[e.code];
+    if (bit === undefined) return;
+    e.preventDefault();                        // arrows/space must not scroll,
+                                               // Backspace must not navigate back
+    if (e.repeat) return;
+    held[e.code] = 1;
+    pushMask();
+  });
+
+  window.addEventListener('keyup', function (e) {
+    if (KEYMAP[e.code] === undefined) return;
+    e.preventDefault();
+    delete held[e.code];
+    pushMask();
+  });
+
+  // Losing focus mid-press would otherwise leave a button stuck down.
+  window.addEventListener('blur', function () {
+    held = Object.create(null);
+    pushMask();
+  });
+
+  log('ready — load your own Kirby & The Amazing Mirror ROM to begin.');
+})();
+</script>
+
+{{{ SCRIPT }}}
+
+</body>
+</html>

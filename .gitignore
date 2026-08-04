@@ -1,0 +1,15 @@
+# Everything derived from the decompilation or from a ROM.
+build/
+
+# Build output (regenerate with `make`); the shell template is source.
+web/katam.html
+web/katam.js
+web/katam.wasm
+
+# Never commit game data.
+*.gba
+*.ppm
+*.png
+
+__pycache__/
+*.pyc
