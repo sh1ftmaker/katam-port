@@ -84,12 +84,75 @@ let frames = 0;
 let lastFrame = null;
 let firstNonBlankFrame = -1;
 
+// --- audio -----------------------------------------------------------------
+// There is no audio device here, so "is it making a sound" has to be answered
+// from the samples themselves. Setting Module.portAudioRate before the module
+// starts puts platform/audio_out.c into its headless mode: it skips the
+// AudioContext entirely and hands every block to Module.portAudioSink instead.
+//
+// AUDIO=0 turns the capture off. AUDIO_RATE= picks the pretend device rate,
+// which the mixer configures itself for exactly as it would in a browser.
+// TONE=440 replaces the mixer's output with a square wave, which is how the
+// transport gets tested without the sound engine being involved at all.
+// WAV=build/audio.wav writes what was captured, so it can be listened to.
+const AUDIO_RATE = process.env.AUDIO === '0' ? 0
+                 : parseInt(process.env.AUDIO_RATE || '48000', 10);
+const TONE = parseInt(process.env.TONE || '0', 10);
+const WAV = process.env.WAV || '';
+const audio = { blocks: 0, samples: 0, sumSq: 0, peak: 0, silentBlocks: 0,
+                chunks: [] };
+
+function audioSink(f32) {
+    audio.blocks++;
+    audio.samples += f32.length >> 1;
+    let blockPeak = 0;
+    for (let i = 0; i < f32.length; i++) {
+        const v = f32[i];
+        audio.sumSq += v * v;
+        const a = Math.abs(v);
+        if (a > blockPeak) blockPeak = a;
+    }
+    if (blockPeak > audio.peak) audio.peak = blockPeak;
+    if (blockPeak === 0) audio.silentBlocks++;
+    if (WAV) audio.chunks.push(Buffer.from(f32.buffer.slice(0)));
+}
+
+// 16-bit stereo PCM WAV, written by hand -- no encoder, and every player opens
+// it. Only reached when WAV= is set, because a few thousand frames of 48 kHz
+// stereo is a large file to write by accident.
+function writeWav(path, rate) {
+    const total = audio.chunks.reduce((n, c) => n + (c.length >> 2), 0);
+    const pcm = Buffer.alloc(total * 2);
+    let o = 0;
+    for (const c of audio.chunks) {
+        const f = new Float32Array(c.buffer, c.byteOffset, c.length >> 2);
+        for (let i = 0; i < f.length; i++) {
+            let v = Math.round(f[i] * 32767);
+            if (v > 32767) v = 32767; else if (v < -32768) v = -32768;
+            pcm.writeInt16LE(v, o); o += 2;
+        }
+    }
+    const hdr = Buffer.alloc(44);
+    hdr.write('RIFF', 0); hdr.writeUInt32LE(36 + pcm.length, 4);
+    hdr.write('WAVE', 8); hdr.write('fmt ', 12);
+    hdr.writeUInt32LE(16, 16); hdr.writeUInt16LE(1, 20);
+    hdr.writeUInt16LE(2, 22); hdr.writeUInt32LE(rate, 24);
+    hdr.writeUInt32LE(rate * 4, 28); hdr.writeUInt16LE(4, 32);
+    hdr.writeUInt16LE(16, 34); hdr.write('data', 36);
+    hdr.writeUInt32LE(pcm.length, 40);
+    fs.mkdirSync(path.replace(/\/[^/]*$/, '') || '.', { recursive: true });
+    fs.writeFileSync(path, Buffer.concat([hdr, pcm]));
+}
+
 // The port drives its own pacing with requestAnimationFrame; node has none.
 global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
 
 let resolveRom;
 const Module = {
     portRomReady: new Promise((res) => { resolveRom = res; }),
+
+    portAudioRate: AUDIO_RATE,
+    portAudioSink: AUDIO_RATE ? audioSink : undefined,
 
     print: (t) => logs.push(t),
     printErr: (t) => logs.push(t),
@@ -116,6 +179,8 @@ const Module = {
         // WATCH=0x06003FE0 names every block move that covers that address.
         if (process.env.WATCH && Module._PortSetWatch && frames === 0)
             Module._PortSetWatch(parseInt(process.env.WATCH, 0));
+        if (TONE && Module._PortAudioTestTone && frames === 0)
+            Module._PortAudioTestTone(TONE);
         // FORCE=0x04 draws BG2 even though the game disabled it.
         if ((process.env.LAYERS || process.env.FORCE) && Module._PortSetLayerMask)
             Module._PortSetLayerMask(parseInt(process.env.LAYERS || '0x1F', 0),
@@ -244,6 +309,33 @@ function finish() {
                 ((dispcnt >> 8) & 15).toString(2).padStart(4, '0'),
                 (dispcnt & 0x1000) ? 'on' : 'off');
     console.log('last frame written to: build/frame.ppm');
+
+    if (AUDIO_RATE) {
+        // RMS in dBFS is the honest measure: a mixer that is running but
+        // producing only the DC the envelope left behind reads as a tiny
+        // non-zero peak, and "peak > 0" would call that a success.
+        const rms = audio.samples
+            ? Math.sqrt(audio.sumSq / (audio.samples * 2)) : 0;
+        const db = rms > 0 ? (20 * Math.log10(rms)).toFixed(1) : '-inf';
+        const expected = frames;           // one block per VBlank
+        console.log('\naudio (%d Hz):', AUDIO_RATE);
+        console.log('  blocks pushed      : %d  (%d frames rendered)',
+                    audio.blocks, expected);
+        console.log('  samples            : %d  (%ss of audio for %ss of game)',
+                    audio.samples, (audio.samples / AUDIO_RATE).toFixed(2),
+                    (frames / 60).toFixed(2));
+        console.log('  RMS                : %s dBFS%s', db,
+                    audio.blocks === 0 ? '   <-- nothing was pushed at all'
+                    : rms === 0 ? '   <-- every sample was zero' : '');
+        console.log('  peak               : %s', audio.peak.toFixed(4));
+        console.log('  fully silent blocks: %d of %d',
+                    audio.silentBlocks, audio.blocks);
+        if (WAV) {
+            writeWav(WAV, AUDIO_RATE);
+            console.log('  written to         : %s', WAV);
+        }
+    }
+
     console.log('\nport diagnostics (%d):', logs.length);
     for (const l of logs) console.log('  ' + l);
     process.exit(0);
