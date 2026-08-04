@@ -33,6 +33,34 @@ function savePpm(data, w, h, path) {
     fs.writeFileSync(path, Buffer.concat([Buffer.from(`P6\n${w} ${h}\n255\n`), rgb]));
 }
 
+// Refuse to run a module older than the objects it was built from.  Twice now
+// a failed link has left the previous binary in place and I have diagnosed a
+// build I did not make, reporting a fix that was really a stale artefact.
+(function checkFresh() {
+    const wasm = modulePath.replace(/\.js$/, '.wasm');
+    if (!fs.existsSync(wasm)) return;
+    const built = fs.statSync(wasm).mtimeMs;
+    let newest = 0, newestName = '';
+    const walk = (dir) => {
+        let entries = [];
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+        for (const e of entries) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) walk(full);
+            else if (e.name.endsWith('.o')) {
+                const m = fs.statSync(full).mtimeMs;
+                if (m > newest) { newest = m; newestName = full; }
+            }
+        }
+    };
+    walk('build/obj');
+    if (newest > built + 1000) {
+        console.error('STALE: %s was built before %s.', wasm, newestName);
+        console.error('       Rebuild it; the run would have tested the wrong binary.');
+        process.exit(3);
+    }
+})();
+
 const rom = fs.readFileSync(romPath);
 const logs = [];
 let frames = 0;
@@ -163,6 +191,16 @@ process.on('uncaughtException', function (err) {
         const u32 = (a) => (H[a] | (H[a+1] << 8) | (H[a+2] << 16) | (H[a+3] << 24)) >>> 0;
         console.error('gNumTasks = %d   gCurTask = 0x%s',
                       u32(0x03002E7C) | 0, u32(0x030035D0).toString(16));
+        if (u32(0x09800000) === 0x44544F52) {
+            console.error('last destructor call before the trap:');
+            console.error('  task=0x%s dtor=0x%s main=0x%s flags=0x%s prio=%d '
+                          + 'structOffset=0x%s parent=%d  (%d calls)',
+                u32(0x09800004).toString(16), u32(0x09800008).toString(16),
+                u32(0x0980000c).toString(16),
+                (u32(0x09800010) & 0xffff).toString(16), u32(0x09800010) >>> 16,
+                (u32(0x09800014) & 0xffff).toString(16), u32(0x09800014) >>> 16,
+                u32(0x09800018));
+        }
         console.error('task table at 0x030019F0 (index: main dtor priority flags):');
         let shown = 0;
         for (let i = 0; i < 0x80 && shown < 24; i++) {

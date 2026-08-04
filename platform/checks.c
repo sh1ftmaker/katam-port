@@ -81,3 +81,38 @@ void *PortTaskStruct(struct Task *task)
     }
     return sScratch;
 }
+
+/* --- task destructors ----------------------------------------------------
+ *
+ * TaskDestroy ends with `if (task->dtor != NULL) task->dtor(task);`, and that
+ * is what trapped when Kirby went through a door.  Wasm reports "null function
+ * or function signature mismatch" without saying which pointer or which task,
+ * and the two causes need opposite fixes -- a mistyped function is a
+ * declaration bug, a nonsense pointer means the task was overwritten.
+ *
+ * Comparing against the destructors the game installs is not possible from
+ * here: nearly all of them are `static`, so their addresses cannot be taken
+ * from another translation unit.  Instead the last call is recorded at a fixed
+ * address inside the reserved map -- unused space above save memory and below
+ * everything the compiler owns -- where the harness can read it back after the
+ * trap.  It costs four stores per destructor call and needs no linkage at all.
+ */
+
+#define PORT_TRACE ((volatile u32 *)0x09800000u)
+
+void PortCallDtor(struct Task *task)
+{
+    if (task->dtor == NULL)
+        return;
+
+    PORT_TRACE[0] = 0x44544F52u;            /* 'DTOR', so the harness can tell
+                                             * a real record from stale bytes */
+    PORT_TRACE[1] = (u32)task;
+    PORT_TRACE[2] = (u32)task->dtor;
+    PORT_TRACE[3] = (u32)task->main;
+    PORT_TRACE[4] = task->flags | ((u32)task->priority << 16);
+    PORT_TRACE[5] = task->structOffset | ((u32)task->parent << 16);
+    PORT_TRACE[6]++;                        /* how many got this far */
+
+    task->dtor(task);
+}

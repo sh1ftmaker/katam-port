@@ -68,6 +68,17 @@ REPLACED_FILES = {
 # decomp's own workflow ever builds those branches, so they rot quietly; this
 # one references a variable that only the matching branch declares.  For these
 # files the port takes the matching branch instead, which is equivalent C.
+# Under CHECK_POINTERS the destructor call in TaskDestroy is routed through
+# platform/checks.c, which knows every destructor the game installs and can
+# therefore say whether a bad pointer is a mistyped function or a corrupted
+# task.  The message wasm gives conflates the two.
+TASK_DTOR_CALL = 'task->dtor(task);'
+TASK_DTOR_CHECKED = ('''#ifdef PORT_CHECK_POINTERS
+                PortCallDtor(task);
+#else
+                task->dtor(task);
+#endif''')
+
 UNDEF_NONMATCHING = {
     'cookin.c': 'NONMATCHING branch uses `obj`, declared only in the other branch',
 }
@@ -76,6 +87,29 @@ UNDEF_NONMATCHING = {
 # return type is harmless -- the value sits in r0 and the caller ignores it --
 # so these went unnoticed.  wasm validates signatures, and a mismatch links to
 # a stub that traps the moment it is called, so each one has to be corrected.
+# Casts of a function to a different function-pointer type.  Faithful on ARM,
+# where the extra argument sits unread in r0; a trap in wasm, which checks the
+# callee's type at every indirect call.  Each is redirected to an adapter in
+# platform/adapters.c that has the signature the call site expects.
+FNPTR_CASTS = {
+    'code.c': [
+        ('(TaskDestructor)sub_08002E3C', 'PortDtor_sub_08002E3C'),
+    ],
+    'code_0802B4A8.c': [
+        ('(TaskMain)sub_0802D528', 'PortMain_sub_0802D528'),
+        ('(TaskMain)sub_0802D53C', 'PortMain_sub_0802D53C'),
+        ('(TaskMain)sub_0802D550', 'PortMain_sub_0802D550'),
+    ],
+}
+
+FNPTR_ADAPTER_DECLS = {
+    'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
+    'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
+                        'void PortMain_sub_0802D53C(void);\n'
+                        'void PortMain_sub_0802D550(void);\n'),
+}
+
+
 DECL_FIXES = {
     'code_0802E57C.c': [
         ('void sub_0802F8D8(struct Unk_0802E57C *',
@@ -444,10 +478,24 @@ def main():
             text = rewrite_source(path.read_text(errors='replace'), path, rep,
                                   decomp=decomp, exported=exported,
                                   returns=returns)
+            if path.name == 'task.c' and TASK_DTOR_CALL in text:
+                text = text.replace(TASK_DTOR_CALL, TASK_DTOR_CHECKED, 1)
+                text = 'void PortCallDtor(struct Task *);\n' + text
+                rep.bump('TaskDestroy dtor call made checkable')
             for old, new in SRAM_RELOC.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)
                     rep.bump('save-memory address relocated')
+            casts = FNPTR_CASTS.get(path.name, ())
+            if casts:
+                hit = False
+                for old, new in casts:
+                    if old in text:
+                        text = text.replace(old, new)
+                        rep.bump('mis-cast function pointers adapted')
+                        hit = True
+                if hit:
+                    text = FNPTR_ADAPTER_DECLS[path.name] + text
             for old, new in DECL_FIXES.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)

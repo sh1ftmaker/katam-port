@@ -147,33 +147,38 @@ def parse_map(path):
     return out
 
 
-def extend_fn_table(rom, mapping, defined, addr, count, limit=64):
-    """Follow a function table past the label that nominally ends it.
+def wasm_sig(ret, params):
+    """(parameter count, returns a value) -- all wasm cares about here.
 
-    Labels in data/*.s mark where the decompilation put a name, not where a
-    table ends.  `gUnk_0834BD88` is labelled as 3 entries and the game indexes
-    it well past that -- on hardware the reads simply continue into the words
-    of the next label, which are more function pointers of the same kind.  In C
-    those became two separate arrays, so the same index ran off the end and
-    called garbage.
+    Every pointer and every integer 32 bits or narrower is an i32, so
+    `void f(struct A *)` and `void f(struct B *)` are the same signature and
+    must not be reported.  What traps is a different number of parameters, or
+    one side returning a value where the other does not."""
+    params = ' '.join(params.split())
+    if params in ('', 'void'):
+        n = 0
+    else:
+        depth, n = 0, 1
+        for ch in params:
+            if ch in '([':
+                depth += 1
+            elif ch in ')]':
+                depth -= 1
+            elif ch == ',' and depth == 0:
+                n += 1
+    return (n, ret.strip() != 'void')
 
-    Keep taking words while they still look like functions: Thumb bit set, and
-    an exact match for a function the port defines.  An arbitrary data word
-    matching one of those exactly is vanishingly unlikely, and the walk stops
-    at the first word that does not."""
-    extra = 0
-    while extra < limit:
-        off = addr - ROM_START + (count + extra) * 4
-        if off + 4 > len(rom):
-            break
-        word = int.from_bytes(rom[off:off + 4], 'little')
-        if not (word & 1):          # not a Thumb function pointer
-            break
-        name = mapping.get(word & ~1)
-        if name not in defined:
-            break
-        extra += 1
-    return count + extra
+
+def function_signatures(sources):
+    """{name: (return type, parameters)} from definitions in the tree."""
+    out = {}
+    for cp in sources:
+        text = cp.read_text(errors='replace')
+        for m in re.finditer(r'^([A-Za-z_][\w \t\*]*?)\b(\w+)\s*\(([^;{)]*(?:\([^)]*\)[^;{)]*)*)\)'
+                             r'\s*(?:\{|\n\s*\{)', text, re.M):
+            ret = re.sub(r'\b(static|inline)\b', '', m.group(1)).strip()
+            out.setdefault(m.group(2), (ret, m.group(3)))
+    return out
 
 
 def resolve_fn_table(rom, mapping, defined, addr, count):
@@ -310,12 +315,14 @@ def main():
             declared.setdefault(m.group(1), rel)
     mapping = parse_map(args.map) if args.map and args.map.exists() else {}
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
+    signatures = {}
     defined = set()
     # The platform layer counts too -- it defines replacements for things the
     # decomp has in ROM (the SRAM library's version string, for one), and those
     # must not be turned into address macros either.
     sources = list((args.tree / 'src').rglob('*.c'))
     sources += sorted(Path('platform').rglob('*.c'))
+    signatures = function_signatures(sources)
     for cp in sources:
         text = cp.read_text(errors='replace')
         # Functions.
@@ -510,9 +517,13 @@ def main():
             ret, params = fn_typedefs[typedef_tables[name]]
         else:
             continue
+        # The label's own extent, and nothing more.  An earlier version walked
+        # forward while the following words still resolved to known functions;
+        # that is unsound exactly where two function tables abut, because the
+        # successor's entries resolve perfectly.  It read gUnk_0834BD88 as 12
+        # entries when it is 3, and the 9 extra entries had a different
+        # signature -- which is a trap waiting at the first dispatch.
         count = max(1, extent.get(name, 4) // 4)
-        if rom and mapping:
-            count = extend_fn_table(rom, mapping, defined, labels[name], count)
         fn_tables.append((name, ret, params, count, decl_source.get(name)))
     fn_names = {n for n, _, _, _, _ in fn_tables}
     copies = [c for c in copies if c[0] not in fn_names]
@@ -569,6 +580,7 @@ def main():
                                     ret, params, name))
 
     wired = missing = 0
+    sig_rejects = []
     if args.out_tables is not None:
         args.out_tables.parent.mkdir(parents=True, exist_ok=True)
         with args.out_tables.open('w') as f:
@@ -611,6 +623,24 @@ def main():
                 f.write('/* %s: %d entries; %d resolved to decompiled C, '
                         '%d still ARM-only. */\n' % (name, count, have,
                                                      count - have))
+                # A cast makes any function fit the table's element type at
+                # compile time and traps at the first dispatch: wasm checks the
+                # callee's real type against the call site's.  So an entry whose
+                # signature does not match is not wired at all -- it gets the
+                # reporting stub, and is named here at build time.
+                want = wasm_sig(ret, params)
+                for i, fn in enumerate(entries):
+                    if not fn:
+                        continue
+                    have = signatures.get(fn)
+                    if have is None:
+                        continue
+                    if wasm_sig(have[0], have[1]) != want:
+                        sig_rejects.append((name, i, fn,
+                                            '%s(%s)' % (have[0], ' '.join(have[1].split())),
+                                            '%s(%s)' % (ret, ' '.join(params.split()))))
+                        entries[i] = None
+
                 for fn in sorted({e for e in entries if e}):
                     if fn not in declared and fn not in emitted:
                         emitted.add(fn)
@@ -684,6 +714,13 @@ def main():
     if patches:
         print('  %d function pointers inside ROM structs, %d resolved'
               % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))
+    if sig_rejects:
+        print('  %d table entries REJECTED -- the function\'s signature does not '
+              'match the table, so calling it would trap:' % len(sig_rejects))
+        for tbl, idx, fn, have, want in sig_rejects:
+            print('      %s[%d] = %s' % (tbl, idx, fn))
+            print('          is   %s' % have)
+            print('          want %s' % want)
     if fn_tables:
         print('  %d ROM function tables: %d entries wired to decompiled C, '
               '%d stubbed' % (len(fn_tables), wired, missing))
