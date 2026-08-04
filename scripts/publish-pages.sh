@@ -48,9 +48,29 @@ else
     git -C "$WORKTREE" rm -rqf . 2>/dev/null || true
 fi
 
-find "$WORKTREE" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$WORKTREE"/
-cp "$DIST"/robots.txt "$WORKTREE"/ 2>/dev/null || true
+# PAGES_SUBDIR publishes into a subdirectory instead of the site root, so an
+# experimental branch can be looked at side by side with the real thing:
+#
+#   PAGES_SUBDIR=qol scripts/publish-pages.sh   ->  .../katam-port/qol/
+#
+# Only that subdirectory is cleared.  Wiping the whole worktree here -- which
+# is what the root publish does, and must keep doing -- would take the main
+# build down every time a branch was published.
+if [ -n "${PAGES_SUBDIR:-}" ]; then
+    case "$PAGES_SUBDIR" in
+        */*|.*|"") echo "PAGES_SUBDIR must be a single plain directory name" >&2; exit 1 ;;
+    esac
+    TARGET="$WORKTREE/$PAGES_SUBDIR"
+    rm -rf "$TARGET"
+    mkdir -p "$TARGET"
+    echo "    publishing into /$PAGES_SUBDIR/ (site root left alone)"
+else
+    TARGET="$WORKTREE"
+    find "$WORKTREE" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+fi
+
+cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
+cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 # Pages runs Jekyll by default, which ignores files it does not understand.
 touch "$WORKTREE/.nojekyll"
 
