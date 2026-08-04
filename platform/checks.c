@@ -49,7 +49,7 @@ void *PortTaskStruct(struct Task *task)
         sBadCalls++;
         if (sReported < 20) {
             sReported++;
-            PortLog("[katam-port] TaskGetStructPtr(NULL)");
+            PortError("[katam-port] TaskGetStructPtr(NULL)");
         }
         return sScratch;
     }
@@ -71,7 +71,7 @@ void *PortTaskStruct(struct Task *task)
         /* The whole task, because which field is wrong is the question:
          * a bogus structOffset means the allocator, a bogus flags means the
          * task itself has been overwritten. */
-        PortLog("[katam-port] task pointer leaves the map: 0x%08X\n"
+        PortError("[katam-port] task pointer leaves the map: 0x%08X\n"
                 "    task at %p: parent=%u prev=%u next=%u structOffset=0x%04X\n"
                 "    main=%p dtor=%p priority=%u flags=0x%04X",
                 (unsigned)addr, (void *)task,

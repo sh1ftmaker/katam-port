@@ -31,11 +31,16 @@ const PRESSES = (process.env.PRESS_AT || '').split(',').filter(Boolean)
 // button registers once and then does nothing.
 const MASH = (process.env.MASH || '').split(':').filter(Boolean).map(Number);
 
+// HOLD=0x10 keeps Right down the whole time while MASH taps A on top of it.
+// Toggling both together makes Kirby stop dead every other burst, which is no
+// way to cross a level.
+const HOLD = parseInt(process.env.HOLD || '0', 0);
+
 function mashMask(frame) {
-    if (MASH.length !== 3) return null;
+    if (MASH.length !== 3) return HOLD || null;
     const [start, mask, period] = MASH;
-    if (frame < start) return null;
-    return ((frame - start) % period) < (period >> 1) ? mask : 0;
+    if (frame < start) return HOLD || null;
+    return HOLD | (((frame - start) % period) < (period >> 1) ? mask : 0);
 }
 
 function savePpm(data, w, h, path) {
@@ -149,6 +154,19 @@ const Module = {
             // The VBlank transfer queue: head, tail, and how many entries are
             // still waiting.  A queue that never empties means the port's
             // VBlank window is too small, which would leave uploads undone.
+            // LIVE="0x0203AD30:1" prints addresses every diagnostic tick, as
+            // opposed to DUMP= which only fires at a trap.  Same spec format.
+            for (const spec of (process.env.LIVE || '').split(',').filter(Boolean)) {
+                const [a, w, n, stride] = spec.split(':');
+                const addr = parseInt(a, 0), width = parseInt(w || '4', 0);
+                const count = parseInt(n || '1', 0);
+                const step = parseInt(stride || String(width), 0);
+                const rd = (p) => width === 1 ? Module.HEAPU8[p]
+                    : width === 2 ? (Module.HEAPU8[p] | (Module.HEAPU8[p+1] << 8)) : u32(p);
+                const out = [];
+                for (let i = 0; i < count; i++) out.push('0x' + rd(addr + i * step).toString(16));
+                console.log('    live %s: %s', a, out.join(' '));
+            }
             if (process.env.QUEUE) {
                 const head = Module.HEAPU8[0x03006078], tail = Module.HEAPU8[0x030039A4];
                 let pending = (tail - head) & 0x3f, bytes = 0;

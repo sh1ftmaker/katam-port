@@ -60,6 +60,15 @@ void PortRomLoaded(u32 size);
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortLog(const char *fmt, ...);
+/* Same, at console error level -- for things that are actually wrong, so
+ * they survive an "Errors only" filter in the browser console. */
+void PortError(const char *fmt, ...);
+
+/* Report each distinct (tag, a, b, c) once.  For state machines that stop
+ * advancing somewhere a scripted run cannot reach: one line per state passed
+ * through, and a stuck machine shows a single line holding the numbers that
+ * explain why.  See platform/main.c. */
+void PortTrace(const char *tag, u32 a, u32 b, u32 c);
 
 /* --- write watchpoint -----------------------------------------------------
  * "Which transfer clobbered this byte?" is the question every stale-or-wrong

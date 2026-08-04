@@ -155,6 +155,85 @@ RAW_DMA = {
     )],
 }
 
+# Tracing for the warp-star / goal-star state machine.
+#
+# The star at the end of a level stops advancing: Kirby boards it and it never
+# launches, with no trap and no freeze -- the machine is simply waiting on a
+# condition that never becomes true.  No scripted input run can reach the end of
+# a level, so the values have to come from a real session.
+#
+# Each insertion goes at the top of a state handler and reports the inputs to
+# that state's wait condition.  PortTrace reports each distinct tuple once, so
+# these are silent once the state has been seen, and a stuck state leaves
+# exactly one line holding the numbers that explain it.
+#
+# Remove these once the bug is understood -- they are diagnosis, not code.
+STAR_TRACE = {
+    'warp_star.c': [
+        # Goal star: waits for every Kirby in its room to reach the riding
+        # animation (0x5A).  gUnk_0203AD30 is 1 in single player, so only
+        # Kirby 0 is examined -- log the star's room, Kirby 0's room, and
+        # Kirby 0's animation, which is the whole condition.
+        ('static void sub_0800C558(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    u16 i, j, roomId;\n',
+         'static void sub_0800C558(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    u16 i, j, roomId;\n'
+         '    PortTrace("goal star waiting (sub_0800C558): starRoom, kirby0Room, kirby0Anim",\n'
+         '              gs->unk0.obj2.base.roomId,\n'
+         '              gKirbys[0].base.base.base.roomId,\n'
+         '              gKirbys[0].animationIndex);\n'),
+
+        # Warp star: waits for every boarded Kirby's animation to LEAVE 90.
+        # The opposite condition to the one above, and the more likely of the
+        # two to hang, because it needs the mount animation to finish.
+        ('static void sub_0800E02C(struct WarpStar *ws)\n{\n'
+         '    struct WarpStar *wsAlias = ws;\n'
+         '    bool32 b = TRUE;\n'
+         '    u16 i;\n',
+         'static void sub_0800E02C(struct WarpStar *ws)\n{\n'
+         '    struct WarpStar *wsAlias = ws;\n'
+         '    bool32 b = TRUE;\n'
+         '    u16 i;\n'
+         '    PortTrace("warp star waiting (sub_0800E02C): riderMask, kirby0Anim, numKirbys",\n'
+         '              ws->unk0.unkB5, gKirbys[0].animationIndex, gUnk_0203AD44);\n'),
+
+        # The mount itself, so a star that never gets this far can be told from
+        # one that mounts and then hangs.
+        ('static void sub_0800DCC0(struct WarpStar *ws)\n{\n'
+         '    struct WarpStar *wsAlias = ws;\n'
+         '    u16 i;\n',
+         'static void sub_0800DCC0(struct WarpStar *ws)\n{\n'
+         '    struct WarpStar *wsAlias = ws;\n'
+         '    u16 i;\n'
+         '    PortTrace("warp star mounting (sub_0800DCC0): riderMask, whichTable, numKirbys",\n'
+         '              ws->unk0.unkB5, ws->unk0.unkB4, gUnk_0203AD44);\n'),
+
+        # Launch armed.  If this appears, the wait was satisfied and the
+        # problem is further along.
+        ('static void sub_0800C6E8(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    u16 i;\n',
+         'static void sub_0800C6E8(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    u16 i;\n'
+         '    PortTrace("goal star launching (sub_0800C6E8): riderCount, rider0, kirby0Anim",\n'
+         '              gs->unkC2, gs->unkBE[0], gKirbys[0].animationIndex);\n'),
+
+        # The state that decides whether to arm the launch at all.
+        ('static void sub_0800C660(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    s32 a[2];\n',
+         'static void sub_0800C660(struct GoalStar *gs)\n{\n'
+         '    struct GoalStar *gsAlias = gs;\n'
+         '    s32 a[2];\n'
+         '    PortTrace("goal star settling (sub_0800C660): xspeed, yspeed, kirby0Anim",\n'
+         '              gs->unk0.obj2.base.xspeed, gs->unk0.obj2.base.yspeed,\n'
+         '              gKirbys[0].animationIndex);\n'),
+    ],
+}
+
 FNPTR_ADAPTER_DECLS = {
     'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
     'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
@@ -549,6 +628,13 @@ def main():
                         hit = True
                 if hit:
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
+            for old, new in STAR_TRACE.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new)
+                    rep.bump('warp-star state traces inserted')
+                else:
+                    rep.unhandled.append(
+                        '%s: STAR_TRACE pattern no longer matches' % path.name)
             for old, new in RAW_DMA.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)

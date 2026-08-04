@@ -48,6 +48,23 @@ void PortLog(const char *fmt, ...)
     emscripten_console_log(buf);
 }
 
+/* Same, at error level.  Everything the port says arrives in the browser's
+ * console via console.log, which means a genuine fault reads exactly like a
+ * routine note and cannot be filtered for.  Things that are actually wrong go
+ * through here so they show as errors, carry a stack in devtools, and survive
+ * a "Errors only" filter -- which is what someone reporting a bug from a phone
+ * will be looking at. */
+void PortError(const char *fmt, ...)
+{
+    char buf[512];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    emscripten_console_error(buf);
+}
+
 static int ReportOnce(const char *name)
 {
     int i;
@@ -64,7 +81,7 @@ void PortMissingFunction(const char *name)
 {
     sMissingCalls++;
     if (ReportOnce(name))
-        PortLog("[katam-port] called %s(), which has no C body yet "
+        PortError("[katam-port] called %s(), which has no C body yet "
                 "(still ARM assembly in the decomp)", name);
 }
 
@@ -92,6 +109,58 @@ void PortWatchCheck(const char *who, uintptr_t dest, u32 bytes, uintptr_t src)
                 (unsigned)gPortWatchAddr, who, (unsigned)dest,
                 (unsigned)(dest + bytes), (unsigned)src,
                 (unsigned)sFrameCount);
+}
+
+/* --- state tracing --------------------------------------------------------
+ *
+ * For bugs that only appear somewhere a scripted run cannot reach -- the end
+ * of a level, a boss, a specific door.  A state machine that stops advancing
+ * gives nothing to work with after the fact: there is no trap, no log, and the
+ * game keeps running perfectly.  What is needed is the value of the condition
+ * it is waiting on, from the machine of whoever can actually get there.
+ *
+ * Each distinct (tag, a, b, c) is reported once, so a handler that runs every
+ * frame prints one line per state it passes through and then goes quiet.  A
+ * machine stuck in a loop therefore shows exactly one line, holding the
+ * numbers that explain why. */
+
+#define MAX_TRACED     48   /* distinct tuples remembered in total */
+#define MAX_PER_TAG     8   /* lines any single site may ever print */
+
+static struct { const char *tag; u32 a, b, c; } sTraced[MAX_TRACED];
+static int sNumTraced;
+
+void PortTrace(const char *tag, u32 a, u32 b, u32 c)
+{
+    int i, perTag = 0;
+
+    for (i = 0; i < sNumTraced; i++) {
+        if (sTraced[i].tag == tag) {
+            /* Already said this exact thing -- say nothing. */
+            if (sTraced[i].a == a && sTraced[i].b == b && sTraced[i].c == c)
+                return;
+            perTag++;
+        }
+    }
+
+    /* A per-site cap as well as a global one.  Some of these sites report a
+     * value that changes every frame; without a per-site limit one of them
+     * would spend the whole budget in two seconds and drown out the rest.
+     * Once a site is capped it stops recording too, so it cannot go on eating
+     * slots -- perTag stays at the cap and every later call returns here. */
+    if (perTag >= MAX_PER_TAG || sNumTraced >= MAX_TRACED)
+        return;
+
+    sTraced[sNumTraced].tag = tag;
+    sTraced[sNumTraced].a = a;
+    sTraced[sNumTraced].b = b;
+    sTraced[sNumTraced].c = c;
+    sNumTraced++;
+
+    PortLog("[katam-port] trace %s: %u (0x%X), %u (0x%X), %u (0x%X)",
+            tag, a, a, b, b, c, c);
+    if (perTag + 1 == MAX_PER_TAG)
+        PortLog("[katam-port] trace %s: capped, no further values", tag);
 }
 
 void PortUnimplemented(const char *what)

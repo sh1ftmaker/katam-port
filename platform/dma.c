@@ -135,15 +135,22 @@ static void RunTransfer(struct DmaChannel *ch)
         SpanOf((uintptr_t)dest, destCtrl, unit, ch->count, &destLo, &destLen);
 
         if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
+            /* A few of these are expected, not faults.  A room with no second
+             * object layer gets `CpuFill16(0xFFFF, &levelInfo->unk180[2], ...)`
+             * for that descriptor, so the tilemap blitter runs with a source
+             * pointer of 0xFFFFFFFF plus offsets, which wraps somewhere
+             * undecoded.  On hardware that reads open bus into a screen block
+             * belonging to a disabled layer -- invisible either way.  Report a
+             * handful so a genuinely new one is still visible, then stop. */
             sBadTransfers++;
-            if (sBadTransfers <= 20)
-                PortLog("[katam-port] DMA leaves the map: src=0x%08X%s "
+            if (sBadTransfers <= 5)
+                PortError("[katam-port] DMA leaves the map: src=0x%08X%s "
                         "dest=0x%08X%s count=%u unit=%u flags=0x%04X",
                         (unsigned)srcLo, RangeOk(srcLo, srcLen) ? "" : " <-- bad",
                         (unsigned)destLo, RangeOk(destLo, destLen) ? "" : " <-- bad",
                         (unsigned)ch->count, (unsigned)unit,
                         (unsigned)ch->flags);
-            else if (sBadTransfers == 21)
+            else if (sBadTransfers == 6)
                 PortLog("[katam-port] further bad DMA transfers suppressed");
             /* Skip it rather than trap.  On hardware an undecoded address
              * reads open bus and writes nowhere -- the transfer is garbage
