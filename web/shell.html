@@ -225,6 +225,11 @@
     <label class="filebtn" for="romfile">Choose ROM file…</label>
     <p>…or drag and drop the <code>.gba</code> file anywhere on this page.</p>
     <p>
+      You only have to do this once: the file is kept in this browser's own
+      storage for this site (IndexedDB), on this device. It is not uploaded
+      anywhere, and <b>Forget stored ROM</b> below erases it.
+    </p>
+    <p>
       You can also paste a direct link to a <code>.gba</code> file you have the
       right to use into the box below: your browser downloads it straight from
       that address — it is not uploaded to, or routed through, this page.
@@ -235,6 +240,7 @@
 <div class="bar">
   <label class="filebtn" for="romfile">Load ROM…</label>
   <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
+  <button id="romforget" type="button" disabled>Forget stored ROM</button>
   <span class="urlbox">
     <input id="romurl" type="url" spellcheck="false" autocomplete="off"
            placeholder="direct link to a .gba file you have the right to use">
@@ -411,12 +417,23 @@ var Module = (function () {
   var ROM_BASE     = 0x08000000;
   var EXPECTED_SIZE = 16 * 1024 * 1024;   // 16 MiB — katam's cart size
 
-  var romLoaded = false;
+  var romLoaded  = false;
+  var romClaimed = false;                      // set the instant a source wins the race,
+                                               // which is long before the bytes are mapped
+  var loadedName = '', loadedSize = 0;
   var infoEl    = document.getElementById('rominfo');
   var curtain   = document.getElementById('curtain');
 
-  function loadRom(bytes, name) {
-    if (romLoaded) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+  function romInfoText() {
+    if (!romLoaded) return 'no ROM loaded';
+    return loadedName + ' — ' + mib(loadedSize) + (stored ? ' · remembered in this browser' : '');
+  }
+
+  // `fromStore` marks bytes that came out of IndexedDB, so they are not
+  // written straight back into it.
+  function loadRom(bytes, name, fromStore) {
+    if (romClaimed) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+    romClaimed = true;
 
     if (bytes.length !== EXPECTED_SIZE) {
       log('warning: "' + name + '" is ' + bytes.length + ' bytes; expected ' +
@@ -431,6 +448,7 @@ var Module = (function () {
         log('fatal: wasm heap is ' + heap.length + ' bytes but the ROM must be mapped at 0x' +
             ROM_BASE.toString(16) + ' (needs ' + need + '). Rebuild with a larger ' +
             'INITIAL_MEMORY / ALLOW_MEMORY_GROWTH.', 'err');
+        romClaimed = false;                  // a smaller ROM might still fit
         return;
       }
 
@@ -438,13 +456,18 @@ var Module = (function () {
       Module._PortRomLoaded(bytes.length);   // tells C the cart is mapped and how big
 
       romLoaded = true;
-      infoEl.textContent = name + ' — ' + (bytes.length / 1048576).toFixed(2) + ' MiB';
-      curtain.classList.add('hidden');
+      loadedName = name;
+      loadedSize = bytes.length;
+      infoEl.textContent = romInfoText();
+      hideCurtain();
       shell.fitScreen();
       log('ROM mapped at 0x' + ROM_BASE.toString(16) + '. Starting.', 'ok');
 
       // Releases the C entry point, which has been parked on this promise.
       shell.resolveRomReady();
+
+      // Only bytes that actually mapped are worth remembering.
+      if (!fromStore) rememberRom(bytes, name);
     });
   }
 
@@ -485,6 +508,140 @@ var Module = (function () {
     document.body.classList.remove('dragging');
     if (e.dataTransfer.files && e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]);
   });
+
+  //====================================================================
+  // Remembering the ROM between visits
+  //
+  // IndexedDB rather than localStorage: localStorage holds strings only, so a
+  // 16 MiB cart would have to be base64'd (+33%) and would still blow past its
+  // ~5 MB quota. IndexedDB stores a Uint8Array verbatim. Both are per-origin
+  // browser storage on this machine — neither uploads anything.
+  //
+  // One database, one store, one record: {bytes, name, saved}.
+  //====================================================================
+
+  var DB_NAME = 'katam.rom', DB_STORE = 'rom', DB_KEY = 'current';
+
+  var dbPromise  = null;
+  var stored     = false;                      // is there a record right now?
+  var storageBroken = false;                   // already explained, don't nag twice
+  var forgetBtn  = document.getElementById('romforget');
+
+  function reason(e) { return (e && e.message) || String(e || 'unknown error'); }
+
+  // IndexedDB is event-based throughout; these three wrappers are the only
+  // place that has to care, and everything above them is promises like the
+  // rest of the shell.
+  function idbRequest(req) {
+    return new Promise(function (resolve, reject) {
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror   = function () { reject(req.error || new Error('the request failed')); };
+    });
+  }
+
+  function idbOpen() {
+    if (!dbPromise) dbPromise = new Promise(function (resolve, reject) {
+      // open() does not always get as far as firing onerror: on a file:// page
+      // or in a locked-down private window it throws right here, and on some
+      // builds indexedDB is absent altogether.
+      if (!window.indexedDB) throw new Error('IndexedDB is not available');
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore(DB_STORE); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror   = function () { reject(req.error || new Error('the database would not open')); };
+      req.onblocked = function () { reject(new Error('another tab is holding the database open')); };
+    });
+    return dbPromise;
+  }
+
+  function idbWith(mode, fn) {
+    return idbOpen().then(function (db) {
+      return idbRequest(fn(db.transaction(DB_STORE, mode).objectStore(DB_STORE)));
+    });
+  }
+
+  function idbGet()    { return idbWith('readonly',  function (s) { return s.get(DB_KEY); }); }
+  function idbPut(rec) { return idbWith('readwrite', function (s) { return s.put(rec, DB_KEY); }); }
+  function idbDelete() { return idbWith('readwrite', function (s) { return s['delete'](DB_KEY); }); }
+
+  function setStored(v) {
+    stored = !!v;
+    forgetBtn.disabled = !stored;
+  }
+
+  function rememberRom(bytes, name) {
+    idbPut({ bytes: bytes, name: name, saved: Date.now() }).then(function () {
+      setStored(true);
+      infoEl.textContent = romInfoText();
+      log('ROM saved in this browser — it will load by itself next time.', 'ok');
+    }, function (e) {
+      // Storage failing costs the player nothing this session: the bytes are
+      // already mapped and the game is running.
+      setStored(false);
+      if (storageBroken) return;               // the startup probe said so already
+      storageBroken = true;
+      log('could not save the ROM for next time (' + reason(e) + ') — this session only; ' +
+          'you will have to pick the file again.', 'warn');
+    });
+  }
+
+  forgetBtn.addEventListener('click', function () {
+    forgetBtn.disabled = true;
+    idbDelete().then(function () {
+      setStored(false);
+      if (romLoaded) infoEl.textContent = romInfoText();
+      log('stored ROM deleted — you will need to choose your ROM file again next visit.', 'ok');
+    }, function (e) {
+      setStored(true);
+      log('could not delete the stored ROM: ' + reason(e), 'err');
+    });
+  });
+
+  // The curtain ships visible in the markup so a first-time visitor sees the
+  // prompt with no scripting delay. While we look for a stored ROM it is
+  // hidden: if one turns up the player never needed asking, and a prompt that
+  // appears only to vanish is worse than a moment of black.
+  var probeSettled = false;
+
+  function hideCurtain() { curtain.classList.add('hidden'); }
+
+  function showCurtain() {
+    probeSettled = true;
+    if (!romClaimed) curtain.classList.remove('hidden');
+  }
+
+  function restoreStoredRom() {
+    hideCurtain();
+
+    // Defensive: an open() that neither resolves nor errors (a known Safari
+    // private-mode bug) must not leave the page with no visible prompt.
+    setTimeout(function () {
+      if (probeSettled) return;
+      showCurtain();
+      log('browser storage did not answer — choose your ROM file to begin.', 'warn');
+    }, 3000);
+
+    idbGet().then(function (rec) {
+      if (probeSettled) return;
+      probeSettled = true;
+      setStored(!!(rec && rec.bytes));
+      if (stored) {
+        log('stored ROM found: ' + rec.name + ' — loading it.', 'ok');
+        infoEl.textContent = 'loading stored ROM…';
+        loadRom(new Uint8Array(rec.bytes), rec.name, true);
+        return;
+      }
+      showCurtain();
+      log('no stored ROM in this browser — choose your ROM file to begin; ' +
+          'it will be remembered for next time.');
+    }, function (e) {
+      if (probeSettled) return;
+      setStored(false);
+      showCurtain();
+      log('browser storage is unavailable here (' + reason(e) + ') — a ROM you pick will ' +
+          'work for this session only.', 'warn');
+    });
+  }
 
   //====================================================================
   // Loading from a URL
@@ -573,7 +730,7 @@ var Module = (function () {
   }
 
   function fetchRom(rawUrl) {
-    if (romLoaded) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+    if (romClaimed) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
     if (fetching)  { log('a download is already in progress.', 'warn'); return; }
 
     var url = (rawUrl || '').trim();
@@ -678,9 +835,20 @@ var Module = (function () {
     catch (e) { log('the rom= parameter is not valid percent-encoding.', 'err'); return ''; }
   }
 
-  function initRomUrl() {
+  function initRom() {
     var auto = romParam();
-    if (auto) { log('rom= parameter found — starting the download.'); startUrl(auto); return; }
+
+    // rom= is a request the player made by navigating here just now; a stored
+    // ROM is one they made on some earlier visit. The explicit one wins, and
+    // replaces the stored copy once it has loaded.
+    if (auto) {
+      log('rom= parameter found — starting the download.');
+      startUrl(auto);
+      // Nothing else to decide: this only lights up the "forget" button.
+      idbGet().then(function (rec) { setStored(!!(rec && rec.bytes)); },
+                    function ()    { setStored(false); });
+      return;
+    }
 
     // Pre-filled only. A reload must never quietly pull 16 MiB off someone
     // else's server; only rom= (which the user just navigated to) auto-loads.
@@ -689,6 +857,8 @@ var Module = (function () {
       urlInput.value = last;
       log('previous URL restored in the box above — press Load to fetch it.');
     }
+
+    restoreStoredRom();
   }
 
   //====================================================================
@@ -753,8 +923,8 @@ var Module = (function () {
     pushMask();
   });
 
-  log('ready — load your own Kirby & The Amazing Mirror ROM to begin.');
-  initRomUrl();
+  log('ready — this port needs your own Kirby & The Amazing Mirror ROM.');
+  initRom();
 })();
 </script>
 

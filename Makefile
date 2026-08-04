@@ -78,7 +78,7 @@ OBJS          := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test prune dist deploy
+.PHONY: all sync clean serve compile stubs test prune dist deploy check-dist
 
 all: $(TARGET)
 
@@ -171,13 +171,38 @@ dist: all
 	@printf 'User-agent: *\nDisallow: /\n' > $(DIST)/robots.txt
 	@echo "  DIST    $(DIST) ($$(du -sh $(DIST) | cut -f1))"
 
-deploy: dist
+# The last thing between a ROM and the internet.  dist rebuilds the directory
+# from three named files so this should never fire -- which is the point: it
+# guards the publish itself, not the assembly, and it runs on whatever is
+# actually about to be uploaded.
+check-dist:
+	@bad=$$(find $(DIST) -type f \( -iname '*.gba' -o -iname '*.gb' -o -iname '*.gbc' \
+	         -o -iname '*.bin' -o \( -size +8M ! -name 'katam.wasm' \) \)); \
+	if [ -n "$$bad" ]; then \
+	    echo "REFUSING TO PUBLISH -- $(DIST) contains game data:"; \
+	    echo "$$bad"; \
+	    exit 1; \
+	fi; \
+	echo "  CHECK   $(DIST) carries no game data"
+
+deploy: dist check-dist
 	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \
 	    --project-name=$(PAGES_PROJECT) --branch=main --commit-dirty=true
 
 # --- convenience ----------------------------------------------------------
+# Serving a ROM next to the page makes ?rom= same-origin, which is the one way
+# the URL path works without the remote host opting in via CORS.  It stays
+# local: *.gba is gitignored, and `dist` copies three named files by name, so
+# nothing here can reach a deployment.
 serve: all
-	@echo "http://localhost:8000/katam.html"
+	@if [ -f "$(ROM)" ]; then \
+	    cp "$(ROM)" $(OUT)/rom.gba; \
+	    echo "  serving your ROM locally at /rom.gba (not published)"; \
+	    echo "  http://localhost:8000/katam.html?rom=/rom.gba"; \
+	else \
+	    echo "  http://localhost:8000/katam.html"; \
+	    echo "  (set ROM=/path/to/your.gba to have it served alongside)"; \
+	fi
 	@cd $(OUT) && python3 -m http.server 8000
 
 clean:

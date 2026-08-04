@@ -3,34 +3,56 @@
 _A copy of `~/Desktop/katam-port-requests.md`, the document handed to the
 decompilation effort. Kept here so the asks are versioned alongside the code._
 
-Written 2026-08-04 by the session that built the WebAssembly port. This is the
-return direction of `katam-port-notes.md`: what the port learned by actually
-compiling and running the tree, what it needs next, and what it does not need.
+Written 2026-08-04 by the session that built the WebAssembly port. **This
+supersedes the previous version of this file in full** — enough changed that
+appending would have left stale asks standing. In particular, the old §1
+("`sub_08155128` is the one thing blocking everything") is gone because it is
+done.
 
-Everything below was measured against the working tree, not estimated. Nothing
-here asks the decompilation to change how it works — the port adapts sources at
-build time and never edits your checkout.
+This is the return direction of `katam-port-notes.md`: what the port learned by
+actually compiling and running the tree, what it needs next, and what it does
+not need. Everything below was measured against the working tree or read out of
+`baserom.gba`, not estimated. Nothing here asks the decompilation to change how
+it works — the port adapts sources at build time and never edits your checkout.
 
 Port repo: `~/Desktop/katam-port` → `sh1ftmaker/katam-port` (private).
 
 ---
 
-## 0. The port exists and runs
+## 0. Thank you — `sub_08155128` landed and it did exactly what was hoped
 
-It boots the game's own `AgbMain` / `GameLoop` unmodified and gets to the
-file-select menu. Verified headlessly against a real ROM, not by inspection:
+The #1 ask was delivered and it worked. `wip/sprite.c` now carries a C body for
+`sub_08155128` (plus 14 more — 15 of 27 `sprite.s` functions have C), and the
+effect on the port was immediate and total:
 
-| Frame | State |
+| Before | After |
 |---|---|
-| ~60 | first VRAM uploads, `DISPCNT` = mode 0, 4 BGs + OBJ enabled |
-| ~1200 | full title screen: sky, rainbow, logo, copyright line |
-| 1250 | Start pressed |
-| ~1900 | file-select menu, "CHOOSE A FILE TO PLAY" |
+| backgrounds only, every menu an empty frame | OAM populated, sprites draw |
+| title screen: sky, rainbow, logo, copyright | **plus "PRESS START"** |
+| file-select: blank | **entries, cursor, the four Kirbys, item sprites** |
+| never left the menu | **reaches a level** |
 
-2000 frames, no crash. `gFrameCount` advances in step and `TasksExec` runs
-every frame. 189 of 189 game `.c` files compile.
+Concretely, what it unblocked: with sprites the port can get *through* the
+file-select menu, so `CreateLevelObjects` now runs, objects spawn
+(`CreateSmallSwitch` among others), and Kirby's own state machine executes —
+the current crash trap lands inside `kirbyFlyUp`, which is a sentence that was
+not possible to write a day ago. It still dies partway into gameplay, on the
+problem class in §3, not on a missing body.
 
-**One thing is missing and it is the whole visible game: sprites.** More below.
+The documented return protocol (`0` = animation stopped, skip OAM emission this
+frame) was used as given and is correct.
+
+### Where the port is now
+
+| | |
+|---|---|
+| Game sources compiled | 190 |
+| Stubbed symbols (`make stubs`) | **25** (was 28) |
+| ROM function-table entries wired to real C | **312 of 314**, across 8 tables |
+| Function pointers patched inside ROM structs | **193 of 219** |
+| Linker-placed RAM symbols reconstructed | 183 |
+| ROM data symbols resolved to addresses | 162 |
+| Functions with no C body that the port reaches | **2** |
 
 ### Re-measuring port impact yourself
 
@@ -42,159 +64,242 @@ make sync && make stubs   # prints exactly what is still ARM-only, re-derived
 make test                 # boots under node with a ROM, writes build/frame.ppm
 ```
 
-`make stubs` is the honest scoreboard: 28 symbols today.
+`make stubs` is still the honest scoreboard. Its output ends with
+`... N stubbed symbols`; N is 25 today, and `build/undefined.txt` is the list.
 
 ---
 
-## 1. The one thing that matters most
+## 1. The remaining port blockers, ranked
 
-### `sub_08155128` — 521 references, no C body
+**Only two functions in the whole game still have no C body, and the port
+reaches both.**
 
-Every object in the game reaches OAM through it. While it is stubbed, **OAM is
-never populated and nothing but backgrounds draws** — no Kirby, no enemies, no
-menu cursors, no file boxes. The port's sprite renderer is written, tested and
-idle, waiting for this one function.
+| Function | Why the port reaches it |
+|---|---|
+| `sub_08038010` | called twice from `sub_08037314` |
+| `sub_08038B34` | Kirby update path |
 
-It is the single most-referenced function in the codebase and it is still ARM
-assembly in `asm/sprite.s` (~1,950 instructions).
+Then four `sprite.s` functions the port still stubs, in no particular order
+because none of them is currently the thing that kills it:
 
-I know `sprite.s` is claimed by another contributor and I have not touched it.
-Two things worth saying anyway:
+`sub_0815436C`, `sub_081548A8`, `sub_08154B14`, `sub_08155604`.
 
-- **The port does not need a match.** A body in a `#else` / NONMATCHING branch
-  is fully usable. If the matching effort on that file is slow, correct C that
-  nobody claims is a match would unblock the entire visual game.
-- The rest of that file matters much less. Ranked by references:
-  `sub_0815521C` (10), `sub_08155604` (7), `sub_08154FE8` (7), `sub_081548A8`
-  (4), `sub_08154B14` (2), `sub_0815436C` (2).
+That is the entire "missing body" list. `build/generated/stubs.c` is the
+ground truth for it; everything else in that file is m4a, MultiSio/MultiBoot
+and two data symbols, all deliberate (§7).
+
+### `sub_08037314` — warning received and respected
+
+Understood that it is deliberately incomplete: the outer sweep and block 1 of
+six collision blocks are written, blocks 2–6 are not. The port **does** reach
+it, so it is running with partial collision resolution, and it is recorded on
+the port side as a **known-incomplete site, not as working code** — exactly as
+asked. If gameplay behaviour looks wrong near collisions, this is the first
+place the port will look, and it will not be reported to you as a bug.
+
+Filling blocks 2–6 is therefore a real port ask, not just a tidiness one, but
+it ranks below the two bodyless functions above.
 
 ---
 
-## 2. Bodyless functions the port actually reaches
+## 2. The general problem class, stated plainly
 
-Of the 12 remaining bodyless functions, these are the ones the running port hits
-or would hit. The other five are not reachable from anything the port exercises
-yet, so they are lower value *for the port* — matching priorities may differ.
+Because it is now the main thing between the port and playing, and because it
+is invisible from your side — it costs nothing on hardware.
 
-| Function | Why it matters | Refs |
+A function pointer stored in ROM is an **ARM code address**. In WebAssembly a
+function pointer is an **index into the module's function table**, so such a
+value is not merely wrong, it is out of range: calling one ends the program
+instantly.
+
+The port handles this by resolving each address back through the GBA build's
+`katam.map` and emitting a real reference to the decompiled C function. Three
+shapes are covered automatically:
+
+| Shape | Example | State |
 |---|---|---|
-| `sub_08035788` | called from the Kirby update path in `code_08032E98.c` | 3 |
-| `sub_08037314` | same file, called next to the above | 2 |
-| `sub_08038B34` | same | 2 |
-| `sub_0803A450` | **`gUnk_0834C120[0]`** | 0 direct |
-| `sub_0803AFE8` | **`gUnk_0834C120[1]`** | 0 direct |
-| `sub_0803B788` | **`gUnk_0834C120[2]`** | 0 direct |
-| `sub_0803BF68` | **`gUnk_0834C120[3]`** | 0 direct |
+| flat function-pointer arrays | `gSpawnFuncTable1` | 312 of 314 entries wired across 8 tables |
+| arrays declared through a function-pointer typedef | `gUnk_082EB7D0` | covered |
+| function pointers *inside* ROM structs | `gUnk_08351648` — 219 object descriptors with a constructor at +0x10, patched in place at startup | 193 of 219 resolve |
 
-The bottom four look like nothing by reference count and are not: they are four
-of the five entries of the ROM dispatch table `gUnk_0834C120`, so **the entire
-table is dead** in the port. A grep for callers will not show this, which is
-exactly why it is worth flagging. If you want one cluster with outsized effect
-on the port after sprites, that is it.
+**The shapes it does NOT yet cover are what still crashes it partway into
+gameplay.** Each new one is individually fixable by the same mechanism, and
+each costs a session to find, because the symptom is always the same: a trap at
+an indirect call with no build-time warning.
 
----
+**The single most useful thing the decomp could do here**, whenever data
+conversion is on the table, is convert ROM function-pointer tables from
+`.incbin` into typed C data in `data/`. That removes this entire class — not
+one table at a time, the class. No urgency; the current mechanism works. But if
+data conversion is ever on the menu, function-pointer tables are the
+highest-value target by a wide margin.
 
-## 3. Function-pointer tables in ROM — a class of thing worth knowing about
-
-This was the difference between "draws the title screen" and "reaches the menu",
-and it is invisible from the decompilation side because it costs nothing on
-hardware.
-
-The game dispatches through tables of function pointers that live in ROM. Those
-tables hold **ARM code addresses**. In WebAssembly a function pointer is an
-index into the module's function table, so `0x0802FE84` is not merely wrong, it
-is out of bounds — calling one takes the program down instantly. That is what
-killed the port the first time Start was pressed.
-
-The port now rebuilds each table: every entry is looked up in `katam.map`,
-turned back into the name of the function at that address, and emitted as a real
-reference to the decompiled C function. **284 of 310 entries resolve.** The
-rest get a signature-correct stub that reports itself.
-
-Two consequences for you:
-
-**a. Entries that cannot be wired, by name.** These are the functions that
-appear in a ROM dispatch table and have no C the port can point at:
+The two entries that still cannot be wired, by name:
 
 ```
-gSpawnFuncTable1[114]  CreateBossChallengeDoor        (boss_challenge_door.s)
-gUnk_0834C120[0..3]    sub_0803A450 sub_0803AFE8 sub_0803B788 sub_0803BF68
-gUnk_08D5FDE4[2..11]   sub_08154E18 sub_08154E24 sub_08154E34 sub_08154E48
-                       sub_08154E64 sub_08154E70 sub_08154E88 sub_08154E90
-                       sub_08154E9C                 (sprite.s, anim commands)
-gUnk_08D6081C[0,1,5]   sub_08155370 sub_08155400 sub_08155494   (sprite.s)
+gSpawnFuncTable1[114]  CreateBossChallengeDoor   (boss_challenge_door.s, claimed)
+gUnk_0834BD94[9]       sub_0801DFE8              (see §3b -- it is static)
 ```
 
-`gSpawnFuncTable1` is otherwise complete — 218 of 219 object constructors
-resolve, which is why objects spawn at all.
+---
 
-**b. A data-typing note.** `gUnk_0834BD94` is declared as one label but is not
-one thing: the first 27 words are function pointers and the remaining 32 bytes
-(`0x04200400`, `0x0C210420`, `0x0C630C60`, … `0xFFFF7FFE`) are clearly some
-other data that the `.incbin` happens to cover. If that boundary is ever worth
-splitting into two labels, the port would stop generating eight nonsense table
-entries — and the decomp would be more accurate.
+## 3. Two table-boundary findings
 
-**The long-term fix is yours, not mine.** Every one of these tables that gets
-converted from `.incbin` into typed C data in `data/` removes the port's need
-to reconstruct it from `katam.map` plus a ROM at build time. No urgency — the
-current mechanism works — but if data conversion is ever on the menu, function
-pointer tables are the highest-value target.
+### 3a. `gUnk_0834BD88` — the label may be wrong, and this one is open
+
+`data/data_6.s:1188` declares it `.incbin "baserom.gba", 0x34BD88, 0x000000C`
+— **3 entries**. The game indexes it well past 3: `wip/code_08032E98.c:2224-25`
+does
+
+```c
+res = gUnk_0834BD88[obj->unk0](other);
+if ((u16)gUnk_0834BD88[other->unk0](obj) != 0)
+```
+
+On hardware the reads simply continue into the words of the next label and keep
+finding valid function pointers, so nothing is wrong at runtime. In C those
+became two separate arrays and the index ran off the end of a 3-element one
+into unrelated memory — which is what was crashing the port here.
+
+The port now walks each table forward past its label for as long as the
+following words still resolve to known functions. `gUnk_0834BD88` comes out at
+**12 entries**, all 12 resolving to decompiled C:
+
+```
+ 0 sub_080364E4   1 sub_080365C8   2 sub_0803699C   3 CreatePauseMenu
+ 4 sub_0801D618   5 sub_0801D624   6 sub_0801D630   7 sub_0801D63C
+ 8 sub_0801D648   9 sub_0801D654  10 sub_0801D660  11 sub_0801D66C
+```
+
+**Two things you should know before treating 12 as the answer.**
+
+The labels are contiguous: `0x34BD88 + 0xC == 0x34BD94`, so words 3 onward of
+`gUnk_0834BD88` *are* `gUnk_0834BD94`, word for word. And the walk stopped at
+12 for a reason that is not "the table ended" — word 12 is `0x0801DFE9`, i.e.
+`sub_0801DFE8`, which is `static` in `src/code_0801DA58.c:204` and therefore
+never appears in `katam.map`. The port cannot see it, so the walk halts.
+
+So **12 is a lower bound, not a measurement of the table's extent.** If the
+table genuinely continues it runs to at most 30 entries (3 + the 27 of
+`gUnk_0834BD94`), because word 30 is where the function pointers stop (§3b).
+
+The question for you: is the `0xC` label boundary wrong, or is the real table
+12 (or 30) entries with the label merely marking where a name got assigned? The
+answer needs the range of `ObjectBase::unk0`, which the port cannot bound.
+Whatever the answer, 12 is what the port runs today and it is stable.
+
+### 3b. `gUnk_0834BD94` — resolved, and the fix is confirmed from the ROM
+
+The previous version of this file asked for this label to be split. It has
+been, in `aa70e1e`, and the split is **verified correct against the ROM
+bytes**, not just accepted:
+
+- `data/data_6.s:1191` is now `.incbin ..., 0x34BD94, 0x000006C` = 27 words.
+- All 27 of those words have the Thumb bit set and 26 resolve through
+  `katam.map`; the 27th is the `static` `sub_0801DFE8` above.
+- The next word is at `0x34BE00` and is `0x04200400` — not a pointer. The full
+  eight words now under the new `gUnk_0834BE00` label are
+  `04200400 0C210421 0C630C61 1CE31C63 3CE71CE7 3DDF3DD7 7FDF7DDF FFFF7FFF`.
+
+The boundary is exactly 27. The port stopped generating the eight nonsense
+dispatch entries. Nothing further needed here.
+
+One small residual ask: `sub_0801DFE8` being `static` makes
+`gUnk_0834BD94[9]` unreachable for the port — it is one of the two entries in
+the whole build that gets a reporting stub instead of a real function. It is
+also the thing blocking a longer answer in §3a. If it turns out `static` is not
+load-bearing for the match there, dropping it would close both.
 
 ---
 
-## 4. Things the port found in the tree that look like real defects
+## 4. The anim-table attribution question — settled from the ROM bytes
 
-These are not port problems. They are things that are harmless under agbcc and
-would bite anyone else, so they may be worth fixing upstream regardless of the
-port.
+You asked, correctly, that this be settled from the bytes rather than from
+either side's prose. It was: 48 bytes read at each address out of
+`baserom.gba`, every word resolved through `katam.map`.
 
-1. **Prototypes that disagree with their definitions.**
-   `src/code_0802E57C.c:27-28` declares
-   ```c
-   void sub_0802F8D8(struct Unk_0802E57C *, u16, u16, u32, s32, s32, s16, s16, u16);
-   void sub_0802FA40(struct Unk_0802E57C *, u16, u16, u32, s32, s32, s16, s16, u16);
-   ```
-   but both are defined in `src/code_0802F8D8.c` returning
-   `struct Unk_0802F8D8 *`. On ARM the return value sits in `r0` and the caller
-   ignores it, so nothing breaks. WebAssembly validates signatures, and a
-   mismatch links to a stub that traps when called. The port patches this at
-   build time; fixing the declaration would be strictly better.
+**`gUnk_08D5FDE4`** (`0x08D5FDE4`, `0x30` bytes, 12 entries):
 
-2. **`static` definitions of symbols the headers export.**
-   `src/sparky.c` defines `gUnk_08355578` and `gUnk_08355584` as `static` while
-   `include/data.h` declares them `extern`. gcc 2.95 accepts it; clang rejects
-   it outright.
+```
+ 0 AnimCmd_GetTiles_2    1 AnimCmd_GetPalette_2   2 sub_08154E18
+ 3 sub_08154E24          4 sub_08154E34           5 AnimCmd_6_2
+ 6 sub_08154E48          7 sub_08154E64           8 sub_08154E70
+ 9 sub_08154E88         10 sub_08154E90          11 sub_08154E9C
+```
 
-3. **A NONMATCHING branch that does not compile.**
-   `src/cookin.c`'s `#else` branch calls `ObjectSetFunc(obj, ...)` where `obj`
-   is declared only in the matching branch. Nothing in the decomp workflow ever
-   builds those branches, so they rot silently. Worth knowing, since the port
-   builds with `-DNONMATCHING` and so is the only consumer of that code.
+**`gUnk_08D6081C`** (`0x08D6081C`, `0x30` bytes, 12 entries):
 
-4. **Declarations that no tool can parse.**
-   `gLevelObjLists` is an array of an anonymous `transparent_union` spread over
-   four lines; `gUnk_08D60FB4` and `gUnk_08D60FDC` share one `extern` with two
-   declarators. Both are legal and both required special handling. Not asking
-   for a change — just noting where the sharp edges are if the headers are ever
-   tidied.
+```
+ 0 sub_08155370          1 sub_08155400           2 AnimCmd_JumpBack
+ 3 AnimCmd_4             4 AnimCmd_PlaySoundEffect 5 sub_08155494
+ 6 AnimCmd_TranslateSprite 7 AnimCmd_8            8 AnimCmd_SetIdAndVariant
+ 9 AnimCmd_10           10 AnimCmd_SetPriority   11 AnimCmd_12
+```
 
-5. **`inline` without `static`.** The tree relies on gnu89 semantics, where a
-   plain `inline` definition also emits an external one. C99 inverted that rule,
-   so a modern compiler turns every one of these into an undefined symbol. The
-   port passes `-fgnu89-inline`. Mentioning it because it is a genuine
-   portability landmine that looks like nothing.
+Findings:
 
-6. **The three uninitialised variables are still open.** `src/dark_mind.c:8664`,
-   `src/multi_08030C94.c:241` and `:250` — the `ASM_OUT_R(v)` sites. The port
-   currently zeroes them, which is deterministic but is a guess. This still
-   needs someone who knows the intended behaviour, exactly as your notes say.
+- **The two sets are completely disjoint.** No handler appears in both.
+- All 24 words had the Thumb bit set; all 24 resolved to exactly one map
+  symbol each. No ambiguity anywhere in the two tables.
+- Both dispatch sites you cited do drive `gUnk_08D6081C`: `asm/sprite.s:1912`
+  (`ldr r6, _08155218 @ =gUnk_08D6081C`, inside `sub_08155128`) and
+  `asm/sprite.s:2033` (`ldr r0, _081552D8 @ =gUnk_08D6081C`, inside
+  `sub_0815521C`).
+- The string `08D5FDE4` **does not occur in `asm/sprite.s` at all**.
+  `gUnk_08D5FDE4` is driven by the already-decompiled `sub_08153D78` and
+  `sub_08153E6C` in `src/sprite_1.c` (lines 31 and 71).
+
+So the port's original attribution was right, and `wip/sprite.c`'s own
+annotations (`gUnk_08D6081C[0..12]`) are right. **Both tables are now 12/12
+wired in the port.** Nothing to change on either side; recorded so nobody
+re-derives it.
 
 ---
 
-## 5. What the port does *not* need
+## 5. `gUnk_0834C120` — five entries, all wired
 
-So no effort goes into things that will not help it:
+Your correction was right and the fade family landed. All five entries are live
+in the port: `sub_0803A450`, `sub_0803AFE8`, `sub_0803B788`, `sub_0803BF68`,
+`sub_0803C748`. The table that was entirely dead in the previous version of
+this file is now entirely alive. Nothing outstanding.
+
+---
+
+## 6. Defects reported last time — three fixed, two still open
+
+`aa70e1e` closed three of the six, byte-identically, and the port dropped its
+build-time workarounds for all three. Thank you; the ones that remain:
+
+1. **The three uninitialised variables.** `src/dark_mind.c:8664`,
+   `src/multi_08030C94.c:241` and `:250` — still `ASM_OUT_R(v)`. The port
+   zeroes them, which is deterministic but is a guess. Still needs someone who
+   knows the intended behaviour. This is the only open item from the old list
+   that is a genuine correctness risk.
+
+2. **`inline` without `static`.** The tree relies on gnu89 semantics, where a
+   plain `inline` definition also emits an external one; C99 inverted that, so
+   a modern compiler turns every one into an undefined symbol. The port passes
+   `-fgnu89-inline` and is fine. **Not asking for a change** — recorded because
+   it is a portability landmine that looks like nothing, and the next consumer
+   of this tree will lose an hour to it.
+
+Also still true, also **not** a request: `gLevelObjLists` is an array of an
+anonymous `transparent_union` (`include/data.h:847-849`), and `src/kirby.c:5339`
+declares `gUnk_08D60FB4` and `gUnk_08D60FDC` in one `extern` with two
+declarators. Both are legal and both needed special handling in the port's
+header parser. Noted only so the sharp edges are known if the headers are ever
+tidied.
+
+On the "flag load-bearing return values" convention you adopted: it is already
+paying for itself — `sub_08155128`'s documented return is why sprites worked
+first try rather than after a hunt. The port keeps its side in
+`tools/stub_returns.conf`.
+
+---
+
+## 7. What the port does *not* need
+
+Unchanged and still true, so no effort goes into things that will not help:
 
 - **The sound engine.** `m4a_asm.s` and friends are replaced wholesale by
   no-op stubs. The port drops `src/m4a.c` and `src/m4a_tables.c` from its build
@@ -203,59 +308,32 @@ So no effort goes into things that will not help it:
   stubbed. Single-player does not touch them.
 - **`agb_sram.c`.** Replaced, and it cannot be otherwise: it copies the machine
   code of its own inner loop into a stack buffer and calls it, which is not
-  expressible in WebAssembly. Not worth any decomp effort on the port's account.
+  expressible in WebAssembly. Not worth any decomp effort on the port's
+  account.
 - **Byte-matching, in general.** The port needs *correct C*, nothing more. A
-  function sitting at DIFF is 100% usable. The 3 asm wrappers left in
-  `large_star_stone_block.c` are already fine for the port, because their real C
-  is in the `#else` branch.
+  function sitting at DIFF is 100% usable. The 3 asm wrappers still in
+  `wip/large_star_stone_block.c` are already fine, because their real C is in
+  the `#else` branch and the port builds with `-DNONMATCHING`.
 
-The framing in §1 of your notes is exactly right and worth restating from this
-side: **the port's gate is "has a C body", not "matches"**. Of the two numbers
-you track, the one that predicts port progress is the 12 — and, within it, the
-seven functions listed in §2.
-
----
-
-## 6. One trap the port hit that says something about the tree
-
-A stub that returned `0` hung the game silently, and it took a while to find
-because it looks exactly like a rendering bug.
-
-`src/main.c` drains the VRAM transfer queue through a table of four workers:
-
-```c
-gUnk_030035D4 = 0xff;
-for (; j <= 3; j++) {
-    if (gUnk_08D5FDD4[j]() == 0) {
-        gUnk_030035D4 = j;
-        break;
-    }
-}
-```
-
-A `0` means "this worker did not finish". `GameLoop` then stops calling
-`TasksExec()` until the queue drains. Two of those four workers live in
-`sprite.s`, so the port's stubs returned `0` forever, the game ran its VBlank
-handler for eternity, drew nothing, and looked completely healthy from the
-outside — `gFrameCount` climbing, no crash, blank screen.
-
-Worth knowing because the same shape recurs: any stubbed function whose return
-value is read as a state can wedge the game rather than degrade it. The port
-records these in `tools/stub_returns.conf`. If you decompile a function and
-discover its return value is load-bearing in this way, that is useful to say so
-in a comment — it is invisible at the call site.
+**The port's gate is "has a C body", not "matches".** Of the two numbers you
+track, the one that predicts port progress is the bodyless count — and it is
+now 2.
 
 ---
 
-## 7. Summary: the ask, in order
+## 8. Summary: the ask, in order
 
-1. **`sub_08155128`** — nothing visible works without it. Correct C is enough;
-   it does not need to match.
-2. **`sub_0803A450`, `sub_0803AFE8`, `sub_0803B788`, `sub_0803BF68`** — four
-   entries of `gUnk_0834C120`; the whole table is dead without them, and no
-   reference count reveals that.
-3. **`sub_08035788`, `sub_08037314`, `sub_08038B34`** — reached from the Kirby
-   update path.
-4. The rest of `sprite.s`, in the reference order given in §1.
-5. The defects in §4, whenever convenient — they cost the decomp nothing and
-   they cost every other consumer of the tree something.
+1. **`sub_08038010`** and **`sub_08038B34`** — the last two functions in the
+   game with no C body, and the port reaches both. Correct C is enough.
+2. **`sub_08037314` blocks 2–6.** The port runs this function today with
+   partial collision resolution, knowingly.
+3. **`gUnk_0834BD88`'s real extent** (§3a) — is the `0xC` label wrong, or is
+   the table 12, or 30? The port runs 12 and is stable either way; the answer
+   would let it stop guessing.
+4. **The four remaining `sprite.s` stubs**: `sub_0815436C`, `sub_081548A8`,
+   `sub_08154B14`, `sub_08155604`.
+5. **The three uninitialised variables** (§6.1) — the only open correctness
+   risk from the previous list.
+6. **Whenever data conversion is on the table: ROM function-pointer tables
+   into typed C** (§2). Not urgent, highest long-term value, removes a whole
+   class of port failure rather than an instance of it.
