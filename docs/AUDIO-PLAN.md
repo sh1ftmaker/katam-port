@@ -694,3 +694,93 @@ latency under a backgrounded tab).  Tune the ring depth down from 4 frames.
   pc_port mixer implements it (`m4a_sound_mixer.c:71-90`); just don't be
   surprised when it engages.
 - **Frame rate.**  See Step 4.  Worth confirming independently of audio.
+
+---
+
+# Part 3 — what was built (2026-08-04, implementation pass)
+
+## 3.1 Shell integration required: **none**
+
+This is the one line to read if you own `web/shell.html`.  **No change is
+needed.**  `platform/audio_out.c` creates the `AudioContext` itself and installs
+its own unlock listeners on `document`:
+
+```js
+['pointerdown', 'touchstart', 'touchend', 'keydown', 'click']
+    .forEach(function (ev) { document.addEventListener(ev, unlock, {passive:true}); });
+```
+
+They stay attached and retry on every gesture until `ctx.state === 'running'`,
+which is §1.5's lesson: iOS can refuse the first `resume()` and a one-shot
+listener has already removed itself by then.  The context is created suspended
+at `m4aSoundInit`, which is early enough to read `ctx.sampleRate` and configure
+the mixer for the real device rate before a note plays, and late enough that
+the ROM is loaded.
+
+If you *want* tighter coupling later, the useful hook is creating the context
+inside the `romfile` change handler (`web/shell.html:1186`) rather than at
+`m4aSoundInit`, so the very first gesture the page ever receives is the one that
+unlocks it.  That is an improvement, not a requirement.
+
+Two things the shell may want to expose, both already exported:
+
+```js
+Module._PortAudioTestTone(440);   // square wave instead of the mixer; 0 = off
+Module.portAudio.underruns        // worklet underrun count, for a debug readout
+```
+
+## 3.2 What is implemented
+
+| | |
+|---|---|
+| `platform/audio_out.c` | transport: hand-written AudioWorklet from a blob URL, `ScriptProcessorNode` fallback, autoplay unlock, headless capture mode |
+| `platform/audio.c` | block clocking, queue-depth feedback, the `SampleFreqSet` replacement, the test tone |
+| `platform/m4a_mixer.c` | all 44 symbols of `asm/m4a_asm.s`, written from KATAM's own assembly |
+| `tools/portify.py` | `src/m4a.c` un-dropped, four source patches and three header prototypes |
+| `platform/port/prelude.h` | the m4a `common_data` globals at their hardware addresses |
+| `tools/headless_test.js` | `AUDIO_RATE=`, `TONE=`, `WAV=`; reports blocks, RMS, peak, silent-block count |
+
+## 3.3 Not implemented
+
+- **The four PSG channels.**  `CgbSound` runs every frame and keeps the
+  `REG_NRxx` images in the I/O region current, so what is missing is only an
+  oscillator that reads them.  §2.7 assumed this would need `portify.py` to
+  redirect the register writes; it does not.  The port's I/O region is plain
+  memory and MP2K only updates those registers once per frame from `CgbSound`,
+  so polling the register file once per block is enough and needs no patch at
+  all.  New file, `platform/cgb.c`, adding into the same accumulator.
+- **`SOUND_MODE_REVERB`.**  Implemented, but every song checked so far sets
+  `reverb = 0x80`, which means "set, value 0" -- so the path has not run.
+- **A browser.**  Everything below was measured headlessly.  Nobody has heard
+  this out of a speaker yet.
+
+## 3.4 Evidence
+
+600 frames, real ROM, `AUDIO_RATE=48000`:
+
+```
+blocks pushed      : 600  (600 frames rendered)
+samples            : 480000  (10.00s of audio for 10.00s of game)
+RMS                : -22.3 dBFS
+peak               : 0.6527
+fully silent blocks: 246 of 600
+```
+
+Per second, which is what makes it music rather than noise:
+
+```
+t=0  -35.5 dBFS  zc=131      logo jingle starting
+t=1  -25.3        zc=2757
+t=2  -20.4        zc=2195
+t=3  -18.4        zc=1879     melody descending -- zero crossings fall with it
+t=4  -18.2        zc=1329
+t=5  -19.0        zc=817
+t=6  -26.3        zc=314
+t=7  -inf         zc=0        the fade
+t=8  -inf         zc=0
+t=9  -26.8        zc=1673     title screen
+```
+
+And with `TONE=440`, which tests the transport with the engine out of the
+picture: 3.37 s captured for 3.33 s of game (the difference is exactly the
+two-frame target queue), zero-crossing rate 439.9 Hz.
