@@ -120,7 +120,7 @@ number does not outlive the correction, and so nobody re-derives it.
 
 ---
 
-## 3. New problem class: reads through a pointer that is not valid yet
+## 3a. New problem class: reads through a pointer that is not valid yet
 
 **This is the most useful thing in this document, and it needs nothing from
 you.** It is reported because it is invisible from the ARM side by
@@ -180,6 +180,66 @@ Two things that would help, both cheap and neither urgent:
 2. **Sentinel values are worth naming.** `0xFFFF` as "no room yet" appears in
    `sub_0803EA90`, `code_0806F780.c:5258` and `:8458` at least. A named
    constant would make "is this initialised?" answerable by grep.
+
+---
+
+## 3b. The one that was hiding every level: an open-coded DMA register write
+
+Same family — invisible from the ARM side, fatal off it — but this one had a
+much larger blast radius, and it is the single most useful thing the port has
+learned since the last version of this file.
+
+`sub_08153184` in `src/bg.c` is the only routine that writes a level's BG
+tilemap into VRAM. Its innermost row-copy loop does not call `DmaCopy16`; it
+stores to the DMA3 registers by hand:
+
+```c
+vu32 *dmaRegs = (vu32 *)(0x4000000 + 0xd4);
+dmaRegs[0] = (vu32)(r2);
+dmaRegs[1] = (vu32)(r4);
+dmaRegs[2] = (vu32)((0x8000 | ...) << 16 | (((r6->unk26 - (size)) * sp8)/(16/8)));
+dmaRegs[2];
+```
+
+The port emulates DMA in software: `DmaSet` is redirected to `PortDmaSet`,
+which performs the copy. A raw store to `0x040000D4` moves nothing — it lands
+in emulated IO memory and returns. There is no way to trap it, because the GBA
+map is ordinary WebAssembly linear memory with no write hook.
+
+**This is the only raw DMA-register write in the entire game** (one grep hit
+across all 190 files), which is why nothing else was affected — and why it took
+so long to find. The symptom pointed everywhere except here:
+
+- Tile *graphics* were always perfect: they arrive via `LZ77UnCompVram` and the
+  VBlank queue, both of which use ordinary DMA.
+- Every level *tilemap* was stale. Diffing VRAM across a level load showed
+  screen blocks 29, 30 and 31 as the only regions in all of VRAM that never
+  changed — still holding the file-select screen's fill of tile `0x1FF`.
+- A room whose background is at most 32×32 takes a different branch that *does*
+  use `DmaCopy16`, so some screens rendered correctly. Rainbow Route 2 is 45
+  wide, took the broken path, and not one entry was written.
+
+The port substitutes back the decompilation's own commented-out equivalent,
+which sits one line above the poke:
+
+```c
+DmaCopy16(3, r2, r4, (r6->unk26 - (r8 - 1)) * sp8);
+```
+
+That is exactly equivalent — the hand-built control word `0x8000 << 16` is
+`DMA_ENABLE | DMA_START_NOW | DMA_16BIT | DMA_SRC_INC | DMA_DEST_INC`, and the
+count arithmetic is identical. With it, levels render.
+
+**No ask, and specifically no request to change `bg.c`.** The open-coding is
+there to reach a 95.2% match and it is doing its job; `-DNONMATCHING` is the
+port's problem to solve and it has. Recorded because:
+
+1. If any *future* function open-codes a hardware register write for match
+   reasons, the port will silently do nothing and the failure will again look
+   like something else entirely. A one-line comment saying "raw DMA3 write,
+   equivalent to `DmaCopy16(...)`" costs nothing and would have saved a day.
+2. It is worth knowing that this construct exists exactly once, so if the
+   count ever becomes two, that is a thing to mention.
 
 ---
 
@@ -295,15 +355,27 @@ Short list, because you closed the long one.
 2. **`CreateBossChallengeDoor`** — `gSpawnFuncTable1[114]`, the single
    unwirable table entry. Claimed by someone else; not urgent.
 3. **A comment when you spot a discarded read through an uninitialised
-   field** (§3). Cheap for you, hours for the port.
+   field** (§3a), or when a function open-codes a hardware register write for
+   match reasons (§3b). Cheap for you, a day each for the port — these are the
+   two shapes that are free on ARM and fatal off it, and neither is visible
+   from your side.
 4. **Whenever data conversion is on the table: ROM function-pointer tables
    into typed C** (§5). Not urgent, highest long-term value.
 
-### What the port is working on next, so you do not spend effort on it
+### Background rendering — solved, and it was not a decomp gap
 
-Room and background rendering. Gameplay runs, but the room draws as flat
-wallpaper with no visible geometry, and `DISPCNT` shows BG2 disabled. That is
-almost certainly the port's own software PPU or its BG/tilemap setup, **not a
-decompilation gap** — no missing-function report fires anywhere near it. If it
-turns out to be a decomp issue after all, it will come back as a separate,
-evidenced ask.
+The previous paragraph here said the levels drew as flat wallpaper with no
+geometry, and guessed it was the port's own PPU or BG setup. It was neither:
+it was §3b, and the levels now render — scenery, geometry, parallax and
+scrolling. `DISPCNT = 0x1B40` with BG2 disabled turned out to be exactly
+right for those rooms, because their `objectList2Idx` is `0xFFFF`.
+
+Two things confirmed along the way, in case they are ever in doubt:
+
+- The port's LZ77 output is **byte-exact** against an independent reference
+  decoder for the level tilesets — 28800/28800 bytes.
+- The layer assignment in `sub_08000460` reads correctly: `unkC0[1]` → BG3
+  (geometry), `unkC0[2]` → BG0 (scenic backdrop), `unkC0[0]` → BG2 (second
+  object layer, off when a room has none). The `unk2E & 3` convention for
+  which hardware BG a `struct Background` drives is the key to reading that
+  code, and it cost some time to find.
