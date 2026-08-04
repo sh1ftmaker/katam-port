@@ -1188,6 +1188,12 @@ var Module = (function () {
     portRomReady:  portRomReady,
     portPresent:   portPresent,
 
+    // Called once, on the first real user gesture.  A browser will not let
+    // audio start before one, and the audio layer replaces this with its own
+    // function -- it has to exist before the emscripten loader runs, so it is
+    // declared here as a no-op rather than assigned later.
+    portUserGesture: function () {},
+
     print:    function (text) { log(text); },
     printErr: function (text) { log(text, 'err'); },
 
@@ -2469,6 +2475,23 @@ var Module = (function () {
   // these non-standard gesture events are the only way to keep two fingers on
   // the D-pad and A from zooming the page out from under them. Scoped to the
   // stage so the sheet's text stays pinchable.
+  // The first user gesture, forwarded once so audio can start.  Browsers
+  // refuse to open an AudioContext before one.
+  //
+  // Capture phase, and pointerdown rather than click: on a phone the first
+  // gesture is almost always a finger landing on a pad, onPointerDown calls
+  // preventDefault() for those, and taps on the pads never produce a useful
+  // click target.  A capture-phase listener is guaranteed to see it first.
+  function firstGesture() {
+    window.removeEventListener('pointerdown', firstGesture, true);
+    window.removeEventListener('keydown', firstGesture, true);
+    try {
+      if (Module.portUserGesture) Module.portUserGesture();
+    } catch (e) { /* audio is optional; never break input over it */ }
+  }
+  window.addEventListener('pointerdown', firstGesture, true);
+  window.addEventListener('keydown', firstGesture, true);
+
   function blockGesture(e) { if (overStage(e.target)) e.preventDefault(); }
   document.addEventListener('gesturestart',  blockGesture, { passive: false });
   document.addEventListener('gesturechange', blockGesture, { passive: false });
