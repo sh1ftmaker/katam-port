@@ -2,139 +2,315 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<!-- viewport-fit=cover puts the page under the notch and the home indicator,
+     which is the only way to use the whole screen; every edge that matters
+     then pays it back with env(safe-area-inset-*) below.
+
+     Deliberately NOT user-scalable=no: iOS has ignored it since iOS 10, and
+     blocking zoom page-wide is an accessibility cost we do not need to pay.
+     Zoom is suppressed where it would ruin the game (touch-action: none on
+     the stage and the pads, plus the gesture* handlers for WebKit) and left
+     alone over the text. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Dark form controls and scrollbars, and browser chrome that matches the
+     page instead of framing it in white. -->
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#101216">
+<!-- Added to the Home Screen this runs without browser chrome, which is the
+     only fullscreen an iPhone has: Safari refuses requestFullscreen on
+     anything but <video> there. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KATAM">
 <title>Kirby &amp; The Amazing Mirror — native port (WebAssembly)</title>
 <style>
+  /*====================================================================
+    Palette
+  ====================================================================*/
   :root {
     --bg:      #14161a;
+    --void:    #0c0e11;        /* behind the picture, darker than the page */
     --panel:   #1c1f25;
+    --panel-2: #232730;
     --edge:    #2b3038;
+    --hair:    rgba(255, 255, 255, .09);   /* the 1px highlight on raised things */
     --text:    #d5d9e0;
     --dim:     #838b98;
     --accent:  #6fb2ff;
     --warn:    #e8b23a;
     --err:     #ff7b72;
     --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+    /* Safe areas, named once. env() cannot be used inside a custom property
+       that is itself used inside min()/max() on some older WebKit, so these
+       stay simple aliases and the arithmetic happens where they are used. */
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
   }
 
   * { box-sizing: border-box; }
 
-  html, body {
-    height: 100%;
-    margin: 0;
-  }
+  /*====================================================================
+    The page frame
+    --------------
+    One grid, three rows: the top bar, the stage (the picture), and the
+    chrome (bar, legend, log — everything else). Two arrangements:
+
+      docked      desktop. All three rows are real and the chrome sits
+                  under the picture, the way it always has.
+      immersive   phones, and anywhere the touch pads are up. The top bar
+                  and the chrome are lifted out of the grid — the chrome
+                  into a sheet that stays closed until it is asked for —
+                  so the stage gets the window to itself.
+
+    `body.immersive` is set from JS (see syncMode) rather than by a media
+    query alone, so turning the touch pads on forces it even on a desktop.
+
+    Why a grid and not the flex column this used to be: the stage was one
+    flex item among six, so its height was whatever the other five left
+    over. On a phone the bar wraps to five rows and #log is a fixed 132px
+    that refuses to shrink, so the stage was squeezed to nearly nothing —
+    and being a *centred* box, a picture too big for it overflowed equally
+    in both directions and the top half went off the screen. Here the
+    stage is minmax(0, 1fr): it is told what it gets, never the remainder.
+  ====================================================================*/
+
+  html { height: 100%; }
 
   body {
+    /* Not height:100% and not 100vh. On a phone the initial containing
+       block — and vh — describe the *large* viewport, the one you only see
+       once the URL bar has scrolled away. The page cannot scroll, so the
+       difference is not "below the fold", it is simply invisible, and with
+       the stage centred inside it half of that loss came off the top.
+       dvh is the height that is on the screen right now. The plain vh
+       declaration is the fallback for browsers without it, and @supports
+       (rather than a second declaration) keeps a CSS minifier from
+       deciding the two are duplicates and dropping one. */
+    height: 100vh;
+    margin: 0;
+
+    display: grid;
+    grid-template-columns: 100%;
+    grid-template-rows: auto minmax(0, 1fr) minmax(0, auto);
+
     background: var(--bg);
     color: var(--text);
     font: 13px/1.5 var(--mono);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 14px;
-    overflow: hidden;          /* the screen sizes itself to the window; page never scrolls */
+
+    overflow: hidden;          /* the page never scrolls; the stage sizes itself */
     overscroll-behavior: none; /* and a stray drag never pulls-to-refresh */
+
+    -webkit-tap-highlight-color: transparent;
+
+    /*--------------------------------------------------------------
+      Touch-control geometry.
+      Declared here, not on #touch, because the reserved band in
+      portrait is a grid row on *this* element and has to be derived
+      from exactly the same numbers as the pads that sit in it. That
+      is the whole trick: the band cannot disagree with the controls
+      because it is computed from them.
+      vh rather than dvh on purpose — a pad that resized every time
+      the URL bar moved would jump under the thumb holding it.
+    --------------------------------------------------------------*/
+    --gut:   max(16px, 3.6vw);                 /* breathing room at the edges */
+    --dpad:  min(44vw, 30vh, 216px);
+    --face:  min(18vw, 12vh, 82px);            /* A and B */
+    --sh-h:  calc(var(--face) * .62);          /* L, R, Start, Select height */
+    --x-l:   calc(var(--safe-l) + var(--gut));
+    --x-r:   calc(var(--safe-r) + var(--gut));
+    --y-b:   calc(var(--safe-b) + var(--gut));
+    --row-2: calc(var(--y-b) + var(--dpad) + 12px);   /* the L/R/Start/Select row */
+    --band:  calc(var(--row-2) + var(--sh-h) + 16px); /* everything the pads need */
   }
 
-  h1 {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: .04em;
-    margin: 0;
-    color: var(--dim);
-    text-transform: uppercase;
+  @supports (height: 100dvh) {
+    body { height: 100dvh; }
   }
 
-  /* ---- screen ------------------------------------------------------- */
-
-  #screen-wrap {
-    position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #screen {
-    display: block;
-    background: #000;
-    border: 1px solid var(--edge);
-    /* Belt-and-braces with ctx.imageSmoothingEnabled: if the window is smaller
-       than 240x160 we fall back to a fractional CSS scale, and this keeps that
-       downscale from turning to mush. */
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    /* A finger that strays off a pad and onto the picture must not scroll,
-       zoom, select it or raise the long-press callout. */
-    touch-action: none;
+  /* Nothing on this page is prose to be selected, apart from the two places
+     that exist to be copied out (the log and the crash report). */
+  body {
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
+  #log, #crashreport, input { user-select: text; -webkit-user-select: text; }
 
-  /* Covers the screen until a ROM is supplied. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 1ms !important;
+      animation-duration: 1ms !important;
+    }
+  }
+
+  /*====================================================================
+    Top bar
+  ====================================================================*/
+
+  #topbar {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px 14px;
+    min-width: 0;
+    padding: 10px 14px;
+    padding-top:   calc(10px + var(--safe-t));
+    padding-left:  calc(14px + var(--safe-l));
+    padding-right: calc(14px + var(--safe-r));
+  }
+
+  #topbar h1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--dim);
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #rominfo {
+    flex: 0 1 auto;
+    min-width: 0;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Never allowed to shrink: "59.…" is worse than no reading at all, and it
+     is only ever eight characters wide. */
+  #fps {
+    flex: 0 0 auto;
+    color: var(--dim);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #menubtn { display: none; }        /* immersive only */
+
+  /*====================================================================
+    Stage — the picture and everything drawn over it
+  ====================================================================*/
+
+  #screen-wrap {
+    grid-row: 2;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    /* The canvas can be a frame behind the layout (a rotation, the soft
+       keyboard, the URL bar). Clipping here means the worst case is a
+       moment of cropped picture rather than a picture spilling over the
+       chrome — and it can never escape upwards off the window. */
+    overflow: hidden;
+    background:
+      radial-gradient(130% 100% at 50% 0%, #191d24 0%, var(--void) 72%);
+    /* Horizontal notch clearance always; the vertical insets are only ours
+       to pay in immersive mode, where nothing else is between the stage and
+       the edge of the screen. fitScreen() measures the content box, so this
+       padding really does keep the picture out from under the notch. */
+    padding: 0 var(--safe-r) 0 var(--safe-l);
+    /* pan-y, not none, because the ROM curtain and the crash report live
+       inside this box and touch-action is intersected down the tree: `none`
+       here would make both of them unscrollable on a phone, and they are
+       long. It becomes `none` the moment there is a game to protect. */
+    touch-action: pan-y;
+  }
+
+  /* A finger on the letterbox must not scroll, zoom, select or raise the
+     long-press callout, exactly as if it were on the picture. */
+  body.rom-ready #screen-wrap { touch-action: none; }
+  /* ...except once it has stopped, when the crash report is the only thing
+     that matters and it has to be readable. Must follow the rule above:
+     same specificity, later wins. */
+  body.crashed #screen-wrap { touch-action: pan-y; }
+
+  body.immersive #screen-wrap {
+    padding-top: var(--safe-t);
+    padding-bottom: var(--safe-b);
+  }
+  @media (orientation: portrait) {
+    /* The top bar is a real row here and has already paid the top inset. */
+    body.immersive #screen-wrap { padding-top: 0; }
+    /* And the reserved pad band pays the bottom one. */
+    body.immersive.touch-on #screen-wrap { padding-bottom: 0; }
+  }
+
+  #screen {
+    display: block;
+    grid-area: 1 / 1;
+    background: #000;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    /* A ring drawn *outside* the box rather than a border: `border` plus
+       border-box sizing would eat 2px of the width fitScreen() just
+       computed and quietly put the picture on a fractional scale. */
+    box-shadow: 0 0 0 1px var(--edge), 0 24px 60px -28px rgba(0, 0, 0, .95);
+    touch-action: none;
+  }
+
+  /* Covers the picture until a ROM is supplied. */
   #curtain {
     position: absolute;
     inset: 0;
+    z-index: 4;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 14px;
     text-align: center;
-    padding: 20px;
-    background: rgba(20, 22, 26, .94);
+    padding: 20px calc(20px + var(--safe-r)) calc(20px + var(--safe-b)) calc(20px + var(--safe-l));
+    overflow-y: auto;
+    touch-action: pan-y;       /* the copy is long on a small screen */
+    overscroll-behavior: contain;
+    background: rgba(14, 16, 20, .94);
     pointer-events: none;      /* re-enabled on the inner box only */
   }
   #curtain.hidden { display: none; }
   #curtain > * { pointer-events: auto; }
 
-  #curtain h2 {
-    font-size: 14px;
-    margin: 0;
-  }
+  #curtain h2 { font-size: 14px; margin: 0; }
+  #curtain p  { margin: 0; max-width: 46ch; color: var(--dim); }
 
-  #curtain p {
-    margin: 0;
-    max-width: 46ch;
-    color: var(--dim);
-  }
-
-  /* ---- controls ------------------------------------------------------ */
-
-  .bar {
-    width: 100%;
-    max-width: 900px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 16px;
-  }
+  /*====================================================================
+    Buttons and fields
+  ====================================================================*/
 
   button, label.filebtn {
     font: inherit;
     color: var(--text);
-    background: var(--panel);
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
     border: 1px solid var(--edge);
-    border-radius: 4px;
-    padding: 6px 12px;
+    border-radius: 7px;
+    padding: 7px 13px;
     cursor: pointer;
+    /* Kills the 300ms tap delay and double-tap-to-zoom on the control
+       itself without disabling scrolling anywhere. */
+    touch-action: manipulation;
+    transition: border-color .12s, color .12s, background .12s;
   }
   button:hover, label.filebtn:hover { border-color: var(--accent); color: #fff; }
+  button:focus-visible, label.filebtn:focus-visible,
+  #romurl:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button:active, label.filebtn:active { background: var(--panel); }
   button[disabled] { opacity: .45; cursor: default; }
   button[disabled]:hover { border-color: var(--edge); color: var(--text); }
+  button[aria-pressed="true"] { border-color: var(--accent); color: #fff; }
   input[type=file] { display: none; }
 
-  /* URL field + its Load button travel together and take the slack in the bar. */
-  .urlbox {
-    display: flex;
-    gap: 6px;
-    flex: 1 1 340px;
-    min-width: 200px;
-  }
   #romurl {
     flex: 1 1 auto;
     min-width: 0;                /* without this the flex item refuses to shrink */
@@ -142,27 +318,59 @@
     color: var(--text);
     background: #101216;
     border: 1px solid var(--edge);
-    border-radius: 4px;
-    padding: 6px 8px;
+    border-radius: 7px;
+    padding: 7px 9px;
   }
   #romurl:focus { outline: none; border-color: var(--accent); }
   #romurl::placeholder { color: var(--dim); }
 
-  #fps  { color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
-  #rominfo { color: var(--dim); }
+  /*====================================================================
+    Chrome — the bar, the legend and the log
+  ====================================================================*/
 
-  /* ---- legend -------------------------------------------------------- */
+  #chrome {
+    grid-row: 3;
+    width: min(100%, 940px);
+    margin: 0 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 calc(14px + var(--safe-l)) calc(14px + var(--safe-b)) calc(14px + var(--safe-r));
+    /* Bounded so a short window cannot squeeze the stage to nothing; the
+       chrome scrolls inside itself instead. Kept tight on purpose: at 1x
+       the picture only ever grows in whole steps, so 40px of chrome here
+       can be the difference between a 2x and a 3x picture. */
+    max-height: min(42vh, 400px);
+    overflow-y: auto;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+
+  #sheethead { display: none; }      /* immersive only */
+
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .urlbox {
+    display: flex;
+    gap: 6px;
+    flex: 1 1 340px;
+    min-width: 200px;
+  }
 
   #legend {
-    width: 100%;
-    max-width: 900px;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 2px 18px;
     color: var(--dim);
     background: var(--panel);
     border: 1px solid var(--edge);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 8px 12px;
   }
   #legend b { color: var(--text); font-weight: 600; }
@@ -178,17 +386,27 @@
     font-size: 11px;
   }
 
-  /* ---- log ----------------------------------------------------------- */
+  /* Header strip for the log; travels with it. */
+  #logtools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: -8px;       /* the column gap is sized for full rows, not this */
+    color: var(--dim);
+  }
+  #logtools button { padding: 3px 9px; font-size: 11px; }
 
   #log {
-    width: 100%;
-    max-width: 900px;
-    height: 132px;
-    flex: 0 0 auto;
+    flex: 1 1 132px;
+    min-height: 84px;
+    max-height: 40vh;
     overflow-y: auto;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
     background: #101216;
     border: 1px solid var(--edge);
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 6px 10px;
     color: var(--dim);
     white-space: pre-wrap;
@@ -198,35 +416,31 @@
   #log .warn { color: var(--warn); }
   #log .ok   { color: var(--accent); }
 
-  /* Header strip for the log; travels with it, including into hiding. */
-  #logtools {
-    width: 100%;
-    max-width: 900px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: -8px;       /* body's gap is sized for full rows, not this */
-    color: var(--dim);
-  }
-  #logtools button { padding: 2px 8px; font-size: 11px; }
+  /* Advice about a phone, so it is only shown to one. */
+  #tips { display: none; margin: 0; color: var(--dim); }
+  body.immersive #tips { display: block; }
+  #tips b { color: var(--text); font-weight: 600; }
 
-  /* ---- diagnostics readout ------------------------------------------- */
+  #scrim { display: none; }
 
-  /* Lives over the picture rather than in the bar: in landscape with the pads
-     up the bar is pushed off-screen and the log is hidden outright, and this
-     is the one readout that has to survive every layout. */
+  /*====================================================================
+    Diagnostics readout
+    Over the picture rather than in the bar: in immersive mode the bar is
+    behind a sheet, and this is the one readout that has to survive every
+    layout.
+  ====================================================================*/
+
   #diag {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: calc(4px + var(--safe-t));
+    right: calc(4px + var(--safe-r));
     z-index: 7;                /* over the touch overlay */
     display: none;
     pointer-events: none;      /* never in the way of a thumb */
-    padding: 2px 5px;
-    background: rgba(16, 18, 22, .74);
+    padding: 3px 6px;
+    background: rgba(16, 18, 22, .78);
     border: 1px solid var(--edge);
-    border-radius: 3px;
+    border-radius: 5px;
     color: var(--accent);
     font-size: 10px;
     line-height: 1.35;
@@ -235,11 +449,13 @@
   }
   body.diag-on #diag { display: block; }
 
-  /* ---- crash panel ---------------------------------------------------- */
+  /*====================================================================
+    Crash panel
+    Its own element rather than a log line, because in immersive mode the
+    log is behind a sheet and this must never be the message the player
+    cannot see.
+  ====================================================================*/
 
-  /* Its own element rather than a log line, because the log is the first
-     thing to disappear in landscape and this must never be the message the
-     player cannot see. */
   #crash {
     position: absolute;
     inset: 0;
@@ -247,17 +463,13 @@
     display: none;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
+    padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r))
+             calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
     text-align: left;
-    background: rgba(20, 22, 26, .97);
-    border: 1px solid var(--err);
+    background: rgba(18, 20, 24, .97);
+    box-shadow: inset 0 0 0 1px var(--err);
   }
   body.crashed #crash { display: flex; }
-
-  /* Dead pads over a dead emulator would only swallow taps meant for the
-     buttons in the panel. Both classes named so this outranks the rule that
-     shows them, which is further down the sheet. */
-  body.crashed.touch-on #touch { display: none; }
 
   #crash h2 { margin: 0; font-size: 13px; color: var(--err); }
   #crashmsg { color: var(--text); word-break: break-word; }
@@ -265,19 +477,17 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: auto;
+    touch-action: pan-y;       /* the stage disables panning; this must scroll */
+    overscroll-behavior: contain;
     margin: 0;
     padding: 6px 8px;
     background: #101216;
     border: 1px solid var(--edge);
-    border-radius: 4px;
+    border-radius: 6px;
     color: var(--dim);
     font: 11px/1.45 var(--mono);
     white-space: pre-wrap;
     word-break: break-word;
-    /* The copy buttons can be refused; selecting the text by hand is the
-       last resort and must stay possible even where the canvas is not. */
-    user-select: text;
-    -webkit-user-select: text;
   }
   #crash .crashbtns {
     display: flex;
@@ -287,117 +497,291 @@
   }
   #crashnote { color: var(--dim); }
 
-  /* ---- on-screen touch controls -------------------------------------- */
+  /*====================================================================
+    Immersive mode
+  ====================================================================*/
 
-  /* The overlay is fixed and inert; only the pads inside it take pointer
-     input, so the bar, the log and the curtain underneath stay usable.
-     Every position below is expressed in the custom properties declared
-     here, so the orientation media queries only restate the numbers. */
+  /* The chrome leaves the grid and becomes a sheet. Closed, it is both
+     translated off-screen *and* visibility:hidden — the second is what
+     guarantees nothing inside it is focusable or hit-testable while the
+     pads are up, which is half of the fix for taps passing through the
+     controls into the page's own buttons. */
+  body.immersive #chrome {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: 100%;
+    max-width: none;
+    max-height: 86vh;
+    padding: 8px calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+    gap: 12px;
+    background: rgba(22, 25, 31, .97);
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+    border-top: 1px solid var(--hair);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -26px 60px -24px rgba(0, 0, 0, .9);
+    transform: translateY(101%);
+    visibility: hidden;
+    transition: transform .26s cubic-bezier(.22, .7, .3, 1),
+                visibility 0s linear .26s;
+  }
+  @supports (max-height: 86dvh) {
+    body.immersive #chrome { max-height: 86dvh; }
+  }
+  body.immersive.sheet-open #chrome {
+    transform: none;
+    visibility: visible;
+    transition: transform .26s cubic-bezier(.22, .7, .3, 1), visibility 0s;
+  }
+
+  /* Grab handle. Decoration, so it is a pseudo-element and never a target. */
+  body.immersive #chrome::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 42px;
+    height: 4px;
+    margin: 0 auto 2px;
+    border-radius: 2px;
+    background: var(--edge);
+  }
+
+  body.immersive #sheethead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #sheettitle {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--dim);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.immersive #scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: rgba(8, 9, 11, .6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .26s;
+  }
+  body.immersive.sheet-open #scrim { opacity: 1; pointer-events: auto; }
+
+  /* The title moves into the sheet header; the top bar is too narrow for it
+     on a phone and the ROM name is the useful thing to keep there. */
+  body.immersive #topbar h1 { display: none; }
+  body.immersive #rominfo { flex: 1 1 auto; }
+
+  body.immersive #menubtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(30, 34, 41, .82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-color: var(--hair);
+  }
+  #menubtn .glyph { font-size: 14px; line-height: 1; }
+
+  /* Portrait: the top bar stays a real grid row, so the picture is never
+     under it, and the pads get a reserved band as the third row. */
+  @media (orientation: portrait) {
+    body.immersive.touch-on {
+      grid-template-rows: auto minmax(0, 1fr) var(--band);
+    }
+  }
+
+  /* Landscape: there is no vertical space to give away, so the top bar
+     floats over the picture as a single button and the pads overlay the
+     letterbox at the two edges. */
+  @media (orientation: landscape) {
+    body {
+      --gut:   max(12px, 1.6vw);
+      --dpad:  min(40vh, 178px);
+      --face:  min(17vh, 74px);
+    }
+    body.immersive #topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 12;
+      justify-content: center;
+      padding-top: calc(6px + var(--safe-t));
+      pointer-events: none;        /* only the button inside it is live */
+    }
+    body.immersive #topbar > * { pointer-events: auto; }
+    /* Only the menu button survives here. The frame rate is unreadable over
+       gameplay — Kirby's title screen is white — and the diagnostics readout
+       already reports it against a backing when it is actually wanted. */
+    body.immersive #topbar h1,
+    body.immersive #topbar #rominfo,
+    body.immersive #topbar #fps { display: none; }
+    body.immersive #menubtn { opacity: .8; }
+  }
+
+  /*====================================================================
+    On-screen touch controls
+
+    The overlay is fixed and inert; only the pads inside it take pointer
+    input. It is shown only when there is something to play and nothing
+    in front of it: a pad over the ROM curtain, the crash panel or the
+    open sheet would only swallow taps meant for the buttons there, and
+    a pad the player cannot see is a pad they press by accident. One
+    rule, so there is no specificity race about which wins.
+  ====================================================================*/
+
+  #touch { display: none; }
+  body.touch-on.rom-ready:not(.crashed):not(.sheet-open) #touch { display: block; }
+
   #touch {
-    display: none;
     position: fixed;
     inset: 0;
     z-index: 6;
     pointer-events: none;
     touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-
-    --gutter:    max(14px, 4vw);
-    --edge-l:    calc(var(--gutter) + env(safe-area-inset-left, 0px));
-    --edge-r:    calc(var(--gutter) + env(safe-area-inset-right, 0px));
-    --base-y:    calc(env(safe-area-inset-bottom, 0px) + 16px);
-    --dpad-size: min(44vw, 208px);
-    --btn:       min(16vw, 72px);
   }
-  body.touch-on #touch { display: block; }
 
-  /* The keyboard legend is noise once the pads are up, and in landscape the
-     log and the title are the difference between a 3x and a 2x picture. */
-  body.touch-on #legend { display: none; }
-
-  .tpad {
+  .tpad, #dpad {
     position: absolute;
     pointer-events: auto;
     touch-action: none;
+    /* The press state uses the `scale` property rather than a transform so
+       it cannot collide with the `translate` that centres Start/Select.
+       Hit-testing reads a cached rect (see measurePads), so a pad shrinking
+       under the thumb holding it can never make that thumb "miss". */
+    transition: background .07s linear, color .07s linear,
+                box-shadow .07s linear, scale .07s ease-out;
+  }
+
+  .tpad {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--dim);
-    background: rgba(28, 31, 37, .78);
-    border: 1px solid var(--edge);
+    color: #b3bcc9;
+    font-weight: 600;
     letter-spacing: .08em;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, .55);
+    background: linear-gradient(180deg, rgba(56, 63, 75, .78), rgba(24, 27, 33, .80));
+    border: 1px solid var(--hair);
+    /* The dark hairline is not decoration: in landscape these sit over the
+       game, and Kirby's own screens are frequently white. Without an outer
+       ring the pads vanish into the picture exactly when a thumb needs to
+       find them. */
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .38),
+                inset 0 1px 0 rgba(255, 255, 255, .12),
+                0 8px 20px -10px rgba(0, 0, 0, .95);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
   }
-  /* Depress with an inset shadow rather than a transform: #tsys lays its two
-     pads out with flexbox and a transform here would fight that. */
   .tpad.down {
     color: #fff;
-    background: rgba(111, 178, 255, .28);
-    border-color: var(--accent);
-    box-shadow: inset 0 3px 7px rgba(0, 0, 0, .55);
+    scale: .94;
+    background: linear-gradient(180deg, rgba(120, 184, 255, .46), rgba(72, 128, 202, .38));
+    border-color: rgba(150, 200, 255, .85);
+    box-shadow: inset 0 3px 10px rgba(0, 0, 0, .45),
+                0 0 20px -2px rgba(111, 178, 255, .6);
   }
 
-  /* Face buttons, in the GBA's diagonal arrangement: A high and outboard. */
+  /* Face buttons, in the GBA's diagonal arrangement: A low and outboard,
+     B up and inboard, so a thumb rolls between them. */
   #tb-a, #tb-b {
-    width: var(--btn);
-    height: var(--btn);
+    width: var(--face);
+    height: var(--face);
     border-radius: 50%;
-    font-size: calc(var(--btn) * .38);
+    font-size: calc(var(--face) * .40);
+    letter-spacing: 0;
   }
-  #tb-a { right: var(--edge-r); bottom: calc(var(--base-y) + var(--btn) * .78); }
-  #tb-b { right: calc(var(--edge-r) + var(--btn) * 1.22); bottom: var(--base-y); }
+  /* Lifts the pair so its centre lines up with the D-pad's. */
+  #tb-a { right: var(--x-r); bottom: calc(var(--y-b) + var(--face) * .88 + var(--face-lift)); }
+  #tb-b { right: calc(var(--x-r) + var(--face) * 1.16); bottom: calc(var(--y-b) + var(--face-lift)); }
+  body { --face-lift: max(0px, calc((var(--dpad) - var(--face) * 1.88) / 2)); }
 
-  /* Shoulders sit on the row above, level with Start/Select. */
-  #tb-l, #tb-r {
-    width: calc(var(--btn) * 1.35);
-    height: calc(var(--btn) * .62);
-    border-radius: 8px;
-    font-size: 13px;
-    bottom: calc(var(--base-y) + var(--dpad-size) + 10px);
-  }
-  #tb-l { left: var(--edge-l); }
-  #tb-r { right: var(--edge-r); }
-
-  #tsys {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--base-y) + var(--dpad-size) + 10px);
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    pointer-events: none;
-    padding-left: var(--edge-l);
-    padding-right: var(--edge-r);
-  }
-  #tsys .tpad {
-    position: static;
-    height: calc(var(--btn) * .5);
-    padding: 0 13px;
-    border-radius: 999px;
+  #tb-l, #tb-r, #tb-select, #tb-start {
+    height: var(--sh-h);
     font-size: 11px;
   }
-
-  /* ---- D-pad --------------------------------------------------------- */
-  /* One round control, not four buttons: the script hit-tests it by angle
-     (see dpadMask) so the arrows below are decoration and a readout of what
-     is currently held, never targets in their own right. */
-  #dpad {
-    position: absolute;
-    pointer-events: auto;
-    touch-action: none;
-    left: var(--edge-l);
-    bottom: var(--base-y);
-    width: var(--dpad-size);
-    height: var(--dpad-size);
-    border-radius: 50%;
-    background: rgba(28, 31, 37, .78);
-    border: 1px solid var(--edge);
+  #tb-l, #tb-r {
+    width: calc(var(--face) * 1.30);
+    border-radius: 10px;
+    font-size: 13px;
   }
+  #tb-l { left: var(--x-l); }
+  #tb-r { right: var(--x-r); }
+
+  /* Centred with the `translate` property so `scale` stays free for the
+     press feedback. */
+  #tb-select, #tb-start { left: 50%; padding: 0 15px; border-radius: 999px; }
+  #tb-select { translate: calc(-100% - 7px) 0; }
+  #tb-start  { translate: 7px 0; }
+
+  @media (orientation: portrait) {
+    /* All four sit on one row above the D-pad, inside the reserved band. */
+    #tb-l, #tb-r, #tb-select, #tb-start { bottom: var(--row-2); }
+  }
+  @media (orientation: landscape) {
+    /* Shoulders under the index fingers at the top corners, system buttons
+       out of the way at the bottom centre. */
+    #tb-l, #tb-r { top: calc(var(--safe-t) + var(--gut)); }
+    #tb-select, #tb-start { bottom: var(--y-b); }
+  }
+
+  /*---- D-pad ---------------------------------------------------------
+    One round control, not four buttons: the script hit-tests it by angle
+    (see dpadMask) so the arrows are decoration and a readout of what is
+    held, never targets in their own right. That is what makes diagonals
+    work — every path around the ring passes through a diagonal sector on
+    its way to the next cardinal.
+  --------------------------------------------------------------------*/
+
+  #dpad {
+    left: var(--x-l);
+    bottom: var(--y-b);
+    width: var(--dpad);
+    height: var(--dpad);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 32%, rgba(60, 68, 82, .82), rgba(22, 25, 31, .84) 72%);
+    border: 1px solid var(--hair);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .38),
+                inset 0 1px 0 rgba(255, 255, 255, .12),
+                0 12px 30px -14px rgba(0, 0, 0, .95);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+
+  /* The held sector, lit as a 45° wedge. --dir is written by the script
+     from the same sector table the mask comes from, so what lights up is
+     exactly what is being sent to the game — including the diagonals,
+     which four separate arrows can only ever half-tell you. */
+  #dhi {
+    position: absolute;
+    inset: 3%;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+    background: conic-gradient(from calc(var(--dir, 0deg) - 22.5deg),
+                rgba(111, 178, 255, .34) 0deg 45deg,
+                rgba(0, 0, 0, 0) 45deg);
+    transition: opacity .07s linear;
+  }
+  #dpad.on #dhi { opacity: 1; }
+
   /* Marks the dead zone, so its size is not a free choice: 26% of the
-     diameter is 0.26 of the radius, which is DPAD_DEAD. */
+     diameter is 0.26 of the radius, which is DPAD_DEAD. Painted after
+     #dhi (::after follows the children) so the wedge is masked at the hub. */
   #dpad::after {
     content: "";
     position: absolute;
@@ -406,9 +790,10 @@
     width: 26%;
     height: 26%;
     border-radius: 50%;
-    background: rgba(16, 18, 22, .8);
-    border: 1px solid var(--edge);
+    background: rgba(16, 18, 22, .85);
+    border: 1px solid var(--hair);
   }
+
   .dseg {
     position: absolute;
     width: 30%;
@@ -417,49 +802,28 @@
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    color: var(--dim);
-    font-size: calc(var(--dpad-size) * .11);
+    color: #8d96a4;
+    font-size: calc(var(--dpad) * .11);
     line-height: 1;
+    transition: color .07s linear;
   }
-  .dseg.on { color: #fff; background: rgba(111, 178, 255, .28); }
+  .dseg.on { color: #fff; text-shadow: 0 0 12px rgba(111, 178, 255, .9); }
   .dseg[data-seg="up"]    { left: 35%; top: 3%; }
   .dseg[data-seg="down"]  { left: 35%; bottom: 3%; }
   .dseg[data-seg="left"]  { left: 3%; top: 35%; }
   .dseg[data-seg="right"] { right: 3%; top: 35%; }
 
-  /* Portrait: the picture is width-limited, so the pads live in the band of
-     letterboxing below it. Padding on <body> reserves that band, and the
-     screen is pinned to the top of what is left rather than centred in it. */
-  @media (orientation: portrait) {
-    body.touch-on {
-      --band-h: min(42vh, 300px);
-      padding-bottom: calc(var(--band-h) + env(safe-area-inset-bottom, 0px));
-    }
-    body.touch-on #screen-wrap { align-items: flex-start; }
-  }
-
-  /* Landscape: nothing to spare, so the pads overlay the picture at the two
-     edges and Start/Select move to the top corners. Semi-transparent — they
-     are over gameplay here, not over letterboxing. */
+  /* Over gameplay in landscape rather than over letterboxing, so they step
+     back until they are touched. */
   @media (orientation: landscape) {
-    #touch {
-      --gutter:    max(10px, 1.6vw);
-      --base-y:    calc(env(safe-area-inset-bottom, 0px) + 10px);
-      --dpad-size: min(38vh, 172px);
-      --btn:       min(16vh, 66px);
-      opacity: .62;
-    }
-    #tsys {
-      bottom: auto;
-      top: calc(env(safe-area-inset-top, 0px) + 10px);
-      justify-content: space-between;
-    }
-    body.touch-on h1,
-    body.touch-on #logtools,
-    body.touch-on #log { display: none; }
+    #touch { opacity: .68; transition: opacity .18s; }
+    body.touching #touch { opacity: 1; }
   }
 
-  /* Whole-page drop target feedback. */
+  /*====================================================================
+    Whole-page drop target feedback
+  ====================================================================*/
+
   body.dragging::after {
     content: "drop a .gba ROM";
     position: fixed;
@@ -468,18 +832,29 @@
     align-items: center;
     justify-content: center;
     border: 2px dashed var(--accent);
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(111, 178, 255, .07);
     color: var(--accent);
     font-size: 16px;
     pointer-events: none;      /* must not eat the drop event itself */
-    z-index: 10;
+    z-index: 40;
   }
 </style>
 </head>
 <body>
 
-<h1>Kirby &amp; The Amazing Mirror — decompilation port</h1>
+<header id="topbar">
+  <!-- Immersive only. Everything the page can do that is not "play the
+       game" lives behind this one button, which is the point: with the
+       chrome in a sheet there is nothing left underneath the pads for a
+       tap to fall through onto. -->
+  <button id="menubtn" type="button" aria-expanded="false" aria-controls="chrome">
+    <span class="glyph" aria-hidden="true">&#9776;</span><span>Menu</span>
+  </button>
+  <h1>Kirby &amp; The Amazing Mirror — decompilation port</h1>
+  <span id="rominfo">no ROM loaded</span>
+  <span id="fps">-- fps</span>
+</header>
 
 <div id="screen-wrap">
   <canvas id="screen" width="240" height="160"></canvas>
@@ -495,11 +870,11 @@
     <p>
       You only have to do this once: the file is kept in this browser's own
       storage for this site (IndexedDB), on this device. It is not uploaded
-      anywhere, and <b>Forget stored ROM</b> below erases it.
+      anywhere, and the <b>Forget stored ROM</b> button erases it.
     </p>
     <p>
       You can also paste a direct link to a <code>.gba</code> file you have the
-      right to use into the box below: your browser downloads it straight from
+      right to use into the URL box: your browser downloads it straight from
       that address — it is not uploaded to, or routed through, this page.
     </p>
   </div>
@@ -518,43 +893,58 @@
   </div>
 </div>
 
-<div class="bar">
-  <label class="filebtn" for="romfile">Load ROM…</label>
-  <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
-  <button id="romforget" type="button" disabled>Forget stored ROM</button>
-  <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
-  <button id="diagtoggle" type="button" aria-pressed="false">Diagnostics: off</button>
-  <button id="fullscreen" type="button">Fullscreen</button>
-  <span class="urlbox">
-    <input id="romurl" type="url" spellcheck="false" autocomplete="off"
-           placeholder="direct link to a .gba file you have the right to use">
-    <button id="romurlgo" type="button">Load</button>
-  </span>
-  <span id="rominfo">no ROM loaded</span>
-  <span id="fps">-- fps</span>
-</div>
+<!-- Dims the game and takes the stray taps while the sheet is open. -->
+<div id="scrim"></div>
 
-<div id="legend">
-  <div><b>D-pad</b> &nbsp;<kbd>&#8592;&#8593;&#8595;&#8594;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
-  <div><b>A</b> &nbsp;<kbd>J</kbd> / <kbd>Z</kbd></div>
-  <div><b>B</b> &nbsp;<kbd>K</kbd> / <kbd>X</kbd></div>
-  <div><b>L</b> &nbsp;<kbd>Q</kbd> &nbsp;&nbsp; <b>R</b> &nbsp;<kbd>E</kbd></div>
-  <div><b>Start</b> &nbsp;<kbd>Enter</kbd></div>
-  <div><b>Select</b> &nbsp;<kbd>Backspace</kbd> / <kbd>R-Shift</kbd></div>
-</div>
+<section id="chrome" aria-label="ROM, controls and diagnostics">
+  <div id="sheethead">
+    <span id="sheettitle">Kirby &amp; The Amazing Mirror — decompilation port</span>
+    <button id="sheetclose" type="button">Done</button>
+  </div>
 
-<div id="logtools">
-  <span>log</span>
-  <button id="logcopy" type="button">Copy log</button>
-</div>
+  <div class="bar">
+    <label class="filebtn" for="romfile">Load ROM…</label>
+    <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
+    <button id="romforget" type="button" disabled>Forget stored ROM</button>
+    <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
+    <button id="diagtoggle" type="button" aria-pressed="false">Diagnostics: off</button>
+    <button id="fullscreen" type="button">Fullscreen</button>
+    <span class="urlbox">
+      <input id="romurl" type="url" spellcheck="false" autocomplete="off"
+             placeholder="direct link to a .gba file you have the right to use">
+      <button id="romurlgo" type="button">Load</button>
+    </span>
+  </div>
 
-<div id="log" aria-live="polite"></div>
+  <div id="legend">
+    <div><b>D-pad</b> &nbsp;<kbd>&#8592;&#8593;&#8595;&#8594;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+    <div><b>A</b> &nbsp;<kbd>J</kbd> / <kbd>Z</kbd></div>
+    <div><b>B</b> &nbsp;<kbd>K</kbd> / <kbd>X</kbd></div>
+    <div><b>L</b> &nbsp;<kbd>Q</kbd> &nbsp;&nbsp; <b>R</b> &nbsp;<kbd>E</kbd></div>
+    <div><b>Start</b> &nbsp;<kbd>Enter</kbd></div>
+    <div><b>Select</b> &nbsp;<kbd>Backspace</kbd> / <kbd>R-Shift</kbd></div>
+  </div>
+
+  <div id="logtools">
+    <span>log</span>
+    <button id="logcopy" type="button">Copy log</button>
+  </div>
+
+  <div id="log" aria-live="polite"></div>
+
+  <p id="tips">
+    On iPhone, <b>Share &#8594; Add to Home Screen</b> and launch it from there:
+    Safari will not let a page go fullscreen, but it drops the browser chrome
+    for a home-screen launch, which is the same thing.
+  </p>
+</section>
 
 <!-- Touch overlay. Not focusable and not announced: it duplicates the
      keyboard controls the legend already lists, and every one of these
      elements is hit-tested by coordinate rather than clicked. -->
 <div id="touch" aria-hidden="true">
   <div id="dpad">
+    <div id="dhi"></div>
     <span class="dseg" data-seg="up">&#9650;</span>
     <span class="dseg" data-seg="down">&#9660;</span>
     <span class="dseg" data-seg="left">&#9664;</span>
@@ -562,10 +952,8 @@
   </div>
   <div class="tpad" id="tb-l" data-btn="L">L</div>
   <div class="tpad" id="tb-r" data-btn="R">R</div>
-  <div id="tsys">
-    <div class="tpad" id="tb-select" data-btn="SELECT">SELECT</div>
-    <div class="tpad" id="tb-start" data-btn="START">START</div>
-  </div>
+  <div class="tpad" id="tb-select" data-btn="SELECT">SELECT</div>
+  <div class="tpad" id="tb-start" data-btn="START">START</div>
   <div class="tpad" id="tb-b" data-btn="B">B</div>
   <div class="tpad" id="tb-a" data-btn="A">A</div>
 </div>
@@ -649,9 +1037,11 @@ var Module = (function () {
   // (the crash report and the on-screen readout both want them).
   var stats = { frames: 0, fps: 0, t0: performance.now() };
 
-  // Filled in by the diagnostics block; anything fatal goes through it so the
-  // crash panel is the single place a failure surfaces.
-  var hooks = { onFatal: null };
+  // Filled in later: onFatal by the diagnostics block, so the crash panel is
+  // the single place a failure surfaces; onLayout by the input block, so the
+  // touch pads re-measure themselves whenever the picture is re-fitted (both
+  // happen for exactly the same reasons).
+  var hooks = { onFatal: null, onLayout: null };
 
   // Called from C once per rendered frame.
   //   ptr  – byte offset into the wasm heap of the RGBA8888 framebuffer
@@ -701,27 +1091,96 @@ var Module = (function () {
     screenCtx.drawImage(back, 0, 0, screen.width, screen.height);
   }
 
-  // Integer upscale that fits the available space, preserving 3:2.
+  //--------------------------------------------------------------------
+  // Fitting the picture to the stage.
+  //
+  // Two separate decisions, which the old single "integer scale" conflated:
+  //
+  //   * How many *device* pixels one game pixel is. This has to be a whole
+  //     number or nearest-neighbour smears, so the canvas backing store is
+  //     always GBA_W x GBA_H times an integer.
+  //
+  //   * How big the picture is drawn. A whole-number CSS scale is the
+  //     crispest thing there is and is right on a 1x monitor, where a
+  //     fractional scale is plainly visible as game pixels that are 6 screen
+  //     pixels wide in some columns and 7 in others. On a phone it throws
+  //     away a third of the screen: a 390pt-wide portrait window fits 1.6x,
+  //     so "integer" means 1x — a 240pt picture on a 390pt screen. At
+  //     dpr >= 2 the ragged edge costs at most one device pixel in four or
+  //     five, at 300+ ppi, and nobody can see it. So: fill the stage on a
+  //     high-density screen, take the integer and the letterbox on a 1x one.
+  //--------------------------------------------------------------------
+  var wrapEl = document.getElementById('screen-wrap');
+
   function fitScreen() {
-    var wrap = document.getElementById('screen-wrap');
-    var availW = Math.max(1, wrap.clientWidth);
-    var availH = Math.max(1, wrap.clientHeight);
+    // clientWidth/Height are the *padding* box, and the stage is padded by
+    // the safe-area insets, so measure the content box or the picture ends
+    // up under the notch by exactly that much.
+    var cs = getComputedStyle(wrapEl);
+    var availW = Math.max(1, wrapEl.clientWidth  - parseFloat(cs.paddingLeft || 0)
+                                                 - parseFloat(cs.paddingRight || 0));
+    var availH = Math.max(1, wrapEl.clientHeight - parseFloat(cs.paddingTop || 0)
+                                                 - parseFloat(cs.paddingBottom || 0));
+
     var raw = Math.min(availW / GBA_W, availH / GBA_H);
+    var dpr = window.devicePixelRatio || 1;
+    if (!(dpr > 0) || dpr > 6) dpr = 1;         // defensive: some builds lie
 
-    // Backing store is always a whole multiple so nearest-neighbour is exact.
-    var s = Math.max(1, Math.floor(raw));
-    screen.width  = GBA_W * s;
-    screen.height = GBA_H * s;
+    var css;
+    if (raw < 1) css = raw;                     // smaller than 240x160: nothing to round to
+    else if (dpr >= 2) css = raw;
+    else css = Math.floor(raw);
 
-    // Only on a viewport too small for 1x do we let CSS shrink it fractionally.
-    var css = raw >= 1 ? s : raw;
-    screen.style.width  = Math.round(GBA_W * css) + 'px';
-    screen.style.height = Math.round(GBA_H * css) + 'px';
+    var s = Math.max(1, Math.round(css * dpr));
+    // Assigning width/height clears the canvas even when the value is
+    // unchanged, so only touch it when it really moved.
+    if (screen.width !== GBA_W * s) {
+      screen.width  = GBA_W * s;
+      screen.height = GBA_H * s;
+    }
+    screen.style.width  = (GBA_W * css) + 'px';
+    screen.style.height = (GBA_H * css) + 'px';
 
     blit();                                    // resizing cleared the canvas
+    if (hooks.onLayout) hooks.onLayout();
   }
 
-  window.addEventListener('resize', fitScreen);
+  //--------------------------------------------------------------------
+  // Everything that can change the size of the stage. Belt and braces on
+  // purpose: `resize` alone is not enough on a phone.
+  //   * iOS Safari does not fire a window resize when the URL bar slides
+  //     away — only the visual viewport notices, which is one of the ways
+  //     the picture used to end up measured against a window that no
+  //     longer existed.
+  //   * orientationchange fires before the new metrics are readable, so it
+  //     needs the trailing re-fit as well as the immediate one.
+  //   * the ResizeObserver is the honest one: whatever moved — the sheet,
+  //     the soft keyboard, fullscreen, a rotation — the stage box changed
+  //     and we hear about it directly.
+  // Coalesced into one rAF so a burst costs a single layout pass.
+  //--------------------------------------------------------------------
+  var refitPending = false;
+
+  function refit() {
+    if (refitPending) return;
+    refitPending = true;
+    requestAnimationFrame(function () { refitPending = false; fitScreen(); });
+  }
+
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', function () {
+    refit();
+    setTimeout(refit, 250);                    // after the rotation animation
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', refit);
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(refit).observe(wrapEl);
+  }
+  document.addEventListener('fullscreenchange', refit);
+  document.addEventListener('webkitfullscreenchange', refit);
+
   fitScreen();
 
   // ---- the Module object emscripten will pick up ---------------------
@@ -748,6 +1207,11 @@ var Module = (function () {
       runtimeReady: runtimeReady,
       resolveRomReady: function () { resolveRomReady(); },
       fitScreen: fitScreen,
+      refit: refit,
+      // Replaced by the input block. Called from anywhere that has to be
+      // sure no on-screen button is left held — the crash panel above all,
+      // which hides the pads out from under whatever finger was on them.
+      releaseInput: function () {},
       // What was loaded, for the crash report. The bytes themselves and the
       // address they came from are nobody else's business; the size and the
       // bare filename are what actually identify a wrong dump.
@@ -1008,6 +1472,12 @@ var Module = (function () {
     if (crashed) return;
     crashed = true;
 
+    // body.crashed hides the touch overlay, which pulls the pads out from
+    // under any finger resting on one. Release them first: an unreleased
+    // pointer would leave that button held for good, and the panel's own
+    // buttons are what the player needs to reach next.
+    shell.releaseInput();
+
     log('EMULATOR STOPPED — ' + errName(err) + ': ' + errMessage(err), 'err');
 
     var report;
@@ -1160,6 +1630,9 @@ var Module = (function () {
       shell.rom.name = name.split(/[\\/]/).pop().split(/[?#]/)[0];
       shell.rom.size = bytes.length;
       hideCurtain();
+      // Gates the touch overlay: pads over the ROM curtain would only
+      // swallow taps meant for the file picker underneath them.
+      document.body.classList.add('rom-ready');
       shell.fitScreen();
       log('ROM mapped at 0x' + ROM_BASE.toString(16) + '. Starting.', 'ok');
 
@@ -1609,7 +2082,16 @@ var Module = (function () {
     if (Module._PortSetKeys) Module._PortSetKeys(mask);
   }
 
+  // A keystroke aimed at the URL box is not aimed at the game. Without this
+  // every "d" typed into it would also walk Kirby to the right, and Backspace
+  // would be swallowed by SELECT instead of deleting a character.
+  function typingInAField(e) {
+    var t = e.target;
+    return !!(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
+  }
+
   window.addEventListener('keydown', function (e) {
+    if (typingInAField(e)) return;
     var bit = KEYMAP[e.code];
     if (bit === undefined) return;
     e.preventDefault();                        // arrows/space must not scroll,
@@ -1626,13 +2108,6 @@ var Module = (function () {
     pushMask();
   });
 
-  // Losing focus mid-press would otherwise leave a button stuck down.
-  window.addEventListener('blur', function () {
-    held = Object.create(null);
-    pointers = Object.create(null);
-    syncTouch();                               // ends in pushMask()
-  });
-
   //====================================================================
   // On-screen touch controls
   //====================================================================
@@ -1641,15 +2116,24 @@ var Module = (function () {
   var dpadEl     = document.getElementById('dpad');
   var toggleBtn  = document.getElementById('touchtoggle');
   var fsBtn      = document.getElementById('fullscreen');
+  var menuBtn    = document.getElementById('menubtn');
+  var sheetClose = document.getElementById('sheetclose');
+  var scrimEl    = document.getElementById('scrim');
+  var body       = document.body;
 
   var TOUCH_BITS = { A: A, B: B, L: BTN_L, R: BTN_R, START: START, SELECT: SELECT };
   var SEG_BITS   = { up: UP, down: DOWN, left: LEFT, right: RIGHT };
 
-  // The discrete pads. The D-pad is deliberately not among them.
+  // Round pads are hit-tested as circles, oblong ones as boxes; the D-pad is
+  // deliberately not among either — it has its own sector test below.
+  var ROUND = { A: 1, B: 1 };
+
   var padButtons = [];
   var padNodes = touchLayer.querySelectorAll('[data-btn]');
   for (var pi = 0; pi < padNodes.length; pi++) {
-    padButtons.push({ el: padNodes[pi], bit: TOUCH_BITS[padNodes[pi].getAttribute('data-btn')] });
+    var name = padNodes[pi].getAttribute('data-btn');
+    padButtons.push({ el: padNodes[pi], bit: TOUCH_BITS[name], round: !!ROUND[name],
+                      cx: 0, cy: 0, rx: 1, ry: 1 });
   }
 
   // Arrow decorations, lit from the mask rather than hit individually.
@@ -1673,97 +2157,264 @@ var Module = (function () {
     RIGHT, RIGHT | UP, UP, UP | LEFT, LEFT, LEFT | DOWN, DOWN, DOWN | RIGHT
   ];
 
+  // The wedge that lights up, as a CSS angle: conic-gradient measures
+  // clockwise from twelve o'clock, the sector table anticlockwise from three.
+  var DPAD_DEG = [90, 45, 0, 315, 270, 225, 180, 135];
+  var lastSector = -1;               // writing --dir re-parses the declaration
+
+  //--------------------------------------------------------------------
+  // Geometry
+  //
+  // Measured into a cache instead of read per event, for two reasons. The
+  // dull one: getBoundingClientRect() inside a pointermove handler forces a
+  // layout on every millimetre of every finger, three fingers at 120 Hz.
+  // The sharp one: a pressed pad is scaled down by 6%, so measuring live
+  // would shrink the target under the very thumb that is holding it, and a
+  // thumb near the rim would chatter on and off as the button breathed.
+  //
+  // Every control is also given a slop margin: the area you can hit is a
+  // good deal larger than the area you can see, which is the single biggest
+  // difference between pads that feel cheap and pads that feel bought.
+  //--------------------------------------------------------------------
+
+  var PAD_SLOP  = 0.30;   // of the control's own half-size, added all round
+  var DPAD_SLOP = 0.14;   // less: it already fills its corner of the screen
+
+  var dpadGeom = null;    // {cx, cy, rHit, rDead}
+  var geomOk   = false;
+
+  function measurePads() {
+    // A display:none overlay measures as zeroes; mark the cache unusable
+    // rather than filling it with them. (offsetWidth, not offsetParent: a
+    // fixed-position element reports a null offsetParent even when it is
+    // perfectly visible.)
+    if (!touchLayer.offsetWidth) { geomOk = false; return; }
+
+    var d = dpadEl.getBoundingClientRect();
+    if (!d.width) { geomOk = false; return; }
+
+    var r = Math.min(d.width, d.height) / 2;
+    dpadGeom = {
+      cx: d.left + d.width / 2,
+      cy: d.top + d.height / 2,
+      rHit: r * (1 + DPAD_SLOP),
+      rDead: r * DPAD_DEAD
+    };
+
+    for (var i = 0; i < padButtons.length; i++) {
+      var p = padButtons[i];
+      var b = p.el.getBoundingClientRect();
+      p.cx = b.left + b.width / 2;
+      p.cy = b.top + b.height / 2;
+      p.rx = Math.max(1, b.width  / 2 * (1 + PAD_SLOP));
+      p.ry = Math.max(1, b.height / 2 * (1 + PAD_SLOP));
+    }
+    geomOk = true;
+  }
+
+  // Re-decides what every finger that is still down is holding, from where
+  // it last was and where the controls now are.
+  //
+  // This is the honest answer to "the buttons get stuck": a stuck button is
+  // a finger holding a control that has moved out from under it, and no
+  // pointer event will ever arrive to say so, because from the browser's
+  // point of view nothing happened — the finger did not move. Releasing
+  // everything would work but is heavy-handed: rotate the phone with a
+  // thumb on the D-pad and you should still be walking left afterwards, and
+  // this way you are.
+  function reevaluate() {
+    var changed = false;
+    for (var id in pointers) {
+      var p = pointers[id];
+      var bits = hitMask(p.x, p.y);
+      if (bits !== p.bits) { p.bits = bits; changed = true; }
+    }
+    if (changed) syncTouch();
+  }
+
+  // Called by fitScreen(), which already runs on every resize, rotation,
+  // fullscreen change and stage reflow — the exact set of events that can
+  // move a pad.
+  shell.hooks.onLayout = function () { measurePads(); reevaluate(); };
+
   function inDpad(x, y) {
-    var r = dpadEl.getBoundingClientRect();
-    return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+    if (!geomOk) return false;
+    var dx = x - dpadGeom.cx, dy = y - dpadGeom.cy;
+    return dx * dx + dy * dy <= dpadGeom.rHit * dpadGeom.rHit;
   }
 
   function dpadMask(x, y) {
     if (!inDpad(x, y)) return 0;
-
-    var r = dpadEl.getBoundingClientRect();
-    var dx = x - (r.left + r.width / 2);
-    var dy = y - (r.top + r.height / 2);
-    var dead = Math.min(r.width, r.height) / 2 * DPAD_DEAD;
-    if (dx * dx + dy * dy < dead * dead) return 0;
-
+    var dx = x - dpadGeom.cx, dy = y - dpadGeom.cy;
+    if (dx * dx + dy * dy < dpadGeom.rDead * dpadGeom.rDead) return 0;
     // atan2 takes -dy because screen y grows downward and the sector table
     // is written the way a compass reads.
-    var sector = Math.round(Math.atan2(-dy, dx) / (Math.PI / 4));
-    return DPAD_SECTORS[(sector + 8) % 8];
+    var sector = (Math.round(Math.atan2(-dy, dx) / (Math.PI / 4)) + 8) % 8;
+    if (sector !== lastSector) {
+      lastSector = sector;
+      dpadEl.style.setProperty('--dir', DPAD_DEG[sector] + 'deg');
+    }
+    return DPAD_SECTORS[sector];
+  }
+
+  // Nearest control wins. With slop margins the inflated targets touch each
+  // other — between A and B, and along the L/Select/Start/R row — and
+  // "whichever centre is closer" is the only tie-break that behaves the way
+  // a thumb expects. Distances are normalised by each control's own size so
+  // a big pad does not out-reach a small one that the finger is actually on.
+  function padAt(x, y) {
+    if (!geomOk) return 0;
+    var bestBit = 0, best = Infinity;
+    for (var i = 0; i < padButtons.length; i++) {
+      var p = padButtons[i];
+      var nx = (x - p.cx) / p.rx;
+      var ny = (y - p.cy) / p.ry;
+      var d = p.round ? Math.sqrt(nx * nx + ny * ny) : Math.max(Math.abs(nx), Math.abs(ny));
+      if (d <= 1 && d < best) { best = d; bestBit = p.bit; }
+    }
+    return bestBit;
   }
 
   function hitMask(x, y) {
     var m = dpadMask(x, y);
-    if (m) return m;
-    for (var i = 0; i < padButtons.length; i++) {
-      // Read the rect live: the layout moves on rotation, when the bar
-      // rewraps, and every time the page enters or leaves fullscreen.
-      var r = padButtons[i].el.getBoundingClientRect();
-      if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return padButtons[i].bit;
-    }
-    return 0;
+    return m ? m : padAt(x, y);
   }
 
-  // pointerId -> the bits that finger is currently holding, which may be 0
-  // for a finger that has slid off everything but is still down. Recomputing
-  // the union from this map (rather than adding and subtracting bits) is what
-  // lets two fingers hold the same button without one release clearing it.
+  //--------------------------------------------------------------------
+  // Pointer bookkeeping
+  //
+  // pointerId -> { bits, x, y }: what that finger is holding, which may be 0
+  // for a finger that has slid off everything but is still down, and where it
+  // was when we last heard from it. Recomputing the union from this map
+  // (rather than adding and subtracting bits) is what lets two fingers hold
+  // the same button without one release clearing it.
+  //
+  // The coordinates are kept because a finger that has not moved can still
+  // stop being on the button it was holding: rotate the phone, enter
+  // fullscreen, turn the pads on or off, and every pad is somewhere else
+  // while every finger is exactly where it was. See reevaluate().
+  //--------------------------------------------------------------------
   var pointers = Object.create(null);
+  var pointerCount = 0;
 
   function syncTouch() {
-    var m = 0;
-    for (var id in pointers) m |= pointers[id];
+    var m = 0, n = 0;
+    for (var id in pointers) { m |= pointers[id].bits; n++; }
     touchMask = m;
+    pointerCount = n;
     for (var i = 0; i < padButtons.length; i++) {
       padButtons[i].el.classList.toggle('down', (m & padButtons[i].bit) !== 0);
     }
+    var dir = 0;
     for (var j = 0; j < dpadSegs.length; j++) {
-      dpadSegs[j].el.classList.toggle('on', (m & dpadSegs[j].bit) !== 0);
+      var on = (m & dpadSegs[j].bit) !== 0;
+      dpadSegs[j].el.classList.toggle('on', on);
+      if (on) dir = 1;
     }
+    dpadEl.classList.toggle('on', !!dir);
+    // Landscape fades the whole overlay back until it is being used.
+    body.classList.toggle('touching', n > 0);
     pushMask();
   }
 
   // Absent on desktop and on iOS, and some builds throw instead of returning
-  // false, so the whole thing is wrapped once here.
-  function buzz() {
-    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* ignore */ } }
+  // false, so the whole thing is wrapped once here. Short: this fires on
+  // every button press in a platformer, and anything longer reads as a fault.
+  function buzz(ms) {
+    if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* ignore */ } }
   }
 
+  // Everything that has to be certain no pad is left held. The pointer is
+  // handed back explicitly as well as forgotten: a capture we still hold on
+  // a pointer we have stopped tracking would keep sending us events for a
+  // finger nobody is watching.
+  function releaseAllTouch() {
+    var any = false;
+    for (var id in pointers) {
+      any = true;
+      try { touchLayer.releasePointerCapture(parseInt(id, 10)); } catch (e) { /* already gone */ }
+    }
+    pointers = Object.create(null);
+    if (any || touchMask) syncTouch();
+  }
+
+  shell.releaseInput = function () {
+    held = Object.create(null);
+    releaseAllTouch();
+    pushMask();
+  };
+
+  //--------------------------------------------------------------------
+  // Pointer handlers
+  //
   // Listening on window, not on the overlay: touch input implicitly captures
   // the pointer to whatever element took the pointerdown, so move/up events
   // keep arriving from that element no matter where the finger has gone. We
   // want the opposite — coordinates decide what is held — so we take the
   // events wherever they bubble to and hit-test them ourselves.
+  //--------------------------------------------------------------------
+
+  function padsLive() {
+    // Mirrors the one CSS rule that shows the overlay. A pad that is not on
+    // the screen must not answer to a finger that is over where it used to be.
+    return touchOn &&
+           body.classList.contains('rom-ready') &&
+           !body.classList.contains('crashed') &&
+           !body.classList.contains('sheet-open');
+  }
+
   function onPointerDown(e) {
-    if (!touchOn) return;
+    if (!padsLive()) return;
+    if (!geomOk) measurePads();
     var bits = hitMask(e.clientX, e.clientY);
     // A thumb that lands in the D-pad's dead centre holds nothing yet, but it
     // has to be tracked anyway or rolling out of the dead zone would never
     // register. Anywhere else, no bits means the touch was not ours: leave it
-    // alone so the bar, the URL box and the file picker still work.
+    // alone so the menu button and anything else on the page still works.
     if (!bits && !inDpad(e.clientX, e.clientY)) return;
+
     e.preventDefault();                        // no scroll, no zoom, no synthetic mouse event
-    pointers[e.pointerId] = bits;
-    if (bits) buzz();
+
+    // Capture to the overlay itself.
+    //
+    // Left alone, the browser implicitly captures the pointer to whichever
+    // element the finger landed on. That is fine right up until something
+    // restyles or removes that element mid-press — a rotation, the sheet
+    // opening, the crash panel arriving, the pads being switched off — at
+    // which point the matching pointerup is delivered to nothing at all and
+    // the button is held until the page is reloaded. #touch outlives every
+    // one of those, and lostpointercapture below turns the remaining case
+    // (it gets hidden too) into a clean release rather than a stuck button.
+    try { touchLayer.setPointerCapture(e.pointerId); } catch (err) { /* not fatal */ }
+
+    pointers[e.pointerId] = { bits: bits, x: e.clientX, y: e.clientY };
+    if (bits) buzz(8);
     syncTouch();
   }
 
   function onPointerMove(e) {
-    if (!(e.pointerId in pointers)) return;
+    var p = pointers[e.pointerId];
+    if (!p) return;
     e.preventDefault();
+    p.x = e.clientX;
+    p.y = e.clientY;
     var bits = hitMask(e.clientX, e.clientY);
-    if (bits === pointers[e.pointerId]) return;
-    if (bits && !pointers[e.pointerId]) buzz();  // re-entry only; not while rolling the D-pad
-    pointers[e.pointerId] = bits;
+    if (bits === p.bits) return;
+    if (bits && !p.bits) buzz(8);               // re-entry only; not while rolling the D-pad
+    p.bits = bits;
+    syncTouch();
+  }
+
+  function releasePointer(id) {
+    if (!(id in pointers)) return;
+    delete pointers[id];
     syncTouch();
   }
 
   function onPointerUp(e) {
     if (!(e.pointerId in pointers)) return;
     e.preventDefault();
-    delete pointers[e.pointerId];
-    syncTouch();
+    releasePointer(e.pointerId);
   }
 
   window.addEventListener('pointerdown',   onPointerDown, { passive: false });
@@ -1771,24 +2422,118 @@ var Module = (function () {
   window.addEventListener('pointerup',     onPointerUp,   { passive: false });
   window.addEventListener('pointercancel', onPointerUp,   { passive: false });
 
-  // A long press on a pad otherwise raises the selection/callout menu.
-  touchLayer.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  // Fires when the capture goes away for any reason we did not ask for —
+  // notably the overlay itself being hidden with a finger still down.
+  touchLayer.addEventListener('lostpointercapture', function (e) {
+    releasePointer(e.pointerId);
+  });
 
-  // ---- showing and hiding them --------------------------------------
+  //--------------------------------------------------------------------
+  // The other ways a finger can vanish.
+  //
+  // A phone does not always send pointerup. Backgrounding the app, the OS
+  // file chooser, a notification shade pulled down, a call arriving, the
+  // task switcher: all of these can take the page away between a pointerdown
+  // and its pointerup, and none of them reliably fires window blur on
+  // mobile. Anything that leaves the page in the background releases
+  // everything — the alternative is Kirby walking left for eternity.
+  //--------------------------------------------------------------------
+  window.addEventListener('blur', function () { shell.releaseInput(); });
+  window.addEventListener('pagehide', function () { shell.releaseInput(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) shell.releaseInput();
+  });
+  // Rotation deliberately does *not* release: fitScreen() re-measures and
+  // reevaluate() works out what each finger is now on, so a thumb that is
+  // still over the D-pad after the phone turns keeps walking.
+
+  //--------------------------------------------------------------------
+  // Browser gestures we do not want anywhere near the game.
+  //--------------------------------------------------------------------
+
+  function overStage(node) {
+    while (node && node.nodeType === 1) {
+      if (node.id === 'touch' || node.id === 'screen-wrap') return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  // A long press on a pad otherwise raises the selection/callout menu, and a
+  // long press on the canvas offers to save the picture.
+  document.addEventListener('contextmenu', function (e) {
+    if (overStage(e.target)) e.preventDefault();
+  });
+
+  // WebKit honours neither user-scalable=no nor, for pinch, touch-action, so
+  // these non-standard gesture events are the only way to keep two fingers on
+  // the D-pad and A from zooming the page out from under them. Scoped to the
+  // stage so the sheet's text stays pinchable.
+  function blockGesture(e) { if (overStage(e.target)) e.preventDefault(); }
+  document.addEventListener('gesturestart',  blockGesture, { passive: false });
+  document.addEventListener('gesturechange', blockGesture, { passive: false });
+  document.addEventListener('dblclick', function (e) {
+    if (overStage(e.target)) e.preventDefault();
+  }, { passive: false });
+
+  //--------------------------------------------------------------------
+  // Showing and hiding the pads, and the two page layouts
+  //--------------------------------------------------------------------
+
   var LS_TOUCH_KEY = 'katam.touchControls';
   var touchOn = false;
 
+  // Immersive: the picture takes the window and the page's own controls go
+  // into a sheet that is closed until asked for.
+  //
+  // This is the structural half of the fix for taps falling through the pads
+  // onto the page. It used to be that in landscape the bar — the file picker
+  // label, five buttons and a URL field — sat directly underneath the pads,
+  // live and hit-testable, because the overlay is pointer-events:none
+  // everywhere except on a pad. Every tap that missed a pad by a few pixels
+  // landed on a button instead, and the worst of them opened the OS file
+  // chooser, which takes the page away mid-press and is exactly how a
+  // direction ends up held forever. Now there is simply nothing under there.
+  var mqCompact = window.matchMedia('(pointer: coarse), (max-width: 900px)');
+
+  function syncMode() {
+    var immersive = touchOn || mqCompact.matches;
+    body.classList.toggle('immersive', immersive);
+    if (!immersive) setSheet(false);           // the sheet is a small-screen idea
+    shell.refit();
+  }
+
+  function sheetOpen() { return body.classList.contains('sheet-open'); }
+
+  function setSheet(open) {
+    open = !!open;
+    if (open === sheetOpen()) return;
+    body.classList.toggle('sheet-open', open);
+    menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // The pads are hidden while the sheet is up; a finger on one at that
+    // moment must not take its button with it.
+    if (open) releaseAllTouch();
+    // Re-measure once the sheet has finished sliding: until then the pads are
+    // display:none and measure as nothing.
+    setTimeout(measurePads, 300);
+  }
+
+  menuBtn.addEventListener('click', function () { setSheet(!sheetOpen()); });
+  sheetClose.addEventListener('click', function () { setSheet(false); });
+  scrimEl.addEventListener('click', function () { setSheet(false); });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && sheetOpen()) { e.preventDefault(); setSheet(false); }
+  });
+
   function setTouch(on, remember) {
     touchOn = !!on;
-    document.body.classList.toggle('touch-on', touchOn);
+    body.classList.toggle('touch-on', touchOn);
     toggleBtn.textContent = 'Touch controls: ' + (touchOn ? 'on' : 'off');
     toggleBtn.setAttribute('aria-pressed', touchOn ? 'true' : 'false');
-    if (!touchOn) {                            // never leave a pad stuck down
-      pointers = Object.create(null);
-      syncTouch();
-    }
+    if (!touchOn) releaseAllTouch();           // never leave a pad stuck down
     if (remember) lsSet(LS_TOUCH_KEY, touchOn ? '1' : '0');
-    shell.fitScreen();                         // the band changes how much room the screen has
+    syncMode();                                // the reserved band changes the stage
+    setTimeout(measurePads, 0);                // after the layout settles
   }
 
   function touchWanted() {
@@ -1802,9 +2547,15 @@ var Module = (function () {
 
   toggleBtn.addEventListener('click', function () { setTouch(!touchOn, true); });
 
-  // ---- fullscreen ----------------------------------------------------
+  if (mqCompact.addEventListener) mqCompact.addEventListener('change', syncMode);
+  else if (mqCompact.addListener) mqCompact.addListener(syncMode);
+
+  //--------------------------------------------------------------------
+  // Fullscreen
+  //
   // Browser chrome costs a phone a third of its screen. The whole document
   // goes fullscreen rather than the canvas alone, so the pads come with it.
+  //--------------------------------------------------------------------
   var fsRoot = document.documentElement;
 
   function fsActive() {
@@ -1813,20 +2564,27 @@ var Module = (function () {
 
   function syncFs() {
     fsBtn.textContent = fsActive() ? 'Exit fullscreen' : 'Fullscreen';
-    shell.fitScreen();
+    // Entering fullscreen moves every pad; leaving it moves them back.
+    releaseAllTouch();
+    shell.refit();
   }
 
   fsBtn.addEventListener('click', function () {
+    setSheet(false);                           // nobody wants the menu over a fullscreen game
     if (fsActive()) {
       var exit = document.exitFullscreen || document.webkitExitFullscreen;
       if (exit) exit.call(document);
       return;
     }
     // iOS Safari only ever shipped the prefixed form, and on iPhone (as
-    // opposed to iPad) it is missing from everything but <video> — so say so
-    // rather than appearing to do nothing.
+    // opposed to iPad) it is missing from everything but <video> — so say so,
+    // and point at the one thing that does work there.
     var req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
-    if (!req) { log('this browser will not let the page go fullscreen.', 'warn'); return; }
+    if (!req) {
+      log('this browser will not let the page go fullscreen. On iPhone, use ' +
+          'Share → Add to Home Screen and launch it from there instead.', 'warn');
+      return;
+    }
     var r = req.call(fsRoot);
     if (r && r['catch']) r['catch'](function (e) { log('fullscreen refused: ' + reason(e), 'warn'); });
   });
@@ -1835,6 +2593,7 @@ var Module = (function () {
   document.addEventListener('webkitfullscreenchange', syncFs);
 
   setTouch(touchWanted(), false);
+  syncMode();
   syncFs();
 
   log('ready — this port needs your own Kirby & The Amazing Mirror ROM.');
