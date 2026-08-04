@@ -73,6 +73,8 @@ static void RunTransfer(struct DmaChannel *ch)
             dest -= unit;
     }
 
+    PortVBlankConsume(ch->count * unit);
+
     /* A repeating channel restarts from its latched addresses; DEST_RELOAD
      * additionally rewinds the destination.  A non-repeating one is done. */
     if (ch->flags & DMA_REPEAT) {

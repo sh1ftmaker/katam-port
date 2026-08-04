@@ -30,7 +30,14 @@ void m4aSoundInit(void)
     PortUnimplemented("sound engine (m4a) -- running silent");
 }
 
-void m4aSoundMain(void) { }
+void m4aSoundMain(void)
+{
+    /* GameLoop calls this at the tail of its VBlank work, immediately before
+     * spinning until VBlank ends.  On hardware the mixer's own runtime is part
+     * of what ends it, so this is the backstop that guarantees the spin exits
+     * even on a frame that transferred almost nothing. */
+    PortVBlankEnd();
+}
 void m4aSoundVSync(void) { }
 void m4aSoundVSyncOn(void) { }
 void m4aSoundVSyncOff(void) { }

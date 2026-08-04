@@ -26,8 +26,18 @@ NM=$EMSDK/upstream/bin/llvm-nm
 
 UNDEF=$BUILD/undefined.txt
 STUBS=$GENERATED/stubs.c
+IDENTS=$BUILD/port-idents.txt
 
 mkdir -p "$GENERATED"
+
+# Every word the game's own source mentions.  Step 3b below needs to tell a
+# game symbol from a libc or emscripten one, and the only thing that reliably
+# separates them is that the game declares its own: gen_stubs.py cannot write a
+# stub for a symbol with no declaration in this tree anyway, so a symbol that
+# appears nowhere in it is not ours to stub.  The tree is a few hundred files
+# and does not change while we loop, so read it once, here.
+find "$PORT_SRC/include" "$PORT_SRC/src" \( -name '*.h' -o -name '*.c' \) \
+    -exec grep -hoE '[A-Za-z_][A-Za-z0-9_]*' {} + | sort -u > "$IDENTS"
 
 # Start from nothing every time.  Carrying the list between runs looks like an
 # optimisation but is a trap: a symbol dropped from it (because something
@@ -65,6 +75,37 @@ for round in $(seq 1 12); do
             comm -23 "$UNDEF" "$BUILD/defined.txt" > "$UNDEF.tmp"
             mv "$UNDEF.tmp" "$UNDEF"
             continue    # regenerate without them before judging the link
+        fi
+    fi
+
+    # 3b. A function whose address is taken but which is never defined does
+    #     NOT fail the link: wasm-ld quietly resolves it to a null table entry,
+    #     and the game traps only when it dispatches through it.  Comparing the
+    #     object files' undefined and defined symbols catches those.
+    #     Most of what nm calls undefined is not missing at all -- libc and the
+    #     emscripten runtime are undefined in every object file and supplied by
+    #     the linker.  So keep only what the game itself declares (see $IDENTS):
+    #     naming the toolchain symbols instead would mean maintaining a
+    #     blocklist that is wrong again with every new libc call.
+    if [ -n "$objs" ]; then
+        allobjs=$(find "$BUILD/obj" -name '*.o')
+        $NM --undefined-only $allobjs 2>/dev/null | awk '{print $NF}' | sort -u \
+            > "$BUILD/undef-nm.txt"
+        $NM --defined-only $allobjs 2>/dev/null | awk '{print $NF}' | sort -u \
+            > "$BUILD/def-nm.txt"
+        comm -23 "$BUILD/undef-nm.txt" "$BUILD/def-nm.txt" \
+            | comm -12 - "$IDENTS" > "$BUILD/undef-game.txt"
+        # Loop only on something actually new.  A symbol we already listed but
+        # still cannot stub (no usable declaration, so gen_stubs.py reports it
+        # UNRESOLVED) is undefined again next round and forever: judging on the
+        # list *growing* rather than on it being non-empty is what makes the
+        # loop terminate no matter what gets through the filter above.
+        if comm -13 "$UNDEF" "$BUILD/undef-game.txt" | grep -q .; then
+            echo "  never defined, only address-taken (no link error):" \
+                 "$(comm -13 "$UNDEF" "$BUILD/undef-game.txt" | tr '\n' ' ')"
+            cat "$BUILD/undef-game.txt" >> "$UNDEF"
+            sort -u -o "$UNDEF" "$UNDEF"
+            continue
         fi
     fi
 

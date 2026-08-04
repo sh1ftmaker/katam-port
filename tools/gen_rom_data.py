@@ -66,6 +66,77 @@ def name_parameters(params):
     return ', '.join(out)
 
 
+SCALAR_SIZES = {
+    'u8': 1, 's8': 1, 'bool8': 1, 'char': 1, 'vu8': 1, 'vs8': 1,
+    'u16': 2, 's16': 2, 'vu16': 2, 'vs16': 2,
+    'u32': 4, 's32': 4, 'vu32': 4, 'vs32': 4, 'int': 4, 'unsigned': 4,
+    'bool32': 4, 'uintptr_t': 4, 'size_t': 4, 'float': 4, 'long': 4,
+}
+
+RE_STRUCT = re.compile(r'\bstruct\s+(\w+)\s*\{(?P<body>[^{}]*)\}\s*;'
+                       r'(?:\s*/\*\s*size\s*=\s*(?P<size>0x[0-9A-Fa-f]+))?')
+
+
+def parse_structs(texts):
+    """Struct layouts, but only the ones that can be laid out with confidence.
+
+    Enough to find function-pointer members and their byte offsets.  Anything
+    with a member this cannot size -- a nested struct, an unknown typedef --
+    is dropped rather than guessed at, because a wrong offset here would patch
+    the wrong word of the ROM.  Where the decomp annotates `/* size = 0x18 */`
+    the computed layout is checked against it and the struct is dropped if they
+    disagree."""
+    out = {}
+    for text in texts:
+        for m in RE_STRUCT.finditer(text):
+            name, body = m.group(1), m.group('body')
+            offset, align, members, ok = 0, 1, [], True
+
+            for line in re.sub(r'/\*.*?\*/', '', body, flags=re.S).split(';'):
+                line = line.strip()
+                if not line:
+                    continue
+
+                fn = re.match(r'(?P<ret>[\w\s\*]+?)\s*\(\s*\*\s*(?P<nm>\w+)\s*\)'
+                              r'\s*\((?P<params>.*)\)$', line, re.S)
+                if fn:
+                    size = a = 4
+                    is_fn = True
+                    info = (fn.group('ret').strip(), fn.group('params'))
+                else:
+                    is_fn, info = False, None
+                    if '*' in line:
+                        size = a = 4
+                    else:
+                        mm = re.match(r'(?:const\s+|volatile\s+)*(?:struct\s+|union\s+)?'
+                                      r'(\w+)\s+\w+(\s*\[([^\]]*)\])?$', line)
+                        if not mm or mm.group(1) not in SCALAR_SIZES:
+                            ok = False
+                            break
+                        size = a = SCALAR_SIZES[mm.group(1)]
+                        if mm.group(3):
+                            try:
+                                size *= int(mm.group(3), 0)
+                            except ValueError:
+                                ok = False
+                                break
+
+                offset = (offset + a - 1) // a * a
+                if is_fn:
+                    members.append((offset, info))
+                align = max(align, a)
+                offset += size
+
+            if not ok:
+                continue
+            total = (offset + align - 1) // align * align
+            if m.group('size') and int(m.group('size'), 16) != total:
+                continue
+            if members:
+                out[name] = (total, members)
+    return out
+
+
 def parse_map(path):
     """{rom address: symbol} from the GBA build's link map."""
     out = {}
@@ -74,6 +145,35 @@ def parse_map(path):
         if m:
             out.setdefault(int(m.group(1), 16), m.group(2))
     return out
+
+
+def extend_fn_table(rom, mapping, defined, addr, count, limit=64):
+    """Follow a function table past the label that nominally ends it.
+
+    Labels in data/*.s mark where the decompilation put a name, not where a
+    table ends.  `gUnk_0834BD88` is labelled as 3 entries and the game indexes
+    it well past that -- on hardware the reads simply continue into the words
+    of the next label, which are more function pointers of the same kind.  In C
+    those became two separate arrays, so the same index ran off the end and
+    called garbage.
+
+    Keep taking words while they still look like functions: Thumb bit set, and
+    an exact match for a function the port defines.  An arbitrary data word
+    matching one of those exactly is vanishingly unlikely, and the walk stops
+    at the first word that does not."""
+    extra = 0
+    while extra < limit:
+        off = addr - ROM_START + (count + extra) * 4
+        if off + 4 > len(rom):
+            break
+        word = int.from_bytes(rom[off:off + 4], 'little')
+        if not (word & 1):          # not a Thumb function pointer
+            break
+        name = mapping.get(word & ~1)
+        if name not in defined:
+            break
+        extra += 1
+    return count + extra
 
 
 def resolve_fn_table(rom, mapping, defined, addr, count):
@@ -171,6 +271,13 @@ def main():
                      + list((args.tree / 'src').rglob('*.h')))
     header_text = {hp: hp.read_text(errors='replace') for hp in headers}
 
+    # Taken before the removal passes start commenting declarations out.
+    struct_arrays = {}
+    for hp in headers:
+        for m in re.finditer(r'^[ \t]*extern[^;\n]*\bstruct\s+(\w+)\s+(\w+)\s*\[\s*\]',
+                             header_text[hp], re.M):
+            struct_arrays.setdefault(m.group(2), m.group(1))
+
     resolved, skipped = [], []
     dirty = set()
     decl_source = {}
@@ -183,6 +290,24 @@ def main():
             fn_typedefs[m.group('name')] = (m.group('ret').strip(),
                                             m.group('params'))
 
+    structs = parse_structs(header_text.values())
+
+    # Symbols the game's own headers already declare.  Re-declaring one with
+    # the table's element signature is a hard error when the header disagrees
+    # -- and it often does, because a ROM table stores whatever fits in r0 and
+    # the C declarations were recovered per-function.  Where a declaration
+    # exists, defer to it and cast at the point of use instead, which is what
+    # the ROM is doing anyway.
+    declared = {}
+    for hp in headers:
+        if hp.suffix != '.h':
+            continue
+        try:
+            rel = str(hp.relative_to(args.tree / 'include'))
+        except ValueError:
+            continue
+        for m in re.finditer(r'^[\w \t\*]*?\b(\w+)\s*\([^;{]*\)\s*;', header_text[hp], re.M):
+            declared.setdefault(m.group(1), rel)
     mapping = parse_map(args.map) if args.map and args.map.exists() else {}
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
     defined = set()
@@ -327,6 +452,8 @@ def main():
         else:
             continue
         count = max(1, extent.get(name, 4) // 4)
+        if rom and mapping:
+            count = extend_fn_table(rom, mapping, defined, labels[name], count)
         fn_tables.append((name, ret, params, count, decl_source.get(name)))
     fn_names = {n for n, _, _, _, _ in fn_tables}
     copies = [c for c in copies if c[0] not in fn_names]
@@ -353,6 +480,35 @@ def main():
                         % (name, addr, size))
             f.write('}\n')
 
+    # Function pointers sitting *inside* ROM structs.  `gUnk_08351648` is an
+    # array of 219 object descriptors, each with a constructor at +0x10, and
+    # `CreateLevelObjects` calls through it for every object in a level -- so
+    # this is what stands between the menus and actually loading a room.
+    # The values are ARM addresses like everything else in ROM, so they are
+    # rewritten in place at startup, once the ROM is mapped.
+    patches = []
+    if rom and mapping:
+        for name, addr in sorted(labels.items()):
+            if name not in present:
+                continue
+            decl = struct_arrays.get(name)
+            if decl is None or decl not in structs:
+                continue
+            stride, members = structs[decl]
+            span = extent.get(name, 0)
+            if not stride or not span or span % stride:
+                continue
+            for i in range(span // stride):
+                for off, (ret, params) in members:
+                    at = addr + i * stride + off
+                    romoff = at - ROM_START
+                    if romoff + 4 > len(rom):
+                        continue
+                    value = int.from_bytes(rom[romoff:romoff + 4], 'little') & ~1
+                    sym = mapping.get(value)
+                    patches.append((at, sym if sym in defined else None,
+                                    ret, params, name))
+
     wired = missing = 0
     if args.out_tables is not None:
         args.out_tables.parent.mkdir(parents=True, exist_ok=True)
@@ -366,8 +522,16 @@ def main():
                     ' * a reference to the decompiled C function of the same name.  Entries\n'
                     ' * whose function is still ARM-only get a stub of the right signature,\n'
                     ' * so the call reports itself instead of taking the game down. */\n\n')
+            wanted = {h for _, _, _, _, h in fn_tables if h}
+            for name, ret, params, count, _ in fn_tables:
+                ents = (resolve_fn_table(rom, mapping, defined, labels[name], count)
+                        if rom and mapping else [])
+                wanted |= {declared[e] for e in ents if e and e in declared}
+            wanted |= {declared[s] for _, s, _, _, _ in patches
+                       if s and s in declared}
+
             f.write('#include "port/port.h"\n')
-            for hdr in sorted({h for _, _, _, _, h in fn_tables if h}):
+            for hdr in sorted(wanted):
                 f.write('#include "%s"\n' % hdr)
             f.write('\n')
 
@@ -382,7 +546,8 @@ def main():
                         '%d still ARM-only. */\n' % (name, count, have,
                                                      count - have))
                 for fn in sorted({e for e in entries if e}):
-                    f.write('extern %s %s(%s);\n' % (ret, fn, params))
+                    if fn not in declared:
+                        f.write('extern %s %s(%s);\n' % (ret, fn, params))
                 f.write('static %s PortRomFn_%s(%s)\n{\n'
                         % (ret, name, name_parameters(params)))
                 f.write('    PortMissingFunction("%s[] (ROM function table)");\n'
@@ -392,8 +557,45 @@ def main():
                 f.write('}\n\n')
                 f.write('%s (*const %s[%d])(%s) = {\n' % (ret, name, count, params))
                 for entry in entries:
-                    f.write('    %s,\n' % (entry or ('PortRomFn_%s' % name)))
+                    if entry:
+                        f.write('    (%s (*)(%s))%s,\n' % (ret, params, entry))
+                    else:
+                        f.write('    PortRomFn_%s,\n' % name)
                 f.write('};\n\n')
+
+            if patches:
+                sigs = {}
+                for _, sym, ret, params, table in patches:
+                    sigs.setdefault((ret, params), set()).add(table)
+                for n_, (ret, params) in enumerate(sorted(sigs)):
+                    f.write('static %s PortRomStructFn%d(%s)\n{\n'
+                            % (ret, n_, name_parameters(params)))
+                    f.write('    PortMissingFunction("a function pointer inside '
+                            'a ROM struct (%s)");\n' % ', '.join(sorted(sigs[(ret, params)])))
+                    if ret != 'void':
+                        f.write('    return (%s)0;\n' % ret)
+                    f.write('}\n\n')
+                sig_index = {s: i for i, s in enumerate(sorted(sigs))}
+
+                for sym in sorted({s for _, s, _, _, _ in patches if s}):
+                    if sym in declared:
+                        continue
+                    ret, params = next((r, p) for _, s, r, p, _ in patches if s == sym)
+                    f.write('extern %s %s(%s);\n' % (ret, sym, params))
+                f.write('\n/* %d function pointers inside ROM structs; %d resolved. */\n'
+                        % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))
+                f.write('static const struct { u32 at; void *fn; } sRomStructFns[] = {\n')
+                for at, sym, ret, params, _ in patches:
+                    target = sym or ('PortRomStructFn%d' % sig_index[(ret, params)])
+                    f.write('    { 0x%08Xu, (void *)%s },\n' % (at, target))
+                f.write('};\n\n')
+                f.write('void PortPatchRomFunctionPointers(void)\n{\n'
+                        '    u32 i;\n\n'
+                        '    for (i = 0; i < sizeof(sRomStructFns) / sizeof(sRomStructFns[0]); i++)\n'
+                        '        *(void **)sRomStructFns[i].at = sRomStructFns[i].fn;\n'
+                        '}\n')
+            else:
+                f.write('void PortPatchRomFunctionPointers(void) { }\n')
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open('w') as f:
@@ -407,6 +609,9 @@ def main():
 
     print('gen_rom_data: %d data labels, %d referenced by C and resolved'
           % (len(labels), len(resolved)))
+    if patches:
+        print('  %d function pointers inside ROM structs, %d resolved'
+              % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))
     if fn_tables:
         print('  %d ROM function tables: %d entries wired to decompiled C, '
               '%d stubbed' % (len(fn_tables), wired, missing))

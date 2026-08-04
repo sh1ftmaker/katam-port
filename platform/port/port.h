@@ -43,6 +43,9 @@ extern u32 gPortRomSize;
 void PortMemInit(void);
 /* Fills the generated ROM-data storage; see build/generated/rom_copies.c. */
 void PortLoadRomDataCopies(void);
+/* Rewrites the ARM code addresses held in ROM structs into real function
+ * pointers; see build/generated/rom_fn_tables.c. */
+void PortPatchRomFunctionPointers(void);
 void PortRomLoaded(u32 size);
 
 /* --- diagnostics ---------------------------------------------------------
@@ -63,6 +66,27 @@ void PortHalt(void);
 /* --- frame loop ---------------------------------------------------------- */
 void PortPresentFrame(void);   /* render one frame and yield to the browser */
 void PortVBlank(void);         /* run the game's VBlank handler */
+
+/* VBlank is a time budget, not a moment.
+ *
+ * The game keeps working after VBlankIntrWait returns -- it flushes OAM and
+ * palettes, then drains its background-transfer queue -- and every worker in
+ * that queue checks whether the display is still in VBlank before doing one
+ * more item:
+ *
+ *     while (queue not empty) {
+ *         if (!(REG_DISPSTAT & DISPSTAT_VBLANK)) return FALSE;
+ *         ... transfer one background ...
+ *     }
+ *
+ * So the flag has to stay set for a while and then go out, or the queue never
+ * drains and GameLoop stops running tasks entirely.  Since the port maps the
+ * I/O registers as plain memory there is no way to hook the read, so the
+ * budget is spent by the transfers themselves: each one consumes bytes, and
+ * VBlank ends when the budget runs out.  Whatever is left in the queue is
+ * picked up next frame, which is exactly what the hardware does. */
+void PortVBlankConsume(u32 bytes);
+void PortVBlankEnd(void);
 
 /* --- input ---------------------------------------------------------------
  * KEYINPUT is active-low: a clear bit means pressed. */

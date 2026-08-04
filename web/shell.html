@@ -117,7 +117,29 @@
     cursor: pointer;
   }
   button:hover, label.filebtn:hover { border-color: var(--accent); color: #fff; }
+  button[disabled] { opacity: .45; cursor: default; }
+  button[disabled]:hover { border-color: var(--edge); color: var(--text); }
   input[type=file] { display: none; }
+
+  /* URL field + its Load button travel together and take the slack in the bar. */
+  .urlbox {
+    display: flex;
+    gap: 6px;
+    flex: 1 1 340px;
+    min-width: 200px;
+  }
+  #romurl {
+    flex: 1 1 auto;
+    min-width: 0;                /* without this the flex item refuses to shrink */
+    font: inherit;
+    color: var(--text);
+    background: #101216;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 6px 8px;
+  }
+  #romurl:focus { outline: none; border-color: var(--accent); }
+  #romurl::placeholder { color: var(--dim); }
 
   #fps  { color: var(--dim); margin-left: auto; font-variant-numeric: tabular-nums; }
   #rominfo { color: var(--dim); }
@@ -202,12 +224,22 @@
     </p>
     <label class="filebtn" for="romfile">Choose ROM file…</label>
     <p>…or drag and drop the <code>.gba</code> file anywhere on this page.</p>
+    <p>
+      You can also paste a direct link to a <code>.gba</code> file you have the
+      right to use into the box below: your browser downloads it straight from
+      that address — it is not uploaded to, or routed through, this page.
+    </p>
   </div>
 </div>
 
 <div class="bar">
   <label class="filebtn" for="romfile">Load ROM…</label>
   <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
+  <span class="urlbox">
+    <input id="romurl" type="url" spellcheck="false" autocomplete="off"
+           placeholder="direct link to a .gba file you have the right to use">
+    <button id="romurlgo" type="button">Load</button>
+  </span>
   <span id="rominfo">no ROM loaded</span>
   <span id="fps">-- fps</span>
 </div>
@@ -455,6 +487,211 @@ var Module = (function () {
   });
 
   //====================================================================
+  // Loading from a URL
+  //
+  // Ends in the same loadRom() as the picker and the drop target; only the
+  // way the bytes are obtained differs. Note the honest distinction: a picked
+  // file never leaves the machine, whereas this asks the browser to download
+  // from wherever the user pointed it.
+  //====================================================================
+
+  var LS_URL_KEY = 'katam.lastRomUrl';
+
+  var urlInput = document.getElementById('romurl');
+  var urlBtn   = document.getElementById('romurlgo');
+  var fetching = false;
+
+  // localStorage throws outright when storage is disabled (private mode, some
+  // file:// contexts), so every access is guarded.
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  function mib(n) {
+    return n < 1048576 ? n + ' bytes' : (n / 1048576).toFixed(2) + ' MiB';
+  }
+
+  // Carries a "we already diagnosed this" flag so the catch below can tell our
+  // own failures apart from a raw fetch rejection.
+  function romError(msg) { var e = new Error(msg); e.diagnosed = true; return e; }
+
+  function nameFromUrl(parsed) {
+    var base = parsed.pathname.slice(parsed.pathname.lastIndexOf('/') + 1);
+    try { base = decodeURIComponent(base); } catch (e) { /* leave it encoded */ }
+    return base || parsed.hostname;
+  }
+
+  // Content-Type is no help here: hosts that serve a preview page in place of
+  // the file frequently mislabel it too. Sniff the bytes instead.
+  function looksLikeHtml(bytes) {
+    var head = '';
+    for (var i = 0; i < Math.min(bytes.length, 128); i++) head += String.fromCharCode(bytes[i]);
+    return /^\s*(<!doctype\s+html|<html|<head|<\?xml)/i.test(head);
+  }
+
+  // Streams the body so a 16 MiB download shows progress instead of hanging
+  // silently. Content-Length is absent whenever the response is chunked or
+  // compressed, so bytes-so-far is the fallback readout.
+  function readBody(res) {
+    var total = parseInt(res.headers.get('Content-Length') || '', 10);
+    if (!(total > 0)) total = 0;
+
+    if (!res.body || typeof res.body.getReader !== 'function') {
+      log('response streams unavailable here — downloading without progress…', 'warn');
+      return res.arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+    }
+
+    var reader = res.body.getReader();
+    var chunks = [], got = 0, marked = 0, lastPaint = 0;
+
+    function step(r) {
+      if (r.done) {
+        var bytes = new Uint8Array(got), off = 0;
+        for (var i = 0; i < chunks.length; i++) { bytes.set(chunks[i], off); off += chunks[i].length; }
+        return bytes;
+      }
+      chunks.push(r.value);
+      got += r.value.length;
+
+      // The status span can repaint freely; the log pane must not be flooded,
+      // so it gets a line every 25% (or every 4 MiB with no Content-Length).
+      var now = (window.performance && performance.now) ? performance.now() : Date.now();
+      if (now - lastPaint > 100) {
+        lastPaint = now;
+        infoEl.textContent = total
+          ? 'downloading… ' + Math.floor(got * 100 / total) + '%'
+          : 'downloading… ' + mib(got);
+      }
+      var mark = total ? Math.floor(got * 4 / total) * 25 : Math.floor(got / (4 * 1048576)) * 4;
+      if (mark > marked) {
+        marked = mark;
+        log(total ? '  ' + mark + '% — ' + mib(got) + ' of ' + mib(total)
+                  : '  ' + mib(got) + ' downloaded');
+      }
+      return reader.read().then(step);
+    }
+    return reader.read().then(step);
+  }
+
+  function fetchRom(rawUrl) {
+    if (romLoaded) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+    if (fetching)  { log('a download is already in progress.', 'warn'); return; }
+
+    var url = (rawUrl || '').trim();
+    if (!url) { log('enter a direct link to a .gba file first.', 'err'); return; }
+
+    var parsed = null;
+    try { parsed = new URL(url, location.href); } catch (e) { /* reported below */ }
+    if (!parsed || !/^https?:$/.test(parsed.protocol)) {
+      log('"' + url + '" is not an http(s) URL.', 'err');
+      return;
+    }
+
+    var name = nameFromUrl(parsed);
+    if (/\.(zip|7z|rar)$/i.test(name)) {
+      log('"' + name + '" is an archive; link the extracted .gba file instead.', 'err');
+      return;
+    }
+
+    // Same-origin requests are not subject to CORS at all, so the diagnosis
+    // for a failed fetch differs.
+    var crossOrigin = parsed.origin !== location.origin;
+
+    fetching = true;
+    urlBtn.disabled = true;
+    infoEl.textContent = 'downloading…';
+    log('downloading ' + parsed.href + ' …');
+
+    fetch(parsed.href).then(function (res) {
+      // Being able to read a status code at all means CORS already let us in.
+      if (!res.ok) {
+        throw romError('server returned HTTP ' + res.status +
+                       (res.statusText ? ' ' + res.statusText : '') +
+                       (res.status === 404 ? ' — the file is not at that address.'
+                        : res.status === 403 ? ' — the host refused the request.' : '.'));
+      }
+      return readBody(res);
+    }).then(function (bytes) {
+      if (!bytes.length) throw romError('the server sent an empty response.');
+      if (looksLikeHtml(bytes)) {
+        throw romError('that address returned a web page, not a ROM. "Share" links from ' +
+                       'file hosts serve an HTML preview page; use the direct download link ' +
+                       '(the one the page\'s own download button points at).');
+      }
+      log('downloaded ' + mib(bytes.length) + ' from ' + parsed.hostname + '.', 'ok');
+      infoEl.textContent = name + ' — ' + mib(bytes.length);
+      loadRom(bytes, name);
+    }).catch(function (e) {
+      infoEl.textContent = 'no ROM loaded';
+      if (e && e.diagnosed) { log('download failed: ' + e.message, 'err'); return; }
+
+      // A rejected fetch is deliberately opaque: no status, no body, and the
+      // same TypeError whether the request was blocked by CORS, failed DNS or
+      // died on the wire. A mode:'no-cors' probe is allowed to succeed even
+      // without CORS headers, so if it resolves the host is reachable and the
+      // missing header is the whole problem.
+      log('download failed: ' + ((e && e.message) || e), 'err');
+      if (!crossOrigin) {
+        log('the request never completed — check the address and your connection.', 'err');
+        return;
+      }
+      return fetch(parsed.href, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' }).then(
+        function () {
+          log('this is a CORS problem: ' + parsed.hostname + ' is reachable but did not send ' +
+              'an "Access-Control-Allow-Origin" header, and a browser will not let this page ' +
+              'read a file from another site without it. Nothing on this page can override ' +
+              'that. Use a host that sends the header, put the file on this same origin, or ' +
+              'download it yourself and use the file picker.', 'err');
+        },
+        function () {
+          log(parsed.hostname + ' could not be reached at all: check the address, that the ' +
+              'name resolves, and your connection. (A missing "Access-Control-Allow-Origin" ' +
+              'header looks identical from here and is the other common cause — the server ' +
+              'hosting the file must send it for a cross-origin fetch to be readable.)', 'err');
+        });
+    }).then(function () {
+      fetching = false;
+      urlBtn.disabled = false;
+    });
+  }
+
+  function startUrl(u) {
+    u = (u || '').trim();
+    urlInput.value = u;
+    // Remembered even when the fetch fails: a wrong URL is usually a typo the
+    // user wants to correct rather than retype.
+    if (u) lsSet(LS_URL_KEY, u);
+    fetchRom(u);
+  }
+
+  urlBtn.addEventListener('click', function () { startUrl(urlInput.value); });
+  urlInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); startUrl(urlInput.value); }
+  });
+
+  // rom=<url> in the query string auto-starts. The hash form is accepted too
+  // and is the better one to share: fragments are never sent to a server, so
+  // the ROM's address stays out of Referer headers and third-party logs.
+  function romParam() {
+    var m = /[?&]rom=([^&]*)/.exec(location.search) || /[#&]rom=([^&]*)/.exec(location.hash);
+    if (!m) return '';
+    try { return decodeURIComponent(m[1]); }
+    catch (e) { log('the rom= parameter is not valid percent-encoding.', 'err'); return ''; }
+  }
+
+  function initRomUrl() {
+    var auto = romParam();
+    if (auto) { log('rom= parameter found — starting the download.'); startUrl(auto); return; }
+
+    // Pre-filled only. A reload must never quietly pull 16 MiB off someone
+    // else's server; only rom= (which the user just navigated to) auto-loads.
+    var last = lsGet(LS_URL_KEY);
+    if (last) {
+      urlInput.value = last;
+      log('previous URL restored in the box above — press Load to fetch it.');
+    }
+  }
+
+  //====================================================================
   // Input
   //====================================================================
 
@@ -517,6 +754,7 @@ var Module = (function () {
   });
 
   log('ready — load your own Kirby & The Amazing Mirror ROM to begin.');
+  initRomUrl();
 })();
 </script>
 

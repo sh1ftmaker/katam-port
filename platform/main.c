@@ -24,6 +24,12 @@ static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
 static int sRomReady;
 static u32 sFrameCount;
 
+/* Roughly what a real VBlank fits: 68 scanlines of DMA to VRAM.  Large enough
+ * that the mandatory OAM and palette flush never eats the whole window, small
+ * enough that a backed-up queue takes several frames to drain, as on hardware. */
+#define PORT_VBLANK_BUDGET_BYTES 24576
+static s32 sVBlankBudget;
+
 /* --- diagnostics --------------------------------------------------------- */
 
 #define MAX_REPORTED 64
@@ -176,10 +182,29 @@ void PortPresentFrame(void)
     UpdateKeyInput();
     sFrameCount++;
 
-    /* GameLoop spins on `while (REG_DISPSTAT & DISPSTAT_VBLANK);` after this
-     * returns, so VBlank has to be over by now or the game would hang. */
-    *dispstat &= ~DISPSTAT_VBLANK;
+    /* Return with VBlank still in progress.  GameLoop does its screen flush
+     * and queue draining now, and PortVBlankConsume ends VBlank once those
+     * transfers have used up the window -- which is also what releases the
+     * `while (REG_DISPSTAT & DISPSTAT_VBLANK);` spin at the end of the loop. */
+    sVBlankBudget = PORT_VBLANK_BUDGET_BYTES;
+}
+
+void PortVBlankConsume(u32 bytes)
+{
+    vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
+
+    if (!(*dispstat & DISPSTAT_VBLANK))
+        return;
+    sVBlankBudget -= (s32)bytes;
+    if (sVBlankBudget <= 0)
+        PortVBlankEnd();
+}
+
+void PortVBlankEnd(void)
+{
+    *(vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT) &= ~DISPSTAT_VBLANK;
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_VCOUNT) = 0;
+    sVBlankBudget = 0;
 }
 
 /* --- startup ------------------------------------------------------------- */
@@ -201,6 +226,7 @@ int main(void)
     }
     PortLog("[katam-port] ROM loaded (%u bytes), starting AgbMain", gPortRomSize);
     PortLoadRomDataCopies();
+    PortPatchRomFunctionPointers();
 
     UpdateKeyInput();
     AgbMain();      /* never returns */

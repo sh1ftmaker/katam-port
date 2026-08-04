@@ -78,7 +78,7 @@ OBJS          := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test prune
+.PHONY: all sync clean serve compile stubs test prune dist deploy
 
 all: $(TARGET)
 
@@ -151,6 +151,29 @@ test: $(BUILD)/katam-node.js
 	node tools/headless_test.js $(BUILD)/katam-node.js $(ROM) $(FRAMES)
 
 FRAMES ?= 180
+
+# --- publishing -----------------------------------------------------------
+# Assembles the three build outputs into a directory that can be served as-is.
+# What ships is the port: the page, the loader and the wasm.  No ROM, and no
+# way for the site to supply one -- the player brings their own, from a local
+# file or a URL they choose.
+DIST           := $(BUILD)/dist
+PAGES_PROJECT  ?= katam-port
+CF_ACCOUNT_ID  ?= ab77c04897c9dcc5f04b753c51dbe517
+
+dist: all
+	@rm -rf $(DIST) && mkdir -p $(DIST)
+	@cp $(OUT)/katam.html $(DIST)/index.html
+	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
+	@printf '/*.wasm\n  Cache-Control: public, max-age=31536000, immutable\n' > $(DIST)/_headers
+	@printf '/*.js\n  Cache-Control: public, max-age=31536000, immutable\n' >> $(DIST)/_headers
+	@printf '/\n  Cache-Control: no-cache\n' >> $(DIST)/_headers
+	@printf 'User-agent: *\nDisallow: /\n' > $(DIST)/robots.txt
+	@echo "  DIST    $(DIST) ($$(du -sh $(DIST) | cut -f1))"
+
+deploy: dist
+	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \
+	    --project-name=$(PAGES_PROJECT) --branch=main --commit-dirty=true
 
 # --- convenience ----------------------------------------------------------
 serve: all

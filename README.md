@@ -4,13 +4,16 @@ A WebAssembly port of **Kirby & The Amazing Mirror**, built on top of the
 [jiangzhengwenjz/katam](https://github.com/jiangzhengwenjz/katam)
 decompilation.
 
-It boots. As of the first commit it runs the intro, draws the title screen,
-and reaches the file-select menu under keyboard control.
+It boots, draws the title screen, navigates the menus with sprites, and loads
+a level. It is not playable yet — it dies partway into gameplay — but the game
+is running its own code the whole way.
 
-**This repository contains no game data.** You supply your own ROM, which is
-read locally in your browser and never uploaded. Nothing about the game is
-distributed here — only code that was already open source, plus the platform
-layer that lets it run somewhere other than a Game Boy Advance.
+**Live at https://katam-port.pages.dev** — bring your own ROM.
+
+**This repository contains no game data.** You supply your own ROM. A local
+file is read in your browser and never uploaded; a URL is fetched by your
+browser directly from wherever you pointed it, not routed through the page or
+any server of ours.
 
 ---
 
@@ -20,17 +23,20 @@ layer that lets it run somewhere other than a Game Boy Advance.
 |---|---|
 | Boots and runs the game's own `AgbMain` / `GameLoop`, unmodified | yes |
 | Backgrounds, palettes, blending, windows, per-scanline effects | yes |
+| Sprites | yes |
 | Keyboard input (WASD/arrows and friends) | yes |
-| Reaches the title screen and the file-select menu | yes |
-| **Sprites** | **no** — see [docs/STATUS.md](docs/STATUS.md) |
+| Title screen, file-select menu, loading into a level | yes |
+| **Surviving gameplay** | **no** — see [docs/STATUS.md](docs/STATUS.md) |
 | Sound | no, deliberately |
 | Saving between sessions | no, not yet |
 
-Sprites are the one thing standing between this and something you can play.
-Every object in the game is drawn through `sub_08155128`, which is still ARM
-assembly in the decompilation — 506 call sites, no C body. Until it has one,
-OAM is never populated and nothing but the backgrounds appears. That is a
-decompilation task, not a porting one, and it is being worked on upstream.
+What breaks it now is function pointers stored in ROM. A GBA game dispatches
+through tables of them, and a ROM function pointer is an ARM code address — in
+WebAssembly a function pointer is a table index, so calling one ends the
+program. The build resolves most of them back to real functions by looking each
+address up in the GBA build's link map (312 of 314 table entries, plus 193 of
+the 219 constructors held inside `gUnk_08351648`), but the shapes it does not
+cover yet are what stops the game partway into a level.
 
 ## Running it
 
@@ -45,7 +51,13 @@ make KATAM_DECOMP=~/katam         # build web/katam.{html,js,wasm}
 make serve                        # http://localhost:8000/katam.html
 ```
 
-Then open the page and hand it your ROM.
+Then open the page and hand it your ROM — a local file, or a URL:
+
+    http://localhost:8000/katam.html?rom=https://example.invalid/your-copy.gba
+
+The URL form fetches in the browser, so the host has to allow cross-origin
+reads (`Access-Control-Allow-Origin`); the page says so plainly when it does
+not. `#rom=` works too, and keeps the address out of Referer headers.
 
 `sync` copies the decompilation and rewrites what will not compile off ARM; it
 never touches your checkout. Re-run all three whenever you pull new
@@ -86,8 +98,23 @@ it to change.
 Where the decomp has grown a `PORTABLE` guard for those constructs, the port
 uses it rather than rewriting anything.
 
+## Deploying
+
+`make dist` assembles the three build outputs plus cache headers into
+`build/dist`. `make deploy` publishes that to Cloudflare Pages. What ships is
+the page, the loader and the wasm — there is no ROM in the bundle and no way
+for the site to supply one.
+
 ## Legal
 
-The decompilation, and this port, contain no Nintendo code or assets. You need
-your own copy of the game. Kirby & The Amazing Mirror is © 2004 HAL
-Laboratory, Inc. / Nintendo.
+You need your own copy of the game; none is distributed here, and the page
+cannot supply one.
+
+To be precise about what the build does contain: the decompilation converts
+some of the game's graphics into files it commits to its own public
+repository, and `INCBIN` pastes 931 KiB of those into the wasm at build time,
+exactly as the GBA build does. That is the only game-derived content in the
+output. Everything else — level data, maps, music, the rest of the graphics —
+is read from the ROM you supply, at run time.
+
+Kirby & The Amazing Mirror is © 2004 HAL Laboratory, Inc. / Nintendo.

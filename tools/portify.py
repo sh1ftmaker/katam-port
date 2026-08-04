@@ -370,7 +370,23 @@ def main():
     # GBA build keeps wip/ out of the link because a partially-decompiled file
     # collides with its .s counterpart.  The port has no .s counterparts, so it
     # wants both.
-    seen = set()
+    # A file can exist in both trees while it is being decompiled, and neither
+    # copy is a superset of the other: src/flamer.c defines 4 functions and
+    # wip/flamer.c defines 38 *different* ones, because the GBA build takes the
+    # rest from asm/flamer.s.  The port has no assembly at all, so it needs
+    # every body it can get -- the two copies are concatenated into one file.
+    # They are complementary by construction: the same function cannot be in
+    # both, or the GBA build itself would not link.
+    #
+    # Picking one and dropping the other is what produced the port's nastiest
+    # bug so far: dropping wip/flamer.c left `nullsub_125` declared, placed in
+    # a dispatch table, and never defined.  wasm-ld resolves an address-taken
+    # undefined function to a null table entry rather than failing the link, so
+    # nothing complained until the game dispatched through it and died.
+    #
+    # If the two copies ever do overlap, this is a duplicate-symbol link error
+    # -- loud, and far easier to diagnose than the silent version above.
+    written = {}
     for tree in ('src', 'wip'):
         srcdir = decomp / tree
         if not srcdir.exists():
@@ -379,12 +395,7 @@ def main():
             if path.name in REPLACED_FILES:
                 rep.bump('files replaced by platform layer')
                 continue
-            if path.name in seen:
-                rep.bump('wip files shadowing src')
-                continue
-            seen.add(path.name)
-            rel = path.relative_to(srcdir)
-            dst = out / 'src' / rel
+            dst = written.get(path.name, out / 'src' / path.relative_to(srcdir))
             dst.parent.mkdir(parents=True, exist_ok=True)
             text = rewrite_source(path.read_text(errors='replace'), path, rep,
                                   decomp=decomp, exported=exported,
@@ -397,8 +408,15 @@ def main():
                 text = ('/* PORT: %s */\n#undef NONMATCHING\n\n'
                         % UNDEF_NONMATCHING[path.name]) + text
                 rep.bump('files built from the matching branch instead')
+            if path.name in written:
+                text = ('%s\n\n/* ---- PORT: merged from %s/%s ---- */\n\n%s'
+                        % (dst.read_text(), tree, path.name, text))
+                rep.bump('src/wip twins merged into one file')
+            else:
+                written[path.name] = dst
+                rep.bump('C files copied')
+            dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(text)
-            rep.bump('C files copied')
         # .inc.c fragments and any per-file headers next to the sources
         for path in sorted(list(srcdir.rglob('*.h')) + list(srcdir.rglob('*.inc.c'))):
             rel = path.relative_to(srcdir)

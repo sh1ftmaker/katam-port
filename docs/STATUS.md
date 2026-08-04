@@ -5,107 +5,117 @@ Measured 2026-08-04 against the decompilation at `all-work`, not estimated.
 ## Where it gets to
 
 Verified with `make test`, which boots the port under node with a real ROM and
-runs frames headlessly:
+runs frames headlessly, pressing buttons on a script:
 
 | Frame | What happens |
 |---|---|
-| 0 | `AgbMain` starts; RAM cleared, ROM mapped |
-| ~60 | first VRAM uploads; `DISPCNT` goes to mode 0 with all four backgrounds and objects enabled |
-| ~400 | title logo drawn |
-| ~1200 | full title screen — sky, rainbow, logo, copyright line |
-| 1250 | Start pressed |
-| ~1900 | file-select menu, "CHOOSE A FILE TO PLAY" |
+| ~60 | first VRAM uploads; `DISPCNT` goes to mode 0, four backgrounds and objects on |
+| ~1200 | title screen — sky, rainbow, logo, copyright line |
+| ~1900 | **"PRESS START"** appears (sprites) |
+| ~3000 | file-select menu: entries, cursor, four Kirbys, items — all sprites |
+| ~3500+ | a level loads: `CreateLevelObjects` spawns objects, Kirby's state machine runs |
 
-No crash across 2000 frames. The game's own `gFrameCount` advances in step, and
-`TasksExec` runs every frame.
+Sprites arrived when the decompilation landed `sub_08155128`. Before that the
+port drew backgrounds only, and the menus were empty frames.
+
+It does not survive long in gameplay yet — see below.
 
 ## What is missing, in the order it matters
 
-### 1. Sprites — `sub_08155128`
+### 1. Function pointers stored in ROM
 
-**Nothing that is not a background appears.** Kirby, enemies, menu cursors, the
-file boxes on the select screen: none of them draw.
+This is now the main thing standing between the port and playing.
 
-Everything in the game reaches OAM through `sub_08155128` — 506 call sites, the
-single most-referenced function in the codebase. It is still ARM assembly
-(`asm/sprite.s`, ~1,950 instructions) and has no C body, so the port stubs it
-and OAM is never populated. The PPU's sprite renderer is written and waiting.
+A function pointer in ROM is an ARM code address. In WebAssembly a function
+pointer is an index into the module's function table, so such a value is not
+merely wrong, it is out of range — calling one ends the program. The build
+resolves these back to real functions by looking each address up in the GBA
+build's `katam.map`, and covers three shapes:
 
-`asm/sprite.s` is claimed by another contributor upstream. Two ways forward:
-wait for that PR, or write a port-local C reimplementation, which does not have
-to match byte-for-byte and so is a much smaller job than the decompilation of
-it.
+| Shape | Example | State |
+|---|---|---|
+| flat function-pointer arrays | `gSpawnFuncTable1` | 312 of 314 entries wired across 8 tables |
+| arrays declared via a function-pointer typedef | `gUnk_082EB7D0` | covered |
+| function pointers *inside* ROM structs | `gUnk_08351648`, 219 object descriptors with a constructor at +0x10 | patched in place at startup, 193 resolve |
 
-Also stubbed from the same file: `sub_0815436C`, `sub_081548A8`,
-`sub_08154B14`, `sub_08154FE8`, `sub_0815521C`, `sub_08155604`.
+Shapes it does **not** cover yet still crash the port partway into gameplay.
+The current failure is in `kirbyFlyUp`. Each one is individually fixable by the
+same mechanism; the general fix is upstream, when ROM tables become typed C
+data.
 
-### 2. The last bodyless functions
+A related trap, worth knowing about: a label in `data/*.s` marks where the
+decompilation assigned a name, not where a table ends. `gUnk_0834BD88` is
+labelled as 3 entries and the game indexes it far past that — on hardware the
+reads continue into the next label's words, which are more function pointers.
+The generator now walks each table forward while the following words still
+resolve to known functions, which turns that table into its real 12 entries.
 
-12 functions in `wip/code_08032E98.c` still have no C body at all (down from 31
-earlier the same day — this is moving fast). Three of them are reachable and
-stubbed here: `sub_08035788`, `sub_08037314`, `sub_08038B34`.
+### 2. The last two bodyless functions
 
-### 3. Sound
+`sub_08038010` and `sub_08038B34` are the only functions in the game with no C
+body at all, and the port reaches both. `sub_08037314`, which calls
+`sub_08038010` twice, is also documented upstream as deliberately incomplete —
+five of its six collision blocks are unwritten — so the port is running with
+partial collision resolution and treats it as a known-incomplete site.
+
+### 3. The rest of `sprite.s`
+
+Still stubbed: `sub_0815436C`, `sub_081548A8`, `sub_08154B14`, `sub_08155604`.
+
+### 4. Sound
 
 Deliberately absent. `asm/m4a_asm.s` is 42 hand-written ARM functions that were
 never a decompilation target; the port answers the whole m4a API with no-ops.
-Restoring audio means either reimplementing MP2K in C or routing the sequencer
-at a host backend — a self-contained project.
 
-### 4. Saving
+### 5. Saving
 
 `platform/sram.c` gives the game working save memory, but it lives in the wasm
-heap and disappears when the tab closes. Persisting it to `localStorage` or
-IndexedDB is straightforward and not yet done.
+heap and disappears when the tab closes. Persisting to IndexedDB is
+straightforward and not yet done.
 
-### 5. Link cable
+### 6. Link cable
 
-`MultiSio*`, `MultiBoot*` and `sio32_multi_load` are stubbed. Multiplayer and
-the download-play subgames will not work.
-
-## The full stub list
-
-28 symbols, regenerated on every `make stubs`:
-
-```
-gAreaMapRoomsTilemapOffsets  gAreaMapRoomsTilemaps  gHBlankIntrs  gSongTable
-gUnk_03003678  IntrMain  MPlayStart  MPlayStop  MultiBootCheckComplete
-MultiBootInit  MultiBootMain  MultiBootStartMaster  MultiSioIntr
-MultiSioRecvBufChange  RomHeaderGameCode  RomHeaderMagic  sub_08035788
-sub_08037314  sub_08038B34  sub_080B9048  sub_080BA5A4  sub_0815436C
-sub_081548A8  sub_08154B14  sub_08154FE8  sub_08155128  sub_0815521C
-sub_08155604
-```
-
-Each one reports itself the first time it is called, in the page's log.
+`MultiSio*`, `MultiBoot*` and `sio32_multi_load` are stubbed.
 
 ## Build facts
 
 | | |
 |---|---|
-| Game sources compiled | 189 of 189 |
-| Codemod: register pins / asm barriers rewritten | 2 (the decomp's own `PORTABLE` guard handles the other 392) |
-| Codemod: asm-wrapper functions stubbed | 19 |
-| Codemod: INCBIN assets pasted in from the decomp | 143 files, 931 KiB |
-| Files replaced by the platform layer | 4 (`m4a.c`, `m4a_tables.c`, `multi_boot.c`, `agb_sram.c`) |
+| Game sources compiled | 190 |
+| Stubbed symbols | 25 |
 | Linker-placed RAM symbols reconstructed | 183 |
 | ROM data symbols resolved to addresses | 162 |
-| ROM function-table entries wired to real C | 284 of 310 |
-| Output | 2.0 MB wasm |
+| ROM function-table entries wired to real C | 312 of 314 |
+| Function pointers patched inside ROM structs | 193 of 219 |
+| INCBIN assets pasted in from the decomp | 143 files, 931 KiB |
+| Output | 2.3 MB wasm |
 
-## Two bugs worth remembering
+## Bugs worth remembering
 
-Both cost real time and neither looks like what it is.
+Four of these cost real time, and none looked like what it was.
 
 **A stub returning 0 hung the game silently.** `main.c` drains the VRAM
-transfer queue through a table of four workers, and reads `0` as "this one did
-not finish" — it then stops calling `TasksExec()` until the queue drains. A
-stub that always returns 0 says "never finished", so the game ran its VBlank
-handler forever, drew nothing, and looked for all the world like a rendering
-bug. `tools/stub_returns.conf` records the cases where 0 is the wrong answer.
+transfer queue through four workers and reads `0` as "did not finish", then
+stops running game tasks until the queue drains. A stub returning 0 says
+"never finished", so the game ran its VBlank handler forever and drew nothing.
+`tools/stub_returns.conf` records where 0 is the wrong answer.
 
 **`inline` means the opposite thing in C99.** agbcc is gcc 2.95, where a plain
-`inline` definition also emits an external one; C99 inverted that. Without
-`-fgnu89-inline` every `inline void Foo(...)` in the game becomes an undefined
-symbol, and the stub generator will obligingly stub a function whose body is
-right there.
+`inline` definition also emits an external one. Without `-fgnu89-inline` every
+`inline` function in the game becomes an undefined symbol.
+
+**VBlank is a duration, not an instant.** The game keeps working after
+`VBlankIntrWait` returns, and its queue workers check `REG_DISPSTAT & VBLANK`
+before each item — so returning with the flag already cleared meant the queue
+never drained and no task ever ran again. The flag now stays set and is spent
+by the transfers themselves (`PortVBlankConsume`), which is the same budget the
+hardware imposes.
+
+**An address-taken undefined function does not fail the link.** `wasm-ld`
+resolves it to a null table entry, so the program dies at the dispatch with no
+build-time warning. This happened because `src/flamer.c` and `wip/flamer.c`
+define *different* halves of the same file and the build was keeping only one;
+`nullsub_125` ended up declared, placed in a table, and never defined. The two
+copies are now merged into one file, and `tools/refresh_stubs.sh` compares
+`llvm-nm`'s undefined and defined sets rather than trusting the linker to
+complain.

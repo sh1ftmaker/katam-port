@@ -67,6 +67,8 @@ void CpuSet(const void *src, void *dest, u32 control)
     int fixed = (control & CPU_SET_SRC_FIXED) != 0;
     u32 i;
 
+    PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
+
     if (control & CPU_SET_32BIT) {
         const u32 *s = (const u32 *)src;
         u32 *d = (u32 *)dest;
@@ -89,6 +91,8 @@ void CpuFastSet(const void *src, void *dest, u32 control)
     const u32 *s = (const u32 *)src;
     u32 *d = (u32 *)dest;
     u32 i;
+
+    PortVBlankConsume(count * 4);
 
     for (i = 0; i < count; i++)
         d[i] = fixed ? *s : s[i];
