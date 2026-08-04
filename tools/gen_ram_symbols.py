@@ -193,6 +193,26 @@ def declaration_to_macro(decl, name, addr):
     return '#define %s (*(%s *)0x%08X)' % (name, ctype, addr)
 
 
+# Symbols linker.ld places with `. = ALIGN(n);` immediately after an object
+# file's section, rather than at a literal offset.  This script follows the
+# location counter through `. = 0x...` assignments only, and has no way to know
+# how long `src/m4a.o(common_data)` is -- so it carries the last literal
+# forward and gives the symbol the *start* of that section.
+#
+# That is how gIntrTable came out as 0x03000560, which is gSoundInfo's address.
+# It cost nothing for as long as the port dropped src/m4a.c and nothing ever
+# wrote there.  The moment the sound engine was restored, SoundInit's CpuFill32
+# zeroed the interrupt table and the first VBlank dispatched through a garbage
+# entry -- a wasm trap with no obvious connection to audio at all.
+#
+# The address is read out of katam.map, which is the same build linker.ld
+# describes.  The better fix is to teach the parser about section sizes; this
+# is the only symbol in the game that needs it today.
+ADDR_OVERRIDES = {
+    'gIntrTable': 0x030017B0,
+}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--linker-script', required=True, type=Path)
@@ -202,6 +222,7 @@ def main():
     args = ap.parse_args()
 
     syms = parse_linker_script(args.linker_script)
+    syms.update(ADDR_OVERRIDES)
     # .c files re-declare these symbols too, and a declaration left
     # standing would expand the macro into a declarator.
     headers = sorted(list((args.tree / 'include').rglob('*.h'))

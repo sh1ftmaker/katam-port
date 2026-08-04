@@ -36,4 +36,42 @@ void PortHalt(void);
 /* Defined by the game in src/main.c; the port calls it to start. */
 void AgbMain(void);
 
+/* --- the sound engine's own globals, at their hardware addresses -----------
+ *
+ * These are the same problem tools/gen_ram_symbols.py solves for the game's
+ * 189 linker-script globals, but they come from a section placement
+ * (`. = 0x00000560; src/m4a.o(common_data);` in linker.ld) rather than a named
+ * symbol, so the generator does not see them.
+ *
+ * They cannot be ordinary C globals here, and the reason is specific: the ROM
+ * holds gMPlayTable, four {info, tracks, ...} records whose pointers are the
+ * GBA addresses below.  m4aSoundInit walks that table and calls
+ * MPlayOpen(gMPlayTable[i].info, ...), while the game's own code writes
+ * m4aMPlayFadeOut(&gMPlayInfo_1, ...).  If gMPlayInfo_1 is a compiler-placed
+ * global those two are different objects and the fade silently applies to
+ * nothing.  Putting them where the ROM already thinks they are is the same
+ * decision the whole port rests on -- see docs/ARCHITECTURE.md.
+ *
+ * tools/portify.py deletes the definitions in src/m4a.c and comments the
+ * matching externs out of gba/m4a.h, exactly as gen_ram_symbols.py does.
+ * Addresses are from katam.map (src/m4a.o(common_data) and
+ * data/sound_data.o(ewram_data)).
+ *
+ * gNumMusicPlayers and gMaxLines are not storage at all: linker.ld sets them
+ * to the literal values 4 and 0 and m4a.h casts the *address* to an integer.
+ * gMaxLines being zero is load-bearing -- it is what keeps SoundMain's
+ * scanline-budget branch dormant, so the mixer never reads REG_VCOUNT and
+ * never has to be resumable half way through a frame.
+ */
+#define gSoundInfo         (*(struct SoundInfo *)0x03000560)
+#define gMPlayJumpTable    ((MPlayFunc *)0x03001510)
+#define gCgbChans          ((struct CgbChannel *)0x030015A0)
+#define gMPlayInfo_0       (*(struct MusicPlayerInfo *)0x030016A0)
+#define gMPlayInfo_1       (*(struct MusicPlayerInfo *)0x030016E0)
+#define gMPlayInfo_2       (*(struct MusicPlayerInfo *)0x03001720)
+#define gMPlayMemAccArea   ((u8 *)0x03001760)
+#define gMPlayInfo_3       (*(struct MusicPlayerInfo *)0x03001770)
+#define gNumMusicPlayers   ((char *)4)
+#define gMaxLines          ((char *)0)
+
 #endif
