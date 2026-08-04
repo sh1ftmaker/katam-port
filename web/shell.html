@@ -2444,6 +2444,56 @@ var Module = (function () {
   // mobile. Anything that leaves the page in the background releases
   // everything — the alternative is Kirby walking left for eternity.
   //--------------------------------------------------------------------
+  //--------------------------------------------------------------------
+  // iOS: Touch Events, as well as Pointer Events.
+  //
+  // Everything above is Pointer Events, which is the right API and works
+  // everywhere else. On iOS Safari it is not sufficient, for two separate
+  // reasons, and the symptom of both is the same: a control that reads as
+  // held forever with no way to release it but reloading the page.
+  //
+  // 1. preventDefault() on pointerdown does not stop iOS's own gesture
+  //    recognisers. The callout, the selection loupe -- the magnifying glass
+  //    a double-tap-and-hold produces -- and double-tap zoom are decided at
+  //    the Touch Events layer, and a touchstart listener that calls
+  //    preventDefault() is what suppresses them. CSS gets most of the way
+  //    (touch-action: none, -webkit-touch-callout: none, user-select: none)
+  //    but not all of it.
+  //
+  // 2. Once a recogniser does take the touch, Safari can simply stop
+  //    delivering pointer events for it -- no pointerup, and no
+  //    pointercancel either. Every release path above is waiting for an
+  //    event that is never going to arrive, which is why the button stays
+  //    down until the page is reloaded.
+  //
+  // Preventing default on touchstart does not suppress pointer events; it
+  // suppresses the compatibility mouse events and the browser's own gesture
+  // handling, which is exactly what is wanted.
+  //--------------------------------------------------------------------
+  function blockTouchDefault(e) {
+    if (overStage(e.target)) e.preventDefault();
+  }
+  document.addEventListener('touchstart', blockTouchDefault, { passive: false });
+  document.addEventListener('touchmove',  blockTouchDefault, { passive: false });
+
+  // The backstop, and the part that actually unsticks a stuck control.
+  //
+  // TouchEvent.touches is every finger currently on the screen, for the whole
+  // document. When it reaches zero there is nothing touching the glass, so
+  // nothing can legitimately still be held -- whatever pointer events did or
+  // did not arrive. Releasing here cannot produce a false positive, and it
+  // gives the player a way out that needs no instructions: touch the screen
+  // once and let go, and everything clears.
+  //
+  // Keyboard state is deliberately untouched -- releaseAllTouch(), not
+  // shell.releaseInput() -- so a stray tap on a device with both does not
+  // drop a key someone is holding.
+  function reconcileTouches(e) {
+    if (e.touches && e.touches.length === 0) releaseAllTouch();
+  }
+  window.addEventListener('touchend',    reconcileTouches, { passive: true });
+  window.addEventListener('touchcancel', reconcileTouches, { passive: true });
+
   window.addEventListener('blur', function () { shell.releaseInput(); });
   window.addEventListener('pagehide', function () { shell.releaseInput(); });
   document.addEventListener('visibilitychange', function () {
