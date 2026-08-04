@@ -62,6 +62,12 @@ static u16 FetchTilePixel(u32 charBase, u32 tile, u32 x, u32 y, int is256,
     u32 offset;
     u8 index;
 
+    /* Every caller passes an uninitialised local and then branches on it, so
+     * the out-of-range paths below have to write it before returning -- leaving
+     * it alone turned a dropped pixel into an indeterminate one, opaque with
+     * colour 0 whenever the stack happened to hold non-zero. */
+    *outIndex = 0;
+
     if (is256) {
         offset = charBase + tile * 64 + y * 8 + x;
         if (offset >= GBA_VRAM_SIZE)
@@ -286,7 +292,14 @@ static void RenderSprites(int line)
                 tileIndex = tile + ((u32)texY / 8) * 32 + ((u32)texX / 8) * (is256 ? 2 : 1);
             }
 
-            colour = FetchTilePixel(0x10000, tileIndex, texX & 7, texY & 7,
+            /* OBJ tile numbers always index 32-byte slots, whatever the depth
+             * -- unlike a background, where a 256-colour map entry counts in
+             * 64-byte units.  FetchTilePixel works in the background's units,
+             * so an 8bpp sprite has to be handed half the slot number, and the
+             * low bit of the base is ignored exactly as hardware ignores it. */
+            colour = FetchTilePixel(0x10000, is256 ? (tileIndex & ~1u) >> 1
+                                                   : tileIndex,
+                                    texX & 7, texY & 7,
                                     is256, palBank, &index);
             if (!index)
                 continue;
@@ -393,9 +406,15 @@ static u16 BlendBrightness(u16 c, u32 evy, int up)
 
 /* --- scanline composition ------------------------------------------------ */
 
+static u16 EffectiveDispcnt(void);
+
 static void ComposeScanline(int line)
 {
-    u16 dispcnt = IO16(REG_OFFSET_DISPCNT);
+    /* Must be the same view of the enable bits that RenderScanline used.
+     * Reading the register directly here meant a layer forced on for debugging
+     * was rendered and then dropped at composition, so the tool reported an
+     * empty layer whatever was on it. */
+    u16 dispcnt = EffectiveDispcnt();
     u16 bldcnt = IO16(REG_OFFSET_BLDCNT);
     u16 bldalpha = IO16(REG_OFFSET_BLDALPHA);
     u16 bldy = IO16(REG_OFFSET_BLDY);
@@ -518,19 +537,28 @@ void PortSetLayerMask(u32 andMask, u32 orMask)
     gPortLayerForce = orMask;
 }
 
-static void RenderScanline(int line)
+/* The game's DISPCNT with the debug mask applied.  Nothing the game reads back
+ * changes -- the register itself is untouched. */
+static u16 EffectiveDispcnt(void)
 {
     u16 dispcnt = IO16(REG_OFFSET_DISPCNT);
-    u32 mode = dispcnt & 7;
-    int bg;
 
-    /* Applied to the local copy, so nothing the game reads back changes. */
+    if (gPortLayerMask == 0x1F && gPortLayerForce == 0)
+        return dispcnt;
     dispcnt &= ~((u16)((~gPortLayerMask & 0xF) * DISPCNT_BG0_ON));
     dispcnt |= (u16)((gPortLayerForce & 0xF) * DISPCNT_BG0_ON);
     if (!(gPortLayerMask & 0x10))
         dispcnt &= ~DISPCNT_OBJ_ON;
     if (gPortLayerForce & 0x10)
         dispcnt |= DISPCNT_OBJ_ON;
+    return dispcnt;
+}
+
+static void RenderScanline(int line)
+{
+    u16 dispcnt = EffectiveDispcnt();
+    u32 mode = dispcnt & 7;
+    int bg;
 
     for (bg = 0; bg < NUM_LAYERS; bg++) {
         memset(sLayerOpaque[bg], 0, SCREEN_W);

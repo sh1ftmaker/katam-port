@@ -120,6 +120,41 @@ WILD_READS = {
     ),
 }
 
+# Transfers written by poking the DMA registers directly instead of going
+# through the DmaSet macro.
+#
+# The port emulates DMA in software: PortDmaSet does the copy, and DmaSet is
+# redirected to it.  A raw store to 0x040000D4 therefore moves nothing at all --
+# it lands in the IO shadow and returns.  There is no way to trap it, because
+# the GBA map is ordinary wasm linear memory with no write hook.
+#
+# There is exactly one of these in the game, and it is the reason no level
+# tilemap was ever written: sub_08153184's scrolling-BG row copy.  It is
+# open-coded purely to reach a 95.2% codegen match, and the decompilation left
+# the equivalent call in place as a comment on the line above -- that comment is
+# what this substitutes back in.  The control word it builds, 0x8000 << 16, is
+# DMA_ENABLE | DMA_START_NOW | DMA_16BIT | DMA_SRC_INC | DMA_DEST_INC, which is
+# exactly what DmaCopy16 expands to, and the count arithmetic is identical.
+RAW_DMA = {
+    'bg.c': [(
+        """                                vu32 *dmaRegs = (vu32 *)(0x4000000 + 0xd4);
+                                s32 size;
+                                size = r8 - 1;
+                                dmaRegs[0] = (vu32)(r2);
+                                dmaRegs[1] = (vu32)(r4);
+                                dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - (size)) * sp8)/(16/8)));
+                                //dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - ({ r8 - 1; })) * sp8)/(16/8)));
+                                dmaRegs[2];""",
+        """                                /* PORT: was an open-coded DMA3 register poke.
+                                 * Software DMA cannot see raw register stores,
+                                 * so this moved nothing and every scrolling
+                                 * background's tilemap stayed at its fill
+                                 * value.  This is the decompilation's own
+                                 * commented-out equivalent, restored. */
+                                DmaCopy16(3, r2, r4, (r6->unk26 - (r8 - 1)) * sp8);""",
+    )],
+}
+
 FNPTR_ADAPTER_DECLS = {
     'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
     'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
@@ -514,6 +549,14 @@ def main():
                         hit = True
                 if hit:
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
+            for old, new in RAW_DMA.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new)
+                    rep.bump('raw DMA register writes routed through PortDmaSet')
+                else:
+                    rep.unhandled.append(
+                        '%s: RAW_DMA pattern no longer matches -- the tilemap '
+                        'blitter has changed upstream' % path.name)
             wild = WILD_READS.get(path.name)
             if wild:
                 reads, decl = wild

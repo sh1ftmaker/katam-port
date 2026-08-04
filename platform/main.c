@@ -196,7 +196,13 @@ void PortPresentFrame(void)
     /* Draw the visible frame from whatever the game last wrote. */
     PortRenderFrame();
 
-    /* Enter VBlank: run the flush DMAs, then the game's VBlank handler. */
+    /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
+     *
+     * The budget has to be restored *before* the window opens, not after the
+     * handler runs.  PortVBlankEnd leaves it at zero, so opening VBlank with a
+     * spent budget meant the first transfer inside the handler drove it
+     * negative and closed the window again for the whole frame. */
+    sVBlankBudget = PORT_VBLANK_BUDGET_BYTES;
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_VCOUNT) = 160;
     *dispstat |= DISPSTAT_VBLANK;
     PortDmaVBlank();
@@ -211,8 +217,8 @@ void PortPresentFrame(void)
     /* Return with VBlank still in progress.  GameLoop does its screen flush
      * and queue draining now, and PortVBlankConsume ends VBlank once those
      * transfers have used up the window -- which is also what releases the
-     * `while (REG_DISPSTAT & DISPSTAT_VBLANK);` spin at the end of the loop. */
-    sVBlankBudget = PORT_VBLANK_BUDGET_BYTES;
+     * `while (REG_DISPSTAT & DISPSTAT_VBLANK);` spin at the end of the loop.
+     * The window reopens here with whatever the handler above left unspent. */
 }
 
 void PortVBlankConsume(u32 bytes)
