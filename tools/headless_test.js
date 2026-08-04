@@ -111,8 +111,22 @@ const Module = {
             if (at === frames) Module._PortSetKeys(mask);
         const mash = mashMask(frames);
         if (mash !== null) Module._PortSetKeys(mash);
+        // LAYERS=0b0001 renders BG0 alone, so "which layer holds the room"
+        // stops being a guess.  Bits 0-3 are BG0-3, bit 4 is OBJ.
+        // FORCE=0x04 draws BG2 even though the game disabled it.
+        if ((process.env.LAYERS || process.env.FORCE) && Module._PortSetLayerMask)
+            Module._PortSetLayerMask(parseInt(process.env.LAYERS || '0x1F', 0),
+                                     parseInt(process.env.FORCE || '0', 0));
         if (SAVE_AT.includes(frames)) savePpm(data, w, h, 'build/frame-' + frames + '.ppm');
-        if (frames % 60 === 0) {
+        // VRAM_AT=600 writes VRAM, both palettes and OAM to build/vram-600.bin,
+        // so tile data can be looked at as pixels rather than guessed at from
+        // a hex dump.  Layout: 0x18000 VRAM, 0x400 BG pal, 0x400 OBJ pal, OAM.
+        if ((process.env.VRAM_AT || '').split(',').map(Number).includes(frames)) {
+            const grab = (a, n) => Buffer.from(Module.HEAPU8.subarray(a, a + n));
+            fs.writeFileSync('build/vram-' + frames + '.bin', Buffer.concat([
+                grab(0x06000000, 0x18000), grab(0x05000000, 0x400), grab(0x07000000, 0x400)]));
+        }
+        if (frames % (parseInt(process.env.INTERVAL || '60', 10)) === 0) {
             const io = (off) => Module.HEAPU8[0x04000000 + off]
                               | (Module.HEAPU8[0x04000001 + off] << 8);
             const colours = new Set();
@@ -126,6 +140,32 @@ const Module = {
             // which the port reproduces exactly, so they can just be read.
             const u32 = (a) => Module.HEAPU8[a] | (Module.HEAPU8[a+1] << 8)
                              | (Module.HEAPU8[a+2] << 16) | (Module.HEAPU8[a+3] << 24);
+            // Per-layer state, because "the room does not draw" is answered by
+            // the control registers long before it is answered by the pixels:
+            // which char/screen base, which size, what priority, where scrolled.
+            if (process.env.BG) {
+                for (let bg = 0; bg < 4; bg++) {
+                    const cnt = io(8 + bg * 2);
+                    console.log('    BG%d cnt=%s pri=%d charBase=0x%s screenBase=0x%s '
+                                + '%dbpp size=%d scroll=%d,%d %s',
+                        bg, cnt.toString(16).padStart(4, '0'), cnt & 3,
+                        (0x06000000 + ((cnt >> 2) & 3) * 0x4000).toString(16),
+                        (0x06000000 + ((cnt >> 8) & 31) * 0x800).toString(16),
+                        (cnt & 0x80) ? 8 : 4, (cnt >> 14) & 3,
+                        io(0x10 + bg * 4), io(0x12 + bg * 4),
+                        (io(0) & (0x100 << bg)) ? 'ON' : 'off');
+                    // A map that is one repeated entry is a map that was never
+                    // filled; a varied one means the failure is downstream.
+                    const sb = 0x06000000 + ((cnt >> 8) & 31) * 0x800;
+                    const tiles = new Set();
+                    for (let i = 0; i < 0x800; i += 2)
+                        tiles.add(Module.HEAPU8[sb + i] | (Module.HEAPU8[sb + i + 1] << 8));
+                    const sample = [...tiles].slice(0, 6)
+                        .map((t) => '0x' + t.toString(16)).join(',');
+                    console.log('         map has %d distinct entries [%s%s]',
+                                tiles.size, sample, tiles.size > 6 ? ',...' : '');
+                }
+            }
             console.log('frame %d: DISPCNT=%s colours=%d palette=%d vram-nonzero=%d '
                         + 'mainFlags=%s numTasks=%d curTask=%s gate=%s frameCount=%d',
                         frames, io(0).toString(16).padStart(4, '0'),

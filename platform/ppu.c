@@ -500,11 +500,37 @@ static void AdvanceAffineReferencePoints(void)
     }
 }
 
+/* Debug: force layers off without touching the game's own DISPCNT.
+ *
+ * "The room does not draw" is a question about which layer holds what, and the
+ * only way to answer it is to look at one layer at a time.  Bit 0-3 are BG0-3,
+ * bit 4 is OBJ; a zero bit blanks that layer.  Defaults to everything on, so
+ * this costs one AND per scanline when unused. */
+u32 gPortLayerMask = 0x1F;
+u32 gPortLayerForce = 0;
+
+/* andMask blanks layers the game enabled; orMask draws layers it disabled --
+ * needed because "what is on the layer the game turned off" is exactly the
+ * question when a level does not appear. */
+void PortSetLayerMask(u32 andMask, u32 orMask)
+{
+    gPortLayerMask = andMask;
+    gPortLayerForce = orMask;
+}
+
 static void RenderScanline(int line)
 {
     u16 dispcnt = IO16(REG_OFFSET_DISPCNT);
     u32 mode = dispcnt & 7;
     int bg;
+
+    /* Applied to the local copy, so nothing the game reads back changes. */
+    dispcnt &= ~((u16)((~gPortLayerMask & 0xF) * DISPCNT_BG0_ON));
+    dispcnt |= (u16)((gPortLayerForce & 0xF) * DISPCNT_BG0_ON);
+    if (!(gPortLayerMask & 0x10))
+        dispcnt &= ~DISPCNT_OBJ_ON;
+    if (gPortLayerForce & 0x10)
+        dispcnt |= DISPCNT_OBJ_ON;
 
     for (bg = 0; bg < NUM_LAYERS; bg++) {
         memset(sLayerOpaque[bg], 0, SCREEN_W);
