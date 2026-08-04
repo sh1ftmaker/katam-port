@@ -3,6 +3,8 @@
 
 #include "gba/types.h"
 
+struct SoundInfo;
+
 /* --- transport (platform/audio_out.c) ------------------------------------
  *
  * Open the device, then push one block of interleaved stereo s16 per game
@@ -24,11 +26,31 @@ void PortAudioPush(const s16 *interleaved, int frames);
 int  PortAudioQueuedFrames(void);
 int  PortAudioUnderruns(void);
 
-/* --- the sound engine (platform/audio.c, platform/m4a_mixer.c) ----------- */
+/* --- the sound engine (platform/audio.c, platform/m4a_mixer.c) -----------
+ *
+ * The block is one frame's worth of samples, so the ceiling only has to cover
+ * the highest device rate anyone will present divided by 60, plus the few per
+ * cent the clock correction can add.  2048 covers 96 kHz. */
+#define PORT_AUDIO_MAX_BLOCK 2048
 
 /* Samples this frame's block should contain, nudged around the nominal
  * hostRate/60 to keep the output queue at its target depth. */
 int  PortAudioBlockSamples(void);
+
+/* The mixer proper (platform/m4a_mixer.c).  SoundMain renders a block; the
+ * VBlank handler takes it out one frame later, which is the same one-block
+ * delay the hardware's PCM DMA has. */
+void PortMixerInit(int sampleRate, int blockSamples);
+void PortMixerSetBlock(int blockSamples);
+void PortMixerSetFixedRate(int gbaPcmFreq);
+void PortMixerRender(struct SoundInfo *soundInfo);
+int  PortMixerTakeBlock(const s16 **out);
+void PortMixerSilence(void);
+
+/* Opens the device and sizes the mixer.  Called from the patched
+ * SampleFreqSet, which is the first thing SoundInit does -- everything after
+ * it needs the rate.  Safe to call repeatedly. */
+void PortAudioStartup(void);
 
 /* A 440 Hz square, pushed in place of the mixer's output while it is on.
  * This exists because "no sound" has two entirely different causes -- a mixer

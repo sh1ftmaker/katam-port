@@ -57,8 +57,23 @@ RE_NAKED_WRAPPER = re.compile(
 # symbols.  Keeping them out of the build is what lets the port ignore the
 # sound engine entirely.
 REPLACED_FILES = {
-    'm4a.c':        'MP2K sound driver -- replaced by platform/audio.c stubs',
-    'm4a_tables.c': 'MP2K sound tables -- unused once m4a.c is out',
+    # m4a.c is *not* here: the sound driver's C half compiles as written, with
+    # the four patches in M4A_PATCHES below.  What has no C anywhere is
+    # asm/m4a_asm.s -- the sequencer and the mixer -- and that is
+    # platform/m4a_mixer.c.
+    #
+    # m4a_tables.c stays out because every table in it is already reachable.
+    # Six are pure data sitting in the ROM the player supplied, and
+    # tools/gen_rom_data.py already emits address macros for them
+    # (gScaleTable, gFreqTable, gPcmSamplesPerVBlankTable, gCgbScaleTable,
+    # gCgbFreqTable, gNoiseTable, gCgb3Vol).  Compiling the C copies as well
+    # would collide with those macros for no gain.  The three that hold
+    # function pointers -- gMPlayJumpTableTemplate, gXcmdTable and, in the same
+    # spirit, gClockTable -- cannot come from ROM at all, because a ROM entry
+    # is an ARM code address and calling one in wasm is out of bounds; they are
+    # rebuilt in C in platform/m4a_mixer.c.
+    'm4a_tables.c': 'MP2K tables -- data comes from ROM, function tables from '
+                    'platform/m4a_mixer.c',
     'multi_boot.c': 'link-cable multiboot -- hand-written ARM asm, stubbed',
     'agb_sram.c':   'SRAM library -- calls its own machine code copied into a '
                     'stack buffer; replaced by platform/sram.c',
@@ -204,6 +219,142 @@ void *PortTaskStruct(struct Task *);
 # is hardcoded in two places besides the header, which is why this is a text
 # rewrite rather than a #define.
 PORT_SRAM_BASE = 0x09000000
+
+# The sound driver.  src/m4a.c is the outer half of MP2K -- the public API, the
+# song/player bookkeeping, the CGB driver, the extended commands -- and all of
+# it compiles as written.  Four things in it do not survive the move, and each
+# is patched at the narrowest point that works.  The inner half (the sequencer
+# and the mixer, asm/m4a_asm.s) has no C anywhere and is platform/m4a_mixer.c.
+#
+# The same table is applied to gba/m4a.h, where three prototypes disagree with
+# what the assembly actually is.  On ARM that never mattered: an argument the
+# callee ignores just sits in a register.  wasm checks the type at every
+# indirect call, and each of these *is* reached indirectly -- MPlayMain through
+# soundInfo->func, SoundMainBTM through gMPlayJumpTable[35], ply_note through
+# soundInfo->plynote -- so a wrong prototype is a trap, not a warning.
+M4A_PATCHES = {
+    'm4a.c': [
+        # --- the common_data globals ---------------------------------------
+        # Deleted here and redefined as fixed addresses in platform/port/
+        # prelude.h; the reasoning is written out there.  The short version is
+        # that gMPlayTable in ROM already holds pointers to these objects, so
+        # they have to be at the addresses the ROM names or m4aSoundInit and
+        # the game's own &gMPlayInfo_1 end up looking at different memory.
+        ("""char SoundMainRAM_Buffer[0x400] __attribute__((section(".bss.code"), aligned(4))) = {};
+
+struct SoundInfo gSoundInfo __attribute__((section("common_data"))) = {};
+MPlayFunc gMPlayJumpTable[36] __attribute__((section("common_data"))) = {};
+struct CgbChannel gCgbChans[4] __attribute__((section("common_data"))) = {};
+struct MusicPlayerInfo gMPlayInfo_0 __attribute__((section("common_data"))) = {};
+struct MusicPlayerInfo gMPlayInfo_1 __attribute__((section("common_data"))) = {};
+struct MusicPlayerInfo gMPlayInfo_2 __attribute__((section("common_data"))) = {};
+u8 gMPlayMemAccArea[0x10] __attribute__((section("common_data"))) = {};
+struct MusicPlayerInfo gMPlayInfo_3 __attribute__((section("common_data"))) = {};""",
+         """/* PORT: gSoundInfo, gMPlayJumpTable, gCgbChans, gMPlayInfo_0..3 and
+ * gMPlayMemAccArea are defined as fixed GBA addresses in
+ * platform/port/prelude.h -- gMPlayTable in ROM points at them.  The
+ * `common_data` section attribute is a linker-script placement with no
+ * meaning for wasm-ld either way. */
+char SoundMainRAM_Buffer[0x400];
+
+/* gXcmdTable in ROM is twelve ARM code addresses; gen_rom_data.py's macro for
+ * it would compile, and calling through it would take the module out.  The
+ * real table is rebuilt in C in platform/m4a_mixer.c -- under a different
+ * name, because gen_rom_data.py comments out any `extern ... gXcmdTable[];`
+ * it finds, including one added here. */
+#undef gXcmdTable
+extern const XcmdFunc gPortXcmdTable[];
+#define gXcmdTable gPortXcmdTable
+
+void PortSampleRateSet(struct SoundInfo *soundInfo);"""),
+
+        # --- the sample rate ------------------------------------------------
+        # Two problems in one function.  The device rate is the browser's to
+        # choose, not one of the GBA's twelve; and both VCOUNT spins would hang
+        # forever, because VCOUNT is plain memory in this port and nothing
+        # advances it from inside this call.  That second one is not a
+        # cosmetic difference -- it is a boot hang.
+        ("""    soundInfo->pcmSamplesPerVBlank = gPcmSamplesPerVBlankTable[freq - 1];
+    soundInfo->pcmDmaPeriod = PCM_DMA_BUF_SIZE / soundInfo->pcmSamplesPerVBlank;
+    // LCD refresh rate 59.7275Hz
+    soundInfo->pcmFreq = (597275 * soundInfo->pcmSamplesPerVBlank + 5000) / 10000;
+    // CPU frequency 16.78Mhz
+    soundInfo->divFreq = (0x1000000 / soundInfo->pcmFreq + 1) >> 1;
+    // Turn off timer 0.
+    REG_TM0CNT_H = 0;
+    // cycles per LCD fresh 280896
+    REG_TM0CNT_L = -(280896 / soundInfo->pcmSamplesPerVBlank);
+    m4aSoundVSyncOn();
+    while (*(vu8 *)REG_ADDR_VCOUNT == 159)
+        ;
+    while (*(vu8 *)REG_ADDR_VCOUNT != 159)
+        ;
+    REG_TM0CNT_H = TIMER_ENABLE | TIMER_1CLK;""",
+         """    /* PORT: the AudioContext picks the rate and the mixer renders natively
+     * at it, so none of the twelve fixed rates or Timer 0 applies.  The two
+     * VCOUNT spins that followed are gone because they cannot terminate --
+     * VCOUNT is ordinary memory here and only the frame loop advances it, and
+     * this runs inside m4aSoundInit long before the first frame. */
+    PortSampleRateSet(soundInfo);
+    m4aSoundVSyncOn();"""),
+
+        # --- three function pointers stored at the wrong type ----------------
+        ("""    soundInfo->CgbOscOff = (void (*)(u8))nullsub_141;
+    soundInfo->MidiKeyToCgbFreq = (u32 (*)(u8, u8, u8))nullsub_141;""",
+         """    /* PORT: nullsub_141 is void(void).  Storing it as void(u8) and
+     * u32(u8,u8,u8) is free on ARM -- the arguments sit unread in r0-r2 --
+     * and traps in wasm, which checks the callee's type at every indirect
+     * call.  MPlayExtender overwrites both a moment later and SoundClear
+     * guards on cgbChans being non-null, so neither is reachable today; a
+     * wasm trap is unrecoverable and this is one line. */
+    soundInfo->CgbOscOff = PortNullCgbOscOff;
+    soundInfo->MidiKeyToCgbFreq = PortNullMidiKeyToCgbFreq;"""),
+
+        # --- a BIOS call nothing makes --------------------------------------
+        ("""void MusicPlayerJumpTableCopy(void)
+{
+    asm("swi 0x2A");
+}""",
+         """void MusicPlayerJumpTableCopy(void)
+{
+    /* PORT: BIOS MusicPlayerOpen (swi 0x2A).  Nothing in the game calls this
+     * -- SoundInit uses the library's own MPlayJumpTableCopy instead. */
+}"""),
+    ],
+
+    'm4a.h': [
+        ("extern u8 gMPlayMemAccArea[0x10];",
+         "/* PORT: fixed address, see platform/port/prelude.h */"),
+        ("extern MPlayFunc gMPlayJumpTable[36];\n"
+         "extern struct MusicPlayerInfo gMPlayInfo_0;\n"
+         "extern struct MusicPlayerInfo gMPlayInfo_1;\n"
+         "extern struct MusicPlayerInfo gMPlayInfo_2;\n"
+         "extern struct MusicPlayerInfo gMPlayInfo_3;",
+         "/* PORT: fixed addresses, see platform/port/prelude.h */"),
+        ("extern struct CgbChannel gCgbChans[4];",
+         "/* PORT: fixed address, see platform/port/prelude.h */"),
+        ("extern char gNumMusicPlayers[];\nextern char gMaxLines[];",
+         "/* PORT: linker.ld sets these to the literal values 4 and 0, and the\n"
+         " * two macros below cast the address to an integer.  prelude.h. */"),
+
+        # MPlayMain is reached only as soundInfo->func, always with the player
+        # in r0; the chain of four players in MPlayOpen depends on it.
+        ("void MPlayMain(void);",
+         "void MPlayMain(struct MusicPlayerInfo *);  /* PORT: takes the player */"),
+        # SoundMainBTM is gMPlayJumpTable[35], which Clear64byte calls as
+        # void(*)(void *).
+        ("void SoundMainBTM(void);",
+         "void SoundMainBTM(void *);  /* PORT: it is Clear64byte's worker */"),
+        # ply_note is soundInfo->plynote, called as (cmd - 0xCF, player, track).
+        ("void ply_note(struct MusicPlayerInfo *, struct MusicPlayerTrack *);",
+         "void ply_note(u32, struct MusicPlayerInfo *, struct MusicPlayerTrack *);"),
+
+        ("void CgbOscOff(u8);",
+         "void CgbOscOff(u8);\nvoid PortNullCgbOscOff(u8);\n"
+         "u32 PortNullMidiKeyToCgbFreq(u8, u8, u8);"),
+    ],
+}
+
 
 SRAM_RELOC = {
     'save.c': [
@@ -383,6 +534,23 @@ def drop_static_on_exported(text, exported, rep):
                   sub, text, flags=re.M)
 
 
+def apply_m4a_patches(text, name, rep):
+    """The sound driver's four source patches and its header's three wrong
+    prototypes.  A pattern that stops matching is reported rather than skipped:
+    silently not applying the SampleFreqSet patch gives a boot that hangs in a
+    VCOUNT spin, which is a long way from the symptom back to this file."""
+    for old, new in M4A_PATCHES.get(name, ()):
+        if old in text:
+            text = text.replace(old, new, 1)
+            rep.bump('m4a sites patched')
+        else:
+            rep.unhandled.append(
+                '%s: an M4A_PATCHES pattern no longer matches -- the sound '
+                'driver has changed upstream: %s'
+                % (name, ' '.join(old.split())[:70]))
+    return text
+
+
 def rewrite_source(text, path, rep, decomp=None, exported=None, returns=None):
     text = strip_register_pins(text, rep)
     text = stub_naked_wrappers(text, rep, returns)
@@ -539,6 +707,7 @@ def main():
                 if old in text:
                     text = text.replace(old, new)
                     rep.bump('save-memory address relocated')
+            text = apply_m4a_patches(text, path.name, rep)
             casts = FNPTR_CASTS.get(path.name, ())
             if casts:
                 hit = False
@@ -599,6 +768,7 @@ def main():
             if old in new:
                 new = new.replace(old, repl)
                 rep.bump('save-memory address relocated')
+        new = apply_m4a_patches(new, path.name, rep)
         if path.name == 'task.h' and TASK_PTR_ORIGINAL in new:
             new = new.replace(TASK_PTR_ORIGINAL, TASK_PTR_CHECKED)
             rep.bump('TaskGetStructPtr made checkable')
