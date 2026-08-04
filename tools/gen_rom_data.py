@@ -535,6 +535,13 @@ def main():
                 f.write('#include "%s"\n' % hdr)
             f.write('\n')
 
+            # One extern per symbol for the whole file.  The same function can
+            # sit in two tables whose element types differ, and declaring it
+            # twice with two signatures is a hard error -- so declare it once
+            # and let the cast at each use site reconcile them, exactly as the
+            # ROM does by storing one address for both.
+            emitted = set()
+
             for name, ret, params, count, _ in fn_tables:
                 entries = (resolve_fn_table(rom, mapping, defined,
                                             labels[name], count)
@@ -546,7 +553,8 @@ def main():
                         '%d still ARM-only. */\n' % (name, count, have,
                                                      count - have))
                 for fn in sorted({e for e in entries if e}):
-                    if fn not in declared:
+                    if fn not in declared and fn not in emitted:
+                        emitted.add(fn)
                         f.write('extern %s %s(%s);\n' % (ret, fn, params))
                 f.write('static %s PortRomFn_%s(%s)\n{\n'
                         % (ret, name, name_parameters(params)))
@@ -578,8 +586,9 @@ def main():
                 sig_index = {s: i for i, s in enumerate(sorted(sigs))}
 
                 for sym in sorted({s for _, s, _, _, _ in patches if s}):
-                    if sym in declared:
+                    if sym in declared or sym in emitted:
                         continue
+                    emitted.add(sym)
                     ret, params = next((r, p) for _, s, r, p, _ in patches if s == sym)
                     f.write('extern %s %s(%s);\n' % (ret, sym, params))
                 f.write('\n/* %d function pointers inside ROM structs; %d resolved. */\n'

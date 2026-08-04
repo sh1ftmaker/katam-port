@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Kirby &amp; The Amazing Mirror — native port (WebAssembly)</title>
 <style>
   :root {
@@ -34,6 +34,7 @@
     gap: 12px;
     padding: 14px;
     overflow: hidden;          /* the screen sizes itself to the window; page never scrolls */
+    overscroll-behavior: none; /* and a stray drag never pulls-to-refresh */
   }
 
   h1 {
@@ -66,6 +67,12 @@
        downscale from turning to mush. */
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    /* A finger that strays off a pad and onto the picture must not scroll,
+       zoom, select it or raise the long-press callout. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* Covers the screen until a ROM is supplied. */
@@ -191,6 +198,177 @@
   #log .warn { color: var(--warn); }
   #log .ok   { color: var(--accent); }
 
+  /* ---- on-screen touch controls -------------------------------------- */
+
+  /* The overlay is fixed and inert; only the pads inside it take pointer
+     input, so the bar, the log and the curtain underneath stay usable.
+     Every position below is expressed in these four custom properties, so
+     the orientation media queries only have to restate the numbers. */
+  #touch {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+
+    --gutter:    max(14px, 4vw);
+    --edge-l:    calc(var(--gutter) + env(safe-area-inset-left, 0px));
+    --edge-r:    calc(var(--gutter) + env(safe-area-inset-right, 0px));
+    --base-y:    calc(env(safe-area-inset-bottom, 0px) + 16px);
+    --dpad-size: min(44vw, 208px);
+    --btn:       min(16vw, 72px);
+  }
+  body.touch-on #touch { display: block; }
+
+  /* The keyboard legend is noise once the pads are up, and in landscape the
+     log and the title are the difference between a 3x and a 2x picture. */
+  body.touch-on #legend { display: none; }
+
+  .tpad {
+    position: absolute;
+    pointer-events: auto;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim);
+    background: rgba(28, 31, 37, .78);
+    border: 1px solid var(--edge);
+    letter-spacing: .08em;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
+  }
+  /* Depress with an inset shadow rather than a transform: #tsys lays its two
+     pads out with flexbox and a transform here would fight that. */
+  .tpad.down {
+    color: #fff;
+    background: rgba(111, 178, 255, .28);
+    border-color: var(--accent);
+    box-shadow: inset 0 3px 7px rgba(0, 0, 0, .55);
+  }
+
+  /* Face buttons, in the GBA's diagonal arrangement: A high and outboard. */
+  #tb-a, #tb-b {
+    width: var(--btn);
+    height: var(--btn);
+    border-radius: 50%;
+    font-size: calc(var(--btn) * .38);
+  }
+  #tb-a { right: var(--edge-r); bottom: calc(var(--base-y) + var(--btn) * .78); }
+  #tb-b { right: calc(var(--edge-r) + var(--btn) * 1.22); bottom: var(--base-y); }
+
+  /* Shoulders sit on the row above, level with Start/Select. */
+  #tb-l, #tb-r {
+    width: calc(var(--btn) * 1.35);
+    height: calc(var(--btn) * .62);
+    border-radius: 8px;
+    font-size: 13px;
+    bottom: calc(var(--base-y) + var(--dpad-size) + 10px);
+  }
+  #tb-l { left: var(--edge-l); }
+  #tb-r { right: var(--edge-r); }
+
+  #tsys {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--base-y) + var(--dpad-size) + 10px);
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    pointer-events: none;
+    padding-left: var(--edge-l);
+    padding-right: var(--edge-r);
+  }
+  #tsys .tpad {
+    position: static;
+    height: calc(var(--btn) * .5);
+    padding: 0 13px;
+    border-radius: 999px;
+    font-size: 11px;
+  }
+
+  /* ---- D-pad --------------------------------------------------------- */
+  /* One round control, not four buttons: the script hit-tests it by angle
+     (see dpadMask) so the arrows below are decoration and a readout of what
+     is currently held, never targets in their own right. */
+  #dpad {
+    position: absolute;
+    pointer-events: auto;
+    touch-action: none;
+    left: var(--edge-l);
+    bottom: var(--base-y);
+    width: var(--dpad-size);
+    height: var(--dpad-size);
+    border-radius: 50%;
+    background: rgba(28, 31, 37, .78);
+    border: 1px solid var(--edge);
+  }
+  /* Marks the dead zone, so its size is not a free choice: 26% of the
+     diameter is 0.26 of the radius, which is DPAD_DEAD. */
+  #dpad::after {
+    content: "";
+    position: absolute;
+    left: 37%;
+    top: 37%;
+    width: 26%;
+    height: 26%;
+    border-radius: 50%;
+    background: rgba(16, 18, 22, .8);
+    border: 1px solid var(--edge);
+  }
+  .dseg {
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: var(--dim);
+    font-size: calc(var(--dpad-size) * .11);
+    line-height: 1;
+  }
+  .dseg.on { color: #fff; background: rgba(111, 178, 255, .28); }
+  .dseg[data-seg="up"]    { left: 35%; top: 3%; }
+  .dseg[data-seg="down"]  { left: 35%; bottom: 3%; }
+  .dseg[data-seg="left"]  { left: 3%; top: 35%; }
+  .dseg[data-seg="right"] { right: 3%; top: 35%; }
+
+  /* Portrait: the picture is width-limited, so the pads live in the band of
+     letterboxing below it. Padding on <body> reserves that band, and the
+     screen is pinned to the top of what is left rather than centred in it. */
+  @media (orientation: portrait) {
+    body.touch-on {
+      --band-h: min(42vh, 300px);
+      padding-bottom: calc(var(--band-h) + env(safe-area-inset-bottom, 0px));
+    }
+    body.touch-on #screen-wrap { align-items: flex-start; }
+  }
+
+  /* Landscape: nothing to spare, so the pads overlay the picture at the two
+     edges and Start/Select move to the top corners. Semi-transparent — they
+     are over gameplay here, not over letterboxing. */
+  @media (orientation: landscape) {
+    #touch {
+      --gutter:    max(10px, 1.6vw);
+      --base-y:    calc(env(safe-area-inset-bottom, 0px) + 10px);
+      --dpad-size: min(38vh, 172px);
+      --btn:       min(16vh, 66px);
+      opacity: .62;
+    }
+    #tsys {
+      bottom: auto;
+      top: calc(env(safe-area-inset-top, 0px) + 10px);
+      justify-content: space-between;
+    }
+    body.touch-on h1,
+    body.touch-on #log { display: none; }
+  }
+
   /* Whole-page drop target feedback. */
   body.dragging::after {
     content: "drop a .gba ROM";
@@ -241,6 +419,8 @@
   <label class="filebtn" for="romfile">Load ROM…</label>
   <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
   <button id="romforget" type="button" disabled>Forget stored ROM</button>
+  <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
+  <button id="fullscreen" type="button">Fullscreen</button>
   <span class="urlbox">
     <input id="romurl" type="url" spellcheck="false" autocomplete="off"
            placeholder="direct link to a .gba file you have the right to use">
@@ -260,6 +440,26 @@
 </div>
 
 <div id="log" aria-live="polite"></div>
+
+<!-- Touch overlay. Not focusable and not announced: it duplicates the
+     keyboard controls the legend already lists, and every one of these
+     elements is hit-tested by coordinate rather than clicked. -->
+<div id="touch" aria-hidden="true">
+  <div id="dpad">
+    <span class="dseg" data-seg="up">&#9650;</span>
+    <span class="dseg" data-seg="down">&#9660;</span>
+    <span class="dseg" data-seg="left">&#9664;</span>
+    <span class="dseg" data-seg="right">&#9654;</span>
+  </div>
+  <div class="tpad" id="tb-l" data-btn="L">L</div>
+  <div class="tpad" id="tb-r" data-btn="R">R</div>
+  <div id="tsys">
+    <div class="tpad" id="tb-select" data-btn="SELECT">SELECT</div>
+    <div class="tpad" id="tb-start" data-btn="START">START</div>
+  </div>
+  <div class="tpad" id="tb-b" data-btn="B">B</div>
+  <div class="tpad" id="tb-a" data-btn="A">A</div>
+</div>
 
 <script>
 //======================================================================
@@ -421,8 +621,8 @@ var Module = (function () {
   var romClaimed = false;                      // set the instant a source wins the race,
                                                // which is long before the bytes are mapped
   var loadedName = '', loadedSize = 0;
-  var infoEl    = document.getElementById('rominfo');
-  var curtain   = document.getElementById('curtain');
+  var infoEl     = document.getElementById('rominfo');
+  var curtain    = document.getElementById('curtain');
 
   function romInfoText() {
     if (!romLoaded) return 'no ROM loaded';
@@ -637,6 +837,7 @@ var Module = (function () {
     }, function (e) {
       if (probeSettled) return;
       setStored(false);
+      storageBroken = true;
       showCurtain();
       log('browser storage is unavailable here (' + reason(e) + ') — a ROM you pick will ' +
           'work for this session only.', 'warn');
@@ -889,10 +1090,18 @@ var Module = (function () {
   // Track held *codes*, not the mask, so releasing one of two keys bound to
   // the same button doesn't clear it while the other is still down.
   var held = Object.create(null);
+
+  // What the on-screen pads are holding, kept as its own value rather than
+  // folded into `held`. The two paths are live at the same time — a tablet
+  // with a keyboard, a laptop with a touchscreen — so neither may publish a
+  // mask of its own; the union of both is the only thing the C side ever
+  // sees, and a keyup must not be able to release a finger's button.
+  var touchMask = 0;
+
   var lastMask = -1;
 
   function pushMask() {
-    var mask = 0;
+    var mask = touchMask;
     for (var code in held) mask |= KEYMAP[code];
     if (mask === lastMask) return;
     lastMask = mask;
@@ -920,8 +1129,213 @@ var Module = (function () {
   // Losing focus mid-press would otherwise leave a button stuck down.
   window.addEventListener('blur', function () {
     held = Object.create(null);
-    pushMask();
+    pointers = Object.create(null);
+    syncTouch();                               // ends in pushMask()
   });
+
+  //====================================================================
+  // On-screen touch controls
+  //====================================================================
+
+  var touchLayer = document.getElementById('touch');
+  var dpadEl     = document.getElementById('dpad');
+  var toggleBtn  = document.getElementById('touchtoggle');
+  var fsBtn      = document.getElementById('fullscreen');
+
+  var TOUCH_BITS = { A: A, B: B, L: BTN_L, R: BTN_R, START: START, SELECT: SELECT };
+  var SEG_BITS   = { up: UP, down: DOWN, left: LEFT, right: RIGHT };
+
+  // The discrete pads. The D-pad is deliberately not among them.
+  var padButtons = [];
+  var padNodes = touchLayer.querySelectorAll('[data-btn]');
+  for (var pi = 0; pi < padNodes.length; pi++) {
+    padButtons.push({ el: padNodes[pi], bit: TOUCH_BITS[padNodes[pi].getAttribute('data-btn')] });
+  }
+
+  // Arrow decorations, lit from the mask rather than hit individually.
+  var dpadSegs = [];
+  var segNodes = dpadEl.querySelectorAll('[data-seg]');
+  for (var si = 0; si < segNodes.length; si++) {
+    dpadSegs.push({ el: segNodes[si], bit: SEG_BITS[segNodes[si].getAttribute('data-seg')] });
+  }
+
+  // Fraction of the pad's radius that reports nothing, so a thumb resting in
+  // the middle doesn't chatter between neighbouring directions.
+  var DPAD_DEAD = 0.26;
+
+  // Eight 45° sectors, anticlockwise from east. Hit-testing the D-pad by
+  // angle instead of as four rectangles is the whole reason diagonals work:
+  // with rectangles the corners are either dead (no diagonals at all) or a
+  // separate fifth region a thumb has to find, whereas every path around the
+  // ring passes through a diagonal sector on its way to the next cardinal, so
+  // rolling gives up -> up+right -> right with no gap in between.
+  var DPAD_SECTORS = [
+    RIGHT, RIGHT | UP, UP, UP | LEFT, LEFT, LEFT | DOWN, DOWN, DOWN | RIGHT
+  ];
+
+  function inDpad(x, y) {
+    var r = dpadEl.getBoundingClientRect();
+    return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+  }
+
+  function dpadMask(x, y) {
+    if (!inDpad(x, y)) return 0;
+
+    var r = dpadEl.getBoundingClientRect();
+    var dx = x - (r.left + r.width / 2);
+    var dy = y - (r.top + r.height / 2);
+    var dead = Math.min(r.width, r.height) / 2 * DPAD_DEAD;
+    if (dx * dx + dy * dy < dead * dead) return 0;
+
+    // atan2 takes -dy because screen y grows downward and the sector table
+    // is written the way a compass reads.
+    var sector = Math.round(Math.atan2(-dy, dx) / (Math.PI / 4));
+    return DPAD_SECTORS[(sector + 8) % 8];
+  }
+
+  function hitMask(x, y) {
+    var m = dpadMask(x, y);
+    if (m) return m;
+    for (var i = 0; i < padButtons.length; i++) {
+      // Read the rect live: the layout moves on rotation, when the bar
+      // rewraps, and every time the page enters or leaves fullscreen.
+      var r = padButtons[i].el.getBoundingClientRect();
+      if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return padButtons[i].bit;
+    }
+    return 0;
+  }
+
+  // pointerId -> the bits that finger is currently holding, which may be 0
+  // for a finger that has slid off everything but is still down. Recomputing
+  // the union from this map (rather than adding and subtracting bits) is what
+  // lets two fingers hold the same button without one release clearing it.
+  var pointers = Object.create(null);
+
+  function syncTouch() {
+    var m = 0;
+    for (var id in pointers) m |= pointers[id];
+    touchMask = m;
+    for (var i = 0; i < padButtons.length; i++) {
+      padButtons[i].el.classList.toggle('down', (m & padButtons[i].bit) !== 0);
+    }
+    for (var j = 0; j < dpadSegs.length; j++) {
+      dpadSegs[j].el.classList.toggle('on', (m & dpadSegs[j].bit) !== 0);
+    }
+    pushMask();
+  }
+
+  // Absent on desktop and on iOS, and some builds throw instead of returning
+  // false, so the whole thing is wrapped once here.
+  function buzz() {
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) { /* ignore */ } }
+  }
+
+  // Listening on window, not on the overlay: touch input implicitly captures
+  // the pointer to whatever element took the pointerdown, so move/up events
+  // keep arriving from that element no matter where the finger has gone. We
+  // want the opposite — coordinates decide what is held — so we take the
+  // events wherever they bubble to and hit-test them ourselves.
+  function onPointerDown(e) {
+    if (!touchOn) return;
+    var bits = hitMask(e.clientX, e.clientY);
+    // A thumb that lands in the D-pad's dead centre holds nothing yet, but it
+    // has to be tracked anyway or rolling out of the dead zone would never
+    // register. Anywhere else, no bits means the touch was not ours: leave it
+    // alone so the bar, the URL box and the file picker still work.
+    if (!bits && !inDpad(e.clientX, e.clientY)) return;
+    e.preventDefault();                        // no scroll, no zoom, no synthetic mouse event
+    pointers[e.pointerId] = bits;
+    if (bits) buzz();
+    syncTouch();
+  }
+
+  function onPointerMove(e) {
+    if (!(e.pointerId in pointers)) return;
+    e.preventDefault();
+    var bits = hitMask(e.clientX, e.clientY);
+    if (bits === pointers[e.pointerId]) return;
+    if (bits && !pointers[e.pointerId]) buzz();  // re-entry only; not while rolling the D-pad
+    pointers[e.pointerId] = bits;
+    syncTouch();
+  }
+
+  function onPointerUp(e) {
+    if (!(e.pointerId in pointers)) return;
+    e.preventDefault();
+    delete pointers[e.pointerId];
+    syncTouch();
+  }
+
+  window.addEventListener('pointerdown',   onPointerDown, { passive: false });
+  window.addEventListener('pointermove',   onPointerMove, { passive: false });
+  window.addEventListener('pointerup',     onPointerUp,   { passive: false });
+  window.addEventListener('pointercancel', onPointerUp,   { passive: false });
+
+  // A long press on a pad otherwise raises the selection/callout menu.
+  touchLayer.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  // ---- showing and hiding them --------------------------------------
+  var LS_TOUCH_KEY = 'katam.touchControls';
+  var touchOn = false;
+
+  function setTouch(on, remember) {
+    touchOn = !!on;
+    document.body.classList.toggle('touch-on', touchOn);
+    toggleBtn.textContent = 'Touch controls: ' + (touchOn ? 'on' : 'off');
+    toggleBtn.setAttribute('aria-pressed', touchOn ? 'true' : 'false');
+    if (!touchOn) {                            // never leave a pad stuck down
+      pointers = Object.create(null);
+      syncTouch();
+    }
+    if (remember) lsSet(LS_TOUCH_KEY, touchOn ? '1' : '0');
+    shell.fitScreen();                         // the band changes how much room the screen has
+  }
+
+  function touchWanted() {
+    var saved = lsGet(LS_TOUCH_KEY);
+    if (saved === '1' || saved === '0') return saved === '1';
+    // A coarse pointer means fingers; the width test catches the small
+    // screens whose browser insists it has a mouse anyway.
+    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    return !!coarse || window.innerWidth < 820;
+  }
+
+  toggleBtn.addEventListener('click', function () { setTouch(!touchOn, true); });
+
+  // ---- fullscreen ----------------------------------------------------
+  // Browser chrome costs a phone a third of its screen. The whole document
+  // goes fullscreen rather than the canvas alone, so the pads come with it.
+  var fsRoot = document.documentElement;
+
+  function fsActive() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function syncFs() {
+    fsBtn.textContent = fsActive() ? 'Exit fullscreen' : 'Fullscreen';
+    shell.fitScreen();
+  }
+
+  fsBtn.addEventListener('click', function () {
+    if (fsActive()) {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+      return;
+    }
+    // iOS Safari only ever shipped the prefixed form, and on iPhone (as
+    // opposed to iPad) it is missing from everything but <video> — so say so
+    // rather than appearing to do nothing.
+    var req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
+    if (!req) { log('this browser will not let the page go fullscreen.', 'warn'); return; }
+    var r = req.call(fsRoot);
+    if (r && r['catch']) r['catch'](function (e) { log('fullscreen refused: ' + reason(e), 'warn'); });
+  });
+
+  document.addEventListener('fullscreenchange', syncFs);
+  document.addEventListener('webkitfullscreenchange', syncFs);
+
+  setTouch(touchWanted(), false);
+  syncFs();
 
   log('ready — this port needs your own Kirby & The Amazing Mirror ROM.');
   initRom();

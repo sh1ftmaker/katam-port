@@ -86,6 +86,32 @@ DECL_FIXES = {
 }
 
 
+# Save memory is the only thing that pushes the reserved GBA map past the ROM.
+# The hardware puts it at 0x0E000000, which leaves an 80 MiB hole between the
+# end of the ROM and the start of it -- and the whole map has to be reserved as
+# one contiguous wasm memory, so that hole costs 80 MiB of allocation on every
+# device that opens the page.  A phone will refuse an allocation a desktop
+# shrugs at.
+#
+# Nothing about 0x0E000000 matters here: no ROM pointer reaches it and the port
+# supplies the SRAM routines itself (platform/sram.c).  Moving it to just above
+# the 16 MiB ROM shortens the reservation from 272 MiB to 192 MiB.  The address
+# is hardcoded in two places besides the header, which is why this is a text
+# rewrite rather than a #define.
+PORT_SRAM_BASE = 0x09000000
+
+SRAM_RELOC = {
+    'save.c': [
+        ('(u8 *)0xE000000', '(u8 *)0x09000000'),
+    ],
+    'agb_sram.h': [
+        ('#define SRAM 0x0E000000', '#define SRAM 0x09000000'),
+        ('#define SRAM_ADR                0x0e000000',
+         '#define SRAM_ADR                0x09000000'),
+    ],
+}
+
+
 # INCBIN in the GBA build is expanded by the decomp's own `preproc` tool, which
 # reads the referenced binary and pastes it in as an initialiser.  The port has
 # no preproc in its pipeline, so it does the same expansion here.  The assets
@@ -400,6 +426,10 @@ def main():
             text = rewrite_source(path.read_text(errors='replace'), path, rep,
                                   decomp=decomp, exported=exported,
                                   returns=returns)
+            for old, new in SRAM_RELOC.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new)
+                    rep.bump('save-memory address relocated')
             for old, new in DECL_FIXES.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)
@@ -427,6 +457,10 @@ def main():
     for path in sorted((out / 'include').rglob('*.h')):
         text = path.read_text(errors='replace')
         new = rewrite_source(text, path, rep)
+        for old, repl in SRAM_RELOC.get(path.name, ()):
+            if old in new:
+                new = new.replace(old, repl)
+                rep.bump('save-memory address relocated')
         if new != text:
             path.write_text(new)
 

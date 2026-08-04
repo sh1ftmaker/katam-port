@@ -31,7 +31,10 @@
 #define GBA_OAM_SIZE   0x00000400u
 #define GBA_ROM_BASE   0x08000000u
 #define GBA_ROM_MAX    0x02000000u
-#define GBA_SRAM_BASE  0x0E000000u
+/* Relocated from the hardware's 0x0E000000 by tools/portify.py -- see the
+ * note there.  It saves 80 MiB of wasm memory reservation, which is the
+ * difference between running on a phone and not. */
+#define GBA_SRAM_BASE  0x09000000u
 #define GBA_SRAM_SIZE  0x00010000u
 
 #define PORT_SCREEN_W 240

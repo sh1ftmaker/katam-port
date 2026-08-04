@@ -28,12 +28,15 @@ CC := $(EMSDK)/upstream/emscripten/emcc
 # compiler's own static data, stack and heap above 0x0A000000 keeps them out of
 # it.  See docs/ARCHITECTURE.md.
 # ---------------------------------------------------------------------------
-# The reserved GBA map runs from EWRAM at 0x02000000 up to the end of save
-# memory at 0x0E010000, so the compiler's own data starts above that.
-# emcc parses these as byte sizes and rejects 0x-prefixed hex, so they are in
-# decimal:  251658240 = 0x0F000000,  285212672 = 0x11000000.
-GLOBAL_BASE    := 251658240
-INITIAL_MEMORY := 285212672
+# The reserved GBA map runs from EWRAM at 0x02000000 to the end of save memory,
+# which portify.py relocates to sit just above the 16 MiB ROM (0x09010000)
+# rather than at the hardware's 0x0E000000.  The compiler's own data starts
+# above that.  This is one contiguous wasm allocation made at page load, so the
+# 80 MiB hole the hardware layout would leave is 80 MiB a phone has to find.
+# emcc parses these as byte sizes and rejects 0x-prefixed hex, so decimal:
+#   167772160 = 0x0A000000,  201326592 = 0x0C000000  (192 MiB total)
+GLOBAL_BASE    := 167772160
+INITIAL_MEMORY := 201326592
 
 # ---------------------------------------------------------------------------
 # PORTABLE     -- the decomp's own guard (include/portable.h) that compiles the
