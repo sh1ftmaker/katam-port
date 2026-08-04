@@ -2488,9 +2488,43 @@ var Module = (function () {
   // Keyboard state is deliberately untouched -- releaseAllTouch(), not
   // shell.releaseInput() -- so a stray tap on a device with both does not
   // drop a key someone is holding.
+  // TouchEvent.touches is the authority on what is actually on the glass, so
+  // use it to *remove* tracked pointers -- never to add one. Pruning can only
+  // clear a control, so a mistake here cannot invent a press.
+  //
+  // Two levels, because the reported failure is two fingers at once (a
+  // direction plus A or B, tapped quickly) leaving the direction stuck. That
+  // is a pointerup arriving with an id that no longer matches the pointerdown
+  // that started it -- iOS is known to do this under rapid multi-touch -- and
+  // no amount of id-matched bookkeeping recovers from it. Positions do.
+  //
+  // The tolerance is loose on purpose: a finger can travel between the last
+  // pointermove we saw and this touch event. If a stale entry happens to sit
+  // near a live finger it survives, but it is then holding the same region
+  // that finger is holding anyway, so nothing is visibly wrong.
+  var STALE_RADIUS = 60;
+
   function reconcileTouches(e) {
-    if (e.touches && e.touches.length === 0) releaseAllTouch();
+    if (!e.touches) return;
+    if (e.touches.length === 0) { releaseAllTouch(); return; }
+
+    var dropped = false;
+    for (var id in pointers) {
+      var p = pointers[id], live = false;
+      for (var i = 0; i < e.touches.length; i++) {
+        var t = e.touches[i];
+        if (Math.abs(t.clientX - p.x) <= STALE_RADIUS
+         && Math.abs(t.clientY - p.y) <= STALE_RADIUS) { live = true; break; }
+      }
+      if (live) continue;
+      delete pointers[id];
+      try { touchLayer.releasePointerCapture(parseInt(id, 10)); } catch (err) { /* gone */ }
+      dropped = true;
+    }
+    if (dropped) syncTouch();
   }
+  window.addEventListener('touchstart',  reconcileTouches, { passive: true });
+  window.addEventListener('touchmove',   reconcileTouches, { passive: true });
   window.addEventListener('touchend',    reconcileTouches, { passive: true });
   window.addEventListener('touchcancel', reconcileTouches, { passive: true });
 
