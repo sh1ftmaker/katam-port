@@ -363,6 +363,26 @@
     min-width: 200px;
   }
 
+  /* Names the row of save-data controls. Without it "Export" and "Delete"
+     sit in a line of buttons about the ROM and read as being about the ROM,
+     and "Delete" is not a button anyone should have to guess about. */
+  .barlabel {
+    flex: 0 0 auto;
+    color: var(--dim);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  #saveinfo {
+    flex: 1 1 200px;
+    min-width: 0;
+    color: var(--dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   #legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -916,6 +936,19 @@
     </span>
   </div>
 
+  <!-- The player's own copy of their save. Losing a save with no way to have
+       taken a backup is the worst thing this page can do to someone, so the
+       export is a first-class control rather than a diagnostic. The file is
+       a plain 64 KiB SRAM image — the same thing an emulator calls a .sav. -->
+  <div class="bar">
+    <span class="barlabel">Save data</span>
+    <button id="saveexport" type="button" disabled>Export save…</button>
+    <label class="filebtn" for="savefile">Import save…</label>
+    <input id="savefile" type="file" accept=".sav,.srm,.dat,application/octet-stream">
+    <button id="saveforget" type="button" disabled>Delete stored save</button>
+    <span id="saveinfo">no ROM loaded</span>
+  </div>
+
   <div id="legend">
     <div><b>D-pad</b> &nbsp;<kbd>&#8592;&#8593;&#8595;&#8594;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
     <div><b>A</b> &nbsp;<kbd>J</kbd> / <kbd>Z</kbd></div>
@@ -1218,6 +1251,11 @@ var Module = (function () {
       // sure no on-screen button is left held — the crash panel above all,
       // which hides the pads out from under whatever finger was on them.
       releaseInput: function () {},
+      // Replaced by the save block. Given the ROM that is about to start, it
+      // works out which stored save belongs to it and has those bytes in hand
+      // before the game is released to run. It always resolves: a browser with
+      // no usable storage must still be able to play.
+      saveForRom: function () { return Promise.resolve(); },
       // What was loaded, for the crash report. The bytes themselves and the
       // address they came from are nobody else's business; the size and the
       // bare filename are what actually identify a wrong dump.
@@ -1642,11 +1680,30 @@ var Module = (function () {
       shell.fitScreen();
       log('ROM mapped at 0x' + ROM_BASE.toString(16) + '. Starting.', 'ok');
 
-      // Releases the C entry point, which has been parked on this promise.
-      shell.resolveRomReady();
+      // Find this ROM's stored save before releasing the game. The C side
+      // asks for it synchronously, the first time the game touches save
+      // memory, so an IndexedDB read still in flight at that moment would
+      // simply arrive too late and the player would see an empty file select.
+      //
+      // Every path out of this resolves the handshake, including the failure
+      // one: no save is worth not starting the game over.
+      var saveReady;
+      try {
+        saveReady = shell.saveForRom(bytes, name);
+      } catch (e) {
+        log('save storage failed before it started (' + reason(e) + ') — ' +
+            'this session will not be kept.', 'warn');
+        saveReady = null;
+      }
+      Promise.resolve(saveReady).then(start, start);
 
-      // Only bytes that actually mapped are worth remembering.
-      if (!fromStore) rememberRom(bytes, name);
+      function start() {
+        // Releases the C entry point, which has been parked on this promise.
+        shell.resolveRomReady();
+
+        // Only bytes that actually mapped are worth remembering.
+        if (!fromStore) rememberRom(bytes, name);
+      }
     });
   }
 
@@ -1696,10 +1753,16 @@ var Module = (function () {
   // ~5 MB quota. IndexedDB stores a Uint8Array verbatim. Both are per-origin
   // browser storage on this machine — neither uploads anything.
   //
-  // One database, one store, one record: {bytes, name, saved}.
+  // One database, two stores. `rom` holds one record, {bytes, name, saved}.
+  // `save` holds one record per ROM the player has actually played, keyed by
+  // that ROM's identity — see the save block at the end of this file.
   //====================================================================
 
   var DB_NAME = 'katam.rom', DB_STORE = 'rom', DB_KEY = 'current';
+  // The store save data goes in, and the version that introduced it. A
+  // browser that has only ever seen the ROM store is at version 1 and gets
+  // the new store created under it on the next open.
+  var DB_SAVE_STORE = 'save', DB_VERSION = 2;
 
   var dbPromise  = null;
   var stored     = false;                      // is there a record right now?
@@ -1724,24 +1787,55 @@ var Module = (function () {
       // or in a locked-down private window it throws right here, and on some
       // builds indexedDB is absent altogether.
       if (!window.indexedDB) throw new Error('IndexedDB is not available');
-      var req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = function () { req.result.createObjectStore(DB_STORE); };
-      req.onsuccess = function () { resolve(req.result); };
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      // Runs on a brand-new database and on the upgrade from the version that
+      // only knew about ROMs, so each store is created only if it is missing.
+      // Dropping and recreating `rom` here would throw away a 16 MiB ROM the
+      // player had already given us.
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+        if (!db.objectStoreNames.contains(DB_SAVE_STORE)) db.createObjectStore(DB_SAVE_STORE);
+      };
+      req.onsuccess = function () {
+        // A newer build open in another tab cannot upgrade the database while
+        // this connection is held; letting go is better than deadlocking it.
+        // Our own reads and writes fail from then on, which is what the "could
+        // not save" warnings are for.
+        req.result.onversionchange = function () { req.result.close(); };
+        resolve(req.result);
+      };
       req.onerror   = function () { reject(req.error || new Error('the database would not open')); };
       req.onblocked = function () { reject(new Error('another tab is holding the database open')); };
     });
     return dbPromise;
   }
 
-  function idbWith(mode, fn) {
+  function idbWith(store, mode, fn) {
     return idbOpen().then(function (db) {
-      return idbRequest(fn(db.transaction(DB_STORE, mode).objectStore(DB_STORE)));
+      return idbRequest(fn(db.transaction(store, mode).objectStore(store)));
     });
   }
 
-  function idbGet()    { return idbWith('readonly',  function (s) { return s.get(DB_KEY); }); }
-  function idbPut(rec) { return idbWith('readwrite', function (s) { return s.put(rec, DB_KEY); }); }
-  function idbDelete() { return idbWith('readwrite', function (s) { return s['delete'](DB_KEY); }); }
+  function idbGet()    { return idbWith(DB_STORE, 'readonly',  function (s) { return s.get(DB_KEY); }); }
+  function idbPut(rec) { return idbWith(DB_STORE, 'readwrite', function (s) { return s.put(rec, DB_KEY); }); }
+  function idbDelete() { return idbWith(DB_STORE, 'readwrite', function (s) { return s['delete'](DB_KEY); }); }
+
+  // The save block keeps its records in the same database rather than opening
+  // a second one: two connections would each have to agree about the version,
+  // and the moment they disagreed one of them would stop working.
+  shell.idb = {
+    saveStore: DB_SAVE_STORE,
+    get: function (store, key) {
+      return idbWith(store, 'readonly',  function (s) { return s.get(key); });
+    },
+    put: function (store, key, rec) {
+      return idbWith(store, 'readwrite', function (s) { return s.put(rec, key); });
+    },
+    del: function (store, key) {
+      return idbWith(store, 'readwrite', function (s) { return s['delete'](key); });
+    }
+  };
 
   function setStored(v) {
     stored = !!v;
@@ -2705,6 +2799,458 @@ var Module = (function () {
 
   log('ready — this port needs your own Kirby & The Amazing Mirror ROM.');
   initRom();
+})();
+</script>
+
+<script>
+//======================================================================
+// Save data.
+//
+// The game writes its file into the 64 KiB of cartridge SRAM the port
+// reserves inside wasm linear memory, and that memory dies with the tab.
+// This block gives it somewhere to live: one record per ROM, in the same
+// IndexedDB database that already remembers the ROM itself.
+//
+// Three questions, and where each is answered:
+//
+//   *When to write.* platform/sram.c calls Module.portSramDirty() from the
+//   one function every save in the game passes through, so a change is
+//   noticed when it happens rather than discovered later. Debounced,
+//   because a single in-game save is a dozen of those calls inside a few
+//   milliseconds — and re-checked on a slow timer as a backstop.
+//
+//   *Which save.* Keyed by the ROM. A player who loads a different game
+//   must neither inherit this one's file nor overwrite it.
+//
+//   *When to read it back.* Not from here. The C side asks for the bytes
+//   the first time the game touches save memory; the long note at the top
+//   of platform/sram.c explains why that is the only safe moment.
+//
+// Placed after the ROM block because it uses the IndexedDB helpers that
+// block exposes. Nothing here runs before that: every path that reaches
+// shell.saveForRom starts from a database or network event, and the
+// default in Module._shell keeps even a hypothetical early call harmless.
+//======================================================================
+(function () {
+  var shell = Module._shell;
+  var log   = shell.log;
+
+  // Save memory, at the address the port reserves for it. A literal, like
+  // the ROM base and the IWRAM globals above, and for the same reason: the
+  // GBA map is reserved inside wasm linear memory at fixed addresses, so
+  // there is no exported symbol for the page to look up. Relocated from the
+  // hardware's 0x0E000000 by tools/portify.py — GBA_SRAM_BASE in
+  // platform/port/port.h is the definition this must agree with.
+  var SRAM_BASE = 0x09000000;
+  var SRAM_SIZE = 0x10000;               // 64 KiB — exactly a GBA .sav file
+
+  // Long enough that one in-game save is one write; short enough that a tab
+  // killed without warning loses nothing the player would notice.
+  var WRITE_DELAY_MS = 600;
+
+  // The backstop scan. src/save.c is the only thing in the game that touches
+  // save memory today, and it goes through the SRAM library, so the dirty
+  // hook cannot miss a write. This is for the day that stops being true —
+  // a DMA into the region, a future decompiled routine writing it directly.
+  // 64 KiB every five seconds is a rounding error next to one frame of the
+  // scanline renderer, and it is skipped entirely while the tab is hidden.
+  var SCAN_MS = 5000;
+
+  var exportBtn = document.getElementById('saveexport');
+  var importEl  = document.getElementById('savefile');
+  var deleteBtn = document.getElementById('saveforget');
+  var infoEl    = document.getElementById('saveinfo');
+
+  var romKey   = '';        // identity of the ROM now running; '' until there is one
+  var romLabel = '';        // ...and something human-readable about it
+  var baseName = 'katam';   // what an exported file gets called
+
+  var pending  = null;      // stored bytes, waiting for the C side to ask for them
+  var stored   = false;     // is there a record for this ROM right now?
+  var armed    = false;     // has the C side told us what save memory holds?
+  var stopped  = false;     // the player deleted it — do not write it back
+  var broken   = false;     // storage is unusable; say so once, not every time
+  var scanNoted = false;
+
+  var timer    = 0;
+  var writing  = false;
+  var queued   = false;
+  var savedSum = 0;         // checksum of what storage holds
+  var savedAt  = 0;
+
+  function reason(e) { return (e && e.message) || String(e || 'unknown error'); }
+
+  // Null whenever save memory is not addressable — before the runtime is up,
+  // and after a growth would have detached the view (the port builds with
+  // ALLOW_MEMORY_GROWTH=0, so this is belt and braces).
+  function heap() {
+    try {
+      var h = (typeof Module !== 'undefined') && Module.HEAPU8;
+      return (h && h.length >= SRAM_BASE + SRAM_SIZE) ? h : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // FNV-1a over the region. Never compared against anything but another run
+  // of itself, so all that matters is that it is cheap and that a changed
+  // byte changes it.
+  function sum() {
+    var h = heap();
+    if (!h) return 0;
+    var v = 0x811c9dc5;
+    for (var i = SRAM_BASE, end = SRAM_BASE + SRAM_SIZE; i < end; i++) {
+      v = Math.imul(v ^ h[i], 16777619);
+    }
+    return v >>> 0;
+  }
+
+  // A copy, not a view: what goes into IndexedDB must not be a window onto
+  // memory the game is still writing.
+  function snapshot() {
+    var h = heap();
+    return h ? new Uint8Array(h.subarray(SRAM_BASE, SRAM_BASE + SRAM_SIZE)) : null;
+  }
+
+  //--------------------------------------------------------------------
+  // Which ROM is this?
+  //
+  // The cartridge header carries a 12-byte title at 0xA0, a four-letter game
+  // code at 0xAC and a version at 0xBC. That is nearly enough — but every
+  // dump of this game shares all three, and a translation patch or a ROM hack
+  // is emphatically a different game as far as a save file is concerned. So
+  // the key is the header *and* a hash of the whole image. Two FNV-1a
+  // accumulators over 16 MiB cost about 20 ms, once, while the ROM is being
+  // mapped and the player is already waiting.
+  //--------------------------------------------------------------------
+
+  function hex8(v) {
+    var s = (v >>> 0).toString(16);
+    while (s.length < 8) s = '0' + s;
+    return s;
+  }
+
+  // Header fields are fixed-width and space- or NUL-padded; anything that is
+  // not printable ASCII is not part of the name.
+  function ascii(bytes, from, to) {
+    var s = '';
+    for (var i = from; i < to && i < bytes.length; i++) {
+      var c = bytes[i];
+      if (c >= 0x20 && c < 0x7f) s += String.fromCharCode(c);
+    }
+    return s.replace(/\s+$/, '');
+  }
+
+  function identify(bytes) {
+    var a = 0x811c9dc5, b = 0x84222325;
+    for (var i = 0; i < bytes.length; i++) {
+      var v = bytes[i];
+      a = Math.imul(a ^ v, 16777619);
+      b = Math.imul(b ^ v, 2166136261);
+    }
+    var code = ascii(bytes, 0xAC, 0xB0) || '????';
+    return {
+      key:   code + '-' + (bytes.length > 0xBC ? bytes[0xBC] : 0) + '-' +
+             bytes.length.toString(16) + '-' + hex8(a) + hex8(b),
+      title: ascii(bytes, 0xA0, 0xAC),
+      code:  code
+    };
+  }
+
+  //--------------------------------------------------------------------
+  // The readout
+  //--------------------------------------------------------------------
+
+  function ago(t) {
+    var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 60)    return 'just now';
+    if (s < 3600)  return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + ' h ago';
+    return Math.round(s / 86400) + ' d ago';
+  }
+
+  function syncUi() {
+    exportBtn.disabled = !romKey;
+    deleteBtn.disabled = !stored;
+    infoEl.textContent =
+      !romKey ? 'no ROM loaded'
+      : broken  ? 'not kept — this browser has no storage for it'
+      : stopped ? 'deleted — nothing more is written until you reload'
+      : stored  ? 'kept in this browser' + (savedAt ? ' · ' + ago(savedAt) : '')
+      : 'nothing saved yet';
+  }
+
+  //--------------------------------------------------------------------
+  // Writing
+  //--------------------------------------------------------------------
+
+  function storeSave(bytes, checksum) {
+    return shell.idb.put(shell.idb.saveStore, romKey, {
+      bytes: bytes,
+      key:   romKey,
+      rom:   romLabel,
+      size:  bytes.length,
+      saved: Date.now()
+    }).then(function () {
+      stored   = true;
+      savedSum = checksum;
+      savedAt  = Date.now();
+      syncUi();
+      return true;
+    }, function (e) {
+      // Quota exhausted, private browsing, a database another tab is
+      // upgrading. The game is unaffected — the save is in memory, and the
+      // export button still produces a file — so this warns once and then
+      // stays out of the way.
+      if (!broken) {
+        broken = true;
+        log('your save cannot be kept in this browser (' + reason(e) + '). The game is ' +
+            'unaffected, but it will be lost when this tab closes — use "Export save…" ' +
+            'to keep a copy.', 'warn');
+      }
+      syncUi();
+      return false;
+    });
+  }
+
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = 0; }
+    if (!armed || stopped || !romKey) return;
+    // One transaction at a time. A second in-game save landing mid-write is
+    // remembered rather than dropped, and runs once this one has finished.
+    if (writing) { queued = true; return; }
+
+    var now = sum();
+    if (now === savedSum) return;      // nothing has changed since storage last agreed
+
+    var bytes = snapshot();
+    if (!bytes) return;
+
+    writing = true;
+    storeSave(bytes, now).then(function () {
+      writing = false;
+      if (queued) { queued = false; flush(); }
+    });
+  }
+
+  function schedule() {
+    if (!armed || stopped || timer) return;
+    timer = setTimeout(function () { timer = 0; flush(); }, WRITE_DELAY_MS);
+  }
+
+  //--------------------------------------------------------------------
+  // The two hooks platform/sram.c calls
+  //--------------------------------------------------------------------
+
+  // Called once, synchronously, from the first save-memory access the game
+  // makes. Everything about the restore has to happen inside this call: by
+  // the time it returns the game is already reading the bytes.
+  Module.portSramRestore = function (ptr, size) {
+    armed = true;
+    var applied = false;
+    var h = heap();
+
+    if (h && pending && pending.length) {
+      h.set(pending.subarray(0, Math.min(size, pending.length)), ptr);
+      applied = true;
+    }
+    pending = null;
+
+    // Whatever is in save memory now is exactly what storage holds — or, if
+    // there was nothing to restore, the zeroed region PortMemInit left. Either
+    // way it is the baseline every later comparison is made against, and
+    // taking it here is what stops an empty region being written over a
+    // perfectly good stored save.
+    savedSum = sum();
+    syncUi();
+    return applied;
+  };
+
+  Module.portSramDirty = function () { schedule(); };
+
+  //--------------------------------------------------------------------
+  // Backstops
+  //--------------------------------------------------------------------
+
+  setInterval(function () {
+    // `broken` is in here so a browser that cannot store anything does not
+    // checksum and copy 64 KiB every five seconds for the rest of the
+    // session, retrying a write that has already been reported as impossible.
+    // A real change still tries again: the dirty hook and pagehide both go
+    // straight to flush().
+    if (!armed || stopped || broken || timer || writing || document.hidden) return;
+    if (sum() === savedSum) return;
+    if (!scanNoted) {
+      scanNoted = true;
+      log('save memory changed without going through the SRAM library — ' +
+          'writing it out anyway.', 'warn');
+    }
+    flush();
+  }, SCAN_MS);
+
+  // A tab going away. `beforeunload` is deliberately not used: it is
+  // unreliable on iOS and never fires at all when the OS kills a backgrounded
+  // tab. These two only narrow the gap — the real defence is that the write
+  // above has already happened within WRITE_DELAY_MS of the change.
+  //
+  // Neither can wait for IndexedDB to finish, so a write started here may not
+  // land. That is the reason the debounce is short rather than clever.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) flush();
+  });
+  window.addEventListener('pagehide', function () { flush(); });
+
+  //--------------------------------------------------------------------
+  // The player's own copy
+  //--------------------------------------------------------------------
+
+  function download(bytes, filename) {
+    // A blob URL: created here, revoked here, never fetched from anywhere.
+    // Nothing on this page makes an external request and this is no exception.
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Revoking in the same turn cancels the download it just started on some
+    // browsers, so the URL is given time to be used.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 20000);
+  }
+
+  exportBtn.addEventListener('click', function () {
+    // Live memory once the game has touched save memory, because that is the
+    // truth; the stored record before then, because that is all there is.
+    var bytes = armed ? snapshot() : pending;
+    if (!bytes) {
+      log('there is no save to export yet — the game has not written one and ' +
+          'none is stored for this ROM.', 'warn');
+      return;
+    }
+    download(bytes, baseName + '.sav');
+    log('exported ' + bytes.length + ' bytes to ' + baseName + '.sav — a plain SRAM ' +
+        'image, the same format an emulator reads.', 'ok');
+  });
+
+  function applyImport(bytes, name) {
+    stopped = false;
+
+    if (armed && heap()) {
+      // The game is running and has read save memory at least once. Nothing
+      // caches the SRAM image, so overwriting it is safe — but the menus the
+      // game has already built from the old contents are not rebuilt until it
+      // goes back and reads again, so say what to do.
+      heap().set(bytes, SRAM_BASE);
+      log('save imported from ' + name + '. Reload the page — or return to the ' +
+          'file-select screen — for the game to read it.', 'ok');
+      // Through flush() rather than storing directly, so an in-flight write
+      // from a save the game made a moment ago cannot land on top of this one.
+      flush();
+    } else {
+      // Nothing is armed, so no flush can be racing us.
+      pending = bytes;
+      log('save imported from ' + name + ' — the game will read it when it starts.', 'ok');
+      storeSave(bytes, 0);
+    }
+  }
+
+  importEl.addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    e.target.value = '';                       // allow re-picking the same file
+    if (!file) return;
+    if (!romKey) {
+      log('load a ROM first: a save file belongs to a particular game, and ' +
+          'until there is one there is nothing to attach it to.', 'err');
+      return;
+    }
+
+    file.arrayBuffer().then(function (buf) {
+      var src = new Uint8Array(buf);
+      if (!src.length) { log(file.name + ' is empty.', 'err'); return; }
+      if (src.length > SRAM_SIZE) {
+        log(file.name + ' is ' + src.length + ' bytes; save memory is ' + SRAM_SIZE +
+            '. Using the first ' + SRAM_SIZE + ' bytes.', 'warn');
+      } else if (src.length < SRAM_SIZE) {
+        log(file.name + ' is ' + src.length + ' bytes, short of the ' + SRAM_SIZE +
+            '-byte save memory. Loading it and zeroing the rest.', 'warn');
+      }
+      // Always exactly the size of the region: a short file left partly
+      // unwritten would mix two saves together, which is worse than either.
+      var bytes = new Uint8Array(SRAM_SIZE);
+      bytes.set(src.subarray(0, Math.min(src.length, SRAM_SIZE)));
+      applyImport(bytes, file.name);
+    }, function (err) {
+      log('could not read ' + file.name + ': ' + reason(err), 'err');
+    });
+  });
+
+  deleteBtn.addEventListener('click', function () {
+    if (!romKey) return;
+    deleteBtn.disabled = true;
+    shell.idb.del(shell.idb.saveStore, romKey).then(function () {
+      stored  = false;
+      savedAt = 0;
+      // And stop writing. Deleting a file that the next in-game save would put
+      // straight back is not deleting it, and this matches what "Forget stored
+      // ROM" does: what you asked to be rid of stays gone until you come back.
+      stopped = true;
+      if (timer) { clearTimeout(timer); timer = 0; }
+      syncUi();
+      log('stored save deleted. Nothing more is written until you reload the page.', 'ok');
+    }, function (e) {
+      syncUi();
+      log('could not delete the stored save: ' + reason(e), 'err');
+    });
+  });
+
+  //--------------------------------------------------------------------
+  // Called by the ROM loader, once the bytes are mapped and before the game
+  // is let go. Resolves whatever happens.
+  //--------------------------------------------------------------------
+
+  shell.saveForRom = function (bytes, name) {
+    var id;
+    try {
+      id = identify(bytes);
+    } catch (e) {
+      log('could not identify this ROM (' + reason(e) + ') — saves will not be kept ' +
+          'for it.', 'warn');
+      return Promise.resolve();
+    }
+
+    romKey   = id.key;
+    romLabel = id.title ? id.title + ' [' + id.code + ']' : id.code;
+    baseName = ((name || '').split(/[\\/]/).pop().split(/[?#]/)[0] || 'katam')
+               .replace(/\.(gba|agb|bin)$/i, '') || 'katam';
+    syncUi();
+
+    return shell.idb.get(shell.idb.saveStore, romKey).then(function (rec) {
+      if (rec && rec.bytes && rec.bytes.length) {
+        pending = new Uint8Array(rec.bytes);
+        stored  = true;
+        savedAt = rec.saved || 0;
+        log('save found for this ROM (' + romLabel + ')' +
+            (savedAt ? ', last written ' + ago(savedAt) : '') +
+            ' — the game will see it.', 'ok');
+      } else {
+        stored = false;
+        log('no save stored for this ROM yet — one is kept as soon as the game writes it.');
+      }
+      syncUi();
+    }, function (e) {
+      // The ROM block reports its own storage failure; this one is about the
+      // save, and it is the more expensive of the two to be quiet about.
+      broken = true;
+      stored = false;
+      log('saves cannot be kept in this browser (' + reason(e) + ') — progress will last ' +
+          'only as long as this tab stays open. "Export save…" still gives you a file.', 'warn');
+      syncUi();
+    });
+  };
+
+  syncUi();
 })();
 </script>
 
