@@ -14,3 +14,6 @@ web/katam.wasm
 __pycache__/
 *.pyc
 .wrangler/
+
+# Subagent worktrees -- separate checkouts, not part of this tree.
+.claude/worktrees/
