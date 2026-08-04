@@ -69,14 +69,15 @@ void CpuSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
 
+    /* Like DMA, the BIOS aligns to the transfer width rather than faulting. */
     if (control & CPU_SET_32BIT) {
-        const u32 *s = (const u32 *)src;
-        u32 *d = (u32 *)dest;
+        const u32 *s = (const u32 *)((uintptr_t)src & ~(uintptr_t)3);
+        u32 *d = (u32 *)((uintptr_t)dest & ~(uintptr_t)3);
         for (i = 0; i < count; i++)
             d[i] = fixed ? *s : s[i];
     } else {
-        const u16 *s = (const u16 *)src;
-        u16 *d = (u16 *)dest;
+        const u16 *s = (const u16 *)((uintptr_t)src & ~(uintptr_t)1);
+        u16 *d = (u16 *)((uintptr_t)dest & ~(uintptr_t)1);
         for (i = 0; i < count; i++)
             d[i] = fixed ? *s : s[i];
     }
@@ -88,8 +89,8 @@ void CpuFastSet(const void *src, void *dest, u32 control)
      * of 8.  Callers rely on that rounding. */
     u32 count = ((control & 0x1FFFFF) + 7) & ~7u;
     int fixed = (control & CPU_FAST_SET_SRC_FIXED) != 0;
-    const u32 *s = (const u32 *)src;
-    u32 *d = (u32 *)dest;
+    const u32 *s = (const u32 *)((uintptr_t)src & ~(uintptr_t)3);
+    u32 *d = (u32 *)((uintptr_t)dest & ~(uintptr_t)3);
     u32 i;
 
     PortVBlankConsume(count * 4);

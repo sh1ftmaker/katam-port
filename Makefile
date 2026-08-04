@@ -61,7 +61,11 @@ WARN := -Wno-everything
 CFLAGS := -O2 -g0 -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
           $(WARN) $(DEFINES) $(INCLUDES) $(FORCE_INCLUDE) -MMD -MP
 
-LDFLAGS := -O2 \
+# --profiling-funcs keeps the wasm name section, so a trap on someone's phone
+# reports `sub_0805405C` instead of `wasm-function[731]`.  It costs a little
+# size and nothing in speed, which is a good trade while the port still
+# crashes.
+LDFLAGS := -O2 --profiling-funcs \
     -sASYNCIFY \
     -sASYNCIFY_STACK_SIZE=32768 \
     -sGLOBAL_BASE=$(GLOBAL_BASE) \
@@ -81,7 +85,7 @@ OBJS          := $(patsubst %.c,$(BUILD)/obj/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test prune dist deploy check-dist
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release
 
 all: $(TARGET)
 
@@ -132,7 +136,8 @@ compile: $(OBJS)
 
 $(TARGET): $(OBJS) web/shell.html
 	@mkdir -p $(OUT)
-	$(CC) $(LDFLAGS) $(OBJS) -o $@
+	@echo "  LINK    $@"
+	@$(CC) $(LDFLAGS) $(OBJS) -o $@
 
 # --- headless smoke test --------------------------------------------------
 # Boots the port under node with a real ROM and runs frames, so "does it get
@@ -148,6 +153,22 @@ $(BUILD)/katam-node.js: $(OBJS)
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
+
+# Same as the node build but with names and assertions, for reading a trap's
+# stack.  Uses $(OBJS) rather than a hand-written file list -- getting that
+# list stale is how you end up diagnosing a binary you did not build.
+$(BUILD)/katam-dbg.js: $(OBJS)
+	$(CC) -O0 -g2 -sASSERTIONS=1 -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
+	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded \
+	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
+	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
+	    -sINVOKE_RUN=1 $(OBJS) -o $@
+
+debug: $(BUILD)/katam-dbg.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	node tools/headless_test.js $(BUILD)/katam-dbg.js $(ROM) $(FRAMES)
 
 test: $(BUILD)/katam-node.js
 	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
@@ -187,6 +208,12 @@ check-dist:
 	    exit 1; \
 	fi; \
 	echo "  CHECK   $(DIST) carries no game data"
+
+# The whole chain: sync, rebuild, publish, and verify the live page.
+# scripts/release.sh also fixes up PATH, since make's shell cannot find the
+# nvm-installed node that wrangler needs.
+release:
+	@bash scripts/release.sh
 
 deploy: dist check-dist
 	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \

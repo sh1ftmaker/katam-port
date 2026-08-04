@@ -49,8 +49,13 @@ static void RunTransfer(struct DmaChannel *ch)
     u32 unit = (ch->flags & DMA_32BIT) ? 4 : 2;
     u32 destCtrl = DEST_CTRL(ch->flags);
     u32 srcCtrl = SRC_CTRL(ch->flags);
-    const u8 *src = ch->src;
-    u8 *dest = ch->dest;
+    /* The hardware ignores the low address bits for the transfer width -- a
+     * 32-bit DMA from 0x...2 reads from 0x...0.  The game relies on that: it
+     * passes addresses that are not unit-aligned and gets aligned transfers
+     * back.  Without this mask the port reads a window shifted by one or two
+     * bytes, which corrupts whatever it copies rather than failing. */
+    const u8 *src = (const u8 *)((uintptr_t)ch->src & ~(uintptr_t)(unit - 1));
+    u8 *dest = (u8 *)((uintptr_t)ch->dest & ~(uintptr_t)(unit - 1));
     u32 i;
 
     if (ch->count == 0)

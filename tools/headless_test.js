@@ -148,6 +148,36 @@ function finish() {
     process.exit(0);
 }
 
+// Post-mortem. A trap unwinds out through the Asyncify resume, so it arrives
+// here rather than at any call this script made. Dumping the task table at
+// that moment is usually more informative than the stack: the tasks carry the
+// function pointers the game is about to call, and a value in ROM range is
+// proof that something ARM-shaped leaked into one.
+process.on('uncaughtException', function (err) {
+    console.error('\nTRAP: ' + (err && err.message));
+    try {
+        const H = Module.HEAPU8;
+        const u16 = (a) => H[a] | (H[a + 1] << 8);
+        const u32 = (a) => (H[a] | (H[a+1] << 8) | (H[a+2] << 16) | (H[a+3] << 24)) >>> 0;
+        console.error('gNumTasks = %d   gCurTask = 0x%s',
+                      u32(0x03002E7C) | 0, u32(0x030035D0).toString(16));
+        console.error('task table at 0x030019F0 (index: main dtor priority flags):');
+        let shown = 0;
+        for (let i = 0; i < 0x80 && shown < 24; i++) {
+            const base = 0x030019F0 + i * 0x14;
+            const main = u32(base + 8), dtor = u32(base + 12);
+            const prio = u16(base + 16), flags = u16(base + 18);
+            if (!main && !dtor && !flags) continue;
+            const romish = (v) => (v >>> 24) === 0x08 ? '  <-- ROM ADDRESS' : '';
+            console.error('  %d: main=0x%s dtor=0x%s prio=%d flags=0x%s%s%s',
+                i, main.toString(16), dtor.toString(16), prio, flags.toString(16),
+                romish(main), romish(dtor));
+            shown++;
+        }
+    } catch (e) { console.error('(could not read the heap: ' + e.message + ')'); }
+    process.exit(1);
+});
+
 // A hard stop, in case the game never reaches a frame at all.
 setTimeout(() => {
     console.error('TIMEOUT: only %d frames in 60s', frames);

@@ -198,6 +198,95 @@
   #log .warn { color: var(--warn); }
   #log .ok   { color: var(--accent); }
 
+  /* Header strip for the log; travels with it, including into hiding. */
+  #logtools {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: -8px;       /* body's gap is sized for full rows, not this */
+    color: var(--dim);
+  }
+  #logtools button { padding: 2px 8px; font-size: 11px; }
+
+  /* ---- diagnostics readout ------------------------------------------- */
+
+  /* Lives over the picture rather than in the bar: in landscape with the pads
+     up the bar is pushed off-screen and the log is hidden outright, and this
+     is the one readout that has to survive every layout. */
+  #diag {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 7;                /* over the touch overlay */
+    display: none;
+    pointer-events: none;      /* never in the way of a thumb */
+    padding: 2px 5px;
+    background: rgba(16, 18, 22, .74);
+    border: 1px solid var(--edge);
+    border-radius: 3px;
+    color: var(--accent);
+    font-size: 10px;
+    line-height: 1.35;
+    white-space: pre;
+    font-variant-numeric: tabular-nums;
+  }
+  body.diag-on #diag { display: block; }
+
+  /* ---- crash panel ---------------------------------------------------- */
+
+  /* Its own element rather than a log line, because the log is the first
+     thing to disappear in landscape and this must never be the message the
+     player cannot see. */
+  #crash {
+    position: absolute;
+    inset: 0;
+    z-index: 8;                /* above the touch pads */
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    text-align: left;
+    background: rgba(20, 22, 26, .97);
+    border: 1px solid var(--err);
+  }
+  body.crashed #crash { display: flex; }
+
+  /* Dead pads over a dead emulator would only swallow taps meant for the
+     buttons in the panel. Both classes named so this outranks the rule that
+     shows them, which is further down the sheet. */
+  body.crashed.touch-on #touch { display: none; }
+
+  #crash h2 { margin: 0; font-size: 13px; color: var(--err); }
+  #crashmsg { color: var(--text); word-break: break-word; }
+  #crashreport {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    margin: 0;
+    padding: 6px 8px;
+    background: #101216;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    color: var(--dim);
+    font: 11px/1.45 var(--mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+    /* The copy buttons can be refused; selecting the text by hand is the
+       last resort and must stay possible even where the canvas is not. */
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  #crash .crashbtns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+  }
+  #crashnote { color: var(--dim); }
+
   /* ---- on-screen touch controls -------------------------------------- */
 
   /* The overlay is fixed and inert; only the pads inside it take pointer
@@ -366,6 +455,7 @@
       justify-content: space-between;
     }
     body.touch-on h1,
+    body.touch-on #logtools,
     body.touch-on #log { display: none; }
   }
 
@@ -413,6 +503,19 @@
       that address — it is not uploaded to, or routed through, this page.
     </p>
   </div>
+
+  <div id="diag" aria-hidden="true"></div>
+
+  <div id="crash" role="alertdialog" aria-labelledby="crashtitle" aria-hidden="true">
+    <h2 id="crashtitle">The emulator stopped.</h2>
+    <div id="crashmsg"></div>
+    <pre id="crashreport"></pre>
+    <div class="crashbtns">
+      <button id="crashcopy" type="button">Copy report</button>
+      <button id="crashreload" type="button">Reload</button>
+      <span id="crashnote">the report above includes the last lines of the log</span>
+    </div>
+  </div>
 </div>
 
 <div class="bar">
@@ -420,6 +523,7 @@
   <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
   <button id="romforget" type="button" disabled>Forget stored ROM</button>
   <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
+  <button id="diagtoggle" type="button" aria-pressed="false">Diagnostics: off</button>
   <button id="fullscreen" type="button">Fullscreen</button>
   <span class="urlbox">
     <input id="romurl" type="url" spellcheck="false" autocomplete="off"
@@ -437,6 +541,11 @@
   <div><b>L</b> &nbsp;<kbd>Q</kbd> &nbsp;&nbsp; <b>R</b> &nbsp;<kbd>E</kbd></div>
   <div><b>Start</b> &nbsp;<kbd>Enter</kbd></div>
   <div><b>Select</b> &nbsp;<kbd>Backspace</kbd> / <kbd>R-Shift</kbd></div>
+</div>
+
+<div id="logtools">
+  <span>log</span>
+  <button id="logcopy" type="button">Copy log</button>
 </div>
 
 <div id="log" aria-live="polite"></div>
@@ -475,8 +584,15 @@
 var Module = (function () {
 
   // ---- log pane -----------------------------------------------------
+  var LOG_KEEP = 400;
+
   var logEl = document.getElementById('log');
   var logLines = 0;
+
+  // The same lines as plain text. The crash report quotes the tail of this,
+  // which is where the C side's "no C body yet" notices are — i.e. the list
+  // of unimplemented functions that ran just before it fell over.
+  var logRing = [];
 
   function log(text, cls) {
     var line = document.createElement('div');
@@ -484,9 +600,18 @@ var Module = (function () {
     line.textContent = text;
     logEl.appendChild(line);
     // Keep the DOM bounded: the C side chatters about stubbed-out functions.
-    if (++logLines > 400) { logEl.removeChild(logEl.firstChild); logLines--; }
+    if (++logLines > LOG_KEEP) { logEl.removeChild(logEl.firstChild); logLines--; }
     logEl.scrollTop = logEl.scrollHeight;
+
+    logRing.push(text);
+    if (logRing.length > LOG_KEEP) logRing.shift();
   }
+
+  function logTail(n) {
+    return logRing.slice(Math.max(0, logRing.length - n));
+  }
+
+  function logText() { return logRing.join('\n'); }
 
   // ---- ROM handshake ------------------------------------------------
   // The C entry point does `await Module.portRomReady` before touching any
@@ -520,12 +645,32 @@ var Module = (function () {
   var fpsEl = document.getElementById('fps');
   var fpsCount = 0, fpsSince = 0;
 
+  // How far the game got. Written here, read by the diagnostics block below
+  // (the crash report and the on-screen readout both want them).
+  var stats = { frames: 0, fps: 0, t0: performance.now() };
+
+  // Filled in by the diagnostics block; anything fatal goes through it so the
+  // crash panel is the single place a failure surfaces.
+  var hooks = { onFatal: null };
+
   // Called from C once per rendered frame.
   //   ptr  – byte offset into the wasm heap of the RGBA8888 framebuffer
   //   w, h – always 240x160, but honour them anyway
   // The C layout (R,G,B,A in ascending memory order) is exactly ImageData's,
   // so this is a straight copy with no channel shuffling.
   function portPresent(ptr, w, h) {
+    // Wrapped so a fault in the blit is reported as *ours* rather than as a
+    // wasm trap. It is deliberately not rethrown: this frame is called from
+    // C, and unwinding back through the wasm stack would only replace one
+    // failure with a less legible one.
+    try {
+      present(ptr, w, h);
+    } catch (e) {
+      if (hooks.onFatal) hooks.onFatal(e, 'shell portPresent callback');
+    }
+  }
+
+  function present(ptr, w, h) {
     // Re-read HEAPU8 every call: a memory growth swaps the backing
     // ArrayBuffer and detaches any view we cached earlier.
     var src = Module.HEAPU8.subarray(ptr, ptr + w * h * 4);
@@ -541,10 +686,12 @@ var Module = (function () {
 
     // FPS, sampled over half-second windows.
     fpsCount++;
+    stats.frames++;
     var now = performance.now();
     if (!fpsSince) fpsSince = now;
     if (now - fpsSince >= 500) {
-      fpsEl.textContent = (fpsCount * 1000 / (now - fpsSince)).toFixed(1) + ' fps';
+      stats.fps = fpsCount * 1000 / (now - fpsSince);
+      fpsEl.textContent = stats.fps.toFixed(1) + ' fps';
       fpsCount = 0; fpsSince = now;
     }
   }
@@ -590,14 +737,362 @@ var Module = (function () {
       resolveRuntime();
     },
 
-    // Exposed for the ROM loader below (kept off the global scope).
+    // Exposed for the ROM loader and the diagnostics block below (kept off
+    // the global scope).
     _shell: {
       log: log,
+      logTail: logTail,
+      logText: logText,
+      stats: stats,
+      hooks: hooks,
       runtimeReady: runtimeReady,
       resolveRomReady: function () { resolveRomReady(); },
-      fitScreen: fitScreen
+      fitScreen: fitScreen,
+      // What was loaded, for the crash report. The bytes themselves and the
+      // address they came from are nobody else's business; the size and the
+      // bare filename are what actually identify a wrong dump.
+      rom: { name: '', size: 0 }
     }
   };
+})();
+</script>
+
+<script>
+//======================================================================
+// Crash reporting and diagnostics.
+//
+// Kept ahead of everything else that can fail, and ahead of the wasm
+// loader placeholder, so the handlers are already installed when it does.
+//
+// The port is unfinished and traps; the person hitting the trap is on a
+// phone with no devtools, so the failure has to explain itself on screen
+// and leave with them in one paste.
+//======================================================================
+(function () {
+  var shell = Module._shell;
+  var log   = shell.log;
+
+  var REPORT_LOG_LINES = 40;
+
+  var body        = document.body;
+  var crashEl     = document.getElementById('crash');
+  var crashMsgEl  = document.getElementById('crashmsg');
+  var reportEl    = document.getElementById('crashreport');
+  var copyBtn     = document.getElementById('crashcopy');
+  var reloadBtn   = document.getElementById('crashreload');
+  var logCopyBtn  = document.getElementById('logcopy');
+  var diagEl      = document.getElementById('diag');
+  var diagBtn     = document.getElementById('diagtoggle');
+
+  //====================================================================
+  // Reading the game's state out of the heap
+  //
+  // These are literal addresses rather than exported symbols on purpose:
+  // the port reserves the real GBA memory map inside wasm linear memory
+  // (the same reason the ROM is mapped at 0x08000000 below), so IWRAM
+  // globals sit exactly where the original build put them and there is
+  // nothing on the JS side to look them up by name.
+  //====================================================================
+
+  var IO_REGS = [
+    ['REG_DISPCNT',  0x04000000, 16],
+    ['REG_DISPSTAT', 0x04000004, 16],
+    ['REG_VCOUNT',   0x04000006, 16]
+  ];
+
+  var GAME_VARS = [
+    ['gMainFlags',    0x03002440, 32],
+    ['gFrameCount',   0x03002E64, 32],
+    ['gNumTasks',     0x03002E7C, 32],
+    ['gCurTask',      0x030035D0, 32],
+    ['gUnk_030035D4', 0x030035D4, 32]   // the VRAM-queue gate
+  ];
+
+  // Null whenever there is nothing safe to read: before the runtime is up,
+  // and after a memory growth has detached the view we were handed (a
+  // detached view reports zero length rather than throwing).
+  function heap() {
+    try {
+      var h = (typeof Module !== 'undefined') && Module.HEAPU8;
+      return (h && h.byteLength) ? h : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Little-endian, and null rather than an exception for anything out of
+  // range: a report that fails to build is worth nothing at all.
+  function readWord(h, addr, bits) {
+    try {
+      var n = bits / 8;
+      if (!h || addr < 0 || addr + n > h.length) return null;
+      var v = 0;
+      for (var i = n - 1; i >= 0; i--) v = (v * 256) + h[addr + i];
+      return v >>> 0;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function hex(v, digits) {
+    if (v === null) return '(unreadable)';
+    var s = (v >>> 0).toString(16).toUpperCase();
+    while (s.length < digits) s = '0' + s;
+    return '0x' + s;
+  }
+
+  function pad(s, n) {
+    s = String(s);
+    while (s.length < n) s += ' ';
+    return s;
+  }
+
+  //====================================================================
+  // The report
+  //====================================================================
+
+  function errName(err) {
+    if (err === null || err === undefined) return 'Error';
+    if (typeof err === 'string') return 'Error';
+    return String(err.name || (err.constructor && err.constructor.name) || 'Error');
+  }
+
+  function errMessage(err) {
+    if (err === null || err === undefined) return '(no error object was supplied)';
+    if (typeof err === 'string') return err;
+    if (err.message !== undefined && err.message !== null) return String(err.message);
+    try { return String(err); } catch (e) { return '(unprintable error object)'; }
+  }
+
+  function errStack(err) {
+    return (err && typeof err.stack === 'string' && err.stack) ? err.stack : '';
+  }
+
+  function section(title, rows, addrDigits) {
+    var out = ['', title + ':'];
+    var h = heap();
+    if (!h) {
+      out.push('  (wasm heap unavailable — the runtime never started, or its ' +
+               'memory has been detached)');
+      return out;
+    }
+    for (var i = 0; i < rows.length; i++) {
+      var name = rows[i][0], addr = rows[i][1], bits = rows[i][2];
+      out.push('  ' + pad(name, 14) + '[0x' + hex(addr, 8).slice(2) + '] = ' +
+               hex(readWord(h, addr, bits), bits / 4));
+    }
+    return out;
+  }
+
+  function buildReport(err, origin) {
+    var out = [];
+    var st  = shell.stats;
+    var h   = heap();
+
+    out.push('katam-port crash report');
+    out.push('=======================');
+    out.push(pad('crashed at:', 14) + new Date().toISOString());
+    out.push(pad('uptime:', 14) + ((performance.now() - st.t0) / 1000).toFixed(1) +
+             ' s since page load');
+    out.push(pad('origin:', 14) + origin);
+    out.push(pad('error:', 14) + errName(err) + ': ' + errMessage(err));
+    out.push(pad('frames drawn:', 14) + st.frames +
+             ' (last measured ' + st.fps.toFixed(1) + ' fps)');
+
+    out.push('');
+    out.push('stack:');
+    var stack = errStack(err);
+    if (!stack) {
+      out.push('  (none — the error carried no stack)');
+    } else {
+      var lines = stack.split('\n');
+      for (var i = 0; i < lines.length; i++) out.push('  ' + lines[i].replace(/\s+$/, ''));
+    }
+
+    out = out.concat(section('display registers', IO_REGS));
+    out = out.concat(section('game state', GAME_VARS));
+
+    out.push('');
+    out.push('environment:');
+    out.push('  ' + pad('user agent:', 14) + navigator.userAgent);
+    out.push('  ' + pad('viewport:', 14) + window.innerWidth + ' x ' + window.innerHeight +
+             ' css px @ dpr ' + (window.devicePixelRatio || 1));
+    out.push('  ' + pad('rom:', 14) + (shell.rom.size
+      ? shell.rom.name + ', ' + shell.rom.size + ' bytes'
+      : 'none mapped'));
+    out.push('  ' + pad('wasm heap:', 14) + (h ? h.length + ' bytes' : 'unavailable'));
+    out.push('  ' + pad('touch pads:', 14) + (body.className.indexOf('touch-on') >= 0 ? 'on' : 'off'));
+
+    out.push('');
+    var tail = shell.logTail(REPORT_LOG_LINES);
+    out.push('last ' + REPORT_LOG_LINES + ' log lines:');
+    if (!tail.length) {
+      out.push('  (nothing logged)');
+    } else {
+      for (var j = 0; j < tail.length; j++) out.push('  ' + tail[j]);
+    }
+
+    return out.join('\n') + '\n';
+  }
+
+  //====================================================================
+  // Copying
+  //====================================================================
+
+  // The async Clipboard API is missing or refused on plenty of mobile
+  // browsers (and on any non-secure origin), so every path falls back to a
+  // throwaway textarea and the deprecated execCommand, which still works
+  // while we are inside the click that asked for it.
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);    // iOS ignores select() by itself
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    return !!ok;
+  }
+
+  function copyText(text, done) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function ()  { done(true); },
+          function ()  { done(fallbackCopy(text)); });
+        return;
+      }
+    } catch (e) { /* fall through to the textarea */ }
+    done(fallbackCopy(text));
+  }
+
+  // Says so on the button itself: a phone user has nowhere else to look.
+  function copyOnto(btn, label, text) {
+    copyText(text, function (ok) {
+      btn.textContent = ok ? 'Copied' : 'Copy failed — select the text instead';
+      setTimeout(function () { btn.textContent = label; }, ok ? 1600 : 3200);
+    });
+  }
+
+  copyBtn.addEventListener('click', function () {
+    copyOnto(copyBtn, 'Copy report', reportEl.textContent);
+  });
+
+  reloadBtn.addEventListener('click', function () { location.reload(); });
+
+  logCopyBtn.addEventListener('click', function () {
+    copyOnto(logCopyBtn, 'Copy log', shell.logText());
+  });
+
+  //====================================================================
+  // The crash panel
+  //====================================================================
+
+  var crashed = false;
+
+  function crash(err, origin) {
+    // Only the first one is worth reading: a trap normally arrives several
+    // times over as the loop keeps being resumed, and the later ones say
+    // less than the first.
+    if (crashed) return;
+    crashed = true;
+
+    log('EMULATOR STOPPED — ' + errName(err) + ': ' + errMessage(err), 'err');
+
+    var report;
+    try {
+      report = buildReport(err, origin);
+    } catch (e) {
+      // Belt and braces: whatever else happens the tester gets something to
+      // send, even if it is only the error that defeated the reporter.
+      report = 'katam-port crash report\n\nthe report itself failed to build (' + e + ')\n\n' +
+               errName(err) + ': ' + errMessage(err) + '\n' + errStack(err) + '\n';
+    }
+
+    crashMsgEl.textContent = errName(err) + ': ' + errMessage(err);
+    reportEl.textContent = report;
+    crashEl.setAttribute('aria-hidden', 'false');
+    body.classList.add('crashed');
+    updateDiag();
+  }
+
+  // A wasm trap is not something the page can catch at a call site: the game
+  // loop runs in C and is resumed inside a requestAnimationFrame callback by
+  // Asyncify, so the RuntimeError unwinds out of that callback with no JS
+  // frame of ours on the stack and lands here as an uncaught error.
+  window.addEventListener('error', function (e) {
+    if (!e) return;
+    if (!e.error && !e.message) return;        // a failed image or script load
+    crash(e.error || (e.message + (e.filename ? ' (' + e.filename + ':' + e.lineno + ')' : '')),
+          'uncaught error');
+  });
+
+  // The same trap arrives this way instead whenever the resumption happened
+  // to be inside a promise chain.
+  window.addEventListener('unhandledrejection', function (e) {
+    crash(e && e.reason, 'unhandled promise rejection');
+  });
+
+  // Anything the shell itself throws, chiefly out of the blit callback.
+  shell.hooks.onFatal = crash;
+
+  //====================================================================
+  // The always-on readout
+  //
+  // For watching a session that has not fallen over yet: the values that
+  // move (or stop moving) just before it does.
+  //====================================================================
+
+  var LS_DIAG_KEY = 'katam.diagnostics';
+  var diagOn = false;
+  var diagTimer = 0;
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  function updateDiag() {
+    if (!diagOn) return;
+    var st = shell.stats;
+    var h  = heap();
+    var line1 = 'fps ' + st.fps.toFixed(1) + ' · frames ' + st.frames;
+    var line2 = h
+      ? 'gFrame ' + readWord(h, 0x03002E64, 32) +
+        ' · tasks ' + readWord(h, 0x03002E7C, 32) +
+        ' · gate ' + readWord(h, 0x030035D4, 32) +
+        ' · cur ' + hex(readWord(h, 0x030035D0, 32), 8)
+      : 'heap not ready';
+    diagEl.textContent = line1 + '\n' + line2 + (crashed ? '\nSTOPPED' : '');
+  }
+
+  function setDiag(on, remember) {
+    diagOn = !!on;
+    body.classList.toggle('diag-on', diagOn);
+    diagEl.setAttribute('aria-hidden', diagOn ? 'false' : 'true');
+    diagBtn.textContent = 'Diagnostics: ' + (diagOn ? 'on' : 'off');
+    diagBtn.setAttribute('aria-pressed', diagOn ? 'true' : 'false');
+    if (remember) lsSet(LS_DIAG_KEY, diagOn ? '1' : '0');
+
+    // Polled rather than driven from the blit, so it keeps reporting when the
+    // frames are the thing that stopped.
+    if (diagTimer) { clearInterval(diagTimer); diagTimer = 0; }
+    if (diagOn) { updateDiag(); diagTimer = setInterval(updateDiag, 500); }
+  }
+
+  diagBtn.addEventListener('click', function () { setDiag(!diagOn, true); });
+
+  // Off unless it was asked for: it is a debugging aid, not furniture.
+  setDiag(lsGet(LS_DIAG_KEY) === '1', false);
 })();
 </script>
 
@@ -659,6 +1154,11 @@ var Module = (function () {
       loadedName = name;
       loadedSize = bytes.length;
       infoEl.textContent = romInfoText();
+
+      // For the crash report. Basename only — which dump it is matters, where
+      // it came from does not.
+      shell.rom.name = name.split(/[\\/]/).pop().split(/[?#]/)[0];
+      shell.rom.size = bytes.length;
       hideCurtain();
       shell.fitScreen();
       log('ROM mapped at 0x' + ROM_BASE.toString(16) + '. Starting.', 'ok');
