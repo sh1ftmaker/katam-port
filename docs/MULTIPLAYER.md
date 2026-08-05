@@ -604,3 +604,106 @@ Beyond §5, which is the blocker:
    Keep the check honest as netplay is built: hash the desync word itself, not
    a proxy. `PORT_WINDOW=30068D8:4` watches `gRngVal` every frame, and the
    Kirby positions are at `0x02020EE0 + 424*i + 64` and `+68`.
+
+---
+
+## 8. Rollback: what it would cost, measured
+
+The lockstep in §1 is what a *cable* wants -- five frames of input delay and a
+hard stall when a peer is late. Over the internet a stall is a visible freeze,
+so the question is whether this port could predict inputs, run ahead, and
+re-simulate when the truth arrives. Two numbers decide it, and both are
+measured rather than estimated. Machine: x86-64, `build/lp64`, `--turbo`.
+
+### A snapshot is a memcpy
+
+Rollback needs to save and restore complete game state. In most emulators that
+is a bespoke serialiser; here it is six `memcpy`s, because the port reserves the
+GBA map at its true addresses and *all* console state lives in it:
+
+| region | size |
+|---|---|
+| EWRAM `0x02000000` | 256 KiB |
+| VRAM `0x06000000` | 96 KiB |
+| IWRAM `0x03000000` | 32 KiB |
+| IO / PLTT / OAM | 1 KiB each |
+| **total** | **387 KiB** |
+
+**save 5.0 µs, restore 4.7 µs.** A twelve-frame ring costs 4.5 MiB. The fixed
+memory map was chosen for [ARCHITECTURE.md](ARCHITECTURE.md)'s reasons and it
+happens to make state capture free.
+
+### Re-simulation is dominated by drawing, which rollback skips
+
+Marginal cost per frame, startup subtracted by differencing two run lengths:
+
+| | native x86-64 | wasm32 / node |
+|---|---|---|
+| compose + blit (what a player sees) | 0.945 ms | 2.30 ms |
+| blit only, no pixel composition | 0.253 ms | 1.21 ms |
+| **simulation only** | **0.0025 ms** | not separable here — see below |
+
+**Pixel composition is ~99.7 % of a native frame.** A re-simulated frame is
+never displayed, so it pays none of it. `PortSetRenderEnabled(0)` skips exactly
+the composition and nothing else — verified state-neutral: the DMA transfer
+stream over 900 frames is byte-identical with it on and off.
+
+So an eight-frame rollback natively costs `4.7 + 8 × 2.5 ≈ 25 µs`, which is
+**0.15 % of a 16.7 ms frame budget**. Sixty frames -- a full second of
+mispredicted input -- costs about 155 µs. The depth is not the constraint.
+
+### Two measurement traps, both fallen into
+
+- **Skipping the whole scanline loop is not "no rendering".** `PortRenderFrame`
+  drives VCOUNT, the DISPSTAT flags, the affine reference points, the HBlank
+  DMAs and the HBlank/VCOUNT interrupts; the game arms per-scanline effects
+  every frame and its own handlers run from in there. Skipping the loop looked
+  like an 86× speedup and was a different program — one distinct picture in
+  3600 frames, and new DMA transfers leaving the map. Only `RenderScanline` is
+  skippable.
+- **Skipping the blit breaks the node harness.** `Module.portPresent` is where
+  `tools/headless_test.js` counts frames, applies `MASH` and calls
+  `_PortSetKeys`. With no blit the game gets *no input at all*, so the run is
+  not the same workload — it reported 40 ms/frame, which was neither pacing nor
+  the port being slow. The blit is therefore left alone by
+  `PortSetRenderEnabled`; a caller that wants no output for a re-simulated
+  frame suppresses it on its own side, where it knows what the host is.
+
+The wasm row is bounded rather than measured for the same reason: 1.21 ms is
+composition-off *including* the blit, Asyncify's suspension and the harness's
+own bookkeeping, so simulation alone is some way below it. A browser rollback
+engine would drive re-simulation directly rather than through `portPresent`,
+and would need to, since Asyncify unwinds the stack at every `VBlankIntrWait`.
+
+### What is genuinely hard
+
+Not the snapshot and not the speed.
+
+1. **State outside the map.** Console state is all inside it; the *port's* is
+   not. `platform/dma.c`'s `sChannels[4]` holds armed VBlank and HBlank
+   transfers that persist across frames, `main.c` holds `sVBlankBudget` and
+   `sKeysDown`, and `platform/m4a_mixer.c` and `ppu.c` hold their own. A
+   snapshot has to include the ones that feed simulation. That is a bounded
+   audit — a few dozen statics — but it must be done deliberately, and
+   `tools/abi_size_diff.py`-style rigour is the right standard for it.
+2. **The execution point.** The game's loop never returns: it blocks in
+   `VBlankIntrWait` deep inside `GameLoop`. Restoring memory does not restore
+   the C stack. The workable shape is to snapshot and restore only at the frame
+   boundary, where the stack is the same by construction — but that has to be
+   established, not assumed, and anything live in a local across
+   `VBlankIntrWait` breaks it.
+3. **Host pointers in the map are fine, and only same-process.** `Object2::unk78`
+   and `struct Task::main` hold host function pointers. Within one process a
+   snapshot restores them correctly; between two clients or two builds they are
+   meaningless. Rollback is same-process, so this costs nothing — but it means
+   snapshots can never be shipped over the wire as a resync mechanism.
+4. **The game's own five-frame delay would stack on top.** Rollback wants the
+   transport to answer `exchange` immediately with a *predicted* input, so the
+   cable never stalls and the game never knows. That fits the existing seam
+   exactly — a rollback engine is a `PortMpTransport`. But `sub_08030D4C` still
+   lines everyone up on `current - 5`, so you would be adding prediction
+   underneath a delay that already exists. Removing it is a patch to game code,
+   and it is the one place this design would stop being "the game, unmodified".
+5. **Audio during catch-up.** Re-simulated frames must not re-emit samples.
+6. **§5 is still the blocker.** None of this is reachable until `MultiBootMain`
+   clocks the cable.

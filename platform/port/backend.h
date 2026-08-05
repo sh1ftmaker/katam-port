@@ -56,6 +56,11 @@ void PortConsole(const char *text, int isErr);
  * the wasm stack unwinds and resumes on the next frame.  Natively it is a
  * plain sleep to the GBA's 59.7275 Hz, which is also where SDL's event queue
  * is pumped and PortSetKeys is called. */
+/* Pixel composition, on or off.  State is unaffected -- see PortRenderFrame
+ * in platform/ppu.c.  For frames that will be re-simulated or discarded. */
+void PortSetRenderEnabled(int on);
+int  PortRenderEnabled(void);
+
 void PortBlitFramebuffer(const u32 *pixels, int w, int h);
 void PortAwaitAnimationFrame(void);
 

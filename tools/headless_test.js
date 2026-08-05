@@ -359,6 +359,11 @@ const Module = {
         // PORT_WINDOW=addr:len hashes one window on every frame, as an extra
         // [window] line -- for finding *when* a known address started to
         // differ without one run per candidate frame.
+        // PORT_NO_RENDER=1 skips pixel composition and the blit, leaving all
+        // per-scanline state alone.  For measuring how much of a frame is the
+        // picture -- which is what a rollback re-simulation gets to skip.
+        if (process.env.PORT_NO_RENDER && process.env.PORT_NO_RENDER !== '0')
+            Module._PortSetRenderEnabled(0);
         if (process.env.PORT_WINDOW) {
             const [wa, wl] = process.env.PORT_WINDOW.split(':');
             Module._PortSetStateWindow(parseInt(wa, 16), Number(wl));

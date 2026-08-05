@@ -610,13 +610,53 @@ static void PortStateTrace(void)
     frame++;
 }
 
+/* --- frames nobody will look at -------------------------------------------
+ *
+ * Drawing is the largest single cost in a frame and it produces a picture, not
+ * game state.  A frame that is going to be re-simulated -- rollback catching
+ * up after a late packet, a fast-forward, a determinism sweep -- does not need
+ * one, and the game cannot tell: nothing in the decompilation reads
+ * gPortFramebuffer back.
+ *
+ * PortSetRenderEnabled(0) skips the pixel composition inside the scanline
+ * loop and nothing else -- not the blit, and not the loop: VCOUNT, the
+ * DISPSTAT flags, the affine reference points, the HBlank DMAs and the
+ * HBlank/VCOUNT interrupts all still happen, because the game arms per-scanline
+ * effects every frame and its own handlers run from in there.  See the comment
+ * on PortRenderFrame in platform/ppu.c, and the measurement that says what
+ * skipping the whole loop costs.
+ *
+ * PORT_NO_RENDER=1 does the same from the environment, for measuring.
+ *
+ * Deliberately not a CLI flag: a run that draws nothing at all is only useful
+ * as a benchmark, and --frames already exists for that.  This is here for the
+ * caller who wants it off for eight frames and back on for the ninth. */
+static int sRender = -1;
+
+void PortSetRenderEnabled(int on)
+{
+    sRender = on ? 1 : 0;
+}
+
+int PortRenderEnabled(void)
+{
+    if (sRender < 0) {
+        const char *e = getenv("PORT_NO_RENDER");
+        sRender = !(e != NULL && *e != '\0' && *e != '0');
+    }
+    return sRender;
+}
+
 void PortPresentFrame(void)
 {
+    int render = PortRenderEnabled();
+
     PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
     /* Draw the visible frame from whatever the game last wrote. */
-    PortRenderFrame();
+    if (render)
+        PortRenderFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
      *
@@ -638,6 +678,15 @@ void PortPresentFrame(void)
      * immediately unless something has attached a transport. */
     PortMpFrame();
 
+    /* The blit happens either way.  It is a handoff to the host, not part of
+     * composing the picture, and on the web it is what drives the frame loop --
+     * the headless harness counts frames from it and node's own rAF shim is on
+     * the other side.  Skipping it there does not save time, it changes the
+     * pacing: measured, 1800 frames went from 4.1 s to 72 s, which is the
+     * harness falling back to a timer rather than the port going faster.
+     *
+     * A caller that genuinely wants no output for a re-simulated frame should
+     * suppress it on its own side, where it knows what the host is. */
     PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
     PortAwaitAnimationFrame();
 

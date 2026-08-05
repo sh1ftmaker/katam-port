@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/dma.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -624,8 +625,24 @@ static void RenderScanline(int line)
     ComposeScanline(line);
 }
 
+/* The scanline loop is two things and only one of them is a picture.
+ *
+ * VCOUNT, the DISPSTAT flags, the affine reference points, the HBlank DMAs and
+ * the HBlank/VCOUNT interrupts are *state*: the game arms per-scanline effects
+ * every frame and its own handlers run from in here.  RenderScanline is the
+ * only part that produces pixels, and nothing in the decompilation ever reads
+ * them back.
+ *
+ * So a frame that will not be looked at -- rollback re-simulating after a late
+ * packet, a fast-forward, a determinism sweep -- can skip RenderScanline and
+ * must keep the rest.  Skipping the whole loop instead is not an optimisation,
+ * it is a different program: measured, it drops the game to one distinct
+ * picture in 3600 frames and starts producing DMA transfers that leave the map.
+ * That was the first attempt at this and it looked like an 86x speedup.
+ */
 void PortRenderFrame(void)
 {
+    int render = PortRenderEnabled();
     int line;
 
     LatchAffineReferencePoints();
@@ -634,7 +651,8 @@ void PortRenderFrame(void)
         IO16(REG_OFFSET_VCOUNT) = line;
         IO16(REG_OFFSET_DISPSTAT) &= ~(DISPSTAT_VBLANK | DISPSTAT_HBLANK);
 
-        RenderScanline(line);
+        if (render)
+            RenderScanline(line);
         AdvanceAffineReferencePoints();
 
         /* HBlank: the per-scanline effects the game arms every frame. */
