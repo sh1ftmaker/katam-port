@@ -59,8 +59,36 @@ endif()
 # There is no run-time check that could catch this, so it is a build-time
 # error, and the fix is a toolchain file -- see cmake/toolchain-linux-i686.cmake
 # and docs/NATIVE.md.
+#
+# KATAM_ALLOW_LP64 turns the error into a warning, for measuring the 64-bit
+# conversion rather than for building anything.  It is not a step towards a
+# 64-bit build and it does not produce a working game: it produces a program
+# whose structures are the wrong shape, which is the thing the paragraph above
+# says has no symptom.  docs/SIXTYFOUR.md is what it is for.
 # ---------------------------------------------------------------------------
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+option(KATAM_ALLOW_LP64
+       "EXPERIMENT ONLY: configure with 8-byte pointers.  The game will be \
+wrong.  See docs/SIXTYFOUR.md." OFF)
+
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND KATAM_ALLOW_LP64)
+  message(WARNING
+    "================================================================\n"
+    "KATAM_ALLOW_LP64 is on and this toolchain has "
+    "${CMAKE_SIZEOF_VOID_P}-byte pointers.\n"
+    "\n"
+    "This is not a 64-bit build of the port.  148 of the game's 246\n"
+    "structures change size or move a member under LP64, including the\n"
+    "sound bank read out of the ROM and the Kirby array linker.ld placed\n"
+    "at a fixed address.  A binary produced this way boots, renders, and\n"
+    "is permanently and silently wrong.\n"
+    "\n"
+    "platform/gba_layout_check.c will refuse to compile and will name\n"
+    "every structure that moved.  That is the intended output.  To count\n"
+    "the *other* breakage instead, add -DKATAM_SKIP_LAYOUT_CHECK=ON.\n"
+    "\n"
+    "docs/SIXTYFOUR.md has the measurement this switch exists for.\n"
+    "================================================================")
+elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
   message(FATAL_ERROR
     "This toolchain has ${CMAKE_SIZEOF_VOID_P}-byte pointers; the port needs "
     "4.\n"
@@ -77,7 +105,11 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     "          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-armhf.cmake\n\n"
     "`make native` does the x86 case for you.  docs/NATIVE.md has the rest, "
     "including which arm64 kernels can run a 32-bit binary at all and what a "
-    "platform with no 32-bit userland would need.")
+    "platform with no 32-bit userland would need.\n\n"
+    "If you are measuring what a 64-bit port would cost rather than trying to "
+    "play the game, -DKATAM_ALLOW_LP64=ON turns this into a warning.  Read "
+    "docs/SIXTYFOUR.md first; the result is not a working build and is not "
+    "meant to be.")
 endif()
 
 set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/build/port-src")
@@ -197,6 +229,27 @@ file(GLOB_RECURSE GAME_SRCS     CONFIGURE_DEPENDS "${PORT_SRC}/src/*.c")
 file(GLOB         GEN_SRCS      CONFIGURE_DEPENDS "${GENERATED}/*.c")
 file(GLOB         PLATFORM_SRCS CONFIGURE_DEPENDS
                                 "${CMAKE_CURRENT_SOURCE_DIR}/platform/*.c")
+
+# platform/gba_layout_check.c is 2000-odd _Static_asserts over the size and
+# every member offset of every structure the decompilation defines, generated
+# from the ILP32 build by tools/gen_gba_layout.py.  It is picked up by the glob
+# above and by the Makefile's, so all four builds check the same table without
+# anything being wired up per platform.
+#
+# The only reason to drop it is the LP64 measurement: with the assertions in,
+# the build stops at the first structure that moved, and the point of that
+# experiment is to count everything *else* that breaks.  This is not a way to
+# make a 64-bit build work.
+option(KATAM_SKIP_LAYOUT_CHECK
+       "EXPERIMENT ONLY: do not compile the GBA layout assertions." OFF)
+if(KATAM_SKIP_LAYOUT_CHECK)
+  list(REMOVE_ITEM PLATFORM_SRCS
+       "${CMAKE_CURRENT_SOURCE_DIR}/platform/gba_layout_check.c")
+  message(WARNING
+    "KATAM_SKIP_LAYOUT_CHECK is on: the GBA struct layout is not being "
+    "checked.  Nothing else in this build will notice a structure that "
+    "changed shape.")
+endif()
 
 # The host layer.  platform/web/*.c is emscripten's and is not built here.
 set(NATIVE_SRCS

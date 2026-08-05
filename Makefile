@@ -3,6 +3,8 @@
 #   make            build web/katam.html + katam.js + katam.wasm
 #   make sync       re-copy and re-codemod the decomp sources (do this after
 #                   pulling new decompilation work)
+#   make layout     re-measure the committed GBA struct layout table, after the
+#                   decompilation has changed a structure on purpose
 #   make serve      build and serve on http://localhost:8000
 #   make clean
 #
@@ -143,7 +145,8 @@ TARGET := $(OUT)/katam.html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
         native native-run native-test native-clean \
-        windows windows-package windows-clean
+        windows windows-package windows-clean \
+        layout layout-check
 
 all: $(TARGET)
 
@@ -165,6 +168,46 @@ sync:
 	    --out-tables $(GENERATED)/rom_fn_tables.c \
 	    --map $(KATAM_DECOMP)/katam.map --elf $(KATAM_DECOMP)/katam.elf \
 	    --rom $(ROM)
+
+# --- the GBA struct layout table ------------------------------------------
+# platform/port/gba_layout.h is committed: the size and every member offset of
+# every structure the decompilation defines, measured from the ILP32 build and
+# turned into _Static_asserts that every build compiles
+# (platform/gba_layout_check.c).  A host whose ABI moves a member fails to
+# compile and says which one, instead of booting and being quietly wrong.
+#
+# `make layout` re-measures and rewrites the table.  Run it when the
+# decompilation changes a structure on purpose, read the diff, and commit it --
+# the numbers are the layout the ROM and linker.ld are written against, so a
+# change here is a change to the memory the game reads.
+#
+# It has to be measured from a 32-bit compiler; there is no useful default on
+# an x86-64 machine, so LAYOUT_CC/LAYOUT_ABI are what to override.  The 32-bit
+# libc headers come from KATAM_SYSROOT32 if the machine has no gcc-multilib
+# (see "Building without root" in docs/NATIVE.md).
+LAYOUT_CC  ?= $(CC32)
+CC32       ?= gcc
+LAYOUT_ABI ?= -m32
+LAYOUT_HDR := platform/port/gba_layout.h
+ifneq ($(KATAM_SYSROOT32),)
+LAYOUT_SYSROOT := -isystem $(KATAM_SYSROOT32)/usr/include \
+                  -isystem /usr/include/x86_64-linux-gnu
+endif
+LAYOUT_CFLAGS := $(LAYOUT_ABI) -std=gnu99 -fgnu89-inline -fno-strict-aliasing \
+                 -fwrapv -funsigned-char -w $(DEFINES) $(INCLUDES) \
+                 $(FORCE_INCLUDE) $(LAYOUT_SYSROOT)
+
+layout:
+	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
+	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)"
+
+# Fails if the committed table no longer describes the tree.  The build already
+# fails on a *changed* number, because the assertions are compiled; this catches
+# the other direction -- a structure that stopped being declared anywhere and
+# quietly dropped out of the table, taking its assertions with it.
+layout-check:
+	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
+	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)" --check
 
 # The functions that are still ARM-only turn up as undefined symbols at link
 # time.  The list is re-derived from a real link rather than maintained by

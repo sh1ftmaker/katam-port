@@ -28,16 +28,19 @@ file picker it offers when started with no argument.
 This is the second decision the port rests on, after the memory map, and it
 decides which platforms are reachable at all.
 
-The game is a 32-bit ARM program and the decompilation is its source. **111 of
-its structures have a pointer member**, and those structures are not private to
-the C code — they are read out of the ROM, and they are placed at addresses
-`linker.ld` chose:
+The game is a 32-bit ARM program and the decompilation is its source. Its
+headers define 246 named structures and unions, and **148 of them change size
+or move a member under LP64** — measured, not estimated; see
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) for how. Those structures are not private to
+the C code: they are read out of the ROM, and they are placed at addresses
+`linker.ld` chose.
 
 ```
                      GBA / wasm32        x86-64
 struct ToneData         12 bytes          24 bytes     read from the ROM
   ->wav at offset        4                 8           every instrument, wrong
-struct Kirby's head     12 bytes          16 bytes     array at 0x00020EE0
+struct Task             20 bytes          32 bytes     128 of them at 0x030019F0
+struct Kirby           424 bytes         464 bytes     array at 0x02020EE0
 ```
 
 `struct ToneData` is the sound bank: built 64-bit, every instrument in the game
@@ -52,6 +55,16 @@ The web build gets ILP32 free, because wasm32 is ILP32. A native build has to
 ask for it. `CMakeLists.txt` refuses to configure with 8-byte pointers, because
 there is no run-time symptom that would point back here: the game would boot,
 render, and be subtly and permanently wrong.
+
+That guard is coarse — it can say the ABI is wrong and nothing about what it
+would break, and it cannot see a structure that changed shape for some other
+reason. `platform/port/gba_layout.h` is the fine-grained half: the size and
+every member offset of all 246 types, committed, and compiled as
+`_Static_assert`s by every one of the four builds
+(`platform/gba_layout_check.c`). A host whose ABI moves a member fails to
+compile and names it. Regenerate with `make layout` when the decompilation
+changes a structure on purpose, read the diff, and commit it; `make
+layout-check` says whether the table still describes the tree.
 
 On 64-bit x86 that means `-m32` and a 32-bit SDL:
 
@@ -632,13 +645,20 @@ through, and it is how this was built and tested — see
   time, and the port would not survive being wrong about it for one frame.
 
 - **`-mfloat-abi=hard` is what an `arm-linux-gnueabihf` compiler emits and
-  there is nothing to choose.** `platform/m4a_mixer.c` is scalar `float` and
-  `double`, and VFP computes both at their declared precision — which is
-  actually closer to wasm than the i686 build is, since `-m32` on x86 still
-  defaults to x87 and its 80-bit intermediates. No audio difference has been
-  measured between any two of the three; this is noted because it is the kind
-  of thing that would show up as a one-LSB difference in a mixer and nowhere
-  else.
+  there is nothing to choose.** This was written down as a risk — VFP computes
+  at the declared precision while `-m32` on x86 defaults to x87 and its 80-bit
+  intermediates — on the assumption that `platform/m4a_mixer.c` was scalar
+  `float` and `double`. It is not: the mixer contains no floating point at all
+  and neither does `trig.c`, and the i686 objects for both have no x87
+  instruction in them.
+
+  The port's only floating point on a game-visible path is `ArcTan2`,
+  `ObjAffineSet` and `BgAffineSet` in `platform/bios.c`, which feed the affine
+  registers. Those have now been measured across i686 with x87, i686 with SSE,
+  x86-64, armhf and wasm32: **all five agree**, bit for bit, over a large fixed
+  input set. emscripten's `cos` and `sin` differ from glibc's in their last
+  bits, and the difference does not survive the truncation to `s16`.
+  [docs/SIXTYFOUR.md](SIXTYFOUR.md) has the table.
 
 #### Which ARM
 
@@ -665,9 +685,10 @@ the software PPU suggests not.
 ### arm64 — it runs the armhf build, with one sharp edge
 
 There is no arm64 build and there will not be one until the port is 64-bit
-clean, which is the project described under [macOS](#macos) below and is not
-small. `-mabi=ilp32` exists on arm64 and no distribution ships a userland for
-it.
+clean. That project has now been measured rather than guessed at —
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) has the counts, the failure it produces, and
+an estimate of 4–6 weeks. `-mabi=ilp32` exists on arm64 and no distribution
+ships a userland for it.
 
 What does work is running the **armhf** build under the arm64 kernel's 32-bit
 support, and on most 64-bit ARM Linux that works out of the box:
@@ -711,13 +732,29 @@ had one. There is no flag, and unlike arm64 there is no 32-bit compatibility
 mode to fall back to.
 
 So macOS needs the port to become 64-bit clean first, and that is a real
-project rather than a platform port. What it involves: every pointer member of
-a game structure becomes a 32-bit handle (there are 111 structures), and every
-host pointer that the game stores in GBA memory — `gIntrTable`, `struct Task`'s
-`main` and `dtor`, `SoundInfo`'s `CgbSound`, and the ROM function tables
-`gen_rom_data.py` rebuilds — has to fit in 32 bits, which means linking the
-executable's code below 4 GiB (`-image_base`, with `-pagezero_size` shrunk).
-It is doable and it is not small. Do not start it by accident.
+project rather than a platform port. It has been measured, and
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) is the whole of it. The short version:
+
+- **148 of the 246 structures** change size or move a member under LP64, and
+  the constrained set cannot be narrowed by analysis — the game's own allocator
+  hands out `void *` and the type appears a line later, so the safe answer is
+  all of them.
+- Every pointer member becomes a 32-bit handle, and every host pointer the game
+  stores in GBA memory — `gIntrTable`, `struct Task`'s `main` and `dtor`,
+  `SoundInfo`'s `CgbSound`, the ROM function tables `gen_rom_data.py` rebuilds
+  and the 219 function pointers it patches into ROM structures — has to fit in
+  32 bits, which means linking the executable's code below 4 GiB (`-image_base`,
+  with `-pagezero_size` shrunk).
+- The rewrite is not textual: 65 of the 169 pointer-member names are also the
+  names of non-pointer members elsewhere, so `tools/portify.py` cannot drive it
+  and a type-aware pass is needed.
+- Estimate: **4–6 weeks** for someone who knows this codebase.
+
+An LP64 build can be configured today with `-DKATAM_ALLOW_LP64=ON`, which is an
+experiment switch and not a step towards a working build. Without the layout
+assertions it compiles and links with **no errors and no warnings at all**, and
+then dies four calls into `AgbMain` on a jump table that ran over its
+neighbour. Do not start this by accident.
 
 If macOS is attempted anyway, the `__PAGEZERO` part is already handled:
 `CMakeLists.txt` passes `-Wl,-pagezero_size,0x1000`, because the default 4 GiB

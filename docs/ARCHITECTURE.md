@@ -164,7 +164,12 @@ and an earlier version of this script cheerfully stubbed half the game.
 
 - **Struct layout.** agbcc pads a 2-byte union to 4. Where the game reads ROM
   bytes through a struct, a layout difference is silent and produces garbage
-  rather than a crash.
+  rather than a crash. `platform/port/gba_layout.h` is the answer to this: the
+  size and every member offset of all 246 types the decompilation defines,
+  committed and asserted at compile time in every build. A layout that moves is
+  now a compile error naming the structure and the member, not a silent
+  corruption. `make layout` regenerates it; [docs/SIXTYFOUR.md](SIXTYFOUR.md)
+  says what it is for and what it still cannot see.
 - **Function pointers inside ROM structs.** The table rebuild above handles
   arrays the headers declare. A function pointer stored in a struct that is read
   from ROM has no declaration to key off, and will trap the same way.
