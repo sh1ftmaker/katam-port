@@ -518,3 +518,76 @@ that against the fact that UBSan already runs today and finds this class of bug.
 
 5. **Consider shipping `-gseparate-dwarf`** on the deployed page. 100 KB buys
    the ability to read the tester's crash reports.
+
+
+---
+
+## 7. Comparing one build of the port against another
+
+Added for the 64-bit work, and the only instrument that could answer the
+question it was built for.
+
+`PORT_STATE_TRACE=1` makes the port emit one line per frame holding the input
+and an FNV-1a hash of each region of the emulated console:
+
+    [trace] f=185 keys=011 ewram=E43334E7 iwram=... vram=D502AEBB pltt=... oam=... io=...
+
+The point is that this port can be diffed against itself across ABIs, which an
+emulator comparison cannot: **every build reserves the GBA map at the same true
+addresses**, so EWRAM at 0x02000000 in the wasm build and EWRAM at 0x02000000
+in the aarch64 build hold the same bytes for the same reasons. Run two builds
+with the same input, diff the logs, and the first differing line is the frame
+they stopped agreeing — and its columns say whether the *input* diverged (a
+harness difference) or the *state* did, and which region.
+
+Comparing screenshots cannot do this. It says the pictures differ, which is
+where a divergence ended up rather than where it began, and it cannot tell
+"the two harnesses pressed different buttons" from "the two builds computed
+different things". That distinction was exactly what was missing when the
+64-bit play path could not be attributed.
+
+`PORT_STATE_DETAIL=<frame>` adds one line per 1 KiB block of EWRAM at that
+frame, which turns "EWRAM differs" into an address, and an address into a
+symbol via `katam.map`. That is how the divergence below was pinned to
+`gMPlayTrack_0` in two steps.
+
+### Two regions are not comparable, by design
+
+- **`io`** holds the DMA register mirrors, and `platform/dma.c` writes the
+  transfer's *host* source address into them. `DMA_FILL` passes `&tmp`, a stack
+  address, so this region differs between two runs of the same binary — stack
+  ASLR moves it. Nothing reads the mirrors back, so it is harmless, but it is
+  also the one place an LP64 truncation is still live.
+- **`iwram`** holds `gIntrTable`, whose entries are host function addresses: a
+  wasm table index in one build and a code address in another.
+
+Both are worth hashing anyway — knowing *which* region moved is the diagnosis —
+but a difference in either is expected across builds and means nothing.
+
+### What it found
+
+Comparing wasm32 (ILP32) against x86-64 (LP64), same input, over 1400 frames:
+
+| region | first divergence |
+|---|---|
+| ewram | frame 185 |
+| vram | frame 407 |
+| pltt, oam | frame 410 |
+
+`PORT_STATE_DETAIL` put the frame-185 difference in one 1 KiB block, which
+`katam.map` names `gMPlayTrack_0` — the sound engine's track array. So the
+divergence begins in sound state and reaches the picture 222 frames later.
+
+It is **not** an ABI difference, and the instrument shows why: within a single
+binary, turning audio off alone moves EWRAM at frame 63. The music player's
+state is a function of how the host drives the mixer, and the web and SDL hosts
+drive it differently. Both builds are otherwise deterministic — two runs of the
+native build agree in every game region across 1400 frames.
+
+**What would settle it completely** is an ILP32 *native* build: same host layer,
+same audio driver, only the ABI different. That control does not exist on this
+machine. A 32-bit toolchain is easy (the multilib packages unpack like any
+other sysroot — see NATIVE.md), but SDL2 has to be built from source for i686
+and its CMake thread detection does not survive a hand-assembled 32-bit
+sysroot. Until that exists, the attribution above rests on the audio-on/off
+experiment rather than on a direct comparison.

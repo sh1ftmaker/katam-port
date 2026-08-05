@@ -330,8 +330,105 @@ void PortDispatchInterrupt(u32 flag)
 
 /* --- frame boundary ------------------------------------------------------ */
 
+/* --- cross-build state tracing --------------------------------------------
+ *
+ * One line per frame: the input, and a hash of each region of the emulated
+ * console.  Set PORT_STATE_TRACE=1 to turn it on; it costs nothing when off.
+ *
+ * The point is comparing two *builds* of the port against each other, which
+ * this port can do and an emulator comparison normally cannot: every build
+ * reserves the GBA map at the same true addresses, so EWRAM at 0x02000000 in
+ * the wasm build and EWRAM at 0x02000000 in the aarch64 build hold the same
+ * bytes for the same reason.  Hash them per frame, diff the two logs, and the
+ * first differing line is the frame the two builds stopped agreeing -- and its
+ * columns say whether the input diverged (a harness difference) or the state
+ * did (a port bug), and which region.
+ *
+ * Comparing final screenshots cannot do this.  It says the pictures differ,
+ * which is where the divergence *ended up* rather than where it began, and it
+ * cannot distinguish "the two harnesses pressed different buttons" from "the
+ * two builds computed different things".  That distinction is exactly what was
+ * missing when the 64-bit play path could not be attributed.
+ *
+ * FNV-1a, chosen because it is eight lines and needs no library: the hash only
+ * has to be identical across builds, not strong.
+ */
+static u32 TraceHash(const void *base, u32 len)
+{
+    const u8 *p = (const u8 *)base;
+    u32 h = 2166136261u;
+    u32 i;
+
+    for (i = 0; i < len; i++) {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int sStateTrace = -1;
+static long sStateDetailFrame = -1;
+
+/* The web build cannot read the environment: the Makefile links it
+ * -sENVIRONMENT=web, so emscripten's getenv never sees node's process.env and
+ * the trace stayed silent there while working natively.  An explicit entry
+ * point costs one export and works on every host. */
+void PortSetStateTrace(int on)
+{
+    sStateTrace = on ? 1 : 0;
+}
+
+void PortSetStateDetailFrame(long frame)
+{
+    sStateDetailFrame = frame;
+}
+
+static void PortStateTrace(void)
+{
+    static u32 frame;
+    int enabled = sStateTrace;
+
+    if (enabled < 0) {
+        const char *e = getenv("PORT_STATE_TRACE");
+        enabled = (e != NULL && *e != '\0' && *e != '0');
+        sStateTrace = enabled;
+        if (sStateDetailFrame < 0) {
+            const char *d = getenv("PORT_STATE_DETAIL");
+            if (d != NULL && *d != '\0')
+                sStateDetailFrame = strtol(d, NULL, 0);
+        }
+    }
+    if (!enabled)
+        return;
+
+    /* Level 2 breaks EWRAM into 1 KiB blocks at one chosen frame.  The
+     * whole-region hash says *that* two builds diverged; this says *where*,
+     * which is the difference between a fact and a lead.  256 lines, once. */
+    if (sStateDetailFrame >= 0 && frame == (u32)sStateDetailFrame) {
+        u32 b;
+
+        for (b = 0; b < GBA_EWRAM_SIZE / 1024u; b++)
+            PortLog("[trace-ewram] f=%u block=%u addr=0x%08X hash=%08X",
+                    frame, b, GBA_EWRAM_BASE + b * 1024u,
+                    TraceHash((const void *)(uintptr_t)(GBA_EWRAM_BASE + b * 1024u),
+                              1024u));
+    }
+
+    PortLog("[trace] f=%u keys=%03X ewram=%08X iwram=%08X vram=%08X "
+            "pltt=%08X oam=%08X io=%08X",
+            frame, sKeysDown,
+            TraceHash((const void *)(uintptr_t)GBA_EWRAM_BASE, GBA_EWRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_IWRAM_BASE, GBA_IWRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_VRAM_BASE,  GBA_VRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_PLTT_BASE,  GBA_PLTT_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_OAM_BASE,   GBA_OAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_IO_BASE,    0x400u));
+    frame++;
+}
+
 void PortPresentFrame(void)
 {
+    PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
     /* Draw the visible frame from whatever the game last wrote. */

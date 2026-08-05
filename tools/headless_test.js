@@ -338,6 +338,16 @@ const Module = {
             process.exit(1);
         }
         Module.HEAPU8.set(rom, base);
+        // PORT_STATE_TRACE=1 makes the port emit one line per frame holding
+        // the input and a hash of each region of the emulated console, for
+        // diffing one build of the port against another.  It has to be turned
+        // on through an export rather than the environment: this module is
+        // linked -sENVIRONMENT=web, so emscripten's getenv cannot see
+        // process.env.
+        if (process.env.PORT_STATE_TRACE)
+            Module._PortSetStateTrace(1);
+        if (process.env.PORT_STATE_DETAIL)
+            Module._PortSetStateDetailFrame(Number(process.env.PORT_STATE_DETAIL));
         Module._PortRomLoaded(rom.length);
         resolveRom();
     },
