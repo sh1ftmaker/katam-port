@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,10 +29,24 @@
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call
  * PortMissingFunction -- neither file includes the port headers, and an
- * implicit declaration would give those calls the wrong wasm signature. */
+ * implicit declaration would give those calls the wrong wasm signature.
+ *
+ * "Wrong signature" is not a warning here, it is a trap.  An implicit
+ * declaration is `int f()`, wasm-ld sees a call typed (...)->i32 against a
+ * definition typed (...)->void, and rather than fail it emits a stub whose
+ * entire body is `unreachable` and points the call at that.  The build
+ * succeeds with one warning; the program dies the first time the call runs.
+ * That is what happened to PortTrace below -- see the note in
+ * tools/portify.py:trace_star_states.  Anything portify.py injects into the
+ * game's own sources belongs in this list.
+ *
+ * uint32_t rather than u32: this header is parsed before gba/types.h, and it
+ * is the same type (types.h does `typedef uint32_t u32`), so the declaration
+ * here and the one in port/port.h agree. */
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortHalt(void);
+void PortTrace(const char *tag, uint32_t a, uint32_t b, uint32_t c);
 
 /* Defined by the game in src/main.c; the port calls it to start. */
 void AgbMain(void);

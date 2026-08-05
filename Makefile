@@ -79,7 +79,17 @@ INCLUDES := -I$(PORT_SRC)/include -I$(GENERATED) -Iplatform
 # own headers, so they have to be in scope before anything else is parsed.
 FORCE_INCLUDE := -include port/prelude.h -include port/ram_symbols.h -include port/rom_data.h
 
-WARN := -Wno-everything
+# -Wno-everything is right for the decompilation itself: it is machine-shaped C
+# that warns about everything and means none of it.  The one warning that has
+# to survive is an implicit declaration.  On ARM a call to an undeclared
+# function is a call; in WebAssembly the implicit `int f()` gives it a
+# different *type* from the definition, wasm-ld resolves the disagreement by
+# pointing the call at a stub whose whole body is `unreachable`, and the
+# program traps the first time it runs that line.  The port shipped exactly
+# that once (a PortTrace call with no prototype in warp_star.c, which killed
+# the game the moment a warp star ticked), so it is an error here, not a
+# warning.  It has to come after -Wno-everything to survive it.
+WARN := -Wno-everything -Werror=implicit-function-declaration
 
 # -fgnu89-inline matters more than it looks.  The decomp is compiled by agbcc
 # (gcc 2.95), where a plain `inline` definition also emits an external one.
@@ -92,7 +102,15 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # reports `sub_0805405C` instead of `wasm-function[731]`.  It costs a little
 # size and nothing in speed, which is a good trade while the port still
 # crashes.
-LDFLAGS := -O2 --profiling-funcs \
+#
+# --fatal-warnings is the second half of -Werror=implicit-function-declaration
+# above.  wasm-ld has exactly one warning that matters and it is not survivable:
+# a call whose type disagrees with the definition cannot be emitted, so it emits
+# a stub whose body is `unreachable` and links anyway.  That shipped once.  The
+# compile flag catches the implicit-declaration route in; this catches a wrong
+# prototype written out in full, which the compiler cannot see across files.
+LDLINT := -Wl,--fatal-warnings
+LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
     -sASYNCIFY_STACK_SIZE=32768 \
     -sGLOBAL_BASE=$(GLOBAL_BASE) \
@@ -132,7 +150,8 @@ sync:
 	    --tree $(PORT_SRC) --out $(GENERATED)/port/rom_data.h \
 	    --out-copies $(GENERATED)/rom_copies.c \
 	    --out-tables $(GENERATED)/rom_fn_tables.c \
-	    --map $(KATAM_DECOMP)/katam.map --rom $(ROM)
+	    --map $(KATAM_DECOMP)/katam.map --elf $(KATAM_DECOMP)/katam.elf \
+	    --rom $(ROM)
 
 # The functions that are still ARM-only turn up as undefined symbols at link
 # time.  The list is re-derived from a real link rather than maintained by
@@ -178,7 +197,7 @@ ROM ?= $(KATAM_DECOMP)/baserom.gba
 # resolve_fnptr.py has nothing to resolve it to -- the harness's whole reason
 # for existing is to name the thing that broke.
 $(BUILD)/katam-node.js: $(OBJS)
-	$(CC) -O2 --profiling-funcs -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
 	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone \
@@ -195,7 +214,7 @@ $(BUILD)/katam-node.js: $(OBJS)
 # which llvm-symbolizer reads directly.  -O1 rather than -O0: -O0 is slow
 # enough to change what the game does, and line info survives -O1 well.
 $(BUILD)/katam-dbg.js: $(OBJS)
-	$(CC) -O1 -g --profiling-funcs \
+	$(CC) -O1 -g --profiling-funcs $(LDLINT) \
 	    -gseparate-dwarf=$(BUILD)/katam-dbg.debug.wasm \
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
@@ -214,7 +233,7 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 # no address at all, and -O0 -sASSERTIONS only reports that something near zero
 # was clobbered.  Keep the names, or the report has no function to blame.
 $(BUILD)/katam-safe.js: $(OBJS)
-	$(CC) -O1 --profiling-funcs -sSAFE_HEAP=1 -sASSERTIONS=1 \
+	$(CC) -O1 --profiling-funcs $(LDLINT) -sSAFE_HEAP=1 -sASSERTIONS=1 \
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
