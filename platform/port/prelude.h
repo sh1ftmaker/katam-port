@@ -34,6 +34,11 @@
 #include <intrin.h>
 #endif
 
+/* The 64-bit builds compile the game as C++, so that a GBA structure's pointer
+ * members can stay four bytes wide -- see docs/SIXTYFOUR.md.  This is a no-op
+ * for the C builds and must stay one. */
+#include "port/cxx_compat.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call
