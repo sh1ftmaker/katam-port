@@ -714,3 +714,82 @@ Not the snapshot and not the speed.
 5. **Audio during catch-up.** Re-simulated frames must not re-emit samples.
 6. **§5 is still the blocker.** None of this is reachable until `MultiBootMain`
    clocks the cable.
+
+---
+
+## 9. Joining, leaving, and how well input compresses
+
+### The game already has AI Kirbys, and the split is by index
+
+`gUnk_0203AD30` is the number of *human* players and `gUnk_0203AD44` the number
+of Kirbys. `sub_080332BC` creates all four and then attaches an AI controller to
+every index from the human count up:
+
+```c
+for (curKirbyId = 0; curKirbyId < 4; curKirbyId++)
+    CreateKirby(curKirbyId, &gKirbys[curKirbyId], ...);
+for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++)   /* arg0 = humans */
+    sub_0800ECAC(otherKirbyId, ...);
+```
+
+So single-player is one human and three AI Kirbys, and a four-player session is
+four humans and no AI. **Handing a departed player's Kirby to the AI is
+therefore a thing the game already knows how to do** — it is not a transport
+trick and it does not need new game code.
+
+Two consequences that decide the design:
+
+- **`gUnk_0203AD30` is read all over the game**, including enemy difficulty
+  (`gUnk_08351530[type][gUnk_0203AD30 - 1]`), chest contents and switch
+  behaviour. Changing it changes the simulation, so every client has to change
+  it on the *same frame*.
+- **The split is purely by index**, so only the highest-numbered player can
+  leave without renumbering. If player 1 of 3 drops, making Kirby 1 AI-driven
+  means the humans are no longer a prefix of 0..3, which is the one thing this
+  arrangement cannot express. Either the last player is migrated down into the
+  vacated slot — which changes which Kirby a human is holding, mid-game — or
+  the slot keeps receiving synthetic input.
+
+### Determinism does not forbid this; rewriting history does
+
+A player count that changes mid-session is only a desync risk if clients
+disagree about *when* it changed. Do not edit the input history — **append the
+change to it**: "player 2 becomes AI at frame F" is an event on the same
+timeline as the inputs, applied at F by every client and by every replayer.
+The history stays append-only and a replay from frame 0 reproduces the change
+at the same point.
+
+Under rollback, schedule F beyond the rollback window (say `current + 30`) so
+the event is confirmed before it is applied and can never be mispredicted.
+
+### How well the inputs compress: measured, on Nintendo's own recordings
+
+The attract-mode demos are four players of real recorded input per demo, six
+demos, in ROM at `gUnk_082EAB98`. And the format is already run-length encoded
+— `sub_080204EC` packs each entry as a `u16` of **10 button bits plus a 6-bit
+repeat count**, bumping the count by `0x400` while the input is unchanged and
+capping a run at 64 frames.
+
+Decoding all 24 tapes:
+
+| | |
+|---|---|
+| runs | 2172 |
+| player-frames covered | 49431 |
+| **mean run length** | **22.8 frames** |
+| RLE | 4344 bytes |
+| the game's wire encoding, 12 bits/frame | 74146 bytes |
+| **compression** | **17.1x** |
+
+Per tape it ranges from **8.9x** for the busiest player to **47x** for a nearly
+idle one; actively-played tapes cluster around 9–22x. The 47x cases are hitting
+the 64-frame cap, so a catch-up log with a wider count field would do better
+still on idle players.
+
+What that means for a rejoin: ten minutes of four-player input is 216 KiB in the
+game's own wire format and **about 13 KiB run-length encoded**. The entire
+history of a session fits in one message, and §8's numbers say replaying it
+costs 0.19 s in a browser.
+
+RLE is for the *stored* log, not the wire — a live stream cannot batch runs
+without adding the latency the whole exercise is meant to avoid.
