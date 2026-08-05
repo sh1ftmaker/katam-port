@@ -218,6 +218,22 @@ static int LoopExchange(struct PortMpTransport *t, u16 send,
             recv[i] = 0xFFFF;
             continue;
         }
+
+        /* MultiBoot's client recognition runs on the same bus as MultiSio and
+         * has to be answered before the lobby will believe there is a cable at
+         * all -- the master's 0x62xx is not a MultiSio packet and the peer's
+         * packet builder would otherwise answer it with sequencer traffic.
+         * The reply comes from platform/multi_boot.c so that every transport
+         * gives the same one. */
+        {
+            u16 mb = PortMpMultiBootReply(i, send);
+
+            if (mb != 0xFFFF) {
+                recv[i] = mb;
+                continue;
+            }
+        }
+
         recv[i] = PeerSend(&sPeers[i]);
         PeerRecv(&sPeers[i], send);
     }

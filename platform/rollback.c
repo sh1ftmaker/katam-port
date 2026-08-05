@@ -19,6 +19,12 @@ extern "C" {
 
 void PortRbApplyKeys(u16 keys);
 
+/* Defined further down, next to the code they belong with; declared here
+ * because the snapshot serialiser above them needs both. */
+static u32 Fnv(const void *base, u32 len);
+static void Put32(u8 *p, u32 v);
+static u32  Get32(const u8 *p);
+
 /* --- what a snapshot is ---------------------------------------------------
  *
  * The six regions of the GBA map the game can write, at their true addresses,
@@ -669,6 +675,33 @@ void PortRbFrame(void)
     sFrame++;
 }
 
+/* --- why there is no snapshot on the wire ---------------------------------
+ *
+ * There was, briefly, and it worked.  A 387 KiB snapshot with a fingerprint of
+ * the image layout, refusing to load into any build that was not byte-for-byte
+ * the same program -- because struct Task::main, Object2::unk78, gIntrTable
+ * and gMPlayJumpTable all hold values that mean something only to the image
+ * that made them.
+ *
+ * It was measured, and the measurement is worth keeping even though the
+ * feature is not.  Two processes of the same binary, dumped at the same frame
+ * and compared: identical at six of seven sampled frames, and different at the
+ * seventh -- at IO offset 0xD5, which is DMA3SAD.  That is platform/dma.c
+ * writing the transfer's real source into the register mirror, and DmaFill's
+ * source is `&tmp`, a stack address that ASLR moves every run.  Normalising
+ * the mirrors and the disarmed channels made it identical at eight of eight.
+ *
+ * So it is achievable.  It was dropped anyway, because the property it has is
+ * bad: a snapshot is only valid between identical builds, so every redeploy
+ * invalidates every session in flight, and the failure mode of getting that
+ * wrong is a game that calls whatever now lives at an address it remembered.
+ * The input log crosses any two builds because it is just numbers, and
+ * replaying ten minutes of it costs 0.19 s in a browser.  One mechanism that
+ * always works beats two where the faster one needs a version check.
+ *
+ * The ring above still snapshots memory, and must -- that is same-process by
+ * construction and none of this applies to it. */
+
 /* --- the run-length encoded log -------------------------------------------
  *
  * The game's own format, from sub_080204EC in src/code_08020220.c: a u16 per
@@ -852,6 +885,83 @@ int PortRbReplayTo(u32 toFrame)
     sCatchUp = 1;
     PortSetRenderEnabled(0);
     return 1;
+}
+
+/* --- joining --------------------------------------------------------------
+ *
+ * A vacant slot is one the map has no peer for.  It is not the same as a slot
+ * that is out of play: a vacant slot still has a Kirby in the world, driven by
+ * the AI, and joining means taking the controls off the AI rather than
+ * spawning anything.  That is why a join needs no new Kirby and no state
+ * migration -- see the note on the peer-to-slot map in port/rollback.h. */
+int PortRbDescribeSession(struct PortRbSessionInfo *out)
+{
+    int i;
+
+    if (out == NULL)
+        return 0;
+    memset(out, 0, sizeof *out);
+    if (!sActive)
+        return 0;
+
+    out->frame = sFrame;
+    out->logBytes = PortRbEncodeLog(NULL, 0);
+    out->slotsInPlay = sSlotsInPlay;
+    for (i = 0; i < PORT_RB_PLAYERS; i++) {
+        out->slotPeer[i] = sSlotPeer[i];
+        if (i < (int)sSlotsInPlay && sSlotPeer[i] < 0)
+            out->vacant++;
+    }
+    return 1;
+}
+
+int PortRbVacantSlot(void)
+{
+    int i;
+
+    if (!sActive)
+        return -1;
+    for (i = 0; i < (int)sSlotsInPlay && i < PORT_RB_PLAYERS; i++)
+        if (sSlotPeer[i] < 0)
+            return i;
+    return -1;
+}
+
+long PortRbJoin(const u8 *log, u32 len, int slot, int peer)
+{
+    long frames;
+
+    if (!sActive) {
+        PortError("[katam-port] join: no session -- call PortRbInit first");
+        return -1;
+    }
+    if (slot < 0 || slot >= PORT_RB_PLAYERS || peer < 0
+     || peer >= PORT_RB_PLAYERS) {
+        PortError("[katam-port] join: slot %d peer %d is not a seat",
+                  slot, peer);
+        return -1;
+    }
+
+    frames = PortRbDecodeLog(log, len);
+    if (frames < 0) {
+        PortError("[katam-port] join: the log did not decode");
+        return -1;
+    }
+
+    /* Past the rollback window, so every participant applies it at the same
+     * frame and none of them has to roll back to find out about it. */
+    if (!PortRbAssignSlot((u32)frames + (u32)sDepth + 8, slot, peer)) {
+        PortError("[katam-port] join: could not schedule the slot");
+        return -1;
+    }
+
+    PortLog("[katam-port] join: %ld frames of history, taking slot %d as peer "
+            "%d at frame %u", frames, slot, peer,
+            (unsigned)((u32)frames + (u32)sDepth + 8));
+
+    if (!PortRbReplayTo((u32)frames))
+        return -1;
+    return frames;
 }
 
 /* --- diagnostics ---------------------------------------------------------- */

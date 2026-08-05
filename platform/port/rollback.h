@@ -188,6 +188,40 @@ long PortRbDecodeLog(const u8 *src, u32 len);
  * and 0.19 s in wasm. */
 int  PortRbReplayTo(u32 toFrame);
 
+/* --- asking to join ------------------------------------------------------
+ *
+ * A player who wants in needs to know three things before they can: which
+ * slots are free, what frame the session is on, and how big the log is that
+ * they will have to replay.  All three come from a running participant, so
+ * this is what one answers a "can I join?" with.
+ *
+ * Deliberately a plain struct of plain integers.  It goes over whatever the
+ * transport is -- a datachannel, a signalling server, a pipe -- and the
+ * transport should not have to know what a Kirby is. */
+struct PortRbSessionInfo {
+    u32 frame;                      /* the frame the session is on           */
+    u32 logBytes;                   /* what the log will cost to send        */
+    u8  slotsInPlay;                /* Kirbys the session is running          */
+    u8  vacant;                     /* how many of those have no player       */
+    s8  slotPeer[PORT_RB_PLAYERS];  /* peer per slot, -1 = AI-driven          */
+};
+
+int  PortRbDescribeSession(struct PortRbSessionInfo *out);
+int  PortRbVacantSlot(void);        /* the lowest free slot, or -1           */
+
+/* The joining side, in one call.  Takes the log a participant sent, replays it
+ * to the frame they were on, and schedules this peer into `slot`.
+ *
+ * Returns the frame it caught up to, or -1.  The replay itself is the game's
+ * own loop running with the picture off -- see PortRbReplayTo -- so this
+ * returns immediately and the frames happen afterwards; PortRbCatchingUp()
+ * stays non-zero until it is done.
+ *
+ * The slot assignment is scheduled rather than immediate, at a frame past the
+ * rollback window, because the other participants have to apply the same event
+ * at the same frame or the session desyncs the moment the joiner appears. */
+long PortRbJoin(const u8 *log, u32 len, int slot, int peer);
+
 /* --- diagnostics --------------------------------------------------------- */
 struct PortRbStats {
     u32 frame;              /* the frame about to run                        */
@@ -221,6 +255,11 @@ void PortRbSelfTestStep(void);
  * PORT_RB_SLOTTEST=at:span:keys.  Run it twice with different keys and compare
  * the reported state hashes.  See the comment in platform/rollback.c. */
 int  PortRbSlotTest(u32 at, u32 span, u16 keys);
+
+/* There is deliberately no snapshot-on-the-wire API.  It was built, measured
+ * and removed; platform/rollback.c says what the measurement found and why the
+ * input log is the only resync mechanism.  The ring still snapshots memory --
+ * that is same-process and none of the argument applies to it. */
 
 /* --- the input latch ------------------------------------------------------
  *

@@ -938,3 +938,92 @@ repeat reproduces exactly, so it is deterministic. Both halves matter.
   the mechanism works; it is not a way to play, and §5 is still the blocker.
 - **A joining player still has to get the log and replay it**, and
   `PortRbReplayTo` needs the host to stop pacing.
+
+---
+
+## 11. MultiBoot, joining, and one thing that was measured and dropped
+
+### MultiBoot: the recognition phase, implemented
+
+`platform/multi_boot.c`. The decompilation has no C for the SDK library — it is
+hand-written ARM assembly, so `portify.py` keeps it out of the build — and §5
+established that the multi-cart lobby cannot clock the cable without it.
+
+Only the *client recognition* phase is needed, and the game reads exactly two
+fields back (`src/multi_boot_util.c:183-237`):
+
+| | |
+|---|---|
+| `client_bit` | bits 1..3, one per recognised client. Player count is `1 + popcount(client_bit & 0xE)` |
+| `probe_count` | 0 during recognition; `0xD1` and `>= 0xE0` are program-transfer stages, download play only |
+
+The handshake is two words on the multi-play bus — master advertises
+`0x6200 | mask`, a client answers `0x7200 | its bit` — so it runs over
+`PortMpExchange` and knows nothing about the transport. The client's reply
+lives in `multi_boot.c` (`PortMpMultiBootReply`) rather than in each transport,
+so two transports cannot disagree about it; `mp_loopback.c` calls it.
+
+**Measured:** with the loopback attached and the game driven to its own link
+lobby, `gMultiBootParam.client_bit` is `0x02` — the peer is recognised — and
+the `called MultiBootInit()/MultiBootMain(), which has no C body yet` reports
+are gone. That is the §5 blocker cleared.
+
+**The lobby still does not complete.** `gUnk_0300050C` stays 0. It is not the
+SIOCNT presentation, which was the obvious suspect: `REG_SIOCNT` reads `0x600B`
+at the lobby — SI clear (this unit clocks), SD set, multi-play mode, interrupt
+enabled, which is correct. So it is somewhere in the lobby's own handshake,
+which §5 always listed as separate work: the transport's peer has to speak the
+game's `0x8F51`/`0x70AE`/`0xE4E4` exchange and then the `0x20`/`0x40`/`0x41`/
+`0x42` state machine. That is game logic in a synthetic peer, not hardware.
+
+`MultiBootStartMaster` and `MultiBootCheckComplete` are left refusing loudly.
+Download play boots a *different program* on the far console, which a
+WebAssembly module cannot be on the receiving end of, and a transfer that
+starts and never finishes would move the failure somewhere much less obvious
+than the message that currently says what is wrong.
+
+### Asking to join
+
+```c
+struct PortRbSessionInfo { u32 frame, logBytes; u8 slotsInPlay, vacant;
+                           s8 slotPeer[4]; };
+int  PortRbDescribeSession(struct PortRbSessionInfo *out);
+int  PortRbVacantSlot(void);
+long PortRbJoin(const u8 *log, u32 len, int slot, int peer);
+```
+
+A participant answers "can I join?" with a `PortRbSessionInfo`: which slots are
+free, what frame the session is on, and how many bytes of log the joiner will
+have to replay. A vacant slot is not an empty one — the Kirby is there and the
+AI is driving it, so joining takes the controls off the AI rather than spawning
+anything. `PortRbJoin` decodes the log, schedules the slot past the rollback
+window so every participant applies it on the same frame, and starts the
+replay.
+
+### Whole-memory snapshots: measured, and deliberately not shipped
+
+It was built and it worked. Two processes of the same binary, snapshotted at
+the same frame and compared byte for byte:
+
+| | |
+|---|---|
+| identical at | frames 120, 301, 457, 613, 700, 999 |
+| **differed at** | frame 811, at byte 295153 |
+
+Byte 295153 is IO offset `0xD5` — `DMA3SAD`. `platform/dma.c` writes the
+transfer's real source into the register mirror so code reading it back sees
+what it wrote, and `DmaFill`'s source is `&tmp`, a stack address that ASLR
+moves every run. It only shows when a fill was the last thing to touch that
+channel, which is why six frames in seven looked clean. Normalising the mirrors
+and the disarmed channels made it identical at eight of eight.
+
+So it is achievable — and it is not shipped, because the property is bad. A
+snapshot is only valid between byte-identical builds, so every redeploy
+invalidates every session in flight, and getting the check wrong gives a game
+that calls whatever now lives at an address it remembered. The input log
+crosses any two builds because it is just numbers, and replaying ten minutes
+costs 0.19 s in a browser. One mechanism that always works beats two where the
+faster one needs a version check.
+
+The rollback ring still snapshots memory and must — that is same-process by
+construction and none of this applies to it.
