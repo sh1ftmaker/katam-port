@@ -144,7 +144,7 @@ void SoundMainBTM(void *addr)
     memset(addr, 0, 64);
 }
 
-void MPlayJumpTableCopy(MPlayFunc *dest)
+void MPlayJumpTableCopy(PTR32_TD(MPlayFunc) *dest)
 {
     s32 i;
 

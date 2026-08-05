@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cxxify
+import narrow32
 
 # ---------------------------------------------------------------------------
 # transforms
@@ -725,6 +726,20 @@ DEFINES_OVERRIDE = '''\
 #undef NAKED
 #define NAKED
 
+/* The BIOS interrupt vector is the last *word* of IWRAM -- four bytes at
+ * 0x3007FFC, with the region ending at 0x3008000.  defines_agb.h spells it
+ * `(*(void **)0x3007FFC)`, which on a 64-bit host is an eight-byte store
+ * running four bytes past the end of the mapping, and the write segfaults.
+ *
+ * PTR32 keeps it four bytes there and is a plain `void *` everywhere else, so
+ * the ILP32 builds see exactly what they saw before.  This is the same problem
+ * as a structure's pointer member and not the same fix, because there is no
+ * structure -- it is a naked address, which is why the layout assertions have
+ * nothing to say about it.  docs/SIXTYFOUR.md's warning about the ~190
+ * linker-placed symbols whose extents nothing asserts is precisely this. */
+#undef INTR_VECTOR
+#define INTR_VECTOR (*(PTR32(void) *)0x3007FFC)
+
 #endif /* GUARD_PORT_GBA_DEFINES */
 '''
 
@@ -770,9 +785,24 @@ def main():
     # Every transform is valid C as well, so this runs for all four builds
     # rather than only the 64-bit ones.  That is deliberate: it means the ILP32
     # builds are the test of it, and their frame output must not move.
+    # Collected before the loop, from the headers as the decompilation wrote
+    # them: which typedefs resolve to a pointer is a property of the tree, and
+    # reading it back after the rewriting has begun would see a half-rewritten
+    # one.
+    narrow_typedefs = narrow32.pointer_typedefs(out / 'include')
+
     for hp in sorted((out / 'include').rglob('*.h')):
         text = hp.read_text(errors='replace')
+        # cxxify first, narrow32 second, and the order is load-bearing.
+        # cxxify generates a converting constructor per member type for each
+        # transparent union; if narrowing has already happened those
+        # constructors take a PTR32 instead of the pointer the call sites
+        # actually pass, and every such call stops compiling.  Narrowing after
+        # leaves the constructor signatures alone and rewrites only the member
+        # declarations, which is what both halves want.
         new = cxxify.rewrite_header(text, rep, hp.name)
+        new = narrow32.narrow_members(new, rep, name=hp.name,
+                                      typedefs=narrow_typedefs)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')

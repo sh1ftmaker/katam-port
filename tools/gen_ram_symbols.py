@@ -182,6 +182,19 @@ def declaration_to_macro(decl, name, addr):
         rest = suffix[2:].strip()
         if rest:
             return '#define %s ((%s (*)%s)0x%08X)' % (name, ctype, rest, addr)
+        # An array whose *elements* are pointers needs those narrowed too:
+        # `const struct TiledBg_082D7850 *const gUnk_082D7850[]` is 34 such
+        # tables in ROM, and on a 64-bit host indexing one strides eight bytes
+        # through data the console laid out in four.  Nothing asserts this --
+        # it is a naked address, not a structure -- so the symptom is a read
+        # from the wrong element, which for gUnk_082D7850 was a segfault in the
+        # title logo.  PTR32 is a plain pointer in C, so the ILP32 builds get
+        # the identical macro.
+        mp = re.match(r'^(?P<inner>.*?)\s*\*\s*(?P<qual>const|volatile)?$', ctype)
+        if mp and mp.group('inner'):
+            return '#define %s ((PTR32(%s) %s*)0x%08X)' % (
+                name, mp.group('inner').strip(),
+                (mp.group('qual') + ' ') if mp.group('qual') else '', addr)
         return '#define %s ((%s *)0x%08X)' % (name, ctype, addr)
 
     if suffix.startswith('['):

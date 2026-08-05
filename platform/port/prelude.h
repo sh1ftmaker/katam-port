@@ -39,6 +39,12 @@
  * for the C builds and must stay one. */
 #include "port/cxx_compat.h"
 
+/* PTR32, the four-byte pointer member itself.  It has to be visible before any
+ * of the game's headers are parsed, because that is where it is used, and it
+ * has to be outside the extern "C" block below, because a template cannot have
+ * C language linkage. */
+#include "port/p32.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call
@@ -109,7 +115,16 @@ void AgbMain(void);
  * never has to be resumable half way through a frame.
  */
 #define gSoundInfo         (*(struct SoundInfo *)0x03000560)
-#define gMPlayJumpTable    ((MPlayFunc *)0x03001510)
+/* PTR32_TD, because this one is an *array* at a fixed address with a fixed
+ * extent.  linker.ld gives gMPlayJumpTable 0x90 bytes -- 36 entries of four --
+ * and MPlayFunc is a function pointer, so on a 64-bit host the entries become
+ * eight bytes and index 35 lands at 0x03001628, past the end of the table and
+ * inside gCgbChans, which nothing has written.  Clear64byte then calls zero.
+ *
+ * That is the failure docs/SIXTYFOUR.md predicted from the address map before
+ * any of this was built, and it is the first thing the narrowing had to fix
+ * that is not a structure member. */
+#define gMPlayJumpTable    ((PTR32_TD(MPlayFunc) *)0x03001510)
 #define gCgbChans          ((struct CgbChannel *)0x030015A0)
 #define gMPlayInfo_0       (*(struct MusicPlayerInfo *)0x030016A0)
 #define gMPlayInfo_1       (*(struct MusicPlayerInfo *)0x030016E0)

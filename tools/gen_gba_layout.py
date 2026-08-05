@@ -24,7 +24,7 @@ reason -- an upstream decompilation edit, a packing attribute, a member
 retyped from u32 to a pointer.
 
 So this generator records what the layout actually is, from a build that is
-known good, and emits a `_Static_assert` for every size and every member
+known good, and emits a `PORT_LAYOUT_ASSERT` for every size and every member
 offset.  After that a build either matches the console or fails to compile,
 naming the struct and the member.  That is worth having whether or not the
 64-bit work ever happens: it is the only thing standing between a silent
@@ -152,7 +152,13 @@ def render(types, tree):
              '#ifndef GUARD_PORT_GBA_LAYOUT_H',
              '#define GUARD_PORT_GBA_LAYOUT_H',
              '',
-             '#include <stddef.h>',
+             '#include <stddef.h>
+
+#ifdef __cplusplus
+#define PORT_LAYOUT_ASSERT(cond, msg) static_assert(cond, msg)
+#else
+#define PORT_LAYOUT_ASSERT(cond, msg) _Static_assert(cond, msg)
+#endif',
              '']
     for h in rel:
         lines.append('#include "%s"' % h)
@@ -170,7 +176,7 @@ def render(types, tree):
         i = where.find('/include/') if where else -1
         where = where[i + len('/include/'):] if i >= 0 else (where or '?')
         lines.append('/* %s %s -- %s:%s */' % (kind, name, where, t['line']))
-        lines.append('_Static_assert(sizeof(%s %s) == %d,'
+        lines.append('PORT_LAYOUT_ASSERT(sizeof(%s %s) == %d,'
                      ' "%s %s changed size -- it is read at a fixed address");'
                      % (kind, name, t['size'], kind, name))
         for mname, off, bits, _ptr in t['members']:
@@ -180,7 +186,7 @@ def render(types, tree):
                              % (mname, off, bits))
                 continue
             n_offsets += 1
-            lines.append('_Static_assert(offsetof(%s %s, %s) == %d,'
+            lines.append('PORT_LAYOUT_ASSERT(offsetof(%s %s, %s) == %d,'
                          ' "%s %s::%s moved");'
                          % (kind, name, mname, off, kind, name, mname))
         lines.append('')

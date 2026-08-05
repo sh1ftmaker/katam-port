@@ -151,21 +151,40 @@ def hoist_nested_tags(text, rep):
         # Find the innermost tag definition that sits at depth > 0.  Innermost
         # first means the extracted block never itself contains a nested tag.
         target = None
+        best_depth = 0
         depth = 0
         i = 0
         top_start = 0
         while i < len(text):
             c = text[i]
             if c == '{':
-                m = _TAG_OPEN.search(text, max(0, i - 200), i + 1)
-                if m and m.end() == i + 1:
+                # finditer, not search: search returns the *first* match in
+                # the window, which for a brace preceded by another tag within
+                # 200 characters is the wrong one -- it ends somewhere else, so
+                # the test below rejects it and this brace is treated as not
+                # opening a tag at all.  That is what left
+                # Unk_08145B64_5EC_24_Pat2 nested inside its union.
+                m = None
+                for cand in _TAG_OPEN.finditer(text, max(0, i - 200), i + 1):
+                    if cand.end() == i + 1:
+                        m = cand
+                if m is not None:
                     if depth == 0:
                         top_start = _stmt_start(text, m.start())
-                    else:
-                        # Capture top_start *with* the target: the scan carries
-                        # on past this point and would otherwise leave it
-                        # pointing at a later top-level struct, hoisting the
-                        # definition in front of the wrong one.
+                    elif depth > best_depth:
+                        # The *innermost* candidate, not the last one seen.
+                        # Taking the last leaves a tag stranded: with a union at
+                        # depth 1 holding four structs at depth 2, the last
+                        # candidate in a linear scan is whichever comes latest
+                        # in the text, and once the union itself is hoisted its
+                        # remaining child is never picked.  That left
+                        # Unk_08145B64_5EC_24_Pat2 nested and every assertion
+                        # about it failing on an incomplete type.
+                        #
+                        # top_start is captured with the target because the scan
+                        # carries on and would otherwise point at a later
+                        # top-level struct.
+                        best_depth = depth
                         target = (m, top_start)
                 depth += 1
             elif c == '}':
@@ -357,6 +376,34 @@ def header_function_prototypes(include_dir):
 # the decompilation and two call sites pass a member today.  A new one appears
 # as a compile error naming the file and line, not as bad code generation.
 CXX_SITES = {
+    'intro.c': [
+        # A ternary whose branches are a narrowed member and a raw function
+        # pointer.  Not "cannot convert" -- *ambiguous*: PTR32 converts to a
+        # pointer and a pointer converts to a PTR32, so neither branch wins and
+        # `?:` has no common type.  Casting one branch settles it, and the cast
+        # is a no-op in C.
+        ('v4->unk1C = gUnk_08387348[a2->unk4].unk8 ? gUnk_08387348[a2->unk4].unk8 '
+         ': gUnk_08387348[a2->unk4].unkC[a2->unkE];',
+         'v4->unk1C = gUnk_08387348[a2->unk4].unk8 '
+         '? (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unk8 '
+         ': (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unkC[a2->unkE];'),
+    ],
+    'phan_phan.c': [
+        # `const struct Kirby_110 **kirby110 = &phanPhan->kirby3->unk110;`
+        #
+        # The one shape a four-byte pointer member genuinely cannot serve
+        # unchanged: taking the *address* of a narrowed member gives a
+        # PTR32(T)*, not a T**, because the member no longer is a T.  There is
+        # no way for platform/port/p32.h to paper over it -- the object being
+        # pointed at really has a different type now.
+        #
+        # So the local changes to match, which is valid C as well: PTR32
+        # expands to a plain pointer there, and the ILP32 builds compile the
+        # same declaration they always did.  One site in the tree; if the
+        # decompilation grows another, it is a compile error naming the file.
+        ('const struct Kirby_110 **kirby110;',
+         'PTR32(const struct Kirby_110) *kirby110;'),
+    ],
     'multi_boot_util.c': [
         # end - start on `const void *`: pointer arithmetic on void is a GNU C
         # extension with no C++ spelling.
@@ -378,6 +425,14 @@ CXX_SITES = {
 # declaration; the definition is the correct one and the header is simply
 # behind it.
 CXX_HEADER_SITES = {
+    'm4a.h': [
+        # gMPlayJumpTable is an array at a fixed address with a fixed extent,
+        # so its entries have to stay four bytes -- see prelude.h.  The one
+        # function that takes the table by pointer has to agree about the
+        # element type.  PTR32_TD is a plain MPlayFunc in C.
+        ('void MPlayJumpTableCopy(MPlayFunc *);',
+         'void MPlayJumpTableCopy(PTR32_TD(MPlayFunc) *);'),
+    ],
     'functions.h': [
         ('u32 *sub_08002888(u32 arg0, u8 index, u8 subindex);',
          'u32 *sub_08002888(enum SUB_08002888_ENUM arg0, u8 index, u8 subindex);'),
@@ -661,6 +716,27 @@ def wrap_header_extern_c(text, rep):
     return text
 
 
+def hoist_nested_tags_fully(text, rep):
+    """hoist_nested_tags until nothing moves.
+
+    One call does not reach a fixed point: hoisting rewrites the text under the
+    scan that found the target, and the scan keeps only the last candidate it
+    saw, so a pass can end with tags still nested.  On intro.h a single call
+    moved five and left eight -- including the innermost Pat2, which then made
+    every assertion about it in gba_layout.h fail on an incomplete type.
+
+    Repeating until the text stops changing is the honest fix and costs a few
+    passes over one header.
+    """
+    for _ in range(32):
+        new = hoist_nested_tags(text, rep)
+        if new == text:
+            return text
+        text = new
+    rep.unhandled.append('cxxify: nested-tag hoisting did not reach a fixed point')
+    return text
+
+
 def rewrite_header(text, rep, name=''):
     for old, new in CXX_HEADER_SITES.get(name, ()):
         if old in text:
@@ -673,7 +749,7 @@ def rewrite_header(text, rep, name=''):
                 'the C++ build will fail on it: %s'
                 % (name, ' '.join(old.split())[:70]))
     text = rename_cxx_keywords(text, rep)
-    text = hoist_nested_tags(text, rep)
+    text = hoist_nested_tags_fully(text, rep)
     text = add_transparent_union_ctors(text, rep)
     text = wrap_header_extern_c(text, rep)
     return text
