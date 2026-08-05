@@ -1130,8 +1130,16 @@ int PortMixerTakeBlock(const s16 **out)
  * SoundMain -- the per-frame driver.
  * ------------------------------------------------------------------------- */
 
+/* How many times the sound engine has been driven, for the cross-build trace
+ * in platform/main.c.  The tracks in gMPlayTrack_0 are advanced from here, so
+ * if two builds disagree about this count they will disagree about the tracks,
+ * and that is a different fault from the two builds disagreeing about what one
+ * run of the mixer produced.  Telling those apart is the whole point. */
+u32 gPortSoundMainCalls;
+
 void SoundMain(void)
 {
+    gPortSoundMainCalls++;
     struct SoundInfo *soundInfo = SOUND_INFO_PTR;
 
     /* GameLoop calls this at the tail of its VBlank work, immediately before

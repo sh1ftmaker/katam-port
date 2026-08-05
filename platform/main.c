@@ -368,6 +368,9 @@ static u32 TraceHash(const void *base, u32 len)
 
 static int sStateTrace = -1;
 static long sStateDetailFrame = -1;
+static long sDumpFrame = -1;
+static unsigned long sDumpAddr;
+static long sDumpLen;
 
 /* The web build cannot read the environment: the Makefile links it
  * -sENVIRONMENT=web, so emscripten's getenv never sees node's process.env and
@@ -381,6 +384,13 @@ void PortSetStateTrace(int on)
 void PortSetStateDetailFrame(long frame)
 {
     sStateDetailFrame = frame;
+}
+
+void PortSetStateDump(long frame, unsigned long addr, long len)
+{
+    sDumpFrame = frame;
+    sDumpAddr = addr;
+    sDumpLen = len;
 }
 
 static void PortStateTrace(void)
@@ -397,9 +407,28 @@ static void PortStateTrace(void)
             if (d != NULL && *d != '\0')
                 sStateDetailFrame = strtol(d, NULL, 0);
         }
+        if (sDumpFrame < 0) {
+            const char *w = getenv("PORT_DUMP");
+            if (w != NULL && *w != '\0')
+                sscanf(w, "%ld:%lx:%ld", &sDumpFrame, &sDumpAddr, &sDumpLen);
+        }
     }
     if (!enabled)
         return;
+
+    /* A raw window, when the block hash has already narrowed things down and
+     * the question is which *bytes*.  PORT_DUMP=frame:addr:len. */
+    if (sDumpFrame >= 0 && frame == (u32)sDumpFrame && sDumpLen > 0) {
+        const u8 *d = (const u8 *)(uintptr_t)sDumpAddr;
+        u32 i;
+
+        for (i = 0; i < (u32)sDumpLen; i += 16)
+            PortLog("[dump] %08X %02X%02X%02X%02X %02X%02X%02X%02X "
+                    "%02X%02X%02X%02X %02X%02X%02X%02X",
+                    (unsigned)(sDumpAddr + i),
+                    d[i+0], d[i+1], d[i+2], d[i+3], d[i+4], d[i+5], d[i+6], d[i+7],
+                    d[i+8], d[i+9], d[i+10], d[i+11], d[i+12], d[i+13], d[i+14], d[i+15]);
+    }
 
     /* Level 2 breaks EWRAM into 1 KiB blocks at one chosen frame.  The
      * whole-region hash says *that* two builds diverged; this says *where*,
@@ -412,6 +441,36 @@ static void PortStateTrace(void)
                     frame, b, GBA_EWRAM_BASE + b * 1024u,
                     TraceHash((const void *)(uintptr_t)(GBA_EWRAM_BASE + b * 1024u),
                               1024u));
+
+        /* IWRAM too, in 256-byte blocks.  The whole-region hash is useless
+         * here because IWRAM holds host function pointers -- gIntrTable,
+         * gMPlayJumpTable, and the callbacks inside gSoundInfo -- so it always
+         * differs between builds and says nothing.  Per-block, the host
+         * pointers are confined to a few blocks and every other block is
+         * directly comparable, which is what was needed to see that the sound
+         * engine's own state diverged before the tracks did. */
+        for (b = 0; b < GBA_IWRAM_SIZE / 256u; b++)
+            PortLog("[trace-iwram] f=%u block=%u addr=0x%08X hash=%08X",
+                    frame, b, GBA_IWRAM_BASE + b * 256u,
+                    TraceHash((const void *)(uintptr_t)(GBA_IWRAM_BASE + b * 256u),
+                              256u));
+    }
+
+    /* The sound engine's driving state, alongside the memory hashes.  The
+     * hashes say the tracks diverged; these say whether the mixer ran a
+     * different number of times, or was handed a different position in the
+     * PCM buffer, which is the actual input a host controls. */
+    {
+        extern u32 gPortSoundMainCalls;
+        static u32 lastCalls;
+
+        PortLog("[snd] f=%u mainCalls=%u delta=%u dmaCounter=%u period=%u "
+                "perVBlank=%d",
+                frame, gPortSoundMainCalls, gPortSoundMainCalls - lastCalls,
+                (unsigned)gSoundInfo.pcmDmaCounter,
+                (unsigned)gSoundInfo.pcmDmaPeriod,
+                (int)gSoundInfo.pcmSamplesPerVBlank);
+        lastCalls = gPortSoundMainCalls;
     }
 
     PortLog("[trace] f=%u keys=%03X ewram=%08X iwram=%08X vram=%08X "
