@@ -149,7 +149,15 @@ Two things are worth knowing before you build it elsewhere:
   read from the wrong offset. The build refuses to configure with 8-byte
   pointers rather than produce something that boots and is quietly wrong.
 - **macOS is blocked by that**, because it has had no 32-bit userland since
-  Catalina. 32-bit ARM needs nothing written.
+  Catalina and Apple silicon never had one. 32-bit ARM needs nothing written.
+
+  **On a Mac, use the web build** — https://sh1ftmaker.github.io/katam-port/,
+  which installs to the dock as a web app and is the same port running the same
+  code. A native Mac build is not a porting job but a 64-bit-cleanliness project
+  on the port itself: 32-bit handles for those 111 structures, and host code
+  kept below 4 GiB because the game stores host function pointers inside GBA
+  memory. `docs/NATIVE.md` sets out what that would take. It has not been done,
+  and nothing here pretends otherwise.
 
 `make native-test ROM=...` boots it headless with a real ROM, drives it through
 the menus into a level, and checks that what came out is a picture.
