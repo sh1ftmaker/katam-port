@@ -30,6 +30,7 @@
 
 #include "native.h"
 #include "port/audio.h"
+#include "port/mp.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
@@ -64,6 +65,33 @@ static const char *sRomArg;
  * held button registers once and then does nothing. */
 static int sHoldMask;
 static long sMashStart = -1;
+static long sMashEnd = -1;      /* optional 4th --mash field: stop again */
+
+/* --- scripted presses, and a link session, natively -----------------------
+ *
+ * tools/headless_test.js has had PRESS_AT and MP=loopback for a while and the
+ * native host has not, which meant the only way to reach the game's own link
+ * lobby was under node -- where there is no debugger.  Everything about the
+ * multiplayer path was therefore diagnosable only by printf.
+ *
+ * These three options are the parity fix.  They exist so that a hardware
+ * watchpoint can be put on a GBA address while the lobby runs, which is the
+ * instrument that found the save-file contamination in one step and has no
+ * equivalent in a browser.
+ *
+ *   --press F:MASK[,F:MASK...]   set the button mask at frame F
+ *   --mp loopback[:N]            attach the in-process transport
+ *   --mp-at F                    ... at frame F, so a run has a before and after
+ */
+#define MAX_PRESSES 32
+static struct { long frame; int mask; } sPresses[MAX_PRESSES];
+static int sNumPresses;
+static int sPressMask;          /* whatever the last --press set             */
+
+static const char *sMpKind;
+static int sMpPlayers = 2;
+static long sMpAt = -1;
+static int sMpAttached;
 static int  sMashMask, sMashPeriod;
 
 static long sFrames;
@@ -108,7 +136,10 @@ static void Usage(const char *argv0)
 "                     renderer -- what --screenshot cannot tell you is whether\n"
 "                     the picture reached the screen in the right pixel format\n"
 "  --hold MASK        hold these buttons down for the whole run\n"
-"  --mash S:MASK:P    from frame S, tap MASK with a period of P frames\n"
+"  --mash S:MASK:P[:E] from frame S, tap MASK every P frames, stop at E\n"
+"  --press F:MASK,... set the button mask at frame F and leave it set\n"
+"  --mp loopback[:N]  attach the in-process link transport, N units\n"
+"  --mp-at F          ... at frame F (default 60)\n"
 "  --turbo            do not pace; run as fast as the machine allows\n"
 "  --verbose          report the memory map and the frame timing\n"
 "  --help\n"
@@ -160,9 +191,45 @@ static void ParseArgs(int argc, char **argv)
             sReadbackPath = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--hold") == 0) {
             sHoldMask = (int)strtol(argv[i = NeedValue(i, argc, argv)], NULL, 0);
+        } else if (strcmp(a, "--press") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            while (*v != '\0' && sNumPresses < MAX_PRESSES) {
+                long f; int m;
+
+                if (sscanf(v, "%ld:%i", &f, &m) != 2) {
+                    fprintf(stderr, "katam-port: --press wants "
+                            "FRAME:MASK[,FRAME:MASK...]\n");
+                    exit(2);
+                }
+                sPresses[sNumPresses].frame = f;
+                sPresses[sNumPresses].mask = m;
+                sNumPresses++;
+                while (*v != '\0' && *v != ',') v++;
+                if (*v == ',') v++;
+            }
+        } else if (strcmp(a, "--mp") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            sMpKind = v;
+            if (strncmp(v, "loopback", 8) == 0 && v[8] == ':')
+                sMpPlayers = atoi(v + 9);
+            if (sMpAt < 0)
+                sMpAt = 60;
+        } else if (strcmp(a, "--mp-at") == 0) {
+            sMpAt = atol(argv[i = NeedValue(i, argc, argv)]);
+            if (sMpKind == NULL)
+                sMpKind = "loopback";
         } else if (strcmp(a, "--mash") == 0) {
             const char *v = argv[i = NeedValue(i, argc, argv)];
 
+            /* A fourth field stops the mashing again, exactly as MASH= does
+             * in tools/headless_test.js.  Without it a sequence copied from
+             * the harness keeps tapping A through every later menu and lands
+             * somewhere else -- which is what happened the first time this was
+             * used to reach the link lobby. */
+            sscanf(v, "%ld:%i:%i:%ld", &sMashStart, &sMashMask,
+                   &sMashPeriod, &sMashEnd);
             if (sscanf(v, "%ld:%i:%i", &sMashStart, &sMashMask,
                        &sMashPeriod) != 3 || sMashPeriod < 2) {
                 fprintf(stderr, "katam-port: --mash wants START:MASK:PERIOD, "
@@ -383,8 +450,22 @@ static u16 ReadInput(void)
 
     down |= (u16)sHoldMask;
     if (sMashStart >= 0 && sFrames >= sMashStart
+     && (sMashEnd < 0 || sFrames < sMashEnd)
      && (sFrames - sMashStart) % sMashPeriod < sMashPeriod / 2)
         down |= (u16)sMashMask;
+
+    /* --press is a *level*, not an edge: it sets the mask and it stays set
+     * until the next entry says otherwise.  That matches PRESS_AT in
+     * tools/headless_test.js, so a sequence copied from one runs in the other,
+     * which is the whole point of adding it. */
+    {
+        int p;
+
+        for (p = 0; p < sNumPresses; p++)
+            if (sPresses[p].frame == sFrames)
+                sPressMask = sPresses[p].mask;
+    }
+    down |= (u16)sPressMask;
 
     return down;
 }
@@ -765,6 +846,16 @@ void PortAwaitAnimationFrame(void)
     HandleEvents();
     PortSetKeys(ReadInput());
     PortNativeSaveTick();
+
+    /* Attach the link transport at the requested frame, so a run has a
+     * before and an after and a link that comes up mid-run can be told apart
+     * from one that was there all along -- the same reason MP_AT exists in
+     * tools/headless_test.js. */
+    if (sMpKind != NULL && !sMpAttached && sFrames >= sMpAt) {
+        sMpAttached = 1;
+        if (!PortMpUseLoopback(sMpPlayers))
+            PortError("[katam-port] --mp %s: could not attach", sMpKind);
+    }
 
     sFrames++;
     /* Every half second or so.  Often enough that no phase of the boot goes

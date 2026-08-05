@@ -55,6 +55,13 @@
 #include "port/backend.h"
 #include "port/mp.h"
 #include "gba/multi_boot.h"
+#include "gba/io_reg.h"
+
+/* The registers this drives, named the way platform/sio.c names them. */
+#define SIOCNT      (*(vu16 *)(GBA_IO_BASE + REG_OFFSET_SIOCNT))
+#define SIOMLT_SEND (*(vu16 *)(GBA_IO_BASE + REG_OFFSET_SIOMLT_SEND))
+#define SIOMULTI    ((vu16 *)(GBA_IO_BASE + REG_OFFSET_SIOMULTI0))
+#define CNT_START   0x0080
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +74,10 @@ extern "C" {
 #define MB_CLIENT_REPLY   0x7200
 #define MB_REPLY_MASK     0xFFF0
 #define MB_CLIENT_BITS    0x0E      /* slots 1..3; slot 0 is the master */
+/* What a peer running *this game* answers, as opposed to a bare console
+ * waiting for a download.  src/multi_boot_util.c sorts the two apart and the
+ * multi-cart lobby only accepts the first. */
+#define MB_SAME_GAME_REPLY 0x8F50
 
 void MultiBootInit(struct MultiBootParam *mp)
 {
@@ -119,22 +130,43 @@ s32 MultiBootMain(struct MultiBootParam *mp)
         return 0;
     }
 
-    send = (u16)(MB_MASTER_HELLO | (mp->probe_target_bit & MB_CLIENT_BITS));
-    for (i = 0; i < PORT_MP_PLAYERS; i++)
-        recv[i] = 0xFFFF;
+    /* Arm a transfer; do not run one.
+     *
+     * The first version called PortMpExchange directly from here and it was
+     * wrong in a way worth recording.  The game installs its *own* serial
+     * handler over gIntrTable[0] while the lobby runs (sub_0803024C sets it to
+     * sub_08030898), and that handler is what collects each peer's word into
+     * gMultiBootStruct.unk1E[] -- which is what the lobby's classifier reads.
+     * Exchanging behind the SIO layer's back filled nothing and dispatched no
+     * interrupt, so the classifier saw zeroes forever no matter how correct
+     * the handshake was.
+     *
+     * Setting SIOMLT_SEND and the start bit hands it to platform/sio.c, which
+     * runs the transfer, writes SIOMULTI0..3 and raises INTR_FLAG_SERIAL --
+     * the same path a real transfer takes.  The game's handler then sees it. */
+    SIOMLT_SEND = (u16)(MB_MASTER_HELLO | (mp->probe_target_bit & MB_CLIENT_BITS));
+    SIOCNT |= CNT_START;
 
-    if (!PortMpExchange(send, recv)) {
-        /* The cable stalled this frame.  Leave client_bit as it was: the
-         * lobby wants sixteen *consecutive* frames of recognition, and
-         * clearing it on a single dropped transfer would restart that count
-         * every time a packet was late -- which over a network is often. */
-        return 0;
-    }
-
+    /* client_bit from what the *previous* transfer brought back, which is what
+     * is in the registers now.  A frame late, and that is correct: the game
+     * reads this after the handler has run. */
+    /* A peer is a peer whichever way it answered.
+     *
+     * client_bit is a *presence* mask -- multi_boot_util.c turns it into the
+     * player count (1 + popcount) -- while the 0x7200-or-0x8F50 distinction is
+     * about what *kind* of peer it is, and the lobby's classifier makes that
+     * call separately.  Counting only 0x720X here was a real bug for one
+     * revision: the peer had just been corrected to answer 0x8F5X, so the mask
+     * went to zero, the player count stuck at 1, and the recognition counter
+     * never climbed past its first frame. */
+    (void)send; (void)recv;
     mp->client_bit = 0;
-    for (i = 1; i < PORT_MP_PLAYERS; i++)
-        if ((recv[i] & MB_REPLY_MASK) == MB_CLIENT_REPLY)
+    for (i = 1; i < PORT_MP_PLAYERS; i++) {
+        u16 w = SIOMULTI[i] & MB_REPLY_MASK;
+
+        if (w == MB_CLIENT_REPLY || w == MB_SAME_GAME_REPLY)
             mp->client_bit |= (u8)(1 << i);
+    }
 
     /* response_bit is "probably connected" and client_bit is "recognised".
      * Nothing in this game distinguishes them, so they are the same set; a
@@ -171,18 +203,32 @@ s32 MultiBootCheckComplete(struct MultiBootParam *mp)
     return 1;
 }
 
-/* The answer a *client* puts on the bus during recognition.
+/* The answer a peer puts on the bus while the lobby is deciding what is on the
+ * cable -- and it is *not* the MultiBoot client reply, which was the first
+ * guess and is actively wrong here.
  *
- * A transport's peer needs this to complete the handshake, and it is here
- * rather than in each transport so that they cannot disagree about it.  Slot
- * is the peer's own id, 1..3; slot 0 is the master and never replies. */
+ * src/multi_boot_util.c:56-77 masks each peer's word with 0xFFF0 and sorts it:
+ *
+ *     0x7200  ->  gUnk_0300050C = 2   a bare console waiting for a download
+ *     0x8F50  ->  gUnk_0300050C = 1   another cartridge running this game
+ *
+ * and the multi-cart lobby wants 1.  Answering 0x720X classifies our peer as
+ * something to download a program *to*, which the lobby reports as error 8 --
+ * "the wrong thing is on the cable" -- and it is the correct answer for
+ * download play and the wrong one for the mode this port can actually reach.
+ *
+ * So a peer that is running this game answers 0x8F5X.  Slot is its own id,
+ * 1..3; slot 0 clocks the cable and never replies. */
 u16 PortMpMultiBootReply(int slot, u16 masterWord)
 {
     if (slot <= 0 || slot >= PORT_MP_PLAYERS)
         return 0xFFFF;
+    /* Only while the master is probing.  Answering unconditionally would take
+     * the peer's MultiSio packets off the bus -- it briefly did, and the
+     * sequencer traffic the loopback exists to test went with them. */
     if ((masterWord & MB_REPLY_MASK) != MB_MASTER_HELLO)
         return 0xFFFF;
-    return (u16)(MB_CLIENT_REPLY | slot);
+    return (u16)(MB_SAME_GAME_REPLY | slot);
 }
 
 #ifdef __cplusplus

@@ -1027,3 +1027,85 @@ faster one needs a version check.
 
 The rollback ring still snapshots memory and must — that is same-process by
 construction and none of this applies to it.
+
+---
+
+## 12. The lobby, tracked down with a debugger the port could not previously use
+
+### The tool: native parity with the node harness
+
+The lobby only ran under `tools/headless_test.js`, because reaching it needs
+`PRESS_AT` and `MP=loopback` and the native host had neither. So everything on
+the multiplayer path was diagnosable by `printf` and nothing else — and the
+instrument that has repeatedly been decisive in this port is a **hardware
+watchpoint on a GBA address**, which needs a debugger, which needs the native
+build.
+
+So the tool is parity. `platform/native/host_sdl.c` gains:
+
+```
+--press F:MASK,...   set the button mask at frame F and leave it set
+--mp loopback[:N]    attach the in-process transport
+--mp-at F            ... at frame F
+--mash S:MASK:P[:E]  a fourth field, stopping the mash again
+```
+
+Verified by diffing the `keys=` column of the state trace over 1100 frames:
+**the two hosts' input timelines are byte-identical.** Getting there found a
+harness quirk worth knowing — node's `mashMask` returns `null` once the window
+closes, which means it stops calling `PortSetKeys` and *the last mashed value
+stays latched*. The native host recomputes from zero. That is not a semantic
+worth copying, so the sequence carries an explicit `--press 440:1` instead.
+
+### What the watchpoint saw
+
+```
+=== gUnk_0300050C = 0    sub_0803024C   ← multi_boot_util.c:26, lobby init
+=== gUnk_0300050C = -1   sub_08030B38   ← multi_boot_util.c:399, teardown
+=== gUnk_0300050C = 0    sub_0803024C   ← again
+```
+
+The lobby was **restarting**, not stalling, and nothing ever wrote 1 — the
+value its advance condition needs.
+
+### The cause: two things, both found by reading what the watchpoint pointed at
+
+**The peer was answering the wrong word.** `multi_boot_util.c:56-77` masks each
+peer's word with `0xFFF0` and sorts it:
+
+| reply | meaning | `gUnk_0300050C` |
+|---|---|---|
+| `0x7200` | a bare console waiting for a download | 2 → the lobby reports error 8 |
+| `0x8F50` | another cartridge running this game | 1 → what the lobby wants |
+
+The MultiBoot client reply is the *correct* answer for download play and the
+wrong one for the only mode this port can reach.
+
+**And the port was exchanging behind the game's back.** `sub_0803024C` installs
+the game's own serial handler over `gIntrTable[0]`, and that handler is what
+fills `gMultiBootStruct.unk1E[]` — the array the classifier reads. Calling
+`PortMpExchange` directly from `MultiBootMain` filled nothing and raised no
+interrupt, so the classifier saw zeroes no matter how correct the handshake
+was. `MultiBootMain` now sets `SIOMLT_SEND` and the start bit and lets
+`platform/sio.c` run the transfer, which is the path a real one takes.
+
+**With both fixed, `gUnk_0300050C` reaches 1.** Measured, at frames 1000, 1050
+and 1090.
+
+### Where it stops, precisely
+
+The lobby's advance needs `unk01 > 1 && unk02 == 3 && gUnk_0300050C == 1`. The
+third now holds; the first two do not.
+
+And there is a tension the next piece of work has to resolve. A peer that
+answers `0x8F5X` *unconditionally* gets the classification but takes its
+MultiSio packets off the bus — measured, the loopback's sequencer traffic
+stops. A peer that answers only when the master sends `0x62XX` keeps the
+packets (3808 transfers, 0 stalls) but loses the classification. **The peer has
+to know which phase the lobby is in**, which is exactly the "the transport's
+peer must implement the game's own lobby handshake" that §5 has listed as
+separate work from the beginning — the `0x8F51`/`0x70AE`/`0xE4E4` exchange and
+then the `0x20`/`0x40`/`0x41`/`0x42` state machine.
+
+The conditional version is what is committed, because it does not regress the
+MultiSio path that works.
