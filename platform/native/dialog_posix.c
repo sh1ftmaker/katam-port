@@ -18,6 +18,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static int Run(char *const argv[], char *out, size_t outSize)
 {
     int fds[2];
@@ -76,3 +82,7 @@ int PortHostPickRomFile(char *out, size_t outSize)
         return 1;
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

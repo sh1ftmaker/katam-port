@@ -17,6 +17,15 @@
 #include <stdio.h>
 #include <string.h>
 
+/* For PortCallStack.  glibc and macOS have <execinfo.h>; MinGW does not, and
+ * emscripten has its own. */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#elif defined(__GLIBC__) || defined(__APPLE__)
+#include <execinfo.h>
+#define PORT_HAVE_EXECINFO 1
+#endif
+
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/dma.h"
@@ -24,6 +33,22 @@
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
+
+/* C linkage for the 64-bit builds.
+ *
+ * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * everything on the seam has to agree.  It is applied to platform/*.c as a
+ * class rather than to the files that happened to break: the failure is an
+ * undefined reference to a mangled name, or -- for a `const`, which is
+ * internal-linkage in C++ and external in C -- to a symbol that is plainly
+ * defined a few lines away.  Neither says which file to fix, and the set of
+ * files that need it changes whenever a declaration moves.  A no-op in C.
+ *
+ * The block opens below the includes so that SDL and the system headers stay
+ * outside it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 u32 gPortRomSize;
 static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
@@ -314,8 +339,280 @@ void PortDispatchInterrupt(u32 flag)
 
 /* --- frame boundary ------------------------------------------------------ */
 
+/* --- cross-build state tracing --------------------------------------------
+ *
+ * One line per frame: the input, and a hash of each region of the emulated
+ * console.  Set PORT_STATE_TRACE=1 to turn it on; it costs nothing when off.
+ *
+ * The point is comparing two *builds* of the port against each other, which
+ * this port can do and an emulator comparison normally cannot: every build
+ * reserves the GBA map at the same true addresses, so EWRAM at 0x02000000 in
+ * the wasm build and EWRAM at 0x02000000 in the aarch64 build hold the same
+ * bytes for the same reason.  Hash them per frame, diff the two logs, and the
+ * first differing line is the frame the two builds stopped agreeing -- and its
+ * columns say whether the input diverged (a harness difference) or the state
+ * did (a port bug), and which region.
+ *
+ * Comparing final screenshots cannot do this.  It says the pictures differ,
+ * which is where the divergence *ended up* rather than where it began, and it
+ * cannot distinguish "the two harnesses pressed different buttons" from "the
+ * two builds computed different things".  That distinction is exactly what was
+ * missing when the 64-bit play path could not be attributed.
+ *
+ * FNV-1a, chosen because it is eight lines and needs no library: the hash only
+ * has to be identical across builds, not strong.
+ */
+static u32 TraceHash(const void *base, u32 len)
+{
+    const u8 *p = (const u8 *)base;
+    u32 h = 2166136261u;
+    u32 i;
+
+    for (i = 0; i < len; i++) {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static int sStateTrace = -1;
+static long sStateDetailFrame = -1;
+static long sDumpFrame = -1;
+static unsigned long sDumpAddr;
+static long sDumpLen;
+
+/* The web build cannot read the environment: the Makefile links it
+ * -sENVIRONMENT=web, so emscripten's getenv never sees node's process.env and
+ * the trace stayed silent there while working natively.  An explicit entry
+ * point costs one export and works on every host. */
+void PortSetStateTrace(int on)
+{
+    sStateTrace = on ? 1 : 0;
+}
+
+static int sDmaTrace = -1;
+
+int PortDmaTracing(void)
+{
+    if (sDmaTrace < 0) {
+        const char *e = getenv("PORT_DMA_TRACE");
+        sDmaTrace = (e != NULL && *e != '\0' && *e != '0');
+    }
+    return sDmaTrace;
+}
+
+void PortSetDmaTrace(int on)
+{
+    sDmaTrace = on ? 1 : 0;
+}
+
+u32 PortFrameNumber(void)
+{
+    return sFrameCount;
+}
+
+/* The call-stack instrument described in port/backend.h.  Window first, so
+ * that the cost of taking a stack is paid only where it is wanted -- a
+ * backtrace per transfer over 63000 transfers is minutes, not seconds. */
+static long sDmaStackLo = -1;
+static long sDmaStackHi;
+
+void PortSetDmaStack(long lo, long hi)
+{
+    sDmaStackLo = lo;
+    sDmaStackHi = hi;
+    sDmaTrace = 1;
+}
+
+int PortDmaStackWanted(u32 transfer)
+{
+    if (sDmaStackLo < 0) {
+        const char *e = getenv("PORT_DMA_STACK");
+
+        sDmaStackLo = 0;
+        sDmaStackHi = -1;
+        if (e != NULL && *e != '\0') {
+            char *end;
+
+            sDmaStackLo = strtol(e, &end, 0);
+            sDmaStackHi = (*end == ':') ? strtol(end + 1, NULL, 0) : sDmaStackLo;
+        }
+    }
+    return sDmaStackHi >= 0
+        && (long)transfer >= sDmaStackLo && (long)transfer <= sDmaStackHi;
+}
+
+void PortCallStack(const char *tag)
+{
+#ifdef __EMSCRIPTEN__
+    /* EM_LOG_C_STACK asks for the wasm frames rather than the JS ones; the
+     * names come from the name section, so this is the whole of the work on
+     * this host.  Verified to survive an Asyncify rewind -- see
+     * docs/DEBUG-TOOLING.md section 5. */
+    char buf[8192];
+    char *line;
+    char *save;
+
+    emscripten_get_callstack(EM_LOG_C_STACK, buf, sizeof buf);
+    for (line = strtok_r(buf, "\n", &save); line != NULL;
+         line = strtok_r(NULL, "\n", &save))
+        PortLog("[stack] %s %s", tag, line);
+#elif defined(PORT_HAVE_EXECINFO)
+    /* Return addresses, not names.  backtrace_symbols() would name them only
+     * if the game's symbols were in the *dynamic* table, which needs -rdynamic
+     * on the shipping link for the sake of a diagnostic.  The addresses are
+     * absolute because the 64-bit builds link -no-pie at a fixed text address
+     * (see CMakeLists.txt), so `nm` resolves them exactly, offline, from a
+     * binary built without any special flag. */
+    void *frames[32];
+    int n = backtrace(frames, (int)(sizeof frames / sizeof frames[0]));
+    int i;
+
+    for (i = 0; i < n; i++)
+        PortLog("[stack] %s %p", tag, frames[i]);
+#else
+    PortLog("[stack] %s <no unwinder on this host>", tag);
+#endif
+}
+
+void PortSetStateDetailFrame(long frame)
+{
+    sStateDetailFrame = frame;
+}
+
+void PortSetStateDump(long frame, unsigned long addr, long len)
+{
+    sDumpFrame = frame;
+    sDumpAddr = addr;
+    sDumpLen = len;
+}
+
+/* One window, hashed on every frame, as an extra column on the [trace] line.
+ *
+ * PORT_STATE_DETAIL answers "which block differs" at a frame you already
+ * suspect, and PORT_DUMP answers "which bytes" once you have the block.  The
+ * question in between -- "*when* did this particular window start to differ" --
+ * needed one run per candidate frame, which is the slow way to bisect several
+ * hundred frames.
+ *
+ * The window is chosen by address rather than by symbol on purpose: by the
+ * time this is wanted, the address is what you have.  PORT_WINDOW=addr:len,
+ * hex address, decimal length. */
+static unsigned long sWindowAddr;
+static long sWindowLen = -1;
+
+void PortSetStateWindow(unsigned long addr, long len)
+{
+    sWindowAddr = addr;
+    sWindowLen = len;
+}
+
+static void PortStateTrace(void)
+{
+    static u32 frame;
+    int enabled = sStateTrace;
+
+    if (enabled < 0) {
+        const char *e = getenv("PORT_STATE_TRACE");
+        enabled = (e != NULL && *e != '\0' && *e != '0');
+        sStateTrace = enabled;
+        if (sStateDetailFrame < 0) {
+            const char *d = getenv("PORT_STATE_DETAIL");
+            if (d != NULL && *d != '\0')
+                sStateDetailFrame = strtol(d, NULL, 0);
+        }
+        if (sDumpFrame < 0) {
+            const char *w = getenv("PORT_DUMP");
+            if (w != NULL && *w != '\0')
+                sscanf(w, "%ld:%lx:%ld", &sDumpFrame, &sDumpAddr, &sDumpLen);
+        }
+        if (sWindowLen < 0) {
+            const char *w = getenv("PORT_WINDOW");
+            if (w != NULL && *w != '\0')
+                sscanf(w, "%lx:%ld", &sWindowAddr, &sWindowLen);
+        }
+    }
+    if (!enabled)
+        return;
+
+    /* A raw window, when the block hash has already narrowed things down and
+     * the question is which *bytes*.  PORT_DUMP=frame:addr:len. */
+    if (sDumpFrame >= 0 && frame == (u32)sDumpFrame && sDumpLen > 0) {
+        const u8 *d = (const u8 *)(uintptr_t)sDumpAddr;
+        u32 i;
+
+        for (i = 0; i < (u32)sDumpLen; i += 16)
+            PortLog("[dump] %08X %02X%02X%02X%02X %02X%02X%02X%02X "
+                    "%02X%02X%02X%02X %02X%02X%02X%02X",
+                    (unsigned)(sDumpAddr + i),
+                    d[i+0], d[i+1], d[i+2], d[i+3], d[i+4], d[i+5], d[i+6], d[i+7],
+                    d[i+8], d[i+9], d[i+10], d[i+11], d[i+12], d[i+13], d[i+14], d[i+15]);
+    }
+
+    /* Level 2 breaks EWRAM into 1 KiB blocks at one chosen frame.  The
+     * whole-region hash says *that* two builds diverged; this says *where*,
+     * which is the difference between a fact and a lead.  256 lines, once. */
+    if (sStateDetailFrame >= 0 && frame == (u32)sStateDetailFrame) {
+        u32 b;
+
+        for (b = 0; b < GBA_EWRAM_SIZE / 1024u; b++)
+            PortLog("[trace-ewram] f=%u block=%u addr=0x%08X hash=%08X",
+                    frame, b, GBA_EWRAM_BASE + b * 1024u,
+                    TraceHash((const void *)(uintptr_t)(GBA_EWRAM_BASE + b * 1024u),
+                              1024u));
+
+        /* IWRAM too, in 256-byte blocks.  The whole-region hash is useless
+         * here because IWRAM holds host function pointers -- gIntrTable,
+         * gMPlayJumpTable, and the callbacks inside gSoundInfo -- so it always
+         * differs between builds and says nothing.  Per-block, the host
+         * pointers are confined to a few blocks and every other block is
+         * directly comparable, which is what was needed to see that the sound
+         * engine's own state diverged before the tracks did. */
+        for (b = 0; b < GBA_IWRAM_SIZE / 256u; b++)
+            PortLog("[trace-iwram] f=%u block=%u addr=0x%08X hash=%08X",
+                    frame, b, GBA_IWRAM_BASE + b * 256u,
+                    TraceHash((const void *)(uintptr_t)(GBA_IWRAM_BASE + b * 256u),
+                              256u));
+    }
+
+    /* The sound engine's driving state, alongside the memory hashes.  The
+     * hashes say the tracks diverged; these say whether the mixer ran a
+     * different number of times, or was handed a different position in the
+     * PCM buffer, which is the actual input a host controls. */
+    {
+        extern u32 gPortSoundMainCalls;
+        static u32 lastCalls;
+
+        PortLog("[snd] f=%u mainCalls=%u delta=%u dmaCounter=%u period=%u "
+                "perVBlank=%d",
+                frame, gPortSoundMainCalls, gPortSoundMainCalls - lastCalls,
+                (unsigned)gSoundInfo.pcmDmaCounter,
+                (unsigned)gSoundInfo.pcmDmaPeriod,
+                (int)gSoundInfo.pcmSamplesPerVBlank);
+        lastCalls = gPortSoundMainCalls;
+    }
+
+    if (sWindowLen > 0)
+        PortLog("[window] f=%u addr=0x%08X len=%ld hash=%08X",
+                frame, (unsigned)sWindowAddr, sWindowLen,
+                TraceHash((const void *)(uintptr_t)sWindowAddr,
+                          (u32)sWindowLen));
+
+    PortLog("[trace] f=%u keys=%03X ewram=%08X iwram=%08X vram=%08X "
+            "pltt=%08X oam=%08X io=%08X",
+            frame, sKeysDown,
+            TraceHash((const void *)(uintptr_t)GBA_EWRAM_BASE, GBA_EWRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_IWRAM_BASE, GBA_IWRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_VRAM_BASE,  GBA_VRAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_PLTT_BASE,  GBA_PLTT_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_OAM_BASE,   GBA_OAM_SIZE),
+            TraceHash((const void *)(uintptr_t)GBA_IO_BASE,    0x400u));
+    frame++;
+}
+
 void PortPresentFrame(void)
 {
+    PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
     /* Settle the view before drawing with it, so the rectangle the PPU uses
@@ -408,3 +705,7 @@ int main(int argc, char **argv)
     AgbMain();      /* never returns */
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

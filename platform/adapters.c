@@ -22,6 +22,17 @@
 #include "task.h"
 #include "data.h"      /* struct Unk_08D6CD0C, for the room-table read below */
 
+/* C linkage for the 64-bit builds.
+ *
+ * This file sits on the seam in both directions: it calls the game's functions
+ * and the game calls its adapters back (tools/portify.py rewrites the call
+ * sites).  Those builds compile the game as C++ with C linkage -- see
+ * tools/cxxify.py -- so this file has to agree, or the calls mangle one way
+ * and the definitions the other.  A no-op in C. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* --- destructors ---------------------------------------------------------
  * Unambiguous: the target takes no arguments, so the pointer ARM left in r0
  * was never read.  Dropping it is exactly equivalent. */
@@ -92,3 +103,7 @@ u16 PortRoomTilesetIndex(u16 roomId)
         return 0;
     return room->unk46;
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -396,6 +396,35 @@ const Module = {
             process.exit(1);
         }
         Module.HEAPU8.set(rom, base);
+        // PORT_STATE_TRACE=1 makes the port emit one line per frame holding
+        // the input and a hash of each region of the emulated console, for
+        // diffing one build of the port against another.  It has to be turned
+        // on through an export rather than the environment: this module is
+        // linked -sENVIRONMENT=web, so emscripten's getenv cannot see
+        // process.env.
+        if (process.env.PORT_STATE_TRACE)
+            Module._PortSetStateTrace(1);
+        if (process.env.PORT_STATE_DETAIL)
+            Module._PortSetStateDetailFrame(Number(process.env.PORT_STATE_DETAIL));
+        if (process.env.PORT_DMA_TRACE)
+            Module._PortSetDmaTrace(1);
+        // PORT_DMA_STACK=lo:hi prints the call stack that issued transfers
+        // lo..hi.  Same reason for the export as above.
+        if (process.env.PORT_DMA_STACK) {
+            const [lo, hi] = process.env.PORT_DMA_STACK.split(':');
+            Module._PortSetDmaStack(Number(lo), Number(hi === undefined ? lo : hi));
+        }
+        // PORT_WINDOW=addr:len hashes one window on every frame, as an extra
+        // [window] line -- for finding *when* a known address started to
+        // differ without one run per candidate frame.
+        if (process.env.PORT_WINDOW) {
+            const [wa, wl] = process.env.PORT_WINDOW.split(':');
+            Module._PortSetStateWindow(parseInt(wa, 16), Number(wl));
+        }
+        if (process.env.PORT_DUMP) {
+            const [df, da, dl] = process.env.PORT_DUMP.split(':');
+            Module._PortSetStateDump(Number(df), parseInt(da, 16), Number(dl));
+        }
         Module._PortRomLoaded(rom.length);
         resolveRom();
     },

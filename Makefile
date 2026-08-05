@@ -122,7 +122,7 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # The wasm exports, in one place: four link lines need the same list and
 # keeping four copies of it in step is a merge conflict every time one
 # grows.
-EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport
+EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow
 
 LDLINT := -Wl,--fatal-warnings
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
@@ -148,8 +148,9 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check \
         native native-run native-test native-clean \
+        arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check
 
@@ -213,6 +214,52 @@ layout:
 layout-check:
 	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
 	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)" --check
+
+# --- the two things layout-check cannot see --------------------------------
+#
+# layout-check asserts the 246 types whose console offsets are known.  Two
+# kinds of ABI breakage are invisible to it, and each cost a day to find the
+# first time:
+#
+#   abi-size-check   a type the decompilation never places at a fixed address
+#                    is not in the table, so nothing notices it changing size
+#                    under LP64 -- and every sizeof() the game hands to
+#                    TaskCreate then differs between the two builds.  Needs an
+#                    ILP32 and an LP64 build tree, both with -g.
+#
+#   ptr-array-check  a file-scope array of pointers is four-byte-strided on the
+#                    console and eight-byte-strided under LP64, which is
+#                    harmless until something reads it through another type.
+#                    One place in the tree does.
+#
+# Both are cheap and neither needs a ROM.  docs/SIXTYFOUR.md has the two bugs.
+ABI32_DIR ?= $(BUILD)/native/CMakeFiles/katam.dir
+ABI64_DIR ?= $(BUILD)/lp64/CMakeFiles/katam.dir
+
+abi-size-check:
+	@python3 tools/abi_size_diff.py $(ABI32_DIR) $(ABI64_DIR)
+
+ptr-array-check:
+	@python3 tools/check_ptr_arrays.py $(PORT_SRC)
+
+# --- the 4-byte pointer member ---------------------------------------------
+# platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
+# layout, so it is checked on both sides of the thing it spans: as C++ on this
+# host, where a pointer is 8 bytes and P32 has real work to do, and as C
+# through the wasm compiler, where PTR32 is a plain pointer and the point is
+# that the spelling changed nothing.  See docs/SIXTYFOUR.md.
+#
+# P32_CXX overrides the C++ compiler, which is how the aarch64 toolchain runs
+# the same test on real 64-bit ARM -- see docs/NATIVE.md.
+P32_CXX ?= g++
+P32_TEST_BIN := $(BUILD)/p32_test
+
+p32-test:
+	@mkdir -p $(BUILD)
+	@$(P32_CXX) -x c++ -std=gnu++17 -w $(INCLUDES) tools/p32_test.c -o $(P32_TEST_BIN)
+	@$(P32_TEST_BIN)
+	@$(CC) -x c -std=gnu99 -w -fsyntax-only $(INCLUDES) tools/p32_test.c \
+	  && echo "p32_test (C, ILP32): layout assertions hold"
 
 # The functions that are still ARM-only turn up as undefined symbols at link
 # time.  The list is re-derived from a real link rather than maintained by
@@ -393,6 +440,57 @@ native-test: native
 
 native-clean:
 	rm -rf $(NATIVE_DIR)
+
+# --- arm64 (aarch64) -- the 64-bit target, IN PROGRESS ----------------------
+# This does not play a level yet.  It compiles, links, boots, reserves the GBA map
+# at its true addresses, loads the ROM, starts the sound engine and reaches the
+# game's task scheduler, where it crashes.  The finished, playable ARM build is
+# armhf, which is ILP32 and runs on any arm64 kernel with 4 KiB pages:
+#
+#   make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+#               NATIVE_DIR=build/native-armhf
+#
+# -DKATAM_ALLOW_LP64=ON is what gets past CMakeLists.txt's pointer-size guard.
+# It is not a fix and the configure says so at length every time; the guard is
+# there because an LP64 build of the port has no run-time symptom that would
+# point back at the ABI.  docs/SIXTYFOUR.md is the whole of this project and
+# says how far it has got.
+#
+# KATAM_SYSROOT_ARM64, KATAM_ARM64_PREFIX and KATAM_ARM64_QEMU are read from the
+# *environment* by the toolchain file, not from -D: a toolchain file runs before
+# the cache exists, so a -D is invisible to it on the first configure and the
+# build fails claiming there is no arm64 SDL while one sits in the sysroot.
+#
+#   KATAM_SYSROOT_ARM64=$PWD/root make arm64
+#
+# "Building without root" in docs/NATIVE.md assembles that sysroot from scratch.
+ARM64_DIR ?= $(BUILD)/native-arm64
+ARM64_BIN := $(ARM64_DIR)/katam
+
+arm64:
+	@echo "  arm64 is the LP64 build: the game compiled as C++ so that PTR32 keeps"
+	@echo "  every structure at its GBA layout.  Verified transfer-for-transfer and"
+	@echo "  pixel-for-pixel against wasm32, i686 and x86-64 -- see docs/SIXTYFOUR.md."
+	@echo "  armhf needs none of that machinery and is the simpler ARM build."
+	@cmake -S . -B $(ARM64_DIR) -DCMAKE_BUILD_TYPE=Release \
+	       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-arm64.cmake \
+	       -DKATAM_ALLOW_LP64=ON >/dev/null \
+	  || { echo; \
+	       echo "The arm64 build needs an aarch64 cross toolchain and an arm64 SDL2."; \
+	       echo "On Debian/Ubuntu, on an arm64 machine:"; \
+	       echo "    sudo apt install g++-aarch64-linux-gnu libsdl2-dev"; \
+	       echo "From an x86-64 desktop there is no apt route at all: the arm64"; \
+	       echo "packages live on ports.ubuntu.com, not in the archive, and only the"; \
+	       echo "cross compilers are in it.  Unpack a sysroot by hand and name it in"; \
+	       echo "the ENVIRONMENT -- a -D is not visible to a toolchain file:"; \
+	       echo "    KATAM_SYSROOT_ARM64=\$$PWD/root make arm64"; \
+	       echo "See \"Building without root\" in docs/NATIVE.md for the whole recipe."; \
+	       exit 1; }
+	@cmake --build $(ARM64_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  ARM64   $(ARM64_BIN)"
+
+arm64-clean:
+	rm -rf $(ARM64_DIR)
 
 # --- Windows ---------------------------------------------------------------
 # The same sources through cmake/toolchain-windows-i686.cmake, cross-compiled

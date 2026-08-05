@@ -23,8 +23,17 @@ import sys
 from collections import namedtuple
 from pathlib import Path
 
+
+# The 64-bit builds compile these generated sources as C++ so that GBA
+# structures keep 4-byte pointer members (docs/SIXTYFOUR.md, tools/cxxify.py).
+# Without C linkage the function definitions mangle and the const tables become
+# internal, so the game cannot see either.  A no-op in C.
+EXTERN_C_OPEN = '#ifdef __cplusplus\nextern "C" {\n#endif\n\n'
+EXTERN_C_CLOSE = '\n#ifdef __cplusplus\n}\n#endif\n'
+
 sys.path.insert(0, str(Path(__file__).parent))
-from gen_ram_symbols import declaration_to_macro, DECL_RE_TMPL  # noqa: E402
+from gen_ram_symbols import (declaration_to_macro, load_pointer_typedefs,  # noqa: E402
+                             DECL_RE_TMPL)
 
 # `s32 (*const gTable[])(union AnimCmd, struct Sprite *)` -- an array of
 # function pointers sitting in ROM.
@@ -99,7 +108,21 @@ def parse_structs(texts):
                 if not line:
                     continue
 
-                fn = re.match(r'(?P<ret>[\w\s\*]+?)\s*\(\s*\*\s*(?P<nm>\w+)\s*\)'
+                # PTR32_FN(ret, name, (params)) -- the narrowed spelling of a
+                # function-pointer member.  tools/narrow32.py rewrites every
+                # such member so it stays four bytes on a 64-bit host, and this
+                # scan is the only other thing in the tree that reads those
+                # declarations.  Missing it did not fail loudly: the member
+                # simply stopped being recognised as a function pointer, the
+                # struct's computed size stopped matching its /* size = */
+                # comment, the whole type was skipped, and the 219 ROM-struct
+                # function pointers silently stopped being patched -- in every
+                # build, including the shipping wasm one.  The symptom was a
+                # call into a raw ARM address in CreateCPUKirbyTrigger.
+                fnw = re.match(r'PTR32_FN\s*\(\s*(?P<ret>[^,]+?)\s*,\s*'
+                               r'(?P<nm>\w+)\s*,\s*\((?P<params>.*)\)\s*\)$',
+                               line, re.S)
+                fn = fnw or re.match(r'(?P<ret>[\w\s\*]+?)\s*\(\s*\*\s*(?P<nm>\w+)\s*\)'
                               r'\s*\((?P<params>.*)\)$', line, re.S)
                 if fn:
                     size = a = 4
@@ -107,7 +130,9 @@ def parse_structs(texts):
                     info = (fn.group('ret').strip(), fn.group('params'))
                 else:
                     is_fn, info = False, None
-                    if '*' in line:
+                    # The other narrowed spellings are all four-byte
+                    # pointers and none of them contains a star.
+                    if re.match(r'PTR32(_TD|_ARR)?\s*\(', line) or '*' in line:
                         size = a = 4
                     else:
                         mm = re.match(r'(?:const\s+|volatile\s+)*(?:struct\s+|union\s+)?'
@@ -389,6 +414,8 @@ def main():
                 from_elf[addr] = sym
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
     signatures = {}
+    load_pointer_typedefs(args.tree)
+
     defined = set()
     # The platform layer counts too -- it defines replacements for things the
     # decomp has in ROM (the SRAM library's version string, for one), and those
@@ -614,6 +641,7 @@ def main():
             # No game headers here on purpose: this file defines storage for
             # symbols the headers also declare, with a type it cannot name.
             f.write('#include <string.h>\n#include "port/port.h"\n\n')
+            f.write(EXTERN_C_OPEN)
 
             for name, addr, size in copies:
                 f.write('__attribute__((aligned(4))) u8 %s[%d];\n' % (name, size))
@@ -622,6 +650,7 @@ def main():
                 f.write('    memcpy(%s, (const void *)0x%08Xu, %d);\n'
                         % (name, addr, size))
             f.write('}\n')
+            f.write(EXTERN_C_CLOSE)
 
     # Function pointers sitting *inside* ROM structs.  `gUnk_08351648` is an
     # array of 219 object descriptors, each with a `void (*unk10)(struct
@@ -690,6 +719,7 @@ def main():
             for hdr in sorted(wanted):
                 f.write('#include "%s"\n' % hdr)
             f.write('\n')
+            f.write(EXTERN_C_OPEN)
 
             # One extern per symbol for the whole file.  The same function can
             # sit in two tables whose element types differ, and declaring it
@@ -738,6 +768,14 @@ def main():
                 if ret != 'void':
                     f.write('    return (%s)0;\n' % ret)
                 f.write('}\n\n')
+                # `extern` is load-bearing, and only on the 64-bit builds.
+                # These are const arrays, and a const object at namespace scope
+                # has internal linkage in C++ where it has external linkage in
+                # C.  extern "C" does not fix that -- it sets *language*
+                # linkage, not storage linkage -- so without this the table is
+                # defined here, invisible everywhere else, and the game's
+                # reference to it fails to link with no other symptom.
+                f.write('extern %s (*const %s[%d])(%s);\n' % (ret, name, count, params))
                 f.write('%s (*const %s[%d])(%s) = {\n' % (ret, name, count, params))
                 for entry in entries:
                     if entry:
@@ -783,10 +821,15 @@ def main():
                 f.write('void PortPatchRomFunctionPointers(void)\n{\n'
                         '    u32 i;\n\n'
                         '    for (i = 0; i < sizeof(sRomStructFns) / sizeof(sRomStructFns[0]); i++)\n'
-                        '        *(void **)sRomStructFns[i].at = sRomStructFns[i].fn;\n'
+                        '        /* PTR32: the field the ROM gave this pointer is four bytes.\n'
+                        '         * A plain `void **` store is eight on a 64-bit host and\n'
+                        '         * takes the next field with it. */\n'
+                        '        *(PTR32(void) *)sRomStructFns[i].at = sRomStructFns[i].fn;\n'
                         '}\n')
             else:
                 f.write('void PortPatchRomFunctionPointers(void) { }\n')
+
+            f.write(EXTERN_C_CLOSE)
 
     # Anything rom_fn_tables.c names has to be linkable from another
     # translation unit, and half of what the ELF adds is `static`.  Dropping

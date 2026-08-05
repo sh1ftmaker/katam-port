@@ -1,5 +1,17 @@
 #ifndef GUARD_PORT_BACKEND_H
 #define GUARD_PORT_BACKEND_H
+/* C linkage for the 64-bit builds.
+ *
+ * They compile the game as C++ so that its structures keep 4-byte pointer
+ * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * source C linkage so the C++ build links by the same rules the C builds do.
+ * This header declares the seam between the two, so it has to say the same
+ * thing -- otherwise the game calls a mangled name and the platform defines an
+ * unmangled one, or the reverse.  A no-op in C. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 #include "gba/types.h"
 
@@ -67,6 +79,42 @@ void PortAwaitRom(void);
  * pointer gets through; guessing "no" is how a real transfer gets dropped, and
  * that is the bug that once hid every level tilemap. */
 int PortHostRangeOk(uintptr_t addr, u32 len);
+int PortDmaTracing(void);
+
+/* --- who issued this transfer? -------------------------------------------
+ *
+ * The DMA log says two builds moved different bytes.  It cannot say why: a
+ * transfer carries no record of the code that asked for it, because the game
+ * writes four registers and the port copies memory.  When two streams diverge
+ * at a transfer whose source is a *valid* address in both builds -- ROM in one
+ * and EWRAM in the other, same destination, same count -- the question stops
+ * being "which pointer is wrong" and becomes "which branch was taken".  That
+ * is a question about the call stack, and nothing that hashes memory can
+ * answer it.
+ *
+ * PORT_DMA_STACK=<lo>:<hi> prints the call stack for traced transfers lo..hi.
+ * The two hosts spell a stack differently and neither spelling is the
+ * interesting part -- the *game* function names are, and both can supply them:
+ *
+ *   web      emscripten_get_callstack reads the engine's frames and names them
+ *            from the wasm name section.  --profiling-funcs is already on, so
+ *            names arrive directly.
+ *   native   backtrace() gives return addresses; the binary is linked -no-pie
+ *            at a fixed text address, so they resolve offline against `nm`.
+ *
+ * tools/symbolize_stack.py turns either form into the same list of decompiled
+ * C names.  That is the symbol-normalising comparison the state hasher wanted,
+ * applied to control flow rather than to memory -- where it is far cheaper,
+ * because a stack is twenty frames and EWRAM is 256 KiB of which any word
+ * might be a function pointer. */
+u32 PortFrameNumber(void);
+int PortDmaStackWanted(u32 transfer);
+void PortCallStack(const char *tag);
+/* The web build is linked -sENVIRONMENT=web, so emscripten's getenv never sees
+ * node's process.env and every environment-driven switch in this file needs an
+ * explicit entry point beside it.  Turns DMA tracing on as a side effect,
+ * since asking for a stack without the line it belongs to is useless. */
+void PortSetDmaStack(long lo, long hi);
 
 /* The GBA BIOS ROM, 16 KiB at address zero.
  *
@@ -118,5 +166,10 @@ void PortAudioSubmit(const float *samples, int frames);
  * PortSramMarkDirty says a byte changed.  The host debounces. */
 int  PortSramLoad(u8 *dest, u32 size);
 void PortSramMarkDirty(void);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GUARD_PORT_BACKEND_H */

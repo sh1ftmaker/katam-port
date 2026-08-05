@@ -6,16 +6,234 @@ a build of its own. This file is the measurement of what removing that
 restriction would cost, so the decision can be made from numbers instead of
 from an estimate.
 
-Nothing here is a conversion. What is in the tree is the safety net the
-conversion would need — a committed table of every structure's size and every
-member offset, asserted at compile time in all four builds — plus an opt-in
-switch that configures an LP64 build so the damage can be counted.
-
 **Summary.** The layout problem is 148 structures, and it is the whole problem.
 The pointer-narrowing problem people expect turns out to be 244 source sites,
-and almost all of them are harmless. The conversion is mechanical in shape and
-not mechanical in execution, because the codemod that would have to do it is
-textual and the change needs types. Estimate at the end.
+and almost all of them are harmless.
+
+---
+
+## Status: finished, and what the last two bugs were
+
+**2026-08-05.** All four builds — wasm32, i686, x86-64, aarch64 — produce
+**byte-identical DMA transfer streams over 63236 transfers and 1401 frames** of
+the same scripted input, and pixel-identical frames. The three native builds
+report identical smoke-test numbers (`boot: 192 colours, 14 pictures, DISPCNT
+0x1340` / `play: 187 colours, 43 pictures, DISPCNT 0x1B40`). `make layout-check`
+asserts 246 types and 2144 offsets. The ILP32 builds did not move: the wasm DMA
+stream is unchanged, transfer for transfer, across every change described here.
+
+Two bugs stood between "the layout assertions pass" and that result. Neither
+was visible to any check the port had, and both are the same shape — *something
+outside a struct member whose size the console fixed at four bytes*.
+
+### 1. A file-scope array of pointers, read through another type
+
+```c
+extern struct RoomTiledBG *const gUnk_082D8D74[];         /* stride 8 under LP64 */
+gUnk_03002E60 = (const union Unk_03002E60 *)gUnk_082D8D74; /* stride 4 */
+```
+
+`union Unk_03002E60` is a transparent union of `PTR32` members and is four
+bytes, so every `gUnk_03002E60[i]` read element `i/2` of the real array. On the
+console both strides are four and the cast is exact.
+
+`narrow32.py` narrows pointer members of *structures*, on the argument that a
+structure's layout is decided by the ROM, by `linker.ld` or by the game's own
+allocator. A file-scope array has none of those constraints — until something
+casts it. This is the only place in the tree that does, which
+`tools/check_ptr_arrays.py` is what establishes and what keeps establishing.
+
+The symptom was a corrupt background layer: every level's BG descriptor came
+from the wrong room, 20999 of 38400 pixels. Nothing faulted, nothing asserted,
+and both source addresses were valid mapped memory — which is what made it look
+like a graphics bug for three rounds of investigation.
+
+### 2. Twenty-five types defined in .c files rather than headers
+
+`portify.py` ran the narrowing pass over `include/*.h` only. `struct
+CutsceneTrigger`, `struct AreaMap`, `struct WorldMap`, `struct Unk_080880AC`
+and twenty-one others are declared in the .c file that uses them, and they grew
+under LP64 — `CutsceneTrigger` by 48 bytes.
+
+Nothing about a structure's *location* decides whether its pointer members have
+to be four bytes. What decides it is whether anything outside the compiler
+cares about the layout, and the game's own allocator does:
+
+```c
+task = TaskCreate(ObjectMain, sizeof(struct CutsceneTrigger), ...);
+```
+
+A bigger struct does not corrupt anything. It makes the allocation bigger, so
+the fixed 0x2604-byte IWRAM heap fills sooner, so a later object misses IWRAM
+and falls back to EWRAM — which `TaskCreate` does silently and by design. The
+two builds were still computing the same thing; they had stopped keeping it in
+the same place. The first frame that looked different was **73 frames** later,
+and the first *DMA* that looked different was 73 frames after that.
+
+One of the twenty-five was an anonymous union whose whole body was on one line,
+which the line-oriented narrowing pass cannot see. Exactly one such member
+exists in the tree, so it is a site-table entry rather than a parser.
+
+### What now checks for both
+
+| | |
+|---|---|
+| `tools/abi_size_diff.py` | every DWARF struct/union size, ILP32 build against LP64 build. This is the check `make layout-check` cannot make: a type only enters `gba_layout.h` if it has a known console address to be asserted against, and neither of these types did. |
+| `tools/check_ptr_arrays.py` | file-scope pointer arrays that something reads through a cast |
+| `PORT_DMA_STACK` + `tools/symbolize_stack.py` | the call stack that issued a given DMA transfer, as decompiled C names, from either host |
+| `PORT_WINDOW=addr:len` | one window hashed every frame, for finding *when* a known address started to differ |
+
+### And an ILP32 native control now exists
+
+`docs/DEBUG-TOOLING.md` used to say the thing that would settle an ABI question
+completely was an ILP32 *native* build — same host layer, same audio driver,
+only the ABI different — and that it did not exist. It does now, and it was one
+line of CMake: `project(katam-port C CXX)` makes CMake compile *and link* a C++
+test program at configure time, so every 32-bit target needed a 32-bit
+libstdc++ to configure, for a language none of its sources use. Declaring `C`
+and calling `enable_language(CXX)` only when `CMAKE_SIZEOF_VOID_P` says so
+fixes it.
+
+It earned its keep immediately. i686 against wasm32 — different hosts, same ABI
+— was identical over all 63212 transfers, which retired the standing worry that
+the SDL and web hosts drive the sound engine differently enough to matter. i686
+against x86-64 — same host, different ABI — diverged at frame 482. That is what
+turned "something differs" into "this is an ABI bug", with no host variable
+left in the comparison.
+
+### One measurement that was contaminated
+
+The native runs in this investigation were reading a **save file left on the
+developer's machine** by earlier runs, while the node harness starts with blank
+SRAM every time. So the two builds were not being given the same starting
+state, and a real-looking divergence at frame 409 was the game resuming a saved
+tutorial in one build and not the other. `XDG_DATA_HOME` pointed at a scratch
+directory is the fix, and any cross-build comparison needs it. The bug in §1 was
+found before this was noticed and is unaffected — it was proved structurally,
+by the two strides, not by the frame counts.
+
+---
+
+## Status, and a correction to this document
+
+This file was first written as a measurement, and it concluded that the
+conversion needed a type-aware rewriter over ~40,000 member accesses, which
+meant `libclang`, which meant a new dependency and 4–6 weeks. **That conclusion
+was wrong**, and the section it lives in ([What a conversion would
+involve](#what-a-conversion-would-involve)) is kept below as written so the
+reasoning can be checked rather than quietly replaced.
+
+What it got right: C cannot express a four-byte thing that still behaves like a
+pointer, and a textual codemod cannot tell which `->unk0` is which. What it
+missed: **C++ can express it**, in a class with `operator->`. That changes what
+has to be rewritten from ~40,000 *uses* to ~285 *declarations*, and the uses do
+not change at all.
+
+So the work is under way rather than hypothetical. Done so far:
+
+| | |
+|---|---|
+| `platform/port/gba_layout.h` — the assertion table | done |
+| `tools/cxxify.py` — the decompilation's C through a C++ front end | done, 156/156 |
+| `platform/port/p32.h` — `PTR32`, the 4-byte pointer member | done, tested both ABIs |
+| C++ linkage, so the 64-bit build links by the ILP32 build's rules | done |
+| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target, `make arm64` | **renders**; frame-identical to the ILP32 reference |
+| code and game-visible host storage below 4 GiB | done, `-no-pie -Wl,-Ttext-segment=0x10000000` |
+| narrowing the pointer members to `PTR32` | done, 277 members |
+| **the assertion table holding at LP64 — the definition of done for the layout** | **met** |
+| the run-time tail the assertions cannot cover | in progress |
+
+The layout half of this project is finished and the finishing is checkable:
+`platform/gba_layout_check.c` compiles in the LP64 build with nothing to say,
+all 246 types and 2144 offsets, on x86-64 and on aarch64 both. What is left is
+the tail the table was never able to see — the linker-placed arrays with fixed
+extents, and everything that is not a structure member.
+
+The aarch64 binary boots, plays the intro and reaches the title screen. Its
+frame at 1200 is **pixel-for-pixel identical** to the wasm32 ILP32 reference —
+0 of 38400 pixels differ, 167 distinct colours, DISPCNT `0x1740`, and `0
+distinct gaps reported, 0 calls into missing functions`. So does the x86-64
+LP64 build. A 64-bit host now produces the same picture as the 32-bit one, from
+structures laid out the way a 32-bit console laid them out.
+
+What did *not* work at the time of writing was the play path: mashing into a
+level died in `sub_08010590` on an object-list walk. That was traced to the ROM
+function-pointer patcher having been silently disabled by the narrowing (commit
+`6448212`), and the two bugs in the section at the top of this file. All of it
+now runs; the paragraph is kept because the sentence after it — "this is a
+genuinely 64-bit-only failure and the first one that has been" — was correct
+and is how the remaining work got scoped.
+
+**The ILP32 builds are the control and they have not moved.** The wasm build
+over 1200 frames is byte-identical through all of it: frame md5
+`de1b1dfefeb50eeba2791e08f332942c`, 167 colours, DISPCNT `0x1740`, peak 0.6527,
+0 diagnostics.
+
+### What the C++ route actually cost
+
+Measured, not estimated: all 156 game translation units through `g++
+-fpermissive`. 107 compiled unchanged. The other 49 produced 698 errors from
+**six causes**, not a long tail — a parameter named `template` (41 files, and
+it cascades), nested struct tags that have file scope in C and class scope in
+C++, GNU range designators, the flexible-array idiom, transparent unions, and
+one unprototyped declaration. All six are mechanical and all six are handled by
+`tools/cxxify.py`, whose transforms are valid C as well, so the ILP32 builds
+compile the identical tree.
+
+Linking took four more findings, and those are the ones that matter, because
+none of them produces a diagnostic anywhere:
+
+- **`const` at file scope has internal linkage in C++ and external linkage in
+  C.** Every ROM data table in the decompilation is a const array, so under C++
+  they all silently became static. 420 definitions now carry `extern`.
+- **`extern "C"` does not fix that.** It sets *language* linkage, not storage
+  linkage. Learning this cost several rounds of "the symbol is right there".
+- **The game is given C linkage throughout**, so the 64-bit build links by the
+  same rules the ILP32 builds do. Anything else would be a second port.
+- The stub set is derived from the wasm link, and the two optimisers do not
+  fold the same references, so the 64-bit link asked for symbols `make stubs`
+  had never heard of. Every one was an artefact of the above rather than a
+  missing symbol.
+
+### There is no toolchain shortcut
+
+Checked rather than assumed, because it would have made all of this
+unnecessary. x86-64 LLVM does have 32-bit address spaces in its data layout
+(`p270:32:32`), but clang rejects an address-space qualifier on a struct field:
+`field may not be qualified with an address space`. aarch64's data layout has
+no 32-bit address space at all. `-mabi=ilp32` on aarch64 has no libc anybody
+ships and no upstream kernel support, and clang's `aarch64_32` target is
+Apple's watchOS ABI.
+
+### The revised estimate
+
+`libclang` is not needed and neither is the rewriter it was for. What remains:
+
+| | |
+|---|---|
+| link-line and host-storage work (code and heap below 4 GiB) | 3–5 days — **spent** |
+| rewriting 285 member declarations to `PTR32` | 2–4 days — **spent** (277 members) |
+| the function-pointer patcher and the ROM tables | 2–3 days |
+| making it run, and the long tail the assertions do not cover | 1–2 weeks |
+| **total** | **2–3 weeks** |
+
+The first two rows are done, and half of the third: the 34 ROM tables whose
+elements are pointers are emitted with `PTR32` elements by
+`tools/gen_ram_symbols.py`, which is the generator that names them. The other
+half is not. `PortPatchRomFunctionPointers` in `build/generated/rom_fn_tables.c`
+still writes `*(void **)sRomStructFns[i].at` — an eight-byte store into a field
+the ROM gave four bytes — exactly as
+[Function pointers stored in GBA memory](#2-function-pointers-stored-in-gba-memory)
+below says it does.
+
+The last row is still the one to distrust, for the reason given at the end of
+the original estimate: the assertions cover struct layout and nothing else, and
+the port has around 190 linker-placed symbols with extents that are not
+asserted anywhere. Two of the three things that broke first were of exactly
+that kind — `gMPlayJumpTable`'s extent and `INTR_VECTOR`'s address — and neither
+is a structure.
+
+---
 
 ---
 
@@ -295,14 +513,21 @@ regions that cannot grow, and `struct Task::structOffset` is a `u16`.
 
 ## What the LP64 build actually does
 
+*This section is the state before the narrowing, and it is kept because it is
+the evidence the whole approach was chosen from. All three of its numbers have
+since moved: the assertions pass, the jump table is four bytes an entry again,
+and the build gets as far as the task scheduler. What has not moved is the
+finding in the middle — that an LP64 build produces no diagnostic of any kind —
+which is why the table is the only thing that can say when this is done.*
+
 `-DKATAM_ALLOW_LP64=ON` turns `CMakeLists.txt`'s pointer-size guard from an
 error into a loud warning. It is an experiment switch and says so at configure
 time. `-DKATAM_SKIP_LAYOUT_CHECK=ON` additionally drops
 `platform/gba_layout_check.c`, which is the only way to get past the
 assertions; it prints a warning of its own.
 
-With the assertions in, one translation unit fails and produces the
-enumeration:
+With the assertions in, before any of the members were narrowed, one translation
+unit failed and produced the enumeration:
 
 ```
 1258 static assertion failures
@@ -504,6 +729,19 @@ Two real disagreements, both latent today:
 
 ## Recommendation
 
+*Superseded — see [Status](#status-and-a-correction-to-this-document). The
+original text is kept below because the reasoning was sound given the numbers
+it had, and the numbers changed rather than the reasoning.*
+
+The remaining order is: link-line and host-storage work, then the 285
+declarations, then the ROM function-pointer patcher. Keep every step behind
+`KATAM_ALLOW_LP64` until the assertions pass at LP64. **The assertions passing
+is the definition of finished, and there is no other one** — that part of the
+original conclusion stands unchanged and is the reason the table was built
+first.
+
+### As originally written
+
 Keep the table; it earns its place on the decompilation alone.
 
 Do the conversion only if macOS or a native arm64 build is actually wanted.
@@ -511,8 +749,3 @@ The web build is the Mac answer today and it is a good one, arm64 Linux runs
 the armhf build on any 4 KiB-page kernel, and 4–6 weeks buys a second way to
 run the game on hardware that already has one — against a permanent tax on
 every future decompilation import.
-
-If it is commissioned, do it in this order: table first (done), then the
-link-line and host-storage work, then the rewriter, and keep every step behind
-`KATAM_ALLOW_LP64` until the assertions pass at LP64. The assertions passing is
-the definition of finished, and there is no other one.

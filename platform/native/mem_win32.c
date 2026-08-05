@@ -58,6 +58,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* --------------------------------------------------------------------------
  * Small helpers
  * ------------------------------------------------------------------------ */
@@ -359,3 +365,7 @@ void PortHostReportAddressSpace(void)
                 "at 0x%08lX", above, above == 1 ? "" : "s",
                 (unsigned long)REPORT_CEILING, (unsigned long)lowestAbove);
 }
+
+#ifdef __cplusplus
+}
+#endif

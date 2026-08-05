@@ -30,6 +30,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef MAP_FIXED_NOREPLACE
 /* Linux 4.17+.  Older headers, and every other POSIX, do not define it; the
  * flag then falls back to a mincore() probe plus MAP_FIXED below. */
@@ -208,3 +214,7 @@ void PortHostReportAddressSpace(void)
     PortLog("[katam-port]   ... and %d mapping%s above 0x20000000",
             above, above == 1 ? "" : "s");
 }
+
+#ifdef __cplusplus
+}
+#endif

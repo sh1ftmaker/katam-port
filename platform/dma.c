@@ -20,6 +20,22 @@
 #include "port/dma.h"
 #include "gba/io_reg.h"
 
+/* C linkage for the 64-bit builds.
+ *
+ * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * everything on the seam has to agree.  It is applied to platform/*.c as a
+ * class rather than to the files that happened to break: the failure is an
+ * undefined reference to a mangled name, or -- for a `const`, which is
+ * internal-linkage in C++ and external in C -- to a symbol that is plainly
+ * defined a few lines away.  Neither says which file to fix, and the set of
+ * files that need it changes whenever a declaration moves.  A no-op in C.
+ *
+ * The block opens below the includes so that SDL and the system headers stay
+ * outside it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct DmaChannel {
     const u8 *src;
     u8 *dest;
@@ -97,6 +113,7 @@ static int RangeOk(uintptr_t addr, u32 len)
 }
 
 static u32 sBadTransfers;
+static u32 sTransferCount;
 
 /* Both endpoints of a run, given the address-control mode: a decrementing
  * transfer ends below where it started, a fixed one never moves. */
@@ -138,6 +155,31 @@ static void RunTransfer(struct DmaChannel *ch)
 
         SpanOf((uintptr_t)src, srcCtrl, unit, ch->count, &srcLo, &srcLen);
         SpanOf((uintptr_t)dest, destCtrl, unit, ch->count, &destLo, &destLen);
+
+        /* Every transfer, in order, when asked for.  This is the most direct
+         * instrument the port has for "the tiles never arrived": it watches
+         * the data movement itself rather than the memory afterwards, so a
+         * missing upload shows up as a missing line rather than as a hash that
+         * stopped matching several frames later.  Diff two builds' streams and
+         * the first differing line *is* the fault. */
+        if (PortDmaTracing()) {
+            /* n= and f= were added after the first comparison run, and they are
+             * what makes the log usable rather than merely available: without
+             * them, "the streams differ at line 27263" cannot be turned into a
+             * frame to re-run, or into a transfer to ask for a stack at.  The
+             * counter advances for refused transfers too, so that the two
+             * builds number the same events even where one of them declines
+             * one. */
+            PortLog("[dma] n=%u f=%u ch=%u src=%08X dest=%08X count=%u unit=%u "
+                    "ctrl=%04X",
+                    (unsigned)sTransferCount, (unsigned)PortFrameNumber(),
+                    (unsigned)(ch - sChannels), (unsigned)(uintptr_t)src,
+                    (unsigned)(uintptr_t)dest, (unsigned)ch->count,
+                    (unsigned)unit, (unsigned)ch->flags);
+            if (PortDmaStackWanted(sTransferCount))
+                PortCallStack("dma");
+        }
+        sTransferCount++;
 
         if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
             /* A few of these are expected, not faults.  A room with no second
@@ -262,3 +304,7 @@ void PortDmaVBlank(void)
 {
     RunTiming(TIMING_VBLANK);
 }
+
+#ifdef __cplusplus
+}
+#endif

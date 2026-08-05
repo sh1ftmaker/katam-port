@@ -25,6 +25,10 @@ import shutil
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cxxify
+import narrow32
+
 # ---------------------------------------------------------------------------
 # transforms
 # ---------------------------------------------------------------------------
@@ -962,6 +966,20 @@ DEFINES_OVERRIDE = '''\
 #undef NAKED
 #define NAKED
 
+/* The BIOS interrupt vector is the last *word* of IWRAM -- four bytes at
+ * 0x3007FFC, with the region ending at 0x3008000.  defines_agb.h spells it
+ * `(*(void **)0x3007FFC)`, which on a 64-bit host is an eight-byte store
+ * running four bytes past the end of the mapping, and the write segfaults.
+ *
+ * PTR32 keeps it four bytes there and is a plain `void *` everywhere else, so
+ * the ILP32 builds see exactly what they saw before.  This is the same problem
+ * as a structure's pointer member and not the same fix, because there is no
+ * structure -- it is a naked address, which is why the layout assertions have
+ * nothing to say about it.  docs/SIXTYFOUR.md's warning about the ~190
+ * linker-placed symbols whose extents nothing asserts is precisely this. */
+#undef INTR_VECTOR
+#define INTR_VECTOR (*(PTR32(void) *)0x3007FFC)
+
 #endif /* GUARD_PORT_GBA_DEFINES */
 '''
 
@@ -996,6 +1014,39 @@ def main():
 
     rep = Report()
     returns = load_stub_returns(Path(__file__).parent / 'stub_returns.conf')
+
+    # The C++ compatibility pass over the headers has to run before anything
+    # reads them, because the two things the source pass needs -- the real
+    # prototype of every function, and which structures end in a `[0]` array --
+    # are read back out of these files.  See tools/cxxify.py for why the port
+    # compiles the game as C++ at all; the short version is that a 64-bit build
+    # needs 4-byte pointer members and C has no way to spell one.
+    #
+    # Every transform is valid C as well, so this runs for all four builds
+    # rather than only the 64-bit ones.  That is deliberate: it means the ILP32
+    # builds are the test of it, and their frame output must not move.
+    # Collected before the loop, from the headers as the decompilation wrote
+    # them: which typedefs resolve to a pointer is a property of the tree, and
+    # reading it back after the rewriting has begun would see a half-rewritten
+    # one.
+    narrow_typedefs = narrow32.pointer_typedefs(out / 'include')
+
+    for hp in sorted((out / 'include').rglob('*.h')):
+        text = hp.read_text(errors='replace')
+        # cxxify first, narrow32 second, and the order is load-bearing.
+        # cxxify generates a converting constructor per member type for each
+        # transparent union; if narrowing has already happened those
+        # constructors take a PTR32 instead of the pointer the call sites
+        # actually pass, and every such call stops compiling.  Narrowing after
+        # leaves the constructor signatures alone and rewrites only the member
+        # declarations, which is what both halves want.
+        new = cxxify.rewrite_header(text, rep, hp.name)
+        new = narrow32.narrow_members(new, rep, name=hp.name,
+                                      typedefs=narrow_typedefs)
+        if new != text:
+            hp.write_text(new)
+    cxx_protos = cxxify.header_function_prototypes(out / 'include')
+    cxx_flex = cxxify.flex_array_types(out / 'include')
 
     # Every symbol the headers declare `extern`.  A .c file that defines one of
     # these as `static` is the agbcc-ism handled in drop_static_on_exported.
@@ -1107,6 +1158,46 @@ def main():
                 text = ('/* PORT: %s */\n#undef NONMATCHING\n\n'
                         % UNDEF_NONMATCHING[path.name]) + text
                 rep.bump('files built from the matching branch instead')
+            # Last, and before the src/wip merge rather than after it: the
+            # merge concatenates this file with one that has already been
+            # through here, and cxxify's site table reports a pattern that no
+            # longer matches -- which a second pass over the same text would
+            # trip on every time.  Each half is rewritten exactly once.
+            text = cxxify.rewrite_source(text, rep, path.name, cxx_protos, cxx_flex)
+            # Structures defined in a .c file rather than a header need
+            # narrowing every bit as much as the ones in include/, and for a
+            # while they did not get it.
+            #
+            # Nothing about a structure's *location* decides whether its
+            # pointer members have to be four bytes.  What decides it is
+            # whether anything outside this compiler cares about the layout --
+            # and the game's own allocator does, for every one of these:
+            #
+            #     TaskCreate(ObjectMain, sizeof(struct CutsceneTrigger), ...)
+            #
+            # A struct that is 48 bytes bigger does not corrupt anything by
+            # itself.  It makes the allocation bigger, so the fixed 0x2604-byte
+            # IWRAM heap fills sooner, so some later object misses IWRAM and
+            # falls back to EWRAM -- which TaskCreate does silently and by
+            # design.  The two builds are still computing the same thing; they
+            # have stopped keeping it in the same place, and the frame that
+            # finally looks different is hundreds of frames downstream.
+            #
+            # 24 structures and one union were this, all defined in .c files:
+            # CutsceneTrigger, AreaMap, WorldMap, Unk_080880AC and the rest.
+            # tools/abi_size_diff.py is what found them and is what keeps them
+            # found -- it compares every DWARF type size between the ILP32 and
+            # LP64 builds, which is the check `make layout-check` cannot make
+            # because a type only enters gba_layout.h if it has a known console
+            # address to be checked against.
+            #
+            # Same ordering rule as the headers: cxxify first, narrow second.
+            text = narrow32.narrow_members(text, rep, name=path.name,
+                                           typedefs=narrow_typedefs)
+            # A file-scope array of pointers that something casts to a
+            # four-byte-strided type.  Not a structure member, so
+            # narrow_members above never sees it -- see ALIASED_ARRAYS.
+            text = narrow32.apply_aliased_arrays(text, path.name, rep)
             if path.name in written:
                 text = ('%s\n\n/* ---- PORT: merged from %s/%s ---- */\n\n%s'
                         % (dst.read_text(), tree, path.name, text))

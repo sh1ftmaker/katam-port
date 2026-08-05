@@ -33,6 +33,22 @@
 #include "main.h"
 #include "multi_sio.h"
 
+/* C linkage for the 64-bit builds.
+ *
+ * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * everything on the seam has to agree.  It is applied to platform/*.c as a
+ * class rather than to the files that happened to break: the failure is an
+ * undefined reference to a mangled name, or -- for a `const`, which is
+ * internal-linkage in C++ and external in C -- to a symbol that is plainly
+ * defined a few lines away.  Neither says which file to fix, and the set of
+ * files that need it changes whenever a declaration moves.  A no-op in C.
+ *
+ * The block opens below the includes so that SDL and the system headers stay
+ * outside it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PACKET_HW ((s32)(sizeof(struct MultiSioPacket) / 2))
 
 struct LoopPeer {
@@ -251,3 +267,7 @@ int PortMpLoopbackPeerBadChecksums(int peer)
         return -1;
     return sPeers[peer].badChecksums;
 }
+
+#ifdef __cplusplus
+}
+#endif

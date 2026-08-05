@@ -26,6 +26,12 @@
 #include "native.h"
 #include "port/audio.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Frames of stereo float.  Sized from the ringFrames the transport asks for,
  * rounded up to a power of two so the wrap is a mask -- 8192 frames is 170 ms
  * at 48 kHz, four times the target depth, which leaves room for a frame that
@@ -169,3 +175,7 @@ void PortNativeAudioClose(void)
         sDevice = 0;
     }
 }
+
+#ifdef __cplusplus
+}
+#endif

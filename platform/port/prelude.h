@@ -34,6 +34,17 @@
 #include <intrin.h>
 #endif
 
+/* The 64-bit builds compile the game as C++, so that a GBA structure's pointer
+ * members can stay four bytes wide -- see docs/SIXTYFOUR.md.  This is a no-op
+ * for the C builds and must stay one. */
+#include "port/cxx_compat.h"
+
+/* PTR32, the four-byte pointer member itself.  It has to be visible before any
+ * of the game's headers are parsed, because that is where it is used, and it
+ * has to be outside the extern "C" block below, because a template cannot have
+ * C language linkage. */
+#include "port/p32.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call
@@ -51,7 +62,19 @@
  *
  * uint32_t rather than u32: this header is parsed before gba/types.h, and it
  * is the same type (types.h does `typedef uint32_t u32`), so the declaration
- * here and the one in port/port.h agree. */
+ * here and the one in port/port.h agree.
+ *
+ * extern "C" for the 64-bit builds.  Those compile the game as C++ and
+ * tools/cxxify.py gives every game header and source C linkage, so that the
+ * C++ build links by the same rules the C builds do -- see cxxify.py's
+ * "linkage" section.  AgbMain is defined over there and called from here, so
+ * this declaration has to agree with it; the Port* hooks are the other
+ * direction, defined in platform/ and called from the game, and they have to
+ * agree for the same reason. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortHalt(void);
@@ -59,6 +82,10 @@ void PortTrace(const char *tag, uint32_t a, uint32_t b, uint32_t c);
 
 /* Defined by the game in src/main.c; the port calls it to start. */
 void AgbMain(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* --- the sound engine's own globals, at their hardware addresses -----------
  *
@@ -88,7 +115,16 @@ void AgbMain(void);
  * never has to be resumable half way through a frame.
  */
 #define gSoundInfo         (*(struct SoundInfo *)0x03000560)
-#define gMPlayJumpTable    ((MPlayFunc *)0x03001510)
+/* PTR32_TD, because this one is an *array* at a fixed address with a fixed
+ * extent.  linker.ld gives gMPlayJumpTable 0x90 bytes -- 36 entries of four --
+ * and MPlayFunc is a function pointer, so on a 64-bit host the entries become
+ * eight bytes and index 35 lands at 0x03001628, past the end of the table and
+ * inside gCgbChans, which nothing has written.  Clear64byte then calls zero.
+ *
+ * That is the failure docs/SIXTYFOUR.md predicted from the address map before
+ * any of this was built, and it is the first thing the narrowing had to fix
+ * that is not a structure member. */
+#define gMPlayJumpTable    ((PTR32_TD(MPlayFunc) *)0x03001510)
 #define gCgbChans          ((struct CgbChannel *)0x030015A0)
 #define gMPlayInfo_0       (*(struct MusicPlayerInfo *)0x030016A0)
 #define gMPlayInfo_1       (*(struct MusicPlayerInfo *)0x030016E0)

@@ -26,7 +26,29 @@
 # list and the flags, which is exactly what should be shared.
 
 cmake_minimum_required(VERSION 3.16)
+
+# C first, and CXX only if this toolchain turns out to be 64-bit.
+#
+# The port is a C program on every ILP32 target and that is what it stays; CXX
+# is for the 64-bit builds, which compile the same sources through a C++ front
+# end so that a structure's pointer members can keep the four bytes the console
+# gave them.  platform/port/p32.h is the whole of the reason and
+# docs/SIXTYFOUR.md is the measurement behind it.
+#
+# Declaring both up front looked free and is not.  `project(... C CXX)` makes
+# CMake compile and *link* a C++ test program at configure time, so every
+# 32-bit target suddenly needs a 32-bit libstdc++ to configure -- for a
+# language none of its sources are compiled in.  That is a real cost on exactly
+# the toolchains that are hardest to assemble: it is what stopped the i686
+# build from configuring against a hand-built sysroot, and the i686 build is
+# the control that tells an ABI difference from a host difference.
+#
+# CMAKE_SIZEOF_VOID_P is set by project(), so the test has to come after it,
+# and enable_language() is how a language is added later.
 project(katam-port C)
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+  enable_language(CXX)
+endif()
 
 set(CMAKE_C_STANDARD 99)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -60,34 +82,40 @@ endif()
 # error, and the fix is a toolchain file -- see cmake/toolchain-linux-i686.cmake
 # and docs/NATIVE.md.
 #
-# KATAM_ALLOW_LP64 turns the error into a warning, for measuring the 64-bit
-# conversion rather than for building anything.  It is not a step towards a
-# 64-bit build and it does not produce a working game: it produces a program
-# whose structures are the wrong shape, which is the thing the paragraph above
-# says has no symptom.  docs/SIXTYFOUR.md is what it is for.
+# KATAM_ALLOW_LP64 opts a 64-bit toolchain in.  What it means has changed, and
+# the wording above is the *pre-conversion* argument, kept because it is still
+# why the switch is not the default.
+#
+# The conversion is now done and measured.  The 64-bit builds compile the
+# game through a C++ front end where a pointer member is a four-byte class
+# (platform/port/p32.h), and on 2026-08-05 all four builds -- wasm32, i686,
+# x86-64 and aarch64 -- produced byte-identical DMA transfer streams over
+# 63236 transfers and 1401 frames of scripted input, and pixel-identical
+# frames.  Two ABI bugs had to be found first and neither was visible to any
+# check the port had:
+#
+#   - a file-scope array of pointers cast to a four-byte-strided union, so
+#     every background descriptor was read from the wrong element;
+#   - 25 types defined inside .c files rather than headers, which the
+#     narrowing pass only ever read, so they grew under LP64 and the game's
+#     own IWRAM heap filled sooner.
+#
+# tools/abi_size_diff.py and tools/check_ptr_arrays.py are what found them and
+# are what keep them found; docs/SIXTYFOUR.md has the account.
+#
+# It stays opt-in because it stays the harder path: the ILP32 builds need none
+# of that machinery and are what the console is.
 # ---------------------------------------------------------------------------
 option(KATAM_ALLOW_LP64
-       "EXPERIMENT ONLY: configure with 8-byte pointers.  The game will be \
-wrong.  See docs/SIXTYFOUR.md." OFF)
+       "Build with 8-byte pointers, using PTR32 for the game's structures. \
+See docs/SIXTYFOUR.md." OFF)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND KATAM_ALLOW_LP64)
-  message(WARNING
-    "================================================================\n"
-    "KATAM_ALLOW_LP64 is on and this toolchain has "
-    "${CMAKE_SIZEOF_VOID_P}-byte pointers.\n"
-    "\n"
-    "This is not a 64-bit build of the port.  148 of the game's 246\n"
-    "structures change size or move a member under LP64, including the\n"
-    "sound bank read out of the ROM and the Kirby array linker.ld placed\n"
-    "at a fixed address.  A binary produced this way boots, renders, and\n"
-    "is permanently and silently wrong.\n"
-    "\n"
-    "platform/gba_layout_check.c will refuse to compile and will name\n"
-    "every structure that moved.  That is the intended output.  To count\n"
-    "the *other* breakage instead, add -DKATAM_SKIP_LAYOUT_CHECK=ON.\n"
-    "\n"
-    "docs/SIXTYFOUR.md has the measurement this switch exists for.\n"
-    "================================================================")
+  message(STATUS
+    "katam-port: ${CMAKE_SIZEOF_VOID_P}-byte pointers -- compiling the game "
+    "as C++ so that PTR32 can keep its structures at their GBA layout.  "
+    "platform/gba_layout_check.c asserts all 246 of them; "
+    "tools/abi_size_diff.py checks the ones it cannot.")
 elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
   message(FATAL_ERROR
     "This toolchain has ${CMAKE_SIZEOF_VOID_P}-byte pointers; the port needs "
@@ -106,10 +134,12 @@ elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     "`make native` does the x86 case for you.  docs/NATIVE.md has the rest, "
     "including which arm64 kernels can run a 32-bit binary at all and what a "
     "platform with no 32-bit userland would need.\n\n"
-    "If you are measuring what a 64-bit port would cost rather than trying to "
-    "play the game, -DKATAM_ALLOW_LP64=ON turns this into a warning.  Read "
-    "docs/SIXTYFOUR.md first; the result is not a working build and is not "
-    "meant to be.")
+    "Or build 64-bit: -DKATAM_ALLOW_LP64=ON compiles the game as C++ so that "
+    "PTR32 can keep every structure at its GBA layout.  That path is finished "
+    "and measured -- all four builds agree transfer for transfer and pixel for "
+    "pixel -- but it needs a C++ toolchain and the generated tree from "
+    "`make sync`, so it is not the default.  docs/SIXTYFOUR.md has the whole "
+    "argument, and `make arm64` is the worked example.")
 endif()
 
 set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/build/port-src")
@@ -172,7 +202,14 @@ elseif(CMAKE_CROSSCOMPILING AND NOT WIN32)
   # the 64-bit SDL and hands it to the linker, which then produces four hundred
   # lines about incompatible files.  A missing .pc for this architecture means
   # the 32-bit SDL is not installed, and that is the thing to say.
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    # "aarch64" does not contain "arm", so this has to be tested first and by
+    # name; without it an arm64 build is told to install SDL2-devel.i686.
+    set(SDL_HINT
+      "Debian/Ubuntu: sudo apt install libsdl2-dev:arm64   (needs "
+      "dpkg --add-architecture arm64; the arm64 packages come from "
+      "ports.ubuntu.com, not the main archive)\n")
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
     set(SDL_HINT
       "Debian/Ubuntu: sudo apt install libsdl2-dev:armhf   (needs "
       "dpkg --add-architecture armhf, and apt will only do it on an armhf or "
@@ -270,6 +307,36 @@ endif()
 
 add_executable(katam ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS})
 
+# ---------------------------------------------------------------------------
+# The 64-bit builds compile as C++
+#
+# Not because anybody wanted C++, and not for one file: a GBA structure's
+# pointer members have to stay four bytes wide on a host whose pointers are
+# eight, and PTR32 in platform/port/p32.h is the only way to say that.  The
+# headers those structures live in are included by nearly every translation
+# unit, so the choice is all of them or none of them.
+#
+# All of them, and that is deliberate rather than lazy.  Compiling half the
+# tree as C++ would mangle half the names and leave the other half expecting C
+# linkage, so every call across the seam would fail to link -- or, worse,
+# resolve to something else.  One language throughout means one mangling
+# throughout and no seam to get wrong.
+#
+# tools/cxxify.py is what makes the decompilation's C acceptable to a C++ front
+# end.  Every transform it applies is valid C as well, so the ILP32 builds
+# compile the identical tree and stay the reference this build is checked
+# against.
+# ---------------------------------------------------------------------------
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set_source_files_properties(
+    ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS}
+    PROPERTIES LANGUAGE CXX)
+  set_target_properties(katam PROPERTIES LINKER_LANGUAGE CXX)
+  message(STATUS
+    "64-bit target: compiling as C++ so pointer members can stay 4 bytes "
+    "(platform/port/p32.h)")
+endif()
+
 target_include_directories(katam PRIVATE
   "${PORT_SRC}/include" "${GENERATED}" "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 
@@ -322,8 +389,23 @@ foreach(h ${FORCE_INCLUDES})
   target_compile_options(katam PRIVATE "SHELL:-include ${h}")
 endforeach()
 
+# -fno-strict-aliasing, -fwrapv and -funsigned-char are the semantics of the
+# console and apply whichever front end is parsing the file.  The standard
+# level cannot: -std=gnu99 and -fgnu89-inline are C spellings, and a 64-bit
+# build is compiling these same files as C++.
+#
+# -fpermissive on the C++ side is doing one specific job, not papering over the
+# port.  C++ forbids the implicit void*-to-T* conversion that the decompilation
+# performs constantly -- `void *p = TaskGetStructPtr(t); chest = p;` is the
+# shape of every object constructor in the game -- and -fpermissive demotes
+# exactly that to a warning.  Everything else C++ objects to was fixed at the
+# source by tools/cxxify.py, and there are no remaining diagnostics.
 target_compile_options(katam PRIVATE
-  -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv -funsigned-char)
+  -fno-strict-aliasing -fwrapv -funsigned-char
+  $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
+  $<$<COMPILE_LANGUAGE:C>:-fgnu89-inline>
+  $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
+  $<$<COMPILE_LANGUAGE:CXX>:-fpermissive>)
 
 # The decompilation is not warning-clean and is not meant to be: it is the
 # output of matching a 2004 ARM binary.  The Makefile uses -Wno-everything,
@@ -344,7 +426,11 @@ foreach(diag implicit-function-declaration implicit-int int-conversion
   string(MAKE_C_IDENTIFIER "HAVE_NOERR_${diag}" have_var)
   check_c_compiler_flag("-Wno-error=${diag}" ${have_var})
   if(${have_var})
-    target_compile_options(katam PRIVATE -Wno-error=${diag})
+    # C only: every one of these names a C diagnostic, and C++ either has no
+    # such warning or makes the construct an error that no -Wno-error can
+    # demote.  Passing them to g++ is at best noise and at worst a build that
+    # fails on the flag rather than on the code.
+    target_compile_options(katam PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-error=${diag}>)
   endif()
 endforeach()
 
@@ -417,6 +503,58 @@ if(WIN32)
 
   # GetOpenFileNameW.
   target_link_libraries(katam PRIVATE comdlg32)
+endif()
+
+# ---------------------------------------------------------------------------
+# 64-bit targets: put the image below 4 GiB
+#
+# A PTR32 (platform/port/p32.h) holds thirty-two bits, because that is what the
+# console gave a pointer member.  So every address the *game* can store has to
+# fit in thirty-two bits, and on a 64-bit host that is not automatic.  Measured
+# on aarch64 under qemu before this was added:
+#
+#   this binary at 0x7347b30acad0, a stack address at 0x4000007ffaf4,
+#   a heap address at 0x400000b112b0
+#
+# All three above 4 GiB.  Storing any of them through a PTR32 truncates, and
+# the first dereference dies somewhere unrelated.
+#
+# Three kinds of address are involved and only one of them is a problem:
+#
+#   Code.  `obj2->unk78 = sub_0800C124` puts a host function address in a
+#   four-byte member -- and docs/SIXTYFOUR.md flags that shape as the one no
+#   type analysis can find, because the member is a void* and the assignment is
+#   perfectly legal C.  Fixed by the link line below.
+#
+#   The port's static data.  build/generated/rom_copies.c gives ROM arrays real
+#   storage and rom_fn_tables.c holds the rebuilt tables; the game takes
+#   pointers into both.  Both are .data/.bss, so the same link line covers them.
+#
+#   The stack and the heap.  Neither carries an address the game stores.  The
+#   one that looks as though it does -- platform/dma.c's DmaFill source, which
+#   is the address of a local -- is read by the port's own DMA implementation
+#   and never reaches a GBA structure.  PortHostRangeOk already tells it from a
+#   stale pointer.
+#
+# This is the same trade, and the same address, as the Windows block above: the
+# addresses are the program.  PORT_CHECK_POINTERS is what makes the claim
+# falsifiable rather than merely argued -- it aborts on any high address stored
+# through a PTR32, naming it.
+# ---------------------------------------------------------------------------
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND UNIX AND NOT APPLE)
+  include(CheckCSourceCompiles)
+  set(CMAKE_REQUIRED_LINK_OPTIONS -no-pie -Wl,-Ttext-segment=0x10000000)
+  check_c_source_compiles("int main(void){return 0;}" HAVE_TEXT_SEGMENT)
+  unset(CMAKE_REQUIRED_LINK_OPTIONS)
+  if(HAVE_TEXT_SEGMENT)
+    target_link_options(katam PRIVATE -no-pie "-Wl,-Ttext-segment=0x10000000")
+    message(STATUS "64-bit target: image pinned at 0x10000000 so code fits in a PTR32")
+  else()
+    message(WARNING
+      "This linker does not take -Ttext-segment, so the image will be loaded "
+      "above 4 GiB and any host address the game stores in a structure will "
+      "truncate.  Build with -DPORT_CHECK_POINTERS to be told where.")
+  endif()
 endif()
 
 target_link_libraries(katam PRIVATE katam_sdl2)

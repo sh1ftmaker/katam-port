@@ -7,7 +7,17 @@
 
 #include "port/mp.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct PortMpTransport *PortMpJsTransport(void)
 {
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

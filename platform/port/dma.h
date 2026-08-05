@@ -1,5 +1,17 @@
 #ifndef GUARD_PORT_DMA_H
 #define GUARD_PORT_DMA_H
+/* C linkage for the 64-bit builds.
+ *
+ * They compile the game as C++ so that its structures keep 4-byte pointer
+ * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * source C linkage so the C++ build links by the same rules the C builds do.
+ * This header declares the seam between the two, so it has to say the same
+ * thing -- otherwise the game calls a mangled name and the platform defines an
+ * unmangled one, or the reverse.  A no-op in C. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 #include "gba/types.h"
 
@@ -18,5 +30,10 @@ void PortDmaHBlank(int line);
 
 /* Run any channel armed for VBlank. */
 void PortDmaVBlank(void);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GUARD_PORT_DMA_H */

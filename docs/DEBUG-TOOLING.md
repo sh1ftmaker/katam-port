@@ -7,7 +7,18 @@ scripted input that reaches a level.
 
 ## Recommendation
 
-**Adopt two things.**
+**For a divergence between two builds, reach for section 7 first** — the DMA
+transaction log, the call stack that issued a transfer, and the ILP32 native
+control. That section was written after the fact and is ordered the way the
+investigation should have gone rather than the way it did: the two 64-bit bugs
+it describes were each found in one step by an instrument that watches *what
+the game did*, after several rounds of hashing memory had produced only a
+transient sound difference that healed and a function-pointer spelling
+difference that was never a difference at all. And **look at the picture before
+building the next instrument** — fifteen seconds with two screenshots and a
+pixel diff named the subsystem that three rounds of hashing had not.
+
+**For a crash inside one build, adopt two things.**
 
 1. **DWARF plus `llvm-symbolizer`.** Compile with `-g`, link with
    `-gseparate-dwarf`, and every wasm frame in a trap — from node, from Chrome,
@@ -518,3 +529,272 @@ that against the fact that UBSan already runs today and finds this class of bug.
 
 5. **Consider shipping `-gseparate-dwarf`** on the deployed page. 100 KB buys
    the ability to read the tester's crash reports.
+
+
+---
+
+## 7. Comparing one build of the port against another
+
+Added for the 64-bit work, and the only instrument that could answer the
+question it was built for.
+
+`PORT_STATE_TRACE=1` makes the port emit one line per frame holding the input
+and an FNV-1a hash of each region of the emulated console:
+
+    [trace] f=185 keys=011 ewram=E43334E7 iwram=... vram=D502AEBB pltt=... oam=... io=...
+
+The point is that this port can be diffed against itself across ABIs, which an
+emulator comparison cannot: **every build reserves the GBA map at the same true
+addresses**, so EWRAM at 0x02000000 in the wasm build and EWRAM at 0x02000000
+in the aarch64 build hold the same bytes for the same reasons. Run two builds
+with the same input, diff the logs, and the first differing line is the frame
+they stopped agreeing — and its columns say whether the *input* diverged (a
+harness difference) or the *state* did, and which region.
+
+Comparing screenshots cannot do this. It says the pictures differ, which is
+where a divergence ended up rather than where it began, and it cannot tell
+"the two harnesses pressed different buttons" from "the two builds computed
+different things". That distinction was exactly what was missing when the
+64-bit play path could not be attributed.
+
+`PORT_STATE_DETAIL=<frame>` adds one line per 1 KiB block of EWRAM at that
+frame, which turns "EWRAM differs" into an address, and an address into a
+symbol via `katam.map`. That is how the divergence below was pinned to
+`gMPlayTrack_0` in two steps.
+
+### Two regions are not comparable, by design
+
+- **`io`** holds the DMA register mirrors, and `platform/dma.c` writes the
+  transfer's *host* source address into them. `DMA_FILL` passes `&tmp`, a stack
+  address, so this region differs between two runs of the same binary — stack
+  ASLR moves it. Nothing reads the mirrors back, so it is harmless, but it is
+  also the one place an LP64 truncation is still live.
+- **`iwram`** holds `gIntrTable`, whose entries are host function addresses: a
+  wasm table index in one build and a code address in another.
+
+Both are worth hashing anyway — knowing *which* region moved is the diagnosis —
+but a difference in either is expected across builds and means nothing.
+
+### What it found
+
+Comparing wasm32 (ILP32) against x86-64 (LP64), same input, over 1400 frames:
+
+| region | first divergence |
+|---|---|
+| ewram | frame 185 |
+| vram | frame 407 |
+| pltt, oam | frame 410 |
+
+`PORT_STATE_DETAIL` put the frame-185 difference in one 1 KiB block, which
+`katam.map` names `gMPlayTrack_0` — the sound engine's track array. So the
+divergence begins in sound state and reaches the picture 222 frames later.
+
+It is **not** an ABI difference, and the instrument shows why: within a single
+binary, turning audio off alone moves EWRAM at frame 63. The music player's
+state is a function of how the host drives the mixer, and the web and SDL hosts
+drive it differently. Both builds are otherwise deterministic — two runs of the
+native build agree in every game region across 1400 frames.
+
+### Two corrections, and a limit of the method
+
+**The sound divergence is not causal.** Hashing EWRAM per block at frames 200,
+300, 380 and 400 shows *no* block differing at all: the frame-185 difference in
+`gMPlayTrack_0` is transient and has healed by frame 200. The blocks that
+diverge at 406 are a different set. So there are at least two independent
+phenomena here and the first does not lead to the second -- which is what the
+single-chain story assumed, on no evidence beyond having found it first.
+
+**The frame-406 difference is a false positive**, and it exposes the method's
+real limit. One word differs, at 0x02020F58: 0x0000041A in the wasm build and
+0x1011D350 in the 64-bit one. The image is pinned at 0x10000000, so that is a
+host code address; the wasm value is a function table index. 0x02020F58 is
+offset 0x78 into `gKirbys`, which `gba_layout.h` names `struct Object2::unk78`
+-- the void* the game stores *functions* in, the field
+[SIXTYFOUR.md](SIXTYFOUR.md) flags as invisible to type analysis. Both builds
+are correct. They simply spell a function pointer differently, because a
+function pointer *is* a table index in WebAssembly and an address natively.
+
+So: **any GBA memory holding a host function pointer is incomparable between
+builds, in EWRAM as much as in IWRAM.** The regions listed above as
+"not comparable" were incomplete -- it is not a property of a region, it is a
+property of what the game happened to store there, and the game stores function
+pointers in ordinary object fields. Every "first divergence" frame this
+instrument reports is therefore an *upper bound* that may be contaminated.
+
+### Looking at the picture, which should have come first
+
+The symbol-normalising comparator turned out not to be the next thing needed.
+Putting the two 1400-frame screenshots side by side answers the question in one
+glance: **a whole background layer is wrong in the 64-bit build.** The sky and
+mountains are replaced by an orange dotted fill and a band of garbled tiles,
+while the clouds, the pillars, every sprite and the entire HUD are pixel
+correct.
+
+That is not a subtle numerical divergence, and it is not the sound engine. It
+is one BG layer whose tiles never arrived -- which is exactly what the port's
+own diagnostic had been saying all along, once and non-fatally, on this path
+and no other:
+
+    [katam-port] DMA leaves the map: src=0x0877A4EC dest=0x00000000  <-- bad
+                 count=96 unit=2 flags=0x8000
+
+A refused tile upload with a null destination. The port declines the transfer
+rather than following it, the tiles stay whatever they were, and the layer
+renders as garbage. The 32-bit build reports no diagnostics on the same path.
+
+The trail from there: `sub_081525DC` drains the tile-upload queue at
+`gUnk_03002EC0` and copies `current->unk0` to `current->unk4`, and the entry it
+picked up has a length but a null destination. `bg.c` has the only two sites
+that write that field, and a breakpoint on each of them conditioned on
+`tilesVram == 0` never fires across the whole 1400-frame run. So the entry is
+not being enqueued with a null destination -- it is being *read* when it should
+not be, or read from the wrong index. That is where this stops.
+
+**Look at the output before building the next instrument.** Three rounds of
+hashing memory produced a transient sound difference that healed, and a
+function-pointer spelling difference that was never a difference at all.
+Fifteen seconds with the two images and a pixel diff named the subsystem.
+
+### The DMA transaction log, and where the trail is now
+
+`PORT_DMA_TRACE=1` logs every transfer in order -- channel, source,
+destination, count, unit, control.  It watches the data movement instead of the
+memory afterwards, so a tile upload that never happened is a *missing line*
+rather than a hash that stopped matching four hundred frames later.  Normalise
+host addresses out first (DmaFill's source is `&tmp`), then diff.
+
+It found two real bugs immediately, both the same shape -- a `sizeof` over a
+function-pointer typedef that the narrowing had not reached, so the count
+doubled on a 64-bit host:
+
+    dest=gHBlankIntrs   count 4 -> 8    read 16 bytes past gHBlankCallbacks,
+                                        which is where gCurTask lives
+    dest=gUnk_030068C0  count 1 -> 2    wrote past it into gInputPlaybackData
+
+Fixing them removed the port's refused-DMA diagnostic entirely.  It did **not**
+fix the corrupt background layer -- the same 20999 pixels, byte for byte.  A
+genuine bug sitting next to the symptom was not the cause of it.
+
+**Where the trail is now.** From transfer 27263 the two builds fill the same
+VRAM addresses with the same counts from completely different places:
+
+    wasm32   src=08AE7FE4  ROM,   stride 0x5A  (90 bytes)
+    LP64     src=02028EE0  EWRAM, stride 0x130 (304 bytes)
+
+Same destination (0x0600F800, +0x40 per row), same count (32 halfwords).  One
+build is reading tile data straight out of the ROM and the other out of a
+buffer in EWRAM, stepping a different distance between rows.  That is not a
+corrupted pointer -- both sources are valid, mapped, plausible addresses.  It
+is the game taking a *different branch*, which means the divergence that
+matters happened before this and is upstream of the graphics code entirely.
+
+### The instrument that closed it: the stack that issued the transfer
+
+A transfer carries no record of the code that asked for it -- the game writes
+four registers and the port copies memory.  So when two streams diverge at a
+transfer whose source is a *valid* address in both builds (ROM in one, EWRAM in
+the other, same destination, same count), the question stops being "which
+pointer is wrong" and becomes "which branch was taken", and nothing that hashes
+memory can answer it.
+
+`PORT_DMA_STACK=<lo>:<hi>` prints the call stack for traced transfers lo..hi.
+The two hosts spell a stack differently and neither spelling is the interesting
+part -- the *game* function names are, and both hosts can supply them:
+
+    web      emscripten_get_callstack, named from the wasm name section
+             (--profiling-funcs is already on).  Survives an Asyncify rewind.
+    native   backtrace(), which gives return addresses; the 64-bit builds link
+             -no-pie at a fixed text address, so `nm` resolves them offline.
+
+`tools/symbolize_stack.py` turns either form into the same list of decompiled C
+names, so `diff` works on them.  **That is the symbol-normalising comparator
+this document kept asking for, applied to control flow rather than to memory**
+-- where it is far cheaper, because a stack is twenty frames and EWRAM is
+256 KiB of which any word might be a function pointer and the port cannot tell
+which.
+
+It named the function on the first run.  Both builds were inside
+`sub_08153184`, the tilemap blitter, called from `UpdateScreenDma` -- same
+function, same call site, different data.  That put the fault upstream of the
+graphics code in one step, where three rounds of hashing had not.
+
+The cause was `gUnk_082D8D74`, a file-scope array of pointers cast to a
+four-byte-strided union: eight-byte elements under LP64, so every background
+descriptor came from the wrong room.  [SIXTYFOUR.md](SIXTYFOUR.md) has it in
+full, along with the second bug the same instrument found afterwards.
+
+Two smaller additions that mattered more than they look:
+
+- **`n=` and `f=` on every `[dma]` line.**  Without them, "the streams differ at
+  line 27263" cannot be turned into a frame to re-run or a transfer to ask for a
+  stack at.  The counter advances for refused transfers too, so both builds
+  number the same events.
+- **`PORT_WINDOW=addr:len`** hashes one window on every frame, as a `[window]`
+  line.  `PORT_STATE_DETAIL` says which block differs at a frame you already
+  suspect; `PORT_DUMP` says which bytes; this says *when*, in one run instead of
+  one run per candidate frame.  It found a state divergence 73 frames ahead of
+  the first DMA difference.
+
+### The ILP32 native control now exists
+
+This document used to say the thing that would settle an ABI question
+completely is an ILP32 *native* build -- same host layer, same audio driver,
+only the ABI different -- and that it did not exist here.  It does now.
+
+The blocker was not SDL after all.  It was `project(katam-port C CXX)`, which
+makes CMake compile *and link* a C++ test program at configure time, so every
+32-bit target needed a 32-bit libstdc++ to configure, for a language none of
+its sources are compiled in.  Declaring `C` and calling `enable_language(CXX)`
+only when `CMAKE_SIZEOF_VOID_P` says so is the whole fix.
+
+What it bought, immediately:
+
+| comparison | result |
+|---|---|
+| i686 vs wasm32 — **different host, same ABI** | identical over all 63212 transfers |
+| i686 vs x86-64 — **same host, different ABI** | diverged at frame 482 |
+
+The first line retires the standing worry in this document that the SDL and web
+hosts drive the sound engine differently enough to matter: they do not, not to
+the point of moving a single transfer.  The second turns "something differs"
+into "this is an ABI bug" with no host variable left in the comparison.  Every
+attribution above that rested on the audio-on/off experiment can now rest on
+this instead.
+
+### Give both builds the same starting state
+
+The native builds keep a save file under `XDG_DATA_HOME`; the node harness
+starts with blank SRAM every time.  So a native run picks up whatever earlier
+runs left behind, and the two builds are not being asked the same question.
+
+This is not hypothetical -- it produced a convincing false divergence at frame
+409, which was the game resuming a saved tutorial in one build and not the
+other, and it moved the *real* first divergence 73 frames earlier once removed.
+Point `XDG_DATA_HOME` at a scratch directory for any cross-build comparison:
+
+    XDG_DATA_HOME=$(mktemp -d) SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+        ./build/lp64/katam "$ROM" --no-audio --turbo --frames 1401 \
+        --mash 120:17:20
+
+A third category, beyond the two this document already names.  It is not "the
+two harnesses pressed different buttons" and not "the two builds computed
+different things" -- it is *the two runs did not start from the same place*.
+
+### Compare the sizes, not just the offsets
+
+`make layout-check` asserts the 246 types whose console offsets are known.  A
+type the decompilation declares but never places at a fixed address is not in
+that table, is never asserted, and can quietly change size under LP64 -- taking
+with it every `sizeof` the game hands to its own allocator.  Twenty-five did.
+
+`tools/abi_size_diff.py` compares every DWARF struct and union size between an
+ILP32 build and an LP64 one:
+
+    tools/abi_size_diff.py build/native/CMakeFiles/katam.dir \
+                           build/lp64/CMakeFiles/katam.dir
+
+Point it at build *directories* rather than the linked binaries: it reads
+object files, and the executable carries one abbrev table per compilation unit
+where this reader expects one.  Both builds need `-g`.  It filters the host's
+own types (SDL, glibc, `platform/`), which differ between the ABIs by design;
+`--all` keeps them.

@@ -55,6 +55,15 @@
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  This file is on the
+ * seam: it implements the sound engine's assembly half, which the game calls,
+ * and it calls back into functions the game or the stub generator defines.  It
+ * also forward-declares some of them itself (MidiKeyToFreq), and a declaration
+ * left outside this block mangles while the definition does not. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* m4a.c defines this but no header declares it. */
 u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust);
 
@@ -135,7 +144,7 @@ void SoundMainBTM(void *addr)
     memset(addr, 0, 64);
 }
 
-void MPlayJumpTableCopy(MPlayFunc *dest)
+void MPlayJumpTableCopy(PTR32_TD(MPlayFunc) *dest)
 {
     s32 i;
 
@@ -699,7 +708,12 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
                         cmd - 0xCF, mplayInfo, track);
                 } else if (cmd > 0xB0) {
                     u32 index = cmd - 0xB1;
-                    MPlayFunc *jt = (MPlayFunc *)soundInfo->MPlayJumpTable;
+                    /* PTR32_TD: the table's entries are four bytes, so
+                     * indexing it must stride four.  A plain MPlayFunc*
+                     * strides eight on a 64-bit host and dispatches
+                     * through the gap.  Identical in C. */
+                    PTR32_TD(MPlayFunc) *jt =
+                        (PTR32_TD(MPlayFunc) *)soundInfo->MPlayJumpTable;
 
                     mplayInfo->cmd = index;
                     ((void (*)(struct MusicPlayerInfo *,
@@ -1116,8 +1130,16 @@ int PortMixerTakeBlock(const s16 **out)
  * SoundMain -- the per-frame driver.
  * ------------------------------------------------------------------------- */
 
+/* How many times the sound engine has been driven, for the cross-build trace
+ * in platform/main.c.  The tracks in gMPlayTrack_0 are advanced from here, so
+ * if two builds disagree about this count they will disagree about the tracks,
+ * and that is a different fault from the two builds disagreeing about what one
+ * run of the mixer produced.  Telling those apart is the whole point. */
+u32 gPortSoundMainCalls;
+
 void SoundMain(void)
 {
+    gPortSoundMainCalls++;
     struct SoundInfo *soundInfo = SOUND_INFO_PTR;
 
     /* GameLoop calls this at the tail of its VBlank work, immediately before
@@ -1144,3 +1166,7 @@ void SoundMain(void)
 
     soundInfo->ident = ID_NUMBER;
 }
+
+#ifdef __cplusplus
+}
+#endif
