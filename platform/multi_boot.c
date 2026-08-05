@@ -46,7 +46,14 @@
  * platform/port/mp.h.  Nothing here knows whether the far end is the
  * same-process loopback, a datachannel or a socket.  A transport that already
  * answers `exchange` needs no new entry point to support this; its *peer* has
- * to answer the probe, which platform/mp_loopback.c now does.
+ * to answer the probe.
+ *
+ * What the peer answers -- for recognition and for the rest of the lobby that
+ * follows it -- lives in platform/mp_peer_lobby.c.  It used to be a function
+ * here, which put half the protocol in the MultiBoot file and left the other
+ * half nowhere, and that split is most of why the lobby took three attempts:
+ * the recognition reply is only the first of four words, and the peer has to
+ * know which phase it is in to choose between them.
  */
 
 #include <string.h>
@@ -123,7 +130,7 @@ s32 MultiBootMain(struct MultiBootParam *mp)
 
     /* Only the unit that clocks the cable probes.  A child answers, and its
      * answer comes from whatever is on the far end of the transport -- see
-     * PortMpMultiBootReply, which is what the loopback peer uses. */
+     * platform/mp_peer_lobby.c, which is what the loopback peer uses. */
     if (link.selfId != 0) {
         mp->client_bit = 0;
         mp->probe_count = 0;
@@ -201,34 +208,6 @@ s32 MultiBootCheckComplete(struct MultiBootParam *mp)
     /* Nothing was ever started, so nothing can complete.  Non-zero is the
      * SDK's "not done". */
     return 1;
-}
-
-/* The answer a peer puts on the bus while the lobby is deciding what is on the
- * cable -- and it is *not* the MultiBoot client reply, which was the first
- * guess and is actively wrong here.
- *
- * src/multi_boot_util.c:56-77 masks each peer's word with 0xFFF0 and sorts it:
- *
- *     0x7200  ->  gUnk_0300050C = 2   a bare console waiting for a download
- *     0x8F50  ->  gUnk_0300050C = 1   another cartridge running this game
- *
- * and the multi-cart lobby wants 1.  Answering 0x720X classifies our peer as
- * something to download a program *to*, which the lobby reports as error 8 --
- * "the wrong thing is on the cable" -- and it is the correct answer for
- * download play and the wrong one for the mode this port can actually reach.
- *
- * So a peer that is running this game answers 0x8F5X.  Slot is its own id,
- * 1..3; slot 0 clocks the cable and never replies. */
-u16 PortMpMultiBootReply(int slot, u16 masterWord)
-{
-    if (slot <= 0 || slot >= PORT_MP_PLAYERS)
-        return 0xFFFF;
-    /* Only while the master is probing.  Answering unconditionally would take
-     * the peer's MultiSio packets off the bus -- it briefly did, and the
-     * sequencer traffic the loopback exists to test went with them. */
-    if ((masterWord & MB_REPLY_MASK) != MB_MASTER_HELLO)
-        return 0xFFFF;
-    return (u16)(MB_SAME_GAME_REPLY | slot);
 }
 
 #ifdef __cplusplus

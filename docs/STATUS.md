@@ -1,94 +1,98 @@
 # Status
 
-Measured 2026-08-04 against the decompilation at `all-work`, not estimated.
+Measured 2026-08-05 against the decompilation at `all-work`, not estimated.
+Every number below came from a run on that date; where a claim is not measured
+it says so.
 
 ## Where it gets to
 
-Verified with `make test`, which boots the port under node with a real ROM and
-runs frames headlessly, pressing buttons on a script:
+It plays. A level runs, Kirby is controllable, the AI Kirbys are on screen, and
+a warp star at the end of a level changes to the next one.
 
-| Frame | What happens |
+Measured two ways. `tools/native_smoke.sh` drives 1400 frames tapping A and
+Right (`--mash 120:17:20`) and is in a level by frame 600, still in one at
+frame 3600, with **44 distinct pictures among 47 samples** -- so it is moving,
+not a frozen picture that happens to be drawn. And a player got to a warp star
+and through the level change on the published build, which is the first time
+the port has been driven that far by hand.
+
+| Measured | Value |
 |---|---|
-| ~60 | first VRAM uploads; `DISPCNT` goes to mode 0, four backgrounds and objects on |
-| ~1200 | title screen — sky, rainbow, logo, copyright line |
-| ~1900 | **"PRESS START"** appears (sprites) |
-| ~3000 | file-select menu: entries, cursor, four Kirbys, items — all sprites |
-| ~3500+ | a level loads: `CreateLevelObjects` spawns objects, Kirby's state machine runs |
-
-Sprites arrived when the decompilation landed `sub_08155128`. Before that the
-port drew backgrounds only, and the menus were empty frames.
-
-It does not survive long in gameplay yet — see below.
+| frames to a running level | ~600 with A+Right tapped on a 20-frame period |
+| motion over 1400 frames | 44 distinct pictures in 47 samples |
+| audio | 3600 blocks, 60.00s of audio for 60.00s of game, RMS -22.2 dBFS |
+| save | survives the tab closing (IndexedDB) and a native restart (a .sav file) |
+| diagnostics in a 600-frame run | 0 |
+| DMA transfers that leave the GBA map | 1497 in 1400 frames, both shapes understood -- see below |
 
 ## What is missing, in the order it matters
 
-### 1. Function pointers stored in ROM
+### 1. A second player
 
-This is now the main thing standing between the port and playing.
+The link lobby's handshake is finished: recognition, the parent's sequence
+counter, the `0x70AE` settle and the `0xE4E4` start all complete, and the game
+leaves its own lobby into a session. What it leaves into is a *synthetic* peer
+-- `platform/mp_peer_lobby.c` answers the protocol faithfully and has no game
+in it -- so the session does not survive. The remaining work is a real far end,
+which means choosing a transport; nothing in the port has to change to accept
+one. docs/MULTIPLAYER.md has the transcript and the state machine.
 
-A function pointer in ROM is an ARM code address. In WebAssembly a function
-pointer is an index into the module's function table, so such a value is not
-merely wrong, it is out of range — calling one ends the program. The build
-resolves these back to real functions by looking each address up in the GBA
-build's `katam.map`, and covers three shapes:
+The rollback engine underneath it (snapshots, timeline, join/leave,
+renumbering, RLE'd input logs) is written and self-tests clean, but nothing has
+ever driven it over a wire -- predict, mispredict and restore are exercised
+only by the self-test's own replay.
 
-| Shape | Example | State |
-|---|---|---|
-| flat function-pointer arrays | `gSpawnFuncTable1` | 312 of 314 entries wired across 8 tables |
-| arrays declared via a function-pointer typedef | `gUnk_082EB7D0` | covered |
-| function pointers *inside* ROM structs | `gUnk_08351648`, 219 object descriptors with a constructor at +0x10 | patched in place at startup, 193 resolve |
+### 2. Function pointers stored in ROM
 
-Shapes it does **not** cover yet still crash the port partway into gameplay.
-The current failure is in `kirbyFlyUp`. Each one is individually fixable by the
-same mechanism; the general fix is upstream, when ROM tables become typed C
-data.
+A function pointer in ROM is an ARM code address; in WebAssembly it is a table
+index, so such a value is not merely wrong but out of range. The build resolves
+them against the GBA build's `katam.map`.
 
-A related trap, worth knowing about: a label in `data/*.s` marks where the
-decompilation assigned a name, not where a table ends. `gUnk_0834BD88` is
-labelled as 3 entries and the game indexes it far past that — on hardware the
-reads continue into the next label's words, which are more function pointers.
-The generator now walks each table forward while the following words still
-resolve to known functions, which turns that table into its real 12 entries.
+| Shape | State |
+|---|---|
+| flat function-pointer arrays and typedef'd ones | 304 of 305 entries wired across 8 tables, 1 stubbed |
+| function pointers inside ROM structs (`gUnk_08351648`) | 8 object descriptors still spawn without their per-type setup |
 
-### 2. The last two bodyless functions
+Two of those eight point at address 0 -- there is no function there at all --
+and the rest are still ARM assembly upstream.
 
-`sub_08038010` and `sub_08038B34` are the only functions in the game with no C
-body at all, and the port reaches both. `sub_08037314`, which calls
-`sub_08038010` twice, is also documented upstream as deliberately incomplete —
-five of its six collision blocks are unwritten — so the port is running with
-partial collision resolution and treats it as a known-incomplete site.
+### 3. Functions with no C body
 
-### 3. The rest of `sprite.s`
+19 of them, listed by `make sync`. None is reached in the smoke run; each is
+reachable in principle. `sub_08038010` and `sub_08038B34` are the two the port
+has actually reached in the past, and `sub_08037314`, which calls the first
+twice, is documented upstream as deliberately incomplete -- five of its six
+collision blocks are unwritten -- so collision resolution is partial by
+upstream's own account, not by the port's.
 
-Still stubbed: `sub_0815436C`, `sub_081548A8`, `sub_08154B14`, `sub_08155604`.
+### 4. One structure whose documented size the tree does not have
 
-### 4. Sound
+`AnimCmd_SetIdAndVariant`: documented `0xC`, built 8. Not a size-boundary case,
+so `make size-check` lists it as a known exception with its reasoning rather
+than skipping it. Its own offset comments put `variant` at `0x08` where the
+member list puts it at `0x06` -- a missing pad. Fixing it moves a member and
+changes how every animation command is read, so it wants establishing against
+the ROM first.
 
-Deliberately absent. `asm/m4a_asm.s` is 42 hand-written ARM functions that were
-never a decompilation target; the port answers the whole m4a API with no-ops.
+### 5. Sound, saving, the rest of sprite.s
 
-### 5. Saving
-
-`platform/sram.c` gives the game working save memory, but it lives in the wasm
-heap and disappears when the tab closes. Persisting to IndexedDB is
-straightforward and not yet done.
-
-### 6. Link cable
-
-`MultiSio*`, `MultiBoot*` and `sio32_multi_load` are stubbed.
+Done, and listed here only because earlier revisions of this document said they
+were not. Audio is produced by `platform/m4a_mixer.c`; saves persist on both
+hosts; the four `sprite.s` functions this document used to list as stubbed all
+have bodies.
 
 ## Build facts
 
 | | |
 |---|---|
-| Game sources compiled | 190 |
-| Stubbed symbols | 25 |
+| Game sources compiled | 191 |
+| Functions with no C body anywhere | 19 |
 | Linker-placed RAM symbols reconstructed | 183 |
-| ROM data symbols resolved to addresses | 162 |
-| ROM function-table entries wired to real C | 312 of 314 |
-| Function pointers patched inside ROM structs | 193 of 219 |
+| ROM data labels seen / referenced and resolved | 28592 / 183 (+14 from `katam.map`) |
+| ROM function-table entries wired to real C | 304 of 305, across 8 tables |
+| Function pointers patched inside ROM structs | 211 of 219 |
 | INCBIN assets pasted in from the decomp | 143 files, 931 KiB |
-| Output | 2.3 MB wasm |
+| Output | 2.80 MB wasm |
 
 ## The "DMA leaves the map" reports
 

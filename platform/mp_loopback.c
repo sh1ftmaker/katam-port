@@ -226,9 +226,9 @@ static int LoopExchange(struct PortMpTransport *t, u16 send,
          * The reply comes from platform/multi_boot.c so that every transport
          * gives the same one. */
         {
-            u16 mb = PortMpMultiBootReply(i, send);
+            u16 mb = PortMpPeerLobbyReply(i, send);
 
-            if (mb != 0xFFFF) {
+            if (mb != PORT_MP_PEER_PASS) {
                 recv[i] = mb;
                 continue;
             }

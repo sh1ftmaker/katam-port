@@ -153,7 +153,12 @@ void PortSioReset(void);
  * This is the word a *client* must put on the bus while the master is probing.
  * It lives with MultiBoot rather than in each transport so that two transports
  * cannot disagree about the handshake. */
-u16 PortMpMultiBootReply(int slot, u16 masterWord);
+/* The synthetic peer's answer, when a transport needs one -- see
+ * platform/mp_peer_lobby.c.  Returns PORT_MP_PEER_PASS when the master's word
+ * is not a lobby word, meaning "this exchange is game traffic, carry on". */
+#define PORT_MP_PEER_PASS 0xFFFF
+u16 PortMpPeerLobbyReply(int slot, u16 masterWord);
+void PortMpPeerLobbyReset(int slot);      /* slot < 0 resets all of them */
 
 /* --- transports the port ships ------------------------------------------- */
 

@@ -1092,20 +1092,68 @@ was. `MultiBootMain` now sets `SIOMLT_SEND` and the start bit and lets
 **With both fixed, `gUnk_0300050C` reaches 1.** Measured, at frames 1000, 1050
 and 1090.
 
-### Where it stops, precisely
+### It gets through -- the peer had to know which phase the lobby is in
 
-The lobby's advance needs `unk01 > 1 && unk02 == 3 && gUnk_0300050C == 1`. The
-third now holds; the first two do not.
+The lobby's advance needs `unk01 > 1 && unk02 == 3 && gUnk_0300050C == 1`. All
+three now hold, and the handshake completes end to end.
 
-And there is a tension the next piece of work has to resolve. A peer that
-answers `0x8F5X` *unconditionally* gets the classification but takes its
-MultiSio packets off the bus — measured, the loopback's sequencer traffic
-stops. A peer that answers only when the master sends `0x62XX` keeps the
-packets (3808 transfers, 0 stalls) but loses the classification. **The peer has
-to know which phase the lobby is in**, which is exactly the "the transport's
-peer must implement the game's own lobby handshake" that §5 has listed as
-separate work from the beginning — the `0x8F51`/`0x70AE`/`0xE4E4` exchange and
-then the `0x20`/`0x40`/`0x41`/`0x42` state machine.
+The blocker was a tension that looked like a trade-off and was really a wrong
+model. A peer that answers `0x8F5X` *unconditionally* gets classified and takes
+its MultiSio packets off the bus -- measured, the sequencer traffic stops dead.
+A peer that answers only `0x62XX` keeps the packets (3808 transfers, 0 stalls)
+and never gets past recognition. Both treat the reply as a property of the
+*peer*. It is a property of the *exchange*: the master's word already says which
+phase the lobby is in, so the peer never has to be told and never has to guess.
 
-The conditional version is what is committed, because it does not regress the
-MultiSio path that works.
+`platform/mp_peer_lobby.c` is that peer, read off the child half of
+`multi_boot_util.c:sub_08030898`:
+
+| master sends | peer answers | why |
+|---|---|---|
+| `0x62XX` | `0x8F5<slot>` | recognition; `0x8F50` not `0x7200`, or the lobby calls it a download client and reports error 8 |
+| `0x2XXX` | `0x8F51`, then `0x70AE` | the parent's sequence counter. Follow it; once it has been consecutive for more than `0x1E` frames, answer `0x70AE` |
+| `0xE4E4` | `0xE4E4` | the parent says start. Echoing it is what sets `unk02 = 3` |
+| anything else | pass | not a lobby word -- it is game traffic |
+
+`0x70AE` is the one that matters: the parent's loop over the child slots does
+`++unk01` for each slot answering it, and nothing else in the protocol produces
+`unk01 > 1`.
+
+### The transcript
+
+`PORT_MP_TRACE=1` logs the words crossing the cable, at `PortMpExchange` --
+the one seam every transport goes through, so the same trace compares a
+datachannel against the loopback. It logs only when the tuple changes, because
+the lobby sends the same word for thirty-odd frames at a time by design.
+
+```
+[mp] f=870  send=6200 recv=FFFF,8F51,FFFF,FFFF   recognition
+[mp] f=873  send=6202 recv=FFFF,8F51,FFFF,FFFF   client bit acknowledged
+[mp] f=902  send=2101 recv=FFFF,8F51,FFFF,FFFF   counter starts; peer follows
+[mp] f=933  send=2120 recv=FFFF,70AE,FFFF,FFFF   settled -> unk01 = 2
+[mp] f=1102 send=E4E4 recv=FFFF,E4E4,FFFF,FFFF   start -> unk02 = 3
+[mp] f=1114 send=0000 recv=FFFF,0092,FFFF,FFFF   MultiSio game traffic
+```
+
+Confirmed under a debugger rather than inferred: a watchpoint on `unk02` fires
+at frame 1102 inside `multi_boot_util.c:302` -- the `0xE4E4` echo -- with
+`unk01 = 2` and `gUnk_0300050C = 1`.
+
+Before the peer knew its phase, the same run collapsed back to `send=6202` at
+frame 924 and started over; that restart is gone.
+
+### What still needs a real second player
+
+The lobby is a protocol problem and it is solved. Playing is not: the synthetic
+peer answers the handshake faithfully and has no game in it, so once the session
+starts it puts the loopback's test packets on the bus and the game returns to the
+title screen. That is the correct outcome for a test double, and the remaining
+work is a *real* far end -- another instance of this game -- which is what a
+datachannel or a relay supplies. Nothing in the port has to change for that:
+`PortMpPeerLobbyReply` is only consulted by transports that want a synthetic
+opponent, and a transport with a real peer never calls it.
+
+The reason the lobby needs 90 settled frames and then a button press is the
+game's own: `multi_08030C94.c:875` waits for `r4->unk20 > 90` and then for
+`r4->unkC & 1`, the player's confirm. A headless run has to press A after the
+lobby settles, which the sequence above does at frame 1100.

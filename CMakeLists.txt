@@ -434,6 +434,26 @@ foreach(diag implicit-function-declaration implicit-int int-conversion
   endif()
 endforeach()
 
+# A note on the asymmetry, so nobody "fixes" it by accident.
+#
+# The demotion above is for the decompilation, which has plenty of implicit
+# declarations and is not ours to fix. platform/ is ours, and there an implicit
+# declaration is exactly the bug the web build treats as fatal: it gives the
+# call the wrong wasm signature, wasm-ld points it at a stub whose whole body is
+# `unreachable`, and the program dies the first time that line runs.
+#
+# So the two builds disagree, and this was measured rather than assumed: a trace
+# added to platform/mp.c compiled and ran natively while failing the web build
+# outright. Making the native build agree was attempted and does not work with
+# a per-source flag -- gcc's `-w` disables the warning outright, so
+# -Werror=implicit-function-declaration has nothing to promote, and re-enabling
+# it per source does not survive the global -w either. The attempt is recorded
+# rather than left in place: an inert guard reads as protection and is worse
+# than none.
+#
+# What this means in practice: the web build is the one that catches this, so
+# build it before trusting a change to platform/.
+
 # ---------------------------------------------------------------------------
 # Where the executable lands in the address space.
 #

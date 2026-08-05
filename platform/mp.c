@@ -22,6 +22,7 @@
 
 #include "port/port.h"
 #include "port/mp.h"
+#include "port/backend.h"   /* PortFrameNumber, for the exchange trace */
 #include "global.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -109,11 +110,59 @@ void PortMpPoll(struct PortMpLink *link)
         *link = sLink;
 }
 
+/* PORT_MP_TRACE=1 logs the words actually crossing the cable.
+ *
+ * It goes here, at the one seam every transport goes through, rather than in
+ * any transport: the loopback, a datachannel and a socket all have to produce
+ * the same exchanges, and a trace that lives in one of them cannot be used to
+ * compare it against another.
+ *
+ * Only when the tuple changes.  The lobby sends the same word for thirty-odd
+ * frames at a time by design -- the stability count is the protocol -- so an
+ * unfiltered trace is thousands of identical lines with the four transitions
+ * that matter buried in them.  Logging on change turns a run into a readable
+ * transcript of the handshake. */
+static int sMpTrace = -1;
+static int MpTraceWanted(void)
+{
+    if (sMpTrace < 0) {
+        const char *e = getenv("PORT_MP_TRACE");
+
+        sMpTrace = (e != NULL && *e != '\0' && *e != '0');
+    }
+    return sMpTrace;
+}
+
 int PortMpExchange(u16 send, u16 recv[PORT_MP_PLAYERS])
 {
+    int ok;
+
     if (!sTransport)
         return 0;
-    return sTransport->exchange(sTransport, send, recv);
+    ok = sTransport->exchange(sTransport, send, recv);
+
+    if (ok && MpTraceWanted()) {
+        static u16 sLastSend, sLastRecv[PORT_MP_PLAYERS];
+        static int sHave, sLines;
+        int i, same = sHave && sLastSend == send;
+
+        for (i = 0; same && i < PORT_MP_PLAYERS; i++)
+            same = sLastRecv[i] == recv[i];
+
+        if (!same && sLines < 400) {
+            PortLog("[mp] f=%u send=%04X recv=%04X,%04X,%04X,%04X",
+                    (unsigned)PortFrameNumber(), (unsigned)send,
+                    (unsigned)recv[0], (unsigned)recv[1],
+                    (unsigned)recv[2], (unsigned)recv[3]);
+            if (++sLines == 400)
+                PortLog("[mp] trace capped at 400 changes");
+        }
+        sLastSend = send;
+        for (i = 0; i < PORT_MP_PLAYERS; i++)
+            sLastRecv[i] = recv[i];
+        sHave = 1;
+    }
+    return ok;
 }
 
 /* --- a JavaScript transport ----------------------------------------------
