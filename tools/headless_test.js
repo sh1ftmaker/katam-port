@@ -31,6 +31,10 @@ const PRESSES = (process.env.PRESS_AT || '').split(',').filter(Boolean)
 // button registers once and then does nothing.
 const MASH = (process.env.MASH || '').split(':').filter(Boolean).map(Number);
 
+// PORT_NO_RENDER=1 turns pixel composition off in the port.  The harness then
+// has no picture to analyse and must not pretend otherwise.
+const NO_RENDER = !!process.env.PORT_NO_RENDER && process.env.PORT_NO_RENDER !== '0';
+
 // HOLD=0x10 keeps Right down the whole time while MASH taps A on top of it.
 // Toggling both together makes Kirby stop dead every other burst, which is no
 // way to cross a level.
@@ -170,7 +174,17 @@ function writeWav(path, rate) {
 }
 
 // The port drives its own pacing with requestAnimationFrame; node has none.
-global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+//
+// setImmediate, not setTimeout(cb, 0): node clamps a zero timeout to about a
+// millisecond, and the port suspends here once per frame, so the shim -- not
+// the port -- set the frame rate.  Measured, that put a floor of ~1.06 ms on a
+// frame and made "how fast can this simulate" unanswerable from here.  With
+// setImmediate the callback runs in the same loop iteration's check phase and
+// the floor disappears.
+//
+// It changes pacing only.  The port advances one frame per call either way,
+// and the DMA transfer stream is identical across the change.
+global.requestAnimationFrame = (cb) => setImmediate(cb);
 
 let resolveRom;
 const Module = {
@@ -185,10 +199,18 @@ const Module = {
     portPresent(ptr, w, h) {
         // Copy out of the heap: the view is a Uint8Array, and it can be
         // detached under us between frames.
-        const data = Buffer.from(Module.HEAPU8.subarray(ptr, ptr + w * h * 4));
-        lastFrame = { data, w, h };
+        //
+        // 153,600 bytes a frame, and under PORT_NO_RENDER there is nothing in
+        // it -- the port composed no pixels.  Skipping the copy is what makes
+        // that mode measure the *port* rather than this function: with the
+        // copy in, a wasm frame reads as 1.2 ms and most of it is here.
+        // Everything below still runs, because the frame counter and the
+        // scripted input hang off this callback.
+        const data = NO_RENDER ? null
+                   : Buffer.from(Module.HEAPU8.subarray(ptr, ptr + w * h * 4));
+        if (data) lastFrame = { data, w, h };
 
-        if (firstNonBlankFrame < 0 && !isBlank(data)) firstNonBlankFrame = frames;
+        if (data && firstNonBlankFrame < 0 && !isBlank(data)) firstNonBlankFrame = frames;
         // A trace of what the display hardware was asked to do, so a blank
         // screen can be told apart from a screen that was never set up.
         // Keep a few frames along the way, so the boot sequence can be seen
@@ -240,7 +262,7 @@ const Module = {
             }
             if (process.env.MP_SELF) Module._PortMpSelfTest(1);
         }
-        if (SAVE_AT.includes(frames)) savePpm(data, w, h, 'build/frame-' + frames + '.ppm');
+        if (data && SAVE_AT.includes(frames)) savePpm(data, w, h, 'build/frame-' + frames + '.ppm');
         // VRAM_AT=600 writes VRAM, both palettes and OAM to build/vram-600.bin,
         // so tile data can be looked at as pixels rather than guessed at from
         // a hex dump.  Layout: 0x18000 VRAM, 0x400 BG pal, 0x400 OBJ pal, OAM.
@@ -253,7 +275,8 @@ const Module = {
             const io = (off) => Module.HEAPU8[0x04000000 + off]
                               | (Module.HEAPU8[0x04000001 + off] << 8);
             const colours = new Set();
-            for (let i = 0; i < data.length; i += 4) colours.add(data.readUInt32LE(i));
+            if (data)
+                for (let i = 0; i < data.length; i += 4) colours.add(data.readUInt32LE(i));
             const pal = new Set();
             for (let i = 0; i < 0x400; i += 2)
                 pal.add(Module.HEAPU8[0x05000000 + i] | (Module.HEAPU8[0x05000001 + i] << 8));
@@ -385,6 +408,15 @@ function isBlank(px) {
 }
 
 function finish() {
+    // Under PORT_NO_RENDER there is no picture to report on -- the port
+    // composed none and the harness copied none.  Say so and skip the
+    // picture statistics rather than inventing them.
+    if (!lastFrame) {
+        console.log('frames rendered      : %d  (PORT_NO_RENDER -- no picture)', frames);
+        console.log('\nport diagnostics (%d):', logs.length);
+        for (const l of logs) console.log('  ' + l);
+        process.exit(0);      /* not `return` -- finish() is what ends the run */
+    }
     const { data, w, h } = lastFrame;
     const colours = new Set();
     for (let i = 0; i < data.length; i += 4) colours.add(data.readUInt32LE(i));
@@ -507,9 +539,17 @@ process.on('uncaughtException', function (err) {
 // A hard stop, in case the game never reaches a frame at all.  Scaled to the
 // run: a fixed 60s silently truncated long menu-driving runs and made a game
 // that was still going look like a game that had stopped.
-const TIMEOUT_MS = Math.max(60000, TARGET_FRAMES * 40);
+//
+// The old allowance was 40 ms a frame, which is roughly seventeen times what a
+// frame actually costs (2.3 ms rendering under node, less without) and meant a
+// run that hung burned 216 s before saying so -- twice, in one session, while
+// measuring something else.  8 ms a frame still leaves a wide margin over the
+// measured rate.  TIMEOUT_MS= overrides it for a deliberately slow build such
+// as UBSan, which is 2.1x.
+const TIMEOUT_MS = parseInt(process.env.TIMEOUT_MS || '0', 10)
+                || Math.max(20000, TARGET_FRAMES * 8);
 setTimeout(() => {
-    console.error('TIMEOUT: only %d of %d frames in %ds',
+    console.error('TIMEOUT: only %d of %d frames in %ds (raise with TIMEOUT_MS=)',
                   frames, TARGET_FRAMES, TIMEOUT_MS / 1000);
     if (logs.length) console.error(logs.join('\n'));
     process.exit(1);

@@ -639,9 +639,9 @@ Marginal cost per frame, startup subtracted by differencing two run lengths:
 
 | | native x86-64 | wasm32 / node |
 |---|---|---|
-| compose + blit (what a player sees) | 0.945 ms | 2.30 ms |
-| blit only, no pixel composition | 0.253 ms | 1.21 ms |
-| **simulation only** | **0.0025 ms** | not separable here — see below |
+| compose + blit (what a player sees) | 0.945 ms | 1.22 ms |
+| blit only, no pixel composition | 0.253 ms | — |
+| **simulation only** | **0.0025 ms** | **0.0062 ms** |
 
 **Pixel composition is ~99.7 % of a native frame.** A re-simulated frame is
 never displayed, so it pays none of it. `PortSetRenderEnabled(0)` skips exactly
@@ -669,11 +669,18 @@ mispredicted input -- costs about 155 µs. The depth is not the constraint.
   `PortSetRenderEnabled`; a caller that wants no output for a re-simulated
   frame suppresses it on its own side, where it knows what the host is.
 
-The wasm row is bounded rather than measured for the same reason: 1.21 ms is
-composition-off *including* the blit, Asyncify's suspension and the harness's
-own bookkeeping, so simulation alone is some way below it. A browser rollback
-engine would drive re-simulation directly rather than through `portPresent`,
-and would need to, since Asyncify unwinds the stack at every `VBlankIntrWait`.
+- **The harness itself was two thirds of a wasm frame.** `portPresent` copied
+  153,600 bytes out of the heap every frame, and `requestAnimationFrame` was
+  shimmed to `setTimeout(cb, 0)`, which node clamps to about a millisecond --
+  so the shim, not the port, set the frame rate. `setImmediate` runs the
+  callback in the same loop iteration's check phase and removes the floor;
+  under `PORT_NO_RENDER` the harness now skips the copy as well. Both changes
+  are pacing only: the DMA stream is identical across each, 63236 transfers,
+  0 differences.
+
+**wasm simulates at 6.2 µs a frame -- only 2.5x the native cost.** That is the
+number that decides whether a browser client can do this at all, and it says
+yes with room to spare.
 
 ### What is genuinely hard
 
