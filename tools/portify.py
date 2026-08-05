@@ -385,6 +385,64 @@ def apply_view_patches(text, name, rep):
         text = VIEW_DECL + text
     return text
 
+
+# ---------------------------------------------------------------------------
+# The randomizer codemod.
+#
+# The second of the two blocks in this file that change what the game does
+# rather than what it compiles to, and much the smaller of them: one line, in
+# one function.
+#
+# FillLevelInfo is where a room becomes the room the player is standing in,
+# and its assignment to objlistPtr is the single point at which the game
+# decides what is in that room.  Every walk of the room's objects -- the
+# room-entry rescan and both scroll-in spawns -- starts from that pointer, so
+# routing it through platform/rando.c substitutes for all three at once and
+# they cannot disagree with each other about what is there.
+#
+# The alternative, hooking the three constructor calls, is the design this
+# replaced: the constructor keeps the record pointer it is given (struct
+# Object2::object, read every frame by sub_0809A630), so a per-call hook has
+# to own records that outlive the call and know when each one dies.  The list
+# has that lifetime already.
+#
+# PortRandoObjList returns its argument unchanged when no pool is enabled, so
+# a build that never switches the randomizer on is the build that shipped.
+RANDO_DECL = ('/* PORT: the randomizer, see platform/rando.c */\n'
+              'struct LevelInfo_1E4;\n'
+              'const struct LevelInfo_1E4 *PortRandoObjList('
+              'u8 playerId, u16 roomId, const struct LevelInfo_1E4 *list);\n')
+
+RANDO_PATCHES = {
+    'code.c': [(
+        '        levelInfo->objlistPtr = '
+        'gLevelObjLists[gRoomProps[levelInfo->currentRoom].objectListIdx].obj;',
+        '        levelInfo->objlistPtr = PortRandoObjList(playerId,\n'
+        '            levelInfo->currentRoom,\n'
+        '            gLevelObjLists[gRoomProps[levelInfo->currentRoom]'
+        '.objectListIdx].obj);',
+    )],
+}
+
+
+def apply_rando_patches(text, name, rep):
+    """Route the room's object list through platform/rando.c."""
+    hit = False
+    for old, new in RANDO_PATCHES.get(name, ()):
+        if old in text:
+            text = text.replace(old, new, 1)
+            rep.bump('object list routed through platform/rando.c')
+            hit = True
+        else:
+            rep.unhandled.append(
+                '%s: the RANDO_PATCHES pattern no longer matches -- the '
+                'randomizer will silently do nothing: %s'
+                % (name, ' '.join(old.split())[:70]))
+    if hit:
+        text = RANDO_DECL + text
+    return text
+
+
 CODE_IN_RAM = {
     # The link driver's other copy-code-into-RAM-and-call-it trick.
     #
@@ -991,6 +1049,7 @@ def main():
                     rep.bump('save-memory address relocated')
             text = apply_m4a_patches(text, path.name, rep)
             text = apply_view_patches(text, path.name, rep)
+            text = apply_rando_patches(text, path.name, rep)
             casts = FNPTR_CASTS.get(path.name, ())
             if casts:
                 hit = False

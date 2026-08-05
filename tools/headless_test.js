@@ -225,6 +225,18 @@ const Module = {
                                     v[2] | 0, v[3] | 0, v[4] | 0,
                                     v[5] === undefined ? 1 : v[5]);
         }
+        // RANDO="flags:seed" switches the enemy randomizer on at frame 0, so
+        // the first room the run enters is already rewritten.  Set at frame 0
+        // rather than at a RANDO_AT, because a room that is already loaded
+        // keeps the list it was given and a late switch would look like the
+        // randomizer doing nothing.
+        //   flags 0x1 enemies  0x2 mid-bosses  0x4 bosses
+        //         0x8 ignore tile sizes  0x10 keep ability enemies abilities
+        if (process.env.RANDO && Module._PortSetRando && frames === 0) {
+            const r = process.env.RANDO.split(':');
+            Module._PortSetRando(parseInt(r[0] || '0x11', 0),
+                                 parseInt(r[1] || '0', 10) >>> 0);
+        }
         if (TONE && Module._PortAudioTestTone && frames === 0)
             Module._PortAudioTestTone(TONE);
         // FORCE=0x04 draws BG2 even though the game disabled it.
@@ -389,6 +401,7 @@ function finish() {
 
     // Before the summary, so the port's own report lands with the diagnostics.
     if (MP[0] && Module._PortMpReport) Module._PortMpReport();
+    if (process.env.RANDO && Module._PortRandoReport) Module._PortRandoReport();
 
     console.log('--- katam-port headless smoke test ---');
     console.log('frames rendered      : %d', frames);

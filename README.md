@@ -56,6 +56,25 @@ not yet a playable second player. [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md)
 has the protocol, the interface, how to write a transport, and exactly what is
 measured versus assumed.
 
+### Enemy randomizer (`quality-of-life` branch)
+
+Every enemy in a level is one byte in the room's object list, and KATAM loads
+an object's graphics when the object is created rather than per room — so
+changing that byte as the room loads gets a different enemy, built by the
+game's own constructor, with its own sprites and palette, and nothing else has
+to change. That is the whole feature.
+
+49 enemies, and separately the eight mid-bosses and seven bosses, shuffle from
+a seed you can read out and share; 1,618 of the game's 3,482 level placements
+change on a typical seed. Doors, chests, blocks, statues and the Dark Mind
+sequence are outside every pool and are never touched. The default keeps
+replacements in the same tile-size class, because the object tile heap is 512
+tiles and `VramMalloc`'s answer to a full one is an address past the end of
+EWRAM rather than a failure. On the page it is the **Enemies** panel; natively
+it is `--rando SEED`. [docs/RANDO.md](docs/RANDO.md) has the mechanism, the
+measurements, and what is verified versus assumed — bosses are off by default
+because nobody has fought a randomized one yet.
+
 ### Known problems
 
 - **The warp star at the end of a level does not launch.** Kirby boards it and

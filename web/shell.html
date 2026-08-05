@@ -388,16 +388,46 @@
   /* A pressed segment has to be legible at a glance from across the room --
      this is a comparison tool and the first question is always "which one am
      I looking at". */
-  #viewbox button.on {
+  #viewbox button.on,
+  #randobox button.on {
     background: var(--accent);
     border-color: var(--accent);
     color: #0d1015;
   }
-  #viewnote {
+  #viewnote,
+  #randonote {
     margin: 0;
     color: var(--dim);
     font-size: 11px;
     line-height: 1.5;
+  }
+
+  /* The randomizer panel wears the view panel's furniture; it is the same
+     kind of thing -- a switch that changes what the game is -- and giving it
+     a second look would say they were unrelated. */
+  #randobox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  #randoseedwrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #randoseedwrap[hidden] { display: none; }
+  #randoseed {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    padding: 4px 8px;
+    min-width: 7em;
   }
 
   /* Names the row of save-data controls. Without it "Export" and "Delete"
@@ -1006,6 +1036,41 @@
       shows (the room from 32 tiles ago, repeated), <b>blank</b> is that
       admitted, and <b>read the room&#8217;s map</b> goes back to the level
       data the copy was made from and draws what should have been there.
+    </p>
+  </div>
+
+  <!-- The randomizer. Unlike the view controls above, this one is remembered
+       between visits: it is a mode you play a whole run in, and a saved file
+       half-played under seed 4127 that comes back as the stock game is a
+       worse surprise than a page that remembers. docs/RANDO.md. -->
+  <div id="randobox">
+    <div class="viewrow">
+      <span class="viewlabel">Enemies</span>
+      <button class="randopool on" type="button" data-pool="0">As it shipped</button>
+      <button class="randopool" type="button" data-pool="1">Shuffled</button>
+      <button class="randopool" type="button" data-pool="7">Shuffled, bosses too</button>
+      <span id="randoseedwrap" hidden>
+        <label class="viewlabel" for="randoseed">Seed</label>
+        <input id="randoseed" type="text" inputmode="numeric" size="10" value="1">
+        <button id="randoreroll" type="button">Reroll</button>
+      </span>
+    </div>
+    <div class="viewrow" id="randoopts" hidden>
+      <span class="viewlabel">Rules</span>
+      <button id="randosize" type="button" aria-pressed="true" class="on">Match enemy sizes</button>
+      <button id="randoability" type="button" aria-pressed="true" class="on">Keep abilities where they were</button>
+    </div>
+    <p id="randonote">
+      Every enemy is one byte in the room&#8217;s level data, so this swaps the
+      byte as the room loads and the game builds a different enemy in the same
+      spot from its own code &#8212; graphics and palette included, because
+      KATAM loads those when an object is created rather than per room. A seed
+      is the whole run: the same number gives the same game every time.
+      <b>Takes effect at the next door</b>, since the room you are standing in
+      already has its list. <b>Match enemy sizes</b> keeps a room&#8217;s
+      video-memory demand near what it was built for &#8212; turning it off is
+      the setting that can overflow the tile heap. Bosses are the risky pool
+      and are off by default.
     </p>
   </div>
 
@@ -1782,6 +1847,104 @@ var Module = (function () {
     b.addEventListener('click', function () { tile = +b.dataset.tile; apply(); });
   });
   pinBtn.addEventListener('click', function () { pin ^= 1; apply(); });
+
+  apply();
+})();
+</script>
+
+<script>
+//======================================================================
+// The randomizer.
+//
+// Same shape as the view panel above: the page holds no opinion of its own,
+// it calls one C function and platform/rando.c derives everything from what
+// it is told. What is different is that this one is *remembered*. A run under
+// a seed is a thing a player is partway through, and the save that goes with
+// it is already persisted in IndexedDB; coming back to a stock game with a
+// randomized save half-finished would be the page losing state, not the page
+// staying out of the way.
+//
+// The seed is a plain unsigned 32-bit number and is shown rather than hidden,
+// because a seed people can read out to each other is most of the point of
+// there being a seed at all.
+//======================================================================
+(function () {
+  var box = document.getElementById('randobox');
+  if (!box) return;
+  var poolBtns = [].slice.call(box.querySelectorAll('.randopool'));
+  var seedWrap = document.getElementById('randoseedwrap');
+  var seedIn   = document.getElementById('randoseed');
+  var reroll   = document.getElementById('randoreroll');
+  var sizeBtn  = document.getElementById('randosize');
+  var abilBtn  = document.getElementById('randoability');
+
+  var ANY_SIZE = 0x08, KEEP_ABILITY = 0x10;
+  var KEY = 'katam.rando';
+  var pools = 0, matchSize = 1, keepAbility = 1, seed = 1;
+  var pendingPush = 0;
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  // "pools,size,ability,seed" -- four numbers, so a stored value from an
+  // older build cannot mean something else in a newer one without the count
+  // changing, and a malformed one falls back to off rather than to garbage.
+  (function restore() {
+    var v = lsGet(KEY).split(',').map(Number);
+    if (v.length !== 4 || v.some(function (n) { return !isFinite(n); })) return;
+    pools = v[0] & 0x07; matchSize = v[1] ? 1 : 0;
+    keepAbility = v[2] ? 1 : 0; seed = v[3] >>> 0;
+  })();
+
+  function flags() {
+    return pools | (matchSize ? 0 : ANY_SIZE) | (keepAbility ? KEEP_ABILITY : 0);
+  }
+
+  function toggle(btn, on) {
+    btn.classList.toggle('on', !!on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  function apply() {
+    poolBtns.forEach(function (b) {
+      b.classList.toggle('on', +b.dataset.pool === pools);
+    });
+    seedWrap.hidden = document.getElementById('randoopts').hidden = (pools === 0);
+    toggle(sizeBtn, matchSize);
+    toggle(abilBtn, keepAbility);
+    seedIn.value = String(seed);
+    lsSet(KEY, [pools, matchSize, keepAbility, seed].join(','));
+
+    // The same retry as the view panel, for the same reason: the wasm may
+    // not be up yet, and reaching into the loader's scope to find out is what
+    // threw a ReferenceError that the crash panel reported as the emulator
+    // having stopped.
+    if (!window.Module || !Module._PortSetRando) {
+      if (!pendingPush) pendingPush = setTimeout(function () {
+        pendingPush = 0; apply();
+      }, 250);
+      return;
+    }
+    if (pendingPush) { clearTimeout(pendingPush); pendingPush = 0; }
+    Module._PortSetRando(flags(), seed >>> 0);
+  }
+
+  poolBtns.forEach(function (b) {
+    b.addEventListener('click', function () { pools = +b.dataset.pool; apply(); });
+  });
+  sizeBtn.addEventListener('click', function () { matchSize ^= 1; apply(); });
+  abilBtn.addEventListener('click', function () { keepAbility ^= 1; apply(); });
+  reroll.addEventListener('click', function () {
+    // Six digits: long enough not to collide by accident, short enough to
+    // read down a phone line.
+    seed = Math.floor(Math.random() * 1000000) >>> 0;
+    apply();
+  });
+  seedIn.addEventListener('change', function () {
+    var n = parseInt(seedIn.value, 10);
+    seed = isFinite(n) && n >= 0 ? (n >>> 0) : seed;
+    apply();
+  });
 
   apply();
 })();

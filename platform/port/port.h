@@ -205,6 +205,32 @@ extern s32 gPortCullHalfW, gPortCullHalfH;
 extern s32 gPortSpawnPadX, gPortSpawnPadY;
 extern s32 gPortCamPadX, gPortCamPadY;
 
+/* --- the randomizer (platform/rando.c) ------------------------------------
+ *
+ * Rewrites the type byte of the records in a room's object list as the room
+ * is loaded, so the game builds a different enemy in the same place from its
+ * own level data.  Off unless one of the three pool bits is set, and then it
+ * touches nothing outside its pools.  See docs/RANDO.md. */
+#define PORT_RANDO_ENEMIES      0x01   /* the 49-strong common-enemy pool */
+#define PORT_RANDO_MIDBOSSES    0x02   /* Mr Frosty .. Bombar */
+#define PORT_RANDO_BOSSES       0x04   /* Kracko .. Mega Titan */
+/* Swap without regard to how much video memory the replacement wants.  The
+ * default keeps a room's tile demand in the class the level was built for;
+ * this is the setting that can overflow the VRAM heap.  See rando.c. */
+#define PORT_RANDO_ANY_SIZE     0x08
+/* Replace an ability-carrying enemy only with another ability-carrying one.
+ * On by default: it does not preserve *which* ability, but it does keep an
+ * ability where the level put one. */
+#define PORT_RANDO_KEEP_ABILITY 0x10
+
+void PortSetRando(u32 flags, u32 seed);
+void PortRandoReport(void);
+extern u32 gPortRandoFlags, gPortRandoSeed;
+
+struct LevelInfo_1E4;
+const struct LevelInfo_1E4 *PortRandoObjList(u8 playerId, u16 roomId,
+                                             const struct LevelInfo_1E4 *list);
+
 /* --- interrupt dispatch --------------------------------------------------
  * The game installs handlers in gIntrTable and expects the BIOS dispatcher to
  * call them.  There is no dispatcher here, so the platform layer calls them
