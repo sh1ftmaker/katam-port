@@ -708,7 +708,12 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
                         cmd - 0xCF, mplayInfo, track);
                 } else if (cmd > 0xB0) {
                     u32 index = cmd - 0xB1;
-                    MPlayFunc *jt = (MPlayFunc *)soundInfo->MPlayJumpTable;
+                    /* PTR32_TD: the table's entries are four bytes, so
+                     * indexing it must stride four.  A plain MPlayFunc*
+                     * strides eight on a 64-bit host and dispatches
+                     * through the gap.  Identical in C. */
+                    PTR32_TD(MPlayFunc) *jt =
+                        (PTR32_TD(MPlayFunc) *)soundInfo->MPlayJumpTable;
 
                     mplayInfo->cmd = index;
                     ((void (*)(struct MusicPlayerInfo *,

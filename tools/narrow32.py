@@ -242,6 +242,17 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
                         # `const u16 *const` -- the qualifiers sit between the
                         # stars and have to travel with them.
                         inner = dm.group('type') + ' ' + dm.group('ptr')[:-1]
+                        # A pointee that is itself a pointer has to be narrowed
+                        # as well -- `const u16 *const *unk4` points at an array
+                        # of *four-byte* pointers, and the ROM tables it is
+                        # assigned from are emitted that way too.  Without this
+                        # the member and the table disagree about their element
+                        # type even though both are the right width.
+                        im = re.match(r'^(?P<base>.*?)\s*\*\s*(?P<q>const|volatile)?$',
+                                      inner.strip())
+                        if im and im.group('base'):
+                            inner = 'PTR32(%s) %s' % (im.group('base').strip(),
+                                                      im.group('q') or '')
                         # A qualifier after the last star qualifies the
                         # *pointer*, not the pointee -- `const u8 *volatile
                         # srcp` -- so it stays on the member, outside PTR32.

@@ -388,6 +388,26 @@ CXX_SITES = {
          '? (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unk8 '
          ': (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unkC[a2->unkE];'),
     ],
+    'code_08026044.c': [
+        # Locals mirroring a narrowed member whose pointee is itself a pointer.
+        # The member points at an array of four-byte pointers, so the local has
+        # to say the same; PTR32 is a plain pointer in C, so this is the same
+        # declaration the ILP32 builds always compiled.
+        ('const u16 *const *tmp3 = gUnk_082EB2B4[0]->unk4;',
+         'PTR32(const u16) const *tmp3 = gUnk_082EB2B4[0]->unk4;'),
+        ('    const u16 *const *tmp;',
+         '    PTR32(const u16) const *tmp;'),
+    ],
+    'code_0814F274.c': [
+        ('        const u16 *v6, *const *base;',
+         '        const u16 *v6;\n        PTR32(const u16) const *base;'),
+    ],
+    'code_08032E98.c': [
+        # The same shape as phan_phan.c below: locals holding the *address* of
+        # a narrowed member, which is a PTR32(T)* and not a T**.
+        ('    struct ObjectBase **q;\n    struct ObjectBase **r;',
+         '    PTR32(struct ObjectBase) *q;\n    PTR32(struct ObjectBase) *r;'),
+    ],
     'phan_phan.c': [
         # `const struct Kirby_110 **kirby110 = &phanPhan->kirby3->unk110;`
         #
