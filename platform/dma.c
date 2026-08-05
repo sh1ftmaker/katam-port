@@ -15,6 +15,8 @@
  * store returns -- which is why DmaWait is compiled to nothing.
  */
 
+#include <string.h>
+
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/dma.h"
@@ -273,6 +275,30 @@ void PortDmaSet(int channel, const void *src, void *dest, u32 control)
     } else {
         ((vu32 *)(REG_ADDR_DMA0 + channel * 12))[2] = control;
     }
+}
+
+/* The channel table is simulation state: DMA_REPEAT and the VBlank/HBlank
+ * timings mean an armed channel survives the frame that armed it, and
+ * platform/ppu.c drives the HBlank ones from inside the scanline loop.  A
+ * rollback that restored the GBA map but not this would re-run a frame with
+ * the wrong per-scanline effects still armed -- see platform/port/backend.h.
+ *
+ * sTransferCount and sBadTransfers are deliberately excluded: they are
+ * diagnostic counters, and a rollback that rewound them would make the DMA
+ * trace's n= disagree with the number of lines printed. */
+u32 PortDmaStateSize(void)
+{
+    return (u32)sizeof sChannels;
+}
+
+void PortDmaStateSave(void *dest)
+{
+    memcpy(dest, sChannels, sizeof sChannels);
+}
+
+void PortDmaStateLoad(const void *src)
+{
+    memcpy(sChannels, src, sizeof sChannels);
 }
 
 void PortDmaStop(int channel)

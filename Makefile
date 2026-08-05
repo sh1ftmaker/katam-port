@@ -127,7 +127,7 @@ LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
     -sALLOW_MEMORY_GROWTH=0 \
     -sSTACK_SIZE=1048576 \
-    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled \
+    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,ccall,cwrap \
     -sENVIRONMENT=web \
     --shell-file web/shell.html
@@ -303,7 +303,7 @@ $(BUILD)/katam-node.js: $(OBJS)
 	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
@@ -322,7 +322,7 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -340,7 +340,7 @@ $(BUILD)/katam-safe.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@

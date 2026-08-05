@@ -793,3 +793,80 @@ costs 0.19 s in a browser.
 
 RLE is for the *stored* log, not the wire — a live stream cannot batch runs
 without adding the latency the whole exercise is meant to avoid.
+
+---
+
+## 10. The rollback machinery, and what it is verified to do
+
+`platform/port/rollback.h` and `platform/rollback.c`. No network in it and none
+intended: a transport calls `PortRbConfirmInput` when a peer's real input
+arrives, and this decides when to roll back and re-simulates.
+
+| | |
+|---|---|
+| snapshot / restore | the six GBA regions plus the port's own out-of-map state |
+| input timeline | per-frame, per-player, with `known` marking real against predicted |
+| prediction | "the same again" — right ~96% of the time at the measured 22.8-frame mean run |
+| rollback | requested from `PortRbConfirmInput`, performed at the top of `PortPresentFrame` |
+| join / leave | events on the timeline, applied at a scheduled frame |
+| the log | the game's own RLE, encode and decode, with the events in it |
+
+### Where it hooks in, and why that is the whole trick
+
+`VBlankIntrWait()` is `PortPresentFrame()`, called from inside `GameLoop`, and
+`GameLoop` keeps nothing in locals across it. The C stack is
+`main → AgbMain → GameLoop → VBlankIntrWait → PortPresentFrame` on every frame,
+identical in shape. So restoring the GBA map at the top of `PortPresentFrame`
+and returning normally puts the game back at that frame with no stack surgery:
+**the loop simply runs the frames again.** That is a property of the port's
+architecture, not of this code.
+
+Input is driven at `UpdateKeyInput` — the one point where the host's buttons
+become the game's. Forcing it earlier does not work, because the host polls
+between the top of the frame and the latch.
+
+### Verified, by doing it
+
+`PORT_RB_SELFTEST=at:span` snapshots at a frame, runs a span, restores, runs the
+span again with the recorded input, and compares. It records and replays the
+input itself — the native host counts frames with its own counter, so `--mash`
+would hand the second pass *different* buttons and the test would fail for a
+reason unrelated to the snapshot.
+
+| span | result |
+|---|---|
+| 30, 60, 120, 240, 600 frames | **PASSED** — bit-identical state both times |
+| on wasm32, i686 and x86-64 | PASSED, same log bytes on each |
+
+Six hundred frames is ten seconds, far past any rollback window.
+
+### The negative control, and the finding it produced
+
+A self-test that cannot fail proves nothing, so `PORT_RB_BREAK` damages the
+restore on purpose.
+
+- **`=1`, skip the port's out-of-map state** (armed DMA channels, affine
+  reference points): **passes.** That is a measured fact rather than a broken
+  test — the game re-arms its DMA every frame and the affine points are
+  re-latched from the IO registers, which are in the map. So on this path the
+  port's own statics do not reach the simulation. They are still saved, because
+  "does not, here, today" is not "cannot".
+- **`=2`, skip restoring IWRAM** (which holds `gTasks`): **fails**, which is
+  what demonstrates the test can detect a bad snapshot at all.
+
+The frame state is restored under both, because `sFrameCount` lives there and
+without it the restored run never arrives back at the frame the test waits for.
+The first version of the control skipped all three and produced no output —
+breaking the harness rather than demonstrating a divergence.
+
+### What is not done
+
+- **No transport drives it.** `PortRbConfirmInput` has never been called by
+  anything but a test, so the rollback *path* — predict, mispredict, restore,
+  re-simulate — is exercised only by the self-test's restore-and-replay, not by
+  a real disagreement. §5 is still the blocker for reaching link play at all.
+- **`PortRbReplayTo` sets a target and returns**; the frames happen because the
+  game keeps running, and the host has to stop pacing for it to be fast. The
+  host side of that is not written.
+- **Leaving is still only clean for the highest-numbered player** (§9), and the
+  engine does not renumber.

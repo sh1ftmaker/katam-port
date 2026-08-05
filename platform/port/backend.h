@@ -121,6 +121,43 @@ void PortCallStack(const char *tag);
  * since asking for a stack without the line it belongs to is useless. */
 void PortSetDmaStack(long lo, long hi);
 
+/* --- simulation state that is not in the GBA map --------------------------
+ *
+ * Almost everything the game computes lives in the reserved map, which is what
+ * makes a snapshot six memcpys (platform/rollback.c).  Almost.  The *port*
+ * keeps a little simulation state of its own in C statics, and a snapshot that
+ * misses it restores a game that then behaves differently for reasons nothing
+ * can see:
+ *
+ *   dma.c   sChannels[4] -- an armed VBlank or HBlank transfer outlives the
+ *           frame that armed it.  Miss this and a restored frame runs with the
+ *           previous timeline's per-scanline effects still armed.
+ *   main.c  the key state the next frame will latch, the frame counter, and
+ *           the VBlank DMA budget, which gates how many transfers a frame gets.
+ *   ppu.c   the affine reference points, which latch at the top of a frame and
+ *           advance per scanline.
+ *
+ * Each module declares its own rather than a central struct reaching in, so
+ * that adding a static and forgetting to save it is a change in one file that
+ * is visible in that file.  PortRbSelfTest is what catches it if it happens
+ * anyway: it re-runs a span and compares, and unsaved state is exactly what
+ * makes the second run differ.
+ *
+ * Deliberately *not* here: the mixer and audio ring (measured not to feed game
+ * state -- audio on and audio off produce byte-identical DMA streams), the
+ * multiplayer transport, and everything diagnostic. */
+u32  PortDmaStateSize(void);
+void PortDmaStateSave(void *dest);
+void PortDmaStateLoad(const void *src);
+
+u32  PortFrameStateSize(void);
+void PortFrameStateSave(void *dest);
+void PortFrameStateLoad(const void *src);
+
+u32  PortPpuStateSize(void);
+void PortPpuStateSave(void *dest);
+void PortPpuStateLoad(const void *src);
+
 /* The GBA BIOS ROM, 16 KiB at address zero.
  *
  * In wasm that is ordinary low linear memory: it reads as zero and a transfer

@@ -625,6 +625,27 @@ static void RenderScanline(int line)
     ComposeScanline(line);
 }
 
+/* The affine reference points latch at the top of a frame and advance per
+ * scanline, so they carry across the frame boundary and belong in a snapshot.
+ * Nothing else in this file does: the per-layer scanline buffers are scratch,
+ * rewritten from VRAM every line. */
+u32 PortPpuStateSize(void)
+{
+    return (u32)(sizeof sAffineX + sizeof sAffineY);
+}
+
+void PortPpuStateSave(void *dest)
+{
+    memcpy(dest, sAffineX, sizeof sAffineX);
+    memcpy((u8 *)dest + sizeof sAffineX, sAffineY, sizeof sAffineY);
+}
+
+void PortPpuStateLoad(const void *src)
+{
+    memcpy(sAffineX, src, sizeof sAffineX);
+    memcpy(sAffineY, (const u8 *)src + sizeof sAffineX, sizeof sAffineY);
+}
+
 /* The scanline loop is two things and only one of them is a picture.
  *
  * VCOUNT, the DISPSTAT flags, the affine reference points, the HBlank DMAs and

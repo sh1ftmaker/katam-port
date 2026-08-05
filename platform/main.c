@@ -30,6 +30,7 @@
 #include "port/backend.h"
 #include "port/dma.h"
 #include "port/mp.h"
+#include "port/rollback.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -241,8 +242,23 @@ void PortSetKeys(u16 downMask)
     sKeysDown = downMask & 0x03FF;
 }
 
+/* The one place the host's buttons become the game's buttons.
+ *
+ * Rollback and replay both need the *timeline* to win here rather than
+ * whatever the host most recently polled -- a re-simulated frame has to be fed
+ * the input it was fed the first time, or the whole exercise is measuring
+ * nothing.  This is the latch, so this is where the override goes; forcing
+ * sKeysDown earlier in the frame does not work, because the host polls after
+ * that and before this.
+ *
+ * PortRbKeyOverride returns 0 when nothing is driving, which is every ordinary
+ * build, and then this is exactly what it was. */
 static void UpdateKeyInput(void)
 {
+    u16 keys = sKeysDown;
+
+    if (PortRbKeyOverride(&keys))
+        sKeysDown = keys;
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
 }
 
@@ -411,6 +427,62 @@ u32 PortFrameNumber(void)
     return sFrameCount;
 }
 
+/* The frame loop's own simulation state, for a rollback snapshot -- see
+ * platform/port/backend.h.
+ *
+ * Three things and no more.  sKeysDown is what the *next* frame will latch, so
+ * a snapshot that omitted it would restore a frame and then feed it whatever
+ * the host had most recently pressed.  sVBlankBudget gates how many DMA bytes
+ * the VBlank window accepts and is deliberately carried across frames, so it
+ * decides whether a backed-up queue drains this frame or next.  sFrameCount is
+ * what the game and every instrument number frames by.
+ *
+ * Not the diagnostics: the trace tables, the missing-function list and the
+ * watch counters all describe the *run*, not the game, and rewinding them
+ * would make a rollback session report each event once per re-simulation. */
+struct PortFrameState {
+    u32 frameCount;
+    s32 vblankBudget;
+    u16 keysDown;
+};
+
+u32 PortFrameStateSize(void)
+{
+    return (u32)sizeof(struct PortFrameState);
+}
+
+void PortFrameStateSave(void *dest)
+{
+    struct PortFrameState st;
+
+    st.frameCount = sFrameCount;
+    st.vblankBudget = sVBlankBudget;
+    st.keysDown = sKeysDown;
+    memcpy(dest, &st, sizeof st);
+}
+
+void PortFrameStateLoad(const void *src)
+{
+    struct PortFrameState st;
+
+    memcpy(&st, src, sizeof st);
+    sFrameCount = st.frameCount;
+    sVBlankBudget = st.vblankBudget;
+    sKeysDown = st.keysDown;
+}
+
+/* The key state the game will see, for the rollback engine to drive from the
+ * input timeline rather than from the host.  Same path PortSetKeys uses. */
+void PortRbApplyKeys(u16 keys)
+{
+    sKeysDown = keys;
+}
+
+u16 PortCurrentKeys(void)
+{
+    return sKeysDown;
+}
+
 /* The call-stack instrument described in port/backend.h.  Window first, so
  * that the cost of taking a stack is paid only where it is wanted -- a
  * backtrace per transfer over 63000 transfers is minutes, not seconds. */
@@ -531,6 +603,18 @@ static void PortStateTrace(void)
             if (w != NULL && *w != '\0')
                 sscanf(w, "%lx:%ld", &sWindowAddr, &sWindowLen);
         }
+        /* PORT_RB_SELFTEST=at:span -- snapshot at a frame, run a span, restore,
+         * run it again, and check the two arrivals agree.  Armed here because
+         * this is the one place the port already reads its environment; the
+         * web build calls PortRbSelfTest through an export instead. */
+        {
+            const char *t = getenv("PORT_RB_SELFTEST");
+            long at = 0, span = 0;
+
+            if (t != NULL && *t != '\0'
+             && sscanf(t, "%ld:%ld", &at, &span) == 2 && span > 0)
+                PortRbSelfTest((u32)at, (u32)span);
+        }
     }
     if (!enabled)
         return;
@@ -649,8 +733,16 @@ int PortRenderEnabled(void)
 
 void PortPresentFrame(void)
 {
-    int render = PortRenderEnabled();
+    int render;
 
+    /* First, before anything else in the frame.  A rollback restores the GBA
+     * map here, which is only safe because the stack at this point holds
+     * nothing the game will read again -- see platform/port/rollback.h.  Both
+     * of these do nothing at all unless something armed them. */
+    PortRbFrame();
+    PortRbSelfTestStep();
+
+    render = PortRenderEnabled();
     PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 

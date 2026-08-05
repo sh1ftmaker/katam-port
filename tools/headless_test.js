@@ -387,6 +387,13 @@ const Module = {
         // picture -- which is what a rollback re-simulation gets to skip.
         if (process.env.PORT_NO_RENDER && process.env.PORT_NO_RENDER !== '0')
             Module._PortSetRenderEnabled(0);
+        // PORT_RB_SELFTEST=at:span -- snapshot at a frame, run a span,
+        // restore, run it again, and check the two arrivals agree.  See
+        // platform/port/rollback.h.
+        if (process.env.PORT_RB_SELFTEST && Module._PortRbSelfTest) {
+            const [at, span] = process.env.PORT_RB_SELFTEST.split(':').map(Number);
+            Module._PortRbSelfTest(at, span);
+        }
         if (process.env.PORT_WINDOW) {
             const [wa, wl] = process.env.PORT_WINDOW.split(':');
             Module._PortSetStateWindow(parseInt(wa, 16), Number(wl));
