@@ -30,6 +30,10 @@ const WEBDIR = path.join(ROOT, 'web');
 const PAGE   = 'katam.html';
 const KEEP   = process.argv.includes('--keep');
 const HEAD   = process.argv.includes('--head');
+// --url=https://... tests a *deployed* page instead of the local build. The
+// question "is the thing the player is looking at the thing I fixed" is not
+// answerable from the source tree, and guessing at it wastes their time.
+const URL_ARG = (process.argv.find((a) => a.startsWith('--url=')) || '').slice(6);
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {
@@ -128,7 +132,7 @@ main().catch((e) => { console.error(e); process.exit(2); });
 async function main() {
   const chrome = chromeBinary();
   if (!chrome) { console.error('no chrome on PATH -- skipping'); process.exit(0); }
-  if (!fs.existsSync(path.join(WEBDIR, PAGE))) {
+  if (!URL_ARG && !fs.existsSync(path.join(WEBDIR, PAGE))) {
     console.error('no web/' + PAGE + ' -- run `make web/katam.html` first');
     process.exit(2);
   }
@@ -137,19 +141,25 @@ async function main() {
   // storage APIs it touches on startup then throw.
   // -u: the "Serving HTTP on ... port N" line is how the port is learned, and
   // a buffered stdout never delivers it.
-  const server = spawn('python3', ['-u', '-m', 'http.server', '0', '--bind', '127.0.0.1'],
-                       { cwd: WEBDIR, stdio: ['ignore', 'pipe', 'pipe'] });
-  const port = await new Promise((res, rej) => {
-    let buf = '';
-    const grab = (d) => {
-      buf += d.toString();
-      const m = buf.match(/port (\d+)/);
-      if (m) res(Number(m[1]));
-    };
-    server.stdout.on('data', grab);
-    server.stderr.on('data', grab);
-    setTimeout(() => rej(new Error('server did not start: ' + buf)), 8000);
-  });
+  let server = null;
+  let target = URL_ARG;
+  if (!target) {
+    server = spawn('python3', ['-u', '-m', 'http.server', '0', '--bind', '127.0.0.1'],
+                   { cwd: WEBDIR, stdio: ['ignore', 'pipe', 'pipe'] });
+    const port = await new Promise((res, rej) => {
+      let buf = '';
+      const grab = (d) => {
+        buf += d.toString();
+        const m = buf.match(/port (\d+)/);
+        if (m) res(Number(m[1]));
+      };
+      server.stdout.on('data', grab);
+      server.stderr.on('data', grab);
+      setTimeout(() => rej(new Error('server did not start: ' + buf)), 8000);
+    });
+    target = 'http://127.0.0.1:' + port + '/' + PAGE;
+  }
+  console.log('testing ' + target + '\n');
 
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'katam-tap-'));
   const args = [
@@ -160,7 +170,7 @@ async function main() {
     // A phone, so the shell takes its touch layout and the touch listeners
     // are the ones under test.
     '--window-size=390,844',
-    'http://127.0.0.1:' + port + '/' + PAGE,
+    target,
   ];
   if (!HEAD) args.unshift('--headless=new');
 
@@ -177,14 +187,14 @@ async function main() {
 
   const cleanup = () => {
     try { browser.kill('SIGKILL'); } catch (e) {}
-    try { server.kill('SIGKILL'); } catch (e) {}
+    if (server) try { server.kill('SIGKILL'); } catch (e) {}
     if (!KEEP) try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {}
   };
   process.on('exit', cleanup);
 
   const bro = await CDP.attach(wsUrl);
   const targets = await bro.send('Target.getTargets');
-  const page = targets.targetInfos.find((t) => t.type === 'page' && /katam/.test(t.url));
+  const page = targets.targetInfos.find((t) => t.type === 'page' && t.url !== 'about:blank');
   if (!page) throw new Error('no page target');
   const { sessionId } = await bro.send('Target.attachToTarget',
                                        { targetId: page.targetId, flatten: true });
@@ -319,6 +329,16 @@ async function main() {
   console.log('the sheet, whose labels point at inputs that no longer live in it');
   //------------------------------------------------------------------
   const before = fileChooserEvents;
+  // Older deployed revisions have no sheet at all; --url can land on one.
+  const hasMenu = await bro.eval(`(function () {
+    var b = document.getElementById('menubtn');
+    if (!b) return false;
+    var r = b.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  })()`);
+  if (!hasMenu) {
+    console.log('       no #menubtn on this page -- skipping the sheet');
+  } else {
   await tap(bro, '#menubtn');
   await sleep(500);
   const sheetOpen = await bro.eval("document.body.classList.contains('sheet-open')");
@@ -338,6 +358,7 @@ async function main() {
 
     await tap(bro, '#sheetclose');
     await sleep(500);
+  }
   }
 
   //------------------------------------------------------------------
