@@ -154,10 +154,12 @@ Two things are worth knowing before you build it elsewhere:
   **On a Mac, use the web build** — https://sh1ftmaker.github.io/katam-port/,
   which installs to the dock as a web app and is the same port running the same
   code. A native Mac build is not a porting job but a 64-bit-cleanliness project
-  on the port itself: 32-bit handles for those 111 structures, and host code
-  kept below 4 GiB because the game stores host function pointers inside GBA
-  memory. `docs/NATIVE.md` sets out what that would take. It has not been done,
-  and nothing here pretends otherwise.
+  on the port itself: 32-bit handles for the **148 structures** that change
+  shape under LP64, and host code kept below 4 GiB because the game stores host
+  function pointers inside GBA memory.
+  [docs/SIXTYFOUR.md](docs/SIXTYFOUR.md) is the measurement — what breaks, how
+  it was counted, and an estimate of 4–6 weeks. It has not been done, and
+  nothing here pretends otherwise.
 
 ### On a Raspberry Pi
 
