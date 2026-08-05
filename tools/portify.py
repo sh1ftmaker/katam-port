@@ -415,15 +415,11 @@ void PortSampleRateSet(struct SoundInfo *soundInfo);"""),
     soundInfo->MidiKeyToCgbFreq = PortNullMidiKeyToCgbFreq;"""),
 
         # --- a BIOS call nothing makes --------------------------------------
-        ("""void MusicPlayerJumpTableCopy(void)
-{
-    asm("swi 0x2A");
-}""",
-         """void MusicPlayerJumpTableCopy(void)
-{
-    /* PORT: BIOS MusicPlayerOpen (swi 0x2A).  Nothing in the game calls this
-     * -- SoundInit uses the library's own MPlayJumpTableCopy instead. */
-}"""),
+        # The MusicPlayerJumpTableCopy entry that used to be here is gone.  It
+        # could never fire -- rewrite_asm_statements runs first and had already
+        # replaced its `asm("swi 0x2A")` with a comment, so the pattern never
+        # matched and every sync reported the sound driver as changed upstream.
+        # The translation lives in rewrite_asm_statements now, next to swi 3.
     ],
 
     'm4a.h': [
@@ -562,6 +558,25 @@ def rewrite_asm_statements(text, path, rep):
         if re.match(r'"swi\\?t?\s*3"', template):
             rep.bump('swi 3 (Halt) translated')
             return 'PortHalt();'
+
+        # asm("swi 0x2A") -- BIOS MusicPlayerOpen, the whole body of
+        # MusicPlayerJumpTableCopy.  Nothing in the game calls it: SoundInit
+        # uses the sound library's own MPlayJumpTableCopy instead, and the
+        # port fills gMPlayJumpTable from platform/m4a_mixer.c.  So the
+        # function is dead code and an empty body is the correct translation.
+        #
+        # This used to be handled by an M4A_PATCHES entry that replaced the
+        # whole function, and that entry could never fire: this rewriter runs
+        # first and had already replaced the asm with an UNHANDLED comment, so
+        # the pattern it was written against no longer existed.  The result was
+        # two report lines a sync -- one saying the asm was unhandled and one
+        # blaming an upstream change to the sound driver that had not happened.
+        # Both were false, but "the sound driver has changed upstream" is
+        # exactly the kind of thing that has to stay believable, so it is fixed
+        # here rather than at the far end.
+        if re.match(r'"swi\\?t?\s*0x2A"', template, re.IGNORECASE):
+            rep.bump('swi 0x2A (MusicPlayerOpen) dropped -- never called')
+            return '/* PORT: BIOS MusicPlayerOpen (swi 0x2A), never called */'
 
         mldr = re.match(r'"ldr\s*%0,\s*\[%1,\s*#(\d+)\]"', template)
         if mldr and len(outs) == 1 and len(ins) == 1:
