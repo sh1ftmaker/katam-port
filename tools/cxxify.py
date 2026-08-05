@@ -388,6 +388,18 @@ CXX_SITES = {
          '? (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unk8 '
          ': (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unkC[a2->unkE];'),
     ],
+    'code_0800ECAC_2.c': [
+        ('    struct Object2 **r7 = sub_08039490(&a1->unk40->base.base.base);',
+         '    PTR32(struct Object2) *r7 = sub_08039490(&a1->unk40->base.base.base);'),
+    ],
+    'large_star_stone_block.c': [
+        ('    struct Object2 **list = sub_08039490(&block->base);',
+         '    PTR32(struct Object2) *list = sub_08039490(&block->base);'),
+    ],
+    'big_small_switch.c': [
+        ('    struct Object2 **list;',
+         '    PTR32(struct Object2) *list;'),
+    ],
     'code_08026044.c': [
         # Locals mirroring a narrowed member whose pointee is itself a pointer.
         # The member points at an array of four-byte pointers, so the local has
@@ -403,6 +415,10 @@ CXX_SITES = {
          '        const u16 *v6;\n        PTR32(const u16) const *base;'),
     ],
     'code_08032E98.c': [
+        ('void *sub_08039490(struct ObjectBase *obj)',
+         'PTR32(struct Object2) *sub_08039490(struct ObjectBase *obj)'),
+        ('    return &gUnk_02022F50[temp * 64];',
+         '    return (PTR32(struct Object2) *)&gUnk_02022F50[temp * 64];'),
         # The same shape as phan_phan.c below: locals holding the *address* of
         # a narrowed member, which is a PTR32(T)* and not a T**.
         ('    struct ObjectBase **q;\n    struct ObjectBase **r;',
@@ -483,6 +499,15 @@ CXX_HEADER_SITES = {
         # gUnk_02022EC0, whose elements are four-byte pointers.
         ('struct Object2 **sub_080394C8(struct ObjectBase *);',
          'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *);'),
+        # Its twin, sitting immediately above it in code_08032E98.c and doing
+        # the same thing to gUnk_02022F50 -- but declared `void *`, so nothing
+        # complained while three callers walked a four-byte table eight bytes
+        # at a time.  That `void *` is why sub_080394C8 was found in the first
+        # sweep and this one survived to be the last crash.  The
+        # decompilation's own comment on the line says it does not know the
+        # return type; this says.
+        ('void *sub_08039490(struct ObjectBase *); // TODO: may return struct Object2 ** or struct ObjectBase **',
+         'PTR32(struct Object2) *sub_08039490(struct ObjectBase *);'),
     ],
 }
 
