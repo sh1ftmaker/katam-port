@@ -241,6 +241,55 @@ port's problem to solve and it has. Recorded because:
 2. It is worth knowing that this construct exists exactly once, so if the
    count ever becomes two, that is a thing to mention.
 
+## 3c. The same family again, found by building natively: `gNextTask` is null
+
+A desktop build of the port (SDL, no browser) turned up a second instance of
+3a, and it is more interesting than the first because **WebAssembly tolerated
+it too**. It has been running on every boot since the port started and nothing
+noticed.
+
+`TaskCreate`, in `task.c`:
+
+```c
+slow->next = (uintptr_t)task;
+if (slow->next == gNextTask->prev) {      /* gNextTask is null here */
+    gNextTask = task;
+}
+```
+
+`CreateLogo` builds a task before the first `TasksExec` has run, so `gNextTask`
+is still zero and `gNextTask->prev` reads address `0x00000002`.
+
+On the GBA that address is the BIOS ROM. The read returns open bus, the
+comparison cannot match a real IWRAM offset, and the branch is not taken — so
+the code is correct as decompiled and the hardware is entirely happy with it.
+In WebAssembly address 2 is ordinary low linear memory and reads as zero, which
+also cannot match, so the port never saw it either.
+
+A native process is the first host that genuinely cannot do it. Every
+operating system reserves page zero and refuses to map anything there — Linux
+via `vm.mmap_min_addr` (65536 by default), macOS via `__PAGEZERO`, Windows by
+reserving the first 64 KiB outright. So the load is a segfault, four frames
+into the boot.
+
+The port guards it on its own side, in `tools/portify.py`:
+
+```c
+if (gNextTask != NULL && slow->next == gNextTask->prev) {
+```
+
+**A guard upstream would be welcome here**, unlike 3a — this one is not a read
+whose result is discarded, it is a comparison against a pointer the code has
+already decided is absent, and the guard makes the C say what it means. But it
+is your call, and the port does not need it.
+
+What is worth taking from it either way: **"wasm didn't crash" is not evidence
+that a pointer is valid.** Low linear memory reads as zero, so every null
+dereference in the game is silently absorbed. The next port to a target with a
+real address space will find the rest of them the same way this one did.
+
+---
+
 ---
 
 ## 4. New sub-class: function pointers mis-cast in the C source

@@ -1,8 +1,8 @@
 # katam-port
 
-A WebAssembly port of **Kirby & The Amazing Mirror**, built on top of the
+A port of **Kirby & The Amazing Mirror**, built on top of the
 [jiangzhengwenjz/katam](https://github.com/jiangzhengwenjz/katam)
-decompilation.
+decompilation. It runs in a browser, and it runs as a native desktop program.
 
 It boots, plays its music, gets you through the menus into a save file, and
 plays a level — backgrounds, sprites, parallax, scrolling and sound, driven by
@@ -31,6 +31,7 @@ any server of ours.
 | Keyboard input | yes |
 | Touch controls, built for phones | yes |
 | Saving between sessions | yes, in browser storage |
+| Native desktop build (SDL2) | yes, on Linux |
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
@@ -70,8 +71,10 @@ measured versus assumed.
 - **The 4 PSG channels are not implemented.** The sequencer keeps their
   registers current, but nothing turns that into sound yet, so the chip
   channels are missing from the mix.
-- **120 Hz displays run at double speed.** The frame loop takes one game frame
-  per `requestAnimationFrame`. Audio makes this obvious.
+- **120 Hz displays run at double speed** *in the browser build.* The frame
+  loop takes one game frame per `requestAnimationFrame`. Audio makes this
+  obvious. The native build paces to the GBA's own 59.7275 Hz and does not
+  have this problem.
 
 ## Running it
 
@@ -114,6 +117,46 @@ reads), import one back, and delete what it has stored.
 never touches your checkout. Re-run all three whenever you pull new
 decompilation work — the set of stubbed functions shrinks by itself as the
 decompilation advances.
+
+## The native build
+
+The same port in a window, on SDL2. Same PPU, same DMA, same mixer, same game
+sources — what changes is the host.
+
+```sh
+sudo apt install gcc-multilib libsdl2-dev:i386   # or your distro's equivalent
+make sync KATAM_DECOMP=~/katam                   # if you have not already
+make stubs KATAM_DECOMP=~/katam
+make native
+./build/native/katam ~/roms/your-copy.gba
+```
+
+Same controls as the page, plus a gamepad. F11 fullscreen, 1–6 window scale,
+F12 screenshot, Ctrl+Q quit. No ROM argument and it offers a file picker, or
+you can drop one on the window. Saves go to a plain 64 KiB `.sav` in your
+config directory — the format an emulator reads, and the same one the page
+exports — keyed per ROM exactly as browser storage is.
+
+It paces to the GBA's real 59.7275 Hz rather than to your monitor, so it does
+not have the browser build's double-speed problem on a 120 Hz panel.
+
+Two things are worth knowing before you build it elsewhere:
+
+- **It is a 32-bit program, and has to be.** 111 of the decompilation's
+  structures contain a pointer, and those structures are read out of the ROM
+  and placed at addresses the linker script chose. Built 64-bit, `struct
+  ToneData` grows from 12 bytes to 24 and every instrument in the sound bank is
+  read from the wrong offset. The build refuses to configure with 8-byte
+  pointers rather than produce something that boots and is quietly wrong.
+- **macOS is blocked by that**, because it has had no 32-bit userland since
+  Catalina. Windows and 32-bit ARM are fine.
+
+`make native-test ROM=...` boots it headless with a real ROM, drives it through
+the menus into a level, and checks that what came out is a picture.
+
+[docs/NATIVE.md](docs/NATIVE.md) is the full account: how the GBA memory map is
+reserved at its true addresses in a process, how that is verified rather than
+assumed, and exactly what a new platform has to implement — five functions.
 
 ### Controls
 
@@ -198,6 +241,9 @@ them:
   every block move that touches an address, `AUDIO_RATE=`/`WAV=` capture the
   sound to a file, `MP=` plugs a link cable into the serial port, and
   `BG=`/`QUEUE=`/`LIVE=` report hardware state as it runs.
+- `tools/native_smoke.sh` is the same idea for the native build: no window, no
+  audio device, scripted input, a PNG of what it drew. It is what a new
+  platform should be measured against.
 - `tools/resolve_fnptr.py` turns a raw function-pointer value, or the index in
   a wasm stack trace, into a name and a signature.
 - `make debug` builds with DWARF into a separate object tree, so

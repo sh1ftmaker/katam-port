@@ -21,10 +21,11 @@
  * ---------------------------------------------------------------------------
  * Keeping the save
  *
- * A cartridge holds its save with the console switched off; a wasm linear
- * memory does not survive the tab being closed.  The page owns the storage --
- * IndexedDB, the same database that already remembers the player's ROM -- and
- * this file is the two hooks it needs.  See web/shell.html.
+ * A cartridge holds its save with the console switched off; neither a tab nor
+ * a process does.  The host owns the storage -- IndexedDB in the browser, a
+ * plain 64 KiB .sav in the platform config directory natively -- and this file
+ * is the two hooks it needs.  See platform/web/sram_web.c and
+ * platform/native/save_file.c.
  *
  *   restore   The stored bytes are copied in the first time the *game* touches
  *             save memory, rather than at page load.  That ordering is not a
@@ -37,7 +38,7 @@
  *             from inside a call the game itself made cannot lose that race,
  *             because the game does not run until PortMemInit has returned.
  *
- *   dirty     Every write that actually changes a byte tells the page, which
+ *   dirty     Every write that actually changes a byte tells the host, which
  *             debounces and writes the region out.  Hooking the write rather
  *             than polling memory is what makes a missed save impossible:
  *             src/save.c is the only file in the game that names this region
@@ -47,35 +48,19 @@
  *             timer anyway, as a backstop against some future writer that does
  *             not come through here.
  *
- * Neither hook exists outside a browser.  The headless harness has no Module
- * functions to call, both EM_JS bodies fall straight through, and the port
+ * A host may have no storage at all: the headless harness has no Module
+ * functions to call, both web bodies fall straight through, and the port
  * behaves as it always did -- save memory that lives and dies with the run.
  */
 
 #include <string.h>
 
-#include <emscripten.h>
-
 #include "port/port.h"
+#include "port/backend.h"
 #include "gba/gba.h"
 #include "agb_sram.h"
 
 const char gAgbSramLibVer[] = "NINTENDOSRAM_V113";
-
-/* --- persistence hooks ---------------------------------------------------- */
-
-/* Hands the page an address to fill.  Returns 1 if it put a stored save there,
- * 0 if it had none for this ROM -- or if there is no page at all. */
-EM_JS(int, PortSramRestoreFromPage, (u8 *dest, u32 size), {
-    if (!Module.portSramRestore)
-        return 0;
-    return Module.portSramRestore(dest, size) ? 1 : 0;
-});
-
-EM_JS(void, PortSramMarkDirty, (void), {
-    if (Module.portSramDirty)
-        Module.portSramDirty();
-});
 
 static int sRestored;
 
@@ -87,12 +72,12 @@ static void SramRestoreOnce(void)
 {
     if (sRestored)
         return;
-    /* Set before the call, not after: the page is free to log, and anything
+    /* Set before the call, not after: the host is free to log, and anything
      * that ran back into the game here would restore a second time on top of
      * whatever had already been written. */
     sRestored = 1;
-    if (PortSramRestoreFromPage((u8 *)GBA_SRAM_BASE, GBA_SRAM_SIZE))
-        PortLog("[katam-port] save memory restored from browser storage");
+    if (PortSramLoad((u8 *)GBA_SRAM_BASE, GBA_SRAM_SIZE))
+        PortLog("[katam-port] save memory restored from host storage");
 }
 
 /* The library's contract lets a caller name any two addresses, and the game
@@ -121,7 +106,7 @@ void WriteSram(const u8 *src, u8 *dest, u32 size)
 
     /* Compare before copying.  WriteSramEx writes, verifies and retries, and
      * the game re-writes sections it has just verified as unchanged; reporting
-     * those as changes would have the page push an identical 64K into storage
+     * those as changes would have the host push an identical 64K into storage
      * several times over for one in-game save.  At these sizes -- the largest
      * buffer in gWorldProps is a few hundred bytes -- the compare costs
      * nothing next to the storage write it avoids. */
