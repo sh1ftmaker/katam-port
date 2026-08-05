@@ -32,6 +32,12 @@
 #include "port/audio.h"
 #include "gba/gba.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 280896 cycles per frame at 16.777216 MHz.  Do not round this to 60. */
 #define GBA_FRAME_HZ 59.7275
 
@@ -811,3 +817,7 @@ void PortHostInit(int argc, char **argv)
         PortLog("[katam-port] frame pacing off -- running as fast as this "
                 "machine allows");
 }
+
+#ifdef __cplusplus
+}
+#endif

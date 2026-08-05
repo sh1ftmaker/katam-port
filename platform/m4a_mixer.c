@@ -55,6 +55,15 @@
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  This file is on the
+ * seam: it implements the sound engine's assembly half, which the game calls,
+ * and it calls back into functions the game or the stub generator defines.  It
+ * also forward-declares some of them itself (MidiKeyToFreq), and a declaration
+ * left outside this block mangles while the definition does not. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* m4a.c defines this but no header declares it. */
 u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust);
 
@@ -1144,3 +1153,7 @@ void SoundMain(void)
 
     soundInfo->ident = ID_NUMBER;
 }
+
+#ifdef __cplusplus
+}
+#endif

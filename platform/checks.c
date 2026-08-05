@@ -26,6 +26,17 @@
 #include "port/port.h"
 #include "task.h"
 
+/* C linkage for the 64-bit builds.
+ *
+ * This file sits on the seam in both directions: it calls the game's functions
+ * and the game calls its adapters back (tools/portify.py rewrites the call
+ * sites).  Those builds compile the game as C++ with C linkage -- see
+ * tools/cxxify.py -- so this file has to agree, or the calls mangle one way
+ * and the definitions the other.  A no-op in C. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Somewhere harmless to send writes that would otherwise leave the map.
  * Sized for the largest task struct the game allocates. */
 static u8 sScratch[0x800];
@@ -116,3 +127,7 @@ void PortCallDtor(struct Task *task)
 
     task->dtor(task);
 }
+
+#ifdef __cplusplus
+}
+#endif

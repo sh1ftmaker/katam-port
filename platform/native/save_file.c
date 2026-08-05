@@ -38,6 +38,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SAVE_QUIET_MS 500
 
 static char sPath[1024];
@@ -182,3 +188,7 @@ void PortNativeSaveTick(void)
     if (sDirty && SDL_GetTicks() - sDirtyAt >= SAVE_QUIET_MS)
         PortNativeSaveFlush();
 }
+
+#ifdef __cplusplus
+}
+#endif

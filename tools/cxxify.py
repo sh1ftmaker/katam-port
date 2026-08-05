@@ -3,55 +3,78 @@
 The port needs this because of pointer width, not because anybody wanted C++.
 A 64-bit build has to keep the GBA's 4-byte pointer members -- see
 docs/SIXTYFOUR.md -- and C cannot express a 4-byte thing that still behaves
-like a pointer at every use site.  C++ can, in about thirty lines
-(platform/port/p32.h), and that turns a rewrite of ~40,000 member accesses
-into a rewrite of ~285 member declarations.
+like a pointer at every use site.  C++ can (platform/port/p32.h), and that
+turns a rewrite of ~40,000 member accesses into a rewrite of ~285 member
+declarations.
 
-So this module exists to get the game's own sources through a C++ front end.
-Everything here is a transform that is **also valid C**, and that is the point:
-the ILP32 builds keep compiling the same tree as C and their output must not
-move, which is what makes the transforms testable.  A transform that needed
-`#ifdef __cplusplus` would not be, and there are none.
+Almost every transform here is also valid C, and that is the point: the ILP32
+builds compile the identical tree and their output must not move, which is what
+makes the whole thing testable.  Two are necessarily C++-only and say so with
+an #ifdef -- the transparent-union constructors and the linkage wrappers.
 
-The six differences that actually came up, measured across all 156 game
-translation units:
+The measurement, over all 156 game translation units: 107 compiled as C++
+unchanged, and the other 49 produced 698 errors from six causes.  Fixing those
+got every file to compile.  Linking took four more, and those were the
+interesting ones, because none of them produces a diagnostic anywhere.
 
-  1. `template` is a parameter name in 41 files (185 uses).  Renamed.
-     This one cascades: the parameter list fails to parse, so every later
-     parameter is undeclared too, which is where "'a2' was not declared in
-     this scope" comes from.  185 renames removed 272 errors.
+Compile:
+
+  1. `template` is a parameter name in 41 files (185 uses).  Renamed.  It
+     cascades: the parameter list fails to parse, so every later parameter is
+     undeclared too, which is where 79 "'a2' was not declared" came from.
 
   2. A struct or union tag defined inside another struct has file scope in C
-     and class scope in C++.  6 definitions in 2 headers, and they accounted
-     for 261 errors, because every function that names the type then declares
-     a fresh incomplete one of its own.  Hoisted to file scope, which is where
-     C already puts them -- this changes nothing for the C builds.
+     and class scope in C++.  5 definitions in 2 headers, 261 errors, because
+     every function naming the type then declares a fresh incomplete one.
+     Hoisted to file scope, which is where C already puts them.
 
-  3. `[0 ... 3] = X` is a GNU C range designator with no C++ spelling.
-     19 sites, all in one array in one file.  Expanded positionally, not to
-     `[0] = X`: g++ in C++ mode rejects the general designator form with
-     "sorry, unimplemented: non-trivial designated initializers" and only
-     accepts contiguous in-order ones, which it lowers to positional anyway.
+  3. `[0 ... 3] = X` is a GNU range designator with no C++ spelling.  Expanded
+     positionally, not to `[0] = X`: g++ answers the general designator form
+     with "sorry, unimplemented" and takes only contiguous in-order ones.
 
-  4. `void f();` means "unspecified parameters" in C and "no parameters" in
-     C++.  Where a header already declares the function properly, the local
-     redundant declaration is dropped rather than patched -- patching it to
-     `(...)` would make it an *overload* in C++ rather than a redeclaration,
-     which is worse than the disease.
+  4. `void f();` is unprototyped in C and zero-parameter in C++.  Replaced with
+     the header's real prototype -- not deleted, because star_platform.c
+     declares sub_08089864 itself and never includes the header.
 
-  5. A trailing `arr[0]` member with a brace initializer is the GNU
-     flexible-array idiom and C++ has no form of it.  Rewritten to a shadow
-     struct plus a macro, which preserves the layout exactly; see
-     expand_flex_array_objects.
+  5. A trailing `arr[0]` with a brace initializer is the GNU flexible-array
+     idiom, which C++ has in no form.  Given shadow storage that preserves the
+     layout exactly; sizing the array for real would change a sizeof that
+     platform/port/gba_layout.h asserts.
 
-  6. `enum_value++` has no built-in meaning in C++.  Not handled here: it is
-     two sites and platform/port/p32.h defines the operator, so no source
-     changes.  A codemod that rewrote it would have to know the enum's type.
+  6. Transparent unions.  GCC's attribute is C-only, so g++ takes the
+     declaration and rejects every call passing a member.  Given a converting
+     constructor per member type -- after a site table proved untenable: three
+     sites turned up by three separate routes, the third from a file a
+     full-tree sweep had compiled clean minutes earlier.
 
-Every transform reports through the same Report object portify.py uses, and
-every one of them complains loudly if its pattern stops matching, because the
-decompilation moves and a silently-skipped transform here is a build failure
-several minutes later in a file that looks unrelated.
+Link:
+
+  7. `const` at file scope has external linkage in C and internal linkage in
+     C++.  Every ROM data table in the decompilation is a const array, so under
+     C++ they silently become static.  420 definitions given an explicit
+     `extern`, which is what C already meant.
+
+  8. C matches functions by name; C++ matches by name and parameter types.  The
+     game is therefore given C linkage throughout -- headers and sources -- so
+     the C++ build links by the same rules the ILP32 builds do.  Anything else
+     would be a second port, which is the risk docs/SIXTYFOUR.md names.
+
+  9. extern "C" is *language* linkage, not storage linkage: a const inside an
+     extern "C" block is still internal.  Both 7 and 8 are needed, and finding
+     that out cost several rounds of "the symbol is right there in the source".
+
+ 10. One genuine defect, which only this build can see: functions.h declares
+     sub_08002888 taking u32 and code_080023A4.c defines it taking an enum.  C
+     links that by name; with C linkage under C++ the declarations are still
+     compared, so it is reported.  Worth carrying upstream.
+
+Enum increment is not handled here at all -- platform/port/cxx_compat.h defines
+the operator, which also covers the sites the decompilation has not written yet.
+
+Every transform reports through the same Report object portify.py uses, and the
+site tables complain loudly when a pattern stops matching, because the
+decompilation moves and a silently skipped transform here surfaces minutes
+later in a file that looks unrelated.
 """
 
 import re
@@ -340,17 +363,24 @@ CXX_SITES = {
         ('u32 size = end - start;',
          'u32 size = (const u8 *)end - (const u8 *)start;'),
     ],
-    'sprite.c': [
-        # gUnk_08D6081C takes `union AnimCmd` (transparent); cmd is its first
-        # member `words`.  The member is named because C picks it by type and
-        # C++ would otherwise take the first one.
-        ('ret = gUnk_08D6081C[~*cmd](cmd, s);',
-         'ret = gUnk_08D6081C[~*cmd](PORT_TRANSPARENT(AnimCmd, words, cmd), s);'),
-    ],
-    'unknown_75.c': [
-        # sub_08001408 takes `union LevelInfo_1E0` (transparent).
-        ('sub_08001408(roomId, &p->unk0, NULL, NULL);',
-         'sub_08001408(roomId, PORT_TRANSPARENT(LevelInfo_1E0, pat1, &p->unk0), NULL, NULL);'),
+}
+
+# The same, for headers.
+#
+# This one is not a C-versus-C++ difference at all: it is a place where the
+# decompilation's declaration and its definition genuinely disagree, and C
+# links them anyway because C matches functions by name alone.  Giving the game
+# C linkage under C++ keeps that matching *and* gets the declarations compared,
+# so the C++ build reports it and no other build can.  It is the only one in
+# the tree, and it is worth carrying upstream -- see docs/DECOMP-REQUESTS.md.
+#
+# functions.h already includes data.h, so the enum is in scope at the
+# declaration; the definition is the correct one and the header is simply
+# behind it.
+CXX_HEADER_SITES = {
+    'functions.h': [
+        ('u32 *sub_08002888(u32 arg0, u8 index, u8 subindex);',
+         'u32 *sub_08002888(enum SUB_08002888_ENUM arg0, u8 index, u8 subindex);'),
     ],
 }
 
@@ -490,10 +520,249 @@ def _count_top_level(s):
 
 # ---------------------------------------------------------------------------
 
-def rewrite_header(text, rep):
+_TU_OPEN = re.compile(
+    r'union\s+__attribute__\s*\(\s*\(\s*transparent_union\s*\)\s*\)\s+(?P<name>\w+)\s*\{')
+_TU_MEMBER = re.compile(r'^\s*(?P<type>[A-Za-z_][\w \t]*?[\w \t*]*?)\s*(?P<name>\w+)\s*;\s*$', re.M)
+
+
+def add_transparent_union_ctors(text, rep):
+    """Let a named transparent union be constructed from any member's type.
+
+    GCC's transparent_union is a C-only attribute: in C a function taking such
+    a union may be called with any member's type directly, and g++ parses the
+    attribute, warns that it is ignoring it, and rejects every one of those
+    calls.
+
+    This started as a table of the call sites that broke.  That was wrong, and
+    measurably so: three sites turned up by three different routes -- two in a
+    sweep of every translation unit, and a third only once build/generated had
+    been regenerated, from a file the sweep had compiled clean minutes earlier.
+    A construct the decompilation uses freely needs a fix at the type, not at
+    the call.
+
+    So give the union a converting constructor per distinct member type, which
+    is what the C rule amounts to.  The default constructor stays defaulted, so
+    the union remains trivially default-constructible and every structure
+    holding one -- struct Kirby does -- keeps its own triviality.
+
+    This is the one transform here that is C++-only, and it says so with an
+    #ifdef rather than pretending otherwise.  The C builds see the union
+    exactly as the decompilation wrote it.
+    """
+    out = []
+    pos = 0
+    n = 0
+    for m in _TU_OPEN.finditer(text):
+        if m.start() < pos:
+            continue
+        close = _match_brace(text, m.end() - 1)
+        if close < 0:
+            rep.unhandled.append(
+                'cxxify: unbalanced braces in transparent union %s' % m.group('name'))
+            continue
+        name = m.group('name')
+        body = _strip_comments(text[m.end():close - 1])
+        seen = []
+        for mem in _TU_MEMBER.finditer(body):
+            full = _decl_type(mem)
+            if full and full not in seen:
+                seen.append(full)
+        if not seen:
+            continue
+        ctors = ['\n#ifdef __cplusplus',
+                 '    /* Generated by tools/cxxify.py: C lets a transparent union be',
+                 '     * built from any member type, and C++ has no such rule. */',
+                 '    %s() = default;' % name]
+        for i, t in enumerate(seen):
+            ctors.append('    %s(%s v__) { %s = v__; }'
+                         % (name, t, _member_of_type(text[m.end():close - 1], t)))
+        ctors.append('#endif\n')
+        out.append((close - 1, '\n'.join(ctors)))
+        n += 1
+        pos = close
+    for at, ins in reversed(out):
+        text = text[:at] + ins + text[at:]
+    if n:
+        rep.bump('transparent unions given C++ converting constructors', n)
+    return text
+
+
+def _decl_type(mem):
+    """The declared type of a matched member, stars and all.
+
+    The type group of _TU_MEMBER can absorb the `*` in `struct Foo *pat1;`, so
+    the stars are stripped out of it and re-attached from a count over the
+    whole declaration.  Doing it any other way produced `struct Foo * *`.
+    """
+    base = ' '.join(mem.group('type').replace('*', ' ').split())
+    stars = '*' * mem.group(0).count('*')
+    return (base + ' ' + stars).strip()
+
+
+def _member_of_type(body, wanted):
+    """First member of `body` whose declared type is `wanted`."""
+    for mem in _TU_MEMBER.finditer(_strip_comments(body)):
+        if _decl_type(mem) == wanted:
+            return mem.group('name')
+    return ''
+
+
+# ---------------------------------------------------------------------------
+# 7. linkage
+# ---------------------------------------------------------------------------
+# The two differences that only appear at link time, and they are the ones that
+# matter most, because neither produces a diagnostic in any translation unit.
+#
+#   - `const` at file scope has external linkage in C and *internal* linkage in
+#     C++.  Every ROM data table the decompilation defines is a const array, so
+#     under C++ they all quietly become static and disappear from the link.
+#     18 symbols, including gUnk_082D8D74 -- the room tilemap table.
+#
+#   - C matches functions by name; C++ matches them by name and parameter
+#     types.  The decompilation has declarations that disagree with their
+#     definitions -- functions.h says `u32 *sub_08002888(u32, u8, u8)` and
+#     code_080023A4.c defines it taking `enum SUB_08002888_ENUM` -- which C
+#     links happily and C++ does not.  29 symbols.
+#
+# Both go away by giving the game C linkage, and that is the right answer for
+# a better reason than convenience: the whole point is for the 64-bit build to
+# behave the same as the ILP32 builds.  C linkage *is* part of how those builds
+# behave.  Adopting C++ linkage would make the 64-bit build differ from them in
+# a way that has nothing to do with pointer width, which is the "two ports"
+# risk docs/SIXTYFOUR.md warns about.
+#
+# The wrapper goes just inside the include guard rather than after the
+# includes, and that is safe here specifically because platform/port/prelude.h
+# is force-included ahead of every translation unit and has already pulled in
+# every system header the game uses -- so a nested <stdlib.h> inside the block
+# is a no-op against its own include guard.  prelude.h says that is what it is
+# for.  p32.h is included from there too, so the template is declared long
+# before any extern "C" block opens; a template cannot have C linkage.
+
+_GUARD = re.compile(r'^[ \t]*#\s*define[ \t]+(?P<name>GUARD_\w+)[ \t]*$', re.M)
+
+
+def wrap_header_extern_c(text, rep):
+    """Give a game header C linkage when a C++ front end parses it."""
+    m = _GUARD.search(text)
+    if not m:
+        return text
+    # The matching #endif is the last one in the file.
+    end = text.rfind('#endif')
+    if end < 0 or end < m.end():
+        rep.unhandled.append('cxxify: no closing #endif to place extern "C" before')
+        return text
+    text = (text[:m.end()]
+            + '\n\n#ifdef __cplusplus\nextern "C" {\n#endif\n'
+            + text[m.end():end]
+            + '#ifdef __cplusplus\n}\n#endif\n\n'
+            + text[end:])
+    rep.bump('headers given C linkage for the C++ builds')
+    return text
+
+
+def rewrite_header(text, rep, name=''):
+    for old, new in CXX_HEADER_SITES.get(name, ()):
+        if old in text:
+            text = text.replace(old, new)
+            rep.bump('conflicting declarations corrected for C++')
+        else:
+            rep.unhandled.append(
+                '%s: a CXX_HEADER_SITES pattern no longer matches -- if the '
+                'decompilation has fixed it upstream, drop the entry; if not, '
+                'the C++ build will fail on it: %s'
+                % (name, ' '.join(old.split())[:70]))
     text = rename_cxx_keywords(text, rep)
     text = hoist_nested_tags(text, rep)
+    text = add_transparent_union_ctors(text, rep)
+    text = wrap_header_extern_c(text, rep)
     return text
+
+
+_CONST_DEF = re.compile(
+    r'^(?!\s*(?:static|extern|typedef|return|case)\b)'      # not already, not a statement
+    r'(?=[^=;]*\bconst\b)'                                   # const somewhere in the declarator
+    r'([A-Za-z_][^=;{}()]*?\b\w+\s*(?:\[[^\]]*\]\s*)*)=',    # ... name [dims] =
+    re.M)
+
+
+def externalise_const_definitions(text, rep):
+    """Give file-scope `const` definitions explicit external linkage.
+
+    A const object at namespace scope has *internal* linkage in C++ and
+    external linkage in C.  The decompilation's ROM tables are all const
+    arrays, so under C++ every one of them quietly becomes static: defined in
+    its own translation unit, invisible from every other, and the only symptom
+    is an undefined reference at link time naming a symbol that is plainly
+    right there in the source.
+
+    extern "C" does not help with this, which is worth stating because it looks
+    as though it should: it sets *language* linkage, not storage linkage, and a
+    const at namespace scope inside an extern "C" block is still internal.
+
+    Writing `extern` on the definition is valid C -- an extern declaration with
+    an initialiser is a definition with external linkage, which is exactly what
+    C gives it by default -- so the ILP32 builds are unaffected.
+
+    Only at brace depth 0, so that a const local inside a function is left
+    alone.
+    """
+    n = 0
+    lines = text.splitlines(keepends=True)
+    depth = 0
+    for i, line in enumerate(lines):
+        if depth == 0:
+            m = _CONST_DEF.match(line)
+            if m:
+                lines[i] = 'extern ' + line
+                n += 1
+        depth += line.count('{') - line.count('}')
+        if depth < 0:
+            depth = 0
+    if n:
+        rep.bump('const definitions given explicit external linkage', n)
+    return ''.join(lines)
+
+
+def wrap_source_extern_c(text, rep):
+    """Give a game source file C linkage when a C++ front end parses it.
+
+    Needed as well as the header wrapper, not instead of it: a symbol declared
+    in a header inherits that header's linkage at its definition, but the
+    decompilation also defines things no header declares.  gUnk_082D8D74 is
+    defined in code_080023A4.c and declared, as an `extern` local to the file,
+    in code.c -- so nothing about it passes through a header at all, and under
+    C++ its `const` would make it internal and unreachable from the other file.
+
+    The block opens after the *leading* run of #include lines rather than after
+    the last #include in the file.  Six sources include an .inc.c fragment part
+    way down, and anchoring to the last one would leave every definition above
+    it outside the block.  A later include ending up inside the block is
+    harmless -- they are all game headers or fragments, and the system headers
+    were pulled in by prelude.h long before.
+    """
+    # The whole file, from the very first line, includes and all.
+    #
+    # Anchoring after the include block looks tidier and is wrong: portify.py
+    # prepends declarations *above* the includes -- the WILD_READS guard and
+    # the FNPTR adapter forward declarations -- so an anchor below them leaves
+    # exactly the cross-seam declarations outside the block, which is the one
+    # place it matters.  The symptom is an undefined reference to a mangled
+    # PortMain_* from a file that plainly declares it.
+    #
+    # Wrapping the includes too is safe here for a specific reason rather than
+    # a general one: platform/port/prelude.h is force-included ahead of every
+    # translation unit and has already brought in every system header the game
+    # uses.  Three sources include <limits.h> or <math.h> directly; both are in
+    # prelude.h's list, so those directives are no-ops against their own
+    # include guards and no system declaration is ever parsed inside an
+    # extern "C" block.
+    lines = text.splitlines(keepends=True)
+    anchor = 0
+    lines.insert(anchor, '\n#ifdef __cplusplus\nextern "C" {\n#endif\n\n')
+    lines.append('\n#ifdef __cplusplus\n}\n#endif\n')
+    rep.bump('sources given C linkage for the C++ builds')
+    return ''.join(lines)
 
 
 def rewrite_source(text, rep, name='', header_fns=None, flex=None):
@@ -505,4 +774,7 @@ def rewrite_source(text, rep, name='', header_fns=None, flex=None):
         text = expand_flex_array_objects(text, flex, rep)
     if name:
         text = apply_cxx_sites(text, name, rep)
+    text = externalise_const_definitions(text, rep)
+    # Last: the linkage wrapper has to enclose everything above it.
+    text = wrap_source_extern_c(text, rep)
     return text

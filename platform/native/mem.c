@@ -52,6 +52,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ---------------------------------------------------------------------------
  * What to reserve.
  *
@@ -293,3 +299,7 @@ void PortNativeReportMap(void)
      * print exactly the same lines.  This is the other witness. */
     PortHostReportAddressSpace();
 }
+
+#ifdef __cplusplus
+}
+#endif

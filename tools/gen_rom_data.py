@@ -23,6 +23,14 @@ import sys
 from collections import namedtuple
 from pathlib import Path
 
+
+# The 64-bit builds compile these generated sources as C++ so that GBA
+# structures keep 4-byte pointer members (docs/SIXTYFOUR.md, tools/cxxify.py).
+# Without C linkage the function definitions mangle and the const tables become
+# internal, so the game cannot see either.  A no-op in C.
+EXTERN_C_OPEN = '#ifdef __cplusplus\nextern "C" {\n#endif\n\n'
+EXTERN_C_CLOSE = '\n#ifdef __cplusplus\n}\n#endif\n'
+
 sys.path.insert(0, str(Path(__file__).parent))
 from gen_ram_symbols import declaration_to_macro, DECL_RE_TMPL  # noqa: E402
 
@@ -614,6 +622,7 @@ def main():
             # No game headers here on purpose: this file defines storage for
             # symbols the headers also declare, with a type it cannot name.
             f.write('#include <string.h>\n#include "port/port.h"\n\n')
+            f.write(EXTERN_C_OPEN)
 
             for name, addr, size in copies:
                 f.write('__attribute__((aligned(4))) u8 %s[%d];\n' % (name, size))
@@ -622,6 +631,7 @@ def main():
                 f.write('    memcpy(%s, (const void *)0x%08Xu, %d);\n'
                         % (name, addr, size))
             f.write('}\n')
+            f.write(EXTERN_C_CLOSE)
 
     # Function pointers sitting *inside* ROM structs.  `gUnk_08351648` is an
     # array of 219 object descriptors, each with a `void (*unk10)(struct
@@ -690,6 +700,7 @@ def main():
             for hdr in sorted(wanted):
                 f.write('#include "%s"\n' % hdr)
             f.write('\n')
+            f.write(EXTERN_C_OPEN)
 
             # One extern per symbol for the whole file.  The same function can
             # sit in two tables whose element types differ, and declaring it
@@ -738,6 +749,14 @@ def main():
                 if ret != 'void':
                     f.write('    return (%s)0;\n' % ret)
                 f.write('}\n\n')
+                # `extern` is load-bearing, and only on the 64-bit builds.
+                # These are const arrays, and a const object at namespace scope
+                # has internal linkage in C++ where it has external linkage in
+                # C.  extern "C" does not fix that -- it sets *language*
+                # linkage, not storage linkage -- so without this the table is
+                # defined here, invisible everywhere else, and the game's
+                # reference to it fails to link with no other symptom.
+                f.write('extern %s (*const %s[%d])(%s);\n' % (ret, name, count, params))
                 f.write('%s (*const %s[%d])(%s) = {\n' % (ret, name, count, params))
                 for entry in entries:
                     if entry:
@@ -787,6 +806,8 @@ def main():
                         '}\n')
             else:
                 f.write('void PortPatchRomFunctionPointers(void) { }\n')
+
+            f.write(EXTERN_C_CLOSE)
 
     # Anything rom_fn_tables.c names has to be linkable from another
     # translation unit, and half of what the ELF adds is `static`.  Dropping

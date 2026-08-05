@@ -772,7 +772,7 @@ def main():
     # builds are the test of it, and their frame output must not move.
     for hp in sorted((out / 'include').rglob('*.h')):
         text = hp.read_text(errors='replace')
-        new = cxxify.rewrite_header(text, rep)
+        new = cxxify.rewrite_header(text, rep, hp.name)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')

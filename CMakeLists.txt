@@ -26,7 +26,15 @@
 # list and the flags, which is exactly what should be shared.
 
 cmake_minimum_required(VERSION 3.16)
-project(katam-port C)
+
+# C and CXX.  The port is a C program on every ILP32 target and that is what it
+# stays; CXX is here for the 64-bit builds, which compile the same sources
+# through a C++ front end so that a structure's pointer members can keep the
+# four bytes the console gave them.  platform/port/p32.h is the whole of the
+# reason and docs/SIXTYFOUR.md is the measurement behind it.  Enabling the
+# language costs an ILP32 build nothing -- no source changes language unless
+# CMAKE_SIZEOF_VOID_P says it has to.
+project(katam-port C CXX)
 
 set(CMAKE_C_STANDARD 99)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -270,6 +278,36 @@ endif()
 
 add_executable(katam ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS})
 
+# ---------------------------------------------------------------------------
+# The 64-bit builds compile as C++
+#
+# Not because anybody wanted C++, and not for one file: a GBA structure's
+# pointer members have to stay four bytes wide on a host whose pointers are
+# eight, and PTR32 in platform/port/p32.h is the only way to say that.  The
+# headers those structures live in are included by nearly every translation
+# unit, so the choice is all of them or none of them.
+#
+# All of them, and that is deliberate rather than lazy.  Compiling half the
+# tree as C++ would mangle half the names and leave the other half expecting C
+# linkage, so every call across the seam would fail to link -- or, worse,
+# resolve to something else.  One language throughout means one mangling
+# throughout and no seam to get wrong.
+#
+# tools/cxxify.py is what makes the decompilation's C acceptable to a C++ front
+# end.  Every transform it applies is valid C as well, so the ILP32 builds
+# compile the identical tree and stay the reference this build is checked
+# against.
+# ---------------------------------------------------------------------------
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set_source_files_properties(
+    ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS}
+    PROPERTIES LANGUAGE CXX)
+  set_target_properties(katam PROPERTIES LINKER_LANGUAGE CXX)
+  message(STATUS
+    "64-bit target: compiling as C++ so pointer members can stay 4 bytes "
+    "(platform/port/p32.h)")
+endif()
+
 target_include_directories(katam PRIVATE
   "${PORT_SRC}/include" "${GENERATED}" "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 
@@ -322,8 +360,23 @@ foreach(h ${FORCE_INCLUDES})
   target_compile_options(katam PRIVATE "SHELL:-include ${h}")
 endforeach()
 
+# -fno-strict-aliasing, -fwrapv and -funsigned-char are the semantics of the
+# console and apply whichever front end is parsing the file.  The standard
+# level cannot: -std=gnu99 and -fgnu89-inline are C spellings, and a 64-bit
+# build is compiling these same files as C++.
+#
+# -fpermissive on the C++ side is doing one specific job, not papering over the
+# port.  C++ forbids the implicit void*-to-T* conversion that the decompilation
+# performs constantly -- `void *p = TaskGetStructPtr(t); chest = p;` is the
+# shape of every object constructor in the game -- and -fpermissive demotes
+# exactly that to a warning.  Everything else C++ objects to was fixed at the
+# source by tools/cxxify.py, and there are no remaining diagnostics.
 target_compile_options(katam PRIVATE
-  -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv -funsigned-char)
+  -fno-strict-aliasing -fwrapv -funsigned-char
+  $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
+  $<$<COMPILE_LANGUAGE:C>:-fgnu89-inline>
+  $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
+  $<$<COMPILE_LANGUAGE:CXX>:-fpermissive>)
 
 # The decompilation is not warning-clean and is not meant to be: it is the
 # output of matching a 2004 ARM binary.  The Makefile uses -Wno-everything,
@@ -344,7 +397,11 @@ foreach(diag implicit-function-declaration implicit-int int-conversion
   string(MAKE_C_IDENTIFIER "HAVE_NOERR_${diag}" have_var)
   check_c_compiler_flag("-Wno-error=${diag}" ${have_var})
   if(${have_var})
-    target_compile_options(katam PRIVATE -Wno-error=${diag})
+    # C only: every one of these names a C diagnostic, and C++ either has no
+    # such warning or makes the construct an error that no -Wno-error can
+    # demote.  Passing them to g++ is at best noise and at worst a build that
+    # fails on the flag rather than on the code.
+    target_compile_options(katam PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wno-error=${diag}>)
   endif()
 endforeach()
 

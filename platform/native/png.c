@@ -17,6 +17,12 @@
 
 #include "native.h"
 
+/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+ * so SDL's headers stay outside the block. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static u32 Crc32(u32 crc, const u8 *p, size_t n)
 {
     static u32 table[256];
@@ -161,3 +167,7 @@ int PortNativeWritePng(const char *path, const u32 *rgba, int w, int h)
     free(z);
     return ok;
 }
+
+#ifdef __cplusplus
+}
+#endif

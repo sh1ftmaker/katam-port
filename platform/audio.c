@@ -38,6 +38,22 @@
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
+/* C linkage for the 64-bit builds.
+ *
+ * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * everything on the seam has to agree.  It is applied to platform/*.c as a
+ * class rather than to the files that happened to break: the failure is an
+ * undefined reference to a mangled name, or -- for a `const`, which is
+ * internal-linkage in C++ and external in C -- to a symbol that is plainly
+ * defined a few lines away.  Neither says which file to fix, and the set of
+ * files that need it changes whenever a declaration moves.  A no-op in C.
+ *
+ * The block opens below the includes so that SDL and the system headers stay
+ * outside it. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Allocated by linker.ld on hardware (data/sound_data.o(ewram_data)) with no C
  * definition anywhere, and reached only through gMPlayTable in the ROM -- which
  * holds their EWRAM addresses.  The port maps EWRAM at its real address, so
@@ -247,3 +263,7 @@ void PortAudioStartup(void)
     PortMixerInit(sRate, sNominal);
     PortLog("[katam-port] audio: %d Hz, %d samples per frame", sRate, sNominal);
 }
+
+#ifdef __cplusplus
+}
+#endif

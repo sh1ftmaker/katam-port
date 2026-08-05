@@ -1,5 +1,17 @@
 #ifndef GUARD_PORT_AUDIO_H
 #define GUARD_PORT_AUDIO_H
+/* C linkage for the 64-bit builds.
+ *
+ * They compile the game as C++ so that its structures keep 4-byte pointer
+ * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * source C linkage so the C++ build links by the same rules the C builds do.
+ * This header declares the seam between the two, so it has to say the same
+ * thing -- otherwise the game calls a mangled name and the platform defines an
+ * unmangled one, or the reverse.  A no-op in C. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 #include "gba/types.h"
 
@@ -60,5 +72,33 @@ void PortAudioStartup(void);
  *   0   off
  *   >0  frequency in Hz */
 void PortAudioTestTone(u32 hz);
+
+/* The two symbols the sound driver reaches back for.
+ *
+ * tools/portify.py's M4A_PATCHES injects declarations of these into the game's
+ * own m4a.c -- gXcmdTable is redirected to the port's copy because a ROM entry
+ * is an ARM code address, and SampleFreqSet is replaced by PortSampleRateSet
+ * because the port's mixer runs at the host's rate rather than the console's.
+ *
+ * Declaring them here as well is what keeps the 64-bit builds linking.  Over
+ * there the game has C linkage and platform/audio.c and platform/m4a_mixer.c
+ * are compiled as C++, so without a shared declaration in a header that both
+ * sides see, the definitions mangle and gPortXcmdTable -- being const -- also
+ * takes internal linkage.  Both files already include this header.
+ *
+ * The types are spelled out rather than named: this header includes only
+ * gba/types.h, so XcmdFunc is not in scope here, and the tags are
+ * forward-declared because only their addresses are involved.  `const XcmdFunc
+ * []` is an array of const function pointers, which is what this expands to. */
+struct SoundInfo;
+struct MusicPlayerInfo;
+struct MusicPlayerTrack;
+void PortSampleRateSet(struct SoundInfo *soundInfo);
+extern void (*const gPortXcmdTable[])(struct MusicPlayerInfo *,
+                                      struct MusicPlayerTrack *);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GUARD_PORT_AUDIO_H */

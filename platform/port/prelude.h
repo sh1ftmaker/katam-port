@@ -56,7 +56,19 @@
  *
  * uint32_t rather than u32: this header is parsed before gba/types.h, and it
  * is the same type (types.h does `typedef uint32_t u32`), so the declaration
- * here and the one in port/port.h agree. */
+ * here and the one in port/port.h agree.
+ *
+ * extern "C" for the 64-bit builds.  Those compile the game as C++ and
+ * tools/cxxify.py gives every game header and source C linkage, so that the
+ * C++ build links by the same rules the C builds do -- see cxxify.py's
+ * "linkage" section.  AgbMain is defined over there and called from here, so
+ * this declaration has to agree with it; the Port* hooks are the other
+ * direction, defined in platform/ and called from the game, and they have to
+ * agree for the same reason. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortHalt(void);
@@ -64,6 +76,10 @@ void PortTrace(const char *tag, uint32_t a, uint32_t b, uint32_t c);
 
 /* Defined by the game in src/main.c; the port calls it to start. */
 void AgbMain(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* --- the sound engine's own globals, at their hardware addresses -----------
  *
