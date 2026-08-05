@@ -56,9 +56,14 @@
  * definition typed (...)->void, and rather than fail it emits a stub whose
  * entire body is `unreachable` and points the call at that.  The build
  * succeeds with one warning; the program dies the first time the call runs.
- * That is what happened to PortTrace below -- see the note in
- * tools/portify.py:trace_star_states.  Anything portify.py injects into the
- * game's own sources belongs in this list.
+ * That is what happened to PortTrace below, when portify.py was injecting
+ * calls to it into warp_star.c to find the warp-star hang: all 32 handlers
+ * trapped the moment they ran, and the instrumentation killed the thing it was
+ * measuring while printing nothing.  Those injections are gone now that the
+ * bug is found (a structure 12 bytes on the console and 10 here -- see
+ * docs/STATUS.md), but PortTrace stays declared here, because the next thing
+ * portify.py injects will need it and this is the lesson: anything injected
+ * into the game's own sources belongs in this list.
  *
  * uint32_t rather than u32: this header is parsed before gba/types.h, and it
  * is the same type (types.h does `typedef uint32_t u32`), so the declaration
