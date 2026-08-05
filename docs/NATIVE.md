@@ -11,6 +11,10 @@ make native
 ./build/native/katam ~/roms/your-copy.gba
 ```
 
+That builds for the machine you are on. Windows is the same sources through
+`cmake/toolchain-windows-i686.cmake` — see [Windows](#windows) below, which also
+says how far that build has and has not been verified.
+
 There is no ROM here and no way for the program to obtain one. Supply your
 own, as the argument above, by dropping the file on the window, or through the
 file picker it offers when started with no argument.
@@ -60,10 +64,10 @@ sudo dnf install glibc-devel.i686 libgcc.i686 SDL2-devel.i686   # Fedora
 x86-64 host. A host that is already ILP32 — i686, armv7 — needs no toolchain
 file at all.
 
-**What this means for the three platforms that follow** is set out under
-[Adding a platform](#adding-a-platform) below. The short version: Windows and
-32-bit ARM are fine; **macOS is not**, and the reason is worth reading before
-starting.
+**What this means for the other platforms** is set out under
+[Adding a platform](#adding-a-platform) below. The short version: Windows is
+done and is `i686-w64-mingw32`; 32-bit ARM needs nothing written; **macOS is
+blocked**, and the reason is worth reading before starting.
 
 ### 2. Page zero
 
@@ -212,11 +216,15 @@ size_t PortHostPageSize(void);
 int    PortHostReserve(uintptr_t addr, size_t size, const char **why);
 int    PortHostAddrValid(uintptr_t addr, size_t len);
 int    PortHostPickRomFile(char *out, size_t outSize);   /* may return 0 */
+void   PortHostReportAddressSpace(void);                 /* --verbose only */
 ```
 
 `mem_posix.c` and `dialog_posix.c` implement them for Linux, macOS and the
-BSDs; `CMakeLists.txt` swaps in `mem_win32.c` and `dialog_win32.c` on Windows,
-which do not exist yet.
+BSDs; `CMakeLists.txt` swaps in `mem_win32.c` and `dialog_win32.c` on Windows.
+
+Only the first three are load-bearing. `PortHostPickRomFile` may return 0 on a
+platform with no file dialog, and the caller falls back to drag-and-drop.
+`PortHostReportAddressSpace` prints nothing anybody depends on.
 
 The contracts that matter:
 
@@ -232,32 +240,284 @@ The contracts that matter:
   through to a segfault; strict by a guess silently drops real transfers, and
   that is the bug that once hid every level tilemap in the game. `msync()` and
   `mincore()` both report `ENOMEM` for an unmapped range on Linux and macOS;
-  `VirtualQuery` reports `MEM_FREE` on Windows. `mem.c` memoises the last
+  `VirtualQuery` answers it on Windows, where the test is `MEM_COMMIT` with a
+  readable protection rather than merely "not `MEM_FREE`" — the Windows section
+  below says why the difference is not pedantry. `mem.c` memoises the last
   answer, so the syscall cost is a handful of calls a frame.
+- **`PortHostReportAddressSpace` has to ask the kernel too**, for the same
+  reason in a different place. `PortNativeReportMap` prints the port's account
+  of itself, and a reservation that reported success and landed somewhere else
+  would print exactly the same lines. On Linux the second witness is
+  `/proc/<pid>/maps`; on Windows there is no such file, so the process walks
+  itself with `VirtualQuery`.
 
 ---
 
 ## Adding a platform
 
 Write a toolchain file in `cmake/`, and the two files above. That is the whole
-job — with one large exception.
+of the *seam* — with one large exception, macOS.
+
+It is not quite the whole of the job, and Windows is the evidence: `mem_win32.c`
+and `dialog_win32.c` went in as designed and unsurprisingly, and then five other
+things had to change, none of which anybody had predicted. A header the
+force-included prelude had never had to defend against. Which subsystem the
+executable is. Whether `SDL2main` is linked. Where the image is based. Which
+character is a path separator. They are all written down below, because the next
+platform will have its own five and the useful thing is the shape of them:
+**the seam holds; the assumptions around it are what break.**
 
 ### Windows
 
-- **ABI**: build for x86, not x64. MSVC cannot compile the decompilation at all
-  (it is GNU C: statement expressions, `__attribute__`, gnu89 inline
-  semantics), so `CMakeLists.txt` stops with a message saying so. Use
-  `i686-w64-mingw32` or clang-cl with a 32-bit target.
-- **`PortHostReserve`**: `VirtualAlloc(addr, size, MEM_RESERVE|MEM_COMMIT,
-  PAGE_READWRITE)`. It already refuses to relocate — it returns NULL rather
-  than moving — so there is no `MAP_FIXED` trap to avoid. Reservation
-  granularity is 64 KiB, which is what `PortHostPageSize` should return; every
-  base in the map is already aligned to it.
-- **`PortHostAddrValid`**: `VirtualQuery`, and accept only `MEM_COMMIT` with a
-  readable protection.
-- **`PortHostPickRomFile`**: `GetOpenFileNameW`, or return 0 and rely on
-  drag-and-drop.
-- SDL wants `SDL_main`; link `SDL2main` and keep `main(int, char **)`.
+Done, as `i686-w64-mingw32`. `cmake/toolchain-windows-i686.cmake` cross-compiles
+it from Linux; the same file works in MSYS2's mingw32 shell, where the compiler
+is already on `PATH`.
+
+```sh
+curl -LO https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-devel-2.30.11-mingw.tar.gz
+tar xf SDL2-devel-2.30.11-mingw.tar.gz
+
+cmake -S . -B build/win32 -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+      -DKATAM_SDL2_MINGW=$PWD/SDL2-2.30.11/i686-w64-mingw32
+cmake --build build/win32 -j
+cmake --build build/win32 --target package-windows
+```
+
+`package-windows` writes `build/win32/katam-port-windows-i686/`: `katam.exe`,
+the `SDL2.dll` the build actually linked against, and a readme whose first line
+is that there is no game in the folder. A Windows player has no package manager
+to fetch SDL from, so the `.exe` on its own is not something anyone can run.
+
+**How far this has been verified is set out at the end of this section.** The
+short version: it is built and run, but under Wine, on Linux. It has never been
+executed on Windows.
+
+#### The memory map
+
+`VirtualAlloc(addr, size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE)`, and unlike
+`mmap` it already refuses to relocate: an explicit `lpAddress` that is not
+available comes back `NULL`, never as a different address. So the whole
+`MAP_FIXED` problem does not exist here.
+
+What does exist is a question Linux does not have to ask. The argument in
+`mem.c` for why nothing else wants `0x02000000`–`0x0A000000` is structural and
+entirely Linux's: a PIE executable is loaded high, `brk` follows it, and `mmap`
+grows down from the top. **None of that transfers.** A Windows process has no
+`brk` — every heap, stack and mapping comes from `VirtualAlloc`, which hands out
+whatever is free, and after the reservation the map is not free. The only things
+that can be in the way are the ones already placed before `main` ran: this image,
+and the DLLs the loader resolved from the import table. `SDL2.dll` is one of
+those.
+
+So `mem_win32.c` does not argue, it walks. `RangeIsFree` asks `VirtualQuery`
+about every region a reservation covers and requires all of them to be
+`MEM_FREE` before `VirtualAlloc` is called at all. `VirtualAlloc` failing would
+also have caught a collision — but it would have said "failed", and the walk can
+say *what* is in the way and which module it belongs to. On the one failure this
+port cannot recover from, that is the difference between a bug report and a
+shrug.
+
+The image itself is taken out of the question by the link line, and it is worth
+being clear that this is the **opposite** of the Linux answer for the same
+reason. Linux needs PIE because a non-PIE binary at `0x400000` grows its `brk`
+heap into EWRAM. Windows has no such heap, so the hazard is not where the image
+starts but that ASLR can put it anywhere — including inside the window, which
+would make the program fail to start on some boots and not others.
+`CMakeLists.txt` therefore pins it:
+
+```
+-Wl,--image-base,0x10000000 -Wl,--disable-dynamicbase
+```
+
+0x10000000 is above the top of the map, so `mem.c`'s existing "this binary is
+loaded below the top of the GBA map" check means exactly what it means on Linux.
+This is a real loss of hardening, taken for the same reason every other one in
+this port is: the addresses are the program. DLLs keep their own ASLR — only
+this image is pinned — and if one of them ever does land in the window, the
+walk above names it.
+
+`PortHostPageSize` returns `dwAllocationGranularity` (64 KiB), not `dwPageSize`
+(4 KiB). `VirtualAlloc` rounds a base down to the granularity and a size up to
+the page, so rounding both to 64 KiB is what keeps `mem.c`'s spans and the
+kernel's regions on the same edges. Every base in the GBA map is 64 KiB aligned
+already, so nothing moves; only the seven sizes are rounded further than they
+are on Linux.
+
+One difference with a cost: `mem_posix.c` passes `MAP_NORESERVE`, because most
+of the 32 MiB ROM window is address space the game never touches. Windows has
+no equivalent that also lets a page be written on demand — `MEM_RESERVE` alone
+means a read faults rather than materialising a zero page — so the map is
+committed in full, about 34 MiB. That is charge against the commit limit, not
+resident memory.
+
+#### `PortHostAddrValid`, and why "not `MEM_FREE`" is the wrong test
+
+`VirtualQuery` is finer-grained than `msync`, and the extra detail is load-bearing:
+
+- `MEM_FREE` is the `msync` `ENOMEM` case. Reject.
+- `MEM_RESERVE` **has no Linux equivalent.** Address space has been claimed but
+  no pages stand behind it, and a read faults exactly as if it were free.
+  Windows heaps and thread stacks both keep large reserved-but-uncommitted
+  tails, so this is not a corner case; accepting it would hand `dma.c` a range
+  that segfaults on touch.
+- `PAGE_NOACCESS` and `PAGE_GUARD` are committed and still fault. The guard page
+  under every thread stack is the common one.
+
+And a range can span several regions, so it walks rather than asking once: a
+transfer that starts in the last page of the heap and runs off the end has a
+perfectly valid first region.
+
+The test is readability, not writability, which is what `msync` amounts to on
+the POSIX side. A DMA *into* read-only host memory would still fault — but
+`dma.c` never has a host destination that is not one of the port's own writable
+arrays, and diverging here would mean the two platforms accept different
+transfers, which is a worse bug than the one it would prevent.
+
+#### The console, and why this is not a GUI-subsystem program
+
+A Windows `.exe` built with `-mwindows` has no `stdout`. Not "output goes
+somewhere else" — `GetStdHandle` returns nothing and the CRT's `stdout` writes
+into a hole.
+
+Everything this port has to say goes to `stdout`: which ROM it loaded, where the
+save file is, every refused DMA, the frame report `tools/native_smoke.sh` reads,
+and the message explaining why the memory map could not be reserved and the game
+is not going to start. That last one is the whole reason the walk in
+`mem_win32.c` exists, and a GUI-subsystem build would throw it away.
+
+So the build is console-subsystem and `PortConsole` is unchanged — the shared
+`fputs`/`fflush` in `host_sdl.c` is correct as written, because the handles are
+real. The cost is a console window next to the game window when it is launched
+from Explorer, which the packaged readme explains. `AttachConsole(ATTACH_PARENT_PROCESS)`
+from a GUI-subsystem binary would hide that window, at the price of a program
+whose diagnostics exist only when it happens to have been started from a shell.
+That trade is available and was not taken.
+
+Two link-line details follow from it. SDL's CMake package puts `-mwindows` in
+`SDL2::SDL2`'s interface and only removes it if `SDL2_NO_MWINDOWS` is set before
+`find_package`, so `CMakeLists.txt` sets it. And `SDL2main` is deliberately not
+linked: it supplies a `WinMain` that calls `SDL_main`, which needs
+`platform/main.c`'s `main` to have been renamed by `SDL_main.h` — and `main.c`
+does not include SDL at all, by design, because it is shared with the emscripten
+build. The Windows build defines `SDL_MAIN_HANDLED` and calls
+`SDL_SetMainReady()` in `host_sdl.c` instead, and keeps a plain
+`main(int, char **)`.
+
+#### The rest of what Windows broke
+
+None of it was in the two files.
+
+- **`abs` and `<intrin.h>`.** `platform/port/prelude.h` exists because the
+  decompilation's `global.h` defines `abs` as a macro, and any system header
+  parsed afterwards sees `int abs(int);` become a syntax error — so the prelude
+  pulls the system headers in first, while the guards are still unset. MinGW's
+  `<intrin.h>` is a member of that list that nobody had met, because
+  `SDL_cpuinfo.h` includes it and `<SDL.h>` therefore fails to parse in all three
+  of `platform/native/*sdl*.c`. One `#include <intrin.h>` under `#ifdef _WIN32`,
+  in the file that already documents this exact failure.
+- **SDL's `sdl2.pc` is not relocatable.** The `prefix=` inside the MinGW
+  development tarball is a path on the machine that cut the release. Its
+  `sdl2-config.cmake` works out the prefix from its own location and is correct
+  anywhere. That is why `CMakeLists.txt` skips pkg-config on Windows, and why
+  the toolchain file clears `PKG_CONFIG_LIBDIR` — left alone, pkg-config reads
+  the *host's* `/usr/lib/pkgconfig` while cross-compiling and reports a 64-bit
+  Linux SDL, and the first sign of trouble is several hundred lines from the
+  linker.
+- **Path separators.** The window title took `strrchr(path, '/')` as a basename,
+  which on a path from the file picker is the whole path. Both separators now.
+- **`SDL_GetPrefPath`** needed nothing: it returns
+  `C:\Users\<you>\AppData\Roaming\katam-port\katam-port\` and the `%s%s.sav`
+  join works unchanged. The save file written there is byte-identical in name
+  and content to the Linux one, which is the point of the ROM key.
+- **CRLF** matters in exactly one place: the packaged `README.txt`, which will
+  be opened in Notepad by someone who has never heard of this program.
+  `configure_file(... NEWLINE_STYLE CRLF)` converts it at build time, so the
+  copy in the repository stays like every other file in the repository. Nothing
+  else here is text: `png.c` and `save_file.c` already open `"wb"`, and a text
+  mode fopen would have quietly corrupted every screenshot.
+- **`-static-libgcc`**, so the folder that ships is two files. `libgcc_s_dw2-1.dll`
+  exists to unwind exceptions there are none of here, and explaining a missing
+  DLL to a player is a support cost for nothing.
+
+`GetOpenFileNameW`, not `...A`: SDL's file functions take UTF-8 on Windows, the
+`A` entry point returns the system ANSI code page, and the mismatch is a ROM
+path that works for everyone whose name spells in Latin-1. `OFN_NOCHANGEDIR` is
+not optional either — without it the dialog leaves the process's current
+directory wherever the player was browsing, and every relative path the port
+writes afterwards (`F12` screenshots, `--screenshot`) lands somewhere nobody
+chose.
+
+#### What was actually verified, and what was not
+
+The machine this was built on has no Windows and no root. The toolchain is
+Ubuntu's `gcc-mingw-w64-i686-posix` 13.2 and SDL2 2.30.11's MinGW development
+tarball, both unpacked into a scratch directory (see "Building without root");
+the binary was then run under **Wine 9.0**, also unpacked without root.
+
+Wine is not Windows. It is a faithful enough implementation of `VirtualAlloc`,
+`VirtualQuery`, the PE loader and the CRT that all of the above is exercised,
+and it is not evidence about the Windows loader's DLL base addresses, which is
+the one residual risk.
+
+What ran:
+
+```
+     boot: 192 colours at best, 14 distinct pictures, final DISPCNT 0x1340
+     play: 187 colours at best, 44 distinct pictures, final DISPCNT 0x1B40
+     smoke test passed
+```
+
+Those are `tools/native_smoke.sh` unmodified, driving `katam.exe` through a
+wrapper that translates the ROM path. They are the Linux build's numbers — the
+same colour counts, the same two `DISPCNT`s, and 43 or 44 distinct pictures out
+of 47 samples against Linux's 44. The play screenshot is Kirby in a level
+with the HUD up, and `--window-shot` — the renderer readback, which is the only
+thing that catches a correct picture drawn with red and blue swapped — comes
+back with Kirby pink.
+
+`--frames 600` with pacing on took 10.148 s against a target of 10.046 s, so
+`SDL_GetPerformanceCounter` is doing what it does on Linux and the build has not
+quietly gone back to 60 Hz.
+
+The address space, from the kernel's own side (`--verbose`, abridged):
+
+```
+0x02000000 +0x00040000  committed private     EWRAM
+0x03000000 +0x00010000  committed private     IWRAM
+0x04000000 +0x00010000  committed private     I/O
+0x05000000 +0x00010000  committed private     palette
+0x06000000 +0x00020000  committed private     VRAM
+0x07000000 +0x00010000  committed private     OAM
+0x08000000 +0x02000000  committed private     ROM (and save memory inside it)
+0x10000000 +0x00405000  committed image       katam.exe
+...                     nothing at all between 0x01500000 and 0x02000000
+```
+
+Seven mappings, at a 64 KiB page size, exactly where the table says. Everything
+the loader placed before `main` is below `0x01500000` or above `0x20000000`;
+275 regions are above, the lowest at `0x20000000`. The save landed in
+`%APPDATA%` and read back, under a filename byte-identical to the Linux one.
+
+And from the file rather than from the running process, `objdump -p katam.exe`:
+
+```
+ImageBase              10000000
+DllCharacteristics     00000100      NX_COMPAT       (not DYNAMIC_BASE)
+Subsystem              3             console
+DLL Name: SDL2.dll  COMDLG32.DLL  KERNEL32.dll  msvcrt.dll
+```
+
+`DYNAMIC_BASE` absent is the pinned image base; three of the four imports are
+Windows itself, which is why `package-windows` ships two files.
+
+**Not verified.** Real Windows, at all. The file dialog, which needs a display
+Wine did not have here — it compiles and its failure mode is a return of 0 and a
+fall back to drag-and-drop, which is the same path a cancel takes. Audio on a
+real device, gamepads, fullscreen, drag-and-drop, and the `F12` screenshot path.
+And the residual risk named above: if the Windows loader ever bases `SDL2.dll`
+or a shim DLL inside `0x02000000`–`0x0A000000`, this program cannot start. It
+will say so, and name the module, and that is all it can do.
 
 ### 32-bit ARM (armv7 / armhf)
 
@@ -450,8 +710,10 @@ you write the same check for another platform.
   boot run — which is what leaving the title screen for a level means in
   hardware terms — and both runs have to show the picture changing.
 
-**This is what a new platform should be measured against.** If
-`make native-test` passes on Windows, the Windows build works.
+**This is what a new platform should be measured against.** It is what the
+Windows build was measured against: `tools/native_smoke.sh`, unmodified, driving
+`katam.exe` through a wrapper that translates the ROM path, reported 192/14 and
+187/44 with different `DISPCNT`s — the Linux build's numbers.
 
 `--screenshot` writes the framebuffer the PPU produced. `--window-shot` writes
 what the *renderer* produced, read back with `SDL_RenderReadPixels` before the
@@ -493,6 +755,40 @@ hand-assembled sysroot has SDL but not the twenty libraries SDL is linked
 against, and the linker cannot resolve *their* symbols. The runtime loader can,
 from the host's own i386 libraries. A properly installed machine does not use
 that flag.
+
+### …and the Windows cross-compiler, the same way
+
+The Windows build was produced on a machine with no root and no Windows. MinGW
+unpacks and relocates cleanly — gcc works out its own prefix from `/proc/self/exe`,
+so the whole toolchain runs from wherever it lands:
+
+```sh
+apt-get download binutils-mingw-w64-i686 mingw-w64-common mingw-w64-i686-dev \
+                 gcc-mingw-w64-base gcc-mingw-w64-i686-posix \
+                 gcc-mingw-w64-i686-posix-runtime
+for d in *.deb; do dpkg-deb -x "$d" mingw; done
+ln -s i686-w64-mingw32-gcc-posix mingw/usr/bin/i686-w64-mingw32-gcc
+PATH=$PWD/mingw/usr/bin:$PATH cmake -S . -B build/win32 \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+    -DKATAM_SDL2_MINGW=$PWD/SDL2-2.30.11/i686-w64-mingw32
+```
+
+Debian and Ubuntu ship the driver as `-posix` and `-win32` and let
+update-alternatives make the plain name; unpacking by hand skips that, hence the
+symlink. (The toolchain file looks for all three names, so the symlink is a
+convenience rather than a requirement.) The threading model only matters for
+libstdc++, and there is no C++ here.
+
+SDL2 needs no unpacking trick at all — the MinGW development tarball from
+libsdl.org is a plain tarball and its `sdl2-config.cmake` is relocatable.
+
+**Running it** on the same machine takes Wine, which also unpacks:
+`libwine:i386` and `wine32:i386`, plus `libz-mingw-w64` for the `zlib1.dll` that
+Wine's own `user32` imports and that neither package contains. Point `WINEPREFIX`
+at a scratch directory, fix the absolute paths in `usr/lib/wine/wineserver` (a
+shell script), and `tools/native_smoke.sh` will drive `katam.exe` through a
+three-line wrapper. Wine is not Windows and the Windows section above says
+exactly what that does and does not prove.
 
 ---
 

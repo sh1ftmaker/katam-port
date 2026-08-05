@@ -278,4 +278,9 @@ void PortNativeReportMap(void)
                 (void *)&PortNativeReserveMap, (void *)&n, heap);
         free(heap);
     }
+
+    /* Everything above is the port's account of itself, which is the thing in
+     * question: a reservation that reported success and landed elsewhere would
+     * print exactly the same lines.  This is the other witness. */
+    PortHostReportAddressSpace();
 }

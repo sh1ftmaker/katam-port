@@ -25,6 +25,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+/* The Windows member of that list, and it is not obvious: MinGW's <intrin.h>
+ * redeclares abs, memcpy and friends as compiler intrinsics, and SDL_cpuinfo.h
+ * includes it -- so <SDL.h> in platform/native/*.c is parsed with global.h's
+ * `abs` macro already live and every declaration on that line becomes a syntax
+ * error.  Same failure as <stdlib.h>, same fix: set the guard first. */
+#include <intrin.h>
+#endif
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call

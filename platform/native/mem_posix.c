@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -122,4 +123,43 @@ int PortHostAddrValid(uintptr_t addr, size_t len)
 
     errno = 0;
     return msync((void *)lo, (size_t)(hi - lo), MS_ASYNC) == 0;
+}
+
+/* The kernel's own view, for --verbose.
+ *
+ * /proc/<pid>/maps is the thing docs/NATIVE.md quotes when it says the
+ * reservation landed where it was asked for, and quoting it from inside the
+ * process means the evidence is in the log next to the claim rather than in
+ * somebody's terminal afterwards.  Everything below 0x20000000, which is the
+ * map and its immediate neighbourhood, then a count for the rest.
+ *
+ * macOS and the BSDs have no such file; there is a mach_vm_region walk that
+ * would do the same job, and until somebody needs it this says so rather than
+ * printing nothing and letting it look like an empty address space. */
+void PortHostReportAddressSpace(void)
+{
+    FILE *f = fopen("/proc/self/maps", "r");
+    char line[512];
+    int above = 0;
+
+    if (f == NULL) {
+        PortLog("[katam-port] no /proc/self/maps on this system -- the "
+                "kernel's own view of the address space is not available");
+        return;
+    }
+
+    PortLog("[katam-port] the kernel's own view (/proc/self/maps):");
+    while (fgets(line, sizeof(line), f) != NULL) {
+        unsigned long lo = strtoul(line, NULL, 16);
+
+        if (lo >= 0x20000000UL) {
+            above++;
+            continue;
+        }
+        line[strcspn(line, "\r\n")] = '\0';
+        PortLog("[katam-port]   %s", line);
+    }
+    fclose(f);
+    PortLog("[katam-port]   ... and %d mapping%s above 0x20000000",
+            above, above == 1 ? "" : "s");
 }

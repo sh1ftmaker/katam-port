@@ -104,14 +104,31 @@ add_library(katam_sdl2 INTERFACE)
 # file sets it.  find_package is the fallback for macOS and Windows, where
 # pkg-config is often not installed.
 find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
+if(PkgConfig_FOUND AND NOT WIN32)
   pkg_check_modules(SDL2PC QUIET IMPORTED_TARGET sdl2)
+endif()
+
+# Windows takes the other road, for two reasons.  The sdl2.pc inside SDL's
+# MinGW development tarball has the build machine's `prefix=` baked into it and
+# points at a directory that does not exist on yours; sdl2-config.cmake in the
+# same tarball works out its prefix from its own location and is correct
+# wherever the tarball was unpacked.  And SDL_NO_MWINDOWS below has no
+# pkg-config equivalent at all.
+if(WIN32)
+  # -mwindows would make this a GUI-subsystem program, and a GUI-subsystem
+  # program on Windows has no stdout.  Everything this port has to say -- the
+  # memory map, a refused DMA, the message explaining why the reservation
+  # failed and the game is not going to start -- goes to stdout, and
+  # tools/native_smoke.sh reads it.  A console window next to the game window
+  # is the price; a silent failure is not worth paying instead.  SDL's CMake
+  # package removes the flag when this is set, and only then.
+  set(SDL2_NO_MWINDOWS TRUE)
 endif()
 
 if(TARGET PkgConfig::SDL2PC)
   target_link_libraries(katam_sdl2 INTERFACE PkgConfig::SDL2PC)
   message(STATUS "SDL2 ${SDL2PC_VERSION} via pkg-config")
-elseif(CMAKE_CROSSCOMPILING)
+elseif(CMAKE_CROSSCOMPILING AND NOT WIN32)
   # Do not fall through to find_package here.  It searches the *host's* CMake
   # package registry, so on an x86-64 machine building i686 it cheerfully finds
   # the 64-bit SDL and hands it to the linker, which then produces four hundred
@@ -137,7 +154,13 @@ else()
   # FindSDL2 modules only set the variables.
   if(TARGET SDL2::SDL2)
     target_link_libraries(katam_sdl2 INTERFACE SDL2::SDL2)
-    if(TARGET SDL2::SDL2main)
+    # SDL2main is deliberately not linked on Windows.  It supplies a WinMain
+    # that calls SDL_main, which needs platform/main.c's main() to have been
+    # renamed by SDL_main.h -- and main.c does not include SDL at all, by
+    # design, because it is shared with the emscripten build.  The Windows
+    # build defines SDL_MAIN_HANDLED and calls SDL_SetMainReady() instead; see
+    # platform/native/host_sdl.c.
+    if(TARGET SDL2::SDL2main AND NOT WIN32)
       target_link_libraries(katam_sdl2 INTERFACE SDL2::SDL2main)
     endif()
   else()
@@ -257,17 +280,65 @@ endforeach()
 # is not a hardening preference here, it is the reason the reservation works.
 # platform/native/mem.c checks at run time and says so if this went wrong.
 # ---------------------------------------------------------------------------
-include(CheckPIESupported OPTIONAL RESULT_VARIABLE HAVE_CHECK_PIE)
-if(HAVE_CHECK_PIE)
-  check_pie_supported()
+# Windows is the exception and is handled below: PE has no PIE, the answer
+# there is a fixed image base above the map, and asking CMake for -pie on
+# MinGW would fight it.
+if(NOT WIN32)
+  include(CheckPIESupported OPTIONAL RESULT_VARIABLE HAVE_CHECK_PIE)
+  if(HAVE_CHECK_PIE)
+    check_pie_supported()
+  endif()
+  set_property(TARGET katam PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 endif()
-set_property(TARGET katam PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 
 if(APPLE)
   # Every 64-bit Mach-O gets a 4 GiB __PAGEZERO, which covers the entire GBA
   # map and cannot be mapped into.  Shrinking it to one page is the whole of
   # the macOS memory story.  Untested here -- see docs/NATIVE.md.
   target_link_options(katam PRIVATE "-Wl,-pagezero_size,0x1000")
+endif()
+
+if(WIN32)
+  # Windows wants the opposite of what Linux wants, for the same reason.
+  #
+  # On Linux the executable must be PIE, because a non-PIE one loads at
+  # 0x400000 and its brk heap grows upward from there straight into EWRAM.  A
+  # Windows process has no brk: every heap, stack and mapping comes from
+  # VirtualAlloc, which hands out whatever is free -- and after
+  # PortNativeReserveMap has run, the GBA window is not free.  So the only
+  # thing that can collide with the map is something already placed before
+  # main(): the image itself, and the DLLs in the import table.
+  #
+  # ASLR is what makes that a lottery.  With --dynamicbase the loader may put
+  # this image anywhere, including inside 0x02000000..0x0A000000, and the
+  # program would then fail to start on some boots and not others.  A fixed
+  # base above the whole map removes the image from the question entirely, and
+  # leaves platform/native/mem.c's "is this binary below the top of the map"
+  # check meaning exactly what it means on Linux.  0x10000000 is 256 MiB, well
+  # clear of the map's top at 0x0A000000 and well below where the loader bases
+  # system DLLs.
+  #
+  # This is a real loss of hardening and it is the same trade the port makes on
+  # every platform: the addresses are the program.  DLLs keep their own ASLR --
+  # only this image is pinned -- and if one of them does land in the window,
+  # platform/native/mem_win32.c walks the address space with VirtualQuery and
+  # names it rather than failing mysteriously.
+  target_link_options(katam PRIVATE
+    "-Wl,--image-base,0x10000000"
+    "-Wl,--disable-dynamicbase"
+    "-Wl,--nxcompat"
+    # Console subsystem, said out loud rather than left to the default,
+    # because -mwindows arriving from anywhere would silently take stdout
+    # away.  See the SDL2_NO_MWINDOWS comment above.
+    "-Wl,--subsystem,console")
+
+  # Keep platform/main.c's main() as main(): SDL_main.h renames it otherwise,
+  # and it is shared with the emscripten build.  host_sdl.c calls
+  # SDL_SetMainReady() to make up for the SDL2main that is not linked.
+  target_compile_definitions(katam PRIVATE SDL_MAIN_HANDLED)
+
+  # GetOpenFileNameW.
+  target_link_libraries(katam PRIVATE comdlg32)
 endif()
 
 target_link_libraries(katam PRIVATE katam_sdl2)
@@ -279,3 +350,50 @@ endif()
 # turns the software PPU into a slideshow, and a frame that takes 200 ms
 # changes what the game does.
 target_compile_options(katam PRIVATE $<$<CONFIG:Debug>:-O1>)
+
+# ---------------------------------------------------------------------------
+# Packaging, Windows only
+#
+# A Windows player does not have a package manager to fetch SDL2 from, so the
+# .exe alone is not a thing anyone can run: it exits before main with "SDL2.dll
+# was not found".  `cmake --build . --target package-windows` assembles the
+# folder that is: the executable, the DLL SDL's own development package ships
+# next to it, and a readme saying the one thing that matters, which is that
+# there is no game in here and the player supplies their own ROM.
+#
+# The DLL is copied from SDL2::SDL2's IMPORTED_LOCATION, so it is whichever
+# SDL the build actually linked against and cannot drift from it.  Nothing is
+# vendored into the repository: SDL is linked, and its licence and readme
+# travel with the folder.
+# ---------------------------------------------------------------------------
+if(WIN32)
+  set(PKG_DIR "${CMAKE_BINARY_DIR}/katam-port-windows-i686")
+
+  # The repository keeps the readme with Unix line endings like everything
+  # else; the copy that ships gets CRLF, because it is going to be opened in
+  # Notepad by someone who has never heard of this program.
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/platform/native/README-windows.txt"
+                 "${CMAKE_BINARY_DIR}/README.txt"
+                 @ONLY NEWLINE_STYLE CRLF)
+
+  if(TARGET SDL2::SDL2)
+    set(PKG_SDL_COPY COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                             "$<TARGET_FILE:SDL2::SDL2>" "${PKG_DIR}/")
+  else()
+    # A pkg-config or FindSDL2 path that never produced an imported target has
+    # no file to point at.  Say so at build time rather than shipping a folder
+    # that is missing the one thing it exists to carry.
+    set(PKG_SDL_COPY COMMAND ${CMAKE_COMMAND} -E echo
+        "package-windows: no SDL2::SDL2 target -- copy SDL2.dll in by hand")
+  endif()
+
+  add_custom_target(package-windows
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PKG_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:katam>" "${PKG_DIR}/"
+    ${PKG_SDL_COPY}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_BINARY_DIR}/README.txt" "${PKG_DIR}/README.txt"
+    DEPENDS katam
+    COMMENT "Assembling ${PKG_DIR}")
+endif()
