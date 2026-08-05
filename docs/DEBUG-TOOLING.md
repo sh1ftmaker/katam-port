@@ -610,6 +610,40 @@ property of what the game happened to store there, and the game stores function
 pointers in ordinary object fields. Every "first divergence" frame this
 instrument reports is therefore an *upper bound* that may be contaminated.
 
+### Looking at the picture, which should have come first
+
+The symbol-normalising comparator turned out not to be the next thing needed.
+Putting the two 1400-frame screenshots side by side answers the question in one
+glance: **a whole background layer is wrong in the 64-bit build.** The sky and
+mountains are replaced by an orange dotted fill and a band of garbled tiles,
+while the clouds, the pillars, every sprite and the entire HUD are pixel
+correct.
+
+That is not a subtle numerical divergence, and it is not the sound engine. It
+is one BG layer whose tiles never arrived -- which is exactly what the port's
+own diagnostic had been saying all along, once and non-fatally, on this path
+and no other:
+
+    [katam-port] DMA leaves the map: src=0x0877A4EC dest=0x00000000  <-- bad
+                 count=96 unit=2 flags=0x8000
+
+A refused tile upload with a null destination. The port declines the transfer
+rather than following it, the tiles stay whatever they were, and the layer
+renders as garbage. The 32-bit build reports no diagnostics on the same path.
+
+The trail from there: `sub_081525DC` drains the tile-upload queue at
+`gUnk_03002EC0` and copies `current->unk0` to `current->unk4`, and the entry it
+picked up has a length but a null destination. `bg.c` has the only two sites
+that write that field, and a breakpoint on each of them conditioned on
+`tilesVram == 0` never fires across the whole 1400-frame run. So the entry is
+not being enqueued with a null destination -- it is being *read* when it should
+not be, or read from the wrong index. That is where this stops.
+
+**Look at the output before building the next instrument.** Three rounds of
+hashing memory produced a transient sound difference that healed, and a
+function-pointer spelling difference that was never a difference at all.
+Fifteen seconds with the two images and a pixel diff named the subsystem.
+
 **The tool that would fix it** is a symbol-normalising comparator: instead of
 hashing raw words, resolve any word that falls inside the host image to a
 symbol name and hash the name instead of the address. Both builds would then
