@@ -644,7 +644,43 @@ hashing memory produced a transient sound difference that healed, and a
 function-pointer spelling difference that was never a difference at all.
 Fifteen seconds with the two images and a pixel diff named the subsystem.
 
-**The tool that would fix it** is a symbol-normalising comparator: instead of
+### The DMA transaction log, and where the trail is now
+
+`PORT_DMA_TRACE=1` logs every transfer in order -- channel, source,
+destination, count, unit, control.  It watches the data movement instead of the
+memory afterwards, so a tile upload that never happened is a *missing line*
+rather than a hash that stopped matching four hundred frames later.  Normalise
+host addresses out first (DmaFill's source is `&tmp`), then diff.
+
+It found two real bugs immediately, both the same shape -- a `sizeof` over a
+function-pointer typedef that the narrowing had not reached, so the count
+doubled on a 64-bit host:
+
+    dest=gHBlankIntrs   count 4 -> 8    read 16 bytes past gHBlankCallbacks,
+                                        which is where gCurTask lives
+    dest=gUnk_030068C0  count 1 -> 2    wrote past it into gInputPlaybackData
+
+Fixing them removed the port's refused-DMA diagnostic entirely.  It did **not**
+fix the corrupt background layer -- the same 20999 pixels, byte for byte.  A
+genuine bug sitting next to the symptom was not the cause of it.
+
+**Where the trail is now.** From transfer 27263 the two builds fill the same
+VRAM addresses with the same counts from completely different places:
+
+    wasm32   src=08AE7FE4  ROM,   stride 0x5A  (90 bytes)
+    LP64     src=02028EE0  EWRAM, stride 0x130 (304 bytes)
+
+Same destination (0x0600F800, +0x40 per row), same count (32 halfwords).  One
+build is reading tile data straight out of the ROM and the other out of a
+buffer in EWRAM, stepping a different distance between rows.  That is not a
+corrupted pointer -- both sources are valid, mapped, plausible addresses.  It
+is the game taking a *different branch*, which means the divergence that
+matters happened before this and is upstream of the graphics code entirely.
+
+The next step is to bisect backwards from transfer 27263 with the state trace,
+looking for the last frame at which every comparable region still agrees, and
+then to find the decision between there and here.  The instruments for both
+halves exist; the work is running them.: instead of
 hashing raw words, resolve any word that falls inside the host image to a
 symbol name and hash the name instead of the address. Both builds would then
 agree that a field holds `sub_0800C124` rather than disagreeing about how it is
