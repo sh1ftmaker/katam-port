@@ -159,12 +159,13 @@ def walk_list(rom, addr):
 def rooms(rom):
     """{room id: object list address}.
 
-    Rooms are what the randomizer is keyed on and lists are what it rewrites,
-    and they are not one to one -- several rooms share a list.  A shared list
-    is rewritten differently per room, which is correct: the key is the room
-    the player is standing in.  It also means the same list can be counted
-    more than once below, which is why the totals are 'room loads' rather
-    than 'placements'."""
+    Rooms are what the randomizer is keyed on and lists are what it rewrites.
+    An earlier version of this comment said several rooms share a list; that
+    was wrong, and tools/room_export.py measured it: the 286 real rooms use
+    286 distinct object lists, so the mapping is one to one (list 4 is the only
+    one nothing references).  Keying on the room id is still right -- it is the
+    stable identifier the game hands the loader -- but it is right because it
+    is the natural key, not because a list needed disambiguating."""
     out = {}
     # The table is 983 entries: gRoomProps at 0x089331AC to the next data
     # label at 0x0893CB44, over sizeof(struct RoomProps) == 40 (frozen in

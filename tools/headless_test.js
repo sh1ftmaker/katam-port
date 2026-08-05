@@ -383,6 +383,71 @@ function isBlank(px) {
     return true;
 }
 
+// DUMP_ROOM=<path> writes the live room state as JSON when the run ends.
+//
+// It exists to check tools/room_export.py, which reconstructs a room's
+// collision grid from the ROM by decompressing it the way the loader does.
+// That reconstruction is a model, and a model nobody compared against the real
+// thing is a guess with a tool around it.  This is the real thing: the bytes
+// the game is actually reading collision out of, at the moment the run stops.
+//
+// The addresses come from the game's own linker.ld, and the struct offsets are
+// the ones platform/port/gba_layout.h asserts on every build -- so a struct
+// that moves breaks the build rather than silently shifting what gets read.
+function dumpRoomState(outPath) {
+    const G_CUR_LEVEL_INFO  = 0x02023530;   // linker.ld:46
+    const G_COLLISION_CELLS = 0x02024ED0;   // linker.ld:47 (gUnk_02024ED0)
+    const OFF_ROOM_WIDTH    = 188;          // gba_layout.h:799
+    const OFF_ROOM_HEIGHT   = 190;          // gba_layout.h:800
+    const OFF_CURRENT_ROOM  = 1528;         // gba_layout.h:808
+    const OFF_ROOM_SLOT     = 1630;         // gba_layout.h:813 (unk65E)
+    const COLLISION_STRIDE  = 1950;         // sizeof gUnk_02024ED0[n]
+
+    const h = Module.HEAPU8;
+    const dv = new DataView(h.buffer, h.byteOffset);
+    const li = G_CUR_LEVEL_INFO;            // player 0
+
+    const room = dv.getUint16(li + OFF_CURRENT_ROOM, true);
+    if (room === 0xFFFF) {
+        console.log('DUMP_ROOM: not in a room -- nothing dumped');
+        return;
+    }
+    const width = dv.getUint16(li + OFF_ROOM_WIDTH, true);
+    const height = dv.getUint16(li + OFF_ROOM_HEIGHT, true);
+    const slot = h[li + OFF_ROOM_SLOT];
+    const wc = Math.floor(width / 16), hc = Math.floor(height / 16);
+    const base = G_COLLISION_CELLS + slot * COLLISION_STRIDE;
+    const grid = Buffer.from(h.subarray(base, base + wc * hc));
+
+    // The four bytes at the tail of LevelInfo, for all four player entries.
+    // unk65F has zero references anywhere in the decompilation and LevelInfo
+    // is too large for a Thumb immediate offset, so its offset never appears
+    // as an assembly literal either -- static reading cannot settle what it
+    // holds, and a heap read is the only instrument left.  It costs four bytes
+    // to carry it here, so it is carried.
+    const tail = [];
+    for (let p = 0; p < 4; p++) {
+        const e = G_CUR_LEVEL_INFO + p * 1640;
+        tail.push({
+            player: p,
+            currentRoom: dv.getUint16(e + OFF_CURRENT_ROOM, true),
+            unk65E_slot: h[e + OFF_ROOM_SLOT],
+            unk65F: h[e + OFF_ROOM_SLOT + 1],
+            unk660: h[e + OFF_ROOM_SLOT + 2],
+            unk661: h[e + OFF_ROOM_SLOT + 3],
+        });
+    }
+
+    fs.writeFileSync(outPath, JSON.stringify({
+        room, roomWidthPx: width, roomHeightPx: height, roomSlot: slot,
+        widthCells: wc, heightCells: hc,
+        levelInfoTail: tail,
+        cells: Array.from(grid),
+    }, null, 1));
+    console.log('DUMP_ROOM: room %d, %dx%d cells, slot %d -> %s',
+                room, wc, hc, slot, outPath);
+}
+
 function finish() {
     const { data, w, h } = lastFrame;
     const colours = new Set();
@@ -402,6 +467,7 @@ function finish() {
     // Before the summary, so the port's own report lands with the diagnostics.
     if (MP[0] && Module._PortMpReport) Module._PortMpReport();
     if (process.env.RANDO && Module._PortRandoReport) Module._PortRandoReport();
+    if (process.env.DUMP_ROOM) dumpRoomState(process.env.DUMP_ROOM);
 
     console.log('--- katam-port headless smoke test ---');
     console.log('frames rendered      : %d', frames);
