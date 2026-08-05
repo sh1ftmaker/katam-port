@@ -376,6 +376,26 @@ const Module = {
     },
 };
 
+// A room warp was prototyped here and removed; the finding is worth keeping.
+//
+// Writing roomId/x/y on gKirbys[0] -- the three fields src/kirby.c:12877-12880
+// writes when a door is taken -- is not enough. The write sticks (gKirbys[0]
+// .roomId reads back as the new room) and nothing acts on it: gCurLevelInfo
+// keeps the old room, because the loader is not driven by that field.
+//
+// A room change is a Kirby *state*. sub_08055D9C is installed as the state
+// function (kirby->base.base.unk78, src/kirby.c:12611) and calls sub_080562D0,
+// which is itself gated on unk58 & 0x4000 -- the DOOR bit of the metatile
+// Kirby is standing on -- and takes its destination from kirby->unk10C, the
+// door descriptor the collision sweep found in the room's solidity map.
+//
+// So a warp has to install a function pointer, and in WebAssembly a function
+// pointer is a table index that JS cannot fabricate. This belongs in port-side
+// C as PortWarp(room, cellX, cellY): point unk10C at a synthetic door
+// descriptor, set the two gate bits, install the state, and let the game's own
+// transition run -- the same shape as the randomizer, where the port supplies
+// data and the game's code does the work.
+
 function isBlank(px) {
     const first = px.readUInt32LE(0);
     for (let i = 4; i < px.length; i += 4)
@@ -438,8 +458,14 @@ function dumpRoomState(outPath) {
         });
     }
 
+    // The Kirby's own roomId, so "the write did not stick" can be told apart
+    // from "the write stuck and nothing acted on it".  Those need different
+    // fixes and look identical from gCurLevelInfo alone.
+    const kirbyRoom = dv.getUint16(0x02020EE0 + 96, true);
+
     fs.writeFileSync(outPath, JSON.stringify({
         room, roomWidthPx: width, roomHeightPx: height, roomSlot: slot,
+        kirbyRoomId: kirbyRoom,
         widthCells: wc, heightCells: hc,
         levelInfoTail: tail,
         cells: Array.from(grid),
