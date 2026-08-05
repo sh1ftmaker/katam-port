@@ -115,6 +115,9 @@ static int RangeOk(uintptr_t addr, u32 len)
 }
 
 static u32 sBadTransfers;
+/* Indexed by shape: bit 0 = source left the map, bit 1 = destination
+ * did.  Index 0 is unused -- a transfer with neither is not bad. */
+static u32 sBadByShape[4];
 static u32 sTransferCount;
 
 /* Both endpoints of a run, given the address-control mode: a decrementing
@@ -184,23 +187,59 @@ static void RunTransfer(struct DmaChannel *ch)
         sTransferCount++;
 
         if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
-            /* A few of these are expected, not faults.  A room with no second
-             * object layer gets `CpuFill16(0xFFFF, &levelInfo->unk180[2], ...)`
-             * for that descriptor, so the tilemap blitter runs with a source
-             * pointer of 0xFFFFFFFF plus offsets, which wraps somewhere
-             * undecoded.  On hardware that reads open bus into a screen block
-             * belonging to a disabled layer -- invisible either way.  Report a
-             * handful so a genuinely new one is still visible, then stop. */
+            /* Two shapes of these are expected, not faults, and both were
+             * confirmed under a debugger rather than assumed -- see
+             * docs/STATUS.md.
+             *
+             *   bad source.  A room with no second object layer gets
+             *   `CpuFill16(0xFFFF, &levelInfo->unk180[2], ...)` for that
+             *   descriptor, so the tilemap blitter walks it with unk10 =
+             *   0xFFFFFFFF and unk14 = 65535 and the address wanders off the
+             *   map.  Measured: the reported sources differ by exactly
+             *   unk14 * 2, the blitter's own row stride.  On hardware that
+             *   reads open bus into a screen block for a disabled layer.
+             *
+             *   destination 0.  A sprite runs its GetTiles animation command
+             *   with tilesVram == 0, which the game sets deliberately in five
+             *   places (intro.c, title_screen.c).  Address 0 is BIOS ROM, so
+             *   the write is discarded by the hardware.
+             *
+             * The budget is per shape, and that is the point of it.  It used
+             * to be five reports total "so a genuinely new one is still
+             * visible", and it did the opposite: those two shapes account for
+             * exactly five in an ordinary run, so a novel bad transfer arriving
+             * sixth was suppressed in silence -- the cap was spent defending
+             * the cases we already understood.  Counting each shape separately
+             * means a new one always gets its own lines, and PortDmaBadCounts
+             * reports the totals at the end so nothing is lost to the cap. */
+            unsigned shape = (RangeOk(srcLo, srcLen) ? 0u : 1u)
+                           | (RangeOk(destLo, destLen) ? 0u : 2u);
+
             sBadTransfers++;
-            if (sBadTransfers <= 5)
-                PortError("[katam-port] DMA leaves the map: src=0x%08X%s "
-                        "dest=0x%08X%s count=%u unit=%u flags=0x%04X",
+            sBadByShape[shape]++;
+            if (sBadByShape[shape] <= 3) {
+                /* n= and f= for the same reason the trace line carries them:
+                 * without a transfer number this message cannot be turned into
+                 * a PORT_DMA_STACK window, or lined up against the trace, or
+                 * matched between two builds.  It went without them for a long
+                 * time and every investigation started by adding them back. */
+                PortError("[katam-port] DMA leaves the map: n=%u f=%u "
+                        "src=0x%08X%s dest=0x%08X%s count=%u unit=%u "
+                        "flags=0x%04X",
+                        (unsigned)(sTransferCount - 1),
+                        (unsigned)PortFrameNumber(),
                         (unsigned)srcLo, RangeOk(srcLo, srcLen) ? "" : " <-- bad",
                         (unsigned)destLo, RangeOk(destLo, destLen) ? "" : " <-- bad",
                         (unsigned)ch->count, (unsigned)unit,
                         (unsigned)ch->flags);
-            else if (sBadTransfers == 6)
-                PortLog("[katam-port] further bad DMA transfers suppressed");
+                if (PortDmaBadStackWanted())
+                    PortCallStack("dma-bad");
+            }
+            else if (sBadByShape[shape] == 4)
+                PortLog("[katam-port] further bad DMA transfers of this shape "
+                        "suppressed (src%s dest%s)",
+                        (shape & 1) ? " bad" : " ok",
+                        (shape & 2) ? " bad" : " ok");
             /* Skip it rather than trap.  On hardware an undecoded address
              * reads open bus and writes nowhere -- the transfer is garbage
              * either way, but the game keeps running, and one session then
@@ -286,6 +325,17 @@ void PortDmaSet(int channel, const void *src, void *dest, u32 control)
  * sTransferCount and sBadTransfers are deliberately excluded: they are
  * diagnostic counters, and a rollback that rewound them would make the DMA
  * trace's n= disagree with the number of lines printed. */
+/* Totals by shape, for the end-of-run report.  The per-shape cap above keeps
+ * the log short; this keeps it honest, because a run that suppressed thirty
+ * transfers and one that had three look identical otherwise. */
+void PortDmaBadCounts(u32 *total, u32 *srcBad, u32 *destBad, u32 *bothBad)
+{
+    if (total)   *total   = sBadTransfers;
+    if (srcBad)  *srcBad  = sBadByShape[1];
+    if (destBad) *destBad = sBadByShape[2];
+    if (bothBad) *bothBad = sBadByShape[3];
+}
+
 u32 PortDmaStateSize(void)
 {
     return (u32)sizeof sChannels;

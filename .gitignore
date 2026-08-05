@@ -17,3 +17,4 @@ __pycache__/
 
 # Subagent worktrees -- separate checkouts, not part of this tree.
 .claude/worktrees/
+build/native-dbg/

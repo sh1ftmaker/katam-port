@@ -121,6 +121,13 @@ void PortCallStack(const char *tag);
  * since asking for a stack without the line it belongs to is useless. */
 void PortSetDmaStack(long lo, long hi);
 
+/* PORT_DMA_BAD_STACK=1 prints the call stack of every *refused* transfer that
+ * gets reported -- the ones that leave the GBA map.  Unlike the window above
+ * this needs no transfer number, because the port already knows which ones
+ * they are when it declines them. */
+void PortSetDmaBadStack(int on);
+int PortDmaBadStackWanted(void);
+
 /* --- simulation state that is not in the GBA map --------------------------
  *
  * Almost everything the game computes lives in the reserved map, which is what

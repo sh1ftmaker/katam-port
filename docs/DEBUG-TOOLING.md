@@ -512,6 +512,70 @@ player can see must point at a control that renders. It is the kind of thing
 that is invisible on a desktop, where the sheet is not a sheet, and only fails
 in the layout a phone gets.
 
+## 5.3 Two fixes to the stack instrument, found by using it
+
+`PORT_DMA_STACK=lo:hi` answers "who issued transfer 27263" and is the right
+shape once a stream diff has named one. It was the wrong shape for a *refused*
+transfer, which is already known to be interesting but whose number is not
+known until after the run — so finding one meant enabling the full trace,
+keeping 60,000-odd lines, locating the transfer, and running again with the
+window set. **`PORT_DMA_BAD_STACK=1`** takes a stack at every reported refusal
+instead; the port knows which ones they are at the moment it declines them. Off
+by default, because most of them are expected.
+
+The refusal message now also carries `n=` and `f=`, for the reason the trace
+line does: without a transfer number it cannot be turned into a window, lined
+up against the trace, or matched between two builds.
+
+And the symbolizer had a bug worth naming, because it did not look like one.
+`PortCallStack` printed raw return addresses, which are link-time addresses
+only on a non-PIE — true of the 64-bit builds, which link `-no-pie` at a fixed
+text address, and **not** true of the 32-bit native build. Every frame came out
+shifted by a load base that changes per run, and `symbolize_stack.py`
+confidently resolved all of them to `data_start+0x5ba38689`. It did not look
+like garbage; it looked like an answer. `PortCallStack` now subtracts the
+module base via `dladdr`, which is a no-op on a non-PIE, and labels frames from
+shared libraries instead of printing a number that invites a wrong lookup:
+
+```
+  PortCallStack+0x3f
+  RunTransfer+0x66d
+  PortDmaSet+0xf5
+  sub_081525DC+0x84          <- the VRAM queue drainer
+  UpdateScreenDma+0x1a5
+```
+
+`_GNU_SOURCE` for `dladdr` has to be set in `platform/port/prelude.h`, not in
+the `.c` file: the prelude is force-included ahead of every translation unit,
+so glibc has already fixed which declarations exist by the time the file's own
+first line is read. The symptom otherwise is `unknown type name 'Dl_info'` in a
+file that includes `<dlfcn.h>`.
+
+## 5.4 Source-level gdb needs a second build tree
+
+`build/native` is configured `Release`, so it has a symbol table but no DWARF —
+`nm` works, and `break file.c:line` does not ("No symbol table is loaded",
+which is misleading). For watchpoints and source breakpoints:
+
+```sh
+cmake -S . -B build/native-dbg -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-i686.cmake
+cmake --build build/native-dbg -j
+```
+
+Two things that cost time. gdb wants `file` and `set args` **inside** the
+script — `-batch -x script --args prog ...` sources the script before the
+executable is loaded, and every `break` in it fails. And the game's globals are
+macros over fixed addresses, not symbols, so `print gUnk_03006078` fails; read
+the address instead (`*(unsigned char *)0x03006078`), which works precisely
+because the port puts the GBA map where the console puts it.
+
+The queue-entry watchpoint that found the null destination:
+
+```
+watch *(unsigned int *)0x030030e0 if *(unsigned int *)0x030030e0 == 0
+```
+
 ## 6. Everything else
 
 **`--emit-symbol-map`** writes `katam.js.symbols`, `index:name` per line

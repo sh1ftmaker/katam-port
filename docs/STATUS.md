@@ -90,6 +90,37 @@ straightforward and not yet done.
 | INCBIN assets pasted in from the decomp | 143 files, 931 KiB |
 | Output | 2.3 MB wasm |
 
+## The "DMA leaves the map" reports
+
+Both shapes were tracked to their source under a debugger, and **neither is a
+port bug**. Recorded here so the next person does not spend the afternoon
+again.
+
+**Bad source, `dest` in VRAM — the tilemap blitter.** `sub_08153184` walks a
+`struct Background` whose descriptor was filled by
+`CpuFill16(0xFFFF, &levelInfo->unk180[2], ...)` — a room with no second object
+layer. Read out of the live process at the moment of the transfer:
+`unk10 = 0xFFFFFFFF`, `unk14 = 65535`. The address arithmetic then wanders off
+the map, and the reported sources differ by exactly `unk14 * 2` — the blitter's
+own row stride, which is what confirms it rather than merely fitting it. On
+hardware this reads open bus into a screen block for a disabled layer.
+
+**Destination 0 — a sprite with no VRAM.** `sub_08155370`, the sprite `GetTiles`
+animation command, enqueues `sprite->tilesVram` and that is 0. The game sets it
+to 0 deliberately in five places (`intro.c`, `title_screen.c`). Address 0 is
+BIOS ROM, so the hardware discards the write. Caught with a hardware watchpoint
+on the queue entry, which named the writer directly — the queue is drained a
+frame later, so the stack at the transfer only ever names the drain.
+
+**What was a real defect is the reporting.** The cap was five transfers total,
+with a comment saying it existed "so a genuinely new one is still visible". It
+did the opposite: those two shapes account for exactly five in an ordinary run,
+so a novel bad transfer arriving sixth was suppressed in silence. The budget is
+now per shape, and an end-of-run line gives the totals — which revealed the
+other thing the old report hid: a 1400-frame run has **1497** of these, not
+five. A count in the "both ends bad" shape is the one that has never been seen
+and would be worth chasing.
+
 ## Bugs worth remembering
 
 Five of these cost real time, and none looked like what it was.

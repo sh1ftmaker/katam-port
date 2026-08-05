@@ -31,6 +31,11 @@ void PortDmaHBlank(int line);
 /* Run any channel armed for VBlank. */
 void PortDmaVBlank(void);
 
+/* How many transfers left the GBA map, split by which end did it.  Two shapes
+ * are expected (see platform/dma.c); a count in the third, or a count far
+ * larger than a handful, is not. */
+void PortDmaBadCounts(u32 *total, u32 *srcBad, u32 *destBad, u32 *bothBad);
+
 
 #ifdef __cplusplus
 }

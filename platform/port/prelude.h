@@ -16,6 +16,18 @@
  *    set by the time the macro exists.
  */
 
+/* And it is why _GNU_SOURCE has to be set *here* rather than in the .c file
+ * that wants it.  glibc fixes which declarations exist the first time
+ * features.h is reached, and this header reaches it before any translation
+ * unit's own first line -- so a `#define _GNU_SOURCE` at the top of main.c is
+ * already too late, and fails with nothing more helpful than `unknown type
+ * name 'Dl_info'`.  PortCallStack needs dladdr to turn a PIE's return
+ * addresses back into the link-time ones `nm` can resolve.  Harmless on the
+ * hosts that do not have it: emscripten and MinGW ignore it. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <limits.h>
 #include <math.h>
 #include <stdarg.h>

@@ -13,6 +13,14 @@
  * platform/port/backend.h.
  */
 
+/* Before any libc header: glibc decides which declarations exist when
+ * features.h is first pulled in, and dladdr/Dl_info are behind __USE_GNU.
+ * PortCallStack needs them to turn a PIE's return addresses back into
+ * link-time ones. */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,6 +31,10 @@
 #include <emscripten.h>
 #elif defined(__GLIBC__) || defined(__APPLE__)
 #include <execinfo.h>
+/* dladdr, to turn a return address into a link-time one on a PIE.  It is a
+ * GNU/POSIX extension, in libc itself on glibc 2.34 and later and on macOS, so
+ * this needs no extra library on either. */
+#include <dlfcn.h>
 #define PORT_HAVE_EXECINFO 1
 #endif
 
@@ -206,8 +218,21 @@ void PortUnimplemented(const char *what)
 
 void PortReportGaps(void)
 {
+    u32 bad, srcBad, destBad, bothBad;
+
     PortLog("[katam-port] %d distinct gaps reported, %d calls into missing "
             "functions", sNumReported, sMissingCalls);
+
+    /* Only when there were any: an ordinary run should not have to read a line
+     * of zeroes to learn that nothing happened. */
+    PortDmaBadCounts(&bad, &srcBad, &destBad, &bothBad);
+    if (bad != 0)
+        PortLog("[katam-port] %u DMA transfers left the map: %u bad source, "
+                "%u bad destination, %u both%s",
+                (unsigned)bad, (unsigned)srcBad, (unsigned)destBad,
+                (unsigned)bothBad,
+                bothBad != 0 ? "  <-- 'both' is not one of the known-benign "
+                               "shapes" : "");
 }
 
 /* --- memory -------------------------------------------------------------- */
@@ -514,6 +539,35 @@ int PortDmaStackWanted(u32 transfer)
         && (long)transfer >= sDmaStackLo && (long)transfer <= sDmaStackHi;
 }
 
+/* The window above answers "who issued transfer 27263", which is the right
+ * question once a stream diff has named a transfer.  It is the wrong shape for
+ * the other use: a *refused* transfer is already known to be interesting, and
+ * its number is not known until the run has happened -- so finding it meant
+ * turning on the full trace, keeping 60000-odd lines, locating the transfer,
+ * and running again with the window set.  That is two runs and a large file to
+ * answer a question the port already knows the answer to at the moment it
+ * declines the transfer.
+ *
+ * Off by default because a handful of these are expected rather than faults
+ * (see the note at the refusal in platform/dma.c), and a stack each would be
+ * noise in every ordinary run. */
+static int sDmaBadStack = -1;
+
+int PortDmaBadStackWanted(void)
+{
+    if (sDmaBadStack < 0) {
+        const char *e = getenv("PORT_DMA_BAD_STACK");
+
+        sDmaBadStack = (e != NULL && *e != '\0' && *e != '0');
+    }
+    return sDmaBadStack;
+}
+
+void PortSetDmaBadStack(int on)
+{
+    sDmaBadStack = on ? 1 : 0;
+}
+
 void PortCallStack(const char *tag)
 {
 #ifdef __EMSCRIPTEN__
@@ -532,16 +586,45 @@ void PortCallStack(const char *tag)
 #elif defined(PORT_HAVE_EXECINFO)
     /* Return addresses, not names.  backtrace_symbols() would name them only
      * if the game's symbols were in the *dynamic* table, which needs -rdynamic
-     * on the shipping link for the sake of a diagnostic.  The addresses are
-     * absolute because the 64-bit builds link -no-pie at a fixed text address
-     * (see CMakeLists.txt), so `nm` resolves them exactly, offline, from a
-     * binary built without any special flag. */
+     * on the shipping link for the sake of a diagnostic.  So the addresses are
+     * resolved offline against `nm`, from a binary built with no special flag.
+     *
+     * They have to be *link-time* addresses for that to work, and a raw return
+     * address is only that on a non-PIE.  The 64-bit builds link -no-pie at a
+     * fixed text address (see CMakeLists.txt) so they were, and this printed
+     * the address as it stood; the 32-bit native build is a PIE, so every
+     * frame came out shifted by a load base that changes on every run, and the
+     * symbolizer confidently resolved all of them to `data_start+0x5ba38689`.
+     * That is the failure mode worth naming: it did not look like garbage, it
+     * looked like an answer.
+     *
+     * dladdr gives the module's load base, and subtracting it undoes the
+     * shift on both kinds of binary -- for a non-PIE dli_fbase is the base the
+     * image was linked at, so the subtraction is a no-op and the 64-bit builds
+     * behave exactly as before. */
     void *frames[32];
     int n = backtrace(frames, (int)(sizeof frames / sizeof frames[0]));
     int i;
 
-    for (i = 0; i < n; i++)
-        PortLog("[stack] %s %p", tag, frames[i]);
+    for (i = 0; i < n; i++) {
+        Dl_info info;
+        unsigned long addr = (unsigned long)(uintptr_t)frames[i];
+
+        if (dladdr(frames[i], &info) != 0 && info.dli_fbase != NULL) {
+            unsigned long base = (unsigned long)(uintptr_t)info.dli_fbase;
+
+            /* Frames from a shared library rebase to that library, which is
+             * not what `nm` on our binary can resolve; mark them rather than
+             * print a number that invites a wrong lookup. */
+            if (info.dli_fname != NULL && strstr(info.dli_fname, ".so") != NULL) {
+                PortLog("[stack] %s <%s+0x%lx>", tag, info.dli_fname,
+                        addr - base);
+                continue;
+            }
+            addr -= base;
+        }
+        PortLog("[stack] %s 0x%lx", tag, addr);
+    }
 #else
     PortLog("[stack] %s <no unwinder on this host>", tag);
 #endif
