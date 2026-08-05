@@ -483,6 +483,58 @@ if(WIN32)
   target_link_libraries(katam PRIVATE comdlg32)
 endif()
 
+# ---------------------------------------------------------------------------
+# 64-bit targets: put the image below 4 GiB
+#
+# A PTR32 (platform/port/p32.h) holds thirty-two bits, because that is what the
+# console gave a pointer member.  So every address the *game* can store has to
+# fit in thirty-two bits, and on a 64-bit host that is not automatic.  Measured
+# on aarch64 under qemu before this was added:
+#
+#   this binary at 0x7347b30acad0, a stack address at 0x4000007ffaf4,
+#   a heap address at 0x400000b112b0
+#
+# All three above 4 GiB.  Storing any of them through a PTR32 truncates, and
+# the first dereference dies somewhere unrelated.
+#
+# Three kinds of address are involved and only one of them is a problem:
+#
+#   Code.  `obj2->unk78 = sub_0800C124` puts a host function address in a
+#   four-byte member -- and docs/SIXTYFOUR.md flags that shape as the one no
+#   type analysis can find, because the member is a void* and the assignment is
+#   perfectly legal C.  Fixed by the link line below.
+#
+#   The port's static data.  build/generated/rom_copies.c gives ROM arrays real
+#   storage and rom_fn_tables.c holds the rebuilt tables; the game takes
+#   pointers into both.  Both are .data/.bss, so the same link line covers them.
+#
+#   The stack and the heap.  Neither carries an address the game stores.  The
+#   one that looks as though it does -- platform/dma.c's DmaFill source, which
+#   is the address of a local -- is read by the port's own DMA implementation
+#   and never reaches a GBA structure.  PortHostRangeOk already tells it from a
+#   stale pointer.
+#
+# This is the same trade, and the same address, as the Windows block above: the
+# addresses are the program.  PORT_CHECK_POINTERS is what makes the claim
+# falsifiable rather than merely argued -- it aborts on any high address stored
+# through a PTR32, naming it.
+# ---------------------------------------------------------------------------
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND UNIX AND NOT APPLE)
+  include(CheckCSourceCompiles)
+  set(CMAKE_REQUIRED_LINK_OPTIONS -no-pie -Wl,-Ttext-segment=0x10000000)
+  check_c_source_compiles("int main(void){return 0;}" HAVE_TEXT_SEGMENT)
+  unset(CMAKE_REQUIRED_LINK_OPTIONS)
+  if(HAVE_TEXT_SEGMENT)
+    target_link_options(katam PRIVATE -no-pie "-Wl,-Ttext-segment=0x10000000")
+    message(STATUS "64-bit target: image pinned at 0x10000000 so code fits in a PTR32")
+  else()
+    message(WARNING
+      "This linker does not take -Ttext-segment, so the image will be loaded "
+      "above 4 GiB and any host address the game stores in a structure will "
+      "truncate.  Build with -DPORT_CHECK_POINTERS to be told where.")
+  endif()
+endif()
+
 target_link_libraries(katam PRIVATE katam_sdl2)
 if(NOT WIN32)
   target_link_libraries(katam PRIVATE m)

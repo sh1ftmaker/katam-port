@@ -21,6 +21,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>   /* abort, for the PTR32 width check */
 #include <string.h>
 
 #include "port/port.h"
@@ -126,6 +127,39 @@ void PortCallDtor(struct Task *task)
     PORT_TRACE[6]++;                        /* how many got this far */
 
     task->dtor(task);
+}
+
+/* --- an address too wide for the member it is going into -------------------
+ *
+ * A PTR32 (platform/port/p32.h) is four bytes, because a GBA pointer member is
+ * four bytes.  On a 64-bit host every address the game stores has to fit, and
+ * CMakeLists.txt arranges that by pinning the image below 4 GiB -- code and
+ * static data are the only host addresses the game can hold.
+ *
+ * That is an argument, and arguments about which addresses a program can
+ * observe are exactly the kind that turn out to have a case nobody thought of.
+ * So the argument is made falsifiable: PORT_CHECK_POINTERS makes every PTR32
+ * store check its value, and anything above 4 GiB arrives here.
+ *
+ * Fatal on purpose, and unlike the task-pointer check above it does not
+ * continue.  A truncated pointer is not a bad read that can be substituted for
+ * -- it is a *good* pointer with its top half removed, stored into a structure
+ * the game will follow later, from somewhere else entirely.  Reporting it here
+ * and carrying on would mean reporting it here and crashing there.
+ */
+void PortP32Truncated(const void *p)
+{
+    PortLog("[katam-port] FATAL: %p does not fit in a 4-byte pointer member.",
+            p);
+    PortLog("  A GBA structure holds pointers in four bytes and this address "
+            "needs more.");
+    PortLog("  Either the image was not linked below 4 GiB -- see the "
+            "-Ttext-segment block");
+    PortLog("  in CMakeLists.txt -- or this is host storage the game can "
+            "observe that");
+    PortLog("  nobody accounted for.  docs/SIXTYFOUR.md has the list of the "
+            "ones that were.");
+    abort();
 }
 
 #ifdef __cplusplus
