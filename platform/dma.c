@@ -113,6 +113,7 @@ static int RangeOk(uintptr_t addr, u32 len)
 }
 
 static u32 sBadTransfers;
+static u32 sTransferCount;
 
 /* Both endpoints of a run, given the address-control mode: a decrementing
  * transfer ends below where it started, a fixed one never moves. */
@@ -161,11 +162,24 @@ static void RunTransfer(struct DmaChannel *ch)
          * missing upload shows up as a missing line rather than as a hash that
          * stopped matching several frames later.  Diff two builds' streams and
          * the first differing line *is* the fault. */
-        if (PortDmaTracing())
-            PortLog("[dma] ch=%u src=%08X dest=%08X count=%u unit=%u ctrl=%04X",
+        if (PortDmaTracing()) {
+            /* n= and f= were added after the first comparison run, and they are
+             * what makes the log usable rather than merely available: without
+             * them, "the streams differ at line 27263" cannot be turned into a
+             * frame to re-run, or into a transfer to ask for a stack at.  The
+             * counter advances for refused transfers too, so that the two
+             * builds number the same events even where one of them declines
+             * one. */
+            PortLog("[dma] n=%u f=%u ch=%u src=%08X dest=%08X count=%u unit=%u "
+                    "ctrl=%04X",
+                    (unsigned)sTransferCount, (unsigned)PortFrameNumber(),
                     (unsigned)(ch - sChannels), (unsigned)(uintptr_t)src,
                     (unsigned)(uintptr_t)dest, (unsigned)ch->count,
                     (unsigned)unit, (unsigned)ch->flags);
+            if (PortDmaStackWanted(sTransferCount))
+                PortCallStack("dma");
+        }
+        sTransferCount++;
 
         if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
             /* A few of these are expected, not faults.  A room with no second

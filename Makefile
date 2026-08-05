@@ -127,7 +127,7 @@ LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
     -sALLOW_MEMORY_GROWTH=0 \
     -sSTACK_SIZE=1048576 \
-    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace \
+    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,ccall,cwrap \
     -sENVIRONMENT=web \
     --shell-file web/shell.html
@@ -143,7 +143,7 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check \
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -209,6 +209,33 @@ layout:
 layout-check:
 	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
 	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)" --check
+
+# --- the two things layout-check cannot see --------------------------------
+#
+# layout-check asserts the 246 types whose console offsets are known.  Two
+# kinds of ABI breakage are invisible to it, and each cost a day to find the
+# first time:
+#
+#   abi-size-check   a type the decompilation never places at a fixed address
+#                    is not in the table, so nothing notices it changing size
+#                    under LP64 -- and every sizeof() the game hands to
+#                    TaskCreate then differs between the two builds.  Needs an
+#                    ILP32 and an LP64 build tree, both with -g.
+#
+#   ptr-array-check  a file-scope array of pointers is four-byte-strided on the
+#                    console and eight-byte-strided under LP64, which is
+#                    harmless until something reads it through another type.
+#                    One place in the tree does.
+#
+# Both are cheap and neither needs a ROM.  docs/SIXTYFOUR.md has the two bugs.
+ABI32_DIR ?= $(BUILD)/native/CMakeFiles/katam.dir
+ABI64_DIR ?= $(BUILD)/lp64/CMakeFiles/katam.dir
+
+abi-size-check:
+	@python3 tools/abi_size_diff.py $(ABI32_DIR) $(ABI64_DIR)
+
+ptr-array-check:
+	@python3 tools/check_ptr_arrays.py $(PORT_SRC)
 
 # --- the 4-byte pointer member ---------------------------------------------
 # platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
@@ -276,7 +303,7 @@ $(BUILD)/katam-node.js: $(OBJS)
 	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
@@ -295,7 +322,7 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -313,7 +340,7 @@ $(BUILD)/katam-safe.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace \
+	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -436,8 +463,10 @@ ARM64_DIR ?= $(BUILD)/native-arm64
 ARM64_BIN := $(ARM64_DIR)/katam
 
 arm64:
-	@echo "  arm64 is the 64-bit port in progress: it builds and boots, and it does"
-	@echo "  not play the game.  The working ARM build is armhf -- see docs/NATIVE.md."
+	@echo "  arm64 is the LP64 build: the game compiled as C++ so that PTR32 keeps"
+	@echo "  every structure at its GBA layout.  Verified transfer-for-transfer and"
+	@echo "  pixel-for-pixel against wasm32, i686 and x86-64 -- see docs/SIXTYFOUR.md."
+	@echo "  armhf needs none of that machinery and is the simpler ARM build."
 	@cmake -S . -B $(ARM64_DIR) -DCMAKE_BUILD_TYPE=Release \
 	       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-arm64.cmake \
 	       -DKATAM_ALLOW_LP64=ON >/dev/null \
@@ -453,7 +482,7 @@ arm64:
 	       echo "See \"Building without root\" in docs/NATIVE.md for the whole recipe."; \
 	       exit 1; }
 	@cmake --build $(ARM64_DIR) -j $(shell nproc 2>/dev/null || echo 4)
-	@echo "  ARM64   $(ARM64_BIN)  -- boots and renders; no level yet, see docs/SIXTYFOUR.md"
+	@echo "  ARM64   $(ARM64_BIN)"
 
 arm64-clean:
 	rm -rf $(ARM64_DIR)

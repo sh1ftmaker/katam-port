@@ -12,6 +12,108 @@ and almost all of them are harmless.
 
 ---
 
+## Status: finished, and what the last two bugs were
+
+**2026-08-05.** All four builds — wasm32, i686, x86-64, aarch64 — produce
+**byte-identical DMA transfer streams over 63236 transfers and 1401 frames** of
+the same scripted input, and pixel-identical frames. The three native builds
+report identical smoke-test numbers (`boot: 192 colours, 14 pictures, DISPCNT
+0x1340` / `play: 187 colours, 43 pictures, DISPCNT 0x1B40`). `make layout-check`
+asserts 246 types and 2144 offsets. The ILP32 builds did not move: the wasm DMA
+stream is unchanged, transfer for transfer, across every change described here.
+
+Two bugs stood between "the layout assertions pass" and that result. Neither
+was visible to any check the port had, and both are the same shape — *something
+outside a struct member whose size the console fixed at four bytes*.
+
+### 1. A file-scope array of pointers, read through another type
+
+```c
+extern struct RoomTiledBG *const gUnk_082D8D74[];         /* stride 8 under LP64 */
+gUnk_03002E60 = (const union Unk_03002E60 *)gUnk_082D8D74; /* stride 4 */
+```
+
+`union Unk_03002E60` is a transparent union of `PTR32` members and is four
+bytes, so every `gUnk_03002E60[i]` read element `i/2` of the real array. On the
+console both strides are four and the cast is exact.
+
+`narrow32.py` narrows pointer members of *structures*, on the argument that a
+structure's layout is decided by the ROM, by `linker.ld` or by the game's own
+allocator. A file-scope array has none of those constraints — until something
+casts it. This is the only place in the tree that does, which
+`tools/check_ptr_arrays.py` is what establishes and what keeps establishing.
+
+The symptom was a corrupt background layer: every level's BG descriptor came
+from the wrong room, 20999 of 38400 pixels. Nothing faulted, nothing asserted,
+and both source addresses were valid mapped memory — which is what made it look
+like a graphics bug for three rounds of investigation.
+
+### 2. Twenty-five types defined in .c files rather than headers
+
+`portify.py` ran the narrowing pass over `include/*.h` only. `struct
+CutsceneTrigger`, `struct AreaMap`, `struct WorldMap`, `struct Unk_080880AC`
+and twenty-one others are declared in the .c file that uses them, and they grew
+under LP64 — `CutsceneTrigger` by 48 bytes.
+
+Nothing about a structure's *location* decides whether its pointer members have
+to be four bytes. What decides it is whether anything outside the compiler
+cares about the layout, and the game's own allocator does:
+
+```c
+task = TaskCreate(ObjectMain, sizeof(struct CutsceneTrigger), ...);
+```
+
+A bigger struct does not corrupt anything. It makes the allocation bigger, so
+the fixed 0x2604-byte IWRAM heap fills sooner, so a later object misses IWRAM
+and falls back to EWRAM — which `TaskCreate` does silently and by design. The
+two builds were still computing the same thing; they had stopped keeping it in
+the same place. The first frame that looked different was **73 frames** later,
+and the first *DMA* that looked different was 73 frames after that.
+
+One of the twenty-five was an anonymous union whose whole body was on one line,
+which the line-oriented narrowing pass cannot see. Exactly one such member
+exists in the tree, so it is a site-table entry rather than a parser.
+
+### What now checks for both
+
+| | |
+|---|---|
+| `tools/abi_size_diff.py` | every DWARF struct/union size, ILP32 build against LP64 build. This is the check `make layout-check` cannot make: a type only enters `gba_layout.h` if it has a known console address to be asserted against, and neither of these types did. |
+| `tools/check_ptr_arrays.py` | file-scope pointer arrays that something reads through a cast |
+| `PORT_DMA_STACK` + `tools/symbolize_stack.py` | the call stack that issued a given DMA transfer, as decompiled C names, from either host |
+| `PORT_WINDOW=addr:len` | one window hashed every frame, for finding *when* a known address started to differ |
+
+### And an ILP32 native control now exists
+
+`docs/DEBUG-TOOLING.md` used to say the thing that would settle an ABI question
+completely was an ILP32 *native* build — same host layer, same audio driver,
+only the ABI different — and that it did not exist. It does now, and it was one
+line of CMake: `project(katam-port C CXX)` makes CMake compile *and link* a C++
+test program at configure time, so every 32-bit target needed a 32-bit
+libstdc++ to configure, for a language none of its sources use. Declaring `C`
+and calling `enable_language(CXX)` only when `CMAKE_SIZEOF_VOID_P` says so
+fixes it.
+
+It earned its keep immediately. i686 against wasm32 — different hosts, same ABI
+— was identical over all 63212 transfers, which retired the standing worry that
+the SDL and web hosts drive the sound engine differently enough to matter. i686
+against x86-64 — same host, different ABI — diverged at frame 482. That is what
+turned "something differs" into "this is an ABI bug", with no host variable
+left in the comparison.
+
+### One measurement that was contaminated
+
+The native runs in this investigation were reading a **save file left on the
+developer's machine** by earlier runs, while the node harness starts with blank
+SRAM every time. So the two builds were not being given the same starting
+state, and a real-looking divergence at frame 409 was the game resuming a saved
+tutorial in one build and not the other. `XDG_DATA_HOME` pointed at a scratch
+directory is the fix, and any cross-build comparison needs it. The bug in §1 was
+found before this was noticed and is unaffected — it was proved structurally,
+by the two strides, not by the frame counts.
+
+---
+
 ## Status, and a correction to this document
 
 This file was first written as a measurement, and it concluded that the
@@ -54,9 +156,13 @@ distinct gaps reported, 0 calls into missing functions`. So does the x86-64
 LP64 build. A 64-bit host now produces the same picture as the 32-bit one, from
 structures laid out the way a 32-bit console laid them out.
 
-What does *not* work yet is the play path: mashing into a level dies in
-`sub_08010590` on an object-list walk. The wasm build does that correctly, so
-this is a genuinely 64-bit-only failure and the first one that has been.
+What did *not* work at the time of writing was the play path: mashing into a
+level died in `sub_08010590` on an object-list walk. That was traced to the ROM
+function-pointer patcher having been silently disabled by the narrowing (commit
+`6448212`), and the two bugs in the section at the top of this file. All of it
+now runs; the paragraph is kept because the sentence after it — "this is a
+genuinely 64-bit-only failure and the first one that has been" — was correct
+and is how the remaining work got scoped.
 
 **The ILP32 builds are the control and they have not moved.** The wasm build
 over 1200 frames is byte-identical through all of it: frame md5

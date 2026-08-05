@@ -350,6 +350,19 @@ const Module = {
             Module._PortSetStateDetailFrame(Number(process.env.PORT_STATE_DETAIL));
         if (process.env.PORT_DMA_TRACE)
             Module._PortSetDmaTrace(1);
+        // PORT_DMA_STACK=lo:hi prints the call stack that issued transfers
+        // lo..hi.  Same reason for the export as above.
+        if (process.env.PORT_DMA_STACK) {
+            const [lo, hi] = process.env.PORT_DMA_STACK.split(':');
+            Module._PortSetDmaStack(Number(lo), Number(hi === undefined ? lo : hi));
+        }
+        // PORT_WINDOW=addr:len hashes one window on every frame, as an extra
+        // [window] line -- for finding *when* a known address started to
+        // differ without one run per candidate frame.
+        if (process.env.PORT_WINDOW) {
+            const [wa, wl] = process.env.PORT_WINDOW.split(':');
+            Module._PortSetStateWindow(parseInt(wa, 16), Number(wl));
+        }
         if (process.env.PORT_DUMP) {
             const [df, da, dl] = process.env.PORT_DUMP.split(':');
             Module._PortSetStateDump(Number(df), parseInt(da, 16), Number(dl));

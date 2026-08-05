@@ -3,20 +3,35 @@
 #   cmake -S . -B build/native-arm64 \
 #         -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-arm64.cmake
 #
-# THIS TARGET IS NOT FINISHED.  Read this paragraph before using it.
-#
 # aarch64 is LP64: pointers are eight bytes.  The port's structures have to
 # keep the four-byte pointer members the console gave them, which is what
 # platform/port/p32.h exists for, and the conversion of the decompilation's
-# ~285 pointer member declarations to PTR32 is *in progress*.  Until it is
-# done, this toolchain produces a binary that compiles, links, and is wrong --
-# exactly the failure docs/SIXTYFOUR.md is about.  CMakeLists.txt will refuse
-# to configure and say so; -DKATAM_ALLOW_LP64=ON overrides it and is not a fix.
+# pointer member declarations to PTR32 is done -- 324 members, plus the types
+# defined inside .c files rather than headers, which took a second pass and two
+# bugs to find.  Configure with -DKATAM_ALLOW_LP64=ON; CMakeLists.txt explains
+# why that is still opt-in.
 #
-# The finished, playable ARM build today is armhf --
-# cmake/toolchain-linux-armhf.cmake -- which is ILP32 and runs on any arm64
-# kernel with 4 KiB pages.  docs/NATIVE.md has the detail on which kernels
-# those are.  This file is for finishing the 64-bit work, not for playing.
+# Verified on 2026-08-05: wasm32, i686, x86-64 and this target produce
+# byte-identical DMA transfer streams over 63236 transfers and 1401 frames of
+# scripted input, and pixel-identical frames.  `make layout-check` asserts the
+# 246 types with known console offsets and tools/abi_size_diff.py covers the
+# rest by comparing DWARF sizes against an ILP32 build.
+#
+# armhf -- cmake/toolchain-linux-armhf.cmake -- is still the simpler ARM build
+# and needs no C++ toolchain and no generated tree; it is ILP32 and runs on any
+# arm64 kernel with 4 KiB pages.  docs/NATIVE.md has the detail on which
+# kernels those are.
+#
+# The cross packages ship aarch64-linux-gnu-g++-13 with no unsuffixed alias, so
+# in practice this wants both compilers named:
+#
+#   cmake -S . -B build/native-arm64 -DKATAM_ALLOW_LP64=ON \
+#         -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-arm64.cmake \
+#         -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++-13
+#
+# Name the C compiler only if the unsuffixed aarch64-linux-gnu-gcc is missing:
+# on this machine the versioned gcc-13 and the unsuffixed wrapper resolve their
+# libc differently, and only the wrapper links against a hand-built sysroot.
 #
 #   Debian/Ubuntu   sudo apt install g++-aarch64-linux-gnu
 #                   sudo dpkg --add-architecture arm64

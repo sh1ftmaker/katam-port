@@ -152,13 +152,20 @@ def render(types, tree):
              '#ifndef GUARD_PORT_GBA_LAYOUT_H',
              '#define GUARD_PORT_GBA_LAYOUT_H',
              '',
-             '#include <stddef.h>
-
-#ifdef __cplusplus
-#define PORT_LAYOUT_ASSERT(cond, msg) static_assert(cond, msg)
-#else
-#define PORT_LAYOUT_ASSERT(cond, msg) _Static_assert(cond, msg)
-#endif',
+             '#include <stddef.h>',
+             '',
+             '/* `static_assert` is a keyword in C++ and a C11 macro; the port '
+             'builds',
+             ' * -std=gnu99, where the macro does not exist, and the 64-bit '
+             'builds compile',
+             ' * this file through a C++ front end where the C spelling does '
+             'not.  One name',
+             ' * that works in both. */',
+             '#ifdef __cplusplus',
+             '#define PORT_LAYOUT_ASSERT(cond, msg) static_assert(cond, msg)',
+             '#else',
+             '#define PORT_LAYOUT_ASSERT(cond, msg) _Static_assert(cond, msg)',
+             '#endif',
              '']
     for h in rel:
         lines.append('#include "%s"' % h)

@@ -141,6 +141,28 @@ SKIP_TYPES = set()
 # One member in the tree.  The typedef is emitted next to the structure rather
 # than in a shared header so that it stays where its only user is.
 NARROW_SITES = {
+    # An anonymous union whose whole body is on one line.  narrow_members works
+    # a line at a time -- it finds a `{`, then rewrites the member declarations
+    # between it and the matching `}` -- so a body that opens and closes on the
+    # same line has no lines to rewrite and passes through untouched.
+    #
+    # The cost of missing it is not a wrong pointer.  It is eight bytes instead
+    # of four, which makes `struct CutsceneTrigger` 0x2C0 rather than 0x2B8,
+    # which makes `TaskCreate(..., sizeof(struct CutsceneTrigger), ...)` ask the
+    # IWRAM heap for more than the console would, which makes the heap run out
+    # sooner, which makes some *later* object fall back to EWRAM -- and the
+    # first frame that looks different is 73 frames after that.
+    #
+    # One instance in the tree, so the general fix (teach narrow_members to
+    # split a single-line body) would be more machinery than the problem.
+    # tools/abi_size_diff.py is what makes that a safe trade: a second instance
+    # shows up there as a type whose size differs between the two ABIs.
+    'cutscene_trigger.c': [
+        ('    /* 0x0C8 */ union { struct Object4 *obj4; s16 s; u16 h; '
+         'u8 b[4]; s8 sb[4]; } unkC8;',
+         '    /* 0x0C8 */ union { PTR32(struct Object4) obj4; s16 s; u16 h; '
+         'u8 b[4]; s8 sb[4]; } unkC8;'),
+    ],
     'intro.h': [
         ('    void (*const *unkC)(struct Unk_08145B64_5EC *);',
          '    PTR32(PortFnpUnk_08387348_unkC) unkC;'),
@@ -149,6 +171,65 @@ NARROW_SITES = {
          'struct Unk_08387348 {'),
     ],
 }
+
+
+# File-scope arrays of pointers that something reads through another type.
+#
+# narrow_members below rewrites pointer members of *structures*, because a
+# structure's layout is decided by the ROM, by linker.ld or by the game's own
+# allocator -- something other than this compiler.  A file-scope array has no
+# such constraint: nothing outside the compiler decides where its elements go,
+# so under LP64 an eight-byte stride is self-consistent and harmless.
+#
+# Right up until the array is read through a four-byte-strided type:
+#
+#     extern struct RoomTiledBG *const gUnk_082D8D74[];   /* stride 8 */
+#     gUnk_03002E60 = (const union Unk_03002E60 *)gUnk_082D8D74;
+#
+# `union Unk_03002E60` is a transparent union of PTR32 members and is therefore
+# four bytes, so every later gUnk_03002E60[i] reads element i/2 of the real
+# array.  On the GBA the two strides are both four and the cast is exact; this
+# is the only place in the tree where they can disagree.
+#
+# The failure it produced is worth recording, because none of the port's
+# existing checks could have caught it.  Every background layer of every level
+# was drawn from the wrong descriptor -- a valid, mapped, entirely plausible
+# pointer to a different room's tilemap.  Nothing faulted, no assertion fired,
+# the ROM-layout checks passed (the array is not at a ROM address), and the
+# 2144 offset assertions passed (its element type is not a structure).  It cost
+# 20999 of 38400 pixels and looked like a graphics bug for three rounds of
+# investigation; what found it was logging the call stack that issued each DMA
+# transfer and comparing the two builds' stacks, which is the instrument
+# docs/DEBUG-TOOLING.md now recommends reaching for first.
+#
+# tools/check_ptr_arrays.py looks for the same shape across the whole tree and
+# reports this as the only instance.  Run it after a decomp update; a new entry
+# here is the fix.
+ALIASED_ARRAYS = {
+    'code.c': [
+        ('extern struct RoomTiledBG *const gUnk_082D8D74[];',
+         'extern PTR32(struct RoomTiledBG) const gUnk_082D8D74[];'),
+    ],
+    'code_080023A4.c': [
+        ('struct RoomTiledBG *const gUnk_082D8D74[] = {',
+         'PTR32(struct RoomTiledBG) const gUnk_082D8D74[] = {'),
+    ],
+}
+
+
+def apply_aliased_arrays(text, name, rep):
+    """Narrow the file-scope pointer arrays listed in ALIASED_ARRAYS."""
+    for old, new in ALIASED_ARRAYS.get(name, ()):
+        if old in text:
+            text = text.replace(old, new, 1)
+            rep.bump('file-scope pointer arrays narrowed to PTR32')
+        else:
+            rep.unhandled.append(
+                '%s: an ALIASED_ARRAYS pattern no longer matches -- the array '
+                'keeps an eight-byte stride and whatever casts it will read '
+                'every other element: %s'
+                % (name, ' '.join(old.split())[:70]))
+    return text
 
 
 def apply_narrow_sites(text, name, rep):

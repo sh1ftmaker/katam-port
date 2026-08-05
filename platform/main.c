@@ -17,6 +17,15 @@
 #include <stdio.h>
 #include <string.h>
 
+/* For PortCallStack.  glibc and macOS have <execinfo.h>; MinGW does not, and
+ * emscripten has its own. */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#elif defined(__GLIBC__) || defined(__APPLE__)
+#include <execinfo.h>
+#define PORT_HAVE_EXECINFO 1
+#endif
+
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/dma.h"
@@ -397,6 +406,75 @@ void PortSetDmaTrace(int on)
     sDmaTrace = on ? 1 : 0;
 }
 
+u32 PortFrameNumber(void)
+{
+    return sFrameCount;
+}
+
+/* The call-stack instrument described in port/backend.h.  Window first, so
+ * that the cost of taking a stack is paid only where it is wanted -- a
+ * backtrace per transfer over 63000 transfers is minutes, not seconds. */
+static long sDmaStackLo = -1;
+static long sDmaStackHi;
+
+void PortSetDmaStack(long lo, long hi)
+{
+    sDmaStackLo = lo;
+    sDmaStackHi = hi;
+    sDmaTrace = 1;
+}
+
+int PortDmaStackWanted(u32 transfer)
+{
+    if (sDmaStackLo < 0) {
+        const char *e = getenv("PORT_DMA_STACK");
+
+        sDmaStackLo = 0;
+        sDmaStackHi = -1;
+        if (e != NULL && *e != '\0') {
+            char *end;
+
+            sDmaStackLo = strtol(e, &end, 0);
+            sDmaStackHi = (*end == ':') ? strtol(end + 1, NULL, 0) : sDmaStackLo;
+        }
+    }
+    return sDmaStackHi >= 0
+        && (long)transfer >= sDmaStackLo && (long)transfer <= sDmaStackHi;
+}
+
+void PortCallStack(const char *tag)
+{
+#ifdef __EMSCRIPTEN__
+    /* EM_LOG_C_STACK asks for the wasm frames rather than the JS ones; the
+     * names come from the name section, so this is the whole of the work on
+     * this host.  Verified to survive an Asyncify rewind -- see
+     * docs/DEBUG-TOOLING.md section 5. */
+    char buf[8192];
+    char *line;
+    char *save;
+
+    emscripten_get_callstack(EM_LOG_C_STACK, buf, sizeof buf);
+    for (line = strtok_r(buf, "\n", &save); line != NULL;
+         line = strtok_r(NULL, "\n", &save))
+        PortLog("[stack] %s %s", tag, line);
+#elif defined(PORT_HAVE_EXECINFO)
+    /* Return addresses, not names.  backtrace_symbols() would name them only
+     * if the game's symbols were in the *dynamic* table, which needs -rdynamic
+     * on the shipping link for the sake of a diagnostic.  The addresses are
+     * absolute because the 64-bit builds link -no-pie at a fixed text address
+     * (see CMakeLists.txt), so `nm` resolves them exactly, offline, from a
+     * binary built without any special flag. */
+    void *frames[32];
+    int n = backtrace(frames, (int)(sizeof frames / sizeof frames[0]));
+    int i;
+
+    for (i = 0; i < n; i++)
+        PortLog("[stack] %s %p", tag, frames[i]);
+#else
+    PortLog("[stack] %s <no unwinder on this host>", tag);
+#endif
+}
+
 void PortSetStateDetailFrame(long frame)
 {
     sStateDetailFrame = frame;
@@ -407,6 +485,26 @@ void PortSetStateDump(long frame, unsigned long addr, long len)
     sDumpFrame = frame;
     sDumpAddr = addr;
     sDumpLen = len;
+}
+
+/* One window, hashed on every frame, as an extra column on the [trace] line.
+ *
+ * PORT_STATE_DETAIL answers "which block differs" at a frame you already
+ * suspect, and PORT_DUMP answers "which bytes" once you have the block.  The
+ * question in between -- "*when* did this particular window start to differ" --
+ * needed one run per candidate frame, which is the slow way to bisect several
+ * hundred frames.
+ *
+ * The window is chosen by address rather than by symbol on purpose: by the
+ * time this is wanted, the address is what you have.  PORT_WINDOW=addr:len,
+ * hex address, decimal length. */
+static unsigned long sWindowAddr;
+static long sWindowLen = -1;
+
+void PortSetStateWindow(unsigned long addr, long len)
+{
+    sWindowAddr = addr;
+    sWindowLen = len;
 }
 
 static void PortStateTrace(void)
@@ -427,6 +525,11 @@ static void PortStateTrace(void)
             const char *w = getenv("PORT_DUMP");
             if (w != NULL && *w != '\0')
                 sscanf(w, "%ld:%lx:%ld", &sDumpFrame, &sDumpAddr, &sDumpLen);
+        }
+        if (sWindowLen < 0) {
+            const char *w = getenv("PORT_WINDOW");
+            if (w != NULL && *w != '\0')
+                sscanf(w, "%lx:%ld", &sWindowAddr, &sWindowLen);
         }
     }
     if (!enabled)
@@ -488,6 +591,12 @@ static void PortStateTrace(void)
                 (int)gSoundInfo.pcmSamplesPerVBlank);
         lastCalls = gPortSoundMainCalls;
     }
+
+    if (sWindowLen > 0)
+        PortLog("[window] f=%u addr=0x%08X len=%ld hash=%08X",
+                frame, (unsigned)sWindowAddr, sWindowLen,
+                TraceHash((const void *)(uintptr_t)sWindowAddr,
+                          (u32)sWindowLen));
 
     PortLog("[trace] f=%u keys=%03X ewram=%08X iwram=%08X vram=%08X "
             "pltt=%08X oam=%08X io=%08X",

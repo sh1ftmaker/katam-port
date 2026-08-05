@@ -27,14 +27,28 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-# C and CXX.  The port is a C program on every ILP32 target and that is what it
-# stays; CXX is here for the 64-bit builds, which compile the same sources
-# through a C++ front end so that a structure's pointer members can keep the
-# four bytes the console gave them.  platform/port/p32.h is the whole of the
-# reason and docs/SIXTYFOUR.md is the measurement behind it.  Enabling the
-# language costs an ILP32 build nothing -- no source changes language unless
-# CMAKE_SIZEOF_VOID_P says it has to.
-project(katam-port C CXX)
+# C first, and CXX only if this toolchain turns out to be 64-bit.
+#
+# The port is a C program on every ILP32 target and that is what it stays; CXX
+# is for the 64-bit builds, which compile the same sources through a C++ front
+# end so that a structure's pointer members can keep the four bytes the console
+# gave them.  platform/port/p32.h is the whole of the reason and
+# docs/SIXTYFOUR.md is the measurement behind it.
+#
+# Declaring both up front looked free and is not.  `project(... C CXX)` makes
+# CMake compile and *link* a C++ test program at configure time, so every
+# 32-bit target suddenly needs a 32-bit libstdc++ to configure -- for a
+# language none of its sources are compiled in.  That is a real cost on exactly
+# the toolchains that are hardest to assemble: it is what stopped the i686
+# build from configuring against a hand-built sysroot, and the i686 build is
+# the control that tells an ABI difference from a host difference.
+#
+# CMAKE_SIZEOF_VOID_P is set by project(), so the test has to come after it,
+# and enable_language() is how a language is added later.
+project(katam-port C)
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+  enable_language(CXX)
+endif()
 
 set(CMAKE_C_STANDARD 99)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -68,34 +82,40 @@ endif()
 # error, and the fix is a toolchain file -- see cmake/toolchain-linux-i686.cmake
 # and docs/NATIVE.md.
 #
-# KATAM_ALLOW_LP64 turns the error into a warning, for measuring the 64-bit
-# conversion rather than for building anything.  It is not a step towards a
-# 64-bit build and it does not produce a working game: it produces a program
-# whose structures are the wrong shape, which is the thing the paragraph above
-# says has no symptom.  docs/SIXTYFOUR.md is what it is for.
+# KATAM_ALLOW_LP64 opts a 64-bit toolchain in.  What it means has changed, and
+# the wording above is the *pre-conversion* argument, kept because it is still
+# why the switch is not the default.
+#
+# The conversion is now done and measured.  The 64-bit builds compile the
+# game through a C++ front end where a pointer member is a four-byte class
+# (platform/port/p32.h), and on 2026-08-05 all four builds -- wasm32, i686,
+# x86-64 and aarch64 -- produced byte-identical DMA transfer streams over
+# 63236 transfers and 1401 frames of scripted input, and pixel-identical
+# frames.  Two ABI bugs had to be found first and neither was visible to any
+# check the port had:
+#
+#   - a file-scope array of pointers cast to a four-byte-strided union, so
+#     every background descriptor was read from the wrong element;
+#   - 25 types defined inside .c files rather than headers, which the
+#     narrowing pass only ever read, so they grew under LP64 and the game's
+#     own IWRAM heap filled sooner.
+#
+# tools/abi_size_diff.py and tools/check_ptr_arrays.py are what found them and
+# are what keep them found; docs/SIXTYFOUR.md has the account.
+#
+# It stays opt-in because it stays the harder path: the ILP32 builds need none
+# of that machinery and are what the console is.
 # ---------------------------------------------------------------------------
 option(KATAM_ALLOW_LP64
-       "EXPERIMENT ONLY: configure with 8-byte pointers.  The game will be \
-wrong.  See docs/SIXTYFOUR.md." OFF)
+       "Build with 8-byte pointers, using PTR32 for the game's structures. \
+See docs/SIXTYFOUR.md." OFF)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND KATAM_ALLOW_LP64)
-  message(WARNING
-    "================================================================\n"
-    "KATAM_ALLOW_LP64 is on and this toolchain has "
-    "${CMAKE_SIZEOF_VOID_P}-byte pointers.\n"
-    "\n"
-    "This is not a 64-bit build of the port.  148 of the game's 246\n"
-    "structures change size or move a member under LP64, including the\n"
-    "sound bank read out of the ROM and the Kirby array linker.ld placed\n"
-    "at a fixed address.  A binary produced this way boots, renders, and\n"
-    "is permanently and silently wrong.\n"
-    "\n"
-    "platform/gba_layout_check.c will refuse to compile and will name\n"
-    "every structure that moved.  That is the intended output.  To count\n"
-    "the *other* breakage instead, add -DKATAM_SKIP_LAYOUT_CHECK=ON.\n"
-    "\n"
-    "docs/SIXTYFOUR.md has the measurement this switch exists for.\n"
-    "================================================================")
+  message(STATUS
+    "katam-port: ${CMAKE_SIZEOF_VOID_P}-byte pointers -- compiling the game "
+    "as C++ so that PTR32 can keep its structures at their GBA layout.  "
+    "platform/gba_layout_check.c asserts all 246 of them; "
+    "tools/abi_size_diff.py checks the ones it cannot.")
 elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
   message(FATAL_ERROR
     "This toolchain has ${CMAKE_SIZEOF_VOID_P}-byte pointers; the port needs "
@@ -114,10 +134,12 @@ elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     "`make native` does the x86 case for you.  docs/NATIVE.md has the rest, "
     "including which arm64 kernels can run a 32-bit binary at all and what a "
     "platform with no 32-bit userland would need.\n\n"
-    "If you are measuring what a 64-bit port would cost rather than trying to "
-    "play the game, -DKATAM_ALLOW_LP64=ON turns this into a warning.  Read "
-    "docs/SIXTYFOUR.md first; the result is not a working build and is not "
-    "meant to be.")
+    "Or build 64-bit: -DKATAM_ALLOW_LP64=ON compiles the game as C++ so that "
+    "PTR32 can keep every structure at its GBA layout.  That path is finished "
+    "and measured -- all four builds agree transfer for transfer and pixel for "
+    "pixel -- but it needs a C++ toolchain and the generated tree from "
+    "`make sync`, so it is not the default.  docs/SIXTYFOUR.md has the whole "
+    "argument, and `make arm64` is the worked example.")
 endif()
 
 set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/build/port-src")

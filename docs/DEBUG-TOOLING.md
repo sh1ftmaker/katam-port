@@ -7,7 +7,18 @@ scripted input that reaches a level.
 
 ## Recommendation
 
-**Adopt two things.**
+**For a divergence between two builds, reach for section 7 first** — the DMA
+transaction log, the call stack that issued a transfer, and the ILP32 native
+control. That section was written after the fact and is ordered the way the
+investigation should have gone rather than the way it did: the two 64-bit bugs
+it describes were each found in one step by an instrument that watches *what
+the game did*, after several rounds of hashing memory had produced only a
+transient sound difference that healed and a function-pointer spelling
+difference that was never a difference at all. And **look at the picture before
+building the next instrument** — fifteen seconds with two screenshots and a
+pixel diff named the subsystem that three rounds of hashing had not.
+
+**For a crash inside one build, adopt two things.**
 
 1. **DWARF plus `llvm-symbolizer`.** Compile with `-g`, link with
    `-gseparate-dwarf`, and every wasm frame in a trap — from node, from Chrome,
@@ -677,21 +688,113 @@ corrupted pointer -- both sources are valid, mapped, plausible addresses.  It
 is the game taking a *different branch*, which means the divergence that
 matters happened before this and is upstream of the graphics code entirely.
 
-The next step is to bisect backwards from transfer 27263 with the state trace,
-looking for the last frame at which every comparable region still agrees, and
-then to find the decision between there and here.  The instruments for both
-halves exist; the work is running them.: instead of
-hashing raw words, resolve any word that falls inside the host image to a
-symbol name and hash the name instead of the address. Both builds would then
-agree that a field holds `sub_0800C124` rather than disagreeing about how it is
-spelled. The port already has most of the machinery -- `tools/gen_rom_data.py`
-resolves ARM addresses to decompiled C names, and `nm` gives the native side.
-That is the next instrument and it is not built.
+### The instrument that closed it: the stack that issued the transfer
 
-**What would settle it completely** is an ILP32 *native* build: same host layer,
-same audio driver, only the ABI different. That control does not exist on this
-machine. A 32-bit toolchain is easy (the multilib packages unpack like any
-other sysroot — see NATIVE.md), but SDL2 has to be built from source for i686
-and its CMake thread detection does not survive a hand-assembled 32-bit
-sysroot. Until that exists, the attribution above rests on the audio-on/off
-experiment rather than on a direct comparison.
+A transfer carries no record of the code that asked for it -- the game writes
+four registers and the port copies memory.  So when two streams diverge at a
+transfer whose source is a *valid* address in both builds (ROM in one, EWRAM in
+the other, same destination, same count), the question stops being "which
+pointer is wrong" and becomes "which branch was taken", and nothing that hashes
+memory can answer it.
+
+`PORT_DMA_STACK=<lo>:<hi>` prints the call stack for traced transfers lo..hi.
+The two hosts spell a stack differently and neither spelling is the interesting
+part -- the *game* function names are, and both hosts can supply them:
+
+    web      emscripten_get_callstack, named from the wasm name section
+             (--profiling-funcs is already on).  Survives an Asyncify rewind.
+    native   backtrace(), which gives return addresses; the 64-bit builds link
+             -no-pie at a fixed text address, so `nm` resolves them offline.
+
+`tools/symbolize_stack.py` turns either form into the same list of decompiled C
+names, so `diff` works on them.  **That is the symbol-normalising comparator
+this document kept asking for, applied to control flow rather than to memory**
+-- where it is far cheaper, because a stack is twenty frames and EWRAM is
+256 KiB of which any word might be a function pointer and the port cannot tell
+which.
+
+It named the function on the first run.  Both builds were inside
+`sub_08153184`, the tilemap blitter, called from `UpdateScreenDma` -- same
+function, same call site, different data.  That put the fault upstream of the
+graphics code in one step, where three rounds of hashing had not.
+
+The cause was `gUnk_082D8D74`, a file-scope array of pointers cast to a
+four-byte-strided union: eight-byte elements under LP64, so every background
+descriptor came from the wrong room.  [SIXTYFOUR.md](SIXTYFOUR.md) has it in
+full, along with the second bug the same instrument found afterwards.
+
+Two smaller additions that mattered more than they look:
+
+- **`n=` and `f=` on every `[dma]` line.**  Without them, "the streams differ at
+  line 27263" cannot be turned into a frame to re-run or a transfer to ask for a
+  stack at.  The counter advances for refused transfers too, so both builds
+  number the same events.
+- **`PORT_WINDOW=addr:len`** hashes one window on every frame, as a `[window]`
+  line.  `PORT_STATE_DETAIL` says which block differs at a frame you already
+  suspect; `PORT_DUMP` says which bytes; this says *when*, in one run instead of
+  one run per candidate frame.  It found a state divergence 73 frames ahead of
+  the first DMA difference.
+
+### The ILP32 native control now exists
+
+This document used to say the thing that would settle an ABI question
+completely is an ILP32 *native* build -- same host layer, same audio driver,
+only the ABI different -- and that it did not exist here.  It does now.
+
+The blocker was not SDL after all.  It was `project(katam-port C CXX)`, which
+makes CMake compile *and link* a C++ test program at configure time, so every
+32-bit target needed a 32-bit libstdc++ to configure, for a language none of
+its sources are compiled in.  Declaring `C` and calling `enable_language(CXX)`
+only when `CMAKE_SIZEOF_VOID_P` says so is the whole fix.
+
+What it bought, immediately:
+
+| comparison | result |
+|---|---|
+| i686 vs wasm32 — **different host, same ABI** | identical over all 63212 transfers |
+| i686 vs x86-64 — **same host, different ABI** | diverged at frame 482 |
+
+The first line retires the standing worry in this document that the SDL and web
+hosts drive the sound engine differently enough to matter: they do not, not to
+the point of moving a single transfer.  The second turns "something differs"
+into "this is an ABI bug" with no host variable left in the comparison.  Every
+attribution above that rested on the audio-on/off experiment can now rest on
+this instead.
+
+### Give both builds the same starting state
+
+The native builds keep a save file under `XDG_DATA_HOME`; the node harness
+starts with blank SRAM every time.  So a native run picks up whatever earlier
+runs left behind, and the two builds are not being asked the same question.
+
+This is not hypothetical -- it produced a convincing false divergence at frame
+409, which was the game resuming a saved tutorial in one build and not the
+other, and it moved the *real* first divergence 73 frames earlier once removed.
+Point `XDG_DATA_HOME` at a scratch directory for any cross-build comparison:
+
+    XDG_DATA_HOME=$(mktemp -d) SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+        ./build/lp64/katam "$ROM" --no-audio --turbo --frames 1401 \
+        --mash 120:17:20
+
+A third category, beyond the two this document already names.  It is not "the
+two harnesses pressed different buttons" and not "the two builds computed
+different things" -- it is *the two runs did not start from the same place*.
+
+### Compare the sizes, not just the offsets
+
+`make layout-check` asserts the 246 types whose console offsets are known.  A
+type the decompilation declares but never places at a fixed address is not in
+that table, is never asserted, and can quietly change size under LP64 -- taking
+with it every `sizeof` the game hands to its own allocator.  Twenty-five did.
+
+`tools/abi_size_diff.py` compares every DWARF struct and union size between an
+ILP32 build and an LP64 one:
+
+    tools/abi_size_diff.py build/native/CMakeFiles/katam.dir \
+                           build/lp64/CMakeFiles/katam.dir
+
+Point it at build *directories* rather than the linked binaries: it reads
+object files, and the executable carries one abbrev table per compilation unit
+where this reader expects one.  Both builds need `-g`.  It filters the host's
+own types (SDL, glibc, `platform/`), which differ between the ABIs by design;
+`--all` keeps them.

@@ -922,6 +922,40 @@ def main():
             # longer matches -- which a second pass over the same text would
             # trip on every time.  Each half is rewritten exactly once.
             text = cxxify.rewrite_source(text, rep, path.name, cxx_protos, cxx_flex)
+            # Structures defined in a .c file rather than a header need
+            # narrowing every bit as much as the ones in include/, and for a
+            # while they did not get it.
+            #
+            # Nothing about a structure's *location* decides whether its
+            # pointer members have to be four bytes.  What decides it is
+            # whether anything outside this compiler cares about the layout --
+            # and the game's own allocator does, for every one of these:
+            #
+            #     TaskCreate(ObjectMain, sizeof(struct CutsceneTrigger), ...)
+            #
+            # A struct that is 48 bytes bigger does not corrupt anything by
+            # itself.  It makes the allocation bigger, so the fixed 0x2604-byte
+            # IWRAM heap fills sooner, so some later object misses IWRAM and
+            # falls back to EWRAM -- which TaskCreate does silently and by
+            # design.  The two builds are still computing the same thing; they
+            # have stopped keeping it in the same place, and the frame that
+            # finally looks different is hundreds of frames downstream.
+            #
+            # 24 structures and one union were this, all defined in .c files:
+            # CutsceneTrigger, AreaMap, WorldMap, Unk_080880AC and the rest.
+            # tools/abi_size_diff.py is what found them and is what keeps them
+            # found -- it compares every DWARF type size between the ILP32 and
+            # LP64 builds, which is the check `make layout-check` cannot make
+            # because a type only enters gba_layout.h if it has a known console
+            # address to be checked against.
+            #
+            # Same ordering rule as the headers: cxxify first, narrow second.
+            text = narrow32.narrow_members(text, rep, name=path.name,
+                                           typedefs=narrow_typedefs)
+            # A file-scope array of pointers that something casts to a
+            # four-byte-strided type.  Not a structure member, so
+            # narrow_members above never sees it -- see ALIASED_ARRAYS.
+            text = narrow32.apply_aliased_arrays(text, path.name, rep)
             if path.name in written:
                 text = ('%s\n\n/* ---- PORT: merged from %s/%s ---- */\n\n%s'
                         % (dst.read_text(), tree, path.name, text))
