@@ -3277,6 +3277,98 @@ var Module = (function () {
 })();
 </script>
 
+<script>
+//======================================================================
+// Multiplayer
+//
+// The link cable is a transport-agnostic seam in the port -- see
+// platform/port/mp.h and docs/MULTIPLAYER.md. This block is the page's half
+// of it: a handful of named calls, in the same style as the save hooks above,
+// so nothing here has to know a wasm export name.
+//
+// Two ways in.
+//
+//   katamMultiplayer.loopback(n)  attaches the port's own same-process
+//                                 transport: n units on one cable, n-1 of
+//                                 them synthetic. No network, nothing to
+//                                 configure, and it is what proves the seam.
+//
+//   katamMultiplayer.attach(t)    attaches a transport written in JavaScript.
+//                                 `t` provides open/close/poll/exchange; the
+//                                 shapes are below and in mp.c.
+//
+// This is deliberately not wired to any button. The game cannot reach its own
+// link lobby yet -- that needs the MultiBoot probe, which is not implemented
+// (docs/MULTIPLAYER.md says exactly what is missing) -- so a control here
+// would promise something the game does not yet do. The API is here so that
+// whoever writes the transport does not also have to change the port.
+//======================================================================
+(function () {
+  'use strict';
+
+  function heap16() {
+    try { return Module.HEAPU8 ? new Uint16Array(Module.HEAPU8.buffer) : null; }
+    catch (e) { return null; }
+  }
+
+  window.katamMultiplayer = {
+    // n units on the cable, this one included. 2..4.
+    loopback: function (n) {
+      if (!Module._PortMpUseLoopback) return false;
+      return !!Module._PortMpUseLoopback(n || 2);
+    },
+
+    // Which slot this unit occupies on the loopback cable; 0 makes it the one
+    // that clocks the cable. Call before loopback().
+    loopbackSelfId: function (id) {
+      if (Module._PortMpLoopbackSelfId) Module._PortMpLoopbackSelfId(id | 0);
+    },
+
+    // A transport of your own.
+    //
+    //   open(players)     -> truthy to accept
+    //   close()
+    //   poll(linkPtr)     four bytes at linkPtr: up, selfId, players, error.
+    //                     Called once a frame, before that frame's transfers.
+    //                     A networked transport collects a frame of peer data
+    //                     here.
+    //   exchange(word, p) -> truthy if the transfer happened. Write four u16
+    //                     at p, one per slot, 0xFFFF for an empty one. Called
+    //                     up to 16 times a frame and has to answer at once, so
+    //                     serve it out of what poll() collected. Returning
+    //                     falsy stalls the cable for that slot, which is what
+    //                     a real cable does when a unit is late.
+    attach: function (transport, players) {
+      if (!Module._PortMpUseJs) return false;
+      Module.portMp = transport;
+      return !!Module._PortMpUseJs(players || 2);
+    },
+
+    detach: function () { if (Module._PortMpDetach) Module._PortMpDetach(); },
+
+    // What crossed, into the page log via Module.portDiag.
+    report: function () { if (Module._PortMpReport) Module._PortMpReport(); },
+
+    // Helpers for writing a transport in JS, so a page does not have to
+    // reimplement the little-endian pokes.
+    writeLink: function (ptr, up, selfId, players, error) {
+      var h = Module.HEAPU8;
+      if (!h) return;
+      h[ptr] = up ? 1 : 0;
+      h[ptr + 1] = selfId | 0;
+      h[ptr + 2] = players | 0;
+      h[ptr + 3] = error ? 1 : 0;
+    },
+    writeSlots: function (ptr, words) {
+      var h = heap16();
+      if (!h) return;
+      for (var i = 0; i < 4; i++)
+        h[(ptr >> 1) + i] = (words && words[i] !== undefined) ? words[i] : 0xFFFF;
+    },
+  };
+})();
+</script>
+
 {{{ SCRIPT }}}
 
 </body>

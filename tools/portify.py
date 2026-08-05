@@ -170,6 +170,30 @@ RAW_DMA = {
     )],
 }
 
+CODE_IN_RAM = {
+    # The link driver's other copy-code-into-RAM-and-call-it trick.
+    #
+    # MultiSioInit copies the machine code of MultiSioRecvBufChange into an
+    # IWRAM buffer so the routine cannot be delayed by a cartridge waitstate,
+    # and MultiSioRecvDataCheck then calls the buffer.  agb_sram.c did the same
+    # thing and it was the first thing to take this port down after boot: in
+    # wasm, code is not addressable as data and a function pointer is a table
+    # index, so both the copy and the call are nonsense.
+    #
+    # The call is inside the game's own C, so unlike the interrupt-table case
+    # -- which platform/main.c catches by recognising the buffer's address --
+    # there is nowhere for the platform layer to intervene.  Point it at the
+    # function instead.  platform/multi_sio_intr.c defines it.
+    'multi_sio.c': [(
+        "    u32 (*multiSioRecvBufChangeOnRam)(void) = "
+        "(u32 (*)(void))gMultiSioRecvFuncBuf;",
+        "    /* PORT: was a call through gMultiSioRecvFuncBuf, the IWRAM copy\n"
+        "     * of this routine's machine code.  See tools/portify.py. */\n"
+        "    u32 (*multiSioRecvBufChangeOnRam)(void) = MultiSioRecvBufChange;",
+    )],
+}
+
+
 def trace_star_states(text, rep):
     """Report every warp-star / goal-star state handler as it runs.
 
@@ -762,6 +786,15 @@ def main():
                     rep.unhandled.append(
                         '%s: RAW_DMA pattern no longer matches -- the tilemap '
                         'blitter has changed upstream' % path.name)
+            for old, new in CODE_IN_RAM.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new)
+                    rep.bump('calls through copied machine code redirected')
+                else:
+                    rep.unhandled.append(
+                        '%s: a CODE_IN_RAM pattern no longer matches -- a call '
+                        'through a RAM copy of a function is left in place and '
+                        'will trap: %s' % (path.name, ' '.join(old.split())[:70]))
             wild = WILD_READS.get(path.name)
             if wild:
                 reads, decl = wild
