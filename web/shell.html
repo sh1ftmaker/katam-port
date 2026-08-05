@@ -317,7 +317,23 @@
   button[disabled] { opacity: .45; cursor: default; }
   button[disabled]:hover { border-color: var(--edge); color: var(--text); }
   button[aria-pressed="true"] { border-color: var(--accent); color: #fff; }
-  input[type=file] { display: none; }
+  /* Hidden, but *rendered* -- and this is not a style choice.
+     A file input is only ever operated through its label, so the obvious
+     `display: none` looks right and costs nothing. It does cost something:
+     browsers decline to open the picker for an input that is not rendered,
+     and Safari is the strict one. Off-screen at 1px with pointer-events off
+     is invisible, takes no space, cannot intercept a tap meant for something
+     else, and is still a real box the picker will open for.
+     See also: these live outside #chrome. */
+  input[type=file] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
 
   #romurl {
     flex: 1 1 auto;
@@ -871,6 +887,19 @@
 </head>
 <body>
 
+<!-- The two file pickers, at the top level of the document on purpose.
+     They used to sit beside their labels in the sheet, which is the tidy
+     place for them and the wrong one: in immersive mode the closed sheet is
+     `visibility: hidden`, and an input inside a hidden subtree is not
+     rendered, so the picker will not open for it. That is invisible on a
+     desktop, where the sheet is not a sheet — and it is exactly the state the
+     page is in on a phone the moment a first-time visitor taps "Choose ROM
+     file…" on the curtain, which is the one control they have.
+
+     Both labels reference by `for=`, which does not care about nesting. -->
+<input id="romfile"  type="file" accept=".gba,.bin,application/octet-stream">
+<input id="savefile" type="file" accept=".sav,.srm,.dat,application/octet-stream">
+
 <header id="topbar">
   <!-- Immersive only. Everything the page can do that is not "play the
        game" lives behind this one button, which is the point: with the
@@ -932,7 +961,6 @@
 
   <div class="bar">
     <label class="filebtn" for="romfile">Load ROM…</label>
-    <input id="romfile" type="file" accept=".gba,.bin,application/octet-stream">
     <button id="romforget" type="button" disabled>Forget stored ROM</button>
     <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
     <button id="diagtoggle" type="button" aria-pressed="false">Diagnostics: off</button>
@@ -952,7 +980,6 @@
     <span class="barlabel">Save data</span>
     <button id="saveexport" type="button" disabled>Export save…</button>
     <label class="filebtn" for="savefile">Import save…</label>
-    <input id="savefile" type="file" accept=".sav,.srm,.dat,application/octet-stream">
     <button id="saveforget" type="button" disabled>Delete stored save</button>
     <span id="saveinfo">no ROM loaded</span>
   </div>

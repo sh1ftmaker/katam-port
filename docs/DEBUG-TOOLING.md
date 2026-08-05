@@ -478,6 +478,40 @@ selectable element and checks `selectionEnd - selectionStart` against the
 length of the text before believing the result. When it genuinely fails it
 highlights the report in place, so the player has something to do about it.
 
+### 5.2 Tapping the page for real
+
+`make shell-check` reasons about the shell's source, which is enough for the
+three causes above once you know to look for them. It is not enough to answer
+the question a touch bug actually turns on — *does a finger landing here
+produce anything* — because that depends on the browser's gesture recognisers,
+the compatibility mouse events and every listener the page installed.
+
+`make shell-tap-test` (`tools/shell_tap_test.js`) builds the page, serves it,
+and drives headless Chrome over the DevTools protocol: real `Input.dispatchTouchEvent`
+sequences at real coordinates, in a 390×844 mobile viewport with touch
+emulation on, watching `Page.fileChooserOpened` and the page's own listeners
+for the outcome. It needs no ROM. Chrome is not Safari, but the rule under all
+of this — `preventDefault()` on `touchstart` suppresses the synthesised
+`click` — is specified behaviour that Chrome implements, so the class of bug
+reproduces. Against the shell as it stood before §5.1, it fails 7 of its
+checks.
+
+It immediately found a fourth one that reading had not. **The curtain's
+"Choose ROM file…" — the only control a first-time visitor on a phone has —
+pointed at an `<input type="file">` that was `display: none` *and* inside
+`#chrome`, which is `visibility: hidden` while the sheet is closed.** Browsers
+decline to open a file picker for an input that is not rendered. Fixing §5.1
+got the tap as far as the input and no further, which is a worse failure than
+before in one respect: it looks like the label works. Both file inputs now sit
+at the top level of the document, hidden by being 1px, transparent and
+`pointer-events: none` rather than by `display: none`, so they are invisible
+and still real boxes. `label[for=…]` does not care about nesting.
+
+The test asserts the general form rather than that one case: every label the
+player can see must point at a control that renders. It is the kind of thing
+that is invisible on a desktop, where the sheet is not a sheet, and only fails
+in the layout a phone gets.
+
 ## 6. Everything else
 
 **`--emit-symbol-map`** writes `katam.js.symbols`, `index:name` per line

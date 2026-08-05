@@ -143,7 +143,7 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check shell-check \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check shell-check shell-tap-test \
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -244,6 +244,16 @@ ptr-array-check:
 # no browser and no wasm -- see the header of tools/shell_test.js.
 shell-check:
 	@node tools/shell_test.js web/shell.html
+
+# The same page, in a real browser, tapped with a real finger.  shell-check
+# reasons about the source; this one answers the only question that settles a
+# touch bug -- does a tap on this control produce anything.  It builds the
+# page, serves it, and drives headless Chrome over the DevTools protocol.
+# Chrome is not Safari, but the rule at the bottom of every one of these bugs
+# (preventDefault on touchstart suppresses the synthesised click) is specified
+# behaviour that Chrome implements, so the class reproduces.  Needs no ROM.
+shell-tap-test: $(TARGET)
+	@node tools/shell_tap_test.js
 
 # --- the 4-byte pointer member ---------------------------------------------
 # platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
