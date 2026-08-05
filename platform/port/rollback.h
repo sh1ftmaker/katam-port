@@ -98,11 +98,55 @@ u16  PortRbInputAt(int player, u32 frame);
  * never be mispredicted. */
 enum PortRbEventType {
     PORT_RB_EV_NONE = 0,
-    PORT_RB_EV_PLAYERS,     /* a: the new *human* player count, 1..4        */
+    PORT_RB_EV_PLAYERS,     /* a: Kirbys in play, 1..4                       */
+    PORT_RB_EV_SLOT,        /* a: slot 0..3,  b: peer, or PORT_RB_SLOT_AI    */
 };
 
-int  PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a);
+#define PORT_RB_SLOT_AI 0xFF
+
+int  PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a, u8 b);
 u32  PortRbSuggestEventFrame(void);
+
+/* --- arbitrary joining and leaving ---------------------------------------
+ *
+ * The game's Kirby slot is not a seat a player can be moved between.  It is
+ * baked into gKirbys[i], gCurLevelInfo[i], gUnk_02038590[i] and the unk56 that
+ * every live object carries to say which player it belongs to.  Renumbering
+ * *those* means rewriting all of it and walking every object in the world,
+ * which is a large amount of surgery to make one player leave.
+ *
+ * So nothing moves.  What gets renumbered is the **peer-to-slot map**, and the
+ * game never notices:
+ *
+ *   a player leaves  -> their slot's input starts coming from the AI
+ *                       controller instead of from the network.  Their Kirby
+ *                       stays exactly where it is, with its ability, position
+ *                       and everything else intact.
+ *   a player joins   -> they take a vacant slot and start driving that Kirby.
+ *
+ * Any slot can go human->AI or AI->human independently, at any frame.  That is
+ * what makes it arbitrary rather than "only the last player may leave".
+ *
+ * It works because of where the game reads input.  In link mode
+ * (src/kirby.c:6475) a Kirby takes its buttons from
+ * gUnk_020382D0.unk8[0][player] when player < gUnk_0203AD30, and from
+ * gUnk_02038590[player].unk9E -- the AI controller's synthesised word -- when
+ * it is not.  The engine holds gUnk_0203AD30 at the number of Kirbys in play,
+ * so every participating slot reads the first, and then decides *per slot*
+ * what to put there: the network's input for an occupied slot, the AI
+ * controller's own output for a vacant one.  The threshold stays a threshold;
+ * the choice moves up a level, where it can be per-slot.
+ *
+ * The map is timeline state, not a live variable.  Assignments are events on
+ * the same timeline as the inputs and are applied at a scheduled frame, so a
+ * replay reproduces them at the same point -- the rule from §9 of
+ * docs/MULTIPLAYER.md: rewriting history desyncs, appending to it does not.
+ *
+ * The timeline is indexed by *peer*, so a peer's input history follows them
+ * across a slot change rather than being stranded in the slot they left. */
+int  PortRbAssignSlot(u32 frame, int slot, int peer);
+int  PortRbSlotPeer(int slot);      /* peer, or -1 if the slot is AI-driven  */
+int  PortRbPeerSlot(int peer);      /* slot, or -1 if the peer has none      */
 
 /* --- the frame hook ------------------------------------------------------
  *
@@ -172,6 +216,11 @@ void PortRbReport(void);
  * PORT_RB_SELFTEST=A:B from the environment, or the entry point. */
 int  PortRbSelfTest(u32 atFrame, u32 span);
 void PortRbSelfTestStep(void);
+
+/* Demonstrates that writing the game's per-slot input array reaches a Kirby.
+ * PORT_RB_SLOTTEST=at:span:keys.  Run it twice with different keys and compare
+ * the reported state hashes.  See the comment in platform/rollback.c. */
+int  PortRbSlotTest(u32 at, u32 span, u16 keys);
 
 /* --- the input latch ------------------------------------------------------
  *

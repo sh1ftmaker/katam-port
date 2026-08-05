@@ -868,5 +868,73 @@ breaking the harness rather than demonstrating a divergence.
 - **`PortRbReplayTo` sets a target and returns**; the frames happen because the
   game keeps running, and the host has to stop pacing for it to be fast. The
   host side of that is not written.
-- **Leaving is still only clean for the highest-numbered player** (§9), and the
-  engine does not renumber.
+### Arbitrary joining and leaving: renumber the map, not the slots
+
+§9 said only the highest-numbered player could leave cleanly. That was true of
+the game's own arrangement and is no longer a limit, because the thing that
+gets renumbered is not the thing §9 assumed.
+
+A Kirby slot is not a seat a player can be moved between. It is baked into
+`gKirbys[i]`, `gCurLevelInfo[i]`, `gUnk_02038590[i]` and the `unk56` that every
+live object carries. Renumbering *those* means rewriting all of it and walking
+every object in the world.
+
+So nothing moves. The engine owns a **peer-to-slot map**:
+
+- a player leaves — their slot's input starts coming from the AI controller
+  instead of from the network. Their Kirby stays exactly where it is, with its
+  ability, position and everything else intact.
+- a player joins — they take a vacant slot and drive that Kirby.
+
+Any slot can go human→AI or AI→human independently, at any frame. Assignments
+are events on the same timeline as the inputs (`PortRbAssignSlot`), so a replay
+reproduces them at the same point.
+
+It works because of where the game reads input. `src/kirby.c:6475`:
+
+```c
+if (kirby->...unk56 < gUnk_0203AD30)
+    r3 = gUnk_020382D0.unk8[0][kirby->...unk56];   /* the network's word    */
+else
+    r3 = gUnk_02038590[kirby->...unk56].unk9E;     /* the AI's own word     */
+```
+
+The engine holds `gUnk_0203AD30` at the number of Kirbys in play so every
+participating slot takes the first branch, then decides *per slot* what to put
+there — the timeline for an occupied slot, `unk9E` for a vacant one. **The
+threshold stays a threshold; the human-or-AI choice moves up one level, where
+it can be per-slot.** That avoids patching the twelve places `gUnk_0203AD30` is
+used, several of which are `for (i = 0; i < gUnk_0203AD30; i++)` loops that a
+bitmask would break.
+
+`unk8[1]` and `unk8[2]` — the pressed and released edges — are maintained too.
+Menus and abilities edge-trigger off them, so writing only the held word gives
+a Kirby that can hold a direction but never press a button.
+
+### The one claim about the game, demonstrated
+
+That writing `gUnk_020382D0.unk8[0][slot]` actually reaches Kirby `slot` is
+read out of the decompilation, and link play cannot be reached to confirm it
+properly. So it is probed directly: `PORT_RB_SLOTTEST=at:span:keys` turns on
+the game's link-input path, drives slot 0 from the timeline with a constant,
+and prints the state hash.
+
+| injected | resulting state |
+|---|---|
+| `0x000` | `736C4AB2` |
+| `0x010` (Right) | `7898C9C2` |
+| `0x020` (Left) | `8B2610E6` |
+| `0x010` again | `7898C9C2` |
+
+Different inputs give different states, so the injection reaches the game; the
+repeat reproduces exactly, so it is deterministic. Both halves matter.
+
+### What is still not done
+
+- **No transport drives any of it.** The rollback *path* — predict, mispredict,
+  restore, re-simulate — is exercised by the self-test's restore-and-replay,
+  not by a real disagreement.
+- **The probe forces `gUnk_0203AD10` bit 1 outside a real session.** It shows
+  the mechanism works; it is not a way to play, and §5 is still the blocker.
+- **A joining player still has to get the log and replay it**, and
+  `PortRbReplayTo` needs the host to stop pacing.

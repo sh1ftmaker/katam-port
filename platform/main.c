@@ -610,10 +610,16 @@ static void PortStateTrace(void)
         {
             const char *t = getenv("PORT_RB_SELFTEST");
             long at = 0, span = 0;
+            unsigned keys = 0;
 
             if (t != NULL && *t != '\0'
              && sscanf(t, "%ld:%ld", &at, &span) == 2 && span > 0)
                 PortRbSelfTest((u32)at, (u32)span);
+
+            t = getenv("PORT_RB_SLOTTEST");
+            if (t != NULL && *t != '\0'
+             && sscanf(t, "%ld:%ld:%x", &at, &span, &keys) == 3 && span > 0)
+                PortRbSlotTest((u32)at, (u32)span, (u16)keys);
         }
     }
     if (!enabled)

@@ -221,15 +221,38 @@ struct Event {
     u32 frame;
     u8  type;
     u8  a;
+    u8  b;
 };
 
 static struct Event sEvents[MAX_EVENTS];
 static int sNumEvents;
 
-/* gUnk_0203AD30 -- the human player count.  Named by address rather than
- * included from the game's headers because this file is platform code and must
- * not depend on the generated tree; the address is asserted at init. */
+/* The game's own storage, by address.  This file is platform code and must not
+ * depend on the generated tree, so the addresses are written out and the
+ * offsets come from platform/port/gba_layout.h, which asserts every one of
+ * them against the console layout on every build.
+ *
+ *   gUnk_0203AD30                  the number of Kirbys the game treats as
+ *                                  network-driven -- the threshold in
+ *                                  src/kirby.c:6475.
+ *   gUnk_020382D0.unk8[3][4]       per-player input at offset 8: [0] held,
+ *                                  [1] pressed this frame, [2] released.
+ *                                  Written by the link layer at
+ *                                  src/multi_08030C94.c:332 and read by Kirby.
+ *   gUnk_02038590[i].unk9E         the AI controller's synthesised buttons,
+ *                                  written by src/code_0800ECAC_2.c.  Stride
+ *                                  244, field at 158; both asserted.
+ */
 #define GAME_PLAYER_COUNT (*(vu8 *)0x0203AD30)
+#define GAME_HELD(slot)     (*(vu16 *)(0x020382D0 + 8      + 2 * (slot)))
+#define GAME_PRESSED(slot)  (*(vu16 *)(0x020382D0 + 8 +  8 + 2 * (slot)))
+#define GAME_RELEASED(slot) (*(vu16 *)(0x020382D0 + 8 + 16 + 2 * (slot)))
+#define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
+
+/* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
+ * changed only by an event, so a replay reproduces it. */
+static s8 sSlotPeer[PORT_RB_PLAYERS];
+static u8 sSlotsInPlay = PORT_RB_PLAYERS;
 
 /* --- session -------------------------------------------------------------- */
 
@@ -280,6 +303,16 @@ int PortRbInit(int depth, int players)
     sCatchUp = 0;
     sNumEvents = 0;
     sActive = 1;
+
+    /* Peers take slots one for one to begin with, which is what the game's own
+     * lobby produces; anything else is an event away. */
+    {
+        int i;
+
+        for (i = 0; i < PORT_RB_PLAYERS; i++)
+            sSlotPeer[i] = (i < players) ? (s8)i : (s8)-1;
+        sSlotsInPlay = (u8)PORT_RB_PLAYERS;
+    }
 
     if (!TimelineReserve(sFrame + TIMELINE_CHUNK)) {
         PortRbShutdown();
@@ -422,7 +455,7 @@ u32 PortRbSuggestEventFrame(void)
     return sFrame + (u32)sDepth + 8;
 }
 
-int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a)
+int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a, u8 b)
 {
     int i;
 
@@ -430,6 +463,12 @@ int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a)
         return 0;
     if (type == PORT_RB_EV_PLAYERS && (a < 1 || a > PORT_RB_PLAYERS))
         return 0;
+    if (type == PORT_RB_EV_SLOT) {
+        if (a >= PORT_RB_PLAYERS)
+            return 0;
+        if (b != PORT_RB_SLOT_AI && b >= PORT_RB_PLAYERS)
+            return 0;
+    }
 
     /* Keep them ordered by frame; there are never many. */
     for (i = sNumEvents; i > 0 && sEvents[i - 1].frame > frame; i--)
@@ -437,12 +476,43 @@ int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a)
     sEvents[i].frame = frame;
     sEvents[i].type = (u8)type;
     sEvents[i].a = a;
+    sEvents[i].b = b;
     sNumEvents++;
 
-    PortLog("[katam-port] rollback: event at frame %u -- %s %u",
-            (unsigned)frame,
-            type == PORT_RB_EV_PLAYERS ? "player count ->" : "?", a);
+    if (type == PORT_RB_EV_SLOT)
+        PortLog("[katam-port] rollback: frame %u -- slot %u %s%u",
+                (unsigned)frame, a,
+                b == PORT_RB_SLOT_AI ? "-> AI" : "-> peer ",
+                b == PORT_RB_SLOT_AI ? 0 : b);
+    else
+        PortLog("[katam-port] rollback: frame %u -- Kirbys in play -> %u",
+                (unsigned)frame, a);
     return 1;
+}
+
+int PortRbAssignSlot(u32 frame, int slot, int peer)
+{
+    if (slot < 0 || slot >= PORT_RB_PLAYERS)
+        return 0;
+    return PortRbScheduleEvent(frame, PORT_RB_EV_SLOT, (u8)slot,
+                               peer < 0 ? PORT_RB_SLOT_AI : (u8)peer);
+}
+
+int PortRbSlotPeer(int slot)
+{
+    if (slot < 0 || slot >= PORT_RB_PLAYERS)
+        return -1;
+    return sSlotPeer[slot];
+}
+
+int PortRbPeerSlot(int peer)
+{
+    int i;
+
+    for (i = 0; i < PORT_RB_PLAYERS; i++)
+        if (sSlotPeer[i] == (s8)peer)
+            return i;
+    return -1;
 }
 
 /* Applied at the top of every frame, live and replayed alike, so the two
@@ -456,12 +526,70 @@ static void ApplyEventsFor(u32 frame)
             continue;
         switch (sEvents[i].type) {
         case PORT_RB_EV_PLAYERS:
-            GAME_PLAYER_COUNT = sEvents[i].a;
-            sPlayers = sEvents[i].a;
+            sSlotsInPlay = sEvents[i].a;
+            break;
+        case PORT_RB_EV_SLOT:
+            /* A peer can only hold one slot.  Taking a new one vacates the old
+             * one to the AI, so a "move player 2 to slot 0" is one event and
+             * cannot leave them driving two Kirbys. */
+            if (sEvents[i].b != PORT_RB_SLOT_AI) {
+                int old = PortRbPeerSlot(sEvents[i].b);
+
+                if (old >= 0 && old != sEvents[i].a)
+                    sSlotPeer[old] = -1;
+                sSlotPeer[sEvents[i].a] = (s8)sEvents[i].b;
+            } else {
+                sSlotPeer[sEvents[i].a] = -1;
+            }
             break;
         default:
             break;
         }
+    }
+}
+
+/* Every slot's buttons, written where the game reads them.
+ *
+ * This is the whole of "arbitrary joining and leaving" at run time.  The game
+ * asks gUnk_020382D0.unk8[0][slot] what Kirby `slot` is holding; the link
+ * layer would normally fill that from the received packets, and here the
+ * engine fills it from the timeline instead -- for an occupied slot -- or from
+ * the AI controller's own output for a vacant one.  So a Kirby whose player
+ * left keeps playing, driven by the same AI that drives the CPU buddies in
+ * single-player, and nothing about the Kirby moved.
+ *
+ * unk8[1] and unk8[2] are the pressed and released edges.  The game computes
+ * them the same way at src/multi_08030C94.c:333, and menus and abilities
+ * edge-trigger off them, so writing only the held word would give a Kirby that
+ * can hold a direction but never press a button.
+ *
+ * gUnk_0203AD30 is held at the number of Kirbys in play so that every
+ * participating slot takes the network branch of the test in src/kirby.c:6475.
+ * The threshold stays a threshold -- the human-or-AI choice moves up here,
+ * where it can be made per slot. */
+static void ApplySlotInputs(u32 frame)
+{
+    int slot;
+
+    GAME_PLAYER_COUNT = sSlotsInPlay;
+
+    for (slot = 0; slot < PORT_RB_PLAYERS; slot++) {
+        int peer = sSlotPeer[slot];
+        u16 prev = GAME_HELD(slot);
+        u16 now;
+
+        if (slot >= (int)sSlotsInPlay)
+            continue;              /* not in play; the game ignores it */
+
+        if (peer >= 0)
+            now = sTl.keys[frame * PORT_RB_PLAYERS + (u32)peer]
+                & PORT_RB_KEYS_MASK;
+        else
+            now = (u16)GAME_AI_INPUT(slot);
+
+        GAME_HELD(slot) = now;
+        GAME_PRESSED(slot) = (u16)(now & ~prev);
+        GAME_RELEASED(slot) = (u16)(prev & ~now);
     }
 }
 
@@ -523,6 +651,8 @@ void PortRbFrame(void)
 
         PortRbApplyKeys(sTl.keys[sFrame * PORT_RB_PLAYERS + (u32)self]);
     }
+
+    ApplySlotInputs(sFrame);
 
     /* Snapshot *before* the frame runs, so restoring lands here again. */
     {
@@ -605,7 +735,7 @@ u32 PortRbEncodeLog(u8 *dest, u32 cap)
         h.runs[p] = (p < sPlayers) ? CountRuns(p, frames) : 0;
         need += h.runs[p] * 2;
     }
-    need += (u32)sNumEvents * 6;
+    need += (u32)sNumEvents * 7;
 
     if (dest == NULL || cap < need)
         return need;
@@ -638,6 +768,7 @@ u32 PortRbEncodeLog(u8 *dest, u32 cap)
         Put32(dest + off, sEvents[p].frame); off += 4;
         dest[off++] = sEvents[p].type;
         dest[off++] = sEvents[p].a;
+        dest[off++] = sEvents[p].b;
     }
     return off;
 }
@@ -688,11 +819,12 @@ long PortRbDecodeLog(const u8 *src, u32 len)
 
     sNumEvents = 0;
     for (i = 0; i < events && sNumEvents < MAX_EVENTS; i++) {
-        if (off + 6 > len)
+        if (off + 7 > len)
             return -1;
         sEvents[sNumEvents].frame = Get32(src + off); off += 4;
         sEvents[sNumEvents].type = src[off++];
         sEvents[sNumEvents].a = src[off++];
+        sEvents[sNumEvents].b = src[off++];
         sNumEvents++;
     }
 
@@ -896,7 +1028,9 @@ static void LogRoundTrip(const u16 *keys, u32 frames)
     sTl.len = frames;
 
     /* An event on the timeline too, so the log carries one. */
-    PortRbScheduleEvent(frames / 2, PORT_RB_EV_PLAYERS, 3);
+    PortRbScheduleEvent(frames / 2, PORT_RB_EV_PLAYERS, 3, 0);
+    PortRbAssignSlot(frames / 2 + 1, 1, -1);          /* player at slot 1 leaves */
+    PortRbAssignSlot(frames / 2 + 2, 1, 2);           /* peer 2 takes slot 1     */
 
     na = PortRbEncodeLog(NULL, 0);
     a = (u8 *)malloc(na);
@@ -920,8 +1054,10 @@ static void LogRoundTrip(const u16 *keys, u32 frames)
                   "decode gave %u bytes, not %u", (unsigned)nb, (unsigned)na);
         goto done;
     }
-    if (sNumEvents != 1 || sEvents[0].a != 3) {
-        PortError("[katam-port] LOG SELF-TEST FAILED: the event did not "
+    if (sNumEvents != 3 || sEvents[0].a != 3
+     || sEvents[1].type != PORT_RB_EV_SLOT || sEvents[1].b != PORT_RB_SLOT_AI
+     || sEvents[2].type != PORT_RB_EV_SLOT || sEvents[2].b != 2) {
+        PortError("[katam-port] LOG SELF-TEST FAILED: the events did not "
                   "survive the round trip");
         goto done;
     }
@@ -943,12 +1079,93 @@ done:
     PortRbShutdown();
 }
 
+/* --- demonstrating that per-slot injection reaches a Kirby ----------------
+ *
+ * Everything above rests on one claim about the game: that writing
+ * gUnk_020382D0.unk8[0][slot] makes Kirby `slot` do what it says.  That is
+ * read out of src/kirby.c:6475 rather than measured, and link play cannot be
+ * reached to measure it properly -- MultiBoot is still missing (§5).
+ *
+ * So: demonstrate the mechanism directly.  PORT_RB_SLOTTEST=at:span:keys turns
+ * on the game's link-input path at frame `at`, drives slot 0 from the timeline
+ * with a constant `keys` for `span` frames, and prints the resulting state
+ * hash.  Run it twice with different keys and compare: if the hashes differ,
+ * the injected input demonstrably reached the game.  Run it twice with the
+ * *same* keys and they must match, which is the determinism half.
+ *
+ * gUnk_0203AD10 bit 1 is what selects that path (src/code_080332BC.c sets it
+ * for a link session).  Forcing it outside a real session is a probe and is
+ * labelled as one -- it is not a way to play. */
+static int sSlotTest;
+static u32 sSlotTestAt, sSlotTestSpan;
+static u16 sSlotTestKeys;
+
+#define GAME_MODE_FLAGS (*(vu32 *)0x0203AD10)
+
+int PortRbSlotTest(u32 at, u32 span, u16 keys)
+{
+    if (span == 0)
+        return 0;
+    sSlotTestAt = at;
+    sSlotTestSpan = span;
+    sSlotTestKeys = keys & PORT_RB_KEYS_MASK;
+    sSlotTest = 1;
+    PortLog("[katam-port] slot-injection probe armed: frame %u, span %u, "
+            "slot 0 held at 0x%03X", (unsigned)at, (unsigned)span, keys);
+    return 1;
+}
+
+static void SlotTestStep(void)
+{
+    u32 now = PortFrameNumber();
+    u32 f;
+
+    if (!sSlotTest)
+        return;
+
+    if (sSlotTest == 1 && now == sSlotTestAt) {
+        if (!PortRbInit(4, PORT_RB_PLAYERS)) {
+            sSlotTest = 0;
+            return;
+        }
+        /* Slot 0 driven by peer 0; the rest handed to the AI, which is the
+         * "everyone else left" case. */
+        sSlotPeer[0] = 0;
+        sSlotPeer[1] = sSlotPeer[2] = sSlotPeer[3] = -1;
+        sSlotsInPlay = PORT_RB_PLAYERS;
+        GAME_MODE_FLAGS |= 2;
+
+        if (!TimelineReserve(now + sSlotTestSpan + 1)) {
+            sSlotTest = 0;
+            return;
+        }
+        for (f = now; f <= now + sSlotTestSpan; f++) {
+            sTl.keys[f * PORT_RB_PLAYERS] = sSlotTestKeys;
+            sTl.known[f * PORT_RB_PLAYERS] = 1;
+        }
+        sTl.len = now + sSlotTestSpan + 1;
+        sFrame = now;
+        sSlotTest = 2;
+        return;
+    }
+
+    if (sSlotTest == 2 && now >= sSlotTestAt + sSlotTestSpan) {
+        PortLog("[katam-port] SLOT PROBE: keys=0x%03X for %u frames -> "
+                "state %08X",
+                sSlotTestKeys, (unsigned)sSlotTestSpan, (unsigned)StateHash());
+        sSlotTest = 0;
+        PortRbShutdown();
+    }
+}
+
 /* Called from PortPresentFrame after PortRbFrame.  Kept separate from the
  * session machinery so the test works with no session attached, which is how
  * it gets run against an ordinary single-player boot. */
 void PortRbSelfTestStep(void)
 {
     u32 now = PortFrameNumber();
+
+    SlotTestStep();
 
     if (sTestPhase == 0)
         return;
