@@ -451,8 +451,8 @@ instead.
 ### The game's own interrupt handler runs
 
 ```
-[katam-port] unimplemented: gIntrTable[0] holds gMultiSioIntrFuncBuf;
-             calling MultiSioIntr directly
+[katam-port] gIntrTable[0] holds gMultiSioIntrFuncBuf (the IWRAM copy of
+             the link driver's interrupt); calling MultiSioIntr
 ```
 
 That line is printed from `PortDispatchInterrupt` the first time it takes the

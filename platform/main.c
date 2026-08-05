@@ -265,11 +265,17 @@ static void CallIntr(int index)
     IntrFunc handler = gIntrTable[index];
 
     if ((const void *)handler == (const void *)gMultiSioIntrFuncBuf) {
+        static int said;
+
         /* Said once, because "did the link driver's interrupt actually run"
          * is otherwise unanswerable from outside: MultiSioIntr leaves its
          * traces in a struct the linker placed, not at a fixed address. */
-        PortUnimplemented("gIntrTable[0] holds gMultiSioIntrFuncBuf; "
-                          "calling MultiSioIntr directly");
+        if (!said) {
+            said = 1;
+            PortLog("[katam-port] gIntrTable[0] holds gMultiSioIntrFuncBuf "
+                    "(the IWRAM copy of the link driver's interrupt); "
+                    "calling MultiSioIntr");
+        }
         MultiSioIntr();
         return;
     }
