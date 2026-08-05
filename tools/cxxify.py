@@ -414,6 +414,22 @@ CXX_SITES = {
         ('        const u16 *v6, *const *base;',
          '        const u16 *v6;\n        PTR32(const u16) const *base;'),
     ],
+    'main.c': [
+        # Same shape as the gHBlankIntrs copy below: gUnk_03002470 and
+        # gUnk_030068C0 are arrays of a function-pointer typedef, narrowed to
+        # four-byte elements, so the copy length has to be counted in four-byte
+        # units.  sizeof(FuncType_030068C0) is 8 on a 64-bit host and this
+        # DmaCopy32 wrote twice as far as it should into gUnk_030068C0 --
+        # whose neighbour is gInputPlaybackData.
+        ('DmaCopy32(3, gUnk_03002470, gUnk_030068C0, gUnk_03006070 * sizeof(FuncType_030068C0));',
+         'DmaCopy32(3, gUnk_03002470, gUnk_030068C0, gUnk_03006070 * sizeof(PTR32_TD(FuncType_030068C0)));'),
+        # gHBlankIntrs holds four-byte entries (see tools/gen_stubs.py), so the
+        # copy length has to be computed in four-byte units too.  Left as
+        # sizeof(HBlankFunc) it is 8 on a 64-bit host and this DmaCopy32 reads
+        # 16 bytes past gHBlankCallbacks, which is where gCurTask lives.
+        ('DmaCopy32(3, gHBlankCallbacks, gHBlankIntrs, gNumHBlankCallbacks * sizeof(HBlankFunc));',
+         'DmaCopy32(3, gHBlankCallbacks, gHBlankIntrs, gNumHBlankCallbacks * sizeof(PTR32_TD(HBlankFunc)));'),
+    ],
     'code_08032E98.c': [
         ('void *sub_08039490(struct ObjectBase *obj)',
          'PTR32(struct Object2) *sub_08039490(struct ObjectBase *obj)'),
@@ -491,6 +507,14 @@ CXX_HEADER_SITES = {
         # element type.  PTR32_TD is a plain MPlayFunc in C.
         ('void MPlayJumpTableCopy(MPlayFunc *);',
          'void MPlayJumpTableCopy(PTR32_TD(MPlayFunc) *);'),
+    ],
+    'main.h': [
+        # gHBlankIntrs is host storage from tools/gen_stubs.py and its elements
+        # are narrowed to four bytes, because the game DMAs into it using
+        # sizeof().  The declaration has to agree, or the definition and the
+        # declaration are different types.
+        ('extern HBlankFunc gHBlankIntrs[4];',
+         'extern PTR32_TD(HBlankFunc) gHBlankIntrs[4];'),
     ],
     'functions.h': [
         ('u32 *sub_08002888(u32 arg0, u8 index, u8 subindex);',

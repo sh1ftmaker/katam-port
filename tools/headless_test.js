@@ -348,6 +348,8 @@ const Module = {
             Module._PortSetStateTrace(1);
         if (process.env.PORT_STATE_DETAIL)
             Module._PortSetStateDetailFrame(Number(process.env.PORT_STATE_DETAIL));
+        if (process.env.PORT_DMA_TRACE)
+            Module._PortSetDmaTrace(1);
         if (process.env.PORT_DUMP) {
             const [df, da, dl] = process.env.PORT_DUMP.split(':');
             Module._PortSetStateDump(Number(df), parseInt(da, 16), Number(dl));

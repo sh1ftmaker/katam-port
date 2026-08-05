@@ -43,6 +43,8 @@ game will read zeroes, which is wrong but is not a crash.
 import argparse
 import re
 import sys
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+import narrow32
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -362,6 +364,9 @@ def render_function(decl, ptr_typedefs, returns=None):
     return '\n'.join(lines)
 
 
+POINTER_TYPEDEFS = set()
+
+
 def render_data(decl):
     """Turn `extern const u8 gFoo[];` into a real, zero-filled definition."""
     body = decl.datadecl.rstrip(';').strip()
@@ -383,6 +388,15 @@ def render_data(decl):
     # without it the stub is defined here and invisible to the game that needs
     # it.  In C an extern declaration with an initialiser is a definition with
     # external linkage, which is what it already had.
+    # A stub array whose elements are a pointer typedef has to hold *four-byte*
+    # elements, because the game computes its DMA length with sizeof().
+    # gHBlankIntrs is `HBlankFunc[4]`: 16 bytes under ILP32 and 32 under LP64,
+    # so `DmaFill32(3, 0, gHBlankIntrs, sizeof(gHBlankIntrs))` moved twice as
+    # much on a 64-bit host, and the matching DmaCopy32 read 16 bytes past
+    # gHBlankCallbacks -- which is where gCurTask lives.
+    mtd = re.match(r'^(?P<td>[A-Za-z_]\w*)\s+(?P<rest>\w+\s*\[.*)$', body)
+    if mtd and mtd.group('td') in POINTER_TYPEDEFS:
+        body = 'PTR32_TD(%s) %s' % (mtd.group('td'), mtd.group('rest'))
     lines.append('extern %s;' % body)
     lines.append('%s = { 0 };' % body)
     return '\n'.join(lines), guessed
@@ -496,6 +510,9 @@ def main():
                     help="decomp's asm/ directory; used only to note in a "
                          'comment which .s file each symbol comes from')
     args = ap.parse_args()
+
+    global POINTER_TYPEDEFS
+    POINTER_TYPEDEFS = narrow32.pointer_typedefs(args.tree / 'include')
     returns = load_stub_returns(Path(__file__).parent / 'stub_returns.conf')
 
     if not (args.tree / 'include').is_dir():

@@ -381,6 +381,22 @@ void PortSetStateTrace(int on)
     sStateTrace = on ? 1 : 0;
 }
 
+static int sDmaTrace = -1;
+
+int PortDmaTracing(void)
+{
+    if (sDmaTrace < 0) {
+        const char *e = getenv("PORT_DMA_TRACE");
+        sDmaTrace = (e != NULL && *e != '\0' && *e != '0');
+    }
+    return sDmaTrace;
+}
+
+void PortSetDmaTrace(int on)
+{
+    sDmaTrace = on ? 1 : 0;
+}
+
 void PortSetStateDetailFrame(long frame)
 {
     sStateDetailFrame = frame;

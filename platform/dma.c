@@ -155,6 +155,18 @@ static void RunTransfer(struct DmaChannel *ch)
         SpanOf((uintptr_t)src, srcCtrl, unit, ch->count, &srcLo, &srcLen);
         SpanOf((uintptr_t)dest, destCtrl, unit, ch->count, &destLo, &destLen);
 
+        /* Every transfer, in order, when asked for.  This is the most direct
+         * instrument the port has for "the tiles never arrived": it watches
+         * the data movement itself rather than the memory afterwards, so a
+         * missing upload shows up as a missing line rather than as a hash that
+         * stopped matching several frames later.  Diff two builds' streams and
+         * the first differing line *is* the fault. */
+        if (PortDmaTracing())
+            PortLog("[dma] ch=%u src=%08X dest=%08X count=%u unit=%u ctrl=%04X",
+                    (unsigned)(ch - sChannels), (unsigned)(uintptr_t)src,
+                    (unsigned)(uintptr_t)dest, (unsigned)ch->count,
+                    (unsigned)unit, (unsigned)ch->flags);
+
         if (!RangeOk(srcLo, srcLen) || !RangeOk(destLo, destLen)) {
             /* A few of these are expected, not faults.  A room with no second
              * object layer gets `CpuFill16(0xFFFF, &levelInfo->unk180[2], ...)`
