@@ -180,7 +180,14 @@ elseif(CMAKE_CROSSCOMPILING AND NOT WIN32)
   # the 64-bit SDL and hands it to the linker, which then produces four hundred
   # lines about incompatible files.  A missing .pc for this architecture means
   # the 32-bit SDL is not installed, and that is the thing to say.
-  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    # "aarch64" does not contain "arm", so this has to be tested first and by
+    # name; without it an arm64 build is told to install SDL2-devel.i686.
+    set(SDL_HINT
+      "Debian/Ubuntu: sudo apt install libsdl2-dev:arm64   (needs "
+      "dpkg --add-architecture arm64; the arm64 packages come from "
+      "ports.ubuntu.com, not the main archive)\n")
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
     set(SDL_HINT
       "Debian/Ubuntu: sudo apt install libsdl2-dev:armhf   (needs "
       "dpkg --add-architecture armhf, and apt will only do it on an armhf or "
