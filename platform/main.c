@@ -37,6 +37,24 @@ static const char *sReported[MAX_REPORTED];
 static int sNumReported;
 static int sMissingCalls;
 
+/* Everything the port says goes to two places: the browser console, and the
+ * page's own log.
+ *
+ * emscripten_console_log calls console.log directly, which is right for
+ * devtools and useless for a bug report -- the crash panel builds its report
+ * from the page log, so the port's own diagnostics were the one thing missing
+ * from the report that exists to carry them.  Someone hitting a crash on a
+ * phone has no console at all.
+ *
+ * Module.portDiag is optional: the headless harness does not define it. */
+EM_JS(void, PortConsole, (const char *s, int isErr), {
+    var text = UTF8ToString(s);
+    if (isErr) console.error(text); else console.log(text);
+    if (Module.portDiag) {
+        try { Module.portDiag(text, isErr); } catch (e) { /* never break logging */ }
+    }
+});
+
 void PortLog(const char *fmt, ...)
 {
     char buf[512];
@@ -45,7 +63,7 @@ void PortLog(const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    emscripten_console_log(buf);
+    PortConsole(buf, 0);
 }
 
 /* Same, at error level.  Everything the port says arrives in the browser's
@@ -62,7 +80,7 @@ void PortError(const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    emscripten_console_error(buf);
+    PortConsole(buf, 1);
 }
 
 static int ReportOnce(const char *name)

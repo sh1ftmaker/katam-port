@@ -1230,6 +1230,13 @@ var Module = (function () {
     print:    function (text) { log(text); },
     printErr: function (text) { log(text, 'err'); },
 
+    // The port's own diagnostics, from platform/main.c. They go to the
+    // browser console as well, but they have to reach the page log too: the
+    // crash report is built from it, and someone hitting a crash on a phone
+    // has no console to read. Without this the report was missing the one
+    // thing it exists to carry.
+    portDiag: function (text, isErr) { log(text, isErr ? 'err' : ''); },
+
     onRuntimeInitialized: function () {
       log('wasm runtime initialised.', 'ok');
       resolveRuntime();
@@ -1280,7 +1287,9 @@ var Module = (function () {
   var shell = Module._shell;
   var log   = shell.log;
 
-  var REPORT_LOG_LINES = 40;
+  // Raised from 40: the port itself now logs into here, and a crash report
+  // that has dropped the trace lines leading up to the fault is worth little.
+  var REPORT_LOG_LINES = 120;
 
   var body        = document.body;
   var crashEl     = document.getElementById('crash');
