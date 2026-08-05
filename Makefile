@@ -105,14 +105,18 @@ LDFLAGS := -O2 --profiling-funcs \
     --shell-file web/shell.html
 
 GAME_SRCS     := $(shell find $(PORT_SRC)/src -name '*.c' 2>/dev/null)
-PLATFORM_SRCS := $(wildcard platform/*.c)
+# platform/*.c is the console -- PPU, DMA, BIOS, the mixer -- and knows nothing
+# about the host.  platform/web/*.c is the browser half of port/backend.h; the
+# native build swaps in platform/native/*.c instead.  See docs/NATIVE.md.
+PLATFORM_SRCS := $(wildcard platform/*.c) $(wildcard platform/web/*.c)
 GEN_SRCS      := $(wildcard $(GENERATED)/*.c)
 SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
 OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
+        native native-run native-test native-clean
 
 all: $(TARGET)
 
@@ -240,6 +244,58 @@ test: $(BUILD)/katam-node.js
 	node tools/headless_test.js $(BUILD)/katam-node.js $(ROM) $(FRAMES)
 
 FRAMES ?= 180
+
+# --- native desktop build --------------------------------------------------
+# CMakeLists.txt is the real build; these are the two lines you would type.
+# It shares the source list and the compile flags with the web build and
+# nothing else -- in particular its objects live in build/native, well away
+# from build/obj, because mixing objects across toolchains is exactly the
+# failure DEBUG_INFO above warns about.  See docs/NATIVE.md.
+#
+# The build is 32-bit.  That is not a size choice: the decompilation's
+# structures have to keep their GBA layout, and 111 of them contain a pointer.
+# CMakeLists.txt refuses to build any other way and says why.  On a 64-bit x86
+# machine that means the i686 toolchain file; a genuinely 32-bit host, or a
+# cross compiler that is already ILP32, needs none.
+NATIVE_DIR ?= $(BUILD)/native
+NATIVE_BIN := $(NATIVE_DIR)/katam
+NATIVE_ARCH := $(shell uname -m)
+ifeq ($(NATIVE_ARCH),x86_64)
+NATIVE_TOOLCHAIN ?= cmake/toolchain-linux-i686.cmake
+endif
+ifneq ($(NATIVE_TOOLCHAIN),)
+NATIVE_CMAKE_ARGS := -DCMAKE_TOOLCHAIN_FILE=$(NATIVE_TOOLCHAIN)
+endif
+
+# The hint on failure is not decoration.  Without the 32-bit toolchain, cmake
+# fails at its own "can the compiler compile a trivial program" check, and the
+# message it prints is about a scratch directory rather than about the one
+# package that is missing.
+native:
+	@cmake -S . -B $(NATIVE_DIR) -DCMAKE_BUILD_TYPE=Release $(NATIVE_CMAKE_ARGS) >/dev/null \
+	  || { echo; \
+	       echo "The native build is 32-bit -- see docs/NATIVE.md for why it has to be."; \
+	       echo "On Debian/Ubuntu that needs:"; \
+	       echo "    sudo apt install gcc-multilib libsdl2-dev:i386"; \
+	       echo "Fedora: glibc-devel.i686 libgcc.i686 SDL2-devel.i686"; \
+	       echo "Without root, see \"Building without root\" in docs/NATIVE.md."; \
+	       exit 1; }
+	@cmake --build $(NATIVE_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  NATIVE  $(NATIVE_BIN)"
+
+native-run: native
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@$(NATIVE_BIN) $(ROM)
+
+# The native equivalent of `make test`: boot with a real ROM, run frames with
+# no window and no audio device, and write the last one out.  Proves the binary
+# reaches gameplay without anybody watching it.
+native-test: native
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@bash tools/native_smoke.sh $(NATIVE_BIN) $(ROM)
+
+native-clean:
+	rm -rf $(NATIVE_DIR)
 
 # --- publishing -----------------------------------------------------------
 # Assembles the three build outputs into a directory that can be served as-is.

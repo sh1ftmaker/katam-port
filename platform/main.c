@@ -2,19 +2,23 @@
  *
  * On hardware, crt0.s sets up the stack, clears RAM, installs the interrupt
  * vector and jumps to AgbMain, which never returns -- GameLoop runs forever and
- * blocks in VBlankIntrWait once a frame.  A browser cannot be blocked, so the
- * port is built with Asyncify: VBlankIntrWait unwinds the wasm stack, hands
- * control back to the page, and resumes on the next animation frame.  The
- * game's own loop is left exactly as it is.
+ * blocks in VBlankIntrWait once a frame.
+ *
+ * Neither host can be blocked that way.  A browser cannot be blocked at all,
+ * so the web build is compiled with Asyncify: VBlankIntrWait unwinds the wasm
+ * stack, hands control back to the page, and resumes on the next animation
+ * frame.  Natively the same call is a real sleep to the next frame boundary.
+ * Either way the game's own loop is left exactly as it is, and the whole of
+ * the difference lives behind PortAwaitAnimationFrame -- see
+ * platform/port/backend.h.
  */
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
-#include <emscripten.h>
-
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/dma.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -37,23 +41,8 @@ static const char *sReported[MAX_REPORTED];
 static int sNumReported;
 static int sMissingCalls;
 
-/* Everything the port says goes to two places: the browser console, and the
- * page's own log.
- *
- * emscripten_console_log calls console.log directly, which is right for
- * devtools and useless for a bug report -- the crash panel builds its report
- * from the page log, so the port's own diagnostics were the one thing missing
- * from the report that exists to carry them.  Someone hitting a crash on a
- * phone has no console at all.
- *
- * Module.portDiag is optional: the headless harness does not define it. */
-EM_JS(void, PortConsole, (const char *s, int isErr), {
-    var text = UTF8ToString(s);
-    if (isErr) console.error(text); else console.log(text);
-    if (Module.portDiag) {
-        try { Module.portDiag(text, isErr); } catch (e) { /* never break logging */ }
-    }
-});
+/* PortConsole is the host's -- the browser console plus the page's own log, or
+ * the process's stderr.  See platform/port/backend.h. */
 
 void PortLog(const char *fmt, ...)
 {
@@ -267,15 +256,6 @@ void PortDispatchInterrupt(u32 flag)
 
 /* --- frame boundary ------------------------------------------------------ */
 
-EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
-    await new Promise(function (resolve) { requestAnimationFrame(resolve); });
-});
-
-EM_JS(void, PortBlitFramebuffer, (const u32 *pixels, int w, int h), {
-    if (Module.portPresent)
-        Module.portPresent(pixels, w, h);
-});
-
 void PortPresentFrame(void)
 {
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
@@ -328,16 +308,18 @@ void PortVBlankEnd(void)
 
 /* --- startup ------------------------------------------------------------- */
 
-EM_ASYNC_JS(void, PortAwaitRom, (void), {
-    await Module.portRomReady;
-});
-
-int main(void)
+int main(int argc, char **argv)
 {
+    /* Parses the command line, reserves the GBA memory map at its true
+     * addresses and brings the window up -- or, on the web, does nothing at
+     * all.  It has to precede PortMemInit, which memsets regions that on a
+     * native host do not exist until they have been reserved. */
+    PortHostInit(argc, argv);
+
     PortMemInit();
 
-    /* The page loads the player's own ROM into 0x08000000 before we start;
-     * every pointer the game follows into ROM depends on it being there. */
+    /* The host puts the player's own ROM at 0x08000000 before we start; every
+     * pointer the game follows into ROM depends on it being there. */
     PortAwaitRom();
     if (!sRomReady || gPortRomSize == 0) {
         PortLog("[katam-port] no ROM supplied; refusing to start");

@@ -32,6 +32,11 @@
 void PortMissingFunction(const char *name);
 void PortUnimplemented(const char *what);
 void PortHalt(void);
+/* PortTrace is called from the game's own sources (src/warp_star.c), which do
+ * not include the port headers either.  Without a prototype here it is an
+ * implicit `int PortTrace()`, which wasm-ld reports as a signature mismatch
+ * against the real definition and a native compiler will reject outright. */
+void PortTrace(const char *tag, unsigned a, unsigned b, unsigned c);
 
 /* Defined by the game in src/main.c; the port calls it to start. */
 void AgbMain(void);
