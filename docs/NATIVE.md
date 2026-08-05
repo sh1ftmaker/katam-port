@@ -1011,6 +1011,24 @@ against, and the linker cannot resolve *their* symbols. The runtime loader can,
 from the host's own i386 libraries. A properly installed machine does not use
 that flag.
 
+**Put the sysroot somewhere that survives, and re-configure if it moves.** Two
+things about the arrangement above conspire. `--allow-shlib-undefined` means a
+sysroot missing SDL's dependencies still *links*, so the build succeeds and the
+failure waits until run time; and CMake bakes the sysroot's absolute path into
+`build/native/CMakeCache.txt`, so the configure outlives the directory. A
+sysroot under `/tmp` therefore produces, weeks later, a clean `make native`
+followed by
+
+```
+build/native/katam: error while loading shared libraries: libXcursor.so.1
+```
+
+which reads as a missing package on the host. It is not: check
+`ldd build/native/katam` and look at *where* it resolved `libSDL2` from before
+installing anything. Deleting `build/native` and re-configuring is what picks up
+a properly installed `libsdl2-dev:i386`; the cache will otherwise keep pointing
+at the sysroot that is no longer there.
+
 ### …and the Windows cross-compiler, the same way
 
 The Windows build was produced on a machine with no root and no Windows. MinGW

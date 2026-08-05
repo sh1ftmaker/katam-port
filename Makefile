@@ -253,8 +253,11 @@ size-check:
 
 # Repairs the *values* in the committed layout table without needing the 32-bit
 # hosted toolchain gen_gba_layout.py requires (gcc-multilib).  It cannot add or
-# remove a type -- only gen_gba_layout can -- so it is for after a deliberate
-# structure change, and the build re-checks everything afterwards.
+# remove a type -- only gen_gba_layout can -- so `make layout` is the right tool
+# wherever it runs; this is the fallback for a machine that cannot install
+# multilib, and it measures with emcc instead.  The two were checked against
+# each other once multilib was available here: gcc's i386 and clang's wasm32
+# agreed on all 2144 offsets, including the six structure sizes this found.
 relayout:
 	@python3 tools/refresh_layout_asserts.py
 
