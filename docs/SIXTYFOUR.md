@@ -6,16 +6,102 @@ a build of its own. This file is the measurement of what removing that
 restriction would cost, so the decision can be made from numbers instead of
 from an estimate.
 
-Nothing here is a conversion. What is in the tree is the safety net the
-conversion would need — a committed table of every structure's size and every
-member offset, asserted at compile time in all four builds — plus an opt-in
-switch that configures an LP64 build so the damage can be counted.
-
 **Summary.** The layout problem is 148 structures, and it is the whole problem.
 The pointer-narrowing problem people expect turns out to be 244 source sites,
-and almost all of them are harmless. The conversion is mechanical in shape and
-not mechanical in execution, because the codemod that would have to do it is
-textual and the change needs types. Estimate at the end.
+and almost all of them are harmless.
+
+---
+
+## Status, and a correction to this document
+
+This file was first written as a measurement, and it concluded that the
+conversion needed a type-aware rewriter over ~40,000 member accesses, which
+meant `libclang`, which meant a new dependency and 4–6 weeks. **That conclusion
+was wrong**, and the section it lives in ([What a conversion would
+involve](#what-a-conversion-would-involve)) is kept below as written so the
+reasoning can be checked rather than quietly replaced.
+
+What it got right: C cannot express a four-byte thing that still behaves like a
+pointer, and a textual codemod cannot tell which `->unk0` is which. What it
+missed: **C++ can express it**, in a class with `operator->`. That changes what
+has to be rewritten from ~40,000 *uses* to ~285 *declarations*, and the uses do
+not change at all.
+
+So the work is under way rather than hypothetical. Done so far:
+
+| | |
+|---|---|
+| `platform/port/gba_layout.h` — the assertion table | done |
+| `tools/cxxify.py` — the decompilation's C through a C++ front end | done, 156/156 |
+| `platform/port/p32.h` — `PTR32`, the 4-byte pointer member | done, tested both ABIs |
+| C++ linkage, so the 64-bit build links by the ILP32 build's rules | done |
+| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target | builds, boots, runs |
+| code and game-visible host storage below 4 GiB | **not started** |
+| narrowing the 285 pointer members to `PTR32` | **not started** |
+
+The aarch64 binary reserves the GBA map at its true addresses, loads the ROM,
+enters `AgbMain` and dies in `MPlayOpen` — the same place, for the same reason,
+as the x86-64 LP64 build. Nothing in the failure is ARM-specific.
+
+**The ILP32 builds are the control and they have not moved.** The wasm build
+over 1200 frames is byte-identical through all of it: frame md5
+`de1b1dfefeb50eeba2791e08f332942c`, 167 colours, DISPCNT `0x1740`, peak 0.6527,
+0 diagnostics.
+
+### What the C++ route actually cost
+
+Measured, not estimated: all 156 game translation units through `g++
+-fpermissive`. 107 compiled unchanged. The other 49 produced 698 errors from
+**six causes**, not a long tail — a parameter named `template` (41 files, and
+it cascades), nested struct tags that have file scope in C and class scope in
+C++, GNU range designators, the flexible-array idiom, transparent unions, and
+one unprototyped declaration. All six are mechanical and all six are handled by
+`tools/cxxify.py`, whose transforms are valid C as well, so the ILP32 builds
+compile the identical tree.
+
+Linking took four more findings, and those are the ones that matter, because
+none of them produces a diagnostic anywhere:
+
+- **`const` at file scope has internal linkage in C++ and external linkage in
+  C.** Every ROM data table in the decompilation is a const array, so under C++
+  they all silently became static. 420 definitions now carry `extern`.
+- **`extern "C"` does not fix that.** It sets *language* linkage, not storage
+  linkage. Learning this cost several rounds of "the symbol is right there".
+- **The game is given C linkage throughout**, so the 64-bit build links by the
+  same rules the ILP32 builds do. Anything else would be a second port.
+- The stub set is derived from the wasm link, and the two optimisers do not
+  fold the same references, so the 64-bit link asked for symbols `make stubs`
+  had never heard of. Every one was an artefact of the above rather than a
+  missing symbol.
+
+### There is no toolchain shortcut
+
+Checked rather than assumed, because it would have made all of this
+unnecessary. x86-64 LLVM does have 32-bit address spaces in its data layout
+(`p270:32:32`), but clang rejects an address-space qualifier on a struct field:
+`field may not be qualified with an address space`. aarch64's data layout has
+no 32-bit address space at all. `-mabi=ilp32` on aarch64 has no libc anybody
+ships and no upstream kernel support, and clang's `aarch64_32` target is
+Apple's watchOS ABI.
+
+### The revised estimate
+
+`libclang` is not needed and neither is the rewriter it was for. What remains:
+
+| | |
+|---|---|
+| link-line and host-storage work (code and heap below 4 GiB) | 3–5 days |
+| rewriting 285 member declarations to `PTR32` | 2–4 days |
+| the function-pointer patcher and the ROM tables | 2–3 days |
+| making it run, and the long tail the assertions do not cover | 1–2 weeks |
+| **total** | **2–3 weeks** |
+
+The last row is still the one to distrust, for the reason given at the end of
+the original estimate: the assertions cover struct layout and nothing else, and
+the port has around 190 linker-placed symbols with extents that are not
+asserted anywhere.
+
+---
 
 ---
 
@@ -504,6 +590,19 @@ Two real disagreements, both latent today:
 
 ## Recommendation
 
+*Superseded — see [Status](#status-and-a-correction-to-this-document). The
+original text is kept below because the reasoning was sound given the numbers
+it had, and the numbers changed rather than the reasoning.*
+
+The remaining order is: link-line and host-storage work, then the 285
+declarations, then the ROM function-pointer patcher. Keep every step behind
+`KATAM_ALLOW_LP64` until the assertions pass at LP64. **The assertions passing
+is the definition of finished, and there is no other one** — that part of the
+original conclusion stands unchanged and is the reason the table was built
+first.
+
+### As originally written
+
 Keep the table; it earns its place on the decompilation alone.
 
 Do the conversion only if macOS or a native arm64 build is actually wanted.
@@ -511,8 +610,3 @@ The web build is the Mac answer today and it is a good one, arm64 Linux runs
 the armhf build on any 4 KiB-page kernel, and 4–6 weeks buys a second way to
 run the game on hardware that already has one — against a permanent tax on
 every future decompilation import.
-
-If it is commissioned, do it in this order: table first (done), then the
-link-line and host-storage work, then the rewriter, and keep every step behind
-`KATAM_ALLOW_LP64` until the assertions pass at LP64. The assertions passing is
-the definition of finished, and there is no other one.
