@@ -225,6 +225,15 @@ extern s32 gPortCamPadX, gPortCamPadY;
 
 void PortSetRando(u32 flags, u32 seed);
 void PortRandoReport(void);
+
+/* Put Kirby in an arbitrary room by handing the game a synthetic door and
+ * letting it take it -- see platform/warp.c.  Cell coordinates are in 16px
+ * units.  A request made before the game is in a level is held, not dropped,
+ * and delivered by PortWarpPoll on the first frame that can take it. */
+void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY);
+void PortWarpPoll(void);
+void PortWarpReport(void);
+extern u32 gPortWarpCount;
 extern u32 gPortRandoFlags, gPortRandoSeed;
 
 struct LevelInfo_1E4;

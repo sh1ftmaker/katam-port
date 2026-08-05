@@ -294,6 +294,66 @@ def resolve(rom, room_id, want_cells=True):
     return out
 
 
+def arrival_cells(rom):
+    """{room id: [(cellX, cellY), ...]} -- where the game's own doors deliver.
+
+    This exists because warping Kirby to an arbitrary cell **hangs the game**.
+    Cell (3,5) of room 804 hangs; cell (2,5) works, and the difference is that
+    (2,5) is a cell a real door arrives at.  Guessing a spawn point is
+    therefore not a heuristic that is sometimes worse -- it is a hang.
+
+    The door records in the solidity map (tag 3) each carry a destination room
+    and a destination cell, so inverting that table gives, for every room, the
+    exact set of places the game itself considers a legal arrival.  268 of the
+    286 rooms have at least one; see spawn_cell for the other 18."""
+    out = {}
+    for rid in valid_rooms(rom):
+        idx = rom.u16(G_ROOM_PROPS + rid * ROOM_PROPS_SIZE + 0x1A)
+        try:
+            entry = rom.ptr(G_SOLIDITY_MAPS + idx * 4)
+            addr = rom.u32(entry + 4)
+            if not ROM_BASE <= addr < ROM_BASE + len(rom.data):
+                continue
+        except BadPointer:
+            continue
+        while True:
+            tag, stride = rom.u8(addr), rom.u16(addr + 4)
+            if stride == 0 or tag == 0:
+                break
+            if tag == 3:
+                out.setdefault(rom.u16(addr + 8), []).append(
+                    (rom.u8(addr + 0xA), rom.u8(addr + 0xB)))
+            addr += stride
+    return out
+
+
+def spawn_cell(rom, room_id, arrivals=None):
+    """A cell it is safe to warp into, and where it came from.
+
+    -> ((cellX, cellY), source) with source 'door' or 'floor' or None."""
+    if arrivals is None:
+        arrivals = arrival_cells(rom)
+    cells = arrivals.get(room_id)
+    if cells:
+        # Deterministic order, nothing more.  Every cell in this list is one
+        # the game itself delivers players to, so there is no reason to prefer
+        # one over another, and inventing a reason ("prefer the lowest") only
+        # invites a rule that reads backwards -- y grows downward here.
+        return min(cells, key=lambda c: (c[1], c[0])), 'door'
+
+    # The 18 rooms nothing arrives at.  Fall back to standing on a floor:
+    # an empty cell with a solid cell directly beneath it.  This is a guess and
+    # is reported as one -- it is not known to be as safe as a real arrival.
+    r = resolve(rom, room_id)
+    c = r['collision']
+    w, h, cells = c['widthCells'], c['heightCells'], c['cells']
+    for y in range(h - 1):
+        for x in range(w):
+            if cells[y * w + x] == 0 and cells[(y + 1) * w + x] != 0:
+                return (x, y), 'floor'
+    return None, None
+
+
 def valid_rooms(rom):
     """Room ids that resolve.
 
@@ -450,6 +510,9 @@ def main():
                     help='one line per room: id, size, object count')
     ap.add_argument('--validate', action='store_true',
                     help='sweep every room and report where the model breaks')
+    ap.add_argument('--spawn', action='store_true',
+                    help='with --room, print a safe warp cell for it; alone, '
+                         'print one per room as "roomId cellX cellY source"')
     ap.add_argument('--check', metavar='DUMP',
                     help='compare against a DUMP_ROOM= dump of the live game')
     args = ap.parse_args()
@@ -461,6 +524,20 @@ def main():
 
     if args.validate:
         return validate(rom)
+
+    if args.spawn:
+        arrivals = arrival_cells(rom)
+        rooms = [args.room] if args.room is not None else valid_rooms(rom)
+        for rid in rooms:
+            try:
+                cell, src = spawn_cell(rom, rid, arrivals)
+            except (BadPointer, struct.error, IndexError):
+                cell, src = None, None
+            if cell is None:
+                print('%d - - none' % rid)
+            else:
+                print('%d %d %d %s' % (rid, cell[0], cell[1], src))
+        return 0
 
     if args.list:
         for rid in valid_rooms(rom):

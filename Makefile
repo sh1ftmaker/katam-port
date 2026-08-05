@@ -122,7 +122,7 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # The wasm exports, in one place: four link lines need the same list and
 # keeping four copies of it in step is a merge conflict every time one
 # grows.
-EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport
+EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport
 
 LDLINT := -Wl,--fatal-warnings
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \

@@ -209,6 +209,21 @@ const Module = {
         // LAYERS=0b0001 renders BG0 alone, so "which layer holds the room"
         // stops being a guess.  Bits 0-3 are BG0-3, bit 4 is OBJ.
         // WATCH=0x06003FE0 names every block move that covers that address.
+        // WARP="frame:room[:cellX:cellY]" hands the game a synthetic door at
+        // that frame -- see platform/warp.c.  Asking early is fine: the port
+        // holds the request until the game is actually in a level.
+        if (WARP.length && frames === WARP[0] && Module._PortWarp)
+            Module._PortWarp(0, WARP[1], WARP[2], WARP[3]);
+
+        // DIFF="frameA:frameB" snapshots the game's RAM at frameA and again at
+        // frameB, and reports what moved in between.  This is the instrument
+        // for naming things: park the game somewhere, do one thing, and read
+        // off which globals responded.
+        if (DIFF.length) {
+            if (frames === DIFF[0]) snapA = snapshotRam();
+            if (frames === DIFF[1] && snapA) diffRam(snapA, snapshotRam());
+        }
+
         if (process.env.WATCH && Module._PortSetWatch && frames === 0)
             Module._PortSetWatch(parseInt(process.env.WATCH, 0));
         // VIEW="mode:padX:padY:cull:pin" switches the view rectangle at the
@@ -376,7 +391,84 @@ const Module = {
     },
 };
 
-// A room warp was prototyped here and removed; the finding is worth keeping.
+// WARP="frame:room[:cellX:cellY]" -- see platform/warp.c for why this is a
+// port call and not a heap poke.  Cell defaults put Kirby near the top-left,
+// which is survivable anywhere: if it is inside terrain the collision sweep
+// pushes him out, and if it is in mid-air he falls.
+const WARP = (process.env.WARP || '').split(':').filter(Boolean).map(Number);
+if (WARP.length) {
+    if (WARP[2] === undefined) WARP[2] = 3;
+    if (WARP[3] === undefined) WARP[3] = 5;
+}
+
+// --- the memory differ -----------------------------------------------------
+//
+// Naming a variable from static reading tells you what a value is *tested*
+// for.  It does not tell you what makes it move.  For that the cheapest
+// instrument is a before-and-after: park the game in a known room, let one
+// thing happen, and see which bytes changed.
+//
+// The whole of the game's mutable state is 288K -- EWRAM plus IWRAM -- so a
+// snapshot is a memcpy and a diff is a scan.  There is no need for
+// watchpoints, single-stepping, or instrumented builds; the frame loop is
+// already ours and the memory is a flat array.
+//
+// I/O, palette, VRAM and OAM are deliberately excluded.  They change every
+// frame in ways that say nothing about game state, and including them buries
+// the signal.
+const DIFF = (process.env.DIFF || '').split(':').filter(Boolean).map(Number);
+const DIFF_OUT = process.env.DIFF_OUT || 'build/ram-diff.json';
+const RAM_REGIONS = [
+    { name: 'EWRAM', base: 0x02000000, size: 0x40000 },
+    { name: 'IWRAM', base: 0x03000000, size: 0x08000 },
+];
+let snapA = null;
+
+function snapshotRam() {
+    return RAM_REGIONS.map((r) => ({
+        ...r, bytes: Buffer.from(Module.HEAPU8.subarray(r.base, r.base + r.size)),
+    }));
+}
+
+function diffRam(a, b) {
+    const runs = [];
+    let changedBytes = 0;
+
+    for (let i = 0; i < a.length; i++) {
+        const A = a[i].bytes, B = b[i].bytes, base = a[i].base;
+        let start = -1;
+        for (let o = 0; o <= A.length; o++) {
+            const differs = o < A.length && A[o] !== B[o];
+            if (differs && start < 0) start = o;
+            // Coalesce across gaps of up to 3 identical bytes: a changed s32
+            // whose middle bytes happen to match is one fact, not three.
+            if (!differs && start >= 0
+                && (o - start > 0)
+                && (o + 3 >= A.length
+                    || (A[o] === B[o] && A[o + 1] === B[o + 1]
+                        && A[o + 2] === B[o + 2] && A[o + 3] === B[o + 3]))) {
+                runs.push({
+                    addr: base + start, length: o - start,
+                    before: A.subarray(start, Math.min(o, start + 16)).toString('hex'),
+                    after: B.subarray(start, Math.min(o, start + 16)).toString('hex'),
+                });
+                changedBytes += o - start;
+                start = -1;
+            }
+        }
+    }
+
+    runs.sort((x, y) => y.length - x.length);
+    fs.writeFileSync(DIFF_OUT, JSON.stringify({
+        frameA: DIFF[0], frameB: DIFF[1],
+        changedBytes, runCount: runs.length, runs,
+    }, null, 1));
+    console.log('DIFF: frames %d..%d, %d bytes changed in %d runs -> %s',
+                DIFF[0], DIFF[1], changedBytes, runs.length, DIFF_OUT);
+}
+
+// A room warp was prototyped in JS here and removed; the finding is worth
+// keeping, and platform/warp.c is where it went.
 //
 // Writing roomId/x/y on gKirbys[0] -- the three fields src/kirby.c:12877-12880
 // writes when a door is taken -- is not enough. The write sticks (gKirbys[0]
@@ -493,6 +585,9 @@ function finish() {
     // Before the summary, so the port's own report lands with the diagnostics.
     if (MP[0] && Module._PortMpReport) Module._PortMpReport();
     if (process.env.RANDO && Module._PortRandoReport) Module._PortRandoReport();
+    // Reports a warp that was requested and never delivered, which otherwise
+    // looks exactly like a warp that worked and changed nothing.
+    if (WARP.length && Module._PortWarpReport) Module._PortWarpReport();
     if (process.env.DUMP_ROOM) dumpRoomState(process.env.DUMP_ROOM);
 
     console.log('--- katam-port headless smoke test ---');

@@ -351,6 +351,11 @@ void PortPresentFrame(void)
     UpdateKeyInput();
     sFrameCount++;
 
+    /* A queued warp is delivered here rather than at the moment it is asked
+     * for, because a scripted run counts frames and cannot know which frame
+     * the level appears on.  Returns immediately unless one is queued. */
+    PortWarpPoll();
+
     /* Return with VBlank still in progress.  GameLoop does its screen flush
      * and queue draining now, and PortVBlankConsume ends VBlank once those
      * transfers have used up the window -- which is also what releases the
