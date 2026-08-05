@@ -274,6 +274,109 @@ def trace_star_states(text, rep):
     return pattern.sub(sub, text)
 
 
+def trace_anim_script(text, rep):
+    """Report the animation script that the warp star waits on.
+
+    trace_star_states above answered where the star stops: sub_0800E02C, whose
+    whole body is a wait --
+
+        if (rider is aboard && gKirbys[i].animationIndex == 90) b = FALSE;
+        if (b) ws->unk0.obj2.unk78 = sub_0800E0A0;   // the level change
+
+    -- and a real session reports `riders: 1, kirby0Anim: 90` and then nothing
+    further.  PortTrace prints each distinct tuple once, so one line and no
+    "capped" means that site ran many times with byte-identical arguments:
+    animationIndex never moves off 90.  It is not advancing slowly, it is
+    stopped.
+
+    What must move it is sub_080534D0, the script runner sub_080531B4 installs.
+    The script is `gUnk_08D60A84[unkB4]`, an array of `struct Unk_08353510`
+    read from ROM; every entry holds unk4=1 (one frame) and unk6=90 (keep the
+    ride animation), and the run ends at the first entry with unk9 & 0x80,
+    which is what sets animationIndex = 74 and releases the star.  Read out of
+    the ROM, scripts 0..6 terminate at entries 345, 259, 261, 163, 239, 201 and
+    141 -- so the data is sound and the terminator is 2.5 to 6 seconds away.
+
+    So the open question is whether the runner is running and the script is
+    advancing, which needs three numbers this file did not have: the script
+    pointer, the frame counter, and the animation index.
+
+    Two things make this usable rather than noise.  sub_080534D0 is the generic
+    script runner -- it drives every animation in the game -- so the trace is
+    fenced to animationIndex == 90, which only the star ride uses.  And
+    MAX_PER_TAG is 4, so four consecutive frames would report the first four
+    entries and cap before reaching anything interesting; sampling every 64th
+    entry instead spreads those four lines across the whole script.  Advancing
+    prints an ascending pointer; stalled prints one line and stops.
+
+    Diagnosis, not code: delete this with trace_star_states once the bug is
+    understood.
+    """
+    runner = 'void sub_080534D0(struct Kirby *kirby)\n{\n'
+    if runner not in text:
+        rep.unhandled.append(
+            'kirby.c: sub_080534D0 no longer has the expected signature -- the '
+            'animation script runner has changed upstream')
+        return text
+
+    text = text.replace(runner, runner + (
+        '    /* PORT: diagnosis -- see trace_anim_script in tools/portify.py */\n'
+        '    if (kirby->animationIndex == 90\n'
+        '        && kirby->unk114 != NULL\n'
+        '        && (((u32)kirby->unk114 / 12) & 63) == 0)\n'
+        '        PortTrace("anim script (ride): unk114, counter, anim",\n'
+        '                  (u32)kirby->unk114,\n'
+        '                  kirby->base.base.base.counter,\n'
+        '                  kirby->animationIndex);\n'), 1)
+    rep.bump('animation script trace inserted')
+
+    # The end of the script, which is the event the star is waiting for.  If
+    # this never prints, the run never reached its terminator.
+    # Anchored at its real indentation.  A shorter prefix matches as a
+    # substring of the deeper-indented real line and injects at the wrong
+    # depth, which compiles and reads as a mistake.
+    ender = '                    kirby->animationIndex = 74;\n'
+    if ender in text:
+        text = text.replace(ender, ender + (
+            '                    PortTrace("anim script ended: unk114, roomId, anim",\n'
+            '                              (u32)r1, kirby->base.base.base.roomId,\n'
+            '                              kirby->animationIndex);\n'), 1)
+        rep.bump('animation script end trace inserted')
+    else:
+        rep.unhandled.append(
+            'kirby.c: the animation script terminator no longer matches -- '
+            'sub_080534D0 has changed upstream')
+    return text
+
+
+def trace_star_script_choice(text, rep):
+    """Report which script the star hands Kirby, and from what index.
+
+    sub_0800DCC0 is the state that mounts the arrival animation:
+
+        sub_080531B4(&gKirbys[i], gUnk_08D60A84[wsAlias->unk0.unkB4]);
+
+    gUnk_08D60A84 has ten usable entries; entry 10 onwards is a different table
+    (checked against the ROM: they are graphics, not scripts).  An unkB4 out of
+    range would hand the runner garbage, so the index and the pointer it
+    resolves to are worth one line each.
+    """
+    call = ('            sub_080531B4(&gKirbys[i], '
+            'gUnk_08D60A84[wsAlias->unk0.unkB4]);\n')
+    if call not in text:
+        rep.unhandled.append(
+            'warp_star.c: sub_0800DCC0 no longer matches -- the arrival '
+            'animation hand-off has changed upstream')
+        return text
+    text = text.replace(call, (
+        '            PortTrace("star script: unkB4, script, riders",\n'
+        '                      wsAlias->unk0.unkB4,\n'
+        '                      (u32)gUnk_08D60A84[wsAlias->unk0.unkB4],\n'
+        '                      wsAlias->unk0.unkB5);\n') + call, 1)
+    rep.bump('warp-star script choice trace inserted')
+    return text
+
+
 FNPTR_ADAPTER_DECLS = {
     'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
     'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
@@ -886,6 +989,9 @@ def main():
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
             if path.name == 'warp_star.c':
                 text = trace_star_states(text, rep)
+                text = trace_star_script_choice(text, rep)
+            if path.name == 'kirby.c':
+                text = trace_anim_script(text, rep)
             for old, new in RAW_DMA.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)
