@@ -34,6 +34,8 @@ import re
 import sys
 from pathlib import Path
 
+import narrow32
+
 REGIONS = {'ewram': 0x02000000, 'iwram': 0x03000000}
 
 
@@ -138,7 +140,49 @@ def select_declarator(body, name):
     return None
 
 
-def declaration_to_macro(decl, name, addr):
+def narrow_type(ctype, typedefs):
+    """Give a linker-placed symbol's type a four-byte spelling if it is a pointer.
+
+    `extern struct Task *gCurTask;` is not a structure, so gba_layout.h has
+    nothing to say about it, and the address macro built from it reads eight
+    bytes out of a slot linker.ld gave four:
+
+        #define gCurTask (*(struct Task * *)0x030035D0)
+
+    At LP64 that loads gCurTask *and* the four bytes of gNextTaskToCheck...
+    that follow it, and `gCurTask->next` dereferences the pair.  This is the
+    same defect PTR32 fixes for structure members, in the one place a member
+    rewriter cannot see: the type is spelled in an `extern` declaration and the
+    storage is placed by the linker.
+
+    Three shapes occur among the game's ~190 linker symbols:
+
+      - a pointer written with a star   `struct Task *`  -> PTR32(struct Task)
+      - a pointer hidden in a typedef   `IntrFunc`       -> PTR32_TD(IntrFunc)
+      - anything else, which is left exactly as it was.
+
+    Both macros are the identity in C, so the ILP32 builds get character-for-
+    character the type they had.
+    """
+    t = ctype.strip()
+
+    m = re.match(r'^(?P<inner>.*?)\s*\*\s*(?P<qual>const|volatile)?$', t)
+    if m and m.group('inner'):
+        return 'PTR32(%s)%s' % (m.group('inner').strip(),
+                                (' ' + m.group('qual')) if m.group('qual') else '')
+
+    # A typedef that resolves to a pointer -- `IntrFunc gIntrTable[]` is four
+    # bytes an entry on the console and eight here, and the interrupt table is
+    # written by the game and read by platform/main.c, so both halves of the
+    # port have to agree about its stride.
+    m = re.match(r'^(?P<pre>(?:const\s+|volatile\s+)*)(?P<td>[A-Za-z_]\w*)$', t)
+    if m and m.group('td') in typedefs:
+        return '%sPTR32_TD(%s)' % (m.group('pre'), m.group('td'))
+
+    return t
+
+
+def declaration_to_macro(decl, name, addr, typedefs=frozenset()):
     """Turn `extern u16 gWinRegs[6];` into `#define gWinRegs (*(u16 (*)[6])0x...)`.
 
     The result is a macro and nothing else -- deliberately.  These headers are
@@ -176,25 +220,24 @@ def declaration_to_macro(decl, name, addr):
     if ctype.count('(') != ctype.count(')'):
         return None
 
+    # An array whose *elements* are pointers needs those narrowed:
+    # `const struct TiledBg_082D7850 *const gUnk_082D7850[]` is 34 such
+    # tables in ROM, and on a 64-bit host indexing one strides eight bytes
+    # through data the console laid out in four.  Nothing asserts this --
+    # it is a naked address, not a structure -- so the symptom is a read
+    # from the wrong element, which for gUnk_082D7850 was a segfault in the
+    # title logo.  The same is true of a scalar pointer variable and of an
+    # array with a fixed extent, so every branch below goes through
+    # narrow_type().  PTR32 and PTR32_TD are the identity in C, so the ILP32
+    # builds get the identical macro.
+    ctype = narrow_type(ctype, typedefs)
+
     if suffix.startswith('[]'):
         # Incomplete array: decay to a pointer to the element type, which is
         # all the game can do with it anyway.
         rest = suffix[2:].strip()
         if rest:
             return '#define %s ((%s (*)%s)0x%08X)' % (name, ctype, rest, addr)
-        # An array whose *elements* are pointers needs those narrowed too:
-        # `const struct TiledBg_082D7850 *const gUnk_082D7850[]` is 34 such
-        # tables in ROM, and on a 64-bit host indexing one strides eight bytes
-        # through data the console laid out in four.  Nothing asserts this --
-        # it is a naked address, not a structure -- so the symptom is a read
-        # from the wrong element, which for gUnk_082D7850 was a segfault in the
-        # title logo.  PTR32 is a plain pointer in C, so the ILP32 builds get
-        # the identical macro.
-        mp = re.match(r'^(?P<inner>.*?)\s*\*\s*(?P<qual>const|volatile)?$', ctype)
-        if mp and mp.group('inner'):
-            return '#define %s ((PTR32(%s) %s*)0x%08X)' % (
-                name, mp.group('inner').strip(),
-                (mp.group('qual') + ' ') if mp.group('qual') else '', addr)
         return '#define %s ((%s *)0x%08X)' % (name, ctype, addr)
 
     if suffix.startswith('['):
@@ -267,6 +310,11 @@ def main():
     args = ap.parse_args()
 
     syms = parse_linker_script(args.linker_script)
+    # Shared with narrow32 on purpose: a typedef that hides a pointer has to
+    # mean the same four bytes whether it turns up as a structure member or as
+    # the type of a linker-placed symbol.
+    typedefs = (narrow32.pointer_typedefs(args.tree / 'include')
+                | narrow32.pointer_typedefs(args.tree / 'src'))
     override_notes = []
     check_overrides_against_map(args.map, override_notes)
     for note in override_notes:
@@ -306,14 +354,14 @@ def main():
         # first would hide the declaration the others still need.
         group = [n for n in syms if n != name and re.search(r'\b%s\b' % re.escape(n), hit)]
         for other in group:
-            macro = declaration_to_macro(hit, other, syms[other])
+            macro = declaration_to_macro(hit, other, syms[other], typedefs)
             if macro is None:
                 skipped.append((other, hit.strip()))
             else:
                 resolved.append((other, syms[other], macro))
             done.add(other)
 
-        macro = declaration_to_macro(hit, name, addr)
+        macro = declaration_to_macro(hit, name, addr, typedefs)
         if macro is None:
             skipped.append((name, hit.strip()))
             continue

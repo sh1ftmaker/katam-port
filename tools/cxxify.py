@@ -407,6 +407,29 @@ CXX_SITES = {
         # a narrowed member, which is a PTR32(T)* and not a T**.
         ('    struct ObjectBase **q;\n    struct ObjectBase **r;',
          '    PTR32(struct ObjectBase) *q;\n    PTR32(struct ObjectBase) *r;'),
+        # gUnk_02022EC0 is `struct Object2 *gUnk_02022EC0[][8]` at 0x02022EC0 --
+        # a linker-placed array whose *elements* are pointers, so they are four
+        # bytes each and a row of it is a PTR32(struct Object2)*.  Everything
+        # that walks a row has to agree, which is this function and its callers.
+        ('struct Object2 **sub_080394C8(struct ObjectBase *obj)',
+         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *obj)'),
+        ('    struct Object2 **pp;',
+         '    PTR32(struct Object2) *pp;'),
+    ],
+    'sub_0800F044.c': [
+        # The other end of sub_080394C8: its local re-declaration and the
+        # variable that walks the row it returns.
+        ('struct Object2 **sub_080394C8(struct ObjectBase *);',
+         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *);'),
+        ('    struct Object2 **objs;',
+         '    PTR32(struct Object2) *objs;'),
+    ],
+    'code_080332BC.c': [
+        # gUnk_08D60B44 is `const u8 *gUnk_08D60B44[8]` in ROM: eight four-byte
+        # pointers the console laid out end to end, so the cursor over them is a
+        # PTR32(const u8)* and `unk_08D60B44++` steps four bytes, not eight.
+        ('    const u8** unk_08D60B44;',
+         '    PTR32(const u8) *unk_08D60B44;'),
     ],
     'phan_phan.c': [
         # `const struct Kirby_110 **kirby110 = &phanPhan->kirby3->unk110;`
@@ -456,6 +479,10 @@ CXX_HEADER_SITES = {
     'functions.h': [
         ('u32 *sub_08002888(u32 arg0, u8 index, u8 subindex);',
          'u32 *sub_08002888(enum SUB_08002888_ENUM arg0, u8 index, u8 subindex);'),
+        # See code_08032E98.c in CXX_SITES: sub_080394C8 returns a row of
+        # gUnk_02022EC0, whose elements are four-byte pointers.
+        ('struct Object2 **sub_080394C8(struct ObjectBase *);',
+         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *);'),
     ],
 }
 
