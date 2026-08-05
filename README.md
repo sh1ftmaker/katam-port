@@ -31,7 +31,7 @@ any server of ours.
 | Keyboard input | yes |
 | Touch controls, built for phones | yes |
 | Saving between sessions | yes, in browser storage |
-| Native desktop build (SDL2) | yes, on Linux and Windows |
+| Native desktop build (SDL2) | yes — Linux x86, Windows, 32-bit ARM |
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
@@ -158,6 +158,28 @@ Two things are worth knowing before you build it elsewhere:
   kept below 4 GiB because the game stores host function pointers inside GBA
   memory. `docs/NATIVE.md` sets out what that would take. It has not been done,
   and nothing here pretends otherwise.
+
+### On a Raspberry Pi
+
+32-bit ARM is built and tested — same smoke test, same three numbers as x86,
+and the screenshots it writes are byte-identical.
+
+```sh
+sudo apt install build-essential cmake pkg-config libsdl2-dev
+make native                       # no toolchain file: armhf is already ILP32
+./build/native/katam ~/roms/your-copy.gba
+```
+
+That is a **32-bit** Raspberry Pi OS. On a 64-bit one there is no 64-bit build
+to have — the ILP32 rule above forbids it — so what runs is the armhf binary
+under the kernel's 32-bit support, which needs `sudo apt install
+libsdl2-2.0-0:armhf` and a kernel with 4 KiB pages. Every Pi up to the 4 has
+one. **The Pi 5 does not**: its firmware loads a 16 KiB-page kernel by default
+and will not execute a 32-bit binary at all until you put `kernel=kernel8.img`
+in `/boot/firmware/config.txt`. Cross-compiling from a desktop is much faster
+than compiling on the Pi, and
+[docs/NATIVE.md](docs/NATIVE.md#32-bit-arm-armhf--built-and-tested) has both
+recipes and the rest of the arm64 story.
 
 `make native-test ROM=...` boots it headless with a real ROM, drives it through
 the menus into a level, and checks that what came out is a picture.

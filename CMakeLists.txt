@@ -70,8 +70,14 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     "    sudo apt install gcc-multilib libsdl2-dev:i386   # or your distro's\n"
     "    cmake -S . -B build/native \\\n"
     "          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-i686.cmake\n\n"
-    "`make native` does this for you.  docs/NATIVE.md has the rest, including "
-    "what it means for platforms with no 32-bit userland.")
+    "On aarch64 -- a 64-bit Raspberry Pi OS, say -- there is no ILP32 userland "
+    "to switch to.  Build armhf instead and run it under the kernel's 32-bit "
+    "support:\n"
+    "    cmake -S . -B build/native \\\n"
+    "          -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-armhf.cmake\n\n"
+    "`make native` does the x86 case for you.  docs/NATIVE.md has the rest, "
+    "including which arm64 kernels can run a 32-bit binary at all and what a "
+    "platform with no 32-bit userland would need.")
 endif()
 
 set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/build/port-src")
@@ -134,12 +140,21 @@ elseif(CMAKE_CROSSCOMPILING AND NOT WIN32)
   # the 64-bit SDL and hands it to the linker, which then produces four hundred
   # lines about incompatible files.  A missing .pc for this architecture means
   # the 32-bit SDL is not installed, and that is the thing to say.
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+    set(SDL_HINT
+      "Debian/Ubuntu: sudo apt install libsdl2-dev:armhf   (needs "
+      "dpkg --add-architecture armhf, and apt will only do it on an armhf or "
+      "arm64 machine)\n")
+  else()
+    set(SDL_HINT
+      "Debian/Ubuntu: sudo apt install libsdl2-dev:i386\n"
+      "Fedora:        sudo dnf install SDL2-devel.i686\n"
+      "Arch:          enable [multilib], then lib32-sdl2\n")
+  endif()
   message(FATAL_ERROR
     "No sdl2.pc for ${CMAKE_SYSTEM_PROCESSOR} on PKG_CONFIG_LIBDIR "
     "($ENV{PKG_CONFIG_LIBDIR}).\n"
-    "Debian/Ubuntu: sudo apt install libsdl2-dev:i386\n"
-    "Fedora:        sudo dnf install SDL2-devel.i686\n"
-    "Arch:          enable [multilib], then lib32-sdl2\n"
+    ${SDL_HINT}
     "Without root, see \"Building without root\" in docs/NATIVE.md.")
 else()
   find_package(SDL2 QUIET)
@@ -220,6 +235,16 @@ target_include_directories(katam PRIVATE
 #                 the game overflows signed arithmetic and reads structures
 #                 through mismatched pointers, both routinely, and both were
 #                 fine on the compiler it was written for.
+#   -funsigned-char
+#                 plain `char` is unsigned on the GBA and the flag is what says
+#                 so out loud.  Measured, not assumed -- agbcc compiles
+#                 `char c = -1; return c < 0;` to `mov r0, #0` and warns that
+#                 the comparison is always false.  x86 and wasm both default to
+#                 signed, ARM and PowerPC to unsigned, so without this flag the
+#                 armhf build would quietly be a different program from the
+#                 i686 one and nothing would report it.  Pinning it to what the
+#                 console did is the only choice that makes every build the same
+#                 program *and* the right one.
 # ---------------------------------------------------------------------------
 target_compile_definitions(katam PRIVATE PORTABLE NONMATCHING MODERN=1)
 
@@ -245,7 +270,7 @@ foreach(h ${FORCE_INCLUDES})
 endforeach()
 
 target_compile_options(katam PRIVATE
-  -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv)
+  -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv -funsigned-char)
 
 # The decompilation is not warning-clean and is not meant to be: it is the
 # output of matching a 2004 ARM binary.  The Makefile uses -Wno-everything,

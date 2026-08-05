@@ -95,7 +95,15 @@ WARN := -Wno-everything -Werror=implicit-function-declaration
 # (gcc 2.95), where a plain `inline` definition also emits an external one.
 # C99 inverted that rule, so without this flag every `inline void Foo(...)` in
 # the game becomes an undefined symbol at link time.
+# -funsigned-char says out loud what the GBA's compiler did silently: plain
+# `char` is unsigned there.  Measured, not assumed -- agbcc compiles
+# `char c = -1; return c < 0;` to `mov r0, #0`.  clang's wasm32 and gcc's x86
+# default to signed and gcc's ARM to unsigned, so a build that does not say
+# which it wants is a different program on each host, with nothing to report it.
+# Both smoke tests are byte-identical with and without the flag; it is here so
+# that stays true on hosts nobody has built on yet.
 CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
+          -funsigned-char \
           $(WARN) $(DEFINES) $(INCLUDES) $(FORCE_INCLUDE) -MMD -MP
 
 # --profiling-funcs keeps the wasm name section, so a trap on someone's phone
@@ -274,14 +282,26 @@ FRAMES ?= 180
 #
 # The build is 32-bit.  That is not a size choice: the decompilation's
 # structures have to keep their GBA layout, and 111 of them contain a pointer.
-# CMakeLists.txt refuses to build any other way and says why.  On a 64-bit x86
-# machine that means the i686 toolchain file; a genuinely 32-bit host, or a
-# cross compiler that is already ILP32, needs none.
+# CMakeLists.txt refuses to build any other way and says why.  A genuinely
+# 32-bit host -- i686, armv6l, armv7l -- needs no toolchain file at all, which
+# is why a Raspberry Pi running a 32-bit OS just builds.  A 64-bit host needs
+# one, and which one depends on whether its 32-bit mode is a compiler flag
+# (x86-64: -m32) or a different architecture (aarch64: armhf, run under the
+# kernel's 32-bit support).
+#
+# To cross-compile armhf from a desktop, which is much faster than compiling on
+# the Pi:
+#
+#   make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+#               NATIVE_DIR=build/native-armhf
 NATIVE_DIR ?= $(BUILD)/native
 NATIVE_BIN := $(NATIVE_DIR)/katam
 NATIVE_ARCH := $(shell uname -m)
 ifeq ($(NATIVE_ARCH),x86_64)
 NATIVE_TOOLCHAIN ?= cmake/toolchain-linux-i686.cmake
+endif
+ifeq ($(NATIVE_ARCH),aarch64)
+NATIVE_TOOLCHAIN ?= cmake/toolchain-linux-armhf.cmake
 endif
 ifneq ($(NATIVE_TOOLCHAIN),)
 NATIVE_CMAKE_ARGS := -DCMAKE_TOOLCHAIN_FILE=$(NATIVE_TOOLCHAIN)
@@ -296,8 +316,17 @@ native:
 	  || { echo; \
 	       echo "The native build is 32-bit -- see docs/NATIVE.md for why it has to be."; \
 	       echo "On Debian/Ubuntu that needs:"; \
-	       echo "    sudo apt install gcc-multilib libsdl2-dev:i386"; \
-	       echo "Fedora: glibc-devel.i686 libgcc.i686 SDL2-devel.i686"; \
+	       if [ "$(NATIVE_ARCH)" = aarch64 ]; then \
+	         echo "    sudo apt install gcc-arm-linux-gnueabihf"; \
+	         echo "    sudo dpkg --add-architecture armhf && sudo apt update"; \
+	         echo "    sudo apt install libsdl2-dev:armhf"; \
+	         echo "and a kernel with 4 KiB pages -- a Raspberry Pi 5 boots a 16 KiB-page"; \
+	         echo "kernel by default and cannot run a 32-bit binary at all until you put"; \
+	         echo "kernel=kernel8.img in config.txt.  docs/NATIVE.md has the detail."; \
+	       else \
+	         echo "    sudo apt install gcc-multilib libsdl2-dev:i386"; \
+	         echo "Fedora: glibc-devel.i686 libgcc.i686 SDL2-devel.i686"; \
+	       fi; \
 	       echo "Without root, see \"Building without root\" in docs/NATIVE.md."; \
 	       exit 1; }
 	@cmake --build $(NATIVE_DIR) -j $(shell nproc 2>/dev/null || echo 4)

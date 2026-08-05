@@ -201,11 +201,20 @@ void PortNativeReserveMap(void)
     /* The other half of the question: can anything grow *into* the map?  A
      * non-PIE executable loads at 0x400000 and its brk heap grows up from
      * there, so the first big allocation would walk into EWRAM.  The address
-     * of a function in this binary answers it. */
+     * of a function in this binary answers it.
+     *
+     * This reports the address and not a cause, because it has more than one.
+     * A non-PIE link is the usual one.  qemu-user is the other: it loads even a
+     * PIE image near 0x400000, so an armhf build tested on a desktop trips this
+     * every run while being linked exactly as intended.  There the reservation
+     * is still safe, because qemu has the rest of the guest address space
+     * mapped PROT_NONE and brk cannot cross it -- but that is a fact about the
+     * emulator, so say what was measured and let the reader decide. */
     if ((uintptr_t)&PortNativeReserveMap < sWindowHi)
         PortError("[katam-port] this binary is loaded at 0x%lX, below the top "
-                  "of the GBA map (0x%lX) -- it was not linked PIE, and the "
-                  "heap can grow into VRAM.  Rebuild with -fPIE -pie.",
+                  "of the GBA map (0x%lX), so its brk heap grows towards EWRAM."
+                  "  Expected of a non-PIE link -- rebuild with -fPIE -pie -- "
+                  "and normal under qemu-user, which places a PIE image low.",
                   (unsigned long)&PortNativeReserveMap,
                   (unsigned long)sWindowHi);
 }

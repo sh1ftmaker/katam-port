@@ -61,13 +61,16 @@ sudo dnf install glibc-devel.i686 libgcc.i686 SDL2-devel.i686   # Fedora
 ```
 
 `make native` picks `cmake/toolchain-linux-i686.cmake` automatically on an
-x86-64 host. A host that is already ILP32 — i686, armv7 — needs no toolchain
-file at all.
+x86-64 host and `cmake/toolchain-linux-armhf.cmake` on an aarch64 one. A host
+that is already ILP32 — i686, armv6l, armv7l — needs no toolchain file at all.
 
-**What this means for the other platforms** is set out under
+**What this means for the platforms** is set out under
 [Adding a platform](#adding-a-platform) below. The short version: Windows is
-done and is `i686-w64-mingw32`; 32-bit ARM needs nothing written; **macOS is
-blocked**, and the reason is worth reading before starting.
+done and is `i686-w64-mingw32`; 32-bit ARM is done and needed nothing written
+beyond a toolchain file; **arm64 runs the 32-bit build rather than one of its
+own**, which mostly works and has one sharp edge worth knowing before you buy a
+Raspberry Pi 5; **macOS is blocked outright**, and the reason is worth reading
+before starting.
 
 ### 2. Page zero
 
@@ -171,6 +174,26 @@ granularity. Every base address in the map is 64 KiB aligned already, so the
 only thing a larger page changes is how far each size is rounded up — and since
 the regions are 16 MiB apart, rounding cannot make two of them collide.
 
+Forcing `PortHostPageSize` to 16384 and then 65536 confirms it: the reservation
+succeeds either way, the regions round outward and stay 16 MiB apart, and 400
+frames of boot are unchanged. armhf itself is 4 KiB, and so is every arm64
+kernel that can run it — see [arm64](#arm64--it-runs-the-armhf-build-with-one-sharp-edge)
+for why those two facts are the same fact.
+
+At 65536 something else breaks, and it is worth knowing about before Windows is
+written. `PortHostAddrValid` rounds its query out to page boundaries because
+`mincore` demands a page-aligned start, so with a 64 KiB page it rounds a stack
+address *down* by up to 64 KiB — off the bottom of the stack's own mapping, on a
+system whose real pages are 4 KiB. The probe then answers "not mapped" about a
+pointer that was perfectly good, and the port refuses every DMA whose source is
+a local variable, which during boot means the one that fills VRAM. On a real
+64 KiB-page kernel this cannot happen, because mappings there are 64 KiB
+granular too. On **Windows** it can: the allocation granularity is 64 KiB and
+the page size is 4 KiB, and `PortHostPageSize` is documented above as the
+former. So `mem_win32.c`'s `PortHostAddrValid` must round with `dwPageSize`,
+not with the number `PortHostPageSize` returns. `native.h` says so at the
+declaration.
+
 ---
 
 ## The seam
@@ -238,12 +261,19 @@ The contracts that matter:
   storage `build/generated/rom_copies.c` gives a few ROM arrays — from a stale
   GBA pointer that would fault. Permissive by a guess lets a wild pointer
   through to a segfault; strict by a guess silently drops real transfers, and
-  that is the bug that once hid every level tilemap in the game. `msync()` and
-  `mincore()` both report `ENOMEM` for an unmapped range on Linux and macOS;
-  `VirtualQuery` answers it on Windows, where the test is `MEM_COMMIT` with a
-  readable protection rather than merely "not `MEM_FREE`" — the Windows section
-  below says why the difference is not pedantry. `mem.c` memoises the last
-  answer, so the syscall cost is a handful of calls a frame.
+  that is the bug that once hid every level tilemap in the game. `mincore()`
+  reports `ENOMEM` for an unmapped range on Linux and macOS; `VirtualQuery`
+  answers it on Windows, where the test is `MEM_COMMIT` with a readable
+  protection rather than merely "not `MEM_FREE`" -- the Windows section below
+  says why the difference is not pedantry. `mem.c` memoises the last answer, so
+  the syscall cost is a handful of calls a frame.
+
+  This was `msync(MS_ASYNC)` until the ARM build, and the two are the same
+  answer on a kernel. They are not the same answer under `qemu-user`, which
+  reserves the whole guest address space up front: `msync` finds a `PROT_NONE`
+  mapping at every address and reports success, so the check passes a pointer
+  that faults on the next instruction. Asking the *wrong* question of the
+  kernel is a category the file's own comment had not allowed for.
 - **`PortHostReportAddressSpace` has to ask the kernel too**, for the same
   reason in a different place. `PortNativeReportMap` prints the port's account
   of itself, and a reservation that reported success and landed somewhere else
@@ -519,24 +549,166 @@ And the residual risk named above: if the Windows loader ever bases `SDL2.dll`
 or a shim DLL inside `0x02000000`–`0x0A000000`, this program cannot start. It
 will say so, and name the module, and that is all it can do.
 
-### 32-bit ARM (armv7 / armhf)
+### 32-bit ARM (armhf) — built and tested
 
-Nothing to write. It is ILP32 already, `mem_posix.c` applies unchanged, and
-the only thing that differs is the page size — which is why `PortHostPageSize`
-exists and why nothing calls `getpagesize()` directly. Check that
-`MAP_FIXED_NOREPLACE` is present (Linux 4.17+); the fallback path in
-`mem_posix.c` covers older kernels with a `mincore()` probe.
+Almost nothing to write, which was the prediction and turned out to be true:
+`mem_posix.c` and `dialog_posix.c` apply unchanged and there is no `mem_arm.c`.
+What the port needed was one toolchain file, one compile flag, and one fix to a
+kernel probe that had been wrong all along and only ARM was in a position to
+show it.
 
-### arm64 and macOS — read this first
+**On a Raspberry Pi running a 32-bit OS**, there is no cross-compilation and no
+toolchain file:
 
-Both are blocked on the ILP32 requirement, and not in a way a toolchain file
-fixes.
+```sh
+sudo apt install build-essential cmake pkg-config libsdl2-dev
+make sync  KATAM_DECOMP=~/katam
+make stubs KATAM_DECOMP=~/katam
+make native
+./build/native/katam ~/roms/your-copy.gba
+```
 
-- **arm64 Linux** has an ILP32 ABI (`-mabi=ilp32`) but almost nothing ships a
-  userland for it. The practical answer is to build armhf and run it under the
-  arm64 kernel's 32-bit support, where that is compiled in.
-- **macOS has had no 32-bit userland since Catalina**, and Apple silicon never
-  had one. There is no flag.
+`uname -m` says `armv7l` (or `armv6l`), `make native` picks no toolchain file,
+and CMake's ILP32 check passes because the host already is. Expect the compile
+to take a long time — it is four thousand files of decompilation on an SD card
+— which is the argument for the cross build below.
+
+**Cross-compiling from a desktop:**
+
+```sh
+sudo apt install gcc-arm-linux-gnueabihf
+sudo dpkg --add-architecture armhf && sudo apt update
+sudo apt install libsdl2-dev:armhf              # see the caveat below
+
+make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+            NATIVE_DIR=build/native-armhf
+```
+
+The caveat: on an x86-64 machine, `apt` will refuse `libsdl2-dev:armhf`.
+Debian multiarch will co-install `i386` with `amd64` and `armhf` with `arm64`,
+but the x86 and ARM archives are different archives, and `ports.ubuntu.com`
+is not in a desktop's sources at all. Unpacking a sysroot by hand is the way
+through, and it is how this was built and tested — see
+[Building without root](#building-without-root).
+
+#### What ARM actually changed
+
+- **Plain `char` is unsigned.** x86 and wasm default to signed, ARM and
+  PowerPC to unsigned, and until there was an ARM build nothing in the port
+  cared. The GBA's answer settles it: agbcc compiles
+  `char c = -1; return c < 0;` to `mov r0, #0` and warns that the comparison is
+  always false, so the console's plain `char` is unsigned and the port's two
+  existing builds had it backwards. `-funsigned-char` is now in `CMakeLists.txt`
+  and in the `Makefile`, so every build says which it means. Both smoke tests —
+  web and i686 — produce byte-identical output with and without it, so nothing
+  the port has ever reached depends on the difference; the flag is there so that
+  stays true on the next host rather than because a bug was found.
+
+- **`PortHostAddrValid` was asking the wrong syscall.** It used
+  `msync(MS_ASYNC)`, whose ENOMEM means "something in that range is not mapped".
+  On a kernel that is exactly right; under `qemu-user` it is exactly wrong,
+  because the emulator reserves the whole guest address space up front and
+  `msync` finds a `PROT_NONE` mapping everywhere and reports success. The
+  address that exposed it is not hypothetical:
+
+  ```
+  0x3fcbc034   msync=ok   mincore=ENOMEM   /proc/self/maps: absent   read: SIGSEGV
+  ```
+
+  That is a DMA source pointer the game presents during level load, which every
+  other host reports and skips. Trusting `msync` turned it into a segfault four
+  hundred frames in. `mincore()` answers correctly in both places and is what
+  the file uses now, with `msync` kept as the fallback for a platform without
+  it. Checked on x86-64 and i686 as well: on a real kernel the two agree.
+
+- **Nothing else.** Alignment was the expected problem and did not appear.
+  `platform/dma.c` already masks both endpoints to the transfer unit before
+  moving anything (the hardware ignores those bits and the game relies on it),
+  and `bios.c` does the same for `CpuSet` and `CpuFastSet`, so the bulk moves
+  are aligned by construction rather than by luck. ARMv7 does unaligned `LDR`
+  and `STR` in hardware anyway; what it cannot do unaligned is `LDRD` and `LDM`,
+  which the compiler only emits where it can prove alignment from the type.
+  Endianness is not a question — ARM Linux is little-endian, confirmed at run
+  time, and the port would not survive being wrong about it for one frame.
+
+- **`-mfloat-abi=hard` is what an `arm-linux-gnueabihf` compiler emits and
+  there is nothing to choose.** `platform/m4a_mixer.c` is scalar `float` and
+  `double`, and VFP computes both at their declared precision — which is
+  actually closer to wasm than the i686 build is, since `-m32` on x86 still
+  defaults to x87 and its 80-bit intermediates. No audio difference has been
+  measured between any two of the three; this is noted because it is the kind
+  of thing that would show up as a one-LSB difference in a mixer and nowhere
+  else.
+
+#### Which ARM
+
+The toolchain file sets no `-march`, deliberately, because the two ARM
+distributions that matter disagree and picking one silently excludes the other:
+
+| | baseline |
+|---|---|
+| Debian / Ubuntu armhf | ARMv7-A, VFPv3-D16, Thumb-2 |
+| Raspberry Pi OS 32-bit | ARMv6, VFP2 — so it runs on a Pi 1 and Zero |
+
+A binary built against Ubuntu's armhf runs on a Pi 2 and later and dies with an
+illegal instruction on a Pi 1 or Zero. If you want those, say so:
+
+```sh
+make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+            NATIVE_DIR=build/native-armhf \
+            KATAM_ARM_ABI_FLAGS="-march=armv6+fp -mfpu=vfp -marm"
+```
+
+Whether it would be *playable* on a 1 GHz ARM11 is a different question, and
+the software PPU suggests not.
+
+### arm64 — it runs the armhf build, with one sharp edge
+
+There is no arm64 build and there will not be one until the port is 64-bit
+clean, which is the project described under [macOS](#macos) below and is not
+small. `-mabi=ilp32` exists on arm64 and no distribution ships a userland for
+it.
+
+What does work is running the **armhf** build under the arm64 kernel's 32-bit
+support, and on most 64-bit ARM Linux that works out of the box:
+
+```sh
+sudo dpkg --add-architecture armhf     # already done on 64-bit Raspberry Pi OS
+sudo apt update
+sudo apt install libsdl2-2.0-0:armhf
+./katam ~/roms/your-copy.gba
+```
+
+The kernel needs `CONFIG_COMPAT`, and **`CONFIG_COMPAT` on arm64 depends on
+4 KiB pages** (`ARM64_4K_PAGES || EXPERT` in `arch/arm64/Kconfig`). That is the
+sharp edge, and it has a very concrete form:
+
+- **Raspberry Pi 2, 3, 4, Zero 2 W, CM3/CM4 running 64-bit Raspberry Pi OS**:
+  4 KiB pages, armhf runs. Install the `:armhf` runtime libraries above and it
+  is a normal program.
+- **Raspberry Pi 5, CM5, Pi 500**: the firmware loads `kernel_2712.img` by
+  default, and that kernel exists precisely because it uses **16 KiB pages**.
+  A 32-bit binary will not execute on it. There is also no 32-bit Raspberry Pi
+  OS for these boards at all. The fix is one line in
+  `/boot/firmware/config.txt`:
+
+  ```
+  kernel=kernel8.img
+  ```
+
+  which is the same 64-bit kernel built with 4 KiB pages. Reboot and armhf
+  binaries run. You give up whatever the 16 KiB page size was buying.
+- **Distributions that use 64 KiB pages on arm64** — Fedora and RHEL do —
+  cannot run this build, for the same reason and with no config-file fix.
+
+`getconf PAGESIZE` on the machine you are aiming at answers the question in one
+line. If it is not 4096, the armhf build will not start there.
+
+### macOS
+
+**macOS has had no 32-bit userland since Catalina**, and Apple silicon never
+had one. There is no flag, and unlike arm64 there is no 32-bit compatibility
+mode to fall back to.
 
 So macOS needs the port to become 64-bit clean first, and that is a real
 project rather than a platform port. What it involves: every pointer member of
@@ -715,6 +887,20 @@ Windows build was measured against: `tools/native_smoke.sh`, unmodified, driving
 `katam.exe` through a wrapper that translates the ROM path, reported 192/14 and
 187/44 with different `DISPCNT`s — the Linux build's numbers.
 
+armhf, run under `qemu-arm-static` on an x86-64 machine, gives:
+
+```
+     boot: 192 colours at best, 14 distinct pictures, final DISPCNT 0x1340
+     play: 187 colours at best, 44 distinct pictures, final DISPCNT 0x1B40
+```
+
+and the two PNGs it writes are **byte-identical** to the ones the i686 build
+writes on the same machine — same `md5sum`, both runs. That is a stronger
+result than the three numbers were designed to give: the software PPU, the DMA
+and the game's own logic produce the same frame on two different instruction
+sets, so any ARM-specific misbehaviour would have to be invisible in 1800 frames
+of two runs and in every pixel of two screenshots.
+
 `--screenshot` writes the framebuffer the PPU produced. `--window-shot` writes
 what the *renderer* produced, read back with `SDL_RenderReadPixels` before the
 present — scaled, letterboxed, in whatever pixel format the texture actually
@@ -789,6 +975,69 @@ at a scratch directory, fix the absolute paths in `usr/lib/wine/wineserver` (a
 shell script), and `tools/native_smoke.sh` will drive `katam.exe` through a
 three-line wrapper. Wine is not Windows and the Windows section above says
 exactly what that does and does not prove.
+### The same thing for armhf
+
+The armhf case is not an escape hatch, it is the only route from an x86-64
+desktop: `apt` will not install `libsdl2-dev:armhf` on `amd64` however much root
+you have, and `ports.ubuntu.com` — where every armhf package lives — is not in a
+desktop's sources at all.
+
+The cross compiler itself is an ordinary `amd64` package:
+
+```sh
+apt-get download gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user-static
+```
+
+The sysroot is not, and there are two differences from the i686 recipe. The
+first is that it has to be **complete**: the i686 sysroot deliberately borrows
+the host's headers, because glibc ships one set of x86 headers chosen between by
+`__x86_64__`, but armhf is a different architecture whose whole userland has to
+come from the sysroot. So it wants `libc6-dev`, `linux-libc-dev` and the
+transitive runtime closure of `libsdl2-2.0-0` — about eighty packages, 250 MB
+unpacked — fetched from `ports.ubuntu.com` and unpacked into one tree. The
+second is that the tree needs `lib -> usr/lib` making by hand: Ubuntu is
+merged-`/usr`, every package installs under `/usr`, and the `PT_INTERP` in the
+binary still says `/lib/ld-linux-armhf.so.3`.
+
+```sh
+KATAM_SYSROOT_ARM=$PWD/sysrootarm \
+  cmake -S . -B build/native-armhf \
+        -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-armhf.cmake
+cmake --build build/native-armhf -j
+```
+
+Because the sysroot is complete, the toolchain file sets `CMAKE_SYSROOT` and
+needs no `--allow-shlib-undefined`. What it does need is a `-L` and a `-B` at
+the sysroot's `usr/lib/arm-linux-gnueabihf`, because Debian's *cross* packages
+put the target libc somewhere a sysroot does not — `/usr/arm-linux-gnueabihf/lib`
+— and its `libc.so` is a linker script naming that absolute path. Without those
+two flags the link fails with `cannot find /usr/arm-linux-gnueabihf/lib/libc.so.6`
+while an entirely good `libc.so.6` sits in the sysroot.
+
+### Running it on the desktop that built it
+
+`qemu-user-static` is what turns "it compiles" into "it boots":
+
+```sh
+qemu-arm-static -L $PWD/sysrootarm ./build/native-armhf/katam rom.gba
+```
+
+With `binfmt-support` installed and a handler registered — which needs root once
+— the `qemu-arm-static` prefix disappears and the armhf binary runs by name, so
+`make native-test` drives it unchanged. Without root, a two-line wrapper script
+in place of the binary does the same job for the smoke test.
+
+**What a qemu run does and does not prove.** It runs the real ARM instructions,
+which is the part that matters for codegen, alignment and floating point. The
+address space it runs in is qemu's: `guest_base` is 0, so the GBA window really
+is at `0x02000000` in the host kernel's own `/proc/<pid>/maps`, but everything
+*around* it is a `PROT_NONE` reservation qemu made, and that changes two answers.
+One is `msync`, described [above](#the-operating-system-seam--platformnativenativeh)
+— that one is a real bug qemu found. The other is where the executable lands:
+qemu loads even a PIE image near `0x400000`, so the port's "this binary is loaded
+below the top of the GBA map" warning fires on every qemu run. On a 32-bit ARM
+kernel a PIE goes near `mmap_base`, around `0xb6000000`, well above the map; the
+warning is qemu's and not the port's.
 
 ---
 
@@ -812,3 +1061,11 @@ The compile flags are the Makefile's, for the Makefile's reasons.
 agbcc (gcc 2.95), where a plain `inline` definition also emits an external one,
 and C99 inverted that rule. Without the flag every `inline void Foo(...)` in the
 game becomes an undefined symbol at link time.
+
+`-funsigned-char` is the one the ARM build added, and it is there for the same
+kind of reason as `-fwrapv`: it is not a preference, it is what the compiler the
+game was written for did. Whether plain `char` is signed is
+implementation-defined, x86 and wasm say signed, ARM says unsigned, and agbcc —
+asked directly — says unsigned. A build that does not name it is a slightly
+different program on each host, and there is nothing in the port that would ever
+report the difference.
