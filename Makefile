@@ -145,6 +145,7 @@ TARGET := $(OUT)/katam.html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
         native native-run native-test native-clean \
+        arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check
 
@@ -407,6 +408,55 @@ native-test: native
 
 native-clean:
 	rm -rf $(NATIVE_DIR)
+
+# --- arm64 (aarch64) -- the 64-bit target, IN PROGRESS ----------------------
+# This does not play the game.  It compiles, links, boots, reserves the GBA map
+# at its true addresses, loads the ROM, starts the sound engine and reaches the
+# game's task scheduler, where it crashes.  The finished, playable ARM build is
+# armhf, which is ILP32 and runs on any arm64 kernel with 4 KiB pages:
+#
+#   make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+#               NATIVE_DIR=build/native-armhf
+#
+# -DKATAM_ALLOW_LP64=ON is what gets past CMakeLists.txt's pointer-size guard.
+# It is not a fix and the configure says so at length every time; the guard is
+# there because an LP64 build of the port has no run-time symptom that would
+# point back at the ABI.  docs/SIXTYFOUR.md is the whole of this project and
+# says how far it has got.
+#
+# KATAM_SYSROOT_ARM64, KATAM_ARM64_PREFIX and KATAM_ARM64_QEMU are read from the
+# *environment* by the toolchain file, not from -D: a toolchain file runs before
+# the cache exists, so a -D is invisible to it on the first configure and the
+# build fails claiming there is no arm64 SDL while one sits in the sysroot.
+#
+#   KATAM_SYSROOT_ARM64=$PWD/root make arm64
+#
+# "Building without root" in docs/NATIVE.md assembles that sysroot from scratch.
+ARM64_DIR ?= $(BUILD)/native-arm64
+ARM64_BIN := $(ARM64_DIR)/katam
+
+arm64:
+	@echo "  arm64 is the 64-bit port in progress: it builds and boots, and it does"
+	@echo "  not play the game.  The working ARM build is armhf -- see docs/NATIVE.md."
+	@cmake -S . -B $(ARM64_DIR) -DCMAKE_BUILD_TYPE=Release \
+	       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-linux-arm64.cmake \
+	       -DKATAM_ALLOW_LP64=ON >/dev/null \
+	  || { echo; \
+	       echo "The arm64 build needs an aarch64 cross toolchain and an arm64 SDL2."; \
+	       echo "On Debian/Ubuntu, on an arm64 machine:"; \
+	       echo "    sudo apt install g++-aarch64-linux-gnu libsdl2-dev"; \
+	       echo "From an x86-64 desktop there is no apt route at all: the arm64"; \
+	       echo "packages live on ports.ubuntu.com, not in the archive, and only the"; \
+	       echo "cross compilers are in it.  Unpack a sysroot by hand and name it in"; \
+	       echo "the ENVIRONMENT -- a -D is not visible to a toolchain file:"; \
+	       echo "    KATAM_SYSROOT_ARM64=\$$PWD/root make arm64"; \
+	       echo "See \"Building without root\" in docs/NATIVE.md for the whole recipe."; \
+	       exit 1; }
+	@cmake --build $(ARM64_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  ARM64   $(ARM64_BIN)  -- not playable yet; docs/SIXTYFOUR.md has why"
+
+arm64-clean:
+	rm -rf $(ARM64_DIR)
 
 # --- Windows ---------------------------------------------------------------
 # The same sources through cmake/toolchain-windows-i686.cmake, cross-compiled

@@ -35,13 +35,25 @@ So the work is under way rather than hypothetical. Done so far:
 | `tools/cxxify.py` — the decompilation's C through a C++ front end | done, 156/156 |
 | `platform/port/p32.h` — `PTR32`, the 4-byte pointer member | done, tested both ABIs |
 | C++ linkage, so the 64-bit build links by the ILP32 build's rules | done |
-| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target | builds, boots, runs |
-| code and game-visible host storage below 4 GiB | **not started** |
-| narrowing the 285 pointer members to `PTR32` | **not started** |
+| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target, `make arm64` | builds and boots; does not play |
+| code and game-visible host storage below 4 GiB | done, `-no-pie -Wl,-Ttext-segment=0x10000000` |
+| narrowing the pointer members to `PTR32` | done, 277 members |
+| **the assertion table holding at LP64 — the definition of done for the layout** | **met** |
+| the run-time tail the assertions cannot cover | in progress |
+
+The layout half of this project is finished and the finishing is checkable:
+`platform/gba_layout_check.c` compiles in the LP64 build with nothing to say,
+all 246 types and 2144 offsets, on x86-64 and on aarch64 both. What is left is
+the tail the table was never able to see — the linker-placed arrays with fixed
+extents, and everything that is not a structure member.
 
 The aarch64 binary reserves the GBA map at its true addresses, loads the ROM,
-enters `AgbMain` and dies in `MPlayOpen` — the same place, for the same reason,
-as the x86-64 LP64 build. Nothing in the failure is ARM-specific.
+initialises the sound engine, runs the mixer through four music players, sets up
+the interrupt table and is executing the game's own task scheduler, where it
+walks off `gCurTask`. Under `qemu-aarch64-static` it survives 40 frames of boot
+and not 60. That is the same place, for the same reason, as the x86-64 LP64
+build: nothing in the failure is ARM-specific, which is the useful thing about
+having two 64-bit targets.
 
 **The ILP32 builds are the control and they have not moved.** The wasm build
 over 1200 frames is byte-identical through all of it: frame md5
@@ -90,16 +102,27 @@ Apple's watchOS ABI.
 
 | | |
 |---|---|
-| link-line and host-storage work (code and heap below 4 GiB) | 3–5 days |
-| rewriting 285 member declarations to `PTR32` | 2–4 days |
+| link-line and host-storage work (code and heap below 4 GiB) | 3–5 days — **spent** |
+| rewriting 285 member declarations to `PTR32` | 2–4 days — **spent** (277 members) |
 | the function-pointer patcher and the ROM tables | 2–3 days |
 | making it run, and the long tail the assertions do not cover | 1–2 weeks |
 | **total** | **2–3 weeks** |
 
+The first two rows are done, and half of the third: the 34 ROM tables whose
+elements are pointers are emitted with `PTR32` elements by
+`tools/gen_ram_symbols.py`, which is the generator that names them. The other
+half is not. `PortPatchRomFunctionPointers` in `build/generated/rom_fn_tables.c`
+still writes `*(void **)sRomStructFns[i].at` — an eight-byte store into a field
+the ROM gave four bytes — exactly as
+[Function pointers stored in GBA memory](#2-function-pointers-stored-in-gba-memory)
+below says it does.
+
 The last row is still the one to distrust, for the reason given at the end of
 the original estimate: the assertions cover struct layout and nothing else, and
 the port has around 190 linker-placed symbols with extents that are not
-asserted anywhere.
+asserted anywhere. Two of the three things that broke first were of exactly
+that kind — `gMPlayJumpTable`'s extent and `INTR_VECTOR`'s address — and neither
+is a structure.
 
 ---
 
@@ -381,14 +404,21 @@ regions that cannot grow, and `struct Task::structOffset` is a `u16`.
 
 ## What the LP64 build actually does
 
+*This section is the state before the narrowing, and it is kept because it is
+the evidence the whole approach was chosen from. All three of its numbers have
+since moved: the assertions pass, the jump table is four bytes an entry again,
+and the build gets as far as the task scheduler. What has not moved is the
+finding in the middle — that an LP64 build produces no diagnostic of any kind —
+which is why the table is the only thing that can say when this is done.*
+
 `-DKATAM_ALLOW_LP64=ON` turns `CMakeLists.txt`'s pointer-size guard from an
 error into a loud warning. It is an experiment switch and says so at configure
 time. `-DKATAM_SKIP_LAYOUT_CHECK=ON` additionally drops
 `platform/gba_layout_check.c`, which is the only way to get past the
 assertions; it prints a warning of its own.
 
-With the assertions in, one translation unit fails and produces the
-enumeration:
+With the assertions in, before any of the members were narrowed, one translation
+unit failed and produced the enumeration:
 
 ```
 1258 static assertion failures

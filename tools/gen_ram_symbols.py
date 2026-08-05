@@ -34,8 +34,6 @@ import re
 import sys
 from pathlib import Path
 
-import narrow32
-
 REGIONS = {'ewram': 0x02000000, 'iwram': 0x03000000}
 
 
@@ -101,6 +99,59 @@ def strip_attributes(text):
             return text[:i]
 
 
+# Typedef names that are really pointers -- `typedef void (*IntrFunc)(void);`.
+# The declarator for one has no star in it, so narrow_type() cannot see that
+# `HBlankFunc gHBlankCallbacks[4]` is four *pointers*; it has to be told.
+# Filled by load_pointer_typedefs() from the portified tree, which is the same
+# tree the declarations come from, so the two cannot drift.
+PTR_TYPEDEFS = set()
+
+
+def load_pointer_typedefs(tree):
+    """Collect typedef names whose underlying type is a pointer.
+
+    Two shapes matter and both occur:  `typedef void (*IntrFunc)(void);` --
+    every function-pointer table in the game -- and `typedef u8 *SomeBuf;`.
+    Anything else is left alone, because narrowing a typedef that is *not* a
+    pointer would shrink real data.
+    """
+    for hp in sorted(list((tree / 'include').rglob('*.h'))
+                     + list((tree / 'src').rglob('*.h'))):
+        text = hp.read_text(errors='replace')
+        for m in re.finditer(r'\btypedef\b[^;{}]*?\(\s*\*\s*(\w+)\s*\)\s*\(', text):
+            PTR_TYPEDEFS.add(m.group(1))
+        for m in re.finditer(r'\btypedef\b[^;{}()]*\*\s*(\w+)\s*;', text):
+            PTR_TYPEDEFS.add(m.group(1))
+
+
+def narrow_type(ctype):
+    """Wrap a pointer type in PTR32 so it stays four bytes on a 64-bit host.
+
+    `const u16 *const` -> `PTR32(const u16) const`, and recursively, so that
+    `const struct Object11_8 *const *const` narrows at *both* levels: the ROM
+    holds four-byte pointers to four-byte pointers, and narrowing only the
+    outer one leaves the dereference reading eight bytes out of four.
+
+    Returns None when the type is not a pointer, which is the signal to leave
+    the declaration exactly as it was.  PTR32 and PTR32_TD are plain spellings
+    in the ILP32 builds, so those get a byte-identical macro either way.
+    """
+    ctype = ctype.strip()
+    m = re.match(r'^(?P<inner>.*?)\s*\*\s*(?P<qual>const|volatile)?$', ctype)
+    if m and m.group('inner'):
+        inner = m.group('inner').strip()
+        inner = narrow_type(inner) or inner
+        qual = (' ' + m.group('qual')) if m.group('qual') else ''
+        return 'PTR32(%s)%s' % (inner, qual)
+    # A typedef hides the star: `IntrFunc`, `XcmdFunc`, `HBlankFunc`.
+    m = re.match(r'^(?:(?P<pre>const|volatile)\s+)?(?P<name>\w+)'
+                 r'(?:\s+(?P<post>const|volatile))?$', ctype)
+    if m and m.group('name') in PTR_TYPEDEFS:
+        qual = m.group('pre') or m.group('post')
+        return 'PTR32_TD(%s)%s' % (m.group('name'), (' ' + qual) if qual else '')
+    return None
+
+
 def select_declarator(body, name):
     """Reduce a multi-declarator declaration to the one declaring `name`.
 
@@ -140,49 +191,7 @@ def select_declarator(body, name):
     return None
 
 
-def narrow_type(ctype, typedefs):
-    """Give a linker-placed symbol's type a four-byte spelling if it is a pointer.
-
-    `extern struct Task *gCurTask;` is not a structure, so gba_layout.h has
-    nothing to say about it, and the address macro built from it reads eight
-    bytes out of a slot linker.ld gave four:
-
-        #define gCurTask (*(struct Task * *)0x030035D0)
-
-    At LP64 that loads gCurTask *and* the four bytes of gNextTaskToCheck...
-    that follow it, and `gCurTask->next` dereferences the pair.  This is the
-    same defect PTR32 fixes for structure members, in the one place a member
-    rewriter cannot see: the type is spelled in an `extern` declaration and the
-    storage is placed by the linker.
-
-    Three shapes occur among the game's ~190 linker symbols:
-
-      - a pointer written with a star   `struct Task *`  -> PTR32(struct Task)
-      - a pointer hidden in a typedef   `IntrFunc`       -> PTR32_TD(IntrFunc)
-      - anything else, which is left exactly as it was.
-
-    Both macros are the identity in C, so the ILP32 builds get character-for-
-    character the type they had.
-    """
-    t = ctype.strip()
-
-    m = re.match(r'^(?P<inner>.*?)\s*\*\s*(?P<qual>const|volatile)?$', t)
-    if m and m.group('inner'):
-        return 'PTR32(%s)%s' % (m.group('inner').strip(),
-                                (' ' + m.group('qual')) if m.group('qual') else '')
-
-    # A typedef that resolves to a pointer -- `IntrFunc gIntrTable[]` is four
-    # bytes an entry on the console and eight here, and the interrupt table is
-    # written by the game and read by platform/main.c, so both halves of the
-    # port have to agree about its stride.
-    m = re.match(r'^(?P<pre>(?:const\s+|volatile\s+)*)(?P<td>[A-Za-z_]\w*)$', t)
-    if m and m.group('td') in typedefs:
-        return '%sPTR32_TD(%s)' % (m.group('pre'), m.group('td'))
-
-    return t
-
-
-def declaration_to_macro(decl, name, addr, typedefs=frozenset()):
+def declaration_to_macro(decl, name, addr):
     """Turn `extern u16 gWinRegs[6];` into `#define gWinRegs (*(u16 (*)[6])0x...)`.
 
     The result is a macro and nothing else -- deliberately.  These headers are
@@ -220,33 +229,41 @@ def declaration_to_macro(decl, name, addr, typedefs=frozenset()):
     if ctype.count('(') != ctype.count(')'):
         return None
 
-    # An array whose *elements* are pointers needs those narrowed:
-    # `const struct TiledBg_082D7850 *const gUnk_082D7850[]` is 34 such
-    # tables in ROM, and on a 64-bit host indexing one strides eight bytes
-    # through data the console laid out in four.  Nothing asserts this --
-    # it is a naked address, not a structure -- so the symptom is a read
-    # from the wrong element, which for gUnk_082D7850 was a segfault in the
-    # title logo.  The same is true of a scalar pointer variable and of an
-    # array with a fixed extent, so every branch below goes through
-    # narrow_type().  PTR32 and PTR32_TD are the identity in C, so the ILP32
-    # builds get the identical macro.
-    ctype = narrow_type(ctype, typedefs)
+    # An object or array element whose type is a pointer has to stay four bytes
+    # wide, whatever the declarator around it looks like.
+    #
+    # `const struct TiledBg_082D7850 *const gUnk_082D7850[]` is 34 such tables
+    # in ROM, and on a 64-bit host indexing one strides eight bytes through data
+    # the console laid out in four.  Nothing asserts this -- it is a naked
+    # address, not a structure -- so the symptom is a read from the wrong
+    # element, which for gUnk_082D7850 was a segfault in the title logo.
+    #
+    # It is not only the unsized arrays.  `HBlankFunc gHBlankCallbacks[4]` is
+    # sixteen bytes at 0x030035C0 with gCurTask at 0x030035D0, and main.c fills
+    # it with `DmaFill32(3, 0, gHBlankCallbacks, sizeof(gHBlankCallbacks))` --
+    # thirty-two bytes on a 64-bit host, which zeroes the running task pointer
+    # every GameInit.  `struct Task *gCurTask` is itself one of these: an
+    # eight-byte store at 0x030035D0 takes gUnk_030035D4 with it.
+    #
+    # PTR32 and PTR32_TD are plain spellings in the ILP32 builds, so those get
+    # a byte-identical macro either way.
+    narrowed = narrow_type(ctype) or ctype
 
     if suffix.startswith('[]'):
         # Incomplete array: decay to a pointer to the element type, which is
         # all the game can do with it anyway.
         rest = suffix[2:].strip()
         if rest:
-            return '#define %s ((%s (*)%s)0x%08X)' % (name, ctype, rest, addr)
-        return '#define %s ((%s *)0x%08X)' % (name, ctype, addr)
+            return '#define %s ((%s (*)%s)0x%08X)' % (name, narrowed, rest, addr)
+        return '#define %s ((%s *)0x%08X)' % (name, narrowed, addr)
 
     if suffix.startswith('['):
-        return '#define %s (*(%s (*)%s)0x%08X)' % (name, ctype, suffix, addr)
+        return '#define %s (*(%s (*)%s)0x%08X)' % (name, narrowed, suffix, addr)
 
     if suffix:
         return None  # a function declaration, bitfield, or something unexpected
 
-    return '#define %s (*(%s *)0x%08X)' % (name, ctype, addr)
+    return '#define %s (*(%s *)0x%08X)' % (name, narrowed, addr)
 
 
 # Symbols linker.ld places with `. = ALIGN(n);` immediately after an object
@@ -309,12 +326,8 @@ def main():
                     help='katam.map, used to verify ADDR_OVERRIDES still hold')
     args = ap.parse_args()
 
+    load_pointer_typedefs(args.tree)
     syms = parse_linker_script(args.linker_script)
-    # Shared with narrow32 on purpose: a typedef that hides a pointer has to
-    # mean the same four bytes whether it turns up as a structure member or as
-    # the type of a linker-placed symbol.
-    typedefs = (narrow32.pointer_typedefs(args.tree / 'include')
-                | narrow32.pointer_typedefs(args.tree / 'src'))
     override_notes = []
     check_overrides_against_map(args.map, override_notes)
     for note in override_notes:
@@ -352,16 +365,36 @@ def main():
         # One declaration can declare several of these symbols at once.  All of
         # them have to be resolved here, because commenting the line out for the
         # first would hide the declaration the others still need.
-        group = [n for n in syms if n != name and re.search(r'\b%s\b' % re.escape(n), hit)]
+        #
+        # The *comment* on a declaration is not part of it, and these headers
+        # cross-reference each other freely:
+        #
+        #   extern HBlankFunc gHBlankCallbacks[4]; // Only copied to gHBlankIntrs
+        #                                          // in VBLANK ...
+        #
+        # Counting that mention as a declaration of gHBlankIntrs marked the
+        # symbol done, produced no macro for it, and left its own declaration in
+        # main.h uncommented -- so the link failed on an undefined symbol that
+        # linker.ld places at 0x03003A10.  Match against the declaration only.
+        # The comment is scanned deliberately, not by oversight.  A symbol
+        # named only in a trailing comment -- `extern HBlankFunc
+        # gHBlankCallbacks[4]; // Only copied to gHBlankIntrs in VBLANK` -- is
+        # one this generator must NOT emit a macro for, because it has no
+        # declaration of its own here and tools/gen_stubs.py gives it real
+        # storage instead.  Emitting one collides with that storage and turns
+        # the stub's declaration into nonsense.  Stripping comments first looks
+        # like a bug fix and is a regression; it was tried.
+        group = [n for n in syms
+                 if n != name and re.search(r'\b%s\b' % re.escape(n), hit)]
         for other in group:
-            macro = declaration_to_macro(hit, other, syms[other], typedefs)
+            macro = declaration_to_macro(hit, other, syms[other])
             if macro is None:
                 skipped.append((other, hit.strip()))
             else:
                 resolved.append((other, syms[other], macro))
             done.add(other)
 
-        macro = declaration_to_macro(hit, name, addr, typedefs)
+        macro = declaration_to_macro(hit, name, addr)
         if macro is None:
             skipped.append((name, hit.strip()))
             continue

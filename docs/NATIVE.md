@@ -80,10 +80,18 @@ that is already ILP32 — i686, armv6l, armv7l — needs no toolchain file at al
 **What this means for the platforms** is set out under
 [Adding a platform](#adding-a-platform) below. The short version: Windows is
 done and is `i686-w64-mingw32`; 32-bit ARM is done and needed nothing written
-beyond a toolchain file; **arm64 runs the 32-bit build rather than one of its
-own**, which mostly works and has one sharp edge worth knowing before you buy a
-Raspberry Pi 5; **macOS is blocked outright**, and the reason is worth reading
-before starting.
+beyond a toolchain file; **arm64 plays the game by running the 32-bit build**,
+which mostly works and has one sharp edge worth knowing before you buy a
+Raspberry Pi 5 — a 64-bit build of its own is under way and does not play the
+game yet; **macOS is blocked outright**, and the reason is worth reading before
+starting.
+
+The 64-bit work is what would change the last two, and it is being done rather
+than argued about: the structures keep their four-byte pointer members through
+`platform/port/p32.h`, the whole 246-type assertion table now holds at LP64, and
+`cmake/toolchain-linux-arm64.cmake` builds a binary that boots and reaches the
+game's task scheduler before it crashes.
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) is the measurement and the state of it.
 
 ### 2. Page zero
 
@@ -190,7 +198,7 @@ the regions are 16 MiB apart, rounding cannot make two of them collide.
 Forcing `PortHostPageSize` to 16384 and then 65536 confirms it: the reservation
 succeeds either way, the regions round outward and stay 16 MiB apart, and 400
 frames of boot are unchanged. armhf itself is 4 KiB, and so is every arm64
-kernel that can run it — see [arm64](#arm64--it-runs-the-armhf-build-with-one-sharp-edge)
+kernel that can run it — see [arm64](#arm64--it-plays-the-armhf-build-a-64-bit-build-is-in-progress)
 for why those two facts are the same fact.
 
 At 65536 something else breaks, and it is worth knowing about before Windows is
@@ -682,15 +690,24 @@ make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
 Whether it would be *playable* on a 1 GHz ARM11 is a different question, and
 the software PPU suggests not.
 
-### arm64 — it runs the armhf build, with one sharp edge
+### arm64 — it plays the armhf build; a 64-bit build is in progress
 
-There is no arm64 build and there will not be one until the port is 64-bit
-clean. That project has now been measured rather than guessed at —
-[docs/SIXTYFOUR.md](SIXTYFOUR.md) has the counts, the failure it produces, and
-an estimate of 4–6 weeks. `-mabi=ilp32` exists on arm64 and no distribution
-ships a userland for it.
+**To play the game on arm64 today, run the armhf build.** That is what the rest
+of this section is about, and it has one sharp edge.
 
-What does work is running the **armhf** build under the arm64 kernel's 32-bit
+There is also an arm64 target now — `cmake/toolchain-linux-arm64.cmake`,
+`make arm64` — and it is unfinished. It compiles, links, boots, reserves the GBA
+map at its true addresses, loads the ROM, starts the sound engine and reaches
+the game's task scheduler, where it crashes. What it took to get that far, and
+what is left, is [docs/SIXTYFOUR.md](SIXTYFOUR.md); how to build it without root
+is [And arm64, which is the unfinished target](#and-arm64-which-is-the-unfinished-target)
+below. It is not a way to play the game and will not be until the port is
+64-bit clean.
+
+`-mabi=ilp32` would have avoided all of that. It exists on arm64 and no
+distribution ships a userland for it, which was checked rather than assumed.
+
+What works today is running the **armhf** build under the arm64 kernel's 32-bit
 support, and on most 64-bit ARM Linux that works out of the box:
 
 ```sh
@@ -745,16 +762,25 @@ project rather than a platform port. It has been measured, and
   and the 219 function pointers it patches into ROM structures — has to fit in
   32 bits, which means linking the executable's code below 4 GiB (`-image_base`,
   with `-pagezero_size` shrunk).
-- The rewrite is not textual: 65 of the 169 pointer-member names are also the
-  names of non-pointer members elsewhere, so `tools/portify.py` cannot drive it
-  and a type-aware pass is needed.
-- Estimate: **4–6 weeks** for someone who knows this codebase.
+- The rewrite is not textual, and the member names do not carry types: 65 of the
+  169 pointer-member names are also the names of non-pointer members elsewhere.
+  The way through turned out to be C++ — a four-byte class with `operator->`, so
+  the *declarations* change and the ~40,000 uses do not. That is
+  `platform/port/p32.h`, and `tools/narrow32.py` rewrote 277 members with it.
 
-An LP64 build can be configured today with `-DKATAM_ALLOW_LP64=ON`, which is an
-experiment switch and not a step towards a working build. Without the layout
-assertions it compiles and links with **no errors and no warnings at all**, and
-then dies four calls into `AgbMain` on a jump table that ran over its
-neighbour. Do not start this by accident.
+**This is under way rather than hypothetical, and the Linux half of it is what
+`make arm64` builds.** The 246-type assertion table holds at LP64, on x86-64 and
+on aarch64 both; the image and the port's own storage are linked below 4 GiB so
+a four-byte member can hold an address of either; and the binary boots, loads
+the ROM, starts the sound engine and dies in the game's task scheduler.
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) tracks what is left. macOS needs all of that
+finished and then a build of its own; nothing here has been tried on a Mac.
+
+`-DKATAM_ALLOW_LP64=ON` is what configures such a build, and it is still the
+switch that says "I know this is not finished" rather than a fix — with the
+assertions dropped as well (`-DKATAM_SKIP_LAYOUT_CHECK=ON`) an LP64 build
+compiles and links with **no errors and no warnings at all**, which is the whole
+reason the guard and the table exist. Do not start this by accident.
 
 If macOS is attempted anyway, the `__PAGEZERO` part is already handled:
 `CMakeLists.txt` passes `-Wl,-pagezero_size,0x1000`, because the default 4 GiB
@@ -938,6 +964,11 @@ and the game's own logic produce the same frame on two different instruction
 sets, so any ARM-specific misbehaviour would have to be invisible in 1800 frames
 of two runs and in every pixel of two screenshots.
 
+The arm64 target cannot pass this and there is no `arm64-test` to run it with.
+That is the definition of its not being finished: the boot run is 400 frames and
+it segfaults between frame 40 and frame 60. When it produces these same two
+lines it is done, and not before.
+
 `--screenshot` writes the framebuffer the PPU produced. `--window-shot` writes
 what the *renderer* produced, read back with `SDL_RenderReadPixels` before the
 present — scaled, letterboxed, in whatever pixel format the texture actually
@@ -1075,6 +1106,206 @@ qemu loads even a PIE image near `0x400000`, so the port's "this binary is loade
 below the top of the GBA map" warning fires on every qemu run. On a 32-bit ARM
 kernel a PIE goes near `mmap_base`, around `0xb6000000`, well above the map; the
 warning is qemu's and not the port's.
+
+### And arm64, which is the unfinished target
+
+Everything below builds `cmake/toolchain-linux-arm64.cmake`, which is the 64-bit
+work in progress. **It compiles, links, boots, reserves the GBA map at its true
+addresses, loads the ROM, starts the sound engine and reaches the game's task
+scheduler, where it crashes.** It does not play the game and is not a way to
+play the game; the finished ARM build is armhf, above. This recipe is here so
+the 64-bit work can be picked up, and because every step in it cost time to find.
+[docs/SIXTYFOUR.md](SIXTYFOUR.md) is what the target is for.
+
+The cross toolchain is ordinary `amd64` packages, and the target userland comes
+from nowhere at all — SDL is built from source below, so the sysroot needs only
+glibc:
+
+```sh
+apt-get download gcc-13-aarch64-linux-gnu g++-13-aarch64-linux-gnu \
+    cpp-13-aarch64-linux-gnu binutils-aarch64-linux-gnu libbinutils \
+    gcc-13-cross-base libc6-arm64-cross libc6-dev-arm64-cross \
+    linux-libc-dev-arm64-cross libgcc-13-dev-arm64-cross \
+    libgcc-s1-arm64-cross libstdc++6-arm64-cross \
+    libstdc++-13-dev-arm64-cross qemu-user-static
+for d in *.deb; do dpkg-deb -x "$d" root; done
+export SYS=$PWD/root
+```
+
+`cpp-13-aarch64-linux-gnu` is in that list for a reason worth stating once:
+`apt-get download` fetches **no dependencies**, and `cc1` and `cc1plus` live in
+the `cpp-` package rather than the `gcc-` one. Leave it out and the compiler
+installs, runs, and says `fatal error: cannot execute 'cc1'`.
+
+Three things then have to be done by hand, and none of them is guessable from
+the error it produces.
+
+```sh
+ln -s aarch64-linux-gnu-gcc-13 $SYS/usr/bin/aarch64-linux-gnu-gcc
+ln -s aarch64-linux-gnu-g++-13 $SYS/usr/bin/aarch64-linux-gnu-g++
+mkdir -p $SYS/lib && cp -a $SYS/usr/aarch64-linux-gnu/lib/. $SYS/lib/
+export LD_LIBRARY_PATH=$SYS/usr/lib/x86_64-linux-gnu
+export PATH=$SYS/usr/bin:$PATH
+```
+
+- **The unsuffixed names.** Same as the MinGW recipe above: Debian ships the
+  driver versioned and lets update-alternatives make the plain name, and
+  unpacking by hand skips that. The toolchain file's default prefix is
+  `aarch64-linux-gnu-`, so without the two symlinks it looks for a compiler that
+  is not there. (`-DCMAKE_C_COMPILER=` and `-DCMAKE_CXX_COMPILER=` with the `-13`
+  names work just as well.)
+- **`$SYS/lib`.** The target loader is `/lib/ld-linux-aarch64.so.1`, which is
+  what `PT_INTERP` says and what `qemu-aarch64-static -L` will go looking for.
+  Debian's *cross* packages put the whole target libc in
+  `/usr/aarch64-linux-gnu/lib`, which is not a path any loader searches, so the
+  directory is copied where a sysroot expects it. The linker is separately told
+  about the cross location by the toolchain file, which is the same `-B`/`-L`
+  fix the armhf one carries.
+- **`LD_LIBRARY_PATH`, on the *host* side.** `binutils-aarch64-linux-gnu` ships
+  an `as` and an `ld` that are x86-64 programs linked against
+  `libopcodes-2.42-arm64.so` and `libbfd-2.42-arm64.so`, which land in the
+  sysroot's `usr/lib/x86_64-linux-gnu` and are on no search path. Without this
+  the first compile fails with `as: error while loading shared libraries`, which
+  reads like a broken toolchain and is a missing environment variable.
+
+#### SDL2, from source, and why not from the archive
+
+The obvious route is not available and the next-obvious one fails late.
+`apt-get download libsdl2-dev:arm64` fetches nothing, because **arm64 packages
+are on `ports.ubuntu.com`, not `archive.ubuntu.com`** — only the *cross*
+packages above are in the main archive, which is why the list above worked. The
+ports pool is browsable, so the `.deb` can still be had by URL:
+
+```
+http://ports.ubuntu.com/ubuntu-ports/pool/universe/libs/libsdl2/
+```
+
+It is not worth it. The packaged `libSDL2.so` has **twenty `DT_NEEDED`
+entries** — `libdrm`, `gbm`, three `wayland-*`, seven `X*`, `libpulse`,
+`libasound`, `libsamplerate`, `libxkbcommon`, `libdecor` — every one of which
+then has to be in the sysroot before the link will finish, and each brings its
+own. The static `libSDL2.a` in the same package is no escape: it still has the
+KMSDRM, X11 and Wayland objects compiled into it and needs the same libraries.
+
+Built from source with dummy video and dummy audio it needs none of them, and a
+headless run wants nothing else:
+
+```sh
+curl -LO https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-2.30.11.tar.gz
+tar xf SDL2-2.30.11.tar.gz
+
+cmake -S SDL2-2.30.11 -B sdlbuild -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=$SYS/usr/bin/aarch64-linux-gnu-gcc-13 \
+  -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+  -DCMAKE_SYSROOT=$SYS -DCMAKE_INSTALL_PREFIX=/usr \
+  -DSDL_SHARED=OFF -DSDL_STATIC=ON \
+  -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_KMSDRM=OFF -DSDL_DIRECTFB=OFF \
+  -DSDL_VIVANTE=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_VULKAN=OFF \
+  -DSDL_ALSA=OFF -DSDL_PULSEAUDIO=OFF -DSDL_JACK=OFF -DSDL_PIPEWIRE=OFF \
+  -DSDL_SNDIO=OFF -DSDL_OSS=OFF -DSDL_LIBSAMPLERATE=OFF \
+  -DSDL_DBUS=OFF -DSDL_IBUS=OFF -DSDL_LIBUDEV=OFF -DSDL_RPATH=OFF \
+  -DSDL_DUMMYVIDEO=ON -DSDL_DUMMYAUDIO=ON
+cmake --build sdlbuild -j
+DESTDIR=$SYS cmake --install sdlbuild
+```
+
+`prefix=/usr` with `DESTDIR` puts `libSDL2.a` in `$SYS/usr/lib` and `sdl2.pc` in
+`$SYS/usr/lib/pkgconfig`, which is the second directory the toolchain file puts
+on `PKG_CONFIG_LIBDIR` — the first being the multiarch one a distribution SDL
+would land in. If you unpacked the packaged SDL before reading the paragraph
+above, delete its `libSDL2*.so*` and its `pkgconfig/sdl2.pc` from
+`usr/lib/aarch64-linux-gnu` afterwards, or pkg-config finds the shared one first
+and the link comes back to the twenty libraries.
+
+There is no window and no audio device in this SDL. That is the point: it is
+enough to boot the port and drive it with `--frames`, and no help at all for
+playing anything.
+
+#### Building the port
+
+`make sync` and `make stubs` first, as at the top of this file. The arm64 build
+compiles `build/port-src`, the same tree every other build compiles:
+`tools/cxxify.py` and `tools/narrow32.py` run inside `make sync` and what they
+write is valid C as well as C++, so there is no second tree to keep in step.
+
+```sh
+KATAM_SYSROOT_ARM64=$SYS \
+KATAM_ARM64_QEMU=$SYS/usr/bin/qemu-aarch64-static \
+  make arm64
+```
+
+**`KATAM_SYSROOT_ARM64` has to be in the environment. `-D` does not work**, and
+this is the one mistake in this recipe that produces a plausible wrong answer
+rather than an error. A toolchain file is evaluated *before* CMake's cache is
+populated, so a `-DKATAM_SYSROOT_ARM64=...` is invisible to it on the first
+configure: the sysroot branch is skipped, `CMAKE_SYSROOT` is never set,
+`PKG_CONFIG_LIBDIR` keeps pointing at the host's own directories, and the build
+stops with
+
+```
+CMake Error at CMakeLists.txt:201 (message):
+  No sdl2.pc for aarch64 on PKG_CONFIG_LIBDIR
+```
+
+while a perfectly good `sdl2.pc` sits in the sysroot two directories away. The
+same is true of `KATAM_ARM64_PREFIX`,
+`KATAM_ARM64_ABI_FLAGS` and `KATAM_ARM64_QEMU`; the toolchain file reads all
+four from the environment for exactly this reason.
+
+`make arm64` is the two `cmake` lines with `-DKATAM_ALLOW_LP64=ON` on the first,
+which is what gets past the pointer-size guard. It is not a fix and CMake says
+so, at length, every time it configures.
+
+`KATAM_ARM64_QEMU` is optional and worth setting: it becomes
+`CMAKE_CROSSCOMPILING_EMULATOR`, so CMake's own `try_run` checks answer for the
+target instead of being guessed at, and the binary can be run from the build
+tree on the desktop that made it.
+
+#### Running it
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  $SYS/usr/bin/qemu-aarch64-static -L $SYS \
+  ./build/native-arm64/katam ~/roms/your-copy.gba --frames 300 --no-audio --verbose
+```
+
+What that does today (abridged — the seven mappings and the kernel's own view of
+them print in between):
+
+```
+[katam-port] page size 4096, GBA window 0x02000000..0x0A000000 (128 MiB of
+             address space in 7 mappings)
+[katam-port] this binary at 0x10210940, a stack address at 0x4000007ffa14,
+             a heap address at 0x105692b0 -- all outside the window
+[katam-port] loaded your-copy.gba (16777216 bytes)
+[katam-port] ROM loaded (16777216 bytes), starting AgbMain
+[katam-port] save memory restored from host storage
+qemu: uncaught target signal 11 (Segmentation fault) - core dumped
+```
+
+The map is right, the image and the heap are below 4 GiB where a `PTR32` can
+hold them (`-no-pie -Wl,-Ttext-segment=0x10000000`, which `CMakeLists.txt`
+tests for rather than assumes), the ROM loads, `AgbMain` runs — and then it dies
+in the game's own task scheduler. `--frames 40` returns cleanly and `--frames
+60` does not, which is where it stands today: far enough to prove the boot, and
+no evidence about anything after it. The armhf build under the same emulator
+plays the game.
+
+`platform/port/p32.h` — the four-byte pointer member the whole target rests on —
+can be tested on real 64-bit ARM instructions rather than argued about:
+
+```sh
+$SYS/usr/bin/aarch64-linux-gnu-g++-13 --sysroot=$SYS -x c++ -std=gnu++17 -w \
+    -Ibuild/port-src/include -Ibuild/generated -Iplatform \
+    tools/p32_test.c -o build/p32_arm64
+$SYS/usr/bin/qemu-aarch64-static -L $SYS build/p32_arm64
+    p32_test (C++, 8-byte host pointer): 0 failure(s)
+```
+
+That is `make p32-test`'s first half with the cross compiler in place of `g++`,
+which is what the `P32_CXX` variable in the `Makefile` is for. It cannot be
+`make p32-test` itself without a `binfmt` handler, because the Makefile runs the
+binary it just built by name.
 
 ---
 

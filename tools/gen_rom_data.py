@@ -32,7 +32,8 @@ EXTERN_C_OPEN = '#ifdef __cplusplus\nextern "C" {\n#endif\n\n'
 EXTERN_C_CLOSE = '\n#ifdef __cplusplus\n}\n#endif\n'
 
 sys.path.insert(0, str(Path(__file__).parent))
-from gen_ram_symbols import declaration_to_macro, DECL_RE_TMPL  # noqa: E402
+from gen_ram_symbols import (declaration_to_macro, load_pointer_typedefs,  # noqa: E402
+                             DECL_RE_TMPL)
 
 # `s32 (*const gTable[])(union AnimCmd, struct Sprite *)` -- an array of
 # function pointers sitting in ROM.
@@ -107,7 +108,21 @@ def parse_structs(texts):
                 if not line:
                     continue
 
-                fn = re.match(r'(?P<ret>[\w\s\*]+?)\s*\(\s*\*\s*(?P<nm>\w+)\s*\)'
+                # PTR32_FN(ret, name, (params)) -- the narrowed spelling of a
+                # function-pointer member.  tools/narrow32.py rewrites every
+                # such member so it stays four bytes on a 64-bit host, and this
+                # scan is the only other thing in the tree that reads those
+                # declarations.  Missing it did not fail loudly: the member
+                # simply stopped being recognised as a function pointer, the
+                # struct's computed size stopped matching its /* size = */
+                # comment, the whole type was skipped, and the 219 ROM-struct
+                # function pointers silently stopped being patched -- in every
+                # build, including the shipping wasm one.  The symptom was a
+                # call into a raw ARM address in CreateCPUKirbyTrigger.
+                fnw = re.match(r'PTR32_FN\s*\(\s*(?P<ret>[^,]+?)\s*,\s*'
+                               r'(?P<nm>\w+)\s*,\s*\((?P<params>.*)\)\s*\)$',
+                               line, re.S)
+                fn = fnw or re.match(r'(?P<ret>[\w\s\*]+?)\s*\(\s*\*\s*(?P<nm>\w+)\s*\)'
                               r'\s*\((?P<params>.*)\)$', line, re.S)
                 if fn:
                     size = a = 4
@@ -115,7 +130,9 @@ def parse_structs(texts):
                     info = (fn.group('ret').strip(), fn.group('params'))
                 else:
                     is_fn, info = False, None
-                    if '*' in line:
+                    # The other narrowed spellings are all four-byte
+                    # pointers and none of them contains a star.
+                    if re.match(r'PTR32(_TD|_ARR)?\s*\(', line) or '*' in line:
                         size = a = 4
                     else:
                         mm = re.match(r'(?:const\s+|volatile\s+)*(?:struct\s+|union\s+)?'
@@ -397,6 +414,8 @@ def main():
                 from_elf[addr] = sym
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
     signatures = {}
+    load_pointer_typedefs(args.tree)
+
     defined = set()
     # The platform layer counts too -- it defines replacements for things the
     # decomp has in ROM (the SRAM library's version string, for one), and those
@@ -802,7 +821,10 @@ def main():
                 f.write('void PortPatchRomFunctionPointers(void)\n{\n'
                         '    u32 i;\n\n'
                         '    for (i = 0; i < sizeof(sRomStructFns) / sizeof(sRomStructFns[0]); i++)\n'
-                        '        *(void **)sRomStructFns[i].at = sRomStructFns[i].fn;\n'
+                        '        /* PTR32: the field the ROM gave this pointer is four bytes.\n'
+                        '         * A plain `void **` store is eight on a 64-bit host and\n'
+                        '         * takes the next field with it. */\n'
+                        '        *(PTR32(void) *)sRomStructFns[i].at = sRomStructFns[i].fn;\n'
                         '}\n')
             else:
                 f.write('void PortPatchRomFunctionPointers(void) { }\n')
