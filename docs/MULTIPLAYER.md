@@ -520,10 +520,60 @@ Stated plainly, because the difference is the whole point:
   implementation and the game's are independent and agree, and that the game's
   library reports `RECV_FLAGS_AVAILABLE` — which it only does after eight
   consecutive frames of well-formed traffic.
-- **Determinism has not been tested and is the real risk.** §1 describes a
-  desync check on `gRngVal` and every Kirby's position. Two units running this
-  port would have to agree bit for bit. The port's audio, PPU and frame pacing
-  differ from hardware; whether anything that feeds game state does is unknown.
+- ~~**Determinism has not been tested and is the real risk.**~~ **Measured on
+  2026-08-05; see below.** It is no longer the open question this section said
+  it was, though the *multiplayer* code path is still unexercised.
+
+### Determinism: measured
+
+The desync check hashes exactly this (`multi_08030C94.c:114`):
+
+```c
+r5 = gRngVal;
+for (i = 0; i < 4; ++i)
+    r5 += gKirbys[i].base.base.base.x + gKirbys[i].base.base.base.y;
+```
+
+— two bits of that sum, once a frame. So "will two instances of this port stay
+in sync" is a question about `gRngVal` and eight `s32`s, and it is directly
+checkable with the instruments in [DEBUG-TOOLING.md](DEBUG-TOOLING.md) §7.
+
+Against 1401 frames of identical scripted input:
+
+| | |
+|---|---|
+| `gRngVal`, hashed **every frame**, LP64/SDL against wasm32/node | identical on all 900 frames tested |
+| all four Kirbys' x and y at frame 600, same two builds | identical, sum 204692 |
+| the whole DMA transfer stream, wasm32 / i686 / x86-64 / aarch64 | byte-identical, 63236 transfers |
+| frame 1400 pixels, same four builds | 0 of 38400 differ |
+| audio on against audio off, **same binary**, independent save profiles | byte-identical, 35208 transfers |
+
+The last row is the one that had been assumed to fail. An earlier note in
+DEBUG-TOOLING.md said turning audio off alone moved EWRAM at frame 63; that is
+true of the *sound engine's own* state and does not reach game state. The
+mixer's output does not feed anything the desync check hashes.
+
+So: **the port is deterministic given identical input, across two ABIs, three
+architectures and two hosts, in both audio configurations.** That is the
+property lockstep needs, and it is a stronger result than the one this section
+asked for -- it survives a change of pointer size, not just a change of
+machine.
+
+Two caveats, both real:
+
+- **This is the single-player path.** Nothing above the packet layer has run,
+  so a divergence that only exists in link mode -- `gUnk_0203AD3C` selecting a
+  different player, the world-properties transfer, the five-frame input delay
+  -- would not appear here.
+- **Identical input is the premise, not a finding.** It says the port computes
+  the same thing from the same input; delivering the same input to four
+  instances is what the transport is for.
+
+When comparing two runs, give each one its own `XDG_DATA_HOME`. The native
+builds keep a save file and the node harness does not, so two runs that share a
+profile are not being asked the same question -- and the first attempt at the
+audio row above was contaminated exactly that way, reporting a divergence at
+frame 409 that was one run resuming the other's saved tutorial.
 
 ---
 
@@ -544,7 +594,13 @@ Beyond §5, which is the blocker:
 3. **Slot assignment out of band.** `selfId` and `players` come from the
    transport, not from the game. Slot 0 clocks the cable, so whoever is slot 0
    sets the pace for everyone.
-4. **Determinism, first.** Before any of the above is worth writing, two
-   instances of this port need to be shown to produce identical game state from
-   identical input. The game will tell you if they do not — code 8 — but it
-   will tell you by ending the session.
+4. ~~**Determinism, first.**~~ **Done** — see "Determinism: measured" in §6.
+   `gRngVal` and every Kirby's x and y, the two things the desync check hashes,
+   are identical frame for frame between the LP64 native build and the wasm32
+   one, and all four builds agree transfer for transfer and pixel for pixel.
+   Audio on and audio off are identical too. What remains untested is the link
+   path itself, which cannot run until §5 is done.
+
+   Keep the check honest as netplay is built: hash the desync word itself, not
+   a proxy. `PORT_WINDOW=30068D8:4` watches `gRngVal` every frame, and the
+   Kirby positions are at `0x02020EE0 + 424*i + 64` and `+68`.
