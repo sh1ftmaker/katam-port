@@ -61,6 +61,57 @@ at safe1.wasm.CreateLogo  (wasm://wasm/safe1.wasm-00a7610a:wasm-function[2936]:0
 `--profiling-funcs` (already on) is what supplies the names. The offsets are the
 part nothing currently uses, and they are the part that carries the line number.
 
+### Read the trap *kind* before anything else
+
+WebAssembly has several distinct traps and they mean genuinely different
+things. Reading the wrong one costs a day:
+
+| message | what it means |
+|---|---|
+| `Out of bounds memory access` | a load or store past the end of linear memory |
+| `null function or function signature mismatch`, `table index is out of bounds` | an **indirect** call whose target does not match the call site — reported at the *caller* |
+| `unreachable` | the module executed an `unreachable` instruction |
+
+The last one is the one to be careful with, because C does not have an
+`unreachable` statement and there are only a few things that emit it:
+`__builtin_trap`, a path the optimiser proved could not be taken, an
+`abort()`-shaped stub — and **wasm-ld's answer to a signature disagreement on a
+direct call.** That last one is not hypothetical here; it is what build
+`8e8d234d6b1c` died of.
+
+When a call and its definition are typed differently — which an implicit
+declaration guarantees, since it means `int f()` — `wasm-ld` cannot emit the
+call, so it emits a stub whose entire body is `unreachable` and points the call
+there. The link **succeeds**, with one warning:
+
+```
+wasm-ld: warning: function signature mismatch: PortTrace
+>>> defined as (i32, i32, i32, i32) -> i32 in .../warp_star.o
+>>> defined as (i32, i32, i32, i32) -> void in platform/main.o
+```
+
+Then `wasm-opt -O2` inlines the two-byte stub into every caller, so the trap is
+attributed to the calling function and there is no frame naming the callee at
+all. `sub_0800DC5C` in that build disassembles to exactly this: the three
+argument loads, kept because they might fault, and then the trap.
+
+```
+  229cf9: 41 b4 9f 88 10   i32.const 33689524   ;; &gKirbys[0].animationIndex
+  229cfe: 2f 01 00         i32.load16_u 0
+  229d01: 00               unreachable
+```
+
+Two consequences worth internalising. Binaryen also folds identical functions,
+and once a body is "evaluate the arguments, then trap" many bodies become
+identical — all 32 warp-star state handlers collapsed into one function in that
+build, so the name in the stack trace was the surviving representative and not
+necessarily the state the game was in. And `unreachable` inside a function
+whose source contains no call that could trap is a strong signal to go and read
+the link output rather than the C.
+
+The build now passes `-Werror=implicit-function-declaration`, which turns this
+whole class into a compile error naming the file and line.
+
 ## 1. AddressSanitizer — does not work here, and cannot be made to
 
 `emcc -fsanitize=address` refuses to link this build, twice over:

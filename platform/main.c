@@ -2,22 +2,28 @@
  *
  * On hardware, crt0.s sets up the stack, clears RAM, installs the interrupt
  * vector and jumps to AgbMain, which never returns -- GameLoop runs forever and
- * blocks in VBlankIntrWait once a frame.  A browser cannot be blocked, so the
- * port is built with Asyncify: VBlankIntrWait unwinds the wasm stack, hands
- * control back to the page, and resumes on the next animation frame.  The
- * game's own loop is left exactly as it is.
+ * blocks in VBlankIntrWait once a frame.
+ *
+ * Neither host can be blocked that way.  A browser cannot be blocked at all,
+ * so the web build is compiled with Asyncify: VBlankIntrWait unwinds the wasm
+ * stack, hands control back to the page, and resumes on the next animation
+ * frame.  Natively the same call is a real sleep to the next frame boundary.
+ * Either way the game's own loop is left exactly as it is, and the whole of
+ * the difference lives behind PortAwaitAnimationFrame -- see
+ * platform/port/backend.h.
  */
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
-#include <emscripten.h>
-
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/dma.h"
+#include "port/mp.h"
 #include "gba/gba.h"
 #include "main.h"
+#include "multi_sio.h"
 
 u32 gPortRomSize;
 static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
@@ -37,6 +43,9 @@ static const char *sReported[MAX_REPORTED];
 static int sNumReported;
 static int sMissingCalls;
 
+/* PortConsole is the host's -- the browser console plus the page's own log, or
+ * the process's stderr.  See platform/port/backend.h. */
+
 void PortLog(const char *fmt, ...)
 {
     char buf[512];
@@ -45,7 +54,7 @@ void PortLog(const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    emscripten_console_log(buf);
+    PortConsole(buf, 0);
 }
 
 /* Same, at error level.  Everything the port says arrives in the browser's
@@ -62,7 +71,7 @@ void PortError(const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    emscripten_console_error(buf);
+    PortConsole(buf, 1);
 }
 
 static int ReportOnce(const char *name)
@@ -227,6 +236,42 @@ static const struct { u32 flag; int index; } sIntrIndex[] = {
     { INTR_FLAG_TIMER3, 7 },
 };
 
+/* gIntrTable[0] does not always hold a function.
+ *
+ * MultiSioInit copies the machine code of MultiSioIntr into an IWRAM buffer so
+ * that a cartridge waitstate cannot delay a serial interrupt, and the game
+ * then installs the *buffer* as the handler -- gIntrTableTemplate[0] is
+ * literally `(void *)gMultiSioIntrFuncBuf`, and multi_08019F28.c and
+ * multi_sio_08158934.c write it into gIntrTable[0] again by hand.
+ *
+ * Here that address is data, not code, and a wasm function pointer is a table
+ * index rather than an address, so calling it goes out of bounds.  It is the
+ * same problem agb_sram.c had at boot, with the same answer: recognise the
+ * buffer and call the real function.  platform/multi_sio_intr.c is the real
+ * function. */
+static void CallIntr(int index)
+{
+    IntrFunc handler = gIntrTable[index];
+
+    if ((const void *)handler == (const void *)gMultiSioIntrFuncBuf) {
+        static int said;
+
+        /* Said once, because "did the link driver's interrupt actually run"
+         * is otherwise unanswerable from outside: MultiSioIntr leaves its
+         * traces in a struct the linker placed, not at a fixed address. */
+        if (!said) {
+            said = 1;
+            PortLog("[katam-port] gIntrTable[0] holds gMultiSioIntrFuncBuf "
+                    "(the IWRAM copy of the link driver's interrupt); "
+                    "calling MultiSioIntr");
+        }
+        MultiSioIntr();
+        return;
+    }
+    if (handler)
+        handler();
+}
+
 void PortDispatchInterrupt(u32 flag)
 {
     u32 i;
@@ -234,29 +279,40 @@ void PortDispatchInterrupt(u32 flag)
     /* Honour the game's own masking, exactly as the BIOS dispatcher would. */
     if (!(*(vu16 *)(GBA_IO_BASE + REG_OFFSET_IME) & 1))
         return;
+
+    /* crt0.s's IntrMain tests INTR_FLAG_TIMER3 and INTR_FLAG_SERIAL together,
+     * before every other flag, and sends both to gIntrTable[0] -- which makes
+     * the per-timer entry for timer 3, further down the same chain,
+     * unreachable on hardware.
+     *
+     * That is not an oddity to preserve for its own sake, it is how the link
+     * driver works.  MultiSioMain's state 0 promotes a console to parent by
+     * masking the serial interrupt off and the timer-3 interrupt on
+     * (multi_sio.c), because the parent is clocked by its own timer rather
+     * than by the cable, and it expects the same handler to keep running.
+     * Dispatching timer 3 to gIntrTable[7] instead would call Timer3Intr,
+     * which belongs to an unrelated protocol. */
+    if (flag == INTR_FLAG_SERIAL || flag == INTR_FLAG_TIMER3) {
+        u16 ie = *(vu16 *)(GBA_IO_BASE + REG_OFFSET_IE);
+
+        if (!(ie & (INTR_FLAG_SERIAL | INTR_FLAG_TIMER3)))
+            return;
+        CallIntr(0);
+        return;
+    }
+
     if (!(*(vu16 *)(GBA_IO_BASE + REG_OFFSET_IE) & flag))
         return;
 
     for (i = 0; i < sizeof(sIntrIndex) / sizeof(sIntrIndex[0]); i++) {
         if (sIntrIndex[i].flag == flag) {
-            IntrFunc handler = gIntrTable[sIntrIndex[i].index];
-            if (handler)
-                handler();
+            CallIntr(sIntrIndex[i].index);
             return;
         }
     }
 }
 
 /* --- frame boundary ------------------------------------------------------ */
-
-EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
-    await new Promise(function (resolve) { requestAnimationFrame(resolve); });
-});
-
-EM_JS(void, PortBlitFramebuffer, (const u32 *pixels, int w, int h), {
-    if (Module.portPresent)
-        Module.portPresent(pixels, w, h);
-});
 
 void PortPresentFrame(void)
 {
@@ -280,6 +336,14 @@ void PortPresentFrame(void)
     *dispstat |= DISPSTAT_VBLANK;
     PortDmaVBlank();
     PortDispatchInterrupt(INTR_FLAG_VBLANK);
+
+    /* This frame's link-cable transfers.  On hardware they are spread across
+     * the whole frame by timer 3; here they are a burst, because the I/O block
+     * is plain memory and there is nothing to notice a store to SIOCNT at the
+     * moment it happens.  What has to hold is that a frame's worth of them
+     * happens between one MultiSioMain and the next, and it does.  Returns
+     * immediately unless something has attached a transport. */
+    PortMpFrame();
 
     PortBlitFramebuffer(gPortFramebuffer, gPortViewW, gPortViewH);
     PortAwaitAnimationFrame();
@@ -314,16 +378,18 @@ void PortVBlankEnd(void)
 
 /* --- startup ------------------------------------------------------------- */
 
-EM_ASYNC_JS(void, PortAwaitRom, (void), {
-    await Module.portRomReady;
-});
-
-int main(void)
+int main(int argc, char **argv)
 {
+    /* Parses the command line, reserves the GBA memory map at its true
+     * addresses and brings the window up -- or, on the web, does nothing at
+     * all.  It has to precede PortMemInit, which memsets regions that on a
+     * native host do not exist until they have been reserved. */
+    PortHostInit(argc, argv);
+
     PortMemInit();
 
-    /* The page loads the player's own ROM into 0x08000000 before we start;
-     * every pointer the game follows into ROM depends on it being there. */
+    /* The host puts the player's own ROM at 0x08000000 before we start; every
+     * pointer the game follows into ROM depends on it being there. */
     PortAwaitRom();
     if (!sRomReady || gPortRomSize == 0) {
         PortLog("[katam-port] no ROM supplied; refusing to start");

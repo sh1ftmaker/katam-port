@@ -135,6 +135,39 @@ WILD_READS = {
     ),
 }
 
+# Dereferences of a pointer that is still null.
+#
+# These are a different animal from WILD_READS above.  A wild read follows a
+# garbage address and lands somewhere undecoded; these follow *zero*, and on
+# the GBA address 0x00000002 is the BIOS ROM -- a real, readable address.  The
+# hardware returns open bus for a read from outside the BIOS, the value is
+# compared against something it cannot equal, and the branch is not taken.
+#
+# WebAssembly does not trap on this either: address 2 is ordinary low linear
+# memory and reads as zero, so the port has been running these all along
+# without noticing.  A native process is the first host that cannot do it --
+# every operating system reserves page zero and refuses to map it (Linux via
+# vm.mmap_min_addr, which is 65536 by default; macOS via __PAGEZERO; Windows
+# reserves the first 64 KiB outright), so the load is a segfault.
+#
+# The guard is written to be exactly what the hardware does, not what would be
+# tidier: null means "there is no such task", the comparison against open bus
+# was never going to match, and the branch was never taken.
+#
+# docs/DECOMP-REQUESTS.md asks upstream for the guard so the port does not have
+# to patch the text.
+NULL_DEREFS = {
+    'task.c': [(
+        """            if (slow->next == gNextTask->prev) {""",
+        """            /* PORT: gNextTask is null until the first TasksExec, and
+             * CreateLogo builds a task before then.  On hardware this read
+             * lands in the BIOS and returns open bus; in wasm it reads zero;
+             * natively page zero cannot exist at all.  Either way the branch
+             * was never taken, so say so. */
+            if (gNextTask != NULL && slow->next == gNextTask->prev) {""",
+    )],
+}
+
 # Transfers written by poking the DMA registers directly instead of going
 # through the DmaSet macro.
 #
@@ -352,6 +385,29 @@ def apply_view_patches(text, name, rep):
         text = VIEW_DECL + text
     return text
 
+CODE_IN_RAM = {
+    # The link driver's other copy-code-into-RAM-and-call-it trick.
+    #
+    # MultiSioInit copies the machine code of MultiSioRecvBufChange into an
+    # IWRAM buffer so the routine cannot be delayed by a cartridge waitstate,
+    # and MultiSioRecvDataCheck then calls the buffer.  agb_sram.c did the same
+    # thing and it was the first thing to take this port down after boot: in
+    # wasm, code is not addressable as data and a function pointer is a table
+    # index, so both the copy and the call are nonsense.
+    #
+    # The call is inside the game's own C, so unlike the interrupt-table case
+    # -- which platform/main.c catches by recognising the buffer's address --
+    # there is nowhere for the platform layer to intervene.  Point it at the
+    # function instead.  platform/multi_sio_intr.c defines it.
+    'multi_sio.c': [(
+        "    u32 (*multiSioRecvBufChangeOnRam)(void) = "
+        "(u32 (*)(void))gMultiSioRecvFuncBuf;",
+        "    /* PORT: was a call through gMultiSioRecvFuncBuf, the IWRAM copy\n"
+        "     * of this routine's machine code.  See tools/portify.py. */\n"
+        "    u32 (*multiSioRecvBufChangeOnRam)(void) = MultiSioRecvBufChange;",
+    )],
+}
+
 
 def trace_star_states(text, rep):
     """Report every warp-star / goal-star state handler as it runs.
@@ -367,6 +423,15 @@ def trace_star_states(text, rep):
     and then goes quiet.  One session then shows the whole path the star took
     and exactly where it stopped -- which is what a state machine that hangs
     somewhere unreachable by a scripted run requires.
+
+    PortTrace's prototype comes from platform/port/prelude.h, which is
+    force-included ahead of every translation unit.  It has to come from
+    somewhere: warp_star.c includes no port header, so for two builds this
+    call was an implicit declaration, wasm-ld resolved `int PortTrace()`
+    against `void PortTrace(...)` by pointing the call at a stub whose body is
+    `unreachable`, and all 32 handlers below trapped the moment they ran.  The
+    instrumentation killed the thing it was measuring and printed nothing.
+    Anything injected into the game's own sources needs a prototype there.
 
     Diagnosis, not code: delete this once the bug is understood.
     """
@@ -946,6 +1011,24 @@ def main():
                     rep.unhandled.append(
                         '%s: RAW_DMA pattern no longer matches -- the tilemap '
                         'blitter has changed upstream' % path.name)
+            for old, new in CODE_IN_RAM.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new)
+                    rep.bump('calls through copied machine code redirected')
+                else:
+                    rep.unhandled.append(
+                        '%s: a CODE_IN_RAM pattern no longer matches -- a call '
+                        'through a RAM copy of a function is left in place and '
+                        'will trap: %s' % (path.name, ' '.join(old.split())[:70]))
+            for old, new in NULL_DEREFS.get(path.name, ()):
+                if old in text:
+                    text = text.replace(old, new, 1)
+                    rep.bump('null dereferences guarded')
+                else:
+                    rep.unhandled.append(
+                        '%s: a NULL_DEREFS pattern no longer matches -- if the '
+                        'decompilation has guarded it upstream, drop the entry; '
+                        'if not, the native build will segfault' % path.name)
             wild = WILD_READS.get(path.name)
             if wild:
                 reads, decl = wild

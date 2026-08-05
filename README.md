@@ -1,8 +1,8 @@
 # katam-port
 
-A WebAssembly port of **Kirby & The Amazing Mirror**, built on top of the
+A port of **Kirby & The Amazing Mirror**, built on top of the
 [jiangzhengwenjz/katam](https://github.com/jiangzhengwenjz/katam)
-decompilation.
+decompilation. It runs in a browser, and it runs as a native desktop program.
 
 It boots, plays its music, gets you through the menus into a save file, and
 plays a level — backgrounds, sprites, parallax, scrolling and sound, driven by
@@ -30,25 +30,51 @@ any server of ours.
 | **Music and sound effects** | yes |
 | Keyboard input | yes |
 | Touch controls, built for phones | yes |
-| Saving between sessions | not yet |
+| Saving between sessions | yes, in browser storage |
+| Native desktop build (SDL2) | yes — Linux x86, Windows, 32-bit ARM |
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
-into an undecompiled function. Of the 13 symbols still stubbed at link time,
-**none are game logic**: they are the link-cable driver, multiboot, and
-`IntrMain`, all deliberately out of scope.
+into an undecompiled function. Of the 11 symbols still stubbed at link time,
+**none are game logic**: they are MultiBoot and `IntrMain`.
+
+### Link play
+
+The link cable is a real seam now rather than a hole. The game's own
+multiplayer driver — Nintendo's MultiSio library, the lobby, the lockstep input
+exchange — is compiled and driven by a transport-agnostic interface
+(`platform/port/mp.h`), with the serial hardware emulated under it and
+`MultiSioIntr` written from the game's own assembly. A same-process loopback
+transport ships as the reference, and a page can supply its own in JavaScript.
+
+What works today: the port's SIO unit clocks the cable, the game's driver comes
+up as parent or child, and 20-byte payloads cross and checksum in both
+directions for two to four units. What does not: the game cannot reach its own
+lobby, because that lobby uses MultiBoot's client-recognition phase as its link
+detector and MultiBoot is still stubbed. So this is the plumbing, verified, and
+not yet a playable second player. [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md)
+has the protocol, the interface, how to write a transport, and exactly what is
+measured versus assumed.
 
 ### Known problems
 
 - **The warp star at the end of a level does not launch.** Kirby boards it and
-  the sequence stalls. Under investigation; the shipped build traces the star's
-  state machine to the browser console.
+  the sequence stalls. Still open — but note that between builds `282a15d` and
+  `8e8d234d6b1c` this looked much worse than it was: the tracing added to
+  diagnose it called `PortTrace` with no prototype in scope, `wasm-ld` answered
+  the signature disagreement with a stub whose whole body is `unreachable`, and
+  every one of the star's 32 state handlers therefore trapped on entry. Those
+  builds could not run a warp star at all, and printed not one trace line. That
+  is fixed; the tracing works now, and what the star is actually waiting on is
+  still unknown.
 - **Some minigame sound effects do not play.**
 - **The 4 PSG channels are not implemented.** The sequencer keeps their
   registers current, but nothing turns that into sound yet, so the chip
   channels are missing from the mix.
-- **120 Hz displays run at double speed.** The frame loop takes one game frame
-  per `requestAnimationFrame`. Audio makes this obvious.
+- **120 Hz displays run at double speed** *in the browser build.* The frame
+  loop takes one game frame per `requestAnimationFrame`. Audio makes this
+  obvious. The native build paces to the GBA's own 59.7275 Hz and does not
+  have this problem.
 
 ## Running it
 
@@ -74,10 +100,121 @@ not. `#rom=` works too, and keeps the address out of Referer headers. The last
 ROM you loaded is remembered in IndexedDB so you do not have to supply it
 again.
 
+### Saves
+
+Save files persist in the browser. The game's save memory is written to
+IndexedDB whenever it changes -- debounced, with a periodic re-check and a
+`visibilitychange` backstop, because mobile browsers kill tabs without warning
+and `beforeunload` is not reliable there -- and restored the first time the
+game reaches into it.
+
+Storage is keyed per ROM, by the cartridge header plus a hash of the image, so
+loading a different copy cannot inherit or clobber another game's save. The
+page can export your save as a plain 64 KiB `.sav` (the format an emulator
+reads), import one back, and delete what it has stored.
+
 `sync` copies the decompilation and rewrites what will not compile off ARM; it
 never touches your checkout. Re-run all three whenever you pull new
 decompilation work — the set of stubbed functions shrinks by itself as the
 decompilation advances.
+
+## The native build
+
+The same port in a window, on SDL2. Same PPU, same DMA, same mixer, same game
+sources — what changes is the host.
+
+```sh
+sudo apt install gcc-multilib libsdl2-dev:i386   # or your distro's equivalent
+make sync KATAM_DECOMP=~/katam                   # if you have not already
+make stubs KATAM_DECOMP=~/katam
+make native
+./build/native/katam ~/roms/your-copy.gba
+```
+
+Same controls as the page, plus a gamepad. F11 fullscreen, 1–6 window scale,
+F12 screenshot, Ctrl+Q quit. No ROM argument and it offers a file picker, or
+you can drop one on the window. Saves go to a plain 64 KiB `.sav` in your
+config directory — the format an emulator reads, and the same one the page
+exports — keyed per ROM exactly as browser storage is.
+
+It paces to the GBA's real 59.7275 Hz rather than to your monitor, so it does
+not have the browser build's double-speed problem on a 120 Hz panel.
+
+Two things are worth knowing before you build it elsewhere:
+
+- **It is a 32-bit program, and has to be.** 111 of the decompilation's
+  structures contain a pointer, and those structures are read out of the ROM
+  and placed at addresses the linker script chose. Built 64-bit, `struct
+  ToneData` grows from 12 bytes to 24 and every instrument in the sound bank is
+  read from the wrong offset. The build refuses to configure with 8-byte
+  pointers rather than produce something that boots and is quietly wrong.
+- **macOS is blocked by that**, because it has had no 32-bit userland since
+  Catalina and Apple silicon never had one. 32-bit ARM needs nothing written.
+
+  **On a Mac, use the web build** — https://sh1ftmaker.github.io/katam-port/,
+  which installs to the dock as a web app and is the same port running the same
+  code. A native Mac build is not a porting job but a 64-bit-cleanliness project
+  on the port itself: 32-bit handles for the **148 structures** that change
+  shape under LP64, and host code kept below 4 GiB because the game stores host
+  function pointers inside GBA memory.
+  [docs/SIXTYFOUR.md](docs/SIXTYFOUR.md) is the measurement — what breaks, how
+  it was counted, and an estimate of 4–6 weeks. It has not been done, and
+  nothing here pretends otherwise.
+
+### On a Raspberry Pi
+
+32-bit ARM is built and tested — same smoke test, same three numbers as x86,
+and the screenshots it writes are byte-identical.
+
+```sh
+sudo apt install build-essential cmake pkg-config libsdl2-dev
+make native                       # no toolchain file: armhf is already ILP32
+./build/native/katam ~/roms/your-copy.gba
+```
+
+That is a **32-bit** Raspberry Pi OS. On a 64-bit one there is no 64-bit build
+to have — the ILP32 rule above forbids it — so what runs is the armhf binary
+under the kernel's 32-bit support, which needs `sudo apt install
+libsdl2-2.0-0:armhf` and a kernel with 4 KiB pages. Every Pi up to the 4 has
+one. **The Pi 5 does not**: its firmware loads a 16 KiB-page kernel by default
+and will not execute a 32-bit binary at all until you put `kernel=kernel8.img`
+in `/boot/firmware/config.txt`. Cross-compiling from a desktop is much faster
+than compiling on the Pi, and
+[docs/NATIVE.md](docs/NATIVE.md#32-bit-arm-armhf--built-and-tested) has both
+recipes and the rest of the arm64 story.
+
+`make native-test ROM=...` boots it headless with a real ROM, drives it through
+the menus into a level, and checks that what came out is a picture.
+
+### Windows
+
+Same sources, `i686-w64-mingw32`, cross-compiled from Linux or built in MSYS2's
+mingw32 shell:
+
+```sh
+cmake -S . -B build/win32 -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+      -DKATAM_SDL2_MINGW=/path/to/SDL2-2.30.11/i686-w64-mingw32
+cmake --build build/win32 -j
+cmake --build build/win32 --target package-windows
+```
+
+x86, not x64, for the reason above; MSVC cannot compile the decompilation at all
+(it is GNU C) and the build says so. `package-windows` produces a folder holding
+`katam.exe`, `SDL2.dll` and a readme, which is what a player can actually run.
+
+It is console-subsystem on purpose — a `-mwindows` build has no `stdout`, and
+everything the port has to say, including why it could not start, goes there.
+
+**It has been built and run, but under Wine, on Linux — never on Windows.**
+`tools/native_smoke.sh` passes there with the Linux build's numbers, the GBA map
+lands at its true addresses under `VirtualQuery`, and the save file is
+byte-identical to the Linux one. [docs/NATIVE.md](docs/NATIVE.md) lists exactly
+what that does not cover.
+
+[docs/NATIVE.md](docs/NATIVE.md) is the full account: how the GBA memory map is
+reserved at its true addresses in a process, how that is verified rather than
+assumed, and exactly what a new platform has to implement — five functions.
 
 ### Controls
 
@@ -127,12 +264,20 @@ sent back upstream.
 - **Function pointers stored in ROM** are ARM code addresses, and a wasm
   function pointer is a table index — calling one ends the program. The build
   resolves each address back to a real function through the GBA build's link
-  map: 304 of 305 flat table entries, plus 193 of the 219 constructors held
-  inside ROM structs.
+  map *and* `katam.elf`'s symbol table: 304 of 305 flat table entries, plus
+  211 of the 219 per-type routines held inside ROM structs. The ELF matters
+  because the map lists only global symbols, and eighteen of those routines
+  are `static` — decompiled, but invisible to the map.
 - **Function pointers mis-cast in the C source** — handing a no-argument
   function to a slot that calls it with one. ARM does not care; wasm
   type-checks every indirect call. `tools/check_fnptrs.py` finds these
   statically.
+- **Calling a function the file never declared.** An implicit declaration is
+  `int f()`, so the call is typed differently from the definition; `wasm-ld`
+  reports a warning, points the call at a stub whose body is `unreachable`,
+  and links successfully. Whatever the port injects into the game's own
+  sources must have a prototype — `platform/port/prelude.h` is where they go,
+  and `-Werror=implicit-function-declaration` is what keeps it honest.
 - **Reads through a pointer that is not valid yet**, where the game forms an
   address from an uninitialised field, dereferences it and discards the
   result. The console returns open bus; wasm traps.
@@ -149,10 +294,14 @@ Built because each one was needed, and kept because the next bug will need
 them:
 
 - `tools/headless_test.js` boots the port under node with a real ROM and no
-  browser. `MASH=`/`HOLD=` drive input, `LAYERS=`/`FORCE=` render one
-  background at a time, `VRAM_AT=` dumps VRAM and palettes, `WATCH=` names
+  browser. `MASH=`/`HOLD=`/`PRESS_AT=` drive input, `LAYERS=`/`FORCE=` render
+  one background at a time, `VRAM_AT=` dumps VRAM and palettes, `WATCH=` names
   every block move that touches an address, `AUDIO_RATE=`/`WAV=` capture the
-  sound to a file, and `BG=`/`QUEUE=`/`LIVE=` report hardware state as it runs.
+  sound to a file, `MP=` plugs a link cable into the serial port, and
+  `BG=`/`QUEUE=`/`LIVE=` report hardware state as it runs.
+- `tools/native_smoke.sh` is the same idea for the native build: no window, no
+  audio device, scripted input, a PNG of what it drew. It is what a new
+  platform should be measured against.
 - `tools/resolve_fnptr.py` turns a raw function-pointer value, or the index in
   a wasm stack trace, into a name and a signature.
 - `make debug` builds with DWARF into a separate object tree, so

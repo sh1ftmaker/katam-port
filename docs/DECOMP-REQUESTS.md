@@ -241,6 +241,55 @@ port's problem to solve and it has. Recorded because:
 2. It is worth knowing that this construct exists exactly once, so if the
    count ever becomes two, that is a thing to mention.
 
+## 3c. The same family again, found by building natively: `gNextTask` is null
+
+A desktop build of the port (SDL, no browser) turned up a second instance of
+3a, and it is more interesting than the first because **WebAssembly tolerated
+it too**. It has been running on every boot since the port started and nothing
+noticed.
+
+`TaskCreate`, in `task.c`:
+
+```c
+slow->next = (uintptr_t)task;
+if (slow->next == gNextTask->prev) {      /* gNextTask is null here */
+    gNextTask = task;
+}
+```
+
+`CreateLogo` builds a task before the first `TasksExec` has run, so `gNextTask`
+is still zero and `gNextTask->prev` reads address `0x00000002`.
+
+On the GBA that address is the BIOS ROM. The read returns open bus, the
+comparison cannot match a real IWRAM offset, and the branch is not taken — so
+the code is correct as decompiled and the hardware is entirely happy with it.
+In WebAssembly address 2 is ordinary low linear memory and reads as zero, which
+also cannot match, so the port never saw it either.
+
+A native process is the first host that genuinely cannot do it. Every
+operating system reserves page zero and refuses to map anything there — Linux
+via `vm.mmap_min_addr` (65536 by default), macOS via `__PAGEZERO`, Windows by
+reserving the first 64 KiB outright. So the load is a segfault, four frames
+into the boot.
+
+The port guards it on its own side, in `tools/portify.py`:
+
+```c
+if (gNextTask != NULL && slow->next == gNextTask->prev) {
+```
+
+**A guard upstream would be welcome here**, unlike 3a — this one is not a read
+whose result is discarded, it is a comparison against a pointer the code has
+already decided is absent, and the guard makes the C say what it means. But it
+is your call, and the port does not need it.
+
+What is worth taking from it either way: **"wasm didn't crash" is not evidence
+that a pointer is valid.** Low linear memory reads as zero, so every null
+dereference in the game is silently absorbed. The next port to a target with a
+real address space will find the rest of them the same way this one did.
+
+---
+
 ---
 
 ## 4. New sub-class: function pointers mis-cast in the C source
@@ -297,13 +346,62 @@ reference to the decompiled C function. Three shapes are covered automatically:
 |---|---|---|
 | flat function-pointer arrays | `gSpawnFuncTable1` | 304 of 305 across 8 tables |
 | arrays declared through a typedef | `gUnk_082EB7D0` | covered |
-| function pointers *inside* ROM structs | `gUnk_08351648` — 219 object descriptors with a constructor at +0x10, patched at startup | 193 of 219 |
+| function pointers *inside* ROM structs | `gUnk_08351648` — 219 object descriptors with a per-type setup routine at +0x10, patched at startup | 211 of 219 |
 
-The one entry that still cannot be wired:
+The one flat-table entry that still cannot be wired:
 
 ```
 gSpawnFuncTable1[114]  CreateBossChallengeDoor   (boss_challenge_door.s, claimed)
 ```
+
+### 5a. 193 of those 219 became 211, and the missing 18 were never missing
+
+Recorded because the number in the last version of this file was misleading,
+and the reason is worth knowing if you ever reason from `katam.map`.
+
+`katam.map` lists **global** symbols. A `static` function in the tree is not in
+it at all. Eighteen of the twenty-six unresolved `gUnk_08351648[].unk10`
+entries pointed at ROM addresses that the map simply does not name — not
+because the function was still ARM assembly, but because its perfectly good
+decompiled C has internal linkage:
+
+```
+gUnk_08351648[0x08]  OBJ_CHIP              0x080AB720  sub_080AB720   chip.c
+gUnk_08351648[0x12]  OBJ_WADDLE_DOO        0x080B6A54  sub_080B6A54   waddle_doo.c
+gUnk_08351648[0x2E]  OBJ_FOLEY_2           0x080C0CBC  sub_080C0CBC   foley.c
+gUnk_08351648[0x37]  OBJ_WADDLE_DEE_2      0x080A42B0  WaddleDee37ChooseXSpeed
+gUnk_08351648[0x5E..0x64]  the pickups     0x08122F6C  BonusSetFunc   bonus.c
+gUnk_08351648[0x66..0x6C]  OBJ_EMPTY_66..  0x08123780  sub_08123780   bonus.c
+gUnk_08351648[0xA2]  OBJ_PARASOL           0x080C2B28  sub_080C2B28   parasol.c
+```
+
+`katam.elf`'s symbol table has every one of them, so the port now reads that as
+well as the map, and gives those seven functions external linkage in its own
+copy of the tree. `unk10` is the routine each object type runs *after* it is
+constructed, so before this the pickups — small food, meat, tomato, the 1UP,
+the invincibility candy — and Chip, Waddle Doo, Waddle Dee 37 and the parasol
+were all being created and then not set up.
+
+**No ask.** `static` is correct and the decompilation should keep it; this is
+the port reading the wrong file. Recorded because "not in `katam.map`" reads
+like "not decompiled yet" and is not the same statement.
+
+### 5b. The two that really are still ARM
+
+After the above, the whole remaining gap in `gUnk_08351648` is two functions:
+
+```
+sub_08106508   blocks OBJ_DARK_MIND_STAR_FIRE / _ICE / _SPARK / _MIX, OBJ_UNKNOWN_D4
+sub_08118C18   blocks OBJ_BOSS_CHALLENGE_DOOR
+```
+
+and two entries whose pointer is genuinely `NULL` in the ROM
+(`OBJ_ABILITY_STATUE_RANDOM`, `OBJ_EMPTY_9A`), which need nothing.
+
+`sub_08118C18` pairs with `CreateBossChallengeDoor` above — the same object,
+already claimed. `sub_08106508` is the Dark Mind fight, which the port cannot
+reach yet anyway. Neither is urgent; they are listed because they are now the
+complete list.
 
 **Whenever data conversion is on the table, ROM function-pointer tables from
 `.incbin` into typed C in `data/` is the highest-value target by a wide
@@ -332,8 +430,9 @@ urgency — the current mechanism works and is now signature-verified (§2).
 - **The sound engine.** `m4a_asm.s` and friends are replaced wholesale by
   no-op stubs; `src/m4a.c` and `src/m4a_tables.c` are dropped from the build
   entirely. Silence is a deliberate choice, not a gap.
-- **Link cable.** `multi_sio_asm.s`, `multi_boot.c`, `sio32_multi_load.c`
-  stubbed. Single-player does not touch them.
+- **Link cable — no longer true, see §9.** `multi_sio_asm.s` is now written in
+  C on the port side and the driver runs. MultiBoot is still stubbed and is
+  now the one thing standing between the port and link play.
 - **`agb_sram.c`.** Replaced, and it cannot be otherwise: it copies the machine
   code of its own inner loop into a stack buffer and calls it, which is not
   expressible in WebAssembly.
@@ -352,8 +451,11 @@ Short list, because you closed the long one.
 
 1. **Nothing is blocking the port.** There is no function it needs that it
    cannot get. This line has never been in this document before.
-2. **`CreateBossChallengeDoor`** — `gSpawnFuncTable1[114]`, the single
-   unwirable table entry. Claimed by someone else; not urgent.
+2. **`CreateBossChallengeDoor`** and **`sub_08118C18`** — the spawn function
+   and the per-type setup routine for the same object,
+   `gSpawnFuncTable1[114]` and `gUnk_08351648[0x72]`. Claimed by someone
+   else; not urgent. **`sub_08106508`** (§5b) is the only other object-type
+   routine in the game with no C body.
 3. **A comment when you spot a discarded read through an uninitialised
    field** (§3a), or when a function open-codes a hardware register write for
    match reasons (§3b). Cheap for you, a day each for the port — these are the
@@ -379,3 +481,116 @@ Two things confirmed along the way, in case they are ever in doubt:
   object layer, off when a room has none). The `unk2E & 3` convention for
   which hardware BG a `struct Background` drives is the key to reading that
   code, and it cost some time to find.
+
+---
+
+## 9. Link play — new findings, and one new ask
+
+The port now compiles and runs the game's multiplayer driver. `MultiSioIntr`
+and `MultiSioRecvBufChange` are written in C on the port side from
+`asm/multi_sio_asm.s`, the serial hardware is emulated underneath, and a
+transport-agnostic seam sits below that. Two to four units come up, the
+game's own `MultiSioMain` reports `recv` and `connected` masks, and 20-byte
+payloads cross and checksum in both directions. Details, and what is measured
+versus assumed, are in `docs/MULTIPLAYER.md` in the port repo.
+
+Four things came out of it that are worth having on your side.
+
+### 9a. `IntrMain` routes SERIAL and TIMER3 to the *same* handler
+
+`asm/crt0.s`:
+
+```asm
+	ands	r0, r1, #INTR_FLAG_TIMER3 | INTR_FLAG_SERIAL
+	bne	_080001AC
+	add	r2, r2, #4
+	ands	r0, r1, #INTR_FLAG_VBLANK
+```
+
+Both flags are tested together, before every other one, with `r2 = 0`, so both
+dispatch to `gIntrTable[0]`. The consequence is that the per-timer entry for
+timer 3 further down the same chain — `gIntrTableTemplate[7] = Timer3Intr` —
+is **unreachable on hardware**. That is not a mistake in the table; it is how
+the link driver works. `MultiSioMain`'s state 0 masks the serial interrupt off
+and timer 3 on when a console promotes itself to parent, because the parent is
+clocked by its own timer rather than by the cable, and it expects the same
+handler to keep running.
+
+Not a request — a comment in `crt0.s` or next to `gIntrTableTemplate` would
+save the next person the hour it cost here.
+
+### 9b. Two more "code copied into RAM and called" sites
+
+Same class as `agb_sram.c`, which is the one that stopped this port at boot.
+`MultiSioInit` copies the machine code of two of its own routines into IWRAM
+buffers and calls them from there:
+
+```c
+CpuCopy32(MultiSioRecvBufChange, gMultiSioRecvFuncBuf, sizeof(gMultiSioRecvFuncBuf));
+CpuCopy32(MultiSioIntr,          gMultiSioIntrFuncBuf, sizeof(gMultiSioIntrFuncBuf));
+```
+
+and then `gIntrTableTemplate[0]` is literally `(void *)gMultiSioIntrFuncBuf`
+while `MultiSioRecvDataCheck` casts `gMultiSioRecvFuncBuf` to a function
+pointer and calls it. In WebAssembly a function pointer is a table index, not
+an address, so all of that is nonsense off-hardware. The port handles both —
+the interrupt-table one by recognising the buffer's address at dispatch, the
+direct call with a codemod.
+
+Nothing to change; recording it because it is the third instance of this
+pattern and the class is worth naming. Anything in this tree that copies a
+function and calls the copy will need the same treatment in any software port.
+
+### 9c. The SDK's own C for both routines is already in the tree, and it agrees
+
+`src/multi_sio.c` carries the SDK's C source for `MultiSioIntr` and for the
+buffer swap inside `MultiSioRecvDataCheck`, as the `#ifndef
+MULTI_SIO_DI_FUNC_FAST` branch that the game does not build. It agrees with
+`asm/multi_sio_asm.s` instruction for instruction. That made the port's
+transcription verifiable rather than a guess, and it is worth keeping exactly
+as it is.
+
+One genuine difference, in case it is ever puzzled over: the non-FAST branch
+of `MultiSioRecvDataCheck` never assigns `syncRecvFlagBak`, so that branch
+would read uninitialised stack. Only the FAST branch is built, so it is not a
+bug in the game — but it means the `#else` path is not a usable fallback.
+
+### 9d. The ask: `MultiBootInit` and the probe phase of `MultiBootMain`
+
+This is the one thing now standing between the port and link play, and it is
+smaller than it sounds.
+
+MultiBoot's *download* — sending a program to a cartridge-less GBA — is out of
+scope for a WebAssembly port and can stay stubbed forever. But the **multi-cart
+four-player mode needs the library too, and not for downloading anything**.
+`src/multi_08030C94.c:804`:
+
+```c
+MultiBootInitWithParams((void *)0, (void *)0x100);   /* zero-length program */
+```
+
+The game uses MultiBoot's client-recognition phase as its link *detector*. In
+the lobby's state 0, `sub_080302EC` is the only thing that starts a transfer on
+the unit that clocks the cable:
+
+```c
+if (!(REG_SIOCNT & SIO_MULTI_CONNECT))
+    MultiBootMain(&gMultiBootParam);
+```
+
+Measured, not inferred: driving the port through title → FILE SELECT → GAME
+SELECT → START GAME → MULTIPLAYER reaches the game's own "Please connect the
+Game Boy Advance Game Link cable" screen, logs `MultiBootInit` and
+`MultiBootMain` as missing, and the port's serial unit runs **zero** transfers
+with a live transport attached — because nothing arms one.
+
+So: **a C body for `MultiBootInit` and for `MultiBootMain`'s probe phase**
+(send `0x6200 | client_bit`, track which slots answer `0x720X`, maintain
+`probe_count` and `client_bit`) would open link play for the port. Roughly
+sixty lines of the library. `MultiBootStartMaster`, `MultiBootCheckComplete`
+and the transfer phases are only needed for single-cart download play and are
+not asked for.
+
+If that is not something you want to spend time on, say so and the port will
+write it from GBATEK — but the library is a decompilation target and it would
+be better done once, on your side, where it can be checked against the ROM.

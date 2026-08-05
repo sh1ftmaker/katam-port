@@ -3,6 +3,8 @@
 #   make            build web/katam.html + katam.js + katam.wasm
 #   make sync       re-copy and re-codemod the decomp sources (do this after
 #                   pulling new decompilation work)
+#   make layout     re-measure the committed GBA struct layout table, after the
+#                   decompilation has changed a structure on purpose
 #   make serve      build and serve on http://localhost:8000
 #   make clean
 #
@@ -79,40 +81,77 @@ INCLUDES := -I$(PORT_SRC)/include -I$(GENERATED) -Iplatform
 # own headers, so they have to be in scope before anything else is parsed.
 FORCE_INCLUDE := -include port/prelude.h -include port/ram_symbols.h -include port/rom_data.h
 
-WARN := -Wno-everything
+# -Wno-everything is right for the decompilation itself: it is machine-shaped C
+# that warns about everything and means none of it.  The one warning that has
+# to survive is an implicit declaration.  On ARM a call to an undeclared
+# function is a call; in WebAssembly the implicit `int f()` gives it a
+# different *type* from the definition, wasm-ld resolves the disagreement by
+# pointing the call at a stub whose whole body is `unreachable`, and the
+# program traps the first time it runs that line.  The port shipped exactly
+# that once (a PortTrace call with no prototype in warp_star.c, which killed
+# the game the moment a warp star ticked), so it is an error here, not a
+# warning.  It has to come after -Wno-everything to survive it.
+WARN := -Wno-everything -Werror=implicit-function-declaration
 
 # -fgnu89-inline matters more than it looks.  The decomp is compiled by agbcc
 # (gcc 2.95), where a plain `inline` definition also emits an external one.
 # C99 inverted that rule, so without this flag every `inline void Foo(...)` in
 # the game becomes an undefined symbol at link time.
+# -funsigned-char says out loud what the GBA's compiler did silently: plain
+# `char` is unsigned there.  Measured, not assumed -- agbcc compiles
+# `char c = -1; return c < 0;` to `mov r0, #0`.  clang's wasm32 and gcc's x86
+# default to signed and gcc's ARM to unsigned, so a build that does not say
+# which it wants is a different program on each host, with nothing to report it.
+# Both smoke tests are byte-identical with and without the flag; it is here so
+# that stays true on hosts nobody has built on yet.
 CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
+          -funsigned-char \
           $(WARN) $(DEFINES) $(INCLUDES) $(FORCE_INCLUDE) -MMD -MP
 
 # --profiling-funcs keeps the wasm name section, so a trap on someone's phone
 # reports `sub_0805405C` instead of `wasm-function[731]`.  It costs a little
 # size and nothing in speed, which is a good trade while the port still
 # crashes.
-LDFLAGS := -O2 --profiling-funcs \
+#
+# --fatal-warnings is the second half of -Werror=implicit-function-declaration
+# above.  wasm-ld has exactly one warning that matters and it is not survivable:
+# a call whose type disagrees with the definition cannot be emitted, so it emits
+# a stub whose body is `unreachable` and links anyway.  That shipped once.  The
+# compile flag catches the implicit-declaration route in; this catches a wrong
+# prototype written out in full, which the compiler cannot see across files.
+# The wasm exports, in one place: four link lines need the same list and
+# keeping four copies of it in step is a merge conflict every time one
+# grows.
+EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport
+
+LDLINT := -Wl,--fatal-warnings
+LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
     -sASYNCIFY_STACK_SIZE=32768 \
     -sGLOBAL_BASE=$(GLOBAL_BASE) \
     -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
     -sALLOW_MEMORY_GROWTH=0 \
     -sSTACK_SIZE=1048576 \
-    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode \
+    -sEXPORTED_FUNCTIONS=$(EXPORTS) \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,ccall,cwrap \
     -sENVIRONMENT=web \
     --shell-file web/shell.html
 
 GAME_SRCS     := $(shell find $(PORT_SRC)/src -name '*.c' 2>/dev/null)
-PLATFORM_SRCS := $(wildcard platform/*.c)
+# platform/*.c is the console -- PPU, DMA, BIOS, the mixer -- and knows nothing
+# about the host.  platform/web/*.c is the browser half of port/backend.h; the
+# native build swaps in platform/native/*.c instead.  See docs/NATIVE.md.
+PLATFORM_SRCS := $(wildcard platform/*.c) $(wildcard platform/web/*.c)
 GEN_SRCS      := $(wildcard $(GENERATED)/*.c)
 SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
 OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
+        native native-run native-test native-clean \
+        windows windows-package windows-clean \
+        layout layout-check
 
 all: $(TARGET)
 
@@ -132,7 +171,48 @@ sync:
 	    --tree $(PORT_SRC) --out $(GENERATED)/port/rom_data.h \
 	    --out-copies $(GENERATED)/rom_copies.c \
 	    --out-tables $(GENERATED)/rom_fn_tables.c \
-	    --map $(KATAM_DECOMP)/katam.map --rom $(ROM)
+	    --map $(KATAM_DECOMP)/katam.map --elf $(KATAM_DECOMP)/katam.elf \
+	    --rom $(ROM)
+
+# --- the GBA struct layout table ------------------------------------------
+# platform/port/gba_layout.h is committed: the size and every member offset of
+# every structure the decompilation defines, measured from the ILP32 build and
+# turned into _Static_asserts that every build compiles
+# (platform/gba_layout_check.c).  A host whose ABI moves a member fails to
+# compile and says which one, instead of booting and being quietly wrong.
+#
+# `make layout` re-measures and rewrites the table.  Run it when the
+# decompilation changes a structure on purpose, read the diff, and commit it --
+# the numbers are the layout the ROM and linker.ld are written against, so a
+# change here is a change to the memory the game reads.
+#
+# It has to be measured from a 32-bit compiler; there is no useful default on
+# an x86-64 machine, so LAYOUT_CC/LAYOUT_ABI are what to override.  The 32-bit
+# libc headers come from KATAM_SYSROOT32 if the machine has no gcc-multilib
+# (see "Building without root" in docs/NATIVE.md).
+LAYOUT_CC  ?= $(CC32)
+CC32       ?= gcc
+LAYOUT_ABI ?= -m32
+LAYOUT_HDR := platform/port/gba_layout.h
+ifneq ($(KATAM_SYSROOT32),)
+LAYOUT_SYSROOT := -isystem $(KATAM_SYSROOT32)/usr/include \
+                  -isystem /usr/include/x86_64-linux-gnu
+endif
+LAYOUT_CFLAGS := $(LAYOUT_ABI) -std=gnu99 -fgnu89-inline -fno-strict-aliasing \
+                 -fwrapv -funsigned-char -w $(DEFINES) $(INCLUDES) \
+                 $(FORCE_INCLUDE) $(LAYOUT_SYSROOT)
+
+layout:
+	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
+	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)"
+
+# Fails if the committed table no longer describes the tree.  The build already
+# fails on a *changed* number, because the assertions are compiled; this catches
+# the other direction -- a structure that stopped being declared anywhere and
+# quietly dropped out of the table, taking its assertions with it.
+layout-check:
+	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
+	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)" --check
 
 # The functions that are still ARM-only turn up as undefined symbols at link
 # time.  The list is re-derived from a real link rather than maintained by
@@ -178,10 +258,10 @@ ROM ?= $(KATAM_DECOMP)/baserom.gba
 # resolve_fnptr.py has nothing to resolve it to -- the harness's whole reason
 # for existing is to name the thing that broke.
 $(BUILD)/katam-node.js: $(OBJS)
-	$(CC) -O2 --profiling-funcs -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode \
+	    -sEXPORTED_FUNCTIONS=$(EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
@@ -195,12 +275,12 @@ $(BUILD)/katam-node.js: $(OBJS)
 # which llvm-symbolizer reads directly.  -O1 rather than -O0: -O0 is slow
 # enough to change what the game does, and line info survives -O1 well.
 $(BUILD)/katam-dbg.js: $(OBJS)
-	$(CC) -O1 -g --profiling-funcs \
+	$(CC) -O1 -g --profiling-funcs $(LDLINT) \
 	    -gseparate-dwarf=$(BUILD)/katam-dbg.debug.wasm \
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode \
+	    -sEXPORTED_FUNCTIONS=$(EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -214,11 +294,11 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 # no address at all, and -O0 -sASSERTIONS only reports that something near zero
 # was clobbered.  Keep the names, or the report has no function to blame.
 $(BUILD)/katam-safe.js: $(OBJS)
-	$(CC) -O1 --profiling-funcs -sSAFE_HEAP=1 -sASSERTIONS=1 \
+	$(CC) -O1 --profiling-funcs $(LDLINT) -sSAFE_HEAP=1 -sASSERTIONS=1 \
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode \
+	    -sEXPORTED_FUNCTIONS=$(EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -240,6 +320,134 @@ test: $(BUILD)/katam-node.js
 	node tools/headless_test.js $(BUILD)/katam-node.js $(ROM) $(FRAMES)
 
 FRAMES ?= 180
+
+# --- native desktop build --------------------------------------------------
+# CMakeLists.txt is the real build; these are the two lines you would type.
+# It shares the source list and the compile flags with the web build and
+# nothing else -- in particular its objects live in build/native, well away
+# from build/obj, because mixing objects across toolchains is exactly the
+# failure DEBUG_INFO above warns about.  See docs/NATIVE.md.
+#
+# The build is 32-bit.  That is not a size choice: the decompilation's
+# structures have to keep their GBA layout, and 111 of them contain a pointer.
+# CMakeLists.txt refuses to build any other way and says why.  A genuinely
+# 32-bit host -- i686, armv6l, armv7l -- needs no toolchain file at all, which
+# is why a Raspberry Pi running a 32-bit OS just builds.  A 64-bit host needs
+# one, and which one depends on whether its 32-bit mode is a compiler flag
+# (x86-64: -m32) or a different architecture (aarch64: armhf, run under the
+# kernel's 32-bit support).
+#
+# To cross-compile armhf from a desktop, which is much faster than compiling on
+# the Pi:
+#
+#   make native NATIVE_TOOLCHAIN=cmake/toolchain-linux-armhf.cmake \
+#               NATIVE_DIR=build/native-armhf
+NATIVE_DIR ?= $(BUILD)/native
+NATIVE_BIN := $(NATIVE_DIR)/katam
+NATIVE_ARCH := $(shell uname -m)
+ifeq ($(NATIVE_ARCH),x86_64)
+NATIVE_TOOLCHAIN ?= cmake/toolchain-linux-i686.cmake
+endif
+ifeq ($(NATIVE_ARCH),aarch64)
+NATIVE_TOOLCHAIN ?= cmake/toolchain-linux-armhf.cmake
+endif
+ifneq ($(NATIVE_TOOLCHAIN),)
+NATIVE_CMAKE_ARGS := -DCMAKE_TOOLCHAIN_FILE=$(NATIVE_TOOLCHAIN)
+endif
+
+# The hint on failure is not decoration.  Without the 32-bit toolchain, cmake
+# fails at its own "can the compiler compile a trivial program" check, and the
+# message it prints is about a scratch directory rather than about the one
+# package that is missing.
+native:
+	@cmake -S . -B $(NATIVE_DIR) -DCMAKE_BUILD_TYPE=Release $(NATIVE_CMAKE_ARGS) >/dev/null \
+	  || { echo; \
+	       echo "The native build is 32-bit -- see docs/NATIVE.md for why it has to be."; \
+	       echo "On Debian/Ubuntu that needs:"; \
+	       if [ "$(NATIVE_ARCH)" = aarch64 ]; then \
+	         echo "    sudo apt install gcc-arm-linux-gnueabihf"; \
+	         echo "    sudo dpkg --add-architecture armhf && sudo apt update"; \
+	         echo "    sudo apt install libsdl2-dev:armhf"; \
+	         echo "and a kernel with 4 KiB pages -- a Raspberry Pi 5 boots a 16 KiB-page"; \
+	         echo "kernel by default and cannot run a 32-bit binary at all until you put"; \
+	         echo "kernel=kernel8.img in config.txt.  docs/NATIVE.md has the detail."; \
+	       else \
+	         echo "    sudo apt install gcc-multilib libsdl2-dev:i386"; \
+	         echo "Fedora: glibc-devel.i686 libgcc.i686 SDL2-devel.i686"; \
+	       fi; \
+	       echo "Without root, see \"Building without root\" in docs/NATIVE.md."; \
+	       exit 1; }
+	@cmake --build $(NATIVE_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  NATIVE  $(NATIVE_BIN)"
+
+native-run: native
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@$(NATIVE_BIN) $(ROM)
+
+# The native equivalent of `make test`: boot with a real ROM, run frames with
+# no window and no audio device, and write the last one out.  Proves the binary
+# reaches gameplay without anybody watching it.
+native-test: native
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@bash tools/native_smoke.sh $(NATIVE_BIN) $(ROM)
+
+native-clean:
+	rm -rf $(NATIVE_DIR)
+
+# --- Windows ---------------------------------------------------------------
+# The same sources through cmake/toolchain-windows-i686.cmake, cross-compiled
+# with MinGW-w64 or built in MSYS2's mingw32 shell.  x86, not x64, for the same
+# reason the Linux build is -m32.
+#
+# KATAM_SDL2_MINGW points at the i686-w64-mingw32 subdirectory of SDL's own
+# MinGW development tarball from libsdl.org.  There is no system SDL on Windows
+# to find and no pkg-config to find it with, so this is not optional and there
+# is no sensible default to guess.  See docs/NATIVE.md.
+#
+#   make windows KATAM_SDL2_MINGW=~/SDL2-2.30.11/i686-w64-mingw32
+#   make windows-package KATAM_SDL2_MINGW=...
+WIN_DIR ?= $(BUILD)/win32
+WIN_BIN := $(WIN_DIR)/katam.exe
+WIN_PKG := $(WIN_DIR)/katam-port-windows-i686
+KATAM_SDL2_MINGW ?=
+
+windows:
+	@test -n "$(KATAM_SDL2_MINGW)" || { \
+	    echo "Set KATAM_SDL2_MINGW to the i686-w64-mingw32 directory of SDL's"; \
+	    echo "MinGW development tarball:"; \
+	    echo "    curl -LO https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-devel-2.30.11-mingw.tar.gz"; \
+	    echo "    tar xf SDL2-devel-2.30.11-mingw.tar.gz"; \
+	    echo "    make windows KATAM_SDL2_MINGW=\$$PWD/SDL2-2.30.11/i686-w64-mingw32"; \
+	    exit 1; }
+	@cmake -S . -B $(WIN_DIR) -DCMAKE_BUILD_TYPE=Release \
+	       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+	       -DKATAM_SDL2_MINGW=$(KATAM_SDL2_MINGW) >/dev/null \
+	  || { echo; \
+	       echo "The Windows build is 32-bit MinGW -- see docs/NATIVE.md."; \
+	       echo "Debian/Ubuntu: sudo apt install gcc-mingw-w64-i686"; \
+	       echo "Without root, see \"Building without root\" in docs/NATIVE.md."; \
+	       exit 1; }
+	@cmake --build $(WIN_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  WINDOWS $(WIN_BIN)"
+
+# The folder a player can actually run: the .exe, the SDL2.dll it linked
+# against, and a readme saying to bring their own ROM.  The find is the same
+# guard check-dist puts on the web publish directory, for the same reason: what
+# leaves this tree must carry no game data.
+windows-package: windows
+	@cmake --build $(WIN_DIR) --target package-windows >/dev/null
+	@bad=$$(find $(WIN_PKG) -type f \( -iname '*.gba' -o -iname '*.gb' \
+	         -o -iname '*.gbc' -o -iname '*.bin' -o -iname '*.sav' \
+	         -o -size +8M \)); \
+	if [ -n "$$bad" ]; then \
+	    echo "REFUSING TO PACKAGE -- $(WIN_PKG) contains game data:"; \
+	    echo "$$bad"; \
+	    exit 1; \
+	fi
+	@echo "  PACKAGE $(WIN_PKG)"
+
+windows-clean:
+	rm -rf $(WIN_DIR)
 
 # --- publishing -----------------------------------------------------------
 # Assembles the three build outputs into a directory that can be served as-is.

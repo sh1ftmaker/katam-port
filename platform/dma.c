@@ -16,6 +16,7 @@
  */
 
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/dma.h"
 #include "gba/io_reg.h"
 
@@ -46,13 +47,13 @@ static struct DmaChannel sChannels[4];
 
 /* Is [addr, addr+len) inside a region the console actually decodes?
  *
- * The port's whole memory map lives at its true GBA addresses inside one wasm
- * linear memory, so a DMA with a stale pointer does not fault at the pointer:
- * it faults inside the copy loop, tens of frames after whatever queued it, and
- * wasm reports "out of bounds memory access" with no address.  The VBlank
- * queue in main.c makes this worse -- an entry is enqueued in one frame and
- * drained in the next, so the stack at the fault names the drain, never the
- * code that supplied the pointer.
+ * The port's whole memory map lives at its true GBA addresses, so a DMA with a
+ * stale pointer does not fault at the pointer: it faults inside the copy loop,
+ * tens of frames after whatever queued it.  In wasm that is reported as "out
+ * of bounds memory access" with no address at all; natively it is a SIGSEGV
+ * somewhere in a memcpy.  The VBlank queue in main.c makes this worse -- an
+ * entry is enqueued in one frame and drained in the next, so the stack at the
+ * fault names the drain, never the code that supplied the pointer.
  *
  * Checking the endpoints here catches it at the transfer, where the channel
  * still knows its source, destination, count and flags.
@@ -62,9 +63,13 @@ static int RangeOk(uintptr_t addr, u32 len)
     /* The regions the GBA decodes, in map order.  ROM is sized to the real
      * cartridge address space rather than the loaded image: the game reads
      * past the end of its own data in a few places and the hardware simply
-     * returns open bus. */
+     * returns open bus.
+     *
+     * BIOS is the one region a native host cannot provide -- see
+     * PORT_BIOS_REGION_SIZE in port/backend.h, which is 0 there, so a transfer
+     * naming it is reported and skipped rather than faulting. */
     static const struct { uintptr_t base; u32 size; } kRegions[] = {
-        { 0x00000000u,    0x00004000u    },          /* BIOS */
+        { 0x00000000u,    PORT_BIOS_REGION_SIZE },
         { GBA_EWRAM_BASE, GBA_EWRAM_SIZE }, { GBA_IWRAM_BASE, GBA_IWRAM_SIZE },
         { GBA_IO_BASE,    GBA_IO_SIZE    }, { GBA_PLTT_BASE,  GBA_PLTT_SIZE  },
         { GBA_VRAM_BASE,  GBA_VRAM_SIZE  }, { GBA_OAM_BASE,   GBA_OAM_SIZE   },
@@ -75,20 +80,20 @@ static int RangeOk(uintptr_t addr, u32 len)
     if (addr + len < addr)                           /* wrapped */
         return 0;
 
-    /* The port's own C data, above the reserved map and below the end of
-     * linear memory.  DmaFill passes the address of a local holding the fill
-     * value, so a perfectly ordinary transfer has a source up here -- reading
-     * the bound from the module rather than hardcoding it keeps this honest if
-     * INITIAL_MEMORY changes. */
-    if (addr >= PORT_GLOBAL_BASE
-     && addr + len <= (uintptr_t)__builtin_wasm_memory_size(0) * 65536u)
-        return 1;
-
+    /* The console's own map first: it answers almost every transfer, and it is
+     * a handful of compares against constants. */
     for (i = 0; i < sizeof(kRegions) / sizeof(kRegions[0]); i++)
-        if (addr >= kRegions[i].base
+        if (kRegions[i].size != 0
+         && addr >= kRegions[i].base
          && addr + len <= kRegions[i].base + kRegions[i].size)
             return 1;
-    return 0;
+
+    /* Otherwise it is either a stale GBA pointer or the port's own C data.
+     * DmaFill passes the address of a local holding the fill value, so a
+     * perfectly ordinary transfer has a source outside the map, and
+     * build/generated/rom_copies.c gives a few ROM arrays real storage.  Only
+     * the host can tell those from a wild pointer; see PortHostRangeOk. */
+    return PortHostRangeOk(addr, len);
 }
 
 static u32 sBadTransfers;

@@ -237,7 +237,7 @@ void PortAudioStartup(void)
     sStarted = 1;
     sRate = PortAudioOpenDevice();
     if (sRate == 0) {
-        PortUnimplemented("no audio device -- the page granted no AudioContext");
+        PortUnimplemented("no audio device -- the host granted none");
         return;
     }
     sNominal = (sRate + 30) / 60;
