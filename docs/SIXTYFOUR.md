@@ -35,7 +35,7 @@ So the work is under way rather than hypothetical. Done so far:
 | `tools/cxxify.py` — the decompilation's C through a C++ front end | done, 156/156 |
 | `platform/port/p32.h` — `PTR32`, the 4-byte pointer member | done, tested both ABIs |
 | C++ linkage, so the 64-bit build links by the ILP32 build's rules | done |
-| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target, `make arm64` | builds and boots; does not play |
+| `cmake/toolchain-linux-arm64.cmake` — an aarch64 target, `make arm64` | **renders**; frame-identical to the ILP32 reference |
 | code and game-visible host storage below 4 GiB | done, `-no-pie -Wl,-Ttext-segment=0x10000000` |
 | narrowing the pointer members to `PTR32` | done, 277 members |
 | **the assertion table holding at LP64 — the definition of done for the layout** | **met** |
@@ -47,13 +47,16 @@ all 246 types and 2144 offsets, on x86-64 and on aarch64 both. What is left is
 the tail the table was never able to see — the linker-placed arrays with fixed
 extents, and everything that is not a structure member.
 
-The aarch64 binary reserves the GBA map at its true addresses, loads the ROM,
-initialises the sound engine, runs the mixer through four music players, sets up
-the interrupt table and is executing the game's own task scheduler, where it
-walks off `gCurTask`. Under `qemu-aarch64-static` it survives 40 frames of boot
-and not 60. That is the same place, for the same reason, as the x86-64 LP64
-build: nothing in the failure is ARM-specific, which is the useful thing about
-having two 64-bit targets.
+The aarch64 binary boots, plays the intro and reaches the title screen. Its
+frame at 1200 is **pixel-for-pixel identical** to the wasm32 ILP32 reference —
+0 of 38400 pixels differ, 167 distinct colours, DISPCNT `0x1740`, and `0
+distinct gaps reported, 0 calls into missing functions`. So does the x86-64
+LP64 build. A 64-bit host now produces the same picture as the 32-bit one, from
+structures laid out the way a 32-bit console laid them out.
+
+What does *not* work yet is the play path: mashing into a level dies in
+`sub_08010590` on an object-list walk. The wasm build does that correctly, so
+this is a genuinely 64-bit-only failure and the first one that has been.
 
 **The ILP32 builds are the control and they have not moved.** The wasm build
 over 1200 frames is byte-identical through all of it: frame md5

@@ -82,7 +82,8 @@ that is already ILP32 — i686, armv6l, armv7l — needs no toolchain file at al
 done and is `i686-w64-mingw32`; 32-bit ARM is done and needed nothing written
 beyond a toolchain file; **arm64 plays the game by running the 32-bit build**,
 which mostly works and has one sharp edge worth knowing before you buy a
-Raspberry Pi 5 — a 64-bit build of its own is under way and does not play the
+Raspberry Pi 5 — a 64-bit build of its own now renders the title screen
+identically to the 32-bit builds, but does not yet play the
 game yet; **macOS is blocked outright**, and the reason is worth reading before
 starting.
 
@@ -1112,7 +1113,8 @@ warning is qemu's and not the port's.
 Everything below builds `cmake/toolchain-linux-arm64.cmake`, which is the 64-bit
 work in progress. **It compiles, links, boots, reserves the GBA map at its true
 addresses, loads the ROM, starts the sound engine and reaches the game's task
-scheduler, where it crashes.** It does not play the game and is not a way to
+scheduler, and renders the title screen identically to the 32-bit builds.**
+It does not play a level yet and is not a way to
 play the game; the finished ARM build is armhf, above. This recipe is here so
 the 64-bit work can be picked up, and because every step in it cost time to find.
 [docs/SIXTYFOUR.md](SIXTYFOUR.md) is what the target is for.

@@ -410,7 +410,7 @@ native-clean:
 	rm -rf $(NATIVE_DIR)
 
 # --- arm64 (aarch64) -- the 64-bit target, IN PROGRESS ----------------------
-# This does not play the game.  It compiles, links, boots, reserves the GBA map
+# This does not play a level yet.  It compiles, links, boots, reserves the GBA map
 # at its true addresses, loads the ROM, starts the sound engine and reaches the
 # game's task scheduler, where it crashes.  The finished, playable ARM build is
 # armhf, which is ILP32 and runs on any arm64 kernel with 4 KiB pages:
@@ -453,7 +453,7 @@ arm64:
 	       echo "See \"Building without root\" in docs/NATIVE.md for the whole recipe."; \
 	       exit 1; }
 	@cmake --build $(ARM64_DIR) -j $(shell nproc 2>/dev/null || echo 4)
-	@echo "  ARM64   $(ARM64_BIN)  -- not playable yet; docs/SIXTYFOUR.md has why"
+	@echo "  ARM64   $(ARM64_BIN)  -- boots and renders; no level yet, see docs/SIXTYFOUR.md"
 
 arm64-clean:
 	rm -rf $(ARM64_DIR)
