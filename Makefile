@@ -209,6 +209,25 @@ layout-check:
 	@python3 tools/gen_gba_layout.py --tree $(PORT_SRC) --out $(LAYOUT_HDR) \
 	    --cc $(LAYOUT_CC) --cflags "$(LAYOUT_CFLAGS)" --check
 
+# --- the 4-byte pointer member ---------------------------------------------
+# platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
+# layout, so it is checked on both sides of the thing it spans: as C++ on this
+# host, where a pointer is 8 bytes and P32 has real work to do, and as C
+# through the wasm compiler, where PTR32 is a plain pointer and the point is
+# that the spelling changed nothing.  See docs/SIXTYFOUR.md.
+#
+# P32_CXX overrides the C++ compiler, which is how the aarch64 toolchain runs
+# the same test on real 64-bit ARM -- see docs/NATIVE.md.
+P32_CXX ?= g++
+P32_TEST_BIN := $(BUILD)/p32_test
+
+p32-test:
+	@mkdir -p $(BUILD)
+	@$(P32_CXX) -x c++ -std=gnu++17 -w $(INCLUDES) tools/p32_test.c -o $(P32_TEST_BIN)
+	@$(P32_TEST_BIN)
+	@$(CC) -x c -std=gnu99 -w -fsyntax-only $(INCLUDES) tools/p32_test.c \
+	  && echo "p32_test (C, ILP32): layout assertions hold"
+
 # The functions that are still ARM-only turn up as undefined symbols at link
 # time.  The list is re-derived from a real link rather than maintained by
 # hand, because the decompilation keeps shrinking it.
