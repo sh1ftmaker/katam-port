@@ -189,6 +189,16 @@ const Module = {
     print: (t) => logs.push(t),
     printErr: (t) => logs.push(t),
 
+    // The port's own diagnostics do NOT arrive through print/printErr.
+    // PortConsole (platform/web/host_web.c:31) calls console.log/console.error
+    // directly and offers this hook instead.  Without it the summary counted
+    // only what emscripten happened to route through printErr, and reported
+    // "port diagnostics (0)" for runs whose logs plainly contained a missing
+    // function -- rooms 950 and 951 call CreateBossChallengeDoor, which is
+    // still ARM assembly, and scored clean.  Every "zero diagnostics" result
+    // recorded before this hook existed was a weaker claim than it looked.
+    portDiag: (text, isErr) => { if (isErr) logs.push(text); },
+
     portPresent(ptr, w, h) {
         // Copy out of the heap: the view is a Uint8Array, and it can be
         // detached under us between frames.
@@ -555,9 +565,17 @@ function dumpRoomState(outPath) {
     // fixes and look identical from gCurLevelInfo alone.
     const kirbyRoom = dv.getUint16(0x02020EE0 + 96, true);
 
+    // Kirby's HP, because it is the cheapest proof that a fight is actually
+    // happening.  A boss room that merely loads looks identical to one that
+    // loads and does nothing; HP falling means something in the room is
+    // hitting the player, and nothing can hit the player if nothing is running.
+    // Offsets asserted in platform/port/gba_layout.h:696-697.
+    const hp = new Int8Array(h.buffer, h.byteOffset + 0x02020EE0 + 256, 2);
+
     fs.writeFileSync(outPath, JSON.stringify({
         room, roomWidthPx: width, roomHeightPx: height, roomSlot: slot,
         kirbyRoomId: kirbyRoom,
+        kirbyHp: hp[0], kirbyMaxHp: hp[1],
         widthCells: wc, heightCells: hc,
         levelInfoTail: tail,
         cells: Array.from(grid),

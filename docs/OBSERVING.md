@@ -192,7 +192,49 @@ not contiguous and do not start at zero.
 
 ---
 
-## 5. What this does not do
+## 5. "Zero diagnostics" meant less than it looked, until now
+
+The harness summary counted only what emscripten routed through `printErr`.
+The port's own diagnostics do not go that way: `PortConsole`
+(`platform/web/host_web.c:31`) calls `console.log`/`console.error` directly and
+offers a `Module.portDiag` hook instead, which the harness never implemented.
+
+So the summary printed **"port diagnostics (0)"** for runs whose logs plainly
+contained a missing function. Rooms 950 and 951 call
+`CreateBossChallengeDoor`, still ARM assembly, and scored clean.
+`tools/room_sweep.sh` decides pass/fail by grepping that same counter, so it
+scored them clean too. Found by a room-sweep agent, not by the person who
+wrote the harness.
+
+The hook is implemented now, and it immediately exposed something nobody had
+seen:
+
+```
+port diagnostics (5):
+  [katam-port] DMA leaves the map: src=0x3FCBC034 <-- bad dest=0x0600E800 ...
+  ... 4 more, identical every run
+```
+
+**Five out-of-map DMA transfers happen during ordinary gameplay**, at the same
+addresses every time, with no warp and no randomizer involved. The destination
+is valid VRAM; the *source* is the problem — `0x3FCBC034` is far past the end
+of IWRAM. They appear after frame 180, which is why `make test` still honestly
+reports zero.
+
+Two consequences worth stating plainly:
+
+- **The right comparison is against baseline, not against zero.** The warp and
+  the boss runs add nothing over the 5 that a plain run produces. That
+  preserves what those results showed, at a corrected absolute number.
+- **Any "zero diagnostics" result recorded before this hook existed was a
+  weaker claim than it appeared**, including ones in this repository's own
+  documentation. They are not thereby wrong — `make test` really is zero — but
+  they were checked with an instrument that could not see this class of
+  problem.
+
+The five are a pre-existing port bug, now visible and not yet diagnosed.
+
+## 6. What this does not do
 
 - **It does not tell you which function wrote a byte.** The diff says *what*
   changed between two frames, not *who* changed it. `PortSetWatch` reports the

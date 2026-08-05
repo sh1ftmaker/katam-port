@@ -1,8 +1,9 @@
 #!/bin/sh
 # room_sweep.sh -- visit rooms, and record what the game did in each.
 #
-# The game has 286 rooms and a scripted run reaches a handful.  33 of them have
-# no incoming door edge at all, so they cannot be reached by playing.  With
+# The game has 286 rooms and a scripted run reaches a handful.  18 of them have
+# no incoming door edge at all, so they cannot be reached by playing.  (33 have
+# no *outgoing* edge; the two counts are different measurements.)  With
 # PortWarp they can all be entered directly, which turns "what does this room
 # contain" and "what moves when the game is in it" from questions that need a
 # speedrun into questions that need a shell loop.
@@ -52,11 +53,13 @@ fi
 
 total=0; ok=0; mismatch=0; missing=0; diags=0
 
-# Where to put Kirby in each room.  This is not a detail: warping to an
-# arbitrary cell HANGS THE GAME -- room 804 cell (3,5) hangs, cell (2,5) works,
-# and the difference is that (2,5) is a cell one of the game's own doors
-# arrives at.  So spawn points come from inverting the door table rather than
-# from a default.  See arrival_cells() in tools/room_export.py.
+# Where to put Kirby in each room.  Any cell works since the warp was fixed
+# (docs/naming/warp-hang.md) -- the old hang was in the pause-map bookkeeping
+# and had nothing to do with the destination cell, so the theory that a spawn
+# had to be a real door arrival was wrong and is not what this is for now.
+# Door arrival cells are still the best default available: they are places the
+# game itself puts players, so Kirby lands somewhere sensible rather than
+# inside a wall or over a pit.
 SPAWNS=$(python3 tools/room_export.py --rom "$ROM" --spawn)
 
 hung=0
@@ -87,7 +90,14 @@ for room in "$@"; do
     # The port reports its own diagnostics; a room that produces any is more
     # interesting than one that does not, so they are counted separately from
     # the collision check rather than folded into it.
-    if grep -q 'port diagnostics ([1-9]' "$log" 2>/dev/null; then
+    #
+    # BASELINE IS NOT ZERO.  A plain run to gameplay produces 5 "DMA leaves the
+    # map" diagnostics at fixed addresses, unrelated to any room -- see
+    # docs/OBSERVING.md.  So this flags rooms worth looking at, not rooms that
+    # are broken, and the number to compare against is 5 rather than 0.  It
+    # counted nothing at all until the harness grew its portDiag hook, because
+    # the port's diagnostics never went through the channel being counted.
+    if grep -q "port diagnostics ([1-9]" "$log" 2>/dev/null; then
         diags=$((diags + 1))
         printf 'room %-4s DIAGNOSTICS\n' "$room"
     fi
