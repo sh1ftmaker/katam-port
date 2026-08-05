@@ -303,11 +303,22 @@ def trace_anim_script(text, rep):
 
     Two things make this usable rather than noise.  sub_080534D0 is the generic
     script runner -- it drives every animation in the game -- so the trace is
-    fenced to animationIndex == 90, which only the star ride uses.  And
-    MAX_PER_TAG is 4, so four consecutive frames would report the first four
-    entries and cap before reaching anything interesting; sampling every 64th
-    entry instead spreads those four lines across the whole script.  Advancing
-    prints an ascending pointer; stalled prints one line and stops.
+    fenced to animationIndex == 90, which only the star ride uses.  And the
+    pointer is reported shifted down by 10, so the value changes about every 85
+    entries: PortTrace suppresses an unchanged tuple, so an advancing script
+    prints roughly one line per KiB of script and caps at four, while a stalled
+    one prints exactly one line and then stays quiet.
+
+    The shift replaced a sampling condition -- `((ptr / 12) & 63) == 0` -- with
+    a blind spot big enough to cost a session.  It was meant to spread four
+    lines across the script and it does, but only from the entry where the
+    phase lines up: for the script this bug actually uses (0x082D9264, from
+    unkB4 = 0) that is entry 35.  A run that stalls before then prints
+    *nothing*, which is indistinguishable from the runner never being called --
+    two very different bugs that the log could not tell apart.  Reporting a
+    coarsened value on every call and letting PortTrace's own dedup do the
+    thinning has no such hole: silence means never called, one line means
+    stalled, several mean advancing.
 
     Diagnosis, not code: delete this with trace_star_states once the bug is
     understood.
@@ -321,11 +332,9 @@ def trace_anim_script(text, rep):
 
     text = text.replace(runner, runner + (
         '    /* PORT: diagnosis -- see trace_anim_script in tools/portify.py */\n'
-        '    if (kirby->animationIndex == 90\n'
-        '        && kirby->unk114 != NULL\n'
-        '        && (((u32)kirby->unk114 / 12) & 63) == 0)\n'
-        '        PortTrace("anim script (ride): unk114, counter, anim",\n'
-        '                  (u32)kirby->unk114,\n'
+        '    if (kirby->animationIndex == 90 && kirby->unk114 != NULL)\n'
+        '        PortTrace("anim script (ride): unk114>>10, counter, anim",\n'
+        '                  (u32)kirby->unk114 >> 10,\n'
         '                  kirby->base.base.base.counter,\n'
         '                  kirby->animationIndex);\n'), 1)
     rep.bump('animation script trace inserted')
@@ -346,6 +355,55 @@ def trace_anim_script(text, rep):
         rep.unhandled.append(
             'kirby.c: the animation script terminator no longer matches -- '
             'sub_080534D0 has changed upstream')
+    return text
+
+
+def trace_star_wait_detail(text, rep):
+    """Report what Kirby is actually doing while the star waits on him.
+
+    sub_0800E02C waits for animationIndex != 90 and, from two sessions, waits
+    forever.  Its own trace reports the animation index, which says the wait is
+    unsatisfied but nothing about why.  Three numbers separate the candidates,
+    and they are all on Kirby rather than the star:
+
+      unk78    the handler the object system dispatches.  sub_080531B4 sets it
+               to sub_080534D0, the script runner.  If it is anything else,
+               something overwrote it and the script was never going to run.
+               In a wasm build this is a table index, not an address, so it is
+               build-specific and has to be resolved against the artefact that
+               produced the log:
+
+                   seq 0 3597 | xargs -n 400 \\
+                       python3 tools/resolve_fnptr.py web/katam.wasm
+
+               For the build this trace was added in it is slot 1107 (0x453).
+      unk114   the script cursor.  Fixed means stalled, climbing by 12 a frame
+               means running.  This distinguishes "not dispatched" from
+               "dispatched and not advancing", which need different fixes.
+      counter  the per-entry frame countdown.  sub_080534D0 advances the cursor
+               on `if (!--counter)`, so a counter that never reaches zero is a
+               third distinct failure -- and one the cursor alone cannot show.
+
+    This is deliberately read from the *star's* wait state rather than from the
+    runner: it reports even when the runner is never called, which is the one
+    case the runner's own trace cannot report on.
+
+    Anchored on the line trace_star_states injects, so it must run after it.
+    """
+    anchor = ('    PortTrace("star state sub_0800E02C: riders, timer, kirby0Anim",\n'
+              '              ws->unk0.unkB5, ws->unkBC,\n'
+              '              gKirbys[0].animationIndex);\n')
+    if anchor not in text:
+        rep.unhandled.append(
+            'warp_star.c: sub_0800E02C is not shaped as trace_star_states left '
+            'it -- the star wait-state trace could not be attached')
+        return text
+    text = text.replace(anchor, anchor + (
+        '    PortTrace("star wait: kirby0 unk78, unk114, counter",\n'
+        '              (u32)gKirbys[0].base.base.unk78,\n'
+        '              (u32)gKirbys[0].unk114,\n'
+        '              gKirbys[0].base.base.base.counter);\n'), 1)
+    rep.bump('warp-star wait-state detail trace inserted')
     return text
 
 
@@ -989,6 +1047,7 @@ def main():
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
             if path.name == 'warp_star.c':
                 text = trace_star_states(text, rep)
+                text = trace_star_wait_detail(text, rep)
                 text = trace_star_script_choice(text, rep)
             if path.name == 'kirby.c':
                 text = trace_anim_script(text, rep)
