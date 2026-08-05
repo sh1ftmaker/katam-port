@@ -138,7 +138,15 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
-  #log, #crashreport, input { user-select: text; -webkit-user-select: text; }
+  /* -webkit-touch-callout has to be turned back on as well as user-select.
+     On iOS the gesture that *starts* a selection is the callout gesture, so
+     a long press on text inside a `callout: none` subtree does nothing at
+     all -- the text reads as selectable and cannot be selected. */
+  #log, #crashreport, input {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1298,6 +1306,7 @@ var Module = (function () {
   var copyBtn     = document.getElementById('crashcopy');
   var reloadBtn   = document.getElementById('crashreload');
   var logCopyBtn  = document.getElementById('logcopy');
+  var logEl       = document.getElementById('log');   // to highlight on failure
   var diagEl      = document.getElementById('diag');
   var diagBtn     = document.getElementById('diagtoggle');
 
@@ -1460,32 +1469,89 @@ var Module = (function () {
   // browsers (and on any non-secure origin), so every path falls back to a
   // throwaway textarea and the deprecated execCommand, which still works
   // while we are inside the click that asked for it.
+  // Three separate things have to be true for this to work on iOS, and the
+  // first version of it got all three wrong in the same silent way:
+  // execCommand('copy') reports whether the *command ran*, not whether
+  // anything reached the clipboard, so an empty selection is a success that
+  // copies nothing. The button said "Copied" and the clipboard was untouched.
+  //
+  //   1. The textarea inherits `user-select: none` from body. Text that
+  //      cannot be selected cannot be copied -- this alone was enough.
+  //   2. `readonly` makes iOS ignore setSelectionRange as well as select();
+  //      the range has to be made with the Selection API, over an element
+  //      that is contentEditable and writable.
+  //   3. The result has to be checked against the selection rather than
+  //      believed, which is what turns a silent failure into the message
+  //      that tells the player to select the text by hand.
   function fallbackCopy(text) {
+    var sel     = window.getSelection ? window.getSelection() : null;
+    var saved   = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    var focused = document.activeElement;
+
     var ta = document.createElement('textarea');
     ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.top = '0';
-    ta.style.left = '0';
-    ta.style.opacity = '0';
+    ta.contentEditable = 'true';
+    ta.readOnly = false;
+    // 16px because anything smaller makes iOS zoom the page to the field;
+    // fixed at the top-left so focusing it cannot scroll the panel away.
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;' +
+                       'padding:0;border:0;margin:0;opacity:0;font-size:16px;' +
+                       '-webkit-user-select:text;user-select:text;';
     document.body.appendChild(ta);
+
     var ok = false;
     try {
+      if (sel) {
+        var range = document.createRange();
+        range.selectNodeContents(ta);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
       ta.focus();
-      ta.select();
-      ta.setSelectionRange(0, text.length);    // iOS ignores select() by itself
-      ok = document.execCommand('copy');
+      ta.setSelectionRange(0, text.length);
+      // Both halves matter: the command has to have run *and* it has to have
+      // had something to copy.
+      ok = document.execCommand('copy') &&
+           ta.selectionEnd - ta.selectionStart === text.length;
     } catch (e) {
       ok = false;
     }
+
     document.body.removeChild(ta);
+
+    // Put back whatever the player had selected before pressing the button.
+    if (sel) {
+      sel.removeAllRanges();
+      if (saved) { try { sel.addRange(saved); } catch (e) { /* gone */ } }
+    }
+    if (focused && focused.focus) { try { focused.focus(); } catch (e) {} }
+
     return !!ok;
+  }
+
+  // Leaves the report highlighted so the player can use their own Copy.
+  // The only thing worse than a button that fails is a button that fails and
+  // leaves them nothing to do about it.
+  function selectElement(el) {
+    try {
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   function copyText(text, done) {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(
+          // Best effort only: a rejection arrives a turn later, by which time
+          // the click's user activation is spent and execCommand will refuse
+          // as well. That is what copyOnto's highlight-on-failure is for.
           function ()  { done(true); },
           function ()  { done(fallbackCopy(text)); });
         return;
@@ -1495,21 +1561,24 @@ var Module = (function () {
   }
 
   // Says so on the button itself: a phone user has nowhere else to look.
-  function copyOnto(btn, label, text) {
+  // `src` is the element the text came from -- on failure it is highlighted,
+  // so "select the text instead" is already done rather than an instruction.
+  function copyOnto(btn, label, text, src) {
     copyText(text, function (ok) {
-      btn.textContent = ok ? 'Copied' : 'Copy failed — select the text instead';
-      setTimeout(function () { btn.textContent = label; }, ok ? 1600 : 3200);
+      if (!ok && src) selectElement(src);
+      btn.textContent = ok ? 'Copied' : 'Copy failed — the text is selected, hold it and pick Copy';
+      setTimeout(function () { btn.textContent = label; }, ok ? 1600 : 5000);
     });
   }
 
   copyBtn.addEventListener('click', function () {
-    copyOnto(copyBtn, 'Copy report', reportEl.textContent);
+    copyOnto(copyBtn, 'Copy report', reportEl.textContent, reportEl);
   });
 
   reloadBtn.addEventListener('click', function () { location.reload(); });
 
   logCopyBtn.addEventListener('click', function () {
-    copyOnto(logCopyBtn, 'Copy log', shell.logText());
+    copyOnto(logCopyBtn, 'Copy log', shell.logText(), logEl);
   });
 
   //====================================================================
@@ -2656,6 +2725,18 @@ var Module = (function () {
 
   function overStage(node) {
     while (node && node.nodeType === 1) {
+      // Two panels sit *inside* the stage and are ordinary page UI rather
+      // than part of the picture: the ROM curtain and the crash report.
+      // Checked before the stage itself, because they are descendants of it.
+      //
+      // Everything blockTouchDefault() exists to suppress is something they
+      // need. preventDefault() on touchstart takes the selection gesture,
+      // the scroll, and -- the one that made this a bug report -- the
+      // synthesised click, so on iOS the crash panel's own Copy and Reload
+      // buttons received nothing at all, and the report could be neither
+      // scrolled nor highlighted. Both panels are only ever up when there is
+      // no game running under them, so nothing here can strand a held pad.
+      if (node.id === 'crash' || node.id === 'curtain') return false;
       if (node.id === 'touch' || node.id === 'screen-wrap') return true;
       node = node.parentNode;
     }

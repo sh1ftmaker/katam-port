@@ -143,7 +143,7 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check shell-check \
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -236,6 +236,14 @@ abi-size-check:
 
 ptr-array-check:
 	@python3 tools/check_ptr_arrays.py $(PORT_SRC)
+
+# --- the page itself -------------------------------------------------------
+# web/shell.html is hand-edited and has no build step of its own, so nothing
+# else would notice a syntax error in it, and the parts that only misbehave on
+# a phone are exactly the parts nobody exercises on a desktop.  Needs no ROM,
+# no browser and no wasm -- see the header of tools/shell_test.js.
+shell-check:
+	@node tools/shell_test.js web/shell.html
 
 # --- the 4-byte pointer member ---------------------------------------------
 # platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
