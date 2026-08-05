@@ -30,7 +30,7 @@ any server of ours.
 | **Music and sound effects** | yes |
 | Keyboard input | yes |
 | Touch controls, built for phones | yes |
-| Saving between sessions | not yet |
+| Saving between sessions | yes, in browser storage |
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
@@ -73,6 +73,19 @@ reads (`Access-Control-Allow-Origin`); the page says so plainly when it does
 not. `#rom=` works too, and keeps the address out of Referer headers. The last
 ROM you loaded is remembered in IndexedDB so you do not have to supply it
 again.
+
+### Saves
+
+Save files persist in the browser. The game's save memory is written to
+IndexedDB whenever it changes -- debounced, with a periodic re-check and a
+`visibilitychange` backstop, because mobile browsers kill tabs without warning
+and `beforeunload` is not reliable there -- and restored the first time the
+game reaches into it.
+
+Storage is keyed per ROM, by the cartridge header plus a hash of the image, so
+loading a different copy cannot inherit or clobber another game's save. The
+page can export your save as a plain 64 KiB `.sav` (the format an emulator
+reads), import one back, and delete what it has stored.
 
 `sync` copies the decompilation and rewrites what will not compile off ARM; it
 never touches your checkout. Re-run all three whenever you pull new
