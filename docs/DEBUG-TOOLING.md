@@ -584,6 +584,40 @@ state is a function of how the host drives the mixer, and the web and SDL hosts
 drive it differently. Both builds are otherwise deterministic — two runs of the
 native build agree in every game region across 1400 frames.
 
+### Two corrections, and a limit of the method
+
+**The sound divergence is not causal.** Hashing EWRAM per block at frames 200,
+300, 380 and 400 shows *no* block differing at all: the frame-185 difference in
+`gMPlayTrack_0` is transient and has healed by frame 200. The blocks that
+diverge at 406 are a different set. So there are at least two independent
+phenomena here and the first does not lead to the second -- which is what the
+single-chain story assumed, on no evidence beyond having found it first.
+
+**The frame-406 difference is a false positive**, and it exposes the method's
+real limit. One word differs, at 0x02020F58: 0x0000041A in the wasm build and
+0x1011D350 in the 64-bit one. The image is pinned at 0x10000000, so that is a
+host code address; the wasm value is a function table index. 0x02020F58 is
+offset 0x78 into `gKirbys`, which `gba_layout.h` names `struct Object2::unk78`
+-- the void* the game stores *functions* in, the field
+[SIXTYFOUR.md](SIXTYFOUR.md) flags as invisible to type analysis. Both builds
+are correct. They simply spell a function pointer differently, because a
+function pointer *is* a table index in WebAssembly and an address natively.
+
+So: **any GBA memory holding a host function pointer is incomparable between
+builds, in EWRAM as much as in IWRAM.** The regions listed above as
+"not comparable" were incomplete -- it is not a property of a region, it is a
+property of what the game happened to store there, and the game stores function
+pointers in ordinary object fields. Every "first divergence" frame this
+instrument reports is therefore an *upper bound* that may be contaminated.
+
+**The tool that would fix it** is a symbol-normalising comparator: instead of
+hashing raw words, resolve any word that falls inside the host image to a
+symbol name and hash the name instead of the address. Both builds would then
+agree that a field holds `sub_0800C124` rather than disagreeing about how it is
+spelled. The port already has most of the machinery -- `tools/gen_rom_data.py`
+resolves ARM addresses to decompiled C names, and `nm` gives the native side.
+That is the next instrument and it is not built.
+
 **What would settle it completely** is an ILP32 *native* build: same host layer,
 same audio driver, only the ABI different. That control does not exist on this
 machine. A 32-bit toolchain is easy (the multilib packages unpack like any
