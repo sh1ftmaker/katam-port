@@ -34,9 +34,26 @@ any server of ours.
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
-into an undecompiled function. Of the 13 symbols still stubbed at link time,
-**none are game logic**: they are the link-cable driver, multiboot, and
-`IntrMain`, all deliberately out of scope.
+into an undecompiled function. Of the 11 symbols still stubbed at link time,
+**none are game logic**: they are MultiBoot and `IntrMain`.
+
+### Link play
+
+The link cable is a real seam now rather than a hole. The game's own
+multiplayer driver — Nintendo's MultiSio library, the lobby, the lockstep input
+exchange — is compiled and driven by a transport-agnostic interface
+(`platform/port/mp.h`), with the serial hardware emulated under it and
+`MultiSioIntr` written from the game's own assembly. A same-process loopback
+transport ships as the reference, and a page can supply its own in JavaScript.
+
+What works today: the port's SIO unit clocks the cable, the game's driver comes
+up as parent or child, and 20-byte payloads cross and checksum in both
+directions for two to four units. What does not: the game cannot reach its own
+lobby, because that lobby uses MultiBoot's client-recognition phase as its link
+detector and MultiBoot is still stubbed. So this is the plumbing, verified, and
+not yet a playable second player. [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md)
+has the protocol, the interface, how to write a transport, and exactly what is
+measured versus assumed.
 
 ### Known problems
 
@@ -162,10 +179,11 @@ Built because each one was needed, and kept because the next bug will need
 them:
 
 - `tools/headless_test.js` boots the port under node with a real ROM and no
-  browser. `MASH=`/`HOLD=` drive input, `LAYERS=`/`FORCE=` render one
-  background at a time, `VRAM_AT=` dumps VRAM and palettes, `WATCH=` names
+  browser. `MASH=`/`HOLD=`/`PRESS_AT=` drive input, `LAYERS=`/`FORCE=` render
+  one background at a time, `VRAM_AT=` dumps VRAM and palettes, `WATCH=` names
   every block move that touches an address, `AUDIO_RATE=`/`WAV=` capture the
-  sound to a file, and `BG=`/`QUEUE=`/`LIVE=` report hardware state as it runs.
+  sound to a file, `MP=` plugs a link cable into the serial port, and
+  `BG=`/`QUEUE=`/`LIVE=` report hardware state as it runs.
 - `tools/resolve_fnptr.py` turns a raw function-pointer value, or the index in
   a wasm stack trace, into a name and a signature.
 - `make debug` builds with DWARF into a separate object tree, so

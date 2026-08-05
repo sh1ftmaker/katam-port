@@ -16,8 +16,10 @@
 
 #include "port/port.h"
 #include "port/dma.h"
+#include "port/mp.h"
 #include "gba/gba.h"
 #include "main.h"
+#include "multi_sio.h"
 
 u32 gPortRomSize;
 static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
@@ -245,6 +247,42 @@ static const struct { u32 flag; int index; } sIntrIndex[] = {
     { INTR_FLAG_TIMER3, 7 },
 };
 
+/* gIntrTable[0] does not always hold a function.
+ *
+ * MultiSioInit copies the machine code of MultiSioIntr into an IWRAM buffer so
+ * that a cartridge waitstate cannot delay a serial interrupt, and the game
+ * then installs the *buffer* as the handler -- gIntrTableTemplate[0] is
+ * literally `(void *)gMultiSioIntrFuncBuf`, and multi_08019F28.c and
+ * multi_sio_08158934.c write it into gIntrTable[0] again by hand.
+ *
+ * Here that address is data, not code, and a wasm function pointer is a table
+ * index rather than an address, so calling it goes out of bounds.  It is the
+ * same problem agb_sram.c had at boot, with the same answer: recognise the
+ * buffer and call the real function.  platform/multi_sio_intr.c is the real
+ * function. */
+static void CallIntr(int index)
+{
+    IntrFunc handler = gIntrTable[index];
+
+    if ((const void *)handler == (const void *)gMultiSioIntrFuncBuf) {
+        static int said;
+
+        /* Said once, because "did the link driver's interrupt actually run"
+         * is otherwise unanswerable from outside: MultiSioIntr leaves its
+         * traces in a struct the linker placed, not at a fixed address. */
+        if (!said) {
+            said = 1;
+            PortLog("[katam-port] gIntrTable[0] holds gMultiSioIntrFuncBuf "
+                    "(the IWRAM copy of the link driver's interrupt); "
+                    "calling MultiSioIntr");
+        }
+        MultiSioIntr();
+        return;
+    }
+    if (handler)
+        handler();
+}
+
 void PortDispatchInterrupt(u32 flag)
 {
     u32 i;
@@ -252,14 +290,34 @@ void PortDispatchInterrupt(u32 flag)
     /* Honour the game's own masking, exactly as the BIOS dispatcher would. */
     if (!(*(vu16 *)(GBA_IO_BASE + REG_OFFSET_IME) & 1))
         return;
+
+    /* crt0.s's IntrMain tests INTR_FLAG_TIMER3 and INTR_FLAG_SERIAL together,
+     * before every other flag, and sends both to gIntrTable[0] -- which makes
+     * the per-timer entry for timer 3, further down the same chain,
+     * unreachable on hardware.
+     *
+     * That is not an oddity to preserve for its own sake, it is how the link
+     * driver works.  MultiSioMain's state 0 promotes a console to parent by
+     * masking the serial interrupt off and the timer-3 interrupt on
+     * (multi_sio.c), because the parent is clocked by its own timer rather
+     * than by the cable, and it expects the same handler to keep running.
+     * Dispatching timer 3 to gIntrTable[7] instead would call Timer3Intr,
+     * which belongs to an unrelated protocol. */
+    if (flag == INTR_FLAG_SERIAL || flag == INTR_FLAG_TIMER3) {
+        u16 ie = *(vu16 *)(GBA_IO_BASE + REG_OFFSET_IE);
+
+        if (!(ie & (INTR_FLAG_SERIAL | INTR_FLAG_TIMER3)))
+            return;
+        CallIntr(0);
+        return;
+    }
+
     if (!(*(vu16 *)(GBA_IO_BASE + REG_OFFSET_IE) & flag))
         return;
 
     for (i = 0; i < sizeof(sIntrIndex) / sizeof(sIntrIndex[0]); i++) {
         if (sIntrIndex[i].flag == flag) {
-            IntrFunc handler = gIntrTable[sIntrIndex[i].index];
-            if (handler)
-                handler();
+            CallIntr(sIntrIndex[i].index);
             return;
         }
     }
@@ -294,6 +352,14 @@ void PortPresentFrame(void)
     *dispstat |= DISPSTAT_VBLANK;
     PortDmaVBlank();
     PortDispatchInterrupt(INTR_FLAG_VBLANK);
+
+    /* This frame's link-cable transfers.  On hardware they are spread across
+     * the whole frame by timer 3; here they are a burst, because the I/O block
+     * is plain memory and there is nothing to notice a store to SIOCNT at the
+     * moment it happens.  What has to hold is that a frame's worth of them
+     * happens between one MultiSioMain and the next, and it does.  Returns
+     * immediately unless something has attached a transport. */
+    PortMpFrame();
 
     PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
     PortAwaitAnimationFrame();

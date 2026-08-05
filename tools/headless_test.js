@@ -36,10 +36,30 @@ const MASH = (process.env.MASH || '').split(':').filter(Boolean).map(Number);
 // way to cross a level.
 const HOLD = parseInt(process.env.HOLD || '0', 0);
 
+// --- link cable ------------------------------------------------------------
+// MP=loopback[:players] plugs the in-process transport into the serial port at
+// frame MP_AT, so the run has a before and an after and a link that comes up
+// mid-run can be told apart from one that was there all along.
+//
+// MP_ID=n puts the game in slot n instead of slot 0, which swaps which end
+// clocks the cable.  MP_SELF=1 additionally has the platform layer call the
+// game's own MultiSioMain once a frame -- what GameLoop does while a link
+// session is running, which a headless run cannot get to by itself.  See
+// docs/MULTIPLAYER.md.
+const MP = (process.env.MP || '').split(':');
+const MP_PLAYERS = parseInt(MP[1] || '2', 10);
+const MP_AT = parseInt(process.env.MP_AT || '60', 10);
+const MP_ID = parseInt(process.env.MP_ID || '0', 10);
+
 function mashMask(frame) {
-    if (MASH.length !== 3) return HOLD || null;
-    const [start, mask, period] = MASH;
-    if (frame < start) return HOLD || null;
+    if (MASH.length < 3) return HOLD || null;
+    const [start, mask, period, end] = MASH;
+    // A fourth field stops the mashing again.  Needed for anything past the
+    // first screen of a menu: mashing A picks the default option every time,
+    // so reaching a second option means stopping and then steering, and
+    // PRESS_AT takes over from here.
+    if (frame < start || (end !== undefined && frame >= end))
+        return HOLD || null;
     return HOLD | (((frame - start) % period) < (period >> 1) ? mask : 0);
 }
 
@@ -190,6 +210,36 @@ const Module = {
         if ((process.env.LAYERS || process.env.FORCE) && Module._PortSetLayerMask)
             Module._PortSetLayerMask(parseInt(process.env.LAYERS || '0x1F', 0),
                                      parseInt(process.env.FORCE || '0', 0));
+        if (MP[0] && frames === MP_AT) {
+            if (MP[0] === 'loopback') {
+                if (MP_ID) Module._PortMpLoopbackSelfId(MP_ID);
+                Module._PortMpUseLoopback(MP_PLAYERS);
+            } else if (MP[0] === 'js') {
+                // The smallest transport that is not a no-op: an echo peer,
+                // which puts this unit's own halfword into every other slot.
+                // The game therefore receives a byte-for-byte copy of its own
+                // packet from each peer, which is well framed and checksums,
+                // so a link that comes up here can only mean the JavaScript
+                // side of the seam works.
+                Module.portMp = {
+                    open: () => 1,
+                    close: () => {},
+                    poll: (ptr) => {
+                        const h = Module.HEAPU8;
+                        h[ptr] = 1; h[ptr + 1] = 0;
+                        h[ptr + 2] = MP_PLAYERS; h[ptr + 3] = 0;
+                    },
+                    exchange: (word, ptr) => {
+                        const h = new Uint16Array(Module.HEAPU8.buffer);
+                        for (let i = 0; i < 4; i++)
+                            h[(ptr >> 1) + i] = i < MP_PLAYERS ? word : 0xFFFF;
+                        return 1;
+                    },
+                };
+                Module._PortMpUseJs(MP_PLAYERS);
+            }
+            if (process.env.MP_SELF) Module._PortMpSelfTest(1);
+        }
         if (SAVE_AT.includes(frames)) savePpm(data, w, h, 'build/frame-' + frames + '.ppm');
         // VRAM_AT=600 writes VRAM, both palettes and OAM to build/vram-600.bin,
         // so tile data can be looked at as pixels rather than guessed at from
@@ -315,6 +365,9 @@ function finish() {
     fs.writeFileSync('build/frame.ppm', Buffer.concat([header, rgb]));
 
     const dispcnt = Module.HEAPU8[0x04000000] | (Module.HEAPU8[0x04000001] << 8);
+
+    // Before the summary, so the port's own report lands with the diagnostics.
+    if (MP[0] && Module._PortMpReport) Module._PortMpReport();
 
     console.log('--- katam-port headless smoke test ---');
     console.log('frames rendered      : %d', frames);
