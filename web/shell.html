@@ -1896,7 +1896,11 @@ var Module = (function () {
     keepAbility = v[2] ? 1 : 0; seed = v[3] >>> 0;
   })();
 
+  // No pool selected is *off*, not "off but with rules". The rule bits alone
+  // are a nonzero flag word that the port would report as a setting, which
+  // reads as the randomizer being on to anyone watching the console.
   function flags() {
+    if (pools === 0) return 0;
     return pools | (matchSize ? 0 : ANY_SIZE) | (keepAbility ? KEEP_ABILITY : 0);
   }
 

@@ -350,6 +350,14 @@ void PortSetRando(u32 flags, u32 seed)
     gPortRandoFlags = flags;
     gPortRandoSeed = seed;
     sRoomsSeen = sSwapsMade = 0;
+    if (!(flags & (PORT_RANDO_ENEMIES | PORT_RANDO_MIDBOSSES
+                   | PORT_RANDO_BOSSES))) {
+        /* The rule bits on their own select nothing to apply them to.  Say
+         * "off" rather than printing a setting, so the console does not read
+         * as the randomizer being on. */
+        PortLog("rando: off");
+        return;
+    }
     PortLog("rando: flags=0x%x seed=%u (%s%s%s%s%s)", flags, seed,
             (flags & PORT_RANDO_ENEMIES)     ? "enemies "   : "",
             (flags & PORT_RANDO_MIDBOSSES)   ? "midbosses " : "",
