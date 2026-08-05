@@ -16,6 +16,24 @@
  * the object window, alpha blending and brightness fade, mosaic on backgrounds,
  * and forced blank.  Modes 3-5 are the bitmap modes, which this game does not
  * use; they report themselves through PortUnimplemented if they ever appear.
+ *
+ * --- the view rectangle ----------------------------------------------------
+ *
+ * Everything below is written against a view rectangle rather than against
+ * 240x160.  The default rectangle *is* 240x160 at the origin, and on that
+ * setting every loop below reduces to what it was before -- the extra terms
+ * are all `+ 0` and the extra branches are all `if (identity)`.  That was the
+ * condition for doing this at all: the normal presentation is what ships, and
+ * it must not pay for the experiment.
+ *
+ * Screen x and view column are different things from here on, and the names
+ * try to keep them apart:
+ *
+ *     `x`   -- GBA screen coordinate, 0..239 on hardware, and outside that
+ *              range for columns hardware never scanned
+ *     `col` -- index into the layer buffers and the framebuffer row, 0..viewW
+ *
+ *     x = gPortViewX + col
  */
 
 #include <string.h>
@@ -32,15 +50,162 @@
 #define LAYER_OBJ 4
 #define NUM_LAYERS 5
 
-u32 gPortFramebuffer[SCREEN_W * SCREEN_H];
+u32 gPortFramebuffer[PORT_MAX_VIEW_W * PORT_MAX_VIEW_H];
 
-/* Per-layer scanline output.  `colour` holds BGR555; `opaque` is 0 or 1. */
-static u16 sLayerColour[NUM_LAYERS][SCREEN_W];
-static u8 sLayerOpaque[NUM_LAYERS][SCREEN_W];
+s32 gPortViewX = 0, gPortViewY = 0;
+s32 gPortViewW = SCREEN_W, gPortViewH = SCREEN_H;
+
+u32 gPortScreenSpaceBgs = 0;
+u32 gPortPinScreenSpace = 0;
+
+/* Per-BG limits on how far outside the screen a layer holds real data.
+ *
+ * A GBA background wraps: the map is 32 tiles across and sampling past the end
+ * comes back round to the start, which on hardware is invisible because
+ * nothing past x=239 is ever scanned.  Widen the view and it becomes very
+ * visible -- src/bg.c refills a 32-tile screen block with the 32 map columns
+ * starting at the camera, so the block is exactly full, and the pixels beyond
+ * it are the columns from 32 tiles ago drawn as if they were the ones ahead.
+ *
+ * The renderer cannot invent the missing columns.  What it can do is decline
+ * to draw a column that is a lie, which turns "the level continues, wrongly"
+ * into "the level stops here" -- and the layer underneath, which is a
+ * seamlessly tiling sky, shows through.  That is the honest picture and it is
+ * also, as it happens, the better-looking one.
+ *
+ * INT32_MIN/MAX means "no limit", which is the default and what every layer
+ * gets in the native view.  platform/view.c fills these in from the game's own
+ * Background records, which say how many columns each layer was given. */
+s32 gPortBgValidL[NUM_BG] = { -0x40000000, -0x40000000, -0x40000000, -0x40000000 };
+s32 gPortBgValidR[NUM_BG] = {  0x40000000,  0x40000000,  0x40000000,  0x40000000 };
+s32 gPortBgValidT[NUM_BG] = { -0x40000000, -0x40000000, -0x40000000, -0x40000000 };
+s32 gPortBgValidB[NUM_BG] = {  0x40000000,  0x40000000,  0x40000000,  0x40000000 };
+
+/* ...and where to get the columns the game did not stream.
+ *
+ * This is the thing that turns the wider view from a trick into a picture.
+ *
+ * The 32 columns in the screen block are a *copy*.  The room's real tilemap is
+ * a plain row-major array of the same 16-bit entries, decompressed into EWRAM
+ * at room load, and src/bg.c's refill is a straight DmaCopy16 out of it with
+ * no transformation whatever -- no palette bias, no tile-index bias, nothing.
+ * The 32-column limit is the hardware's, not the data's: a screen block is
+ * 32 tiles across and that is all the display could address.
+ *
+ * A software renderer is under no such obligation.  For a pixel outside the
+ * copied window it reads the same entry the DMA would have written had there
+ * been room for it, and everything downstream -- the flip bits, the palette
+ * bank, the tile fetch -- is untouched, because the entries are identical.
+ * The tile *pixels* are already resident: the tileset is uploaded whole at
+ * room load, and the animation path rewrites character data in place without
+ * ever touching a map entry, so a synthesised column animates for free.
+ *
+ * X wraps modulo the map width, because the game's own refill wraps there
+ * (bg.c re-reads from source column 0 when the window runs off the end), so
+ * a room that repeats horizontally goes on repeating.  Y does not wrap and is
+ * not allowed to: the refill has no vertical wrap at all and already reads two
+ * rows past the bottom of its own map every frame, which is invisible only
+ * because those rows land below scanline 160.  Off the top or bottom of the
+ * map is left blank rather than guessed at.
+ *
+ * `map` is null for a layer that must not be synthesised -- one whose whole
+ * tilemap is small enough to live in the screen block, where the hardware wrap
+ * is the map genuinely tiling and is correct, and any room that builds its
+ * screen block by hand and has no source map at all. */
+PortBgSource gPortBgSource[NUM_BG];
+
+/* Per-layer scanline output.  `colour` holds BGR555; `opaque` is 0 or 1.
+ * Indexed by view column, not by screen x. */
+static u16 sLayerColour[NUM_LAYERS][PORT_MAX_VIEW_W];
+static u8 sLayerOpaque[NUM_LAYERS][PORT_MAX_VIEW_W];
 static u8 sLayerPriority[NUM_LAYERS];
-static u8 sObjSemiTransparent[SCREEN_W];
-static u8 sObjPriority[SCREEN_W];
-static u8 sObjWindow[SCREEN_W];
+static u8 sObjSemiTransparent[PORT_MAX_VIEW_W];
+static u8 sObjPriority[PORT_MAX_VIEW_W];
+static u8 sObjWindow[PORT_MAX_VIEW_W];
+
+void PortSetView(s32 x, s32 y, s32 w, s32 h)
+{
+    if (w < 16) w = 16;
+    if (h < 16) h = 16;
+    if (w > PORT_MAX_VIEW_W) w = PORT_MAX_VIEW_W;
+    if (h > PORT_MAX_VIEW_H) h = PORT_MAX_VIEW_H;
+    gPortViewX = x;
+    gPortViewY = y;
+    gPortViewW = w;
+    gPortViewH = h;
+}
+
+void PortSetScreenSpaceBgs(u32 mask, u32 pin)
+{
+    gPortScreenSpaceBgs = mask & 0xF;
+    gPortPinScreenSpace = pin;
+}
+
+/* The HUD problem, and the two answers to it.
+ *
+ * A HUD is drawn on a background layer at fixed tile positions with its scroll
+ * registers at zero, so it is in screen space: "the top-left corner" means map
+ * tile (0,0), and map tile (0,0) is wherever screen x 0 lands.  Widen the view
+ * and screen x 0 stops being the left edge of the picture -- the HUD slides
+ * inwards by however much was added, and the columns beyond it show whatever
+ * the 32-tile map happens to wrap around to, which is the rest of the HUD's
+ * own tiles repeated.  That second part is not a taste question; it is
+ * garbage, and it has to be dealt with either way.
+ *
+ * float (the default): draw the HUD at its own size, centred in the picture,
+ *   and blank the layer outside it.  Nothing is cut and nothing moves -- the
+ *   HUD sits in a 240-wide box in the middle of a wider view, and a view
+ *   narrower than 240 shows the middle of the HUD however the crop is
+ *   panning.  It is centred rather than pinned to the view's own origin
+ *   precisely so that it does not slide about when the crop tracks Kirby.
+ *
+ * pin: cut the HUD down the middle and staple each half to its own edge of
+ *   the picture.  This is the right answer for a HUD built out of corners,
+ *   and it was the default until the pictures came back: KATAM's is a
+ *   continuous strip along the bottom -- the ability name at tile 0, lives at
+ *   tile 10, the health bar from tile 13 rightwards -- and the split at tile
+ *   15 lands in the middle of the health bar and tears it in two.  Kept
+ *   because the choice is a property of the game's HUD and not of this code,
+ *   and because seeing it fail is the argument for the default.
+ *
+ * Both degenerate to the identity at 240 wide, which is the point: at that
+ * size the centring offset is zero and `col < half` covers every column.
+ *
+ * The vertical axis is always pinned, whatever the horizontal one is doing,
+ * and that is not a symmetry worth having.  The two axes have different HUDs
+ * on them: across, KATAM's is one continuous strip and splitting it tears the
+ * health bar; down, it is two strips with nothing between them -- the phone
+ * and battery at the top, everything else along the bottom -- and floating it
+ * centres a 160-tall HUD inside a 106-tall crop, which throws the bottom
+ * strip away entirely.  Pinning is exactly right for the second and exactly
+ * wrong for the first.
+ *
+ * Returns 0 and leaves *out alone for a column this layer must not touch.
+ */
+static int PortMapScreenSpace(s32 col, s32 viewSize, s32 nativeSize, int pin,
+                              s32 *out)
+{
+    s32 half = viewSize < nativeSize ? viewSize / 2 : nativeSize / 2;
+
+    if (!pin) {
+        /* Column `col` of a `viewSize`-wide picture, when a `nativeSize`-wide
+         * HUD is centred in it.  The sign matters and got itself wrong once:
+         * a wider view has the HUD starting *later*, so the offset comes off
+         * the column, not off the width. */
+        s32 x = col - (viewSize - nativeSize) / 2;
+        if (x < 0 || x >= nativeSize)
+            return 0;
+        *out = x;
+        return 1;
+    }
+    if (col < half)
+        *out = col;
+    else if (col >= viewSize - half)
+        *out = col - viewSize + nativeSize;
+    else
+        return 0;
+    return 1;
+}
 
 /* Affine background reference points latch at the start of the frame and
  * advance per scanline, so mid-frame writes to BGxX/BGxY do not take effect
@@ -101,7 +266,11 @@ static void RenderTextBg(int bg, int line)
     u16 vofs = IO16(REG_OFFSET_BG0VOFS + bg * 4);
     const u16 *pal = Palette();
     const u8 *vram = Vram();
-    u32 sy, x;
+    int screenSpace = (gPortScreenSpaceBgs >> bg) & 1;
+    const PortBgSource *src = &gPortBgSource[bg];
+    s32 srcRow = -1;
+    u32 sy;
+    s32 col;
 
     if (cnt & BGCNT_MOSAIC) {
         u16 mos = IO16(REG_OFFSET_MOSAIC);
@@ -109,29 +278,91 @@ static void RenderTextBg(int bg, int line)
         line = (line / mv) * mv;
     }
 
+    /* A screen-space layer is pinned vertically as well.  The row it wants is
+     * the row of the *screen* line, not of the view line -- otherwise a view
+     * taller than 160 slides the HUD down by half the difference and then
+     * shows the map wrapping above it. */
+    if (screenSpace) {
+        s32 mapped;
+        if (!PortMapScreenSpace(line - gPortViewY, gPortViewH, SCREEN_H, 1,
+                                &mapped))
+            return;
+        line = mapped;
+    }
+
+    if (screenSpace) {
+        srcRow = -1;
+    } else if (src->map) {
+        /* The source row for every synthesised pixel on this scanline.  -1
+         * means off the top or bottom of the room's own map, where there is
+         * nothing to read and nothing to invent. */
+        s32 r = src->offY + ((src->scrollY + line) >> 3);
+        srcRow = (r >= 0 && r < src->heightTiles) ? r : -1;
+    } else if (line < gPortBgValidT[bg] || line >= gPortBgValidB[bg]) {
+        return;
+    }
+
     sy = ((u32)(line + vofs)) & (heightTiles * 8 - 1);
 
-    for (x = 0; x < SCREEN_W; x++) {
-        u32 sx = ((u32)(x + hofs)) & (widthTiles * 8 - 1);
-        u32 tileX = sx >> 3, tileY = sy >> 3;
+    for (col = 0; col < gPortViewW; col++) {
+        s32 x = gPortViewX + col;
+        u32 sx, tileX, tileY;
         u32 mapOffset = screenBase;
         u16 entry, tile, index, colour;
         u32 px, py;
+        int outside;
 
-        /* 512-wide and 512-tall maps are stored as 32x32 blocks. */
-        if (tileX >= 32) {
-            mapOffset += 0x800;
-            tileX -= 32;
+        if (screenSpace) {
+            if (!PortMapScreenSpace(col, gPortViewW, SCREEN_W,
+                                    gPortPinScreenSpace, &x))
+                continue;
+            outside = 0;
+        } else {
+            outside = (x < gPortBgValidL[bg] || x >= gPortBgValidR[bg]
+                       || line < gPortBgValidT[bg] || line >= gPortBgValidB[bg]);
+            if (outside && !src->map)
+                continue;
         }
-        if (tileY >= 32) {
-            mapOffset += (widthTiles > 32) ? 0x1000 : 0x800;
-            tileY -= 32;
-        }
-        mapOffset += (tileY * 32 + tileX) * 2;
-        if (mapOffset + 1 >= GBA_VRAM_SIZE)
-            continue;
 
-        entry = vram[mapOffset] | (vram[mapOffset + 1] << 8);
+        sx = ((u32)(x + hofs)) & (widthTiles * 8 - 1);
+        tileX = sx >> 3; tileY = sy >> 3;
+
+        if (outside) {
+            /* Past the copied window: read what the copy would have held.
+             * `sx` is still the right thing for the pixel *within* the tile,
+             * because BGxHOFS is the low three bits of the same scroll. */
+            s32 c;
+
+            if (srcRow < 0)
+                continue;
+            c = src->offX + ((src->scrollX + x) >> 3);
+            /* Off the end of the room: nothing.  bg.c *does* wrap X -- when
+             * its 32-column window runs past the right edge of the map it
+             * starts again at column 0 -- and reproducing that was the first
+             * version, which put the far end of the room in the left margin
+             * whenever the camera reached the near end.  The wrap is not a
+             * feature; it is what the copy does with a window the camera
+             * clamp guarantees will never actually need it.  Outside the room
+             * there is no room, and saying so is better than saying the
+             * wrong thing confidently. */
+            if (c < 0 || c >= src->widthTiles)
+                continue;
+            entry = src->map[srcRow * src->widthTiles + c];
+        } else {
+            /* 512-wide and 512-tall maps are stored as 32x32 blocks. */
+            if (tileX >= 32) {
+                mapOffset += 0x800;
+                tileX -= 32;
+            }
+            if (tileY >= 32) {
+                mapOffset += (widthTiles > 32) ? 0x1000 : 0x800;
+                tileY -= 32;
+            }
+            mapOffset += (tileY * 32 + tileX) * 2;
+            if (mapOffset + 1 >= GBA_VRAM_SIZE)
+                continue;
+            entry = vram[mapOffset] | (vram[mapOffset + 1] << 8);
+        }
         tile = entry & 0x3FF;
         px = sx & 7;
         py = sy & 7;
@@ -141,8 +372,8 @@ static void RenderTextBg(int bg, int line)
         colour = FetchTilePixel(charBase, tile, px, py, is256,
                                 (entry >> 12) & 0xF, &index);
         if (index) {
-            sLayerColour[bg][x] = pal[colour & 0xFF];
-            sLayerOpaque[bg][x] = 1;
+            sLayerColour[bg][col] = pal[colour & 0xFF];
+            sLayerOpaque[bg][col] = 1;
         }
     }
 }
@@ -163,12 +394,16 @@ static void RenderAffineBg(int bg, int line)
     const u16 *pal = Palette();
     const u8 *vram = Vram();
     s32 cx = sAffineX[slot], cy = sAffineY[slot];
-    u32 x;
+    s32 col;
 
     (void)line;
-    for (x = 0; x < SCREEN_W; x++) {
-        s32 tx = (cx + pa * (s32)x) >> 8;
-        s32 ty = (cy + pc * (s32)x) >> 8;
+    /* The reference point is defined at screen x 0, so a view that starts left
+     * of the screen steps the transform backwards to get there -- which is
+     * exactly what `x` being negative does. */
+    for (col = 0; col < gPortViewW; col++) {
+        s32 x = gPortViewX + col;
+        s32 tx = (cx + pa * x) >> 8;
+        s32 ty = (cy + pc * x) >> 8;
         u32 mapOffset, tile;
         u16 colour, index;
 
@@ -187,8 +422,8 @@ static void RenderAffineBg(int bg, int line)
         /* Affine backgrounds are always 256-colour. */
         colour = FetchTilePixel(charBase, tile, tx & 7, ty & 7, 1, 0, &index);
         if (index) {
-            sLayerColour[bg][x] = pal[colour & 0xFF];
-            sLayerOpaque[bg][x] = 1;
+            sLayerColour[bg][col] = pal[colour & 0xFF];
+            sLayerOpaque[bg][col] = 1;
         }
     }
 }
@@ -245,8 +480,25 @@ static void RenderSprites(int line)
             boxH = h * 2;
         }
 
-        if (x >= 240) x -= 512;
-        if (y >= 160) y -= 256;
+        /* OAM X is 9 bits and Y is 8, so "off the left edge" is spelled as a
+         * large positive number and the renderer has to pick a point at which
+         * to read it as negative instead.  240 and 160 are the natural places
+         * on hardware, because nothing beyond them is ever scanned.
+         *
+         * Widen the view and they stop being natural: a sprite genuinely at
+         * screen x 250 -- inside a 320-wide picture -- reads as -262 and jumps
+         * to the far side of the screen.  So the fold points move with the
+         * view.  This is also the hard ceiling on how far the view can widen:
+         * the fields hold -256..255 and -128..127, and no amount of renderer
+         * can invent a bit the game never wrote. */
+        {
+            s32 foldX = gPortViewX + gPortViewW;
+            s32 foldY = gPortViewY + gPortViewH;
+            if (foldX > 256) foldX = 256;
+            if (foldY > 128) foldY = 128;
+            if (x >= foldX) x -= 512;
+            if (y >= foldY) y -= 256;
+        }
 
         row = line - y;
         if (row < 0 || row >= (s32)boxH)
@@ -262,12 +514,13 @@ static void RenderSprites(int line)
 
         for (px = 0; px < (s32)boxW; px++) {
             s32 sx = x + px;
+            s32 col = sx - gPortViewX;
             s32 texX, texY;
             u32 tileIndex;
             u16 index;
             u16 colour;
 
-            if (sx < 0 || sx >= SCREEN_W)
+            if (col < 0 || col >= gPortViewW)
                 continue;
 
             if (affine) {
@@ -305,16 +558,16 @@ static void RenderSprites(int line)
                 continue;
 
             if (mode == 2) {           /* object window: shape only, no pixels */
-                sObjWindow[sx] = 1;
+                sObjWindow[col] = 1;
                 continue;
             }
 
             /* Lower OAM index wins; the loop runs backwards so later writes
              * are higher-priority sprites. */
-            sLayerColour[LAYER_OBJ][sx] = pal[colour & 0xFF];
-            sLayerOpaque[LAYER_OBJ][sx] = 1;
-            sObjPriority[sx] = priority;
-            sObjSemiTransparent[sx] = (mode == 1);
+            sLayerColour[LAYER_OBJ][col] = pal[colour & 0xFF];
+            sLayerOpaque[LAYER_OBJ][col] = 1;
+            sObjPriority[col] = priority;
+            sObjSemiTransparent[col] = (mode == 1);
         }
     }
 }
@@ -346,6 +599,24 @@ static int WindowAllows(int x, int line, int layer, int *allowBlend)
         if (right > SCREEN_W || right < left) right = SCREEN_W;
         if (bottom > SCREEN_H || bottom < top) bottom = SCREEN_H;
 
+        /* A window register is written in 240x160 coordinates and there is no
+         * other set of coordinates it could be written in.  A window that
+         * reaches an edge of the screen means "to the edge", not "to x=239" --
+         * KATAM uses one to darken everything outside a lit circle, and taken
+         * literally in a wider view it would draw a bright 240-wide band with
+         * the darkness resuming outside it.  So an edge stays an edge: a
+         * boundary that sits on the screen's own limit is moved out to the
+         * view's.  A window that stops short of the edge is left where it is,
+         * because there it means a real position.
+         *
+         * This is a guess about intent, and the one case it gets wrong is a
+         * window deliberately placed flush against the screen edge with
+         * something meant to be outside it.  Nothing in this game does that. */
+        if (left <= 0) left = gPortViewX;
+        if (right >= SCREEN_W) right = gPortViewX + gPortViewW;
+        if (top <= 0) top = gPortViewY;
+        if (bottom >= SCREEN_H) bottom = gPortViewY + gPortViewH;
+
         if (x >= left && x < right && line >= top && line < bottom) {
             control = (winin >> (w * 8)) & 0x3F;
             *allowBlend = (control & 0x20) != 0;
@@ -353,7 +624,7 @@ static int WindowAllows(int x, int line, int layer, int *allowBlend)
         }
     }
 
-    if ((dispcnt & DISPCNT_OBJWIN_ON) && sObjWindow[x]) {
+    if ((dispcnt & DISPCNT_OBJWIN_ON) && sObjWindow[x - gPortViewX]) {
         int control = (winout >> 8) & 0x3F;
         *allowBlend = (control & 0x20) != 0;
         return (control >> layer) & 1;
@@ -422,14 +693,15 @@ static void ComposeScanline(int line)
     u32 eva = bldalpha & 0x1F, evb = (bldalpha >> 8) & 0x1F;
     u32 evy = bldy & 0x1F;
     const u16 *pal = Palette();
-    u32 *out = &gPortFramebuffer[line * SCREEN_W];
-    int x;
+    u32 *out = &gPortFramebuffer[(line - gPortViewY) * gPortViewW];
+    int col;
 
     if (eva > 16) eva = 16;
     if (evb > 16) evb = 16;
     if (evy > 16) evy = 16;
 
-    for (x = 0; x < SCREEN_W; x++) {
+    for (col = 0; col < gPortViewW; col++) {
+        int x = gPortViewX + col;
         u16 topColour = pal[0];
         u16 secondColour = pal[0];
         int topLayer = -1, secondLayer = -1;
@@ -444,9 +716,9 @@ static void ComposeScanline(int line)
                 int idx = (layer == 0) ? LAYER_OBJ : layer - 1;
 
                 {
-                    int layerPriority = (idx == LAYER_OBJ) ? sObjPriority[x]
+                    int layerPriority = (idx == LAYER_OBJ) ? sObjPriority[col]
                                                            : sLayerPriority[idx];
-                    if (layerPriority != priority || !sLayerOpaque[idx][x])
+                    if (layerPriority != priority || !sLayerOpaque[idx][col])
                         continue;
                 }
                 if (idx < NUM_BG && !(dispcnt & (DISPCNT_BG0_ON << idx)))
@@ -458,11 +730,11 @@ static void ComposeScanline(int line)
 
                 if (topLayer < 0) {
                     topLayer = idx;
-                    topColour = sLayerColour[idx][x];
+                    topColour = sLayerColour[idx][col];
                     topAllowsBlend = allowBlend;
                 } else if (secondLayer < 0) {
                     secondLayer = idx;
-                    secondColour = sLayerColour[idx][x];
+                    secondColour = sLayerColour[idx][col];
                     break;
                 }
             }
@@ -479,7 +751,7 @@ static void ComposeScanline(int line)
 
             /* A semi-transparent sprite blends regardless of BLDCNT's first
              * target, which is how the game fades individual objects. */
-            if (topLayer == LAYER_OBJ && sObjSemiTransparent[x] && isTarget2)
+            if (topLayer == LAYER_OBJ && sObjSemiTransparent[col] && isTarget2)
                 result = BlendAlpha(topColour, secondColour, eva, evb);
             else if (effect == 1 && isTarget1 && isTarget2)
                 result = BlendAlpha(topColour, secondColour, eva, evb);
@@ -489,7 +761,7 @@ static void ComposeScanline(int line)
                 result = BlendBrightness(topColour, evy, 0);
         }
 
-        out[x] = ToRgba(result);
+        out[col] = ToRgba(result);
     }
 }
 
@@ -561,18 +833,18 @@ static void RenderScanline(int line)
     int bg;
 
     for (bg = 0; bg < NUM_LAYERS; bg++) {
-        memset(sLayerOpaque[bg], 0, SCREEN_W);
+        memset(sLayerOpaque[bg], 0, gPortViewW);
         sLayerPriority[bg] = 3;
     }
-    memset(sObjSemiTransparent, 0, SCREEN_W);
-    memset(sObjPriority, 3, SCREEN_W);
-    memset(sObjWindow, 0, SCREEN_W);
+    memset(sObjSemiTransparent, 0, gPortViewW);
+    memset(sObjPriority, 3, gPortViewW);
+    memset(sObjWindow, 0, gPortViewW);
 
     if (dispcnt & DISPCNT_FORCED_BLANK) {
-        u32 *out = &gPortFramebuffer[line * SCREEN_W];
-        int x;
-        for (x = 0; x < SCREEN_W; x++)
-            out[x] = 0xFFFFFFFFu;
+        u32 *out = &gPortFramebuffer[(line - gPortViewY) * gPortViewW];
+        int col;
+        for (col = 0; col < gPortViewW; col++)
+            out[col] = 0xFFFFFFFFu;
         return;
     }
 
@@ -608,17 +880,67 @@ static void RenderScanline(int line)
     ComposeScanline(line);
 }
 
-void PortRenderFrame(void)
+/* Lines the hardware never scanned.
+ *
+ * A view taller than 160 needs rows above line 0 and below line 159, and there
+ * is no honest register state to render them with: the game's per-scanline
+ * effects only exist for lines the display had.  The nearest truth available
+ * is the state at the two ends of the frame -- the rows above the screen are
+ * drawn before the scanline loop, out of the registers as the frame begins,
+ * and the rows below it after, out of the registers as the frame ends.
+ *
+ * That is right whenever the HBlank writes are a ramp (a parallax gradient, a
+ * fade), which is what they are here, and wrong for anything that only
+ * happens in the middle of the frame.  None of these lines runs an HBlank
+ * handler or an HBlank DMA, deliberately: the game counts its own scanlines,
+ * and handing it 200 of them would be a change to the game, not to the
+ * picture. */
+static void RenderOffScreenLines(int from, int to)
 {
     int line;
 
+    for (line = from; line < to; line++) {
+        RenderScanline(line);
+        AdvanceAffineReferencePoints();
+    }
+}
+
+void PortRenderFrame(void)
+{
+    int line;
+    int topLine = gPortViewY;
+    int bottomLine = gPortViewY + gPortViewH;
+
     LatchAffineReferencePoints();
+
+    if (topLine < 0) {
+        /* Wind the affine reference points back to where they would have been
+         * had the scan started that many lines earlier, render up to line 0,
+         * and put them back -- RenderOffScreenLines advances them exactly as
+         * the real loop does, so they arrive at the latched value again. */
+        s32 saveX[2], saveY[2];
+        int i;
+        for (i = 0; i < 2; i++) {
+            saveX[i] = sAffineX[i];
+            saveY[i] = sAffineY[i];
+            sAffineX[i] += (s32)(s16)IO16(REG_OFFSET_BG2PB + i * 0x10) * topLine;
+            sAffineY[i] += (s32)(s16)IO16(REG_OFFSET_BG2PD + i * 0x10) * topLine;
+        }
+        RenderOffScreenLines(topLine, 0);
+        for (i = 0; i < 2; i++) { sAffineX[i] = saveX[i]; sAffineY[i] = saveY[i]; }
+    }
 
     for (line = 0; line < SCREEN_H; line++) {
         IO16(REG_OFFSET_VCOUNT) = line;
         IO16(REG_OFFSET_DISPSTAT) &= ~(DISPSTAT_VBLANK | DISPSTAT_HBLANK);
 
-        RenderScanline(line);
+        /* A view shorter than the screen is a crop, and the lines outside it
+         * are skipped -- but only the *drawing* is skipped.  Everything below
+         * still runs for all 160 lines, because the game arms per-scanline
+         * transfers and counts on them firing whether or not anyone is
+         * looking. */
+        if (line >= topLine && line < bottomLine)
+            RenderScanline(line);
         AdvanceAffineReferencePoints();
 
         /* HBlank: the per-scanline effects the game arms every frame. */
@@ -630,4 +952,7 @@ void PortRenderFrame(void)
             && (IO16(REG_OFFSET_DISPSTAT) >> 8) == (u32)line)
             PortDispatchInterrupt(INTR_FLAG_VCOUNT);
     }
+
+    if (bottomLine > SCREEN_H)
+        RenderOffScreenLines(SCREEN_H, bottomLine);
 }

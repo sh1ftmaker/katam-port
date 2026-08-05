@@ -170,6 +170,189 @@ RAW_DMA = {
     )],
 }
 
+# ---------------------------------------------------------------------------
+# The view codemod.
+#
+# Everything above this line adapts the game so it *runs* off ARM.  This block
+# is the one exception in the file: it changes what the game does, so the port
+# can render more of the world than 240x160 and have the game agree that the
+# extra part exists.  See platform/view.c, which owns the globals, and
+# docs/VIEW.md, which is mostly a list of reasons this does not work as well as
+# it sounds like it should.
+#
+# Each global is initialised to the constant it replaces, so a build that never
+# touches the view controller is byte-for-byte the behaviour that shipped.  The
+# patterns are exact text, and a pattern that stops matching is reported rather
+# than skipped -- silently failing to widen one of the five bounds gives a
+# picture that is subtly, unattributably wrong, which is a great deal worse
+# than a loud "the decompilation moved".
+#
+# The five bounds, and why each is where it is:
+#
+#   sprite_2.c        the box outside which an object is not written to OAM.
+#                     Purely presentational: relaxing it cannot change game
+#                     state, only whether a live object is drawn.
+#   kirby.c           the box outside which an object is destroyed.  Three
+#                     copies of the same test, over three struct views of the
+#                     same object.
+#   code_080023A4.c   the tile window in which an object is created at all,
+#                     both the full rescan and the incremental edge column.
+#   code_080023A4.c   the camera's clamp against the room's edge, which is the
+#                     only one whose *stock* value is wrong for a wider view:
+#                     leave it and the camera stops with 240 pixels inside the
+#                     room and the rest of the picture outside it.
+VIEW_DECL = ('/* PORT: view bounds, see platform/view.c */\n'
+             'extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;\n'
+             'extern s32 gPortCullHalfW, gPortCullHalfH;\n'
+             'extern s32 gPortSpawnPadX, gPortSpawnPadY;\n'
+             'extern s32 gPortCamPadX, gPortCamPadY;\n')
+
+VIEW_PATCHES = {
+    # --- OAM submission bounds ---------------------------------------------
+    'sprite_2.c': [
+        ('(sp00 + sp04 >= 0 && sp00 <= 240 && sp08 + sl >= 0 && sl <= 160)',
+         '(sp00 + sp04 >= gPortOamMinX && sp00 <= gPortOamMaxX'
+         ' && sp08 + sl >= gPortOamMinY && sl <= gPortOamMaxY)'),
+        ('(sp08 + sp10 >= 0 && sp08 <= 240 && sp0C + sp14 >= 0 && sp0C <= 160)',
+         '(sp08 + sp10 >= gPortOamMinX && sp08 <= gPortOamMaxX'
+         ' && sp0C + sp14 >= gPortOamMinY && sp0C <= gPortOamMaxY)'),
+        ('if ((sp0C + y1 + r7 >= 0 && sp0C + y1 <= 160)\n'
+         '                    && (sp08 + x1 + ip >= 0 && sp08 + x1 <= 240)) {',
+         'if ((sp0C + y1 + r7 >= gPortOamMinY && sp0C + y1 <= gPortOamMaxY)\n'
+         '                    && (sp08 + x1 + ip >= gPortOamMinX'
+         ' && sp08 + x1 <= gPortOamMaxX)) {'),
+        ('if (sp00 + sp10 >= 0 && sp00 <= 240\n'
+         '            && sp04 + sp14 >= 0 && sp04 <= 160) {',
+         'if (sp00 + sp10 >= gPortOamMinX && sp00 <= gPortOamMaxX\n'
+         '            && sp04 + sp14 >= gPortOamMinY && sp04 <= gPortOamMaxY) {'),
+    ],
+
+    # --- the spawn window and the camera clamp -----------------------------
+    'code_080023A4.c': [
+        # sub_08002DA0.  Stock, the camera is allowed to bring the *screen's*
+        # right edge up to the room's; a wider picture has to stop earlier by
+        # exactly the amount it added, or it shows the void beside the room.
+        ('    if (var0 < levelInfo->unk_S32Vec2_6C.x)\n'
+         '        levelInfo->unk1C += levelInfo->unk_S32Vec2_6C.x - var0;\n'
+         '\n'
+         '    var0 += 0xF000;\n',
+         '    if (var0 - gPortCamPadX < levelInfo->unk_S32Vec2_6C.x)\n'
+         '        levelInfo->unk1C += levelInfo->unk_S32Vec2_6C.x'
+         ' - (var0 - gPortCamPadX);\n'
+         '\n'
+         '    var0 += 0xF000 + gPortCamPadX;\n'),
+        ('    if (var1 < levelInfo->unk_S32Vec2_6C.y)\n'
+         '        levelInfo->unk20 += levelInfo->unk_S32Vec2_6C.y - var1;\n'
+         '\n'
+         '    var1 += 0xA000;\n',
+         '    if (var1 - gPortCamPadY < levelInfo->unk_S32Vec2_6C.y)\n'
+         '        levelInfo->unk20 += levelInfo->unk_S32Vec2_6C.y'
+         ' - (var1 - gPortCamPadY);\n'
+         '\n'
+         '    var1 += 0xA000 + gPortCamPadY;\n'),
+        # CreateLevelObjects: the full rescan, run on room entry and whenever
+        # the camera jumps more than a tile.  22 tiles by 17, based three
+        # tiles up and left of the camera.
+        ('                unkX = stack0[playerId][0] - 1;\n'
+         '\n'
+         '                if (unkX > (obj->x >> 4) || (obj->x >> 4) >= unkX + 0x16)\n',
+         '                unkX = stack0[playerId][0] - 1 - gPortSpawnPadX;\n'
+         '\n'
+         '                if (unkX > (obj->x >> 4)'
+         ' || (obj->x >> 4) >= unkX + 0x16 + 2 * gPortSpawnPadX)\n'),
+        ('                unkY = stack0[playerId][1] - 1;\n'
+         '\n'
+         '                if (unkY > (obj->y >> 4) || (obj->y >> 4) >= unkY + 0x11)\n',
+         '                unkY = stack0[playerId][1] - 1 - gPortSpawnPadY;\n'
+         '\n'
+         '                if (unkY > (obj->y >> 4)'
+         ' || (obj->y >> 4) >= unkY + 0x11 + 2 * gPortSpawnPadY)\n'),
+        # sub_0800A60C: the incremental edge spawn, one column or row per tile
+        # of scroll.  The column moves out by the padding, and the *sweep*
+        # widens by the same amount -- arg3 is the number of tiles the callee
+        # accepts either side of arg1, so pushing the column out without
+        # widening the sweep would leave a gap the scroll never spawns.
+        ('        sub_0800A2B4(playerId, arg1[playerId][0] + 0x13, arg1, 1);',
+         '        sub_0800A2B4(playerId,'
+         ' arg1[playerId][0] + 0x13 + gPortSpawnPadX, arg1,'
+         ' 1 + gPortSpawnPadX);'),
+        ('        sub_0800A2B4(playerId, arg1[playerId][0], arg1, -1);',
+         '        sub_0800A2B4(playerId, arg1[playerId][0] - gPortSpawnPadX,'
+         ' arg1, -1 - gPortSpawnPadX);'),
+        ('        sub_0800A460(playerId, arg1[playerId][1] + 0xE, arg1, 1);',
+         '        sub_0800A460(playerId,'
+         ' arg1[playerId][1] + 0xE + gPortSpawnPadY, arg1,'
+         ' 1 + gPortSpawnPadY);'),
+        ('        sub_0800A460(playerId, arg1[playerId][1], arg1, -1);',
+         '        sub_0800A460(playerId, arg1[playerId][1] - gPortSpawnPadY,'
+         ' arg1, -1 - gPortSpawnPadY);'),
+        # ...and the cross-axis filter inside each of those two, which is what
+        # decides how tall the spawned column is and how wide the row.
+        ('            arg2[playerId][1] > (obj->y >> 4)'
+         ' || (obj->y >> 4) >= arg2[playerId][1] + 0xE\n',
+         '            arg2[playerId][1] - gPortSpawnPadY > (obj->y >> 4)'
+         ' || (obj->y >> 4) >= arg2[playerId][1] + 0xE + 2 * gPortSpawnPadY\n'),
+        ('            arg2[playerId][0] > (obj->x >> 4)'
+         ' || (obj->x >> 4) >= arg2[playerId][0] + 0x13\n',
+         '            arg2[playerId][0] - gPortSpawnPadX > (obj->x >> 4)'
+         ' || (obj->x >> 4) >= arg2[playerId][0] + 0x13 + 2 * gPortSpawnPadX\n'),
+    ],
+}
+
+# The despawn box.  Three functions in kirby.c run the identical test over
+# three struct views of the same object, spelled `<= 168` in one and
+# `> 168 continue` in the others, so this is a substitution inside the bodies
+# of the three named functions rather than a whole-file replace -- 128 in
+# particular is far too common a number to rewrite blind.
+CULL_FUNCS = ('sub_0803D6B4', 'sub_0803D80C', 'sub_0803D8AC')
+CULL_SUBS = ((' <= 168', ' <= gPortCullHalfW'), (' > 168', ' > gPortCullHalfW'),
+             (' <= 128', ' <= gPortCullHalfH'), (' > 128', ' > gPortCullHalfH'))
+# 4 in sub_0803D6B4, which tests the object and then its level-data record,
+# and 2 in each of the other two.
+CULL_EXPECTED = 8
+
+
+def apply_view_patches(text, name, rep):
+    """The five bounds that all read 240x160 on hardware.  See VIEW_PATCHES."""
+    hit = False
+    for old, new in VIEW_PATCHES.get(name, ()):
+        if old in text:
+            text = text.replace(old, new, 1)
+            rep.bump('view bounds lifted into platform/view.c')
+            hit = True
+        else:
+            rep.unhandled.append(
+                '%s: a VIEW_PATCHES pattern no longer matches -- the widened '
+                'view will be inconsistent with the game: %s'
+                % (name, ' '.join(old.split())[:70]))
+
+    if name == 'kirby.c':
+        count = 0
+        for fn in CULL_FUNCS:
+            m = re.search(r'^bool16 %s\(.*?^\}\n' % fn, text, re.M | re.S)
+            if not m:
+                rep.unhandled.append(
+                    'kirby.c: %s is gone -- the despawn box cannot be widened '
+                    'and objects will vanish at the edge of a wide view' % fn)
+                continue
+            body = m.group(0)
+            for old, new in CULL_SUBS:
+                count += body.count(old)
+                body = body.replace(old, new)
+            text = text[:m.start()] + body + text[m.end():]
+        if count != CULL_EXPECTED:
+            rep.unhandled.append(
+                'kirby.c: the despawn box has %d comparisons, expected %d -- '
+                'check the three cull functions against platform/view.c'
+                % (count, CULL_EXPECTED))
+        rep.bump('view bounds lifted into platform/view.c')
+        hit = True
+
+    if hit:
+        text = VIEW_DECL + text
+    return text
+
+
 def trace_star_states(text, rep):
     """Report every warp-star / goal-star state handler as it runs.
 
@@ -742,6 +925,7 @@ def main():
                     text = text.replace(old, new)
                     rep.bump('save-memory address relocated')
             text = apply_m4a_patches(text, path.name, rep)
+            text = apply_view_patches(text, path.name, rep)
             casts = FNPTR_CASTS.get(path.name, ())
             if casts:
                 hit = False

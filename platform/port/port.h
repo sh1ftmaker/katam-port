@@ -123,9 +123,87 @@ void PortVBlankEnd(void);
  * KEYINPUT is active-low: a clear bit means pressed. */
 void PortSetKeys(u16 downMask);
 
-/* --- video --------------------------------------------------------------- */
-extern u32 gPortFramebuffer[PORT_SCREEN_W * PORT_SCREEN_H];
+/* --- video ----------------------------------------------------------------
+ *
+ * The GBA draws exactly 240x160 and nothing about that is negotiable on
+ * hardware.  Here it is: the PPU reads the game's memory and writes pixels,
+ * and neither end insists on the size of the rectangle in between.  So the
+ * renderer is parameterised by a *view rectangle* in GBA screen coordinates:
+ *
+ *     (gPortViewX, gPortViewY, gPortViewW, gPortViewH)
+ *
+ * The default is (0, 0, 240, 160), which is the hardware, exactly, and is
+ * what ships.  Widening it renders columns the hardware never scanned;
+ * shrinking it is a crop that the page then scales up.  See docs/VIEW.md for
+ * what that costs, which is a great deal more than it sounds like.
+ *
+ * The framebuffer is one static allocation at the maximum size and is packed
+ * to the *current* width, so a frame is always gPortViewW*gPortViewH
+ * contiguous pixels starting at gPortFramebuffer -- the page's blit does not
+ * have to know about a stride.
+ */
+#define PORT_MAX_VIEW_W 512
+#define PORT_MAX_VIEW_H 352
+
+extern s32 gPortViewX, gPortViewY, gPortViewW, gPortViewH;
+
+/* Backgrounds that live in screen space rather than world space -- the HUD.
+ * A bit per BG.  Widening the view moves everything else outwards; these get
+ * pinned to the edges of the picture instead.  See PortMapScreenSpace. */
+extern u32 gPortScreenSpaceBgs;
+extern u32 gPortPinScreenSpace;    /* 0 = let the HUD float, 1 = pin it */
+
+/* How far outside the screen each background still holds real data, in screen
+ * coordinates.  See the note in ppu.c: the game streams exactly one screen
+ * block of tilemap, so beyond it a layer repeats itself rather than
+ * continuing, and drawing that repeat is a lie the wider view has to choose
+ * whether to tell.  +-0x40000000 is "no limit". */
+extern s32 gPortBgValidL[4], gPortBgValidR[4];
+extern s32 gPortBgValidT[4], gPortBgValidB[4];
+
+/* Where to read a map entry the game never copied into VRAM.  Filled from the
+ * game's own Background records; see the note in ppu.c.  A null `map` means
+ * this layer has no source to synthesise from and must stop at the window. */
+typedef struct {
+    const u16 *map;
+    s32 widthTiles, heightTiles;
+    s32 scrollX, scrollY;      /* in pixels, as the game holds them */
+    s32 offX, offY;            /* Background.unk1E / unk20, in tiles */
+} PortBgSource;
+extern PortBgSource gPortBgSource[4];
+
+extern u32 gPortFramebuffer[PORT_MAX_VIEW_W * PORT_MAX_VIEW_H];
 void PortRenderFrame(void);
+/* Clamped to the maximum, and to something the compositor can index. */
+void PortSetView(s32 x, s32 y, s32 w, s32 h);
+void PortSetScreenSpaceBgs(u32 mask, u32 pin);
+
+/* --- the view controller (platform/view.c) --------------------------------
+ * One description of what the player is looking at, from which the renderer's
+ * rectangle and the game's four separate ideas of "on screen" are all
+ * derived.  PORT_VIEW_NATIVE is the hardware and is the default. */
+#define PORT_VIEW_NATIVE    0
+#define PORT_VIEW_WIDE      1
+#define PORT_VIEW_ZOOM      2
+#define PORT_VIEW_WIDE_ZOOM 3
+
+#define PORT_CULL_STOCK 0   /* the game's own bounds, untouched */
+#define PORT_CULL_MATCH 1   /* the same bounds, moved out to match the view */
+#define PORT_CULL_NONE  2   /* no despawn at all -- see docs/VIEW.md */
+
+void PortViewUpdate(void);
+/* tilemap: 0 draw the hardware wrap, 1 draw nothing past the streamed
+ * window, 2 read the room's own tilemap for what is past it. */
+void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
+                     u32 tilemap);
+extern u32 gPortClipToStreamed, gPortSynthesiseColumns;
+
+/* The literals tools/portify.py lifts out of the game's own sources.  Each
+ * holds the constant it replaced until platform/view.c says otherwise. */
+extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
+extern s32 gPortCullHalfW, gPortCullHalfH;
+extern s32 gPortSpawnPadX, gPortSpawnPadY;
+extern s32 gPortCamPadX, gPortCamPadY;
 
 /* --- interrupt dispatch --------------------------------------------------
  * The game installs handlers in gIntrTable and expects the BIOS dispatcher to

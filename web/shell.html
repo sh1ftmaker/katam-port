@@ -363,6 +363,43 @@
     min-width: 200px;
   }
 
+  /* The view controls. Same furniture as the legend, so it reads as part of
+     the sheet rather than as a thing bolted on. */
+  #viewbox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .viewrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .viewrow[hidden] { display: none; }
+  .viewlabel {
+    color: var(--dim);
+    min-width: 60px;
+  }
+  /* A pressed segment has to be legible at a glance from across the room --
+     this is a comparison tool and the first question is always "which one am
+     I looking at". */
+  #viewbox button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0d1015;
+  }
+  #viewnote {
+    margin: 0;
+    color: var(--dim);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
   #legend {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -916,6 +953,42 @@
     </span>
   </div>
 
+  <!-- The view experiment. Everything here is off by default: the picture
+       this page exists to show is 240x160, and these are the two things that
+       were tried instead. docs/VIEW.md is the write-up. -->
+  <div id="viewbox">
+    <div class="viewrow">
+      <span class="viewlabel">Picture</span>
+      <button class="viewmode on" type="button" data-mode="0">240&#215;160</button>
+      <button class="viewmode" type="button" data-mode="2">Dynamic zoom</button>
+      <button class="viewmode" type="button" data-mode="1">Widescreen</button>
+      <button class="viewmode" type="button" data-mode="3">Both</button>
+    </div>
+    <div class="viewrow" id="viewopts" hidden>
+      <span class="viewlabel">Objects</span>
+      <button class="viewcull on" type="button" data-cull="0">Stock cull</button>
+      <button class="viewcull" type="button" data-cull="1">Cull matched to view</button>
+      <button class="viewcull" type="button" data-cull="2">No cull</button>
+      <button id="viewpin" type="button" aria-pressed="false">HUD: floating</button>
+    </div>
+    <div class="viewrow" id="viewtiles" hidden>
+      <span class="viewlabel">Tilemap</span>
+      <button class="viewtile" type="button" data-tile="0">Hardware wrap</button>
+      <button class="viewtile" type="button" data-tile="1">Blank past the window</button>
+      <button class="viewtile on" type="button" data-tile="2">Read the room&#8217;s map</button>
+    </div>
+    <p id="viewnote">
+      The GBA drew 240&#215;160 and the game is built around that number in
+      five separate places &#8212; the display, the sprite list, the object
+      cull, the spawn window and the camera clamp. Zooming in is a crop of a
+      real picture and cannot be wrong. Widening asks for world the game never
+      copied into video memory: <b>hardware wrap</b> is what a naive widening
+      shows (the room from 32 tiles ago, repeated), <b>blank</b> is that
+      admitted, and <b>read the room&#8217;s map</b> goes back to the level
+      data the copy was made from and draws what should have been there.
+    </p>
+  </div>
+
   <div id="legend">
     <div><b>D-pad</b> &nbsp;<kbd>&#8592;&#8593;&#8595;&#8594;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
     <div><b>A</b> &nbsp;<kbd>J</kbd> / <kbd>Z</kbd></div>
@@ -1134,7 +1207,11 @@ var Module = (function () {
     var s = Math.max(1, Math.round(css * dpr));
     // Assigning width/height clears the canvas even when the value is
     // unchanged, so only touch it when it really moved.
-    if (screen.width !== GBA_W * s) {
+    // Both dimensions, not just the width. The width alone was a fair test
+    // while the picture was always 240x160; a crop can change the height and
+    // leave the width alone, and the canvas then kept its old height and
+    // drawImage stretched the frame to fill it.
+    if (screen.width !== GBA_W * s || screen.height !== GBA_H * s) {
       screen.width  = GBA_W * s;
       screen.height = GBA_H * s;
     }
@@ -1569,6 +1646,87 @@ var Module = (function () {
 
   // Off unless it was asked for: it is a debugging aid, not furniture.
   setDiag(lsGet(LS_DIAG_KEY) === '1', false);
+})();
+</script>
+
+<script>
+//======================================================================
+// The view experiment.
+//
+// Four buttons that call one C function. Everything the picture can be is
+// derived over there in platform/view.c, so the page never holds a second
+// opinion about how wide the world is -- it says "widescreen" and the
+// renderer, the object culling, the spawn window and the camera clamp all
+// move together or none of them do.
+//
+// Nothing here is remembered between sessions, deliberately. 240x160 is what
+// this page is for; the alternatives are an experiment you opt into and then
+// leave behind, and a reload that silently comes back in widescreen would
+// make the comparison it exists for impossible to trust.
+//
+// The framebuffer changes size when the mode does. That path already existed
+// -- present() has always honoured the w/h it is handed and re-fitted the
+// canvas when they moved -- so there is nothing to do here but call.
+//======================================================================
+(function () {
+  var box = document.getElementById('viewbox');
+  if (!box) return;
+  var opts    = document.getElementById('viewopts');
+  var tiles   = document.getElementById('viewtiles');
+  var pinBtn  = document.getElementById('viewpin');
+  var modeBtns = [].slice.call(box.querySelectorAll('.viewmode'));
+  var cullBtns = [].slice.call(box.querySelectorAll('.viewcull'));
+  var tileBtns = [].slice.call(box.querySelectorAll('.viewtile'));
+
+  var mode = 0, cull = 0, tile = 2, pin = 0;
+  var pendingPush = 0;
+  var PAD_X = 40;               // 320x160, the interesting widescreen case
+
+  function paint(list, attr, value) {
+    list.forEach(function (b) {
+      b.classList.toggle('on', +b.dataset[attr] === value);
+    });
+  }
+
+  function apply() {
+    paint(modeBtns, 'mode', mode);
+    paint(cullBtns, 'cull', cull);
+    paint(tileBtns, 'tile', tile);
+    // The object and tilemap options only mean anything when the picture is
+    // wider than the hardware's. A crop shows fewer objects, not more, and
+    // every pixel of it was inside the streamed window already.
+    opts.hidden = tiles.hidden = (mode !== 1 && mode !== 3);
+    pinBtn.textContent = 'HUD: ' + (pin ? 'pinned to edges' : 'floating');
+    pinBtn.setAttribute('aria-pressed', pin ? 'true' : 'false');
+
+    // The wasm may not be up yet. Retry rather than reach for the loader's
+    // own readiness promise: that lives inside another block's scope, and
+    // borrowing it threw a ReferenceError which the crash panel dutifully
+    // reported as the emulator having stopped -- while the emulator carried
+    // on at 60 fps behind the panel. A poll cannot do that.
+    if (!window.Module || !Module._PortSetViewMode) {
+      if (!pendingPush) pendingPush = setTimeout(function () {
+        pendingPush = 0; apply();
+      }, 250);
+      return;
+    }
+    if (pendingPush) { clearTimeout(pendingPush); pendingPush = 0; }
+    Module._PortSetViewMode(mode, mode === 1 || mode === 3 ? PAD_X : 0, 0,
+                            cull, pin, tile);
+  }
+
+  modeBtns.forEach(function (b) {
+    b.addEventListener('click', function () { mode = +b.dataset.mode; apply(); });
+  });
+  cullBtns.forEach(function (b) {
+    b.addEventListener('click', function () { cull = +b.dataset.cull; apply(); });
+  });
+  tileBtns.forEach(function (b) {
+    b.addEventListener('click', function () { tile = +b.dataset.tile; apply(); });
+  });
+  pinBtn.addEventListener('click', function () { pin ^= 1; apply(); });
+
+  apply();
 })();
 </script>
 

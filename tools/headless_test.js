@@ -36,7 +36,14 @@ const MASH = (process.env.MASH || '').split(':').filter(Boolean).map(Number);
 // way to cross a level.
 const HOLD = parseInt(process.env.HOLD || '0', 0);
 
+// RELEASE_AT=900 lets go of everything from that frame on. Anything that only
+// happens when the player *stops* -- a camera that settles, an idle animation,
+// a zoom that eases in -- is invisible to a run that holds Right for its whole
+// length, which every run here did until this existed.
+const RELEASE_AT = parseInt(process.env.RELEASE_AT || '0', 10);
+
 function mashMask(frame) {
+    if (RELEASE_AT && frame >= RELEASE_AT) return 0;
     if (MASH.length !== 3) return HOLD || null;
     const [start, mask, period] = MASH;
     if (frame < start) return HOLD || null;
@@ -184,6 +191,20 @@ const Module = {
         // WATCH=0x06003FE0 names every block move that covers that address.
         if (process.env.WATCH && Module._PortSetWatch && frames === 0)
             Module._PortSetWatch(parseInt(process.env.WATCH, 0));
+        // VIEW="mode:padX:padY:cull:pin" switches the view rectangle at the
+        // frame VIEW_AT names (default 0).  Late by default is wrong for the
+        // interesting case: the widened spawn window only takes effect as the
+        // camera scrolls past a tile boundary, so a mode set at frame 0 and a
+        // mode set mid-level look different, and both are worth capturing.
+        //   mode 0 native  1 wide  2 zoom  3 wide+zoom
+        //   cull 0 stock   1 matched to the view   2 off
+        if (process.env.VIEW && Module._PortSetViewMode
+            && frames === parseInt(process.env.VIEW_AT || '0', 10)) {
+            const v = process.env.VIEW.split(':').map(Number);
+            Module._PortSetViewMode(v[0] | 0, v[1] === undefined ? 40 : v[1],
+                                    v[2] | 0, v[3] | 0, v[4] | 0,
+                                    v[5] === undefined ? 1 : v[5]);
+        }
         if (TONE && Module._PortAudioTestTone && frames === 0)
             Module._PortAudioTestTone(TONE);
         // FORCE=0x04 draws BG2 even though the game disabled it.

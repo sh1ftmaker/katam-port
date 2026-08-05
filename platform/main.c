@@ -262,6 +262,10 @@ void PortPresentFrame(void)
 {
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
+    /* Settle the view before drawing with it, so the rectangle the PPU uses
+     * and the rectangle the page is about to be handed are the same one. */
+    PortViewUpdate();
+
     /* Draw the visible frame from whatever the game last wrote. */
     PortRenderFrame();
 
@@ -277,7 +281,7 @@ void PortPresentFrame(void)
     PortDmaVBlank();
     PortDispatchInterrupt(INTR_FLAG_VBLANK);
 
-    PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
+    PortBlitFramebuffer(gPortFramebuffer, gPortViewW, gPortViewH);
     PortAwaitAnimationFrame();
 
     UpdateKeyInput();
