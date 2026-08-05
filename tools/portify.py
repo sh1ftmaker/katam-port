@@ -231,6 +231,61 @@ CODE_IN_RAM = {
 }
 
 
+# Structures the GBA's compiler rounds up and clang does not.
+#
+# gcc for ARM rounds a structure's size up to a multiple of four bytes
+# (-mstructure-size-boundary=32, the ARM default, and what agbcc built the game
+# with).  clang pads only to the alignment of the widest member, so a structure
+# of four s16 and two u8 is 12 bytes on the console and 10 in this port.
+#
+# Nothing notices until something walks an array of one.  struct Unk_08353510
+# is the animation script the warp star hands Kirby at the end of a level:
+# `++kirby->unk114` stepped 10 bytes through a table with a 12-byte stride, the
+# per-entry frame counter picked up half of the next entry, went negative, and
+# `if (!--counter)` could never fire.  The ride animation never ended, so the
+# star's last state waited on a condition that had already been made
+# unreachable, and the level change never happened -- no crash, no freeze, no
+# diagnostic.  Two sessions of instrumenting to find it.
+#
+# The value is the size the decompilation documents on the closing brace, which
+# is console truth.  tools/check_doc_sizes.py checks every documented size in
+# the tree against the compiler and fails if this list is missing one, so the
+# list cannot quietly fall behind.
+AGBCC_ROUNDED_STRUCTS = {
+    'data.h':            [('Unk_08353510', 12), ('Unk_08352AD0', 8)],
+    'subgames.h':        [('Unk_0812DBB4_0', 8), ('Unk_0812EFB4', 4),
+                          ('Unk_081377D4', 4)],
+    'code_0800ECAC.h':   [('Unk_0800ECAC', 4)],
+}
+
+
+def round_struct_sizes(text, rep, name):
+    """Give the listed structures the size the console gives them.
+
+    aligned(4) rather than an explicit pad member: it is what
+    -mstructure-size-boundary=32 actually does -- round the size up *and* raise
+    the alignment -- so a nested instance of one of these lands where the
+    console puts it too.  A trailing `u8 pad[2]` would fix sizeof and leave
+    nesting wrong.
+    """
+    for tname, want in AGBCC_ROUNDED_STRUCTS.get(name, ()):
+        # `[^\n]*` after the brace: some of these carry a trailing comment on
+        # the opening line ("{ // TODO: may be the same as struct KirbyIdx?"),
+        # and requiring a bare newline silently skipped one.
+        pat = re.compile(r'(^struct %s \{[^\n]*\n.*?\n)\};' % re.escape(tname),
+                         re.S | re.M)
+        new, n = pat.subn(r'\1} __attribute__((aligned(4)));', text, count=1)
+        if n:
+            text = new
+            rep.bump('struct sizes rounded to the console\'s boundary')
+        else:
+            rep.unhandled.append(
+                '%s: struct %s no longer matches -- it needs sizeof == %d to '
+                'match the console (see AGBCC_ROUNDED_STRUCTS)'
+                % (name, tname, want))
+    return text
+
+
 def trace_star_states(text, rep):
     """Report every warp-star / goal-star state handler as it runs.
 
@@ -979,6 +1034,7 @@ def main():
         new = cxxify.rewrite_header(text, rep, hp.name)
         new = narrow32.narrow_members(new, rep, name=hp.name,
                                       typedefs=narrow_typedefs)
+        new = round_struct_sizes(new, rep, hp.name)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')

@@ -143,7 +143,7 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check shell-check shell-tap-test \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test \
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -236,6 +236,30 @@ abi-size-check:
 
 ptr-array-check:
 	@python3 tools/check_ptr_arrays.py $(PORT_SRC)
+
+# --- the third thing layout-check cannot see -------------------------------
+#
+# layout-check asserts that the tree has not *drifted*.  It is generated from
+# the tree, so a structure that was never right in the first place gets its
+# wrong size asserted and defended.  That is what happened to the warp star:
+# struct Unk_08353510 is documented 0xC on its closing brace and compiled to
+# 10, because the GBA's compiler rounds a structure size up to a multiple of 4
+# and clang does not, and the layout table asserted the 10.
+#
+# size-check is the other direction -- the tree against what the decompilation
+# says the console does.  Needs no ROM and no 32-bit toolchain.
+size-check:
+	@python3 tools/check_doc_sizes.py --tree $(PORT_SRC)
+
+# Repairs the *values* in the committed layout table without needing the 32-bit
+# hosted toolchain gen_gba_layout.py requires (gcc-multilib).  It cannot add or
+# remove a type -- only gen_gba_layout can -- so it is for after a deliberate
+# structure change, and the build re-checks everything afterwards.
+relayout:
+	@python3 tools/refresh_layout_asserts.py
+
+relayout-check:
+	@python3 tools/refresh_layout_asserts.py --check
 
 # --- the page itself -------------------------------------------------------
 # web/shell.html is hand-edited and has no build step of its own, so nothing
