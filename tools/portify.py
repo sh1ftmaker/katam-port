@@ -471,6 +471,61 @@ CODE_IN_RAM = {
 }
 
 
+# Structures the GBA's compiler rounds up and clang does not.
+#
+# gcc for ARM rounds a structure's size up to a multiple of four bytes
+# (-mstructure-size-boundary=32, the ARM default, and what agbcc built the game
+# with).  clang pads only to the alignment of the widest member, so a structure
+# of four s16 and two u8 is 12 bytes on the console and 10 in this port.
+#
+# Nothing notices until something walks an array of one.  struct Unk_08353510
+# is the animation script the warp star hands Kirby at the end of a level:
+# `++kirby->unk114` stepped 10 bytes through a table with a 12-byte stride, the
+# per-entry frame counter picked up half of the next entry, went negative, and
+# `if (!--counter)` could never fire.  The ride animation never ended, so the
+# star's last state waited on a condition that had already been made
+# unreachable, and the level change never happened -- no crash, no freeze, no
+# diagnostic.  Two sessions of instrumenting to find it.
+#
+# The value is the size the decompilation documents on the closing brace, which
+# is console truth.  tools/check_doc_sizes.py checks every documented size in
+# the tree against the compiler and fails if this list is missing one, so the
+# list cannot quietly fall behind.
+AGBCC_ROUNDED_STRUCTS = {
+    'data.h':            [('Unk_08353510', 12), ('Unk_08352AD0', 8)],
+    'subgames.h':        [('Unk_0812DBB4_0', 8), ('Unk_0812EFB4', 4),
+                          ('Unk_081377D4', 4)],
+    'code_0800ECAC.h':   [('Unk_0800ECAC', 4)],
+}
+
+
+def round_struct_sizes(text, rep, name):
+    """Give the listed structures the size the console gives them.
+
+    aligned(4) rather than an explicit pad member: it is what
+    -mstructure-size-boundary=32 actually does -- round the size up *and* raise
+    the alignment -- so a nested instance of one of these lands where the
+    console puts it too.  A trailing `u8 pad[2]` would fix sizeof and leave
+    nesting wrong.
+    """
+    for tname, want in AGBCC_ROUNDED_STRUCTS.get(name, ()):
+        # `[^\n]*` after the brace: some of these carry a trailing comment on
+        # the opening line ("{ // TODO: may be the same as struct KirbyIdx?"),
+        # and requiring a bare newline silently skipped one.
+        pat = re.compile(r'(^struct %s \{[^\n]*\n.*?\n)\};' % re.escape(tname),
+                         re.S | re.M)
+        new, n = pat.subn(r'\1} __attribute__((aligned(4)));', text, count=1)
+        if n:
+            text = new
+            rep.bump('struct sizes rounded to the console\'s boundary')
+        else:
+            rep.unhandled.append(
+                '%s: struct %s no longer matches -- it needs sizeof == %d to '
+                'match the console (see AGBCC_ROUNDED_STRUCTS)'
+                % (name, tname, want))
+    return text
+
+
 def trace_star_states(text, rep):
     """Report every warp-star / goal-star state handler as it runs.
 
@@ -512,6 +567,167 @@ def trace_star_states(text, rep):
                 % (m.group(0), name, arg, arg))
 
     return pattern.sub(sub, text)
+
+
+def trace_anim_script(text, rep):
+    """Report the animation script that the warp star waits on.
+
+    trace_star_states above answered where the star stops: sub_0800E02C, whose
+    whole body is a wait --
+
+        if (rider is aboard && gKirbys[i].animationIndex == 90) b = FALSE;
+        if (b) ws->unk0.obj2.unk78 = sub_0800E0A0;   // the level change
+
+    -- and a real session reports `riders: 1, kirby0Anim: 90` and then nothing
+    further.  PortTrace prints each distinct tuple once, so one line and no
+    "capped" means that site ran many times with byte-identical arguments:
+    animationIndex never moves off 90.  It is not advancing slowly, it is
+    stopped.
+
+    What must move it is sub_080534D0, the script runner sub_080531B4 installs.
+    The script is `gUnk_08D60A84[unkB4]`, an array of `struct Unk_08353510`
+    read from ROM; every entry holds unk4=1 (one frame) and unk6=90 (keep the
+    ride animation), and the run ends at the first entry with unk9 & 0x80,
+    which is what sets animationIndex = 74 and releases the star.  Read out of
+    the ROM, scripts 0..6 terminate at entries 345, 259, 261, 163, 239, 201 and
+    141 -- so the data is sound and the terminator is 2.5 to 6 seconds away.
+
+    So the open question is whether the runner is running and the script is
+    advancing, which needs three numbers this file did not have: the script
+    pointer, the frame counter, and the animation index.
+
+    Two things make this usable rather than noise.  sub_080534D0 is the generic
+    script runner -- it drives every animation in the game -- so the trace is
+    fenced to animationIndex == 90, which only the star ride uses.  And the
+    pointer is reported shifted down by 10, so the value changes about every 85
+    entries: PortTrace suppresses an unchanged tuple, so an advancing script
+    prints roughly one line per KiB of script and caps at four, while a stalled
+    one prints exactly one line and then stays quiet.
+
+    The shift replaced a sampling condition -- `((ptr / 12) & 63) == 0` -- with
+    a blind spot big enough to cost a session.  It was meant to spread four
+    lines across the script and it does, but only from the entry where the
+    phase lines up: for the script this bug actually uses (0x082D9264, from
+    unkB4 = 0) that is entry 35.  A run that stalls before then prints
+    *nothing*, which is indistinguishable from the runner never being called --
+    two very different bugs that the log could not tell apart.  Reporting a
+    coarsened value on every call and letting PortTrace's own dedup do the
+    thinning has no such hole: silence means never called, one line means
+    stalled, several mean advancing.
+
+    Diagnosis, not code: delete this with trace_star_states once the bug is
+    understood.
+    """
+    runner = 'void sub_080534D0(struct Kirby *kirby)\n{\n'
+    if runner not in text:
+        rep.unhandled.append(
+            'kirby.c: sub_080534D0 no longer has the expected signature -- the '
+            'animation script runner has changed upstream')
+        return text
+
+    text = text.replace(runner, runner + (
+        '    /* PORT: diagnosis -- see trace_anim_script in tools/portify.py */\n'
+        '    if (kirby->animationIndex == 90 && kirby->unk114 != NULL)\n'
+        '        PortTrace("anim script (ride): unk114>>10, counter, anim",\n'
+        '                  (u32)kirby->unk114 >> 10,\n'
+        '                  kirby->base.base.base.counter,\n'
+        '                  kirby->animationIndex);\n'), 1)
+    rep.bump('animation script trace inserted')
+
+    # The end of the script, which is the event the star is waiting for.  If
+    # this never prints, the run never reached its terminator.
+    # Anchored at its real indentation.  A shorter prefix matches as a
+    # substring of the deeper-indented real line and injects at the wrong
+    # depth, which compiles and reads as a mistake.
+    ender = '                    kirby->animationIndex = 74;\n'
+    if ender in text:
+        text = text.replace(ender, ender + (
+            '                    PortTrace("anim script ended: unk114, roomId, anim",\n'
+            '                              (u32)r1, kirby->base.base.base.roomId,\n'
+            '                              kirby->animationIndex);\n'), 1)
+        rep.bump('animation script end trace inserted')
+    else:
+        rep.unhandled.append(
+            'kirby.c: the animation script terminator no longer matches -- '
+            'sub_080534D0 has changed upstream')
+    return text
+
+
+def trace_star_wait_detail(text, rep):
+    """Report what Kirby is actually doing while the star waits on him.
+
+    sub_0800E02C waits for animationIndex != 90 and, from two sessions, waits
+    forever.  Its own trace reports the animation index, which says the wait is
+    unsatisfied but nothing about why.  Three numbers separate the candidates,
+    and they are all on Kirby rather than the star:
+
+      unk78    the handler the object system dispatches.  sub_080531B4 sets it
+               to sub_080534D0, the script runner.  If it is anything else,
+               something overwrote it and the script was never going to run.
+               In a wasm build this is a table index, not an address, so it is
+               build-specific and has to be resolved against the artefact that
+               produced the log:
+
+                   seq 0 3597 | xargs -n 400 \\
+                       python3 tools/resolve_fnptr.py web/katam.wasm
+
+               For the build this trace was added in it is slot 1107 (0x453).
+      unk114   the script cursor.  Fixed means stalled, climbing by 12 a frame
+               means running.  This distinguishes "not dispatched" from
+               "dispatched and not advancing", which need different fixes.
+      counter  the per-entry frame countdown.  sub_080534D0 advances the cursor
+               on `if (!--counter)`, so a counter that never reaches zero is a
+               third distinct failure -- and one the cursor alone cannot show.
+
+    This is deliberately read from the *star's* wait state rather than from the
+    runner: it reports even when the runner is never called, which is the one
+    case the runner's own trace cannot report on.
+
+    Anchored on the line trace_star_states injects, so it must run after it.
+    """
+    anchor = ('    PortTrace("star state sub_0800E02C: riders, timer, kirby0Anim",\n'
+              '              ws->unk0.unkB5, ws->unkBC,\n'
+              '              gKirbys[0].animationIndex);\n')
+    if anchor not in text:
+        rep.unhandled.append(
+            'warp_star.c: sub_0800E02C is not shaped as trace_star_states left '
+            'it -- the star wait-state trace could not be attached')
+        return text
+    text = text.replace(anchor, anchor + (
+        '    PortTrace("star wait: kirby0 unk78, unk114, counter",\n'
+        '              (u32)gKirbys[0].base.base.unk78,\n'
+        '              (u32)gKirbys[0].unk114,\n'
+        '              gKirbys[0].base.base.base.counter);\n'), 1)
+    rep.bump('warp-star wait-state detail trace inserted')
+    return text
+
+
+def trace_star_script_choice(text, rep):
+    """Report which script the star hands Kirby, and from what index.
+
+    sub_0800DCC0 is the state that mounts the arrival animation:
+
+        sub_080531B4(&gKirbys[i], gUnk_08D60A84[wsAlias->unk0.unkB4]);
+
+    gUnk_08D60A84 has ten usable entries; entry 10 onwards is a different table
+    (checked against the ROM: they are graphics, not scripts).  An unkB4 out of
+    range would hand the runner garbage, so the index and the pointer it
+    resolves to are worth one line each.
+    """
+    call = ('            sub_080531B4(&gKirbys[i], '
+            'gUnk_08D60A84[wsAlias->unk0.unkB4]);\n')
+    if call not in text:
+        rep.unhandled.append(
+            'warp_star.c: sub_0800DCC0 no longer matches -- the arrival '
+            'animation hand-off has changed upstream')
+        return text
+    text = text.replace(call, (
+        '            PortTrace("star script: unkB4, script, riders",\n'
+        '                      wsAlias->unk0.unkB4,\n'
+        '                      (u32)gUnk_08D60A84[wsAlias->unk0.unkB4],\n'
+        '                      wsAlias->unk0.unkB5);\n') + call, 1)
+    rep.bump('warp-star script choice trace inserted')
+    return text
 
 
 FNPTR_ADAPTER_DECLS = {
@@ -655,15 +871,11 @@ void PortSampleRateSet(struct SoundInfo *soundInfo);"""),
     soundInfo->MidiKeyToCgbFreq = PortNullMidiKeyToCgbFreq;"""),
 
         # --- a BIOS call nothing makes --------------------------------------
-        ("""void MusicPlayerJumpTableCopy(void)
-{
-    asm("swi 0x2A");
-}""",
-         """void MusicPlayerJumpTableCopy(void)
-{
-    /* PORT: BIOS MusicPlayerOpen (swi 0x2A).  Nothing in the game calls this
-     * -- SoundInit uses the library's own MPlayJumpTableCopy instead. */
-}"""),
+        # The MusicPlayerJumpTableCopy entry that used to be here is gone.  It
+        # could never fire -- rewrite_asm_statements runs first and had already
+        # replaced its `asm("swi 0x2A")` with a comment, so the pattern never
+        # matched and every sync reported the sound driver as changed upstream.
+        # The translation lives in rewrite_asm_statements now, next to swi 3.
     ],
 
     'm4a.h': [
@@ -802,6 +1014,25 @@ def rewrite_asm_statements(text, path, rep):
         if re.match(r'"swi\\?t?\s*3"', template):
             rep.bump('swi 3 (Halt) translated')
             return 'PortHalt();'
+
+        # asm("swi 0x2A") -- BIOS MusicPlayerOpen, the whole body of
+        # MusicPlayerJumpTableCopy.  Nothing in the game calls it: SoundInit
+        # uses the sound library's own MPlayJumpTableCopy instead, and the
+        # port fills gMPlayJumpTable from platform/m4a_mixer.c.  So the
+        # function is dead code and an empty body is the correct translation.
+        #
+        # This used to be handled by an M4A_PATCHES entry that replaced the
+        # whole function, and that entry could never fire: this rewriter runs
+        # first and had already replaced the asm with an UNHANDLED comment, so
+        # the pattern it was written against no longer existed.  The result was
+        # two report lines a sync -- one saying the asm was unhandled and one
+        # blaming an upstream change to the sound driver that had not happened.
+        # Both were false, but "the sound driver has changed upstream" is
+        # exactly the kind of thing that has to stay believable, so it is fixed
+        # here rather than at the far end.
+        if re.match(r'"swi\\?t?\s*0x2A"', template, re.IGNORECASE):
+            rep.bump('swi 0x2A (MusicPlayerOpen) dropped -- never called')
+            return '/* PORT: BIOS MusicPlayerOpen (swi 0x2A), never called */'
 
         mldr = re.match(r'"ldr\s*%0,\s*\[%1,\s*#(\d+)\]"', template)
         if mldr and len(outs) == 1 and len(ins) == 1:
@@ -1043,6 +1274,7 @@ def main():
         new = cxxify.rewrite_header(text, rep, hp.name)
         new = narrow32.narrow_members(new, rep, name=hp.name,
                                       typedefs=narrow_typedefs)
+        new = round_struct_sizes(new, rep, hp.name)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')
@@ -1113,6 +1345,10 @@ def main():
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
             if path.name == 'warp_star.c':
                 text = trace_star_states(text, rep)
+                text = trace_star_wait_detail(text, rep)
+                text = trace_star_script_choice(text, rep)
+            if path.name == 'kirby.c':
+                text = trace_anim_script(text, rep)
             for old, new in RAW_DMA.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)

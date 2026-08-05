@@ -143,6 +143,18 @@ void PortSioFrame(void);
 void PortSioStats(u32 *transfers, u32 *stalls);
 void PortSioReset(void);
 
+/* --- MultiBoot -----------------------------------------------------------
+ *
+ * platform/multi_boot.c supplies the SDK library the decompilation has no C
+ * for, and the game uses its client-recognition phase as a link detector --
+ * without it the multi-cart lobby never clocks the cable.  See §5 of
+ * docs/MULTIPLAYER.md and the comment at the top of that file.
+ *
+ * This is the word a *client* must put on the bus while the master is probing.
+ * It lives with MultiBoot rather than in each transport so that two transports
+ * cannot disagree about the handshake. */
+u16 PortMpMultiBootReply(int slot, u16 masterWord);
+
 /* --- transports the port ships ------------------------------------------- */
 
 int PortMpUseLoopback(int players);

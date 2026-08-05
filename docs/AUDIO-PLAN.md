@@ -478,11 +478,13 @@ It requires `WASM_WORKERS` + shared memory, which requires cross-origin
 isolation, which GH Pages cannot give.
 
 Two further notes on this:
-- The port is *also* deployed to **`https://katam-port.pages.dev`** (Cloudflare
-  Pages).  Cloudflare Pages **can** send COOP/COEP via a `_headers` file, so
-  `-sAUDIO_WORKLET` would be *possible there*.  I recommend against splitting the
-  audio backend by host: cross-origin isolation also breaks `?rom=<url>` loading
-  from third-party hosts unless they send CORP, and the ROM-from-URL path is a
+- There used to be a second deployment on Cloudflare Pages, which **can** send
+  COOP/COEP via a `_headers` file, so `-sAUDIO_WORKLET` would have been
+  *possible there*.  That site was taken down on 2026-08-05 and must not be
+  recreated (`make deploy` and `make release` refuse), so the argument is now
+  moot -- but it was never a good one anyway: splitting the audio backend by
+  host means cross-origin isolation breaks `?rom=<url>` loading from
+  third-party hosts unless they send CORP, and the ROM-from-URL path is a
   documented feature.  One backend, works everywhere.
 - Shared memory is independently incompatible with the port's current
   `-sALLOW_MEMORY_GROWTH=0` + fixed 192 MB `INITIAL_MEMORY` layout being simple;

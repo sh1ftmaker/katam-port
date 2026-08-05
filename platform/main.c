@@ -30,6 +30,7 @@
 #include "port/backend.h"
 #include "port/dma.h"
 #include "port/mp.h"
+#include "port/rollback.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -241,8 +242,23 @@ void PortSetKeys(u16 downMask)
     sKeysDown = downMask & 0x03FF;
 }
 
+/* The one place the host's buttons become the game's buttons.
+ *
+ * Rollback and replay both need the *timeline* to win here rather than
+ * whatever the host most recently polled -- a re-simulated frame has to be fed
+ * the input it was fed the first time, or the whole exercise is measuring
+ * nothing.  This is the latch, so this is where the override goes; forcing
+ * sKeysDown earlier in the frame does not work, because the host polls after
+ * that and before this.
+ *
+ * PortRbKeyOverride returns 0 when nothing is driving, which is every ordinary
+ * build, and then this is exactly what it was. */
 static void UpdateKeyInput(void)
 {
+    u16 keys = sKeysDown;
+
+    if (PortRbKeyOverride(&keys))
+        sKeysDown = keys;
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
 }
 
@@ -411,6 +427,62 @@ u32 PortFrameNumber(void)
     return sFrameCount;
 }
 
+/* The frame loop's own simulation state, for a rollback snapshot -- see
+ * platform/port/backend.h.
+ *
+ * Three things and no more.  sKeysDown is what the *next* frame will latch, so
+ * a snapshot that omitted it would restore a frame and then feed it whatever
+ * the host had most recently pressed.  sVBlankBudget gates how many DMA bytes
+ * the VBlank window accepts and is deliberately carried across frames, so it
+ * decides whether a backed-up queue drains this frame or next.  sFrameCount is
+ * what the game and every instrument number frames by.
+ *
+ * Not the diagnostics: the trace tables, the missing-function list and the
+ * watch counters all describe the *run*, not the game, and rewinding them
+ * would make a rollback session report each event once per re-simulation. */
+struct PortFrameState {
+    u32 frameCount;
+    s32 vblankBudget;
+    u16 keysDown;
+};
+
+u32 PortFrameStateSize(void)
+{
+    return (u32)sizeof(struct PortFrameState);
+}
+
+void PortFrameStateSave(void *dest)
+{
+    struct PortFrameState st;
+
+    st.frameCount = sFrameCount;
+    st.vblankBudget = sVBlankBudget;
+    st.keysDown = sKeysDown;
+    memcpy(dest, &st, sizeof st);
+}
+
+void PortFrameStateLoad(const void *src)
+{
+    struct PortFrameState st;
+
+    memcpy(&st, src, sizeof st);
+    sFrameCount = st.frameCount;
+    sVBlankBudget = st.vblankBudget;
+    sKeysDown = st.keysDown;
+}
+
+/* The key state the game will see, for the rollback engine to drive from the
+ * input timeline rather than from the host.  Same path PortSetKeys uses. */
+void PortRbApplyKeys(u16 keys)
+{
+    sKeysDown = keys;
+}
+
+u16 PortCurrentKeys(void)
+{
+    return sKeysDown;
+}
+
 /* The call-stack instrument described in port/backend.h.  Window first, so
  * that the cost of taking a stack is paid only where it is wanted -- a
  * backtrace per transfer over 63000 transfers is minutes, not seconds. */
@@ -531,6 +603,24 @@ static void PortStateTrace(void)
             if (w != NULL && *w != '\0')
                 sscanf(w, "%lx:%ld", &sWindowAddr, &sWindowLen);
         }
+        /* PORT_RB_SELFTEST=at:span -- snapshot at a frame, run a span, restore,
+         * run it again, and check the two arrivals agree.  Armed here because
+         * this is the one place the port already reads its environment; the
+         * web build calls PortRbSelfTest through an export instead. */
+        {
+            const char *t = getenv("PORT_RB_SELFTEST");
+            long at = 0, span = 0;
+            unsigned keys = 0;
+
+            if (t != NULL && *t != '\0'
+             && sscanf(t, "%ld:%ld", &at, &span) == 2 && span > 0)
+                PortRbSelfTest((u32)at, (u32)span);
+
+            t = getenv("PORT_RB_SLOTTEST");
+            if (t != NULL && *t != '\0'
+             && sscanf(t, "%ld:%ld:%x", &at, &span, &keys) == 3 && span > 0)
+                PortRbSlotTest((u32)at, (u32)span, (u16)keys);
+        }
     }
     if (!enabled)
         return;
@@ -610,8 +700,55 @@ static void PortStateTrace(void)
     frame++;
 }
 
+/* --- frames nobody will look at -------------------------------------------
+ *
+ * Drawing is the largest single cost in a frame and it produces a picture, not
+ * game state.  A frame that is going to be re-simulated -- rollback catching
+ * up after a late packet, a fast-forward, a determinism sweep -- does not need
+ * one, and the game cannot tell: nothing in the decompilation reads
+ * gPortFramebuffer back.
+ *
+ * PortSetRenderEnabled(0) skips the pixel composition inside the scanline
+ * loop and nothing else -- not the blit, and not the loop: VCOUNT, the
+ * DISPSTAT flags, the affine reference points, the HBlank DMAs and the
+ * HBlank/VCOUNT interrupts all still happen, because the game arms per-scanline
+ * effects every frame and its own handlers run from in there.  See the comment
+ * on PortRenderFrame in platform/ppu.c, and the measurement that says what
+ * skipping the whole loop costs.
+ *
+ * PORT_NO_RENDER=1 does the same from the environment, for measuring.
+ *
+ * Deliberately not a CLI flag: a run that draws nothing at all is only useful
+ * as a benchmark, and --frames already exists for that.  This is here for the
+ * caller who wants it off for eight frames and back on for the ninth. */
+static int sRender = -1;
+
+void PortSetRenderEnabled(int on)
+{
+    sRender = on ? 1 : 0;
+}
+
+int PortRenderEnabled(void)
+{
+    if (sRender < 0) {
+        const char *e = getenv("PORT_NO_RENDER");
+        sRender = !(e != NULL && *e != '\0' && *e != '0');
+    }
+    return sRender;
+}
+
 void PortPresentFrame(void)
 {
+    int render;
+
+    /* First, before anything else in the frame.  A rollback restores the GBA
+     * map here, which is only safe because the stack at this point holds
+     * nothing the game will read again -- see platform/port/rollback.h.  Both
+     * of these do nothing at all unless something armed them. */
+    PortRbFrame();
+    PortRbSelfTestStep();
+
+    render = PortRenderEnabled();
     PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
@@ -620,7 +757,8 @@ void PortPresentFrame(void)
     PortViewUpdate();
 
     /* Draw the visible frame from whatever the game last wrote. */
-    PortRenderFrame();
+    if (render)
+        PortRenderFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
      *
@@ -642,6 +780,19 @@ void PortPresentFrame(void)
      * immediately unless something has attached a transport. */
     PortMpFrame();
 
+    /* The blit happens either way.  It is a handoff to the host, not part of
+     * composing the picture, and on the web it is what drives the frame loop --
+     * the headless harness counts frames from it and node's own rAF shim is on
+     * the other side.  Skipping it there does not save time, it changes the
+     * pacing: measured, 1800 frames went from 4.1 s to 72 s, which is the
+     * harness falling back to a timer rather than the port going faster.
+     *
+     * A caller that genuinely wants no output for a re-simulated frame should
+     * suppress it on its own side, where it knows what the host is.
+     *
+     * The size is the view rectangle's, not PORT_SCREEN_W/H: with a widescreen
+     * view the framebuffer is wider than a GBA screen, and passing the console
+     * dimensions would hand the host a short buffer to read a long one from. */
     PortBlitFramebuffer(gPortFramebuffer, gPortViewW, gPortViewH);
     PortAwaitAnimationFrame();
 

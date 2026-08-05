@@ -39,6 +39,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/dma.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -896,6 +897,27 @@ static void RenderScanline(int line)
     ComposeScanline(line);
 }
 
+/* The affine reference points latch at the top of a frame and advance per
+ * scanline, so they carry across the frame boundary and belong in a snapshot.
+ * Nothing else in this file does: the per-layer scanline buffers are scratch,
+ * rewritten from VRAM every line. */
+u32 PortPpuStateSize(void)
+{
+    return (u32)(sizeof sAffineX + sizeof sAffineY);
+}
+
+void PortPpuStateSave(void *dest)
+{
+    memcpy(dest, sAffineX, sizeof sAffineX);
+    memcpy((u8 *)dest + sizeof sAffineX, sAffineY, sizeof sAffineY);
+}
+
+void PortPpuStateLoad(const void *src)
+{
+    memcpy(sAffineX, src, sizeof sAffineX);
+    memcpy(sAffineY, (const u8 *)src + sizeof sAffineX, sizeof sAffineY);
+}
+
 /* Lines the hardware never scanned.
  *
  * A view taller than 160 needs rows above line 0 and below line 159, and there
@@ -913,16 +935,34 @@ static void RenderScanline(int line)
  * picture. */
 static void RenderOffScreenLines(int from, int to)
 {
+    int render = PortRenderEnabled();
     int line;
 
     for (line = from; line < to; line++) {
-        RenderScanline(line);
+        if (render)
+            RenderScanline(line);
         AdvanceAffineReferencePoints();
     }
 }
 
+/* The scanline loop is two things and only one of them is a picture.
+ *
+ * VCOUNT, the DISPSTAT flags, the affine reference points, the HBlank DMAs and
+ * the HBlank/VCOUNT interrupts are *state*: the game arms per-scanline effects
+ * every frame and its own handlers run from in here.  RenderScanline is the
+ * only part that produces pixels, and nothing in the decompilation ever reads
+ * them back.
+ *
+ * So a frame that will not be looked at -- rollback re-simulating after a late
+ * packet, a fast-forward, a determinism sweep -- can skip RenderScanline and
+ * must keep the rest.  Skipping the whole loop instead is not an optimisation,
+ * it is a different program: measured, it drops the game to one distinct
+ * picture in 3600 frames and starts producing DMA transfers that leave the map.
+ * That was the first attempt at this and it looked like an 86x speedup.
+ */
 void PortRenderFrame(void)
 {
+    int render = PortRenderEnabled();
     int line;
     int topLine = gPortViewY;
     int bottomLine = gPortViewY + gPortViewH;
@@ -951,11 +991,11 @@ void PortRenderFrame(void)
         IO16(REG_OFFSET_DISPSTAT) &= ~(DISPSTAT_VBLANK | DISPSTAT_HBLANK);
 
         /* A view shorter than the screen is a crop, and the lines outside it
-         * are skipped -- but only the *drawing* is skipped.  Everything below
-         * still runs for all 160 lines, because the game arms per-scanline
-         * transfers and counts on them firing whether or not anyone is
-         * looking. */
-        if (line >= topLine && line < bottomLine)
+         * are skipped -- as is every line when nothing will look at this
+         * frame.  Both skip only the *drawing*.  Everything below still runs
+         * for all 160 lines, because the game arms per-scanline transfers and
+         * counts on them firing whether or not anyone is looking. */
+        if (render && line >= topLine && line < bottomLine)
             RenderScanline(line);
         AdvanceAffineReferencePoints();
 

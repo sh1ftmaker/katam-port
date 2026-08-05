@@ -520,10 +520,60 @@ Stated plainly, because the difference is the whole point:
   implementation and the game's are independent and agree, and that the game's
   library reports `RECV_FLAGS_AVAILABLE` — which it only does after eight
   consecutive frames of well-formed traffic.
-- **Determinism has not been tested and is the real risk.** §1 describes a
-  desync check on `gRngVal` and every Kirby's position. Two units running this
-  port would have to agree bit for bit. The port's audio, PPU and frame pacing
-  differ from hardware; whether anything that feeds game state does is unknown.
+- ~~**Determinism has not been tested and is the real risk.**~~ **Measured on
+  2026-08-05; see below.** It is no longer the open question this section said
+  it was, though the *multiplayer* code path is still unexercised.
+
+### Determinism: measured
+
+The desync check hashes exactly this (`multi_08030C94.c:114`):
+
+```c
+r5 = gRngVal;
+for (i = 0; i < 4; ++i)
+    r5 += gKirbys[i].base.base.base.x + gKirbys[i].base.base.base.y;
+```
+
+— two bits of that sum, once a frame. So "will two instances of this port stay
+in sync" is a question about `gRngVal` and eight `s32`s, and it is directly
+checkable with the instruments in [DEBUG-TOOLING.md](DEBUG-TOOLING.md) §7.
+
+Against 1401 frames of identical scripted input:
+
+| | |
+|---|---|
+| `gRngVal`, hashed **every frame**, LP64/SDL against wasm32/node | identical on all 900 frames tested |
+| all four Kirbys' x and y at frame 600, same two builds | identical, sum 204692 |
+| the whole DMA transfer stream, wasm32 / i686 / x86-64 / aarch64 | byte-identical, 63236 transfers |
+| frame 1400 pixels, same four builds | 0 of 38400 differ |
+| audio on against audio off, **same binary**, independent save profiles | byte-identical, 35208 transfers |
+
+The last row is the one that had been assumed to fail. An earlier note in
+DEBUG-TOOLING.md said turning audio off alone moved EWRAM at frame 63; that is
+true of the *sound engine's own* state and does not reach game state. The
+mixer's output does not feed anything the desync check hashes.
+
+So: **the port is deterministic given identical input, across two ABIs, three
+architectures and two hosts, in both audio configurations.** That is the
+property lockstep needs, and it is a stronger result than the one this section
+asked for -- it survives a change of pointer size, not just a change of
+machine.
+
+Two caveats, both real:
+
+- **This is the single-player path.** Nothing above the packet layer has run,
+  so a divergence that only exists in link mode -- `gUnk_0203AD3C` selecting a
+  different player, the world-properties transfer, the five-frame input delay
+  -- would not appear here.
+- **Identical input is the premise, not a finding.** It says the port computes
+  the same thing from the same input; delivering the same input to four
+  instances is what the transport is for.
+
+When comparing two runs, give each one its own `XDG_DATA_HOME`. The native
+builds keep a save file and the node harness does not, so two runs that share a
+profile are not being asked the same question -- and the first attempt at the
+audio row above was contaminated exactly that way, reporting a divergence at
+frame 409 that was one run resuming the other's saved tutorial.
 
 ---
 
@@ -544,7 +594,518 @@ Beyond §5, which is the blocker:
 3. **Slot assignment out of band.** `selfId` and `players` come from the
    transport, not from the game. Slot 0 clocks the cable, so whoever is slot 0
    sets the pace for everyone.
-4. **Determinism, first.** Before any of the above is worth writing, two
-   instances of this port need to be shown to produce identical game state from
-   identical input. The game will tell you if they do not — code 8 — but it
-   will tell you by ending the session.
+4. ~~**Determinism, first.**~~ **Done** — see "Determinism: measured" in §6.
+   `gRngVal` and every Kirby's x and y, the two things the desync check hashes,
+   are identical frame for frame between the LP64 native build and the wasm32
+   one, and all four builds agree transfer for transfer and pixel for pixel.
+   Audio on and audio off are identical too. What remains untested is the link
+   path itself, which cannot run until §5 is done.
+
+   Keep the check honest as netplay is built: hash the desync word itself, not
+   a proxy. `PORT_WINDOW=30068D8:4` watches `gRngVal` every frame, and the
+   Kirby positions are at `0x02020EE0 + 424*i + 64` and `+68`.
+
+---
+
+## 8. Rollback: what it would cost, measured
+
+The lockstep in §1 is what a *cable* wants -- five frames of input delay and a
+hard stall when a peer is late. Over the internet a stall is a visible freeze,
+so the question is whether this port could predict inputs, run ahead, and
+re-simulate when the truth arrives. Two numbers decide it, and both are
+measured rather than estimated. Machine: x86-64, `build/lp64`, `--turbo`.
+
+### A snapshot is a memcpy
+
+Rollback needs to save and restore complete game state. In most emulators that
+is a bespoke serialiser; here it is six `memcpy`s, because the port reserves the
+GBA map at its true addresses and *all* console state lives in it:
+
+| region | size |
+|---|---|
+| EWRAM `0x02000000` | 256 KiB |
+| VRAM `0x06000000` | 96 KiB |
+| IWRAM `0x03000000` | 32 KiB |
+| IO / PLTT / OAM | 1 KiB each |
+| **total** | **387 KiB** |
+
+**save 5.0 µs, restore 4.7 µs.** A twelve-frame ring costs 4.5 MiB. The fixed
+memory map was chosen for [ARCHITECTURE.md](ARCHITECTURE.md)'s reasons and it
+happens to make state capture free.
+
+### Re-simulation is dominated by drawing, which rollback skips
+
+Marginal cost per frame, startup subtracted by differencing two run lengths:
+
+| | native x86-64 | wasm32 / node |
+|---|---|---|
+| compose + blit (what a player sees) | 0.945 ms | 1.22 ms |
+| blit only, no pixel composition | 0.253 ms | — |
+| **simulation only** | **0.0025 ms** | **0.0062 ms** |
+
+**Pixel composition is ~99.7 % of a native frame.** A re-simulated frame is
+never displayed, so it pays none of it. `PortSetRenderEnabled(0)` skips exactly
+the composition and nothing else — verified state-neutral: the DMA transfer
+stream over 900 frames is byte-identical with it on and off.
+
+So an eight-frame rollback natively costs `4.7 + 8 × 2.5 ≈ 25 µs`, which is
+**0.15 % of a 16.7 ms frame budget**. Sixty frames -- a full second of
+mispredicted input -- costs about 155 µs. The depth is not the constraint.
+
+### Two measurement traps, both fallen into
+
+- **Skipping the whole scanline loop is not "no rendering".** `PortRenderFrame`
+  drives VCOUNT, the DISPSTAT flags, the affine reference points, the HBlank
+  DMAs and the HBlank/VCOUNT interrupts; the game arms per-scanline effects
+  every frame and its own handlers run from in there. Skipping the loop looked
+  like an 86× speedup and was a different program — one distinct picture in
+  3600 frames, and new DMA transfers leaving the map. Only `RenderScanline` is
+  skippable.
+- **Skipping the blit breaks the node harness.** `Module.portPresent` is where
+  `tools/headless_test.js` counts frames, applies `MASH` and calls
+  `_PortSetKeys`. With no blit the game gets *no input at all*, so the run is
+  not the same workload — it reported 40 ms/frame, which was neither pacing nor
+  the port being slow. The blit is therefore left alone by
+  `PortSetRenderEnabled`; a caller that wants no output for a re-simulated
+  frame suppresses it on its own side, where it knows what the host is.
+
+- **The harness itself was two thirds of a wasm frame.** `portPresent` copied
+  153,600 bytes out of the heap every frame, and `requestAnimationFrame` was
+  shimmed to `setTimeout(cb, 0)`, which node clamps to about a millisecond --
+  so the shim, not the port, set the frame rate. `setImmediate` runs the
+  callback in the same loop iteration's check phase and removes the floor;
+  under `PORT_NO_RENDER` the harness now skips the copy as well. Both changes
+  are pacing only: the DMA stream is identical across each, 63236 transfers,
+  0 differences.
+
+**wasm simulates at 6.2 µs a frame -- only 2.5x the native cost.** That is the
+number that decides whether a browser client can do this at all, and it says
+yes with room to spare.
+
+### What is genuinely hard
+
+Not the snapshot and not the speed.
+
+1. **State outside the map.** Console state is all inside it; the *port's* is
+   not. `platform/dma.c`'s `sChannels[4]` holds armed VBlank and HBlank
+   transfers that persist across frames, `main.c` holds `sVBlankBudget` and
+   `sKeysDown`, and `platform/m4a_mixer.c` and `ppu.c` hold their own. A
+   snapshot has to include the ones that feed simulation. That is a bounded
+   audit — a few dozen statics — but it must be done deliberately, and
+   `tools/abi_size_diff.py`-style rigour is the right standard for it.
+2. **The execution point.** The game's loop never returns: it blocks in
+   `VBlankIntrWait` deep inside `GameLoop`. Restoring memory does not restore
+   the C stack. The workable shape is to snapshot and restore only at the frame
+   boundary, where the stack is the same by construction — but that has to be
+   established, not assumed, and anything live in a local across
+   `VBlankIntrWait` breaks it.
+3. **Host pointers in the map are fine, and only same-process.** `Object2::unk78`
+   and `struct Task::main` hold host function pointers. Within one process a
+   snapshot restores them correctly; between two clients or two builds they are
+   meaningless. Rollback is same-process, so this costs nothing — but it means
+   snapshots can never be shipped over the wire as a resync mechanism.
+4. **The game's own five-frame delay would stack on top.** Rollback wants the
+   transport to answer `exchange` immediately with a *predicted* input, so the
+   cable never stalls and the game never knows. That fits the existing seam
+   exactly — a rollback engine is a `PortMpTransport`. But `sub_08030D4C` still
+   lines everyone up on `current - 5`, so you would be adding prediction
+   underneath a delay that already exists. Removing it is a patch to game code,
+   and it is the one place this design would stop being "the game, unmodified".
+5. **Audio during catch-up.** Re-simulated frames must not re-emit samples.
+6. **§5 is still the blocker.** None of this is reachable until `MultiBootMain`
+   clocks the cable.
+
+---
+
+## 9. Joining, leaving, and how well input compresses
+
+### The game already has AI Kirbys, and the split is by index
+
+`gUnk_0203AD30` is the number of *human* players and `gUnk_0203AD44` the number
+of Kirbys. `sub_080332BC` creates all four and then attaches an AI controller to
+every index from the human count up:
+
+```c
+for (curKirbyId = 0; curKirbyId < 4; curKirbyId++)
+    CreateKirby(curKirbyId, &gKirbys[curKirbyId], ...);
+for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++)   /* arg0 = humans */
+    sub_0800ECAC(otherKirbyId, ...);
+```
+
+So single-player is one human and three AI Kirbys, and a four-player session is
+four humans and no AI. **Handing a departed player's Kirby to the AI is
+therefore a thing the game already knows how to do** — it is not a transport
+trick and it does not need new game code.
+
+Two consequences that decide the design:
+
+- **`gUnk_0203AD30` is read all over the game**, including enemy difficulty
+  (`gUnk_08351530[type][gUnk_0203AD30 - 1]`), chest contents and switch
+  behaviour. Changing it changes the simulation, so every client has to change
+  it on the *same frame*.
+- **The split is purely by index**, so only the highest-numbered player can
+  leave without renumbering. If player 1 of 3 drops, making Kirby 1 AI-driven
+  means the humans are no longer a prefix of 0..3, which is the one thing this
+  arrangement cannot express. Either the last player is migrated down into the
+  vacated slot — which changes which Kirby a human is holding, mid-game — or
+  the slot keeps receiving synthetic input.
+
+### Determinism does not forbid this; rewriting history does
+
+A player count that changes mid-session is only a desync risk if clients
+disagree about *when* it changed. Do not edit the input history — **append the
+change to it**: "player 2 becomes AI at frame F" is an event on the same
+timeline as the inputs, applied at F by every client and by every replayer.
+The history stays append-only and a replay from frame 0 reproduces the change
+at the same point.
+
+Under rollback, schedule F beyond the rollback window (say `current + 30`) so
+the event is confirmed before it is applied and can never be mispredicted.
+
+### How well the inputs compress: measured, on Nintendo's own recordings
+
+The attract-mode demos are four players of real recorded input per demo, six
+demos, in ROM at `gUnk_082EAB98`. And the format is already run-length encoded
+— `sub_080204EC` packs each entry as a `u16` of **10 button bits plus a 6-bit
+repeat count**, bumping the count by `0x400` while the input is unchanged and
+capping a run at 64 frames.
+
+Decoding all 24 tapes:
+
+| | |
+|---|---|
+| runs | 2172 |
+| player-frames covered | 49431 |
+| **mean run length** | **22.8 frames** |
+| RLE | 4344 bytes |
+| the game's wire encoding, 12 bits/frame | 74146 bytes |
+| **compression** | **17.1x** |
+
+Per tape it ranges from **8.9x** for the busiest player to **47x** for a nearly
+idle one; actively-played tapes cluster around 9–22x. The 47x cases are hitting
+the 64-frame cap, so a catch-up log with a wider count field would do better
+still on idle players.
+
+What that means for a rejoin: ten minutes of four-player input is 216 KiB in the
+game's own wire format and **about 13 KiB run-length encoded**. The entire
+history of a session fits in one message, and §8's numbers say replaying it
+costs 0.19 s in a browser.
+
+RLE is for the *stored* log, not the wire — a live stream cannot batch runs
+without adding the latency the whole exercise is meant to avoid.
+
+---
+
+## 10. The rollback machinery, and what it is verified to do
+
+`platform/port/rollback.h` and `platform/rollback.c`. No network in it and none
+intended: a transport calls `PortRbConfirmInput` when a peer's real input
+arrives, and this decides when to roll back and re-simulates.
+
+| | |
+|---|---|
+| snapshot / restore | the six GBA regions plus the port's own out-of-map state |
+| input timeline | per-frame, per-player, with `known` marking real against predicted |
+| prediction | "the same again" — right ~96% of the time at the measured 22.8-frame mean run |
+| rollback | requested from `PortRbConfirmInput`, performed at the top of `PortPresentFrame` |
+| join / leave | events on the timeline, applied at a scheduled frame |
+| the log | the game's own RLE, encode and decode, with the events in it |
+
+### Where it hooks in, and why that is the whole trick
+
+`VBlankIntrWait()` is `PortPresentFrame()`, called from inside `GameLoop`, and
+`GameLoop` keeps nothing in locals across it. The C stack is
+`main → AgbMain → GameLoop → VBlankIntrWait → PortPresentFrame` on every frame,
+identical in shape. So restoring the GBA map at the top of `PortPresentFrame`
+and returning normally puts the game back at that frame with no stack surgery:
+**the loop simply runs the frames again.** That is a property of the port's
+architecture, not of this code.
+
+Input is driven at `UpdateKeyInput` — the one point where the host's buttons
+become the game's. Forcing it earlier does not work, because the host polls
+between the top of the frame and the latch.
+
+### Verified, by doing it
+
+`PORT_RB_SELFTEST=at:span` snapshots at a frame, runs a span, restores, runs the
+span again with the recorded input, and compares. It records and replays the
+input itself — the native host counts frames with its own counter, so `--mash`
+would hand the second pass *different* buttons and the test would fail for a
+reason unrelated to the snapshot.
+
+| span | result |
+|---|---|
+| 30, 60, 120, 240, 600 frames | **PASSED** — bit-identical state both times |
+| on wasm32, i686 and x86-64 | PASSED, same log bytes on each |
+
+Six hundred frames is ten seconds, far past any rollback window.
+
+### The negative control, and the finding it produced
+
+A self-test that cannot fail proves nothing, so `PORT_RB_BREAK` damages the
+restore on purpose.
+
+- **`=1`, skip the port's out-of-map state** (armed DMA channels, affine
+  reference points): **passes.** That is a measured fact rather than a broken
+  test — the game re-arms its DMA every frame and the affine points are
+  re-latched from the IO registers, which are in the map. So on this path the
+  port's own statics do not reach the simulation. They are still saved, because
+  "does not, here, today" is not "cannot".
+- **`=2`, skip restoring IWRAM** (which holds `gTasks`): **fails**, which is
+  what demonstrates the test can detect a bad snapshot at all.
+
+The frame state is restored under both, because `sFrameCount` lives there and
+without it the restored run never arrives back at the frame the test waits for.
+The first version of the control skipped all three and produced no output —
+breaking the harness rather than demonstrating a divergence.
+
+### What is not done
+
+- **No transport drives it.** `PortRbConfirmInput` has never been called by
+  anything but a test, so the rollback *path* — predict, mispredict, restore,
+  re-simulate — is exercised only by the self-test's restore-and-replay, not by
+  a real disagreement. §5 is still the blocker for reaching link play at all.
+- **`PortRbReplayTo` sets a target and returns**; the frames happen because the
+  game keeps running, and the host has to stop pacing for it to be fast. The
+  host side of that is not written.
+### Arbitrary joining and leaving: renumber the map, not the slots
+
+§9 said only the highest-numbered player could leave cleanly. That was true of
+the game's own arrangement and is no longer a limit, because the thing that
+gets renumbered is not the thing §9 assumed.
+
+A Kirby slot is not a seat a player can be moved between. It is baked into
+`gKirbys[i]`, `gCurLevelInfo[i]`, `gUnk_02038590[i]` and the `unk56` that every
+live object carries. Renumbering *those* means rewriting all of it and walking
+every object in the world.
+
+So nothing moves. The engine owns a **peer-to-slot map**:
+
+- a player leaves — their slot's input starts coming from the AI controller
+  instead of from the network. Their Kirby stays exactly where it is, with its
+  ability, position and everything else intact.
+- a player joins — they take a vacant slot and drive that Kirby.
+
+Any slot can go human→AI or AI→human independently, at any frame. Assignments
+are events on the same timeline as the inputs (`PortRbAssignSlot`), so a replay
+reproduces them at the same point.
+
+It works because of where the game reads input. `src/kirby.c:6475`:
+
+```c
+if (kirby->...unk56 < gUnk_0203AD30)
+    r3 = gUnk_020382D0.unk8[0][kirby->...unk56];   /* the network's word    */
+else
+    r3 = gUnk_02038590[kirby->...unk56].unk9E;     /* the AI's own word     */
+```
+
+The engine holds `gUnk_0203AD30` at the number of Kirbys in play so every
+participating slot takes the first branch, then decides *per slot* what to put
+there — the timeline for an occupied slot, `unk9E` for a vacant one. **The
+threshold stays a threshold; the human-or-AI choice moves up one level, where
+it can be per-slot.** That avoids patching the twelve places `gUnk_0203AD30` is
+used, several of which are `for (i = 0; i < gUnk_0203AD30; i++)` loops that a
+bitmask would break.
+
+`unk8[1]` and `unk8[2]` — the pressed and released edges — are maintained too.
+Menus and abilities edge-trigger off them, so writing only the held word gives
+a Kirby that can hold a direction but never press a button.
+
+### The one claim about the game, demonstrated
+
+That writing `gUnk_020382D0.unk8[0][slot]` actually reaches Kirby `slot` is
+read out of the decompilation, and link play cannot be reached to confirm it
+properly. So it is probed directly: `PORT_RB_SLOTTEST=at:span:keys` turns on
+the game's link-input path, drives slot 0 from the timeline with a constant,
+and prints the state hash.
+
+| injected | resulting state |
+|---|---|
+| `0x000` | `736C4AB2` |
+| `0x010` (Right) | `7898C9C2` |
+| `0x020` (Left) | `8B2610E6` |
+| `0x010` again | `7898C9C2` |
+
+Different inputs give different states, so the injection reaches the game; the
+repeat reproduces exactly, so it is deterministic. Both halves matter.
+
+### What is still not done
+
+- **No transport drives any of it.** The rollback *path* — predict, mispredict,
+  restore, re-simulate — is exercised by the self-test's restore-and-replay,
+  not by a real disagreement.
+- **The probe forces `gUnk_0203AD10` bit 1 outside a real session.** It shows
+  the mechanism works; it is not a way to play, and §5 is still the blocker.
+- **A joining player still has to get the log and replay it**, and
+  `PortRbReplayTo` needs the host to stop pacing.
+
+---
+
+## 11. MultiBoot, joining, and one thing that was measured and dropped
+
+### MultiBoot: the recognition phase, implemented
+
+`platform/multi_boot.c`. The decompilation has no C for the SDK library — it is
+hand-written ARM assembly, so `portify.py` keeps it out of the build — and §5
+established that the multi-cart lobby cannot clock the cable without it.
+
+Only the *client recognition* phase is needed, and the game reads exactly two
+fields back (`src/multi_boot_util.c:183-237`):
+
+| | |
+|---|---|
+| `client_bit` | bits 1..3, one per recognised client. Player count is `1 + popcount(client_bit & 0xE)` |
+| `probe_count` | 0 during recognition; `0xD1` and `>= 0xE0` are program-transfer stages, download play only |
+
+The handshake is two words on the multi-play bus — master advertises
+`0x6200 | mask`, a client answers `0x7200 | its bit` — so it runs over
+`PortMpExchange` and knows nothing about the transport. The client's reply
+lives in `multi_boot.c` (`PortMpMultiBootReply`) rather than in each transport,
+so two transports cannot disagree about it; `mp_loopback.c` calls it.
+
+**Measured:** with the loopback attached and the game driven to its own link
+lobby, `gMultiBootParam.client_bit` is `0x02` — the peer is recognised — and
+the `called MultiBootInit()/MultiBootMain(), which has no C body yet` reports
+are gone. That is the §5 blocker cleared.
+
+**The lobby still does not complete.** `gUnk_0300050C` stays 0. It is not the
+SIOCNT presentation, which was the obvious suspect: `REG_SIOCNT` reads `0x600B`
+at the lobby — SI clear (this unit clocks), SD set, multi-play mode, interrupt
+enabled, which is correct. So it is somewhere in the lobby's own handshake,
+which §5 always listed as separate work: the transport's peer has to speak the
+game's `0x8F51`/`0x70AE`/`0xE4E4` exchange and then the `0x20`/`0x40`/`0x41`/
+`0x42` state machine. That is game logic in a synthetic peer, not hardware.
+
+`MultiBootStartMaster` and `MultiBootCheckComplete` are left refusing loudly.
+Download play boots a *different program* on the far console, which a
+WebAssembly module cannot be on the receiving end of, and a transfer that
+starts and never finishes would move the failure somewhere much less obvious
+than the message that currently says what is wrong.
+
+### Asking to join
+
+```c
+struct PortRbSessionInfo { u32 frame, logBytes; u8 slotsInPlay, vacant;
+                           s8 slotPeer[4]; };
+int  PortRbDescribeSession(struct PortRbSessionInfo *out);
+int  PortRbVacantSlot(void);
+long PortRbJoin(const u8 *log, u32 len, int slot, int peer);
+```
+
+A participant answers "can I join?" with a `PortRbSessionInfo`: which slots are
+free, what frame the session is on, and how many bytes of log the joiner will
+have to replay. A vacant slot is not an empty one — the Kirby is there and the
+AI is driving it, so joining takes the controls off the AI rather than spawning
+anything. `PortRbJoin` decodes the log, schedules the slot past the rollback
+window so every participant applies it on the same frame, and starts the
+replay.
+
+### Whole-memory snapshots: measured, and deliberately not shipped
+
+It was built and it worked. Two processes of the same binary, snapshotted at
+the same frame and compared byte for byte:
+
+| | |
+|---|---|
+| identical at | frames 120, 301, 457, 613, 700, 999 |
+| **differed at** | frame 811, at byte 295153 |
+
+Byte 295153 is IO offset `0xD5` — `DMA3SAD`. `platform/dma.c` writes the
+transfer's real source into the register mirror so code reading it back sees
+what it wrote, and `DmaFill`'s source is `&tmp`, a stack address that ASLR
+moves every run. It only shows when a fill was the last thing to touch that
+channel, which is why six frames in seven looked clean. Normalising the mirrors
+and the disarmed channels made it identical at eight of eight.
+
+So it is achievable — and it is not shipped, because the property is bad. A
+snapshot is only valid between byte-identical builds, so every redeploy
+invalidates every session in flight, and getting the check wrong gives a game
+that calls whatever now lives at an address it remembered. The input log
+crosses any two builds because it is just numbers, and replaying ten minutes
+costs 0.19 s in a browser. One mechanism that always works beats two where the
+faster one needs a version check.
+
+The rollback ring still snapshots memory and must — that is same-process by
+construction and none of this applies to it.
+
+---
+
+## 12. The lobby, tracked down with a debugger the port could not previously use
+
+### The tool: native parity with the node harness
+
+The lobby only ran under `tools/headless_test.js`, because reaching it needs
+`PRESS_AT` and `MP=loopback` and the native host had neither. So everything on
+the multiplayer path was diagnosable by `printf` and nothing else — and the
+instrument that has repeatedly been decisive in this port is a **hardware
+watchpoint on a GBA address**, which needs a debugger, which needs the native
+build.
+
+So the tool is parity. `platform/native/host_sdl.c` gains:
+
+```
+--press F:MASK,...   set the button mask at frame F and leave it set
+--mp loopback[:N]    attach the in-process transport
+--mp-at F            ... at frame F
+--mash S:MASK:P[:E]  a fourth field, stopping the mash again
+```
+
+Verified by diffing the `keys=` column of the state trace over 1100 frames:
+**the two hosts' input timelines are byte-identical.** Getting there found a
+harness quirk worth knowing — node's `mashMask` returns `null` once the window
+closes, which means it stops calling `PortSetKeys` and *the last mashed value
+stays latched*. The native host recomputes from zero. That is not a semantic
+worth copying, so the sequence carries an explicit `--press 440:1` instead.
+
+### What the watchpoint saw
+
+```
+=== gUnk_0300050C = 0    sub_0803024C   ← multi_boot_util.c:26, lobby init
+=== gUnk_0300050C = -1   sub_08030B38   ← multi_boot_util.c:399, teardown
+=== gUnk_0300050C = 0    sub_0803024C   ← again
+```
+
+The lobby was **restarting**, not stalling, and nothing ever wrote 1 — the
+value its advance condition needs.
+
+### The cause: two things, both found by reading what the watchpoint pointed at
+
+**The peer was answering the wrong word.** `multi_boot_util.c:56-77` masks each
+peer's word with `0xFFF0` and sorts it:
+
+| reply | meaning | `gUnk_0300050C` |
+|---|---|---|
+| `0x7200` | a bare console waiting for a download | 2 → the lobby reports error 8 |
+| `0x8F50` | another cartridge running this game | 1 → what the lobby wants |
+
+The MultiBoot client reply is the *correct* answer for download play and the
+wrong one for the only mode this port can reach.
+
+**And the port was exchanging behind the game's back.** `sub_0803024C` installs
+the game's own serial handler over `gIntrTable[0]`, and that handler is what
+fills `gMultiBootStruct.unk1E[]` — the array the classifier reads. Calling
+`PortMpExchange` directly from `MultiBootMain` filled nothing and raised no
+interrupt, so the classifier saw zeroes no matter how correct the handshake
+was. `MultiBootMain` now sets `SIOMLT_SEND` and the start bit and lets
+`platform/sio.c` run the transfer, which is the path a real one takes.
+
+**With both fixed, `gUnk_0300050C` reaches 1.** Measured, at frames 1000, 1050
+and 1090.
+
+### Where it stops, precisely
+
+The lobby's advance needs `unk01 > 1 && unk02 == 3 && gUnk_0300050C == 1`. The
+third now holds; the first two do not.
+
+And there is a tension the next piece of work has to resolve. A peer that
+answers `0x8F5X` *unconditionally* gets the classification but takes its
+MultiSio packets off the bus — measured, the loopback's sequencer traffic
+stops. A peer that answers only when the master sends `0x62XX` keeps the
+packets (3808 transfers, 0 stalls) but loses the classification. **The peer has
+to know which phase the lobby is in**, which is exactly the "the transport's
+peer must implement the game's own lobby handshake" that §5 has listed as
+separate work from the beginning — the `0x8F51`/`0x70AE`/`0xE4E4` exchange and
+then the `0x20`/`0x40`/`0x41`/`0x42` state machine.
+
+The conditional version is what is committed, because it does not regress the
+MultiSio path that works.

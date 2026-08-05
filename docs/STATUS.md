@@ -92,7 +92,32 @@ straightforward and not yet done.
 
 ## Bugs worth remembering
 
-Four of these cost real time, and none looked like what it was.
+Five of these cost real time, and none looked like what it was.
+
+**The GBA's compiler rounds a structure's size up to a multiple of 4; clang
+does not.** gcc for ARM defaults to `-mstructure-size-boundary=32`, so
+`struct Unk_08353510` -- four `s16` and two `u8` -- is 12 bytes on the console
+and 10 in this port. Nothing notices until something walks an array of one.
+That structure is the animation script the warp star hands Kirby at the end of
+a level: `++kirby->unk114` stepped 10 bytes through a table with a 12-byte
+stride, the per-entry frame counter picked up half of the next entry, went
+negative, and `if (!--counter)` could never fire. The ride animation therefore
+never ended, and the star's last state sat waiting on `animationIndex != 90` --
+a condition that had already been made unreachable. No crash, no freeze, no
+diagnostic; the level simply never changed.
+
+Two things about it are worth keeping. First, `platform/port/gba_layout.h` did
+not catch it and could not have: that header is *generated from the tree*, so
+it had recorded `sizeof(struct Unk_08353510) == 10` and was defending the bug.
+It catches drift from today's tree, which is worth having, but not a
+reconstruction that was never right. `make size-check`
+(`tools/check_doc_sizes.py`) is the other direction -- the tree against the
+size the decompilation documents on each closing brace, which is console truth.
+It found six such types. Second, the confirmation was free once the sizes were
+fixed: the decomp names members after their offsets, and in
+`struct Unk_0812DBB4` the member following `unk0[4]` is `unk20`, so that array
+has to be 32 bytes -- 8 per element, not 6. Every moved offset landed exactly
+on its own name.
 
 **A stub returning 0 hung the game silently.** `main.c` drains the VRAM
 transfer queue through four workers and reads `0` as "did not finish", then

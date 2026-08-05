@@ -122,7 +122,7 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # The wasm exports, in one place: four link lines need the same list and
 # keeping four copies of it in step is a merge conflict every time one
 # grows.
-EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow
+EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortRbInit,_PortRbReport,_PortRbSelfTest,_PortRbShutdown,_PortSetRenderEnabled
 
 LDLINT := -Wl,--fatal-warnings
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
@@ -148,7 +148,7 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 TARGET := $(OUT)/katam.html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test \
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -241,6 +241,48 @@ abi-size-check:
 
 ptr-array-check:
 	@python3 tools/check_ptr_arrays.py $(PORT_SRC)
+
+# --- the third thing layout-check cannot see -------------------------------
+#
+# layout-check asserts that the tree has not *drifted*.  It is generated from
+# the tree, so a structure that was never right in the first place gets its
+# wrong size asserted and defended.  That is what happened to the warp star:
+# struct Unk_08353510 is documented 0xC on its closing brace and compiled to
+# 10, because the GBA's compiler rounds a structure size up to a multiple of 4
+# and clang does not, and the layout table asserted the 10.
+#
+# size-check is the other direction -- the tree against what the decompilation
+# says the console does.  Needs no ROM and no 32-bit toolchain.
+size-check:
+	@python3 tools/check_doc_sizes.py --tree $(PORT_SRC)
+
+# Repairs the *values* in the committed layout table without needing the 32-bit
+# hosted toolchain gen_gba_layout.py requires (gcc-multilib).  It cannot add or
+# remove a type -- only gen_gba_layout can -- so it is for after a deliberate
+# structure change, and the build re-checks everything afterwards.
+relayout:
+	@python3 tools/refresh_layout_asserts.py
+
+relayout-check:
+	@python3 tools/refresh_layout_asserts.py --check
+
+# --- the page itself -------------------------------------------------------
+# web/shell.html is hand-edited and has no build step of its own, so nothing
+# else would notice a syntax error in it, and the parts that only misbehave on
+# a phone are exactly the parts nobody exercises on a desktop.  Needs no ROM,
+# no browser and no wasm -- see the header of tools/shell_test.js.
+shell-check:
+	@node tools/shell_test.js web/shell.html
+
+# The same page, in a real browser, tapped with a real finger.  shell-check
+# reasons about the source; this one answers the only question that settles a
+# touch bug -- does a tap on this control produce anything.  It builds the
+# page, serves it, and drives headless Chrome over the DevTools protocol.
+# Chrome is not Safari, but the rule at the bottom of every one of these bugs
+# (preventDefault on touchstart suppresses the synthesised click) is specified
+# behaviour that Chrome implements, so the class reproduces.  Needs no ROM.
+shell-tap-test: $(TARGET)
+	@node tools/shell_tap_test.js
 
 # --- the 4-byte pointer member ---------------------------------------------
 # platform/port/p32.h is what lets a 64-bit build keep the GBA's structure
@@ -586,19 +628,33 @@ check-dist:
 	fi; \
 	echo "  CHECK   $(DIST) carries no game data"
 
-# The whole chain: sync, rebuild, publish, and verify the live page.
-# scripts/release.sh also fixes up PATH, since make's shell cannot find the
-# nvm-installed node that wrangler needs.
-release:
-	@bash scripts/release.sh
+# --- publishing ------------------------------------------------------------
+#
+# GitHub Pages is the site.  https://sh1ftmaker.github.io/katam-port/, served
+# from the gh-pages branch by scripts/publish-pages.sh.
+#
+# The Cloudflare Pages project (katam-port.pages.dev) was taken down on
+# 2026-08-05 at the owner's request and must not be recreated.  Both routes to
+# it refuse below rather than being deleted, because a `deploy` target that has
+# quietly vanished invites someone to write it again from memory, and running
+# `wrangler pages deploy` against a project name that no longer exists does not
+# fail -- it *creates* the project and puts the site back up.
+CF_TAKEN_DOWN = \
+	echo "katam-port.pages.dev was taken down on purpose and must not come back."; \
+	echo "wrangler would recreate the project rather than fail.  Use: make pages"; \
+	exit 1
 
-# Publish to GitHub Pages instead of (or as well as) Cloudflare.
+# Publish to GitHub Pages.  This is the one that publishes.
 pages:
 	@bash scripts/publish-pages.sh
 
-deploy: dist check-dist
-	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \
-	    --project-name=$(PAGES_PROJECT) --branch=main --commit-dirty=true
+# The whole chain: sync, rebuild, publish, and verify the live page.
+# scripts/release.sh deploys to Cloudflare, so it is off until it does not.
+release:
+	@$(CF_TAKEN_DOWN)
+
+deploy:
+	@$(CF_TAKEN_DOWN)
 
 # --- convenience ----------------------------------------------------------
 # Serving a ROM next to the page makes ?rom= same-origin, which is the one way

@@ -439,6 +439,79 @@ the exported wasm functions currently on the stack. It is coarse — exports onl
 which for this port is roughly `main` — so it is not worth wiring into the crash
 report.
 
+### 5.1 Getting the report *off* the device
+
+All of the above assumes the tester can send you what the panel printed, and
+for a while on iOS they could not: the text would not highlight, and **Copy
+report** put nothing on the clipboard. Three independent causes, all of them
+things that work on a desktop and only fail on a phone. `make shell-check`
+covers each one now (`tools/shell_test.js`, no ROM and no browser needed).
+
+**The touch handler was eating the panel.** `blockTouchDefault` calls
+`preventDefault()` on every `touchstart`/`touchmove` over the stage, which is
+right for the picture and the pads — it is what stops the selection loupe and
+double-tap zoom from stealing a finger off the D-pad. But `#crash` and
+`#curtain` are *children* of `#screen-wrap`, so `overStage()` claimed them too,
+and on iOS `preventDefault()` on `touchstart` also suppresses the synthesised
+`click`. The panel's own **Copy report** and **Reload** buttons were receiving
+nothing at all, the report could not be scrolled, and no long press could start
+a selection. `overStage()` now returns false for both panels, which is safe
+because neither is ever on screen at the same time as the touch pads.
+
+**`-webkit-touch-callout: none` outranks `user-select: text`.** The body sets
+both, and `#crashreport` re-enabled only the second. On iOS the gesture that
+*starts* a selection is the callout gesture, so text in a `callout: none`
+subtree reads as selectable and cannot be selected by finger. It needs
+`-webkit-touch-callout: default` as well.
+
+**`execCommand('copy')` reports that the command ran, not that anything was
+copied.** This is the one worth remembering. `navigator.clipboard` does not
+exist on a non-secure origin — a plain `http://` LAN address is exactly how a
+phone reaches a dev server — so iOS takes the textarea fallback, and that
+fallback was silently producing an empty selection for two reasons: the
+scratch textarea inherited `user-select: none` from the body, and `readonly`
+makes iOS ignore `select()` and `setSelectionRange` alike. With no selection
+`execCommand` still returns `true`, so the button said **Copied** and the
+clipboard was untouched — a failure indistinguishable from success. The
+fallback now builds the range through the Selection API over a writable,
+selectable element and checks `selectionEnd - selectionStart` against the
+length of the text before believing the result. When it genuinely fails it
+highlights the report in place, so the player has something to do about it.
+
+### 5.2 Tapping the page for real
+
+`make shell-check` reasons about the shell's source, which is enough for the
+three causes above once you know to look for them. It is not enough to answer
+the question a touch bug actually turns on — *does a finger landing here
+produce anything* — because that depends on the browser's gesture recognisers,
+the compatibility mouse events and every listener the page installed.
+
+`make shell-tap-test` (`tools/shell_tap_test.js`) builds the page, serves it,
+and drives headless Chrome over the DevTools protocol: real `Input.dispatchTouchEvent`
+sequences at real coordinates, in a 390×844 mobile viewport with touch
+emulation on, watching `Page.fileChooserOpened` and the page's own listeners
+for the outcome. It needs no ROM. Chrome is not Safari, but the rule under all
+of this — `preventDefault()` on `touchstart` suppresses the synthesised
+`click` — is specified behaviour that Chrome implements, so the class of bug
+reproduces. Against the shell as it stood before §5.1, it fails 7 of its
+checks.
+
+It immediately found a fourth one that reading had not. **The curtain's
+"Choose ROM file…" — the only control a first-time visitor on a phone has —
+pointed at an `<input type="file">` that was `display: none` *and* inside
+`#chrome`, which is `visibility: hidden` while the sheet is closed.** Browsers
+decline to open a file picker for an input that is not rendered. Fixing §5.1
+got the tap as far as the input and no further, which is a worse failure than
+before in one respect: it looks like the label works. Both file inputs now sit
+at the top level of the document, hidden by being 1px, transparent and
+`pointer-events: none` rather than by `display: none`, so they are invisible
+and still real boxes. `label[for=…]` does not care about nesting.
+
+The test asserts the general form rather than that one case: every label the
+player can see must point at a control that renders. It is the kind of thing
+that is invisible on a desktop, where the sheet is not a sheet, and only fails
+in the layout a phone gets.
+
 ## 6. Everything else
 
 **`--emit-symbol-map`** writes `katam.js.symbols`, `index:name` per line
