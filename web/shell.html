@@ -1522,6 +1522,16 @@ var Module = (function () {
     // buttons are what the player needs to reach next.
     shell.releaseInput();
 
+    // Write the save out now, before anything else.
+    //
+    // A crash is exactly the moment the player most wants their progress
+    // kept, and it is also the moment it is most at risk: the game is dead,
+    // so nothing will ever mark save memory dirty again, and the next thing
+    // they do is reload. A debounced write still pending at this point would
+    // survive on its own timer, but only if the player leaves the page alone
+    // for long enough, which is not what anyone does after a crash.
+    if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block the panel */ } }
+
     log('EMULATOR STOPPED — ' + errName(err) + ': ' + errMessage(err), 'err');
 
     var report;
@@ -3209,6 +3219,10 @@ var Module = (function () {
   // Called by the ROM loader, once the bytes are mapped and before the game
   // is let go. Resolves whatever happens.
   //--------------------------------------------------------------------
+
+  // Write immediately rather than waiting for the debounce. Used by the crash
+  // handler, where the game is dead and the player is about to reload.
+  shell.flushSave = function () { flush(); };
 
   shell.saveForRom = function (bytes, name) {
     var id;
