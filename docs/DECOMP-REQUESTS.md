@@ -297,13 +297,62 @@ reference to the decompiled C function. Three shapes are covered automatically:
 |---|---|---|
 | flat function-pointer arrays | `gSpawnFuncTable1` | 304 of 305 across 8 tables |
 | arrays declared through a typedef | `gUnk_082EB7D0` | covered |
-| function pointers *inside* ROM structs | `gUnk_08351648` — 219 object descriptors with a constructor at +0x10, patched at startup | 193 of 219 |
+| function pointers *inside* ROM structs | `gUnk_08351648` — 219 object descriptors with a per-type setup routine at +0x10, patched at startup | 211 of 219 |
 
-The one entry that still cannot be wired:
+The one flat-table entry that still cannot be wired:
 
 ```
 gSpawnFuncTable1[114]  CreateBossChallengeDoor   (boss_challenge_door.s, claimed)
 ```
+
+### 5a. 193 of those 219 became 211, and the missing 18 were never missing
+
+Recorded because the number in the last version of this file was misleading,
+and the reason is worth knowing if you ever reason from `katam.map`.
+
+`katam.map` lists **global** symbols. A `static` function in the tree is not in
+it at all. Eighteen of the twenty-six unresolved `gUnk_08351648[].unk10`
+entries pointed at ROM addresses that the map simply does not name — not
+because the function was still ARM assembly, but because its perfectly good
+decompiled C has internal linkage:
+
+```
+gUnk_08351648[0x08]  OBJ_CHIP              0x080AB720  sub_080AB720   chip.c
+gUnk_08351648[0x12]  OBJ_WADDLE_DOO        0x080B6A54  sub_080B6A54   waddle_doo.c
+gUnk_08351648[0x2E]  OBJ_FOLEY_2           0x080C0CBC  sub_080C0CBC   foley.c
+gUnk_08351648[0x37]  OBJ_WADDLE_DEE_2      0x080A42B0  WaddleDee37ChooseXSpeed
+gUnk_08351648[0x5E..0x64]  the pickups     0x08122F6C  BonusSetFunc   bonus.c
+gUnk_08351648[0x66..0x6C]  OBJ_EMPTY_66..  0x08123780  sub_08123780   bonus.c
+gUnk_08351648[0xA2]  OBJ_PARASOL           0x080C2B28  sub_080C2B28   parasol.c
+```
+
+`katam.elf`'s symbol table has every one of them, so the port now reads that as
+well as the map, and gives those seven functions external linkage in its own
+copy of the tree. `unk10` is the routine each object type runs *after* it is
+constructed, so before this the pickups — small food, meat, tomato, the 1UP,
+the invincibility candy — and Chip, Waddle Doo, Waddle Dee 37 and the parasol
+were all being created and then not set up.
+
+**No ask.** `static` is correct and the decompilation should keep it; this is
+the port reading the wrong file. Recorded because "not in `katam.map`" reads
+like "not decompiled yet" and is not the same statement.
+
+### 5b. The two that really are still ARM
+
+After the above, the whole remaining gap in `gUnk_08351648` is two functions:
+
+```
+sub_08106508   blocks OBJ_DARK_MIND_STAR_FIRE / _ICE / _SPARK / _MIX, OBJ_UNKNOWN_D4
+sub_08118C18   blocks OBJ_BOSS_CHALLENGE_DOOR
+```
+
+and two entries whose pointer is genuinely `NULL` in the ROM
+(`OBJ_ABILITY_STATUE_RANDOM`, `OBJ_EMPTY_9A`), which need nothing.
+
+`sub_08118C18` pairs with `CreateBossChallengeDoor` above — the same object,
+already claimed. `sub_08106508` is the Dark Mind fight, which the port cannot
+reach yet anyway. Neither is urgent; they are listed because they are now the
+complete list.
 
 **Whenever data conversion is on the table, ROM function-pointer tables from
 `.incbin` into typed C in `data/` is the highest-value target by a wide
@@ -353,8 +402,11 @@ Short list, because you closed the long one.
 
 1. **Nothing is blocking the port.** There is no function it needs that it
    cannot get. This line has never been in this document before.
-2. **`CreateBossChallengeDoor`** — `gSpawnFuncTable1[114]`, the single
-   unwirable table entry. Claimed by someone else; not urgent.
+2. **`CreateBossChallengeDoor`** and **`sub_08118C18`** — the spawn function
+   and the per-type setup routine for the same object,
+   `gSpawnFuncTable1[114]` and `gUnk_08351648[0x72]`. Claimed by someone
+   else; not urgent. **`sub_08106508`** (§5b) is the only other object-type
+   routine in the game with no C body.
 3. **A comment when you spot a discarded read through an uninitialised
    field** (§3a), or when a function open-codes a hardware register write for
    match reasons (§3b). Cheap for you, a day each for the port — these are the

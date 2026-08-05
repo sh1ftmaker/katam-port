@@ -209,6 +209,15 @@ def trace_star_states(text, rep):
     and exactly where it stopped -- which is what a state machine that hangs
     somewhere unreachable by a scripted run requires.
 
+    PortTrace's prototype comes from platform/port/prelude.h, which is
+    force-included ahead of every translation unit.  It has to come from
+    somewhere: warp_star.c includes no port header, so for two builds this
+    call was an implicit declaration, wasm-ld resolved `int PortTrace()`
+    against `void PortTrace(...)` by pointing the call at a stub whose body is
+    `unreachable`, and all 32 handlers below trapped the moment they ran.  The
+    instrumentation killed the thing it was measuring and printed nothing.
+    Anything injected into the game's own sources needs a prototype there.
+
     Diagnosis, not code: delete this once the bug is understood.
     """
     pattern = re.compile(

@@ -18,7 +18,9 @@ comments the decomp writes on every data label.
 
 import argparse
 import re
+import struct
 import sys
+from collections import namedtuple
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -147,6 +149,59 @@ def parse_map(path):
     return out
 
 
+def parse_elf_functions(path):
+    """{rom address: symbol} for every function in katam.elf's symbol table.
+
+    The link map only lists symbols the *linker* had to resolve, which means
+    globals.  A `static` function in the decompilation is invisible to it, and
+    18 of the 26 unresolved entries in gUnk_08351648 were unresolved for
+    exactly that reason -- OBJ_SMALL_FOOD, OBJ_MEAT, OBJ_1UP, OBJ_WADDLE_DOO,
+    OBJ_PARASOL and the rest have perfectly good decompiled C, it just has
+    internal linkage, so nothing named the address the ROM holds.  The ELF's
+    .symtab keeps local symbols, so it names them all.
+
+    "Not in katam.map" and "not decompiled yet" look identical from the map's
+    side and are completely different statements; this is what tells them
+    apart.
+
+    Parsed here rather than shelled out to `nm`, so `make sync` keeps needing
+    nothing but python.  ELF32, little-endian, which is what agbcc emits; any
+    other shape is ignored rather than guessed at.
+    """
+    data = path.read_bytes()
+    if data[:4] != b'\x7fELF' or data[4] != 1 or data[5] != 1:
+        return {}
+
+    e_shoff, = struct.unpack_from('<I', data, 0x20)
+    e_shentsize, e_shnum = struct.unpack_from('<HH', data, 0x2E)
+    if not e_shoff or not e_shnum:
+        return {}
+
+    out = {}
+    SHT_SYMTAB, STT_FUNC = 2, 2
+    for i in range(e_shnum):
+        sh = e_shoff + i * e_shentsize
+        sh_type, = struct.unpack_from('<I', data, sh + 4)
+        if sh_type != SHT_SYMTAB:
+            continue
+        sh_offset, sh_size, sh_link = struct.unpack_from('<III', data, sh + 0x10)
+        st = e_shoff + sh_link * e_shentsize
+        str_off, str_size = struct.unpack_from('<II', data, st + 0x10)
+        strtab = data[str_off:str_off + str_size]
+        for off in range(sh_offset, sh_offset + sh_size, 16):
+            st_name, st_value = struct.unpack_from('<II', data, off)
+            st_info = data[off + 12]
+            if st_info & 0xF != STT_FUNC or not st_value:
+                continue
+            end = strtab.find(b'\0', st_name)
+            name = strtab[st_name:end].decode('ascii', 'replace')
+            # The low bit is the Thumb flag on a branch target, not part of
+            # the address; ELF symbol values already have it clear.
+            if name and not name.startswith(('$', '.')):
+                out.setdefault(st_value & ~1, name)
+    return out
+
+
 def wasm_sig(ret, params):
     """(parameter count, returns a value) -- all wasm cares about here.
 
@@ -204,6 +259,12 @@ def resolve_fn_table(rom, mapping, defined, addr, count):
 ROM_START = 0x08000000
 ROM_END = 0x0A000000
 
+# One function pointer found inside a ROM structure.  `index` and `off` are
+# what identify it to a reader -- gUnk_08351648[0x5E] is OBJ_SMALL_FOOD, and
+# knowing that is the difference between a usable report and "something in
+# a ROM struct".
+Patch = namedtuple('Patch', 'at sym ret params table index off value')
+
 
 def parse_data_labels(datadir):
     """Return {label: absolute ROM address}.
@@ -254,6 +315,10 @@ def main():
     ap.add_argument('--map', type=Path,
                     help="the GBA build's katam.map, used to turn the ROM "
                          'addresses inside function tables back into names')
+    ap.add_argument('--elf', type=Path,
+                    help="the GBA build's katam.elf.  Its symbol table names "
+                         'the file-local functions the link map leaves out, '
+                         'which is most of what is otherwise unresolvable')
     ap.add_argument('--rom', type=Path,
                     help='a ROM to read function-table contents from; without '
                          'it those tables can only be stubbed')
@@ -314,6 +379,14 @@ def main():
         for m in re.finditer(r'^[\w \t\*]*?\b(\w+)\s*\([^;{]*\)\s*;', header_text[hp], re.M):
             declared.setdefault(m.group(1), rel)
     mapping = parse_map(args.map) if args.map and args.map.exists() else {}
+    # The map is left authoritative and the ELF only fills its gaps, so adding
+    # this cannot move an address that already resolved.
+    from_elf = {}
+    if args.elf and args.elf.exists():
+        for addr, sym in parse_elf_functions(args.elf).items():
+            if addr not in mapping:
+                mapping[addr] = sym
+                from_elf[addr] = sym
     rom = args.rom.read_bytes() if args.rom and args.rom.exists() else None
     signatures = {}
     defined = set()
@@ -551,9 +624,10 @@ def main():
             f.write('}\n')
 
     # Function pointers sitting *inside* ROM structs.  `gUnk_08351648` is an
-    # array of 219 object descriptors, each with a constructor at +0x10, and
-    # `CreateLevelObjects` calls through it for every object in a level -- so
-    # this is what stands between the menus and actually loading a room.
+    # array of 219 object descriptors, each with a `void (*unk10)(struct
+    # Object2 *)` at +0x10 -- not the constructor, but the per-type setup each
+    # object runs at the end of its own Create function, from ~20 call sites.
+    # So this is what stands between the menus and actually loading a room.
     # The values are ARM addresses like everything else in ROM, so they are
     # rewritten in place at startup, once the ROM is mapped.
     patches = []
@@ -576,11 +650,12 @@ def main():
                         continue
                     value = int.from_bytes(rom[romoff:romoff + 4], 'little') & ~1
                     sym = mapping.get(value)
-                    patches.append((at, sym if sym in defined else None,
-                                    ret, params, name))
+                    patches.append(Patch(at, sym if sym in defined else None,
+                                         ret, params, name, i, off, value))
 
     wired = missing = 0
     sig_rejects = []
+    referenced = set()   # every function rom_fn_tables.c ends up naming
     if args.out_tables is not None:
         args.out_tables.parent.mkdir(parents=True, exist_ok=True)
         with args.out_tables.open('w') as f:
@@ -589,17 +664,27 @@ def main():
                     " * Function-pointer tables that live in ROM.  Their entries are ARM\n"
                     ' * code addresses, and a WebAssembly function pointer is a table\n'
                     ' * index, so those values mean nothing here -- calling one traps.\n'
-                    " * Each entry is looked up in the GBA build's link map and rebuilt as\n"
-                    ' * a reference to the decompiled C function of the same name.  Entries\n'
-                    ' * whose function is still ARM-only get a stub of the right signature,\n'
-                    ' * so the call reports itself instead of taking the game down. */\n\n')
+                    " * Each entry is looked up in the GBA build's link map, then in\n"
+                    " * katam.elf's symbol table (which is the only one of the two that\n"
+                    ' * names file-local functions), and rebuilt as a reference to the\n'
+                    ' * decompiled C function of the same name.\n'
+                    ' *\n'
+                    ' * An entry whose function is still ARM-only gets a stub of the right\n'
+                    ' * signature, which reports itself at error level, naming the table,\n'
+                    ' * the index and the ARM address, and returns.  Deliberately not\n'
+                    ' * fatal: these are per-type setup routines that run *after* the\n'
+                    ' * object is built, so the object exists either way, and the eight\n'
+                    ' * that remain belong to Dark Mind and the boss challenge door --\n'
+                    ' * halting there would take down a room the port otherwise plays.\n'
+                    ' * The report names the entry precisely so that a crash somewhere\n'
+                    ' * else can be traced back to it. */\n\n')
             wanted = {h for _, _, _, _, h in fn_tables if h}
             for name, ret, params, count, _ in fn_tables:
                 ents = (resolve_fn_table(rom, mapping, defined, labels[name], count)
                         if rom and mapping else [])
                 wanted |= {declared[e] for e in ents if e and e in declared}
-            wanted |= {declared[s] for _, s, _, _, _ in patches
-                       if s and s in declared}
+            wanted |= {declared[p.sym] for p in patches
+                       if p.sym and p.sym in declared}
 
             f.write('#include "port/port.h"\n')
             for hdr in sorted(wanted):
@@ -641,6 +726,7 @@ def main():
                                             '%s(%s)' % (ret, ' '.join(params.split()))))
                         entries[i] = None
 
+                referenced |= {e for e in entries if e}
                 for fn in sorted({e for e in entries if e}):
                     if fn not in declared and fn not in emitted:
                         emitted.add(fn)
@@ -661,31 +747,38 @@ def main():
                 f.write('};\n\n')
 
             if patches:
-                sigs = {}
-                for _, sym, ret, params, table in patches:
-                    sigs.setdefault((ret, params), set()).add(table)
-                for n_, (ret, params) in enumerate(sorted(sigs)):
-                    f.write('static %s PortRomStructFn%d(%s)\n{\n'
-                            % (ret, n_, name_parameters(params)))
-                    f.write('    PortMissingFunction("a function pointer inside '
-                            'a ROM struct (%s)");\n' % ', '.join(sorted(sigs[(ret, params)])))
-                    if ret != 'void':
-                        f.write('    return (%s)0;\n' % ret)
+                # One stub per unresolved *entry*, not one per signature.
+                # A shared stub can only name the table it belongs to, and
+                # "a function pointer inside a ROM struct (gUnk_08351648)" in a
+                # crash report says nothing about which of 219 object types
+                # spawned without its per-type setup.  The index is the object
+                # type constant, so the reader can look it up.
+                stub = {}
+                for p in patches:
+                    if p.sym or p.at in stub:
+                        continue
+                    stub[p.at] = 'PortRomStructFn_%08X' % p.at
+                    f.write('static %s %s(%s)\n{\n'
+                            % (p.ret, stub[p.at], name_parameters(p.params)))
+                    f.write('    PortMissingFunction("%s[0x%X]+0x%X (ROM struct '
+                            'function pointer, ARM address 0x%08X)");\n'
+                            % (p.table, p.index, p.off, p.value))
+                    if p.ret != 'void':
+                        f.write('    return (%s)0;\n' % p.ret)
                     f.write('}\n\n')
-                sig_index = {s: i for i, s in enumerate(sorted(sigs))}
 
-                for sym in sorted({s for _, s, _, _, _ in patches if s}):
+                for sym in sorted({p.sym for p in patches if p.sym}):
                     if sym in declared or sym in emitted:
                         continue
                     emitted.add(sym)
-                    ret, params = next((r, p) for _, s, r, p, _ in patches if s == sym)
-                    f.write('extern %s %s(%s);\n' % (ret, sym, params))
+                    p = next(q for q in patches if q.sym == sym)
+                    f.write('extern %s %s(%s);\n' % (p.ret, sym, p.params))
                 f.write('\n/* %d function pointers inside ROM structs; %d resolved. */\n'
-                        % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))
+                        % (len(patches), sum(1 for p in patches if p.sym)))
                 f.write('static const struct { u32 at; void *fn; } sRomStructFns[] = {\n')
-                for at, sym, ret, params, _ in patches:
-                    target = sym or ('PortRomStructFn%d' % sig_index[(ret, params)])
-                    f.write('    { 0x%08Xu, (void *)%s },\n' % (at, target))
+                for p in patches:
+                    f.write('    { 0x%08Xu, (void *)%s },\n'
+                            % (p.at, p.sym or stub[p.at]))
                 f.write('};\n\n')
                 f.write('void PortPatchRomFunctionPointers(void)\n{\n'
                         '    u32 i;\n\n'
@@ -694,6 +787,34 @@ def main():
                         '}\n')
             else:
                 f.write('void PortPatchRomFunctionPointers(void) { }\n')
+
+    # Anything rom_fn_tables.c names has to be linkable from another
+    # translation unit, and half of what the ELF adds is `static`.  Dropping
+    # the keyword is the whole change -- the function is otherwise untouched,
+    # and the decompilation's own build is not involved, since this edits the
+    # copy in build/port-src.  Only names defined exactly once in the tree
+    # qualify: two files could each have a static of the same name, and giving
+    # both external linkage would be a duplicate symbol.
+    unstatic = []
+    static_defs = {}
+    for cp in sources:
+        for m in re.finditer(r'^static\s+[A-Za-z_][\w \t\*]*?\b(\w+)\s*'
+                             r'\([^;{]*\)\s*\{',
+                             cp.read_text(errors='replace'), re.M):
+            static_defs.setdefault(m.group(1), set()).add(cp)
+    for sym in sorted(referenced | {p.sym for p in patches if p.sym}):
+        where = static_defs.get(sym)
+        if not where or len(where) != 1:
+            continue
+        cp = next(iter(where))
+        text = cp.read_text(errors='replace')
+        new, n = re.subn(r'^static(\s+[A-Za-z_][\w \t\*]*?\b%s\s*\()'
+                         % re.escape(sym),
+                         r'/* PORT: was static; a ROM table holds its address */\1',
+                         text, flags=re.M)
+        if n:
+            cp.write_text(new)
+            unstatic.append((sym, cp.name))
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open('w') as f:
@@ -711,9 +832,26 @@ def main():
         print('  %d further ROM symbols resolved from katam.map: %s'
               % (len(from_map), ', '.join(from_map[:8])
                  + (' ...' if len(from_map) > 8 else '')))
+    if from_elf:
+        print('  %d ROM addresses named only by katam.elf (file-local '
+              'functions the link map does not list)' % len(from_elf))
+    if unstatic:
+        print('  %d given external linkage so a ROM table can hold their '
+              'address: %s'
+              % (len(unstatic),
+                 ', '.join('%s (%s)' % u for u in sorted(set(unstatic)))))
     if patches:
         print('  %d function pointers inside ROM structs, %d resolved'
-              % (len(patches), sum(1 for _, s, _, _, _ in patches if s)))
+              % (len(patches), sum(1 for p in patches if p.sym)))
+        still = sorted({(p.table, p.index, p.value) for p in patches if not p.sym})
+        if still:
+            print('      still unresolved (the object type spawns without its '
+                  'per-type setup):')
+            for table, index, value in still:
+                print('        %s[0x%02X]  ARM 0x%08X  %s'
+                      % (table, index, value,
+                         'no function there at all' if not value
+                         else 'still ARM assembly'))
     if sig_rejects:
         print('  %d table entries REJECTED -- the function\'s signature does not '
               'match the table, so calling it would trap:' % len(sig_rejects))

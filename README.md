@@ -58,8 +58,14 @@ measured versus assumed.
 ### Known problems
 
 - **The warp star at the end of a level does not launch.** Kirby boards it and
-  the sequence stalls. Under investigation; the shipped build traces the star's
-  state machine to the browser console.
+  the sequence stalls. Still open — but note that between builds `282a15d` and
+  `8e8d234d6b1c` this looked much worse than it was: the tracing added to
+  diagnose it called `PortTrace` with no prototype in scope, `wasm-ld` answered
+  the signature disagreement with a stub whose whole body is `unreachable`, and
+  every one of the star's 32 state handlers therefore trapped on entry. Those
+  builds could not run a warp star at all, and printed not one trace line. That
+  is fixed; the tracing works now, and what the star is actually waiting on is
+  still unknown.
 - **Some minigame sound effects do not play.**
 - **The 4 PSG channels are not implemented.** The sequencer keeps their
   registers current, but nothing turns that into sound yet, so the chip
@@ -157,12 +163,20 @@ sent back upstream.
 - **Function pointers stored in ROM** are ARM code addresses, and a wasm
   function pointer is a table index — calling one ends the program. The build
   resolves each address back to a real function through the GBA build's link
-  map: 304 of 305 flat table entries, plus 193 of the 219 constructors held
-  inside ROM structs.
+  map *and* `katam.elf`'s symbol table: 304 of 305 flat table entries, plus
+  211 of the 219 per-type routines held inside ROM structs. The ELF matters
+  because the map lists only global symbols, and eighteen of those routines
+  are `static` — decompiled, but invisible to the map.
 - **Function pointers mis-cast in the C source** — handing a no-argument
   function to a slot that calls it with one. ARM does not care; wasm
   type-checks every indirect call. `tools/check_fnptrs.py` finds these
   statically.
+- **Calling a function the file never declared.** An implicit declaration is
+  `int f()`, so the call is typed differently from the definition; `wasm-ld`
+  reports a warning, points the call at a stub whose body is `unreachable`,
+  and links successfully. Whatever the port injects into the game's own
+  sources must have a prototype — `platform/port/prelude.h` is where they go,
+  and `-Werror=implicit-function-declaration` is what keeps it honest.
 - **Reads through a pointer that is not valid yet**, where the game forms an
   address from an uninitialised field, dereferences it and discards the
   result. The console returns open bus; wasm traps.
