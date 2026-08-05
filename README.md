@@ -8,8 +8,7 @@ It boots, plays its music, gets you through the menus into a save file, and
 plays a level — backgrounds, sprites, parallax, scrolling and sound, driven by
 the game's own code the whole way.
 
-**Live at https://sh1ftmaker.github.io/katam-port/**
-(also https://katam-port.pages.dev) — bring your own ROM.
+**Live at https://sh1ftmaker.github.io/katam-port/** — bring your own ROM.
 
 **This repository contains no game data.** You supply your own ROM. A local
 file is read in your browser and never uploaded; a URL is fetched by your

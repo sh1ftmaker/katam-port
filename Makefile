@@ -599,19 +599,33 @@ check-dist:
 	fi; \
 	echo "  CHECK   $(DIST) carries no game data"
 
-# The whole chain: sync, rebuild, publish, and verify the live page.
-# scripts/release.sh also fixes up PATH, since make's shell cannot find the
-# nvm-installed node that wrangler needs.
-release:
-	@bash scripts/release.sh
+# --- publishing ------------------------------------------------------------
+#
+# GitHub Pages is the site.  https://sh1ftmaker.github.io/katam-port/, served
+# from the gh-pages branch by scripts/publish-pages.sh.
+#
+# The Cloudflare Pages project (katam-port.pages.dev) was taken down on
+# 2026-08-05 at the owner's request and must not be recreated.  Both routes to
+# it refuse below rather than being deleted, because a `deploy` target that has
+# quietly vanished invites someone to write it again from memory, and running
+# `wrangler pages deploy` against a project name that no longer exists does not
+# fail -- it *creates* the project and puts the site back up.
+CF_TAKEN_DOWN = \
+	echo "katam-port.pages.dev was taken down on purpose and must not come back."; \
+	echo "wrangler would recreate the project rather than fail.  Use: make pages"; \
+	exit 1
 
-# Publish to GitHub Pages instead of (or as well as) Cloudflare.
+# Publish to GitHub Pages.  This is the one that publishes.
 pages:
 	@bash scripts/publish-pages.sh
 
-deploy: dist check-dist
-	CLOUDFLARE_ACCOUNT_ID=$(CF_ACCOUNT_ID) npx --yes wrangler@latest pages deploy $(DIST) \
-	    --project-name=$(PAGES_PROJECT) --branch=main --commit-dirty=true
+# The whole chain: sync, rebuild, publish, and verify the live page.
+# scripts/release.sh deploys to Cloudflare, so it is off until it does not.
+release:
+	@$(CF_TAKEN_DOWN)
+
+deploy:
+	@$(CF_TAKEN_DOWN)
 
 # --- convenience ----------------------------------------------------------
 # Serving a ROM next to the page makes ?rom= same-origin, which is the one way
