@@ -423,6 +423,16 @@ static void OpenWindow(void)
 {
     Uint32 rflags = SDL_RENDERER_ACCELERATED | (sVsync ? SDL_RENDERER_PRESENTVSYNC : 0);
 
+#ifdef _WIN32
+    /* The Windows build keeps its own main() -- CMakeLists.txt defines
+     * SDL_MAIN_HANDLED there, so SDL_main.h does not rename it and SDL2main's
+     * WinMain is not linked.  That is deliberate: WinMain would make this a
+     * GUI-subsystem program with no stdout, and every diagnostic in this port
+     * (including the one that explains a failed memory reservation) goes to
+     * stdout.  SDL asks only that it be told the entry point was handled. */
+    SDL_SetMainReady();
+#endif
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         PortError("[katam-port] SDL_Init failed: %s", SDL_GetError());
         exit(2);
@@ -542,7 +552,14 @@ static int LoadRom(const char *path)
     PortNativeSaveInit((const u8 *)GBA_ROM_BASE, (size_t)size, path);
     if (sWindow != NULL) {
         char title[256];
+        /* Both separators, because Windows accepts either and the file picker
+         * hands back backslashes: a title of "katam-port -- C:\roms\x.gba" is
+         * the whole path, which is not what was wanted. */
         const char *base = strrchr(path, '/');
+        const char *back = strrchr(path, '\\');
+
+        if (back != NULL && (base == NULL || back > base))
+            base = back;
 
         snprintf(title, sizeof(title), "katam-port -- %s",
                  base ? base + 1 : path);

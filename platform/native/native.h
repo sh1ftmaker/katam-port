@@ -6,7 +6,7 @@
 #include "port/port.h"
 #include "port/backend.h"
 
-/* The native build, and the five functions that differ between operating
+/* The native build, and the handful of functions that differ between operating
  * systems.
  *
  * Everything else here -- the window, the renderer, input, gamepads, audio,
@@ -73,6 +73,18 @@ int PortHostReserve(uintptr_t addr, size_t size, const char **why);
  * map, which in a normal frame means a handful of calls, so a syscall is
  * affordable -- and mem.c memoises the last answer anyway. */
 int PortHostAddrValid(uintptr_t addr, size_t len);
+
+/* Print the *operating system's* view of this process's low address space,
+ * under --verbose.  Diagnostic only: nothing depends on it and a platform that
+ * has nothing to say may print one line saying so.
+ *
+ * It exists because PortNativeReportMap can only report what the port believes
+ * about itself, and the belief is exactly the thing in question.  A
+ * reservation that succeeded and landed somewhere else, or a module based
+ * inside the GBA window, is visible here and nowhere else.  On Linux that is
+ * /proc/<pid>/maps; on Windows there is no such file and the process has to
+ * walk itself with VirtualQuery. */
+void PortHostReportAddressSpace(void);
 
 /* --------------------------------------------------------------------------
  * Host file dialog

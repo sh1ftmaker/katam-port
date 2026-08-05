@@ -134,7 +134,8 @@ OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 TARGET := $(OUT)/katam.html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages \
-        native native-run native-test native-clean
+        native native-run native-test native-clean \
+        windows windows-package windows-clean
 
 all: $(TARGET)
 
@@ -315,6 +316,61 @@ native-test: native
 
 native-clean:
 	rm -rf $(NATIVE_DIR)
+
+# --- Windows ---------------------------------------------------------------
+# The same sources through cmake/toolchain-windows-i686.cmake, cross-compiled
+# with MinGW-w64 or built in MSYS2's mingw32 shell.  x86, not x64, for the same
+# reason the Linux build is -m32.
+#
+# KATAM_SDL2_MINGW points at the i686-w64-mingw32 subdirectory of SDL's own
+# MinGW development tarball from libsdl.org.  There is no system SDL on Windows
+# to find and no pkg-config to find it with, so this is not optional and there
+# is no sensible default to guess.  See docs/NATIVE.md.
+#
+#   make windows KATAM_SDL2_MINGW=~/SDL2-2.30.11/i686-w64-mingw32
+#   make windows-package KATAM_SDL2_MINGW=...
+WIN_DIR ?= $(BUILD)/win32
+WIN_BIN := $(WIN_DIR)/katam.exe
+WIN_PKG := $(WIN_DIR)/katam-port-windows-i686
+KATAM_SDL2_MINGW ?=
+
+windows:
+	@test -n "$(KATAM_SDL2_MINGW)" || { \
+	    echo "Set KATAM_SDL2_MINGW to the i686-w64-mingw32 directory of SDL's"; \
+	    echo "MinGW development tarball:"; \
+	    echo "    curl -LO https://github.com/libsdl-org/SDL/releases/download/release-2.30.11/SDL2-devel-2.30.11-mingw.tar.gz"; \
+	    echo "    tar xf SDL2-devel-2.30.11-mingw.tar.gz"; \
+	    echo "    make windows KATAM_SDL2_MINGW=\$$PWD/SDL2-2.30.11/i686-w64-mingw32"; \
+	    exit 1; }
+	@cmake -S . -B $(WIN_DIR) -DCMAKE_BUILD_TYPE=Release \
+	       -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+	       -DKATAM_SDL2_MINGW=$(KATAM_SDL2_MINGW) >/dev/null \
+	  || { echo; \
+	       echo "The Windows build is 32-bit MinGW -- see docs/NATIVE.md."; \
+	       echo "Debian/Ubuntu: sudo apt install gcc-mingw-w64-i686"; \
+	       echo "Without root, see \"Building without root\" in docs/NATIVE.md."; \
+	       exit 1; }
+	@cmake --build $(WIN_DIR) -j $(shell nproc 2>/dev/null || echo 4)
+	@echo "  WINDOWS $(WIN_BIN)"
+
+# The folder a player can actually run: the .exe, the SDL2.dll it linked
+# against, and a readme saying to bring their own ROM.  The find is the same
+# guard check-dist puts on the web publish directory, for the same reason: what
+# leaves this tree must carry no game data.
+windows-package: windows
+	@cmake --build $(WIN_DIR) --target package-windows >/dev/null
+	@bad=$$(find $(WIN_PKG) -type f \( -iname '*.gba' -o -iname '*.gb' \
+	         -o -iname '*.gbc' -o -iname '*.bin' -o -iname '*.sav' \
+	         -o -size +8M \)); \
+	if [ -n "$$bad" ]; then \
+	    echo "REFUSING TO PACKAGE -- $(WIN_PKG) contains game data:"; \
+	    echo "$$bad"; \
+	    exit 1; \
+	fi
+	@echo "  PACKAGE $(WIN_PKG)"
+
+windows-clean:
+	rm -rf $(WIN_DIR)
 
 # --- publishing -----------------------------------------------------------
 # Assembles the three build outputs into a directory that can be served as-is.

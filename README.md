@@ -31,7 +31,7 @@ any server of ours.
 | Keyboard input | yes |
 | Touch controls, built for phones | yes |
 | Saving between sessions | yes, in browser storage |
-| Native desktop build (SDL2) | yes, on Linux |
+| Native desktop build (SDL2) | yes, on Linux and Windows |
 
 Nothing the port reaches is missing a body any more. A full run — boot, title,
 file select, Start Game, a hundred seconds of gameplay — reports not one call
@@ -149,10 +149,36 @@ Two things are worth knowing before you build it elsewhere:
   read from the wrong offset. The build refuses to configure with 8-byte
   pointers rather than produce something that boots and is quietly wrong.
 - **macOS is blocked by that**, because it has had no 32-bit userland since
-  Catalina. Windows and 32-bit ARM are fine.
+  Catalina. 32-bit ARM needs nothing written.
 
 `make native-test ROM=...` boots it headless with a real ROM, drives it through
 the menus into a level, and checks that what came out is a picture.
+
+### Windows
+
+Same sources, `i686-w64-mingw32`, cross-compiled from Linux or built in MSYS2's
+mingw32 shell:
+
+```sh
+cmake -S . -B build/win32 -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-windows-i686.cmake \
+      -DKATAM_SDL2_MINGW=/path/to/SDL2-2.30.11/i686-w64-mingw32
+cmake --build build/win32 -j
+cmake --build build/win32 --target package-windows
+```
+
+x86, not x64, for the reason above; MSVC cannot compile the decompilation at all
+(it is GNU C) and the build says so. `package-windows` produces a folder holding
+`katam.exe`, `SDL2.dll` and a readme, which is what a player can actually run.
+
+It is console-subsystem on purpose — a `-mwindows` build has no `stdout`, and
+everything the port has to say, including why it could not start, goes there.
+
+**It has been built and run, but under Wine, on Linux — never on Windows.**
+`tools/native_smoke.sh` passes there with the Linux build's numbers, the GBA map
+lands at its true addresses under `VirtualQuery`, and the save file is
+byte-identical to the Linux one. [docs/NATIVE.md](docs/NATIVE.md) lists exactly
+what that does not cover.
 
 [docs/NATIVE.md](docs/NATIVE.md) is the full account: how the GBA memory map is
 reserved at its true addresses in a process, how that is verified rather than
