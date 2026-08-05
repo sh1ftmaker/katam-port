@@ -107,19 +107,64 @@ int PortHostReserve(uintptr_t addr, size_t size, const char **why)
     return 0;
 }
 
-/* msync() on an unmapped range fails with ENOMEM, on a mapped one it succeeds;
- * MS_ASYNC on private anonymous memory does no work at all.  That is the
- * cheapest "does this address exist" the kernel offers without parsing
- * /proc/self/maps, and unlike a heuristic it cannot be wrong. */
+/* Does every page of [addr, addr+len) exist?
+ *
+ * mincore() answers "which of these pages are resident", and the part that
+ * matters is its error: ENOMEM means the range contains something unmapped.
+ * That is the same ENOMEM msync(MS_ASYNC) gives, and msync was here first,
+ * because it needs no output buffer.
+ *
+ * msync turned out to be the wrong one to trust, and the difference is not
+ * academic.  Under qemu-user -- which is how the armhf build is tested on a
+ * desktop, and how anyone runs a foreign-architecture binary -- the emulator
+ * reserves the whole guest address space up front, so from the host kernel's
+ * side an unmapped guest page is still part of a PROT_NONE mapping.  msync has
+ * nothing to flush and returns success for every address in the four gigabytes:
+ *
+ *     0x3fcbc034   msync=ok   mincore=ENOMEM   /proc/self/maps: absent   read: SIGSEGV
+ *
+ * That address is not hypothetical; it is a source pointer the game's own DMA
+ * presents during level load, which every other host correctly refuses.  Taking
+ * msync's word for it turned a reported-and-skipped transfer into a segfault.
+ * On a real kernel -- checked here on x86-64 and i686 -- both calls agree, so
+ * mincore is not a workaround, it is the probe that answers the question that
+ * was being asked.  msync stays as the fallback for a platform without
+ * mincore().
+ *
+ * The vector is a fixed block and the range is walked in chunks, so a long
+ * transfer costs a few more syscalls rather than an allocation in the middle of
+ * a DMA.  mem.c memoises the answer; in a normal frame this runs a handful of
+ * times. */
 int PortHostAddrValid(uintptr_t addr, size_t len)
 {
+    unsigned char vec[512];
     size_t page = PortHostPageSize();
     uintptr_t lo = addr - (addr % page);
     uintptr_t hi = addr + len;
+    uintptr_t at;
 
     hi = hi + page - 1;
     hi -= hi % page;
+    if (hi <= lo)
+        return 0;                   /* the rounding wrapped: not an address */
 
-    errno = 0;
-    return msync((void *)lo, (size_t)(hi - lo), MS_ASYNC) == 0;
+    for (at = lo; at < hi; ) {
+        size_t want = (size_t)(hi - at);
+        size_t chunk = sizeof(vec) * page;
+
+        if (want > chunk)
+            want = chunk;
+
+        errno = 0;
+        if (mincore((void *)at, want, vec) != 0) {
+            if (errno == ENOMEM)
+                return 0;           /* something in there is not mapped */
+            /* mincore is unavailable or refused for a reason of its own.
+             * Fall back rather than guess. */
+            errno = 0;
+            return msync((void *)lo, (size_t)(hi - lo), MS_ASYNC) == 0;
+        }
+        at += want;
+    }
+    return 1;
 }

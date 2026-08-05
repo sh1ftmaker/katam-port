@@ -67,11 +67,23 @@ int PortHostReserve(uintptr_t addr, size_t size, const char **why);
  * wrong in the strict direction silently drops real transfers, which is the
  * bug that once hid every level tilemap in the game.
  *
- * A guess is not good enough: ask the kernel.  msync() and mincore() both
- * report ENOMEM for an unmapped range on Linux and macOS; VirtualQuery reports
- * MEM_FREE on Windows.  This is only reached for endpoints outside the GBA
- * map, which in a normal frame means a handful of calls, so a syscall is
- * affordable -- and mem.c memoises the last answer anyway. */
+ * A guess is not good enough: ask the kernel.  mincore() reports ENOMEM for an
+ * unmapped range on Linux and macOS; VirtualQuery reports MEM_FREE on Windows.
+ * msync() answers the same question on a real kernel and is the one to avoid:
+ * under qemu-user it returns success for every address in the guest, because
+ * the emulator has already reserved the whole address space.  This is only
+ * reached for endpoints outside the GBA map, which in a normal frame means a
+ * handful of calls, so a syscall is affordable -- and mem.c memoises the last
+ * answer anyway.
+ *
+ * Whatever probe you use, round the range with the system's *page* size and not
+ * with PortHostPageSize() above, on any platform where those differ.  Windows
+ * is that platform: 64 KiB allocation granularity, 4 KiB pages.  Rounding a
+ * stack address down by 64 KiB walks off the bottom of the stack's own mapping
+ * and the probe then rejects a pointer that was perfectly good -- measured here
+ * by forcing PortHostPageSize() to 65536 on Linux, which made the port refuse
+ * every DMA whose source was a local variable, including the one that fills
+ * VRAM. */
 int PortHostAddrValid(uintptr_t addr, size_t len);
 
 /* --------------------------------------------------------------------------
