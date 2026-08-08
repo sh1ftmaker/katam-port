@@ -40,6 +40,15 @@ EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
     await new Promise(function (resolve) { requestAnimationFrame(resolve); });
 });
 
+/* setTimeout(0), not requestAnimationFrame: a hidden tab throttles rAF to
+ * nothing, and a catch-up that happens to run in a background tab should not
+ * take a thousand times longer there.  The clamp on nested zero timeouts (~1
+ * ms after the first few) is why PortPresentFrame calls this rarely rather
+ * than every caught-up frame. */
+EM_ASYNC_JS(void, PortAwaitYield, (void), {
+    await new Promise(function (resolve) { setTimeout(resolve, 0); });
+});
+
 EM_JS(void, PortBlitFramebuffer, (const u32 *pixels, int w, int h), {
     if (Module.portPresent)
         Module.portPresent(pixels, w, h);

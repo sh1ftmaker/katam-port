@@ -64,6 +64,16 @@ int  PortRenderEnabled(void);
 void PortBlitFramebuffer(const u32 *pixels, int w, int h);
 void PortAwaitAnimationFrame(void);
 
+/* A yield that is not a vsync.  During rollback catch-up the frame loop must
+ * run as fast as the simulation allows -- that is the whole point of catch-up
+ * -- but it cannot be allowed to starve the host's event loop for seconds at
+ * a time: on the web nothing else on the page runs until the wasm suspends,
+ * and natively the window stops answering the compositor.  PortPresentFrame
+ * calls this once every 1024 caught-up frames instead of
+ * PortAwaitAnimationFrame.  On the web it is a zero-delay macrotask, which
+ * costs about a millisecond; natively it pumps the event queue and returns. */
+void PortAwaitYield(void);
+
 /* Returns once the player has supplied a ROM: the image is at GBA_ROM_BASE and
  * PortRomLoaded has been called.  Returns without doing either if the player
  * gave up, which main() reports and exits on. */

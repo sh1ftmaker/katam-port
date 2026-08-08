@@ -120,6 +120,19 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # compile flag catches the implicit-declaration route in; this catches a wrong
 # prototype written out in full, which the compiler cannot see across files.
 LDLINT := -Wl,--fatal-warnings
+
+# One export list for all four link recipes.  They had drifted into four
+# identical copies, and an export present in one build and missing in another
+# reports as "function is not defined" only on whichever build the bug report
+# came from.
+#
+# The _PortRb* family is the netplay surface (docs/NETPLAY.md §4): a JS
+# transport feeds PortRbSetLocalInput/PortRbConfirmInput and runs the join
+# flow.  _malloc and _free are part of that surface, not a convenience -- the
+# join/describe calls traffic in log blobs and out-param structs, and JS needs
+# heap it owns to put them in.
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbConfirmInput,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_malloc,_free
+
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
     -sASYNCIFY_STACK_SIZE=32768 \
@@ -127,7 +140,7 @@ LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
     -sALLOW_MEMORY_GROWTH=0 \
     -sSTACK_SIZE=1048576 \
-    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
+    -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,ccall,cwrap \
     -sENVIRONMENT=web \
     --shell-file web/shell.html
@@ -348,7 +361,7 @@ $(BUILD)/katam-node.js: $(OBJS)
 	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
+	    -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
@@ -367,7 +380,7 @@ $(BUILD)/katam-dbg.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
+	    -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@
@@ -385,7 +398,7 @@ $(BUILD)/katam-safe.js: $(OBJS)
 	    -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
 	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
 	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
-	    -sEXPORTED_FUNCTIONS=_main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport \
+	    -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
 	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam \
 	    -sINVOKE_RUN=1 $(OBJS) -o $@

@@ -866,10 +866,22 @@ void PortPresentFrame(void)
      * pacing: measured, 1800 frames went from 4.1 s to 72 s, which is the
      * harness falling back to a timer rather than the port going faster.
      *
-     * A caller that genuinely wants no output for a re-simulated frame should
-     * suppress it on its own side, where it knows what the host is. */
-    PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
-    PortAwaitAnimationFrame();
+     * Except during rollback catch-up.  A caught-up frame is being re-run to
+     * reach the present, and awaiting the host's vsync would make ten minutes
+     * of replayed history take ten minutes of wall clock -- the exact failure
+     * docs/NETPLAY.md §4 names.  So while PortRbCatchingUp() the frame loop
+     * neither blits nor waits, yielding a plain macrotask once every 1024
+     * frames so the host's event loop is never starved for more than a few
+     * milliseconds of simulation.  The host's own per-frame work (input
+     * polling, frame counting, MASH scripts) does not run for caught-up
+     * frames, which is correct: their input comes from the timeline. */
+    if (PortRbCatchingUp()) {
+        if ((sFrameCount & 0x3FF) == 0)
+            PortAwaitYield();
+    } else {
+        PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
+        PortAwaitAnimationFrame();
+    }
 
     UpdateKeyInput();
     sFrameCount++;

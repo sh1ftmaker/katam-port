@@ -841,6 +841,16 @@ static void PaceFrame(void)
     }
 }
 
+/* Catch-up's yield: keep the window responsive, do nothing else.  No
+ * PaceFrame -- catch-up exists to outrun the clock -- and no ReadInput, since
+ * a caught-up frame takes its input from the rollback timeline, not the
+ * keyboard.  PaceFrame's own more-than-four-frames-behind reset absorbs the
+ * schedule debt when normal pacing resumes. */
+void PortAwaitYield(void)
+{
+    HandleEvents();
+}
+
 void PortAwaitAnimationFrame(void)
 {
     HandleEvents();
