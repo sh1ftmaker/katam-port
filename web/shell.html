@@ -3405,11 +3405,11 @@ var Module = (function () {
 //                                 `t` provides open/close/poll/exchange; the
 //                                 shapes are below and in mp.c.
 //
-// This is deliberately not wired to any button. The game cannot reach its own
-// link lobby yet -- that needs the MultiBoot probe, which is not implemented
-// (docs/MULTIPLAYER.md says exactly what is missing) -- so a control here
-// would promise something the game does not yet do. The API is here so that
-// whoever writes the transport does not also have to change the port.
+// The network transport is web/mp_net.js, which speaks to a netplay/ relay
+// room and attaches through this API; tools/netplay_test.mjs drives two real
+// instances through the game's own lobby into a running session with it.
+// Not wired to any page control yet -- that UI is Milestone B's, when
+// sessions form in the page rather than in the game's lobby.
 //======================================================================
 (function () {
   'use strict';

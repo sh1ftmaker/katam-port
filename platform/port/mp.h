@@ -149,6 +149,11 @@ int  PortMpPending(void);   /* transport's buffered-transfer count, or 0 */
  * attached, which is the single-player build. */
 void PortMpFrame(void);
 
+/* PORT_MP_TRACE=1's export twin: log every changed exchange tuple.  The env
+ * form only works where getenv sees an environment, which excludes both the
+ * page and the node harness. */
+void PortMpSetTrace(int on);
+
 /* Refresh the SIOCNT status bits and run this frame's transfers. */
 void PortSioFrame(void);
 void PortSioStats(u32 *transfers, u32 *stalls);

@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/backend.h"   /* PortTransferRangeOk, for the copy guards */
 #include "gba/gba.h"
 #include "main.h"
 
@@ -77,6 +78,29 @@ u16 ArcTan2(s16 x, s16 y)
 
 /* --- block moves --------------------------------------------------------- */
 
+/* A copy whose endpoint is not real memory is reported and skipped, exactly
+ * as platform/dma.c treats a DMA with one.  On hardware such a read returns
+ * open bus and such a write lands nowhere; in wasm it is a trap, and the one
+ * place the game is known to do it -- sub_080324BC reads gWorldProps[7] from
+ * a seven-entry table on the last block of the world-properties transfer,
+ * before the bounds check that ends the transfer -- is harmless there and
+ * fatal here.  Found by two networked instances reaching that transfer, the
+ * first code path ever to run it in this port. */
+static int CpuRangeOk(const char *who, const void *src, void *dest, u32 bytes)
+{
+    static u32 sReported;
+
+    if (PortTransferRangeOk((uintptr_t)src, bytes)
+     && PortTransferRangeOk((uintptr_t)dest, bytes))
+        return 1;
+    if (sReported < 8) {
+        PortError("[katam-port] %s leaves the map: src=%p dest=%p bytes=%u%s",
+                  who, src, dest, (unsigned)bytes,
+                  ++sReported == 8 ? " (further reports suppressed)" : "");
+    }
+    return 0;
+}
+
 void CpuSet(const void *src, void *dest, u32 control)
 {
     u32 count = control & 0x1FFFFF;
@@ -85,6 +109,9 @@ void CpuSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
     PORT_WATCH("CpuSet", dest, count * ((control & CPU_SET_32BIT) ? 4 : 2), src);
+    if (!CpuRangeOk("CpuSet", src, dest,
+                    count * ((control & CPU_SET_32BIT) ? 4 : 2)))
+        return;
 
     /* Like DMA, the BIOS aligns to the transfer width rather than faulting. */
     if (control & CPU_SET_32BIT) {
@@ -112,6 +139,8 @@ void CpuFastSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * 4);
     PORT_WATCH("CpuFastSet", dest, count * 4, src);
+    if (!CpuRangeOk("CpuFastSet", src, dest, count * 4))
+        return;
 
     for (i = 0; i < count; i++)
         d[i] = fixed ? *s : s[i];

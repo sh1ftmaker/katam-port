@@ -114,6 +114,15 @@ static int RangeOk(uintptr_t addr, u32 len)
     return PortHostRangeOk(addr, len);
 }
 
+/* platform/bios.c asks the same question for the BIOS copy calls -- CpuSet
+ * with a wild source is the same event as a DMA with one, met in the same
+ * way.  A wrapper rather than un-static-ing RangeOk, so the map table stays
+ * this file's. */
+int PortTransferRangeOk(uintptr_t addr, u32 len)
+{
+    return RangeOk(addr, len);
+}
+
 static u32 sBadTransfers;
 /* Indexed by shape: bit 0 = source left the map, bit 1 = destination
  * did.  Index 0 is unused -- a transfer with neither is not bad. */

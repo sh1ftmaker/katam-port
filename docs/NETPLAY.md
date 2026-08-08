@@ -173,6 +173,60 @@ are in the research transcript; the load-bearing facts:
 7. **Never write your own slot** — the caller overwrites `recv[selfId]` with
    `send`, so a transport needs no knowledge of its own slot to be correct.
 
+## 3a. Milestone A: done, and what the wire taught
+
+**Two real instances now link through the game's own lobby and play a
+two-player session.**  `tools/netplay_test.mjs` runs two module instances in
+one node process against `netplay/dev-relay.mjs`, drives both through
+title → FILE 1 → START GAME → MULTIPLAYER, and passes on the game's own
+state: `gUnk_03002558` set with two human players on both sides, sustained,
+with the two framebuffers 97.7 % identical at sample time (the residue is
+the one-frame parent/child skew).  MultiBoot recognition, the counter
+handshake, `0xE4E4`, MultiSio validation (`0x8393`/`0x8303` steady), the
+world-properties transfer and the in-play sub-lobby all run end to end.
+`make netplay-test` runs it.
+
+Building it revised §3.  The contract as measured, not merely derived:
+
+1. **Lobby words are sampled registers, not queues.**  A transfer reads
+   whatever each unit's SIOMLT_SEND holds; a late peer is read *again*, not
+   waited for.  Stalling the parent instead leaves SIOCNT's busy bit set
+   across the frame, and the lobby's counter phase (`sub_0803040C`) treats
+   any of bits 2-7 beyond SD as a broken cable and restarts the handshake —
+   on hardware busy clears ~228 cycles after the arm, so a transport that
+   holds it for a round trip presents hardware that does not exist.  This
+   was the parent's probe→counter→probe regression loop, found by
+   `PortMpSetTrace`.
+2. **Play words are strict streams, but a missing word is noise, never a
+   stall and never a repeat.**  A repeat shifts MultiSio's packet framing
+   into the checksum; a stall couples the parent's *intra-frame* interrupt
+   chain to a network round trip and collapses it to a measured
+   one-transfer-per-frame equilibrium.  A missing word is served as 0x0000:
+   at worst one checksummed-away packet against eight frames of input
+   redundancy.  The lobby/play switch is readable from the IO mirror in the
+   module's own heap — serial-interrupt enable is set through the lobby and
+   cleared by the MultiSio parent.
+3. **The child is clock-gated and may catch up.**  Slot 0's stream is the
+   cable clock; the child stalls without it, and drains backlog at up to
+   32/frame through the transport's `pending()` hook.
+4. **Delivery must beat the frame loop.**  A scheduler that lets game
+   frames win the event-loop race against socket delivery starves the child
+   into 0-then-32-word frames, which starves MultiSio's 8-frame validation
+   windows, which put the sub-lobby state machine into a teardown loop that
+   clears its own send buffer.  Real browsers order it correctly for free
+   (16 ms frames, ~1 ms delivery); the harness had to stop using
+   `setImmediate` for rAF.
+5. **`sub_080324BC` reads `gWorldProps[7]` off the end of a seven-entry ROM
+   table** on the last block of the world-properties transfer, before the
+   bounds check — open bus on hardware, a wasm trap here, and unreachable
+   until two real instances got this far.  `CpuSet`/`CpuFastSet` now refuse
+   out-of-map endpoints the way DMA always has (`platform/bios.c`), which
+   retires the whole class.
+6. **The §6 menu script's timings only mean what they meant under the
+   harness's latch semantics** — the mash window's last value stays held.  A
+   naive release adds one extra A edge, and one extra press picks single
+   player.
+
 ## 4. The gaps that are actual work items on this branch
 
 Found by the code research; each is small, and together they are the real

@@ -94,6 +94,10 @@ void PortAwaitRom(void);
  * pointer gets through; guessing "no" is how a real transfer gets dropped, and
  * that is the bug that once hid every level tilemap. */
 int PortHostRangeOk(uintptr_t addr, u32 len);
+
+/* The full judgement -- console map first, then PortHostRangeOk -- exported
+ * by platform/dma.c for platform/bios.c's copy calls. */
+int PortTransferRangeOk(uintptr_t addr, u32 len);
 int PortDmaTracing(void);
 
 /* --- who issued this transfer? -------------------------------------------

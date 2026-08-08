@@ -133,6 +133,15 @@ static int MpTraceWanted(void)
     return sMpTrace;
 }
 
+/* The env knob's export.  The web builds are linked -sENVIRONMENT such that
+ * getenv never sees the host's environment, so without this the transcript
+ * that diagnosed the lobby (docs/MULTIPLAYER.md §12) could not be asked for
+ * from a page or from the node harness at all. */
+void PortMpSetTrace(int on)
+{
+    sMpTrace = on ? 1 : 0;
+}
+
 int PortMpExchange(u16 send, u16 recv[PORT_MP_PLAYERS])
 {
     int ok;
