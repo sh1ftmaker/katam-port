@@ -182,11 +182,35 @@ void PortSioFrame(void)
                 link.selfId == 0 ? "parent" : "child");
     }
 
-    for (slot = 0; slot < PORT_SIO_SLOTS; slot++) {
-        if (!Armed(&link))
-            break;
-        if (!RunTransfer(&link))
-            break;
+    /* A child that has fallen behind runs up to twice a frame's worth of
+     * transfers.  On hardware a child does as many transfers as the parent
+     * clocks, however long the child's own frame took; here the clock
+     * arrives as a buffered word stream from the transport, so a child whose
+     * host dropped a frame wakes up to more than sixteen queued words -- and
+     * if it can only consume sixteen a frame, the backlog it woke up with is
+     * permanent, a frame of added latency per hiccup for the rest of the
+     * session.  The driver is already built for the extra interrupts: the
+     * receive side is triple-buffered and packet-framed precisely because
+     * the frame and the transfer clock are not synchronised.
+     *
+     * Only on the transport's own say-so (PortMpPending, optional), so the
+     * loopback -- whose synthetic peer answers unconditionally and refills
+     * one packet per poll -- keeps its measured sixteen-a-frame exactly.
+     * Twice, not unbounded, so a runaway transport cannot pin the frame
+     * loop.  The parent needs none of it: its game arms every transfer, so
+     * it can never be clocked from outside. */
+    {
+        int cap = PORT_SIO_SLOTS;
+
+        if (link.selfId != 0 && PortMpPending() > PORT_SIO_SLOTS)
+            cap = 2 * PORT_SIO_SLOTS;
+
+        for (slot = 0; slot < cap; slot++) {
+            if (!Armed(&link))
+                break;
+            if (!RunTransfer(&link))
+                break;
+        }
     }
 }
 

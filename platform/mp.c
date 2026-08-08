@@ -165,6 +165,13 @@ int PortMpExchange(u16 send, u16 recv[PORT_MP_PLAYERS])
     return ok;
 }
 
+int PortMpPending(void)
+{
+    if (!sTransport || !sTransport->pending)
+        return 0;
+    return sTransport->pending(sTransport);
+}
+
 /* --- a JavaScript transport ----------------------------------------------
  *
  * Supplied by the host half: platform/web/mp_js.c binds Module.portMp, and

@@ -1,0 +1,18 @@
+{
+  // katam-port netplay relay.  Deploys as a normal Worker with a Durable
+  // Object binding -- `npx wrangler deploy` from this directory, into
+  // whatever Cloudflare account is logged in.  Nothing deploys from CI.
+  //
+  // The binding name GameRoom becomes the URL party segment kebab-cased:
+  //   wss://<worker>.<account>.workers.dev/parties/game-room/<room name>
+  //
+  // SQLite-backed class: free-plan eligible, and 2 MB storage values when
+  // Path B starts persisting the input log.
+  "name": "katam-netplay",
+  "main": "server.mjs",
+  "compatibility_date": "2026-08-01",
+  "durable_objects": {
+    "bindings": [{ "name": "GameRoom", "class_name": "GameRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+}

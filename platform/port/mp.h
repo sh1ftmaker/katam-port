@@ -96,6 +96,16 @@ struct PortMpTransport {
                      u16 recv[PORT_MP_PLAYERS]);
 
     void *user;
+
+    /* Optional, and NULL means "no opinion".  How many transfers the
+     * transport could answer right now without stalling.  platform/sio.c
+     * asks a *child* this to decide whether to run catch-up transfers past
+     * the usual sixteen -- a child is clocked by the parent's buffered word
+     * stream, so a backlog here is latency the frame loop can pay down.  A
+     * transport that never buffers (the loopback) leaves it NULL and nothing
+     * changes.  Last on purpose: every static initialiser without it gets
+     * NULL for free. */
+    int  (*pending)(struct PortMpTransport *t);
 };
 
 /* Attach a transport and open it.  Returns non-zero on success.  Attaching
@@ -131,6 +141,7 @@ int  PortMpLoopbackPeerBadChecksums(int peer);
  * file.  PortMpPoll polls at most once per frame however often it is called. */
 void PortMpPoll(struct PortMpLink *link);
 int  PortMpExchange(u16 send, u16 recv[PORT_MP_PLAYERS]);
+int  PortMpPending(void);   /* transport's buffered-transfer count, or 0 */
 
 /* --- the frame loop ------------------------------------------------------ */
 

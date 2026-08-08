@@ -53,6 +53,12 @@ EM_JS(int, PortMpJsExchange, (int send, u16 *recv), {
     return Module.portMp.exchange(send, recv) ? 1 : 0;
 });
 
+EM_JS(int, PortMpJsPending, (void), {
+    if (!Module.portMp || !Module.portMp.pending)
+        return 0;
+    return Module.portMp.pending() | 0;
+});
+
 static int JsOpen(struct PortMpTransport *t, int players)
 {
     (void)t;
@@ -81,8 +87,14 @@ static int JsExchange(struct PortMpTransport *t, u16 send,
     return PortMpJsExchange(send, recv);
 }
 
+static int JsPending(struct PortMpTransport *t)
+{
+    (void)t;
+    return PortMpJsPending();
+}
+
 static struct PortMpTransport sJsTransport = {
-    "javascript", JsOpen, JsClose, JsPoll, JsExchange, NULL,
+    "javascript", JsOpen, JsClose, JsPoll, JsExchange, NULL, JsPending,
 };
 
 struct PortMpTransport *PortMpJsTransport(void)

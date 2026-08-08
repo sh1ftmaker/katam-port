@@ -1,0 +1,18 @@
+{
+  "name": "katam-netplay",
+  "private": true,
+  "type": "module",
+  "description": "Relay room for katam-port link play: Cloudflare worker + local dev relay",
+  "scripts": {
+    "relay": "node dev-relay.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "partyserver": "^0.0.66",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
