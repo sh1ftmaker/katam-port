@@ -79,6 +79,8 @@ u32  PortRbSetLocalInput(u16 keys);  /* returns the frame recorded; see .c */
  * the ring, which is a desync the caller has to handle at a higher level;
  * PortRbStats reports how often it happened. */
 void PortRbConfirmInput(int player, u32 frame, u16 keys);
+void PortRbSealInput(int player, u32 frame, u16 keys);  /* overwrite wins  */
+int  PortRbShouldStall(void);   /* at the window edge of a seated peer     */
 
 /* What this player is holding on `frame`, prediction included.  For a
  * transport that wants to send more than one frame per packet, as the game's

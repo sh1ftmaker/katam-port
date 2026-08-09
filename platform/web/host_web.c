@@ -109,6 +109,15 @@ EM_JS(void, PortBlitFramebuffer, (const u32 *pixels, int w, int h), {
         Module.portPresent(pixels, w, h);
 });
 
+/* The stall-loop pump (port/backend.h).  The page wires portNetIdle to the
+ * netplay driver's receive-queue flush; a page without netplay never
+ * defines it and the loop just yields. */
+EM_JS(void, PortNetIdle, (void), {
+    if (Module.portNetIdle) {
+        try { Module.portNetIdle(); } catch (e) { /* never break the loop */ }
+    }
+});
+
 EM_ASYNC_JS(void, PortAwaitRom, (void), {
     await Module.portRomReady;
 });

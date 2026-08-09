@@ -15,8 +15,16 @@
 //   the host's whole session history in one catch-up, closes the live gap,
 //   asks for a seat, and takes over an AI Kirby in place.
 //
-// PASS: the joiner is seated in slot 1 on both instances' maps, and the
-// game's own desync quantity is bit-equal on both at the same frame.
+//   then the JOINER'S SOCKET DIES mid-play (act two).  The host must
+//   freeze at the rollback window -- never simulate past what the absent
+//   peer confirmed -- the driver must reconnect and resynchronise, and the
+//   two must be bit-equal again afterwards.  A reconnect is a pause, not a
+//   desync.
+//
+// PASS: the joiner is seated in slot 1 on both instances' maps, the
+// game's own desync quantity is bit-equal on both at the same frame, the
+// host stalled while the joiner was dark, and both are bit-equal again
+// after the recovery.
 
 import { createRequire } from 'module';
 import path from 'path';
@@ -54,10 +62,11 @@ function desyncQuantity(Module) {
 }
 
 let checkpointFrame = 0;            /* set once the joiner is seated         */
+let checkpoint2Frame = 0;           /* set after the blip recovery           */
 
 function makeInstance(name, keyScript) {
-    const inst = { name, logs: [], Module: null, session: null,
-                   checkpoint: null, seatedAt: 0 };
+    const inst = { name, logs: [], Module: null, session: null, driver: null,
+                   checkpoint: null, checkpoint2: null, seatedAt: 0 };
     const log = (t) => inst.logs.push(`[${name}] ${t}`);
 
     let resolveRom;
@@ -80,6 +89,8 @@ function makeInstance(name, keyScript) {
                 inst.seatedAt = game;
             if (checkpointFrame && game === checkpointFrame)
                 inst.checkpoint = desyncQuantity(Module);
+            if (checkpoint2Frame && game === checkpoint2Frame)
+                inst.checkpoint2 = desyncQuantity(Module);
         },
         onRuntimeInitialized() {
             Module.HEAPU8.set(rom, 0x08000000);
@@ -89,6 +100,8 @@ function makeInstance(name, keyScript) {
                 url: `ws://127.0.0.1:${relay.port}/boottest?id=${name}`,
                 log,
             });
+            Module.portNetIdle = () => driver.idle();
+            inst.driver = driver;
             inst.session = createWorld({
                 Module, driver, log,
                 onStatus: (t) => { console.log(`[${name}] ${t}`); },
@@ -111,7 +124,23 @@ const host = makeInstance('host',
 
 let joiner = null;
 let phase = 'host-boot';
+const blip = { hostAtCut: 0, cutAt: 0 };
 const started = Date.now();
+
+/* While the blip lasts, reconnect attempts land here: a socket that never
+ * opens and reports closed 50 ms later, so the driver's backoff runs but
+ * no data moves.  Swapped in for global.WebSocket for the dark window. */
+const RealWebSocket = global.WebSocket;
+function BlackholeSocket() {
+    const self = this;
+    self.readyState = 0;
+    setTimeout(() => {
+        self.readyState = 3;
+        if (self.onclose) self.onclose();
+    }, 50);
+}
+BlackholeSocket.prototype.close = function () {};
+BlackholeSocket.prototype.send = function () {};
 
 const watch = setInterval(() => {
     if (phase === 'host-boot' && host.session
@@ -135,7 +164,6 @@ const watch = setInterval(() => {
     }
 
     if (phase === 'checking' && host.checkpoint && joiner.checkpoint) {
-        clearInterval(watch);
         const eq = host.checkpoint === joiner.checkpoint;
         console.log(`[test] frame ${checkpointFrame}:`);
         console.log(`  host  =${host.checkpoint}`);
@@ -166,14 +194,63 @@ const watch = setInterval(() => {
         console.log(`[test] camera focus: host on Kirby ${focusH} ` +
                     `(viewport ${dispH}), joiner on Kirby ${focusJ} ` +
                     `(viewport ${dispJ})`);
-        if (eq && seatH === 1 && seatJ === 1 && focusH === 0 && focusJ === 1
-            && dispH === 0 && dispJ === 1) {
-            console.log('BOOT-TO-WORLD TEST PASSED: the joiner synchronised to the ' +
-                        "host's world and took over an existing Kirby");
+        if (!(eq && seatH === 1 && seatJ === 1 && focusH === 0 && focusJ === 1
+              && dispH === 0 && dispJ === 1)) {
+            clearInterval(watch);
+            console.error('BOOT-TO-WORLD TEST FAILED (act one)');
+            relay.close();
+            process.exit(1);
+        }
+        /* Act two: the blip.  Kill the joiner's socket without telling the
+         * driver (st.closed stays false, so it reconnects on its own).
+         * The host must freeze at the rollback window rather than predict
+         * its way into a silent desync, and after the reconnect + resync
+         * the two must agree bit for bit again. */
+        console.log("[test] act one good -- cutting the joiner's socket");
+        blip.hostAtCut = host.Module._PortFrameNumber();
+        blip.cutAt = Date.now();
+        global.WebSocket = BlackholeSocket;
+        joiner.driver.socket.close();
+        phase = 'blip-dark';
+    }
+
+    if (phase === 'blip-dark' && Date.now() - blip.cutAt > 2000) {
+        const advance = host.Module._PortFrameNumber() - blip.hostAtCut;
+        console.log(`[test] host advanced ${advance} frame(s) in 2 s of ` +
+                    'peer darkness (window is 16)');
+        global.WebSocket = RealWebSocket;
+        if (advance > 60) {
+            clearInterval(watch);
+            console.error('BOOT-TO-WORLD TEST FAILED: the host did not stall ' +
+                          'at the rollback window -- that is a silent desync');
+            relay.close();
+            process.exit(1);
+        }
+        phase = 'blip-recover';
+    }
+
+    if (phase === 'blip-recover'
+        && host.Module._PortFrameNumber() > blip.hostAtCut + 240) {
+        checkpoint2Frame = Math.max(host.Module._PortFrameNumber(),
+                                    joiner.Module._PortFrameNumber()) + 200;
+        console.log(`[test] recovered -- second checkpoint at ${checkpoint2Frame}`);
+        phase = 'blip-check';
+    }
+
+    if (phase === 'blip-check' && host.checkpoint2 && joiner.checkpoint2) {
+        clearInterval(watch);
+        const eq2 = host.checkpoint2 === joiner.checkpoint2;
+        console.log(`[test] frame ${checkpoint2Frame} (after the blip):`);
+        console.log(`  host  =${host.checkpoint2}`);
+        console.log(`  joiner=${joiner.checkpoint2} ${eq2 ? '(EQUAL)' : '(DESYNC)'}`);
+        if (eq2) {
+            console.log('BOOT-TO-WORLD TEST PASSED: the joiner synchronised, ' +
+                        'took over a Kirby, survived a socket loss, and ' +
+                        'agrees again');
             relay.close();
             process.exit(0);
         }
-        console.error('BOOT-TO-WORLD TEST FAILED');
+        console.error('BOOT-TO-WORLD TEST FAILED (post-blip desync)');
         relay.close();
         process.exit(1);
     }

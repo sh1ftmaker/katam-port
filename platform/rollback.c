@@ -283,6 +283,9 @@ static u32 sRingFrame[PORT_RB_MAX_FRAMES];
 static u8  sRingValid[PORT_RB_MAX_FRAMES];
 static u32 sFrame;             /* the frame about to run                      */
 static u32 sConfirmed;         /* every player's input known below this       */
+static u32 sPeerKnown[PORT_RB_PLAYERS];  /* per column: inputs known below
+                                          * this.  What the stall gate below
+                                          * measures prediction depth against */
 static int sCatchUp;
 static u32 sCatchUpTo;
 static struct PortRbStats sStats;
@@ -318,6 +321,16 @@ int PortRbInit(int depth, int players)
     sPlayers = players;
     sFrame = PortFrameNumber();
     sConfirmed = sFrame;
+    /* Nothing before a session's start ever crosses the wire; seeding the
+     * per-column marks at the start frame is what keeps the stall gate from
+     * waiting for a history that never existed.  A column's mark moves up
+     * when its inputs (or its seat event) arrive. */
+    {
+        int i;
+
+        for (i = 0; i < PORT_RB_PLAYERS; i++)
+            sPeerKnown[i] = sFrame;
+    }
     sCatchUp = 0;
     sNumEvents = 0;
     sActive = 1;
@@ -392,6 +405,8 @@ u32 PortRbSetLocalInput(u16 keys)
     sTl.known[i] = 1;
     if (sFrame >= sTl.len)
         sTl.len = sFrame + 1;
+    if (sFrame >= sPeerKnown[SelfId()])
+        sPeerKnown[SelfId()] = sFrame + 1;
     /* The frame this input was recorded for -- what the caller must stamp
      * on the wire.  Deriving it host-side from PortFrameNumber() is off by
      * the engine's own phase, and the resulting one-frame skew between "the
@@ -409,10 +424,15 @@ void PortRbConfirmInput(int player, u32 frame, u16 keys)
         return;
 
     keys &= PORT_RB_KEYS_MASK;
+    if (frame >= sPeerKnown[player])
+        sPeerKnown[player] = frame + 1;
 
     /* Older than the ring: the state it would correct is gone.  Nothing here
      * can fix that, so it is counted and dropped -- a caller watching
-     * lateDrops climb is watching its rollback window be too short. */
+     * lateDrops climb is watching its rollback window be too short.  The
+     * stall gate (PortRbShouldStall) exists so this stays a startup
+     * curiosity: a live session never simulates far enough ahead of a
+     * seated peer for their input to land here. */
     if (sFrame >= (u32)sDepth && frame + (u32)sDepth <= sFrame) {
         sStats.lateDrops++;
         return;
@@ -457,6 +477,83 @@ void PortRbConfirmInput(int player, u32 frame, u16 keys)
     sTl.known[i] = 1;
     if (frame >= sTl.len)
         sTl.len = frame + 1;
+}
+
+/* Close a departed peer's column by decree.
+ *
+ * When a peer vanishes mid-session, the survivors each hold a slightly
+ * different tail of that peer's stream -- whatever was in flight when the
+ * socket died.  If each survivor filled the gap from its own last-known
+ * value, their timelines would diverge exactly there.  So one survivor
+ * announces the fill (over the relay, echoed to everyone including
+ * itself), and this call applies it with authority: unlike ConfirmInput,
+ * a mismatch with something already known is overwritten -- and rolled
+ * back if it was already simulated -- because the announcement, not any
+ * local view, is the agreed truth. */
+void PortRbSealInput(int player, u32 frame, u16 keys)
+{
+    u32 i;
+
+    if (!sActive || player < 0 || player >= PORT_RB_PLAYERS)
+        return;
+    keys &= PORT_RB_KEYS_MASK;
+    if (frame >= sPeerKnown[player])
+        sPeerKnown[player] = frame + 1;
+    if (sFrame >= (u32)sDepth && frame + (u32)sDepth <= sFrame) {
+        sStats.lateDrops++;
+        return;
+    }
+    if (!TimelineReserve(frame))
+        return;
+
+    i = frame * PORT_RB_PLAYERS + (u32)player;
+    if (frame < sFrame) {
+        u16 was = sTl.keys[i];
+
+        sTl.keys[i] = keys;
+        sTl.known[i] = 1;
+        if (was != keys) {
+            if (!sRingValid[frame % (u32)sDepth]
+             || sRingFrame[frame % (u32)sDepth] != frame) {
+                sStats.lateDrops++;
+                return;
+            }
+            if (!sCatchUp || frame < sCatchUpTo) {
+                sCatchUpTo = frame;
+                sCatchUp = 2;
+            }
+        }
+        return;
+    }
+    sTl.keys[i] = keys;
+    sTl.known[i] = 1;
+    if (frame >= sTl.len)
+        sTl.len = frame + 1;
+}
+
+/* Never simulate beyond what a seated peer has confirmed plus the rollback
+ * window: past that edge a late input cannot be rolled back to, and the
+ * sessions drift apart silently and forever.  The frame loop consults this
+ * and waits -- a lag spike shows as a moment of freeze, which is the
+ * honest, recoverable presentation of the same event.  AI columns never
+ * gate (nothing confirms them), and neither does this instance's own. */
+int PortRbShouldStall(void)
+{
+    int s, self;
+
+    /* Only a live net-play session (PortRbNetPlay ran) gates: the
+     * self-tests and probes drive every column locally and would starve. */
+    if (!sActive || sCatchUp || sFocusSlot < 0)
+        return 0;
+    self = SelfId();
+    for (s = 0; s < PORT_RB_PLAYERS; s++) {
+        int p = sSlotPeer[s];
+
+        if (p >= 0 && p != self
+         && sFrame >= sPeerKnown[p] + (u32)sDepth - 2)
+            return 1;
+    }
+    return 0;
 }
 
 u16 PortRbInputAt(int player, u32 frame)
@@ -580,6 +677,11 @@ static void ApplyEventsFor(u32 frame)
                 if (old >= 0 && old != sEvents[i].a)
                     sSlotPeer[old] = -1;
                 sSlotPeer[sEvents[i].a] = (s8)sEvents[i].b;
+                /* Their inputs start at their seat, not at frame zero --
+                 * without this the stall gate would wait for a history the
+                 * peer never had. */
+                if (sPeerKnown[sEvents[i].b] < frame)
+                    sPeerKnown[sEvents[i].b] = frame;
             } else {
                 sSlotPeer[sEvents[i].a] = -1;
             }
@@ -941,6 +1043,13 @@ long PortRbDecodeLog(const u8 *src, u32 len)
     sTl.len = frames;
     sPlayers = players;
     sConfirmed = frames;
+    {
+        int i;
+
+        for (i = 0; i < PORT_RB_PLAYERS; i++)
+            if (sPeerKnown[i] < frames)
+                sPeerKnown[i] = frames;
+    }
     return (long)frames;
 }
 

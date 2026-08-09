@@ -851,6 +851,12 @@ void PortAwaitYield(void)
     HandleEvents();
 }
 
+/* Nothing to pump natively: the loopback transport has no receive queue
+ * outside the engine. */
+void PortNetIdle(void)
+{
+}
+
 void PortAwaitAnimationFrame(void)
 {
     HandleEvents();

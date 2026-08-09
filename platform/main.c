@@ -894,6 +894,31 @@ void PortPresentFrame(void)
     } else {
         PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
         PortAwaitAnimationFrame();
+
+        /* The stall gate: never simulate past the rollback window of a
+         * seated peer (platform/rollback.c, PortRbShouldStall).  Waiting
+         * happens here, after the present, so the last simulated frame is
+         * on screen while it lasts.  The pump matters: incoming inputs
+         * normally reach the engine from the present hook of the *next*
+         * frame, which is exactly what is not running -- PortNetIdle asks
+         * the page to flush its receive queues, and is what ends the stall.
+         * The cap is a last resort against a peer that never returns and a
+         * relay that never says so: past it the session is allowed to
+         * diverge rather than freeze forever, and says which it chose. */
+        if (PortRbShouldStall()) {
+            long spins = 0;
+
+            while (PortRbShouldStall()) {
+                PortNetIdle();
+                PortAwaitYield();
+                if (++spins > 8000) {
+                    PortLog("[katam-port] rollback: stalled 30+ seconds "
+                            "waiting for a peer -- giving up on them; expect "
+                            "desync if they return");
+                    break;
+                }
+            }
+        }
     }
 
     UpdateKeyInput();

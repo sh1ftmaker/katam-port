@@ -80,6 +80,14 @@ export class GameRoom extends Server {
                        && typeof m.peer === 'number') {
                 const a = { type: 'assign', frame: m.frame,
                             slot: m.slot, peer: m.peer };
+                /* The seal (a departed peer's stream-ending decree) rides
+                 * along, stored and relayed verbatim: late joiners need it
+                 * as much as the survivors do. */
+                if (m.seal && typeof m.seal.player === 'number'
+                    && typeof m.seal.from === 'number'
+                    && typeof m.seal.keys === 'number')
+                    a.seal = { player: m.seal.player, from: m.seal.from,
+                               keys: m.seal.keys };
                 this.assigns.push(a);
                 this.broadcast(JSON.stringify(a));           /* sender too */
             }

@@ -105,6 +105,7 @@ function makeInstance(name, opts) {
         portAudioRate: 0,
         print: log,
         printErr: log,
+        portNetIdle() { if (inst.driver) inst.driver.idle(); },
         portPresent() {
             if (inst.dead)
                 return;

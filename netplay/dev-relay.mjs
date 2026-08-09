@@ -85,6 +85,12 @@ export function startRelay(port = 8787, opts = {}) {
                            && typeof m.peer === 'number') {
                     const a = { type: 'assign', frame: m.frame,
                                 slot: m.slot, peer: m.peer };
+                    /* Seals ride along verbatim -- see server.mjs. */
+                    if (m.seal && typeof m.seal.player === 'number'
+                        && typeof m.seal.from === 'number'
+                        && typeof m.seal.keys === 'number')
+                        a.seal = { player: m.seal.player, from: m.seal.from,
+                                   keys: m.seal.keys };
                     r.assigns.push(a);
                     log(`[relay] assign: slot ${a.slot} -> ` +
                         `${a.peer < 0 ? 'AI' : 'peer ' + a.peer} at frame ${a.frame}`);

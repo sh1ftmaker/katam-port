@@ -363,6 +363,27 @@ modes a localhost relay never shows, and each got a rule (`web/mp_net.js`,
   is dropped forward to PRIME and resynced: a moment of noise instead of
   permanent lag.  The cap sits above the child's catch-up burst (32/frame),
   which a healthy session hits routinely; 64 was tried and shredded them.
+- **Path B never simulates past the rollback window of a seated peer.**
+  A late input beyond the window cannot be rolled back to
+  (`PortRbConfirmInput`'s lateDrops path), and the sessions drift apart
+  silently and forever -- which is exactly what a lag spike or socket loss
+  used to do.  `PortRbShouldStall` gates the frame loop instead: lag shows
+  as a freeze at the window edge (measured: 12 frames of advance in 2 s of
+  total peer darkness), and the stall loop pumps the receive queues via
+  `Module.portNetIdle`, because the per-frame pump is exactly what is not
+  running during a stall.
+- **A Path B reconnect is a pause, not a desync.**  The driver reconnects
+  with the same per-tab id, re-sends the inputs it simulated that the room
+  never heard (bounded to a window's worth by the stall), and reconfirms
+  the whole session from the room's stored history, which fills whatever
+  the peers did meanwhile.  A departed peer's seat goes to the AI only
+  after a 5 s grace; the seat-change announcement carries a **seal** --
+  the announcer's decree of what the dead stream held from its last-heard
+  frame to the seat change, applied by every survivor with overwrite
+  authority (`PortRbSealInput`) -- because each survivor holds a slightly
+  different tail of the dead stream, and filling the gap from local
+  knowledge would diverge exactly there.  Seals are stored with the
+  assigns, so late joiners replay them too.
 - **A hidden tab keeps playing.**  Browsers stop rAF dead in a hidden tab,
   which used to stop the game dead -- fine alone, fatal in netplay: cover
   one of two windows and the visible one drowns in phantoms.  A hidden tab

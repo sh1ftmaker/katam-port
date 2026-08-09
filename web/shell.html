@@ -3576,6 +3576,10 @@ var Module = (function () {
      * awaits this promise before its first frame, and rb_boot needs the
      * engine initialised at frame zero on every instance. */
     var driver = null, session = null;
+    /* While the engine stalls at the rollback window (a peer is lagging or
+     * reconnecting), the frame loop is not running -- this is how arriving
+     * inputs still reach the engine and end the stall. */
+    Module.portNetIdle = function () { if (driver) driver.idle(); };
     Module.portRomReady = Module.portRomReady.then(function () {
       driver = createKatamRbSession({ Module: Module, url: wurl, log: say });
       session = createKatamWorldSession({

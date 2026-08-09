@@ -74,6 +74,13 @@ void PortAwaitAnimationFrame(void);
  * costs about a millisecond; natively it pumps the event queue and returns. */
 void PortAwaitYield(void);
 
+/* Pump the network while the frame loop is stalled waiting for a peer --
+ * incoming inputs normally reach the rollback engine from the per-frame
+ * present hook, which is exactly what is not running during a stall.  The
+ * web host forwards to Module.portNetIdle when the page defines it; native
+ * has nothing to pump. */
+void PortNetIdle(void);
+
 /* Returns once the player has supplied a ROM: the image is at GBA_ROM_BASE and
  * PortRomLoaded has been called.  Returns without doing either if the player
  * gave up, which main() reports and exits on. */
