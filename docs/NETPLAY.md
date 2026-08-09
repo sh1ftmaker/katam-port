@@ -384,6 +384,24 @@ modes a localhost relay never shows, and each got a rule (`web/mp_net.js`,
   different tail of the dead stream, and filling the gap from local
   knowledge would diverge exactly there.  Seals are stored with the
   assigns, so late joiners replay them too.
+- **Path A cannot pause the timestep, and it was measured twice.**  The
+  console-online lockstep (NSO) hides lag by freezing emulation until the
+  remote data arrives -- but it can do that because it emulates every
+  console locally and syncs *controller inputs*, which is this project's
+  Path B, not a wire relay.  Path A relays the serial bus itself, and the
+  bus has intra-frame causality that refuses to be held: (1) blocking a
+  dry transfer word-for-word collapses the pipeline into a
+  word-per-event-turn trickle -- a child only *replies* to clock words,
+  so a waiting parent can never bank more than one -- measured as the
+  child starved at a fifth of the parent's transfer rate; (2) gating at
+  the frame boundary (start the 16-burst only once the banked replies
+  cover it) keeps the parent at sixteen a frame but perturbs the
+  delivery-vs-frame-loop ordering the pipeline depends on -- measured as
+  persistent MultiSio send/recv errors from establishment onward and
+  session death within ~70 frames.  Both experiments reverted; the
+  phantom-word rule plus the jitter buffer above is the working
+  configuration, and "lag without communication errors" is what Path B
+  is for.
 - **A hidden tab keeps playing.**  Browsers stop rAF dead in a hidden tab,
   which used to stop the game dead -- fine alone, fatal in netplay: cover
   one of two windows and the visible one drowns in phantoms.  A hidden tab
