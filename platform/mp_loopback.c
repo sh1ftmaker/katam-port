@@ -91,6 +91,20 @@ static int sOpen;
  * unchanged -- they ride inside the blocks. */
 #define HOLD_LAG 6              /* inside the input ring's eight frames    */
 
+/* The game's in-play exchange state (gUnk_020382D0): unk4 bit 0 = the
+ * input exchange is on; unk6 = the message epoch.  Door transitions and
+ * subgames restart the exchange (sub_08031C70 resets the rings and bumps
+ * the epoch; sub_08030D4C realigns them 8 frames later and TEARS THE
+ * SESSION DOWN on failure, no retry).  On hardware the handshake's final
+ * countdown makes every console reset within a frame and no packet ever
+ * repeats; on this cable the peer's pre-reset block would keep speaking --
+ * old-epoch stamps scribbling the freshly reset rings -- and the peer's
+ * fresh-epoch stream is a round trip away.  So: never speak a 0x20 block
+ * from another epoch, and hold the timestep while a live peer is still in
+ * one, so the 8-frame countdown cannot burn while their catch-up is in
+ * flight. */
+#define INPLAY ((volatile u8 *)0x020382D0)
+
 static int sPayloadMode;
 static u32 sLocalFrame;         /* frames since payload mode began         */
 static struct {
@@ -99,6 +113,20 @@ static struct {
     u32 fedAt;                  /* sLocalFrame at receipt, for freshness   */
     u8  block[MULTI_SIO_BLOCK_SIZE];
 } sFeeds[PORT_MP_PLAYERS];
+
+/* A fed 0x20 input block whose epoch byte is not the local game's current
+ * one.  Only meaningful while the local exchange is on; handshake (pat2)
+ * blocks carry their own round ids and are never gated here. */
+static int EpochStale(int id)
+{
+    u16 flags = (u16)(INPLAY[4] | (INPLAY[5] << 8));
+
+    if (!(flags & 1) || !sFeeds[id].everFed)
+        return 0;
+    if (sFeeds[id].block[0] != 0x20)
+        return 0;
+    return sFeeds[id].block[1] != INPLAY[6];
+}
 
 /* --- the peer's send side ------------------------------------------------- */
 
@@ -129,8 +157,9 @@ static void BuildPacket(struct LoopPeer *p, int id)
          * before the peer's stream reaches us -- speaks zeros: a message
          * type of 0 is filler the game ignores, where the self-test
          * pattern below reads as garbage mid-negotiation (measured: the
-         * post-lobby sub-lobby cleanly gave up on the session over it). */
-        if (sFeeds[id].everFed)
+         * post-lobby sub-lobby cleanly gave up on the session over it).
+         * A block from another epoch (see EpochStale) speaks zeros too. */
+        if (sFeeds[id].everFed && !EpochStale(id))
             memcpy(bytes + 4, sFeeds[id].block, MULTI_SIO_BLOCK_SIZE);
         /* else: the memset above already zeroed the block */
     } else {
@@ -380,6 +409,12 @@ int PortMpPayloadHold(void)
         if (i == sSelfId || !sPeers[i].present || !sFeeds[i].everFed)
             continue;
         if (sLocalFrame - sFeeds[i].fedAt > HOLD_LAG)
+            return 1;
+        /* An epoch restart (door, subgame) is in flight: the peer's
+         * fresh-epoch stream is a round trip away, and the 8-frame
+         * realignment countdown (sub_08030D4C, teardown on failure) must
+         * not burn while it travels. */
+        if (EpochStale(i))
             return 1;
     }
     return 0;
