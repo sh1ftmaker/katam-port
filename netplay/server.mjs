@@ -118,6 +118,16 @@ export class GameRoom extends Server {
             this.core.leave(conn.id);
             this.broadcast(peerMsg(s.slot, false));
         }
+        /* An emptied room's session is over -- dev-relay deletes the whole
+         * room here.  Without this, the history outlives its players (until
+         * the DO happens to be evicted), and the next group to reuse the
+         * room name replays a ghost session and finds no host among
+         * themselves. */
+        if (this.core.occupied() === 0) {
+            this.inputs = [];
+            this.assigns = [];
+            this.latest = 0;
+        }
     }
 }
 

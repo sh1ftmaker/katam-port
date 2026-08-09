@@ -68,6 +68,13 @@ function makeInstance(name, keyScript) {
         printErr: (t) => inst.logs.push(t),
         portPresent() {
             const game = Module._PortFrameNumber();
+            /* The page's input path, exactly: physical buttons in through
+             * PortSetKeys, sampled back out by rb_boot's default getKeys
+             * (PortCurrentKeys).  Overriding getKeys with the script here
+             * would skip the one seam where the rollback engine's timeline
+             * keys can clobber the player's -- which it did, in every
+             * browser, while this test kept passing. */
+            Module._PortSetKeys(keyScript(game));
             inst.session.tick();
             if (inst.session.state.phase === 'playing' && !inst.seatedAt)
                 inst.seatedAt = game;
@@ -85,7 +92,6 @@ function makeInstance(name, keyScript) {
             inst.session = createWorld({
                 Module, driver, log,
                 onStatus: (t) => { console.log(`[${name}] ${t}`); },
-                getKeys: () => keyScript(Module._PortFrameNumber()),
             });
             /* The page holds the game at frame 0 by chaining portRomReady;
              * here begin() runs before the ROM promise resolves, which is

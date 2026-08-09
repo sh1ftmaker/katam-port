@@ -65,6 +65,11 @@ extern "C" {
 
 u32 gPortRomSize;
 static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
+static u16 sHostKeys;          /* the physical buttons, and only those:
+                                * sKeysDown is game-visible state that the
+                                * rollback timeline overwrites every frame,
+                                * so anything that wants to know what the
+                                * *player* is holding must read this one */
 static int sRomReady;
 static u32 sFrameCount;
 
@@ -264,7 +269,8 @@ void PortRomLoaded(u32 size)
 
 void PortSetKeys(u16 downMask)
 {
-    sKeysDown = downMask & 0x03FF;
+    sHostKeys = downMask & 0x03FF;
+    sKeysDown = sHostKeys;
 }
 
 /* The one place the host's buttons become the game's buttons.
@@ -505,7 +511,14 @@ void PortRbApplyKeys(u16 keys)
 
 u16 PortCurrentKeys(void)
 {
-    return sKeysDown;
+    /* sHostKeys, not sKeysDown.  Under netplay the engine applies each
+     * frame's timeline keys through PortRbApplyKeys/PortRbKeyOverride --
+     * into sKeysDown -- before the page ever samples this.  Reading
+     * sKeysDown here fed the timeline back to itself: the local column is
+     * empty until this function reports the player's buttons, so every
+     * instance reported zero, recorded zero, and nobody could move a
+     * Kirby that was standing right there on the screen. */
+    return sHostKeys;
 }
 
 /* The call-stack instrument described in port/backend.h.  Window first, so
