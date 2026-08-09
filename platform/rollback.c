@@ -254,6 +254,7 @@ static int sNumEvents;
 #define GAME_PRESSED(slot)  (*(vu16 *)(0x020382D0 + 8 +  8 + 2 * (slot)))
 #define GAME_RELEASED(slot) (*(vu16 *)(0x020382D0 + 8 + 16 + 2 * (slot)))
 #define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
+#define GAME_MODE_FLAGS     (*(vu32 *)0x0203AD10)
 
 /* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
  * changed only by an event, so a replay reproduces it. */
@@ -510,6 +511,9 @@ int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a, u8 b)
                 (unsigned)frame, a,
                 b == PORT_RB_SLOT_AI ? "-> AI" : "-> peer ",
                 b == PORT_RB_SLOT_AI ? 0 : b);
+    else if (type == PORT_RB_EV_NETPLAY)
+        PortLog("[katam-port] rollback: frame %u -- network input on",
+                (unsigned)frame);
     else
         PortLog("[katam-port] rollback: frame %u -- Kirbys in play -> %u",
                 (unsigned)frame, a);
@@ -567,6 +571,9 @@ static void ApplyEventsFor(u32 frame)
             } else {
                 sSlotPeer[sEvents[i].a] = -1;
             }
+            break;
+        case PORT_RB_EV_NETPLAY:
+            GAME_MODE_FLAGS |= 2;
             break;
         default:
             break;

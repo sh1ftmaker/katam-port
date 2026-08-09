@@ -46,8 +46,10 @@
             active: false,          /* engine initialised and driving        */
             seated: false,
             latest: 0,              /* highest frame the room reported       */
+            newest: 0,              /* highest input frame heard live        */
             sent: 0, confirmed: 0, assigns: 0,
         };
+        var joinedResolvers = [];
 
         var rxInputs = [];          /* tagged records awaiting confirm       */
         var rxAssigns = [];
@@ -69,6 +71,8 @@
                     for (var i = 0; i < 4; i++)
                         st.online[i] = !!(m.online && m.online[i]);
                     log('[rb-net] joined room as peer ' + m.slot);
+                    while (joinedResolvers.length)
+                        joinedResolvers.shift()(m.slot);
                 } else if (m.type === 'peer') {
                     st.online[m.slot] = m.online;
                     log('[rb-net] peer ' + m.slot + (m.online ? ' online' : ' offline'));
@@ -88,9 +92,12 @@
             var b = new Uint8Array(e.data);
             if (b.length === 8 && b[0] === MSG_INPUT) {
                 var dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
-                rxInputs.push({ slot: dv.getUint8(1),
-                                frame: dv.getUint32(2, true),
-                                keys: dv.getUint16(6, true) });
+                var rec = { slot: dv.getUint8(1),
+                            frame: dv.getUint32(2, true),
+                            keys: dv.getUint16(6, true) };
+                rxInputs.push(rec);
+                if (rec.frame > st.newest)
+                    st.newest = rec.frame;
             } else if (b[0] === MSG_LOG && historyWait) {
                 var dv2 = new DataView(b.buffer, b.byteOffset, b.byteLength);
                 var count = dv2.getUint16(1, true);
@@ -150,6 +157,36 @@
         return {
             state: st,
             socket: sock,
+
+            /* Resolves with this instance's room slot (its peer id). */
+            whenJoined: function () {
+                return new Promise(function (res) {
+                    if (st.slot >= 0) res(st.slot);
+                    else joinedResolvers.push(res);
+                });
+            },
+
+            /* The room's stored history, engine untouched -- the raw
+             * material for web/rb_boot.js, which owns the orchestration.
+             * Stored assigns arrive as ordinary control messages and land in
+             * the assign queue; frame() schedules them once the engine is
+             * active. */
+            fetchHistory: function () {
+                return new Promise(function (resolve) {
+                    var ask = function () {
+                        sock.send(JSON.stringify({ type: 'history' }));
+                    };
+                    historyRecords = [];
+                    historyWait = { resolve: resolve };
+                    if (sock.readyState === 1)
+                        ask();
+                    else
+                        sock.addEventListener('open', ask, { once: true });
+                });
+            },
+
+            /* The engine was initialised by the caller; start pumping. */
+            activate: function () { st.active = true; },
 
             /* Founders, at the agreed activation frame.  `players` seats
              * 0..players-1 are taken by peers 0..players-1 (PortRbInit's

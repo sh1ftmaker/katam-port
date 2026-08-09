@@ -100,6 +100,14 @@ enum PortRbEventType {
     PORT_RB_EV_NONE = 0,
     PORT_RB_EV_PLAYERS,     /* a: Kirbys in play, 1..4                       */
     PORT_RB_EV_SLOT,        /* a: slot 0..3,  b: peer, or PORT_RB_SLOT_AI    */
+    PORT_RB_EV_NETPLAY,     /* turn the game's network-input branch on --
+                             * gUnk_0203AD10 |= 2.  An event rather than a
+                             * call because the flag reaches the simulation
+                             * (it moves the AI slots from a live unk9E read
+                             * to the frame-start sample), so every instance
+                             * and every replayer must flip it at the same
+                             * frame.  A session bakes it at its activation
+                             * frame; nothing ever turns it back off.        */
 };
 
 #define PORT_RB_SLOT_AI 0xFF

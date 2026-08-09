@@ -3483,6 +3483,7 @@ var Module = (function () {
      window; both are inert until something calls them. -->
 <script src="mp_net.js"></script>
 <script src="rb_net.js"></script>
+<script src="rb_boot.js"></script>
 <script>
 //======================================================================
 // Netplay hookup, by URL.
@@ -3503,18 +3504,68 @@ var Module = (function () {
 // relay.  For two machines, point &relay= at a deployed netplay worker
 // (wss://...workers.dev/parties/game-room).
 //
-// Path B -- drop-in/drop-out over the rollback timeline -- is proven
-// headless (tools/netplay_rb_test.mjs) but has no page UI yet: it needs
-// every participant to reach the same state at the same frame, which
-// for humans means an automated boot this page does not do yet.
-// rb_net.js is loaded for console experiments: createKatamRbSession.
+// Path B -- seamless drop-in/drop-out:
+//
+//   ?relay=<ws url>&world=<name>
+//
+// is a *world session* over the rollback timeline (web/rb_boot.js).  The
+// page holds the game at frame zero, fetches the room's history, and the
+// engine replays the baked boot script -- and, for a joiner, the host's
+// entire session -- with the picture off at ~80x.  First into the room
+// hosts; everyone after synchronises into the host's present and takes
+// over one of the AI Kirbys in place.  Your save is untouched: world
+// sessions run on blank, unpersisted save memory, because the shared
+// timeline starts from power-on and must be the same for every player.
 //======================================================================
 (function () {
   'use strict';
   var q = new URLSearchParams(location.search);
   var relay = q.get('relay');
-  window.katamNetplay = { net: null };
+  window.katamNetplay = { net: null, world: null };
   if (!relay) return;
+
+  var world = q.get('world');
+  var say = function (t) {
+    console.log(t);
+    if (Module.portDiag) { try { Module.portDiag(t, 0); } catch (e) {} }
+  };
+
+  if (world) {
+    var wid = q.get('id') || localStorage.katamNetId
+        || (localStorage.katamNetId =
+            'p' + Math.random().toString(36).slice(2, 10));
+    var wurl = relay.replace(/\/+$/, '') + '/' + encodeURIComponent(world)
+        + '?id=' + encodeURIComponent(wid) + '&_pk=' + encodeURIComponent(wid);
+
+    /* Blank, unpersisted save memory: the boot script assumes an empty
+     * FILE 1, and a session must never write over the player's own save.
+     * Both hooks exist by now -- this block runs after the save plumbing
+     * defines them. */
+    Module.portSramRestore = function () { return 0; };
+    Module.portSramDirty = function () {};
+
+    /* Hold the game at frame zero until the session is primed: the C side
+     * awaits this promise before its first frame, and rb_boot needs the
+     * engine initialised at frame zero on every instance. */
+    var driver = null, session = null;
+    Module.portRomReady = Module.portRomReady.then(function () {
+      driver = createKatamRbSession({ Module: Module, url: wurl, log: say });
+      session = createKatamWorldSession({
+        Module: Module, driver: driver, log: say, onStatus: say,
+      });
+      window.katamNetplay.world = session;
+      say('[netplay] world session "' + world + '" -- syncing');
+      return session.begin();
+    });
+
+    /* One tick per presented frame, after the blit. */
+    var present = Module.portPresent;
+    Module.portPresent = function (ptr, w, h) {
+      if (present) present(ptr, w, h);
+      if (session) session.tick();
+    };
+    return;
+  }
 
   var room = q.get('room') || 'kirby';
   var players = parseInt(q.get('players') || '2', 10);

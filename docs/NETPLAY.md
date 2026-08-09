@@ -274,6 +274,55 @@ freshness) lags while a seat is AI-driven, because confirmation waits on
 every player column including unseated ones.  Harmless today; tighten when
 the RLE log replaces raw history on the wire.
 
+## 3c. Boot-to-world: the page plays Path B
+
+**`?relay=<ws url>&world=<name>` on the published page is a live world
+session.**  `web/rb_boot.js` owns the choreography; `make netplay-boot-test`
+drives it headless exactly as the page does, and passes on bit-equality.
+
+The insight that makes it seamless: *the boot is inputs too*.  The session's
+timeline starts at power-on -- frames 0..2200 of the timeline are a baked
+menu script (the same proven one, title → FILE 1 → ONE PLAYER), and the
+engine's existing catch-up replays it with the picture off at ~80x.  So the
+host boots to the world in under a second of wall clock, and a joiner
+replays the boot *plus the host's entire session history* in one continuous
+catch-up, then closes the live gap in two or three shrinking rounds, and
+lands bit-exact in the host's present -- however long the session has run.
+Snapshots never cross the wire (they hold wasm table indices); the host's
+world state travels as the inputs that produced it.
+
+Joining is inhabiting: the world is created single-player -- one human and
+three real AI Kirbys -- and a joiner's seat request takes over the lowest
+AI-driven Kirby *in place*: position, ability, everything; the AI just
+stops steering it.  Leaving hands it back.
+
+The discipline, all of it load-bearing and enforced by the page:
+
+- **Save memory is blank and unpersisted** in world mode: the boot script
+  assumes an empty FILE 1, and a session must never eat the player's real
+  save.  The page overrides the SRAM hooks before the game touches them.
+- **The engine initialises at frame zero on every instance** -- the page
+  chains `portRomReady` so the game is held at the starting line while the
+  room history is fetched, then primed and released.
+- **Everything sim-relevant flips at the same timeline frame via events**:
+  `EV_PLAYERS` holds the player count at 1 through the boot (so the world
+  spawns AI Kirbys at all -- a count of 4 at world-creation spawns four
+  humans and no AI, measured as statues) and raises it to 4 at F0;
+  `EV_NETPLAY` (new) turns the game's network-input branch on at F0,
+  because the flag moves AI slots from a live `unk9E` read to the
+  frame-start sample and must not flip at different frames on different
+  instances.
+- **`gUnk_0203AD3C` stays 0 until this instance is actually seated** --
+  sim-neutral in the world, unproven in the menus, so nobody's boot runs
+  with a nonzero one.
+
+Audio during the fast-forward self-limits: the worklet ring drops incoming
+blocks when full, so a boot costs at most one ring of stale samples.
+
+The constants (script, F0=2200, depth) are session-defining: change any and
+running sessions split into incompatible worlds.  Version the room name when
+that starts to matter.
+
 ## 4. The gaps that are actual work items on this branch
 
 Found by the code research; each is small, and together they are the real
