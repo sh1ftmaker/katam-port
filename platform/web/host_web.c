@@ -113,9 +113,17 @@ EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
         st.cpuMax = now - st.lastExit;
     st.sims++;
 
-    /* The catch-up path: already past the deadline, not by a stall's worth,
-     * and the last two frames were not themselves catch-ups. */
-    if (due > 0 && st.skips < 3 && now >= due - 2 && now <= due + 8 * PERIOD) {
+    /* The catch-up path: a full frame of real debt, not a stall's worth,
+     * and the last two frames were not themselves catch-ups.  The threshold
+     * matters: at `due - 2` this fired during ordinary vsync pacing
+     * whenever a frame's own work ran long enough, and at a 59.94 Hz-family
+     * refresh that meant a burst of skip/double oscillation each time the
+     * GBA clock's phase drifted across a vsync boundary -- the painted rate
+     * halved for a second or two every beat period (~5 s) while the game's
+     * speed stayed perfect, so nothing logged.  A throttled browser
+     * accumulates a frame of debt every frame and clears the bar
+     * immediately; vsync pacing never does. */
+    if (due > 0 && st.skips < 3 && now >= due + PERIOD && now <= due + 8 * PERIOD) {
         st.skips++;
         st.catchups++;
         Module.portFrameDue = due + PERIOD;
