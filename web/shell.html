@@ -3488,7 +3488,8 @@ var Module = (function () {
 //======================================================================
 // Netplay hookup, by URL.
 //
-//   ?relay=ws://127.0.0.1:8787&room=kirby
+//   ?room=kirby            the deployed room server (baked in below)
+//   ?relay=ws://127.0.0.1:8787&room=kirby      a local dev relay
 //
 // attaches the relay room as this instance's link cable as soon as the
 // module is up.  Nothing else changes: the player loads a ROM, navigates
@@ -3506,7 +3507,7 @@ var Module = (function () {
 //
 // Path B -- seamless drop-in/drop-out:
 //
-//   ?relay=<ws url>&world=<name>
+//   ?world=<name>          (add &relay=<ws url> for a non-default server)
 //
 // is a *world session* over the rollback timeline (web/rb_boot.js).  The
 // page holds the game at frame zero, fetches the room's history, and the
@@ -3520,9 +3521,21 @@ var Module = (function () {
 (function () {
   'use strict';
   var q = new URLSearchParams(location.search);
-  var relay = q.get('relay');
   window.katamNetplay = { net: null, world: null };
+
+  /* The deployed room server, baked in so the URL a player shares is just
+   * ?room=name or ?world=name.  ?relay= overrides it -- and a bare worker
+   * origin gets the party path appended, so a mistyped or shortened relay
+   * still lands on the right door.  Local relays (netplay/dev-relay.mjs)
+   * are plain paths and are left alone. */
+  var DEFAULT_RELAY = 'wss://katam-netplay.sh1ftmaker.workers.dev/parties/game-room';
+  var relay = q.get('relay')
+      || ((q.get('room') || q.get('world')) ? DEFAULT_RELAY : null);
   if (!relay) return;
+  relay = relay.replace(/\/+$/, '');
+  if (relay.indexOf('/parties/') === -1
+      && !/^wss?:\/\/(127\.0\.0\.1|localhost)/.test(relay))
+    relay += '/parties/game-room';
 
   var world = q.get('world');
   var say = function (t) {
