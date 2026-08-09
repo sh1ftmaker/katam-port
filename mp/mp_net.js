@@ -60,6 +60,19 @@
  *     flush picks up the frame's transfers after the wasm suspends -- so a
  *     frame costs one WebSocket message each way, whether it carried the
  *     lobby's one transfer or play's sixteen.
+ *
+ *   - the link outlives the socket.  A relay socket dies for reasons that
+ *     have nothing to do with the session -- an idle middlebox timeout, a
+ *     worker redeploy, a wifi blip -- so a lost socket reconnects with the
+ *     same id (the room gives it its slot back), the game goes on seeing
+ *     the cable as plugged in for a grace window while it does, and the
+ *     word streams re-baseline on both sides: the room announces the
+ *     leave/rejoin, which resets every peer's view of this stream, and a
+ *     fresh stream's first batch is its baseline wherever its sequence
+ *     starts.  A keep-alive ping holds the socket open through minutes of
+ *     silent menus.  Lost words mid-stream -- once a fatal link error --
+ *     are logged and skipped instead: the packet layer above is
+ *     sync-framed and checksummed precisely so a stream survives noise.
  */
 (function (root, factory) {
     'use strict';
@@ -72,6 +85,24 @@
 
     var MSG_WORDS = 0x01;
     var MAX_BATCH = 64;
+
+    /* Resilience knobs.  PRIME is the jitter buffer: words a dried-out peer
+     * stream must bank before play-phase consumption resumes (24 words is a
+     * frame and a half).  It only engages once the stream has actually been
+     * flowing (FLOWING words consumed) -- at session establishment the
+     * queue is legitimately empty, and holding MultiSio's first sync words
+     * back for 24 transfers reads to the parent as a child that never
+     * connected.  LAG_CAP bounds the standing backlog before the stream is
+     * dropped forward to PRIME and the packet layer resyncs; it sits above
+     * the child's catch-up burst (32 a frame) and at the edge of MultiSio's
+     * eight frames of input redundancy, past which the lag is fatal anyway.
+     * GRACE_MS is how long a lost socket may spend reconnecting before the
+     * game is told the cable came out. */
+    var PRIME = 24;
+    var FLOWING = 32;
+    var LAG_CAP = 128;
+    var PING_MS = 20000;
+    var GRACE_MS = 15000;
 
     /* opts:
      *   Module   the emscripten module instance (required)
@@ -94,29 +125,89 @@
             queues: [[], [], [], []],       /* per-slot FIFO of peer words   */
             last: [0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF],   /* the sampled register */
             expected: [0, 0, 0, 0],         /* next stream index per peer    */
+            priming: [0, 0, 0, 0],          /* words to bank before resuming */
+            flow: [0, 0, 0, 0],             /* play words consumed this phase */
             outWords: [],
             outSeq: 0,
             flushArmed: false,
             sent: 0, received: 0, stalls: 0, phantoms: 0,
+            holes: 0, dropped: 0, reconnects: 0,
+            downSince: 0, closed: false,
         };
 
-        var sock = opts.socket || new WebSocket(opts.url);
-        sock.binaryType = 'arraybuffer';
+        var sock = null;
+        var attempts = 0;
 
-        sock.onopen = function () { st.connected = true; };
-        sock.onclose = function () {
-            st.connected = false;
-            log('[mp-net] socket closed');
-        };
-        sock.onerror = function () {
-            st.connected = false;
-            log('[mp-net] socket error');
-        };
-        sock.onmessage = function (e) {
+        /* Everything that is per-*socket* rather than per-session.  Streams
+         * cannot cross a reconnect: the room announced us leaving, so every
+         * peer reset its view of our stream to zero -- outSeq restarts to
+         * match -- and whatever their streams carried while we were gone is
+         * unknowable, so ours of theirs reset too and re-baseline on their
+         * next batch. */
+        function resetStreams() {
+            st.outWords.length = 0;
+            st.outSeq = 0;
+            for (var i = 0; i < 4; i++) {
+                st.seen[i] = false;
+                st.queues[i].length = 0;
+                st.last[i] = 0xFFFF;
+                st.expected[i] = 0;
+                st.priming[i] = 0;
+                st.flow[i] = 0;
+            }
+        }
+
+        function connect() {
+            sock = opts.socket || new WebSocket(opts.url);
+            sock.binaryType = 'arraybuffer';
+            sock.onopen = function () {
+                resetStreams();
+                st.connected = true;
+                st.downSince = 0;
+                if (attempts)
+                    log('[mp-net] socket reopened');
+            };
+            sock.onclose = function () {
+                st.connected = false;
+                if (st.closed)
+                    return;
+                if (!st.downSince)
+                    st.downSince = Date.now();
+                if (opts.socket) {          /* a handed-in socket: no way to
+                                             * mint another one */
+                    log('[mp-net] socket closed');
+                    return;
+                }
+                var delay = Math.min(4000, 250 << Math.min(attempts, 4));
+                attempts++;
+                st.reconnects++;
+                log('[mp-net] socket lost -- reconnecting in ' + delay + ' ms');
+                setTimeout(function () {
+                    if (!st.closed)
+                        connect();
+                }, delay);
+            };
+            sock.onerror = function () {
+                log('[mp-net] socket error');
+            };
+            sock.onmessage = onMessage;
+        }
+
+        function onMessage(e) {
             if (typeof e.data === 'string') {
                 var m;
                 try { m = JSON.parse(e.data); } catch (err) { return; }
                 if (m.type === 'joined') {
+                    if (st.slot >= 0 && m.slot !== st.slot) {
+                        /* The seat was taken while we were away.  The game
+                         * cannot change slot mid-session, so this is the one
+                         * reconnect outcome that really is a dead link. */
+                        log('[mp-net] rejoined as slot ' + m.slot +
+                            ' but was slot ' + st.slot + ' -- raising link error');
+                        st.error = 1;
+                        return;
+                    }
+                    attempts = 0;
                     st.slot = m.slot;
                     for (var i = 0; i < 4; i++)
                         st.online[i] = !!(m.online && m.online[i]);
@@ -131,6 +222,8 @@
                         st.queues[m.slot].length = 0;
                         st.last[m.slot] = 0xFFFF;
                         st.expected[m.slot] = 0;
+                        st.priming[m.slot] = 0;
+                        st.flow[m.slot] = 0;
                     }
                     log('[mp-net] peer slot ' + m.slot +
                         (m.online ? ' joined' : ' left'));
@@ -151,17 +244,24 @@
             if (slot > 3 || slot === st.slot || b.length !== 7 + 2 * count)
                 return;
 
-            /* A batch replayed across a reconnect overlaps what was already
+            /* A fresh stream's first batch is its baseline: ours after a
+             * reconnect (resetStreams), a peer's after their leave/rejoin
+             * (the peer handler resets seen[]).  After that, a batch
+             * replayed across a reconnect overlaps what was already
              * consumed: drop the overlap, keep the tail.  A batch from the
-             * future means words were lost, and lost words are a dead
-             * session, not a quiet one -- raise the error bit the game
-             * already knows how to report. */
+             * future means words were genuinely lost -- once a fatal link
+             * error, now a logged hole: the packet layer above is
+             * sync-framed and checksummed precisely so a stream survives
+             * noise, so adopt the new position and let it. */
+            if (!st.seen[slot])
+                st.expected[slot] = seq;
             var skip = st.expected[slot] - seq;
             if (skip < 0) {
-                log('[mp-net] slot ' + slot + ': gap at ' + st.expected[slot] +
-                    ' (got ' + seq + ') -- raising link error');
-                st.error = 1;
-                return;
+                st.holes -= skip;
+                log('[mp-net] slot ' + slot + ': ' + (-skip) + ' word(s) lost at '
+                    + st.expected[slot] + ' -- resyncing stream');
+                st.priming[slot] = PRIME;
+                skip = 0;
             }
             if (skip >= count)
                 return;
@@ -170,7 +270,18 @@
             st.expected[slot] = seq + count;
             st.seen[slot] = true;
             st.received += count - skip;
-        };
+        }
+
+        connect();
+
+        /* An idle socket dies at whatever timeout the quietest middlebox on
+         * the path enforces, and the menus before MULTIPLAYER can sit
+         * silent for minutes.  Both relays ignore JSON they do not
+         * recognise, so a ping is free. */
+        var pinger = setInterval(function () {
+            if (sock && sock.readyState === 1)
+                sock.send('{"type":"ping"}');
+        }, PING_MS);
 
         function flush() {
             st.flushArmed = false;
@@ -222,12 +333,23 @@
         var transport = {
             open: function (players) { return 1; },
             close: function () {
+                st.closed = true;
+                clearInterval(pinger);
                 try { sock.close(); } catch (e) { /* already dead */ }
             },
             poll: function (ptr) {
                 flush();                        /* backstop for the microtask */
                 var h = Module.HEAPU8;
-                h[ptr] = (st.connected && st.slot >= 0) ? 1 : 0;
+                /* A lost socket within its grace window still reads as a
+                 * plugged-in cable: a child stalls on its silent clock and a
+                 * parent's packets corrupt and are checksummed away, which
+                 * is what a noisy cable does on hardware -- and nothing at
+                 * all if the reconnect lands quickly enough. */
+                var up = st.slot >= 0
+                    && (st.connected
+                        || (st.downSince
+                            && Date.now() - st.downSince < GRACE_MS));
+                h[ptr] = up ? 1 : 0;
                 h[ptr + 1] = st.slot >= 0 ? st.slot : 0;
                 h[ptr + 2] = onlineCount() || 1;
                 h[ptr + 3] = st.error ? 1 : 0;
@@ -252,16 +374,47 @@
                 var sioCnt = h[0x04000128] | (h[0x04000129] << 8);
                 var lobbyStyle = (sioCnt & 0x4000) !== 0;
 
+                if (lobbyStyle)
+                    st.flow[0] = st.flow[1] = st.flow[2] = st.flow[3] = 0;
+
                 for (s = 0; s < 4; s++) {
                     var w = 0xFFFF;
                     if (s !== st.slot && st.seen[s] && st.online[s]) {
-                        if (st.queues[s].length)
-                            w = st.last[s] = st.queues[s].shift();
-                        else if (lobbyStyle)
+                        var q = st.queues[s];
+                        /* The standing backlog equals every phantom ever
+                         * served -- each one was a transfer its real word
+                         * missed, and the word still arrives and waits its
+                         * turn -- so it only ever grows.  Past LAG_CAP the
+                         * added input lag is worse than a moment of noise:
+                         * drop forward to PRIME and let the packet layer
+                         * find its sync word again. */
+                        if (!lobbyStyle && q.length > LAG_CAP) {
+                            st.dropped += q.length - PRIME;
+                            q.splice(0, q.length - PRIME);
+                        }
+                        if (q.length
+                            && (lobbyStyle || q.length >= st.priming[s])) {
+                            st.priming[s] = 0;
+                            if (!lobbyStyle)
+                                st.flow[s]++;
+                            w = st.last[s] = q.shift();
+                        } else if (lobbyStyle) {
                             w = st.last[s];         /* sampled register      */
-                        else {
-                            w = 0x0000;             /* play: noise, not a    */
-                            st.phantoms++;          /* repeat and not a stall*/
+                        } else {
+                            /* Dry mid-play: noise, not a repeat and not a
+                             * stall (the header says why).  If the stream
+                             * was flowing, make it bank PRIME words before
+                             * resuming, so a latency spike costs one burst
+                             * of checksummed-away packets and leaves a
+                             * jitter buffer standing -- instead of the
+                             * words trickling out one at a time and
+                             * corrupting every packet for the whole of the
+                             * spike.  A stream that never flowed is just
+                             * MultiSio starting up; hold nothing back. */
+                            if (!st.priming[s] && st.flow[s] >= FLOWING)
+                                st.priming[s] = PRIME;
+                            w = 0x0000;
+                            st.phantoms++;
                         }
                     }
                     h[ptr + 2 * s] = w & 0xFF;
