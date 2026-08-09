@@ -36,8 +36,36 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
     }
 });
 
+/* One game frame per requestAnimationFrame is only right on a 60 Hz panel.
+ * rAF fires at the monitor's refresh rate, so a 120 Hz display used to run
+ * the game at double speed.  Ticks are waited out until the GBA's own frame
+ * period has elapsed instead -- 59.7275 Hz, the same constant and the same
+ * reasoning as the native host's PaceFrame: the game's clock is the one
+ * that matters, and the audio clock fights anything else.
+ *
+ * The deadline accumulates in fractional milliseconds so the average rate
+ * is exact on any refresh rate.  On a 60 Hz panel that means one repeated
+ * frame every few seconds -- the 0.46% by which 60 Hz outruns the GBA,
+ * paid in the open instead of by the audio queue; and two netplay peers on
+ * different monitors advance at the same rate instead of one perpetually
+ * predicting the other.  After a stall (hidden tab, suspend) the deadline
+ * re-anchors to the clock rather than sprinting through the gap.
+ *
+ * The headless harness shims rAF with setTimeout, whose callback carries no
+ * timestamp -- that is the unpaced path, deliberately: tests outrun the
+ * clock, and always have. */
 EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
-    await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+    var PERIOD = 1000 / 59.7275;
+    var due = Module.portFrameDue || 0;
+    var now;
+    for (;;) {
+        now = await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+        if (typeof now !== 'number')
+            return;
+        if (now >= due - 2)
+            break;
+    }
+    Module.portFrameDue = (now > due + PERIOD) ? now + PERIOD : due + PERIOD;
 });
 
 /* setTimeout(0), not requestAnimationFrame: a hidden tab throttles rAF to
