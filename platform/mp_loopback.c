@@ -121,11 +121,18 @@ static void BuildPacket(struct LoopPeer *p, int id)
     bytes[1] = 0;               /* recvErrorFlags:4, load bits, reserved     */
     /* bytes[2..3] is the checksum, filled in below */
 
-    if (sPayloadMode && sFeeds[id].everFed) {
+    if (sPayloadMode) {
         /* The real player's latest block, verbatim.  Repeating it while a
          * fresher one is in flight is what MultiSio expects of a dropped
-         * frame; the framing around it is rebuilt locally either way. */
-        memcpy(bytes + 4, sFeeds[id].block, MULTI_SIO_BLOCK_SIZE);
+         * frame; the framing around it is rebuilt locally either way.
+         * Never heard from at all -- the instants around the takeover,
+         * before the peer's stream reaches us -- speaks zeros: a message
+         * type of 0 is filler the game ignores, where the self-test
+         * pattern below reads as garbage mid-negotiation (measured: the
+         * post-lobby sub-lobby cleanly gave up on the session over it). */
+        if (sFeeds[id].everFed)
+            memcpy(bytes + 4, sFeeds[id].block, MULTI_SIO_BLOCK_SIZE);
+        /* else: the memset above already zeroed the block */
     } else {
         /* The 20-byte user block, at halfword 2.  Distinctive on purpose:
          * the first byte names this peer's slot and the second counts its

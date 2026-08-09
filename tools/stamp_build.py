@@ -58,6 +58,21 @@ def main():
             'return p==="katam.wasm"?p+"?v=%s":p;};</script>' % build_id)
 
     html = html[:m.start()] + shim + stamped + html[m.end():]
+
+    # The netplay scripts are separate files with the same trap -- a stale
+    # cached mp_net.js against a fresh page throws on the first API the old
+    # copy lacks, and the whole netplay block dies looking like "the lobby
+    # cannot connect".  Same cure: content-hashed URLs, per file, so an
+    # unchanged file keeps its cache and a changed one busts it.
+    for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js'):
+        f = args.dir / name
+        if not f.exists():
+            continue
+        fid = hashlib.sha256(f.read_bytes()).hexdigest()[:12]
+        html = re.sub(
+            r'(<script\b[^>]*\bsrc=(["\']?)%s)(\2[^>]*>)' % re.escape(name),
+            r'\1?v=%s\3' % fid, html)
+
     page.write_text(html)
     print('  STAMP   build %s' % build_id)
     return 0
