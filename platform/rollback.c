@@ -694,9 +694,32 @@ void PortRbFrame(void)
     ApplyEventsFor(sFrame);
 
     /* The camera stays this instance's, whatever a snapshot restore just
-     * said (see sFocusSlot). */
-    if (sFocusSlot >= 0)
+     * said (see sFocusSlot).  Two writes, because "whose screen is this"
+     * lives in two places: gLocalPlayerId, read live by the sprite
+     * positioning and the pause menu -- and the display task's player id,
+     * *captured from gLocalPlayerId at world creation*, which decides
+     * which viewport drives the background scroll registers (the decomp's
+     * gUnk_02023354 task; sub_08002E48 passes `p == unk0` down to the BG
+     * writer).  On hardware the lobby sets gLocalPlayerId before the world
+     * exists, so creation-time capture is always right; a joiner seated
+     * mid-world arrives after the capture and has to re-point it.  All
+     * four viewports track their own Kirbys either way (measured in
+     * tools/netplay_boot_test.mjs) -- this only chooses which one is
+     * looked at, per instance, which is exactly the divergence real link
+     * play is built on. */
+    if (sFocusSlot >= 0) {
+        u32 task = *(vu32 *)0x02023354;
+
         GAME_FOCUS = (u8)sFocusSlot;
+        if (task >= 0x02000000 && task < 0x03008000) {
+            u16 off = *(vu16 *)(task + 6);
+            u16 flags = *(vu16 *)(task + 0x12);
+            u32 obj = (flags & 0x10) ? 0x02000000 + ((u32)off << 2)
+                                     : 0x03000000 + off;
+
+            *(vu8 *)obj = (u8)sFocusSlot;
+        }
+    }
 
     /* Drive the game from the timeline, never from the host.  A predicted
      * input is written back so that a later confirmation can be compared

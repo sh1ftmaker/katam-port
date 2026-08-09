@@ -148,9 +148,26 @@ const watch = setInterval(() => {
          * zero and hand its camera to the host's Kirby for good. */
         const focusH = host.Module.HEAPU8[0x0203AD3C];
         const focusJ = joiner.Module.HEAPU8[0x0203AD3C];
-        console.log(`[test] camera focus: host on Kirby ${focusH}, ` +
-                    `joiner on Kirby ${focusJ}`);
-        if (eq && seatH === 1 && seatJ === 1 && focusH === 0 && focusJ === 1) {
+        /* Which viewport actually drives each screen: the display task's
+         * player id, captured from gLocalPlayerId at world creation and
+         * re-pointed by the engine when a joiner seats.  gUnk_02023354 ->
+         * struct Task -> struct offset (task.h's TaskGetStructPtr). */
+        const displayed = (Module) => {
+            const dv = new DataView(Module.HEAPU8.buffer);
+            const task = dv.getUint32(0x02023354, true);
+            if (!task) return -1;
+            const off = dv.getUint16(task + 6, true);
+            const flags = dv.getUint16(task + 0x12, true);
+            return Module.HEAPU8[(flags & 0x10)
+                ? 0x02000000 + (off << 2) : 0x03000000 + off];
+        };
+        const dispH = displayed(host.Module);
+        const dispJ = displayed(joiner.Module);
+        console.log(`[test] camera focus: host on Kirby ${focusH} ` +
+                    `(viewport ${dispH}), joiner on Kirby ${focusJ} ` +
+                    `(viewport ${dispJ})`);
+        if (eq && seatH === 1 && seatJ === 1 && focusH === 0 && focusJ === 1
+            && dispH === 0 && dispJ === 1) {
             console.log('BOOT-TO-WORLD TEST PASSED: the joiner synchronised to the ' +
                         "host's world and took over an existing Kirby");
             relay.close();
