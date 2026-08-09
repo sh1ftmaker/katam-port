@@ -143,7 +143,14 @@ const watch = setInterval(() => {
         const seatH = host.Module._PortRbSlotPeer(1);
         const seatJ = joiner.Module._PortRbSlotPeer(1);
         console.log(`[test] slot 1 is peer ${seatH} on host, ${seatJ} on joiner`);
-        if (eq && seatH === 1 && seatJ === 1) {
+        /* Whose Kirby does each camera follow?  gUnk_0203AD3C is inside the
+         * snapshots, so a joiner's rollbacks used to restore the pre-seat
+         * zero and hand its camera to the host's Kirby for good. */
+        const focusH = host.Module.HEAPU8[0x0203AD3C];
+        const focusJ = joiner.Module.HEAPU8[0x0203AD3C];
+        console.log(`[test] camera focus: host on Kirby ${focusH}, ` +
+                    `joiner on Kirby ${focusJ}`);
+        if (eq && seatH === 1 && seatJ === 1 && focusH === 0 && focusJ === 1) {
             console.log('BOOT-TO-WORLD TEST PASSED: the joiner synchronised to the ' +
                         "host's world and took over an existing Kirby");
             relay.close();

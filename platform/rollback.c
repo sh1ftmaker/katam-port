@@ -255,11 +255,22 @@ static int sNumEvents;
 #define GAME_RELEASED(slot) (*(vu16 *)(0x020382D0 + 8 + 16 + 2 * (slot)))
 #define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
 #define GAME_MODE_FLAGS     (*(vu32 *)0x0203AD10)
+#define GAME_FOCUS      (*(vu8  *)0x0203AD3C)
 
 /* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
  * changed only by an event, so a replay reproduces it. */
 static s8 sSlotPeer[PORT_RB_PLAYERS];
 static u8 sSlotsInPlay = PORT_RB_PLAYERS;
+
+/* Which Kirby this instance's camera, pause menu and HUD belong to -- set by
+ * PortRbNetPlay, and *port*-side state, not timeline state: GAME_FOCUS is
+ * ordinary EWRAM, so it is inside every snapshot, and a joiner's first
+ * rollback after seating restored the pre-seat zero and handed its camera to
+ * Kirby 0 for good (the one-shot write in PortRbNetPlay never runs again).
+ * The frame path re-pins it instead.  Safe because the field differs between
+ * consoles in real link play by design -- per-instance divergence of it is a
+ * thing the simulation already survives (see the PortRbNetPlay comment). */
+static s8 sFocusSlot = -1;
 
 /* --- session -------------------------------------------------------------- */
 
@@ -343,6 +354,7 @@ void PortRbShutdown(void)
     sActive = 0;
     sCatchUp = 0;
     sNumEvents = 0;
+    sFocusSlot = -1;
 }
 
 /* --- inputs --------------------------------------------------------------- */
@@ -680,6 +692,11 @@ void PortRbFrame(void)
     }
 
     ApplyEventsFor(sFrame);
+
+    /* The camera stays this instance's, whatever a snapshot restore just
+     * said (see sFocusSlot). */
+    if (sFocusSlot >= 0)
+        GAME_FOCUS = (u8)sFocusSlot;
 
     /* Drive the game from the timeline, never from the host.  A predicted
      * input is written back so that a later confirmation can be compared
@@ -1277,6 +1294,7 @@ int PortRbNetPlay(int selfSlot)
         return 0;
     GAME_MODE_FLAGS |= 2;
     GAME_FOCUS = (u8)selfSlot;
+    sFocusSlot = (s8)selfSlot;      /* survives snapshot restores            */
     PortLog("[katam-port] rollback: net play on, this instance is slot %d",
             selfSlot);
     return 1;
