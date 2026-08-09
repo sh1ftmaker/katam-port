@@ -3496,8 +3496,8 @@ var Module = (function () {
 // to START GAME -> MULTIPLAYER on both machines, and the game's own
 // lobby does what it does on hardware.  First into the room clocks the
 // cable; up to four.  &players=N widens the room, &id=<name> pins a
-// stable identity (otherwise one is minted and kept in localStorage, so
-// a reload reclaims the same slot).
+// stable identity (otherwise one is minted per *tab*, so a reload
+// reclaims the same slot; do not give two machines the same &id=).
 //
 // For two tabs on one machine: `npm run relay` in netplay/, then open
 // this page twice with the same &room=.  Browsers exempt 127.0.0.1 from
@@ -3523,6 +3523,23 @@ var Module = (function () {
   var q = new URLSearchParams(location.search);
   window.katamNetplay = { net: null, world: null };
 
+  /* Identity is per *tab*, never per browser.  The room gives a returning
+   * id its old slot back (netplay/protocol.mjs, RoomCore.join) -- that is
+   * what makes a reload survivable -- so two tabs sharing one id are, to
+   * the room, a single player reconnecting over and over: each takes
+   * slot 0, ousts the other's socket, and both log "peer slot 0 left"
+   * forever.  localStorage is shared by every tab; sessionStorage is this
+   * tab's own and still survives a reload, which is exactly the
+   * persistence a slot reclaim needs. */
+  function mintId() {
+    var id = q.get('id') || sessionStorage.katamNetId;
+    if (!id) {
+      id = 'p' + Math.random().toString(36).slice(2, 10);
+      try { sessionStorage.katamNetId = id; } catch (e) {}
+    }
+    return id;
+  }
+
   /* The deployed room server, baked in so the URL a player shares is just
    * ?room=name or ?world=name.  ?relay= overrides it -- and a bare worker
    * origin gets the party path appended, so a mistyped or shortened relay
@@ -3544,9 +3561,7 @@ var Module = (function () {
   };
 
   if (world) {
-    var wid = q.get('id') || localStorage.katamNetId
-        || (localStorage.katamNetId =
-            'p' + Math.random().toString(36).slice(2, 10));
+    var wid = mintId();
     var wurl = relay.replace(/\/+$/, '') + '/' + encodeURIComponent(world)
         + '?id=' + encodeURIComponent(wid) + '&_pk=' + encodeURIComponent(wid);
 
@@ -3582,9 +3597,7 @@ var Module = (function () {
 
   var room = q.get('room') || 'kirby';
   var players = parseInt(q.get('players') || '2', 10);
-  var id = q.get('id') || localStorage.katamNetId
-      || (localStorage.katamNetId =
-          'p' + Math.random().toString(36).slice(2, 10));
+  var id = mintId();
   /* Both identity params: the local dev relay reads ?id=, the Cloudflare
    * room (partyserver) reads ?_pk=.  Each ignores the other's. */
   var url = relay.replace(/\/+$/, '') + '/' + encodeURIComponent(room)
