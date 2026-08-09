@@ -414,6 +414,13 @@
          * sync, input ring, desync hash and cable-out logic ride inside. */
         function tick() {
             if (st.takeover === 'armed') {
+                /* Stream the block while still armed, too.  The two
+                 * instances commit to the session up to ~20 frames apart,
+                 * and the early one's synthetic cable needs the late one's
+                 * real block ready the moment it attaches (it arrives here
+                 * as a pre-swap stash) -- fed from the start, the gap where
+                 * a synthetic unit has nothing real to say never exists. */
+                sendPayload();
                 if (!Module.HEAPU8[SESSION_FLAG])
                     return;
                 var players = onlineCount();
