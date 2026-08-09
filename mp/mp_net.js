@@ -84,7 +84,12 @@
     'use strict';
 
     var MSG_WORDS = 0x01;
+    var MSG_PAYLOAD = 0x04;
     var MAX_BATCH = 64;
+    var PAYLOAD = 20;               /* MULTI_SIO_BLOCK_SIZE                  */
+    var SESSION_FLAG = 0x03002558;  /* gUnk_03002558: the game committed     */
+    var SEND_BLOCK = 0x030036B0;    /* gMultiSioSend: this frame's block     */
+    var LOSS_GRACE_MS = 5000;       /* peer absence before the cable-out     */
 
     /* Resilience knobs.  PRIME is the jitter buffer: words a dried-out peer
      * stream must bank before play-phase consumption resumes (24 words is a
@@ -133,7 +138,13 @@
             sent: 0, received: 0, stalls: 0, phantoms: 0,
             holes: 0, dropped: 0, reconnects: 0,
             downSince: 0, closed: false,
+            takeover: 'off',        /* -> 'armed' -> 'live'                  */
+            payloadSeq: 0, payloadsIn: 0,
         };
+        var feedBuf = 0;            /* wasm scratch for incoming blocks      */
+        var pendingPayload = [null, null, null, null];  /* pre-swap arrivals */
+        var lossTimers = [null, null, null, null];
+        var lastHoldSend = 0;
 
         var sock = null;
         var attempts = 0;
@@ -173,6 +184,22 @@
                     return;
                 if (!st.downSince)
                     st.downSince = Date.now();
+                if (st.takeover === 'live') {
+                    /* If the socket stays dead past the grace, every remote
+                     * unit leaves the local cable and the game handles the
+                     * unplug -- the same statement the word transport makes
+                     * by dropping SD, made in payload mode's terms. */
+                    setTimeout(function () {
+                        if (!st.connected && !st.closed
+                            && st.takeover === 'live') {
+                            log('[mp-net] socket gone past grace -- ' +
+                                'unplugging the cable');
+                            for (var p = 0; p < 4; p++)
+                                if (p !== st.slot)
+                                    Module._PortMpSetPeerPresent(p, 0);
+                        }
+                    }, GRACE_MS);
+                }
                 if (opts.socket) {          /* a handed-in socket: no way to
                                              * mint another one */
                     log('[mp-net] socket closed');
@@ -214,6 +241,34 @@
                     log('[mp-net] joined as slot ' + m.slot);
                 } else if (m.type === 'peer') {
                     st.online[m.slot] = m.online;
+                    if (st.takeover === 'live') {
+                        /* Post-takeover the cable is local; a peer's absence
+                         * matters only after their reconnect grace, at which
+                         * point their unit leaves the synthetic cable and
+                         * the game handles the unplug its own way. */
+                        if (!m.online) {
+                            if (lossTimers[m.slot] === null) {
+                                (function (p) {
+                                    lossTimers[p] = setTimeout(function () {
+                                        lossTimers[p] = null;
+                                        if (!st.online[p]) {
+                                            log('[mp-net] peer ' + p +
+                                                ' gone past grace -- unplugging' +
+                                                ' their unit');
+                                            Module._PortMpSetPeerPresent(p, 0);
+                                        }
+                                    }, LOSS_GRACE_MS);
+                                }(m.slot));
+                            }
+                        } else if (lossTimers[m.slot] !== null) {
+                            clearTimeout(lossTimers[m.slot]);
+                            lossTimers[m.slot] = null;
+                            log('[mp-net] peer ' + m.slot + ' is back in time');
+                        }
+                        log('[mp-net] peer slot ' + m.slot +
+                            (m.online ? ' joined' : ' left'));
+                        return;
+                    }
                     if (!m.online) {
                         /* The cable end came out.  Anything still buffered
                          * died with it, and a returning peer starts a fresh
@@ -235,6 +290,28 @@
             }
 
             var b = new Uint8Array(e.data);
+            if (b[0] === MSG_PAYLOAD && b.length === 6 + PAYLOAD) {
+                /* A remote player's MultiSio block: [04][slot][u32 f][20B].
+                 * Before our own swap they are stashed -- the peers commit
+                 * to the session within a frame or two of each other and
+                 * their first blocks can outrun our detection. */
+                var pdv = new DataView(b.buffer, b.byteOffset, b.byteLength);
+                var pslot = pdv.getUint8(1);
+                var pframe = pdv.getUint32(2, true);
+                if (pslot > 3 || pslot === st.slot)
+                    return;
+                st.payloadsIn++;
+                if (st.takeover === 'live') {
+                    Module.HEAPU8.set(b.subarray(6), feedBuf);
+                    Module._PortMpFeedPayload(pslot, pframe, feedBuf);
+                } else {
+                    pendingPayload[pslot] = { frame: pframe,
+                                              block: b.slice(6) };
+                }
+                return;
+            }
+            if (st.takeover === 'live')
+                return;             /* straggler bus words; the cable moved  */
             if (b.length < 7 || b[0] !== MSG_WORDS)
                 return;
             var dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
@@ -314,6 +391,74 @@
                 setTimeout(flush, 0);
         }
 
+        function sendPayload() {
+            if (sock.readyState !== 1)
+                return;
+            var buf = new ArrayBuffer(5 + PAYLOAD);
+            var dv = new DataView(buf);
+            var u8 = new Uint8Array(buf);
+            dv.setUint8(0, MSG_PAYLOAD);
+            dv.setUint32(1, st.payloadSeq >>> 0, true);
+            u8.set(Module.HEAPU8.subarray(SEND_BLOCK, SEND_BLOCK + PAYLOAD), 5);
+            st.payloadSeq++;
+            sock.send(buf);
+        }
+
+        /* The link-session takeover.  Armed by the page; each presented
+         * frame, tick() watches for the game to commit to the session
+         * (gUnk_03002558 goes nonzero at the end of its own lobby, which ran
+         * over the word relay as always) and then moves the cable: the JS
+         * word transport detaches, the synthetic local cable attaches
+         * (PortMpUsePayloadLink), and from here one 25-byte block per frame
+         * each way is the whole of the netplay -- the game's own world
+         * sync, input ring, desync hash and cable-out logic ride inside. */
+        function tick() {
+            if (st.takeover === 'armed') {
+                if (!Module.HEAPU8[SESSION_FLAG])
+                    return;
+                var players = onlineCount();
+                if (players < 2)
+                    players = 2;
+                st.takeover = 'swapping';   /* close() no-ops during this   */
+                Module._PortMpDetach();
+                if (!Module._PortMpUsePayloadLink(players, st.slot)) {
+                    log('[mp-net] payload takeover failed to attach');
+                    st.takeover = 'off';
+                    return;
+                }
+                feedBuf = Module._malloc(PAYLOAD);
+                st.takeover = 'live';
+                log('[mp-net] session committed -- payloads replace bus ' +
+                    'words; the cable is local now');
+                for (var p = 0; p < 4; p++)
+                    if (pendingPayload[p]) {
+                        Module.HEAPU8.set(pendingPayload[p].block, feedBuf);
+                        Module._PortMpFeedPayload(p, pendingPayload[p].frame,
+                                                  feedBuf);
+                        pendingPayload[p] = null;
+                    }
+            }
+            if (st.takeover === 'live')
+                sendPayload();
+        }
+
+        /* The hold's heartbeat, via Module.portNetIdle.  While this
+         * instance's frame loop is paused waiting for a peer, nothing runs
+         * tick() -- so if the peer is paused too, waiting for *us*, nobody
+         * would ever send again.  Re-sending the latest block (same
+         * content, fresh stamp) is the handshake that unwinds a mutual
+         * hold; send-latest-state makes the repeat meaningless to the
+         * game. */
+        function idle() {
+            if (st.takeover !== 'live')
+                return;
+            var now = Date.now();
+            if (now - lastHoldSend >= 50) {
+                lastHoldSend = now;
+                sendPayload();
+            }
+        }
+
         function onlineCount() {
             var n = 0;
             for (var i = 0; i < 4; i++)
@@ -333,6 +478,9 @@
         var transport = {
             open: function (players) { return 1; },
             close: function () {
+                if (st.takeover === 'swapping')
+                    return;         /* the C detach mid-takeover: the socket
+                                     * lives on to carry the payloads       */
                 st.closed = true;
                 clearInterval(pinger);
                 try { sock.close(); } catch (e) { /* already dead */ }
@@ -430,7 +578,7 @@
         return {
             transport: transport,
             state: st,
-            socket: sock,
+            get socket() { return sock; },
             attach: function (players) {
                 Module.portMp = transport;
                 return !!Module._PortMpUseJs(players || 2);
@@ -440,6 +588,15 @@
                     Module._PortMpDetach();
                 transport.close();
             },
+            /* The link takeover: arm before the lobby, call tick() once per
+             * presented frame, wire idle() to Module.portNetIdle.  The rest
+             * is automatic. */
+            armTakeover: function () {
+                if (st.takeover === 'off')
+                    st.takeover = 'armed';
+            },
+            tick: tick,
+            idle: idle,
         };
     }
 
