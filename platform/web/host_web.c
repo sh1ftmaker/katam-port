@@ -51,6 +51,18 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
  * predicting the other.  After a stall (hidden tab, suspend) the deadline
  * re-anchors to the clock rather than sprinting through the gap.
  *
+ * The other direction matters just as much: browsers also deliver rAF
+ * SLOWER than the panel -- Chrome's Energy Saver and macOS Low Power Mode
+ * throttle it to 30 Hz outright -- and waiting out a tick that is already
+ * overdue turned that into a half-speed game, which reads as "super laggy"
+ * rather than as the frame-rate cut it is.  So lateness up to a small debt
+ * ceiling is repaid, not forgiven: a frame whose deadline has already
+ * passed runs immediately, no vsync wait, at most three in a row so the
+ * event loop (sockets, input) always breathes.  At 30 Hz rAF that is two
+ * game frames per paint -- correct speed, half the drawn frames.  Only a
+ * gap past the ceiling (a real stall: tab hidden, machine asleep)
+ * re-anchors and lets the lost time go.
+ *
  * A hidden tab gets no rAF at all -- browsers stop it dead -- which used to
  * stop the game dead too.  Alone that was fine; in netplay it starves the
  * other player: cover one of two windows and the visible one drowns in
@@ -73,7 +85,45 @@ EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
     }
     var PERIOD = 1000 / 59.7275;
     var due = Module.portFrameDue || 0;
-    var now;
+    var st = Module.portPace ||
+        (Module.portPace = { t0: 0, sims: 0, waits: 0, catchups: 0,
+                             skips: 0, cpuMax: 0, lastExit: 0 });
+    /* Every five seconds, one summary -- and only when something is off
+     * (heavy catch-up use, or a game running slow), so a healthy session
+     * logs nothing.  This is the line a lag report needs: it separates "the
+     * browser starves us of vsyncs" from "the frames themselves are slow". */
+    var report = Module.portPaceLine || (Module.portPaceLine = function (s, t) {
+        if (!s.t0) { s.t0 = t; return; }
+        var secs = (t - s.t0) / 1000;
+        if (secs < 5) return;
+        var sims = s.sims / secs;
+        if (s.catchups / secs > 5 || sims < 55)
+            console.log('[katam-port] pace: ' + sims.toFixed(1) + ' frames/s, '
+                + (s.waits / secs).toFixed(1) + ' vsync waits/s, '
+                + s.catchups + ' catch-up frames, worst frame cpu '
+                + s.cpuMax.toFixed(1) + ' ms'
+                + (sims > 55 && s.waits / secs < 50
+                   ? ' -- the browser is throttling animation (power saver?); '
+                     + 'speed kept by extra frames between paints'
+                   : ''));
+        s.t0 = t; s.sims = 0; s.waits = 0; s.catchups = 0; s.cpuMax = 0;
+    });
+    var now = performance.now();
+    if (st.lastExit && now - st.lastExit > st.cpuMax)
+        st.cpuMax = now - st.lastExit;
+    st.sims++;
+
+    /* The catch-up path: already past the deadline, not by a stall's worth,
+     * and the last two frames were not themselves catch-ups. */
+    if (due > 0 && st.skips < 3 && now >= due - 2 && now <= due + 8 * PERIOD) {
+        st.skips++;
+        st.catchups++;
+        Module.portFrameDue = due + PERIOD;
+        report(st, now);
+        st.lastExit = performance.now();
+        return;
+    }
+    st.skips = 0;
     for (;;) {
         if (document.hidden) {
             await new Promise(function (resolve) { setTimeout(resolve, 4); });
@@ -88,11 +138,16 @@ EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
             });
             if (now < 0)
                 continue;
+            st.waits++;
         }
         if (now >= due - 2)
             break;
     }
-    Module.portFrameDue = (now > due + PERIOD) ? now + PERIOD : due + PERIOD;
+    /* Lateness within the debt ceiling carries forward -- the catch-up path
+     * above repays it next frame.  Only a real stall lets the time go. */
+    Module.portFrameDue = (now > due + 8 * PERIOD) ? now + PERIOD : due + PERIOD;
+    report(st, now);
+    st.lastExit = performance.now();
 });
 
 /* setTimeout(0), not requestAnimationFrame: a hidden tab throttles rAF to
