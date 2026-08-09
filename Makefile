@@ -632,6 +632,7 @@ dist: all
 	@rm -rf $(DIST) && mkdir -p $(DIST)
 	@cp $(OUT)/katam.html $(DIST)/index.html
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
+	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(DIST)/
 	@python3 tools/stamp_build.py --dir $(DIST)
 	@# The URLs carry a build id, so the payloads can be cached hard.  The page
 	@# itself must not be: it is what points at the current build.

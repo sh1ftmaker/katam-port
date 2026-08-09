@@ -9,6 +9,7 @@
   // SQLite-backed class: free-plan eligible, and 2 MB storage values when
   // Path B starts persisting the input log.
   "name": "katam-netplay",
+  "account_id": "52eac4774c41377ec9e4bf03f47a3205",
   "main": "server.mjs",
   "compatibility_date": "2026-08-01",
   "durable_objects": {

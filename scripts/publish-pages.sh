@@ -70,6 +70,7 @@ else
 fi
 
 cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
+cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 # Pages runs Jekyll by default, which ignores files it does not understand.
 touch "$WORKTREE/.nojekyll"

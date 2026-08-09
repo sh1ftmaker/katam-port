@@ -3477,6 +3477,74 @@ var Module = (function () {
 })();
 </script>
 
+<!-- The network transports.  mp_net.js speaks a netplay/ relay room as a
+     link cable (Path A, the game's own lobby); rb_net.js is the rollback
+     session driver (Path B).  Both are UMD and hang their factory on
+     window; both are inert until something calls them. -->
+<script src="mp_net.js"></script>
+<script src="rb_net.js"></script>
+<script>
+//======================================================================
+// Netplay hookup, by URL.
+//
+//   ?relay=ws://127.0.0.1:8787&room=kirby
+//
+// attaches the relay room as this instance's link cable as soon as the
+// module is up.  Nothing else changes: the player loads a ROM, navigates
+// to START GAME -> MULTIPLAYER on both machines, and the game's own
+// lobby does what it does on hardware.  First into the room clocks the
+// cable; up to four.  &players=N widens the room, &id=<name> pins a
+// stable identity (otherwise one is minted and kept in localStorage, so
+// a reload reclaims the same slot).
+//
+// For two tabs on one machine: `npm run relay` in netplay/, then open
+// this page twice with the same &room=.  Browsers exempt 127.0.0.1 from
+// mixed-content, so the hosted https page may speak ws:// to a local
+// relay.  For two machines, point &relay= at a deployed netplay worker
+// (wss://...workers.dev/parties/game-room).
+//
+// Path B -- drop-in/drop-out over the rollback timeline -- is proven
+// headless (tools/netplay_rb_test.mjs) but has no page UI yet: it needs
+// every participant to reach the same state at the same frame, which
+// for humans means an automated boot this page does not do yet.
+// rb_net.js is loaded for console experiments: createKatamRbSession.
+//======================================================================
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var relay = q.get('relay');
+  window.katamNetplay = { net: null };
+  if (!relay) return;
+
+  var room = q.get('room') || 'kirby';
+  var players = parseInt(q.get('players') || '2', 10);
+  var id = q.get('id') || localStorage.katamNetId
+      || (localStorage.katamNetId =
+          'p' + Math.random().toString(36).slice(2, 10));
+  /* Both identity params: the local dev relay reads ?id=, the Cloudflare
+   * room (partyserver) reads ?_pk=.  Each ignores the other's. */
+  var url = relay.replace(/\/+$/, '') + '/' + encodeURIComponent(room)
+      + '?id=' + encodeURIComponent(id) + '&_pk=' + encodeURIComponent(id);
+  var say = function (t) {
+    console.log(t);
+    if (Module.portDiag) { try { Module.portDiag(t, 0); } catch (e) {} }
+  };
+
+  var timer = setInterval(function () {
+    if (typeof Module._PortMpUseJs !== 'function' || !Module.HEAPU8)
+      return;                       /* wasm not up yet */
+    clearInterval(timer);
+    var net = createKatamNetTransport({ Module: Module, url: url, log: say });
+    if (net.attach(players)) {
+      window.katamNetplay.net = net;
+      say('[netplay] cable attached to ' + url + ' -- go to START GAME > MULTIPLAYER');
+    } else {
+      say('[netplay] transport refused to attach');
+    }
+  }, 250);
+})();
+</script>
+
 {{{ SCRIPT }}}
 
 </body>
