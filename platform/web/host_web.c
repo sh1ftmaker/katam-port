@@ -51,17 +51,44 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
  * predicting the other.  After a stall (hidden tab, suspend) the deadline
  * re-anchors to the clock rather than sprinting through the gap.
  *
- * The headless harness shims rAF with setTimeout, whose callback carries no
- * timestamp -- that is the unpaced path, deliberately: tests outrun the
- * clock, and always have. */
+ * A hidden tab gets no rAF at all -- browsers stop it dead -- which used to
+ * stop the game dead too.  Alone that was fine; in netplay it starves the
+ * other player: cover one of two windows and the visible one drowns in
+ * communication errors.  So a hidden tab paces itself off the timer clock
+ * at the same 59.7275 Hz.  (Browsers exempt audibly-playing tabs from
+ * timer throttling, and the game plays audio; a *muted* hidden tab still
+ * winds down to ~1 Hz, which nothing here can help.)  The 250 ms guard
+ * only bridges the transition: a wait that began visible would otherwise
+ * sleep until the tab is looked at again.
+ *
+ * Headless (no `document`) means the node harness: one plain rAF await per
+ * frame, unpaced -- tests outrun the clock, and always have -- and none of
+ * the timers above, because the rollback tests pause an instance by parking
+ * its rAF registrations, and a guard timer firing from outside any
+ * instance's execution window re-registers on the wrong ledger. */
 EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
+    if (typeof document === 'undefined') {
+        await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+        return;
+    }
     var PERIOD = 1000 / 59.7275;
     var due = Module.portFrameDue || 0;
     var now;
     for (;;) {
-        now = await new Promise(function (resolve) { requestAnimationFrame(resolve); });
-        if (typeof now !== 'number')
-            return;
+        if (document.hidden) {
+            await new Promise(function (resolve) { setTimeout(resolve, 4); });
+            now = performance.now();
+        } else {
+            now = await new Promise(function (resolve) {
+                var guard = setTimeout(function () { resolve(-1); }, 250);
+                requestAnimationFrame(function (t) {
+                    clearTimeout(guard);
+                    resolve(t);
+                });
+            });
+            if (now < 0)
+                continue;
+        }
         if (now >= due - 2)
             break;
     }

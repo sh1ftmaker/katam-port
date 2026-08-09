@@ -42,6 +42,13 @@ export class GameRoom extends Server {
     }
 
     onConnect(conn) {
+        /* A reconnect with the same id replaces the dead socket -- which may
+         * still look open here if the client noticed the death first.  Same
+         * rule as dev-relay.mjs. */
+        for (const other of this.getConnections())
+            if (other !== conn && other.id === conn.id) {
+                try { other.close(4001, 'replaced'); } catch (e) { /* gone */ }
+            }
         const slot = this.core.join(conn.id);
         if (slot === -1) {
             conn.send(errorMsg('room full'));
@@ -100,6 +107,13 @@ export class GameRoom extends Server {
         const s = conn.state;
         if (!s || typeof s.slot !== 'number')
             return;
+        /* The id-equality below cannot tell a replaced socket from the last
+         * one: a fast reconnect has two connections with one id, and the
+         * old one closing must not free the slot the new one holds -- or
+         * announce a leave nobody made. */
+        for (const other of this.getConnections())
+            if (other !== conn && other.id === conn.id)
+                return;
         if (this.core.slots[s.slot] === conn.id) {
             this.core.leave(conn.id);
             this.broadcast(peerMsg(s.slot, false));

@@ -323,6 +323,58 @@ The constants (script, F0=2200, depth) are session-defining: change any and
 running sessions split into incompatible worlds.  Version the room name when
 that starts to matter.
 
+## 3d. Resilience: the session outlives the network's bad moments
+
+Play-testing two browsers against the deployed relay surfaced the failure
+modes a localhost relay never shows, and each got a rule (`web/mp_net.js`,
+`platform/web/host_web.c`, both room servers):
+
+- **The link outlives the socket.**  A relay socket dies for reasons that
+  have nothing to do with the session (idle middlebox timeout, worker
+  redeploy, wifi blip).  The transport reconnects with the same per-tab id
+  -- the room hands the id its slot back, and both servers treat a live
+  same-id twin as replaced, not as a leave -- and the game goes on seeing
+  the cable as plugged in for a 15 s grace window while it does.  Word
+  streams cannot cross the reconnect (the room announces a leave/rejoin,
+  resetting every peer's ledger), so both sides restart from zero and a
+  fresh stream's first batch is its baseline wherever its sequence starts.
+  A 20 s JSON ping (ignored by both servers) keeps the socket alive
+  through minutes of silent menus.
+- **Lost words are a hole, not a funeral.**  A sequence gap used to raise
+  the permanent link-error bit.  MultiSio's packet stream is sync-framed
+  and checksummed precisely so it survives noise, so the transport now
+  logs the hole, adopts the new stream position, and lets the packet layer
+  resync.
+- **A dried-out stream banks a jitter buffer before play resumes.**  The
+  phantom-word rule (§3a) is right per word and wrong per spike: words
+  trickling in behind a latency spike get consumed one at a time, so every
+  packet for the whole spike corrupts.  After running dry, a stream must
+  bank PRIME=24 words (a frame and a half) before consumption resumes --
+  one spike costs one burst of checksummed-away packets and leaves a
+  standing buffer that absorbs the next one.  Only once the stream has
+  actually flowed (32 words consumed since the phase began): at session
+  establishment the queue is legitimately empty, and holding MultiSio's
+  first sync words back reads to the parent as a child that never
+  connected (measured: session=1 then teardown at +50 frames).
+- **The backlog is capped.**  The standing backlog equals every phantom
+  ever served -- each was a transfer its real word missed, and the word
+  still arrives and waits its turn -- so it only grows.  Past LAG_CAP=128
+  words (eight frames, the edge of MultiSio's input redundancy) the stream
+  is dropped forward to PRIME and resynced: a moment of noise instead of
+  permanent lag.  The cap sits above the child's catch-up burst (32/frame),
+  which a healthy session hits routinely; 64 was tried and shredded them.
+- **A hidden tab keeps playing.**  Browsers stop rAF dead in a hidden tab,
+  which used to stop the game dead -- fine alone, fatal in netplay: cover
+  one of two windows and the visible one drowns in phantoms.  A hidden tab
+  paces itself off the timer clock at the same 59.7275 Hz (audible tabs are
+  exempt from timer throttling and the game plays audio; a *muted* hidden
+  tab still winds down to ~1 Hz, which nothing can help).  Headless (no
+  `document`) keeps the plain one-await-per-frame path with no timers: the
+  rollback tests pause instances by parking rAF registrations, and a guard
+  timer firing outside any instance's execution window re-registers on the
+  wrong ledger (measured: the departed founder kept playing and the joiner
+  was seated in slot 2).
+
 ## 4. The gaps that are actual work items on this branch
 
 Found by the code research; each is small, and together they are the real
