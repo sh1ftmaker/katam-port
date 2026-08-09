@@ -71,7 +71,7 @@ int  PortRbActive(void);
  * The local player's input for the frame about to run.  Called by the host
  * before the frame; what actually reaches the game is the *timeline*, so this
  * is recorded rather than applied directly. */
-void PortRbSetLocalInput(u16 keys);
+u32  PortRbSetLocalInput(u16 keys);  /* returns the frame recorded; see .c */
 
 /* A peer's real input for a frame, from wherever it came from.  May arrive
  * late, out of order, or for a frame already simulated with a prediction --
@@ -159,6 +159,20 @@ void PortRbFrame(void);
  * frame produces that is not state: drawing, audio, and pacing.  Rendering is
  * handled here (PortSetRenderEnabled); audio and pacing are the host's. */
 int  PortRbCatchingUp(void);
+
+/* --- a network session without the game's lobby ---------------------------
+ *
+ * Path B (docs/NETPLAY.md): the relay assigns identity, so the host tells
+ * the engine which peer it is -- without this, every instance derives 0
+ * from the absent SIO transport.  -1 restores the Path A derivation. */
+void PortRbSetSelf(int peer);
+
+/* Turn the running single-player game into a timeline-driven session: the
+ * game's network-input branch on, this instance's camera and menus bound to
+ * `selfSlot`.  Requires PortRbInit, must be called at the same frame on
+ * every participant, and gUnk_03002558 stays 0 -- the game's own link
+ * machinery is not involved.  See the comment in platform/rollback.c. */
+int  PortRbNetPlay(int selfSlot);
 
 /* --- the log -------------------------------------------------------------
  *

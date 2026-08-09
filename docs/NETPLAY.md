@@ -227,6 +227,53 @@ Building it revised §3.  The contract as measured, not merely derived:
    naive release adds one extra A edge, and one extra press picks single
    player.
 
+## 3b. Milestone B: done -- drop-in, drop-out, over the timeline
+
+**Seamless drop-in/drop-out works.**  `make netplay-rb-test`: three
+instances, one relay, no game lobby anywhere.  Two founders boot the same
+scripted single-player world, activate at the same frame
+(`PortRbInit` + `PortRbNetPlay` + `PortRbSetSelf`, all new exports), and
+play different inputs with rollback absorbing the latency -- their desync
+quantity (gRngVal plus every Kirby's x and y, the game's own measure) is
+bit-equal at the checkpoint.  One founder disconnects; its Kirby goes to
+the AI by a relayed timeline event, announced by the lowest surviving seat.
+A third instance, held at the activation frame, fetches the room's input
+history, replays ~1300 inputs to the live frame with the picture off in
+well under a second, takes the vacated seat by the same event mechanism,
+plays -- and is bit-equal with the survivor at the second checkpoint.
+
+The driver is `web/rb_net.js` (one 7-byte MSG_INPUT per frame per player,
+JSON `assign` events relayed to everyone including the sender); the relay
+stores history per room and serves it in MSG_LOG batches.  On this path
+`gUnk_03002558` stays 0 -- none of the game's link machinery runs, so the
+`sub_08030FE0` clobber §4 worried about never happens and **no game patch
+was needed at all**.
+
+Three bugs found by the bit-equality bar, each now a rule:
+
+1. **The engine is the only authority on frame numbers.**  The driver
+   stamped outgoing inputs with a host-derived frame; it disagreed with the
+   engine's own `sFrame` by one, so a sender applied its input at frame S
+   while telling everyone S-1 -- every edge landed one frame apart on the
+   two sides, measured as an AI Kirby reacting one frame later on one
+   instance with end positions still equal.  `PortRbSetLocalInput` now
+   returns the frame it recorded, and the wire carries exactly that.
+2. **Snapshot before the frame's inputs are applied.**  The ring snapshot
+   sat after `ApplySlotInputs`, so a re-simulated frame recomputed its
+   pressed/released edges against its own already-applied words.  The
+   self-test never caught it -- replaying identical inputs only trips this
+   when an edge lands exactly on the snapshot frame.
+3. **`PortRbInit`'s player count is part of the shared initial
+   condition.**  A joiner that inits a different count than the founders
+   maps the AI slots to empty peer columns -- its AI Kirbys stand still
+   while everyone else's wander.  `join(depth, players)` takes it
+   explicitly; a session-parameters message is the eventual home.
+
+Known cosmetic gap: `sConfirmed` (and so `PortRbDescribeSession.logBytes`
+freshness) lags while a seat is AI-driven, because confirmation waits on
+every player column including unseated ones.  Harmless today; tighten when
+the RLE log replaces raw history on the wire.
+
 ## 4. The gaps that are actual work items on this branch
 
 Found by the code research; each is small, and together they are the real

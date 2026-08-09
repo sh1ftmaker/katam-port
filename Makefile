@@ -131,7 +131,7 @@ LDLINT := -Wl,--fatal-warnings
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbConfirmInput,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -498,6 +498,15 @@ netplay-test: $(BUILD)/katam-node.js
 	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
 	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
 	node tools/netplay_test.mjs $(BUILD)/katam-node.js $(ROM) 2200
+
+# Path B: three instances over the rollback timeline -- two founders in
+# sync, one drop-out to the AI, one drop-in from the room's input history.
+# PASS is bit-equality of the game's own desync quantity across instances.
+# docs/NETPLAY.md §3b.
+netplay-rb-test: $(BUILD)/katam-node.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
+	node tools/netplay_rb_test.mjs $(BUILD)/katam-node.js $(ROM)
 
 native-clean:
 	rm -rf $(NATIVE_DIR)

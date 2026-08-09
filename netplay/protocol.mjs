@@ -88,6 +88,83 @@ export function validClientWords(bytes) {
         && bytes[5] <= MAX_BATCH;
 }
 
+/* --- Path B: per-frame input over the rollback timeline -------------------
+ *
+ *   client -> server   [ MSG_INPUT ] [ u32 frame ] [ u16 keys ]
+ *   server -> clients  [ MSG_INPUT ] [ u8 slot ] [ u32 frame ] [ u16 keys ]
+ *
+ * The relay also appends every tagged input to the room's history, which is
+ * what a late joiner replays: `{type:"history"}` answers with MSG_LOG
+ * batches of the tagged records plus every assign event, then
+ * `{type:"history-done", latest}` -- `latest` being the highest frame the
+ * room has seen, which is what the joiner replays to and schedules its own
+ * seat beyond.
+ *
+ *   server -> client   [ MSG_LOG ] [ u16 count ] [ count x (u8 slot,
+ *                                                  u32 frame, u16 keys) ]
+ *
+ * Assigns -- seat changes on the timeline -- are JSON, rare, and relayed to
+ * every client including the sender, so a single message is what everyone
+ * (sender included) acts on:
+ *
+ *   client -> server -> clients  {type:"assign", frame, slot, peer}
+ *                                 (peer -1 = hand the slot to the AI)
+ */
+
+export function encodeInput(frame, keys) {
+    const buf = new Uint8Array(7);
+    const dv = new DataView(buf.buffer);
+    dv.setUint8(0, MSG_INPUT);
+    dv.setUint32(1, frame >>> 0, true);
+    dv.setUint16(5, keys & 0xFFFF, true);
+    return buf;
+}
+
+export function validClientInput(bytes) {
+    return bytes.length === 7 && bytes[0] === MSG_INPUT;
+}
+
+export function decodeTaggedInput(bytes) {
+    if (bytes.length !== 8 || bytes[0] !== MSG_INPUT)
+        return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return { slot: dv.getUint8(1), frame: dv.getUint32(2, true),
+             keys: dv.getUint16(6, true) };
+}
+
+export const LOG_RECORD = 7;            /* slot + frame + keys, tagged form  */
+export const LOG_BATCH = 512;           /* records per MSG_LOG message       */
+
+export function encodeLogBatch(records) {
+    const buf = new Uint8Array(3 + LOG_RECORD * records.length);
+    const dv = new DataView(buf.buffer);
+    dv.setUint8(0, MSG_LOG);
+    dv.setUint16(1, records.length, true);
+    for (let i = 0; i < records.length; i++) {
+        const o = 3 + LOG_RECORD * i;
+        dv.setUint8(o, records[i].slot);
+        dv.setUint32(o + 1, records[i].frame >>> 0, true);
+        dv.setUint16(o + 5, records[i].keys & 0xFFFF, true);
+    }
+    return buf;
+}
+
+export function decodeLogBatch(bytes) {
+    if (bytes.length < 3 || bytes[0] !== MSG_LOG)
+        return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const count = dv.getUint16(1, true);
+    if (bytes.length !== 3 + LOG_RECORD * count)
+        return null;
+    const out = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const o = 3 + LOG_RECORD * i;
+        out[i] = { slot: dv.getUint8(o), frame: dv.getUint32(o + 1, true),
+                   keys: dv.getUint16(o + 5, true) };
+    }
+    return out;
+}
+
 /* --- the room ------------------------------------------------------------- */
 
 /* Slot assignment is the one decision the server owns, because the port

@@ -346,26 +346,46 @@ void PortRbShutdown(void)
 
 /* --- inputs --------------------------------------------------------------- */
 
+/* Which peer this instance is.  Path A derives it from the SIO transport;
+ * Path B has no SIO transport -- the relay assigns identity out of band and
+ * the host says so here.  Without the override, two Path B instances would
+ * both default to 0 and write the same timeline column. */
+static int sSelfPeer = -1;
+
+void PortRbSetSelf(int peer)
+{
+    sSelfPeer = (peer >= 0 && peer < PORT_RB_PLAYERS) ? peer : -1;
+}
+
 static int SelfId(void)
 {
     struct PortMpLink link;
 
+    if (sSelfPeer >= 0)
+        return sSelfPeer;
     if (PortMpLinkState(&link))
         return link.selfId;
     return 0;
 }
 
-void PortRbSetLocalInput(u16 keys)
+u32 PortRbSetLocalInput(u16 keys)
 {
     u32 i;
 
     if (!sActive || !TimelineReserve(sFrame))
-        return;
+        return 0;
     i = sFrame * PORT_RB_PLAYERS + (u32)SelfId();
     sTl.keys[i] = keys & PORT_RB_KEYS_MASK;
     sTl.known[i] = 1;
     if (sFrame >= sTl.len)
         sTl.len = sFrame + 1;
+    /* The frame this input was recorded for -- what the caller must stamp
+     * on the wire.  Deriving it host-side from PortFrameNumber() is off by
+     * the engine's own phase, and the resulting one-frame skew between "the
+     * frame I applied my input" and "the frame I told everyone" shifts
+     * every edge by a frame on the remote side: measured as an AI Kirby
+     * reacting one frame apart on two otherwise identical instances. */
+    return sFrame;
 }
 
 void PortRbConfirmInput(int player, u32 frame, u16 keys)
@@ -633,6 +653,25 @@ void PortRbFrame(void)
     if (!TimelineReserve(sFrame))
         return;
 
+    /* Snapshot before anything of this frame is applied, so a restore
+     * re-derives the frame exactly as the first pass did.  This used to sit
+     * after ApplySlotInputs, and the difference is not pedantry: the
+     * pressed/released edges are computed against the *previous* frame's
+     * held words, and a snapshot taken after they were applied made a
+     * re-simulated frame compute its edges against its own values --
+     * measured as an AI Kirby whose reaction landed one frame later on the
+     * instance that rolled back, a divergence the game's own desync check
+     * would eventually call.  The self-test never sees it because it
+     * replays identical inputs, where a lost edge needs the input to change
+     * on exactly the snapshot frame. */
+    {
+        u32 slot = sFrame % (u32)sDepth;
+
+        SaveTo(SlotFor(sFrame));
+        sRingFrame[slot] = sFrame;
+        sRingValid[slot] = 1;
+    }
+
     ApplyEventsFor(sFrame);
 
     /* Drive the game from the timeline, never from the host.  A predicted
@@ -659,15 +698,6 @@ void PortRbFrame(void)
     }
 
     ApplySlotInputs(sFrame);
-
-    /* Snapshot *before* the frame runs, so restoring lands here again. */
-    {
-        u32 slot = sFrame % (u32)sDepth;
-
-        SaveTo(SlotFor(sFrame));
-        sRingFrame[slot] = sFrame;
-        sRingValid[slot] = 1;
-    }
 
     AdvanceConfirmed();
     sStats.frame = sFrame;
@@ -1211,6 +1241,39 @@ static u32 sSlotTestAt, sSlotTestSpan;
 static u16 sSlotTestKeys;
 
 #define GAME_MODE_FLAGS (*(vu32 *)0x0203AD10)
+#define GAME_FOCUS      (*(vu8  *)0x0203AD3C)
+
+/* --- playing over the timeline, without the game's lobby ------------------
+ *
+ * The slot-injection probe below demonstrated the mechanism; this is the
+ * mechanism offered as a way to play.  The game runs its ordinary
+ * single-player world -- gUnk_03002558 stays 0, so none of the MultiSio
+ * machinery runs and nothing fights ApplySlotInputs for the input words
+ * (the sub_08030FE0 clobber docs/NETPLAY.md §2 worried about is gated on
+ * that flag, so on this path it never happens).  Two things then make it a
+ * network session: gUnk_0203AD10 bit 1 sends every Kirby below the player
+ * count to the network input words that ApplySlotInputs writes, and
+ * gUnk_0203AD3C -- which Kirby is "you": the camera, the pause menu, the
+ * HUD -- becomes this instance's slot.  That field differs between consoles
+ * in real link play by design, so per-instance divergence of it is a thing
+ * the simulation already survives.
+ *
+ * Deterministic-start discipline is the caller's: every participant must
+ * arrive at the same frame with the same state (same boot inputs, or a
+ * replayed log) before activating, and activation itself must happen at the
+ * same frame everywhere -- it changes the simulation, so it is really an
+ * event on the timeline that every replayer reproduces by calling this at
+ * the same point. */
+int PortRbNetPlay(int selfSlot)
+{
+    if (!sActive || selfSlot < 0 || selfSlot >= PORT_RB_PLAYERS)
+        return 0;
+    GAME_MODE_FLAGS |= 2;
+    GAME_FOCUS = (u8)selfSlot;
+    PortLog("[katam-port] rollback: net play on, this instance is slot %d",
+            selfSlot);
+    return 1;
+}
 
 int PortRbSlotTest(u32 at, u32 span, u16 keys)
 {

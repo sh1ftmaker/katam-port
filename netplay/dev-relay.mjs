@@ -21,6 +21,7 @@
 import { WebSocketServer } from 'ws';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
+    validClientInput, decodeTaggedInput, encodeLogBatch, LOG_BATCH,
 } from './protocol.mjs';
 
 export function startRelay(port = 8787, opts = {}) {
@@ -29,7 +30,13 @@ export function startRelay(port = 8787, opts = {}) {
 
     function room(path) {
         if (!rooms.has(path))
-            rooms.set(path, { core: new RoomCore(), conns: new Map() });
+            rooms.set(path, {
+                core: new RoomCore(), conns: new Map(),
+                /* Path B: everything a late joiner replays.  inputs is the
+                 * tagged binary records; assigns the seat-change control
+                 * messages; latest the highest frame seen. */
+                inputs: [], assigns: [], latest: 0,
+            });
         return rooms.get(path);
     }
 
@@ -59,17 +66,55 @@ export function startRelay(port = 8787, opts = {}) {
                 other.send(peerMsg(slot, true));
 
         ws.on('message', (data, isBinary) => {
-            if (!isBinary) return;              /* clients send no control    */
-            const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-            if (!validClientWords(bytes)) {
-                ws.send(errorMsg('malformed'));
-                ws.close(4002, 'malformed');
+            if (!isBinary) {
+                let m;
+                try { m = JSON.parse(data.toString()); } catch (e) { return; }
+                if (m.type === 'history') {
+                    /* Everything the room has seen, then the frame to catch
+                     * up to.  Assigns first: the joiner schedules them
+                     * before it replays through them. */
+                    for (const a of r.assigns)
+                        ws.send(JSON.stringify(a));
+                    for (let i = 0; i < r.inputs.length; i += LOG_BATCH)
+                        ws.send(encodeLogBatch(r.inputs.slice(i, i + LOG_BATCH)));
+                    ws.send(JSON.stringify({ type: 'history-done',
+                                             latest: r.latest }));
+                } else if (m.type === 'assign'
+                           && typeof m.frame === 'number'
+                           && typeof m.slot === 'number'
+                           && typeof m.peer === 'number') {
+                    const a = { type: 'assign', frame: m.frame,
+                                slot: m.slot, peer: m.peer };
+                    r.assigns.push(a);
+                    log(`[relay] assign: slot ${a.slot} -> ` +
+                        `${a.peer < 0 ? 'AI' : 'peer ' + a.peer} at frame ${a.frame}`);
+                    for (const other of r.conns.values())
+                        if (other.readyState === other.OPEN)
+                            other.send(JSON.stringify(a));   /* sender too */
+                }
                 return;
             }
-            const tagged = tagWords(slot, bytes);
-            for (const [oid, other] of r.conns)
-                if (oid !== id && other.readyState === other.OPEN)
-                    other.send(tagged);
+            const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+            if (validClientWords(bytes)) {
+                const tagged = tagWords(slot, bytes);
+                for (const [oid, other] of r.conns)
+                    if (oid !== id && other.readyState === other.OPEN)
+                        other.send(tagged);
+                return;
+            }
+            if (validClientInput(bytes)) {
+                const tagged = tagWords(slot, bytes);
+                const rec = decodeTaggedInput(tagged);
+                r.inputs.push(rec);
+                if (rec.frame > r.latest)
+                    r.latest = rec.frame;
+                for (const [oid, other] of r.conns)
+                    if (oid !== id && other.readyState === other.OPEN)
+                        other.send(tagged);
+                return;
+            }
+            ws.send(errorMsg('malformed'));
+            ws.close(4002, 'malformed');
         });
 
         ws.on('close', () => {
