@@ -35,6 +35,22 @@ export const PROTO_VERSION = 1;
 export const MSG_WORDS = 0x01;   /* SIO transfer words, Path A            */
 export const MSG_INPUT = 0x02;   /* reserved: per-frame keys, Path B      */
 export const MSG_LOG   = 0x03;   /* reserved: input-log chunk, Path B     */
+export const MSG_PAYLOAD = 0x04; /* MultiSio 20-byte user block, the link
+                                  * takeover: after the game's own lobby
+                                  * completes, the payloads replace the bus
+                                  * words on the wire and each instance's
+                                  * cable goes local (platform/mp_loopback.c
+                                  * payload mode).  Relay-only, no storage:
+                                  * send-latest-state by design.
+                                  *
+                                  * client -> server  [04][u32 frame][20B]
+                                  * server -> clients [04][slot][u32][20B] */
+
+export const PAYLOAD_SIZE = 20;
+
+export function validClientPayload(bytes) {
+    return bytes.length === 5 + PAYLOAD_SIZE && bytes[0] === MSG_PAYLOAD;
+}
 
 export const MAX_PLAYERS = 4;
 export const MAX_BATCH   = 64;   /* words per message; 16 is a full frame */

@@ -131,7 +131,7 @@ LDLINT := -Wl,--fatal-warnings
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_PortCurrentKeys,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_PortCurrentKeys,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -516,6 +516,15 @@ netplay-boot-test: $(BUILD)/katam-node.js
 	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
 	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
 	node tools/netplay_boot_test.mjs $(BUILD)/katam-node.js $(ROM)
+
+# The link-session takeover: the game's own lobby over the word relay, then
+# the session over relayed MultiSio payload blocks on a local synthetic
+# cable.  PASS is a thousand played frames with the game's own error code
+# clean -- its per-sample desync hash is the referee.  docs/NETPLAY.md §3e.
+netplay-link-test: $(BUILD)/katam-node.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
+	node tools/netplay_link_test.mjs $(BUILD)/katam-node.js $(ROM)
 
 native-clean:
 	rm -rf $(NATIVE_DIR)

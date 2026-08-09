@@ -18,7 +18,8 @@
 import { Server, routePartykitRequest } from 'partyserver';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
-    validClientInput, decodeTaggedInput, encodeLogBatch, LOG_BATCH,
+    validClientInput, validClientPayload, decodeTaggedInput,
+    encodeLogBatch, LOG_BATCH,
 } from './protocol.mjs';
 
 export class GameRoom extends Server {
@@ -94,7 +95,7 @@ export class GameRoom extends Server {
             return;
         }
         const bytes = new Uint8Array(message);
-        if (validClientWords(bytes)) {
+        if (validClientWords(bytes) || validClientPayload(bytes)) {
             this.broadcast(tagWords(s.slot, bytes), [conn.id]);
             return;
         }

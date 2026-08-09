@@ -126,6 +126,10 @@ struct PortMpTransport *PortMpLoopback(void);
 /* Which slot the game occupies on the loopback cable; 0 (the default) makes it
  * the parent.  Call before attaching. */
 void PortMpLoopbackSelfId(int id);
+void PortMpLoopbackPayloadMode(int on);
+void PortMpFeedPayload(int player, u32 senderFrame, const u8 *block);
+void PortMpSetPeerPresent(int player, int present);
+int  PortMpPayloadHold(void);
 
 /* What the loopback's peer made of what the game sent it: the last 20-byte
  * block whose checksum came out right, how many such packets there were, and
@@ -179,6 +183,7 @@ void PortMpPeerLobbyReset(int slot);      /* slot < 0 resets all of them */
 /* --- transports the port ships ------------------------------------------- */
 
 int PortMpUseLoopback(int players);
+int PortMpUsePayloadLink(int players, int selfId);
 /* Uses Module.portMp -- see the comment in mp.c for the four calls a page
  * has to provide. */
 int PortMpUseJs(int players);

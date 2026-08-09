@@ -303,7 +303,24 @@ void PortMpReport(void)
 
 int PortMpUseLoopback(int players)
 {
+    PortMpLoopbackPayloadMode(0);
     return PortMpAttach(PortMpLoopback(), players);
+}
+
+/* The link-session takeover: the game's real lobby ran over the network,
+ * the session flag just flipped, and from here the cable is local -- the
+ * synthetic units speak the real players' relayed payload blocks (see
+ * mp_loopback.c, payload mode).  Called by the page between frames, on
+ * every instance, when each sees gUnk_03002558 go nonzero. */
+int PortMpUsePayloadLink(int players, int selfId)
+{
+    PortMpLoopbackSelfId(selfId);
+    PortMpLoopbackPayloadMode(1);
+    if (!PortMpAttach(PortMpLoopback(), players))
+        return 0;
+    PortLog("[katam-port] link: payload takeover -- the cable is local now, "
+            "%d player(s), this unit is slot %d", players, selfId);
+    return 1;
 }
 
 int PortMpUseJs(int players)

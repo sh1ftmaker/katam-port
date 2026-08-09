@@ -45,6 +45,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/backend.h"
 #include "port/mp.h"
 #include "global.h"
 #include "main.h"
@@ -180,6 +181,28 @@ void PortSioFrame(void)
         PortLog("[katam-port] link up: %u player(s), this unit is slot %u (%s)",
                 link.players, link.selfId,
                 link.selfId == 0 ? "parent" : "child");
+    }
+
+    /* Payload mode's hold (mp_loopback.c): a live remote player's latest
+     * block has gone stale beyond the input ring's redundancy, so pause the
+     * game's timestep until a fresh one lands -- lag as a hitch in wall
+     * clock, never as line noise; the console-online lockstep presentation.
+     * The pump keeps the page's receive path running while the frame loop
+     * is not; a player marked absent (past their reconnect grace) stops
+     * holding and the game handles the cable-out its own way.  The cap is a
+     * last resort against a relay that neither delivers nor admits loss. */
+    if (PortMpPayloadHold()) {
+        long spins = 0;
+
+        while (PortMpPayloadHold()) {
+            PortNetIdle();
+            PortAwaitYield();
+            if (++spins > 8000) {
+                PortLog("[katam-port] link: a peer has been silent 30+ "
+                        "seconds -- running on without them");
+                break;
+            }
+        }
     }
 
     /* A child that has fallen behind runs up to twice a frame's worth of

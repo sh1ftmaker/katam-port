@@ -73,6 +73,33 @@ static int sPlayers = 2;
 static int sSelfId;
 static int sOpen;
 
+/* --- payload mode: the real remote players, on the local cable ------------
+ *
+ * The whole of KATAM's link session above the packet layer is a 20-byte
+ * user block per unit per frame (multi_08030C94.c): 0x20 input messages
+ * carrying eight frames of button samples, and the pat2 world-sync
+ * negotiation.  Everything below it -- framing, checksums, the strict word
+ * streams -- is what a network relay keeps breaking.  So payload mode
+ * relays the *blocks* and keeps the bus local: each remote unit on this
+ * synthetic cable speaks the last block its real player sent, rebuilt into
+ * a properly framed, checksummed packet every frame.  MultiSio is
+ * send-latest-state by design, so a late block repeating is exactly what a
+ * dropped frame looks like on hardware; past HOLD_LAG frames of staleness
+ * the port pauses the game's timestep instead (platform/sio.c), which is
+ * the console-online lockstep presentation.  The game's own world sync,
+ * input ring, per-sample desync hash and cable-out handling all run
+ * unchanged -- they ride inside the blocks. */
+#define HOLD_LAG 6              /* inside the input ring's eight frames    */
+
+static int sPayloadMode;
+static u32 sLocalFrame;         /* frames since payload mode began         */
+static struct {
+    int everFed;
+    u32 senderFrame;            /* the sender's own stamp, for dedup       */
+    u32 fedAt;                  /* sLocalFrame at receipt, for freshness   */
+    u8  block[MULTI_SIO_BLOCK_SIZE];
+} sFeeds[PORT_MP_PLAYERS];
+
 /* --- the peer's send side ------------------------------------------------- */
 
 /* MultiSioSendDataSet, for a unit whose "user send buffer" is a pattern.
@@ -94,13 +121,21 @@ static void BuildPacket(struct LoopPeer *p, int id)
     bytes[1] = 0;               /* recvErrorFlags:4, load bits, reserved     */
     /* bytes[2..3] is the checksum, filled in below */
 
-    /* The 20-byte user block, at halfword 2.  Distinctive on purpose: the
-     * first byte names this peer's slot and the second counts its packets, so
-     * a payload that turns up in gMultiSioRecv can only have come from here. */
-    bytes[4] = (u8)(0xA0 | id);
-    bytes[5] = p->frameCounter;
-    for (i = 2; i < MULTI_SIO_BLOCK_SIZE; i++)
-        bytes[4 + i] = (u8)(id * 0x10 + i);
+    if (sPayloadMode && sFeeds[id].everFed) {
+        /* The real player's latest block, verbatim.  Repeating it while a
+         * fresher one is in flight is what MultiSio expects of a dropped
+         * frame; the framing around it is rebuilt locally either way. */
+        memcpy(bytes + 4, sFeeds[id].block, MULTI_SIO_BLOCK_SIZE);
+    } else {
+        /* The 20-byte user block, at halfword 2.  Distinctive on purpose:
+         * the first byte names this peer's slot and the second counts its
+         * packets, so a payload that turns up in gMultiSioRecv can only
+         * have come from here. */
+        bytes[4] = (u8)(0xA0 | id);
+        bytes[5] = p->frameCounter;
+        for (i = 2; i < MULTI_SIO_BLOCK_SIZE; i++)
+            bytes[4 + i] = (u8)(id * 0x10 + i);
+    }
 
     for (i = 0; i < PACKET_HW - 2; i++)
         sum += p->packet[i];
@@ -196,6 +231,8 @@ static void LoopPoll(struct PortMpTransport *t, struct PortMpLink *link)
      * plus packet is where the slack in PORT_SIO_SLOTS goes. */
     if (!sOpen)
         return;
+    if (sPayloadMode)
+        sLocalFrame++;
     for (i = 0; i < PORT_MP_PLAYERS; i++)
         if (sPeers[i].present)
             BuildPacket(&sPeers[i], i);
@@ -282,6 +319,63 @@ int PortMpLoopbackPeerBadChecksums(int peer)
     if (peer < 0 || peer >= PORT_MP_PLAYERS || !sPeers[peer].present)
         return -1;
     return sPeers[peer].badChecksums;
+}
+
+/* --- payload mode's page-facing half -------------------------------------- */
+
+void PortMpLoopbackPayloadMode(int on)
+{
+    sPayloadMode = on ? 1 : 0;
+    sLocalFrame = 0;
+    memset(sFeeds, 0, sizeof(sFeeds));
+}
+
+/* A remote player's latest 20-byte block, from the relay.  Stale or replayed
+ * stamps (a reconnect re-sends its recent window) are dropped; fresh ones
+ * update the block the synthetic unit speaks and the freshness clock the
+ * hold below reads. */
+void PortMpFeedPayload(int player, u32 senderFrame, const u8 *block)
+{
+    if (player < 0 || player >= PORT_MP_PLAYERS || player == sSelfId)
+        return;
+    if (sFeeds[player].everFed && senderFrame <= sFeeds[player].senderFrame)
+        return;
+    sFeeds[player].everFed = 1;
+    sFeeds[player].senderFrame = senderFrame;
+    sFeeds[player].fedAt = sLocalFrame;
+    memcpy(sFeeds[player].block, block, MULTI_SIO_BLOCK_SIZE);
+}
+
+/* A player past their reconnect grace stops being on the cable at all --
+ * their unit reads as 0xFFFF and the game handles the cable-out its own
+ * way, which is the authentic behaviour. */
+void PortMpSetPeerPresent(int player, int present)
+{
+    if (player < 0 || player >= PORT_MP_PLAYERS || player == sSelfId)
+        return;
+    sPeers[player].present = present ? 1 : 0;
+    if (!present)
+        sFeeds[player].everFed = 0;
+}
+
+/* Should the frame loop pause?  Yes while any present, ever-heard-from
+ * player's latest block is more than HOLD_LAG of our frames old -- inside
+ * that, the input ring's redundancy hides the repeat entirely.  Players
+ * never heard from are the session still assembling; players marked absent
+ * are the game's problem now. */
+int PortMpPayloadHold(void)
+{
+    int i;
+
+    if (!sPayloadMode || !sOpen)
+        return 0;
+    for (i = 0; i < PORT_MP_PLAYERS; i++) {
+        if (i == sSelfId || !sPeers[i].present || !sFeeds[i].everFed)
+            continue;
+        if (sLocalFrame - sFeeds[i].fedAt > HOLD_LAG)
+            return 1;
+    }
+    return 0;
 }
 
 #ifdef __cplusplus

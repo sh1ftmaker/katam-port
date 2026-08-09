@@ -414,6 +414,53 @@ modes a localhost relay never shows, and each got a rule (`web/mp_net.js`,
   wrong ledger (measured: the departed founder kept playing and the joiner
   was seated in slot 2).
 
+## 3e. The link takeover: Path A's session on Path B's terms
+
+§3d's last bullet showed the serial bus cannot be paused; this is the way
+out, and the user's steer named it: the link cable's own session -- the
+world sync, the multiplayer rules, the save-backed worlds that Path B's
+boot-to-world does not use -- kept whole, with only the *transport*
+replaced.
+
+The insight is in multi_08030C94.c: KATAM's entire link session above the
+packet layer is a 20-byte user block per unit per frame.  In play it is a
+0x20 message carrying eight frames of 12-bit input samples -- ten button
+bits plus a two-bit hash of gRngVal and every Kirby's position, the game's
+own per-frame desync referee -- and during the post-lobby negotiation it
+is the pat2 world-sync messages.  Everything fragile lives *below* that:
+framing, checksums, the strict word streams, the intra-frame bus
+causality.  KATAM link play is input-lockstep co-simulation; the bus is
+just its courier.
+
+So (`web/mp_net.js` armTakeover, `platform/mp_loopback.c` payload mode):
+
+- The game's own lobby runs over the word relay exactly as before -- it is
+  sampled-register tolerant and it works.
+- The moment the game commits (gUnk_03002558 goes nonzero), each instance
+  detaches the network transport and attaches the loopback in payload
+  mode: a local, perfect, synthetic cable whose remote units speak the
+  real players' relayed blocks, rebuilt into properly framed, checksummed
+  packets every frame.  MSG_PAYLOAD (0x04) relays one 25-byte message per
+  frame each way, and that is the whole of the netplay.
+- A late block simply repeats -- MultiSio is send-latest-state, and a
+  repeat is exactly what a dropped frame looks like on hardware; the input
+  ring's eight frames of redundancy hide it completely.  Staler than
+  HOLD_LAG=6 frames, the port pauses the game's timestep (the hold in
+  platform/sio.c) -- the console-online lockstep presentation, finally
+  legitimate because the bus being held is local.  A mutual hold unwinds
+  via the idle-loop heartbeat (same block, fresh stamp, every 50 ms).
+- A peer past their 5 s reconnect grace is unplugged from the synthetic
+  cable (their unit reads 0xFFFF) and the game handles the cable-out its
+  own way; a dead socket past its 15 s grace unplugs everyone.  All the
+  game's own logic -- including the comm-error screen -- stays the
+  authority, it just never fires for mere latency any more.
+
+`make netplay-link-test` is the proof: the real lobby, then a thousand
+played frames of session -- movement crossing both ways -- with the
+game's own referee silent throughout.  The old word-relay play path died
+at ~65 frames on localhost contention and constantly on a real relay;
+it survives only in `netplay-test` as a record of the contract.
+
 ## 4. The gaps that are actual work items on this branch
 
 Found by the code research; each is small, and together they are the real

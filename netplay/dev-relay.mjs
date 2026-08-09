@@ -21,7 +21,8 @@
 import { WebSocketServer } from 'ws';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
-    validClientInput, decodeTaggedInput, encodeLogBatch, LOG_BATCH,
+    validClientInput, validClientPayload, decodeTaggedInput,
+    encodeLogBatch, LOG_BATCH,
 } from './protocol.mjs';
 
 export function startRelay(port = 8787, opts = {}) {
@@ -101,7 +102,7 @@ export function startRelay(port = 8787, opts = {}) {
                 return;
             }
             const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-            if (validClientWords(bytes)) {
+            if (validClientWords(bytes) || validClientPayload(bytes)) {
                 const tagged = tagWords(slot, bytes);
                 for (const [oid, other] of r.conns)
                     if (oid !== id && other.readyState === other.OPEN)

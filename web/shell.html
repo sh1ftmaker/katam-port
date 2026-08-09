@@ -3618,6 +3618,18 @@ var Module = (function () {
     var net = createKatamNetTransport({ Module: Module, url: url, log: say });
     if (net.attach(players)) {
       window.katamNetplay.net = net;
+      /* The link takeover: the game's own lobby runs over the word relay,
+       * and the moment the game commits to the session the cable goes
+       * local -- MultiSio runs against synthetic units speaking the real
+       * players' relayed payload blocks, and lag becomes a paused
+       * timestep instead of a communication error. */
+      net.armTakeover();
+      Module.portNetIdle = net.idle;
+      var present = Module.portPresent;
+      Module.portPresent = function (ptr, w, h) {
+        if (present) present(ptr, w, h);
+        net.tick();
+      };
       say('[netplay] cable attached to ' + url + ' -- go to START GAME > MULTIPLAYER');
     } else {
       say('[netplay] transport refused to attach');
