@@ -34,6 +34,13 @@
     var MSG_INPUT = 0x02;
     var MSG_LOG = 0x03;
 
+    /* A departed peer's seat goes to the AI only after this long -- a
+     * socket blip shorter than this costs nothing but a stall at the
+     * rollback window.  PING_MS keeps an idle socket alive through quiet
+     * menus (both relays ignore unknown JSON). */
+    var LOSS_GRACE_MS = 5000;
+    var PING_MS = 20000;
+
     /* opts: { Module, url, socket?, log? } */
     function createKatamRbSession(opts) {
         var Module = opts.Module;
@@ -47,7 +54,11 @@
             seated: false,
             latest: 0,              /* highest frame the room reported       */
             newest: 0,              /* highest input frame heard live        */
-            sent: 0, confirmed: 0, assigns: 0,
+            peerNewest: [0, 0, 0, 0],   /* highest input frame per peer      */
+            peerKeys: [0, 0, 0, 0],     /* ... and the keys it carried       */
+            lastSent: 0,            /* highest frame we put on the wire      */
+            sent: 0, confirmed: 0, assigns: 0, reconnects: 0,
+            closed: false,
         };
         var joinedResolvers = [];
 
@@ -56,28 +67,125 @@
         var historyWait = null;     /* {resolve} while a history fetch runs  */
         var historyRecords = [];
 
-        var sock = opts.socket || new WebSocket(opts.url);
-        sock.binaryType = 'arraybuffer';
-        sock.onopen = function () { st.connected = true; };
-        sock.onclose = function () { st.connected = false; log('[rb-net] socket closed'); };
-        sock.onerror = function () { st.connected = false; log('[rb-net] socket error'); };
+        /* The link outlives the socket, exactly as web/mp_net.js does for
+         * Path A -- but Path B can promise more on the far side of a
+         * reconnect, because the room stores every input ever relayed.  The
+         * stall gate (PortRbShouldStall) freezes this instance within the
+         * rollback window of the moment the socket died, so our unheard
+         * inputs are a bounded resend, and everything the peers did
+         * meanwhile is in the room's history to refetch.  A reconnect is a
+         * pause, not a desync. */
+        var sock = null;
+        var attempts = 0;
+        var lossTimers = [null, null, null, null];
 
-        sock.onmessage = function (e) {
+        function connect() {
+            sock = opts.socket || new WebSocket(opts.url);
+            sock.binaryType = 'arraybuffer';
+            sock.onopen = function () {
+                st.connected = true;
+                if (attempts)
+                    log('[rb-net] socket reopened');
+            };
+            sock.onclose = function () {
+                st.connected = false;
+                if (st.closed)
+                    return;
+                if (opts.socket) {      /* a handed-in socket: no way to
+                                         * mint another one */
+                    log('[rb-net] socket closed');
+                    return;
+                }
+                var delay = Math.min(4000, 250 << Math.min(attempts, 4));
+                attempts++;
+                st.reconnects++;
+                log('[rb-net] socket lost -- reconnecting in ' + delay +
+                    ' ms (the game holds at the rollback window meanwhile)');
+                setTimeout(function () {
+                    if (!st.closed)
+                        connect();
+                }, delay);
+            };
+            sock.onerror = function () { log('[rb-net] socket error'); };
+            sock.onmessage = onMessage;
+        }
+
+        /* After a reconnect: send the inputs we simulated that the room
+         * never heard -- bounded by the stall gate to a window's worth --
+         * then reconfirm the whole session from the room's history, which
+         * fills whatever the peers did while we were gone.  ConfirmInput
+         * ignores everything already known, so the refetch costs one pass. */
+        function resync() {
+            if (st.seated) {
+                var now = Module._PortFrameNumber() >>> 0;
+                var n = 0;
+                for (var f = st.lastSent + 1; f <= now; f++, n++)
+                    sendInput(f, Module._PortRbInputAt(st.slot, f) & 0x3FF);
+                if (n)
+                    log('[rb-net] re-sent ' + n + ' unheard input(s)');
+            }
+            historyRecords = [];
+            historyWait = { resolve: function (h) {
+                for (var i = 0; i < h.records.length; i++) {
+                    var r = h.records[i];
+                    Module._PortRbConfirmInput(r.slot, r.frame, r.keys);
+                }
+                if (h.latest > st.newest)
+                    st.newest = h.latest;
+                log('[rb-net] resynchronised (' + h.records.length +
+                    ' session inputs reconfirmed)');
+            } };
+            sock.send(JSON.stringify({ type: 'history' }));
+        }
+
+        function onMessage(e) {
             if (typeof e.data === 'string') {
                 var m;
                 try { m = JSON.parse(e.data); } catch (err) { return; }
                 if (m.type === 'joined') {
+                    var was = st.slot;
                     st.slot = m.slot;
                     for (var i = 0; i < 4; i++)
                         st.online[i] = !!(m.online && m.online[i]);
                     log('[rb-net] joined room as peer ' + m.slot);
+                    if (was >= 0 && m.slot !== was) {
+                        /* The seat went to someone else while we were away.
+                         * This engine cannot change peer id mid-session;
+                         * dropping back in fresh is the reload path. */
+                        log('[rb-net] seat lost across the reconnect (' + was +
+                            ' -> ' + m.slot + ') -- reload the page to drop ' +
+                            'back into the world');
+                        st.closed = true;
+                        try { sock.close(); } catch (e2) { /* dead */ }
+                        return;
+                    }
+                    attempts = 0;
+                    if (was >= 0 && st.active)
+                        resync();
                     while (joinedResolvers.length)
                         joinedResolvers.shift()(m.slot);
                 } else if (m.type === 'peer') {
                     st.online[m.slot] = m.online;
                     log('[rb-net] peer ' + m.slot + (m.online ? ' online' : ' offline'));
-                    if (!m.online && handlePeerLoss)
-                        handlePeerLoss(m.slot);
+                    if (!m.online) {
+                        /* Not a leave yet -- a grace window first, so a
+                         * reconnecting peer keeps their Kirby.  Their
+                         * absence shows as a stall at the rollback window,
+                         * which is the price of never diverging. */
+                        if (lossTimers[m.slot] === null && st.active) {
+                            (function (peer) {
+                                lossTimers[peer] = setTimeout(function () {
+                                    lossTimers[peer] = null;
+                                    if (!st.online[peer])
+                                        handlePeerLoss(peer);
+                                }, LOSS_GRACE_MS);
+                            }(m.slot));
+                        }
+                    } else if (lossTimers[m.slot] !== null) {
+                        clearTimeout(lossTimers[m.slot]);
+                        lossTimers[m.slot] = null;
+                        log('[rb-net] peer ' + m.slot + ' is back -- seat kept');
+                    }
                 } else if (m.type === 'assign') {
                     rxAssigns.push(m);
                 } else if (m.type === 'history-done') {
@@ -98,6 +206,10 @@
                 rxInputs.push(rec);
                 if (rec.frame > st.newest)
                     st.newest = rec.frame;
+                if (rec.frame >= st.peerNewest[rec.slot]) {
+                    st.peerNewest[rec.slot] = rec.frame;
+                    st.peerKeys[rec.slot] = rec.keys;
+                }
             } else if (b[0] === MSG_LOG && historyWait) {
                 var dv2 = new DataView(b.buffer, b.byteOffset, b.byteLength);
                 var count = dv2.getUint16(1, true);
@@ -120,10 +232,27 @@
             dv.setUint16(5, keys & 0xFFFF, true);
             sock.send(buf);
             st.sent++;
+            if (frame > st.lastSent)
+                st.lastSent = frame;
         }
 
         function applyAssign(m) {
             var now = Module._PortFrameNumber();
+            /* The seal rides with the seat change: the announcer's last
+             * word on what the departed peer held, applied with authority
+             * (PortRbSealInput) so every survivor's timeline agrees at the
+             * exact frames where their views of the dead stream differ. */
+            if (m.seal && typeof m.seal.player === 'number') {
+                var to = m.frame >>> 0;
+                var from = m.seal.from >>> 0;
+                if (to - from <= 3600) {
+                    for (var f = from; f < to; f++)
+                        Module._PortRbSealInput(m.seal.player, f,
+                                                m.seal.keys & 0x3FF);
+                    log('[rb-net] sealed peer ' + m.seal.player + ' from ' +
+                        from + ' to ' + to);
+                }
+            }
             if (m.frame <= now + 2)
                 log('[rb-net] WARNING: assign for slot ' + m.slot +
                     ' at frame ' + m.frame + ' arrived at ' + now +
@@ -135,9 +264,11 @@
         }
 
         /* A departed peer's Kirby goes to the AI, announced once, by the
-         * lowest-numbered seated survivor so exactly one announcement wins. */
+         * lowest-numbered seated survivor so exactly one announcement wins.
+         * The announcement carries the seal: the stream officially ends at
+         * the announcer's last-heard frame, held to the seat change. */
         var handlePeerLoss = function (peer) {
-            if (!st.active)
+            if (!st.active || sock.readyState !== 1)
                 return;
             var slot = Module._PortRbPeerSlot(peer);
             if (slot < 0)
@@ -150,13 +281,41 @@
             }
             if (lowest === st.slot)
                 sock.send(JSON.stringify({ type: 'assign',
-                    frame: Module._PortRbSuggestEventFrame() >>> 0,
-                    slot: slot, peer: -1 }));
+                    frame: (Module._PortRbSuggestEventFrame() >>> 0) + 30,
+                    slot: slot, peer: -1,
+                    seal: { player: peer, from: st.peerNewest[peer] + 1,
+                            keys: st.peerKeys[peer] } }));
         };
+
+        /* Everything that arrived, into the engine.  Called from frame()
+         * each presented frame -- and from the host's stall loop
+         * (Module.portNetIdle), because during a stall frames are exactly
+         * what is not happening, and these queues are what end it. */
+        function pump() {
+            var i;
+            for (i = 0; i < rxAssigns.length; i++)
+                applyAssign(rxAssigns[i]);
+            rxAssigns.length = 0;
+            if (rxInputs.length) {
+                for (i = 0; i < rxInputs.length; i++) {
+                    var r = rxInputs[i];
+                    Module._PortRbConfirmInput(r.slot, r.frame, r.keys);
+                }
+                st.confirmed += rxInputs.length;
+                rxInputs.length = 0;
+            }
+        }
+
+        connect();
+
+        var pinger = setInterval(function () {
+            if (sock && sock.readyState === 1)
+                sock.send('{"type":"ping"}');
+        }, PING_MS);
 
         return {
             state: st,
-            socket: sock,
+            get socket() { return sock; },
 
             /* Resolves with this instance's room slot (its peer id). */
             whenJoined: function () {
@@ -263,18 +422,7 @@
              * record and publish the local buttons.  `keys` is what the
              * player is holding for the frame about to run. */
             frame: function (keys) {
-                var i;
-                for (i = 0; i < rxAssigns.length; i++)
-                    applyAssign(rxAssigns[i]);
-                rxAssigns.length = 0;
-                if (rxInputs.length) {
-                    for (i = 0; i < rxInputs.length; i++) {
-                        var r = rxInputs[i];
-                        Module._PortRbConfirmInput(r.slot, r.frame, r.keys);
-                    }
-                    st.confirmed += rxInputs.length;
-                    rxInputs.length = 0;
-                }
+                pump();
                 if (!st.active)
                     return;
                 st.seated = Module._PortRbPeerSlot(st.slot) >= 0;
@@ -288,7 +436,17 @@
                 }
             },
 
+            /* The host's stall-loop pump; see pump(). */
+            idle: pump,
+
             close: function () {
+                st.closed = true;
+                clearInterval(pinger);
+                for (var i = 0; i < 4; i++)
+                    if (lossTimers[i] !== null) {
+                        clearTimeout(lossTimers[i]);
+                        lossTimers[i] = null;
+                    }
                 try { sock.close(); } catch (e) { /* already dead */ }
             },
         };
