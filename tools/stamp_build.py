@@ -38,6 +38,11 @@ def main():
             sys.exit('stamp_build: %s is missing' % f)
 
     build_id = hashlib.sha256(wasm.read_bytes()).hexdigest()[:12]
+    # The loader gets its own hash, not the wasm's: EM_JS bodies live in the
+    # glue, so a C change can alter katam.js while leaving katam.wasm
+    # byte-identical -- stamped with the wasm's id, exactly that change
+    # shipped under an unchanged URL and sat out the cache lifetime.
+    loader_id = hashlib.sha256(loader.read_bytes()).hexdigest()[:12]
 
     html = page.read_text()
 
@@ -48,7 +53,7 @@ def main():
     if not m:
         sys.exit('stamp_build: no <script src=katam.js> in index.html')
 
-    stamped = re.sub(r'(katam\.js)', r'\1?v=%s' % build_id, m.group(0))
+    stamped = re.sub(r'(katam\.js)', r'\1?v=%s' % loader_id, m.group(0))
 
     # locateFile has to be set on the Module the shell already built -- the
     # shell's `var Module = {...}` runs earlier in the page and would discard
