@@ -3562,7 +3562,12 @@ var Module = (function () {
 
   if (world) {
     var wid = mintId();
-    var wurl = relay.replace(/\/+$/, '') + '/' + encodeURIComponent(world)
+    /* The version suffix keeps incompatible builds apart: a page whose boot
+     * constants or scheduled events differ would replay a different world
+     * from the same history and silently desync, so it lands in a different
+     * room instead. */
+    var wurl = relay.replace(/\/+$/, '') + '/'
+        + encodeURIComponent(world) + '.v' + createKatamWorldSession.WORLD_VERSION
         + '?id=' + encodeURIComponent(wid) + '&_pk=' + encodeURIComponent(wid);
 
     /* Blank, unpersisted save memory: the boot script assumes an empty

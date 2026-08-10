@@ -48,11 +48,14 @@
     'use strict';
 
     /* The session constants.  Change any of these and running sessions
-     * split into incompatible worlds; the room name should carry a version
-     * when that starts to matter. */
+     * split into incompatible worlds -- which is why the page appends
+     * WORLD_VERSION to the room name: two builds with different constants
+     * land in different rooms instead of silently desyncing.  Bump it with
+     * any change to F0, the boot script, or the scheduled events. */
+    var WORLD_VERSION = 2;
     var F0 = 2200;                  /* activation: the world is up by here   */
     var DEPTH = 16;                 /* rollback window, frames               */
-    var EV_PLAYERS = 1, EV_NETPLAY = 3;
+    var EV_PLAYERS = 1, EV_NETPLAY = 3, EV_STORY = 4;
 
     /* The proven boot script (tools/netplay_rb_test.mjs, §3a item 6 of
      * docs/NETPLAY.md): mash A through the title and file select, then the
@@ -110,8 +113,16 @@
                     Module._PortRbSetSelf(slot);
                     /* Single-player world through the boot; four seats and
                      * the network-input branch from F0.  Events, so every
-                     * replayer flips them at the same frames. */
+                     * replayer flips them at the same frames.  The story
+                     * event starts the world in the hub instead of the
+                     * tutorial: the tutorial's exit is sealed behind a
+                     * chest-and-lever puzzle whose open sequence needs every
+                     * Kirby pressing up at the door at once, which netplay
+                     * Kirbys will never coordinate.  Stage 3 is the game's
+                     * own "tutorial done" state (see PORT_RB_EV_STORY in
+                     * platform/port/rollback.h). */
                     Module._PortRbScheduleEvent(0, EV_PLAYERS, 1, 0);
+                    Module._PortRbScheduleEvent(0, EV_STORY, 3, 0);
                     Module._PortRbScheduleEvent(F0, EV_PLAYERS, 4, 0);
                     Module._PortRbScheduleEvent(F0, EV_NETPLAY, 0, 0);
                     confirmBoot(0);
@@ -185,5 +196,6 @@
                  F0: F0 };
     }
 
+    createKatamWorldSession.WORLD_VERSION = WORLD_VERSION;
     return createKatamWorldSession;
 }));

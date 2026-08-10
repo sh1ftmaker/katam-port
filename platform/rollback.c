@@ -256,11 +256,31 @@ static int sNumEvents;
 #define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
 #define GAME_MODE_FLAGS     (*(vu32 *)0x0203AD10)
 #define GAME_FOCUS      (*(vu8  *)0x0203AD3C)
+#define GAME_STORY      (*(vu16 *)0x0203AD2C)   /* gAIKirbyState, port/rollback.h */
 
 /* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
  * changed only by an event, so a replay reproduces it. */
 static s8 sSlotPeer[PORT_RB_PLAYERS];
 static u8 sSlotsInPlay = PORT_RB_PLAYERS;
+
+/* Story floor, in hundreds of gAIKirbyState -- 0 is "leave the game alone".
+ * Set by PORT_RB_EV_STORY and never unset, so a replay that re-applies the
+ * event reproduces it and a rollback cannot lower it. */
+static u8 sStoryFloor;
+
+/* Called by the game itself (portify.py's STORY_HOOK) at the top of the
+ * new-game path, after the empty-file confirm has cleared the save buffer
+ * and before the spawn rooms are read from it.  That in-frame ordering is
+ * the whole reason this is a call from inside the game rather than a write
+ * in ApplyEventsFor: the clear and the read happen within one simulated
+ * frame, so no frame-boundary write can land between them. */
+void PortRbStoryApply(void)
+{
+    u16 stage = (u16)(sStoryFloor * 100);
+
+    if (stage && GAME_STORY < stage)
+        GAME_STORY = stage;
+}
 
 /* Which Kirby this instance's camera, pause menu and HUD belong to -- set by
  * PortRbNetPlay, and *port*-side state, not timeline state: GAME_FOCUS is
@@ -623,6 +643,9 @@ int PortRbScheduleEvent(u32 frame, enum PortRbEventType type, u8 a, u8 b)
     else if (type == PORT_RB_EV_NETPLAY)
         PortLog("[katam-port] rollback: frame %u -- network input on",
                 (unsigned)frame);
+    else if (type == PORT_RB_EV_STORY)
+        PortLog("[katam-port] rollback: frame %u -- story stage -> %u",
+                (unsigned)frame, a * 100);
     else
         PortLog("[katam-port] rollback: frame %u -- Kirbys in play -> %u",
                 (unsigned)frame, a);
@@ -688,6 +711,11 @@ static void ApplyEventsFor(u32 frame)
             break;
         case PORT_RB_EV_NETPLAY:
             GAME_MODE_FLAGS |= 2;
+            break;
+        case PORT_RB_EV_STORY:
+            if (sEvents[i].a > sStoryFloor)
+                sStoryFloor = sEvents[i].a;
+            PortRbStoryApply();
             break;
         default:
             break;

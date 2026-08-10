@@ -230,6 +230,36 @@ CODE_IN_RAM = {
     )],
 }
 
+# The one seam the netplay world boot needs inside the game's own text.
+#
+# A netplay world starts everyone in the hub instead of the tutorial by
+# raising gAIKirbyState to AI_KIRBY_STATE_NORMAL before the new-game path
+# picks its spawn rooms -- the same trick the game's own attract demos use
+# (src/demo.c:76).  It cannot be done from outside the frame: the confirm on
+# an empty FILE 1 clears the save buffer and reads the state back *within
+# one simulated frame* (measured: both in frame 876 of the baked boot), so a
+# value written at any frame boundary is gone before the read.  The hook runs
+# between the two, at the top of the function that both clears and reads.
+#
+# PortRbStoryApply (platform/rollback.c) is a no-op unless the session
+# scheduled a PORT_RB_EV_STORY timeline event, so single-player and Path A
+# starts are untouched.
+STORY_HOOK = {
+    'code_08123950.c': (
+        [("""    for (r4 = 0; r4 < ARRAY_COUNT(sp0); r4++) {
+        sub_08002C98(r4, &sp0[r4], &spC[r4], &sp1C[r4][0]);
+    }""",
+          """    /* PORT: a netplay world boots to the hub, not the tutorial --
+     * no-op without a PORT_RB_EV_STORY event.  See tools/portify.py. */
+    PortRbStoryApply();
+
+    for (r4 = 0; r4 < ARRAY_COUNT(sp0); r4++) {
+        sub_08002C98(r4, &sp0[r4], &spC[r4], &sp1C[r4][0]);
+    }""")],
+        'void PortRbStoryApply(void);\n',
+    ),
+}
+
 
 # Structures the GBA's compiler rounds up and clang does not.
 #
@@ -934,6 +964,20 @@ def main():
                         hit = True
                 if hit:
                     text = decl + text
+            story = STORY_HOOK.get(path.name)
+            if story:
+                sites, decl = story
+                for old, new in sites:
+                    if old in text:
+                        text = decl + text.replace(old, new, 1)
+                        rep.bump('netplay story hook planted')
+                    else:
+                        rep.unhandled.append(
+                            '%s: the STORY_HOOK pattern no longer matches -- '
+                            'netplay worlds will boot into the tutorial with '
+                            'its exit sealed, and pages built before and '
+                            'after this sync will desync in a shared room'
+                            % path.name)
             for old, new in DECL_FIXES.get(path.name, ()):
                 if old in text:
                     text = text.replace(old, new)

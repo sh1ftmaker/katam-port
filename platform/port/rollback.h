@@ -110,7 +110,27 @@ enum PortRbEventType {
                              * and every replayer must flip it at the same
                              * frame.  A session bakes it at its activation
                              * frame; nothing ever turns it back off.        */
+    PORT_RB_EV_STORY,       /* a: floor on gUnk_0203AD2C (gAIKirbyState) in
+                             * hundreds.  Stage 3 is "the tutorial is behind
+                             * us": the new-game path reads the state to pick
+                             * the spawn rooms (sub_08002C98, sub_080332BC),
+                             * so a floor of 3 starts everyone in the hub --
+                             * the same trick the game's attract demos use
+                             * (src/demo.c:76).  Not a one-shot write: the
+                             * empty-file confirm clears the save buffer and
+                             * reads it back within one simulated frame, so
+                             * the event latches a floor that the game itself
+                             * applies at the top of the new-game path (the
+                             * STORY_HOOK in tools/portify.py calls
+                             * PortRbStoryApply there).  Schedule it at any
+                             * frame at or before the confirm; frame 0 is
+                             * fine.                                         */
 };
+
+/* The STORY_HOOK's target (see PORT_RB_EV_STORY above).  Defined in
+ * rollback.c, called from inside the game's new-game path; a no-op unless a
+ * story event has latched a floor. */
+void PortRbStoryApply(void);
 
 #define PORT_RB_SLOT_AI 0xFF
 
