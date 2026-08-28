@@ -34,13 +34,23 @@ export class WorldSpike extends DurableObject {
 
     async fetch(req) {
         const url = new URL(req.url);
+        if (url.pathname === '/memory') {
+            const pages = Number(url.searchParams.get('mb') || 192) * 16;
+            try { const m = new WebAssembly.Memory({ initial: pages }); new Uint8Array(m.buffer)[0] = 1; return Response.json({ ok: true, bytes: m.buffer.byteLength }); }
+            catch (e) { return Response.json({ ok: false, message: String(e) }); }
+        }
+        if (url.pathname === '/timers') {
+            const t = Date.now(); let n = 0;
+            for (; n < 100; n++) await new Promise((r) => setTimeout(r, 0));
+            return Response.json({ ok: true, timers: n, ms: Date.now() - t });
+        }
         if (req.method === 'POST' && url.pathname === '/rom') {
             this.rom = new Uint8Array(await req.arrayBuffer());
             this.world = null;
             return Response.json({ rom: this.rom.length });
         }
         if (!this.rom) return Response.json({ error: 'POST the ROM to /rom first' }, { status: 400 });
-        if (!this.world) {
+        if (!this.world) try {
             /* The codec wants a synchronous deflate; CompressionStream is
              * async.  The spike compresses each seat's delta bytes after the
              * round instead, which measures the same work. */
@@ -52,6 +62,8 @@ export class WorldSpike extends DurableObject {
                 log: (l) => console.log(l),
             });
             this.world.bootMs = performance.now() - t;
+        } catch (e) {
+            return Response.json({ error: 'world did not come up', message: String(e && e.message || e), stack: String(e && e.stack || '') }, { status: 500 });
         }
         const w = this.world;
         if (url.pathname === '/run') {
@@ -93,6 +105,27 @@ export class WorldSpike extends DurableObject {
             });
             const ms = performance.now() - t;
             return Response.json({ seconds, rounds: done, achievedHz: done / (ms / 1000), lateTicks: late });
+        }
+        if (url.pathname === '/instances') {
+            /* The memory probe: bring up N more whole worlds beside this one.
+             * Each is another 192 MB linear memory of which ~17 MB is ever
+             * touched; if the platform accounts the reservation, the first
+             * one already breaks the 128 MB limit, and if it accounts what
+             * is touched, several fit.  The DO dying is the failure mode,
+             * which is why this reports as it goes. */
+            const n = Number(url.searchParams.get('n') || 1);
+            this.extra = this.extra || [];
+            const up = [];
+            for (let i = 0; i < n; i++) {
+                const t = performance.now();
+                const w = await startWorld({
+                    wasm, rom: this.rom,
+                    deflate: () => new Uint8Array(0), onFrame: () => {},
+                });
+                this.extra.push(w);
+                up.push({ world: this.extra.length, bootMs: Math.round(performance.now() - t) });
+            }
+            return Response.json({ extraWorlds: this.extra.length, brought: up });
         }
         return Response.json({ error: 'unknown path' }, { status: 404 });
     }

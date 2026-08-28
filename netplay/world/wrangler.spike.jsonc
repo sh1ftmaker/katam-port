@@ -2,11 +2,11 @@
   // The Durable Object spike for server-side play -- see spike.mjs.  Local
   // only unless someone deploys it on purpose; it holds a ROM in memory.
   "name": "katam-world-spike",
+  "account_id": "52eac4774c41377ec9e4bf03f47a3205",
   "main": "spike.mjs",
   "compatibility_date": "2026-08-01",
   "durable_objects": {
     "bindings": [{ "name": "WorldSpike", "class_name": "WorldSpike" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorldSpike"] }],
-  "limits": { "cpu_ms": 300000 }
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorldSpike"] }]
 }

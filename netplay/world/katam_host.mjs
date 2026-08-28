@@ -29,14 +29,14 @@ export async function startWorld(opts) {
     let pending = null;
     let paced = false;
     globalThis.requestAnimationFrame = (cb) => {
-        if (paced) pending = cb; else queueMicrotask(cb);
+        if (paced) pending = cb; else setTimeout(cb, 0);
         return 0;
     };
 
     const encoders = [];
     for (let s = 0; s < seats; s++) encoders.push(createEncoder(opts.deflate));
     let confirm = null;
-    let ready; const worldUp = new Promise((r) => { ready = r; });
+    let ready, failed; const worldUp = new Promise((r, j) => { ready = r; failed = j; });
     let rounds = 0, presentMs = 0;
 
     const Module = {
@@ -44,7 +44,9 @@ export async function startWorld(opts) {
         portAudioRate: 0,
         print: (t) => log(t), printErr: (t) => log(t),
         instantiateWasm(imports, done) {
+            log('[host] instantiating');
             const inst = new WebAssembly.Instance(opts.wasm, imports);
+            log('[host] instantiated');
             done(inst);
             return inst.exports;
         },
@@ -52,9 +54,11 @@ export async function startWorld(opts) {
             Module.HEAPU8.set(opts.rom, 0x08000000);
             Module._PortRomLoaded(opts.rom.length);
             confirm = armBoot(Module, seats);
+            log('[host] runtime initialised, boot armed');
         },
         portPresent(ptr, w, h) {
             const frame = Module._PortFrameNumber();
+            if ((frame & 0x1FF) === 0) log('[host] present frame ' + frame);
             if (!Module._PortSeatActive()) {
                 confirm(frame + AHEAD);
                 if (frame >= F0 + 1) {
@@ -75,7 +79,11 @@ export async function startWorld(opts) {
         },
     };
     const t0 = performance.now();
-    createKatam(Module);
+    /* A failure inside the glue -- the memory refused, a trap in the boot --
+     * rejects this promise; without forwarding it the world would simply
+     * never come up, which on workerd reads as "Promise will never
+     * complete" and nothing else. */
+    createKatam(Module).catch((e) => failed(e));
     await worldUp;
     const bootMs = performance.now() - t0;
 

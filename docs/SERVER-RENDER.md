@@ -204,9 +204,54 @@ send the same stream to everyone.
 | 2. seat-multiplexed loop | **done, proven.** `platform/seats.c`; `make seat-test` runs four real instances against one instance with four seats over a scripted four-player session: every framebuffer byte-identical on all 670 frames, desync quantities equal. |
 | 3. frame codec | **done, measured** (§1 above). `netplay/framecodec.mjs`, `make framecodec-test`. |
 | 1. DO spike, local half | **done.** `make build/katam-server.mjs` is the Workers build (ENVIRONMENT=web, ES module, wasm handed in through `instantiateWasm`). `netplay/world/spike.mjs` under `wrangler dev` (workerd, this machine): boot to the world **100 ms**, **5.8 ms per 4-seat round** including render, encode and `CompressionStream` deflate, a `setInterval` loop paced at **60.28 Hz with 0 late ticks over 10 s**. |
-| 1. DO spike, deployed half | **not run** -- needs `wrangler deploy` on the account, which is the one thing local workerd cannot answer: the 128 MB accounting of the 192 MB linear memory, and CPU-time limits on a long-lived tick. |
+| 1. DO spike, deployed half | **run, 2026-08-28, and it is a wall.** `https://katam-world-spike.sh1ftmaker.workers.dev`: `WebAssembly.Memory` of **128 MB allocates, 160 MB does not**, and instantiating the port's module fails with `WebAssembly.Instance(): Out of memory: Cannot allocate Wasm memory for new instance`. Cloudflare accounts the **reservation** (192 MB), not the ~17 MB touched. Timers work (100 `setTimeout(0)` in a row; `Date.now` is frozen inside a request, so nothing can be timed from inside). The account is on the free plan: `limits.cpu_ms` is refused, so a long-lived tick could not be tested and its CPU accounting stays unknown. See §4b. |
 | 4. audio | not started |
 | 5. world server + thin client | not started; `netplay/world/katam_host.mjs` is the host the server will drive |
+
+## 4b. The Durable Object cannot hold the memory map, and why remapping is not a fix
+
+The flat map (ARCHITECTURE.md) puts EWRAM at `0x02000000` ... OAM at
+`0x07000000` and the ROM at `0x08000000`–`0x09000000`: the linear memory must
+reach 144 MB before the port's own data and stack, and a Durable Object stops
+at 128 MB, counted at reservation. Two ways around it were considered:
+
+- **Fold the ROM below the RAM regions** (e.g. `0x00100000`) so the map ends
+  under 128 MB. The RAM regions cannot move (the ROM holds ~96k words that
+  look like RAM pointers -- `gMPlayTable` and friends really are), and the ROM
+  cannot move either without rewriting every ROM-internal pointer: `gen_rom_data.py`
+  says it plainly -- of 28,590 data labels only 162 are named by C, the rest
+  are reached by following absolute `0x08xxxxxx` pointers inside the image.
+  A scan finds **55,770 aligned words in the ROM that look like ROM pointers**,
+  with no way to tell a pointer from a graphics word that happens to be in
+  range. A heuristic rewrite would be a different, unverifiable ROM. **No.**
+- **A smaller world in a bigger box.** The seats and the codec are fine; the
+  box is wrong. Cloudflare Containers (Workers Paid, 256 MiB–4 GiB, a real
+  process with node or the native build) or any ordinary host can run
+  `netplay/world/katam_host.mjs` unchanged, with a Durable Object left to do
+  what it is good at -- the room, the WebSockets, the input log -- and the
+  world process behind it. The native build (`docs/NATIVE.md`) would even
+  drop the 192 MB question entirely.
+
+So the honest state of step 1: **the Durable Object is out as the place the
+world runs; it stays as the room.** Where the world runs is a platform choice
+the numbers do not make for us: a Cloudflare Container keeps everything in
+one colo and one bill, a plain host is cheaper and simpler.
+
+### QOI, re-measured on the flying run (asked for; it was 2:1 before)
+
+| | mean | p50 | p95 | max |
+|---|---|---|---|---|
+| QOI of the raw picture | 52.9 KB | 52.4 | 56.5 | 58.8 |
+| deflate of the raw picture | ~15 KB | | | 15.2 |
+| QOI of the codec's delta words | 4.0 KB | 2.3 | 15.3 | 56.1 |
+| **deflate of the delta (the codec)** | **1.66 KB** | 1.10 | 5.9 | 15.2 |
+| QOI of the delta, then deflate | 1.56 KB | 0.93 | 6.1 | 17.7 |
+
+The hub is busier than the level measured in §1 (150 colours, gradients), and
+QOI alone is 3.5x worse than deflate on it. QOI-then-deflate on the delta is
+6 % better on the mean and 15 % on the median, and *worse* at p95 and max --
+it trades the frames that matter (scrolling) for the ones that were already
+cheap. Not worth a second pass. `QOI=1 make framecodec-test` reproduces it.
 
 ## 5. Recommendation
 

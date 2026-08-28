@@ -49,6 +49,34 @@ function keysFor(slot, f) {
 const deflate = (b) => zlib.deflateRawSync(b, { level: 6 });
 const inflate = (b) => zlib.inflateRawSync(b);
 const enc = createEncoder(deflate), dec = createDecoder(inflate);
+
+// QOI=1 also measures QOI (https://qoiformat.org) on the same frames: on the
+// raw picture, on the codec's own delta words, and QOI followed by deflate --
+// the question being whether a spatial coder beats deflate on pixel art.
+const QOI = !!process.env.QOI;
+function qoiRgb(rgb, n) {
+    const out = Buffer.alloc(n * 4 + 22); let o = 0; const idx = new Int32Array(64);
+    let pr = 0, pg = 0, pb = 0, run = 0;
+    for (let i = 0, j = 0; i < n; i++, j += 3) {
+        const r = rgb[j], g = rgb[j + 1], b = rgb[j + 2];
+        if (r === pr && g === pg && b === pb) { run++; if (run === 62 || i === n - 1) { out[o++] = 0xc0 | (run - 1); run = 0; } continue; }
+        if (run > 0) { out[o++] = 0xc0 | (run - 1); run = 0; }
+        const hsh = (r * 3 + g * 5 + b * 7 + 255 * 11) % 64; const key = (r << 16) | (g << 8) | b | (1 << 24);
+        if (idx[hsh] === key) out[o++] = hsh;
+        else { idx[hsh] = key; const dr = r - pr, dg = g - pg, db = b - pb;
+            if (dr > -3 && dr < 2 && dg > -3 && dg < 2 && db > -3 && db < 2) out[o++] = 0x40 | ((dr + 2) << 4) | ((dg + 2) << 2) | (db + 2);
+            else { const dgr = dr - dg, dgb = db - dg;
+                if (dg > -33 && dg < 32 && dgr > -9 && dgr < 8 && dgb > -9 && dgb < 8) { out[o++] = 0x80 | (dg + 32); out[o++] = ((dgr + 8) << 4) | (dgb + 8); }
+                else { out[o++] = 0xfe; out[o++] = r; out[o++] = g; out[o++] = b; } } }
+        pr = r; pg = g; pb = b; }
+    return out.subarray(0, o + 22);
+}
+function wordsToRgb(words) {          /* 555 words (or delta words) as RGB24 */
+    const rgb = Buffer.alloc(words.length * 3);
+    for (let i = 0, j = 0; i < words.length; i++, j += 3) { const c = words[i]; rgb[j] = (c & 0x1F) << 3; rgb[j + 1] = ((c >> 5) & 0x1F) << 3; rgb[j + 2] = ((c >> 10) & 0x1F) << 3; }
+    return rgb;
+}
+const qoiSizes = { raw: [], rawDeflate: [], delta: [], deltaDeflate: [], deflateDelta: [] };
 const sizes = { [MODE_RAW]: [], [MODE_XOR]: [], [MODE_MC]: [] };
 const all = [];
 let mismatches = 0, encodeMs = 0, decodeMs = 0, scrolled = 0;
@@ -83,6 +111,15 @@ const Module = {
             for (let i = 0; i < px.length; i++)
                 if (px[i] !== back[i]) { mismatches++; break; }
             sizes[r.mode].push(r.packet.length);
+            if (QOI) {
+                const q = qoiRgb(wordsToRgb(px), px.length);
+                qoiSizes.raw.push(q.length); qoiSizes.rawDeflate.push(deflate(q).length);
+                /* the codec's own delta words: inflate the packet body back */
+                const words = new Uint16Array(inflate(r.packet.subarray(3)).buffer);
+                const qd = qoiRgb(wordsToRgb(words), words.length);
+                qoiSizes.delta.push(qd.length); qoiSizes.deltaDeflate.push(deflate(qd).length);
+                qoiSizes.deflateDelta.push(r.packet.length - 3);
+            }
             all.push(r.packet.length);
         }
         if (frame >= END) { finished = true; resolveDone(); }
@@ -116,6 +153,13 @@ console.log(`[codec] raw   : ${stats(sizes[MODE_RAW])}`);
 console.log(`[codec] xor   : ${stats(sizes[MODE_XOR])}`);
 console.log(`[codec] mc    : ${stats(sizes[MODE_MC])}`);
 console.log(`[codec] all   : ${stats(all)}  =>  ${(all.reduce((a, b) => a + b, 0) / n * 60 * 8 / 1e6).toFixed(2)} Mbit/s at 60 fps`);
+if (QOI) {
+    console.log(`[qoi]   raw picture        : ${stats(qoiSizes.raw)}`);
+    console.log(`[qoi]   raw, then deflate  : ${stats(qoiSizes.rawDeflate)}`);
+    console.log(`[qoi]   codec delta        : ${stats(qoiSizes.delta)}`);
+    console.log(`[qoi]   delta, then deflate: ${stats(qoiSizes.deltaDeflate)}`);
+    console.log(`[qoi]   (deflate of delta) : ${stats(qoiSizes.deflateDelta)}`);
+}
 if (mismatches) { console.error(`FRAME CODEC TEST FAILED: ${mismatches} frames did not roundtrip`); process.exit(1); }
 console.log(`FRAME CODEC TEST PASSED: ${n} frames roundtrip exactly`);
 process.exit(0);
