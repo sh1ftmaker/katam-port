@@ -503,6 +503,12 @@ netplay-test: $(BUILD)/katam-node.js
 # sync, one drop-out to the AI, one drop-in from the room's input history.
 # PASS is bit-equality of the game's own desync quantity across instances.
 # docs/NETPLAY.md §3b.
+# The frame codec (netplay/framecodec.mjs): every frame of a scrolling run
+# roundtrips exactly, and the per-mode sizes are printed for the record.
+framecodec-test: $(BUILD)/katam-node.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	node tools/framecodec_test.mjs $(BUILD)/katam-node.js $(ROM)
+
 # Seats (platform/port/seats.h): four game states multiplexed through one
 # instance must be bit-identical -- every framebuffer, every frame -- to four
 # real instances playing the same session.

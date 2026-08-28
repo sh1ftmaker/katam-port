@@ -57,6 +57,19 @@ Findings:
      (`platform/ppu.c`); the encoder just needs them handed over. *Estimate*:
      scrolling frames drop to walking-frame sizes.
 
+**Measured after building it** (`netplay/framecodec.mjs`, `make
+framecodec-test`): the codec roundtrips every frame exactly, encodes in
+0.3 ms and decodes in 0.08 ms per frame in plain JS, and a flying run
+through the hub costs a mean of 1.66 KB/frame (p50 1.1 KB) = 0.8 Mbit/s.
+But the scroll-compensation win is **2x, not 10x**: the game's BG1–3 are
+parallax layers whose scroll registers are rewritten per scanline by the
+HBlank handler, so one global shift can only compensate the main layer
+(BG0) -- changed pixels on a scrolling frame fall from ~19k to ~10k, and a
+compensated frame still deflates to ~8 KB (p95 12 KB). The raw fallback
+holds the ceiling at ~15 KB. So: idle and walking are cheap, sustained
+scrolling is ~4–6 Mbit/s per seat. Fine on wifi, marginal on cellular;
+below that is the next rung.
+
 A further rung, if ever wanted: ship PPU *state* deltas (VRAM/OAM/PLTT/IO
 writes, ~a few KB/frame since the game streams tiles incrementally) and let
 the client's own `ppu.c` compose. Pixel-exact, and cheaper still — but the
