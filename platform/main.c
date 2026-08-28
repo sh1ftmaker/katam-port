@@ -43,6 +43,7 @@
 #include "port/dma.h"
 #include "port/mp.h"
 #include "port/rollback.h"
+#include "port/seats.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -289,6 +290,8 @@ static void UpdateKeyInput(void)
     u16 keys = sKeysDown;
 
     if (PortRbKeyOverride(&keys))
+        sKeysDown = keys;
+    if (PortSeatKeyOverride(&keys))
         sKeysDown = keys;
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
 }
@@ -843,6 +846,7 @@ void PortPresentFrame(void)
      * of these do nothing at all unless something armed them. */
     PortRbFrame();
     PortRbSelfTestStep();
+    PortSeatBeginFrame();
 
     render = PortRenderEnabled();
     PortStateTrace();
@@ -893,7 +897,11 @@ void PortPresentFrame(void)
             PortAwaitYield();
     } else {
         PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
-        PortAwaitAnimationFrame();
+        /* Under seats (platform/port/seats.h) a round is one frame for
+         * every seat, and it is the round that is paced: the earlier seats'
+         * pictures are handed over and the loop goes straight on. */
+        if (PortSeatIsLast())
+            PortAwaitAnimationFrame();
 
         /* The stall gate: never simulate past the rollback window of a
          * seated peer (platform/rollback.c, PortRbShouldStall).  Waiting
@@ -920,6 +928,12 @@ void PortPresentFrame(void)
             }
         }
     }
+
+    /* The seat switch, if seats are on: this state is put away and the next
+     * seat's is brought out, at the one point where the two are
+     * interchangeable -- see platform/port/seats.h.  The key latch below
+     * then serves the seat that was just loaded. */
+    PortSeatEndFrame();
 
     UpdateKeyInput();
     sFrameCount++;

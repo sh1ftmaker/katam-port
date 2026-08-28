@@ -66,6 +66,15 @@ int  PortRbInit(int depth, int players);
 void PortRbShutdown(void);
 int  PortRbActive(void);
 
+/* --- the snapshot, on its own -------------------------------------------
+ * The six GBA regions plus the port's out-of-map state, PortRbSnapshotBytes
+ * long; valid only at the frame boundary described above.  No session needs
+ * to be active.  platform/seats.c multiplexes several game states through
+ * one instance with these. */
+u32  PortRbSnapshotBytes(void);
+void PortRbSnapshotSave(void *dest);
+void PortRbSnapshotLoad(const void *src);
+
 /* --- input ---------------------------------------------------------------
  *
  * The local player's input for the frame about to run.  Called by the host

@@ -144,6 +144,24 @@ static void LoadFrom(const u8 *src)
         PortPpuStateLoad(src + off);
 }
 
+/* The snapshot as a service, for platform/seats.c: one state saved and loaded
+ * whole, with none of the ring, the timeline or the rollback policy.  Same
+ * bytes, same two functions, same PORT_RB_BREAK controls. */
+u32 PortRbSnapshotBytes(void)
+{
+    return MapBytes() + HostBytes();
+}
+
+void PortRbSnapshotSave(void *dest)
+{
+    SaveTo((u8 *)dest);
+}
+
+void PortRbSnapshotLoad(const void *src)
+{
+    LoadFrom((const u8 *)src);
+}
+
 /* --- the input timeline ---------------------------------------------------
  *
  * Stored uncompressed while a session runs, because a rollback has to index it
@@ -233,30 +251,7 @@ struct Event {
 static struct Event sEvents[MAX_EVENTS];
 static int sNumEvents;
 
-/* The game's own storage, by address.  This file is platform code and must not
- * depend on the generated tree, so the addresses are written out and the
- * offsets come from platform/port/gba_layout.h, which asserts every one of
- * them against the console layout on every build.
- *
- *   gUnk_0203AD30                  the number of Kirbys the game treats as
- *                                  network-driven -- the threshold in
- *                                  src/kirby.c:6475.
- *   gUnk_020382D0.unk8[3][4]       per-player input at offset 8: [0] held,
- *                                  [1] pressed this frame, [2] released.
- *                                  Written by the link layer at
- *                                  src/multi_08030C94.c:332 and read by Kirby.
- *   gUnk_02038590[i].unk9E         the AI controller's synthesised buttons,
- *                                  written by src/code_0800ECAC_2.c.  Stride
- *                                  244, field at 158; both asserted.
- */
-#define GAME_PLAYER_COUNT (*(vu8 *)0x0203AD30)
-#define GAME_HELD(slot)     (*(vu16 *)(0x020382D0 + 8      + 2 * (slot)))
-#define GAME_PRESSED(slot)  (*(vu16 *)(0x020382D0 + 8 +  8 + 2 * (slot)))
-#define GAME_RELEASED(slot) (*(vu16 *)(0x020382D0 + 8 + 16 + 2 * (slot)))
-#define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
-#define GAME_MODE_FLAGS     (*(vu32 *)0x0203AD10)
-#define GAME_FOCUS      (*(vu8  *)0x0203AD3C)
-#define GAME_STORY      (*(vu16 *)0x0203AD2C)   /* gAIKirbyState, port/rollback.h */
+#include "port/game_addrs.h"
 
 /* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
  * changed only by an event, so a replay reproduces it. */
@@ -837,19 +832,8 @@ void PortRbFrame(void)
      * tools/netplay_boot_test.mjs) -- this only chooses which one is
      * looked at, per instance, which is exactly the divergence real link
      * play is built on. */
-    if (sFocusSlot >= 0) {
-        u32 task = *(vu32 *)0x02023354;
-
-        GAME_FOCUS = (u8)sFocusSlot;
-        if (task >= 0x02000000 && task < 0x03008000) {
-            u16 off = *(vu16 *)(task + 6);
-            u16 flags = *(vu16 *)(task + 0x12);
-            u32 obj = (flags & 0x10) ? 0x02000000 + ((u32)off << 2)
-                                     : 0x03000000 + off;
-
-            *(vu8 *)obj = (u8)sFocusSlot;
-        }
-    }
+    if (sFocusSlot >= 0)
+        GAME_REPIN_FOCUS(sFocusSlot);
 
     /* Drive the game from the timeline, never from the host.  A predicted
      * input is written back so that a later confirmation can be compared
@@ -1424,8 +1408,6 @@ static int sSlotTest;
 static u32 sSlotTestAt, sSlotTestSpan;
 static u16 sSlotTestKeys;
 
-#define GAME_MODE_FLAGS (*(vu32 *)0x0203AD10)
-#define GAME_FOCUS      (*(vu8  *)0x0203AD3C)
 
 /* --- playing over the timeline, without the game's lobby ------------------
  *
