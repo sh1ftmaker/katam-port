@@ -366,6 +366,21 @@ $(BUILD)/katam-node.js: $(OBJS)
 	    -sENVIRONMENT=node -sMODULARIZE=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
 	    $(OBJS) -o $@
 
+# The server build: the same program for a Cloudflare Worker (workerd) or any
+# other host that is neither a page nor node.  ENVIRONMENT=web keeps the glue
+# free of node's fs/path; the host supplies the compiled wasm through
+# Module.instantiateWasm and shims location/requestAnimationFrame, which
+# workerd lacks -- see netplay/world/katam_host.mjs.  ES module output, so
+# wrangler's bundler can import it.
+$(BUILD)/katam-server.mjs: $(OBJS)
+	$(CC) -O2 --profiling-funcs $(LDLINT) -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
+	    -sGLOBAL_BASE=$(GLOBAL_BASE) -sINITIAL_MEMORY=$(INITIAL_MEMORY) \
+	    -sALLOW_MEMORY_GROWTH=0 -sSTACK_SIZE=1048576 \
+	    -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
+	    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32 \
+	    -sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createKatam -sINVOKE_RUN=1 \
+	    $(OBJS) -o $@
+
 # Same as the node build but with full DWARF, for turning a trap into a source
 # line.  Only meaningful with DEBUG_INFO=1 -- use `make debug`, which sets it;
 # building this rule against -g0 objects yields debug info for emscripten's

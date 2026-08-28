@@ -197,6 +197,17 @@ send the same stream to everyone.
     first connector's colo latency, and there is no scaling a room across
     cores.
 
+## 4a. Built so far (branch `server-render`)
+
+| step | state |
+|---|---|
+| 2. seat-multiplexed loop | **done, proven.** `platform/seats.c`; `make seat-test` runs four real instances against one instance with four seats over a scripted four-player session: every framebuffer byte-identical on all 670 frames, desync quantities equal. |
+| 3. frame codec | **done, measured** (§1 above). `netplay/framecodec.mjs`, `make framecodec-test`. |
+| 1. DO spike, local half | **done.** `make build/katam-server.mjs` is the Workers build (ENVIRONMENT=web, ES module, wasm handed in through `instantiateWasm`). `netplay/world/spike.mjs` under `wrangler dev` (workerd, this machine): boot to the world **100 ms**, **5.8 ms per 4-seat round** including render, encode and `CompressionStream` deflate, a `setInterval` loop paced at **60.28 Hz with 0 late ticks over 10 s**. |
+| 1. DO spike, deployed half | **not run** -- needs `wrangler deploy` on the account, which is the one thing local workerd cannot answer: the 128 MB accounting of the 192 MB linear memory, and CPU-time limits on a long-lived tick. |
+| 4. audio | not started |
+| 5. world server + thin client | not started; `netplay/world/katam_host.mjs` is the host the server will drive |
+
 ## 5. Recommendation
 
 Do not replace Path B with this; Path B's latency properties are what make
