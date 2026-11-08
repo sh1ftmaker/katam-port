@@ -13,11 +13,10 @@
  * the same value for the same function in any build of the port that keeps
  * the name, and a word that is exactly the start of one of its data objects
  * (the game's C-defined const tables are compiled in, and the game stores
- * pointers to them), or a word inside one, becomes 0x80000000 | hash(object
- * name, offset).  Functions by exact entry only, never "inside the text
- * segment".  Both rules depend on the image sitting where game data cannot
- * reach by coincidence -- 0xB5000000, see CMakeLists.txt and
- * docs/DETERMINISM.md.
+ * pointers to them) becomes 0x80000000 | hash(object name).  Only exact
+ * starts, never "inside the text segment" -- the
+ * game's data holds plenty of words like 0x10101010 that land in the code
+ * range by coincidence and point at nothing.
  *
  * The names come from the executable's own ELF symbol table (it is not
  * stripped; static functions are in it too).  Linux only, because that is
@@ -191,39 +190,25 @@ u32 PortHostCanonWord(u32 w)
 
     if (!sLoaded)
         Load();
-    /* Data objects: a pointer to the start of one, into it (an element of a
-     * table -- the attract demo keeps one into a static array of the
-     * port's), or one past its end.  The token is the object's name plus the
-     * offset, the same in any build that keeps the name.
-     *
-     * Interior pointers were tried once and dropped, because with the image
-     * at 0x10000000 the game's own data -- the shadow OAM, packed u16 pairs,
-     * palette colours -- held plenty of words that fell inside some object by
-     * coincidence, and each became a false divergence the moment the layout
-     * moved.  With the image at 0xB5000000 (CMakeLists.txt) a coincidence
-     * needs a high half of 0xB5xx; and without them, any change that grew
-     * the code moved the port's tables and every pointer into one diverged.
-     * Exact starts keep their old token (offset 0). */
-    if (w >= sObjLo && w <= sObjHi) {
+    /* Data objects by their start address only, exactly as functions are.
+     * Pointers *into* an object (an element of a table) would need a
+     * containing-object lookup, and that was tried: the game's data -- the
+     * shadow OAM, for one -- holds plenty of aligned words that fall inside
+     * some object of this executable by coincidence, and every one of them
+     * became a false divergence the moment the layout moved. */
+    if (w >= sObjLo && w < sObjHi) {
         lo = 0;
         hi = sNumObjs;
-        while (lo < hi) {               /* first object starting after w */
+        while (lo < hi) {
             u32 mid = (lo + hi) / 2;
 
-            if (sObjs[mid].addr <= w)
+            if (sObjs[mid].addr < w)
                 lo = mid + 1;
             else
                 hi = mid;
         }
-        if (lo > 0) {
-            const struct Obj *o = &sObjs[lo - 1];
-            u32 off = w - o->addr;
-
-            if (off == 0)
-                return 0x80000000u | o->canon;
-            if (off <= o->size)
-                return 0x80000000u | ((o->canon + off * 0x9E3779B1u) & 0x3FFFFFFFu);
-        }
+        if (lo < sNumObjs && sObjs[lo].addr == w)
+            return 0x80000000u | sObjs[lo].canon;
     }
     if (w < sLo || w > sHi)
         return w;
