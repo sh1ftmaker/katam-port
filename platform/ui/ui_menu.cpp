@@ -387,7 +387,30 @@ static int MenuBody(void)
         changed |= Radio("Pinned to the corners", &s.hud, PS_HUD_CORNERS);
         SameLineIfFits("Original strip");
         changed |= Radio("Original strip", &s.hud, PS_HUD_STRIP);
-        Hint("Only differs when the view is wider than 240.");
+        ImGui::TextUnformatted("Size:");
+        for (int i = 0; i <= PS_HUD_SCALE_MAX; i++) {
+            char name[16];
+            if (i == 0) snprintf(name, sizeof(name), "Auto");
+            else snprintf(name, sizeof(name), "%dx", i);
+            ImGui::SameLine();
+            if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name).x + ImGui::GetStyle().FramePadding.x * 2)
+                ImGui::NewLine();
+            bool on = s.hudScale == i;
+            ImGui::PushID(100 + i);
+            if (on) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+            if (ImGui::Button(name)) { s.hudScale = i; changed = 1; }
+            if (on) ImGui::PopStyleColor();
+            ImGui::PopID();
+        }
+        if (st.gpu && st.world) {
+            char line[160];
+            snprintf(line, sizeof(line), "HUD now %.2f window pixels per GBA pixel.",
+                     (double)st.hudScaleNow);
+            Hint(line);
+        }
+        Hint("Auto keeps the HUD the size it has at zoom 1, whatever the zoom; "
+             "a fixed size is capped so the whole HUD fits the picture. "
+             "Corners vs strip only differs when the picture is wider than the HUD.");
     }
 
     if (Section("Display")) {

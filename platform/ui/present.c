@@ -11,6 +11,7 @@
  */
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "port/port.h"
@@ -164,6 +165,9 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
     }
     GlrPresentRect(fbW, fbH, sSrc, sDst,
                    gPortSettings.scaling == PS_SCALE_SMOOTH, bg);
+    if (GlrHudActive())
+        GlrPresentHud(fbW, fbH, sDst, PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst),
+                      gPortSettings.scaling == PS_SCALE_SMOOTH);
     if (sUi)
         PortUiDraw(fbW, fbH, dpr, nowMs);
 }
@@ -187,6 +191,29 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
     PortRlSetViewSize(lay.viewW, lay.viewH);
 
     if (f != NULL) {
+        /* The HUD as its own layer whenever drawing it in the view would
+         * give it the wrong size or not fit: the view is smaller than the
+         * HUD (zoomed in), or its scale is not the world's (zoomed, or a
+         * HUD size picked).  Otherwise -- zoom 1 and Auto -- it stays in
+         * the composite, the GBA's own picture. */
+        int d[4];
+        double kw, kh;
+
+        PortLayoutFit(&gPortSettings, fbW, fbH, f->viewW, f->viewH, d);
+        kw = PortLayoutScale(&gPortSettings, fbW, fbH, f->viewW, f->viewH);
+        kh = PortLayoutHudScale(&gPortSettings, fbW, fbH, d);
+        static int force = -2;
+
+        if (force == -2) {
+            /* KATAM_HUD_LAYER=0/1: never/always the separate HUD layer, to
+             * compare the two (docs/RENDERER.md). */
+            const char *e = getenv("KATAM_HUD_LAYER");
+            force = e ? atoi(e) : -1;
+        }
+        GlrSetHudLayer(f->world && f->numHud > 0
+                       && (force >= 0 ? force
+                           : (f->viewW < 240 || f->viewH < 160 || fabs(kw - kh) > 1e-6)));
+        gPortUiStatus.hudScaleNow = (float)kh;
         GlrDraw(f);
         gPortUiStatus.viewW = f->viewW;
         gPortUiStatus.viewH = f->viewH;
