@@ -925,6 +925,11 @@ def main():
                         text = text.replace(old, new)
                         rep.bump('mis-cast function pointers adapted')
                         hit = True
+                    else:
+                        rep.unhandled.append(
+                            '%s: a FNPTR_CASTS pattern no longer matches -- if '
+                            'the decompilation fixed the cast upstream, drop the '
+                            'entry and its adapter: %s' % (path.name, old))
                 if hit:
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
             for old, new in RAW_DMA.get(path.name, ()):
@@ -959,9 +964,15 @@ def main():
                 hit = False
                 for old, new in reads:
                     if old in text:
+                        rep.bump('reads through not-yet-valid pointers guarded',
+                                 text.count(old))
                         text = text.replace(old, new)
-                        rep.bump('reads through not-yet-valid pointers guarded')
                         hit = True
+                    else:
+                        rep.unhandled.append(
+                            '%s: a WILD_READS pattern no longer matches -- the '
+                            'read is unguarded and will fault off the GBA: %s'
+                            % (path.name, ' '.join(old.split())[:70]))
                 if hit:
                     text = decl + text
             story = STORY_HOOK.get(path.name)
@@ -982,6 +993,11 @@ def main():
                 if old in text:
                     text = text.replace(old, new)
                     rep.bump('conflicting prototypes corrected')
+                else:
+                    rep.unhandled.append(
+                        '%s: a DECL_FIXES pattern no longer matches -- if the '
+                        'decompilation fixed the prototype upstream, drop the '
+                        'entry: %s' % (path.name, old))
             if path.name in UNDEF_NONMATCHING:
                 text = ('/* PORT: %s */\n#undef NONMATCHING\n\n'
                         % UNDEF_NONMATCHING[path.name]) + text
@@ -1057,9 +1073,44 @@ def main():
             path.write_text(new)
 
     write_overrides(out / 'include', rep)
+    report_vanished_files(out, decomp, rep)
 
     (out / 'PORTIFY_REPORT.txt').write_text(format_report(rep))
     print(format_report(rep))
+
+
+def report_vanished_files(out, decomp, rep):
+    """Every per-file table keyed by a file the tree no longer has.
+
+    Each table above reports a pattern that stops matching -- but only for a
+    file it is handed.  A file renamed, split or deleted upstream is never
+    handed to it, so its entries were skipped without a word: that is how the
+    upstream split of code_08032E98.c into hud.c, object_collision.c and
+    friends silently dropped a WILD_READS guard and five CXX_SITES fixes.
+    """
+    present = {p.name for p in out.rglob('*') if p.is_file()}
+    upstream = {p.name for p in (decomp / 'src').rglob('*.c')}
+    tables = {
+        'REPLACED_FILES': REPLACED_FILES, 'UNDEF_NONMATCHING': UNDEF_NONMATCHING,
+        'FNPTR_CASTS': FNPTR_CASTS, 'WILD_READS': WILD_READS,
+        'NULL_DEREFS': NULL_DEREFS, 'RAW_DMA': RAW_DMA,
+        'CODE_IN_RAM': CODE_IN_RAM, 'STORY_HOOK': STORY_HOOK,
+        'AGBCC_ROUNDED_STRUCTS': AGBCC_ROUNDED_STRUCTS,
+        'FNPTR_ADAPTER_DECLS': FNPTR_ADAPTER_DECLS, 'DECL_FIXES': DECL_FIXES,
+        'M4A_PATCHES': M4A_PATCHES, 'SRAM_RELOC': SRAM_RELOC,
+        'cxxify.CXX_SITES': cxxify.CXX_SITES,
+        'cxxify.CXX_HEADER_SITES': cxxify.CXX_HEADER_SITES,
+        'narrow32.NARROW_SITES': narrow32.NARROW_SITES,
+        'narrow32.ALIASED_ARRAYS': narrow32.ALIASED_ARRAYS,
+    }
+    for tname, table in tables.items():
+        for fname in sorted(table):
+            # REPLACED_FILES are deliberately never written to the tree.
+            if fname not in (upstream if tname == 'REPLACED_FILES' else present):
+                rep.unhandled.append(
+                    '%s: %s has an entry for a file the decompilation no longer '
+                    'has -- renamed, split or deleted upstream; find where the '
+                    'code went and move the entry' % (fname, tname))
 
 
 def format_report(rep):
