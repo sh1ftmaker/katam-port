@@ -161,14 +161,19 @@ export function collisionVocab(vocab, registry) {
 }
 
 /** The codec context for one project stack. */
-export function makeContext({ vocab, registry, bindings }) {
+export function makeContext({ vocab, registry, bindings, external = false }) {
   const col = collisionVocab(vocab, registry);
+  // external: references into a base that is not loaded resolve by the number
+  // their vanilla id carries (room:<area>/<n>, <kind>:vanilla/<n>); used by
+  // validate/render without --base, after warning that they are unchecked.
+  const ext = (id) => { if (!external) return undefined; const m = /^(room:[a-z0-9_]+|tileset:vanilla|palette:vanilla|background:vanilla)\/(\d+)$/.exec(id || ''); return m ? Number(m[2]) : undefined; };
   const fail = (msg, where, hint) => { const e = new Error(msg); e.where = where; e.hint = hint; throw e; };
   return {
     vocab, registry, bindings,
     roomRef: (num) => (bindings && bindings.byNum.room.get(num)) || vanillaRoomId(vocab, num),
     roomNum: (id, where = 'id') => {
       const r = bindings.resolve(id);
+      if (!r && ext(id) !== undefined) return ext(id);
       if (!r) fail(`room "${id}" does not exist`, where, 'reference a room id defined in this project or its base (room:<area>/<name>)');
       return bindings.num.get(r);
     },
@@ -176,6 +181,7 @@ export function makeContext({ vocab, registry, bindings }) {
     ref: (kind, idx) => (bindings && bindings.byNum[kind] && bindings.byNum[kind].get(idx)) || `${kind}:vanilla/${idx}`,
     refIdx: (kind, id, where) => {
       const r = bindings.resolve(id);
+      if (!r && id && id.startsWith(kind + ':') && ext(id) !== undefined) return ext(id);
       if (!r || !id.startsWith(kind + ':')) fail(`${kind} "${id}" does not exist`, where, `reference a ${kind} defined in this project or its base (${kind}:<ns>/<name>)`);
       return bindings.num.get(r);
     },

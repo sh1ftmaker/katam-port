@@ -40,7 +40,7 @@ function args(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const k = a.slice(2);
-      const flag = ['json', 'quiet', 'strict', 'no-pack-diff'].includes(k);
+      const flag = ['json', 'quiet', 'strict', 'no-pack-diff', 'check'].includes(k);
       const v = flag ? true : argv[++i];
       if (k === 'base') o.base.push(v); else o[k] = v;
     } else if (a === '-o') o.o = argv[++i];
@@ -75,10 +75,20 @@ async function main() {
   const registry = loadRegistry(io, a.registry || R('assets/schema/semantics'));
   switch (cmd) {
     case 'vocab': {
+      // --check: regenerate in memory and compare with the committed files (CI)
       const { writeSchemas } = await import('./lib/schemas.mjs');
+      const { memoryIO } = await import('./lib/io.mjs');
       const v = buildVocab((p) => fs.readFileSync(R(p), 'utf8'));
-      io.writeText(R('assets/schema/authoring/vocab.json'), writeJson(v));
-      const n = writeSchemas(io, R('assets/schema/authoring'), indexVocab(v), registry);
+      const dir = R('assets/schema/authoring');
+      const target = a.check ? memoryIO() : io;
+      target.writeText(`${dir}/vocab.json`, writeJson(v));
+      const n = writeSchemas(target, dir, indexVocab(v), registry);
+      if (a.check) {
+        const stale = [...target.files.keys()].filter((p) => !fs.existsSync(p) || fs.readFileSync(p, 'utf8') !== target.files.get(p));
+        if (stale.length) { console.log(`stale (run: node tools/katam/katam.mjs vocab): ${stale.map((p) => path.relative(ROOT, p)).join(', ')}`); return 1; }
+        console.log(`vocab.json and ${n} schemas are up to date (registry: ${registry.sources.length} files)`);
+        return 0;
+      }
       console.log(`wrote vocab.json and ${n} schemas (registry: ${registry.sources.length} files)`);
       return 0;
     }

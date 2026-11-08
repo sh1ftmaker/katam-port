@@ -179,7 +179,7 @@ TARGET := $(OUT)/katam.html
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
-        res-extract res-roundtrip regress-pack manifest-check \
+        res-extract res-roundtrip regress-pack manifest-check authoring-check authoring-roundtrip \
         lint-determinism
 
 all: $(TARGET)
@@ -614,6 +614,20 @@ regress-pack: res-extract
 
 manifest-check:
 	@python3 tools/gen_asset_manifest.py --check
+
+# --- the authoring layer (docs/design/AUTHORING.md) ----------------------------
+# authoring-check needs no ROM: the library self-test, the committed schemas
+# and vocab are current, the example mod validates.  authoring-roundtrip is
+# the gate against YOUR ROM: decompile -> compile is byte-identical, the
+# compiled pack passes --res-check, and the regression recordings hold with
+# the game served from it (writes only under build/authoring).
+authoring-check:
+	@node tools/katam/test/selftest.mjs
+	@node tools/katam/katam.mjs vocab --check
+	@node tools/katam/katam.mjs validate examples/authoring/sky_garden
+
+authoring-roundtrip:
+	@ROM=$(ROM) bash tests/authoring_roundtrip.sh --bin "$(RES_BIN)" --dir $(BUILD)/authoring
 
 native-clean:
 	rm -rf $(NATIVE_DIR)

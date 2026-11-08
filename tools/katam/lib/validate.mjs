@@ -44,9 +44,9 @@ export function validatePath({ io, target, bases = [], vocab, registry, schemaDi
   } else if (!only) add('warning', 'no-project', '.', '', 'no project.json in this folder', 'katam new-room writes a minimal project.json next to a new room');
 
   let bindings, ctx;
-  try { bindings = new Bindings(vocab, layers); ctx = makeContext({ vocab, registry, bindings }); } catch (e) { add('error', 'bind', '.', '', e.message); return res; }
+  try { bindings = new Bindings(vocab, layers); ctx = makeContext({ vocab, registry, bindings, external: !bases.length }); } catch (e) { add('error', 'bind', '.', '', e.message); return res; }
   const baseLoaded = bases.length > 0;
-  const externalOk = (id) => !baseLoaded && /^(room|tileset|palette|background):vanilla\//.test(id || '') ;
+  const externalOk = (id) => !baseLoaded && /^(room:[a-z0-9_]+\/\d+|(tileset|palette|background):vanilla\/\d+)$/.test(id || ''); // vanilla ids carry their number
   const roomDims = (id) => { const r = bindings.resolve(id); const d = r && bindings.docs.get(r).doc; return d && d.size; };
   const roomDoc = (id) => { const r = bindings.resolve(id); return r && bindings.docs.get(r).doc; };
 
