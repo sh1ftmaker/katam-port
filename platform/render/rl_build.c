@@ -703,6 +703,7 @@ typedef struct {
     s32 layFp[4][2], layInt[4][2];
     u8 layOk[4];             /* hardware BG n is a WORLD layer of a record   */
     u8 kirbyFocus;           /* local Kirby inside the 240x160 screen        */
+    u8 corrected;            /* netplay replaced the world before this frame */
     s32 kirbyFp[4][2];
     s32 nGroups;
     MotGroup g[RL_MAX_SPRITES];
@@ -711,6 +712,13 @@ typedef struct {
 
 static Motion sMot[2];
 static int sMotCur;
+static u8 sCorrectionPending;
+
+void PortRlNoteCorrection(u32 frame)
+{
+    (void)frame;
+    sCorrectionPending = 1;
+}
 static s32 sOutGroup[RL_MAX_SPRITES + 128], sOutWinGroup[RL_MAX_SPRITES + 128];
 
 /* The view rectangle's limits as PortRlBuildFrame worked them out (SCREEN
@@ -1041,7 +1049,7 @@ static void FitParallax(RlTileLayer *L, const RlFrame *f, const BgSnap *s,
  * into the floor: at rest he stays where the GBA draws him. */
 static void MotFinish(Motion *m, const Motion *mp)
 {
-    int moving = mp->valid && mp->commit + 1 == m->commit && mp->world && m->world
+    int moving = mp->valid && !m->corrected && mp->commit + 1 == m->commit && mp->world && m->world
                  && mp->room == m->room;
     s32 i, k, j;
 
@@ -1091,6 +1099,8 @@ const RlFrame *PortRlBuildFrame(void)
     memset(m->hash, 0xFF, sizeof(m->hash));
     memset(sFit, 0, sizeof(sFit));
     m->commit = sCommitSerial;
+    m->corrected = sCorrectionPending;
+    sCorrectionPending = 0;
 
     f->serial++;
     f->objOneD = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
@@ -1521,7 +1531,7 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
     t = (flags & RL_PRESENT_INTERP) ? (s32)(alpha * 256.0f + 0.5f) : 256;
     if (t < 0) t = 0;
     if (t > 256) t = 256;
-    lerp = t < 256 && p->valid && p->commit + 1 == c->commit
+    lerp = t < 256 && p->valid && !c->corrected && p->commit + 1 == c->commit
         && p->world == c->world && p->room == c->room;
     if (lerp && c->world
         && !(Near(p->camFp[0], c->camFp[0], 64) && Near(p->camFp[1], c->camFp[1], 64)))

@@ -219,6 +219,13 @@ const RlFrame *PortRlCurrentFrame(void);
 #define RL_PRESENT_SUBPIXEL 1
 #define RL_PRESENT_INTERP   2
 const RlFrame *PortRlPresentFrame(int flags, float alpha);
+/* Netplay: the world was replaced by a sync at sim frame `frame` (the netsim
+ * "state corrected" event).  The next frame built does not interpolate from
+ * the one before -- the two are different timelines.  Hook only: a later
+ * cut can blend the correction out over a few frames instead of snapping
+ * (keep the pre-correction positions as the `prev` side and decay the
+ * offset), which is what this entry point is for.  Presentation only. */
+void PortRlNoteCorrection(u32 frame);
 /* After PortRlPresentFrame: the local Kirby's top-left in the view (1/256
  * px) and the view's top-left in world coordinates (1/256 px); returns 0 if
  * Kirby was not found.  Diagnostics (KATAM_CAMLOG). */
