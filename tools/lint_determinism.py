@@ -26,6 +26,12 @@ C's sequencing rules: `,` `&&` `||` `?:` sequence their operands; the operands
 of everything else, the arguments of a call, and the elements of an
 initialiser list do not.  Two unsequenced operands conflict when one writes
 the RNG and the other reads or writes it.
+
+The same check covers the allocators (SEEDS: TaskCreate/TaskDestroy, the
+EWRAM/IWRAM heaps, VRAM): two allocations unsequenced against each other get
+their blocks in a compiler-chosen order.  There are none today.
+tests/lint/determinism_selftest.c is the checker's own test (make
+lint-determinism runs both).
 """
 import argparse
 import glob
