@@ -15,7 +15,9 @@
 //          replays the archive, sits, plays.
 //
 // PASS:
-//   - alpha's frame rate never drops below 55/s (nobody waits for anybody);
+//   - alpha never stalls: no gap between its frames reaches 150 ms, and its
+//     rate stays >= 50/s over every second (rate dilation, the deliberate
+//     held frame for time sync, costs at most 10%) -- nobody waits for anybody;
 //   - the desync is detected by the room and repaired by a world sync
 //     within T_REPAIR seconds;
 //   - the slow joiner converges (its checkpoints match after its syncs);
@@ -218,6 +220,14 @@ function minFps(inst, fromFrame) {
     return worst;
 }
 const alphaMin = minFps(alpha, 2300);
+// A stall is a gap between presented frames; rate dilation (a held frame,
+// at most 6 a second) is two periods, ~33 ms, and is not one.
+function maxGap(inst, fromFrame) {
+    const fr = inst.frames.filter(([, f]) => f >= fromFrame);
+    let g = 0;
+    for (let i = 1; i < fr.length; i++) g = Math.max(g, fr[i][0] - fr[i - 1][0]);
+    return Math.round(g);
+}
 const lastCommon = [...alpha.hashes.keys()].filter((f) => beta.hashes.has(f) && gamma && gamma.hashes.has(f)).sort((x, y) => x - y);
 // Checkpoints still inside the repair window at the end may be mid-repair.
 const endFrame = Math.min(frameOf(alpha), frameOf(beta), frameOf(gamma));
@@ -227,7 +237,7 @@ const mismatches = (x) => [...x.hashes].filter(([f, h]) => alpha.hashes.has(f) &
 const core = relay ? [...relay.v2.rooms.values()][0].core : null;
 const res = {
     code: CODE, seconds: +secs.toFixed(1),
-    alphaMinFps: alphaMin,
+    alphaMinFps: alphaMin, alphaMaxGapMs: maxGap(alpha, 2300), betaMaxGapMs: maxGap(beta, 2300),
     frames: { alpha: frameOf(alpha), beta: frameOf(beta), gamma: frameOf(gamma) },
     checkpoints: { alpha: alpha.hashes.size, beta: beta.hashes.size, gamma: gamma.hashes.size },
     mismatchedCheckpoints: { beta: mismatches(beta), gamma: mismatches(gamma) },
@@ -245,7 +255,8 @@ const res = {
 console.log(JSON.stringify(res, null, 1));
 if (flag('json')) fs.writeFileSync(flag('json'), JSON.stringify(res, null, 1));
 const fails = [];
-if (!(alphaMin >= 55)) fails.push(`alpha dropped to ${alphaMin} frames/s`);
+if (!(alphaMin >= 50)) fails.push(`alpha dropped to ${alphaMin} frames/s`);
+if (!(res.alphaMaxGapMs < 150)) fails.push(`alpha stalled for ${res.alphaMaxGapMs} ms`);
 if (!res.repairSeconds || res.repairSeconds > T_REPAIR) fails.push(`desync not repaired within ${T_REPAIR}s`);
 if (!tailAgree) fails.push('hash log tails differ');
 if (core && !core.stats.desyncs) fails.push('room never saw the desync');
