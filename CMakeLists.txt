@@ -284,7 +284,8 @@ set(NATIVE_SRCS
   platform/native/save_file.c
   platform/native/mem.c
   platform/native/mp_native.c
-  platform/native/png.c)
+  platform/native/png.c
+  platform/native/symtab.c)
 
 if(WIN32)
   list(APPEND NATIVE_SRCS platform/native/mem_win32.c

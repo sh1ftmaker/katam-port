@@ -186,6 +186,24 @@ u32  PortPpuStateSize(void);
 void PortPpuStateSave(void *dest);
 void PortPpuStateLoad(const void *src);
 
+/* --- the determinism harness (platform/inputlog.c) ----------------------
+ *
+ * Called once a frame while the per-frame state log is on, from the key latch,
+ * with the hashes taken at the top of that frame's PortPresentFrame
+ * (PORT_HASH_SIM/VID/SRAM) and the keys latched for it.  `dump` is non-NULL on
+ * a frame the host asked for a checkpoint dump of (PortSetStateDumpAt).
+ * Natively this writes --hash-log/--dump-state files; on the web it hands the
+ * lot to Module.portFrameState. */
+void PortHostFrameState(u32 frame, u16 keys, const u32 *hashes,
+                        const u8 *dump, u32 dumpLen);
+
+/* A word of EWRAM/IWRAM as the state hash should see it: a host function
+ * address becomes a build-independent token, anything else is returned as it
+ * is.  Natively that is platform/native/symtab.c; on the web a function
+ * pointer is a table index that cannot be told from an integer, so it is the
+ * identity there (docs/DETERMINISM.md). */
+u32 PortHostCanonWord(u32 w);
+
 /* The GBA BIOS ROM, 16 KiB at address zero.
  *
  * In wasm that is ordinary low linear memory: it reads as zero and a transfer

@@ -44,6 +44,7 @@
 #include "port/mp.h"
 #include "port/rollback.h"
 #include "port/seats.h"
+#include "port/inputlog.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -285,7 +286,7 @@ void PortSetKeys(u16 downMask)
  *
  * PortRbKeyOverride returns 0 when nothing is driving, which is every ordinary
  * build, and then this is exactly what it was. */
-static void UpdateKeyInput(void)
+static void UpdateKeyInput(int frameLatch)
 {
     u16 keys = sKeysDown;
 
@@ -293,6 +294,14 @@ static void UpdateKeyInput(void)
         sKeysDown = keys;
     if (PortSeatKeyOverride(&keys))
         sKeysDown = keys;
+    /* The recorder and the replayer (platform/inputlog.c) see the frame's
+     * final keys, after rollback and seats.  Not the call main() makes before
+     * AgbMain: that one latches the host's power-on state, which is nothing
+     * pressed in every build, and recording it would make frame 0 latch twice. */
+    if (frameLatch) {
+        PortInputLogLatch(sFrameCount, &keys);
+        sKeysDown = keys;
+    }
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
 }
 
@@ -850,6 +859,7 @@ void PortPresentFrame(void)
 
     render = PortRenderEnabled();
     PortStateTrace();
+    PortInputLogFrameStart(sFrameCount);
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
     /* Settle the view before drawing with it, so the rectangle the PPU uses
@@ -943,7 +953,7 @@ void PortPresentFrame(void)
      * then serves the seat that was just loaded. */
     PortSeatEndFrame();
 
-    UpdateKeyInput();
+    UpdateKeyInput(1);
     sFrameCount++;
 
     /* A queued warp is delivered here rather than at the moment it is asked
@@ -999,7 +1009,7 @@ int main(int argc, char **argv)
     PortLoadRomDataCopies();
     PortPatchRomFunctionPointers();
 
-    UpdateKeyInput();
+    UpdateKeyInput(0);
     AgbMain();      /* never returns */
     return 0;
 }

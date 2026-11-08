@@ -31,6 +31,7 @@
 #include "native.h"
 #include "port/audio.h"
 #include "port/mp.h"
+#include "port/inputlog.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
@@ -111,6 +112,25 @@ static int sTexW = PORT_SCREEN_W, sTexH = PORT_SCREEN_H;
 static long sFrames;
 static Uint64 sPerfFreq, sNextFrame;
 
+/* --- the determinism harness (platform/inputlog.c, docs/DETERMINISM.md) ---
+ *
+ *   --record FILE        write every latched key mask (and --warp) to FILE
+ *   --replay FILE        drive the game from FILE instead of the keyboard;
+ *                        runs exactly the frames it covers unless --frames
+ *   --hash-log FILE      one line per frame: frame keys sim vid sram pix
+ *   --dump-state F:PATH  the canonical state bytes at frame F, for a
+ *                        cross-build diff (tools/state_diff.py)
+ *   --warp F:ROOM[:X:Y]  put Kirby in ROOM at frame F (platform/warp.c);
+ *                        recorded, so a replay warps on the same frame */
+static const char *sRecordPath, *sReplayPath, *sHashLogPath;
+static FILE *sHashLog;
+#define MAX_DUMPS 16
+static struct { long frame; const char *path; } sDumps[MAX_DUMPS];
+static int sNumDumps;
+#define MAX_WARPS 64
+static struct { long frame; unsigned room, x, y; } sWarps[MAX_WARPS];
+static int sNumWarps;
+
 /* --- console -------------------------------------------------------------- */
 
 void PortConsole(const char *text, int isErr)
@@ -162,6 +182,11 @@ static void Usage(const char *argv0)
 "  --mp loopback[:N]  attach the in-process link transport, N units\n"
 "  --mp-at F          ... at frame F (default 60)\n"
 "  --turbo            do not pace; run as fast as the machine allows\n"
+"  --record FILE      write the inputs of this run to FILE\n"
+"  --replay FILE      drive the run from a recording instead of the keyboard\n"
+"  --hash-log FILE    write one line of simulation-state hashes per frame\n"
+"  --dump-state F:PATH write the canonical state bytes at frame F to PATH\n"
+"  --warp F:ROOM[:X:Y] warp to ROOM (cell X,Y) at frame F; recorded\n"
 "  --verbose          report the memory map and the frame timing\n"
 "  --help\n"
 "\n"
@@ -301,6 +326,37 @@ static void ParseArgs(int argc, char **argv)
                                 "e.g. 600:1:6\n");
                 exit(2);
             }
+        } else if (strcmp(a, "--record") == 0) {
+            sRecordPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--replay") == 0) {
+            sReplayPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--hash-log") == 0) {
+            sHashLogPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--dump-state") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            const char *colon = strchr(v, ':');
+
+            if (colon == NULL || sNumDumps >= MAX_DUMPS) {
+                fprintf(stderr, "katam-port: --dump-state wants FRAME:PATH\n");
+                exit(2);
+            }
+            sDumps[sNumDumps].frame = atol(v);
+            sDumps[sNumDumps].path = colon + 1;
+            sNumDumps++;
+        } else if (strcmp(a, "--warp") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            long f; unsigned r, x = 0, y = 0;
+
+            if (sscanf(v, "%ld:%u:%u:%u", &f, &r, &x, &y) < 2
+             || sNumWarps >= MAX_WARPS) {
+                fprintf(stderr, "katam-port: --warp wants FRAME:ROOM[:X:Y]\n");
+                exit(2);
+            }
+            sWarps[sNumWarps].frame = f;
+            sWarps[sNumWarps].room = r;
+            sWarps[sNumWarps].x = x;
+            sWarps[sNumWarps].y = y;
+            sNumWarps++;
         } else if (a[0] == '-' && a[1] != '\0') {
             fprintf(stderr, "katam-port: unknown option %s (--help)\n", a);
             exit(2);
@@ -414,8 +470,58 @@ static void ReportFrame(void)
             sNumFrameHashes >= MAX_FRAME_HASHES ? " (capped)" : "");
 }
 
+static void WriteRecording(void)
+{
+    u32 len = 0;
+    char *text;
+    FILE *f;
+
+    if (sRecordPath == NULL)
+        return;
+    PortInputLogNoteFrames((u32)sFrames);
+    text = PortInputLogSerialize(&len);
+    f = text ? fopen(sRecordPath, "wb") : NULL;
+    if (f == NULL || fwrite(text, 1, len, f) != len)
+        PortError("[katam-port] could not write the recording to %s", sRecordPath);
+    else
+        PortLog("[katam-port] recorded %s", sRecordPath);
+    if (f)
+        fclose(f);
+    free(text);
+}
+
+void PortHostFrameState(u32 frame, u16 keys, const u32 *hashes,
+                        const u8 *dump, u32 dumpLen)
+{
+    int i;
+
+    if (sHashLog != NULL)
+        fprintf(sHashLog, "%u %03X %08X %08X %08X %08X\n", (unsigned)frame,
+                (unsigned)keys, (unsigned)hashes[PORT_HASH_SIM],
+                (unsigned)hashes[PORT_HASH_VID], (unsigned)hashes[PORT_HASH_SRAM],
+                (unsigned)hashes[PORT_HASH_PIX]);
+    if (dump == NULL)
+        return;
+    for (i = 0; i < sNumDumps; i++) {
+        FILE *f;
+
+        if (sDumps[i].frame != (long)frame)
+            continue;
+        f = fopen(sDumps[i].path, "wb");
+        if (f == NULL || fwrite(dump, 1, dumpLen, f) != dumpLen)
+            PortError("[katam-port] could not write %s", sDumps[i].path);
+        if (f)
+            fclose(f);
+    }
+}
+
 static void Shutdown(int code)
 {
+    WriteRecording();
+    if (sHashLog != NULL) {
+        fclose(sHashLog);
+        sHashLog = NULL;
+    }
     ReportFrame();
     if (sShotPath != NULL) {
         if (PortNativeWritePng(sShotPath, gPortFramebuffer,
@@ -436,6 +542,8 @@ static void Shutdown(int code)
  * the process is going down either way. */
 static void OnFatalSignal(int sig)
 {
+    if (sHashLog != NULL)
+        fflush(sHashLog);       /* so a crash's log ends at the crash */
     PortNativeSaveFlush();
     signal(sig, SIG_DFL);
     raise(sig);
@@ -1018,6 +1126,66 @@ void PortHostInit(int argc, char **argv)
                     sViewMode == PORT_VIEW_WIDE ? "wide"
                     : sViewMode == PORT_VIEW_ZOOM ? "zoom" : "wide+zoom",
                     sViewPadX, sViewPadY, sViewCull);
+    }
+
+    /* The harness.  After rando and view, so that a recording made with
+     * either notes it, and so that a replay's own options win. */
+    if (sReplayPath != NULL) {
+        FILE *f = fopen(sReplayPath, "rb");
+        char *text = NULL;
+        long len = 0, frames = -1;
+
+        if (f != NULL) {
+            fseek(f, 0, SEEK_END);
+            len = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            text = (char *)malloc((size_t)len + 1);
+            if (text != NULL && fread(text, 1, (size_t)len, f) == (size_t)len)
+                frames = PortInputLogLoad(text, (u32)len);
+            fclose(f);
+            free(text);
+        }
+        if (frames < 0) {
+            PortError("[katam-port] cannot replay %s", sReplayPath);
+            exit(2);
+        }
+        if (sFrameLimit < 0)
+            sFrameLimit = frames;
+        /* Nothing the host polls reaches the game during a replay -- the
+         * latch override wins -- but switch the scripted inputs off anyway,
+         * so that nothing about the run depends on them. */
+        sHoldMask = 0;
+        sMashStart = -1;
+        sNumPresses = 0;
+    }
+    if (sRecordPath != NULL) {
+        PortInputLogRecordStart();
+        if (sRandoFlags)
+            PortInputLogNoteRando(sRandoFlags, sRandoSeed);
+        if (sViewSet)
+            PortInputLogNoteView(sViewMode, sViewPadX, sViewPadY, sViewCull, 0, 2);
+    }
+    {
+        int w;
+
+        for (w = 0; w < sNumWarps; w++)
+            PortInputLogScheduleWarp((u32)sWarps[w].frame, 0,
+                                     (u16)sWarps[w].room, (u8)sWarps[w].x,
+                                     (u8)sWarps[w].y);
+    }
+    if (sHashLogPath != NULL) {
+        sHashLog = fopen(sHashLogPath, "w");
+        if (sHashLog == NULL) {
+            PortError("[katam-port] cannot write %s", sHashLogPath);
+            exit(2);
+        }
+        PortSetFrameStateLog(1);
+    }
+    {
+        int d;
+
+        for (d = 0; d < sNumDumps; d++)
+            PortSetStateDumpAt((u32)sDumps[d].frame);
     }
 
     if (sTurbo)

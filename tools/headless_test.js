@@ -119,6 +119,12 @@ const logs = [];
 let frames = 0;
 let lastFrame = null;
 let firstNonBlankFrame = -1;
+const hashLines = [];
+function flushHashLog() {
+    if (process.env.HASH_LOG)
+        fs.writeFileSync(process.env.HASH_LOG, hashLines.length ? hashLines.join('\n') + '\n' : '');
+}
+process.on('exit', flushHashLog);
 
 // --- audio -----------------------------------------------------------------
 // There is no audio device here, so "is it making a sound" has to be answered
@@ -459,6 +465,35 @@ const Module = {
         if (process.env.PORT_DUMP) {
             const [df, da, dl] = process.env.PORT_DUMP.split(':');
             Module._PortSetStateDump(Number(df), parseInt(da, 16), Number(dl));
+        }
+        // The determinism harness (platform/inputlog.c, docs/DETERMINISM.md).
+        //   REPLAY=file        drive the run from a recording (tools/regress.sh)
+        //   HASH_LOG=file      one line per frame: frame keys sim vid sram pix
+        //   DUMP_STATE=F:path[,F:path]  canonical state bytes at frame F
+        if (process.env.REPLAY) {
+            const text = fs.readFileSync(process.env.REPLAY);
+            const p = Module._malloc(text.length + 1);
+            Module.HEAPU8.set(text, p);
+            if (Module._PortInputLogLoad(p, text.length) < 0) {
+                console.error('FAIL: cannot replay %s', process.env.REPLAY);
+                process.exit(1);
+            }
+            Module._free(p);
+        }
+        const dumps = (process.env.DUMP_STATE || '').split(',').filter(Boolean)
+            .map((s) => { const i = s.indexOf(':'); return [Number(s.slice(0, i)), s.slice(i + 1)]; });
+        if (process.env.HASH_LOG || dumps.length) {
+            Module._PortSetFrameStateLog(1);
+            for (const [f] of dumps) Module._PortSetStateDumpAt(f);
+            const hex = (v, n) => (v >>> 0).toString(16).toUpperCase().padStart(n, '0');
+            Module.portFrameState = (frame, keys, sim, vid, sram, pix, dump, len) => {
+                if (process.env.HASH_LOG)
+                    hashLines.push(`${frame} ${hex(keys, 3)} ${hex(sim, 8)} ${hex(vid, 8)} ${hex(sram, 8)} ${hex(pix, 8)}`);
+                if (dump)
+                    for (const [f, path] of dumps)
+                        if (f === frame)
+                            fs.writeFileSync(path, Buffer.from(Module.HEAPU8.subarray(dump, dump + len)));
+            };
         }
         Module._PortRomLoaded(rom.length);
         resolveRom();

@@ -20,6 +20,7 @@
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/dma.h"
+#include "port/inputlog.h"
 #include "gba/io_reg.h"
 
 /* C linkage for the 64-bit builds.
@@ -358,6 +359,42 @@ void PortDmaStateSave(void *dest)
 void PortDmaStateLoad(const void *src)
 {
     memcpy(sChannels, src, sizeof sChannels);
+}
+
+/* The channel table for the per-frame state hash (platform/inputlog.c).
+ *
+ * The raw table cannot be hashed: its pointers are host pointers, eight bytes
+ * wide natively, and a DmaFill source is the address of a local.  So each
+ * pointer is reduced to the GBA address it names when it names one, and to a
+ * marker when it points at the port's own memory -- which is what the
+ * transfer *means*, and is the same on every host. */
+static u32 CanonPtr(const void *p)
+{
+    uintptr_t a = (uintptr_t)p;
+
+    if (a == 0)
+        return 0;
+    if (a >= GBA_EWRAM_BASE && a < GBA_SRAM_BASE + GBA_SRAM_SIZE)
+        return (u32)a;
+    return 0xFFFFFFFFu;
+}
+
+void PortDmaStateCanon(u32 out[PORT_DMA_CANON_WORDS])
+{
+    int i;
+
+    for (i = 0; i < 4; i++) {
+        const struct DmaChannel *ch = &sChannels[i];
+        u32 *o = out + i * 7;
+
+        o[0] = CanonPtr(ch->src);
+        o[1] = CanonPtr(ch->dest);
+        o[2] = CanonPtr(ch->srcReload);
+        o[3] = CanonPtr(ch->destReload);
+        o[4] = ch->count;
+        o[5] = ch->flags;
+        o[6] = ch->armed;
+    }
 }
 
 void PortDmaStop(int channel)

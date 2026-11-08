@@ -200,3 +200,29 @@ int PortHostRangeOk(uintptr_t addr, u32 len)
     return addr >= PORT_GLOBAL_BASE
         && addr + len <= (uintptr_t)__builtin_wasm_memory_size(0) * 65536u;
 }
+
+/* --- the determinism harness (platform/inputlog.c) ----------------------- */
+
+/* Module.portFrameState(frame, keys, sim, vid, sram, pix, dumpPtr, dumpLen), if the
+ * page or harness defined one.  The dump is only valid during the call. */
+EM_JS(void, PortWebFrameState, (u32 frame, u32 keys, u32 sim, u32 vid, u32 sram,
+                                u32 pix, const u8 *dump, u32 dumpLen), {
+    if (Module.portFrameState)
+        Module.portFrameState(frame, keys, sim >>> 0, vid >>> 0, sram >>> 0,
+                              pix >>> 0, dump, dumpLen);
+});
+
+void PortHostFrameState(u32 frame, u16 keys, const u32 *hashes,
+                        const u8 *dump, u32 dumpLen)
+{
+    PortWebFrameState(frame, keys, hashes[0], hashes[1], hashes[2], hashes[3],
+                      dump, dumpLen);
+}
+
+/* A wasm function pointer is a table index -- a small integer -- and nothing
+ * distinguishes it from any other small integer in game memory, so there is
+ * nothing to canonicalise here.  See platform/native/symtab.c. */
+u32 PortHostCanonWord(u32 w)
+{
+    return w;
+}
