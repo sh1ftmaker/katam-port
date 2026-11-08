@@ -15,8 +15,9 @@ extern "C" {
 static void Task_InputRecorder(void);
 static void InputRecorderEject(struct Task *);
 
-static u16 *sTapeBuffer;
-struct InputRecorder gInputRecorder __attribute__((section("common_data"))) = {};
+/* PORT-FORK: both in the port sim block (port/simblock.h); the tape pointer
+ * is an EWRAM address, so it is the same four bytes on every host. */
+#define sTapeBuffer (*(PTR32(u16) *)(uintptr_t)(PORT_SIM_BASE + PORT_SIM_GAME_TAPEBUF))
 
 void InputRecorderResetRecordHead(void) {
     gInputRecorder.recordHead = 0;

@@ -118,8 +118,20 @@ def main():
     ap.add_argument('--verbose', action='store_true')
     args = ap.parse_args()
     A = open(args.a, 'rb').read(); B = open(args.b, 'rb').read()
-    if len(A) != len(B):
-        print('dumps differ in size'); return 1
+    fixed = sum(r[2] for r in REGIONS)
+    if len(A) < fixed or len(B) < fixed:
+        print('dumps are shorter than the fixed regions'); return 1
+    # Past the fixed regions: the port sim block (port/simblock.h), pointer-
+    # free by rule, so compared byte for byte when both dumps have it.  A dump
+    # from before the block existed has none; that is reported, not failed.
+    tailA, tailB = A[fixed:], B[fixed:]
+    if tailA and tailB and tailA != tailB:
+        n = sum(1 for i in range(min(len(tailA), len(tailB))) if tailA[i] != tailB[i])
+        print('sim block differs: %d bytes (%d vs %d long)' % (n, len(tailA), len(tailB)))
+        return 1
+    if bool(tailA) != bool(tailB):
+        print('note: only %s has a sim block (%d bytes); not compared'
+              % ('A' if tailA else 'B', len(tailA or tailB)))
     sa, sb = Syms(args.a_bin), Syms(args.b_bin)
     off = 0
     counts = {}

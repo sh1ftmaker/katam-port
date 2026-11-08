@@ -45,6 +45,7 @@
 #include "port/rollback.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
+#include "port/simblock.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -67,20 +68,23 @@ extern "C" {
 #endif
 
 u32 gPortRomSize;
-static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
+/* Frame-boundary simulation state, in the port sim block (port/simblock.h) so
+ * every snapshot and hash covers it: sKeysDown (1 = pressed, GBA button-bit
+ * order), sFrameCount and sVBlankBudget. */
+#define sKeysDown     (gPortSim->frame.keysDown)
+#define sFrameCount   (gPortSim->frame.frameCount)
+#define sVBlankBudget (gPortSim->frame.vblankBudget)
 static u16 sHostKeys;          /* the physical buttons, and only those:
                                 * sKeysDown is game-visible state that the
                                 * rollback timeline overwrites every frame,
                                 * so anything that wants to know what the
                                 * *player* is holding must read this one */
 static int sRomReady;
-static u32 sFrameCount;
 
 /* Roughly what a real VBlank fits: 68 scanlines of DMA to VRAM.  Large enough
  * that the mandatory OAM and palette flush never eats the whole window, small
  * enough that a backed-up queue takes several frames to drain, as on hardware. */
 #define PORT_VBLANK_BUDGET_BYTES 24576
-static s32 sVBlankBudget;
 
 /* --- diagnostics --------------------------------------------------------- */
 
@@ -256,6 +260,7 @@ void PortMemInit(void)
     memset((void *)GBA_VRAM_BASE, 0, GBA_VRAM_SIZE);
     memset((void *)GBA_OAM_BASE, 0, GBA_OAM_SIZE);
     memset((void *)GBA_SRAM_BASE, 0, GBA_SRAM_SIZE);
+    PortSimBlockInit();
 
     /* No buttons held at power-on; KEYINPUT is active-low. */
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = 0x03FF;
@@ -265,6 +270,22 @@ void PortRomLoaded(u32 size)
 {
     gPortRomSize = size;
     sRomReady = 1;
+}
+
+/* The port sim block (port/simblock.h).  Zeroed here, once, at power-on;
+ * the game's own resets (RegisterRamReset) clear EWRAM and IWRAM but not
+ * this, because the session state in it outlives a soft reset. */
+void PortSimBlockInit(void)
+{
+    memset((void *)(uintptr_t)PORT_SIM_BASE, 0, PORT_SIM_ALIGN4(PORT_SIM_CORE_BYTES));
+    gPortSim->hdr.magic = PORT_SIM_MAGIC;
+    gPortSim->hdr.version = PORT_SIM_VERSION;
+    gPortSim->hdr.seats = PORT_MAX_SEATS;
+    gPortSim->hdr.modStoreUsed = 0;
+    gPortSim->hdr.usedBytes = PortSimUsedBytes();
+    gPortSim->view.viewW = gPortSim->view.prevW = PORT_SCREEN_W;
+    gPortSim->view.viewH = gPortSim->view.prevH = PORT_SCREEN_H;
+    gPortSim->view.stock = 1;
 }
 
 /* --- input ---------------------------------------------------------------

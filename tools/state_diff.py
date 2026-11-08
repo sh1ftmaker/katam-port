@@ -18,7 +18,8 @@ difference in game state.
 
 Dump layout (platform/inputlog.c, DumpTo): EWRAM, IWRAM, IO (DMA address
 registers zeroed), DMA channels canonical, frame state, PLTT, VRAM, OAM, the
-PPU's affine latches, SRAM.
+PPU's affine latches, SRAM, then the port sim block (platform/port/
+simblock.h) -- its used bytes, compared byte for byte when both dumps have it.
 Exit status 0 when nothing but function-pointer spelling differs.
 """
 import argparse
@@ -198,6 +199,15 @@ def main():
                 continue
             real.append((name, base + i if base else i, x, y, fx, fy))
         off += size
+    ta, tb = A[off:], B[off:]
+    if ta and tb:
+        for i in range(0, min(len(ta), len(tb)) - 3, 4):
+            x = struct.unpack_from('<I', ta, i)[0]
+            y = struct.unpack_from('<I', tb, i)[0]
+            if x != y:
+                real.append(('simblk', 0x02040000 + i, x, y, None, None))
+        if len(ta) != len(tb):
+            print('sim block lengths differ: %d vs %d' % (len(ta), len(tb)))
     print('function pointers spelled differently (same function): %d' % fnptr)
     print('function pointers to identical-code-folded functions: %d' % folded)
     print("pointers into the port's own static data: %d" % dataptr)

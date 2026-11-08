@@ -14,6 +14,7 @@
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/inputlog.h"
+#include "port/simblock.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py. */
 #ifdef __cplusplus
@@ -474,6 +475,8 @@ void PortStateHashes(u32 out[PORT_HASH_COUNT])
         h = HashWords(h, le, sizeof le);
     }
     h = HashWords(h, fs, sizeof fs);
+    /* The port sim block (port/simblock.h): no host pointers in it, by rule. */
+    h = HashWords(h, (const void *)(uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
     out[PORT_HASH_SIM] = h;
 
     h = FNV_INIT;
@@ -494,12 +497,15 @@ void PortStateHashes(u32 out[PORT_HASH_COUNT])
 /* The bytes behind the sim and vid hashes, for a checkpoint dump: what a
  * cross-build comparison diffs once the hashes say two runs differ.  Layout
  * (all little-endian): EWRAM, IWRAM, IO (canonical), DMA canon, frame state
- * (12 bytes), PLTT, VRAM, OAM, PPU latches (64 bytes, zero-padded), SRAM. */
+ * (12 bytes), PLTT, VRAM, OAM, PPU latches (64 bytes, zero-padded), SRAM,
+ * then the port sim block's used bytes (port/simblock.h; its header says how
+ * many). */
 static u32 DumpBytes(void)
 {
     return GBA_EWRAM_SIZE + GBA_IWRAM_SIZE + GBA_IO_SIZE
          + PORT_DMA_CANON_WORDS * 4 + 12
-         + GBA_PLTT_SIZE + GBA_VRAM_SIZE + GBA_OAM_SIZE + 64 + GBA_SRAM_SIZE;
+         + GBA_PLTT_SIZE + GBA_VRAM_SIZE + GBA_OAM_SIZE + 64 + GBA_SRAM_SIZE
+         + PortSimUsedBytes();
 }
 
 static void DumpTo(u8 *d)
@@ -543,6 +549,7 @@ static void DumpTo(u8 *d)
         PortPpuStateSave(d);
     d += 64;
     PUT((uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
+    PUT((uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
 #undef PUT
 }
 
