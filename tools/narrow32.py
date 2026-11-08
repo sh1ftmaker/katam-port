@@ -114,6 +114,10 @@ _ARR_MEMBER = re.compile(
     r'[ \t]*\([ \t]*\*[ \t]*(?P<name>[A-Za-z_]\w*)[ \t]*\)[ \t]*'
     r'(?P<dims>(?:\[[^\];]*\])+)[ \t]*;' + _TAIL)
 
+_INTPTR_MEMBER = re.compile(
+    _LEAD + r'(?P<type>u?intptr_t)\s+(?P<name>[A-Za-z_]\w*)'
+    r'(?P<dims>(?:\s*\[[^\]]*\])*)\s*;' + _TAIL)
+
 _TAG_OPEN = re.compile(r'\b(?:struct|union)\b'r'(?:\s*__attribute__\s*\(\(.*?\)\))?'r'(?:\s+[A-Za-z_]\w*)?\s*\{')
 
 # Types whose members must not be narrowed.
@@ -246,7 +250,7 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
         text = apply_narrow_sites(text, name, rep)
     out = []
     pos = 0
-    data_n = fn_n = td_n = arr_n = 0
+    data_n = fn_n = td_n = arr_n = int_n = 0
 
     for m in _TAG_OPEN.finditer(text):
         if m.start() < pos:
@@ -272,6 +276,21 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
             # Skipping them left struct ForegroundPalette_4pp holding a
             # `u16 **u16pp` inside an anonymous union, eight bytes wide.
             if True:
+                # An address held as an integer.  Upstream retyped three
+                # members from u32 to uintptr_t (decomp d9806a0: Background's
+                # tilemap pointer, both words of struct Unk_03002EC0), which is
+                # eight bytes under LP64 and moved every member after them.
+                # Back to the four bytes the console and the pre-sync tree
+                # had; identical in the ILP32 builds, where uintptr_t is u32.
+                im = _INTPTR_MEMBER.match(line.rstrip('\n'))
+                if im:
+                    lines[i] = ('%s%s %s%s;%s\n'
+                                % (im.group('lead'),
+                                   's32' if im.group('type') == 'intptr_t' else 'u32',
+                                   im.group('name'), im.group('dims'),
+                                   im.group('tail')))
+                    int_n += 1
+                    continue
                 am = _ARR_MEMBER.match(line.rstrip('\n'))
                 if am:
                     lines[i] = ('%sPTR32_ARR(%s, %s, %s);%s\n'
@@ -342,4 +361,6 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
         rep.bump('typedef-typed pointer members narrowed to PTR32_TD', td_n)
     if arr_n:
         rep.bump('pointer-to-array members narrowed to PTR32_ARR', arr_n)
+    if int_n:
+        rep.bump('uintptr_t members narrowed to u32', int_n)
     return text
