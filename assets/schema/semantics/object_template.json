@@ -518,13 +518,67 @@
       "offset": 34,
       "type": "u16",
       "name": "flags",
-      "description": "Per-type bitfield (chest facing, door marker art, scroll-lock mode, spawner trigger mode, ...). No cross-type meaning: see object_params.json.",
+      "description": "Bitfield. For enemy/boss/item types 0x00..0x64 the low bits are generic, read by InitObject/ObjectDestroy (object.c); higher bits and all bits of other types are per-type (chest facing, door marker art, scroll-lock mode, spawner mode, ...): see object_params.json.",
       "usage": "live",
       "confidence": "confirmed",
       "evidence": [
         {
           "doc": "docs/naming/sweep-101-330.md",
           "note": "bit 0 means different things in chest.c, object_spawner.c, scroll_lock.c"
+        }
+      ],
+      "bits": [
+        {
+          "mask": "0x0001",
+          "name": "countsForKillCounter",
+          "description": "types <= 0x64: the object's defeat increments the room-group counter gUnk_02023508, read by lever walls and object spawners",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:401",
+              "code": "if (obj->objTemplate->unk22 & 1) {"
+            }
+          ]
+        },
+        {
+          "mask": "0x0002",
+          "name": "collidesWithSolidObjects",
+          "description": "types <= 0x64: sets unkC |= 0x1000 so the object is pushed by / stands on solid objects like Kirby",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:2127",
+              "code": "if (arg0->objTemplate->unk22 & 2) {"
+            }
+          ]
+        },
+        {
+          "mask": "0x0004",
+          "name": "noMusicChange",
+          "description": "types <= 0x64: no boss-music switch on wake / no room-music restore on death",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:725",
+              "code": "!(r4->objTemplate->unk22 & 4)"
+            }
+          ]
+        },
+        {
+          "mask": "0x8000",
+          "name": "objFlag10",
+          "description": "types 0x00..0x32: sets runtime unkC |= 0x10 (the enemy agent read this as using OBJ_DROPPY palette; unverified)",
+          "usage": "code_only",
+          "confidence": "guess",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:2132",
+              "code": "if (arg0->objTemplate->unk22 & 0x8000) {"
+            }
+          ]
         }
       ]
     }
