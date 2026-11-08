@@ -143,6 +143,54 @@ DIR/objects/types.json           {"obj_desc": [ one line per type: id, name, fie
   builds; the code is compiled in), F1 cross-platform `pack.lock`
   comparison, `--res-identity`, PNG output, every other kind.
 
+### R2 for the room bundle: room ids 983+, the loader, playtest (branch `roomload`)
+
+- **Room ids.** New rooms are numbered after the original ids: **983 and up** (`gRoomProps`
+  has 983 entries; the filler slots 1-100 are not reused). Content indices from 287.
+  *Differs from §1.2* ("mods >= 1000"): 983 is the user's choice; the sweep below found
+  nothing that needs the gap.
+- **Format** `katam-native/1` (`tools/katam/lib/native.mjs` `linkBundle`, written by
+  `katam compile` to `OUT/mod/rooms.katn`): a position-independent object file -- blobs,
+  relocations (`blob[at] = &target + addend`), and table entries `(rom_tables.h label, index,
+  blob, inline)`. The compiler stays the only code that knows record layouts; the runtime is a
+  linker. Replaces the unlinked `OUT/native/` dump as the thing the game loads.
+- **Loader** (`platform/res_rooms.c`). After the pack (or over the ROM: no pack needed), links
+  the bundles from `<pack>/rooms.katn`, each `--mod`'s `rooms.katn`, `--rooms FILE`, and one
+  in-memory bundle (the web page: `PortResSetRoomBundle`). Each named table is copied from
+  where it is served into the arena at its grown size, then entries fill slots, so vanilla
+  entries keep pointing at vanilla records (no `sim` movement for vanilla rooms, no pointer into
+  arena data for them). Growable tables: `gRoomProps` (983), `gForegroundTilemaps`,
+  `gSolidityMaps`, `gLevelObjLists`, `gUnk_08D640A4`, `gUnk_08D63C28` (287), `gForegroundInfo`
+  (34), `gRoomTiledBGs` (36), and two room-id tables the sweep found: `gUnk_08D6CD0C` (the AI
+  helpers' room graph + area, 1000 slots, read by the pause maps, the HUD and 30 AI sites --
+  NULL for a new room crashes them) and `gUnk_0893CB44` (default cell, 984). `Res_Count`
+  follows. Placement: bump allocator after the pack's blobs, tables first, then blobs in bundle
+  order, 16-byte aligned -- the same bundles give the same addresses everywhere.
+- **Content hash.** `levelSetHash` gains `"rooms" + SHA-256("katam-rooms-v1" + each bundle's
+  size and bytes, in load order)` when bundles are installed; unchanged otherwise (so the
+  pack-only value and `sunset_route`'s note hold). Bundles hold no addresses.
+- **Save data.** Nothing saved is indexed by room id; `gVisitedDoors[0x120]` is indexed by
+  content and 0x11F entries are saved (`save.c gWorldProps`). Content ≥ 287 would overrun into
+  the live tilemap buffers. The six accesses go through `PORT_VISITED_DOORS(i)`: vanilla content
+  hits `gVisitedDoors`, new content a port-owned array that is never saved. **Decision:
+  new rooms' progress is per session and excluded from the save**, so a vanilla save is
+  byte-identical after playing them (tests/playtest.sh checks it). The array is one
+  self-contained struct in `res_rooms.c`, host memory for now: it moves into the port sim
+  block (`struct PortSimBlock`, branch `netsim`) when that lands, which also puts it in
+  snapshots and the state hash (until then a rollback session would not restore it).
+- **Vanilla range checks** that mean "rooms 980-982" (`roomId > 0x3D3`: HUD body sprite, death
+  music fade, two object paths), "rooms 900+" (`> 0x383`: food/bonus) and mirror-door
+  destinations `0x3D4..0x3DD` exclude new ids (`RES_ROOM_IS_NEW`). Left alone: the u8
+  truncation in `unknown_75.c:45` (a vanilla bug) and the s8 `unk63` read at `kirby.c:12935`.
+  Completion % and the area/world maps list rooms explicitly, so new rooms are simply absent
+  ("outside the area map").
+- **Playtest.** `platform/playtest.c` (`PortPlaytestBoot`): the recordings' boot keys until
+  frame 1300, then a warp; the web pacer fast-forwards while `Module.portTurbo()` says so.
+  `katam playtest` writes the same as a recording. `--shot-at` writes PPU shots without GL.
+- Gates: `tests/layout_neutral.sh` against the parent on all six recordings, `make
+  regress-pack`, `res-roundtrip`, `authoring-*`, `make playtest-test` (rooms 983/984 natively
+  and on node, keys/vid/sram/pix equal every frame; save untouched).
+
 ### Authoring layer (branch `authoring`): the editable, AI-facing formats
 
 `docs/design/AUTHORING.md`.  A second layer above the pack: one JSON file per

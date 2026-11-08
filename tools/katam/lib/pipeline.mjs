@@ -108,7 +108,7 @@ const PACK_ROOM = (P) => {
 
 /** Write <out>/pack (when the stack covers every pack table entry) and <out>/native. */
 export function writeOutput({ io, compiled, outDir, manifest, manifestSha256 }, sha256) {
-  const report = { pack: null, native: { rooms: 0, tilesets: 0, backgrounds: 0 }, needsNativeLoader: [] };
+  const report = { pack: null, native: { rooms: 0, tilesets: 0, backgrounds: 0 }, inBundle: [] };
   const FP = manifest.kinds.find((k) => k.kind === 'fg_palette'), OD = manifest.kinds.find((k) => k.kind === 'obj_desc');
   const missing = [];
   for (let i = 0; i < FP.count; i++) if (!compiled.palettes.has(i)) missing.push(`palette ${i}`);
@@ -133,7 +133,7 @@ export function writeOutput({ io, compiled, outDir, manifest, manifestSha256 }, 
   for (const [rid, c] of [...compiled.rooms].sort((a, b) => a[0] - b[0])) {
     dump(`rooms/${rid}`, c.blobs);
     index.rooms.push({ id: c.id, roomId: rid, content: c.content, refs: c.refs });
-    if (c.content >= 287 || rid >= 983) report.needsNativeLoader.push(c.id);
+    if (!compiled.vanillaLayers.has(c.project)) report.inBundle.push(c.id);
     report.native.rooms++;
   }
   for (const [i, t] of compiled.tilesets) { dump(`tilesets/${i}`, t.blobs); index.tilesets.push(i); report.native.tilesets++; }

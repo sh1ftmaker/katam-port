@@ -243,7 +243,7 @@ function printErrors(errs, json) {
   else for (const e of errs) console.log(fmtErr(e, 'error'));
 }
 
-function roundtrip(a, io, registry) {
+async function roundtrip(a, io, registry) {
   if (!a.rom || !a.pack || !a.work) die('roundtrip --rom ROM --pack EXTRACTED_PACK --work DIR [--bin KATAM]');
   const { vocab, romTables } = env();
   const romBytes = readRom(a.rom);
@@ -267,6 +267,17 @@ function roundtrip(a, io, registry) {
     if (r.bad.length) ok = false;
   }
   console.log(`gate compressed streams re-encoded byte-identical: ${g.packed.same}/${g.packed.total}`);
+  {
+    // the browser's pack records (lib/rompack.mjs, read from the ROM) == the extractor's
+    const { packFromRom } = await import('./lib/rompack.mjs');
+    const { sameJson } = await import('./lib/pipeline.mjs');
+    const mine = packFromRom(romBytes, romTables, manifest().manifest), ext = readPack(io, a.pack);
+    let bad = 0;
+    for (const [i, p] of ext.palettes) if (!sameJson(p, mine.palettes.get(i))) bad++;
+    for (const r of ext.objDesc) if (!sameJson(r, mine.objDesc[r.id])) bad++;
+    console.log(`gate rompack     ${bad ? bad + ' records differ from' : 'palettes and object types read from the ROM equal'} the extracted pack`);
+    if (bad) ok = false;
+  }
   // the compiled pack, file for file against the extractor's
   if (rep.pack && !a['no-pack-diff']) {
     const d = spawnSync('diff', ['-r', a.pack, rep.pack], { encoding: 'utf8' });

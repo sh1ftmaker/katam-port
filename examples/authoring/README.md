@@ -15,4 +15,12 @@ node tools/katam/katam.mjs compile examples/authoring/sky_garden --base VANILLA 
 ```
 
 `VANILLA` is the folder `katam decompile` wrote from your ROM (docs/design/authoring/AI-GUIDE.md §0).
-The rooms compile; playing them needs the runtime's room-bundle loader (AUTHORING.md §8).
+The rooms are ids 983 (meadow) and 984 (tower). Play them:
+
+```sh
+node tools/katam/katam.mjs playtest examples/authoring/sky_garden --rom baserom.gba -o /tmp/pt
+build/lp64/katam --rooms /tmp/pt/build/mod/rooms.katn --warp 1300:983:28:10 ...   # by hand
+```
+
+or on the web page `/next/playtest/` (pick "Example: Sky Garden"). `tests/playtest.sh` plays
+them on every build (native and wasm, every frame equal).

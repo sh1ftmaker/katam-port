@@ -96,7 +96,9 @@ previous patch's result.
 
 `{to, arrive: {x, y}, cells: [[x, y], …], flags}`: standing on any of `cells` and pressing up
 takes Kirby to room `to`. **`arrive` is the cell Kirby lands on** — in vanilla the floor cell
-right under the destination door — so the cell above it must be passable (the validator checks;
+under (or beside) the destination door — so the cell above it must be passable. Precisely, the
+game puts Kirby's centre at `x*16 - 8`, `y*16 - 7` px: feet on row `y`, centred on the left
+edge of column `x`; to stand on a one-cell door at column `c`, arrive at `x = c + 1` (the validator checks;
 23 of 559 vanilla doors break the rule, entering through floors/ceilings). `flags`
 (`Unk_0888562C_3.unk0C`): 0x80 keep the respawn point; 0x01/0x02 arrival facing.
 
@@ -146,6 +148,28 @@ for the player. Generating real graphs is future work (AUTHORING.md §9).
 | chests + doors | 15 | `gVisitedDoors` u16 per room, bit 15 = visited |
 | nav nodes | 32 | `LevelInfo_1E8_14.unk0[0x20]` |
 | objects | no hard cap found; vanilla max 30 per room | |
+
+## Room ids, the bundle, and playtesting
+
+New rooms (no `bind`) are numbered **after the original game's ids: 983, 984, …** by sorted id,
+with content indices from 287. `katam compile` links them into the room bundle
+`OUT/mod/rooms.katn` (katam-native/1), which the game loads with `--rooms FILE`, as a mod
+(`--mod OUT/mod`), from a pack (`<pack>/rooms.katn`), or from the web playtest page. The loader
+(platform/res_rooms.c) grows the room tables to the new ids; vanilla rooms are untouched.
+
+Progress (visited, doors used, chests) of rooms with content ≥ 287 lives in a port-owned
+array, **not in the save**: playing new rooms never changes a vanilla save. Per session for now.
+
+Playtesting: `katam playtest PROJECT --rom R -o OUT` (AUTHORING.md §8), or the page
+`/next/playtest/`: load your ROM (it stays in your browser), pick an example or load/drop/paste
+your room or project files (JSON or zip); it validates (errors with file, field and hint),
+renders a preview and boots the game straight into the room. **Reload room** recompiles and
+warps you back in within a second; **Restart** reboots. The game's settings menu (⚙, F1) works.
+Only rooms, tilesets and backgrounds reach the page's game; palette and object-stat edits need
+the native `--res-pack` path.
+
+Keep floors **at least 3 rows above the bottom** of the room: the camera never shows the last
+40 px, so Kirby standing on the last two rows is off-screen (validator: `camera-bottom`).
 
 ## Derivation table (what the compiler writes that you do not)
 

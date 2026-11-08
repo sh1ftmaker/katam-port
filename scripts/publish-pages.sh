@@ -14,6 +14,9 @@
 #
 #   PAGES_REMOTE=github       push to this remote (default origin)
 #   PAGES_SUBDIR=next         publish into /next/ and leave the rest alone
+#   PAGES_SUBDIR=next/playtest  nested subdirectories are fine
+#   PAGES_PAGE=playtest       publish the room playtest page (make
+#                             dist-playtest, web/playtest/) instead of the game
 #
 # The staged tree starts from the remote's own gh-pages tip, in a detached
 # worktree, and the push is a plain fast-forward -- never forced -- so a
@@ -28,6 +31,12 @@ DRY_RUN=0
 BRANCH=${PAGES_BRANCH:-gh-pages}
 REMOTE=${PAGES_REMOTE:-origin}
 DIST=build/dist
+DIST_TARGET=dist
+case "${PAGES_PAGE:-game}" in
+    game) ;;
+    playtest) DIST=build/dist-playtest; DIST_TARGET=dist-playtest ;;
+    *) echo "PAGES_PAGE is game or playtest" >&2; exit 1 ;;
+esac
 WORKTREE=build/gh-pages
 
 if ! command -v node >/dev/null 2>&1; then
@@ -40,8 +49,8 @@ export PATH
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 
 step "build and check the publishable directory"
-make dist
-make check-dist
+make $DIST_TARGET
+make check-dist DIST=$DIST
 
 step "stage $BRANCH"
 # A detached worktree keeps the branch's contents completely separate from the
@@ -70,18 +79,32 @@ fi
 # is what the root publish does, and must keep doing -- would take the main
 # build down every time a branch was published.
 if [ -n "${PAGES_SUBDIR:-}" ]; then
-    case "$PAGES_SUBDIR" in
-        */*|.*|"") echo "PAGES_SUBDIR must be a single plain directory name" >&2; exit 1 ;;
-    esac
+    # One or more plain segments: next, next/playtest.  No dots, no empty
+    # segments, nothing that could climb out of the worktree.
+    if ! printf '%s' "$PAGES_SUBDIR" | grep -Eq '^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$'; then
+        echo "PAGES_SUBDIR must be plain directory names joined by / (e.g. next/playtest)" >&2; exit 1
+    fi
     TARGET="$WORKTREE/$PAGES_SUBDIR"
-    rm -rf "$TARGET"
+    # Clear what this publish owns, but keep nested publishes: a child
+    # directory with its own index.html (next/playtest under next) is
+    # another page, and publishing the parent must not take it down.
     mkdir -p "$TARGET"
+    find "$TARGET" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) -exec rm -f {} +
+    for d in "$TARGET"/*/; do
+        [ -d "$d" ] || continue
+        [ -f "$d/index.html" ] && [ ! -e "$DIST/$(basename "$d")/index.html" ] && continue
+        rm -rf "$d"
+    done
     echo "    publishing into /$PAGES_SUBDIR/ (site root left alone)"
 else
     TARGET="$WORKTREE"
     find "$WORKTREE" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 fi
 
+if [ "$DIST_TARGET" = dist-playtest ]; then
+    # The whole directory: the page, the game, the compiler library, data.json.
+    cp -r "$DIST"/. "$TARGET"/
+fi
 cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
 cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
@@ -91,7 +114,7 @@ touch "$WORKTREE/.nojekyll"
 
 # check-dist guarded build/dist; this guards what is actually staged.
 bad=$(find "$TARGET" -type f \( -iname '*.gba' -o -iname '*.gb' -o -iname '*.gbc' \
-        -o -iname '*.bin' -o -iname '*.sav' -o -iname '*.srm' -o -iname '*.pack' \
+        -o -iname '*.bin' -o -iname '*.sav' -o -iname '*.srm' -o -iname '*.pack' -o -iname '*.katn' \
         -o \( -size +8M ! -name 'katam.wasm' \) \) -not -path '*/.git/*')
 if [ -n "$bad" ]; then
     echo "REFUSING TO PUBLISH -- staged files look like game data:" >&2

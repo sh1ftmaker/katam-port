@@ -34,10 +34,13 @@ Per-kind documents:
                                                      │
                      ┌───────────────────────────────┴──────────────────────┐
                      ▼                                                      ▼
-        OUT/pack   (room_props, fg_palette, obj_desc)          OUT/native  (katam-native/0)
-        loaded by the game today: --res-pack / --mod           GBA-native blobs for the room bundle,
-        proven by --res-check and tests/regress.sh             tilesets, backgrounds: loaded once the
-                                                               runtime grows the R2 room-bundle loader
+        OUT/pack   (room_props, fg_palette, obj_desc)          OUT/mod/rooms.katn  (katam-native/1)
+        loaded by the game: --res-pack / --mod                 the room bundle: rooms (ids 983+),
+        proven by --res-check and tests/regress.sh             tilesets, backgrounds, linked by the
+                                                               runtime (--rooms, --mod, the web page;
+                                                               platform/res_rooms.c, tests/playtest.sh)
+                                                               OUT/native/: the same blobs unlinked
+                                                               (one .bin each), for inspection
 ```
 
 - **Authoring layer** — what humans, the web level editor and AI models edit. One small text file
@@ -124,16 +127,26 @@ Numbers exist only at compile time (MODDING.md §3.4). A resource may carry `bin
 do, so they compile back to the same slots); otherwise the compiler allocates, deterministically
 by sorted id:
 
-- **room ids**: free `gRoomProps` slots below the first vanilla room (1-100 are all filler), then
-  983 and up;
+- **room ids**: **after the original game's ids**: 983 and up (gRoomProps has 983 entries,
+  0-982, of which 286 are real rooms). The vanilla filler slots 1-100 are never used, so a new
+  room cannot collide with an id the game or a save gives a meaning to;
 - **content index** (the one number a room's tilemap, collision, objects, progress and nav share,
   docs/ROOM-FORMAT.md §1): 287 and up;
 - tilesets/backgrounds/palettes: after the vanilla tables (34, 36, 42).
 
-`katam compile` reports the allocation. A room with content ≥ 287 is listed under
-`needsNativeLoader`: its props are in the pack, but the game still reads tilemaps, collision and
-objects from the ROM's 287-entry tables, so it is not playable until the runtime loads
-`OUT/native` (§8).
+`katam compile` reports the allocation and writes the **room bundle**, `OUT/mod/rooms.katn`
+(plus `OUT/pack/rooms.katn` when it writes a full pack): every room, tileset and background the
+stack defines above the decompiled vanilla project, in `katam-native/1` (§8). The runtime grows
+its tables to the ids the bundle names (`platform/res_rooms.c`), so rooms ≥ 983 play natively
+(`--rooms OUT/mod/rooms.katn`, or `--mod OUT/mod`) and on the web playtest page.
+Without `--base`, references into vanilla resolve by the number their id carries (unchecked):
+enough for the bundle, not for the pack.
+
+A new room also gets, in the bundle, the two room-id tables beside `gRoomProps` that the
+loader grows: `gUnk_08D6CD0C` (the AI helpers' room graph and the room's **area**: the room's
+optional `area` field, else the area of the vanilla room its first door leads to, else
+rainbow_route; no neighbours, flag 0x80 "not a routing target") and `gUnk_0893CB44` (a default
+cell: its first door's cell).
 
 ## 5. Schemas and names: written for models
 
@@ -213,7 +226,7 @@ katam render ROOM -o out.png [--project DIR] [--base DIR]... [--overlay collisio
 katam new-room ID -o FILE [--width W --height H]   a valid starting room
 katam describe room|collision|objects|music [filter]
 katam reach ROOM...      designed, exit 3 with the plan (§8)
-katam playtest ROOM      designed, exit 3 with the plan (§8)
+katam playtest PROJECT --rom R -o OUT   boot the native game into a room, screenshots + hash log (§8)
 ```
 
 All commands take `--registry DIR` (default `assets/schema/semantics`).
@@ -251,28 +264,34 @@ docs/naming/doors.md started (559 door edges), plus warp stars and other object-
 the registry's object params. Output: reachable / unreachable doors with the blocking cells,
 `--json`.
 
-### playtest (`katam playtest`)
+### playtest (`katam playtest`) — implemented
 
-Compile the stack; run the native binary headless with `--res-pack OUT/pack` (or `--mod`) and
-`--warp <roomId>` to an arrival cell; drive a scripted input recording through the determinism
-harness's conventions (fresh XDG dirs, `setarch -R`, SDL dummy drivers, as `tests/regress.sh`);
-report whether the room loaded, whether Kirby survived N seconds, the per-frame state hash, and
-screenshots at fixed frames.
+```
+katam playtest PROJECT --rom ROM -o OUT [--base VANILLA]... [--room ID|N] [--door N | --at X:Y]
+               [--frames N] [--input SCRIPT] [--shots F,F,...] [--pack VANILLA_PACK] [--bin build/lp64/katam]
+```
 
-**Blocked on the runtime**, not on tooling: the game loads `room_props`, `fg_palette` and
-`obj_desc` from a pack, but a room's tilemap, collision, objects, doors and nav still come from
-the ROM's 287-entry tables. The next runtime step is MODDING.md R2 for the room bundle: teach
-`platform/res_pack.c` to place `OUT/native` (katam-native/0: per room `fgHeader`, `fgTilemapPacked`,
-`collisionPacked`, `cellRecords` + terminator, `templates` + terminator, `objTypes`, `progress` +
-terminator, nav header/scripts/map/nodes; per tileset/background their records and payloads —
-pointer fields are zero and the link structure is fixed by the blob names) into the arena and
-retarget `gForegroundTilemaps`, `gSolidityMaps`, `gLevelObjLists`, `gUnk_08D640A4`,
-`gUnk_08D63C28`, `gForegroundInfo`, `gRoomTiledBGs`, growing them past 287 entries. That is a C
-change to the game binary with the layout-neutrality and `regress-pack` gates MODDING.md M1 used,
-and it collides with MODDING.md's note that object lists and tilemaps are pointed into from
-hashed memory (`objlistPtr`, `objTemplate`, `unk180[]`): serving them from the arena moves the
-`sim` hash until M2's content-based comparison. Until then, vanilla rooms' props, palettes and
-object stats can be playtested by hand: `build/lp64/katam --res-pack OUT/pack --warp <id> rom.gba`.
+Compiles the stack (`OUT/build`), writes a recording (`OUT/playtest.txt`,
+`tools/katam/lib/playtest.mjs`): the regression boot (A+Right taps from frame 120, the
+recordings' own — `--warp` alone never leaves the title), a warp into the room at frame 1300
+(arrival: `--at`, else the N-th door leading into the room, else under its own first door),
+then the input script from arrival (`k FRAME HEXMASK` / `hold MASK FROM TO`, frames counted
+from arrival, which is warp + 90). Runs the native binary headless with the bundle (`--rooms`,
+or `--res-pack P --mod OUT/build/mod`), fresh XDG dirs, `setarch -R`, dummy SDL drivers; writes
+`OUT/hash.log`, `OUT/game.log`, PPU screenshots `OUT/shot-<frame>-ppu.png` (default: arrival,
+middle, end) and prints JSON: warp delivered, the room and hp at exit, the bundle's sha256 and
+`levelSetHash`. Exit 0 when the warp landed and Kirby is alive. The room is the first one the
+project adds unless `--room`.
+
+The web page `/next/playtest/` (`web/playtest/`, `make dist-playtest`) does the same in the
+browser against the player's own ROM; see docs/design/authoring/rooms.md "Playtesting".
+
+**Arrival coordinates**: the game places Kirby's centre at `arrive.x*16 - 8`,
+`arrive.y*16 - 7` px — feet on top of row `arrive.y`, horizontally on the left edge of column
+`arrive.x`. Vanilla arrivals sit beside the destination door (door at `(x, y-1)` or
+`(x-2, y-1)` in 280 of 326 cases), so Kirby does not stand *on* it; to arrive on a one-cell door
+at column `c`, use `x = c + 1`. **Camera**: the view never shows the bottom 40 px of a room, so
+floors need ≥ 3 rows under them (vanilla 3-4); the validator warns (`camera-bottom`).
 
 ### Art from collision ("brushes")
 
@@ -285,11 +304,8 @@ follows the pattern by hand (fill, rim-in-the-air-cell-above-floor, platform).
 
 ## 9. Open questions
 
-1. **Room id space for new rooms.** Allocation uses filler slots 1-100 first so new rooms fit
-   the existing 983-entry `gRoomProps`. Nothing in vanilla is known to iterate all slots (the
-   regression recordings pass with rooms 1 and 2 populated), but a sweep of `gRoomProps[`
-   readers for "every slot" loops has not been done. Alternative: always ≥ 983 (needs the table
-   grown in the arena).
+1. **Room id space for new rooms** — settled: 983 and up (the runtime grows its tables; see
+   MODDING.md "R2: room bundles" for what else is indexed by room id and how it was handled).
 2. **Nav graphs for new rooms.** A room without `nav` gets a one-node graph and halting
    scripts: helper (CPU) Kirbys idle there. Generating a real one (regions from standable areas,
    next-hop matrix by BFS — the unread `extra` bytes look like the adjacency list the matrix was

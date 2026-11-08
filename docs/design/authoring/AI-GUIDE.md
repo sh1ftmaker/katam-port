@@ -105,10 +105,19 @@ but keep the main path to short jumps), nothing is sealed off.
 node tools/katam/katam.mjs compile my_mod --base /tmp/work/vanilla -o /tmp/work/out
 ```
 
-`out/pack` is what the game loads (`--res-pack`). New rooms are reported under
-`needsNativeLoader`: their geometry compiles (`out/native`) but the game cannot play new rooms
-until the runtime's room-bundle loader lands (AUTHORING.md §8). Edits to vanilla rooms'
-properties, palettes and object stats are playable now.
+`out/pack` is what the game loads (`--res-pack`); `out/mod/rooms.katn` is the room bundle with
+every room the project adds (ids 983 and up, listed under `inBundle`). Play it:
+
+```sh
+node tools/katam/katam.mjs playtest my_mod --base /tmp/work/vanilla --rom baserom.gba -o /tmp/work/pt \
+    [--room room:my_area/my_room] [--frames 600] [--input script.txt]
+```
+
+It boots the game into the room, plays the frames (the script's `k FRAME HEXMASK` lines count
+from arrival; Right=0x10, Left=0x20, Up=0x40, A=0x01), and prints JSON with the room and hp at
+the end; look at the `shot-*-ppu.png` screenshots. Or use the web page `/next/playtest/`.
+Keep floors at least 3 rows above the bottom of the room: the camera never shows the last
+40 px (`camera-bottom` warning).
 
 ## Checklist before you hand a room back
 
@@ -116,4 +125,5 @@ properties, palettes and object stats are playable now.
 - [ ] Every door has a partner door (or is meant to be one-way) and an `arrive` on a floor.
 - [ ] Every door cell has collision 255 and a `door` object.
 - [ ] The render shows what you intended; nothing important is outside the walls.
+- [ ] `katam playtest` lands in the room and Kirby is alive at the end.
 - [ ] `name` and `description` say what the room is for.
