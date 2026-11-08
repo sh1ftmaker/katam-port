@@ -1006,6 +1006,9 @@ int main(int argc, char **argv)
         return 1;
     }
     PortLog("[katam-port] ROM loaded (%u bytes), starting AgbMain", gPortRomSize);
+    /* Resolve the resource layers (ROM, and a pack/mods if the host asked
+     * for them) before anything reads a table or patches one. */
+    Res_BuildSession();
     PortLoadRomDataCopies();
     PortPatchRomFunctionPointers();
 

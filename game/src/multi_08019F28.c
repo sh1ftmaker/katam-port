@@ -1,3 +1,4 @@
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,260 +52,28 @@ static const u8 gUnk_082DE094[] = { 4, 5, 6, 3 };
 /* PORT: replaced by port/rom_data.h -- extern u8 gUnk_08E1BA58[], gUnk_08E1BA58_End[0]; */
 /* PORT: replaced by port/rom_data.h -- extern u8 gUnk_08E8009C[], gUnk_08E8009C_End[0]; */
 
-static void *const sMultiBootPrograms[][NUM_LANGUAGES][2] = 
-{
-    {
-        [LANGUAGE_JAPANESE] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-        [ LANGUAGE_ENGLISH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-        [  LANGUAGE_GERMAN] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-        [  LANGUAGE_FRENCH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-        [ LANGUAGE_SPANISH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-        [ LANGUAGE_ITALIAN] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
-    },
-    {
-        [LANGUAGE_JAPANESE] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-        [ LANGUAGE_ENGLISH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-        [  LANGUAGE_GERMAN] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-        [  LANGUAGE_FRENCH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-        [ LANGUAGE_SPANISH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-        [ LANGUAGE_ITALIAN] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
-    },
-    {
-        [LANGUAGE_JAPANESE] = { gUnk_08E8009C, gUnk_08E8009C_End },
-        [ LANGUAGE_ENGLISH] = { gUnk_08E8009C, gUnk_08E8009C_End },
-        [  LANGUAGE_GERMAN] = { gUnk_08E8009C, gUnk_08E8009C_End },
-        [  LANGUAGE_FRENCH] = { gUnk_08E8009C, gUnk_08E8009C_End },
-        [ LANGUAGE_SPANISH] = { gUnk_08E8009C, gUnk_08E8009C_End },
-        [ LANGUAGE_ITALIAN] = { gUnk_08E8009C, gUnk_08E8009C_End },
-    },
-    {},
-};
+static void *sMultiBootPrograms[4][NUM_LANGUAGES][2];
 
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_0838AD48[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_0837F6C4[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_08383C0C[]; */
 /* PORT: replaced by port/rom_data.h -- extern u8 gUnk_08D94B9C[]; */
 
-static const void *const gUnk_082DE158[][9] =
-{
-    [LANGUAGE_JAPANESE] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ENGLISH] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [  LANGUAGE_GERMAN] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [  LANGUAGE_FRENCH] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_SPANISH] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ITALIAN] = {
-        gUnk_0838AD48,
-        gUnk_0837F6C4,
-        gUnk_08383C0C,
-        gUnk_08D94B9C,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
-    },
-};
+static const void *gUnk_082DE158[NUM_LANGUAGES][9];
 
 /* PORT: replaced by port/rom_data.h -- extern const u32 gCrackityHackObjTileset_English[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gCrackityHackBgMainTileset[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gCrackityHackGameEndedTileset_English[]; */
 /* PORT: replaced by port/rom_data.h -- extern u8 gUnk_08E1FE28[]; */
 
-static const void *const gUnk_082DE230[][9] =
-{
-    [LANGUAGE_JAPANESE] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ENGLISH] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [  LANGUAGE_GERMAN] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-
-    },
-    [  LANGUAGE_FRENCH] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_SPANISH] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ITALIAN] = {
-        gCrackityHackObjTileset_English,
-        gCrackityHackBgMainTileset,
-        gCrackityHackGameEndedTileset_English,
-        gUnk_08E1FE28,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
-    },
-};
+static const void *gUnk_082DE230[NUM_LANGUAGES][9];
 
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_08372BE0[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_08375400[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u32 gUnk_083A9AAC[]; */
 /* PORT: replaced by port/rom_data.h -- extern u8 gUnk_08E8490C[]; */
 
-static const void *const gUnk_082DE308[][9] =
-{
-    [LANGUAGE_JAPANESE] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ENGLISH] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [  LANGUAGE_GERMAN] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [  LANGUAGE_FRENCH] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_SPANISH] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-    [ LANGUAGE_ITALIAN] = {
-        gUnk_08372BE0,
-        gUnk_08375400,
-        gUnk_083A9AAC,
-        gUnk_08E8490C,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
-        gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
-    },
-};
+static const void *gUnk_082DE308[NUM_LANGUAGES][9];
 
 struct Multi_08019F28 *sub_08019F28(s32 r7)
 {
@@ -863,6 +632,268 @@ static void sub_0801AA58(struct Multi_08019F28 *r2)
         r2->callback = sub_0801A618;
     }
     sub_0801A618(r2);
+}
+
+
+/* PORT-FORK: these tables hold ROM table bases (port/rom_data.h), which are
+ * resource slots now and no longer address constants; a C static initialiser
+ * cannot read them, and a table filled once would not follow a slot the
+ * resource layer retargets.  So the initialisers are evaluated here, at the
+ * end of every session build (platform/res.c, Res_BuildSession). */
+void PortResRebind_multi_08019F28(void)
+{
+    {
+        void *const sMultiBootPrograms_init[][NUM_LANGUAGES][2] = 
+        {
+            {
+                [LANGUAGE_JAPANESE] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+                [ LANGUAGE_ENGLISH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+                [  LANGUAGE_GERMAN] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+                [  LANGUAGE_FRENCH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+                [ LANGUAGE_SPANISH] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+                [ LANGUAGE_ITALIAN] = { gUnk_08D90A6C, gUnk_08D90A6C_End },
+            },
+            {
+                [LANGUAGE_JAPANESE] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+                [ LANGUAGE_ENGLISH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+                [  LANGUAGE_GERMAN] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+                [  LANGUAGE_FRENCH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+                [ LANGUAGE_SPANISH] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+                [ LANGUAGE_ITALIAN] = { gUnk_08E1BA58, gUnk_08E1BA58_End },
+            },
+            {
+                [LANGUAGE_JAPANESE] = { gUnk_08E8009C, gUnk_08E8009C_End },
+                [ LANGUAGE_ENGLISH] = { gUnk_08E8009C, gUnk_08E8009C_End },
+                [  LANGUAGE_GERMAN] = { gUnk_08E8009C, gUnk_08E8009C_End },
+                [  LANGUAGE_FRENCH] = { gUnk_08E8009C, gUnk_08E8009C_End },
+                [ LANGUAGE_SPANISH] = { gUnk_08E8009C, gUnk_08E8009C_End },
+                [ LANGUAGE_ITALIAN] = { gUnk_08E8009C, gUnk_08E8009C_End },
+            },
+            {},
+        };
+        typedef char sMultiBootPrograms_size_check[sizeof(sMultiBootPrograms_init) == sizeof(sMultiBootPrograms) ? 1 : -1];
+        memcpy(sMultiBootPrograms, sMultiBootPrograms_init, sizeof(sMultiBootPrograms));
+    }
+    {
+        const void *const gUnk_082DE158_init[][9] =
+        {
+            [LANGUAGE_JAPANESE] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ENGLISH] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [  LANGUAGE_GERMAN] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [  LANGUAGE_FRENCH] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_SPANISH] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ITALIAN] = {
+                gUnk_0838AD48,
+                gUnk_0837F6C4,
+                gUnk_08383C0C,
+                gUnk_08D94B9C,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08D94B9C + SIO32ML_BLOCK_SIZE * 5,
+            },
+        };
+        typedef char gUnk_082DE158_size_check[sizeof(gUnk_082DE158_init) == sizeof(gUnk_082DE158) ? 1 : -1];
+        memcpy(gUnk_082DE158, gUnk_082DE158_init, sizeof(gUnk_082DE158));
+    }
+    {
+        const void *const gUnk_082DE230_init[][9] =
+        {
+            [LANGUAGE_JAPANESE] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ENGLISH] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [  LANGUAGE_GERMAN] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+
+            },
+            [  LANGUAGE_FRENCH] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_SPANISH] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ITALIAN] = {
+                gCrackityHackObjTileset_English,
+                gCrackityHackBgMainTileset,
+                gCrackityHackGameEndedTileset_English,
+                gUnk_08E1FE28,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E1FE28 + SIO32ML_BLOCK_SIZE * 5,
+            },
+        };
+        typedef char gUnk_082DE230_size_check[sizeof(gUnk_082DE230_init) == sizeof(gUnk_082DE230) ? 1 : -1];
+        memcpy(gUnk_082DE230, gUnk_082DE230_init, sizeof(gUnk_082DE230));
+    }
+    {
+        const void *const gUnk_082DE308_init[][9] =
+        {
+            [LANGUAGE_JAPANESE] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ENGLISH] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [  LANGUAGE_GERMAN] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [  LANGUAGE_FRENCH] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_SPANISH] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+            [ LANGUAGE_ITALIAN] = {
+                gUnk_08372BE0,
+                gUnk_08375400,
+                gUnk_083A9AAC,
+                gUnk_08E8490C,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 1,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 2,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 3,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 4,
+                gUnk_08E8490C + SIO32ML_BLOCK_SIZE * 5,
+            },
+        };
+        typedef char gUnk_082DE308_size_check[sizeof(gUnk_082DE308_init) == sizeof(gUnk_082DE308) ? 1 : -1];
+        memcpy(gUnk_082DE308, gUnk_082DE308_init, sizeof(gUnk_082DE308));
+    }
 }
 
 #ifdef __cplusplus

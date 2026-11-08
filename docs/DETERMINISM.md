@@ -228,6 +228,46 @@ reproducible from the note:
   with the bomb ability. The native build runs through. `warp_sweep` is sized
   to avoid it.
 
+## The `sim` column is not layout-blind
+
+A change that moves code natively can move `sim` without changing anything the
+game does.  Found when the resource seam (docs/design/MODDING.md §1.5, R0)
+turned every ROM table macro into a load, which changes the size of most game
+functions:
+
+- **Coincidence.** `PortHostCanonWord` turns a word that is *exactly* a
+  symbol's start into a name token.  The image is at `0x10000000`, and
+  `0x10000000` is one of the objects' flag bits; game words in `0x10xxxxxx`
+  are common (1549 of 2.7 M in a sample of 24 snapshots).  `0x10030000` in an
+  IWRAM task struct is game data, and in the fork's build `sub_08005DE0`
+  happened to start there, so the golden recorded a function token where
+  every other layout records the number.
+- **Stale bytes.** A destroyed task's callback pointer stays in the IWRAM
+  heap; the next task's struct is written over it field by field, and one or
+  two bytes of the old *host code address* survive as game state
+  (`0x0F4DEA10` and `0x020D2400`, from `0x104DEAB0` and `0x10012420`).
+- Pointers into the middle of the game's C const tables (attract stores
+  `&gUnk_082EB2B8[1]`) are not canonicalised at all.
+
+None of these can be fixed by looking at values: moving the image to a
+sparser range and canonicalising interior pointers were both tried, and game
+words turned up in every candidate range.  They go away with netplay-v2's
+canonical code IDs (the game stops storing host addresses).  Until then a
+refactor that moves code proves it is neutral with
+
+    tests/layout_neutral.sh OLD/build/lp64/katam NEW/build/lp64/katam
+
+which requires `keys`, `vid`, `sram` and `pix` to match on every frame of every
+recording, and raw (`PORT_HASH_RAW=1`) dumps at the first `sim`-divergent frame
+and 15 frames spread over each run to differ only in words
+`tools/layout_diff.py` explains: the same symbol + offset spelled at two
+addresses, or stale bytes of one.  (One- and two-byte stale matches are a
+heuristic: a single differing byte that happens to match some symbol's
+address byte in both builds would be explained by luck.)  Then re-record the
+goldens with `tests/regress.sh --update`, which then moves only the `sim`
+column, and say so in the commit.  ILP32 and wasm have the same property; the
+wasm comparison does not use `sim`.
+
 ## Using it
 
 - **Renderer work:** `make regress` must stay green. `make regress-pixels`

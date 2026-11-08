@@ -14,6 +14,64 @@ contract. Where the two first disagreed, this document adopted NETPLAY-V2's choi
 address, integer-only Lua, ordered `pairs`, the HELLO content-hash shape, and the 6 virtual input
 bits. §9 lists what remains open.
 
+## Implementation status
+
+Kept here so the design and the tree stay readable side by side.  Where the
+code had to differ from the text below, the text was left as written and the
+difference is noted here.
+
+### M0: resource seam R0 (branch `resources`)
+
+- **Every** label in `game/generated/port/rom_data.h` -- 416 of them, plus
+  `gLevelObjLists` (417) -- is a typed view over a slot:
+  `#define gRoomProps ((const struct RoomProps *)RES_BASE(gRoomProps))`.  The
+  slots are `uintptr_t gResBase[RT_COUNT]` (`platform/port/res.h`,
+  `platform/res.c`), numbered by an X-macro list of `ROM_TABLE(label, addr)`
+  lines, `game/generated/port/rom_tables.h`, which is now the only place the
+  addresses live.  No call site changed.
+  - *Differs from §1.5:* an array indexed by `RT_<label>`, not a struct with
+    fields `gResBase.roomProps`: the macro has the label's own name, and a
+    field of that name would be macro-expanded wherever the struct is
+    spelled.  The array also lets the session build iterate the slots.
+  - *Integers, not pointers*, so the table is constant-initialised in the
+    LP64 build: that build compiles the game as C++, where a pointer cast is
+    not a constant expression, and a dynamically initialised table could be
+    read by another file's static constructor before it is filled.
+  - *Static initialisers.*  15 C tables in `game/src` were initialised from
+    ROM table macros (the HUD's ability-icon and message graphics, the
+    multiboot program tables, one `Object11_8`).  A slot is not an address
+    constant, so their initialisers now run in `PortResRebind_*` functions
+    at the end of every session build -- which is also what makes them
+    follow a retargeted slot.
+  - `gLevelObjLists` was a RAM copy of the ROM's 287 pointers, because its
+    element was an anonymous union `gen_rom_data.py` could not spell as a
+    macro.  The union is named (`union LevelObjList`, asserted 4 bytes in
+    `gba_layout.h`) and the table is an ordinary slot; the copy is gone.
+- `Res_Get(kind, id)` / `Res_View` / `Res_Count` over the slots for the
+  kinds of §1.2 with a defined id space (room props, fg tilemaps, bgs,
+  collision, object lists, progress, nav, fg anim, palette anim, object
+  descriptors, song table, fg palettes) plus `RES_ROM_TABLE` (id = slot) for
+  every other label.  Counts are the vanilla extents from `katam.elf` symbol
+  spacing.
+- Overlay skeleton: `Res_BuildSession()` runs in `main()` after the ROM is
+  mapped and before the function-pointer patch; layers ROM → pack (`--res-pack`)
+  → mods (`--mod`, load order).  `PortPatchRomFunctionPointers` also patches
+  the served copy of a relocated table (`Res_ServedAddr`).
+- Read-past-end risk (§1.4): `KATAM_RES_POISON=1` fills the arena with 0xA5
+  before boot; all four recordings are hash-identical with and without it, so
+  no read the recordings make lands in `0x09100000+`.
+- Spawn dispatch: the two scroll-in walks now call `CreateObject`, which was
+  already the third copy of the same body; it is the one spawn dispatch
+  (§4.8's `spawn` hook goes there).
+- *The R0 gate itself differed from §1.5's claim.*  "Bit-identical
+  everything: the pointers hold the same values" is true of behaviour but not
+  of the native `sim` hash, which is layout-sensitive (docs/DETERMINISM.md,
+  "The `sim` column is not layout-blind").  R0 was proven with
+  `tests/layout_neutral.sh` against the parent commit (every frame's keys,
+  vid, sram and pix identical on all four recordings; every sampled state
+  difference explained as pointer spelling), then the goldens were
+  re-recorded, moving only the `sim` column.
+
 ---
 
 ## 0. Decisions in one table

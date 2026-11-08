@@ -1,3 +1,4 @@
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -1744,102 +1745,162 @@ extern const u8 sOtherRoomKirbyIconX[4] = {
 /* PORT: replaced by port/rom_data.h -- extern const u8 gUnk_0834AB20[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u8 gUnk_0834B320[]; */
 
-extern const u16 *sAbilityIconPalettes[32] = {
-    gUnk_083145A0, gUnk_08314980, gUnk_08314D60, gUnk_08315140,
-    gUnk_08315520, gUnk_08315900, gUnk_08315CE0, gUnk_083160C0,
-    gUnk_083164A0, gUnk_08316880, gUnk_08316C60, gUnk_08317040,
-    gUnk_08317420, gUnk_08317800, gUnk_08317BE0, gUnk_08317FC0,
-    gUnk_083183A0, gUnk_08318780, gUnk_08318B60, gUnk_08318F40,
-    gUnk_08319320, gUnk_08319700, gUnk_08319AE0, gUnk_08319EC0,
-    gUnk_0831A2A0, gUnk_0831A680, gUnk_0831AA60, gUnk_0831AE40,
-    gUnk_0831B220, gUnk_0831B600, gUnk_0831B9E0, gUnk_0831BDC0,
-};
-extern const u8 *sAbilityIconGraphics[NUM_LANGUAGES][32] = {
+const u16 *sAbilityIconPalettes[32];
+const u8 *sAbilityIconGraphics[NUM_LANGUAGES][32];
+const u8 *sHudEnemyAndAreaNameGraphics[NUM_LANGUAGES];
+const u8 *sHudBorrowMessageGraphics[NUM_LANGUAGES];
+const u8 *sHudGiveMessageGraphics[NUM_LANGUAGES];
+const u8 *sHudConnectingMessageGraphics[NUM_LANGUAGES];
+const u8 *sHudAnswerMessageGraphics[NUM_LANGUAGES];
+const u8 *sHudBorrowLifePromptGraphics[NUM_LANGUAGES];
+const u8 *sHudBorrowLifeChoiceGraphics[NUM_LANGUAGES];
+const u8 *sHudGameOverAndDemoGraphics[NUM_LANGUAGES];
+
+
+/* PORT-FORK: these tables hold ROM table bases (port/rom_data.h), which are
+ * resource slots now and no longer address constants; a C static initialiser
+ * cannot read them, and a table filled once would not follow a slot the
+ * resource layer retargets.  So the initialisers are evaluated here, at the
+ * end of every session build (platform/res.c, Res_BuildSession). */
+void PortResRebind_hud(void)
+{
     {
-        gUnk_083145C0, gUnk_083149A0, gUnk_08314D80, gUnk_08315160,
-        gUnk_08315540, gUnk_08315920, gUnk_08315D00, gUnk_083160E0,
-        gUnk_083164C0, gUnk_083168A0, gUnk_08316C80, gUnk_08317060,
-        gUnk_08317440, gUnk_08317820, gUnk_08317C00, gUnk_08317FE0,
-        gUnk_083183C0, gUnk_083187A0, gUnk_08318B80, gUnk_08318F60,
-        gUnk_08319340, gUnk_08319720, gUnk_08319B00, gUnk_08319EE0,
-        gUnk_0831A2C0, gUnk_0831A6A0, gUnk_0831AA80, gUnk_0831AE60,
-        gUnk_0831B240, gUnk_0831B620, gUnk_0831BA00, gUnk_0831BDE0,
-    },
+        const u16 *sAbilityIconPalettes_init[32] = {
+            gUnk_083145A0, gUnk_08314980, gUnk_08314D60, gUnk_08315140,
+            gUnk_08315520, gUnk_08315900, gUnk_08315CE0, gUnk_083160C0,
+            gUnk_083164A0, gUnk_08316880, gUnk_08316C60, gUnk_08317040,
+            gUnk_08317420, gUnk_08317800, gUnk_08317BE0, gUnk_08317FC0,
+            gUnk_083183A0, gUnk_08318780, gUnk_08318B60, gUnk_08318F40,
+            gUnk_08319320, gUnk_08319700, gUnk_08319AE0, gUnk_08319EC0,
+            gUnk_0831A2A0, gUnk_0831A680, gUnk_0831AA60, gUnk_0831AE40,
+            gUnk_0831B220, gUnk_0831B600, gUnk_0831B9E0, gUnk_0831BDC0,
+        };
+        typedef char sAbilityIconPalettes_size_check[sizeof(sAbilityIconPalettes_init) == sizeof(sAbilityIconPalettes) ? 1 : -1];
+        memcpy(sAbilityIconPalettes, sAbilityIconPalettes_init, sizeof(sAbilityIconPalettes));
+    }
     {
-        gUnk_083235E0, gUnk_083239A0, gUnk_08323D60, gUnk_08324120,
-        gUnk_083244E0, gUnk_083248A0, gUnk_08324C60, gUnk_08325020,
-        gUnk_083253E0, gUnk_083257A0, gUnk_08325B60, gUnk_08325F20,
-        gUnk_083262E0, gUnk_083266A0, gUnk_08326A60, gUnk_08326E20,
-        gUnk_083271E0, gUnk_083275A0, gUnk_08327960, gUnk_08327D20,
-        gUnk_083280E0, gUnk_083284A0, gUnk_08328860, gUnk_08328C20,
-        gUnk_08328FE0, gUnk_083293A0, gUnk_08329760, gUnk_08329B20,
-        gUnk_08329EE0, gUnk_08329EE0, gUnk_08329EE0, gUnk_08329EE0,
-    },
+        const u8 *sAbilityIconGraphics_init[NUM_LANGUAGES][32] = {
+            {
+                gUnk_083145C0, gUnk_083149A0, gUnk_08314D80, gUnk_08315160,
+                gUnk_08315540, gUnk_08315920, gUnk_08315D00, gUnk_083160E0,
+                gUnk_083164C0, gUnk_083168A0, gUnk_08316C80, gUnk_08317060,
+                gUnk_08317440, gUnk_08317820, gUnk_08317C00, gUnk_08317FE0,
+                gUnk_083183C0, gUnk_083187A0, gUnk_08318B80, gUnk_08318F60,
+                gUnk_08319340, gUnk_08319720, gUnk_08319B00, gUnk_08319EE0,
+                gUnk_0831A2C0, gUnk_0831A6A0, gUnk_0831AA80, gUnk_0831AE60,
+                gUnk_0831B240, gUnk_0831B620, gUnk_0831BA00, gUnk_0831BDE0,
+            },
+            {
+                gUnk_083235E0, gUnk_083239A0, gUnk_08323D60, gUnk_08324120,
+                gUnk_083244E0, gUnk_083248A0, gUnk_08324C60, gUnk_08325020,
+                gUnk_083253E0, gUnk_083257A0, gUnk_08325B60, gUnk_08325F20,
+                gUnk_083262E0, gUnk_083266A0, gUnk_08326A60, gUnk_08326E20,
+                gUnk_083271E0, gUnk_083275A0, gUnk_08327960, gUnk_08327D20,
+                gUnk_083280E0, gUnk_083284A0, gUnk_08328860, gUnk_08328C20,
+                gUnk_08328FE0, gUnk_083293A0, gUnk_08329760, gUnk_08329B20,
+                gUnk_08329EE0, gUnk_08329EE0, gUnk_08329EE0, gUnk_08329EE0,
+            },
+            {
+                gUnk_0831C1A0, gUnk_0831C560, gUnk_0831C920, gUnk_0831CCE0,
+                gUnk_0831D0A0, gUnk_0831D460, gUnk_0831D820, gUnk_0831DBE0,
+                gUnk_0831DFA0, gUnk_0831E360, gUnk_0831E720, gUnk_0831EAE0,
+                gUnk_0831EEA0, gUnk_0831F260, gUnk_0831F620, gUnk_0831F9E0,
+                gUnk_0831FDA0, gUnk_08320160, gUnk_08320520, gUnk_083208E0,
+                gUnk_08320CA0, gUnk_08321060, gUnk_08321420, gUnk_083217E0,
+                gUnk_08321BA0, gUnk_08321F60, gUnk_08322320, gUnk_083226E0,
+                gUnk_08322AA0, gUnk_08322AA0, gUnk_08322AA0, gUnk_08322AA0,
+            },
+            {
+                gUnk_08331E60, gUnk_08332220, gUnk_083325E0, gUnk_083329A0,
+                gUnk_08332D60, gUnk_08333120, gUnk_083334E0, gUnk_083338A0,
+                gUnk_08333C60, gUnk_08334020, gUnk_083343E0, gUnk_083347A0,
+                gUnk_08334B60, gUnk_08334F20, gUnk_083352E0, gUnk_083356A0,
+                gUnk_08335A60, gUnk_08335E20, gUnk_083361E0, gUnk_083365A0,
+                gUnk_08336960, gUnk_08336D20, gUnk_083370E0, gUnk_083374A0,
+                gUnk_08337860, gUnk_08337C20, gUnk_08337FE0, gUnk_083383A0,
+                gUnk_08338760, gUnk_08338760, gUnk_08338760, gUnk_08338760,
+            },
+            {
+                gUnk_0832AA20, gUnk_0832ADE0, gUnk_0832B1A0, gUnk_0832B560,
+                gUnk_0832B920, gUnk_0832BCE0, gUnk_0832C0A0, gUnk_0832C460,
+                gUnk_0832C820, gUnk_0832CBE0, gUnk_0832CFA0, gUnk_0832D360,
+                gUnk_0832D720, gUnk_0832DAE0, gUnk_0832DEA0, gUnk_0832E260,
+                gUnk_0832E620, gUnk_0832E9E0, gUnk_0832EDA0, gUnk_0832F160,
+                gUnk_0832F520, gUnk_0832F8E0, gUnk_0832FCA0, gUnk_08330060,
+                gUnk_08330420, gUnk_083307E0, gUnk_08330BA0, gUnk_08330F60,
+                gUnk_08331320, gUnk_08331320, gUnk_08331320, gUnk_08331320,
+            },
+            {
+                gUnk_083392A0, gUnk_08339660, gUnk_08339A20, gUnk_08339DE0,
+                gUnk_0833A1A0, gUnk_0833A560, gUnk_0833A920, gUnk_0833ACE0,
+                gUnk_0833B0A0, gUnk_0833B460, gUnk_0833B820, gUnk_0833BBE0,
+                gUnk_0833BFA0, gUnk_0833C360, gUnk_0833C720, gUnk_0833CAE0,
+                gUnk_0833CEA0, gUnk_0833D260, gUnk_0833D620, gUnk_0833D9E0,
+                gUnk_0833DDA0, gUnk_0833E160, gUnk_0833E520, gUnk_0833E8E0,
+                gUnk_0833ECA0, gUnk_0833F060, gUnk_0833F420, gUnk_0833F7E0,
+                gUnk_0833FBA0, gUnk_0833FBA0, gUnk_0833FBA0, gUnk_0833FBA0,
+            },
+        };
+        typedef char sAbilityIconGraphics_size_check[sizeof(sAbilityIconGraphics_init) == sizeof(sAbilityIconGraphics) ? 1 : -1];
+        memcpy(sAbilityIconGraphics, sAbilityIconGraphics_init, sizeof(sAbilityIconGraphics));
+    }
     {
-        gUnk_0831C1A0, gUnk_0831C560, gUnk_0831C920, gUnk_0831CCE0,
-        gUnk_0831D0A0, gUnk_0831D460, gUnk_0831D820, gUnk_0831DBE0,
-        gUnk_0831DFA0, gUnk_0831E360, gUnk_0831E720, gUnk_0831EAE0,
-        gUnk_0831EEA0, gUnk_0831F260, gUnk_0831F620, gUnk_0831F9E0,
-        gUnk_0831FDA0, gUnk_08320160, gUnk_08320520, gUnk_083208E0,
-        gUnk_08320CA0, gUnk_08321060, gUnk_08321420, gUnk_083217E0,
-        gUnk_08321BA0, gUnk_08321F60, gUnk_08322320, gUnk_083226E0,
-        gUnk_08322AA0, gUnk_08322AA0, gUnk_08322AA0, gUnk_08322AA0,
-    },
+        const u8 *sHudEnemyAndAreaNameGraphics_init[NUM_LANGUAGES] = {
+            gUnk_082ECFA0, gUnk_082F38A0, gUnk_08300AA0, gUnk_083073A0, gUnk_082FA1A0, gUnk_0830DCA0,
+        };
+        typedef char sHudEnemyAndAreaNameGraphics_size_check[sizeof(sHudEnemyAndAreaNameGraphics_init) == sizeof(sHudEnemyAndAreaNameGraphics) ? 1 : -1];
+        memcpy(sHudEnemyAndAreaNameGraphics, sHudEnemyAndAreaNameGraphics_init, sizeof(sHudEnemyAndAreaNameGraphics));
+    }
     {
-        gUnk_08331E60, gUnk_08332220, gUnk_083325E0, gUnk_083329A0,
-        gUnk_08332D60, gUnk_08333120, gUnk_083334E0, gUnk_083338A0,
-        gUnk_08333C60, gUnk_08334020, gUnk_083343E0, gUnk_083347A0,
-        gUnk_08334B60, gUnk_08334F20, gUnk_083352E0, gUnk_083356A0,
-        gUnk_08335A60, gUnk_08335E20, gUnk_083361E0, gUnk_083365A0,
-        gUnk_08336960, gUnk_08336D20, gUnk_083370E0, gUnk_083374A0,
-        gUnk_08337860, gUnk_08337C20, gUnk_08337FE0, gUnk_083383A0,
-        gUnk_08338760, gUnk_08338760, gUnk_08338760, gUnk_08338760,
-    },
+        const u8 *sHudBorrowMessageGraphics_init[NUM_LANGUAGES] = {
+            gUnk_08340E60, gUnk_08342520, gUnk_08343BE0, gUnk_083483E0, gUnk_083452A0, gUnk_08346D20,
+        };
+        typedef char sHudBorrowMessageGraphics_size_check[sizeof(sHudBorrowMessageGraphics_init) == sizeof(sHudBorrowMessageGraphics) ? 1 : -1];
+        memcpy(sHudBorrowMessageGraphics, sHudBorrowMessageGraphics_init, sizeof(sHudBorrowMessageGraphics));
+    }
     {
-        gUnk_0832AA20, gUnk_0832ADE0, gUnk_0832B1A0, gUnk_0832B560,
-        gUnk_0832B920, gUnk_0832BCE0, gUnk_0832C0A0, gUnk_0832C460,
-        gUnk_0832C820, gUnk_0832CBE0, gUnk_0832CFA0, gUnk_0832D360,
-        gUnk_0832D720, gUnk_0832DAE0, gUnk_0832DEA0, gUnk_0832E260,
-        gUnk_0832E620, gUnk_0832E9E0, gUnk_0832EDA0, gUnk_0832F160,
-        gUnk_0832F520, gUnk_0832F8E0, gUnk_0832FCA0, gUnk_08330060,
-        gUnk_08330420, gUnk_083307E0, gUnk_08330BA0, gUnk_08330F60,
-        gUnk_08331320, gUnk_08331320, gUnk_08331320, gUnk_08331320,
-    },
+        const u8 *sHudGiveMessageGraphics_init[NUM_LANGUAGES] = {
+            gUnk_08341220, gUnk_083428E0, gUnk_08343FA0, gUnk_083487A0, gUnk_08345660, gUnk_083470E0,
+        };
+        typedef char sHudGiveMessageGraphics_size_check[sizeof(sHudGiveMessageGraphics_init) == sizeof(sHudGiveMessageGraphics) ? 1 : -1];
+        memcpy(sHudGiveMessageGraphics, sHudGiveMessageGraphics_init, sizeof(sHudGiveMessageGraphics));
+    }
     {
-        gUnk_083392A0, gUnk_08339660, gUnk_08339A20, gUnk_08339DE0,
-        gUnk_0833A1A0, gUnk_0833A560, gUnk_0833A920, gUnk_0833ACE0,
-        gUnk_0833B0A0, gUnk_0833B460, gUnk_0833B820, gUnk_0833BBE0,
-        gUnk_0833BFA0, gUnk_0833C360, gUnk_0833C720, gUnk_0833CAE0,
-        gUnk_0833CEA0, gUnk_0833D260, gUnk_0833D620, gUnk_0833D9E0,
-        gUnk_0833DDA0, gUnk_0833E160, gUnk_0833E520, gUnk_0833E8E0,
-        gUnk_0833ECA0, gUnk_0833F060, gUnk_0833F420, gUnk_0833F7E0,
-        gUnk_0833FBA0, gUnk_0833FBA0, gUnk_0833FBA0, gUnk_0833FBA0,
-    },
-};
-extern const u8 *sHudEnemyAndAreaNameGraphics[NUM_LANGUAGES] = {
-    gUnk_082ECFA0, gUnk_082F38A0, gUnk_08300AA0, gUnk_083073A0, gUnk_082FA1A0, gUnk_0830DCA0,
-};
-extern const u8 *sHudBorrowMessageGraphics[NUM_LANGUAGES] = {
-    gUnk_08340E60, gUnk_08342520, gUnk_08343BE0, gUnk_083483E0, gUnk_083452A0, gUnk_08346D20,
-};
-extern const u8 *sHudGiveMessageGraphics[NUM_LANGUAGES] = {
-    gUnk_08341220, gUnk_083428E0, gUnk_08343FA0, gUnk_083487A0, gUnk_08345660, gUnk_083470E0,
-};
-extern const u8 *sHudConnectingMessageGraphics[NUM_LANGUAGES] = {
-    gUnk_083406E0, gUnk_08341DA0, gUnk_08343460, gUnk_08347C60, gUnk_08344B20, gUnk_083461E0,
-};
-extern const u8 *sHudAnswerMessageGraphics[NUM_LANGUAGES] = {
-    gUnk_08340AA0, gUnk_08342160, gUnk_08343820, gUnk_08348020, gUnk_08344EE0, gUnk_083465A0,
-};
-extern const u8 *sHudBorrowLifePromptGraphics[NUM_LANGUAGES] = {
-    gUnk_083415E0, gUnk_08342CA0, gUnk_08344360, gUnk_08348B60, gUnk_08345A20, gUnk_083474A0,
-};
-extern const u8 *sHudBorrowLifeChoiceGraphics[NUM_LANGUAGES] = {
-    gUnk_083419E0, gUnk_083430A0, gUnk_08344760, gUnk_08348F60, gUnk_08345E20, gUnk_083478A0,
-};
-extern const u8 *sHudGameOverAndDemoGraphics[NUM_LANGUAGES] = {
-    gUnk_08349320, gUnk_08349320, gUnk_08349B20, gUnk_0834AB20, gUnk_0834A320, gUnk_0834B320,
-};
+        const u8 *sHudConnectingMessageGraphics_init[NUM_LANGUAGES] = {
+            gUnk_083406E0, gUnk_08341DA0, gUnk_08343460, gUnk_08347C60, gUnk_08344B20, gUnk_083461E0,
+        };
+        typedef char sHudConnectingMessageGraphics_size_check[sizeof(sHudConnectingMessageGraphics_init) == sizeof(sHudConnectingMessageGraphics) ? 1 : -1];
+        memcpy(sHudConnectingMessageGraphics, sHudConnectingMessageGraphics_init, sizeof(sHudConnectingMessageGraphics));
+    }
+    {
+        const u8 *sHudAnswerMessageGraphics_init[NUM_LANGUAGES] = {
+            gUnk_08340AA0, gUnk_08342160, gUnk_08343820, gUnk_08348020, gUnk_08344EE0, gUnk_083465A0,
+        };
+        typedef char sHudAnswerMessageGraphics_size_check[sizeof(sHudAnswerMessageGraphics_init) == sizeof(sHudAnswerMessageGraphics) ? 1 : -1];
+        memcpy(sHudAnswerMessageGraphics, sHudAnswerMessageGraphics_init, sizeof(sHudAnswerMessageGraphics));
+    }
+    {
+        const u8 *sHudBorrowLifePromptGraphics_init[NUM_LANGUAGES] = {
+            gUnk_083415E0, gUnk_08342CA0, gUnk_08344360, gUnk_08348B60, gUnk_08345A20, gUnk_083474A0,
+        };
+        typedef char sHudBorrowLifePromptGraphics_size_check[sizeof(sHudBorrowLifePromptGraphics_init) == sizeof(sHudBorrowLifePromptGraphics) ? 1 : -1];
+        memcpy(sHudBorrowLifePromptGraphics, sHudBorrowLifePromptGraphics_init, sizeof(sHudBorrowLifePromptGraphics));
+    }
+    {
+        const u8 *sHudBorrowLifeChoiceGraphics_init[NUM_LANGUAGES] = {
+            gUnk_083419E0, gUnk_083430A0, gUnk_08344760, gUnk_08348F60, gUnk_08345E20, gUnk_083478A0,
+        };
+        typedef char sHudBorrowLifeChoiceGraphics_size_check[sizeof(sHudBorrowLifeChoiceGraphics_init) == sizeof(sHudBorrowLifeChoiceGraphics) ? 1 : -1];
+        memcpy(sHudBorrowLifeChoiceGraphics, sHudBorrowLifeChoiceGraphics_init, sizeof(sHudBorrowLifeChoiceGraphics));
+    }
+    {
+        const u8 *sHudGameOverAndDemoGraphics_init[NUM_LANGUAGES] = {
+            gUnk_08349320, gUnk_08349320, gUnk_08349B20, gUnk_0834AB20, gUnk_0834A320, gUnk_0834B320,
+        };
+        typedef char sHudGameOverAndDemoGraphics_size_check[sizeof(sHudGameOverAndDemoGraphics_init) == sizeof(sHudGameOverAndDemoGraphics) ? 1 : -1];
+        memcpy(sHudGameOverAndDemoGraphics, sHudGameOverAndDemoGraphics_init, sizeof(sHudGameOverAndDemoGraphics));
+    }
+}
 
 #ifdef __cplusplus
 }

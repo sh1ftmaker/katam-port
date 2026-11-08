@@ -123,10 +123,18 @@ extern const u16 gUnk_082EB1CA[] = {
 };
 
 /* PORT: replaced by port/rom_data.h -- extern const u16 *const gUnk_08D60B0C[]; */
-static const struct Object11_8 gUnk_082EB2AC = {
+/* PORT-FORK: not const, and its ROM pointer filled at session build
+ * (PortResRebind_code_08026044 below): gUnk_08D60B0C is a resource slot now,
+ * not an address constant. */
+static struct Object11_8 gUnk_082EB2AC = {
     6 | (0x10 << 8) | (0x70 << 0x10),
-    gUnk_08D60B0C
+    NULL
 };
+
+void PortResRebind_code_08026044(void)
+{
+    gUnk_082EB2AC.unk4 = gUnk_08D60B0C;
+}
 
 static const struct Object11_8 *const gUnk_082EB2B4[1] = { &gUnk_082EB2AC };
 

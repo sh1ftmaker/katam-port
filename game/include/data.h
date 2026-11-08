@@ -821,11 +821,14 @@ extern s32 (*gUnk_08D6081C[])(union AnimCmd, struct Sprite *);
 /* PORT: replaced by port/rom_data.h -- extern const struct AnimInfo *const gUnk_08D610B4[]; */
 /* PORT: replaced by port/rom_data.h -- extern const u8 gUnk_08D61120[]; */
 /* PORT: replaced by port/rom_data.h -- extern const struct Unk_08353510 *const gUnk_08D6112C[]; */
-extern const union __attribute__((transparent_union)) {
+/* PORT-FORK: named, so gLevelObjLists can be a typed view over a resource
+ * slot (port/rom_data.h) instead of a RAM copy of the ROM's 287 pointers. */
+union LevelObjList {
     PTR32(const struct RoomTiledBG) unk; // might be another struct
                                      // probably never used (removed debug data right before gLevelObjLists? )
     PTR32(const struct LevelInfo_1E4) obj;
-} gLevelObjLists[287];
+};
+/* PORT: replaced by port/rom_data.h -- extern const union LevelObjList gLevelObjLists[287]; */
 /* PORT: replaced by port/rom_data.h -- extern const struct LevelInfo_1E8 *const gUnk_08D63C28[]; */
 /* PORT: replaced by port/rom_data.h -- extern const struct Unk_08930E5C *const gUnk_08D640A4[]; */
 

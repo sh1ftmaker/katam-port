@@ -694,11 +694,18 @@ void PortPatchRomFunctionPointers(void)
 {
     u32 i;
 
-    for (i = 0; i < sizeof(sRomStructFns) / sizeof(sRomStructFns[0]); i++)
+    for (i = 0; i < sizeof(sRomStructFns) / sizeof(sRomStructFns[0]); i++) {
+        void *served = Res_ServedAddr(sRomStructFns[i].at);
+
         /* PTR32: the field the ROM gave this pointer is four bytes.
          * A plain `void **` store is eight on a 64-bit host and
          * takes the next field with it. */
-        *(PTR32(void) *)sRomStructFns[i].at = sRomStructFns[i].fn;
+        *(PTR32(void) *)(uintptr_t)sRomStructFns[i].at = sRomStructFns[i].fn;
+        /* PORT-FORK: and into the copy the resource layer serves, when the
+         * table holding the field was relocated (platform/res.c). */
+        if (served != (void *)(uintptr_t)sRomStructFns[i].at)
+            *(PTR32(void) *)served = sRomStructFns[i].fn;
+    }
 }
 
 #ifdef __cplusplus

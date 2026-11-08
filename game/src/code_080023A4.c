@@ -5949,8 +5949,6 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
 
-    struct Unk_02023720 *var2;
-
     u8 p;
 
     for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
@@ -5982,23 +5980,10 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
             )
                 goto _0800A5EA;
 
-        var2 = sub_08002958(playerId);
-
-        switch (obj->spawnTable) {
-            struct ObjectBase *ughhh;
-
-            case 1:
-                ughhh = gSpawnFuncTable1[obj->type](obj, playerId);
-                var2->unk08 = &ughhh->unk56;
-                break;
-
-            case 2:
-                ughhh = gSpawnFuncTable2[obj->type](obj, playerId);
-                var2->unk08 = &ughhh->unk56;
-                break;
-        }
-
-        sub_08002918(playerId, var2);
+        /* PORT-FORK: was a copy of CreateObject's body (slot, dispatch on
+         * spawnTable, link the slot); one spawn dispatch now, so a spawn hook
+         * has one place to go (docs/design/MODDING.md §4.8). */
+        CreateObject(playerId, obj);
 
     _0800A5EA:;
     }
@@ -6008,8 +5993,6 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
-
-    struct Unk_02023720 *var2;
 
     u8 p;
 
@@ -6042,23 +6025,10 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
             )
                 goto _0800A5EA;
 
-        var2 = sub_08002958(playerId);
-
-        switch (obj->spawnTable) {
-            struct ObjectBase *ughhh;
-
-            case 1:
-                ughhh = gSpawnFuncTable1[obj->type](obj, playerId);
-                var2->unk08 = &ughhh->unk56;
-                break;
-
-            case 2:
-                ughhh = gSpawnFuncTable2[obj->type](obj, playerId);
-                var2->unk08 = &ughhh->unk56;
-                break;
-        }
-
-        sub_08002918(playerId, var2);
+        /* PORT-FORK: was a copy of CreateObject's body (slot, dispatch on
+         * spawnTable, link the slot); one spawn dispatch now, so a spawn hook
+         * has one place to go (docs/design/MODDING.md §4.8). */
+        CreateObject(playerId, obj);
 
     _0800A5EA:;
     }
@@ -6120,6 +6090,9 @@ void sub_0800A84C(void)
     }
 }
 
+/* The one spawn dispatch: CreateLevelObjects' walk and the two scroll-in walks
+ * (sub_0800A2B4, sub_0800A460) all come through here.  PORT-FORK: the
+ * scroll-in walks used to inline this body. */
 void *CreateObject(u8 playerId, const struct ObjectTemplate *obj)
 {
     struct Unk_02023720 *var0;
