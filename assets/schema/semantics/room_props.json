@@ -1,0 +1,391 @@
+{
+  "format": "katam-semantics/1",
+  "record": "room_props",
+  "c_type": "struct RoomProps",
+  "c_decl": "game/include/data.h:444",
+  "size": 40,
+  "table": {"symbol": "gRoomProps", "addr": "0x089331AC", "count": 983, "index": "room id"},
+  "description": "Per-room properties: music, background scrolling (parallax) for the two background layers, room behaviour flags, and the indices into the nine per-room content tables. Read by FillLevelInfo (game/src/level.c) at room load and by the per-frame BG scroll update sub_08001408's caller in game/src/code_080023A4.c.",
+  "notes": [
+    "983 slots, 286 real rooms (ids 101..982); the other 697 are all-0xFFFF filler. A tool must test each slot, not stop at the first filler.",
+    "In all 286 retail rooms mapDataIdx == solidityMapIdx == objectListIdx == unk22 == doorsIdx, and pixelDataIdx == paletteDataIdx in 258. The game reads each one separately, so an editor may keep them equal (one 'content index' per room) but must write all five.",
+    "Layer map (docs/naming/room-tables.md): HW BG3 = playfield (gForegroundTilemaps[mapDataIdx], scroll = camera); HW BG0 = background (gRoomTiledBGs[backgroundIdx], scroll = altViewport_34, driven by unk0A/unk0C/unk0E/unk10); HW BG2 = an 'extra layer' (gLevelObjLists[objectList2Idx] read as RoomTiledBG, scroll = altViewport_24, driven by unk02/unk04/unkXmod_06/unkXmod_08) that no retail room instantiates.",
+    "Parallax maths, per frame (game/src/code_080023A4.c ~850-895), in pixels: bgScrollX = cameraX * ratioX/256 + offsetX; bgScrollY = (bgHeight - 160) - (roomHeight - 160 - cameraY) * ratioY/256 - offsetY. X is anchored at the room's left edge, Y at its bottom edge."
+  ],
+  "fields": [
+    {
+      "field": "songIdx", "offset": 0, "type": "u16",
+      "name": "music",
+      "description": "Song number started when the local player enters the room (m4aSongNumStartOrChange: if that song is already playing it continues, so neighbouring rooms with the same value do not restart the music). Copied to the per-room-slot gUnk_02023518 at load (GetRoomMusicId/SetRoomMusicId let objects override it later, e.g. bosses). 0 = MUS_DUMMY, i.e. silence; used by the boss rooms x00 and the final-area rooms 909-918, whose music is started by the boss/cutscene object instead. Room 801 with gAIKirbyState < NORMAL stops all music instead of playing it.",
+      "unit": "index:song (game/include/constants/songs.h)",
+      "range": [0, 1023],
+      "enum": {
+        "0": {"name": "MUS_DUMMY", "description": "silence; music comes from a script/boss (rooms 200,300,...,800, 909-918)"},
+        "3": {"name": "MUS_TUTORIAL", "description": "rooms 803-805"},
+        "4": {"name": "MUS_CENTRAL_CIRCLE"},
+        "5": {"name": "MUS_RAINBOW_ROUTE"},
+        "6": {"name": "MUS_MUSTARD_MOUNTAIN"},
+        "7": {"name": "MUS_PEPPERMINT_PALACE"},
+        "8": {"name": "MUS_CABBAGE_CAVERN"},
+        "9": {"name": "MUS_MOONLIGHT_MANSION"},
+        "10": {"name": "MUS_RADISH_RUINS"},
+        "11": {"name": "MUS_CANDY_CONSTELLATION"},
+        "12": {"name": "MUS_OLIVE_OCEAN"},
+        "13": {"name": "MUS_MID_BOSS", "description": "mid-boss rematch rooms 955-957"},
+        "17": {"name": "MUS_DARK_MIND_SKY", "description": "room 919"},
+        "37": {"name": "MUS_SHARD", "description": "mirror-shard rooms"},
+        "523": {"name": "SE_08D5DADC", "description": "a sound-effect id (0x20B) used as room 'music' in rooms 102, 113, 114; songs.h marks it unused elsewhere"}
+      },
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:375", "code": "gUnk_02023518[levelInfo->unk65E] = gRoomProps[roomId].songIdx;", "note": "copied to the room slot's music id at load"},
+        {"loc": "game/src/code_080023A4.c:586", "code": "levelInfo->unk65C = gUnk_02023518[levelInfo->unk65E];"},
+        {"loc": "game/src/code_080023A4.c:589", "code": "m4aSongNumStartOrChange(levelInfo->unk65C);", "note": "the value is a raw m4a song number"},
+        {"loc": "game/src/code_080023A4.c:580", "code": "levelInfo->currentRoom == 801 && gAIKirbyState < AI_KIRBY_STATE_NORMAL"},
+        {"loc": "game/src/code_080023A4.c:1576", "code": "u16 GetRoomMusicId(u8 roomSlot)"},
+        {"data": "15 distinct values over 286 rooms; the area songs line up with the areas (e.g. 55 rooms use MUS_CABBAGE_CAVERN); 0 in exactly the boss rooms 200..800 and 909-918", "tool": "tools/room_export.py"}
+      ],
+      "stats": {"summary": "15 distinct values", "values": {"0": 13, "3": 3, "4": 23, "5": 41, "6": 13, "7": 28, "8": 55, "9": 30, "10": 19, "11": 25, "12": 18, "13": 3, "17": 1, "37": 11, "523": 3}}
+    },
+    {
+      "field": "unk02", "offset": 2, "type": "u16",
+      "name": "extraBgOffsetX",
+      "description": "Constant horizontal scroll offset of the extra layer (HW BG2), added after the parallax term in camera-parallax mode (priorityFlags bit 1 clear). The extra layer is never instantiated in retail data (objectList2Idx is 0xFFFF everywhere).",
+      "unit": "px", "range": [0, 65535], "default": 0,
+      "usage": "code_only",
+      "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/code_080023A4.c:890", "code": "+ gRoomProps[arg0->currentRoom].unk02 * 0x100;", "note": "* 0x100 turns whole pixels into the 8.8 scroll accumulator"},
+        {"loc": "game/src/code_080023A4.c:903", "code": "var2->scrollX = arg0->altViewport_24.x >> 8;"},
+        {"data": "0 in all 286 rooms"}
+      ],
+      "stats": {"summary": "constant", "values": {"0": 286}}
+    },
+    {
+      "field": "unk04", "offset": 4, "type": "u16",
+      "name": "extraBgOffsetY",
+      "description": "Constant vertical offset of the extra layer (HW BG2): subtracted from its bottom-anchored scroll Y, so a positive value shows N more pixels of the layer's top (the image moves down on screen). Camera-parallax mode only. Code-only: the extra layer is never instantiated.",
+      "unit": "px", "range": [0, 65535], "default": 0,
+      "usage": "code_only",
+      "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/code_080023A4.c:897", "code": "arg0->altViewport_24.y -= gRoomProps[arg0->currentRoom].unk04 * 0x100;"},
+        {"data": "0 in all 286 rooms"}
+      ],
+      "stats": {"summary": "constant", "values": {"0": 286}}
+    },
+    {
+      "field": "unkXmod_06", "offset": 6, "type": "s16",
+      "name": "extraBgScrollX",
+      "description": "Extra layer (HW BG2) horizontal scroll parameter, dual-purpose: with priorityFlags bit 1 clear it is the parallax ratio (8.8, 0x100 = moves 1:1 with the camera); with bit 1 set it is added to the layer's scroll every frame (auto-scroll velocity). Copied to LevelInfo.unk_S16Vec2_B4.x at load. Note the C name is misleading: _06 is X, _08 is Y.",
+      "unit": "fx8.8 ratio (bit1 clear) | fx8.8 px/frame (bit1 set)", "range": [-32768, 32767], "default": 256,
+      "usage": "code_only",
+      "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/level.c:305", "code": "levelInfo->unk_S16Vec2_B4.x = gRoomProps[roomId].unkXmod_06;"},
+        {"loc": "game/src/code_080023A4.c:889", "code": "arg0->altViewport_24.x = (arg0->viewportPosition.x >> 4) * (arg0->unk_S16Vec2_B4.x >> 4)", "note": "camera * ratio / 256"},
+        {"loc": "game/src/code_080023A4.c:885", "code": "arg0->altViewport_24.x += gRoomProps[arg0->currentRoom].unkXmod_06;", "note": "velocity mode under priorityFlags & 2"},
+        {"data": "0x100 (1.0, the identity) in all 286 rooms, which is what an unused parallax ratio should hold"}
+      ],
+      "stats": {"summary": "constant", "values": {"256": 286}}
+    },
+    {
+      "field": "unkXmod_08", "offset": 8, "type": "s16",
+      "name": "extraBgScrollY",
+      "description": "Extra layer (HW BG2) vertical counterpart of unkXmod_06: parallax ratio (8.8) in camera mode, per-frame velocity with priorityFlags bit 1 set.",
+      "unit": "fx8.8 ratio (bit1 clear) | fx8.8 px/frame (bit1 set)", "range": [-32768, 32767], "default": 256,
+      "usage": "code_only",
+      "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/level.c:306", "code": "levelInfo->unk_S16Vec2_B4.y = gRoomProps[roomId].unkXmod_08;"},
+        {"loc": "game/src/code_080023A4.c:886", "code": "arg0->altViewport_24.y += gRoomProps[arg0->currentRoom].unkXmod_08;"},
+        {"loc": "game/src/code_080023A4.c:894", "code": "* (arg0->unk_S16Vec2_B4.y >> 4);"},
+        {"data": "0x100 in all 286 rooms"}
+      ],
+      "stats": {"summary": "constant", "values": {"256": 286}}
+    },
+    {
+      "field": "unk0A", "offset": 10, "type": "u16",
+      "name": "bgOffsetX",
+      "description": "Constant horizontal offset of the background layer (HW BG0) in camera-parallax mode: bgScrollX = cameraX*ratio + unk0A. Original-code quirk: the load-time seed copies it WITHOUT the *0x100 (level.c:223), the per-frame formula with it; harmless because the next frame recomputes, and invisible because it is 0 everywhere. Keep the quirk when porting.",
+      "unit": "px", "range": [0, 65535], "default": 0,
+      "usage": "code_only",
+      "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/code_080023A4.c:856", "code": "+ gRoomProps[arg0->currentRoom].unk0A * 0x100;"},
+        {"loc": "game/src/level.c:223", "code": "levelInfo->altViewport_34.x = gRoomProps[roomId].unk0A;", "note": "seed without << 8"},
+        {"loc": "game/src/code_080023A4.c:870", "code": "var1->scrollX = arg0->altViewport_34.x >> 8;"},
+        {"data": "0 in all 286 rooms"}
+      ],
+      "stats": {"summary": "constant", "values": {"0": 286}}
+    },
+    {
+      "field": "unk0C", "offset": 12, "type": "u16",
+      "name": "bgOffsetY",
+      "description": "Vertical offset of the background layer (HW BG0). The background's scroll Y is anchored so that the background's bottom edge meets the screen's bottom edge when the camera is at the bottom of the room; unk0C is subtracted from that, so the background image sits unk0C pixels lower on screen (shows more of its top). Used both at load and every frame (camera-parallax mode).",
+      "unit": "px", "range": [0, 65535], "default": 0,
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:224", "code": "(levelInfo->unk180[1].height * 8 - ({ gRoomProps[roomId].unk0C + 0xA0; })) * 0x100;", "note": "load seed: bgHeightPx - 160 - unk0C"},
+        {"loc": "game/src/code_080023A4.c:863", "code": "arg0->altViewport_34.y -= gRoomProps[arg0->currentRoom].unk0C * 0x100;", "note": "per frame, same unit and sign"},
+        {"data": "80 in exactly rooms 910, 912, 914, 916 (the Dark Mind approach rooms) and 0 in the other 282: a per-room constant nudge, as a pixel offset should look"}
+      ],
+      "stats": {"summary": "2 values", "values": {"0": 282, "80": 4}}
+    },
+    {
+      "field": "unk0E", "offset": 14, "type": "s16",
+      "name": "bgScrollX",
+      "description": "Background layer (HW BG0) horizontal scroll parameter. With priorityFlags bit 2 clear (camera-parallax mode, 285/286 rooms) it is the parallax ratio in 8.8 fixed point: 0x100 = the background moves 1:1 with the camera, 0x40 = a quarter as fast, 0 = fixed. -1 = derive it at load as (bgWidthPx - 240) / 2160, i.e. map 9 screen-widths of camera travel onto the background's full width (0x870 = 9 * 240). If the background is no wider than the screen the ratio is forced to 0. With bit 2 set it is instead added to the background's scroll every frame (auto-scroll velocity, 8.8 px/frame).",
+      "unit": "fx8.8 ratio (bit2 clear) | fx8.8 px/frame (bit2 set)", "range": [-1, 32767], "default": -1,
+      "sentinel": {"-1": "derive from background width: (bgWidthPx - 240) * 256 / 0x870"},
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:268", "code": "if (gRoomProps[roomId].unk0E == -1)"},
+        {"loc": "game/src/level.c:269", "code": "levelInfo->unkB8 = x2 / 0x870;", "note": "x2 = (bgWidthPx - 240) << 8"},
+        {"loc": "game/src/level.c:274", "code": "levelInfo->unkB8 = 0;", "note": "background not wider than the screen: no horizontal parallax"},
+        {"loc": "game/src/code_080023A4.c:855", "code": "arg0->altViewport_34.x = (arg0->viewportPosition.x >> 4) * (arg0->unkB8 >> 4)", "note": "camera * ratio / 256"},
+        {"loc": "game/src/code_080023A4.c:851", "code": "arg0->altViewport_34.x += gRoomProps[arg0->currentRoom].unk0E;", "note": "velocity mode (priorityFlags & 4)"},
+        {"data": "-1 in 87 rooms, otherwise small positive values 0..147 (64 in 38, 128 in 37, 32 in 23): ratios below 1.0 = background slower than the camera, textbook parallax"}
+      ],
+      "stats": {"summary": "26 distinct values", "values": {"-1": 87, "64": 38, "128": 37, "32": 23, "42": 17, "46": 16, "17": 11, "21": 9, "25": 7, "110": 6, "18": 6, "19": 5, "0": 5}}
+    },
+    {
+      "field": "unk10", "offset": 16, "type": "s16",
+      "name": "bgScrollY",
+      "description": "Background layer (HW BG0) vertical scroll parameter; same scheme as unk0E. Ratio mode: 8.8 ratio applied to the camera's distance from the room's bottom edge; -1 = derive as (bgHeightPx - 160) / 1440 (0x5A0 = 9 * 160); forced to 0 when the background is no taller than the screen. Velocity mode (priorityFlags bit 2): added to the scroll Y every frame.",
+      "unit": "fx8.8 ratio (bit2 clear) | fx8.8 px/frame (bit2 set)", "range": [-1, 32767], "default": -1,
+      "sentinel": {"-1": "derive from background height: (bgHeightPx - 160) * 256 / 0x5A0"},
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:278", "code": "if (gRoomProps[roomId].unk10 == -1)"},
+        {"loc": "game/src/level.c:279", "code": "levelInfo->unkBA = y2 / 0x5A0;"},
+        {"loc": "game/src/code_080023A4.c:860", "code": "r -= (arg0->roomHeight * 0x10 - ((arg0->viewportPosition.y >> 4) + 0xA00)) * (arg0->unkBA >> 4);", "note": "bottom-anchored: ratio applies to distance from the room bottom"},
+        {"loc": "game/src/code_080023A4.c:852", "code": "arg0->altViewport_34.y += gRoomProps[arg0->currentRoom].unk10;"},
+        {"data": "-1 in 264 rooms; 0 in 910/912/914/916/919 (background fixed vertically); 17..106 in 17 rooms"}
+      ],
+      "stats": {"summary": "8 distinct values", "values": {"-1": 264, "106": 7, "0": 5, "58": 4, "30": 3, "97": 1, "17": 1, "98": 1}}
+    },
+    {
+      "field": "priorityFlags", "offset": 18, "type": "u16",
+      "name": "roomFlags",
+      "description": "Room behaviour bits. Misnamed in C: only bit 0 is about BG priority. Bits 1-2 select auto-scroll for the two background layers, bits 3/4/6 gate the cell-phone (R) and return-to-hub (L) actions. Retail data uses only 0x79 (262 rooms), 0x19 (11), 0x39 (9), 0x01 (3) and 0x25 (1). Exhaustive search of game/src for priorityFlags: masks 1, 2, 4, 8, 0x10, 0x40 only.",
+      "range": [0, 127], "default": 121,
+      "bits": [
+        {
+          "mask": "0x0001", "name": "playfieldBehindExtraLayer",
+          "description": "BG priority: set -> playfield (BG3) priority 2 and extra layer (BG2) priority 1, so the extra layer draws in front of the playfield and the playfield drops behind priority-1 sprites; clear -> BG3 priority 1, BG2 priority 2. Set in every retail room (the extra layer never exists, so in practice it only sets the playfield's priority relative to sprites). The port renderer also reads it (platform/render/rl_build.c).",
+          "usage": "code_only", "confidence": "confirmed",
+          "evidence": [
+            {"loc": "game/src/level.c:147", "code": "if (gRoomProps[levelInfo->currentRoom].priorityFlags & 1) {"},
+            {"loc": "game/src/level.c:148", "code": "gBgCntRegs[3] |= 2;"},
+            {"loc": "game/src/level.c:152", "code": "gBgCntRegs[3] |= 1;"},
+            {"data": "set in 286/286 rooms"}
+          ]
+        },
+        {
+          "mask": "0x0002", "name": "extraBgAutoScroll",
+          "description": "Extra layer (BG2): add unkXmod_06/08 to its scroll every frame instead of camera parallax.",
+          "usage": "code_only", "confidence": "likely",
+          "evidence": [
+            {"loc": "game/src/code_080023A4.c:884", "code": "if ((gRoomProps[arg0->currentRoom].priorityFlags & 2) != 0) {"},
+            {"data": "set in 0/286 rooms"}
+          ]
+        },
+        {
+          "mask": "0x0004", "name": "bgAutoScroll",
+          "description": "Background layer (BG0): unk0E/unk10 are a per-frame scroll velocity instead of parallax ratios. Only room 919 (Dark Mind sky) sets it, with velocity 0/0: the room freezes the parallax so its own code (code_080023A4.c, case 919) can drive the background scroll directly.",
+          "usage": "live", "confidence": "confirmed",
+          "evidence": [
+            {"loc": "game/src/code_080023A4.c:850", "code": "if (gRoomProps[arg0->currentRoom].priorityFlags & 4) {"},
+            {"loc": "game/src/level.c:259", "code": "if (gRoomProps[roomId].priorityFlags & 4) {", "note": "load: ratios not derived"},
+            {"loc": "game/src/code_080023A4.c:1801", "code": "case 919: {", "note": "room-919 special case drives altViewport_34 itself"},
+            {"data": "set only in room 919 (value 0x25), where unk0E = unk10 = 0"}
+          ]
+        },
+        {
+          "mask": "0x0008", "name": "phoneCallAllowed",
+          "description": "The cell phone works here: pressing R with battery calls the CPU helper Kirbys (sub_08056C2C, SE_KIRBY_CALL, consumes a battery), and the HUD shows the phone icon only in rooms with this bit. Clear only in room 919 and the credits rooms 980-982.",
+          "usage": "live", "confidence": "confirmed",
+          "evidence": [
+            {"loc": "game/src/kirby.c:7074", "code": "&& gRoomProps[(kirby)->base.roomId].priorityFlags & 8", "note": "branch reached when (kirby)->battery is non-zero, under unk11A & 0x100 (R newly pressed)"},
+            {"loc": "game/src/kirby.c:7041", "code": "if ((kirby)->unk11A & 0x100)", "note": "unk11A = newly pressed keys (gHeldKeys & ~previous, kirby.c:6500); 0x100 = R_BUTTON"},
+            {"loc": "game/src/hud.c:403", "code": "if (gRoomProps[kirby->base.roomId].priorityFlags & 8) {", "note": "draws or clears the HUD phone icon"},
+            {"loc": "game/src/hud.c:218", "code": "hud->unkB = gRoomProps[kirby->base.roomId].priorityFlags & 8;"},
+            {"data": "clear in rooms 919, 980, 981, 982 only"}
+          ]
+        },
+        {
+          "mask": "0x0010", "name": "answerCallAllowed",
+          "description": "Responding to another Kirby's phone call works here: while a call is pending (gUnk_02021580 = caller's player id, set when the caller's call completes, kirby.c sub_080572A0), pressing R in a room other than the caller's (or when the caller is dead/out) warps this Kirby to the caller via sub_08056C2C; the HUD shows the incoming-call indicator only when this bit is set. Same rooms as bit 3 in retail data, so data cannot separate them; only the call sites do.",
+          "usage": "live", "confidence": "likely",
+          "evidence": [
+            {"loc": "game/src/kirby.c:7053", "code": "&& gRoomProps[(kirby)->base.roomId].priorityFlags & 0x10) \\"},
+            {"loc": "game/src/kirby.c:7064", "code": "&& gRoomProps[(kirby)->base.roomId].priorityFlags & 0x10) \\"},
+            {"loc": "game/src/kirby.c:13262", "code": "gUnk_02021580 = kirby->base.unk56;", "note": "the pending caller"},
+            {"loc": "game/src/hud.c:249", "code": "if (!(gRoomProps[kirby->base.roomId].priorityFlags & 0x10))", "note": "UpdateHudCall: no call indicator without the bit"},
+            {"loc": "game/src/code_0800ECAC_2.c:2998", "code": "(gRoomProps + a1->unk14->currentRoom)->priorityFlags & 0x10)", "note": "CPU-Kirby AI uses the same gate"},
+            {"data": "clear in rooms 919, 980, 981, 982 only (identical to bit 3)"}
+          ]
+        },
+        {
+          "mask": "0x0020", "name": null,
+          "description": "No reader anywhere in game/src or platform/. Deliberately clear in 14 rooms (801, 803-805 hub/tutorial; 950, 951, 955-957, 969, 970 minigame/rematch; 980-982 credits) and set elsewhere, including 909-919, so it meant something to the level authors. Preserve it; editing it has no known effect.",
+          "usage": "unused", "confidence": "unknown",
+          "evidence": [
+            {"data": "set in 0x79 and 0x39 rooms (271), clear in the 0x19, 0x01 rooms (14)"},
+            {"doc": "docs/naming/room-tables.md", "note": "exhaustive search of src/, wip/ and asm/ before the decomp was finished; the current all-C tree has no mask 0x20 on priorityFlags either"}
+          ]
+        },
+        {
+          "mask": "0x0040", "name": "returnToHubAllowed",
+          "description": "Holding L returns Kirby to the hub: newly pressed L (unk11A & 0x200) enters sub_08056E40 (phone animation, SE_KIRBY_CALL, no battery cost, unkC |= 0x40000); holding L for 48 frames continues to sub_0805BEE8 -> sub_08057774, which sets roomId = 801 and warps. Clear in the hub/tutorial (801, 803-805), the final area (909-919), minigame/rematch rooms and the credits.",
+          "usage": "live", "confidence": "confirmed",
+          "evidence": [
+            {"loc": "game/src/kirby.c:7134", "code": "&& gRoomProps[kirby->base.roomId].priorityFlags & 0x40"},
+            {"loc": "game/src/kirby.c:7130", "code": "if (kirby->unk11A & 0x200)", "note": "0x200 = L_BUTTON, newly pressed"},
+            {"loc": "game/src/kirby.c:13317", "code": "if (!(kirby->movementState & 0x200))", "note": "sub_080573D0: releasing L cancels"},
+            {"loc": "game/src/kirby.c:13323", "code": "if (++kirby->base.counter > 47)"},
+            {"loc": "game/src/kirby.c:13395", "code": "kirby->roomId = 0x321;", "note": "sub_08057774: destination room 801"},
+            {"data": "clear in 24 rooms: 801, 803-805, 909-919, 950, 951, 955-957, 969, 970, 980-982"}
+          ]
+        },
+        {
+          "mask": "0xFF80", "name": null,
+          "description": "Bits 7-15: never set in a real room, never read.",
+          "usage": "unused", "confidence": "confirmed",
+          "evidence": [{"data": "0 in all 286 rooms; no mask above 0x40 is tested in game/src"}]
+        }
+      ],
+      "usage": "live",
+      "confidence": "likely",
+      "evidence": [
+        {"data": "5 distinct values: 0x79 262, 0x19 11 (801,803,804,805,950,951,955,956,957,969,970), 0x39 9 (909-916,918), 0x01 3 (980-982), 0x25 1 (919)"}
+      ],
+      "stats": {"summary": "5 distinct values", "values": {"121": 262, "25": 11, "57": 9, "1": 3, "37": 1}}
+    },
+    {
+      "field": "pixelDataIdx", "offset": 20, "type": "u16",
+      "name": "fgTilesetIdx",
+      "description": "Index into gForegroundInfo[] (34 entries): the playfield's tileset (LZ77, decompressed to char block 2, 0x06008000) plus its looping tile animations. Shared between rooms of an area.",
+      "unit": "index:gForegroundInfo", "range": [0, 33],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:116", "code": "LZ77UnCompVram(gForegroundInfo[gRoomProps[levelInfo->currentRoom].pixelDataIdx]->tileset, (void *)0x6008000);"},
+        {"loc": "game/src/code_080023A4.c:1223", "code": "fgInfo = gForegroundInfo[gRoomProps[currentRoom].pixelDataIdx];", "note": "per-frame tile animation"},
+        {"data": "33 distinct values over 286 rooms; equals paletteDataIdx in 258"}
+      ]
+    },
+    {
+      "field": "paletteDataIdx", "offset": 22, "type": "u16",
+      "name": "fgPaletteIdx",
+      "description": "Index into gForegroundPalettes[] (42 entries): the playfield's BG palette plus its palette animations.",
+      "unit": "index:gForegroundPalettes", "range": [0, 41],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:119", "code": "*arg1 = gForegroundPalettes[gRoomProps[levelInfo->currentRoom].paletteDataIdx]->palette;"},
+        {"loc": "game/src/code_080023A4.c:1874", "code": "gForegroundPalettes[gRoomProps[currentRoom].paletteDataIdx];"},
+        {"data": "41 distinct values"}
+      ]
+    },
+    {
+      "field": "mapDataIdx", "offset": 24, "type": "u16",
+      "name": "fgTilemapIdx",
+      "description": "Index into gForegroundTilemaps[] (287 RoomTiledBG entries): the playfield tilemap (LZ77) and, through its width/height in 8-px tiles, the room's size: roomWidth = width*8, roomHeight = height*8 px. Only width, height, tilemap and unk1C are meaningful in this table; the tileset/palette fields are 0 (they come from pixelDataIdx/paletteDataIdx).",
+      "unit": "index:gForegroundTilemaps", "range": [0, 286],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:175", "code": "CpuCopy16(gForegroundTilemaps[gRoomProps[roomId].mapDataIdx], levelInfo->unk180, sizeof(struct RoomTiledBG));"},
+        {"loc": "game/src/level.c:364", "code": "LZ77UnCompWram((const u32 *)levelInfo->unk180[0].tilemap, gUnk_02028EE0[levelInfo->unk65E].text);"},
+        {"data": "unique per room (bijection over 286 rooms)"}
+      ]
+    },
+    {
+      "field": "solidityMapIdx", "offset": 26, "type": "u16",
+      "name": "collisionIdx",
+      "description": "Index into gSolidityMaps[] (287): the RL-compressed collision grid (one metatile-attribute index per 16x16 cell, see metatile_attributes.json) and the cell-record list (tile patches and door cells, see solidity_map.json).",
+      "unit": "index:gSolidityMaps", "range": [0, 286],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:362", "code": "RLUnCompWram(gSolidityMaps[gRoomProps[roomId].solidityMapIdx]->unk0, gUnk_02024ED0[levelInfo->unk65E]);"},
+        {"loc": "game/src/level.c:229", "code": "levelInfo->unk1E0 = gSolidityMaps[gRoomProps[roomId].solidityMapIdx]->unk4;"},
+        {"data": "decompressed size == (width/2)*(height/2) cells in 286/286 rooms"}
+      ]
+    },
+    {
+      "field": "objectList2Idx", "offset": 28, "type": "u16",
+      "name": "extraBgIdx",
+      "description": "0xFFFF = no extra layer (BG2 disabled). Otherwise an index into gLevelObjLists[] read as a RoomTiledBG for a third background layer on HW BG2, scrolled by unk02/unk04/unkXmod_06/unkXmod_08 and priorityFlags bits 0/1. 0xFFFF in all 983 slots, so the layer is never instantiated; gLevelObjLists entries are object lists, so a mod would need a new table entry to use it.",
+      "unit": "index:gLevelObjLists (as RoomTiledBG)", "range": [0, 65535], "default": 65535,
+      "sentinel": {"65535": "no extra layer"},
+      "usage": "code_only", "confidence": "likely",
+      "evidence": [
+        {"loc": "game/src/level.c:139", "code": "if (gRoomProps[levelInfo->currentRoom].objectList2Idx != 0xFFFF)", "note": "DISPCNT BG2 on/off"},
+        {"loc": "game/src/level.c:179", "code": "CpuCopy16(gLevelObjLists[gRoomProps[roomId].objectList2Idx].unk, levelInfo->unk180 + 2, sizeof(struct RoomTiledBG));"},
+        {"data": "0xFFFF in 983/983 slots"}
+      ]
+    },
+    {
+      "field": "backgroundIdx", "offset": 30, "type": "u16",
+      "name": "bgIdx",
+      "description": "Index into gRoomTiledBGs[] (36): the background layer (HW BG0) — its own tileset, palette (palette bank/size given in the RoomTiledBG) and tilemap. Shared by many rooms. Room 801's and room 910's backgrounds are also reused by menus and other screens (code_0801C6F8.c, code_0801DA58.c, code_08026044.c, code_0814A828.c), so editing those two entries changes more than a room.",
+      "unit": "index:gRoomTiledBGs", "range": [0, 35],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:176", "code": "CpuCopy16(gRoomTiledBGs[gRoomProps[roomId].backgroundIdx], levelInfo->unk180 + 1, sizeof(struct RoomTiledBG));"},
+        {"loc": "game/src/code_0801DA58.c:92", "code": "bg = gRoomTiledBGs[gRoomProps[0x321].backgroundIdx];", "note": "non-room screen reusing room 801's background"},
+        {"data": "33 distinct values; 28 is used by 48 rooms"}
+      ]
+    },
+    {
+      "field": "objectListIdx", "offset": 32, "type": "u16",
+      "name": "objectListIdx",
+      "description": "Index into gLevelObjLists[] (287) read as struct LevelInfo_1E4: the room's object placement list (see object_template.json, object_lists.json). The port's randomizer substitutes here (PortRandoObjList).",
+      "unit": "index:gLevelObjLists", "range": [0, 286],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:232", "code": "gLevelObjLists[gRoomProps[levelInfo->currentRoom].objectListIdx].obj);"},
+        {"data": "unique per room; list 4 is referenced by no room"}
+      ]
+    },
+    {
+      "field": "unk22", "offset": 34, "type": "u16",
+      "name": "navGraphIdx",
+      "description": "Index into gUnk_08D63C28[] (287 LevelInfo_1E8): the AI-Kirby navigation data — RL-compressed node map (one node index per 16x16 cell), the node array with an all-pairs next-hop matrix, and one bytecode script per player id. See nav_graph.json.",
+      "unit": "index:gUnk_08D63C28", "range": [0, 286],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/level.c:233", "code": "levelInfo->unk1E8 = gUnk_08D63C28[gRoomProps[levelInfo->currentRoom].unk22];"},
+        {"loc": "game/src/level.c:363", "code": "RLUnCompWram(gUnk_08D63C28[gRoomProps[roomId].unk22]->unk10, gUnk_02026D60[levelInfo->unk65E]);"},
+        {"loc": "game/src/code_0800ECAC.c:45", "code": "r5->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[a1];", "note": "per-player AI script"},
+        {"data": "equals mapDataIdx in 286/286 rooms; room 803's node map decompresses to the same 988 cells as its collision map"}
+      ]
+    },
+    {
+      "field": "doorsIdx", "offset": 36, "type": "u16",
+      "name": "progressListIdx",
+      "description": "Index into gUnk_08D640A4[] (287 Unk_08930E5C) — the room's progress checklist (chests and doors, see progress_list.json) — and into gVisitedDoors[], the saved per-room bitmask (bit i = entry i done, bit 15 = room visited) that the area map uses to show visited/completed rooms.",
+      "unit": "index:gUnk_08D640A4 and gVisitedDoors", "range": [0, 286],
+      "usage": "live", "confidence": "confirmed",
+      "evidence": [
+        {"loc": "game/src/code_080023A4.c:1598", "code": "return gVisitedDoors[gRoomProps[roomId].doorsIdx] >> 0xF;", "note": "bit 15 = visited"},
+        {"loc": "game/src/code_080023A4.c:1608", "code": "return gUnk_08D640A4[gRoomProps[roomId].doorsIdx]->unk04;"},
+        {"loc": "game/src/code_080023A4.c:1637", "code": "gVisitedDoors[gRoomProps[roomId].doorsIdx] |= 1 << i;"},
+        {"data": "equals mapDataIdx in 286/286 rooms"}
+      ]
+    },
+    {
+      "field": "unk26", "offset": 38, "type": "u8[2]",
+      "name": null,
+      "description": "Trailing structure padding: two zero bytes, never read.",
+      "usage": "padding", "confidence": "confirmed",
+      "evidence": [
+        {"data": "{0, 0} in 983/983 slots, real and filler alike"},
+        {"doc": "docs/naming/room-tables.md", "note": "no instruction reads offset 0x26/0x27 of a gRoomProps element"}
+      ]
+    }
+  ]
+}

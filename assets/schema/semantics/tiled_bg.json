@@ -1,0 +1,107 @@
+{
+  "format": "katam-semantics/1",
+  "notes": [
+    "Three tables describe a room's two live BG layers: gForegroundTilemaps[mapDataIdx] (playfield size + tilemap only), gForegroundInfo[pixelDataIdx] (playfield tileset + tile animations), gForegroundPalettes[paletteDataIdx] (playfield palette + palette animations), and gRoomTiledBGs[backgroundIdx] (the background layer: everything in one RoomTiledBG).",
+    "Playfield tileset is LZ77-decompressed to char block 2 (0x06008000); background tileset to char block 0 (0x06000000). Playfield tilemap is LZ77-decompressed to EWRAM; background tilemap is used in place (uncompressed u16 screen entries).",
+    "A 'room id' tail field (RoomTiledBG.unk1C high half, ForegroundInfo.roomId, ForegroundPalette.roomId) is an authoring annotation the engine never reads: the first room that uses the entry."
+  ],
+  "records": [
+    {
+      "record": "room_tiled_bg",
+      "c_type": "struct RoomTiledBG",
+      "c_decl": "game/include/data.h:78",
+      "size": 32,
+      "table": {"symbol": "gRoomTiledBGs / gForegroundTilemaps", "addr": "0x08D64A24 / 0x08D64520", "count": 323, "index": "RoomProps.backgroundIdx (36) / RoomProps.mapDataIdx (287)"},
+      "description": "A tiled BG layer. In gForegroundTilemaps only width, height, tilemap and unk1C are filled (tiles/palette come from ForegroundInfo/ForegroundPalette); in gRoomTiledBGs all fields are used. Copied whole into LevelInfo.unk180[layer] at room load.",
+      "fields": [
+        {"field": "width", "offset": 0, "type": "u16", "name": "width", "unit": "tile8", "description": "Layer width in 8-px tiles. For the playfield this defines the room width: roomWidth = width*8 px (collision stride width/2).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:175", "code": "CpuCopy16(gForegroundTilemaps[gRoomProps[roomId].mapDataIdx], levelInfo->unk180, sizeof(struct RoomTiledBG));"}, {"loc": "game/src/level.c:263", "code": "s32 x2 = (levelInfo->unk180[1].width * 8 - 0xF0) * 0x100;"}, {"data": "collision size == width/2 * height/2 in 286/286 rooms"}]},
+        {"field": "height", "offset": 2, "type": "u16", "name": "height", "unit": "tile8", "description": "Layer height in 8-px tiles (room height for the playfield).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:224", "code": "levelInfo->unk180[1].height * 8"}]},
+        {"field": "unk4", "offset": 4, "type": "u16", "name": "animFrameSize", "unit": "bytes", "description": "Bytes of tile graphics per animation frame for whole-tileset animation (sub_08153CB8): frame f is read at tileset + tilesetSize + (f-1)*animFrameSize. 0 in every room layer: the path is unused by rooms (the playfield animates through ForegroundInfo instead).", "usage": "code_only", "confidence": "likely", "evidence": [{"loc": "game/src/bg.c:343", "code": "r5 = r3->unk4;"}, {"loc": "game/src/bg.c:348", "code": "r4 = (uintptr_t)r3->tileset + r3->tilesetSize + (ip->animFrameCounter-1) * r5;"}, {"data": "0 in all 323 room-layer entries"}]},
+        {"field": "unk6", "offset": 6, "type": "u8", "name": "animFrameCount", "unit": "count", "description": "Number of whole-tileset animation frames; 0 disables the animation.", "usage": "code_only", "confidence": "likely", "evidence": [{"loc": "game/src/bg.c:339", "code": "if (r3->unk6 && r3->unk7 <= ++ip->animDelayCounter) {"}, {"loc": "game/src/bg.c:341", "code": "if (r3->unk6 <= ++ip->animFrameCounter)"}, {"data": "0 in all room layers"}]},
+        {"field": "unk7", "offset": 7, "type": "u8", "name": "animFrameDelay", "unit": "frames", "description": "Frames between animation steps (compared with a pre-incremented counter: 0 and 1 both mean every frame).", "usage": "code_only", "confidence": "likely", "evidence": [{"loc": "game/src/bg.c:339", "code": "r3->unk7 <= ++ip->animDelayCounter"}, {"data": "0 in all room layers"}]},
+        {"field": "tileset", "offset": 8, "type": "ptr", "name": "tileset", "description": "LZ77-compressed 4bpp tileset (background layer; decompressed to 0x06000000). 0 in gForegroundTilemaps.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:125", "code": "LZ77UnCompVram(levelInfo->unk180[1].tileset, (void *)0x6000000);"}]},
+        {"field": "tilesetSize", "offset": 12, "type": "u32", "name": "tilesetTiles", "description": "Declared 'in tiles'. For room layers it is 900 in every background (= the tile capacity below the playfield char block) and 0 in gForegroundTilemaps; the room loader ignores it (LZ77 carries its own size). Only the dead whole-tileset animation path adds it to a byte address. The same offset in the generic TiledBg_082D7850 view (menus) is a DMA byte count.", "usage": "unused", "confidence": "guess", "evidence": [{"loc": "game/src/bg.c:348", "code": "r3->tilesetSize"}, {"loc": "game/src/bg.c:21", "code": "b = r6->unk0.tilesetCompressedSize;", "note": "generic view: byte count queued for DMA"}, {"data": "900 in 33/33 backgrounds used by rooms, including 30x320 and 32x22 ones"}]},
+        {"field": "palette", "offset": 16, "type": "ptr", "name": "palette", "description": "BG palette colours (BGR555; bit 15 is used as a flag by some palettes). 0 in gForegroundTilemaps.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:127", "code": "*arg2 = levelInfo->unk180[1].palette;"}]},
+        {"field": "paletteOffset", "offset": 20, "type": "u16", "name": "paletteOffset", "unit": "colors", "description": "Destination colour index in BG palette RAM (96 = bank 6 for every room background).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/bg.c:31", "code": "r4->paletteOffset = r6->unk0.paletteOffset;"}, {"data": "96 in 33/33"}]},
+        {"field": "paletteSize", "offset": 22, "type": "u16", "name": "paletteSize", "unit": "colors", "description": "Number of colours (128 = 8 banks for every room background).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/bg.c:36", "code": "paletteSize * sizeof(u16)"}, {"data": "128 in 33/33"}]},
+        {"field": "tilemap", "offset": 24, "type": "ptr", "name": "tilemap", "description": "u16 screen entries, width*height of them. Playfield: LZ77-compressed (decompressed to gUnk_02028EE0[slot]); background: raw.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:364", "code": "LZ77UnCompWram((const u32 *)levelInfo->unk180[0].tilemap, gUnk_02028EE0[levelInfo->unk65E].text);"}]},
+        {"field": "unk1C", "offset": 28, "type": "u32", "name": "formatAndRoom", "description": "Two u16s. Low half: tilemap element width for the playfield (0 = u16 entries; non-zero = u8 entries, read by sub_080015A8; 0 everywhere, the u8 path is dead, paired with the dead cell_record_patch8). High half: authoring room id (the room the entry was made for), never read by the engine.",
+         "packed": [
+           {"name": "byteTilemap", "mask": "0x0000FFFF", "shift": 0, "description": "0 = 16-bit tilemap entries; non-zero = 8-bit", "usage": "code_only", "confidence": "likely", "evidence": [{"loc": "game/src/code_080023A4.c:674", "code": "u16 unk1C = gForegroundTilemaps[gRoomProps[gCurLevelInfo[playerId].currentRoom].mapDataIdx]->unk1C;"}, {"loc": "game/src/code_080023A4.c:676", "code": "if (unk1C == 0) {"}, {"data": "0 in all 323 room-layer entries"}]},
+           {"name": "authorRoomId", "mask": "0xFFFF0000", "shift": 16, "unit": "room id", "description": "room id annotation", "usage": "unused", "confidence": "confirmed", "evidence": [{"data": "gForegroundTilemaps[mapDataIdx].unk1C >> 16 == roomId in 286/286 rooms; backgrounds hold their first user's id (e.g. 0x1FE = 510 for cabbage_cavern_1)"}]}
+         ], "usage": "live", "confidence": "likely", "evidence": [{"loc": "game/src/data/room_tiled_bgs/cabbage_cavern_1.c:42", "code": ".unk1C = 0x1fe0000"}]}
+      ]
+    },
+    {
+      "record": "foreground_info",
+      "c_type": "struct ForegroundInfo",
+      "c_decl": "game/include/data.h:835",
+      "size": 16,
+      "table": {"symbol": "gForegroundInfo", "addr": "0x08D6499C", "count": 34, "index": "RoomProps.pixelDataIdx"},
+      "description": "Playfield tileset plus looping tile animations that overwrite parts of char block 2 (sub_080021E4 each frame).",
+      "fields": [
+        {"field": "tileset", "offset": 0, "type": "ptr", "name": "tileset", "description": "LZ77 4bpp tileset, decompressed to 0x06008000.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:116", "code": "LZ77UnCompVram(gForegroundInfo[gRoomProps[levelInfo->currentRoom].pixelDataIdx]->tileset, (void *)0x6008000);"}]},
+        {"field": "unk4", "offset": 4, "type": "ptr", "name": "animGfx", "description": "Uncompressed tile graphics that animation frames copy from (frame gfxOffset is added to it).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1232", "code": "void *var4 = fgInfo->unk4 + var3->unkC[var2[0]].unk0;"}]},
+        {"field": "unk8", "offset": 8, "type": "ptr", "name": "anims", "description": "Array of numAnims foreground_anim records.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1228", "code": "const struct ForegroundInfo_8p *var3 = fgInfo->unk8 + i;"}]},
+        {"field": "unkC", "offset": 12, "type": "u16", "name": "numAnims", "unit": "count", "range": [0, 9], "description": "Number of tile animations.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1224", "code": "why = fgInfo->unkC;"}, {"data": "0..9 over 34 entries"}]},
+        {"field": "roomId", "offset": 14, "type": "u16", "name": "authorRoomId", "unit": "room id", "description": "Authoring annotation; not read.", "usage": "unused", "confidence": "likely", "evidence": [{"data": "plausible room ids; no reader in game/src"}]}
+      ]
+    },
+    {
+      "record": "foreground_anim",
+      "c_type": "struct ForegroundInfo_8p",
+      "c_decl": "game/include/data.h:843",
+      "size": 20,
+      "description": "One looping tile animation: every frame-duration, copy numChunks chunks of copySize bytes from animGfx+frame.gfxOffset to char block 2 + vramOffset, both advancing by stride.",
+      "fields": [
+        {"field": "unk0", "offset": 0, "type": "u32", "name": "vramOffset", "unit": "bytes", "description": "Destination offset from 0x06008000 (tile-aligned).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1233", "code": "void *var5 = (void *) 0x6008000 + var3->unk0;"}]},
+        {"field": "unk4", "offset": 4, "type": "u32", "name": "copySize", "unit": "bytes", "description": "Bytes per chunk (multiples of 32 = whole 4bpp tiles).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1237", "code": "CpuCopy32(var4, var5, var3->unk4);"}]},
+        {"field": "unk8", "offset": 8, "type": "u32", "name": "chunkStride", "unit": "bytes", "description": "Added to source and destination after each chunk (0x400 = one 32-tile row).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1239", "code": "var4 += var3->unk8;"}]},
+        {"field": "unkC", "offset": 12, "type": "ptr", "name": "frames", "description": "Array of numFrames foreground_anim_frame.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1232", "code": "var3->unkC[var2[0]].unk0"}]},
+        {"field": "unk10", "offset": 16, "type": "u16", "name": "numFrames", "unit": "count", "description": "Frame index wraps here (2, 3, 4 or 8 in retail).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1252", "code": "if (++var2[0] < var3->unk10)"}]},
+        {"field": "unk12", "offset": 18, "type": "u16", "name": "numChunks", "unit": "count", "description": "Chunk count per frame copy (1 or 2 in retail).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1236", "code": "for (j = 0; j < var3->unk12; j++) {"}]}
+      ]
+    },
+    {
+      "record": "foreground_anim_frame",
+      "c_type": "struct ForegroundInfo_8p_Cp",
+      "c_decl": "game/include/data.h:852",
+      "size": 8,
+      "description": "One frame of a tile animation.",
+      "fields": [
+        {"field": "unk0", "offset": 0, "type": "u32", "name": "gfxOffset", "unit": "bytes", "description": "Offset into ForegroundInfo.animGfx.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1232", "code": ".unk0;"}]},
+        {"field": "unk4", "offset": 4, "type": "u16", "name": "duration", "unit": "frames", "description": "Hold time of this frame (1..10 in retail).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1247", "code": "if ((var2[1] = r0) < var3->unkC[var2[0]].unk4)"}]}
+      ]
+    },
+    {
+      "record": "foreground_palette",
+      "c_type": "struct ForegroundPalette",
+      "c_decl": "game/include/data.h:859",
+      "size": 12,
+      "table": {"symbol": "gForegroundPalettes", "addr": "0x08D63288", "count": 42, "index": "RoomProps.paletteDataIdx"},
+      "description": "Playfield palette plus looping palette animations (sub_08003108). Manifest kind fg_palette.",
+      "fields": [
+        {"field": "palette", "offset": 0, "type": "ptr", "name": "palette", "description": "6 banks x 16 BGR555 colours for the playfield.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/level.c:119", "code": "*arg1 = gForegroundPalettes[gRoomProps[levelInfo->currentRoom].paletteDataIdx]->palette;"}]},
+        {"field": "unk4", "offset": 4, "type": "ptr", "name": "anims", "description": "Array of numAnims pointers to foreground_palette_anim.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1879", "code": "struct ForegroundPalette_4pp *fgPal4p = fgPal->unk4[i];"}]},
+        {"field": "unk8", "offset": 8, "type": "u16", "name": "numAnims", "unit": "count", "description": "0 (23 entries), 1 (15), 2 (3), 3 (1).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1875", "code": "u16 i, why = fgPal->unk8;"}]},
+        {"field": "roomId", "offset": 10, "type": "u16", "name": "authorRoomId", "unit": "room id", "description": "Authoring annotation; not read.", "usage": "unused", "confidence": "likely", "evidence": [{"data": "no reader in game/src"}]}
+      ]
+    },
+    {
+      "record": "foreground_palette_anim",
+      "c_type": "struct ForegroundPalette_4pp",
+      "c_decl": "game/include/data.h:866",
+      "size": 12,
+      "description": "A palette animation: cycle through numFrames palette frames ({const u16 *colors; u16 duration} records, same layout as struct Unk_08D6DCAC), writing paletteSize colours at paletteOffset.",
+      "fields": [
+        {"field": "unk0", "offset": 0, "type": "ptr", "name": "frames", "description": "Array of pointers to {colors, duration} frame records. A frame duration of 999 marks the animation as disabled (tested, with an original-code indexing quirk: it tests frame[i] where i is the animation index).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1881", "code": "fgPal4p->unk0.u16pp[i][2] == 999"}, {"loc": "game/src/code_080023A4.c:1915", "code": "if (var0[1] < fgPal4p->unk0.u16pp[var0[0]][2])", "note": "u16 at +4 of the frame record = duration"}]},
+        {"field": "unk4", "offset": 4, "type": "u16[2]", "name": "numFramesAndOffset", "description": "[0] = numFrames (0 disables), [1] = paletteOffset in colours into BG palette RAM.",
+         "packed": [
+           {"name": "numFrames", "mask": "0x0000FFFF", "shift": 0, "unit": "count", "description": "frame index wraps here; 0 = animation off", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1922", "code": "if (++var0[0] < fgPal4p->unk4[0])"}]},
+           {"name": "paletteOffset", "mask": "0xFFFF0000", "shift": 16, "unit": "colors", "description": "destination colour index", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1898", "code": "gBgPalette + fgPal4p->unk4[1],"}]}
+         ], "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1881", "code": "if (fgPal4p->unk4[0] == 0"}]},
+        {"field": "unk8", "offset": 8, "type": "u16", "name": "paletteSize", "unit": "colors", "description": "Colours written per frame.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1899", "code": "fgPal4p->unk8 * 2"}]}
+      ]
+    }
+  ]
+}
