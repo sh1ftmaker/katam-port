@@ -38,7 +38,7 @@ extern const struct AnimInfo gUnk_0835493C[] = {
 
 void* CreateWheelie(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -51,14 +51,14 @@ void* CreateWheelie(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -6, 5, 5);
     ObjectSetBounds(&obj->base, -6, -7, 6, 7);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     return obj;    
 }
 
 void sub_080BC594(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BC604);
+    ObjectSetFunc(arg0, 0, FN(sub_080BC604));
     arg0->base.xspeed = 0x100;
     if (arg0->objTemplate->subtype1 == 1) {
         if (arg0->subtype != 0) {
@@ -131,7 +131,7 @@ static void sub_080BC604(struct Object* arg0) {
 }
 
 static void sub_080BC720(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080BC790);
+    ObjectSetFunc(arg0, 1, FN(sub_080BC790));
     if (arg0->subtype != 0) {
         arg0->base.xspeed = 0x280;
         if (arg0->objTemplate->subtype1 != 0) {
@@ -230,7 +230,7 @@ static void sub_080BC878(struct Object* arg0) {
 }
 
 static void sub_080BC928(struct Object* arg0) {
-    ObjectSetFunc(arg0, 3, sub_080BCB94);
+    ObjectSetFunc(arg0, 3, FN(sub_080BCB94));
     arg0->base.flags ^= 1;
     switch (RandLessThan3()) {
     case 0:
@@ -251,7 +251,7 @@ static void sub_080BC928(struct Object* arg0) {
 }
 
 static void sub_080BC9B0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 4, sub_080BCA64);
+    ObjectSetFunc(arg0, 4, FN(sub_080BCA64));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0x300;
     RequestScreenShake(1, &arg0->base);
@@ -289,7 +289,7 @@ static void sub_080BCAC8(struct Object* arg0) {
         arg0->kirby3 = FindTargetKirby(&arg0->base);
         if (arg0->kirby3->base.x > arg0->base.x) {
             if (arg0->base.flags & 1) {
-                ObjectSetFunc(arg0, 2, sub_080BC878);
+                ObjectSetFunc(arg0, 2, FN(sub_080BC878));
                 sub_080897A0(&arg0->base);
             }
             else {
@@ -301,7 +301,7 @@ static void sub_080BCAC8(struct Object* arg0) {
                 sub_080BC720(arg0);
             }
             else {
-                ObjectSetFunc(arg0, 2, sub_080BC878);
+                ObjectSetFunc(arg0, 2, FN(sub_080BC878));
                 sub_080897A0(&arg0->base);
             }
         }
@@ -309,7 +309,7 @@ static void sub_080BCAC8(struct Object* arg0) {
 }
 
 static void sub_080BCB78(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080BC878);
+    ObjectSetFunc(arg0, 2, FN(sub_080BC878));
     sub_080897A0(&arg0->base);
 }
 
@@ -321,9 +321,25 @@ static void sub_080BCB94(struct Object* arg0) {
 }
 
 static void sub_080BCBB8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 6, sub_080BCAC8);
+    ObjectSetFunc(arg0, 6, FN(sub_080BCAC8));
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_wheelie) {
+    PORT_FNID(CreateWheelie),
+    PORT_FNID(sub_080BC594),
+    PORT_FNID(sub_080BC604),
+    PORT_FNID(sub_080BC790),
+    PORT_FNID(sub_080BC878),
+    PORT_FNID(sub_080BCA64),
+    PORT_FNID(sub_080BCAC8),
+    PORT_FNID(sub_080BCB94),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

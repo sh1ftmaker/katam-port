@@ -24,7 +24,7 @@ void LoadObjPaletteWithTransformation(const u16 *palette, u8 offset, u16 num) {
         ++palette;
     }
     if (gUnk_03003678)
-        gUnk_03003678(gObjPalette, offset, num);
+        CALL(gUnk_03003678)(gObjPalette, offset, num);
     gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
 }
 
@@ -39,7 +39,7 @@ void LoadBgPaletteWithTransformation(const u16 *palette, u8 offset, u16 num) {
         ++palette;
     }
     if (gUnk_03003678)
-        gUnk_03003678(gBgPalette, offset, num);
+        CALL(gUnk_03003678)(gBgPalette, offset, num);
     gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
 }
 

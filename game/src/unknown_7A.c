@@ -18,7 +18,7 @@ extern const struct AnimInfo gUnk_08357CD0[] = {
 void *CreateUnknown7A(struct ObjectTemplate *template_, u8 a2)
 {
     s16 rect[4];
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Unknown7A), 0x1000, TASK_USE_IWRAM, sub_0811F824);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Unknown7A), 0x1000, TASK_USE_IWRAM, FN(sub_0811F824));
     struct Unknown7A *u = TaskGetStructPtr(t);
 
     InitObject(&u->obj, template_, a2);
@@ -31,7 +31,7 @@ void *CreateUnknown7A(struct ObjectTemplate *template_, u8 a2)
     rect[2] = rect[0] + u->obj.objTemplate->unk1E;
     rect[3] = rect[1] + u->obj.objTemplate->unk20;
     ObjectSetBounds(&u->obj.base, rect[0], rect[1], rect[2], rect[3]);
-    gUnk_08351648[u->obj.type].unk10(&u->obj);
+    CALL(gUnk_08351648[u->obj.type].unk10)(&u->obj);
     return u;
 }
 
@@ -46,7 +46,7 @@ void sub_0811F20C(struct Unknown7A *u)
     u->unkC0.y = u->unkB8.y;
     u->unkC4 = 0;
     u->unkC6 = u->obj.objTemplate->unk14;
-    u->obj.unk78 = sub_0811F918;
+    u->obj.unk78 = FN(sub_0811F918);
 }
 
 static inline bool32 StateSlotChanged(u8 *slot, struct Unknown7AState *state)
@@ -323,3 +323,15 @@ static void sub_0811F918(struct Unknown7A *u)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_unknown_7A) {
+    PORT_FNID(CreateUnknown7A),
+    PORT_FNID(sub_0811F20C),
+    PORT_FNID(sub_0811F824),
+    PORT_FNID(sub_0811F918),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

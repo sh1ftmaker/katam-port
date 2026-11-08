@@ -37,29 +37,31 @@ static void KeypadIntr(void);
 static void GamepakIntr(void);
 
 extern IntrFunc const gIntrTableTemplate[] = {
-    (void*)gMultiSioIntrFuncBuf,
-    VBlankIntr,
-    HBlankIntr,
-    VCountIntr,
-    Timer0Intr,
-    Timer1Intr,
-    Timer2Intr,
-    Sio32TimeoutIntr,
-    Dma0Intr,
-    Dma1Intr,
-    Dma2Intr,
-    Dma3Intr,
-    KeypadIntr,
-    GamepakIntr,
+    /* PORT-FNID: the IWRAM copy of MultiSioIntr, by the address the console
+     * ran it from -- MultiSioIntr's code ID (platform/multi_sio_intr.c). */
+    FN(MultiSioIntr),
+    FN(VBlankIntr),
+    FN(HBlankIntr),
+    FN(VCountIntr),
+    FN(Timer0Intr),
+    FN(Timer1Intr),
+    FN(Timer2Intr),
+    FN(Sio32TimeoutIntr),
+    FN(Dma0Intr),
+    FN(Dma1Intr),
+    FN(Dma2Intr),
+    FN(Dma3Intr),
+    FN(KeypadIntr),
+    FN(GamepakIntr),
 };
 
 static u32 sub_081525DC(void);
 
 static FuncType_08D5FDD4 const gUnk_08D5FDD4[] = {
-    sub_081525DC,
-    sub_08154B14,
-    sub_0815436C,
-    sub_08153184,
+    FN(sub_081525DC),
+    FN(sub_08154B14),
+    FN(sub_0815436C),
+    FN(sub_08153184),
 };
 
 /* PORT: replaced by port/rom_data.h -- extern const u8 RomHeaderMagic; */
@@ -336,7 +338,7 @@ void UpdateScreenDma(void) {
     }
 
     for (i = 0; i < gUnk_03002548; i++) {
-        gUnk_030068C0[i]();
+        CALL(gUnk_030068C0[i])();
     }
 
     if (gMainFlags & 0x10) {
@@ -357,7 +359,7 @@ void UpdateScreenDma(void) {
 
     gUnk_030035D4 = 0xff;
     for (; j <= 3; j++) {
-        if (gUnk_08D5FDD4[j]() == 0) {
+        if (CALL(gUnk_08D5FDD4[j])() == 0) {
             gUnk_030035D4 = j;
             break;
         }
@@ -427,7 +429,7 @@ void UpdateScreenCpuSet(void) {
     }
 
     for (i = 0; i < gUnk_03002548; i++) {
-        gUnk_030068C0[i]();
+        CALL(gUnk_030068C0[i])();
     }
 
     if (gMainFlags & 0x10) {
@@ -448,7 +450,7 @@ void UpdateScreenCpuSet(void) {
 
     gUnk_030035D4 = 0xff;
     for (; j <= 3; j++) {
-        if (gUnk_08D5FDD4[j]() == 0) {
+        if (CALL(gUnk_08D5FDD4[j])() == 0) {
             gUnk_030035D4 = j;
             break;
         }
@@ -620,7 +622,7 @@ static void HBlankIntr(void) {
 
     if (vcount < DISPLAY_HEIGHT) {
         for (i = 0; i < gNumHBlankIntrs; i++) {
-            gHBlankIntrs[i](vcount);
+            CALL(gHBlankIntrs[i])(vcount);
         }
     }
 
@@ -705,3 +707,24 @@ void AgbMain(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_main) {
+    PORT_FNID(VBlankIntr),
+    PORT_FNID(sub_081525DC),
+    PORT_FNID(HBlankIntr),
+    PORT_FNID(VCountIntr),
+    PORT_FNID(Dma0Intr),
+    PORT_FNID(Dma1Intr),
+    PORT_FNID(Dma2Intr),
+    PORT_FNID(Dma3Intr),
+    PORT_FNID(Timer0Intr),
+    PORT_FNID(Timer1Intr),
+    PORT_FNID(Timer2Intr),
+    PORT_FNID(KeypadIntr),
+    PORT_FNID(GamepakIntr),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

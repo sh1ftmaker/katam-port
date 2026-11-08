@@ -31,7 +31,7 @@ extern const struct AnimInfo gUnk_08353434[] = {
 void* CreateBigWaddleDee(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
     struct Kirby *kirby;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -103,7 +103,7 @@ static void sub_080A4B68(struct Object* arg0) {
 }
 
 static void BigWaddleDeeChooseXSpeed0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, BigWaddleDeeReverseX);
+    ObjectSetFunc(arg0, 0, FN(BigWaddleDeeReverseX));
     switch (arg0->subtype) {
     case 0:
         arg0->base.xspeed = 0x80;
@@ -124,7 +124,7 @@ static void BigWaddleDeeChooseXSpeed0(struct Object* arg0) {
 }
 
 static void BigWaddleDeeChooseXSpeed1(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, BigWaddleDeeReverseXOnCounter);
+    ObjectSetFunc(arg0, 0, FN(BigWaddleDeeReverseXOnCounter));
     switch (arg0->subtype) {
     case 0:
         arg0->base.xspeed = 0x80;
@@ -185,7 +185,7 @@ static void BigWaddleDeeReverseXOnCounter(struct Object* arg0) {
 }
 
 static void BigWaddleDeeChooseXSpeed2(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A4E20);
+    ObjectSetFunc(arg0, 0, FN(sub_080A4E20));
     arg0->base.counter = 0x64;
     switch (arg0->subtype) {
     case 0:
@@ -230,7 +230,7 @@ static void sub_080A4E20(struct Object* arg0) {
 }
 
 static void BigWaddleDeeChooseXSpeedAndPlaySfx(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080A5084);
+    ObjectSetFunc(arg0, 2, FN(sub_080A5084));
     arg0->base.yspeed = 0x280;
     switch (arg0->subtype) {
     case 0:
@@ -276,7 +276,7 @@ static void BigWaddleDeeReverseX(struct Object* arg0) {
 }
 
 static void sub_080A5030(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080A5054);
+    ObjectSetFunc(arg0, 1, FN(sub_080A5054));
     arg0->base.xspeed = 0;
     arg0->unk85 = 0;
 }
@@ -306,3 +306,18 @@ static void sub_080A5084(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_big_waddle_dee) {
+    PORT_FNID(CreateBigWaddleDee),
+    PORT_FNID(BigWaddleDeeReverseXOnCounter),
+    PORT_FNID(sub_080A4E20),
+    PORT_FNID(sub_080A4FD0),
+    PORT_FNID(BigWaddleDeeReverseX),
+    PORT_FNID(sub_080A5054),
+    PORT_FNID(sub_080A5084),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

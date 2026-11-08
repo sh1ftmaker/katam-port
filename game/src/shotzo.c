@@ -47,13 +47,13 @@ void sub_0811B48C(struct Object *);
         break; \
     } \
     (shotzo)->unk9E = 0; \
-    (shotzo)->unk78 = sub_0811A934; \
+    (shotzo)->unk78 = FN(sub_0811A934); \
     sub_0811AEDC(shotzo); \
 })
 
 void *CreateShotzo(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *shotzo = tmp;
 
     InitObject(tmp, template_, a2);
@@ -81,7 +81,7 @@ void *CreateShotzo(struct ObjectTemplate *template_, u8 a2)
         sub_0811B400(shotzo);
     }
     else
-        gUnk_08351648[shotzo->type].unk10(shotzo);
+        CALL(gUnk_08351648[shotzo->type].unk10)(shotzo);
     shotzo->unk9E = 0;
     shotzo->unk7C = NULL;
     return shotzo;
@@ -110,7 +110,7 @@ void sub_0811A874(struct Object *shotzo)
         }
         shotzo->base.xspeed = 0;
         shotzo->unk9E = 0;
-        shotzo->unk78 = sub_0811A8D4;
+        shotzo->unk78 = FN(sub_0811A8D4);
     }
 }
 
@@ -199,7 +199,7 @@ void sub_0811A9D4(struct Object *shotzo)
     shotzo->base.xspeed = 0;
     shotzo->unk9E = 0;
     shotzo->base.counter = 0x64;
-    shotzo->unk78 = sub_0811B3E4;
+    shotzo->unk78 = FN(sub_0811B3E4);
 }
 
 void sub_0811AA2C(struct Object *shotzo)
@@ -224,7 +224,7 @@ void sub_0811AA2C(struct Object *shotzo)
     }
     shotzo->unk9E = 0;
     shotzo->unk9F = 0;
-    shotzo->unk78 = sub_0811AA80;
+    shotzo->unk78 = FN(sub_0811AA80);
     sub_0811AEDC(shotzo);
 }
 
@@ -639,7 +639,7 @@ void sub_0811AEDC(struct Object *shotzo)
 
 void *CreateShotzoBullet(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *bullet = TaskGetStructPtr(t);
     u32 flags, unkC;
 
@@ -659,17 +659,17 @@ void *CreateShotzoBullet(struct ObjectTemplate *template_, u8 a2)
     bullet->base.unk68 = 0x20000043;
     bullet->base.unk5C |= 0x220;
     bullet->unk9E = 0;
-    bullet->unk7C = sub_0809F840;
+    bullet->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&bullet->base, -2, -2, 2, 2);
     ObjectSetBounds(&bullet->base, 2, 2, 2, 2);
     ObjectInitSprite(bullet);
-    gUnk_08351648[bullet->type].unk10(bullet);
+    CALL(gUnk_08351648[bullet->type].unk10)(bullet);
     return bullet;
 }
 
 void sub_0811B2A4(struct Object *bullet)
 {
-    ObjectSetFunc(bullet, 0, sub_0811B34C);
+    ObjectSetFunc(bullet, 0, FN(sub_0811B34C));
     bullet->base.flags |= 0x40;
     bullet->base.flags &= ~0x20;
     PlaySfx(&bullet->base, SE_BULLET_ATTACK);
@@ -707,7 +707,7 @@ void sub_0811B400(struct Object *shotzo)
     shotzo->base.counter = 0;
     sub_0803E2B0(&shotzo->base, -5, -16, 5, 8);
     shotzo->base.flags |= 0x2000;
-    shotzo->unk78 = sub_0811B44C;
+    shotzo->unk78 = FN(sub_0811B44C);
 }
 
 void sub_0811B44C(struct Object *shotzo)
@@ -719,7 +719,7 @@ void sub_0811B44C(struct Object *shotzo)
     shotzo->base.yspeed = 0;
     shotzo->unk9E = 0;
     shotzo->base.counter = 0;
-    shotzo->unk78 = sub_0811B48C;
+    shotzo->unk78 = FN(sub_0811B48C);
 }
 
 void sub_0811B48C(struct Object *shotzo)
@@ -742,3 +742,22 @@ void sub_0811B48C(struct Object *shotzo)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_shotzo) {
+    PORT_FNID(CreateShotzo),
+    PORT_FNID(sub_0811A874),
+    PORT_FNID(sub_0811A8D4),
+    PORT_FNID(sub_0811A934),
+    PORT_FNID(sub_0811AA80),
+    PORT_FNID(CreateShotzoBullet),
+    PORT_FNID(sub_0811B2A4),
+    PORT_FNID(sub_0811B34C),
+    PORT_FNID(sub_0811B3E4),
+    PORT_FNID(sub_0811B44C),
+    PORT_FNID(sub_0811B48C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

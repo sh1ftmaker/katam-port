@@ -79,7 +79,7 @@ static void sub_08020298(struct Unk_08020428 *fade) {
     gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     gBldRegs.bldCnt = BLDCNT_EFFECT_NONE;
     gBldRegs.bldY = 0;
-    callback();
+    CALL(callback)();
 }
 
 // Restores what sub_08020220 saved.
@@ -106,10 +106,10 @@ void sub_080203C8(void) {
 }
 
 void sub_08020428(void (*callback)(void)) {
-    struct Task *task = TaskCreate(sub_080205BC, sizeof(struct Unk_08020428), 1, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080205BC), sizeof(struct Unk_08020428), 1, TASK_x0004 | TASK_USE_IWRAM, NULL);
     struct Unk_08020428 *fade = TaskGetStructPtr(task);
 
-    fade->func = sub_080205F0;
+    fade->func = FN(sub_080205F0);
     fade->callback = callback;
     fade->counter = 0;
     m4aMPlayAllStop();
@@ -165,28 +165,28 @@ static void UNUSED nullsub_112(void) {}
 
 static void sub_080205BC(void) {
     struct Unk_08020428 *fade = TaskGetStructPtr(gCurTask);
-    fade->func(fade);
+    CALL(fade->func)(fade);
 }
 
 static void sub_080205F0(struct Unk_08020428 *fade) {
     if (gUnk_0203AD10 & 2) {
         gUnk_020382D0.unk4 &= ~2;
     }
-    fade->func = sub_08020624;
+    fade->func = FN(sub_08020624);
 }
 
 static void sub_08020624(struct Unk_08020428 *fade) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     fade->counter = 0;
-    fade->func = sub_08020640;
+    fade->func = FN(sub_08020640);
 }
 
 static void sub_08020640(struct Unk_08020428 *fade) {
     fade->counter++;
     if (fade->counter > 0xF) {
         gBldRegs.bldY = 0x10;
-        fade->func = sub_08020674;
+        fade->func = FN(sub_08020674);
     } else {
         gBldRegs.bldY = fade->counter;
     }
@@ -197,9 +197,23 @@ static void sub_08020674(struct Unk_08020428 *fade) {
         sub_08031CC8();
         DisableMultiSio();
     }
-    fade->func = sub_08020298;
+    fade->func = FN(sub_08020298);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_08020220) {
+    PORT_FNID(sub_08020298),
+    PORT_FNID(sub_080205BC),
+    PORT_FNID(sub_080205F0),
+    PORT_FNID(sub_08020624),
+    PORT_FNID(sub_08020640),
+    PORT_FNID(sub_08020674),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

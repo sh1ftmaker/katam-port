@@ -31,33 +31,33 @@ struct InGameInterlude {
 
 /* PORT: replaced by port/ram_symbols.h -- extern struct Task *gInGameInterludeTask; */
 static void (*const sInGameInterludeScreens[27])(void) = {
-    CreatePauseMenu,
-    sub_0801D618,
-    sub_0801D624,
-    sub_0801D630,
-    sub_0801D63C,
-    sub_0801D648,
-    sub_0801D654,
-    sub_0801D660,
-    sub_0801D66C,
-    sub_0801DFE8,
-    WorldMapUnlockMoonlightMansion,
-    WorldMapUnlockRainbowRouteEast,
-    WorldMapUnlockRainbowRouteSouth,
-    WorldMapUnlockCabbageCavernCenter,
-    WorldMapUnlockRainbowRouteWest,
-    WorldMapUnlockCarrotCastle,
-    WorldMapUnlockRainbowRouteNorth,
-    WorldMapUnlockMustardMountain,
-    WorldMapUnlockCabbageCavernWest,
-    WorldMapUnlockRadishRuins,
-    WorldMapUnlockPeppermintPalaceEast,
-    WorldMapUnlockPeppermintPalaceWest,
-    WorldMapUnlockCabbageCavernEast,
-    WorldMapUnlockOliveOcean,
-    WorldMapUnlockCandyConstellation,
-    sub_0802E16C,
-    sub_0814A828,
+    FN(CreatePauseMenu),
+    FN(sub_0801D618),
+    FN(sub_0801D624),
+    FN(sub_0801D630),
+    FN(sub_0801D63C),
+    FN(sub_0801D648),
+    FN(sub_0801D654),
+    FN(sub_0801D660),
+    FN(sub_0801D66C),
+    FN(sub_0801DFE8),
+    FN(WorldMapUnlockMoonlightMansion),
+    FN(WorldMapUnlockRainbowRouteEast),
+    FN(WorldMapUnlockRainbowRouteSouth),
+    FN(WorldMapUnlockCabbageCavernCenter),
+    FN(WorldMapUnlockRainbowRouteWest),
+    FN(WorldMapUnlockCarrotCastle),
+    FN(WorldMapUnlockRainbowRouteNorth),
+    FN(WorldMapUnlockMustardMountain),
+    FN(WorldMapUnlockCabbageCavernWest),
+    FN(WorldMapUnlockRadishRuins),
+    FN(WorldMapUnlockPeppermintPalaceEast),
+    FN(WorldMapUnlockPeppermintPalaceWest),
+    FN(WorldMapUnlockCabbageCavernEast),
+    FN(WorldMapUnlockOliveOcean),
+    FN(WorldMapUnlockCandyConstellation),
+    FN(sub_0802E16C),
+    FN(sub_0814A828),
 };
 
 static void UpdateInGameInterlude(void);
@@ -88,7 +88,7 @@ static void UnpauseGameplay(struct InGameInterlude *transition)
     } else {
         gKirbys[0].movementState |= gHeldKeys & B_BUTTON;
     }
-    transition->callback = DelayInGameInterludeFadeIn;
+    transition->callback = FN(DelayInGameInterludeFadeIn);
 }
 
 void ResetInGameInterlude(void)
@@ -106,12 +106,12 @@ bool32 CanStartInGameInterlude(void)
 
 static inline void StartInGameInterludeInternal(u16 screen)
 {
-    struct Task *task = TaskCreate(UpdateInGameInterlude, sizeof(struct InGameInterlude), 1, TASK_x0004 | TASK_USE_IWRAM, InGameInterludeDestructor);
+    struct Task *task = TaskCreate(FN(UpdateInGameInterlude), sizeof(struct InGameInterlude), 1, TASK_x0004 | TASK_USE_IWRAM, FN(InGameInterludeDestructor));
     struct InGameInterlude *transition;
 
     gInGameInterludeTask = task;
     transition = TaskGetStructPtr(task);
-    transition->callback = BeginInGameInterlude;
+    transition->callback = FN(BeginInGameInterlude);
     transition->screen = screen;
     transition->finished = FALSE;
     gMainFlags |= 0x400;
@@ -119,12 +119,12 @@ static inline void StartInGameInterludeInternal(u16 screen)
 
 void StartInGameInterlude(u16 screen)
 {
-    struct Task *task = TaskCreate(UpdateInGameInterlude, sizeof(struct InGameInterlude), 1, TASK_x0004 | TASK_USE_IWRAM, InGameInterludeDestructor);
+    struct Task *task = TaskCreate(FN(UpdateInGameInterlude), sizeof(struct InGameInterlude), 1, TASK_x0004 | TASK_USE_IWRAM, FN(InGameInterludeDestructor));
     struct InGameInterlude *transition;
 
     gInGameInterludeTask = task;
     transition = TaskGetStructPtr(task);
-    transition->callback = BeginInGameInterlude;
+    transition->callback = FN(BeginInGameInterlude);
     transition->screen = screen;
     transition->finished = FALSE;
     gMainFlags |= 0x400;
@@ -222,7 +222,7 @@ static void UpdateInGameInterlude(void)
 {
     struct InGameInterlude *transition = TaskGetStructPtr(gCurTask);
 
-    transition->callback(transition);
+    CALL(transition->callback)(transition);
 }
 
 static void InGameInterludeDestructor(struct Task *task UNUSED)
@@ -239,7 +239,7 @@ static void BeginInGameInterlude(struct InGameInterlude *transition)
 {
     if (transition->screen == 0)
         m4aSongNumStart(SE_PAUSE_MENU_OPEN);
-    transition->callback = StartInGameInterludeFadeOut;
+    transition->callback = FN(StartInGameInterludeFadeOut);
 }
 
 static void StartInGameInterludeFadeOut(struct InGameInterlude *transition)
@@ -251,7 +251,7 @@ static void StartInGameInterludeFadeOut(struct InGameInterlude *transition)
     effect->unk8 |= 0x80;
     effect->unk4 = 0xFFFF;
     effect->unk6 = 0xFFFF;
-    transition->callback = WaitForInGameInterludeFadeOut;
+    transition->callback = FN(WaitForInGameInterludeFadeOut);
 }
 
 static void WaitForInGameInterludeFadeOut(struct InGameInterlude *transition)
@@ -262,7 +262,7 @@ static void WaitForInGameInterludeFadeOut(struct InGameInterlude *transition)
         LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
         if (gUnk_0203AD10 & 2)
             sub_08031CE4(8);
-        transition->callback = OpenInGameInterludeScreen;
+        transition->callback = FN(OpenInGameInterludeScreen);
         m4aSongNumStop(MUS_VICTORY_LONG);
         m4aSongNumStop(MUS_VICTORY_SHORT);
         m4aMPlayVolumeControl(&gMPlayInfo_1, 0xFFFF, 0);
@@ -275,8 +275,8 @@ static void OpenInGameInterludeScreen(struct InGameInterlude *transition)
     sub_08020220();
     BackupPaletteEffectSourcePalettes();
     SaveDisplayState();
-    sInGameInterludeScreens[transition->screen]();
-    transition->callback = WaitForInGameInterludeScreenFinish;
+    CALL(sInGameInterludeScreens[transition->screen])();
+    transition->callback = FN(WaitForInGameInterludeScreenFinish);
 }
 
 static void WaitForInGameInterludeScreenFinish(struct InGameInterlude *transition)
@@ -285,7 +285,7 @@ static void WaitForInGameInterludeScreenFinish(struct InGameInterlude *transitio
     if (transition->finished) {
         if (gUnk_0203AD10 & 2)
             sub_08031CE4(8);
-        transition->callback = RestoreGameplayAfterInGameInterludeScreen;
+        transition->callback = FN(RestoreGameplayAfterInGameInterludeScreen);
     }
 }
 
@@ -296,13 +296,13 @@ static void RestoreGameplayAfterInGameInterludeScreen(struct InGameInterlude *tr
     RestoreDisplayState();
     RefreshGameplayHud(&gKirbys[gLocalPlayerId]);
     sub_0806F734();
-    transition->callback = UnpauseGameplay;
+    transition->callback = FN(UnpauseGameplay);
 }
 
 static void DelayInGameInterludeFadeIn(struct InGameInterlude *transition)
 {
     if (transition->timer++ > 2)
-        transition->callback = StartInGameInterludeFadeIn;
+        transition->callback = FN(StartInGameInterludeFadeIn);
 }
 
 static void StartInGameInterludeFadeIn(struct InGameInterlude *transition)
@@ -317,8 +317,8 @@ static void StartInGameInterludeFadeIn(struct InGameInterlude *transition)
     effect->unk6 = 0xFFFF;
     color = RGB_WHITE;
     LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
-    transition->callback = DestroyInGameInterlude;
-    transition->callback(transition);
+    transition->callback = FN(DestroyInGameInterlude);
+    CALL(transition->callback)(transition);
 }
 
 static void DestroyInGameInterlude(struct InGameInterlude *transition UNUSED)
@@ -336,3 +336,39 @@ static const u16 sUnk_0834BE00[16] UNUSED = {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_in_game_interlude) {
+    PORT_FNID(UnpauseGameplay),
+    PORT_FNID(sub_080396BC),
+    PORT_FNID(StartWorldMapUnlockMoonlightMansion),
+    PORT_FNID(StartWorldMapUnlockRainbowRouteEast),
+    PORT_FNID(StartWorldMapUnlockRainbowRouteSouth),
+    PORT_FNID(StartWorldMapUnlockCabbageCavernCenter),
+    PORT_FNID(StartWorldMapUnlockRainbowRouteWest),
+    PORT_FNID(StartWorldMapUnlockCarrotCastle),
+    PORT_FNID(StartWorldMapUnlockRainbowRouteNorth),
+    PORT_FNID(StartWorldMapUnlockMustardMountain),
+    PORT_FNID(StartWorldMapUnlockCabbageCavernWest),
+    PORT_FNID(StartWorldMapUnlockRadishRuins),
+    PORT_FNID(StartWorldMapUnlockPeppermintPalaceEast),
+    PORT_FNID(StartWorldMapUnlockPeppermintPalaceWest),
+    PORT_FNID(StartWorldMapUnlockCabbageCavernEast),
+    PORT_FNID(StartWorldMapUnlockOliveOcean),
+    PORT_FNID(StartWorldMapUnlockCandyConstellation),
+    PORT_FNID(UpdateInGameInterlude),
+    PORT_FNID(InGameInterludeDestructor),
+    PORT_FNID(BeginInGameInterlude),
+    PORT_FNID(StartInGameInterludeFadeOut),
+    PORT_FNID(WaitForInGameInterludeFadeOut),
+    PORT_FNID(OpenInGameInterludeScreen),
+    PORT_FNID(WaitForInGameInterludeScreenFinish),
+    PORT_FNID(RestoreGameplayAfterInGameInterludeScreen),
+    PORT_FNID(DelayInGameInterludeFadeIn),
+    PORT_FNID(StartInGameInterludeFadeIn),
+    PORT_FNID(DestroyInGameInterlude),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

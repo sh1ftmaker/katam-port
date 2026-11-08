@@ -74,7 +74,7 @@ static const struct AnimInfo gUnk_08355660[] = {
 
 void *CreateUFO(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *ufo = tmp;
 
     InitObject(ufo, template_, a2);
@@ -91,7 +91,7 @@ void *CreateUFO(struct ObjectTemplate *template_, u8 a2)
         sub_08088398(ufo, gUnk_08355660);
     else
         sub_08085CE8(&ufo->base, gUnk_0835564C);
-    gUnk_08351648[ufo->type].unk10(ufo);
+    CALL(gUnk_08351648[ufo->type].unk10)(ufo);
     ufo->unk9E = 0;
     ufo->unk7C = 0;
     if (ufo->objTemplate->subtype1)
@@ -104,7 +104,7 @@ void sub_080C4ACC(struct Object *ufo)
     u8 var;
     u32 a, b;
 
-    ObjectSetFunc(ufo, 0, sub_080C4B70);
+    ObjectSetFunc(ufo, 0, FN(sub_080C4B70));
     ufo->base.flags |= 0x140;
     ufo->base.flags &= ~0x20;
     ufo->base.counter = ufo->unk85 & 3;
@@ -161,7 +161,7 @@ static void sub_080C4B70(struct Object *ufo)
 
 static void sub_080C4CC0(struct Object *ufo)
 {
-    ObjectSetFunc(ufo, 1, sub_080C4D10);
+    ObjectSetFunc(ufo, 1, FN(sub_080C4D10));
     ufo->base.flags |= 0x140;
     ufo->base.counter = ((ufo->unk85 & 0xC) >> 2) + 1;
     if (ufo->base.counter > 2)
@@ -225,7 +225,7 @@ static void sub_080C4D10(struct Object *ufo)
 
 static void sub_080C4EDC(struct Object *ufo)
 {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -238,9 +238,9 @@ static void sub_080C4EDC(struct Object *ufo)
     var->base.unk56 = ufo->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_080C5190;
-    var->unk7C = sub_080C53C0;
-    var->unk80 = sub_080C53C0;
+    var->unk78 = FN(sub_080C5190);
+    var->unk7C = FN(sub_080C53C0);
+    var->unk80 = FN(sub_080C53C0);
     var->unk84 = NULL;
     var->unk88 = 0;
     var->unk89 = 0;
@@ -294,7 +294,7 @@ static bool8 sub_080C5190(struct Unk_080C4EDC *var)
 
 static void sub_080C5340(struct Object *ufo)
 {
-    ObjectSetFunc(ufo, 1, sub_080C5398);
+    ObjectSetFunc(ufo, 1, FN(sub_080C5398));
     ufo->base.xspeed = 0;
     ufo->base.yspeed = 0;
     ufo->base.flags |= 0x140;
@@ -326,3 +326,18 @@ static bool8 sub_080C53C0(struct Unk_080C4EDC *var)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_ufo) {
+    PORT_FNID(CreateUFO),
+    PORT_FNID(sub_080C4ACC),
+    PORT_FNID(sub_080C4B70),
+    PORT_FNID(sub_080C4D10),
+    PORT_FNID(sub_080C5190),
+    PORT_FNID(sub_080C5398),
+    PORT_FNID(sub_080C53C0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -49,7 +49,7 @@ static const struct Unk_08353510 gUnk_08354EEC[] = {
 };
 
 void *CreateFoley(struct ObjectTemplate * r6, u8 r5) {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(t);
 
     InitObject(r4, r6, r5);
@@ -59,7 +59,7 @@ void *CreateFoley(struct ObjectTemplate * r6, u8 r5) {
     if (r4->base.x > sub_0803D5CC(&r4->base)->base.x)
         r4->base.flags |= 1;
     ObjectInitSprite(r4);
-    gUnk_08351648[r4->type].unk10(r4);
+    CALL(gUnk_08351648[r4->type].unk10)(r4);
     return r4;
 }
 
@@ -153,7 +153,7 @@ static void sub_080C066C(struct Object *r4) {
 }
 
 static void sub_080C09E0(struct Object *r4) {
-    ObjectSetFunc(r4, 1, sub_080C0D18);
+    ObjectSetFunc(r4, 1, FN(sub_080C0D18));
     r4->type = OBJ_FOLEY_2;
     r4->base.xspeed = 0;
     r4->base.yspeed = 0x80;
@@ -162,7 +162,7 @@ static void sub_080C09E0(struct Object *r4) {
 }
 
 void *CreateFoleyLeaves(struct ObjectTemplate *r6, u8 r5) {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(t);
 
     InitObject(r4, r6, r5);
@@ -173,7 +173,7 @@ void *CreateFoleyLeaves(struct ObjectTemplate *r6, u8 r5) {
     ObjectSetBounds(&r4->base, -7, -5, 7, 7);
     ObjectInitSprite(r4);
     r4->base.sprite.unk14 = 0x640;
-    gUnk_08351648[r4->type].unk10(r4);
+    CALL(gUnk_08351648[r4->type].unk10)(r4);
     return r4;
 }
 
@@ -206,7 +206,7 @@ static void sub_080C0BD0(struct Object *r5) {
 }
 
 void sub_080C0C6C(struct Object *r4) {
-    ObjectSetFunc(r4, 0, sub_080C066C);
+    ObjectSetFunc(r4, 0, FN(sub_080C066C));
     r4->base.flags |= 0x140;
     r4->base.flags &= ~0x20;
     r4->base.unkC |= 1;
@@ -216,14 +216,14 @@ void sub_080C0C6C(struct Object *r4) {
 }
 
 void sub_080C0CBC(struct Object *r4) {
-    ObjectSetFunc(r4, 2, sub_080C0D68);
+    ObjectSetFunc(r4, 2, FN(sub_080C0D68));
     r4->base.flags &= ~0x140;
     r4->base.unkC &= -2;
     r4->base.xspeed = 0;
 }
 
 void sub_080C0CF0(struct Object *r4) {
-    ObjectSetFunc(r4, 0, sub_080C0B5C);
+    ObjectSetFunc(r4, 0, FN(sub_080C0B5C));
     r4->base.unkC |= 1;
     r4->base.flags |= 0x140;
 }
@@ -250,3 +250,20 @@ static void sub_080C0D68(struct Object *r4) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_foley) {
+    PORT_FNID(CreateFoley),
+    PORT_FNID(sub_080C066C),
+    PORT_FNID(CreateFoleyLeaves),
+    PORT_FNID(sub_080C0B5C),
+    PORT_FNID(sub_080C0C6C),
+    PORT_FNID(sub_080C0CBC),
+    PORT_FNID(sub_080C0CF0),
+    PORT_FNID(sub_080C0D18),
+    PORT_FNID(sub_080C0D68),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -153,7 +153,7 @@ static void sub_0811CB44(struct Object *scrollLock)
         p->unk10 += 0x800;
         p->unk14 += 0x800;
     }
-    scrollLock->unk78 = sub_0811CEF4;
+    scrollLock->unk78 = FN(sub_0811CEF4);
     p->unk38 = p->unk8;
     p->unk3C = p->unkC;
 }
@@ -198,7 +198,7 @@ static void sub_0811CBB8(struct Object *scrollLock)
         if (p->unk50 < 0x800)
             p->unk50 = 0x800;
     }
-    scrollLock->unk78 = sub_0811D158;
+    scrollLock->unk78 = FN(sub_0811D158);
     p->unk0.unk38 = p->unk0.unk8;
     p->unk0.unk3C = p->unk0.unkC;
 }
@@ -218,7 +218,7 @@ static void sub_0811CD1C(struct Object *scrollLock)
         p->unk10 += 0x800;
         p->unk14 += 0x800;
     }
-    scrollLock->unk78 = sub_0811D508;
+    scrollLock->unk78 = FN(sub_0811D508);
     p->unk38 = p->unk8;
     p->unk3C = p->unkC;
 }
@@ -263,7 +263,7 @@ static void sub_0811CD90(struct Object *scrollLock)
         if (p->unk50 < 0x800)
             p->unk50 = 0x800;
     }
-    scrollLock->unk78 = sub_0811D68C;
+    scrollLock->unk78 = FN(sub_0811D68C);
     p->unk0.unk38 = p->unk0.unk8;
     p->unk0.unk3C = p->unk0.unkC;
 }
@@ -680,17 +680,32 @@ static void sub_0811DB48(struct Object *scrollLock, s32 i)
 void *CreateScrollLock(struct ObjectTemplate *arg0, u8 arg1)
 {
     struct Object *obj;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0xff6, TASK_USE_IWRAM, ScrollLockDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0xff6, TASK_USE_IWRAM, FN(ScrollLockDestroy));
 
     obj = TaskGetStructPtr(task);
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x2018F40;
     obj->base.unk5C |= 0x20;
     obj->base.unkC |= 1;
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     return obj;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_scroll_lock) {
+    PORT_FNID(sub_0811C9D4),
+    PORT_FNID(sub_0811CEF4),
+    PORT_FNID(sub_0811D158),
+    PORT_FNID(sub_0811D508),
+    PORT_FNID(sub_0811D68C),
+    PORT_FNID(ScrollLockDestroy),
+    PORT_FNID(CreateScrollLock),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

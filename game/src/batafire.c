@@ -188,7 +188,7 @@ extern const struct AnimInfo gUnk_08355CEC[] = {
 
 void *CreateBatafire(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *batafire = TaskGetStructPtr(t);
 
     InitObject(batafire, template_, a2);
@@ -207,7 +207,7 @@ void *CreateBatafire(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(batafire);
     batafire->base.sprite.unk14 = 0x6C0;
     batafire->unk9E = 0;
-    batafire->unk7C = sub_080CB3DC;
+    batafire->unk7C = FN(sub_080CB3DC);
     sub_080CB4F4(batafire);
     sub_080CAF60(batafire);
     return batafire;
@@ -234,14 +234,14 @@ static void sub_080C939C(struct Object *batafire)
                 batafire->unk9E = 0;
             batafire->base.flags &= ~0x200;
             Macro_08100F18(batafire);
-            batafire->unk78 = sub_080CB518;
+            batafire->unk78 = FN(sub_080CB518);
         }
     }
 }
 
 void sub_080C95D4(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 0, sub_080C96EC);
+    ObjectSetFunc(batafire, 0, FN(sub_080C96EC));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -315,7 +315,7 @@ static void sub_080C96EC(struct Object *batafire)
 
 static void sub_080C97F0(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 1, sub_080C9900);
+    ObjectSetFunc(batafire, 1, FN(sub_080C9900));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -476,21 +476,21 @@ static void sub_080C9D1C(struct Object *batafire)
 
     if (Rand16() & 1)
     {
-        ObjectSetFunc(batafire, 0, sub_080C9E70);
+        ObjectSetFunc(batafire, 0, FN(sub_080C9E70));
         if (batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1)
             r = Rand16() & 1;
         if (batafire->subtype || r)
-            batafire->unk78 = sub_080CA0A4;
+            batafire->unk78 = FN(sub_080CA0A4);
     }
     else
     {
-        ObjectSetFunc(batafire, 0, sub_080CA2D8);
+        ObjectSetFunc(batafire, 0, FN(sub_080CA2D8));
         if (batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1)
         {
             r = !(Rand16() & 3);
         }
         if (batafire->subtype || r)
-            batafire->unk78 = sub_080CA50C;
+            batafire->unk78 = FN(sub_080CA50C);
     }
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
@@ -757,7 +757,7 @@ static void sub_080CA740(struct Object *batafire)
 
 static void sub_080CA8FC(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 0xA, sub_080CAA68);
+    ObjectSetFunc(batafire, 0xA, FN(sub_080CAA68));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -840,7 +840,7 @@ static void sub_080CAB14(struct Object *batafire)
 
 void *CreateBatafireFireball(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *fireball = TaskGetStructPtr(t);
 
     InitObject(fireball, template_, a2);
@@ -857,11 +857,11 @@ void *CreateBatafireFireball(struct ObjectTemplate *template_, u8 a2)
         fireball->unk85 -= 5;
     }
     fireball->unk9E = 0;
-    fireball->unk7C = sub_0809F840;
+    fireball->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&fireball->base, -5, -3, 5, 8);
     ObjectSetBounds(&fireball->base, -6, -4, 6, 0xA);
     ObjectInitSprite(fireball);
-    gUnk_08351648[fireball->type].unk10(fireball);
+    CALL(gUnk_08351648[fireball->type].unk10)(fireball);
     return fireball;
 }
 
@@ -915,7 +915,7 @@ static void sub_080CAEB8(struct Object *batafire, u8 a2)
 
 static void sub_080CAF60(struct Object *batafire)
 {
-    struct Task *t = TaskCreate(sub_080CB02C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080CB02C), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -1012,7 +1012,7 @@ static void sub_080CB3DC(struct Object *batafire)
 
 void sub_080CB4A0(struct Object *fireball)
 {
-    ObjectSetFunc(fireball, 0, sub_080CADB8);
+    ObjectSetFunc(fireball, 0, FN(sub_080CADB8));
     fireball->base.xspeed = gUnk_08355C86[4 * fireball->unk85];
     if (fireball->base.flags & 1)
         fireball->base.xspeed = -fireball->base.xspeed;
@@ -1021,7 +1021,7 @@ void sub_080CB4A0(struct Object *fireball)
 
 static void sub_080CB4F4(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 0, sub_080C939C);
+    ObjectSetFunc(batafire, 0, FN(sub_080C939C));
     batafire->base.xspeed = 0;
     batafire->base.yspeed = 0;
     batafire->base.counter = 0;
@@ -1041,7 +1041,7 @@ static void sub_080CB518(struct Object *batafire)
 
 static void sub_080CB550(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 5, sub_080C9A08);
+    ObjectSetFunc(batafire, 5, FN(sub_080C9A08));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -1055,7 +1055,7 @@ static void sub_080CB550(struct Object *batafire)
 
 static void sub_080CB5BC(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 5, sub_080C9BB4);
+    ObjectSetFunc(batafire, 5, FN(sub_080C9BB4));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -1069,7 +1069,7 @@ static void sub_080CB5BC(struct Object *batafire)
 
 static void sub_080CB628(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 0, sub_080CA740);
+    ObjectSetFunc(batafire, 0, FN(sub_080CA740));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -1084,7 +1084,7 @@ static void sub_080CB628(struct Object *batafire)
 
 static void sub_080CB694(struct Object *batafire)
 {
-    ObjectSetFunc(batafire, 0, sub_080CAB14);
+    ObjectSetFunc(batafire, 0, FN(sub_080CAB14));
     if (batafire->base.x & 0x80)
         batafire->base.x = (batafire->base.x & ~0xFF) + 0x100;
     else
@@ -1099,3 +1099,31 @@ static void sub_080CB694(struct Object *batafire)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_batafire) {
+    PORT_FNID(CreateBatafire),
+    PORT_FNID(sub_080C939C),
+    PORT_FNID(sub_080C95D4),
+    PORT_FNID(sub_080C96EC),
+    PORT_FNID(sub_080C9900),
+    PORT_FNID(sub_080C9A08),
+    PORT_FNID(sub_080C9BB4),
+    PORT_FNID(sub_080C9E70),
+    PORT_FNID(sub_080CA0A4),
+    PORT_FNID(sub_080CA2D8),
+    PORT_FNID(sub_080CA50C),
+    PORT_FNID(sub_080CA740),
+    PORT_FNID(sub_080CAA68),
+    PORT_FNID(sub_080CAB14),
+    PORT_FNID(CreateBatafireFireball),
+    PORT_FNID(sub_080CADB8),
+    PORT_FNID(sub_080CB02C),
+    PORT_FNID(sub_080CB3DC),
+    PORT_FNID(sub_080CB4A0),
+    PORT_FNID(sub_080CB518),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

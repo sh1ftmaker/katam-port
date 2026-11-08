@@ -12,9 +12,10 @@
  * WebAssembly code is not addressable as data, and a function pointer is a
  * table index rather than an address.  So MultiSioInit's CpuCopy32 of
  * MultiSioIntr copies nothing useful, and the buffer the game then installs in
- * gIntrTable[0] is not callable.  The port answers that in two places:
- * PortDispatchInterrupt recognises the buffer address and calls MultiSioIntr
- * instead, and tools/legacy-sync/portify.py rewrites MultiSioRecvDataCheck's call through
+ * gIntrTable[0] is not callable.  The port answers that in two places: the
+ * game installs FN(MultiSioIntr), whose code ID is the buffer's GBA address
+ * (port/fnid.h; it used to be PortDispatchInterrupt recognising the buffer),
+ * and tools/legacy-sync/portify.py rewrites MultiSioRecvDataCheck's call through
  * gMultiSioRecvFuncBuf into a direct one.  Both are noted where they are.
  *
  * Provenance
@@ -130,6 +131,10 @@ u32 MultiSioRecvBufChange(void)
  * 0xFEFE.  The sync word is what re-aligns a unit that missed a transfer: a
  * receiver that sees it after the payload should have ended resets its counter
  * to -1 instead of storing it, and picks the next packet up from the top. */
+/* PORT-FNID: the game installs this in gIntrTable[0] as gMultiSioIntrFuncBuf,
+ * the IWRAM buffer the console copied it into and ran it from, so that buffer's
+ * GBA address is its code ID -- the value the console's gIntrTable held:
+ * PORT_FNID_ROM(MultiSioIntr, 0x030068E0u) */
 void MultiSioIntr(void)
 {
     u16 recvTmp[MULTI_SIO_PLAYERS_MAX];
@@ -196,3 +201,13 @@ void MultiSioIntr(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(platform_multi_sio_intr) {
+    PORT_FNID(MultiSioIntr),
+    PORT_FNID(MultiSioRecvBufChange),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

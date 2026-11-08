@@ -54,10 +54,10 @@ void sub_0814EBE4(void) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0x10;
-    t = TaskCreate(sub_0814EF9C, sizeof(struct Unk_0814EBE4), 0x1000, TASK_USE_IWRAM, nullsub_139);
+    t = TaskCreate(FN(sub_0814EF9C), sizeof(struct Unk_0814EBE4), 0x1000, TASK_USE_IWRAM, FN(nullsub_139));
     var = TaskGetStructPtr(t);
     CpuFill16(0, var, sizeof(struct Unk_0814EBE4));
-    var->unk4 = sub_0814ECA4;
+    var->unk4 = FN(sub_0814ECA4);
 }
 
 static void sub_0814ECA4(struct Unk_0814EBE4 *a1) {
@@ -77,9 +77,9 @@ static void sub_0814ECA4(struct Unk_0814EBE4 *a1) {
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             }
         }
-        a1->unk4 = sub_0814ED78;
+        a1->unk4 = FN(sub_0814ED78);
     } else {
-        a1->unk4 = sub_0814F20C;
+        a1->unk4 = FN(sub_0814F20C);
     }
 }
 
@@ -147,7 +147,7 @@ static void sub_0814ED78(struct Unk_0814EBE4 *a1) {
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
     }
     a1->unk8 = 0;
-    a1->unk4 = sub_0814F0B8;
+    a1->unk4 = FN(sub_0814F0B8);
 }
 
 static void sub_0814EF1C(struct Unk_0814EBE4 *a1) {
@@ -161,7 +161,7 @@ static void sub_0814EF1C(struct Unk_0814EBE4 *a1) {
         gBgScrollRegs[3][1] = -0xC;
         gBgScrollRegs[2][1] = -0xC;
         a1->unk8 = 0;
-        a1->unk4 = sub_0814F164;
+        a1->unk4 = FN(sub_0814F164);
     }
 }
 
@@ -171,7 +171,7 @@ static void sub_0814EF9C(void) {
     struct Unk_0814EBE4 *var = TaskGetStructPtr(gCurTask);
 
     ++var->unk0;
-    var->unk4(var);
+    CALL(var->unk4)(var);
 }
 
 static void sub_0814EFD8(u8 a1) {
@@ -213,14 +213,14 @@ static void sub_0814F0B8(struct Unk_0814EBE4 *a1) {
         gBldRegs.bldAlpha = 0;
         gBldRegs.bldCnt = 0;
         a1->unk8 = 0;
-        a1->unk4 = sub_0814F100;
+        a1->unk4 = FN(sub_0814F100);
     }
 }
 
 static void sub_0814F100(struct Unk_0814EBE4 *a1) {
     if (++a1->unk8 > 0xEF) {
         a1->unk8 = 0;
-        a1->unk4 = sub_0814F124;
+        a1->unk4 = FN(sub_0814F124);
     }
 }
 
@@ -230,14 +230,14 @@ static void sub_0814F124(struct Unk_0814EBE4 *a1) {
     gBgScrollRegs[2][1] = -0xC;
     m4aSongNumStart(SE_ABILITY_MISSILE_EXPLOSION);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814EF1C;
+    a1->unk4 = FN(sub_0814EF1C);
 }
 
 static void sub_0814F164(struct Unk_0814EBE4 *a1) {
     if (++a1->unk8 > 0x27) {
         m4aSongNumStart(SE_SUBGAME_AUDIENCE_CHEER);
         a1->unk8 = 0;
-        a1->unk4 = sub_0814F190;
+        a1->unk4 = FN(sub_0814F190);
     }
 }
 
@@ -249,7 +249,7 @@ static void sub_0814F190(struct Unk_0814EBE4 *a1) {
         gBldRegs.bldAlpha = 0;
         gBldRegs.bldY = 0;
         a1->unk8 = 0;
-        a1->unk4 = sub_0814F1D8;
+        a1->unk4 = FN(sub_0814F1D8);
     }
 }
 
@@ -257,7 +257,7 @@ static void sub_0814F1D8(struct Unk_0814EBE4 *a1) {
     ++a1->unk8;
     gBldRegs.bldY = 0x10 * a1->unk8 / 0x28;
     if (a1->unk8 > 0x27)
-        a1->unk4 = sub_0814F20C;
+        a1->unk4 = FN(sub_0814F20C);
 }
 
 static void sub_0814F20C(struct Unk_0814EBE4 *a1 __attribute__((unused))) {
@@ -273,3 +273,23 @@ static void sub_0814F20C(struct Unk_0814EBE4 *a1 __attribute__((unused))) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0814EBE4) {
+    PORT_FNID(sub_0814ECA4),
+    PORT_FNID(sub_0814ED78),
+    PORT_FNID(sub_0814EF1C),
+    PORT_FNID(nullsub_139),
+    PORT_FNID(sub_0814EF9C),
+    PORT_FNID(sub_0814F0B8),
+    PORT_FNID(sub_0814F100),
+    PORT_FNID(sub_0814F124),
+    PORT_FNID(sub_0814F164),
+    PORT_FNID(sub_0814F190),
+    PORT_FNID(sub_0814F1D8),
+    PORT_FNID(sub_0814F20C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

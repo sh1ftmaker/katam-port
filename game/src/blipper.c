@@ -63,7 +63,7 @@ static const struct Unk_08353510 gUnk_083534BC[] = {
 
 void *CreateBlipper(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *blipper = tmp;
 
     InitObject(blipper, template_, a2);
@@ -75,7 +75,7 @@ void *CreateBlipper(struct ObjectTemplate *template_, u8 a2)
     sub_0803E2B0(&blipper->base, -5, -5, 5, 6);
     ObjectSetBounds(&blipper->base, -6, -6, 6, 8);
     ObjectInitSprite(blipper);
-    gUnk_08351648[blipper->type].unk10(blipper);
+    CALL(gUnk_08351648[blipper->type].unk10)(blipper);
     return blipper;
 }
 
@@ -391,14 +391,14 @@ static void sub_080A5B1C(struct Object *blipper)
     }
     if (blipper->base.flags & 2)
     {
-        ObjectSetFunc(blipper, 3, sub_080A58C0);
+        ObjectSetFunc(blipper, 3, FN(sub_080A58C0));
         blipper->base.flags |= 0x40;
         blipper->base.flags &= ~0x20;
         blipper->unk85 = 0;
     }
     else if (blipper->base.unk62 & 4)
     {
-        ObjectSetFunc(blipper, 3, sub_080A58C0);
+        ObjectSetFunc(blipper, 3, FN(sub_080A58C0));
         blipper->base.flags |= 0x40;
         blipper->base.flags &= ~0x20;
         blipper->unk85 = 0;
@@ -411,7 +411,7 @@ static void sub_080A5B1C(struct Object *blipper)
         var = *CollisionAttributesAt(blipper, 0, 0x800);
         if (!(var & 2))
         {
-            ObjectSetFunc(blipper, 3, sub_080A58C0);
+            ObjectSetFunc(blipper, 3, FN(sub_080A58C0));
             blipper->base.flags |= 0x40;
             blipper->base.flags &= ~0x20;
             blipper->unk85 = 0;
@@ -541,7 +541,7 @@ static void sub_080A5E30(struct Object *blipper)
 
 static void sub_080A616C(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 5, sub_080A6210);
+    ObjectSetFunc(blipper, 5, FN(sub_080A6210));
     if (blipper->base.x > blipper->kirby3->base.x)
         blipper->base.flags |= 1;
     else
@@ -584,7 +584,7 @@ static void sub_080A6210(struct Object *blipper)
             if (var & 2)
             {
                 blipper->base.yspeed >>= 2;
-                ObjectSetFunc(blipper, 3, sub_080A5C44);
+                ObjectSetFunc(blipper, 3, FN(sub_080A5C44));
                 blipper->base.flags |= 0x40;
                 blipper->base.flags &= ~0x100;
                 blipper->base.flags &= ~0x20;
@@ -942,7 +942,7 @@ static void sub_080A6AE8(struct Object *blipper) // the same as sub_080A6914
 
 static void sub_080A6CBC(struct Object *blipper, u8 a2)
 {
-    struct Task *t = TaskCreate(sub_080A6E44, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080A6E44), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -1059,7 +1059,7 @@ void sub_080A712C(struct Object *blipper)
 
 static void sub_080A7188(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 0, sub_080A5188);
+    ObjectSetFunc(blipper, 0, FN(sub_080A5188));
     blipper->unk85 = 0;
     blipper->base.flags |= 0x40;
     blipper->base.flags &= ~0x20;
@@ -1067,7 +1067,7 @@ static void sub_080A7188(struct Object *blipper)
 
 static void sub_080A71B4(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 0, sub_080A561C);
+    ObjectSetFunc(blipper, 0, FN(sub_080A561C));
     blipper->base.flags |= 0x40;
     blipper->base.flags &= ~0x20;
     blipper->base.xspeed = 0;
@@ -1086,7 +1086,7 @@ static void sub_080A71E4(struct Object *blipper)
 
 static void sub_080A7210(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 3, sub_080A58C0);
+    ObjectSetFunc(blipper, 3, FN(sub_080A58C0));
     blipper->base.flags |= 0x40;
     blipper->base.flags &= ~0x20;
     blipper->unk85 = 0;
@@ -1094,7 +1094,7 @@ static void sub_080A7210(struct Object *blipper)
 
 static void sub_080A7238(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 4, sub_080A5B1C);
+    ObjectSetFunc(blipper, 4, FN(sub_080A5B1C));
     blipper->base.flags |= 0x40;
     blipper->base.flags &= ~0x20;
     blipper->base.xspeed = 0;
@@ -1103,7 +1103,7 @@ static void sub_080A7238(struct Object *blipper)
 
 static void sub_080A726C(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 3, sub_080A5C44);
+    ObjectSetFunc(blipper, 3, FN(sub_080A5C44));
     blipper->base.flags |= 0x40;
     blipper->base.flags &= ~0x100;
     blipper->base.flags &= ~0x20;
@@ -1114,7 +1114,7 @@ static void sub_080A726C(struct Object *blipper)
 
 static void sub_080A72AC(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 0, sub_080A5E30);
+    ObjectSetFunc(blipper, 0, FN(sub_080A5E30));
     blipper->base.flags |= 0x40;
     blipper->base.yspeed = 0;
     blipper->unk85 = 0x5A;
@@ -1122,7 +1122,7 @@ static void sub_080A72AC(struct Object *blipper)
 
 static void sub_080A72D8(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 7, sub_080A63A0);
+    ObjectSetFunc(blipper, 7, FN(sub_080A63A0));
     if (blipper->base.x > blipper->kirby3->base.x)
         blipper->base.flags |= 1;
     else
@@ -1163,7 +1163,7 @@ static void sub_080A7340(struct Object *blipper)
 
 static void sub_080A73D4(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 8, sub_080A64F0);
+    ObjectSetFunc(blipper, 8, FN(sub_080A64F0));
     if (blipper->base.x > blipper->kirby3->base.x)
         blipper->base.flags |= 1;
     else
@@ -1176,7 +1176,7 @@ static void sub_080A73D4(struct Object *blipper)
 
 static void sub_080A742C(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 9, sub_080A6704);
+    ObjectSetFunc(blipper, 9, FN(sub_080A6704));
     blipper->base.flags &= ~0x40;
     blipper->base.flags &= ~0x100;
     blipper->base.xspeed = 0;
@@ -1185,7 +1185,7 @@ static void sub_080A742C(struct Object *blipper)
 
 static void sub_080A7460(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 0xA, sub_080A6914);
+    ObjectSetFunc(blipper, 0xA, FN(sub_080A6914));
     blipper->base.flags &= ~0x40;
     blipper->base.flags &= ~0x100;
     blipper->base.xspeed = 0x100;
@@ -1194,7 +1194,7 @@ static void sub_080A7460(struct Object *blipper)
 
 static void sub_080A7498(struct Object *blipper)
 {
-    ObjectSetFunc(blipper, 0xB, sub_080A6AE8);
+    ObjectSetFunc(blipper, 0xB, FN(sub_080A6AE8));
     blipper->base.flags &= ~0x40;
     blipper->base.flags &= ~0x100;
     blipper->base.xspeed = -0x100;
@@ -1204,3 +1204,26 @@ static void sub_080A7498(struct Object *blipper)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_blipper) {
+    PORT_FNID(CreateBlipper),
+    PORT_FNID(sub_080A5188),
+    PORT_FNID(sub_080A561C),
+    PORT_FNID(sub_080A58C0),
+    PORT_FNID(sub_080A5B1C),
+    PORT_FNID(sub_080A5C44),
+    PORT_FNID(sub_080A5E30),
+    PORT_FNID(sub_080A6210),
+    PORT_FNID(sub_080A63A0),
+    PORT_FNID(sub_080A64F0),
+    PORT_FNID(sub_080A6704),
+    PORT_FNID(sub_080A6914),
+    PORT_FNID(sub_080A6AE8),
+    PORT_FNID(sub_080A6E44),
+    PORT_FNID(sub_080A712C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

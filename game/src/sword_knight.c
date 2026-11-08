@@ -57,7 +57,7 @@ static const struct Unk_08353510 gUnk_08354020[] = {
 };
 
 void *CreateSwordKnight(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *obj = TaskGetStructPtr(task);
 
     InitObject(obj, arg0, arg1);
@@ -65,7 +65,7 @@ void *CreateSwordKnight(struct ObjectTemplate *arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -5, 5, 6);
     ObjectSetBounds(&obj->base, -6, -6, 6, 8);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     if (obj->objTemplate->subtype1 == 0)
@@ -110,7 +110,7 @@ static void sub_080B2F3C(struct Object *obj) {
             obj->base.xspeed = 0;
     }
     if (++obj->base.counter > 0x5A) {
-        ObjectSetFunc(obj, 0, sub_080B2E6C);
+        ObjectSetFunc(obj, 0, FN(sub_080B2E6C));
         if (obj->base.x > obj->kirby3->base.x)
             obj->base.flags |= 1;
         else
@@ -127,7 +127,7 @@ static void sub_080B2FE4(struct Object *obj) {
                 sub_080B3AAC(obj);
                 return;
             }
-            ObjectSetFunc(obj, 0, sub_080B2F3C);
+            ObjectSetFunc(obj, 0, FN(sub_080B2F3C));
             if (obj->base.x > obj->kirby3->base.x)
                 obj->base.flags |= 1;
             else
@@ -183,7 +183,7 @@ static void sub_080B31F0(struct Object *obj) {
     if (obj->base.flags & 2) {
         if (obj->unk83 == 4) {
             if ((Rand16() & 3) == 3) {
-                ObjectSetFunc(obj, 1, sub_080B2FE4);
+                ObjectSetFunc(obj, 1, FN(sub_080B2FE4));
                 obj->base.xspeed = 0;
                 if (obj->base.x > obj->kirby3->base.x)
                     obj->base.flags |= 1;
@@ -191,7 +191,7 @@ static void sub_080B31F0(struct Object *obj) {
                     obj->base.flags &= ~1;
             }
             else {
-                ObjectSetFunc(obj, 0, sub_080B2F3C);
+                ObjectSetFunc(obj, 0, FN(sub_080B2F3C));
                 if (obj->base.x > obj->kirby3->base.x)
                     obj->base.flags |= 1;
                 else
@@ -245,7 +245,7 @@ static void sub_080B31F0(struct Object *obj) {
 }
 
 static void sub_080B3420(struct Object *obj) {
-    ObjectSetFunc(obj, 5, sub_080B3AF8);
+    ObjectSetFunc(obj, 5, FN(sub_080B3AF8));
     obj->base.xspeed = 0;
     if ((Rand16() & 3) == 3)
         obj->unk83 = 6;
@@ -258,7 +258,7 @@ static void sub_080B3420(struct Object *obj) {
 }
 
 static void sub_080B351C(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_080B3694, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B3694), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -322,7 +322,7 @@ static void sub_080B3694(void) {
 }
 
 static void sub_080B37DC(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_080B38B0, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B38B0), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -384,7 +384,7 @@ static void sub_080B38B0(void) {
 }
 
 void sub_080B3A18(struct Object *obj) {
-    ObjectSetFunc(obj, 0, sub_080B2E6C);
+    ObjectSetFunc(obj, 0, FN(sub_080B2E6C));
     if (obj->base.x > obj->kirby3->base.x)
         obj->base.flags |= 1;
     else
@@ -394,7 +394,7 @@ void sub_080B3A18(struct Object *obj) {
 }
 
 static void sub_080B3A60(struct Object *obj) {
-    ObjectSetFunc(obj, 1, sub_080B2FE4);
+    ObjectSetFunc(obj, 1, FN(sub_080B2FE4));
     obj->base.xspeed = 0;
     if (obj->base.x > obj->kirby3->base.x)
         obj->base.flags |= 1;
@@ -404,7 +404,7 @@ static void sub_080B3A60(struct Object *obj) {
 }
 
 static void sub_080B3AAC(struct Object *obj) {
-    ObjectSetFunc(obj, 3, sub_080B31F0);
+    ObjectSetFunc(obj, 3, FN(sub_080B31F0));
     obj->base.xspeed = 0;
     if (obj->base.x > obj->kirby3->base.x)
         obj->base.flags |= 1;
@@ -415,7 +415,7 @@ static void sub_080B3AAC(struct Object *obj) {
 
 static void sub_080B3AF8(struct Object *obj) {
     if (obj->base.flags & 2) {
-        ObjectSetFunc(obj, 0, sub_080B2E6C);
+        ObjectSetFunc(obj, 0, FN(sub_080B2E6C));
         if (obj->base.x > obj->kirby3->base.x)
             obj->base.flags |= 1;
         else
@@ -434,3 +434,20 @@ static void sub_080B3AF8(struct Object *obj) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_sword_knight) {
+    PORT_FNID(CreateSwordKnight),
+    PORT_FNID(sub_080B2E6C),
+    PORT_FNID(sub_080B2F3C),
+    PORT_FNID(sub_080B2FE4),
+    PORT_FNID(sub_080B31F0),
+    PORT_FNID(sub_080B3694),
+    PORT_FNID(sub_080B38B0),
+    PORT_FNID(sub_080B3A18),
+    PORT_FNID(sub_080B3AF8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

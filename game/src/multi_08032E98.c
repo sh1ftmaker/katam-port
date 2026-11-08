@@ -56,9 +56,9 @@ void sub_08032E98(void) {
     gVramHeapStartAddr = (u32)OBJ_VRAM0;
     EwramInitHeap();
 
-    task = TaskCreate(sub_080331E0, sizeof(struct Unk_08032E98), 1, TASK_USE_IWRAM | TASK_x0008 | TASK_x0004, NULL);
+    task = TaskCreate(FN(sub_080331E0), sizeof(struct Unk_08032E98), 1, TASK_USE_IWRAM | TASK_x0008 | TASK_x0004, NULL);
     r2 = TaskGetStructPtr(task);
-    r2->unk40 = sub_08033008;
+    r2->unk40 = FN(sub_08033008);
     r2->unk44 = 0;
     r2->unk46 = gUnk_02038580;
     sub_08031CC8();
@@ -99,7 +99,7 @@ static void sub_08033008(struct Unk_08032E98* arg0) {
     gBgScrollRegs[0][0] = 0;
     gBgScrollRegs[0][1] = 0;
 
-    arg0->unk40 = sub_080330A4;
+    arg0->unk40 = FN(sub_080330A4);
 }
 
 static void sub_080330A4(struct Unk_08032E98* arg0) {
@@ -110,7 +110,7 @@ static void sub_080330A4(struct Unk_08032E98* arg0) {
     sub_08153060(bg);
     LZ77UnCompVram(gUnk_082D7850[idx]->tileset, BG_CHAR_ADDR(0));
     gDispCnt |= DISPCNT_BG0_ON;
-    arg0->unk40 = sub_0803329C;
+    arg0->unk40 = FN(sub_0803329C);
 }
 
 static void sub_08033158(struct Unk_08032E98* arg0) {
@@ -122,7 +122,7 @@ static void sub_08033158(struct Unk_08032E98* arg0) {
         DmaFill16(3, RGB_WHITE, gObjPalette, sizeof(gObjPalette));
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
 
-        arg0->unk40 = sub_08033234;
+        arg0->unk40 = FN(sub_08033234);
     }
     else {
         gBldRegs.bldY = arg0->unk44;
@@ -131,14 +131,14 @@ static void sub_08033158(struct Unk_08032E98* arg0) {
 
 static void sub_080331E0(void) {
     struct Unk_08032E98* unk = TaskGetStructPtr(gCurTask);
-    unk->unk40(unk);
+    CALL(unk->unk40)(unk);
 }
 
 static void sub_08033214(struct Unk_08032E98* arg0) {
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_ALL;
     gBldRegs.bldY = 0;
     arg0->unk44 = 0;
-    arg0->unk40 = sub_08033158;
+    arg0->unk40 = FN(sub_08033158);
 }
 
 static void sub_08033234(struct Unk_08032E98* UNUSED arg0) {
@@ -154,7 +154,7 @@ static void sub_08033234(struct Unk_08032E98* UNUSED arg0) {
 
 static void sub_0803329C(struct Unk_08032E98* arg0) {
     if (gPressedKeys & (START_BUTTON | A_BUTTON | B_BUTTON)) {
-        arg0->unk40 = sub_08033214;
+        arg0->unk40 = FN(sub_08033214);
     }
 }
 
@@ -162,3 +162,18 @@ static void sub_0803329C(struct Unk_08032E98* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_multi_08032E98) {
+    PORT_FNID(sub_08033008),
+    PORT_FNID(sub_080330A4),
+    PORT_FNID(sub_08033158),
+    PORT_FNID(sub_080331E0),
+    PORT_FNID(sub_08033214),
+    PORT_FNID(sub_08033234),
+    PORT_FNID(sub_0803329C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

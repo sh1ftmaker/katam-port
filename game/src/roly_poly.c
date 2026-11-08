@@ -28,7 +28,7 @@ extern const struct AnimInfo gUnk_083539E4[] = {
 };
 
 void* CreateRolyPoly(struct ObjectTemplate* arg0, u8 playerId) {
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object* tmp = TaskGetStructPtr(task);
     struct Object* rolypoly = tmp;
 
@@ -42,9 +42,9 @@ void* CreateRolyPoly(struct ObjectTemplate* arg0, u8 playerId) {
     sub_0803E2B0(&rolypoly->base, -5, -4, 5, 7);
     ObjectSetBounds(&rolypoly->base, -6, -5, 6, 9);
     ObjectInitSprite(rolypoly);
-    gUnk_08351648[rolypoly->type].unk10(rolypoly);
+    CALL(gUnk_08351648[rolypoly->type].unk10)(rolypoly);
     rolypoly->unk9E = 0;
-    rolypoly->unk7C = sub_080ACDA4;
+    rolypoly->unk7C = FN(sub_080ACDA4);
     return rolypoly;
 }
 
@@ -137,7 +137,7 @@ static void RolyPolyJump(struct Object* rolypoly) {
     if (!(rolypoly->base.unk62 & 0x04))
         return;
 
-    ObjectSetFunc(rolypoly, 3, RolyPolyJumping);
+    ObjectSetFunc(rolypoly, 3, FN(RolyPolyJumping));
 
     rolypoly->base.yspeed = 0x200;
     if (Rand16() & 0x0001) {
@@ -206,7 +206,7 @@ static void RolyPolyJumping(struct Object* rolypoly) {
 
     if (rolypoly->base.unk62 & 0x04) {
         rolypoly->base.flags &= ~0x20;
-        ObjectSetFunc(rolypoly, 0, RolyPolyIdle);
+        ObjectSetFunc(rolypoly, 0, FN(RolyPolyIdle));
         rolypoly->base.flags &= ~0x10;
     }
 
@@ -261,7 +261,7 @@ static void RolyPolyRollingRight(struct Object* rolypoly) {
         }
         if (rolypoly->base.xspeed == 0) {
             rolypoly->base.flags |= 0x1;
-            rolypoly->unk78 = RolyPolyRollingLeft;
+            rolypoly->unk78 = FN(RolyPolyRollingLeft);
         }
         break;
 
@@ -316,7 +316,7 @@ static void RolyPolyRollingRight(struct Object* rolypoly) {
         }
 
         if (abs(rolypoly->base.xspeed) <= 0x7f) {
-            ObjectSetFunc(rolypoly, 0, RolyPolyIdle);
+            ObjectSetFunc(rolypoly, 0, FN(RolyPolyIdle));
             rolypoly->base.flags &= ~0x10;
             return;
         }
@@ -388,7 +388,7 @@ static void RolyPolyRollingLeft(struct Object* rolypoly) {
         }
         if (rolypoly->base.xspeed == 0) {
             rolypoly->base.flags &= ~0x1;
-            rolypoly->unk78 = RolyPolyRollingRight;
+            rolypoly->unk78 = FN(RolyPolyRollingRight);
         }
         break;
 
@@ -415,7 +415,7 @@ static void RolyPolyRollingLeft(struct Object* rolypoly) {
         }
 
         if (abs(rolypoly->base.xspeed) <= 0x7f) {
-            ObjectSetFunc(rolypoly, 0, RolyPolyIdle);
+            ObjectSetFunc(rolypoly, 0, FN(RolyPolyIdle));
             rolypoly->base.flags &= ~0x10;
             return;
         }
@@ -442,18 +442,18 @@ static void RolyPolyRollingLeft(struct Object* rolypoly) {
 // Runs once with significant delay in object.c::sub_0809B93C when Kirby hits RolyPoly
 // -> Transition to Idle State after Damage State?
 void sub_080AD5D4(struct Object* rolypoly) {
-    ObjectSetFunc(rolypoly, 0, RolyPolyIdle);
+    ObjectSetFunc(rolypoly, 0, FN(RolyPolyIdle));
     rolypoly->base.flags &= ~0x10;
 }
 
 static void RolyPolyRoll(struct Object* rolypoly) {
-    ObjectSetFunc(rolypoly, 1, RolyPolyRollLeadIn);
+    ObjectSetFunc(rolypoly, 1, FN(RolyPolyRollLeadIn));
     rolypoly->base.xspeed = 0;
     rolypoly->base.flags |= 0x10;
 }
 
 static void RolyPolyRolling(struct Object* rolypoly) {
-    ObjectSetFunc(rolypoly, 2, RolyPolyRollingLeft);
+    ObjectSetFunc(rolypoly, 2, FN(RolyPolyRollingLeft));
 
     if (rolypoly->base.flags & 0x1) {
         rolypoly->base.xspeed -= 0x120;
@@ -465,10 +465,10 @@ static void RolyPolyRolling(struct Object* rolypoly) {
     rolypoly->base.flags |= 0x10;
 
     if (rolypoly->base.flags & 0x1) {
-        rolypoly->unk78 = RolyPolyRollingLeft;
+        rolypoly->unk78 = FN(RolyPolyRollingLeft);
     }
     else {
-        rolypoly->unk78 = RolyPolyRollingRight;
+        rolypoly->unk78 = FN(RolyPolyRollingRight);
     }
 }
 
@@ -476,3 +476,19 @@ static void RolyPolyRolling(struct Object* rolypoly) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_roly_poly) {
+    PORT_FNID(CreateRolyPoly),
+    PORT_FNID(sub_080ACDA4),
+    PORT_FNID(RolyPolyIdle),
+    PORT_FNID(RolyPolyJumping),
+    PORT_FNID(RolyPolyRollLeadIn),
+    PORT_FNID(RolyPolyRollingRight),
+    PORT_FNID(RolyPolyRollingLeft),
+    PORT_FNID(sub_080AD5D4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

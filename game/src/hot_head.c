@@ -29,7 +29,7 @@ static void sub_080C4064(struct Object *);
 /* PORT: replaced by port/rom_data.h -- extern const s16 gUnk_0835553A[]; */
 
 void *CreateHotHead(struct ObjectTemplate *template_, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *hotHead = tmp;
 
     InitObject(tmp, template_, arg1);
@@ -46,10 +46,10 @@ void *CreateHotHead(struct ObjectTemplate *template_, u8 arg1) {
             if (!(Rand16() & 3))
                 sub_080C3F2C(hotHead);
             else
-                gUnk_08351648[hotHead->type].unk10(hotHead);
+                CALL(gUnk_08351648[hotHead->type].unk10)(hotHead);
         }
         else
-            gUnk_08351648[hotHead->type].unk10(hotHead);
+            CALL(gUnk_08351648[hotHead->type].unk10)(hotHead);
     }
     hotHead->unk9E = 0;
     hotHead->unk7C = NULL;
@@ -57,7 +57,7 @@ void *CreateHotHead(struct ObjectTemplate *template_, u8 arg1) {
 }
 
 void sub_080C3234(struct Object *hotHead) {
-    ObjectSetFunc(hotHead, 0, sub_080C3294);
+    ObjectSetFunc(hotHead, 0, FN(sub_080C3294));
     if (hotHead->objTemplate->subtype1 == 0)
         hotHead->base.xspeed = 0x80;
     else
@@ -101,7 +101,7 @@ static void sub_080C3294(struct Object *hotHead) {
 }
 
 static void sub_080C33B0(struct Object *hotHead) {
-    struct Task *task = TaskCreate(sub_080C34D4, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080C34D4), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(task), *effectObject = tmp;
 
     ClearEffectObject(tmp);
@@ -162,7 +162,7 @@ static void sub_080C34D4(void) {
 }
 
 void sub_080C3694(struct Object *parent, u8 dirIndex) {
-    struct Task *task = TaskCreate(sub_080C3880, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080C3880), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(task), *objBase = tmp;
     u32 idx;
 
@@ -226,7 +226,7 @@ static void sub_080C3880(void) {
 }
 
 static void sub_080C3A7C(struct Object *hotHead, struct Kirby *kirby) {
-    struct Task *task = TaskCreate(sub_080C3CF0, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080C3CF0), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(task), *objBase = tmp;
     s32 dx, dy;
     u16 dist;
@@ -311,7 +311,7 @@ static void sub_080C3F2C(struct Object *hotHead) {
     hotHead->kirby3 = FindTargetKirby(&hotHead->base);
     if (hotHead->kirby3->ability != KIRBY_ABILITY_FIRE
         && (hotHead->kirby3->transitioningAbility & 0x1F) != KIRBY_ABILITY_FIRE) {
-        ObjectSetFunc(hotHead, 1, sub_080C3F90);
+        ObjectSetFunc(hotHead, 1, FN(sub_080C3F90));
         if (hotHead->base.x > hotHead->kirby3->base.x)
             hotHead->base.flags |= 1;
         else
@@ -333,9 +333,9 @@ static void sub_080C3FAC(struct Object *hotHead) {
     dx = (hotHead->kirby3->base.x - hotHead->base.x) * 0x100;
     dy = (hotHead->kirby3->base.y - hotHead->base.y) * 0x100;
     if ((dx >> 16) * (dx >> 16) + (dy >> 16) * (dy >> 16) <= 0x143F)
-        ObjectSetFunc(hotHead, 2, sub_080C4010);
+        ObjectSetFunc(hotHead, 2, FN(sub_080C4010));
     else
-        ObjectSetFunc(hotHead, 2, sub_080C4064);
+        ObjectSetFunc(hotHead, 2, FN(sub_080C4064));
 }
 
 static void sub_080C4010(struct Object *hotHead) {
@@ -366,3 +366,20 @@ static void sub_080C4064(struct Object *hotHead) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_hot_head) {
+    PORT_FNID(CreateHotHead),
+    PORT_FNID(sub_080C3234),
+    PORT_FNID(sub_080C3294),
+    PORT_FNID(sub_080C34D4),
+    PORT_FNID(sub_080C3880),
+    PORT_FNID(sub_080C3CF0),
+    PORT_FNID(sub_080C3F90),
+    PORT_FNID(sub_080C4010),
+    PORT_FNID(sub_080C4064),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

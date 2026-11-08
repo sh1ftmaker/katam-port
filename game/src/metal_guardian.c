@@ -68,7 +68,7 @@ static bool8 sub_080BE2C4(struct Unk_080C4EDC*);
 
 void* CreateMetalGuardian(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -88,7 +88,7 @@ void* CreateMetalGuardian(struct ObjectTemplate* arg0, u8 arg1) {
         sub_080BE25C(obj);
     }
     else {
-        gUnk_08351648[obj->type].unk10(obj);
+        CALL(gUnk_08351648[obj->type].unk10)(obj);
     }
     obj->unk9E = 0;
     obj->unk7C = NULL;
@@ -203,7 +203,7 @@ static void sub_080BDA00(struct Object* arg0) {
         arg0->unk83 = 2;
     }
     if (++arg0->base.counter > 0x3c) {
-        ObjectSetFunc(arg0, 2, sub_080BD634);
+        ObjectSetFunc(arg0, 2, FN(sub_080BD634));
         arg0->base.xspeed = 0;
         arg0->base.yspeed = 0;
         arg0->base.flags |= 0x40;
@@ -215,7 +215,7 @@ static void sub_080BDA00(struct Object* arg0) {
 
 static void sub_080BDA70(struct Object* arg0, u8 arg1) {
     struct Unk_080C4EDC *laser, *laser2;
-    struct Task *task = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     laser2 = TaskGetStructPtr(task);
     laser = laser2;
     ClearObjectBase(&laser->base);
@@ -229,9 +229,9 @@ static void sub_080BDA70(struct Object* arg0, u8 arg1) {
     if (Macro_0810B1F4(&laser->base)) {
         laser->base.flags |= 0x2000;
     }
-    laser->unk78 = sub_080BDD1C;
-    laser->unk7C = sub_080BE2C4;
-    laser->unk80 = sub_080BE2C4;
+    laser->unk78 = FN(sub_080BDD1C);
+    laser->unk7C = FN(sub_080BE2C4);
+    laser->unk80 = FN(sub_080BE2C4);
     laser->unk84 = NULL;
     laser->unk88 = 0;
     laser->unk89 = 0;
@@ -301,7 +301,7 @@ static bool8 sub_080BDD1C(struct Unk_080C4EDC* arg0) {
 
 static void sub_080BDE7C(struct Object* arg0) {
     struct Unk_080C4EDC *laser, *laser2;
-    struct Task *task = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     laser2 = TaskGetStructPtr(task);
     laser = laser2;
     ClearObjectBase(&laser->base);
@@ -315,9 +315,9 @@ static void sub_080BDE7C(struct Object* arg0) {
     if (Macro_0810B1F4(&laser->base)) {
         laser->base.flags |= 0x2000;
     }
-    laser->unk78 = sub_080BE0E8;
-    laser->unk7C = sub_080BE2A8;
-    laser->unk80 = sub_080BE2A8;
+    laser->unk78 = FN(sub_080BE0E8);
+    laser->unk7C = FN(sub_080BE2A8);
+    laser->unk80 = FN(sub_080BE2A8);
     laser->unk84 = NULL;
     laser->unk88 = 0;
     laser->unk89 = 0;
@@ -365,7 +365,7 @@ static bool8 sub_080BE0E8(struct Unk_080C4EDC* arg0) {
 }
 
 void sub_080BE228(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080BD634);
+    ObjectSetFunc(arg0, 2, FN(sub_080BD634));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->base.flags |= 0x40;
@@ -374,13 +374,13 @@ void sub_080BE228(struct Object* arg0) {
 }
 
 static void sub_080BE25C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BD988);
+    ObjectSetFunc(arg0, 0, FN(sub_080BD988));
     arg0->base.xspeed = 0;
     arg0->base.flags &= ~0x40;
 }
 
 static void sub_080BE284(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080BDA00);
+    ObjectSetFunc(arg0, 1, FN(sub_080BDA00));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~2;
 }
@@ -404,3 +404,20 @@ static bool8 sub_080BE2C4(struct Unk_080C4EDC* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_metal_guardian) {
+    PORT_FNID(CreateMetalGuardian),
+    PORT_FNID(sub_080BD634),
+    PORT_FNID(sub_080BD988),
+    PORT_FNID(sub_080BDA00),
+    PORT_FNID(sub_080BDD1C),
+    PORT_FNID(sub_080BE0E8),
+    PORT_FNID(sub_080BE228),
+    PORT_FNID(sub_080BE2A8),
+    PORT_FNID(sub_080BE2C4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

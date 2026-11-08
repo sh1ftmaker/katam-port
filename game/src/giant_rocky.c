@@ -37,7 +37,7 @@ extern const struct AnimInfo gUnk_08354E60[] = {
 
 void *CreateGiantRocky(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r0 = TaskGetStructPtr(task), *r6 = r0;
     
     InitObject(r6, r5, r4);
@@ -55,7 +55,7 @@ void *CreateGiantRocky(struct ObjectTemplate *r5, u8 r4)
     ObjectSetBounds(&r6->base, -8, -8, 8, 10);
     ObjectInitSprite(r6);
     r6->base.sprite.unk14 = 1728;
-    gUnk_08351648[r6->type].unk10(r6);
+    CALL(gUnk_08351648[r6->type].unk10)(r6);
     r6->unk9E = 0;
     r6->unk7C = 0;
     return r6;
@@ -87,7 +87,7 @@ static void sub_080BFEA0(struct Object *r4)
 
 static void sub_080BFF74(struct Object *r4)
 {
-    ObjectSetFunc(r4, 2, sub_080C0088);
+    ObjectSetFunc(r4, 2, FN(sub_080C0088));
     if (Rand16() & 1)
         r4->base.xspeed = 0x180;
     r4->base.yspeed = 1000;
@@ -123,7 +123,7 @@ static void sub_080C00E0(struct Object *r5)
     {
         if (r5->base.flags & 2)
         {
-            ObjectSetFunc(r5, 0, sub_080BFEA0);
+            ObjectSetFunc(r5, 0, FN(sub_080BFEA0));
             r5->base.xspeed = 0;
             r5->base.unk64 = 0;
             r5->base.flags &= ~0x40;
@@ -144,7 +144,7 @@ static void sub_080C00E0(struct Object *r5)
 
 static void sub_080C0218(struct Object *r5)
 {
-    struct Task *task = TaskCreate(sub_080C0320, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080C0320), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *r0 = TaskGetStructPtr(task), *r4 = r0;
 
     ClearObjectBase(r4);
@@ -214,7 +214,7 @@ void sub_080C0410(struct Object *r1)
 
 static void sub_080C0440(struct Object *r4)
 {
-    ObjectSetFunc(r4, 0, sub_080BFEA0);
+    ObjectSetFunc(r4, 0, FN(sub_080BFEA0));
     r4->base.xspeed = 0;
     r4->base.unk64 = 0;
     r4->base.flags &= ~0x40;
@@ -222,7 +222,7 @@ static void sub_080C0440(struct Object *r4)
 
 static void sub_080C046C(struct Object *r4)
 {
-    ObjectSetFunc(r4, 1, sub_080C04B8);
+    ObjectSetFunc(r4, 1, FN(sub_080C04B8));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
     r4->base.flags &= ~2;
@@ -240,7 +240,7 @@ static void sub_080C04B8(struct Object *r1)
 
 static void sub_080C04D4(struct Object *r4)
 {
-    ObjectSetFunc(r4, 3, sub_080C04F8);
+    ObjectSetFunc(r4, 3, FN(sub_080C04F8));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
 }
@@ -253,7 +253,7 @@ static void sub_080C04F8(struct Object *r1)
 
 static void sub_080C0514(struct Object *r4)
 {
-    ObjectSetFunc(r4, 4, sub_080C00E0);
+    ObjectSetFunc(r4, 4, FN(sub_080C00E0));
     r4->base.flags |= 0x40;
     r4->base.xspeed = 0;
     r4->base.yspeed = -0x800;
@@ -262,7 +262,7 @@ static void sub_080C0514(struct Object *r4)
 
 static void sub_080C0548(struct Object *r4)
 {
-    ObjectSetFunc(r4, 0, sub_080C056C);
+    ObjectSetFunc(r4, 0, FN(sub_080C056C));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
 }
@@ -274,7 +274,7 @@ static void sub_080C056C(struct Object *r0)
 
 static void sub_080C0578(struct Object *r4)
 {
-    ObjectSetFunc(r4, 4, sub_080C059C);
+    ObjectSetFunc(r4, 4, FN(sub_080C059C));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
 }
@@ -287,3 +287,21 @@ static void sub_080C059C(struct Object *r0)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_giant_rocky) {
+    PORT_FNID(CreateGiantRocky),
+    PORT_FNID(sub_080BFEA0),
+    PORT_FNID(sub_080C0088),
+    PORT_FNID(sub_080C00E0),
+    PORT_FNID(sub_080C0320),
+    PORT_FNID(sub_080C0410),
+    PORT_FNID(sub_080C04B8),
+    PORT_FNID(sub_080C04F8),
+    PORT_FNID(sub_080C056C),
+    PORT_FNID(sub_080C059C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

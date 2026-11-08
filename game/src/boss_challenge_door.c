@@ -24,7 +24,7 @@ static void nullsub_126(struct BossChallengeDoor *);
 
 void *CreateBossChallengeDoor(struct ObjectTemplate *template_, u8 a2) {
     struct BossChallengeDoor *door;
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct BossChallengeDoor), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct BossChallengeDoor), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
 
     door = TaskGetStructPtr(t);
     InitObject(&door->obj, template_, a2);
@@ -36,7 +36,7 @@ void *CreateBossChallengeDoor(struct ObjectTemplate *template_, u8 a2) {
     ObjectSetBounds(&door->obj.base, -8, -8, 8, 8);
     ObjectInitSprite(&door->obj);
     door->obj.base.sprite.unk14 = 0x7C0;
-    gUnk_08351648[door->obj.type].unk10(&door->obj);
+    CALL(gUnk_08351648[door->obj.type].unk10)(&door->obj);
     return door;
 }
 
@@ -61,11 +61,11 @@ void sub_08118C18(struct BossChallengeDoor *door) {
         Macro_081050E8(door->unkB8, &door->unkB8->sprite, gUnk_08357B3E[bossIdx][0], gUnk_08357B3E[bossIdx][1], door->unkB8->sprite.palId == 0);
         door->unkB8->sprite.unk14 = 0x780;
         door->unkB8->y = d2->obj.base.y - 0x3C00;
-        ObjectSetFunc(d2, 0, sub_08119184);
+        ObjectSetFunc(d2, 0, FN(sub_08119184));
     }
     else {
         d2->obj.base.flags |= 0x1400;
-        ObjectSetFunc(d2, 2, sub_081191A8);
+        ObjectSetFunc(d2, 2, FN(sub_081191A8));
     }
 }
 
@@ -139,7 +139,7 @@ static void sub_08118D80(struct BossChallengeDoor *door) {
             gKirbys[i].base.unkC |= 0x800000;
             sub_0805BDF4(kirby, gUnk_08357B24[tmp], sp28, sp29);
         }
-        door->obj.unk78 = sub_081191B4;
+        door->obj.unk78 = FN(sub_081191B4);
     }
     door->obj.base.counter++;
 }
@@ -187,7 +187,7 @@ static void sub_08119094(struct BossChallengeDoor *door) {
 static void sub_08119184(struct BossChallengeDoor *door) {
     door->unkB4->flags &= ~0x400;
     door->obj.unk83 = 0;
-    door->obj.unk78 = sub_08118D80;
+    door->obj.unk78 = FN(sub_08118D80);
 }
 
 static void sub_081191A8(struct BossChallengeDoor *door) {
@@ -195,7 +195,7 @@ static void sub_081191A8(struct BossChallengeDoor *door) {
 }
 
 static void sub_081191B4(struct BossChallengeDoor *door) {
-    door->obj.unk78 = nullsub_126;
+    door->obj.unk78 = FN(nullsub_126);
 }
 
 static void nullsub_126(struct BossChallengeDoor *door) {
@@ -204,3 +204,18 @@ static void nullsub_126(struct BossChallengeDoor *door) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_boss_challenge_door) {
+    PORT_FNID(CreateBossChallengeDoor),
+    PORT_FNID(sub_08118C18),
+    PORT_FNID(sub_08118D80),
+    PORT_FNID(sub_08119184),
+    PORT_FNID(sub_081191A8),
+    PORT_FNID(sub_081191B4),
+    PORT_FNID(nullsub_126),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -18,7 +18,7 @@ extern const struct AnimInfo gUnk_08357CC8[] = {
 
 void *CreateStarStoneBlock(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct StarStoneBlock), 0x1000, TASK_USE_IWRAM, sub_0811F034);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct StarStoneBlock), 0x1000, TASK_USE_IWRAM, FN(sub_0811F034));
     struct StarStoneBlock *tmp = TaskGetStructPtr(t), *block = tmp;
 
     InitObject(&block->obj, template_, a2);
@@ -38,7 +38,7 @@ void *CreateStarStoneBlock(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&block->obj.base, -7, -8, 7, 8);
     sub_0803E2B0(&block->obj.base, -7, -8, 7, 8);
     ObjectInitSprite(&block->obj);
-    gUnk_08351648[block->obj.type].unk10(&block->obj);
+    CALL(gUnk_08351648[block->obj.type].unk10)(&block->obj);
     return block;
 }
 
@@ -288,7 +288,7 @@ void sub_0811F0CC(struct StarStoneBlock *block)
     block->obj.base.counter = 0;
     block->unkE2 = 0;
     block->unkE3 = 0;
-    block->obj.unk78 = sub_0811F0E8;
+    block->obj.unk78 = FN(sub_0811F0E8);
 }
 
 static void sub_0811F0E8(struct StarStoneBlock *block)
@@ -302,3 +302,15 @@ static void sub_0811F0E8(struct StarStoneBlock *block)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_star_stone_block) {
+    PORT_FNID(CreateStarStoneBlock),
+    PORT_FNID(sub_0811F034),
+    PORT_FNID(sub_0811F0CC),
+    PORT_FNID(sub_0811F0E8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

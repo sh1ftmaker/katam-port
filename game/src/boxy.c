@@ -92,7 +92,7 @@ static const u8 gUnk_08356214[] = { 0, 2, 0, 1, 0, 1, 2, 1, 0, 2 };
 
 void *CreateBoxy(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Boxy), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Boxy), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Boxy *tmp = TaskGetStructPtr(t), *boxy = tmp;
 
     InitObject(&boxy->obj, template_, a2);
@@ -114,7 +114,7 @@ void *CreateBoxy(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(&boxy->obj);
     boxy->obj.base.sprite.unk14 = 0x6C0;
     boxy->obj.unk9E = 0;
-    boxy->obj.unk7C = sub_080D7958;
+    boxy->obj.unk7C = FN(sub_080D7958);
     sub_080D77B8(boxy);
     return boxy;
 }
@@ -216,7 +216,7 @@ static void sub_080D5AB0(struct Boxy *boxy)
         boxy->obj.base.yspeed = 0;
         if (!--boxy->obj.base.counter)
         {
-            ObjectSetFunc(boxy, 0, sub_080D5AB0);
+            ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
             boxy->obj.base.xspeed = 0;
             boxy->obj.base.yspeed = 0x200;
             boxy->obj.base.counter = 0x10;
@@ -228,7 +228,7 @@ static void sub_080D5AB0(struct Boxy *boxy)
 
 static void sub_080D5B2C(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0, sub_080D5BB0);
+    ObjectSetFunc(boxy, 0, FN(sub_080D5BB0));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -258,7 +258,7 @@ static void sub_080D5BB0(struct Boxy *boxy)
         boxy->obj.base.yspeed = 0;
         if (!--boxy->obj.base.counter)
         {
-            ObjectSetFunc(boxy, 0, sub_080D5AB0);
+            ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
             boxy->obj.base.xspeed = 0;
             boxy->obj.base.yspeed = 0x200;
             boxy->obj.base.counter = 0x10;
@@ -273,7 +273,7 @@ static void sub_080D5BB0(struct Boxy *boxy)
 
 static void sub_080D5D54(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0, sub_080D5DD8);
+    ObjectSetFunc(boxy, 0, FN(sub_080D5DD8));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -303,7 +303,7 @@ static void sub_080D5DD8(struct Boxy *boxy)
         boxy->obj.base.yspeed = 0;
         if (!--boxy->obj.base.counter)
         {
-            ObjectSetFunc(boxy, 0, sub_080D5AB0);
+            ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
             boxy->obj.base.xspeed = 0;
             boxy->obj.base.yspeed = 0x200;
             boxy->obj.base.counter = 0x10;
@@ -349,7 +349,7 @@ static void sub_080D5F7C(struct Boxy *boxy)
 
 static void sub_080D60B8(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 7, sub_080D6194);
+    ObjectSetFunc(boxy, 7, FN(sub_080D6194));
     if (boxy->obj.subtype)
     {
         boxy->obj.base.xspeed = 0x440;
@@ -372,7 +372,7 @@ static void sub_080D6194(struct Boxy *boxy)
     boxy->obj.base.flags |= 4;
     if (!--boxy->obj.base.counter)
     {
-        ObjectSetFunc(boxy, 0, sub_080D5AB0);
+        ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
         boxy->obj.base.xspeed = 0;
         boxy->obj.base.yspeed = 0x200;
         boxy->obj.base.counter = 0x10;
@@ -386,7 +386,7 @@ static void sub_080D6194(struct Boxy *boxy)
 
 static void sub_080D6318(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 8, sub_080D63D4);
+    ObjectSetFunc(boxy, 8, FN(sub_080D63D4));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0;
     boxy->obj.base.counter = 5;
@@ -432,7 +432,7 @@ static void sub_080D63D4(struct Boxy *boxy)
             boxy->obj.base.xspeed = 0;
         if (boxy->obj.base.flags & 2)
         {
-            ObjectSetFunc(boxy, 0, sub_080D5AB0);
+            ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
             boxy->obj.base.xspeed = 0;
             boxy->obj.base.yspeed = 0x200;
             boxy->obj.base.counter = 0x10;
@@ -446,7 +446,7 @@ static void sub_080D655C(struct Boxy *boxy)
 {
     u8 id = 0;
 
-    ObjectSetFunc(boxy, 1, sub_080D6648);
+    ObjectSetFunc(boxy, 1, FN(sub_080D6648));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -493,7 +493,7 @@ static void sub_080D66AC(struct Boxy *boxy)
 {
     u8 unk9F = boxy->obj.unk9F;
 
-    ObjectSetFunc(boxy, 2, sub_080D6718);
+    ObjectSetFunc(boxy, 2, FN(sub_080D6718));
     switch (unk9F)
     {
     case 1:
@@ -539,7 +539,7 @@ static void sub_080D6718(struct Boxy *boxy)
 
 static void sub_080D68B0(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 5, sub_080D77DC);
+    ObjectSetFunc(boxy, 5, FN(sub_080D77DC));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0;
     PlaySfx(&boxy->obj.base, SE_BOXY_COLLISION);
@@ -550,7 +550,7 @@ static void sub_080D68B0(struct Boxy *boxy)
 
 static void sub_080D6988(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 2, sub_080D6A30);
+    ObjectSetFunc(boxy, 2, FN(sub_080D6A30));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -599,7 +599,7 @@ static void sub_080D6A30(struct Boxy *boxy)
             sub_08089864(&boxy->obj.base, -0x14, 0xC, boxy->obj.base.flags & 1);
             if (!--boxy->obj.base.counter)
             {
-                ObjectSetFunc(boxy, 0, sub_080D5AB0);
+                ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
                 boxy->obj.base.xspeed = 0;
                 boxy->obj.base.yspeed = 0x200;
                 boxy->obj.base.counter = 0x10;
@@ -614,7 +614,7 @@ static void sub_080D6A30(struct Boxy *boxy)
 
 static void sub_080D6B9C(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0, sub_080D6C0C);
+    ObjectSetFunc(boxy, 0, FN(sub_080D6C0C));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -655,7 +655,7 @@ static void sub_080D6D90(struct Boxy *boxy)
         sub_080D6E1C(boxy, RandLessThan3());
     if (boxy->obj.base.flags & 2)
     {
-        ObjectSetFunc(boxy, 0, sub_080D5AB0);
+        ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
         boxy->obj.base.xspeed = 0;
         boxy->obj.base.yspeed = 0x200;
         boxy->obj.base.counter = 0x10;
@@ -676,14 +676,14 @@ static void sub_080D6E1C(struct Boxy *boxy, u8 a2)
 
 void *CreateBoxyBox(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *box = tmp;
 
     InitObject(box, template_, a2);
     box->base.flags |= 0x10000;
     box->base.unkC |= 2;
     box->unk9E = 0;
-    box->unk7C = sub_0809F840;
+    box->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&box->base, -5, -5, 5, 6);
     ObjectSetBounds(&box->base, -6, -6, 6, 8);
     ObjectInitSprite(box);
@@ -694,7 +694,7 @@ void *CreateBoxyBox(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080D7020(struct Object *box)
 {
-    ObjectSetFunc(box, 0, sub_080D712C);
+    ObjectSetFunc(box, 0, FN(sub_080D712C));
     if (box->objTemplate->subtype1)
         box->base.flags |= 1;
     switch (box->subtype)
@@ -759,7 +759,7 @@ static void sub_080D712C(struct Object *box)
 
 static void sub_080D730C(struct Object *box)
 {
-    ObjectSetFunc(box, 0, sub_080D73C8);
+    ObjectSetFunc(box, 0, FN(sub_080D73C8));
     box->base.flags |= 0x200;
     box->base.counter = 0x3C;
     CreateEffectObject(&box->base, 0, 0x2AC, 0);
@@ -860,7 +860,7 @@ static void sub_080D73C8(struct Object *box)
 
 void sub_080D777C(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0, sub_080D5AB0);
+    ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0x200;
     boxy->obj.base.counter = 0x10;
@@ -870,7 +870,7 @@ void sub_080D777C(struct Boxy *boxy)
 
 static void sub_080D77B8(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0, sub_080D571C);
+    ObjectSetFunc(boxy, 0, FN(sub_080D571C));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0;
 }
@@ -879,7 +879,7 @@ static void sub_080D77DC(struct Boxy *boxy)
 {
     if (!(boxy->obj.base.flags & 2))
         return;
-    ObjectSetFunc(boxy, 0, sub_080D5AB0);
+    ObjectSetFunc(boxy, 0, FN(sub_080D5AB0));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0x200;
     boxy->obj.base.counter = 0x10;
@@ -889,7 +889,7 @@ static void sub_080D77DC(struct Boxy *boxy)
 
 static void sub_080D7824(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 2, sub_080D5F7C);
+    ObjectSetFunc(boxy, 2, FN(sub_080D5F7C));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -905,7 +905,7 @@ static void sub_080D7824(struct Boxy *boxy)
 
 static void sub_080D787C(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 6, sub_080D78D0);
+    ObjectSetFunc(boxy, 6, FN(sub_080D78D0));
     boxy->obj.kirby3 = FindTargetKirby(&boxy->obj.base);
     if (boxy->obj.base.x > boxy->obj.kirby3->base.x)
         boxy->obj.base.flags |= 1;
@@ -924,7 +924,7 @@ static void sub_080D78D0(struct Boxy *boxy)
 
 static void sub_080D78F0(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0xB, sub_080D7914);
+    ObjectSetFunc(boxy, 0xB, FN(sub_080D7914));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0;
 }
@@ -938,7 +938,7 @@ static void sub_080D7914(struct Boxy *boxy)
 
 static void sub_080D792C(struct Boxy *boxy)
 {
-    ObjectSetFunc(boxy, 0xC, sub_080D6D90);
+    ObjectSetFunc(boxy, 0xC, FN(sub_080D6D90));
     boxy->obj.base.xspeed = 0;
     boxy->obj.base.yspeed = 0;
     boxy->obj.base.flags &= ~2;
@@ -958,3 +958,33 @@ static void sub_080D7958(struct Boxy *boxy)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_boxy) {
+    PORT_FNID(CreateBoxy),
+    PORT_FNID(sub_080D571C),
+    PORT_FNID(sub_080D5AB0),
+    PORT_FNID(sub_080D5BB0),
+    PORT_FNID(sub_080D5DD8),
+    PORT_FNID(sub_080D5F7C),
+    PORT_FNID(sub_080D6194),
+    PORT_FNID(sub_080D63D4),
+    PORT_FNID(sub_080D6648),
+    PORT_FNID(sub_080D6718),
+    PORT_FNID(sub_080D6A30),
+    PORT_FNID(sub_080D6C0C),
+    PORT_FNID(sub_080D6D90),
+    PORT_FNID(CreateBoxyBox),
+    PORT_FNID(sub_080D7020),
+    PORT_FNID(sub_080D712C),
+    PORT_FNID(sub_080D73C8),
+    PORT_FNID(sub_080D777C),
+    PORT_FNID(sub_080D77DC),
+    PORT_FNID(sub_080D78D0),
+    PORT_FNID(sub_080D7914),
+    PORT_FNID(sub_080D7958),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -44,7 +44,7 @@ void sub_0811BF24(struct RockBlock *block) {
                 && !(gKirbys[i].base.flags & 0x20)
                 && !(gKirbys[i].base.flags & 0x40)) {
                 b->unkB6 |= 1;
-                b->base.unk78 = sub_0811C07C;
+                b->base.unk78 = FN(sub_0811C07C);
             }
         }
     }
@@ -72,13 +72,13 @@ static void sub_0811C07C(struct RockBlock *block)
 void* CreateDestroyableRockBlock(struct ObjectTemplate* arg0, u8 arg1) {
     struct Task *task;
     struct RockBlock *obj;
-    task = TaskCreate(ObjectMain, sizeof(struct RockBlock), 0x1000, TASK_USE_IWRAM, DestroyDestroyableRockBlock);
+    task = TaskCreate(FN(ObjectMain), sizeof(struct RockBlock), 0x1000, TASK_USE_IWRAM, FN(DestroyDestroyableRockBlock));
     obj = TaskGetStructPtr(task);
     InitObject(&obj->base, arg0, arg1);
     obj->base.base.flags |= 0x2018f40;
     obj->base.base.unk5C |= 0x20;
     obj->base.base.unkC |= 1;
-    gUnk_08351648[obj->base.type].unk10(&obj->base);
+    CALL(gUnk_08351648[obj->base.type].unk10)(&obj->base);
     return obj;
 }
 
@@ -86,7 +86,7 @@ void DestroyableRockBlockInit(struct RockBlock* arg0) {
     arg0->base.base.counter = 0;
     arg0->unkB4 = 10;
     arg0->unkB6 = 0;
-    arg0->base.unk78 = sub_0811BF24;
+    arg0->base.unk78 = FN(sub_0811BF24);
 }
 
 static void DestroyDestroyableRockBlock(struct Task* arg0) {
@@ -107,3 +107,16 @@ static void DestroyDestroyableRockBlock(struct Task* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_destroyable_rock_block) {
+    PORT_FNID(sub_0811BF24),
+    PORT_FNID(sub_0811C07C),
+    PORT_FNID(CreateDestroyableRockBlock),
+    PORT_FNID(DestroyableRockBlockInit),
+    PORT_FNID(DestroyDestroyableRockBlock),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

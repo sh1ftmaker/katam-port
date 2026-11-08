@@ -146,7 +146,7 @@ u32 MultiSioRecvDataCheck(void *recvp)
 {
     /* PORT: was a call through gMultiSioRecvFuncBuf, the IWRAM copy
      * of this routine's machine code.  See tools/portify.py. */
-    u32 (*multiSioRecvBufChangeOnRam)(void) = MultiSioRecvBufChange;
+    u32 (*multiSioRecvBufChangeOnRam)(void) = FN(MultiSioRecvBufChange);
     s32 checkSum;
     vu32 recvCheck = 0;
     u8 syncRecvFlagBak[4];
@@ -155,7 +155,7 @@ u32 MultiSioRecvDataCheck(void *recvp)
     s32 i, ii;
 
 #ifdef MULTI_SIO_DI_FUNC_FAST // Update Receive Data/Check Buffer
-    *(u32 *)syncRecvFlagBak = multiSioRecvBufChangeOnRam();
+    *(u32 *)syncRecvFlagBak = CALL(multiSioRecvBufChangeOnRam)();
 #else
     REG_IME = 0; // Disable Interrupt (Approx. 80 Clocks)
     for (i = 0; i < 4; ++i)

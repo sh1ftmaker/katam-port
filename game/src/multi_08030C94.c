@@ -60,10 +60,10 @@ void sub_08030C94(u8 r7, union Unk_020382A0_8 *r6)
     CpuFill16(0, &gUnk_020382A0, sizeof(gUnk_020382A0));
     gUnk_020382A0.unk04 = 0; // ?
     MultiSioStart();
-    gUnk_020382A0.task = TaskCreate(sub_0803149C, sizeof(struct Multi_08030C94), 1, TASK_USE_IWRAM, NULL);
+    gUnk_020382A0.task = TaskCreate(FN(sub_0803149C), sizeof(struct Multi_08030C94), 1, TASK_USE_IWRAM, NULL);
     r4 = TaskGetStructPtr(gUnk_020382A0.task);
     CpuFill16(0, r4, sizeof(*r4));
-    r4->func = sub_0803169C;
+    r4->func = FN(sub_0803169C);
     r4->unk1C = r7;
     if (r6)
         CpuCopy16(r6, &r4->unk4, sizeof(union Unk_020382A0_8));
@@ -433,7 +433,7 @@ static void sub_0803149C(void)
                 *d = 0;
             }
         }
-        r5->unk04 = r4->func(r4);
+        r5->unk04 = CALL(r4->func)(r4);
         r5->unk06 &= ~4;
     }
 }
@@ -500,14 +500,14 @@ static s32 sub_0803169C(struct Multi_08030C94 *r4)
         && MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags)
     {
         r6->unk06 |= 1;
-        r4->func = sub_08031764;
+        r4->func = FN(sub_08031764);
     }
     else if (SIO_MULTI_CNT->id != 0
         && !(gMultiSioStatusFlags & MULTI_SIO_PARENT)
         && MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags)
     {
         r6->unk06 |= 2;
-        r4->func = sub_080319F0;
+        r4->func = FN(sub_080319F0);
     }
     return 0;
 }
@@ -530,7 +530,7 @@ static s32 sub_08031764(struct Multi_08030C94 *r7)
         || !(MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags))
     {
         r5->unk06 &= ~3;
-        r7->func = sub_0803169C;
+        r7->func = FN(sub_0803169C);
         return -1;
     }
     else if ((result = sub_080315B8(r7)))
@@ -554,7 +554,7 @@ static s32 sub_08031764(struct Multi_08030C94 *r7)
                     CpuCopy16(&r1->unk4, p+i, sizeof(union Unk_020382A0_8));
                 }
             }
-            r7->func = sub_08031860;
+            r7->func = FN(sub_08031860);
         }
         return 1;
     }
@@ -578,7 +578,7 @@ static s32 sub_08031860(struct Multi_08030C94 *r6)
         || !(MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags))
     {
         r5->unk06 &= ~3;
-        r6->func = sub_0803169C;
+        r6->func = FN(sub_0803169C);
         return -1;
     }
     sp00 = 0;
@@ -625,7 +625,7 @@ static s32 sub_08031860(struct Multi_08030C94 *r6)
         return 1;
     else
     {
-        r6->func = sub_08031D00;
+        r6->func = FN(sub_08031D00);
         return 2;
     }
 }
@@ -646,7 +646,7 @@ static s32 sub_080319F0(struct Multi_08030C94 *r4)
         || !(MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags))
     {
         r3->unk06 &= ~3;
-        r4->func = sub_0803169C;
+        r4->func = FN(sub_0803169C);
         return -1;
     }
     if (r6->unk0 == 2)
@@ -654,7 +654,7 @@ static s32 sub_080319F0(struct Multi_08030C94 *r4)
         ret = sub_080315B8(r4);
         if (ret) return ret;
         if (r6->unkE == 0x20 && (r6->unkC >> SIO_MULTI_CNT->id) & 1)
-            r4->func = sub_08031AA8;
+            r4->func = FN(sub_08031AA8);
     }
     return 0;
 }
@@ -677,7 +677,7 @@ static s32 sub_08031AA8(struct Multi_08030C94 *r8)
         || !((MULTI_SIO_RECV_ID(SIO_MULTI_CNT->id) & gMultiSioStatusFlags)))
     {
         r5->unk06 &= ~3;
-        r8->func = sub_0803169C;
+        r8->func = FN(sub_0803169C);
         return -1;
     }
     else if (r7->unk0 != 2)
@@ -701,7 +701,7 @@ static s32 sub_08031AA8(struct Multi_08030C94 *r8)
                     CpuCopy16(&r7->unk4, p+i, sizeof(union Unk_020382A0_8));
                 }
             }
-            r8->func = sub_08031BB0;
+            r8->func = FN(sub_08031BB0);
             r8->unk1A = 2;
             r6->unkE = 0x42;
         }
@@ -810,7 +810,7 @@ static void sub_08031D24(void)
     r6->unk54 = gMultiBootStruct.unk06;
     r6->unk56 = gMultiBootStruct.unk08;
     r6->unk58 = 0;
-    gCurTask->main = sub_08031DF0;
+    gCurTask->main = FN(sub_08031DF0);
 }
 
 static void sub_08031DF0(void)
@@ -822,7 +822,7 @@ static void sub_08031DF0(void)
     {
         sub_08030B38();
         r4->unkE = 7;
-        gCurTask->main = nullsub_118;
+        gCurTask->main = FN(nullsub_118);
     }
     else
     {
@@ -834,7 +834,7 @@ static void sub_08031DF0(void)
             gLocalPlayerId = gMultiBootStruct.unk00;
             gNumHumanPlayers = gMultiBootStruct.unk01;
             sub_08030B38();
-            gCurTask->main = sub_08032BEC;
+            gCurTask->main = FN(sub_08032BEC);
         }
         else
         {
@@ -852,7 +852,7 @@ static void sub_08031DF0(void)
                     sub_08030B38();
                     r4->unk10 = 0;
                     r4->unk11 = 0;
-                    gCurTask->main = sub_08031D24;
+                    gCurTask->main = FN(sub_08031D24);
                     return;
                 }
                 ++r4->unk58;
@@ -861,7 +861,7 @@ static void sub_08031DF0(void)
             {
                 sub_08030B38();
                 r4->unkE = 8;
-                gCurTask->main = nullsub_118;
+                gCurTask->main = FN(nullsub_118);
             }
             else if (!gMultiBootStruct.unk03)
             {
@@ -893,7 +893,7 @@ static void sub_08031DF0(void)
                     r4->unk11 = 0;
                     sub_08030B38();
                     r4->unkE = 8;
-                    gCurTask->main = nullsub_118;
+                    gCurTask->main = FN(nullsub_118);
                 }
             }
             else
@@ -901,7 +901,7 @@ static void sub_08031DF0(void)
                 sub_08030B38();
                 r4->unk10 = 0;
                 r4->unk11 = 0;
-                gCurTask->main = sub_08031D24;
+                gCurTask->main = FN(sub_08031D24);
             }
         }
     }
@@ -916,7 +916,7 @@ static void sub_08031FAC(void)
     sp00.pat1.unk00 = gUnk_0203ACB0[gSaveID < 3 ? gSaveID : 0]; 
     sp00.pat1.unk02 = gUnk_0203ADE0;
     sub_08030C94(1, &sp00);
-    gCurTask->main = sub_08032024;
+    gCurTask->main = FN(sub_08032024);
 }
 
 static void sub_08032024(void)
@@ -950,7 +950,7 @@ static void sub_08032024(void)
                 gUnk_0203AD1C[i] = 0xFF;
             }
             sub_08031C3C();
-            gCurTask->main = sub_08032C3C;
+            gCurTask->main = FN(sub_08032C3C);
         }
         else
         {
@@ -967,7 +967,7 @@ static void sub_08032024(void)
     else if (r0 < 0)
     {
         sub_08031C3C();
-        gCurTask->main = sub_08031FAC;
+        gCurTask->main = FN(sub_08031FAC);
     }
     else
         r8->unk20 = 0;
@@ -989,7 +989,7 @@ static void sub_08032164(void)
     }
     sub_08031C70(2);
     sub_08031CD4();
-    gCurTask->main = sub_08032DA4;
+    gCurTask->main = FN(sub_08032DA4);
 }
 
 static void sub_080321DC(void)
@@ -1020,7 +1020,7 @@ static void sub_080321DC(void)
         ++ip->unk16;
     ip->unk12 = ip->unk18;
     if (sp00)
-        gCurTask->main = sub_08032C50;
+        gCurTask->main = FN(sub_08032C50);
 }
 
 static void sub_080322E8(void)
@@ -1037,7 +1037,7 @@ static void sub_080322E8(void)
         r4->pat1.unk1 = 2;
         r4->pat1.unk2 = 0;
         r4->pat1.unk3 = 0;
-        gCurTask->main = sub_0803234C;
+        gCurTask->main = FN(sub_0803234C);
     }
 }
 
@@ -1056,7 +1056,7 @@ static void sub_0803234C(void)
         r5->unk16 = 0x20;
     else
         r5->unk16 = 8;
-    gCurTask->main = sub_080323DC;
+    gCurTask->main = FN(sub_080323DC);
 }
 
 static void sub_080323DC(void)
@@ -1066,9 +1066,9 @@ static void sub_080323DC(void)
     if (!r2->unk16--)
     {
         if (SIO_MULTI_CNT->id == r2->unk18)
-            gCurTask->main = sub_08032448;
+            gCurTask->main = FN(sub_08032448);
         else
-            gCurTask->main = sub_0803264C;
+            gCurTask->main = FN(sub_0803264C);
     }
 }
 
@@ -1086,7 +1086,7 @@ static void sub_08032448(void)
     r5->pat1.unk1 = 2;
     r5->pat1.unk2 = 0;
     r5->pat1.unk3 = 0;
-    gCurTask->main = sub_080324BC;
+    gCurTask->main = FN(sub_080324BC);
 }
 
 static void sub_080324BC(void)
@@ -1129,7 +1129,7 @@ static void sub_080324BC(void)
     }
     CpuCopy16(gWorldProps[r4->unk1A].dataPtr + r4->unk1C, &r8->pat1.unk4, sizeof(r8->pat1.unk4));
     if (r4->unk1A >= TheNumberSeven())
-        gCurTask->main = sub_08032CA8;
+        gCurTask->main = FN(sub_08032CA8);
 }
 
 static void sub_0803264C(void)
@@ -1146,7 +1146,7 @@ static void sub_0803264C(void)
     r5->unk1 = 2;
     r5->unk2 = 1;
     r5->unk3 = 0;
-    gCurTask->main = sub_080326C0;
+    gCurTask->main = FN(sub_080326C0);
 }
 
 static void sub_080326C0(void)
@@ -1191,7 +1191,7 @@ static void sub_080326C0(void)
             r4->unk1C = 0;
         }
         if (r4->unk1A >= TheNumberSeven())
-            gCurTask->main = sub_08032CA8;
+            gCurTask->main = FN(sub_08032CA8);
     }
 }
 
@@ -1204,7 +1204,7 @@ static void sub_08032818(void)
     sp00.pat0.unk00 = Rand32();
     sp00.pat1.unk04 = r3->unk50;
     sub_08030C94(1, &sp00);
-    gCurTask->main = sub_08032888;
+    gCurTask->main = FN(sub_08032888);
 }
 
 static void sub_08032888(void)
@@ -1250,7 +1250,7 @@ static void sub_08032888(void)
                 sub_08032E98();
             }
             else
-                gCurTask->main = sub_08032CE8;
+                gCurTask->main = FN(sub_08032CE8);
         }
         else
         {
@@ -1267,7 +1267,7 @@ static void sub_08032888(void)
     else if (r0 < 0)
     {
         sub_08031C3C();
-        gCurTask->main = sub_08032818;
+        gCurTask->main = FN(sub_08032818);
     }
     else
         r4->unk20 = 0;
@@ -1290,7 +1290,7 @@ static void sub_080329C8(void)
     gUnk_0203AD24 = r5->unk18;
     gUnk_0203AD10 = 2;
     sub_080332BC(gNumHumanPlayers, 0, a, c[0], b);
-    gCurTask->main = sub_08032A80;
+    gCurTask->main = FN(sub_08032A80);
 }
 
 static void sub_08032A80(void)
@@ -1315,7 +1315,7 @@ static void sub_08032A80(void)
 
 struct Multi_08032B0C *sub_08032B0C(void)
 {
-    struct Task *t = TaskCreate(sub_08031D24, sizeof(struct Multi_08032B0C), 0xFFFE, TASK_USE_IWRAM | TASK_x0004, NULL);
+    struct Task *t = TaskCreate(FN(sub_08031D24), sizeof(struct Multi_08032B0C), 0xFFFE, TASK_USE_IWRAM | TASK_x0004, NULL);
     struct Multi_08032B0C *r4 = TaskGetStructPtr(t);
 
     CpuFill16(0, r4, sizeof(*r4));
@@ -1360,12 +1360,12 @@ static void sub_08032BEC(void)
     r4->unk16 = 8;
     r4->unk1E = 0x3C;
     r4->unkE = 2;
-    gCurTask->main = sub_08032D3C;
+    gCurTask->main = FN(sub_08032D3C);
 }
 
 static void sub_08032C3C(void)
 {
-    gCurTask->main = sub_08032D90;
+    gCurTask->main = FN(sub_08032D90);
 }
 
 static void sub_08032C50(void)
@@ -1375,7 +1375,7 @@ static void sub_08032C50(void)
     r3->unk16 = 0;
     gUnk_020382D0.unk4 &= ~2;
     r3->unkE = 4;
-    gCurTask->main = sub_080322E8;
+    gCurTask->main = FN(sub_080322E8);
 }
 
 static void sub_08032CA8(void)
@@ -1384,7 +1384,7 @@ static void sub_08032CA8(void)
 
     r1->unk16 = 8;
     r1->unk1E = 0x3C;
-    gCurTask->main = sub_08032E08;
+    gCurTask->main = FN(sub_08032E08);
 }
 
 static void sub_08032CE8(void)
@@ -1395,7 +1395,7 @@ static void sub_08032CE8(void)
     if (r2->unkC & 4)
     {
         r2->unkE = 6;
-        gCurTask->main = sub_080329C8;
+        gCurTask->main = FN(sub_080329C8);
     }
 }
 
@@ -1409,13 +1409,13 @@ static void sub_08032D3C(void)
     if (--r1->unk16 == 0xFFFF)
     {
         EnableMultiSio();
-        gCurTask->main = sub_08031FAC;
+        gCurTask->main = FN(sub_08031FAC);
     }
 }
 
 static void sub_08032D90(void)
 {
-    gCurTask->main = sub_08032164;
+    gCurTask->main = FN(sub_08032164);
 }
 
 static void sub_08032DA4(void)
@@ -1429,7 +1429,7 @@ static void sub_08032DA4(void)
         if (!sub_08030D4C(0))
             sub_08032E98();
         else
-            gCurTask->main = sub_08032E50;
+            gCurTask->main = FN(sub_08032E50);
     }
 }
 
@@ -1438,7 +1438,7 @@ static void sub_08032E08(void)
     struct Multi_08032B0C *r1 = TaskGetStructPtr(gCurTask);
 
     if (--r1->unk16 == 0xFFFF)
-        gCurTask->main = sub_08032818;
+        gCurTask->main = FN(sub_08032818);
 }
 
 static void sub_08032E50(void)
@@ -1448,10 +1448,54 @@ static void sub_08032E50(void)
     r2->unk12 = 0;
     r2->unkE = 3;
     r2->unk16 = 0;
-    gCurTask->main = sub_080321DC;
+    gCurTask->main = FN(sub_080321DC);
 }
 
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_multi_08030C94) {
+    PORT_FNID(sub_0803149C),
+    PORT_FNID(sub_0803169C),
+    PORT_FNID(sub_08031764),
+    PORT_FNID(sub_08031860),
+    PORT_FNID(sub_080319F0),
+    PORT_FNID(sub_08031AA8),
+    PORT_FNID(sub_08031BB0),
+    PORT_FNID(sub_08031D00),
+    PORT_FNID(sub_08031D24),
+    PORT_FNID(sub_08031DF0),
+    PORT_FNID(sub_08031FAC),
+    PORT_FNID(sub_08032024),
+    PORT_FNID(sub_08032164),
+    PORT_FNID(sub_080321DC),
+    PORT_FNID(sub_080322E8),
+    PORT_FNID(sub_0803234C),
+    PORT_FNID(sub_080323DC),
+    PORT_FNID(sub_08032448),
+    PORT_FNID(sub_080324BC),
+    PORT_FNID(sub_0803264C),
+    PORT_FNID(sub_080326C0),
+    PORT_FNID(sub_08032818),
+    PORT_FNID(sub_08032888),
+    PORT_FNID(sub_080329C8),
+    PORT_FNID(sub_08032A80),
+    PORT_FNID(sub_08032BEC),
+    PORT_FNID(sub_08032C3C),
+    PORT_FNID(sub_08032C50),
+    PORT_FNID(sub_08032CA8),
+    PORT_FNID(sub_08032CE8),
+    PORT_FNID(nullsub_118),
+    PORT_FNID(sub_08032D3C),
+    PORT_FNID(sub_08032D90),
+    PORT_FNID(sub_08032DA4),
+    PORT_FNID(sub_08032E08),
+    PORT_FNID(sub_08032E50),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

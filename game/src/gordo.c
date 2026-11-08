@@ -23,7 +23,7 @@ extern const struct AnimInfo gUnk_08352E14[] = {
 
 void* CreateGordo(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -143,21 +143,21 @@ static void GordoChooseYSpeed(struct Object* arg0) {
 }
 
 void sub_0809FC58(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, GordoSlowDownX);
+    ObjectSetFunc(arg0, 0, FN(GordoSlowDownX));
 }
 
 static void GordoInitType0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, GordoSetYSpeed);
+    ObjectSetFunc(arg0, 0, FN(GordoSetYSpeed));
     arg0->base.flags |= 0x100;
 }
 
 static void GordoInitType1(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, GordoSetXYSpeed);
+    ObjectSetFunc(arg0, 0, FN(GordoSetXYSpeed));
     arg0->base.yspeed = -0xc0;
 }
 
 static void GordoInitType2(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, GordoSlowDownXAndSetY);
+    ObjectSetFunc(arg0, 0, FN(GordoSlowDownXAndSetY));
     arg0->base.xspeed = -0xc0 - (arg0->subtype * 64);
 }
 
@@ -172,10 +172,25 @@ static void GordoSlowDownXAndSetY(struct Object* arg0) {
 }
 
 static void GordoInitType3(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, GordoChooseYSpeed);
+    ObjectSetFunc(arg0, 0, FN(GordoChooseYSpeed));
     arg0->base.flags |= 0x100;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_gordo) {
+    PORT_FNID(CreateGordo),
+    PORT_FNID(GordoSlowDownX),
+    PORT_FNID(GordoSetYSpeed),
+    PORT_FNID(GordoSetXYSpeed),
+    PORT_FNID(GordoChooseYSpeed),
+    PORT_FNID(sub_0809FC58),
+    PORT_FNID(GordoSlowDownXAndSetY),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

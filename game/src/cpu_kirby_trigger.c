@@ -74,14 +74,14 @@ static void sub_08120788(struct Object *obj)
 
 void *CreateCPUKirbyTrigger(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1001, TASK_USE_IWRAM, sub_081209D8);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1001, TASK_USE_IWRAM, FN(sub_081209D8));
     struct Object *obj = TaskGetStructPtr(t);
 
     InitObject(obj, template_, a2);
     obj->base.flags |= 0x2018F40;
     obj->base.unk5C |= 0x20;
     obj->base.unkC |= 1;
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     return obj;
 }
 
@@ -93,9 +93,9 @@ void sub_0812098C(struct Object *obj)
     obj->base.unk48 = obj->base.x;
     obj->base.unk4C = obj->base.y;
     if (!(obj->objTemplate->unk22 & 1) && obj->objTemplate->unk22 & 6)
-        obj->unk78 = sub_08120788;
+        obj->unk78 = FN(sub_08120788);
     else
-        obj->unk78 = sub_08120670;
+        obj->unk78 = FN(sub_08120670);
 }
 
 static void sub_081209D8(struct Task *t)
@@ -117,3 +117,16 @@ static void sub_081209D8(struct Task *t)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_cpu_kirby_trigger) {
+    PORT_FNID(sub_08120670),
+    PORT_FNID(sub_08120788),
+    PORT_FNID(CreateCPUKirbyTrigger),
+    PORT_FNID(sub_0812098C),
+    PORT_FNID(sub_081209D8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

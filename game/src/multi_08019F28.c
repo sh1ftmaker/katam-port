@@ -77,13 +77,13 @@ static const void *gUnk_082DE308[NUM_LANGUAGES][9];
 
 struct Multi_08019F28 *sub_08019F28(s32 r7)
 {
-    struct Task *r5 = TaskCreate(sub_0801A798, sizeof(struct Multi_08019F28), -2, TASK_USE_IWRAM | TASK_x0004, sub_0801A7CC);
+    struct Task *r5 = TaskCreate(FN(sub_0801A798), sizeof(struct Multi_08019F28), -2, TASK_USE_IWRAM | TASK_x0004, FN(sub_0801A7CC));
     struct Multi_08019F28 *r6;
     
     r6 = TaskGetStructPtr(r5);
     CpuFill16(0, r6, sizeof(*r6));
     r6->taskp = r5;
-    r6->callback = sub_08019FDC;
+    r6->callback = FN(sub_08019FDC);
     r6->unk80 = r7;
     gUnk_0203AD10 = 6;
     gLocalPlayerId = 0;
@@ -114,7 +114,7 @@ static void sub_08019FDC(struct Multi_08019F28 *r7)
     r7->unkAE = 0;
     r7->unkB0 = 0;
     r7->unkB1 = gMultiBootStruct.unk02;
-    r7->callback = sub_0801A0AC;
+    r7->callback = FN(sub_0801A0AC);
 }
 
 static void sub_0801A0AC(struct Multi_08019F28 *r5)
@@ -124,7 +124,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
     {
         sub_08030B38();
         r5->unk0E = 7;
-        gCurTask->main = nullsub_26;
+        gCurTask->main = FN(nullsub_26);
     }
     else
     {
@@ -140,7 +140,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
             {
                 gUnk_0203AD10 &= ~8;
                 r5->unk0C &= ~0x8000;
-                r5->callback = sub_0801A800;
+                r5->callback = FN(sub_0801A800);
             }
             else
             {
@@ -150,8 +150,8 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
                     gUnk_0203AD10 |= 8;
                     r5->unk0C |= 0x8000;
                     r5->unk9A = 0;
-                    r5->callback = sub_0801A868;
-                    gCurTask->main = sub_0801A4E0;
+                    r5->callback = FN(sub_0801A868);
+                    gCurTask->main = FN(sub_0801A4E0);
                 }
             }
             sub_08030B38();
@@ -182,7 +182,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
                     r5->unk11 = 0;
                     r5->unkB0 = gMultiBootStruct.unk01;
                     r5->unkB1 = gMultiBootStruct.unk02;
-                    r5->callback = sub_08019FDC;
+                    r5->callback = FN(sub_08019FDC);
                     return;
                 }
                 ++r5->unkAE;
@@ -191,7 +191,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
             {
                 sub_08030B38();
                 r5->unk0E = 8;
-                gCurTask->main = nullsub_26;
+                gCurTask->main = FN(nullsub_26);
             }
             else
             {
@@ -201,7 +201,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
                     r5->unk11 = 0;
                     sub_08030B38();
                     r5->unk0E = 8;
-                    gCurTask->main = nullsub_26;
+                    gCurTask->main = FN(nullsub_26);
                 }
                 else
                 {
@@ -242,7 +242,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
                         sub_08030B38();
                         r5->unk10 = 0;
                         r5->unk11 = 0;
-                        r5->callback = sub_08019FDC;
+                        r5->callback = FN(sub_08019FDC);
                         return;
                     }
                     if (r5->unk9E == 2 && gUnk_0300050C != 2)
@@ -252,7 +252,7 @@ static void sub_0801A0AC(struct Multi_08019F28 *r5)
                         sub_08030B38();
                         r5->unk10 = 0;
                         r5->unk11 = 0;
-                        r5->callback = sub_08019FDC;
+                        r5->callback = FN(sub_08019FDC);
                     }
                     r5->unk9E = gUnk_0300050C;
                 }
@@ -291,7 +291,7 @@ static void sub_0801A374(struct Multi_08019F28 *r5)
                 }
                 for (; r3 < 4; ++r3)
                     gUnk_0203AD1C[r3] |= 0xFF;
-                r5->callback = sub_0801A824;
+                r5->callback = FN(sub_0801A824);
             }
             else
             {
@@ -312,7 +312,7 @@ static void sub_0801A374(struct Multi_08019F28 *r5)
                 if (r0 < 0) // Do you know C has switch statement? 
                 {
                     sub_08031C3C();
-                    r5->callback = sub_0801A970;
+                    r5->callback = FN(sub_0801A970);
                 }
                 else
                     r5->unk9C = 0;
@@ -330,7 +330,7 @@ static void sub_0801A468(struct Multi_08019F28 *r6)
         CpuFill16(RGB_WHITE, gBgPalette, BG_PLTT_SIZE);
         CpuFill16(RGB_WHITE, gObjPalette, OBJ_PLTT_SIZE);
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
-        r6->callback = sub_0801A830;
+        r6->callback = FN(sub_0801A830);
     }
 }
 
@@ -362,7 +362,7 @@ static void sub_0801A4E0(void)
         gUnk_02038580 = 1;
         sub_08032E98();
     }
-    r6->callback(r6);
+    CALL(r6->callback)(r6);
 }
 
 static void sub_0801A5B8(struct Multi_08019F28 *r5)
@@ -385,7 +385,7 @@ static void sub_0801A5B8(struct Multi_08019F28 *r5)
         sprite->y = 88;
         sprite->unk8 = 0x60;
         sub_08155128(sprite);
-        r5->callback = sub_0801A884;
+        r5->callback = FN(sub_0801A884);
     }
 }
 
@@ -408,9 +408,9 @@ static void sub_0801A618(struct Multi_08019F28 *r5)
             break;
         }
         if (r5->unkA9 < r3)
-            r5->callback = sub_0801A6BC;
+            r5->callback = FN(sub_0801A6BC);
         else
-            r5->callback = sub_0801A8E8;
+            r5->callback = FN(sub_0801A8E8);
     }
     if (gMultiSioStatusFlags & MULTI_SIO_LD_ENABLE)
         r5->loadRequest = 1;
@@ -446,10 +446,10 @@ static void sub_0801A6BC(struct Multi_08019F28 *r5)
     }
     MultiSioStop();
     REG_IME = 0;
-    gIntrTable[0] = Sio32MultiLoadIntr;
+    gIntrTable[0] = FN(Sio32MultiLoadIntr);
     REG_IME = 1;
     Sio32MultiLoadInit(gMultiSioStatusFlags & MULTI_SIO_TYPE, (void *)datap);
-    r5->callback = sub_0801A8C4;
+    r5->callback = FN(sub_0801A8C4);
 }
 
 void sub_0801A744(s32 r0)
@@ -471,7 +471,7 @@ static void sub_0801A798(void)
     struct Multi_08019F28 *r0;
 
     r0 = TaskGetStructPtr(gCurTask);
-    r0->callback(r0);
+    CALL(r0->callback)(r0);
 }
 
 static void sub_0801A7CC(struct Task *taskp)
@@ -490,12 +490,12 @@ static void sub_0801A800(struct Multi_08019F28 *r4)
     ResetMultiSio();
     r4->unk9A = 60;
     r4->unk0E = 5;
-    r4->callback = sub_0801A950;
+    r4->callback = FN(sub_0801A950);
 }
 
 static void sub_0801A824(struct Multi_08019F28 *r0)
 {
-    r0->callback = sub_0801A9BC;
+    r0->callback = FN(sub_0801A9BC);
 }
 
 static void sub_0801A830(struct Multi_08019F28 *r1)
@@ -513,7 +513,7 @@ static void sub_0801A868(struct Multi_08019F28 *r4)
 {
     ResetMultiSio();
     r4->unk0E = 5;
-    r4->callback = sub_0801A5B8;
+    r4->callback = FN(sub_0801A5B8);
 }
 
 static void sub_0801A884(struct Multi_08019F28 *r4)
@@ -531,7 +531,7 @@ static void sub_0801A884(struct Multi_08019F28 *r4)
         sub_0801E754(r4->unk80);
         sub_0801A908(r4);
         MultiSioStart();
-        r4->callback = sub_0801A618;
+        r4->callback = FN(sub_0801A618);
     }
 }
 
@@ -540,7 +540,7 @@ static void sub_0801A8C4(struct Multi_08019F28 *r4)
     s32 data = 0;
 
     if (Sio32MultiLoadMain(&data))
-        r4->callback = sub_0801AA40;
+        r4->callback = FN(sub_0801AA40);
 }
 
 static void sub_0801A8E8(struct Multi_08019F28 *r0)
@@ -554,7 +554,9 @@ static void sub_0801A8E8(struct Multi_08019F28 *r0)
 static void sub_0801A908(struct Multi_08019F28 *r4)
 {
     REG_IME = 0;
-    gIntrTable[0] = (void *)gMultiSioIntrFuncBuf;
+    /* PORT-FNID: was (void *)gMultiSioIntrFuncBuf, the IWRAM copy of
+     * MultiSioIntr; its code ID is that buffer's GBA address. */
+    gIntrTable[0] = FN(MultiSioIntr);
     REG_IME = 1;
     MultiSioInit((gMultiSioStatusFlags & MULTI_SIO_CONNECTED_ID_MASK) >> 8);
     r4->loadRequest = 0;
@@ -567,7 +569,7 @@ static void sub_0801A950(struct Multi_08019F28 *r4)
     if (r4->unk0C & 4)
     {
         EnableMultiSio();
-        r4->callback = sub_0801A970;
+        r4->callback = FN(sub_0801A970);
     }
 }
 
@@ -579,7 +581,7 @@ static void sub_0801A970(struct Multi_08019F28 *r4)
     stru.pat0.unk00 = Rand32();
     stru.pat0.unk04 = gUnk_0203ADE0;
     sub_08030C94(1, &stru);
-    r4->callback = sub_0801A374;
+    r4->callback = FN(sub_0801A374);
 }
 
 static void sub_0801A9BC(struct Multi_08019F28 *r4)
@@ -587,7 +589,7 @@ static void sub_0801A9BC(struct Multi_08019F28 *r4)
     r4->unk98 = 0;
     sub_08031C70(3);
     sub_08031CD4();
-    r4->callback = sub_0801A9E0;
+    r4->callback = FN(sub_0801A9E0);
 }
 
 static void sub_0801A9E0(struct Multi_08019F28 *r4)
@@ -599,7 +601,7 @@ static void sub_0801A9E0(struct Multi_08019F28 *r4)
         if (!sub_08030D4C(0))
             sub_08032E98();
         else
-            r4->callback = sub_0801AA20;
+            r4->callback = FN(sub_0801AA20);
     }
 }
 
@@ -614,13 +616,13 @@ static void sub_0801AA20(struct Multi_08019F28 *r0)
                       | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     r0->unk98 = 0;
-    r0->callback = sub_0801A468;
+    r0->callback = FN(sub_0801A468);
 }
 
 static void sub_0801AA40(struct Multi_08019F28 *r4)
 {
     sub_0801A908(r4);
-    r4->callback = sub_0801AA58;
+    r4->callback = FN(sub_0801AA58);
 }
 
 static void sub_0801AA58(struct Multi_08019F28 *r2)
@@ -629,7 +631,7 @@ static void sub_0801AA58(struct Multi_08019F28 *r2)
     {
         if (gMultiSioStatusFlags & MULTI_SIO_LD_SUCCESS)
             ++gMultiSioSend.pat1.unk2;
-        r2->callback = sub_0801A618;
+        r2->callback = FN(sub_0801A618);
     }
     sub_0801A618(r2);
 }
@@ -899,3 +901,36 @@ void PortResRebind_multi_08019F28(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_multi_08019F28) {
+    PORT_FNID(sub_08019FDC),
+    PORT_FNID(sub_0801A0AC),
+    PORT_FNID(sub_0801A374),
+    PORT_FNID(sub_0801A468),
+    PORT_FNID(sub_0801A4E0),
+    PORT_FNID(sub_0801A5B8),
+    PORT_FNID(sub_0801A618),
+    PORT_FNID(sub_0801A6BC),
+    PORT_FNID(sub_0801A798),
+    PORT_FNID(sub_0801A7CC),
+    PORT_FNID(nullsub_26),
+    PORT_FNID(sub_0801A800),
+    PORT_FNID(sub_0801A824),
+    PORT_FNID(sub_0801A830),
+    PORT_FNID(sub_0801A868),
+    PORT_FNID(sub_0801A884),
+    PORT_FNID(sub_0801A8C4),
+    PORT_FNID(sub_0801A8E8),
+    PORT_FNID(sub_0801A950),
+    PORT_FNID(sub_0801A970),
+    PORT_FNID(sub_0801A9BC),
+    PORT_FNID(sub_0801A9E0),
+    PORT_FNID(sub_0801AA20),
+    PORT_FNID(sub_0801AA40),
+    PORT_FNID(sub_0801AA58),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

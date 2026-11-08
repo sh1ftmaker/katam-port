@@ -123,7 +123,7 @@ static const struct Unk_08353510 gUnk_08353BB4[] = {
 
 void* CreateBrontoBurt(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -239,7 +239,7 @@ static void sub_080AD8AC(struct Object* obj) {
 
 static void sub_080AD8F0(struct Object* obj) {
     obj->base.flags |= 4;
-    ObjectSetFunc(obj, 2, sub_080AD958);
+    ObjectSetFunc(obj, 2, FN(sub_080AD958));
 
     if (obj->subtype != 0) obj->base.xspeed = 0x100;
     else obj->base.xspeed = 0xC0;
@@ -264,7 +264,7 @@ static void sub_080AD958(struct Object* obj) {
         if (obj->unk85 >= 3) {
             sub_080AEBC4(obj);
         } else {
-            ObjectSetFunc(obj, 1, sub_080AD8AC);
+            ObjectSetFunc(obj, 1, FN(sub_080AD8AC));
 
             if (obj->subtype != 0) obj->base.xspeed = 0x100;
             else obj->base.xspeed = 0xC0;
@@ -296,8 +296,8 @@ static void sub_080ADA30(struct Object* obj) {
 
     if (obj->base.counter > 0x14) {
         obj->kirby3 = FindTargetKirby(&obj->base);
-        if (obj->kirby3->base.y > obj->base.y) obj->unk78 = sub_080ADA94;
-        else obj->unk78 = sub_080ADAD8;
+        if (obj->kirby3->base.y > obj->base.y) obj->unk78 = FN(sub_080ADA94);
+        else obj->unk78 = FN(sub_080ADAD8);
     }
 
     obj->base.counter++;
@@ -339,8 +339,8 @@ static void sub_080ADB1C(struct Object* obj) {
 
     if (obj->base.counter > 0x14) {
         obj->kirby3 = FindTargetKirby(&obj->base);
-        if (obj->kirby3->base.y > obj->base.y) obj->unk78 = sub_080ADC10;
-        else obj->unk78 = sub_080ADB7C;
+        if (obj->kirby3->base.y > obj->base.y) obj->unk78 = FN(sub_080ADC10);
+        else obj->unk78 = FN(sub_080ADB7C);
     }
 
     obj->base.counter++;
@@ -353,7 +353,7 @@ static void sub_080ADB7C(struct Object* obj) {
         obj->base.yspeed = 0x28A;
     }
     if (obj->base.counter >= 0x29) {
-        ObjectSetFunc(obj, 1, sub_080ADA30);
+        ObjectSetFunc(obj, 1, FN(sub_080ADA30));
 
         if (obj->subtype != 0) obj->base.xspeed = 0x100;
         else obj->base.xspeed = 0xC0;
@@ -376,7 +376,7 @@ static void sub_080ADC10(struct Object* obj) {
     }
 
     if (obj->base.counter >= 0x29) {
-        ObjectSetFunc(obj, 1, sub_080ADA30);
+        ObjectSetFunc(obj, 1, FN(sub_080ADA30));
 
         if (obj->subtype != 0) obj->base.xspeed = 0x100;
         else obj->base.xspeed = 0xC0;
@@ -392,7 +392,7 @@ static void sub_080ADC10(struct Object* obj) {
 }
 
 static void sub_080ADCA4(struct Object* obj) {
-    ObjectSetFunc(obj, 3, sub_080ADD74);
+    ObjectSetFunc(obj, 3, FN(sub_080ADD74));
 
     if (obj->unk80 < 1) {
         return;
@@ -473,7 +473,7 @@ static void sub_080ADDE0(struct Object* obj) {
             return;
         }
         obj->base.yspeed = 0;
-        ObjectSetFunc(obj, 2, sub_080ADB1C);
+        ObjectSetFunc(obj, 2, FN(sub_080ADB1C));
 
         if (obj->subtype != 0) obj->base.xspeed = 0x100;
         else obj->base.xspeed = 0xC0;
@@ -529,7 +529,7 @@ static void sub_080ADDE0(struct Object* obj) {
 }
 
 static void sub_080AE100(struct Object* obj) {
-    ObjectSetFunc(obj, 2, sub_080AE1AC);
+    ObjectSetFunc(obj, 2, FN(sub_080AE1AC));
     obj->kirby3 = FindTargetKirby(&obj->base);
     if (obj->base.x > obj->kirby3->base.x) {
         obj->base.flags |= 1;
@@ -843,7 +843,7 @@ static void sub_080AE834(struct Object* obj) {
 }
 
 static void sub_080AE85C(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080AE910);
+    ObjectSetFunc(obj, 1, FN(sub_080AE910));
     obj->base.yspeed = 0x300;
     obj->base.flags = (obj->base.flags & ~0x20) | 0x140;
     PlaySfx(&obj->base, SE_BRONTO_BURT_FLY);
@@ -925,7 +925,7 @@ static void sub_080AE910(struct Object* obj) {
 }
 
 static void sub_080AEB68(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080AD8AC);
+    ObjectSetFunc(obj, 1, FN(sub_080AD8AC));
 
     if (obj->subtype != 0) obj->base.xspeed = 0x100;
     else obj->base.xspeed = 0xC0;
@@ -939,11 +939,11 @@ static void sub_080AEB68(struct Object* obj) {
 
 
 static void sub_080AEBC4(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080ADA08);
+    ObjectSetFunc(obj, 1, FN(sub_080ADA08));
 }
 
 static void sub_080AEBD8(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080ADA30);
+    ObjectSetFunc(obj, 1, FN(sub_080ADA30));
 
     if (obj->subtype != 0) obj->base.xspeed = 0x100;
     else obj->base.xspeed = 0xC0;
@@ -956,7 +956,7 @@ static void sub_080AEBD8(struct Object* obj) {
 }
 
 static void sub_080AEC34(struct Object* obj) {
-    ObjectSetFunc(obj, 2, sub_080ADB1C);
+    ObjectSetFunc(obj, 2, FN(sub_080ADB1C));
 
     if (obj->subtype != 0) obj->base.xspeed = 0x100;
     else obj->base.xspeed = 0xC0;
@@ -969,16 +969,16 @@ static void sub_080AEC34(struct Object* obj) {
 }
 
 static void sub_080AEC90(struct Object* obj) {
-    ObjectSetFunc(obj, 2, sub_080ADDE0);
+    ObjectSetFunc(obj, 2, FN(sub_080ADDE0));
 }
 
 static void sub_080AECA4(struct Object* obj) {
-    ObjectSetFunc(obj, 1, BrontoBurtStalk);
+    ObjectSetFunc(obj, 1, FN(BrontoBurtStalk));
     obj->base.flags |= 0x140;
 }
 
 static void sub_080AECC4(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080AE834);
+    ObjectSetFunc(obj, 1, FN(sub_080AE834));
     obj->base.xspeed = 0x66;
     if (obj->base.x > obj->kirby3->base.x) {
         obj->base.flags |= 1;
@@ -992,7 +992,7 @@ static void sub_080AECC4(struct Object* obj) {
 }
 
 static void sub_080AED1C(struct Object* obj) {
-    ObjectSetFunc(obj, 0, sub_080AED30);
+    ObjectSetFunc(obj, 0, FN(sub_080AED30));
 }
 
 static void sub_080AED30(struct Object* obj) {
@@ -1009,7 +1009,7 @@ static void sub_080AED30(struct Object* obj) {
 }
 
 static void sub_080AED90(struct Object* obj) {
-    ObjectSetFunc(obj, 1, sub_080AEDD0);
+    ObjectSetFunc(obj, 1, FN(sub_080AEDD0));
     obj->base.xspeed = 0x300;
     if (obj->base.flags & 1) {
         obj->base.xspeed = -obj->base.xspeed;
@@ -1024,3 +1024,30 @@ static void sub_080AEDD0(struct Object* obj) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bronto_burt) {
+    PORT_FNID(CreateBrontoBurt),
+    PORT_FNID(sub_080AD7C0),
+    PORT_FNID(sub_080AD8AC),
+    PORT_FNID(sub_080AD958),
+    PORT_FNID(sub_080ADA08),
+    PORT_FNID(sub_080ADA30),
+    PORT_FNID(sub_080ADA94),
+    PORT_FNID(sub_080ADAD8),
+    PORT_FNID(sub_080ADB1C),
+    PORT_FNID(sub_080ADB7C),
+    PORT_FNID(sub_080ADC10),
+    PORT_FNID(sub_080ADD74),
+    PORT_FNID(sub_080ADDE0),
+    PORT_FNID(sub_080AE1AC),
+    PORT_FNID(BrontoBurtStalk),
+    PORT_FNID(sub_080AE834),
+    PORT_FNID(sub_080AE910),
+    PORT_FNID(sub_080AED30),
+    PORT_FNID(sub_080AEDD0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

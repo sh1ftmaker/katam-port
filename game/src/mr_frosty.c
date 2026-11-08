@@ -137,7 +137,7 @@ static const struct Kirby_110 gUnk_08355E74[] = {
 
 void *CreateMrFrosty(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *mf = tmp;
 
     InitObject(mf, template_, a2);
@@ -227,7 +227,7 @@ static void sub_080CBB04(struct Object *mf)
     if (mf->base.flags & 1)
         mf->base.xspeed = -mf->base.xspeed;
     mf->unk9E = 0;
-    mf->unk78 = sub_080CBC14;
+    mf->unk78 = FN(sub_080CBC14);
     sub_08089864(&mf->base, 8, 0x10, mf->base.flags);
     PlaySfx(&mf->base, SE_MINIBOSS_RUN);
     if (Rand16() & 1)
@@ -245,7 +245,7 @@ static void sub_080CBC14(struct Object *mf)
         if ((mf->base.counter == 0x30 || mf->base.counter == 0x73)
             && !(Rand16() & 3))
         {
-            ObjectSetFunc(mf, 0, sub_080CB9F4);
+            ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
             mf->kirby3 = FindTargetKirby(&mf->base);
             mf->base.xspeed = 0;
             mf->base.counter = 0x1E;
@@ -256,7 +256,7 @@ static void sub_080CBC14(struct Object *mf)
     {
         if (mf->base.counter == 0x64 && Rand16() & 1)
         {
-            ObjectSetFunc(mf, 0, sub_080CB9F4);
+            ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
             mf->kirby3 = FindTargetKirby(&mf->base);
             mf->base.xspeed = 0;
             mf->base.counter = 0x1E;
@@ -271,7 +271,7 @@ static void sub_080CBC14(struct Object *mf)
 
 static void sub_080CBE1C(struct Object *mf)
 {
-    ObjectSetFunc(mf, 3, sub_080CBF00);
+    ObjectSetFunc(mf, 3, FN(sub_080CBF00));
     mf->base.xspeed = -0xC0;
     mf->base.yspeed = 0x300;
     if (mf->base.flags & 1)
@@ -328,7 +328,7 @@ static void sub_080CBF00(struct Object *mf)
         if (mf->base.flags & 2)
         {
             mf->base.flags &= ~0x40;
-            ObjectSetFunc(mf, 0, sub_080CB9F4);
+            ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
             mf->kirby3 = FindTargetKirby(&mf->base);
             mf->base.xspeed = 0;
             mf->base.counter = 0x1E;
@@ -338,7 +338,7 @@ static void sub_080CBF00(struct Object *mf)
 
 static void sub_080CC0C0(struct Object *mf)
 {
-    ObjectSetFunc(mf, 6, sub_080CC138);
+    ObjectSetFunc(mf, 6, FN(sub_080CC138));
     if (mf->base.x > mf->kirby3->base.x)
         mf->base.flags |= 1;
     else
@@ -364,7 +364,7 @@ static void sub_080CC138(struct Object *mf)
         if (!--mf->base.counter)
         {
             mf->base.flags &= ~0x40;
-            ObjectSetFunc(mf, 0, sub_080CB9F4);
+            ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
             mf->kirby3 = FindTargetKirby(&mf->base);
             mf->base.xspeed = 0;
             mf->base.counter = 0x1E;
@@ -457,7 +457,7 @@ static void sub_080CC37C(struct Object *mf)
 
 static void sub_080CC408(struct Object *mf)
 {
-    ObjectSetFunc(mf, -1, sub_080CC4C8);
+    ObjectSetFunc(mf, -1, FN(sub_080CC4C8));
     mf->base.xspeed = 0x600;
     mf->base.yspeed = 0;
     if (mf->base.flags & 1)
@@ -469,7 +469,7 @@ static void sub_080CC4C8(struct Object *mf)
 {
     if (mf->unk83 == 0xB && mf->base.flags & 2)
     {
-        ObjectSetFunc(mf, 0, sub_080CB9F4);
+        ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
         mf->kirby3 = FindTargetKirby(&mf->base);
         mf->base.xspeed = 0;
         mf->base.counter = 0x1E;
@@ -524,7 +524,7 @@ static void sub_080CC5A4(struct Object *mf)
         mf->base.xspeed = -mf->base.xspeed;
     if (mf->base.flags & 2)
     {
-        ObjectSetFunc(mf, 1, sub_080CD370);
+        ObjectSetFunc(mf, 1, FN(sub_080CD370));
         if (mf->subtype)
             mf->base.xspeed = -0x80;
         else
@@ -545,7 +545,7 @@ bool32 sub_080CC6F0(struct Object *mf, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(mf, 0xD, sub_080CC818);
+    ObjectSetFunc(mf, 0xD, FN(sub_080CC818));
     mf->base.xspeed = 0;
     mf->base.yspeed = 0;
     mf->unk9F = 0;
@@ -566,7 +566,7 @@ static void sub_080CC818(struct Object *mf)
     {
         mf->base.unkC &= ~0x80;
         mf->base.flags &= ~8;
-        ObjectSetFunc(mf, 0, sub_080CB9F4);
+        ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
         mf->kirby3 = FindTargetKirby(&mf->base);
         mf->base.xspeed = 0;
         mf->base.counter = 0x1E;
@@ -633,7 +633,7 @@ static void sub_080CC818(struct Object *mf)
             mf->base.objBase54 = gUnk_08352DD0[mf->base.counter >> 1];
             if (++mf->base.counter > 0x1E)
             {
-                ObjectSetFunc(mf, 0, sub_080CB9F4);
+                ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
                 mf->kirby3 = FindTargetKirby(&mf->base);
                 mf->base.xspeed = 0;
                 mf->base.counter = 0x1E;
@@ -644,14 +644,14 @@ static void sub_080CC818(struct Object *mf)
 
 void *CreateMrFrostyIceCube(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, sub_080CD588);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(sub_080CD588));
     struct Object *tmp = TaskGetStructPtr(t), *ic = tmp;
 
     InitObject(ic, template_, a2);
     ic->base.flags |= 0x40;
     ic->base.unkC |= 2;
     ic->unk9E = 0;
-    ic->unk7C = sub_0809F840;
+    ic->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&ic->base, -5, -4, 5, 7);
     ObjectSetBounds(&ic->base, -6, -5, 6, 9);
     if (ic->type == OBJ_MR_FROSTY_ICE_CUBE_LARGE)
@@ -679,16 +679,16 @@ static void sub_080CCCA8(struct Object *ic)
         ic->base.flags |= 0x1000;
         sub_0809DA30(ic);
     }
-    else if (mf->unk78 == sub_080CC4C8 && mf->unk83 == 0xB)
+    else if (mf->unk78 == FN(sub_080CC4C8) && mf->unk83 == 0xB)
         sub_080CCD24(ic);
 }
 
 static void sub_080CCD24(struct Object *ic)
 {
     if (ic->type == OBJ_MR_FROSTY_ICE_CUBE_LARGE)
-        ObjectSetFunc(ic, 1, sub_080CCDF8);
+        ObjectSetFunc(ic, 1, FN(sub_080CCDF8));
     else
-        ObjectSetFunc(ic, 0, sub_080CCDF8);
+        ObjectSetFunc(ic, 0, FN(sub_080CCDF8));
     ic->kirby3 = FindTargetKirby(&ic->base);
     if (abs(ic->kirby3->base.y - ic->base.y) < 0x2800)
         ic->unk85 = 0;
@@ -777,7 +777,7 @@ static void sub_080CCEE0(struct Object *mf)
 
 static void sub_080CD050(struct Object *mf)
 {
-    struct Task *t = TaskCreate(sub_080CD128, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080CD128), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -845,7 +845,7 @@ static void sub_080CD128(void)
 
 void sub_080CD2A0(struct Object *mf)
 {
-    ObjectSetFunc(mf, 0, sub_080CB9F4);
+    ObjectSetFunc(mf, 0, FN(sub_080CB9F4));
     mf->kirby3 = FindTargetKirby(&mf->base);
     mf->base.xspeed = 0;
     mf->base.counter = 0x1E;
@@ -854,21 +854,21 @@ void sub_080CD2A0(struct Object *mf)
 void sub_080CD2CC(struct Object *ic)
 {
     if (ic->type == OBJ_MR_FROSTY_ICE_CUBE_LARGE)
-        ObjectSetFunc(ic, 1, sub_080CCCA8);
+        ObjectSetFunc(ic, 1, FN(sub_080CCCA8));
     else
-        ObjectSetFunc(ic, 0, sub_080CCCA8);
+        ObjectSetFunc(ic, 0, FN(sub_080CCCA8));
 }
 
 static void sub_080CD2FC(struct Object *ic)
 {
-    ObjectSetFunc(ic, 0, sub_080CB7E8);
+    ObjectSetFunc(ic, 0, FN(sub_080CB7E8));
     ic->base.xspeed = 0;
     ic->base.yspeed = 0;
 }
 
 static void sub_080CD320(struct Object *mf)
 {
-    ObjectSetFunc(mf, 1, sub_080CD370);
+    ObjectSetFunc(mf, 1, FN(sub_080CD370));
     if (mf->subtype)
         mf->base.xspeed = -0x80;
     else
@@ -891,7 +891,7 @@ static void sub_080CD370(struct Object *mf)
 
 static void sub_080CD3B8(struct Object *mf)
 {
-    ObjectSetFunc(mf, 7, sub_080CD3FC);
+    ObjectSetFunc(mf, 7, FN(sub_080CD3FC));
     if (mf->base.x > mf->kirby3->base.x)
         mf->base.flags |= 1;
     else
@@ -922,42 +922,42 @@ static void sub_080CD3FC(struct Object *mf)
 
 static void sub_080CD47C(struct Object *mf)
 {
-    ObjectSetFunc(mf, 8, sub_080CC26C);
+    ObjectSetFunc(mf, 8, FN(sub_080CC26C));
     mf->base.xspeed = -0x80;
     mf->base.yspeed = 0x200;
     if (mf->base.flags & 1)
         mf->base.xspeed = -mf->base.xspeed;
     mf->base.flags |= 0x40;
     sub_080CCEE0(mf);
-    mf->unk7C = sub_080CD594;
+    mf->unk7C = FN(sub_080CD594);
 }
 
 static void sub_080CD4D0(struct Object *mf)
 {
-    ObjectSetFunc(mf, 9, sub_080CC2F4);
+    ObjectSetFunc(mf, 9, FN(sub_080CC2F4));
     mf->base.xspeed = -0x80;
     mf->base.yspeed = 0x200;
     if (mf->base.flags & 1)
         mf->base.xspeed = -mf->base.xspeed;
     mf->base.flags |= 0x40;
     sub_080CCEE0(mf);
-    mf->unk7C = sub_080CD594;
+    mf->unk7C = FN(sub_080CD594);
 }
 
 static void sub_080CD524(struct Object *mf)
 {
-    ObjectSetFunc(mf, 0xA, sub_080CC37C);
+    ObjectSetFunc(mf, 0xA, FN(sub_080CC37C));
     mf->base.xspeed = -0x80;
     mf->base.yspeed = 0;
     if (mf->base.flags & 1)
         mf->base.xspeed = -mf->base.xspeed;
     sub_080CCEE0(mf);
-    mf->unk7C = sub_080CD594;
+    mf->unk7C = FN(sub_080CD594);
 }
 
 static void sub_080CD56C(struct Object *mf)
 {
-    ObjectSetFunc(mf, 0xC, sub_080CC5A4);
+    ObjectSetFunc(mf, 0xC, FN(sub_080CC5A4));
     mf->base.xspeed = 0;
 }
 
@@ -987,3 +987,33 @@ static void sub_080CD594(struct Object *mf)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_mr_frosty) {
+    PORT_FNID(CreateMrFrosty),
+    PORT_FNID(sub_080CB7E8),
+    PORT_FNID(sub_080CB9F4),
+    PORT_FNID(sub_080CBC14),
+    PORT_FNID(sub_080CBF00),
+    PORT_FNID(sub_080CC138),
+    PORT_FNID(sub_080CC26C),
+    PORT_FNID(sub_080CC2F4),
+    PORT_FNID(sub_080CC37C),
+    PORT_FNID(sub_080CC4C8),
+    PORT_FNID(sub_080CC5A4),
+    PORT_FNID(sub_080CC818),
+    PORT_FNID(CreateMrFrostyIceCube),
+    PORT_FNID(sub_080CCCA8),
+    PORT_FNID(sub_080CCDF8),
+    PORT_FNID(sub_080CD128),
+    PORT_FNID(sub_080CD2A0),
+    PORT_FNID(sub_080CD2CC),
+    PORT_FNID(sub_080CD370),
+    PORT_FNID(sub_080CD3FC),
+    PORT_FNID(sub_080CD588),
+    PORT_FNID(sub_080CD594),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

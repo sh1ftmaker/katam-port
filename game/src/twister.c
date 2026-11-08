@@ -26,7 +26,7 @@ extern const struct AnimInfo gUnk_08354928[] = {
 
 void* CreateTwister(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -39,7 +39,7 @@ void* CreateTwister(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -6, 5, 5);
     ObjectSetBounds(&obj->base, -6, -7, 6, 7);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     return obj;
@@ -87,7 +87,7 @@ static void sub_080BBE08(struct Object* arg0) {
 }
 
 static void sub_080BBEBC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080BBF54);
+    ObjectSetFunc(arg0, 2, FN(sub_080BBF54));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -315,7 +315,7 @@ static void sub_080BC35C(struct Object* arg0) {
     if (arg0->base.counter != 0) {
         s32 a = -5, b = -6, c = -6, d = -7;
         if (++arg0->base.counter > 0x20) {
-            ObjectSetFunc(arg0, 0, sub_080BBE08);
+            ObjectSetFunc(arg0, 0, FN(sub_080BBE08));
             sub_0803E2B0(&arg0->base, a, b, 5, 5);
             ObjectSetBounds(&arg0->base, c, d, 6, 7);
             arg0->kirby3 = FindTargetKirby(&arg0->base);
@@ -344,7 +344,7 @@ static void sub_080BC35C(struct Object* arg0) {
 }
 
 void sub_080BC440(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BBE08);
+    ObjectSetFunc(arg0, 0, FN(sub_080BBE08));
     sub_0803E2B0(&arg0->base, -5, -6, 5, 5);
     ObjectSetBounds(&arg0->base, -6, -7, 6, 7);
     arg0->kirby3 = FindTargetKirby(&arg0->base);
@@ -354,10 +354,23 @@ void sub_080BC440(struct Object* arg0) {
 }
 
 static void sub_080BC4A8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080BC35C);
+    ObjectSetFunc(arg0, 2, FN(sub_080BC35C));
     arg0->base.xspeed = 0;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_twister) {
+    PORT_FNID(CreateTwister),
+    PORT_FNID(sub_080BBE08),
+    PORT_FNID(sub_080BBF54),
+    PORT_FNID(sub_080BC35C),
+    PORT_FNID(sub_080BC440),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

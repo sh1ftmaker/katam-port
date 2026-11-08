@@ -45,7 +45,7 @@ static const struct AnimInfo gUnk_08353F98[] = {
 
 void* CreateLaserBall(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -60,7 +60,7 @@ void* CreateLaserBall(struct ObjectTemplate* arg0, u8 arg1) {
     else {
         sub_08085CE8(&obj->base, gUnk_08353F88);
     }
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     return obj;
@@ -296,7 +296,7 @@ static void sub_080B2710(struct Object* arg0) {
 }
 
 static void sub_080B2780(struct Object* arg0) {
-    struct Task *task = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *laser2 = TaskGetStructPtr(task), *laser = laser2;
     ClearObjectBase(&laser->base);
     laser->base.header.kind = 2;
@@ -309,9 +309,9 @@ static void sub_080B2780(struct Object* arg0) {
     if (Macro_0810B1F4(&laser->base)) {
         laser->base.flags |= 0x2000;
     }
-    laser->unk78 = sub_080B2A30;
-    laser->unk7C = sub_080B2D74;
-    laser->unk80 = sub_080B2D74;
+    laser->unk78 = FN(sub_080B2A30);
+    laser->unk7C = FN(sub_080B2D74);
+    laser->unk80 = FN(sub_080B2D74);
     laser->unk84 = NULL;
     laser->unk88 = 0;
     laser->unk89 = 0;
@@ -367,7 +367,7 @@ void sub_080B2BE0(struct Object* arg0) {
         sub_080B2D08(arg0);
     }
     else {
-        ObjectSetFunc(arg0, 0,sub_080B2330);
+        ObjectSetFunc(arg0, 0,FN(sub_080B2330));
         if (arg0->base.x > arg0->kirby3->base.x) {
             arg0->base.flags |= 1;
         }
@@ -379,14 +379,14 @@ void sub_080B2BE0(struct Object* arg0) {
 }
 
 static void sub_080B2C48(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080B2710);
+    ObjectSetFunc(arg0, 2, FN(sub_080B2710));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = RandLessThan3() + 1;
 }
 
 static void sub_080B2CAC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B2CD0);
+    ObjectSetFunc(arg0, 0, FN(sub_080B2CD0));
     arg0->base.flags ^= 1;
     arg0->base.yspeed = 0;
 }
@@ -403,7 +403,7 @@ static void sub_080B2CD0(struct Object* arg0) {
 }
 
 static void sub_080B2D08(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B2D68);
+    ObjectSetFunc(arg0, 0, FN(sub_080B2D68));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -433,3 +433,19 @@ static bool8 sub_080B2D74(struct Unk_080C4EDC* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_laser_ball) {
+    PORT_FNID(CreateLaserBall),
+    PORT_FNID(sub_080B2330),
+    PORT_FNID(sub_080B2710),
+    PORT_FNID(sub_080B2A30),
+    PORT_FNID(sub_080B2BE0),
+    PORT_FNID(sub_080B2CD0),
+    PORT_FNID(sub_080B2D68),
+    PORT_FNID(sub_080B2D74),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

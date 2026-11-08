@@ -69,7 +69,7 @@ static const u16 gUnk_082DE5E0[][3] = {
 
 void *CreateShard(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Shard), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Shard), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Shard *tmp = TaskGetStructPtr(t), *shard = tmp;
     u16 i;
 
@@ -110,7 +110,7 @@ void *CreateShard(struct ObjectTemplate *template_, u8 a2)
         shard->obj.base.sprite.unk14 = 0x780;
     else
         shard->obj.base.sprite.unk14 = 0x7C0;
-    gUnk_08351648[shard->obj.type].unk10(&shard->obj);
+    CALL(gUnk_08351648[shard->obj.type].unk10)(&shard->obj);
     return shard;
 }
 
@@ -219,7 +219,7 @@ static void sub_0801BC28(struct Shard *shard)
         CreateEffectObject(&shardAlias->obj.base, 0, 0x28E, 0);
         PlaySfx(&shardAlias->obj.base, SE_ITEM_COLLECT);
         shardAlias->obj.base.flags |= 0x400;
-        shardAlias->obj.unk78 = sub_0801C4F0;
+        shardAlias->obj.unk78 = FN(sub_0801C4F0);
     }
     shard->unkD6 = (shard->unkD6 + 8) & 0x3FF;
     vars[0] = shard->unkD8 * 0x100;
@@ -267,7 +267,7 @@ static void sub_0801BE4C(struct Shard *shard) // see sub_0802AE9C
     u16 i;
 
     if (!sub_0801BA18(&shard->obj.base, (shard->obj.objTemplate->unk22 >> 1) & 1))
-        shard->obj.unk78 = sub_0801C3C4;
+        shard->obj.unk78 = FN(sub_0801C3C4);
     else
     {
         struct LevelInfo *li = &gCurLevelInfo[shard->obj.base.unk56];
@@ -306,7 +306,7 @@ static void sub_0801BE4C(struct Shard *shard) // see sub_0802AE9C
                     && gCurLevelInfo[shard->obj.base.unk56].currentRoom == gKirbys[i].base.roomId)
                     sub_0805BDF4(gKirbys + i, shard->obj.objTemplate->unk1E, shard->obj.objTemplate->unk1A, shard->obj.objTemplate->unk1C);
             }
-            shard->obj.unk78 = sub_0801C3B0;
+            shard->obj.unk78 = FN(sub_0801C3B0);
         }
         else
             shard->obj.base.flags |= 4;
@@ -339,7 +339,7 @@ static void sub_0801C004(struct Shard *shard)
 
 static struct EffectObject *sub_0801C0A8(struct Shard *shard, u16 a2)
 {
-    struct Task *t = TaskCreate(sub_0801C194, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0801C194), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -395,23 +395,23 @@ static void sub_0801C194(void)
 void sub_0801C308(struct Shard *shard)
 {
     if (shard->unkD4 < 8)
-        shard->obj.unk78 = sub_0801C364;
+        shard->obj.unk78 = FN(sub_0801C364);
     else
     {
         if (shard->obj.objTemplate->unk22 & 1)
-            shard->obj.unk78 = sub_0801C3E0;
+            shard->obj.unk78 = FN(sub_0801C3E0);
         else if (sub_0801BBA8(shard))
-            shard->obj.unk78 = sub_0801C39C;
+            shard->obj.unk78 = FN(sub_0801C39C);
         else
-            shard->obj.unk78 = sub_0801C388;
-        shard->obj.unk7C = sub_0801C004;
+            shard->obj.unk78 = FN(sub_0801C388);
+        shard->obj.unk7C = FN(sub_0801C004);
     }
 }
 
 static void sub_0801C364(struct Shard *shard)
 {
     shard->unkD6 = 0;
-    shard->obj.unk78 = sub_0801C3F4;
+    shard->obj.unk78 = FN(sub_0801C3F4);
     shard->obj.base.flags |= 0x200;
     shard->obj.base.flags |= 0x400;
 }
@@ -419,32 +419,32 @@ static void sub_0801C364(struct Shard *shard)
 static void sub_0801C388(struct Shard *shard)
 {
     shard->obj.unk83 = 8;
-    shard->obj.unk78 = sub_0801C5CC;
+    shard->obj.unk78 = FN(sub_0801C5CC);
 }
 
 static void sub_0801C39C(struct Shard *shard)
 {
     shard->obj.unk83 = 0xA;
-    shard->obj.unk78 = sub_0801C618;
+    shard->obj.unk78 = FN(sub_0801C618);
 }
 
 static void sub_0801C3B0(struct Shard *shard)
 {
     shard->obj.unk83 = 9;
-    shard->obj.unk78 = nullsub_27;
+    shard->obj.unk78 = FN(nullsub_27);
 }
 
 static void sub_0801C3C4(struct Shard *shard)
 {
     shard->obj.unk83 = 0xC;
     shard->obj.base.flags &= ~6;
-    shard->obj.unk78 = sub_0801C650;
+    shard->obj.unk78 = FN(sub_0801C650);
 }
 
 static void sub_0801C3E0(struct Shard *shard)
 {
     shard->obj.unk83 = 0xD;
-    shard->obj.unk78 = sub_0801C66C;
+    shard->obj.unk78 = FN(sub_0801C66C);
 }
 
 static void sub_0801C3F4(struct Shard *shard)
@@ -463,14 +463,14 @@ static void sub_0801C3F4(struct Shard *shard)
     shard->obj.base.flags &= ~0x200;
     shard->obj.base.flags &= ~0x400;
     sub_080953D4(&shardAlias->obj.base, 0, 0);
-    shard->obj.unk78 = sub_0801C47C;
+    shard->obj.unk78 = FN(sub_0801C47C);
 }
 
 static void sub_0801C47C(struct Shard *shard)
 {
     shard->unkDC = 0;
     CreateEffectObject(&shard->obj.base, 0, 0x292, 0);
-    shard->obj.unk78 = sub_0801C4A8;
+    shard->obj.unk78 = FN(sub_0801C4A8);
 }
 
 static void sub_0801C4A8(struct Shard *shard)
@@ -478,7 +478,7 @@ static void sub_0801C4A8(struct Shard *shard)
     struct Shard *shardAlias = shard;
 
     if (shard->unkDC++ > 0x3C)
-        shard->obj.unk78 = sub_0801C4D4;
+        shard->obj.unk78 = FN(sub_0801C4D4);
     shardAlias->obj.base.flags |= 4;
 }
 
@@ -486,7 +486,7 @@ static void sub_0801C4D4(struct Shard *shard)
 {
     shard->unkD6 = 0;
     shard->obj.base.flags |= 4;
-    shard->obj.unk78 = sub_0801BC28;
+    shard->obj.unk78 = FN(sub_0801BC28);
 }
 
 static void sub_0801C4F0(struct Shard *shard)
@@ -494,13 +494,13 @@ static void sub_0801C4F0(struct Shard *shard)
     shard->obj.base.xspeed = 0;
     shard->obj.base.yspeed = 0;
     shard->unkDC = 0;
-    shard->obj.unk78 = sub_0801C50C;
+    shard->obj.unk78 = FN(sub_0801C50C);
 }
 
 static void sub_0801C50C(struct Shard *shard)
 {
     if (shard->unkDC++ > 0xA)
-        shard->obj.unk78 = sub_0801C52C;
+        shard->obj.unk78 = FN(sub_0801C52C);
 }
 
 static void sub_0801C52C(struct Shard *shard)
@@ -508,7 +508,7 @@ static void sub_0801C52C(struct Shard *shard)
     if (CanStartInGameInterlude())
     {
         StartInGameInterlude(shard->unkD4 + 1);
-        shard->obj.unk78 = sub_0801C558;
+        shard->obj.unk78 = FN(sub_0801C558);
     }
 }
 
@@ -530,14 +530,14 @@ static void sub_0801C558(struct Shard *shard)
     }
     shardAlias->unkDC = (Rand16() & 1) + 2;
     shardAlias->unkE0 = 0;
-    shard->obj.unk78 = sub_0801BD68;
+    shard->obj.unk78 = FN(sub_0801BD68);
     sub_0801BD68(shard);
 }
 
 static void sub_0801C5CC(struct Shard *shard)
 {
     if (sub_0801BBA8(shard))
-        shard->obj.unk78 = sub_0801C6AC;
+        shard->obj.unk78 = FN(sub_0801C6AC);
     else
     {
         u16 i;
@@ -552,7 +552,7 @@ static void sub_0801C5CC(struct Shard *shard)
 static void sub_0801C618(struct Shard *shard)
 {
     if (sub_0801BA18(&shard->obj.base, (shard->obj.objTemplate->unk22 >> 1) & 1))
-        shard->obj.unk78 = sub_0801C6C0;
+        shard->obj.unk78 = FN(sub_0801C6C0);
     else
         shard->obj.base.flags |= 4;
 }
@@ -563,7 +563,7 @@ static void nullsub_27(struct Shard *shard)
 static void sub_0801C650(struct Shard *shard)
 {
     if (shard->obj.base.flags & 2)
-        shard->obj.unk78 = sub_0801C39C;
+        shard->obj.unk78 = FN(sub_0801C39C);
 }
 
 static void sub_0801C66C(struct Shard *shard)
@@ -572,29 +572,66 @@ static void sub_0801C66C(struct Shard *shard)
     {
         shard->obj.unk83 = 0xA;
         shard->obj.base.flags &= ~0x400;
-        shard->obj.unk78 = sub_0801C39C;
+        shard->obj.unk78 = FN(sub_0801C39C);
     }
 }
 
 static void sub_0801C6AC(struct Shard *shard)
 {
     shard->obj.unk83 = 9;
-    shard->obj.unk78 = sub_0801BE4C;
+    shard->obj.unk78 = FN(sub_0801BE4C);
 }
 
 static void sub_0801C6C0(struct Shard *shard)
 {
     shard->obj.unk83 = 0xB;
     shard->obj.base.flags &= ~6;
-    shard->obj.unk78 = sub_0801C6DC;
+    shard->obj.unk78 = FN(sub_0801C6DC);
 }
 
 static void sub_0801C6DC(struct Shard *shard)
 {
     if (shard->obj.base.flags & 2)
-        shard->obj.unk78 = sub_0801C6AC;
+        shard->obj.unk78 = FN(sub_0801C6AC);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_shard) {
+    PORT_FNID(CreateShard),
+    PORT_FNID(sub_0801BC28),
+    PORT_FNID(sub_0801BD68),
+    PORT_FNID(sub_0801BE4C),
+    PORT_FNID(sub_0801C004),
+    PORT_FNID(sub_0801C194),
+    PORT_FNID(sub_0801C308),
+    PORT_FNID(sub_0801C364),
+    PORT_FNID(sub_0801C388),
+    PORT_FNID(sub_0801C39C),
+    PORT_FNID(sub_0801C3B0),
+    PORT_FNID(sub_0801C3C4),
+    PORT_FNID(sub_0801C3E0),
+    PORT_FNID(sub_0801C3F4),
+    PORT_FNID(sub_0801C47C),
+    PORT_FNID(sub_0801C4A8),
+    PORT_FNID(sub_0801C4D4),
+    PORT_FNID(sub_0801C4F0),
+    PORT_FNID(sub_0801C50C),
+    PORT_FNID(sub_0801C52C),
+    PORT_FNID(sub_0801C558),
+    PORT_FNID(sub_0801C5CC),
+    PORT_FNID(sub_0801C618),
+    PORT_FNID(nullsub_27),
+    PORT_FNID(sub_0801C650),
+    PORT_FNID(sub_0801C66C),
+    PORT_FNID(sub_0801C6AC),
+    PORT_FNID(sub_0801C6C0),
+    PORT_FNID(sub_0801C6DC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

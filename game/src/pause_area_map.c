@@ -3095,7 +3095,7 @@ void CreateAreaMap(void) {
     gBgScrollRegs[2][1] = 0;
     gBgScrollRegs[2][0] = 0;
 
-    task = TaskCreate(AreaMapInit, sizeof(struct AreaMap), 0x1000, TASK_USE_IWRAM | TASK_x0004, NULL);
+    task = TaskCreate(FN(AreaMapInit), sizeof(struct AreaMap), 0x1000, TASK_USE_IWRAM | TASK_x0004, NULL);
     areamap = tmp = TaskGetStructPtr(task);
     areamap->nextAreaMapCounter = 0;
     areamap->toGameCounter = 0;
@@ -3226,12 +3226,12 @@ static void AreaMapInit(void) {
         gPauseMenus[2].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[3].flags & MENU_FLAG_BACK_TO_GAME) {
         m4aSongNumStart(SE_PAUSE_MENU_ACTIVATE);
         sub_08124EC8();
-        gCurTask->main = AreaMapToGame;
+        gCurTask->main = FN(AreaMapToGame);
     }
     else {
         SaveBgPaletteColors(0, 0xff);
         SaveObjPaletteColors(0x80, 0x7f);
-        gCurTask->main = AreaMapMain;
+        gCurTask->main = FN(AreaMapMain);
         AreaMapRoomsInit(areamap);
     }
 }
@@ -3341,7 +3341,7 @@ static void AreaMapMain(void) {
         gPauseMenus[2].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[3].flags & MENU_FLAG_BACK_TO_GAME) {
         m4aSongNumStart(SE_PAUSE_MENU_ACTIVATE);
         sub_08124EC8();
-        gCurTask->main = AreaMapToGame;
+        gCurTask->main = FN(AreaMapToGame);
         AreaMapUpdateDynamics(areamap);
         return;
     }
@@ -3455,7 +3455,7 @@ static void AreaMapMain(void) {
             (gPauseMenus[playerOrAreaId].menuId == MENU_HELP || gPauseMenus[playerOrAreaId].menuId == MENU_WORLDMAP)) {
             areamap->nextMenuId = gPauseMenus[playerOrAreaId].menuId;
             CreatePauseFade(0x20, 1);
-            gCurTask->main = AreaMapToNextMenu;
+            gCurTask->main = FN(AreaMapToNextMenu);
         }
     }
 }
@@ -3480,3 +3480,15 @@ enum KirbyRoomFlagIndices GetKirbyRoomFlagIndex(u32 playerId) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_pause_area_map) {
+    PORT_FNID(AreaMapInit),
+    PORT_FNID(AreaMapMain),
+    PORT_FNID(AreaMapToNextMenu),
+    PORT_FNID(AreaMapToGame),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

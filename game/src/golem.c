@@ -47,14 +47,14 @@ extern const struct AnimInfo gUnk_08355674[] = {
 };
 
 static void (*const gUnk_083556B0[])(struct Object *) = {
-    sub_080C645C,
-    sub_080C645C,
-    sub_080C6404,
-    sub_080C6674,
-    sub_080C65B8,
-    sub_080C65B8,
-    sub_080C64A4,
-    sub_080C64A4,
+    FN(sub_080C645C),
+    FN(sub_080C645C),
+    FN(sub_080C6404),
+    FN(sub_080C6674),
+    FN(sub_080C65B8),
+    FN(sub_080C65B8),
+    FN(sub_080C64A4),
+    FN(sub_080C64A4),
 };
 
 void *CreateGolem(struct ObjectTemplate *template_, u8 a2)
@@ -63,9 +63,9 @@ void *CreateGolem(struct ObjectTemplate *template_, u8 a2)
     struct Task *t;
 
     if (template_->subtype1 & 0x80)
-        t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, sub_080C6734);
+        t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(sub_080C6734));
     else
-        t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+        t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(t);
     golem = tmp;
     InitObject(golem, template_, a2);
@@ -83,7 +83,7 @@ void *CreateGolem(struct ObjectTemplate *template_, u8 a2)
     {
         sub_080C66DC(golem);
         golem->unk9E = 0;
-        golem->unk7C = sub_0809F840;
+        golem->unk7C = FN(sub_0809F840);
     }
     else
         sub_080C66B4(golem);
@@ -467,9 +467,9 @@ static void sub_080C5B50(struct Object *golem)
             golem->base.sprite.unk20[0].unk0 = -1;
             golem->base.flags &= ~0x100;
             golem->base.flags &= ~0x40;
-            golem->unk78 = sub_080C5AB4;
+            golem->unk78 = FN(sub_080C5AB4);
             golem->unk9E = 0;
-            golem->unk7C = sub_080C55D4;
+            golem->unk7C = FN(sub_080C55D4);
             golem->kirbyAbility = KIRBY_ABILITY_STONE;
             return;
         }
@@ -543,9 +543,9 @@ static void sub_080C5E64(struct Object *golem)
         golem->base.sprite.unk20[0].unk0 = -1;
         golem->base.flags &= ~0x100;
         golem->base.flags &= ~0x40;
-        golem->unk78 = sub_080C5AB4;
+        golem->unk78 = FN(sub_080C5AB4);
         golem->unk9E = 0;
-        golem->unk7C = sub_080C55D4;
+        golem->unk7C = FN(sub_080C55D4);
         golem->kirbyAbility = KIRBY_ABILITY_STONE;
     }
     else
@@ -583,9 +583,9 @@ static void sub_080C5F20(struct Object *golem)
         golem->base.sprite.unk20[0].unk0 = -1;
         golem->base.flags &= ~0x100;
         golem->base.flags &= ~0x40;
-        golem->unk78 = sub_080C5AB4;
+        golem->unk78 = FN(sub_080C5AB4);
         golem->unk9E = 0;
-        golem->unk7C = sub_080C55D4;
+        golem->unk7C = FN(sub_080C55D4);
         golem->kirbyAbility = KIRBY_ABILITY_STONE;
     }
     else
@@ -649,9 +649,9 @@ static void sub_080C60C8(struct Object *golem)
     RequestScreenShake(2, &golem->base);
     sub_08089864(&golem->base, -0x10, 0xC, 1);
     sub_08089864(&golem->base, -0x10, 0xC, 0);
-    golem->unk78 = sub_080C61B0;
+    golem->unk78 = FN(sub_080C61B0);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
     PlaySfx(&golem->base, SE_GOLEM_SLAM_ATTACK);
 }
@@ -678,9 +678,9 @@ static void sub_080C61B0(struct Object *golem)
         golem->base.sprite.unk20[0].unk0 = -1;
         golem->base.flags &= ~0x100;
         golem->base.flags &= ~0x40;
-        golem->unk78 = sub_080C5AB4;
+        golem->unk78 = FN(sub_080C5AB4);
         golem->unk9E = 0;
-        golem->unk7C = sub_080C55D4;
+        golem->unk7C = FN(sub_080C55D4);
         golem->kirbyAbility = KIRBY_ABILITY_STONE;
     }
     ++golem->base.counter;
@@ -786,21 +786,21 @@ void sub_080C6404(struct Object *golem)
     golem->base.sprite.unk20[0].unk0 = -1;
     golem->base.flags &= ~0x100;
     golem->base.flags &= ~0x40;
-    golem->unk78 = sub_080C5AB4;
+    golem->unk78 = FN(sub_080C5AB4);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
 static void sub_080C645C(struct Object *golem)
 {
-    ObjectSetFunc(golem, 2, sub_080C5B50);
+    ObjectSetFunc(golem, 2, FN(sub_080C5B50));
     golem->base.counter = 0;
     golem->unk83 = 2;
     golem->kirby3 = FindTargetKirby(&golem->base);
-    golem->unk78 = sub_080C5B50;
+    golem->unk78 = FN(sub_080C5B50);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
@@ -810,9 +810,9 @@ static void sub_080C64A4(struct Object *golem)
     golem->unk83 = 0xA;
     golem->base.xspeed = 0;
     golem->kirby3 = FindTargetKirby(&golem->base);
-    golem->unk78 = sub_080C64EC;
+    golem->unk78 = FN(sub_080C64EC);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_WHEEL;
 }
 
@@ -836,9 +836,9 @@ static void sub_080C6528(struct Object *golem)
         golem->unk83 = 0xB;
     else
         golem->unk83 = 0xC;
-    golem->unk78 = sub_080C5CB8;
+    golem->unk78 = FN(sub_080C5CB8);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
     golem->kirbyAbility = KIRBY_ABILITY_WHEEL;
 }
 
@@ -846,9 +846,9 @@ static void sub_080C6588(struct Object *golem)
 {
     golem->base.counter = 0;
     golem->unk83 = 0xD;
-    golem->unk78 = sub_080C5E64;
+    golem->unk78 = FN(sub_080C5E64);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_WHEEL;
 }
 
@@ -858,9 +858,9 @@ static void sub_080C65B8(struct Object *golem)
     golem->base.yspeed = 0x3C0;
     golem->unk83 = 6;
     golem->base.flags |= 0x20;
-    golem->unk78 = sub_080C6244;
+    golem->unk78 = FN(sub_080C6244);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
@@ -869,9 +869,9 @@ static void sub_080C65F8(struct Object *golem)
     golem->base.counter = 0;
     golem->unk83 = 8;
     golem->base.flags |= 0x20;
-    golem->unk78 = sub_080C6380;
+    golem->unk78 = FN(sub_080C6380);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
@@ -880,9 +880,9 @@ static void sub_080C6634(struct Object *golem)
     golem->base.counter = 0;
     golem->unk83 = 5;
     golem->kirby3 = FindTargetKirby(&golem->base);
-    golem->unk78 = sub_080C6068;
+    golem->unk78 = FN(sub_080C6068);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
@@ -891,9 +891,9 @@ static void sub_080C6674(struct Object *golem)
     golem->base.counter = 0;
     golem->unk83 = 0xE;
     golem->kirby3 = FindTargetKirby(&golem->base);
-    golem->unk78 = sub_080C5F20;
+    golem->unk78 = FN(sub_080C5F20);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_FIGHTER;
 }
 
@@ -901,9 +901,9 @@ static void sub_080C66B4(struct Object *golem)
 {
     golem->base.counter = 0;
     golem->unk83 = 0;
-    golem->unk78 = sub_080C57D8;
+    golem->unk78 = FN(sub_080C57D8);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C55D4;
+    golem->unk7C = FN(sub_080C55D4);
 }
 
 static void sub_080C66DC(struct Object *golem)
@@ -916,9 +916,9 @@ static void sub_080C66DC(struct Object *golem)
     golem->base.flags |= 0x100;
     golem->base.flags |= 0x40;
     golem->base.flags &= ~8;
-    golem->unk78 = sub_080C5A3C;
+    golem->unk78 = FN(sub_080C5A3C);
     golem->unk9E = 0;
-    golem->unk7C = sub_080C6770;
+    golem->unk7C = FN(sub_080C6770);
     golem->kirbyAbility = KIRBY_ABILITY_STONE;
 }
 
@@ -949,3 +949,32 @@ static void sub_080C6770(struct Object *golem)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_golem) {
+    PORT_FNID(CreateGolem),
+    PORT_FNID(sub_080C55D4),
+    PORT_FNID(sub_080C57D8),
+    PORT_FNID(sub_080C5A3C),
+    PORT_FNID(sub_080C5AB4),
+    PORT_FNID(sub_080C5B50),
+    PORT_FNID(sub_080C5CB8),
+    PORT_FNID(sub_080C5E64),
+    PORT_FNID(sub_080C5F20),
+    PORT_FNID(sub_080C6068),
+    PORT_FNID(sub_080C61B0),
+    PORT_FNID(sub_080C6244),
+    PORT_FNID(sub_080C6380),
+    PORT_FNID(sub_080C6404),
+    PORT_FNID(sub_080C645C),
+    PORT_FNID(sub_080C64A4),
+    PORT_FNID(sub_080C64EC),
+    PORT_FNID(sub_080C65B8),
+    PORT_FNID(sub_080C6674),
+    PORT_FNID(sub_080C6734),
+    PORT_FNID(sub_080C6770),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -59,7 +59,7 @@ void sub_080C29C0(struct Object *r5, u8 r8) {
 }
 
 void *CreateParasol(struct ObjectTemplate *r6, u8 r5) {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1001, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1001, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(t);
 
     InitObject(r4, r6, r5);
@@ -85,7 +85,7 @@ void sub_080C2B28(struct Object *r5) {
     if (r5->objTemplate->subtype1 == 2) {
         sub_080C3058(r5);
     } else {
-        ObjectSetFunc(r5, 0, sub_080C2FC8);
+        ObjectSetFunc(r5, 0, FN(sub_080C2FC8));
         r5->base.flags &= ~0x200;
         r4 = (r5->kirby3->base.x - r5->base.x) >> 8;
         r1 = (r5->base.y - r5->kirby3->base.y) >> 8;
@@ -267,7 +267,7 @@ static void sub_080C2FC8(struct Object *r2) {
 }
 
 static void sub_080C2FF4(struct Object *r4) {
-    ObjectSetFunc(r4, 1, sub_080C3020);
+    ObjectSetFunc(r4, 1, FN(sub_080C3020));
     r4->base.yspeed = 0x100;
     r4->base.flags &= ~0x2000000;
 }
@@ -277,20 +277,20 @@ static void sub_080C3020(struct Object *r0) {
 }
 
 static void sub_080C302C(struct Object *r4) {
-    ObjectSetFunc(r4, 1, sub_080C2BB4);
+    ObjectSetFunc(r4, 1, FN(sub_080C2BB4));
     r4->base.yspeed = 0x100;
     r4->base.flags &= ~0x2000000;
 }
 
 static void sub_080C3058(struct Object *r4) {
-    ObjectSetFunc(r4, 1, sub_080C2D44);
+    ObjectSetFunc(r4, 1, FN(sub_080C2D44));
     r4->base.flags |= 0x200;
     r4->base.flags |= 0x2000000;
     r4->base.flags |= 0x2000;
     r4->unk85 = 0;
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
-    r4->unk7C = sub_080C309C;
+    r4->unk7C = FN(sub_080C309C);
 }
 
 static void sub_080C309C(struct Object *r2) {
@@ -303,3 +303,18 @@ static void sub_080C309C(struct Object *r2) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_parasol) {
+    PORT_FNID(CreateParasol),
+    PORT_FNID(sub_080C2B28),
+    PORT_FNID(sub_080C2BB4),
+    PORT_FNID(sub_080C2D44),
+    PORT_FNID(sub_080C2FC8),
+    PORT_FNID(sub_080C3020),
+    PORT_FNID(sub_080C309C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

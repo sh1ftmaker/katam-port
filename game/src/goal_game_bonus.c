@@ -68,7 +68,7 @@ static const s16 gUnk_082DE474[] = {
 
 void* CreateGoalGameBonus(struct ObjectTemplate *arg0, u8 arg1) {
     struct GoalGameBonus *ggb, *ggb2;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct GoalGameBonus), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct GoalGameBonus), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     ggb2 = TaskGetStructPtr(task);
     ggb = ggb2;
     InitObject(&ggb->obj, arg0, arg1);
@@ -86,7 +86,7 @@ void* CreateGoalGameBonus(struct ObjectTemplate *arg0, u8 arg1) {
     if (ggb->unkB4 > 9 && ggb->unkB4 < 0x14) {
         ggb->obj.base.sprite.unk14 = ((ggb->obj.base.sprite.unk14 >> 6) - 1) << 6;
     }
-    gUnk_08351648[ggb->obj.type].unk10(&ggb->obj);
+    CALL(gUnk_08351648[ggb->obj.type].unk10)(&ggb->obj);
 
     return ggb;
 }
@@ -96,26 +96,26 @@ static void sub_0801B78C(struct GoalGameBonus *);
 static void sub_0801B7E0(struct GoalGameBonus *);
 
 static void (*const gUnk_082DE4A0[])(struct GoalGameBonus *) = {
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B78C,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B78C,
-    sub_0801B7E0,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
-    sub_0801B394,
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B78C),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B78C),
+    FN(sub_0801B7E0),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
+    FN(sub_0801B394),
     NULL,
     NULL,
 };
@@ -176,12 +176,12 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
                 ++kirby->lives;
                 PlaySfx(&kirby->base, SE_BONUS_1UP);
             }
-            arg0->obj.unk78 = sub_0801B85C;
+            arg0->obj.unk78 = FN(sub_0801B85C);
         }
         else {
             arg0->kirby = kirby;
             arg0->unkC0 = gUnk_08351648[OBJ_SMALL_FOOD].unk4;
-            arg0->obj.unk78 = sub_0801B834;
+            arg0->obj.unk78 = FN(sub_0801B834);
         }
         break;
     case 1:
@@ -194,12 +194,12 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
                 ++kirby->lives;
                 PlaySfx(&kirby->base, SE_BONUS_1UP);
             }
-            arg0->obj.unk78 = sub_0801B85C;
+            arg0->obj.unk78 = FN(sub_0801B85C);
         }
         else {
             arg0->kirby = kirby;
             arg0->unkC0 = gUnk_08351648[OBJ_POP_SODA].unk4;
-            arg0->obj.unk78 = sub_0801B834;
+            arg0->obj.unk78 = FN(sub_0801B834);
         }
         break;
     case 2:
@@ -212,12 +212,12 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
                 ++kirby->lives;
                 PlaySfx(&kirby->base, SE_BONUS_1UP);
             }
-            arg0->obj.unk78 = sub_0801B85C;
+            arg0->obj.unk78 = FN(sub_0801B85C);
         }
         else {
             arg0->kirby = kirby;
             arg0->unkC0 = gUnk_08351648[OBJ_MEAT].unk4;
-            arg0->obj.unk78 = sub_0801B834;
+            arg0->obj.unk78 = FN(sub_0801B834);
         }
         break;
     case 3:
@@ -225,7 +225,7 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
         PlaySfx(&arg0->obj.base, SE_ITEM_COLLECT);
         arg0->kirby = kirby;
         arg0->unkC0 = gUnk_08351648[OBJ_TOMATO].unk4;
-        arg0->obj.unk78 = sub_0801B834;
+        arg0->obj.unk78 = FN(sub_0801B834);
         break;
     case 5:
     case 6:
@@ -238,7 +238,7 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
             ++kirby->lives;
             PlaySfx(&kirby->base, SE_BONUS_1UP);
         }
-        arg0->obj.unk78 = sub_0801B85C;
+        arg0->obj.unk78 = FN(sub_0801B85C);
         break;
     case 9:
         PlaySfx(&arg0->obj.base, SE_ITEM_COLLECT);
@@ -246,7 +246,7 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
             ++kirby->battery;
             PlaySfx(&kirby->base, SE_08D5AD9C);
         }
-        arg0->obj.unk78 = sub_0801B85C;
+        arg0->obj.unk78 = FN(sub_0801B85C);
         break;
     case 10:
     case 11:
@@ -260,7 +260,7 @@ static void sub_0801AC98(struct GoalGameBonus *arg0) {
     case 19:
         CreateEffectObject(&arg0->obj.base, 0, 0x29b, 0);
         sub_08052E2C(kirby);
-        arg0->obj.unk78 = sub_0801B85C;
+        arg0->obj.unk78 = FN(sub_0801B85C);
         break;
     }
 }
@@ -287,7 +287,7 @@ static inline void GoalGameBonusIncrementXspeed(struct GoalGameBonus *arg0) {
     else if (arg0->obj.base.x > 0x12000)
         a = TRUE;
     if (a) {
-        obj->unk78 = sub_0801B85C;
+        obj->unk78 = FN(sub_0801B85C);
     }
 }
 
@@ -313,7 +313,7 @@ static inline void GoalGameBonusDecrementXspeed(struct GoalGameBonus *arg0) {
     else if (arg0->obj.base.x > 0x12000)
         a = TRUE;
     if (a) {
-        obj->unk78 = sub_0801B85C;
+        obj->unk78 = FN(sub_0801B85C);
     }
 }
 
@@ -361,28 +361,28 @@ static void sub_0801B678(struct GoalGameBonus *arg0) {
         arg0->unkC2 = 0;
     }
     if (!arg0->unkC0)
-        tmp->obj.unk78 = sub_0801B85C;
+        tmp->obj.unk78 = FN(sub_0801B85C);
 }
 
 static void sub_0801B78C(struct GoalGameBonus *arg0) {
     if (arg0->obj.base.x > 0x8800) {
         arg0->obj.base.xspeed = -gUnk_082DE4F8[arg0->unkB4][0];
-        arg0->obj.unk78 = sub_0801B428;
+        arg0->obj.unk78 = FN(sub_0801B428);
     }
     else {
         arg0->obj.base.xspeed = gUnk_082DE4F8[arg0->unkB4][0];
-        arg0->obj.unk78 = sub_0801B4BC;
+        arg0->obj.unk78 = FN(sub_0801B4BC);
     }
 }
 
 static void sub_0801B7E0(struct GoalGameBonus *arg0) {
     if (arg0->obj.base.x > 0x8800) {
         arg0->obj.base.xspeed = -gUnk_082DE4F8[arg0->unkB4][0];
-        arg0->obj.unk78 = sub_0801B550;
+        arg0->obj.unk78 = FN(sub_0801B550);
     }
     else {
         arg0->obj.base.xspeed = gUnk_082DE4F8[arg0->unkB4][0];
-        arg0->obj.unk78 = sub_0801B5E4;
+        arg0->obj.unk78 = FN(sub_0801B5E4);
     }
 }
 
@@ -391,7 +391,7 @@ static void sub_0801B834(struct GoalGameBonus *arg0) {
     arg0->obj.base.yspeed = 0;
     arg0->obj.base.flags |= 0x10600;
     arg0->unkC2 = 0;
-    arg0->obj.unk78 = sub_0801B678;
+    arg0->obj.unk78 = FN(sub_0801B678);
 }
 
 static void sub_0801B85C(struct GoalGameBonus *arg0) {
@@ -404,3 +404,23 @@ static void sub_0801B85C(struct GoalGameBonus *arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_goal_game_bonus) {
+    PORT_FNID(CreateGoalGameBonus),
+    PORT_FNID(sub_0801ABFC),
+    PORT_FNID(sub_0801B394),
+    PORT_FNID(sub_0801B428),
+    PORT_FNID(sub_0801B4BC),
+    PORT_FNID(sub_0801B550),
+    PORT_FNID(sub_0801B5E4),
+    PORT_FNID(sub_0801B678),
+    PORT_FNID(sub_0801B78C),
+    PORT_FNID(sub_0801B7E0),
+    PORT_FNID(sub_0801B834),
+    PORT_FNID(sub_0801B85C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

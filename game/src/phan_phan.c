@@ -144,7 +144,7 @@ static const struct Kirby_110 gUnk_08356038[] = {
 
 #define PhanPhanMacro(phanPhan) \
 ({ \
-    ObjectSetFunc(phanPhan, 2, sub_080CF4A8); \
+    ObjectSetFunc(phanPhan, 2, FN(sub_080CF4A8)); \
     (phanPhan)->base.xspeed = 0; \
     sub_080CD8D4(phanPhan); \
     if (++(phanPhan)->unk85 > 2) \
@@ -153,7 +153,7 @@ static const struct Kirby_110 gUnk_08356038[] = {
 
 void *CreatePhanPhan(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *phanPhan = tmp;
 
     InitObject(phanPhan, template_, a2);
@@ -257,12 +257,12 @@ static void sub_080CD8D4(struct Object *phanPhan)
         {
             if (Rand16() & 1)
             {
-                phanPhan->unk78 = sub_080CF4A8;
+                phanPhan->unk78 = FN(sub_080CF4A8);
                 phanPhan->unk83 = 2;
             }
             else
             {
-                phanPhan->unk78 = sub_080CDC84;
+                phanPhan->unk78 = FN(sub_080CDC84);
                 phanPhan->unk83 = 3;
             }
         }
@@ -270,17 +270,17 @@ static void sub_080CD8D4(struct Object *phanPhan)
         {
             if (Rand16() & 1)
             {
-                phanPhan->unk78 = sub_080CF4A8;
+                phanPhan->unk78 = FN(sub_080CF4A8);
                 phanPhan->unk83 = 2;
             }
             else if (Rand16() & 3)
             {
-                phanPhan->unk78 = sub_080CDAA4;
+                phanPhan->unk78 = FN(sub_080CDAA4);
                 phanPhan->unk83 = 3;
             }
             else
             {
-                phanPhan->unk78 = sub_080CDC84;
+                phanPhan->unk78 = FN(sub_080CDC84);
                 phanPhan->unk83 = 3;
             }
         }
@@ -382,7 +382,7 @@ static void sub_080CDE64(struct Object *phanPhan)
     if (phanPhan->base.flags & 2)
     {
         PlaySfx(&phanPhan->base, SE_MINIBOSS_RUN);
-        phanPhan->unk78 = sub_080CE07C;
+        phanPhan->unk78 = FN(sub_080CE07C);
         if (phanPhan->subtype)
             phanPhan->base.xspeed = 0x540;
         else
@@ -416,7 +416,7 @@ static void sub_080CE07C(struct Object *phanPhan)
 
 static void sub_080CE234(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 0x12, sub_080CE2FC);
+    ObjectSetFunc(phanPhan, 0x12, FN(sub_080CE2FC));
     phanPhan->base.xspeed = -0x100;
     phanPhan->base.yspeed = 0x300;
     if (phanPhan->base.flags & 1)
@@ -463,7 +463,7 @@ static void sub_080CE2FC(struct Object *phanPhan)
 
 static void sub_080CE464(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 7, sub_080CE4DC);
+    ObjectSetFunc(phanPhan, 7, FN(sub_080CE4DC));
     phanPhan->kirby3 = FindTargetKirby(&phanPhan->base);
     if (phanPhan->base.x > phanPhan->kirby3->base.x)
         phanPhan->base.flags |= 1;
@@ -516,7 +516,7 @@ static void sub_080CE4DC(struct Object *phanPhan)
 
 static void sub_080CE758(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 0xA, sub_080CE800);
+    ObjectSetFunc(phanPhan, 0xA, FN(sub_080CE800));
     phanPhan->kirby3 = FindTargetKirby(&phanPhan->base);
     if (phanPhan->base.x > phanPhan->kirby3->base.x)
         phanPhan->base.flags |= 1;
@@ -575,7 +575,7 @@ bool32 sub_080CE94C(struct Object *phanPhan, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(phanPhan, 0x15, sub_080CEA7C);
+    ObjectSetFunc(phanPhan, 0x15, FN(sub_080CEA7C));
     phanPhan->base.xspeed = 0;
     phanPhan->base.yspeed = 0;
     phanPhan->unk9F = 0;
@@ -637,7 +637,7 @@ static void sub_080CEB4C(struct Object *phanPhan)
 {
     PTR32(const struct Kirby_110) *kirby110;
 
-    ObjectSetFunc(phanPhan, -1, sub_080CEBF8);
+    ObjectSetFunc(phanPhan, -1, FN(sub_080CEBF8));
     kirby110 = &phanPhan->kirby3->unk110;
     *kirby110 = gUnk_08355F60;
     phanPhan->base.xspeed = 0;
@@ -694,7 +694,7 @@ static void sub_080CEBF8(struct Object *phanPhan)
 
 static void sub_080CED7C(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 0xC, sub_080CEE04);
+    ObjectSetFunc(phanPhan, 0xC, FN(sub_080CEE04));
     phanPhan->kirby3 = FindTargetKirby(&phanPhan->base);
     if (phanPhan->base.x > phanPhan->kirby3->base.x)
         phanPhan->base.flags |= 1;
@@ -751,14 +751,14 @@ static void sub_080CEEC8(struct Object *phanPhan, u8 a2)
 
 void *CreatePhanPhanApple(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *apple = tmp;
 
     InitObject(apple, template_, a2);
     apple->base.flags |= 0x10000;
     apple->base.unkC |= 2;
     apple->unk9E = 0;
-    apple->unk7C = sub_0809F840;
+    apple->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&apple->base, -5, -7, 5, 4);
     ObjectSetBounds(&apple->base, -6, -8, 6, 6);
     ObjectInitSprite(apple);
@@ -769,7 +769,7 @@ void *CreatePhanPhanApple(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080CF0D4(struct Object *apple)
 {
-    ObjectSetFunc(apple, 0, sub_080CF148);
+    ObjectSetFunc(apple, 0, FN(sub_080CF148));
     if (apple->objTemplate->subtype1)
         apple->base.flags |= 1;
     if (apple->subtype)
@@ -833,7 +833,7 @@ static void sub_080CF148(struct Object *apple)
 
 static void sub_080CF20C(struct Object *phanPhan)
 {
-    struct Task *t = TaskCreate(sub_080CF2E4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080CF2E4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -904,7 +904,7 @@ void sub_080CF44C(struct Object *phanPhan)
 
 static void sub_080CF484(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 0, sub_080CD6C0);
+    ObjectSetFunc(phanPhan, 0, FN(sub_080CD6C0));
     phanPhan->base.xspeed = 0;
     phanPhan->base.yspeed = 0;
 }
@@ -918,7 +918,7 @@ static void sub_080CF4A8(struct Object *phanPhan)
 
 static void sub_080CF4C8(struct Object *phanPhan)
 {
-    ObjectSetFunc(phanPhan, 0x10, sub_080CDE64);
+    ObjectSetFunc(phanPhan, 0x10, FN(sub_080CDE64));
     phanPhan->kirby3 = FindTargetKirby(&phanPhan->base);
     if (phanPhan->base.x > phanPhan->kirby3->base.x)
         phanPhan->base.flags |= 1;
@@ -933,7 +933,7 @@ static void sub_080CF51C(struct Object *phanPhan)
 {
     struct Kirby *kirby = phanPhan->base.unk6C;
 
-    ObjectSetFunc(phanPhan, 0x1D, sub_080CF558);
+    ObjectSetFunc(phanPhan, 0x1D, FN(sub_080CF558));
     phanPhan->base.xspeed = 0;
     phanPhan->base.yspeed = 0;
     if (kirby->base.x > phanPhan->base.x)
@@ -951,3 +951,30 @@ static void sub_080CF558(struct Object *phanPhan)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_phan_phan) {
+    PORT_FNID(CreatePhanPhan),
+    PORT_FNID(sub_080CD6C0),
+    PORT_FNID(sub_080CDAA4),
+    PORT_FNID(sub_080CDC84),
+    PORT_FNID(sub_080CDE64),
+    PORT_FNID(sub_080CE07C),
+    PORT_FNID(sub_080CE2FC),
+    PORT_FNID(sub_080CE4DC),
+    PORT_FNID(sub_080CE800),
+    PORT_FNID(sub_080CEA7C),
+    PORT_FNID(sub_080CEBF8),
+    PORT_FNID(sub_080CEE04),
+    PORT_FNID(CreatePhanPhanApple),
+    PORT_FNID(sub_080CF0D4),
+    PORT_FNID(sub_080CF148),
+    PORT_FNID(sub_080CF2E4),
+    PORT_FNID(sub_080CF44C),
+    PORT_FNID(sub_080CF4A8),
+    PORT_FNID(sub_080CF558),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

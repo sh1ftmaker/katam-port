@@ -181,7 +181,7 @@ static const struct Unk_08353510 gUnk_08356B88[] = {
 
 void *CreateGobbler(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Gobbler), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Gobbler), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Gobbler *tmp = TaskGetStructPtr(t), *gobbler = tmp;
 
     InitObject(&gobbler->obj, template_, a2);
@@ -207,7 +207,7 @@ void *CreateGobbler(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(&gobbler->obj);
     Macro_080E7D74(&gobbler->obj);
     gobbler->obj.unk9E = 0;
-    gobbler->obj.unk7C = sub_080E7C54;
+    gobbler->obj.unk7C = FN(sub_080E7C54);
     sub_080E79D4(gobbler);
     sub_080E5E58(gobbler);
     sub_080E6470(gobbler);
@@ -264,11 +264,11 @@ static void sub_080E41D0(struct Gobbler *gobbler)
         else
         {
             r3 = FALSE;
-            if (gobbler2->babies[0] && gobbler2->babies[0]->unk78 == sub_080E6784)
+            if (gobbler2->babies[0] && gobbler2->babies[0]->unk78 == FN(sub_080E6784))
                 r3 = TRUE;
-            if (gobbler2->babies[1] && gobbler2->babies[1]->unk78 == sub_080E6784)
+            if (gobbler2->babies[1] && gobbler2->babies[1]->unk78 == FN(sub_080E6784))
                 r3 = TRUE;
-            if (gobbler2->babies[2] && gobbler2->babies[2]->unk78 == sub_080E6784)
+            if (gobbler2->babies[2] && gobbler2->babies[2]->unk78 == FN(sub_080E6784))
                 r3 = TRUE;
         }
         if (!r3) r7 = 0;
@@ -300,7 +300,7 @@ void sub_080E43B4(struct Gobbler *gobbler)
         sub_080E7C00(gobbler);
     else
     {
-        ObjectSetFunc(gobbler, 0, sub_080E4488);
+        ObjectSetFunc(gobbler, 0, FN(sub_080E4488));
         gobbler->obj.base.flags &= ~0x200;
         gobbler->obj.base.flags |= 0x40;
         gobbler->obj.base.yspeed = 0;
@@ -552,7 +552,7 @@ static void sub_080E4784(struct Gobbler *gobbler)
 
 static void sub_080E498C(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0, sub_080E4A6C);
+    ObjectSetFunc(gobbler, 0, FN(sub_080E4A6C));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
@@ -622,7 +622,7 @@ static void sub_080E4A6C(struct Gobbler *gobbler)
 
 static void sub_080E4BD0(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0, sub_080E4CAC);
+    ObjectSetFunc(gobbler, 0, FN(sub_080E4CAC));
     gobbler->obj.base.flags &= ~2;
     gobbler->obj.unk9F = 0;
     if (RandLessThan3())
@@ -759,7 +759,7 @@ static void sub_080E4E6C(struct Gobbler *gobbler)
     struct Gobbler *gobbler2 = gobbler;
     u8 r;
 
-    ObjectSetFunc(gobbler, 2, sub_080E4F0C);
+    ObjectSetFunc(gobbler, 2, FN(sub_080E4F0C));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
@@ -834,7 +834,7 @@ static void sub_080E4F0C(struct Gobbler *gobbler)
 
 static void sub_080E4FD8(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 3, sub_080E50E0);
+    ObjectSetFunc(gobbler, 3, FN(sub_080E50E0));
     gobbler->obj.kirby3 = sub_0803D5CC(&gobbler->obj.base);
     if (gobbler->obj.kirby3->base.y > gobbler->obj.base.y + 0xA00)
         gobbler->obj.unk9F = 2;
@@ -1018,7 +1018,7 @@ static void sub_080E53E8(struct Gobbler *gobbler)
     struct Gobbler *gobbler2 = gobbler;
     u16 r;
 
-    ObjectSetFunc(gobbler, 0xD, sub_080E5488);
+    ObjectSetFunc(gobbler, 0xD, FN(sub_080E5488));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
@@ -1093,7 +1093,7 @@ static void sub_080E5488(struct Gobbler *gobbler)
 
 static void sub_080E5554(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0xE, sub_080E5644);
+    ObjectSetFunc(gobbler, 0xE, FN(sub_080E5644));
     gobbler->obj.base.yspeed = 0;
     PlaySfx(&gobbler->obj.base, SE_GOBBLER_DASH_ATTACK);
     gobbler->obj.unk85 = 0;
@@ -1218,7 +1218,7 @@ bool32 sub_080E588C(struct Gobbler *gobbler, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(gobbler, 5, sub_080E7A38);
+    ObjectSetFunc(gobbler, 5, FN(sub_080E7A38));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.unk9F = 0;
@@ -1236,7 +1236,7 @@ static void sub_080E59B4(struct Gobbler *gobbler)
 {
     s16 r5 = 1;
 
-    ObjectSetFunc(gobbler, 0xA, sub_080E5A20);
+    ObjectSetFunc(gobbler, 0xA, FN(sub_080E5A20));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.counter = 0;
@@ -1397,7 +1397,7 @@ static void sub_080E5D04(struct Gobbler *gobbler)
 
 static void sub_080E5E58(struct Gobbler *gobbler)
 {
-    struct Task *t = TaskCreate(sub_080E5F20, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080E5F20), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -1476,7 +1476,7 @@ static void sub_080E5F20(void)
 
 static void sub_080E625C(struct Gobbler *gobbler, s8 a2, s8 a3)
 {
-    struct Task *t = TaskCreate(sub_080E6320, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080E6320), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -1540,7 +1540,7 @@ static void sub_080E6320(void)
 
 static void sub_080E6470(struct Gobbler *gobbler)
 {
-    struct Task *t = TaskCreate(sub_080E6550, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080E6550), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -1603,7 +1603,7 @@ static void sub_080E6550(void)
 
 void *CreateGobblerBaby(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *baby = TaskGetStructPtr(t);
 
     InitObject(baby, template_, a2);
@@ -1619,7 +1619,7 @@ void *CreateGobblerBaby(struct ObjectTemplate *template_, u8 a2)
     if (baby->objTemplate->subtype1)
         baby->base.unkC |= 4;
     baby->unk9E = 0;
-    baby->unk7C = sub_0809F840;
+    baby->unk7C = FN(sub_0809F840);
     sub_080E79A4(baby);
     if (baby->objTemplate->subtype1)
         sub_080E761C(baby);
@@ -1924,9 +1924,9 @@ static void sub_080E6CDC(struct Object *baby)
 {
     struct Gobbler *gobbler = baby->base.parent;
 
-    if (baby->unk78 == sub_080E6784)
+    if (baby->unk78 == FN(sub_080E6784))
     {
-        ObjectSetFunc(baby, 0, sub_080E6D4C);
+        ObjectSetFunc(baby, 0, FN(sub_080E6D4C));
         baby->kirby3 = sub_0803D5CC(&baby->base);
         baby->base.flags &= ~1;
         baby->base.flags |= gobbler->obj.base.flags & 1;
@@ -2092,9 +2092,9 @@ static void sub_080E7028(struct Object *baby)
 {
     struct Gobbler *gobbler = baby->base.parent;
 
-    if (baby->unk78 == sub_080E6784)
+    if (baby->unk78 == FN(sub_080E6784))
     {
-        ObjectSetFunc(baby, 0, sub_080E7148);
+        ObjectSetFunc(baby, 0, FN(sub_080E7148));
         if (gobbler->obj.base.flags & 1)
         {
             switch (RandLessThan3())
@@ -2278,7 +2278,7 @@ static void sub_080E72C0(struct Object *baby)
         if (baby->base.counter)
         {
             baby->base.unkC &= ~2;
-            ObjectSetFunc(baby, 0, sub_080E6784);
+            ObjectSetFunc(baby, 0, FN(sub_080E6784));
             baby->base.flags |= 0x140;
             baby->base.flags &= ~0x20;
             baby->base.flags &= ~0x2000000;
@@ -2298,7 +2298,7 @@ bool32 sub_080E74E4(struct Object *baby, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(baby, 7, sub_080E7CF4);
+    ObjectSetFunc(baby, 7, FN(sub_080E7CF4));
     baby->base.xspeed = 0;
     baby->base.yspeed = 0;
     baby->unk9F = 0;
@@ -2316,7 +2316,7 @@ bool32 sub_080E74E4(struct Object *baby, struct Kirby *kirby)
 
 static void sub_080E761C(struct Object *baby)
 {
-    struct Task *t = TaskCreate(sub_080E76FC, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080E76FC), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -2404,7 +2404,7 @@ static void sub_080E7848(struct Gobbler *gobbler, u8 a2)
 
 void sub_080E79A4(struct Object *baby)
 {
-    ObjectSetFunc(baby, 0, sub_080E6784);
+    ObjectSetFunc(baby, 0, FN(sub_080E6784));
     baby->base.flags |= 0x140;
     baby->base.flags &= ~0x20;
     baby->base.flags &= ~0x2000000;
@@ -2412,20 +2412,20 @@ void sub_080E79A4(struct Object *baby)
 
 static void sub_080E79D4(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0, sub_080E3FFC);
+    ObjectSetFunc(gobbler, 0, FN(sub_080E3FFC));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
 }
 
 static void sub_080E79F8(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 4, sub_080E5290);
+    ObjectSetFunc(gobbler, 4, FN(sub_080E5290));
     gobbler->obj.base.flags &= ~2;
 }
 
 static void sub_080E7A18(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0xF, sub_080E5760);
+    ObjectSetFunc(gobbler, 0xF, FN(sub_080E5760));
     gobbler->obj.base.flags &= ~2;
 }
 
@@ -2439,7 +2439,7 @@ static void sub_080E7A50(struct Gobbler *gobbler)
 {
     struct Kirby *kirby = gobbler->obj.kirby3;
 
-    ObjectSetFunc(gobbler, 6, sub_080E7A80);
+    ObjectSetFunc(gobbler, 6, FN(sub_080E7A80));
     kirby->unk110 = gUnk_08356AD8;
     gobbler->obj.base.counter = 0x10;
 }
@@ -2452,7 +2452,7 @@ static void sub_080E7A80(struct Gobbler *gobbler)
 
 static void sub_080E7A9C(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 7, sub_080E7ABC);
+    ObjectSetFunc(gobbler, 7, FN(sub_080E7ABC));
     gobbler->obj.base.flags &= ~2;
 }
 
@@ -2478,7 +2478,7 @@ static void sub_080E7ABC(struct Gobbler *gobbler)
 
 static void sub_080E7B0C(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 9, sub_080E7B38);
+    ObjectSetFunc(gobbler, 9, FN(sub_080E7B38));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
@@ -2492,7 +2492,7 @@ static void sub_080E7B38(struct Gobbler *gobbler)
 
 static void sub_080E7B50(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0xB, sub_080E5AC4);
+    ObjectSetFunc(gobbler, 0xB, FN(sub_080E5AC4));
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
     gobbler->obj.base.flags &= ~4;
@@ -2500,21 +2500,21 @@ static void sub_080E7B50(struct Gobbler *gobbler)
 
 static void sub_080E7B7C(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0xC, sub_080E5B8C);
+    ObjectSetFunc(gobbler, 0xC, FN(sub_080E5B8C));
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
 }
 
 static void sub_080E7BA4(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 1, sub_080E45BC);
+    ObjectSetFunc(gobbler, 1, FN(sub_080E45BC));
     gobbler->obj.base.flags &= ~2;
     gobbler->obj.unk9F = 0;
 }
 
 static void sub_080E7BCC(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0, sub_080E4784);
+    ObjectSetFunc(gobbler, 0, FN(sub_080E4784));
     gobbler->obj.base.xspeed = 0;
     gobbler->obj.base.yspeed = 0;
     gobbler->obj.base.flags &= ~2;
@@ -2524,7 +2524,7 @@ static void sub_080E7BCC(struct Gobbler *gobbler)
 
 static void sub_080E7C00(struct Gobbler *gobbler)
 {
-    ObjectSetFunc(gobbler, 0x11, sub_080E5D04);
+    ObjectSetFunc(gobbler, 0x11, FN(sub_080E5D04));
     gobbler->obj.base.flags |= 0x40;
     gobbler->obj.base.flags |= 0x200;
     gobbler->obj.base.xspeed = 0;
@@ -2546,12 +2546,12 @@ static void sub_080E7C54(struct Gobbler *gobbler)
 
 static void sub_080E7CA8(struct Object *baby)
 {
-    ObjectSetFunc(baby, 3, sub_080E6E1C);
+    ObjectSetFunc(baby, 3, FN(sub_080E6E1C));
 }
 
 static void sub_080E7CBC(struct Object *baby)
 {
-    ObjectSetFunc(baby, 6, sub_080E72C0);
+    ObjectSetFunc(baby, 6, FN(sub_080E72C0));
     baby->base.flags |= 0x40;
     baby->base.flags &= ~0x20;
     baby->base.unkC |= 2;
@@ -2569,7 +2569,7 @@ static void sub_080E7CF4(struct Object *baby)
 
 static void sub_080E7D1C(struct Object *baby)
 {
-    ObjectSetFunc(baby, 8, sub_080E7D38);
+    ObjectSetFunc(baby, 8, FN(sub_080E7D38));
     baby->base.counter = 0x10;
 }
 
@@ -2577,7 +2577,7 @@ static void sub_080E7D38(struct Object *baby)
 {
     if (!--baby->base.counter)
     {
-        ObjectSetFunc(baby, 0, sub_080E6784);
+        ObjectSetFunc(baby, 0, FN(sub_080E6784));
         baby->base.flags |= 0x140;
         baby->base.flags &= ~0x20;
         baby->base.flags &= ~0x2000000;
@@ -2587,3 +2587,47 @@ static void sub_080E7D38(struct Object *baby)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_gobbler) {
+    PORT_FNID(CreateGobbler),
+    PORT_FNID(sub_080E3FFC),
+    PORT_FNID(sub_080E43B4),
+    PORT_FNID(sub_080E4488),
+    PORT_FNID(sub_080E45BC),
+    PORT_FNID(sub_080E4784),
+    PORT_FNID(sub_080E4A6C),
+    PORT_FNID(sub_080E4CAC),
+    PORT_FNID(sub_080E4F0C),
+    PORT_FNID(sub_080E50E0),
+    PORT_FNID(sub_080E5290),
+    PORT_FNID(sub_080E5488),
+    PORT_FNID(sub_080E5644),
+    PORT_FNID(sub_080E5760),
+    PORT_FNID(sub_080E5A20),
+    PORT_FNID(sub_080E5AC4),
+    PORT_FNID(sub_080E5B8C),
+    PORT_FNID(sub_080E5D04),
+    PORT_FNID(sub_080E5F20),
+    PORT_FNID(sub_080E6320),
+    PORT_FNID(sub_080E6550),
+    PORT_FNID(CreateGobblerBaby),
+    PORT_FNID(sub_080E6784),
+    PORT_FNID(sub_080E6D4C),
+    PORT_FNID(sub_080E6E1C),
+    PORT_FNID(sub_080E7148),
+    PORT_FNID(sub_080E72C0),
+    PORT_FNID(sub_080E76FC),
+    PORT_FNID(sub_080E79A4),
+    PORT_FNID(sub_080E7A38),
+    PORT_FNID(sub_080E7A80),
+    PORT_FNID(sub_080E7ABC),
+    PORT_FNID(sub_080E7B38),
+    PORT_FNID(sub_080E7C54),
+    PORT_FNID(sub_080E7CF4),
+    PORT_FNID(sub_080E7D38),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

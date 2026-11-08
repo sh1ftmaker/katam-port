@@ -186,3 +186,12 @@ void Sio32MultiLoadInit(u32 type, void *datap)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_sio32_multi_load) {
+    PORT_FNID(Sio32MultiLoadIntr),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

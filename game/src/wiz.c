@@ -133,7 +133,7 @@ extern const struct AnimInfo gUnk_08356D54[] = {
 
 void *CreateWiz(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *wiz = tmp;
 
     InitObject(wiz, template_, a2);
@@ -188,7 +188,7 @@ static void sub_080E8050(struct Object *wiz)
 
 static void sub_080E8178(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0, sub_080EACD8);
+    ObjectSetFunc(wiz, 0, FN(sub_080EACD8));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     if (wiz->base.x & 0x80)
@@ -206,7 +206,7 @@ void sub_080E82C4(struct Object *wiz)
         sub_080EAFDC(wiz);
     else
     {
-        ObjectSetFunc(wiz, 0, sub_080E83A8);
+        ObjectSetFunc(wiz, 0, FN(sub_080E83A8));
         if (wiz->base.x & 0x80)
             wiz->base.x = (wiz->base.x & ~0xFF) + 0x100;
         else
@@ -286,7 +286,7 @@ static void sub_080E8430(struct Object *wiz)
 {
     u8 unk85 = wiz->unk85;
 
-    ObjectSetFunc(wiz, 1, sub_080E8738);
+    ObjectSetFunc(wiz, 1, FN(sub_080E8738));
     if (wiz->base.x & 0x80)
         wiz->base.x = (wiz->base.x & ~0xFF) + 0x100;
     else
@@ -310,7 +310,7 @@ static void sub_080E8588(struct Object *wiz)
 {
     u8 unk85 = wiz->unk85;
 
-    ObjectSetFunc(wiz, 2, sub_080E8738);
+    ObjectSetFunc(wiz, 2, FN(sub_080E8738));
     if (wiz->base.x & 0x80)
         wiz->base.x = (wiz->base.x & ~0xFF) + 0x100;
     else
@@ -506,7 +506,7 @@ static void sub_080E8738(struct Object *wiz)
 
 static void sub_080E8B08(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 4, sub_080E8CF0);
+    ObjectSetFunc(wiz, 4, FN(sub_080E8CF0));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0x400;
     wiz->unk9E = 0;
@@ -526,7 +526,7 @@ static void sub_080E8B08(struct Object *wiz)
 
 static void sub_080E8C04(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 4, sub_080E8CF0);
+    ObjectSetFunc(wiz, 4, FN(sub_080E8CF0));
     wiz->base.xspeed = 0xD0;
     wiz->base.yspeed = 0x400;
     if (wiz->unk85 == 2)
@@ -588,7 +588,7 @@ static void sub_080E8DAC(struct Object *wiz)
 
 static void sub_080E8E74(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 4, sub_080E8F74);
+    ObjectSetFunc(wiz, 4, FN(sub_080E8F74));
     wiz->base.xspeed = 0x1A1;
     wiz->base.yspeed = 0x400;
     if (wiz->base.y < 0x4000)
@@ -876,7 +876,7 @@ static void sub_080E96F8(struct Object *wiz, u8 a2)
 
 void *CreateWizBalloon(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *balloon = TaskGetStructPtr(t);
 
     InitObject(balloon, template_, a2);
@@ -884,7 +884,7 @@ void *CreateWizBalloon(struct ObjectTemplate *template_, u8 a2)
     balloon->base.flags |= 0x100;
     balloon->base.flags |= 0x40;
     balloon->unk9E = 0;
-    balloon->unk7C = sub_0809F840;
+    balloon->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&balloon->base, -5, -3, 5, 8);
     ObjectSetBounds(&balloon->base, -6, -4, 6, 0xA);
     ObjectInitSprite(balloon);
@@ -894,7 +894,7 @@ void *CreateWizBalloon(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080E9948(struct Object *balloon)
 {
-    ObjectSetFunc(balloon, 0, sub_080E99F0);
+    ObjectSetFunc(balloon, 0, FN(sub_080E99F0));
     if (balloon->objTemplate->subtype1)
         balloon->base.flags |= 1;
     balloon->base.counter = Rand16() & 3;
@@ -966,7 +966,7 @@ static void sub_080E9A54(struct Object *wiz, u8 a2)
 
 void sub_080E9B18(struct Object *bomb)
 {
-    ObjectSetFunc(bomb, 0, sub_080E9BA0);
+    ObjectSetFunc(bomb, 0, FN(sub_080E9BA0));
     if (bomb->objTemplate->subtype1)
         bomb->base.flags |= 1;
     if (bomb->subtype)
@@ -1029,7 +1029,7 @@ static void sub_080E9C58(struct Object *wiz, u8 a2)
 
 void *CreateWizCloud(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *cloud = TaskGetStructPtr(t);
 
     InitObject(cloud, template_, a2);
@@ -1037,7 +1037,7 @@ void *CreateWizCloud(struct ObjectTemplate *template_, u8 a2)
     cloud->base.flags |= 0x100;
     cloud->base.flags |= 0x40;
     cloud->unk9E = 0;
-    cloud->unk7C = sub_0809F840;
+    cloud->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&cloud->base, -5, -3, 5, 8);
     ObjectSetBounds(&cloud->base, -6, -4, 6, 0xA);
     ObjectInitSprite(cloud);
@@ -1048,7 +1048,7 @@ void *CreateWizCloud(struct ObjectTemplate *template_, u8 a2)
 
 static void sub_080E9DD4(struct Object *cloud)
 {
-    ObjectSetFunc(cloud, 0, sub_080E9E58);
+    ObjectSetFunc(cloud, 0, FN(sub_080E9E58));
     if (cloud->objTemplate->subtype1)
         cloud->base.flags |= 1;
     cloud->base.xspeed = 0x80;
@@ -1116,7 +1116,7 @@ static void sub_080E9FC0(struct Object *wiz, u8 a2)
 
 void sub_080EA084(struct Object *apple)
 {
-    ObjectSetFunc(apple, 0, sub_080EA0D8);
+    ObjectSetFunc(apple, 0, FN(sub_080EA0D8));
     if (apple->objTemplate->subtype1)
         apple->base.flags |= 1;
     if (apple->subtype)
@@ -1185,7 +1185,7 @@ static void sub_080EA27C(struct Object *wiz, u8 a2)
 
 void sub_080EA340(struct Object *droppy)
 {
-    ObjectSetFunc(droppy, 1, sub_080EB0DC);
+    ObjectSetFunc(droppy, 1, FN(sub_080EB0DC));
     if (droppy->objTemplate->subtype1)
         droppy->base.flags |= 1;
     droppy->base.xspeed = 0xA0;
@@ -1201,7 +1201,7 @@ void sub_080EA340(struct Object *droppy)
 
 static void sub_080EA3B8(struct Object *cloud)
 {
-    struct Task *t = TaskCreate(sub_080EA528, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080EA528), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1264,13 +1264,13 @@ static void sub_080EA528(void)
 
 void *CreateWizFootball(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *football = TaskGetStructPtr(t);
 
     InitObject(football, template_, a2);
     football->base.unkC |= 2;
     football->unk9E = 0;
-    football->unk7C = sub_0809F840;
+    football->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&football->base, -5, -7, 5, 4);
     ObjectSetBounds(&football->base, -6, -8, 6, 6);
     ObjectInitSprite(football);
@@ -1280,7 +1280,7 @@ void *CreateWizFootball(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080EA874(struct Object *football)
 {
-    ObjectSetFunc(football, 0, sub_080E9448);
+    ObjectSetFunc(football, 0, FN(sub_080E9448));
     if (football->objTemplate->subtype1)
         football->base.flags |= 1;
     football->base.xspeed = 0xD0;
@@ -1291,12 +1291,12 @@ void sub_080EA874(struct Object *football)
 
 void *CreateWizCar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *car = TaskGetStructPtr(t);
 
     InitObject(car, template_, a2);
     car->unk9E = 0;
-    car->unk7C = sub_0809F840;
+    car->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&car->base, -5, -3, 5, 8);
     ObjectSetBounds(&car->base, -6, -4, 6, 0xA);
     ObjectInitSprite(car);
@@ -1306,7 +1306,7 @@ void *CreateWizCar(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080EA95C(struct Object *car)
 {
-    ObjectSetFunc(car, 0, sub_080E95E8);
+    ObjectSetFunc(car, 0, FN(sub_080E95E8));
     if (car->objTemplate->subtype1)
         car->base.flags |= 1;
     car->base.counter = 0x5A;
@@ -1314,13 +1314,13 @@ void sub_080EA95C(struct Object *car)
 
 void *CreateWizBomb(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *bomb = TaskGetStructPtr(t);
 
     InitObject(bomb, template_, a2);
     bomb->base.unkC |= 2;
     bomb->unk9E = 0;
-    bomb->unk7C = sub_0809F840;
+    bomb->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&bomb->base, -5, -6, 5, 5);
     ObjectSetBounds(&bomb->base, -6, -7, 6, 7);
     ObjectInitSprite(bomb);
@@ -1330,7 +1330,7 @@ void *CreateWizBomb(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080EAA30(struct Object *cloud)
 {
-    ObjectSetFunc(cloud, 0, sub_080EB0B8);
+    ObjectSetFunc(cloud, 0, FN(sub_080EB0B8));
     if (cloud->objTemplate->subtype1)
         cloud->base.flags |= 1;
     cloud->base.xspeed = 0;
@@ -1342,13 +1342,13 @@ void sub_080EAA30(struct Object *cloud)
 
 void *CreateWizApple(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *apple = TaskGetStructPtr(t);
 
     InitObject(apple, template_, a2);
     apple->base.unkC |= 2;
     apple->unk9E = 0;
-    apple->unk7C = sub_0809F840;
+    apple->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&apple->base, -5, -6, 5, 5);
     ObjectSetBounds(&apple->base, -6, -7, 6, 7);
     ObjectInitSprite(apple);
@@ -1358,12 +1358,12 @@ void *CreateWizApple(struct ObjectTemplate *template_, u8 a2)
 
 void *CreateWizDroppy(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *droppy = TaskGetStructPtr(t);
 
     InitObject(droppy, template_, a2);
     droppy->unk9E = 0;
-    droppy->unk7C = sub_0809F840;
+    droppy->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&droppy->base, -5, -7, 5, 4);
     ObjectSetBounds(&droppy->base, -6, -8, 6, 6);
     ObjectInitSprite(droppy);
@@ -1373,7 +1373,7 @@ void *CreateWizDroppy(struct ObjectTemplate *template_, u8 a2)
 
 static void sub_080EABC0(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0x10, sub_080E7F98);
+    ObjectSetFunc(wiz, 0x10, FN(sub_080E7F98));
     wiz->base.x = 0x8000;
     wiz->base.y = -0x1000;
     wiz->base.yspeed = -0x80;
@@ -1387,7 +1387,7 @@ static void sub_080EABC0(struct Object *wiz)
 
 static void sub_080EAC18(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0x11, sub_080E8050);
+    ObjectSetFunc(wiz, 0x11, FN(sub_080E8050));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     wiz->base.flags |= 0x40;
@@ -1396,7 +1396,7 @@ static void sub_080EAC18(struct Object *wiz)
 
 static void sub_080EAC48(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 4, sub_080EAC80);
+    ObjectSetFunc(wiz, 4, FN(sub_080EAC80));
     wiz->base.xspeed = 0x160;
     wiz->base.yspeed = 0x180;
     wiz->base.flags |= 2;
@@ -1429,7 +1429,7 @@ static void sub_080EACD8(struct Object *wiz)
 
 static void sub_080EAD0C(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0, sub_080E7EBC);
+    ObjectSetFunc(wiz, 0, FN(sub_080E7EBC));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     wiz->base.flags |= 0x40;
@@ -1438,7 +1438,7 @@ static void sub_080EAD0C(struct Object *wiz)
 
 static void sub_080EAD3C(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 3, sub_080EAD8C);
+    ObjectSetFunc(wiz, 3, FN(sub_080EAD8C));
     if (wiz->base.x & 0x80)
         wiz->base.x = (wiz->base.x & ~0xFF) + 0x100;
     else
@@ -1456,7 +1456,7 @@ static void sub_080EAD8C(struct Object *wiz)
 
 static void sub_080EADA4(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 7, sub_080E8DAC);
+    ObjectSetFunc(wiz, 7, FN(sub_080E8DAC));
     wiz->base.flags &= ~2;
     wiz->unk9E = 0;
     if (wiz->base.xspeed)
@@ -1467,7 +1467,7 @@ static void sub_080EADA4(struct Object *wiz)
 
 static void sub_080EADE4(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 3, sub_080EAE34);
+    ObjectSetFunc(wiz, 3, FN(sub_080EAE34));
     if (wiz->base.x & 0x80)
         wiz->base.x = (wiz->base.x & ~0xFF) + 0x100;
     else
@@ -1485,7 +1485,7 @@ static void sub_080EAE34(struct Object *wiz)
 
 static void sub_080EAE4C(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 7, sub_080EAE78);
+    ObjectSetFunc(wiz, 7, FN(sub_080EAE78));
     wiz->base.flags &= ~2;
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
@@ -1502,7 +1502,7 @@ static void sub_080EAE78(struct Object *wiz)
 
 static void sub_080EAE98(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0xD, sub_080EAEC4);
+    ObjectSetFunc(wiz, 0xD, FN(sub_080EAEC4));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     wiz->base.flags &= ~2;
@@ -1521,7 +1521,7 @@ static void sub_080EAEC4(struct Object *wiz)
 
 static void sub_080EAEF4(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0xE, sub_080E9034);
+    ObjectSetFunc(wiz, 0xE, FN(sub_080E9034));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     wiz->base.flags &= ~2;
@@ -1530,7 +1530,7 @@ static void sub_080EAEF4(struct Object *wiz)
 
 static void sub_080EAF24(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0xF, sub_080EAF50);
+    ObjectSetFunc(wiz, 0xF, FN(sub_080EAF50));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = 0;
     wiz->base.flags &= ~2;
@@ -1565,7 +1565,7 @@ static void sub_080EAF50(struct Object *wiz)
 
 static void sub_080EAFDC(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0x12, sub_080EB028);
+    ObjectSetFunc(wiz, 0x12, FN(sub_080EB028));
     wiz->base.xspeed = -0x100;
     wiz->base.yspeed = 0x300;
     wiz->base.flags &= ~2;
@@ -1583,7 +1583,7 @@ static void sub_080EB028(struct Object *wiz)
 
 static void sub_080EB044(struct Object *wiz)
 {
-    ObjectSetFunc(wiz, 0x13, sub_080EB088);
+    ObjectSetFunc(wiz, 0x13, FN(sub_080EB088));
     wiz->base.xspeed = 0;
     wiz->base.yspeed = -0x80;
     wiz->base.flags &= ~2;
@@ -1633,3 +1633,54 @@ static void sub_080EB0DC(struct Object *droppy)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_wiz) {
+    PORT_FNID(CreateWiz),
+    PORT_FNID(sub_080E7EBC),
+    PORT_FNID(sub_080E7F98),
+    PORT_FNID(sub_080E8050),
+    PORT_FNID(sub_080E82C4),
+    PORT_FNID(sub_080E83A8),
+    PORT_FNID(sub_080E8738),
+    PORT_FNID(sub_080E8CF0),
+    PORT_FNID(sub_080E8DAC),
+    PORT_FNID(sub_080E8F74),
+    PORT_FNID(sub_080E9034),
+    PORT_FNID(sub_080E9448),
+    PORT_FNID(sub_080E95E8),
+    PORT_FNID(CreateWizBalloon),
+    PORT_FNID(sub_080E9948),
+    PORT_FNID(sub_080E99F0),
+    PORT_FNID(sub_080E9B18),
+    PORT_FNID(sub_080E9BA0),
+    PORT_FNID(CreateWizCloud),
+    PORT_FNID(sub_080E9E58),
+    PORT_FNID(sub_080EA084),
+    PORT_FNID(sub_080EA0D8),
+    PORT_FNID(sub_080EA340),
+    PORT_FNID(sub_080EA528),
+    PORT_FNID(CreateWizFootball),
+    PORT_FNID(sub_080EA874),
+    PORT_FNID(CreateWizCar),
+    PORT_FNID(sub_080EA95C),
+    PORT_FNID(CreateWizBomb),
+    PORT_FNID(sub_080EAA30),
+    PORT_FNID(CreateWizApple),
+    PORT_FNID(CreateWizDroppy),
+    PORT_FNID(sub_080EAC80),
+    PORT_FNID(sub_080EACD8),
+    PORT_FNID(sub_080EAD8C),
+    PORT_FNID(sub_080EAE34),
+    PORT_FNID(sub_080EAE78),
+    PORT_FNID(sub_080EAEC4),
+    PORT_FNID(sub_080EAF50),
+    PORT_FNID(sub_080EB028),
+    PORT_FNID(sub_080EB088),
+    PORT_FNID(sub_080EB0B8),
+    PORT_FNID(sub_080EB0DC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

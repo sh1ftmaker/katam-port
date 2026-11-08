@@ -18,7 +18,7 @@ extern const struct AnimInfo gUnk_08357D10[] = {
 
 void *CreateLargeStarStoneBlock7E(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct LargeStarStoneBlock), 0x1000, TASK_USE_IWRAM, sub_08120608);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct LargeStarStoneBlock), 0x1000, TASK_USE_IWRAM, FN(sub_08120608));
     struct LargeStarStoneBlock *tmp = TaskGetStructPtr(t), *block = tmp;
 
     InitObject(&block->block.obj, template_, a2);
@@ -38,7 +38,7 @@ void *CreateLargeStarStoneBlock7E(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&block->block.obj.base, -16, -16, 16, 16);
     sub_0803E2B0(&block->block.obj.base, -16, -16, 16, 16);
     ObjectInitSprite(&block->block.obj);
-    gUnk_08351648[block->block.obj.type].unk10(&block->block.obj);
+    CALL(gUnk_08351648[block->block.obj.type].unk10)(&block->block.obj);
     return block;
 }
 
@@ -70,7 +70,7 @@ static void sub_081202A0(struct LargeStarStoneBlock *arg0)
         tmp->unkE7 = (block->block.obj.base.y >> 12) + 2;
         block->block.obj.base.flags &= ~0x40;
         block->block.obj.base.flags |= 0x100;
-        block->block.obj.unk78 = sub_08120438;
+        block->block.obj.unk78 = FN(sub_08120438);
     } else if (x < block->block.obj.base.x) {
         if (block->block.obj.base.xspeed < 0) {
             block->block.obj.base.xspeed += 0x200;
@@ -126,7 +126,7 @@ void sub_08120594(struct LargeStarStoneBlock *block)
     block->unkE7 = 0;
     block->unkE8 = (block->block.obj.base.x >> 12) - 3;
     block->unkE4 = 0;
-    block->block.obj.unk78 = sub_081202A0;
+    block->block.obj.unk78 = FN(sub_081202A0);
 }
 
 static void sub_081205CC(u8 unk56, u8 x, u8 y)
@@ -154,3 +154,16 @@ static void sub_08120608(struct Task *t)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_large_star_stone_block) {
+    PORT_FNID(CreateLargeStarStoneBlock7E),
+    PORT_FNID(sub_081202A0),
+    PORT_FNID(sub_08120438),
+    PORT_FNID(sub_08120594),
+    PORT_FNID(sub_08120608),
+    PORT_FNID_END
+};
+/* PORT-FNID end */
