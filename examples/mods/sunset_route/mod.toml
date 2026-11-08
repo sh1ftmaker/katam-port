@@ -1,0 +1,12 @@
+[mod]
+id          = "examples.sunset_route"
+name        = "Sunset Route"
+version     = "1.0.0"
+api         = "^0.1"
+authors     = ["katam-port"]
+license     = "CC0-1.0"
+description = "Repaints the foreground palette of room 803, where a new game starts, in sunset colours."
+
+# Structured edits on top of the vanilla pack (docs/design/MODDING.md §3.2).
+# No vanilla bytes: every value below is this mod's own.
+patches = ["patches/palette.json"]
