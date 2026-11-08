@@ -11603,7 +11603,7 @@ bool8 sub_080525C0(struct Kirby *kirby)
 
 bool8 sub_080528E4(struct Kirby *kirby)
 {
-    if (kirby->base.roomId > 0x3D3
+    if (kirby->base.roomId > 0x3D3 && !RES_ROOM_IS_NEW(kirby->base.roomId)
         && gLocalPlayerId == kirby->base.unk56
         && kirby->animationIndex != 91)
         m4aMPlayFadeOut(&gMPlayInfo_0, 6);

@@ -66,12 +66,23 @@ extern "C" {
  * it feeds is overwritten before anything can display it.
  */
 
+/* Also the guard for new rooms: one beyond the grown table reads NULL. */
 u16 PortRoomTilesetIndex(u16 roomId)
 {
-    const struct Unk_08D6CD0C *room = gUnk_08D6CD0C[roomId];
-    uintptr_t addr = (uintptr_t)room;
+    const struct Unk_08D6CD0C *room;
+    uintptr_t addr;
 
-    if (addr < GBA_ROM_BASE || addr + sizeof(*room) > GBA_ROM_BASE + gPortRomSize)
+    /* "No room" (0xFFFF, the case above) gives 0 without reading past the
+     * table: with room bundles the table is in the arena, where the slot
+     * 0xFFFF would land is not the ROM's harmless open-bus word. */
+    if (roomId == 0xFFFF)
+        return 0;
+    room = gUnk_08D6CD0C[roomId];
+    addr = (uintptr_t)room;
+
+    /* A new room's record (ids >= 983) is in the resource arena. */
+    if ((addr < GBA_ROM_BASE || addr + sizeof(*room) > GBA_ROM_BASE + gPortRomSize)
+     && (addr < RES_ARENA_BASE || addr + sizeof(*room) > RES_ARENA_BASE + RES_ARENA_SIZE))
         return 0;
     return room->unk46;
 }

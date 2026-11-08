@@ -273,6 +273,8 @@ static void Usage(const char *argv0)
 "  --res-check DIR    compile the pack in DIR and compare it with the ROM\n"
 "  --res-pack DIR     serve the kinds the pack compiler knows from DIR\n"
 "  --mod DIR          overlay a mod folder on the pack (repeatable, in order)\n"
+"  --rooms FILE       link a room bundle (katam compile OUT/mod/rooms.katn);\n"
+"                     new rooms are ids 983 and up (repeatable; no pack needed)\n"
 "  --renderer R       ppu (default), gpu or both: see docs/RENDERER.md\n"
 "  --gpu-view WxH     the GPU renderer's world viewport (default 240x160);\n"
 "                     auto[:H] follows the window's aspect at height H\n"
@@ -297,7 +299,7 @@ static int IsScriptedRun(int argc, char **argv)
 {
     static const char *const kInteractive[] = {
         "--scale", "--window", "--fullscreen", "--vsync", "--no-audio", "--verbose",
-        "--ui", "--ui-open-at", "--rando", "--res-pack", "--mod", NULL,
+        "--ui", "--ui-open-at", "--rando", "--res-pack", "--mod", "--rooms", NULL,
     };
     int i, k;
 
@@ -537,6 +539,8 @@ static void ParseArgs(int argc, char **argv)
             Res_ConfigurePack(argv[i = NeedValue(i, argc, argv)]);
         } else if (strcmp(a, "--mod") == 0) {
             Res_AddMod(argv[i = NeedValue(i, argc, argv)]);
+        } else if (strcmp(a, "--rooms") == 0) {
+            Res_AddRoomBundle(argv[i = NeedValue(i, argc, argv)]);
         } else if (a[0] == '-' && a[1] != '\0') {
             fprintf(stderr, "katam-port: unknown option %s (--help)\n", a);
             exit(2);
@@ -1813,6 +1817,21 @@ void PortAwaitAnimationFrame(void)
     }
 
     sFrames++;
+    /* --shot-at with the software renderer (no GL window, e.g. the dummy
+     * video driver of a headless `katam playtest`): the PPU picture. */
+    if (sRendererMode == RENDERER_PPU) {
+        int i;
+
+        for (i = 0; i < sNumShots; i++) {
+            char name[1024];
+
+            if (sShots[i].frame != sFrames)
+                continue;
+            snprintf(name, sizeof(name), "%s-ppu.png", sShots[i].prefix);
+            if (PortNativeWritePng(name, gPortFramebuffer, gPortViewW, gPortViewH))
+                PortLog("[katam-port] wrote %s", name);
+        }
+    }
     /* Every half second or so.  Often enough that no phase of the boot goes
      * unmeasured, rare enough that 38400 pixel probes do not show up next to
      * the software PPU that produced them. */
@@ -1822,6 +1841,7 @@ void PortAwaitAnimationFrame(void)
     if (sFrameLimit >= 0 && sFrames >= sFrameLimit) {
         PortLog("[katam-port] %ld frames, %d audio underruns", sFrames,
                 PortAudioUnderruns());
+        PortWarpReport();
         Shutdown(0);
     }
 

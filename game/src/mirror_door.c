@@ -116,7 +116,7 @@ static void sub_08119F88(struct MirrorDoor *md)
     bool32 var = FALSE;
     struct Unk_0888562C_3 *ptr = sub_080025AC(md->obj.base.unk56, md->unkBC, md->unkBE).pat3;
 
-    if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD)
+    if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD && !RES_ROOM_IS_NEW(ptr->unk08))
         var = TRUE;
     if (sub_08002BA8(md->obj.base.roomId, ptr->unk08, ptr->unk0A, ptr->unk0B))
     {
@@ -149,7 +149,7 @@ static void sub_0811A084(struct MirrorDoor *md)
         bool32 var = FALSE;
         struct Unk_0888562C_3 *ptr = sub_080025AC(md->obj.base.unk56, md->unkBC, md->unkBE).pat3;
 
-        if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD)
+        if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD && !RES_ROOM_IS_NEW(ptr->unk08))
             var = TRUE;
         if (sub_08002BA8(md->obj.base.roomId, ptr->unk08, ptr->unk0A, ptr->unk0B))
         {
@@ -206,7 +206,7 @@ static void sub_0811A234(struct MirrorDoor *md)
         struct Unk_0888562C_3 *ptr = sub_080025AC(md->obj.base.unk56, md->unkBC, md->unkBE).pat3;
         bool32 var;
 
-        if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD)
+        if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD && !RES_ROOM_IS_NEW(ptr->unk08))
             var = TRUE;
         else
             var = FALSE;
@@ -345,7 +345,7 @@ static bool32 sub_0811A708(struct MirrorDoor *md)
 {
     struct Unk_0888562C_3 *ptr = sub_080025AC(md->obj.base.unk56, md->unkBC, md->unkBE).pat3;
 
-    if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD)
+    if (ptr->unk08 >= 0x3D4 && ptr->unk08 <= 0x3DD && !RES_ROOM_IS_NEW(ptr->unk08))
         return TRUE;
     else
         return FALSE;

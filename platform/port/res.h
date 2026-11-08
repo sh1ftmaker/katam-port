@@ -108,6 +108,34 @@ int         Res_BuildSession(void);
 /* Host configuration, before Res_BuildSession. */
 void        Res_ConfigurePack(const char *dir);    /* L1: a folder written by --extract */
 void        Res_AddMod(const char *dir);           /* L3: a mod folder; call in load order */
+/* Room bundles (katam-native/1, `katam compile` OUT/mod/rooms.katn; MODDING.md
+ * R2, platform/res_rooms.c).  Besides <pack>/rooms.katn and each mod's
+ * rooms.katn: a file (--rooms FILE) and one in-memory bundle (the web page).
+ * They need no pack: without one they link over the ROM's tables. */
+void        Res_AddRoomBundle(const char *path);
+void        Res_SetRoomBundleMemory(const void *data, u32 size);
+/* The playtest page's "reload room": re-link a new bundle mid-session (into
+ * the other half of the arena); the caller then warps into the room.  Local
+ * sessions only -- never in netplay. 0 on success. */
+int         Res_ReloadRooms(const void *data, u32 size);
+/* MODDING.md §3.5 levelSetHash of the session (pack sim kinds + rooms);
+ * 0 when nothing but the ROM is served. */
+int         Res_LevelSetHash(u8 out[32]);
+
+/* Room ids.  The original game has 983 room slots (0..982, 286 real rooms);
+ * rooms a bundle adds are numbered from 983 up.  Vanilla code that tests
+ * "roomId > 0x3D3" and the like means rooms 980-982, and is told apart from
+ * new rooms with this. */
+#define RES_FIRST_NEW_ROOM 983u
+/* gVisitedDoors (u16[0x120], indexed by RoomProps.doorsIdx, entries 0..286
+ * saved to SRAM) for any content index: vanilla's entries for 0..286, a
+ * port-owned array for the content indices new rooms get (287 and up), which
+ * is never written to the save -- visiting a new room leaves a vanilla save
+ * byte-identical.  platform/res_rooms.c. */
+u16        *PortVisitedDoors(u32 doorsIdx);
+void        Res_LogNewRoomProgress(void);
+#define PORT_VISITED_DOORS(i) (*PortVisitedDoors(i))
+#define RES_ROOM_IS_NEW(r) ((u32)(u16)(r) >= RES_FIRST_NEW_ROOM && (u16)(r) != 0xFFFFu)
 
 /* One-shot command-line actions, run by main() once the ROM is mapped and
  * before anything patches it (platform/res_pack.c):

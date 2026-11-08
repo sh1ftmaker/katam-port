@@ -20,6 +20,20 @@ void ResAddRelocation(u32 romLo, u32 size, void *dst);
  * the arena and retarget the slots.  0 on success. */
 int  ResPackInstall(const char *packDir, const char *const *mods, u32 numMods);
 int  ResExtract(const char *dir);
+
+/* res.c: the extents in force (the room loader grows them); where the pack's
+ * arena blobs end; levelSetHash over the pack's sim kinds and the rooms. */
+void ResSetKindCount(int kind, u32 count);
+void ResSetArenaTop(u32 addr);
+int  ResFinishLevelSetHash(u8 out[32]);   /* res_pack.c; 1 if there is one */
+
+/* res_rooms.c: the room-bundle loader (katam-native/1). */
+void ResRoomsReset(void);
+int  ResRoomsAddMemory(const void *data, u32 size, const char *what);
+int  ResRoomsAddFile(const char *path);   /* 1 added, 0 absent, -1 error */
+int  ResRoomsInstall(u32 arenaLo);
+int  ResRoomsReload(const void *data, u32 size);
+int  ResRoomsHash(u8 out[32]);           /* 1 if bundles are installed */
 int  ResRoundTrip(const char *dir);
 
 #ifdef __cplusplus

@@ -265,6 +265,16 @@ void PortRandoReport(void);
 void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY);
 void PortWarpPoll(void);
 void PortWarpReport(void);
+
+/* The playtest boot (platform/playtest.c): drive the keys from power-on to
+ * gameplay (the regression recordings' boot: A+Right taps from frame 120),
+ * then warp player 0 to (room, cellX, cellY) at frame PORT_PLAYTEST_WARP_FRAME
+ * and hand the keys back.  The web playtest page's entry; the native
+ * `katam playtest` writes the same thing as a recording. */
+#define PORT_PLAYTEST_WARP_FRAME 1300u
+void PortPlaytestBoot(u16 room, u8 cellX, u8 cellY);
+int  PortPlaytestKeyOverride(u32 frame, u16 *keys);
+int  PortPlaytestBooting(void);
 extern u32 gPortWarpCount;
 extern u32 gPortRandoFlags, gPortRandoSeed;
 

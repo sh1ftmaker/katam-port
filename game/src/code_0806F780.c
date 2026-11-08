@@ -7816,7 +7816,7 @@ void sub_08083150(void) {
 }
 
 void sub_0808324C(struct Kirby *kirby, u16 a2) {
-    if (kirby->base.roomId > 0x383
+    if ((kirby->base.roomId > 0x383 && !RES_ROOM_IS_NEW(kirby->base.roomId))
         || kirby->base.roomId == 0x321
         || kirby->base.roomId == gUnk_0835105C[1]
         || kirby->base.roomId == gUnk_0835105C[2]
@@ -7882,7 +7882,7 @@ void sub_08083494(void) {
     kirby->base.unk5C &= ~7;
     kirby->base.unk5C |= 6;
     if (!ObjectPreUpdate(objBase)) {
-        if (kirby->base.roomId > 0x383
+        if ((kirby->base.roomId > 0x383 && !RES_ROOM_IS_NEW(kirby->base.roomId))
             || kirby->base.roomId == 0x321
             || kirby->base.roomId == gUnk_0835105C[1]
             || kirby->base.roomId == gUnk_0835105C[2]
@@ -15493,7 +15493,7 @@ void sub_080982C4(struct ObjectBase *objBase) {
     r = (Rand16() & 7) + 1;
     effectObject = sub_0808B248(objBase, 0, 0x291, r);
     effectObject->sprite.unk14 = 0x640;
-    if (objBase->roomId > 0x3D3) { // TODO: make the comparison independent of the order
+    if (objBase->roomId > 0x3D3 && !RES_ROOM_IS_NEW(objBase->roomId)) { // TODO: make the comparison independent of the order
         v4 = -objBase->xspeed >> 8;
         v5 = (-0x500 - objBase->yspeed) >> 8;
         v2 = 0x400;

@@ -940,14 +940,17 @@ static int Place(int mode)
  * are flat arrays with no pointers between blobs, so the hash does not
  * depend on where the arena put them.  Presentation kinds are logged, never
  * part of it. */
+static u8 sPackSimSha[8][32];
+static char sPackSimKind[8][32];
+static u32 sPackSimN;
+
 static void LogContentHashes(void)
 {
-    Buf all = { 0 };
     u8 sha[32];
     char hex[65];
     u32 k, i;
 
-    BufPut(&all, "katam-resolved-v1", 17);
+    sPackSimN = 0;
     for (k = 0; k < sNumKinds; k++) {
         Buf one = { 0 };
 
@@ -957,16 +960,46 @@ static void LogContentHashes(void)
         ResSha256(one.p, one.len, sha);
         ResHex(sha, 32, hex);
         PortLog("[res]   %-11s %-12s sha256 %.16s", sKinds[k].kind, sKinds[k].realm, hex);
-        if (sKinds[k].sim) {
-            BufPut(&all, sKinds[k].kind, strlen(sKinds[k].kind));
-            BufPut(&all, sha, 32);
+        if (sKinds[k].sim && sPackSimN < 8) {
+            memcpy(sPackSimSha[sPackSimN], sha, 32);
+            snprintf(sPackSimKind[sPackSimN], sizeof sPackSimKind[0], "%s", sKinds[k].kind);
+            sPackSimN++;
         }
         BufFree(&one);
     }
-    ResSha256(all.p, all.len, sha);
-    ResHex(sha, 32, hex);
+}
+
+/* levelSetHash (MODDING.md §3.5): SHA-256 of "katam-resolved-v1" and, for
+ * each sim-realm kind the pack served in manifest order, the kind's name and
+ * the SHA-256 of its compiled bytes; then, when room bundles are installed,
+ * "rooms" and their SHA-256 (platform/res_rooms.c).  The sim kinds are flat
+ * arrays and the bundles hold no addresses, so the hash does not depend on
+ * where the arena put anything.  Presentation kinds are never part of it.
+ * Without bundles the value is the one the pack alone always gave. */
+int ResFinishLevelSetHash(u8 out[32])
+{
+    Buf all = { 0 };
+    u8 rooms[32];
+    char hex[65];
+    int haveRooms = ResRoomsHash(rooms);
+    u32 k;
+
+    if (!sPackSimN && !haveRooms)
+        return 0;
+    BufPut(&all, "katam-resolved-v1", 17);
+    for (k = 0; k < sPackSimN; k++) {
+        BufPut(&all, sPackSimKind[k], strlen(sPackSimKind[k]));
+        BufPut(&all, sPackSimSha[k], 32);
+    }
+    if (haveRooms) {
+        BufPut(&all, "rooms", 5);
+        BufPut(&all, rooms, 32);
+    }
+    ResSha256(all.p, all.len, out);
+    ResHex(out, 32, hex);
     PortLog("[res] levelSetHash %s", hex);
     BufFree(&all);
+    return 1;
 }
 
 /* --- the round-trip gate (F0) --------------------------------------------------------- */
@@ -1074,6 +1107,7 @@ int ResPackInstall(const char *packDir, const char *const *mods, u32 numMods)
 {
     u32 i, k, used = 0;
 
+    sPackSimN = 0;
     if (LoadManifest() != 0 || CheckPackToml(packDir) != 0)
         return -1;
     LogMods(mods, numMods);
@@ -1104,6 +1138,7 @@ int ResPackInstall(const char *packDir, const char *const *mods, u32 numMods)
     PortLog("[res] pack %s installed: %u blobs, %u bytes of arena", packDir,
             (unsigned)sNumBlobs, (unsigned)used);
     LogContentHashes();
+    ResSetArenaTop(RES_ARENA_BASE + ((used + 15u) & ~15u));
     FreeBlobs();
     return 0;
 }

@@ -495,6 +495,16 @@ const Module = {
                             fs.writeFileSync(path, Buffer.from(Module.HEAPU8.subarray(dump, dump + len)));
             };
         }
+        //   ROOMS=file         a room bundle (katam-native/1, `katam compile`
+        //                      OUT/mod/rooms.katn): linked by the session build,
+        //                      as --rooms FILE does natively
+        if (process.env.ROOMS) {
+            const b = fs.readFileSync(process.env.ROOMS);
+            const p = Module._malloc(b.length);
+            Module.HEAPU8.set(b, p);
+            Module._PortResSetRoomBundle(p, b.length);
+            Module._free(p);
+        }
         Module._PortRomLoaded(rom.length);
         resolveRom();
     },
@@ -713,7 +723,7 @@ function finish() {
     if (process.env.RANDO && Module._PortRandoReport) Module._PortRandoReport();
     // Reports a warp that was requested and never delivered, which otherwise
     // looks exactly like a warp that worked and changed nothing.
-    if (WARP.length && Module._PortWarpReport) Module._PortWarpReport();
+    if ((WARP.length || process.env.REPLAY) && Module._PortWarpReport) Module._PortWarpReport();
     if (process.env.DUMP_ROOM) dumpRoomState(process.env.DUMP_ROOM);
 
     console.log('--- katam-port headless smoke test ---');

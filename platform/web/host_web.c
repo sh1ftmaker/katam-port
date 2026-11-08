@@ -10,6 +10,7 @@
 #include <emscripten/html5.h>
 
 #include "port/port.h"
+#include "port/res.h"
 #include "port/backend.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
@@ -141,6 +142,12 @@ void PortHostInit(int argc, char **argv)
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
+
+/* The playtest page (web/playtest/): a room bundle compiled in the browser.
+ * Set before the ROM handshake releases main(), so the session build links
+ * it; reload re-links one mid-session (local only) -- the page warps next. */
+EMSCRIPTEN_KEEPALIVE void PortResSetRoomBundle(const u8 *data, u32 size) { Res_SetRoomBundleMemory(data, size); }
+EMSCRIPTEN_KEEPALIVE int PortResReloadRooms(const u8 *data, u32 size) { return Res_ReloadRooms(data, size); }
 /* Pictures drawn and frames simulated per second (the menu's numbers), for
  * a test harness checking that paints between frames are being drawn. */
 EMSCRIPTEN_KEEPALIVE double PortWebDrawRateJs(void) { return gPortUiStatus.drawFps; }
@@ -215,6 +222,14 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
 EM_ASYNC_JS(int, PortWebAwaitFrame, (int interp), {
     if (typeof document === 'undefined') {
         await new Promise(function (resolve) { requestAnimationFrame(resolve); });
+        return 0;
+    }
+    /* Fast-forward (the playtest page's boot): no pacing, a yield to the
+     * page every 8 frames so it stays responsive; then the clock restarts. */
+    if (Module.portTurbo && Module.portTurbo()) {
+        Module.portFrameDue = 0;
+        if (((Module.portTurboN = (Module.portTurboN || 0) + 1) & 7) === 0)
+            await new Promise(function (resolve) { setTimeout(resolve, 0); });
         return 0;
     }
     var PERIOD = 1000 / 59.7275;

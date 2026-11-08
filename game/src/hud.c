@@ -523,7 +523,8 @@ static void DrawHudOtherKirbys(struct GameplayHud *hud)
                 sub_08155128(body);
                 if (!(gUnk_0203AD10 & 0x20) && kirby->hp > 0
                     && (u16)(kirby->base.roomId - 0x394) > 3
-                    && kirby->base.roomId != 0x38D && kirby->base.roomId <= 0x3D3)
+                    && kirby->base.roomId != 0x38D
+                    && (kirby->base.roomId <= 0x3D3 || RES_ROOM_IS_NEW(kirby->base.roomId)))
                     DisplaySprite(body);
             } else if (hud->unk15[i]) {
                 kirby->base.sprite.unk8 &= ~0x80000;

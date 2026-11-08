@@ -295,6 +295,10 @@ static void UpdateKeyInput(int frameLatch)
         sKeysDown = keys;
     if (PortSeatKeyOverride(&keys))
         sKeysDown = keys;
+    /* The playtest boot (platform/playtest.c): the keys that get from
+     * power-on to gameplay, until the warp into the room under test. */
+    if (frameLatch && PortPlaytestKeyOverride(sFrameCount, &keys))
+        sKeysDown = keys;
     /* The recorder and the replayer (platform/inputlog.c) see the frame's
      * final keys, after rollback and seats.  Not the call main() makes before
      * AgbMain: that one latches the host's power-on state, which is nothing

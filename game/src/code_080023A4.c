@@ -1594,12 +1594,12 @@ void sub_08002A44(u8 arg0, u16 arg1, u8 arg2)
 
 u32 sub_08002A5C(u16 roomId)
 {
-    return gVisitedDoors[gRoomProps[roomId].doorsIdx] >> 0xF;
+    return PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx) >> 0xF;
 }
 
 void sub_08002A80(u16 roomId)
 {
-    gVisitedDoors[gRoomProps[roomId].doorsIdx] |= 0x8000;
+    PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx) |= 0x8000;
 }
 
 u8 sub_08002AAC(u16 roomId)
@@ -1611,7 +1611,7 @@ u8 sub_08002AD0(u16 roomId)
 {
     u8 var0 = 0;
     u8 var1 = gUnk_08D640A4[gRoomProps[roomId].doorsIdx]->unk04;
-    u16 var2 = gVisitedDoors[gRoomProps[roomId].doorsIdx];
+    u16 var2 = PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx);
     u16 i;
 
     for (i = 0; i < var1; i++) {
@@ -1633,7 +1633,7 @@ void sub_08002B30(u16 roomId, s16 arg1, s16 arg2)
             var0->unk04 == arg1 &&
             var0->unk06 == arg2
         ) {
-            gVisitedDoors[gRoomProps[roomId].doorsIdx] |= 1 << i;
+            PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx) |= 1 << i;
             return;
         }
         var0 = (void *)var0 + var0->unk01;
@@ -1652,7 +1652,7 @@ u32 sub_08002BA8(u16 roomId, u16 arg1, u8 arg2, u8 arg3)
             var0->unk06 == arg2 &&
             var0->unk07 == arg3
         )
-            return gVisitedDoors[gRoomProps[roomId].doorsIdx] >> i & 1;
+            return PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx) >> i & 1;
 
         var0 = (void *) var0 + var0->unk01;
     }
@@ -1670,7 +1670,7 @@ void sub_08002C18(u16 roomId, u16 arg1, u8 arg2, u8 arg3)
             var0->unk06 == arg2 &&
             var0->unk07 == arg3
         ) {
-            gVisitedDoors[gRoomProps[roomId].doorsIdx] |= 1 << i;
+            PORT_VISITED_DOORS(gRoomProps[roomId].doorsIdx) |= 1 << i;
             return;
         }
 

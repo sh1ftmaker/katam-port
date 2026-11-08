@@ -201,6 +201,12 @@ void PortWarpReport(void)
                 "not reach a level", (unsigned)sPendingRoom);
     else if (gPortWarpCount)
         PortLog("[katam-port] warp: %u delivered", (unsigned)gPortWarpCount);
+    /* Where the run ended: what `katam playtest` reports as "still in the
+     * room, still alive". */
+    if (gPortWarpCount)
+        PortLog("[katam-port] at exit: player 0 in room %u, hp %d",
+                (unsigned)gCurLevelInfo[0].currentRoom, (int)gKirbys[0].hp);
+    Res_LogNewRoomProgress();
 }
 
 #ifdef __cplusplus

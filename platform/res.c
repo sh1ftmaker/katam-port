@@ -120,9 +120,27 @@ static const struct {
     /* RES_ROM_TABLE      */ { 0,                 RT_COUNT, ARRAY,  0 },
 };
 
+/* The extents in force this session: the vanilla ones, grown by the room
+ * bundle loader (platform/res_rooms.c) when a bundle names a larger index. */
+static u32 sKindCount[RES_KIND_COUNT];
+
+void ResSetKindCount(int kind, u32 count)
+{
+    if ((u32)kind < RES_KIND_COUNT)
+        sKindCount[kind] = count;
+}
+
+static void ResetKindCounts(void)
+{
+    u32 k;
+
+    for (k = 0; k < RES_KIND_COUNT; k++)
+        sKindCount[k] = kKinds[k].count;
+}
+
 u32 Res_Count(ResKind kind)
 {
-    return (u32)kind < RES_KIND_COUNT ? kKinds[kind].count : 0;
+    return (u32)kind < RES_KIND_COUNT ? sKindCount[kind] : 0;
 }
 
 static u32 RomWord(const void *p)
@@ -136,7 +154,7 @@ const void *Res_Get(ResKind kind, u32 id)
     const u8 *base;
     const void *rec;
 
-    if ((u32)kind >= RES_KIND_COUNT || id >= kKinds[kind].count)
+    if ((u32)kind >= RES_KIND_COUNT || id >= Res_Count(kind))
         return NULL;
     if (kind == RES_ROM_TABLE)
         return (const void *)gResBase[id];
@@ -175,6 +193,7 @@ void Res_Invalidate(ResKind kind, u32 id)
     (void)id;
 }
 
+
 /* --- session build ----------------------------------------------------------- */
 
 /* C tables in game/ whose initialisers name ROM tables.  They cannot be static
@@ -198,6 +217,89 @@ static u32 sNumMods;
 
 void Res_ConfigurePack(const char *dir) { sPackDir = dir; }
 
+#define MAX_ROOM_FILES 8
+static const char *sRoomFiles[MAX_ROOM_FILES];
+static u32 sNumRoomFiles;
+static u8 *sRoomMem;
+static u32 sRoomMemSize;
+
+void Res_AddRoomBundle(const char *path)
+{
+    if (sNumRoomFiles < MAX_ROOM_FILES)
+        sRoomFiles[sNumRoomFiles++] = path;
+    else
+        PortLog("[res] more than %d --rooms files; ignoring %s", MAX_ROOM_FILES, path);
+}
+
+void Res_SetRoomBundleMemory(const void *data, u32 size)
+{
+    free(sRoomMem);
+    sRoomMem = NULL;
+    sRoomMemSize = 0;
+    if (data && size) {
+        sRoomMem = (u8 *)malloc(size);
+        if (sRoomMem) {
+            memcpy(sRoomMem, data, size);
+            sRoomMemSize = size;
+        }
+    }
+}
+
+static u32 sArenaTop;
+void ResSetArenaTop(u32 addr) { sArenaTop = addr; }
+
+/* Gather the room bundles in priority order (pack, mods, --rooms, memory)
+ * and link them.  Returns -1 if any was given and could not be installed. */
+static int InstallRooms(int packInstalled)
+{
+    char path[1024];
+    u32 i;
+    int bad = 0;
+
+    ResRoomsReset();
+    if (packInstalled) {
+        snprintf(path, sizeof path, "%s/rooms.katn", sPackDir);
+        bad |= ResRoomsAddFile(path) < 0;
+    }
+    for (i = 0; i < sNumMods; i++) {
+        snprintf(path, sizeof path, "%s/rooms.katn", sMods[i]);
+        bad |= ResRoomsAddFile(path) < 0;
+    }
+    for (i = 0; i < sNumRoomFiles; i++) {
+        int r = ResRoomsAddFile(sRoomFiles[i]);
+
+        if (r == 0)
+            PortLog("[res] --rooms %s: no such file", sRoomFiles[i]);
+        bad |= r <= 0;
+    }
+    if (sRoomMem)
+        bad |= ResRoomsAddMemory(sRoomMem, sRoomMemSize, "(page)") != 0;
+    if (bad || ResRoomsInstall(sArenaTop ? sArenaTop : RES_ARENA_BASE) != 0) {
+        ResRoomsReset();
+        return -1;
+    }
+    return 0;
+}
+
+static u8 sLevelSet[32];
+static int sHaveLevelSet;
+
+int Res_LevelSetHash(u8 out[32])
+{
+    if (sHaveLevelSet)
+        memcpy(out, sLevelSet, 32);
+    return sHaveLevelSet;
+}
+
+int Res_ReloadRooms(const void *data, u32 size)
+{
+    int rc = ResRoomsReload(data, size);
+
+    if (rc == 0)
+        sHaveLevelSet = ResFinishLevelSetHash(sLevelSet);
+    return rc;
+}
+
 void Res_AddMod(const char *dir)
 {
     if (sNumMods < MAX_MODS)
@@ -211,7 +313,10 @@ int Res_BuildSession(void)
     int rc;
 
     ResetSlots();
+    ResetKindCounts();
     sNumRelocs = 0;
+    sArenaTop = 0;
+    sHaveLevelSet = 0;
 
     /* MODDING.md §1.4's open risk: the game reads past the end of its own
      * data in places, and the arena sits in the ROM window those reads used
@@ -235,8 +340,15 @@ int Res_BuildSession(void)
         }
     }
     else if (sNumMods)
-        PortLog("[res] mods need the vanilla pack (--res-pack DIR); ignoring %u mod(s)",
-                (unsigned)sNumMods);
+        PortLog("[res] mods' assets need the vanilla pack (--res-pack DIR); "
+                "only their room bundles are used (%u mod(s))", (unsigned)sNumMods);
+
+    /* The room bundles (MODDING.md R2): on top of the pack, or of the ROM. */
+    if (InstallRooms(sPackDir && rc == 0) != 0) {
+        PortLog("[res] room bundles not installed; the game runs without them");
+        rc = rc ? rc : -1;
+    }
+    sHaveLevelSet = ResFinishLevelSetHash(sLevelSet);
 
     RebindGameTables();
     return rc;

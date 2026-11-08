@@ -142,7 +142,7 @@ void *CreateAbilityStar(struct ObjectTemplate *arg0, u8 arg1) {
     obj->base.unkC |= 1;
     obj->base.flags |= 0x400000;
     obj->unk85 = 0;
-    if (obj->base.roomId > 0x3d3) {
+    if (obj->base.roomId > 0x3d3 && !RES_ROOM_IS_NEW(obj->base.roomId)) {
         obj->base.flags &= ~0x2000000;
     }
     sub_0803E2B0(&obj->base, -8, -8, 8, 8);
