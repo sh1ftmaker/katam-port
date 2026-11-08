@@ -86,11 +86,12 @@ u16 ArcTan2(s16 x, s16 y)
  * before the bounds check that ends the transfer -- is harmless there and
  * fatal here.  Found by two networked instances reaching that transfer, the
  * first code path ever to run it in this port. */
-static int CpuRangeOk(const char *who, const void *src, void *dest, u32 bytes)
+static int CpuRangeOk(const char *who, const void *src, u32 srcBytes,
+                      void *dest, u32 bytes)
 {
     static u32 sReported;
 
-    if (PortTransferRangeOk((uintptr_t)src, bytes)
+    if (PortTransferRangeOk((uintptr_t)src, srcBytes)
      && PortTransferRangeOk((uintptr_t)dest, bytes))
         return 1;
     if (sReported < 8) {
@@ -109,8 +110,15 @@ void CpuSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
     PORT_WATCH("CpuSet", dest, count * ((control & CPU_SET_32BIT) ? 4 : 2), src);
-    if (!CpuRangeOk("CpuSet", src, dest,
-                    count * ((control & CPU_SET_32BIT) ? 4 : 2)))
+    /* A fixed source is one unit, read over and over -- CpuFill passes the
+     * address of a local.  Checking the whole length from there walked off
+     * the top of the host stack, so every fill from a local near it was
+     * refused (and, through PortHostRangeOk's page memo, every DmaFill from
+     * the same page after it).  Whether it happened depended on ASLR. */
+    if (!CpuRangeOk("CpuSet", src,
+                    fixed ? ((control & CPU_SET_32BIT) ? 4u : 2u)
+                          : count * ((control & CPU_SET_32BIT) ? 4 : 2),
+                    dest, count * ((control & CPU_SET_32BIT) ? 4 : 2)))
         return;
 
     /* Like DMA, the BIOS aligns to the transfer width rather than faulting. */
@@ -139,7 +147,7 @@ void CpuFastSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * 4);
     PORT_WATCH("CpuFastSet", dest, count * 4, src);
-    if (!CpuRangeOk("CpuFastSet", src, dest, count * 4))
+    if (!CpuRangeOk("CpuFastSet", src, fixed ? 4u : count * 4, dest, count * 4))
         return;
 
     for (i = 0; i < count; i++)
