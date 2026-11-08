@@ -277,6 +277,10 @@ export class SessionRoom {
         await this._ensure(req.headers.get('X-Room-Id'), req.headers.get('X-Room-Code'));
         const pair = new WebSocketPair();
         const ws = pair[1];
+        /* Newer compatibility dates deliver binary messages as Blob (the
+         * standard default); SessionCore wants bytes, synchronously, in
+         * order. */
+        ws.binaryType = 'arraybuffer';
         ws.accept();
         const id = 'c' + this.nextConn++;
         this.socks.set(id, ws);

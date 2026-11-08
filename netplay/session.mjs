@@ -138,7 +138,7 @@ export class SessionCore {
         this.conns = new Map();       // connId -> {mid|-1, ip}
         this.banned = new Set();
         this.nextMid = 1;
-        this.helloLimit = new RateLimiter({ capacity: 10, refillPerSec: 0.3, now: this.now });
+        this.helloLimit = new RateLimiter({ capacity: 20, refillPerSec: 0.5, now: this.now });
         this._resetSequencer();
         this.stats = {
             sealed: 0, fills: 0, lateInputs: 0, framesMsgs: 0, bytesDown: 0, bytesUp: 0,
@@ -1248,6 +1248,7 @@ export class SessionCore {
                     t: 'stats', frontier: this.frontier, head: this.head, wm: this.wm,
                     clock: this.clock ? +this.clockFrame(t).toFixed(1) : null,
                     late: m.lateInputs, fills: m.fills, ahead,
+                    sealed: this.stats.sealed, deadlineSeals: this.stats.deadlineSeals,
                     behind: m.latest ? this.frontier - 1 - m.latest.frame : null,
                 });
             }
