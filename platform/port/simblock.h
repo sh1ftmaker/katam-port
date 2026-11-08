@@ -145,6 +145,17 @@ struct PortSimBlock {
 /* hdr.flags */
 #define PORT_SIM_F_SESSION 0x0001u  /* a NETPLAY-V2 session: one world, many peers */
 
+/* "Is this console the one that owns the save?"  Link play has one parent
+ * (gUnk_0203AD24) that writes world progress to its SRAM while the children
+ * only count the write (sub_08031CE4); some progress -- gAIKirbyState at the
+ * end of the Dark Mind fight, code_0814EBE4.c -- even advances on the parent
+ * alone.  In a session every peer simulates the same world and keeps the same
+ * session save, so every peer is the owner, or the peers diverge by
+ * gLocalPlayerId (the census found it: cutscene_trigger.c, frame 581 of
+ * boot_to_level).  Outside a session the link-play rule is unchanged.  Game
+ * code only: it names two game globals. */
+#define PortSimSaveOwner() \
+    ((gPortSim->hdr.flags & PORT_SIM_F_SESSION) != 0 || gLocalPlayerId == gUnk_0203AD24)
 
 /* Fixed offsets the game-side macros use; asserted below. */
 #define PORT_SIM_OFF_FRAME      0x20u

@@ -171,6 +171,46 @@ void PortRbSnapshotLoad(const void *src)
     LoadFrom((const u8 *)src);
 }
 
+/* The snapshot's layout, part by part, for tools that compare two of them
+ * (platform/census.c).  `base` is the GBA address the part starts at, or 0
+ * for host state. */
+int PortRbSnapshotPart(int i, struct PortRbPart *out)
+{
+    u32 off = 0, k;
+
+    if (i < 0)
+        return 0;
+    for (k = 0; k < NUM_REGIONS; k++) {
+        if ((int)k == i) {
+            out->name = kRegions[k].name;
+            out->base = (u32)kRegions[k].base;
+            out->offset = off;
+            out->size = kRegions[k].size;
+            return 1;
+        }
+        off += kRegions[k].size;
+    }
+    i -= (int)NUM_REGIONS;
+    if (i == 0) {
+        out->name = "simblk"; out->base = PORT_SIM_BASE;
+        out->offset = off; out->size = PortSimUsedBytes();
+        return 1;
+    }
+    off += PortSimUsedBytes();
+    if (i == 1) {
+        out->name = "dma"; out->base = 0; out->offset = off;
+        out->size = PortDmaStateSize();
+        return 1;
+    }
+    off += PortDmaStateSize();
+    if (i == 2) {
+        out->name = "ppu"; out->base = 0; out->offset = off;
+        out->size = PortPpuStateSize();
+        return 1;
+    }
+    return 0;
+}
+
 /* --- the input timeline ---------------------------------------------------
  *
  * Stored uncompressed while a session runs, because a rollback has to index it
@@ -1456,6 +1496,7 @@ int PortRbNetPlay(int selfSlot)
     if (!sActive || selfSlot < 0 || selfSlot >= PORT_RB_PLAYERS)
         return 0;
     GAME_MODE_FLAGS |= 2;
+    gPortSim->hdr.flags |= PORT_SIM_F_SESSION;
     GAME_FOCUS = (u8)selfSlot;
     sFocusSlot = (s8)selfSlot;      /* survives snapshot restores            */
     PortLog("[katam-port] rollback: net play on, this instance is slot %d",

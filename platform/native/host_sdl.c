@@ -29,6 +29,8 @@
 #include <SDL.h>
 
 #include "native.h"
+#include "port/census.h"
+#include "port/seats.h"
 #include "port/res.h"
 #include "port/audio.h"
 #include "port/mp.h"
@@ -199,6 +201,9 @@ static long sPresents;
  *   --warp F:ROOM[:X:Y]  put Kirby in ROOM at frame F (platform/warp.c);
  *                        recorded, so a replay warps on the same frame */
 static const char *sRecordPath, *sReplayPath, *sHashLogPath;
+static int sCensusSeats;
+static long sCensusF0 = -1;
+static const char *sCensusOut, *sCensusMasks;
 static FILE *sHashLog;
 #define MAX_DUMPS 16
 static struct { long frame; const char *path; } sDumps[MAX_DUMPS];
@@ -266,6 +271,9 @@ static void Usage(const char *argv0)
 "  --record FILE      write the inputs of this run to FILE\n"
 "  --replay FILE      drive the run from a recording instead of the keyboard\n"
 "  --hash-log FILE    write one line of simulation-state hashes per frame\n"
+"  --census N[:F0]:OUT divergence census: N seats, gLocalPlayerId 0..N-1, same\n"
+"                     input; F0 = session mode (4 slots, AI) from frame F0\n"
+"  --census-masks F   mask table for --census (tests/census/masks.txt)\n"
 "  --dump-state F:PATH write the canonical state bytes at frame F to PATH\n"
 "  --warp F:ROOM[:X:Y] warp to ROOM (cell X,Y) at frame F; recorded\n"
 "  --res-extract DIR  write the vanilla pack for your ROM into DIR and exit\n"
@@ -502,6 +510,25 @@ static void ParseArgs(int argc, char **argv)
             sRecordPath = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--replay") == 0) {
             sReplayPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--census") == 0) {
+            /* N:OUT -- the divergence census, platform/census.c. */
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            const char *colon = strchr(v, ':');
+
+            sCensusSeats = atoi(v);
+            if (colon == NULL || sCensusSeats < 1 || sCensusSeats > PORT_SEAT_MAX) {
+                fprintf(stderr, "katam-port: --census wants SEATS[:F0]:OUT, SEATS 1..%d\n",
+                        PORT_SEAT_MAX);
+                exit(2);
+            }
+            sCensusOut = colon + 1;
+            /* N:F0:OUT -- session mode from frame F0. */
+            if (sscanf(sCensusOut, "%ld:", &sCensusF0) == 1 && strchr(sCensusOut, ':'))
+                sCensusOut = strchr(sCensusOut, ':') + 1;
+            else
+                sCensusF0 = -1;
+        } else if (strcmp(a, "--census-masks") == 0) {
+            sCensusMasks = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--hash-log") == 0) {
             sHashLogPath = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--dump-state") == 0) {
@@ -1943,6 +1970,11 @@ void PortHostInit(int argc, char **argv)
             PortInputLogScheduleWarp((u32)sWarps[w].frame, 0,
                                      (u16)sWarps[w].room, (u8)sWarps[w].x,
                                      (u8)sWarps[w].y);
+    }
+    if (sCensusSeats > 0) {
+        if (!PortCensusInit(sCensusOut, sCensusMasks))
+            exit(2);
+        PortSeatCensusArm(sCensusSeats, (s32)sCensusF0);
     }
     if (sHashLogPath != NULL) {
         sHashLog = fopen(sHashLogPath, "w");

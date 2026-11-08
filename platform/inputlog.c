@@ -90,6 +90,13 @@ static void AddWarp(u32 frame, u8 player, u16 room, u8 x, u8 y)
     sNumWarps++;
 }
 
+u16 PortInputLogKeysAt(u32 frame)
+{
+    if (!sReplaying || frame >= sKeysLen)
+        return 0;
+    return sKeys[frame];
+}
+
 static void AddView(u32 frame, u16 w, u16 h)
 {
     u32 i;

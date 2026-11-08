@@ -1,0 +1,44 @@
+# Census masks (platform/census.c, tools/census.py; NETPLAY-V2 §3.4).
+# Bytes that may differ between peers of one session because they belong to
+# the peer, not the world.  LO HI (exclusive, hex) CLASS NAME -- REASON
+#   P     presentation / per-peer by design: never needs to agree
+#   S*    sim code writes it today and may read it back; excluded from the
+#         masked hash until the renderer split makes it P (NETPLAY-V2 M8)
+#   H     an artefact of the harness, not of the game
+# The display task's player byte is masked by platform/census.c itself: the
+# task's struct moves with the heap (GAME_REPIN_FOCUS writes it).
+0203AD3C 0203AD3D P gLocalPlayerId -- which Kirby this peer is
+02040028 0204002A H simblk.frame.keysDown -- the host's poll writes it before the latch overwrites it; only the last seat polls
+02020080 02020EE0 P gMPlayTrack_0..3 -- sound engine tracks; sound effects are gated per peer (include/data.h PlaySfx)
+03000560 030017B0 P gSoundInfo..gMPlayInfo_3 -- sound engine state (platform/port/prelude.h)
+020235F0 02023710 S* gCurLevelInfo[0].unkC0+unk180 -- BG layers and tilemap streaming of the local viewport (LoadLevelGfx, level.c:108-155)
+02023C58 02023D78 S* gCurLevelInfo[1].unkC0+unk180 -- BG layers and tilemap streaming of the local viewport (LoadLevelGfx, level.c:108-155)
+020242C0 020243E0 S* gCurLevelInfo[2].unkC0+unk180 -- BG layers and tilemap streaming of the local viewport (LoadLevelGfx, level.c:108-155)
+02024928 02024A48 S* gCurLevelInfo[3].unkC0+unk180 -- BG layers and tilemap streaming of the local viewport (LoadLevelGfx, level.c:108-155)
+02023554 0202356C S* gCurLevelInfo[0].altViewport_24..altViewport_34 -- alternate viewports, written for the local viewport only (verify: no sim read found by the census)
+02023BBC 02023BD4 S* gCurLevelInfo[1].altViewport_24..altViewport_34 -- alternate viewports, written for the local viewport only (verify: no sim read found by the census)
+02024224 0202423C S* gCurLevelInfo[2].altViewport_24..altViewport_34 -- alternate viewports, written for the local viewport only (verify: no sim read found by the census)
+0202488C 020248A4 S* gCurLevelInfo[3].altViewport_24..altViewport_34 -- alternate viewports, written for the local viewport only (verify: no sim read found by the census)
+# The display: shadow registers, upload queues and the PPU's own memory --
+# NETPLAY-V2 §3.1 classes all of it S*, because the game streams the LOCAL
+# viewport's picture through it.  Masked until the renderer split (M8).
+03002400 03002450 S* gUnk_03002400 -- the BG layer table of the local viewport
+03002C60 03002E60 S* gObjPalette -- shadow OBJ palette
+03002E70 03002E7C S* gWinRegs -- shadow window registers
+03002EB0 03002EB8 S* gBgCntRegs -- shadow BGxCNT
+03002EC0 030031C0 S* gUnk_03002EC0 -- VRAM upload queue (drained in VBlank, bg.c:60-72)
+030031C0 030035C0 S* gUnk_030031C0 -- shadow OAM (sprite.c)
+030035C0 030035D0 S* gHBlankCallbacks -- per-scanline effects of the local view
+03003680 030036A0 S* gBgScrollRegs, gDispCnt -- shadow scroll and display control
+030036D0 03003790 S* gRgbMap -- palette fade map
+030037A0 030039A0 S* gBgPalette -- shadow BG palette
+03006030 03006070 S* gUnk_03006030 -- sprites queued for OAM
+030060B0 030064B0 S* gOamBuffer -- OAM buffer
+04000000 04000400 S* I/O -- the registers the shadows above are flushed into
+05000000 05000400 S* palette RAM
+06000000 06018000 S* VRAM
+07000000 07000400 S* OAM
+80000000 FFFFFFFF S* host state (DMA channels, PPU latches) -- armed against the local view's registers
+03002450 03002470 S* gUnk_03002450 -- OAM draw order of the Kirbys (local first)
+030024F0 03002514 S* gUnk_030024F0 -- OAM slot count of the local frame
+03006080 030060A0 S* gUnk_03006080 -- OAM priority table (local first)

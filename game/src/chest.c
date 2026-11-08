@@ -142,7 +142,7 @@ static void sub_0800AFC8(struct Chest *chest) {
     }
     if (!(gUnk_0203AD10 & 0x10)) {
         if (gUnk_0203AD10 & 2) {
-            if (gLocalPlayerId == gUnk_0203AD24) {
+            if (PortSimSaveOwner()) {
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             }
             else {

@@ -889,7 +889,7 @@ static void sub_0802CB60(UNUSED struct Unk_0802B4A8 *x) {
         gAIKirbyState = AI_KIRBY_STATE_UNK1;
         if (!(gUnk_0203AD10 & 0x10)) {
             if (gUnk_0203AD10 & 2) {
-                if (gLocalPlayerId == gUnk_0203AD24)
+                if (PortSimSaveOwner())
                     UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
                 else
                     sub_08031CE4(8);

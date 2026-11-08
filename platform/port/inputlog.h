@@ -38,6 +38,10 @@ long PortInputLogLoad(const char *text, u32 len);
 /* The frame count a loaded recording covers, 0 if none. */
 u32  PortInputLogFrames(void);
 int  PortInputLogReplaying(void);
+/* The replayed recording's key mask for `frame` (0 past its end, or when not
+ * replaying).  For drivers that feed a slot other than the console's own --
+ * the census's session mode (platform/census.c). */
+u16  PortInputLogKeysAt(u32 frame);
 
 /* Start recording.  The host calls PortInputLogSerialize at exit. */
 void PortInputLogRecordStart(void);

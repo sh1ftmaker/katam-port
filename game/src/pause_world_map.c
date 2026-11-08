@@ -1323,7 +1323,7 @@ static void WorldMapUnlockSave(s8 unlockedDoorId) {
 
     if (!(gUnk_0203AD10 & 0x10)) {
         if (gUnk_0203AD10 & 0x2) {
-            if (gLocalPlayerId == gUnk_0203AD24) {
+            if (PortSimSaveOwner()) {
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             }
             else {
@@ -1365,7 +1365,7 @@ static void WorldMapUnlockMain(void) {
 
             if (!(gUnk_0203AD10 & 0x10)) {
                 if (gUnk_0203AD10 & 0x2) {
-                    if (gLocalPlayerId == gUnk_0203AD24) {
+                    if (PortSimSaveOwner()) {
                         UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
                     }
                     else {

@@ -367,7 +367,7 @@ static void sub_080F5DA0(struct DarkMetaKnight *dmk)
             *pointer = 1;
             if (!(gUnk_0203AD10 & 0x10))
             {
-                if (gUnk_0203AD10 & 2 && gLocalPlayerId != gUnk_0203AD24)
+                if (gUnk_0203AD10 & 2 && !PortSimSaveOwner())
                     sub_08031CE4(8);
                 else
                     UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);

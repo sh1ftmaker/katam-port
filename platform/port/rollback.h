@@ -75,6 +75,11 @@ u32  PortRbSnapshotBytes(void);
 void PortRbSnapshotSave(void *dest);
 void PortRbSnapshotLoad(const void *src);
 
+/* Part i of the snapshot (0..): the six regions, the port sim block, then the
+ * host state (DMA channels, PPU latches).  Returns 0 past the last part. */
+struct PortRbPart { const char *name; u32 base, offset, size; };
+int  PortRbSnapshotPart(int i, struct PortRbPart *out);
+
 /* --- input ---------------------------------------------------------------
  *
  * The local player's input for the frame about to run.  Called by the host

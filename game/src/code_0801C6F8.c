@@ -714,7 +714,7 @@ static void sub_0801D948(struct Unk_0801C6F8 *var)
     {
         if (gUnk_0203AD10 & 2)
         {
-            if (gLocalPlayerId == gUnk_0203AD24)
+            if (PortSimSaveOwner())
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             else
                 sub_08031CE4(8);
