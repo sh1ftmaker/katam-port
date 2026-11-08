@@ -255,6 +255,11 @@ file(GLOB_RECURSE GAME_SRCS     CONFIGURE_DEPENDS "${PORT_SRC}/src/*.c")
 file(GLOB         GEN_SRCS      CONFIGURE_DEPENDS "${GENERATED}/*.c")
 file(GLOB         PLATFORM_SRCS CONFIGURE_DEPENDS
                                 "${CMAKE_CURRENT_SOURCE_DIR}/platform/*.c")
+# The GPU renderer (docs/RENDERER.md).  Its game hooks are linker wraps -- see
+# the end of platform/render/rl_build.c for why the game's code is left alone.
+file(GLOB         RENDER_SRCS   CONFIGURE_DEPENDS
+                                "${CMAKE_CURRENT_SOURCE_DIR}/platform/render/*.c")
+list(APPEND PLATFORM_SRCS ${RENDER_SRCS})
 
 # platform/gba_layout_check.c is 2000-odd _Static_asserts over the size and
 # every member offset of every structure the decompilation defines, generated
@@ -582,6 +587,18 @@ if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND UNIX AND NOT APPLE)
 endif()
 
 target_link_libraries(katam PRIVATE katam_sdl2)
+
+if(APPLE)
+  target_compile_definitions(katam PRIVATE PORT_RL_NO_WRAP)
+else()
+  target_link_options(katam PRIVATE
+    "-Wl,--wrap=DisplaySprite,--wrap=sub_081564D8,--wrap=DrawToOamBuffer")
+endif()
+# No hot/cold splitting in the renderer's own files: the linker gathers every
+# object's .text.unlikely ahead of all .text, so a cold fragment here would
+# move the game's code (see rl_build.c, and the hash).
+set_source_files_properties(${RENDER_SRCS} PROPERTIES COMPILE_OPTIONS
+  "$<$<OR:$<C_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:GNU>>:-fno-reorder-blocks-and-partition>")
 if(NOT WIN32)
   target_link_libraries(katam PRIVATE m)
 endif()

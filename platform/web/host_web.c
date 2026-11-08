@@ -5,9 +5,12 @@
  */
 
 #include <emscripten.h>
+#include <emscripten/html5.h>
 
 #include "port/port.h"
 #include "port/backend.h"
+#include "render/render_list.h"
+#include "render/gl_renderer.h"
 
 /* EM_JS bodies below call UTF8ToString.  emscripten 3.1.5x stopped linking
  * the runtime helpers in by default; without this the node build traps on
@@ -17,10 +20,60 @@ EM_JS_DEPS(katam_host_web, "$UTF8ToString");
 /* Nothing to do: the page has the module configured before main() runs, and
  * the wasm memory map is reserved by the linker (-sGLOBAL_BASE), not at run
  * time.  See docs/ARCHITECTURE.md. */
+/* --- the GPU renderer (docs/RENDERER.md) ---------------------------------
+ *
+ * The page asks for it with ?renderer=gpu, which makes Module.portRenderer
+ * 'gpu' and puts a <canvas id="gpu-screen"> on the stage.  WebGL2 is GLES
+ * 3.0, so platform/render/gl_renderer.c runs here unchanged. */
+extern int gPortPpuCompose;     /* platform/ppu.c */
+static int sGpu;
+
+EM_JS(int, PortWebWantGpu, (void), {
+    return (typeof Module.portRenderer === 'string' && Module.portRenderer === 'gpu') ? 1 : 0;
+});
+
+/* The view the page wants this frame: [w, h] from Module.portGpuView(). */
+EM_JS(void, PortWebGpuView, (int *out), {
+    var v = Module.portGpuView ? Module.portGpuView() : [240, 160];
+    HEAP32[out >> 2] = v[0] | 0;
+    HEAP32[(out >> 2) + 1] = v[1] | 0;
+});
+
+static void PortWebGpuInit(void)
+{
+    EmscriptenWebGLContextAttributes attr;
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx;
+
+    emscripten_webgl_init_context_attributes(&attr);
+    attr.majorVersion = 2;
+    attr.minorVersion = 0;
+    attr.alpha = 0;
+    attr.depth = 0;
+    attr.stencil = 0;
+    attr.antialias = 0;
+    attr.preserveDrawingBuffer = 0;
+    ctx = emscripten_webgl_create_context("#gpu-screen", &attr);
+    if (ctx <= 0) {
+        PortError("[katam-port] gpu: no WebGL2 context (%d) -- the PPU draws instead",
+                  (int)ctx);
+        return;
+    }
+    emscripten_webgl_make_context_current(ctx);
+    if (!GlrInit(NULL, 1)) {
+        PortError("[katam-port] gpu: renderer did not start -- the PPU draws instead");
+        return;
+    }
+    sGpu = 1;
+    gPortRlEnabled = 1;
+    gPortPpuCompose = 0;
+}
+
 void PortHostInit(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
+    if (PortWebWantGpu())
+        PortWebGpuInit();
 }
 
 /* Everything the port says goes to two places: the browser console, and the
@@ -172,10 +225,31 @@ EM_ASYNC_JS(void, PortAwaitYield, (void), {
     await new Promise(function (resolve) { setTimeout(resolve, 0); });
 });
 
-EM_JS(void, PortBlitFramebuffer, (const u32 *pixels, int w, int h), {
+EM_JS(void, PortWebPresent, (const u32 *pixels, int w, int h), {
     if (Module.portPresent)
         Module.portPresent(pixels, w, h);
 });
+
+void PortBlitFramebuffer(const u32 *pixels, int w, int h)
+{
+    if (sGpu) {
+        const RlFrame *f = PortRlCurrentFrame();
+        int view[2], cw = 0, ch = 0;
+
+        PortWebGpuView(view);
+        PortRlSetViewSize(view[0], view[1]);
+        if (f != NULL) {
+            GlrDraw(f);
+            emscripten_get_canvas_element_size("#gpu-screen", &cw, &ch);
+            GlrPresent(cw, ch);
+            /* The page's frame counter and canvas fitting, with the size
+             * of the view that was drawn. */
+            PortWebPresent(pixels, f->viewW, f->viewH);
+        }
+        return;
+    }
+    PortWebPresent(pixels, w, h);
+}
 
 /* The stall-loop pump (port/backend.h).  The page wires portNetIdle to the
  * netplay driver's receive-queue flush; a page without netplay never

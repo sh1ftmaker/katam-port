@@ -28,6 +28,11 @@
 # Each run gets a fresh XDG_DATA_HOME/XDG_CONFIG_HOME (the native host loads
 # and writes a save there, and runs that share one diverge) and runs with ASLR
 # off.  Needs your ROM: ROM=/path/to/rom.gba or --rom.
+#
+# KATAM_REGRESS_ARGS adds options to every native run and KATAM_VIDEODRIVER
+# picks SDL's video driver -- the GPU renderer needs a GL context, which the
+# dummy driver cannot give:
+#   KATAM_VIDEODRIVER=offscreen KATAM_REGRESS_ARGS="--renderer gpu" tests/regress.sh
 set -uo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -86,9 +91,9 @@ run_native() {   # name out.hash -> exit status
     local h=$TMP/home-$1
     mkdir -p "$h"
     XDG_DATA_HOME=$h/data XDG_CONFIG_HOME=$h/config \
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    SDL_VIDEODRIVER=${KATAM_VIDEODRIVER:-dummy} SDL_AUDIODRIVER=dummy \
         "${NORAND[@]}" "$BIN" --no-audio --turbo --replay "$REC_DIR/$1.txt" \
-        --hash-log "$2" ${KATAM_ARGS:-} "$ROM" >"$TMP/$1.log" 2>&1
+        --hash-log "$2" ${KATAM_ARGS:-} ${KATAM_REGRESS_ARGS:-} "$ROM" >"$TMP/$1.log" 2>&1
 }
 
 run_wasm() {
