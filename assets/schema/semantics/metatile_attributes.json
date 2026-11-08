@@ -1,0 +1,2151 @@
+{
+ "format": "katam-semantics/1",
+ "record": "metatile_attr",
+ "c_type": "u32 (gCollisionAttributes[] word)",
+ "c_decl": "game/src/code_080023A4.c:82",
+ "size": 4,
+ "table": {
+  "symbol": "gCollisionAttributes",
+  "addr": "0x082D88B8",
+  "count": 256,
+  "index": "collision cell value (u8)"
+ },
+ "description": "A room collision cell (one u8 per 16x16 px, see solidity_map.json) is an index into gCollisionAttributes, a 256-entry table of u32 terrain words defined in C. The physics tests bits of the word; the editor should present the INDEX (that is what rooms store) with the decoded word as its meaning. Indices that share a word are still distinct (34-39 all equal index 13 but are used separately, e.g. matched by cell records), so never canonicalise an index by its word.",
+ "notes": [
+  "Word layout: bits 0-15 property flags, 16-19 unused, 20-23 level (meaning depends on the flag), 24-27 forceDir, 28-31 slope enum.",
+  "values: 125 non-zero entries; 80 indices are placed in retail rooms; 45 non-zero entries (all water slopes 52-71, conveyors 103-108, droppable sloped platforms 16-19/24-25, diagonal currents 48-51, idx 73, idx 92, some wind/current variants) are never placed. Zero words (113-239, 248-251) are reserved, not air.",
+  "Long-form argument and per-site evidence: docs/naming/metatile-attributes.md (line numbers there are from an older tree)."
+ ],
+ "fields": [
+  {
+   "field": "word",
+   "offset": 0,
+   "type": "u32",
+   "name": "terrain",
+   "description": "terrain bitfield",
+   "bits": [
+    {
+     "mask": "0x00000001",
+     "name": "empty",
+     "description": "Passable: no blocking geometry. The per-tile collision handler (gUnk_082D8DA4) is dispatched only when this bit is clear; walkers treat an empty cell below the next step as a ledge. Index 0 (word 0x1) is plain air. A word of 0 is NOT air: it is an unused slot (113-239, 248-251).",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:2184",
+       "code": "(gCollisionAttributes[ugh] & 1) == 0",
+       "note": "handler dispatch only for non-empty tiles"
+      },
+      {
+       "data": "index 0 (0x1) is 40.8% of all 293,674 retail cells; every placed index with a blocking bit lacks 0x1"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000002",
+     "name": "water",
+     "description": "Underwater: swimming physics, splash dust/SFX, selects the water force table for currents. Kirby keeps WATER|MINI_ONLY|DOOR across state resets (unk58 &= 0x4402).",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/kirby.c:20548",
+       "code": "unk58 & 2 ? 0x100 : 0x180",
+       "note": "slower movement in water"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:2433",
+       "code": "if ((var2 & 2) != 0)",
+       "note": "water current table instead of wind"
+      },
+      {
+       "loc": "game/src/kirby.c:8963",
+       "code": "unk58 &= 0x4402"
+      },
+      {
+       "data": "index 72 (0x3): 8,248 cells in 50 rooms, contiguous regions"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000004",
+     "name": "topSolid",
+     "description": "One-way platform: collides only from above (landing registers only while moving down). With a slope nibble it is a sloped one-way platform.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_0806F780.c:7277",
+       "code": "objBase->unk58 & 0xC && objBase->unk4C < objBase->y",
+       "note": "floor contact only when moving downward"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:4368",
+       "code": "(var4 & 0xF0000004) == 4",
+       "note": "snap onto a flat top-solid tile"
+      },
+      {
+       "data": "index 15 (0x4): 2,028 cells, runs 2.47 wide x 1.02 tall, air above and below 92%"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000008",
+     "name": "dropThrough",
+     "description": "On a topSolid tile: Kirby can press down to fall through it (sub_080035F4 requires empty-or-dropThrough under the feet and a dropThrough tile among them). Never appears without 0x4.",
+     "confidence": "likely",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:2066",
+       "code": "if ((ugh & 9) == 0) return 0;"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:2068",
+       "code": "var0 |= ugh & 8;"
+      },
+      {
+       "data": "index 14 (0xC) mirrors index 15 (0x4) spatially; no spatial test separates them"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000010",
+     "name": "slippery",
+     "description": "Ice: ground friction drops (8 instead of 32, 13 instead of 27, 4 instead of 14 per anim state). Ignored while Kirby has the Ice ability.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/kirby.c:14421",
+       "code": "unk58 & 0x10 && kirby->ability != KIRBY_ABILITY_ICE ? 8 : 32"
+      },
+      {
+       "data": "only on floor slopes 74-79 and solid block 80; 9,629 cells in 30 rooms"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000020",
+     "name": "chainTrigger",
+     "description": "Breaking this block starts a chain explosion task (sub_0800E0E4) that eats adjacent chainMember cells, instead of spawning plain debris.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/object_collision.c:537",
+       "code": "if (attributes & 0x20) {"
+      },
+      {
+       "loc": "game/src/object_collision.c:539",
+       "code": "sub_0800E0E4((struct Object *)attack, column + tileX, row + tileY);"
+      },
+      {
+       "data": "index 246 sits as a single cell on top of index-242 masses 100% of the time"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000040",
+     "name": "chainMember",
+     "description": "A chain explosion propagates into (and destroys) this cell; projectiles can tunnel through it.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_0800E0E4.c:108",
+       "code": "& 0x40)",
+       "note": "propagation tests the neighbours for 0x40"
+      },
+      {
+       "data": "index 242 (0x240): 4,074 cells in 131 rooms adjacent to triggers 241/246"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000080",
+     "name": null,
+     "description": "Never tested; set only on index 92, which no room places.",
+     "confidence": "unknown",
+     "usage": "unused",
+     "evidence": [
+      {
+       "data": "only index 92 (0x81); 0 cells"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000100",
+     "name": "ladder",
+     "description": "Climbable ladder/rope. Index 33 = rope body (empty|ladder), index 32 = ladder top (a drop-through platform that is also a ladder; compared as the whole word gCollisionAttributes[32]).",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:5834",
+       "code": "& 0x100) == 0",
+       "note": "sub_08009D28: on a ladder"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:5845",
+       "code": "gCollisionAttributes[32] != gCollisionAttributes[GetCollisionTile(",
+       "note": "ladder top test"
+      },
+      {
+       "loc": "game/src/kirby.c:13064",
+       "code": "& 0x100))",
+       "note": "climb up stops when the cell above has no ladder"
+      },
+      {
+       "data": "index 33 runs 1.00 wide x 3.99 tall; index 32 has index 33 below it 100%"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000200",
+     "name": "solid",
+     "description": "Full 16x16 solid block (walls, floors, ceilings). AI grid value 2.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/sub_0800F044.c:82",
+       "code": "else if (r1 & 0x200) {"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:482",
+       "code": "(_var2 & _var1) != 0 || (_var1 & 0xF0000004) == 4"
+      },
+      {
+       "data": "index 13: 45.4% of all cells, 275/286 rooms"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000400",
+     "name": "miniOnly",
+     "description": "Gap only Mini Kirby fits: any other Kirby inside it dies instantly (hp = 0); solid for the AI unless Mini.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/kirby.c:6831",
+       "code": "kirby->ability != KIRBY_ABILITY_MINI && kirby->base.unk58 & 0x400"
+      },
+      {
+       "loc": "game/src/sub_0800F044.c:91",
+       "code": "kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0"
+      },
+      {
+       "data": "index 89: 33 cells in 4 rooms, 3.67 wide x 1 tall, solid above and below 100%"
+      }
+     ]
+    },
+    {
+     "mask": "0x00000800",
+     "name": "force",
+     "description": "Applies a directional push while inside the tile (wind / water current; conveyors exist in the table but no room uses them). Direction = forceDir nibble, strength = level (0..2) indexing gUnk_082D91A4 (air) or gUnk_082D91BC (water). Stone/Smash Kirby ignore updrafts.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:2432",
+       "code": "if ((var2 & 0x800) != 0) {"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:5642",
+       "code": "case 0x1000000:"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:444",
+       "code": "gUnk_082D91A4[4][3] = {"
+      },
+      {
+       "data": "vertical-force tiles form tall columns, horizontal ones wide bands (e.g. idx 85 up: 5.2 x 41.9)"
+      }
+     ]
+    },
+    {
+     "mask": "0x00001000",
+     "name": "breakable",
+     "description": "Destructible block. Hardness = level field: 0-1 any attack, 2 needs attack flag unk68 & 0x1000, 3 needs 0x4000, 4 needs 0x800 (set by the giant star/stone block objects and one Kirby attack). Level-0 blocks are also broken by the weaker sweep (and pass thrown stars).",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/object_collision.c:524",
+       "code": "if (!(attributes & 0x1000))"
+      },
+      {
+       "loc": "game/src/object_collision.c:527",
+       "code": "case 0x200000:"
+      },
+      {
+       "loc": "game/src/object_collision.c:461",
+       "code": "(attributes & 0x1000) && !(attributes & 0xF00000)"
+      },
+      {
+       "loc": "game/src/sub_0800F044.c:86",
+       "code": "else if (r1 & 0x1000)",
+       "note": "AI grid value 3 = destructible"
+      },
+      {
+       "data": "levels 0-4 all placed: 240 (lvl0) 130 rooms, 241/244 (lvl1), 245 (2) 33 rooms, 246 (3) 13 rooms, 247 (4) 25 rooms"
+      }
+     ]
+    },
+    {
+     "mask": "0x00002000",
+     "name": "hazard",
+     "description": "Damages Kirby on contact (1 HP, knock-back, loses ability). Level = damage element: 0 plain (spikes), 1 fire (burn animation 123, SE_KIRBY_FIRE_DMG), 2 a second element (animation 135, generic damage SFX; likely electric). Levels above 2 do not damage. The forceDir nibble on hazards records the surface they are attached to (floor/ceiling/wall spikes) but does not push. AI grid value 1 (avoid), overrides solid.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/kirby.c:6838",
+       "code": "kirby->base.unk58 & 0x2000"
+      },
+      {
+       "loc": "game/src/kirby.c:9988",
+       "code": "case 0x100000:"
+      },
+      {
+       "loc": "game/src/kirby.c:8901",
+       "code": "kirby->animationIndex = 123;",
+       "note": "sub_0804A1A0: fire damage"
+      },
+      {
+       "loc": "game/src/sub_0800F044.c:80",
+       "code": "if (r1 & 0x2000)"
+      },
+      {
+       "data": "idx 28/29 lie along floors/ceilings, 30/31 along walls; idx 90/91 (fire) 570 cells in 7-10 rooms"
+      }
+     ]
+    },
+    {
+     "mask": "0x00004000",
+     "name": "door",
+     "description": "Door anchor cell. Door objects (OBJ_DOOR, special doors, hub mirror) look for it with a plain & 0x4000. With level 1 (word & 0xF04000 == 0x104000) Kirby warps by himself on touching it (object-less automatic warp, 8 rooms); level 0 (236 rooms) waits for the door object. The destination comes from the solidity map cell record (tag 3) at the same cell.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/mirror_door.c:51",
+       "code": "& 0x4000)"
+      },
+      {
+       "loc": "game/src/kirby.c:6874",
+       "code": "(r6 & 0xF04000) == 0x104000"
+      },
+      {
+       "data": "index 255 (lvl 0) in 236 rooms, 1x1 runs; index 254 (lvl 1) in 8 rooms"
+      }
+     ]
+    },
+    {
+     "mask": "0x00008000",
+     "name": null,
+     "description": "Never read; set only on the six conveyor entries (103-108), which no room places. Probably a conveyor marker for a cut feature.",
+     "confidence": "unknown",
+     "usage": "unused",
+     "evidence": [
+      {
+       "data": "indices 103-108 only; 0 cells"
+      }
+     ]
+    },
+    {
+     "mask": "0x000F0000",
+     "shift": 16,
+     "name": null,
+     "description": "Never set, never read (keeps the & 0xFFFFF accumulate mask five nibbles wide).",
+     "confidence": "confirmed",
+     "usage": "unused",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:522",
+       "code": "& 0xFFFFF;"
+      },
+      {
+       "data": "0 in all 256 entries"
+      }
+     ]
+    },
+    {
+     "mask": "0x00F00000",
+     "shift": 20,
+     "name": "level",
+     "description": "Polysemous 0..4 magnitude whose meaning depends on the flag it accompanies: force -> strength 0..2; breakable -> hardness 0..4; hazard -> element 0..2; door -> auto-warp (1) or object door (0). Kirby keeps the first hazard level seen in a frame.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:2424",
+       "code": "arg0->base.unk58 |= var2 & ~0xF00000;"
+      },
+      {
+       "data": "force entries 0..2, breakables 0..4, hazards 0..2, doors 0..1"
+      }
+     ]
+    },
+    {
+     "mask": "0x0F000000",
+     "shift": 24,
+     "name": "forceDir",
+     "description": "Outward surface normal / push direction, OR-able: 1 up, 2 down, 4 left, 8 right (y is up: the engine integrates y -= yspeed). Pushes only with the force flag; on hazards it marks the attachment side.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "enum": {
+      "1": {
+       "name": "up"
+      },
+      "2": {
+       "name": "down"
+      },
+      "4": {
+       "name": "left"
+      },
+      "8": {
+       "name": "right"
+      },
+      "5": {
+       "name": "upLeft"
+      },
+      "9": {
+       "name": "upRight"
+      },
+      "10": {
+       "name": "downRight"
+      },
+      "6": {
+       "name": "downLeft"
+      }
+     },
+     "evidence": [
+      {
+       "loc": "game/src/code_080023A4.c:5642",
+       "code": "case 0x1000000:"
+      },
+      {
+       "loc": "game/src/code_080023A4.c:5656",
+       "code": "case 0x4000000:"
+      },
+      {
+       "data": "up/down wind tiles are tall columns, left/right ones wide bands; up hazards sit on floors, down hazards hang from ceilings"
+      }
+     ]
+    },
+    {
+     "mask": "0xF0000000",
+     "shift": 28,
+     "name": "slope",
+     "description": "Slope enum 0..12 selecting a push-out handler in gUnk_08350C38: 1-6 floors (push up), 7-12 ceilings (push down). Combines only with water, topSolid/dropThrough (sloped one-way platforms) and slippery.",
+     "confidence": "confirmed",
+     "usage": "live",
+     "enum": {
+      "0": {
+       "name": "none",
+       "description": "no slope"
+      },
+      "1": {
+       "name": "floor_1_2_riseR_low",
+       "description": "floor, 1:2 gradient rising to the right, lower (left) half: surface py = 15 - px/2"
+      },
+      "2": {
+       "name": "floor_1_2_riseR_high",
+       "description": "floor, 1:2 rising to the right, upper (right) half: py = 8 - px/2"
+      },
+      "3": {
+       "name": "floor_1_1_riseR",
+       "description": "floor, 45 degrees rising to the right: py = 15 - px"
+      },
+      "4": {
+       "name": "floor_1_1_riseL",
+       "description": "floor, 45 degrees rising to the left: py = px"
+      },
+      "5": {
+       "name": "floor_1_2_riseL_low",
+       "description": "floor, 1:2 rising to the left, lower (right) half (mirror of 1)"
+      },
+      "6": {
+       "name": "floor_1_2_riseL_high",
+       "description": "floor, 1:2 rising to the left, upper (left) half (mirror of 2)"
+      },
+      "7": {
+       "name": "ceil_1_2_descL_right",
+       "description": "ceiling, 1:2 descending to the left, right half"
+      },
+      "8": {
+       "name": "ceil_1_2_descL_left",
+       "description": "ceiling, 1:2 descending to the left, left half"
+      },
+      "9": {
+       "name": "ceil_1_1_massUL",
+       "description": "ceiling, 45 degrees, solid mass upper-left"
+      },
+      "10": {
+       "name": "ceil_1_1_massUR",
+       "description": "ceiling, 45 degrees, solid mass upper-right"
+      },
+      "11": {
+       "name": "ceil_1_2_descR_left",
+       "description": "ceiling, 1:2 descending to the right, left half"
+      },
+      "12": {
+       "name": "ceil_1_2_descR_right",
+       "description": "ceiling, 1:2 descending to the right, right half"
+      }
+     },
+     "evidence": [
+      {
+       "loc": "game/src/code_0806F780.c:835",
+       "code": "gUnk_08350C38[r4](a1);"
+      },
+      {
+       "loc": "game/src/code_0806F780.c:807",
+       "code": "if (a1->yspeed > 0 && r4 < 7) return;",
+       "note": "floor slopes ignored when moving up"
+      },
+      {
+       "data": "every floor value has air above / solid below, every ceiling value the reverse, 12/12"
+      }
+     ]
+    }
+   ],
+   "usage": "live",
+   "confidence": "confirmed",
+   "evidence": [
+    {
+     "loc": "game/src/code_080023A4.c:82",
+     "code": "gCollisionAttributes[] = {"
+    }
+   ]
+  }
+ ],
+ "values": {
+  "0": {
+   "name": "air",
+   "word": "0x00000001",
+   "flags": [
+    "empty"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 119770,
+   "rooms": 280
+  },
+  "1": {
+   "name": "ceil_1_2_descR_left",
+   "word": "0xB0000000",
+   "flags": [],
+   "slope": 11,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 69,
+   "rooms": 13
+  },
+  "2": {
+   "name": "ceil_1_2_descR_right",
+   "word": "0xC0000000",
+   "flags": [],
+   "slope": 12,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 65,
+   "rooms": 12
+  },
+  "3": {
+   "name": "ceil_1_2_descL_left",
+   "word": "0x80000000",
+   "flags": [],
+   "slope": 8,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 54,
+   "rooms": 11
+  },
+  "4": {
+   "name": "ceil_1_2_descL_right",
+   "word": "0x70000000",
+   "flags": [],
+   "slope": 7,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 58,
+   "rooms": 12
+  },
+  "5": {
+   "name": "floor_1_2_riseR_low",
+   "word": "0x10000000",
+   "flags": [],
+   "slope": 1,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 279,
+   "rooms": 69
+  },
+  "6": {
+   "name": "floor_1_2_riseR_high",
+   "word": "0x20000000",
+   "flags": [],
+   "slope": 2,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 278,
+   "rooms": 69
+  },
+  "7": {
+   "name": "floor_1_2_riseL_high",
+   "word": "0x60000000",
+   "flags": [],
+   "slope": 6,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 231,
+   "rooms": 61
+  },
+  "8": {
+   "name": "floor_1_2_riseL_low",
+   "word": "0x50000000",
+   "flags": [],
+   "slope": 5,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 232,
+   "rooms": 61
+  },
+  "9": {
+   "name": "ceil_1_1_massUR",
+   "word": "0xA0000000",
+   "flags": [],
+   "slope": 10,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 536,
+   "rooms": 67
+  },
+  "10": {
+   "name": "ceil_1_1_massUL",
+   "word": "0x90000000",
+   "flags": [],
+   "slope": 9,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 530,
+   "rooms": 65
+  },
+  "11": {
+   "name": "floor_1_1_riseR",
+   "word": "0x30000000",
+   "flags": [],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 568,
+   "rooms": 89
+  },
+  "12": {
+   "name": "floor_1_1_riseL",
+   "word": "0x40000000",
+   "flags": [],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 534,
+   "rooms": 93
+  },
+  "13": {
+   "name": "solid",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 133371,
+   "rooms": 275
+  },
+  "14": {
+   "name": "platform_drop",
+   "word": "0x0000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 644,
+   "rooms": 52
+  },
+  "15": {
+   "name": "platform",
+   "word": "0x00000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 2028,
+   "rooms": 159
+  },
+  "16": {
+   "name": "platform_drop_floor_1_2_riseR_low",
+   "word": "0x1000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 1,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "17": {
+   "name": "platform_drop_floor_1_2_riseR_high",
+   "word": "0x2000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 2,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "18": {
+   "name": "platform_drop_floor_1_2_riseL_high",
+   "word": "0x6000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 6,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "19": {
+   "name": "platform_drop_floor_1_2_riseL_low",
+   "word": "0x5000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 5,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "20": {
+   "name": "platform_floor_1_2_riseR_low",
+   "word": "0x10000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 1,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 6,
+   "rooms": 3
+  },
+  "21": {
+   "name": "platform_floor_1_2_riseR_high",
+   "word": "0x20000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 2,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 6,
+   "rooms": 3
+  },
+  "22": {
+   "name": "platform_floor_1_2_riseL_high",
+   "word": "0x60000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 6,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 4,
+   "rooms": 1
+  },
+  "23": {
+   "name": "platform_floor_1_2_riseL_low",
+   "word": "0x50000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 5,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 4,
+   "rooms": 1
+  },
+  "24": {
+   "name": "platform_drop_floor_1_1_riseR",
+   "word": "0x3000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "25": {
+   "name": "platform_drop_floor_1_1_riseL",
+   "word": "0x4000000C",
+   "flags": [
+    "topSolid",
+    "dropThrough"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "26": {
+   "name": "platform_floor_1_1_riseR",
+   "word": "0x30000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 13,
+   "rooms": 2
+  },
+  "27": {
+   "name": "platform_floor_1_1_riseL",
+   "word": "0x40000004",
+   "flags": [
+    "topSolid"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 8,
+   "rooms": 3
+  },
+  "28": {
+   "name": "spikes_floor",
+   "word": "0x01002001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 0,
+   "cells": 443,
+   "rooms": 43
+  },
+  "29": {
+   "name": "spikes_ceiling",
+   "word": "0x02002001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 0,
+   "cells": 366,
+   "rooms": 41
+  },
+  "30": {
+   "name": "spikes_wall_left",
+   "word": "0x04002001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 0,
+   "cells": 34,
+   "rooms": 1
+  },
+  "31": {
+   "name": "spikes_wall_right",
+   "word": "0x08002001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 0,
+   "cells": 38,
+   "rooms": 2
+  },
+  "32": {
+   "name": "ladder_top",
+   "word": "0x0000010C",
+   "flags": [
+    "topSolid",
+    "dropThrough",
+    "ladder"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 136,
+   "rooms": 50
+  },
+  "33": {
+   "name": "ladder",
+   "word": "0x00000101",
+   "flags": [
+    "empty",
+    "ladder"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 543,
+   "rooms": 50
+  },
+  "34": {
+   "name": "solid_alt1",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 33,
+   "rooms": 4
+  },
+  "35": {
+   "name": "solid_alt2",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 5,
+   "rooms": 2
+  },
+  "36": {
+   "name": "solid_alt3",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 6,
+   "rooms": 3
+  },
+  "37": {
+   "name": "solid_alt4",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 28,
+   "rooms": 4
+  },
+  "38": {
+   "name": "solid_alt5",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 10,
+   "rooms": 4
+  },
+  "39": {
+   "name": "solid_alt6",
+   "word": "0x00000200",
+   "flags": [
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 9,
+   "rooms": 4
+  },
+  "40": {
+   "name": "wind_up_0",
+   "word": "0x01000801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 0,
+   "cells": 22,
+   "rooms": 1
+  },
+  "41": {
+   "name": "wind_down_0",
+   "word": "0x02000801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "42": {
+   "name": "wind_left_0",
+   "word": "0x04000801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "43": {
+   "name": "wind_right_0",
+   "word": "0x08000801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 0,
+   "cells": 328,
+   "rooms": 1
+  },
+  "44": {
+   "name": "current_up_0",
+   "word": "0x01000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "45": {
+   "name": "current_down_0",
+   "word": "0x02000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 0,
+   "cells": 380,
+   "rooms": 8
+  },
+  "46": {
+   "name": "current_left_0",
+   "word": "0x04000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 0,
+   "cells": 114,
+   "rooms": 2
+  },
+  "47": {
+   "name": "current_right_0",
+   "word": "0x08000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 0,
+   "cells": 214,
+   "rooms": 3
+  },
+  "48": {
+   "name": "current_upleft_0",
+   "word": "0x05000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 5,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "49": {
+   "name": "current_upright_0",
+   "word": "0x09000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 9,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "50": {
+   "name": "current_downright_0",
+   "word": "0x0A000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 10,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "51": {
+   "name": "current_downleft_0",
+   "word": "0x06000803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 6,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "52": {
+   "name": "water_ceil_1_1_massUR_52",
+   "word": "0xA0000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 10,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "53": {
+   "name": "water_ceil_1_1_massUR_53",
+   "word": "0xA0000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 10,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "54": {
+   "name": "water_ceil_1_1_massUL_54",
+   "word": "0x90000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 9,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "55": {
+   "name": "water_ceil_1_1_massUL_55",
+   "word": "0x90000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 9,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "56": {
+   "name": "water_floor_1_1_riseR_56",
+   "word": "0x30000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "57": {
+   "name": "water_floor_1_1_riseR_57",
+   "word": "0x30000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "58": {
+   "name": "water_floor_1_1_riseL_58",
+   "word": "0x40000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "59": {
+   "name": "water_floor_1_1_riseL_59",
+   "word": "0x40000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "60": {
+   "name": "water_ceil_1_2_descR_left",
+   "word": "0xB0000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 11,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "61": {
+   "name": "water_ceil_1_2_descR_right",
+   "word": "0xC0000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 12,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "62": {
+   "name": "water_ceil_1_2_descL_left",
+   "word": "0x80000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 8,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "63": {
+   "name": "water_ceil_1_2_descL_right",
+   "word": "0x70000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 7,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "64": {
+   "name": "water_floor_1_2_riseR_low",
+   "word": "0x10000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 1,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "65": {
+   "name": "water_floor_1_2_riseR_high",
+   "word": "0x20000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 2,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "66": {
+   "name": "water_floor_1_2_riseL_high",
+   "word": "0x60000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 6,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "67": {
+   "name": "water_floor_1_2_riseL_low",
+   "word": "0x50000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 5,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "68": {
+   "name": "water_ceil_1_1_massUR_68",
+   "word": "0xA0000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 10,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "69": {
+   "name": "water_ceil_1_1_massUL_69",
+   "word": "0x90000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 9,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "70": {
+   "name": "water_floor_1_1_riseR_70",
+   "word": "0x30000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "71": {
+   "name": "water_floor_1_1_riseL_71",
+   "word": "0x40000002",
+   "flags": [
+    "water"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "72": {
+   "name": "water",
+   "word": "0x00000003",
+   "flags": [
+    "empty",
+    "water"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 8248,
+   "rooms": 50
+  },
+  "73": {
+   "name": "water_platform",
+   "word": "0x00000006",
+   "flags": [
+    "water",
+    "topSolid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "74": {
+   "name": "ice_floor_1_2_riseR_low",
+   "word": "0x10000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 1,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 47,
+   "rooms": 10
+  },
+  "75": {
+   "name": "ice_floor_1_2_riseR_high",
+   "word": "0x20000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 2,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 47,
+   "rooms": 10
+  },
+  "76": {
+   "name": "ice_floor_1_2_riseL_high",
+   "word": "0x60000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 6,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 57,
+   "rooms": 10
+  },
+  "77": {
+   "name": "ice_floor_1_2_riseL_low",
+   "word": "0x50000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 5,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 57,
+   "rooms": 10
+  },
+  "78": {
+   "name": "ice_floor_1_1_riseR",
+   "word": "0x30000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 3,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 110,
+   "rooms": 13
+  },
+  "79": {
+   "name": "ice_floor_1_1_riseL",
+   "word": "0x40000010",
+   "flags": [
+    "slippery"
+   ],
+   "slope": 4,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 91,
+   "rooms": 10
+  },
+  "80": {
+   "name": "ice_block",
+   "word": "0x00000210",
+   "flags": [
+    "slippery",
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 9629,
+   "rooms": 30
+  },
+  "81": {
+   "name": "wind_up_1",
+   "word": "0x01100801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 1,
+   "cells": 176,
+   "rooms": 2
+  },
+  "82": {
+   "name": "wind_down_1",
+   "word": "0x02100801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 1,
+   "cells": 42,
+   "rooms": 1
+  },
+  "83": {
+   "name": "wind_left_1",
+   "word": "0x04100801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 1,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "84": {
+   "name": "wind_right_1",
+   "word": "0x08100801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 1,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "85": {
+   "name": "wind_up_2",
+   "word": "0x01200801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 2,
+   "cells": 670,
+   "rooms": 3
+  },
+  "86": {
+   "name": "wind_down_2",
+   "word": "0x02200801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 2,
+   "cells": 632,
+   "rooms": 4
+  },
+  "87": {
+   "name": "wind_left_2",
+   "word": "0x04200801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 2,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "88": {
+   "name": "wind_right_2",
+   "word": "0x08200801",
+   "flags": [
+    "empty",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 2,
+   "cells": 68,
+   "rooms": 1
+  },
+  "89": {
+   "name": "mini_gap",
+   "word": "0x0C000401",
+   "flags": [
+    "empty",
+    "miniOnly"
+   ],
+   "slope": 0,
+   "forceDir": 12,
+   "level": 0,
+   "cells": 33,
+   "rooms": 4
+  },
+  "90": {
+   "name": "hazard_fire_solid",
+   "word": "0x00102200",
+   "flags": [
+    "solid",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 530,
+   "rooms": 7
+  },
+  "91": {
+   "name": "hazard_fire",
+   "word": "0x00102001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 40,
+   "rooms": 3
+  },
+  "92": {
+   "name": "unknown_bit7",
+   "word": "0x00000081",
+   "flags": [
+    "empty",
+    "bit7"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "93": {
+   "name": "hazard_elem2_solid",
+   "word": "0x00202200",
+   "flags": [
+    "solid",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 2,
+   "cells": 12,
+   "rooms": 1
+  },
+  "94": {
+   "name": "hazard_elem2",
+   "word": "0x00202001",
+   "flags": [
+    "empty",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 2,
+   "cells": 8,
+   "rooms": 1
+  },
+  "95": {
+   "name": "current_up_1",
+   "word": "0x01100803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 1,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "96": {
+   "name": "current_down_1",
+   "word": "0x02100803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 1,
+   "cells": 44,
+   "rooms": 5
+  },
+  "97": {
+   "name": "current_left_1",
+   "word": "0x04100803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 1,
+   "cells": 20,
+   "rooms": 2
+  },
+  "98": {
+   "name": "current_right_1",
+   "word": "0x08100803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 1,
+   "cells": 4,
+   "rooms": 1
+  },
+  "99": {
+   "name": "current_up_2",
+   "word": "0x01200803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 2,
+   "cells": 262,
+   "rooms": 4
+  },
+  "100": {
+   "name": "current_down_2",
+   "word": "0x02200803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 2,
+   "cells": 1006,
+   "rooms": 10
+  },
+  "101": {
+   "name": "current_left_2",
+   "word": "0x04200803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 2,
+   "cells": 172,
+   "rooms": 5
+  },
+  "102": {
+   "name": "current_right_2",
+   "word": "0x08200803",
+   "flags": [
+    "empty",
+    "water",
+    "force"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 2,
+   "cells": 229,
+   "rooms": 5
+  },
+  "103": {
+   "name": "conveyor_left_0",
+   "word": "0x04008A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "104": {
+   "name": "conveyor_right_0",
+   "word": "0x08008A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 0,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "105": {
+   "name": "conveyor_left_1",
+   "word": "0x04108A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 1,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "106": {
+   "name": "conveyor_right_1",
+   "word": "0x08108A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 1,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "107": {
+   "name": "conveyor_left_2",
+   "word": "0x04208A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 2,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "108": {
+   "name": "conveyor_right_2",
+   "word": "0x08208A00",
+   "flags": [
+    "solid",
+    "force",
+    "bit15"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 2,
+   "cells": 0,
+   "rooms": 0,
+   "usage": "unused"
+  },
+  "109": {
+   "name": "spikes_floor_water",
+   "word": "0x01002003",
+   "flags": [
+    "empty",
+    "water",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 1,
+   "level": 0,
+   "cells": 62,
+   "rooms": 9
+  },
+  "110": {
+   "name": "spikes_ceiling_water",
+   "word": "0x02002003",
+   "flags": [
+    "empty",
+    "water",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 2,
+   "level": 0,
+   "cells": 99,
+   "rooms": 13
+  },
+  "111": {
+   "name": "spikes_wall_left_water",
+   "word": "0x04002003",
+   "flags": [
+    "empty",
+    "water",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 4,
+   "level": 0,
+   "cells": 16,
+   "rooms": 4
+  },
+  "112": {
+   "name": "spikes_wall_right_water",
+   "word": "0x08002003",
+   "flags": [
+    "empty",
+    "water",
+    "hazard"
+   ],
+   "slope": 0,
+   "forceDir": 8,
+   "level": 0,
+   "cells": 5,
+   "rooms": 1
+  },
+  "240": {
+   "name": "breakable_0",
+   "word": "0x00001200",
+   "flags": [
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 2623,
+   "rooms": 130
+  },
+  "241": {
+   "name": "breakable_chain_trigger_1",
+   "word": "0x00101260",
+   "flags": [
+    "chainTrigger",
+    "chainMember",
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 403,
+   "rooms": 125
+  },
+  "242": {
+   "name": "chain_solid",
+   "word": "0x00000240",
+   "flags": [
+    "chainMember",
+    "solid"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 4074,
+   "rooms": 131
+  },
+  "243": {
+   "name": "chain_gap",
+   "word": "0x00000041",
+   "flags": [
+    "empty",
+    "chainMember"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 694,
+   "rooms": 42
+  },
+  "244": {
+   "name": "breakable_1",
+   "word": "0x00101200",
+   "flags": [
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 122,
+   "rooms": 10
+  },
+  "245": {
+   "name": "breakable_2",
+   "word": "0x00201200",
+   "flags": [
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 2,
+   "cells": 358,
+   "rooms": 33
+  },
+  "246": {
+   "name": "breakable_chain_trigger_3",
+   "word": "0x00301220",
+   "flags": [
+    "chainTrigger",
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 3,
+   "cells": 14,
+   "rooms": 13
+  },
+  "247": {
+   "name": "breakable_4",
+   "word": "0x00401200",
+   "flags": [
+    "solid",
+    "breakable"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 4,
+   "cells": 331,
+   "rooms": 25
+  },
+  "252": {
+   "name": "door_water_auto",
+   "word": "0x00104002",
+   "flags": [
+    "water",
+    "door"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 42,
+   "rooms": 5
+  },
+  "253": {
+   "name": "door_water",
+   "word": "0x00004002",
+   "flags": [
+    "water",
+    "door"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 24,
+   "rooms": 18
+  },
+  "254": {
+   "name": "door_auto",
+   "word": "0x00104001",
+   "flags": [
+    "empty",
+    "door"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 1,
+   "cells": 123,
+   "rooms": 8
+  },
+  "255": {
+   "name": "door",
+   "word": "0x00004001",
+   "flags": [
+    "empty",
+    "door"
+   ],
+   "slope": 0,
+   "forceDir": 0,
+   "level": 0,
+   "cells": 453,
+   "rooms": 236
+  }
+ }
+}
