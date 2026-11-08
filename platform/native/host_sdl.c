@@ -1698,11 +1698,11 @@ static void PaceFrame(void)
     }
 
     /* The GPU renderer with --vsync: present at the display's rate until
-     * the next simulation frame is due, re-showing the latest frame.  This is
-     * where interpolation goes (docs/RENDERER.md): the render list of the
-     * previous and the current frame, blended by how far `now` is between
-     * them.  Each swap blocks for one refresh, so stop when less than half a
-     * refresh is left and let the sleep below land on the boundary. */
+     * the next simulation frame is due.  In the menu-driven (UI) mode each
+     * of these draws the world interpolated between the last two frames
+     * (platform/ui/present.c, docs/RENDERER.md "Smooth motion").  Each swap
+     * blocks for one refresh, so stop when less than half a refresh is left
+     * and let the sleep below land on the boundary. */
     if ((sRendererMode != RENDERER_PPU || sUiMode) && sVsync) {
         for (;;) {
             Uint64 t0 = SDL_GetPerformanceCounter(), t1;
