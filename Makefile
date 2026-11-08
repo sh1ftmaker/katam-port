@@ -571,6 +571,9 @@ netplay-link-test: $(BUILD)/katam-node.js
 # sequence point between them (tools/lint_determinism.py; needs libclang's
 # Python bindings, no ROM).  gcc, g++ and clang order those differently, and a
 # rollback peer that draws different numbers is a desync.  regress runs it first.
+# Also: no function that decays to a host pointer without FN() and no call
+# through a pointer without CALL() -- the game stores code IDs, not host
+# addresses (tools/codemod_fnid.py --check; platform/port/fnid.h).
 lint-determinism:
 	@python3 tools/lint_determinism.py
 	@python3 tools/lint_determinism.py tests/lint/determinism_selftest.c 2>/dev/null \
@@ -578,6 +581,12 @@ lint-determinism:
 	  grep -n '/\* flag' tests/lint/determinism_selftest.c | cut -d: -f1 \
 	    | diff - $(BUILD)/lint-selftest.got >/dev/null \
 	  || { echo "lint-determinism: self-test failed (tests/lint/)"; exit 1; }
+	@python3 tools/codemod_fnid.py --check
+	@python3 tools/codemod_fnid.py --check tests/lint/fnid_selftest.c 2>/dev/null \
+	    | sed -n 's/^[^:]*:\([0-9]*\):.*/\1/p' | sort -n | uniq > $(BUILD)/lint-fnid-selftest.got; \
+	  grep -n '/\* flag' tests/lint/fnid_selftest.c | cut -d: -f1 \
+	    | diff - $(BUILD)/lint-fnid-selftest.got >/dev/null \
+	  || { echo "lint-determinism: code-ID self-test failed (tests/lint/fnid_selftest.c)"; exit 1; }
 
 # Replays tests/recordings/*.txt and compares every frame's hashes against
 # tests/golden/.  Builds nothing: build the binary first (make native, or the
