@@ -210,7 +210,7 @@ static const char *kCompFs =
     "  int sx = (x + hofs) & (wT * 8 - 1);\n"
     "  int entry;\n"
     "  bool outside = false;\n"
-    "  int st = uLayer[bg].y;\n"      /* 1 map, 2 window only, 4 wrapX, 8 clampY, 16 mirrorX, 32 picture */
+    "  int st = uLayer[bg].y;\n"      /* 1 map, 2 window only, 4 wrapX, 8 mirrorY, 16 mirrorX, 32 picture */
     "  if ((st & 32) != 0) {\n"      /* a picture smaller than its block: mirror at its edges */
     "    int W = uMapGeom[bg].x, H = uMapGeom[bg].y;\n"
     "    if (W > 0) { sx = imod(x + hofs, 2 * W); if (sx >= W) sx = 2 * W - 1 - sx; }\n"
@@ -227,7 +227,7 @@ static const char *kCompFs =
     "    int ly = uMapScroll[bg].w * 8 + uMapScroll[bg].y + y;\n"
     "    if ((st & 16) != 0) { lx = imod(lx, 2 * W); if (lx >= W) lx = 2 * W - 1 - lx; }\n"
     "    else if ((st & 4) != 0) lx = imod(lx, W);\n"
-    "    if ((st & 8) != 0) ly = clamp(ly, 0, H - 1);\n"
+    "    if ((st & 8) != 0) { ly = imod(ly, 2 * H); if (ly >= H) ly = 2 * H - 1 - ly; }\n"
     "    if (lx < 0 || ly < 0 || lx >= W || ly >= H) return -1;\n"
     "    entry = mapEntry(bg, (ly >> 3) * uMapGeom[bg].x + (lx >> 3));\n"
     "    px = lx & 7; py = ly & 7;\n"
@@ -760,7 +760,7 @@ void GlrDraw(const RlFrame *f)
         if (L->streamed)
             streamed = ((L->map && sMapLen[bg]) ? 1 : 2)
                      | (L->wrapX == 1 ? 4 : 0) | (L->wrapX == 2 ? 16 : 0)
-                     | (L->clampY ? 8 : 0);
+                     | (L->mirrorY ? 8 : 0);
         else if (L->picW > 0 || L->picH > 0)
             streamed = 32;
         layer[bg * 4 + 0] = L->enabled ? L->space : -1;

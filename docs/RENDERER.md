@@ -115,9 +115,10 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
 * **Parallax.** A picture drawn to fit the room (its 240-px window stays
   inside it over the camera range) is re-fitted: the wider window slides
   over the same range of the picture. One that runs off its own end at 240
-  tiles and wraps. One narrower than the view is mirrored. Vertical edges
-  repeat the edge row (visible as streaks only where a room is taller than
-  its sky, e.g. bottom of room 202 at 400x224).
+  tiles and wraps. One narrower than the view is mirrored. Past its top or
+  bottom (a view taller than the sky: rooms 202, 402, 554 at 0.5x zoom) it
+  is mirrored at the picture's edge; repeating the edge row drew vertical
+  streaks there.
 * **HUD**: four corner regions, BG1 and HUD sprites both.
 
 ### Object pop-in (game culling, not changed)

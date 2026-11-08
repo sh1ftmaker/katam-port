@@ -1001,11 +1001,15 @@ const RlFrame *PortRlBuildFrame(void)
             /* The room itself stops at its edges -- the view is kept inside
              * them and anything else is letterbox.  A parallax layer is a
              * picture behind the room: bg.c's refill wraps it horizontally
-             * (the overflow copy from column 0), so it repeats, and past its
-             * top or bottom the edge row is the least wrong thing to show. */
+             * (the overflow copy from column 0), so it repeats.  Past its top
+             * or bottom (a view taller than the sky, zoomed out) it is
+             * mirrored at the edge: continuous, where repeating the edge row
+             * drew vertical streaks the height of the overhang and wrapping
+             * would put the ground under the clouds.  FitParallax has already
+             * re-fitted a picture tall enough to cover the view. */
             if (i != 1) {
                 L->wrapX = 1;
-                L->clampY = 1;
+                L->mirrorY = 1;
                 FitParallax(L, f, s, camX, camY);
             }
             if (L->map != sMapPtr[hw] || L->mapW != sMapW[hw] || L->mapH != sMapH[hw]) {

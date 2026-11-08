@@ -58,7 +58,7 @@ typedef struct RlTileLayer {
     u8 space;                /* RL_SPACE_*                                   */
     u8 streamed;             /* WORLD: VRAM holds only a window of the map   */
     u8 wrapX;                /* outside the window: 1 repeat, 2 mirror      */
-    u8 clampY;               /* ... and its edge rows extend up and down    */
+    u8 mirrorY;              /* ... and mirrors at its top and bottom edge */
     u8 pad_[3];
     /* WORLD, not streamed: a picture smaller than its hardware screen block
      * (a 30x30 sky in a 32x32 block).  Nonzero: samples outside it are
