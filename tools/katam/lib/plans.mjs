@@ -7,9 +7,10 @@ const PLANS = {
 Will answer: from each door / arrival point of a room, which other doors and
 arrivals can Kirby get to?  Model: a graph over standable cells (an empty cell
 with a floor -- solid, top_solid or slope -- below).  Edges: walk left/right
-along floors and slopes; fall (any distance, drifting up to 4 cells
-sideways); jump (up to 3 cells high, 4 across: KATAM's jump apex, measured
-from the native build's physics at 60 Hz); float (Kirby flies indefinitely,
+along floors and slopes; fall; jump (an envelope of cells derived from
+Kirby's jump impulse, gravity and air speed -- the kirby.physics.* entries of
+the semantics tuning inventory -- and checked against the native build by
+recording jumps); float (Kirby flies indefinitely,
 so with "float" on, any empty cell connected to the arrival through air is
 reachable -- the default, matching the game; --no-float models a mini/stone
 ability or water ceilings); ladders climb; water swims; hazards are

@@ -9,6 +9,7 @@
 //   katam validate PATH [--base DIR]... [--json]  schema + cross-reference checks
 //   katam render ROOM -o out.png [--project DIR] [--base DIR]... [--overlay collision,objects,doors,nav] [--scale N]
 //   katam new-room ID -o FILE [--width W --height H]   scaffold a valid room to edit
+//   katam describe room|collision|objects|music [filter]   reference text for people and models
 //   katam reach ROOM...                           (designed, not implemented: see AUTHORING.md)
 //   katam playtest ROOM                           (designed, not implemented: see AUTHORING.md)
 //
@@ -146,6 +147,13 @@ async function main() {
       console.log(`wrote ${a.o}`);
       return 0;
     }
+    case 'describe': {
+      const { describe } = await import('./lib/describe.mjs');
+      const { loadSchemas } = await import('./lib/validate.mjs');
+      const { vocab } = env();
+      console.log(describe(a._[0], a._[1], { vocab, registry, schemas: loadSchemas(io, R('assets/schema/authoring')) }));
+      return 0;
+    }
     case 'reach':
     case 'playtest': {
       const { plan } = await import('./lib/plans.mjs');
@@ -153,7 +161,7 @@ async function main() {
       return 3;
     }
     default:
-      console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 18).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      { const L = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n'); console.log(L.slice(1, L.findIndex((l, k) => k > 0 && !l.startsWith('//'))).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); }
       return cmd ? 2 : 0;
   }
 }
