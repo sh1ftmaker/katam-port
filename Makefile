@@ -169,7 +169,8 @@ TARGET := $(OUT)/katam.html
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
-        res-extract res-roundtrip regress-pack manifest-check
+        res-extract res-roundtrip regress-pack manifest-check \
+        lint-determinism
 
 all: $(TARGET)
 
@@ -545,18 +546,30 @@ netplay-link-test: $(BUILD)/katam-node.js
 	node tools/netplay_link_test.mjs $(BUILD)/katam-node.js $(ROM)
 
 # --- the determinism/regression harness (docs/DETERMINISM.md) ---------------
+# lint-determinism: no two RNG operations in one full expression without a
+# sequence point between them (tools/lint_determinism.py; needs libclang's
+# Python bindings, no ROM).  gcc, g++ and clang order those differently, and a
+# rollback peer that draws different numbers is a desync.  regress runs it first.
+lint-determinism:
+	@python3 tools/lint_determinism.py
+	@python3 tools/lint_determinism.py tests/lint/determinism_selftest.c 2>/dev/null \
+	    | sed -n 's/^[^:]*:\([0-9]*\):.*/\1/p' > $(BUILD)/lint-selftest.got; \
+	  grep -n '/\* flag' tests/lint/determinism_selftest.c | cut -d: -f1 \
+	    | diff - $(BUILD)/lint-selftest.got >/dev/null \
+	  || { echo "lint-determinism: self-test failed (tests/lint/)"; exit 1; }
+
 # Replays tests/recordings/*.txt and compares every frame's hashes against
 # tests/golden/.  Builds nothing: build the binary first (make native, or the
 # lp64 cmake build).  regress is the simulation check renderer work must pass;
 # regress-pixels shows where the picture changed; regress-wasm runs the same
 # recordings on the node build against the same goldens (cross-platform).
-regress:
+regress: lint-determinism
 	@ROM=$(ROM) bash tests/regress.sh --mode sim
 
 regress-pixels:
 	@ROM=$(ROM) bash tests/regress.sh --mode pixels
 
-regress-wasm: $(BUILD)/katam-node.js
+regress-wasm: lint-determinism $(BUILD)/katam-node.js
 	@ROM=$(ROM) bash tests/regress.sh --wasm
 
 # --- the vanilla pack (docs/design/MODDING.md §2) ------------------------------

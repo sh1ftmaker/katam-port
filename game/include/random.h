@@ -13,6 +13,22 @@ extern "C" {
 #define Rand32() (gRngVal = gRngVal * 1663525 + 1013904223)
 #define Rand16() (Rand32(), gRngVal >> 16)
 
+/* PORT-FORK: two RNG calls in one full expression are evaluated in an order C
+ * leaves to the compiler, and gcc, g++ and clang each pick their own, so every
+ * such site is written out with sequenced temporaries.  The order is the one
+ * agbcc compiled -- the decompilation matches the ROM, so the ROM's code is
+ * the original behaviour -- and tools/lint_determinism.py (make
+ * lint-determinism) keeps new unsequenced uses out.  What agbcc did:
+ *
+ *   - Rand16() as operands of an arithmetic operator, `(Rand16() & 7) +
+ *     (Rand16() & 0xF)`: gcc folds the comma expressions out of the operator,
+ *     so the RNG advances twice and *one* read of gRngVal feeds both operands.
+ *     That is Rand16Twice().
+ *   - One RNG call per function argument, `f(Rand16() & 7, Rand16() & 7)`:
+ *     left to right, each argument its own value.
+ */
+#define Rand16Twice() (Rand32(), Rand32(), gRngVal >> 16)
+
 #define RandLessThan3() ({ \
     u16 _variable; \
     u16 _rand = Rand16(); \

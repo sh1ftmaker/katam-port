@@ -4962,7 +4962,17 @@ extern const struct AnimInfo gUnk_08350474[] = {
     { 0xBF, 0x5, 0x0 },
 };
 
-extern const struct AnimInfo gUnk_08350620[] = {
+/* PORT-FORK: gUnk_08350620, gUnk_083507F8 and gUnk_08350834 are one array.
+ * The decompilation splits them at the labels the code uses, but
+ * sub_080788AC indexes gUnk_083507F8 (15 entries) by Kirby's animationIndex,
+ * which runs past 100, and on the console that reads on into gUnk_08350834,
+ * which follows it in the ROM.  As separate arrays the linker placed them
+ * wherever it liked -- the LP64 build in reverse order, so it read
+ * gUnk_08350620's entries instead; wasm read past all three and trapped in
+ * sub_08155128 on a garbage animId (the 36-room sweep, frame 5781).  One
+ * array keeps the ROM's order on every host; the other two names are
+ * offsets into it (kirby.h). */
+extern const struct AnimInfo gUnk_08350620[118 + 15 + 103] = {
     { 0x269, 0x0, 0x0 },
     { 0x269, 0x1, 0x0 },
     { 0x269, 0x2, 0x0 },
@@ -5081,9 +5091,7 @@ extern const struct AnimInfo gUnk_08350620[] = {
     { 0x257, 0x3, 0x0 },
     { 0x257, 0x4, 0x0 },
     { 0x257, 0x5, 0x0 },
-};
-
-extern const struct AnimInfo gUnk_083507F8[] = {
+    /* gUnk_083507F8 = gUnk_08350620 + 118 */
     { 0x27A, 0x0, 0x0 },
     { 0x27A, 0x1, 0x0 },
     { 0x27A, 0x2, 0x0 },
@@ -5099,9 +5107,7 @@ extern const struct AnimInfo gUnk_083507F8[] = {
     { 0x27C, 0x1, 0x0 },
     { 0x27F, 0x0, 0x0 },
     {   0x0, 0x0, 0x0 },
-};
-
-extern const struct AnimInfo gUnk_08350834[] = {
+    /* gUnk_08350834 = gUnk_08350620 + 133 */
     { 0x277, 0x0, 0x0 },
     { 0x277, 0x1, 0x0 },
     { 0x277, 0x2, 0x0 },
@@ -5551,7 +5557,7 @@ bool16 sub_0803D8AC(struct EffectObject *r1)
     s16 r5, r3;
     struct LevelInfo *li;
 
-    r5 = r5 = r1->x >> 8;
+    r5 = r1->x >> 8; // PORT-FORK: was `r5 = r5 = ...`, two unsequenced writes
     r3 = r1->y >> 8;
     if (r1->flags & 0x2000000) // if (0)
         return FALSE;
@@ -17879,22 +17885,37 @@ void sub_08061B44(struct Kirby *kirby)
         {
         case 0x1A:
         case 0x1B:
-            sub_08098E54(kirby, Rand16() & 3, Rand16() & 7, -((Rand16() & 0x7F) + 0x180), Rand16() & 0x7F);
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16(), rnd3 = Rand16();
+                sub_08098E54(kirby, rnd0 & 3, rnd1 & 7, -((rnd2 & 0x7F) + 0x180), rnd3 & 0x7F);
+            }
             break;
         case 0x1C:
         case 0x1D:
-            sub_08098E54(kirby, (Rand16() & 3) + 4, Rand16() & 3, -((Rand16() & 0x7F) + 0x180), Rand16() & 0x3F);
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16(), rnd3 = Rand16();
+                sub_08098E54(kirby, (rnd0 & 3) + 4, rnd1 & 3, -((rnd2 & 0x7F) + 0x180), rnd3 & 0x3F);
+            }
             break;
         case 0x1E:
         case 0x1F:
-            sub_08098E54(kirby, (Rand16() & 3) + 14, -(Rand16() & 3), -((Rand16() & 0x7F) + 0x80), (Rand16() & 0x3F) - 0xA0);
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16(), rnd3 = Rand16();
+                sub_08098E54(kirby, (rnd0 & 3) + 14, -(rnd1 & 3), -((rnd2 & 0x7F) + 0x80), (rnd3 & 0x3F) - 0xA0);
+            }
             break;
         case 0x20:
         case 0x21:
-            sub_08098E54(kirby, (Rand16() & 3) + 8, -10 - (Rand16() & 3), -(Rand16() & 0x3F), -(Rand16() & 0x3F) - 0x100);
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16(), rnd3 = Rand16();
+                sub_08098E54(kirby, (rnd0 & 3) + 8, -10 - (rnd1 & 3), -(rnd2 & 0x3F), -(rnd3 & 0x3F) - 0x100);
+            }
             break;
         case 0x22:
-            sub_08098E54(kirby, (Rand16() & 3) + 5, -12 - (Rand16() & 3), -({(Rand16() & 0x3F) - 0x80;}), -0x80 - (Rand16() & 0x3F));
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16(), rnd3 = Rand16();
+                sub_08098E54(kirby, (rnd0 & 3) + 5, -12 - (rnd1 & 3), -({(rnd2 & 0x3F) - 0x80;}), -0x80 - (rnd3 & 0x3F));
+            }
             break;
         }
     }

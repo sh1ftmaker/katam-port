@@ -337,10 +337,13 @@ static void sub_0802B62C(struct Unk_0802B4A8 *x) {
                     if (!((x->unk2BA + i * 2) & 0xF)) {
                         u32 val = Rand16() & 0x1F;
 
-                        sub_0802CE64(x, gUnk_082EB5E0[gUnk_082EB610[val]][0], gUnk_082EB5E0[gUnk_082EB610[val]][1], x->unk16C.tilesVram,
-                            x->unk2B4 + x->unk218[i][0] + ((Rand16() & 0xF) + 8) * 0x100,
-                            x->unk218[i][1] + ((Rand16() & 0x1F) - 0x10) * 0x100,
-                            (Rand16() & 0xFF) + 0x80, 0, 0);
+                        { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                            u32 rnd0 = Rand16(), rnd1 = Rand16(), rnd2 = Rand16();
+                            sub_0802CE64(x, gUnk_082EB5E0[gUnk_082EB610[val]][0], gUnk_082EB5E0[gUnk_082EB610[val]][1], x->unk16C.tilesVram,
+                                x->unk2B4 + x->unk218[i][0] + ((rnd0 & 0xF) + 8) * 0x100,
+                                x->unk218[i][1] + ((rnd1 & 0x1F) - 0x10) * 0x100,
+                                (rnd2 & 0xFF) + 0x80, 0, 0);
+                        }
                     }
                 }
             }

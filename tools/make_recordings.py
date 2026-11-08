@@ -18,14 +18,19 @@ The scenarios:
   boot_to_level   power-on, logo, title, file select (new file), the intro
                   room.  Tap A+Right on a 20-frame period from frame 120 --
                   the pattern tools/native_smoke.sh has always used.
-  attract         no input at all for 6600 frames: the title screen times out
+  attract         no input at all for 9000 frames: the title screen times out
                   into the game's own attract-mode demo, which is the game
                   playing itself through a level with its own recorded input.
   play_rooms      boot to the first level, then a warp into each of a run of
                   level rooms and ~600 frames of play in each: Kirby floats
                   right, presses Up for doors, exhales, swallows.
-  warp_sweep      boot to the first level, then a warp every 150 frames
-                  through a spread of 29 rooms across every area.
+  warp_sweep      boot to the first level, then a warp every 160 frames
+                  through a spread of 36 rooms across every area.
+  aim             boot, then 600 hands-off frames in each room that holds an
+                  enemy aiming with the BIOS's ArcTan2 (Shotzo, Bang-Bang)
+                  and the two bosses whose code drew RNG in argument lists
+                  (Kracko, Gobbler) -- the code the determinism work changed --
+                  and Mega Titan's room, which faulted the LP64 build.
 """
 import argparse
 from pathlib import Path
@@ -88,7 +93,7 @@ def main():
     write(out / 'boot_to_level.txt', 1400, keys,
           comment='power-on -> title -> file select -> the first level')
 
-    write(out / 'attract.txt', 6600, {},
+    write(out / 'attract.txt', 9000, {},
           comment='no input: title screen, then the attract-mode demo')
 
     keys = {}
@@ -111,24 +116,45 @@ def main():
         # Hands off: Kirby lands and stands.  Walking about in 36 rooms picked
         # up the bomb ability on the way, and the bomb's effect sprite then
         # traps the wasm build in sub_0815521C (docs/DETERMINISM.md).
-        f += 150
+        f += 160
     write(out / 'warp_sweep.txt', f, keys, warps,
-          comment='boot, then a warp every 150 frames through a spread of rooms')
+          comment='boot, then a warp every 160 frames through a spread of 36 rooms')
+
+    keys = {}
+    boot(keys)
+    warps = []
+    f = 1300
+    for room, x, y in AIM:
+        warps.append((f, room, x, y))
+        f += 600
+    write(out / 'aim.txt', f, keys, warps,
+          comment='boot, then stand in rooms with ArcTan2 aimers and RNG bosses')
 
 
-# A spread of rooms over every area: every tenth room that has an arrival
-# cell, from room_export.py --spawn, less 738 (Mega Titan), whose arm
-# setup faults in the LP64 build.  Kept under ~5700 frames: a longer sweep
-# (every eighth room, 36 of them) traps the wasm build at frame 5781 in
-# sub_080788AC -> sub_08155128 whichever room is current -- a wasm-side
-# bug the native build does not show.  docs/DETERMINISM.md, known issues.
+# A spread of rooms over every area: every eighth room that has an arrival
+# cell, from room_export.py --spawn (738, Mega Titan, is in aim instead).
+# This was cut to every tenth room at 150 frames while the 36-room sweep
+# trapped the wasm build at frame 5781 in sub_080788AC -> sub_08155128
+# (gUnk_083507F8 read past its end, kirby.c); fixed, so it is the full sweep.
 SWEEP = [
-    (101, 3, 7), (115, 73, 5), (130, 3, 8), (140, 3, 9), (170, 3, 9),
-    (181, 5, 3), (204, 73, 4), (216, 44, 18), (226, 12, 8), (304, 28, 39),
-    (322, 33, 4), (404, 21, 5), (415, 77, 1), (425, 8, 5), (508, 2, 5),
-    (523, 19, 3), (533, 39, 17), (543, 31, 2), (557, 2, 5), (605, 44, 5),
-    (617, 4, 9), (704, 2, 8), (716, 14, 49), (736, 44, 3), (790, 9, 3),
-    (815, 5, 9), (828, 3, 4), (913, 0, 4), (969, 0, 8),
+    (101, 3, 7), (113, 89, 7), (122, 4, 3), (134, 2, 7), (142, 5, 19),
+    (170, 3, 9), (178, 90, 9), (195, 3, 9), (209, 11, 3), (218, 15, 3),
+    (226, 12, 8), (291, 9, 3), (316, 60, 4), (326, 1, 2), (406, 7, 8),
+    (415, 77, 1), (423, 3, 9), (502, 2, 7), (512, 4, 7), (525, 2, 19),
+    (533, 39, 17), (541, 5, 5), (553, 3, 4), (591, 9, 3), (608, 72, 4),
+    (617, 4, 9), (700, 3, 9), (710, 5, 5), (730, 29, 4), (739, 4, 4),
+    (800, 10, 4), (814, 3, 3), (825, 18, 19), (890, 9, 3), (916, 0, 8),
+    (970, 15, 6),
+]
+
+# Rooms holding the enemies whose code changed in the determinism work, from
+# room_export.py's object lists and --spawn arrival cells: Shotzo (225, 113,
+# 203), Bang-Bang (325, 103, 118), Kracko (324), Gobbler (822); and Mega
+# Titan (738), whose arm setup faulted the LP64 build.
+AIM = [
+    (225, 13, 7), (113, 89, 7), (203, 59, 5), (325, 4, 20), (103, 2, 39),
+    (118, 3, 5), (324, 4, 19), (822, 12, 3),
+    (738, 14, 7),   # Mega Titan: its arm setup read through NULL (mega_titan.c)
 ]
 
 if __name__ == '__main__':

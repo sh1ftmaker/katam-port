@@ -76,9 +76,11 @@ void sub_08032E98(void) {
     m4aMPlayAllStop();
 
     REG_IME = 0;
-    for (idx = 0; idx < 15; idx++) {
+    /* PORT-FORK: a 14-entry template into 15 slots; see main.c */
+    for (idx = 0; idx < 14; idx++) {
         gIntrTable[idx] = gIntrTableTemplate[idx];
     }
+    gIntrTable[14] = NULL;
     REG_IME = 1;
 }
 

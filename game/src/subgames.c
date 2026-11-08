@@ -9205,10 +9205,22 @@ static void sub_08133EEC(struct Unk_0812F91C_20 *a1, u8 a2) {
 }
 
 static void sub_081340AC(struct Unk_0812F91C_20 *a1) {
-    sub_081341B0(a1, -2 * (Rand32() & 7), -4 * (Rand32() & 7));
-    sub_081341B0(a1, -2 * (Rand32() & 7), -4 * (Rand32() & 7));
-    sub_081341B0(a1,  2 * (Rand32() & 7), -4 * (Rand32() & 7));
-    sub_081341B0(a1,  2 * (Rand32() & 7), -4 * (Rand32() & 7));
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd0 = Rand32(), rnd1 = Rand32();
+        sub_081341B0(a1, -2 * (rnd0 & 7), -4 * (rnd1 & 7));
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd0 = Rand32(), rnd1 = Rand32();
+        sub_081341B0(a1, -2 * (rnd0 & 7), -4 * (rnd1 & 7));
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd0 = Rand32(), rnd1 = Rand32();
+        sub_081341B0(a1,  2 * (rnd0 & 7), -4 * (rnd1 & 7));
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd0 = Rand32(), rnd1 = Rand32();
+        sub_081341B0(a1,  2 * (rnd0 & 7), -4 * (rnd1 & 7));
+    }
 }
 
 static void sub_08134178(void) {
