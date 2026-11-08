@@ -22,6 +22,7 @@ GENERATED := game/generated
 OUT       := web
 
 CC := $(EMSDK)/upstream/emscripten/emcc
+CXX := $(EMSDK)/upstream/emscripten/em++
 
 # ---------------------------------------------------------------------------
 # Memory layout.  This is the decision the whole port rests on: the real GBA
@@ -138,7 +139,7 @@ LDLINT := -Wl,--fatal-warnings $(RENDER_LDFLAGS)
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortSetFrameStateLog,_PortSetStateDumpAt,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -148,7 +149,7 @@ LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sALLOW_MEMORY_GROWTH=0 \
     -sSTACK_SIZE=1048576 \
     -sEXPORTED_FUNCTIONS=$(PORT_EXPORTS) \
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,ccall,cwrap \
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPU32,HEAPF32,ccall,cwrap \
     -sENVIRONMENT=web \
     --shell-file web/shell.html
 
@@ -157,10 +158,19 @@ GAME_SRCS     := $(shell find $(PORT_SRC)/src -name '*.c' 2>/dev/null)
 # about the host.  platform/web/*.c is the browser half of port/backend.h; the
 # native build swaps in platform/native/*.c instead.  See docs/NATIVE.md.
 PLATFORM_SRCS := $(wildcard platform/*.c) $(wildcard platform/web/*.c) \
-                 $(wildcard platform/render/*.c)
+                 $(wildcard platform/render/*.c) $(wildcard platform/ui/*.c)
 GEN_SRCS      := $(wildcard $(GENERATED)/*.c)
 SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
-OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
+# The settings menu: Dear ImGui (third_party/imgui) and its two C++ files,
+# compiled without the game's flags and force-included headers.
+UI_CXX_SRCS   := third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp \
+                 third_party/imgui/imgui_widgets.cpp third_party/imgui/imgui_tables.cpp \
+                 $(wildcard platform/ui/*.cpp)
+OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS)) \
+                 $(patsubst %.cpp,$(OBJDIR)/%.o,$(UI_CXX_SRCS))
+UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
+                 -fno-threadsafe-statics -w -Iplatform -Ithird_party/imgui \
+                 -I$(BUILD)/gen -MMD -MP
 
 TARGET := $(OUT)/katam.html
 
@@ -327,6 +337,17 @@ prune:
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	@$(CXX) $(UI_CXXFLAGS) -c $< -o $@
+
+# The commit and date the menu and the page show (tools/gen_build_label.sh
+# rewrites it only when it changes).
+$(BUILD)/gen/build_label.h: FORCE
+	@bash tools/gen_build_label.sh $@
+$(OBJDIR)/platform/ui/ui_menu.o: $(BUILD)/gen/build_label.h
+FORCE:
 
 compile: $(OBJS)
 
@@ -719,7 +740,9 @@ dist: all
 	@cp $(OUT)/katam.html $(DIST)/index.html
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
-	@python3 tools/stamp_build.py --dir $(DIST)
+	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h
+	@python3 tools/stamp_build.py --dir $(DIST) \
+	    --label "$$(sed -n 's/.*KATAM_BUILD_LABEL "\(.*\)"/\1/p' $(BUILD)/gen/build_label.h)"
 	@# The URLs carry a build id, so the payloads can be cached hard.  The page
 	@# itself must not be: it is what points at the current build.
 	@printf '/*.wasm\n  Cache-Control: public, max-age=31536000, immutable\n' > $(DIST)/_headers

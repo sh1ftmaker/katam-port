@@ -28,6 +28,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dir', required=True, type=Path,
                     help='directory holding index.html, katam.js and katam.wasm')
+    ap.add_argument('--label', default='',
+                    help='commit and date, shown on the page (#buildlabel)')
     args = ap.parse_args()
 
     page = args.dir / 'index.html'
@@ -63,6 +65,12 @@ def main():
             'return p==="katam.wasm"?p+"?v=%s":p;};</script>' % build_id)
 
     html = html[:m.start()] + shim + stamped + html[m.end():]
+
+    # The build a tester is on, readable on the page and by curl.
+    label = (args.label + ' ' if args.label else '') + 'wasm ' + build_id
+    html = re.sub(r'(<span id=(["\']?)buildlabel\2>)[^<]*(</span>)',
+                  lambda mm: mm.group(1) + label + mm.group(3), html, count=1)
+    html = html.replace('<head>', '<head><meta name="katam-build" content="%s">' % label, 1)
 
     # The netplay scripts are separate files with the same trap -- a stale
     # cached mp_net.js against a fresh page throws on the first API the old

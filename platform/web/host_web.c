@@ -4,6 +4,8 @@
  * same four hooks pointing somewhere else.  The bodies are unchanged.
  */
 
+#include <string.h>
+
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
@@ -20,29 +22,72 @@ EM_JS_DEPS(katam_host_web, "$UTF8ToString");
 /* Nothing to do: the page has the module configured before main() runs, and
  * the wasm memory map is reserved by the linker (-sGLOBAL_BASE), not at run
  * time.  See docs/ARCHITECTURE.md. */
-/* --- the GPU renderer (docs/RENDERER.md) ---------------------------------
+/* --- the picture: one WebGL2 canvas, both renderers, the settings menu ----
  *
- * The page asks for it with ?renderer=gpu, which makes Module.portRenderer
- * 'gpu' and puts a <canvas id="gpu-screen"> on the stage.  WebGL2 is GLES
- * 3.0, so platform/render/gl_renderer.c runs here unchanged. */
-extern int gPortPpuCompose;     /* platform/ppu.c */
-static int sGpu;
+ * When the page offers a WebGL2 canvas (#gpu-screen, Module.portGl) the
+ * picture always goes through it: the render list when the GPU renderer is
+ * chosen (docs/RENDERER.md), the PPU's framebuffer as a texture otherwise --
+ * so the settings menu (platform/ui, Dear ImGui) can draw over either.  No
+ * WebGL2: the page's 2D canvas, as before, and no menu.  ?renderer=gpu|ppu
+ * overrides the saved setting for one visit. */
+#include "ui/settings.h"
+#include "ui/ui.h"
+#include "port/rollback.h"
 
-EM_JS(int, PortWebWantGpu, (void), {
-    return (typeof Module.portRenderer === 'string' && Module.portRenderer === 'gpu') ? 1 : 0;
+static int sGl;
+
+EM_JS(int, PortWebHaveGlCanvas, (void), {
+    return Module.portGl ? 1 : 0;
 });
 
-/* The view the page wants this frame: [w, h] from Module.portGpuView(). */
-EM_JS(void, PortWebGpuView, (int *out), {
-    var v = Module.portGpuView ? Module.portGpuView() : [240, 160];
-    HEAP32[out >> 2] = v[0] | 0;
-    HEAP32[(out >> 2) + 1] = v[1] | 0;
+/* -1: no override, else PS_RENDER_*. */
+EM_JS(int, PortWebRendererParam, (void), {
+    var r = Module.portRenderer;
+    return r === 'gpu' ? 0 : r === 'ppu' ? 1 : -1;
 });
 
-static void PortWebGpuInit(void)
+EM_JS(void, PortWebLoadSettings, (char *buf, int size), {
+    var t = '';
+    try { t = localStorage.getItem('katam.settings') || ''; } catch (e) { t = ''; }
+    stringToUTF8(t, buf, size);
+});
+
+void PortHostSaveSettings(const char *text)
+{
+    EM_ASM({
+        try { localStorage.setItem('katam.settings', UTF8ToString($0)); } catch (e) {}
+    }, text);
+}
+
+void PortHostSetVolume(float gain)
+{
+    EM_ASM({
+        Module.portVolume = $0;
+        var pa = Module.portAudio;
+        if (pa && pa.gain) pa.gain.gain.value = $0;
+    }, gain);
+}
+
+void PortHostSetVsync(int on)
+{
+    (void)on;           /* the browser presents on its own refresh */
+}
+
+void PortHostUiOpenChanged(int open)
+{
+    EM_ASM({ if (Module.portUiOpenChanged) Module.portUiOpenChanged($0); }, open);
+}
+
+EM_JS(int, PortWebCoarsePointer, (void), {
+    try { return (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) ? 1 : 0; }
+    catch (e) { return 0; }
+});
+
+static void PortWebGlInit(void)
 {
     EmscriptenWebGLContextAttributes attr;
     EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx;
+    int gpuOk;
 
     emscripten_webgl_init_context_attributes(&attr);
     attr.majorVersion = 2;
@@ -52,29 +97,49 @@ static void PortWebGpuInit(void)
     attr.stencil = 0;
     attr.antialias = 0;
     attr.preserveDrawingBuffer = 0;
+    attr.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
     ctx = emscripten_webgl_create_context("#gpu-screen", &attr);
     if (ctx <= 0) {
-        PortError("[katam-port] gpu: no WebGL2 context (%d) -- the PPU draws instead",
+        PortError("[katam-port] no WebGL2 context (%d) -- 2D canvas, no settings menu",
                   (int)ctx);
+        EM_ASM({ if (Module.portGlFailed) Module.portGlFailed(); });
         return;
     }
     emscripten_webgl_make_context_current(ctx);
-    if (!GlrInit(NULL, 1)) {
-        PortError("[katam-port] gpu: renderer did not start -- the PPU draws instead");
+    gpuOk = GlrInit(NULL, 1);
+    if (!gpuOk) {
+        PortError("[katam-port] gpu: renderer did not start -- 2D canvas, no settings menu");
+        EM_ASM({ if (Module.portGlFailed) Module.portGlFailed(); });
         return;
     }
-    sGpu = 1;
-    gPortRlEnabled = 1;
-    gPortPpuCompose = 0;
+    sGl = 1;
+    gPortUiStatus.platform = "web";
+    gPortUiStatus.touch = PortWebCoarsePointer();
+    gPortUiStatus.vsyncControl = 0;
+    gPortUiStatus.drawGear = 0;         /* the page has its own button */
+    PortShowInit(1, gpuOk);
 }
 
 void PortHostInit(int argc, char **argv)
 {
+    char buf[1024];
+    int r;
+
     (void)argc;
     (void)argv;
-    if (PortWebWantGpu())
-        PortWebGpuInit();
+    PortSettingsDefaults(&gPortSettings);
+    PortWebLoadSettings(buf, sizeof(buf));
+    PortSettingsParse(&gPortSettings, buf);
+    r = PortWebRendererParam();
+    if (r >= 0)
+        gPortSettings.renderer = r;
+    PortSettingsApplyEarly();
+    if (PortWebHaveGlCanvas())
+        PortWebGlInit();
 }
+
+/* For the page: its own gear button and keyboard. */
+EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
 
 /* Everything the port says goes to two places: the browser console, and the
  * page's own log.
@@ -136,7 +201,7 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
  * the timers above, because the rollback tests pause an instance by parking
  * its rAF registrations, and a guard timer firing from outside any
  * instance's execution window re-registers on the wrong ledger. */
-EM_ASYNC_JS(void, PortAwaitAnimationFrame, (void), {
+EM_ASYNC_JS(void, PortWebAwaitFrame, (void), {
     if (typeof document === 'undefined') {
         await new Promise(function (resolve) { requestAnimationFrame(resolve); });
         return;
@@ -230,25 +295,57 @@ EM_JS(void, PortWebPresent, (const u32 *pixels, int w, int h), {
         Module.portPresent(pixels, w, h);
 });
 
+EM_JS(void, PortWebCanvasInfo, (int *out), {
+    var c = Module.portGlCanvas;
+    var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    if (Module.portFitCanvas) Module.portFitCanvas();
+    HEAP32[out >> 2] = c ? c.width : 1;
+    HEAP32[(out >> 2) + 1] = c ? c.height : 1;
+    HEAPF32[(out >> 2) + 2] = dpr;
+});
+
+/* A paint's worth of waiting while the game is paused for the menu. */
+EM_ASYNC_JS(void, PortWebAwaitPaint, (void), {
+    await new Promise(function (resolve) {
+        if (typeof document !== 'undefined' && document.hidden) setTimeout(resolve, 50);
+        else requestAnimationFrame(function () { resolve(); });
+    });
+});
+
+static void Show(const u32 *pixels, int w, int h, int fresh)
+{
+    int info[3];
+    float dpr;
+
+    PortWebCanvasInfo(info);
+    memcpy(&dpr, &info[2], sizeof(dpr));
+    if (fresh)
+        PortShowNewFrame(info[0], info[1], dpr, emscripten_get_now(), pixels, w, h);
+    else
+        PortShowAgain(info[0], info[1], dpr, emscripten_get_now());
+}
+
 void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 {
-    if (sGpu) {
-        const RlFrame *f = PortRlCurrentFrame();
-        int view[2], cw = 0, ch = 0;
-
-        PortWebGpuView(view);
-        PortRlSetViewSize(view[0], view[1]);
-        if (f != NULL) {
-            GlrDraw(f);
-            emscripten_get_canvas_element_size("#gpu-screen", &cw, &ch);
-            GlrPresent(cw, ch);
-            /* The page's frame counter and canvas fitting, with the size
-             * of the view that was drawn. */
-            PortWebPresent(pixels, f->viewW, f->viewH);
-        }
+    if (sGl) {
+        Show(pixels, w, h, 1);
+        PortWebPresent(pixels, 0, 0);       /* the page's frame counter */
         return;
     }
     PortWebPresent(pixels, w, h);
+}
+
+/* The menu pause: a host-level frame skip -- the game is not asked for its
+ * next frame while the menu is open, and the last picture is re-presented
+ * under it.  Not in netplay, where a peer would stall. */
+void PortAwaitAnimationFrame(void)
+{
+    while (sGl && PortUiIsOpen() && !PortRbActive()) {
+        PortWebAwaitPaint();
+        Show(NULL, 0, 0, 0);
+    }
+    gPortUiStatus.netplay = PortRbActive();
+    PortWebAwaitFrame();
 }
 
 /* The stall-loop pump (port/backend.h).  The page wires portNetIdle to the

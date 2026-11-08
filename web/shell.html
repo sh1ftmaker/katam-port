@@ -266,6 +266,41 @@
     touch-action: none;
   }
 
+  /* The settings button: WebGL builds only, once a game is running. */
+  #uigear {
+    display: none;
+    position: absolute;
+    top: calc(8px + var(--safe-t));
+    right: calc(8px + var(--safe-r));
+    z-index: 6;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 12px;
+    font-size: 24px;
+    line-height: 1;
+    opacity: .72;
+    touch-action: manipulation;
+  }
+  body.gl.rom-ready:not(.crashed) #uigear { display: block; }
+  body.gl #gpu-screen { box-shadow: none; background: #0c0e11; }
+  body.ui-open #uigear { display: none !important; }
+  #uigear2 { display: none; font-size: 20px; padding: 4px 12px; }
+  @media (orientation: landscape) {
+    body.immersive.gl.rom-ready:not(.crashed) #uigear { display: none; }
+    body.immersive.gl.rom-ready:not(.crashed):not(.ui-open) #uigear2 { display: inline-block; opacity: .8; }
+    body.immersive.ui-open #topbar { visibility: hidden; }
+  }   /* Resume / Esc / tap outside close it */
+  @media (orientation: portrait) {
+    body.immersive #uigear { top: 8px; }
+  }
+  /* The menu has the screen while it is open. */
+  body.ui-open #touch { display: none !important; }
+  #buildinfo { color: var(--dim); padding: 4px 0; font-size: 12px; }
+  /* The old view experiment (docs/VIEW.md) changes the game's culling; the
+     settings menu replaces it wherever the menu exists. */
+  body.gl #viewbox { display: none; }
+
   /* Covers the picture until a ROM is supplied. */
   #curtain {
     position: absolute;
@@ -975,6 +1010,9 @@
   <button id="menubtn" type="button" aria-expanded="false" aria-controls="chrome">
     <span class="glyph" aria-hidden="true">&#9776;</span><span>Menu</span>
   </button>
+  <!-- Landscape phones: the stage's own settings button would sit under the
+       R pad, so it lives up here beside Menu instead. -->
+  <button id="uigear2" class="uigear" type="button" aria-label="Settings">&#9881;</button>
   <h1>Kirby &amp; The Amazing Mirror — decompilation port</h1>
   <span id="rominfo">no ROM loaded</span>
   <span id="fps">-- fps</span>
@@ -1004,6 +1042,11 @@
   </div>
 
   <div id="diag" aria-hidden="true"></div>
+
+  <!-- The settings menu (zoom, aspect, scaling, HUD, renderer, audio).
+       Also F1 or Tab. Drawn by the game itself over the picture. -->
+  <button id="uigear" type="button" aria-label="Settings" aria-pressed="false"
+          title="Settings (F1)">&#9881;</button>
 
   <div id="crash" role="alertdialog" aria-labelledby="crashtitle" aria-hidden="true">
     <h2 id="crashtitle">The emulator stopped.</h2>
@@ -1131,6 +1174,8 @@
     <div><b>Select</b> &nbsp;<kbd>Backspace</kbd> / <kbd>R-Shift</kbd></div>
   </div>
 
+  <div id="buildinfo">build <span id="buildlabel">dev</span></div>
+
   <div id="logtools">
     <span>log</span>
     <button id="logcopy" type="button">Copy log</button>
@@ -1226,13 +1271,21 @@ var Module = (function () {
   var screen  = document.getElementById('screen');
   var screenCtx = screen.getContext('2d', { alpha: false });
 
-  // ?renderer=gpu: the GPU renderer (platform/render, docs/RENDERER.md)
-  // draws with WebGL2 into a canvas of its own -- a canvas holds one kind of
-  // context, and the 2D one above stays for the default path.  &view=WxH
-  // fixes the world viewport; without it the view follows the stage's shape
-  // at 160 game pixels tall.
-  var gpuMode = /[?&]renderer=gpu(&|$)/.test(location.search);
-  var gpuViewParam = /[?&]view=(\d+)x(\d+)/.exec(location.search);
+  // The picture goes through WebGL2 whenever the browser has it: the C side
+  // draws either renderer into this canvas (the GPU render list, or the PPU's
+  // framebuffer as a texture) and the settings menu over it (platform/ui).
+  // The canvas fills the stage; where the picture sits inside it, and how it
+  // is scaled, is the menu's business.  No WebGL2 (or ?renderer=2d): the 2D
+  // canvas below, exactly as before, and no menu.  ?renderer=gpu|ppu
+  // overrides the saved renderer setting for this visit.
+  var rendererParam = (/[?&]renderer=(gpu|ppu|2d)(&|$)/.exec(location.search) || [])[1] || '';
+  var gpuMode = false;
+  if (rendererParam !== '2d') {
+    try {
+      var probe = document.createElement('canvas');
+      gpuMode = !!(window.WebGL2RenderingContext && probe.getContext('webgl2'));
+    } catch (e) { gpuMode = false; }
+  }
   var gpuCanvas = null;
   if (gpuMode) {
     gpuCanvas = document.createElement('canvas');
@@ -1240,6 +1293,21 @@ var Module = (function () {
     gpuCanvas.width = 240; gpuCanvas.height = 160;
     screen.parentNode.insertBefore(gpuCanvas, screen);
     screen.style.display = 'none';
+    document.body.classList.add('gl');
+  }
+
+  // The C side could not start WebGL after all: back to the 2D canvas.
+  function glFailed() {
+    if (!gpuMode) return;
+    gpuMode = false;
+    if (gpuCanvas && gpuCanvas.parentNode) gpuCanvas.parentNode.removeChild(gpuCanvas);
+    gpuCanvas = null;
+    Module.portGl = false;
+    Module.portGlCanvas = null;
+    screen.style.display = '';
+    document.body.classList.remove('gl');
+    GBA_W = 240; GBA_H = 160;
+    fitScreen();
   }
 
   // Native-resolution scratch canvas: putImageData ignores transforms, so we
@@ -1284,11 +1352,7 @@ var Module = (function () {
 
   function present(ptr, w, h) {
     if (gpuMode) {
-      // WebGL has already drawn the frame; w x h is the view it drew.
-      if (w !== GBA_W || h !== GBA_H) {
-        GBA_W = w; GBA_H = h;
-        fitScreen();
-      }
+      // WebGL has already drawn the frame (and sized itself); count it.
     } else {
     // Re-read HEAPU8 every call: a memory growth swaps the backing
     // ArrayBuffer and detaches any view we cached earlier.
@@ -1357,6 +1421,20 @@ var Module = (function () {
     var dpr = window.devicePixelRatio || 1;
     if (!(dpr > 0) || dpr > 6) dpr = 1;         // defensive: some builds lie
 
+    if (gpuMode) {
+      // The whole stage, at device resolution; the C side letterboxes.
+      var bw = Math.max(1, Math.round(availW * dpr));
+      var bh = Math.max(1, Math.round(availH * dpr));
+      if (gpuCanvas.width !== bw || gpuCanvas.height !== bh) {
+        gpuCanvas.width = bw;
+        gpuCanvas.height = bh;
+      }
+      gpuCanvas.style.width  = availW + 'px';
+      gpuCanvas.style.height = availH + 'px';
+      if (hooks.onLayout) hooks.onLayout();
+      return;
+    }
+
     var css;
     if (raw < 1) css = raw;                     // smaller than 240x160: nothing to round to
     else if (dpr >= 2) css = raw;
@@ -1420,20 +1498,14 @@ var Module = (function () {
   fitScreen();
 
   // ---- the Module object emscripten will pick up ---------------------
-  // The world viewport the GPU renderer should use, asked once a frame:
-  // ?view=WxH, or the stage's own aspect at 160 game pixels tall.
-  function gpuView() {
-    if (gpuViewParam) return [+gpuViewParam[1], +gpuViewParam[2]];
-    var aw = Math.max(1, wrapEl.clientWidth), ah = Math.max(1, wrapEl.clientHeight);
-    var w = Math.round(160 * aw / ah / 2) * 2;
-    return [Math.max(240, Math.min(480, w)), 160];
-  }
-
   return {
     portRomReady:  portRomReady,
     portPresent:   portPresent,
-    portRenderer:  gpuMode ? 'gpu' : 'ppu',
-    portGpuView:   gpuView,
+    // The WebGL2 canvas the C side draws into, if any (host_web.c).
+    portGl:        gpuMode,
+    portGlCanvas:  gpuCanvas,
+    portGlFailed:  glFailed,
+    portRenderer:  rendererParam === 'gpu' || rendererParam === 'ppu' ? rendererParam : '',
 
     // Called once, on the first real user gesture.  A browser will not let
     // audio start before one, and the audio layer replaces this with its own
@@ -2650,9 +2722,14 @@ var Module = (function () {
 
   var lastMask = -1;
 
+  // The settings menu (platform/ui) has the input while it is open: the
+  // game sees no buttons, and is paused by the C side anyway.
+  var uiOpen = false;
+
   function pushMask() {
     var mask = touchMask;
     for (var code in held) mask |= KEYMAP[code];
+    if (uiOpen) mask = 0;
     if (mask === lastMask) return;
     lastMask = mask;
     // Guard: keys can be pressed before the wasm exports exist.
@@ -2667,8 +2744,29 @@ var Module = (function () {
     return !!(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable));
   }
 
+  // KeyboardEvent.code -> PORT_UIK_* (platform/ui/ui.h).
+  var UIKEYS = {
+    Tab: 1, ArrowLeft: 2, ArrowRight: 3, ArrowUp: 4, ArrowDown: 5,
+    PageUp: 6, PageDown: 7, Home: 8, End: 9, Enter: 10, NumpadEnter: 10,
+    Escape: 11, Space: 12, Backspace: 13
+  };
+
+  function uiKeys(e, down) {
+    if (!shell.uiAvailable()) return false;
+    if (down && !e.repeat && (e.code === 'F1' || (e.code === 'Tab' && !uiOpen))) {
+      e.preventDefault();
+      Module._PortUiToggle();
+      return true;
+    }
+    if (!uiOpen) return false;
+    var k = UIKEYS[e.code];
+    if (k) { e.preventDefault(); Module._PortUiKey(k, down ? 1 : 0); }
+    return true;
+  }
+
   window.addEventListener('keydown', function (e) {
     if (typingInAField(e)) return;
+    if (uiKeys(e, true)) return;
     var bit = KEYMAP[e.code];
     if (bit === undefined) return;
     e.preventDefault();                        // arrows/space must not scroll,
@@ -2679,6 +2777,7 @@ var Module = (function () {
   });
 
   window.addEventListener('keyup', function (e) {
+    if (uiKeys(e, false)) return;
     if (KEYMAP[e.code] === undefined) return;
     e.preventDefault();
     delete held[e.code];
@@ -2922,6 +3021,82 @@ var Module = (function () {
   };
 
   //--------------------------------------------------------------------
+  // The settings menu: the gear opens it, and while it is open every
+  // pointer on the picture goes to it (in canvas pixels) and the pads are
+  // hidden, so a thumb cannot be on a pad and a slider at once.
+  //--------------------------------------------------------------------
+  var gearBtn = document.getElementById('uigear');
+
+  shell.uiAvailable = function () {
+    return !!(Module.portGl && Module._PortUiToggle && body.classList.contains('rom-ready') &&
+              !body.classList.contains('crashed'));
+  };
+
+  Module.portUiOpenChanged = function (open) {
+    uiOpen = !!open;
+    held = Object.create(null);
+    releaseAllTouch();
+    body.classList.toggle('ui-open', uiOpen);
+    if (gearBtn) gearBtn.setAttribute('aria-pressed', uiOpen ? 'true' : 'false');
+    lastMask = -1;
+    pushMask();
+  };
+
+  // pointerup, not click: the stage cancels touchstart (so a thumb on the
+  // picture never scrolls or zooms), and that suppresses the synthesised
+  // click on a phone.  click stays for the keyboard, de-duplicated.
+  if (gearBtn) {
+    var gearAt = 0;
+    var gearToggle = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var now = performance.now();
+      if (now - gearAt < 400) return;
+      gearAt = now;
+      if (shell.uiAvailable()) Module._PortUiToggle();
+    };
+    [gearBtn, document.getElementById('uigear2')].forEach(function (b) {
+      if (!b) return;
+      b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      b.addEventListener('pointerup', gearToggle);
+      b.addEventListener('click', gearToggle);
+    });
+  }
+
+  function uiCanvas() { return Module.portGlCanvas || null; }
+
+  function uiPointer(kind, e) {
+    var c = uiCanvas();
+    if (!uiOpen || !c || !Module._PortUiPointer) return;
+    var r = c.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var x = (e.clientX - r.left) * c.width / r.width;
+    var y = (e.clientY - r.top) * c.height / r.height;
+    Module._PortUiPointer(kind, x, y, e.pointerType === 'mouse' ? 0 : 1);
+    e.preventDefault();
+  }
+
+  (function () {
+    var c = uiCanvas();
+    if (!c) return;
+    c.addEventListener('pointerdown', function (e) {
+      if (!uiOpen) return;
+      try { c.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      uiPointer(1, e);
+    });
+    c.addEventListener('pointermove', function (e) { uiPointer(0, e); });
+    c.addEventListener('pointerup', function (e) { uiPointer(2, e); });
+    c.addEventListener('pointercancel', function (e) { uiPointer(3, e); });
+    c.addEventListener('wheel', function (e) {
+      if (!uiOpen || !Module._PortUiWheel) return;
+      e.preventDefault();
+      var k = e.deltaMode === 1 ? 1 / 3 : 1 / 100;
+      Module._PortUiWheel(-e.deltaX * k, -e.deltaY * k);
+    }, { passive: false });
+    c.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  })();
+
+  //--------------------------------------------------------------------
   // Pointer handlers
   //
   // Listening on window, not on the overlay: touch input implicitly captures
@@ -2934,7 +3109,7 @@ var Module = (function () {
   function padsLive() {
     // Mirrors the one CSS rule that shows the overlay. A pad that is not on
     // the screen must not answer to a finger that is over where it used to be.
-    return touchOn &&
+    return touchOn && !uiOpen &&
            body.classList.contains('rom-ready') &&
            !body.classList.contains('crashed') &&
            !body.classList.contains('sheet-open');

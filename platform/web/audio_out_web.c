@@ -94,6 +94,14 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
      * mixer be configured for the real device rate before the first user
      * gesture.  Do not assume 48000: iOS picks its own and ignores a request. */
     pa.rate = pa.ctx.sampleRate;
+    /* Output volume (the settings menu): a gain stage after the ring, so the
+     * mixer -- and anything the game could observe -- never sees it. */
+    try {
+        pa.gain = pa.ctx.createGain();
+        pa.gain.gain.value = (typeof Module.portVolume === 'number') ? Module.portVolume : 1;
+        pa.gain.connect(pa.ctx.destination);
+    } catch (e) { pa.gain = null; }
+    pa.out = pa.gain || pa.ctx.destination;
 
     /* The autoplay unlock.  The lesson from every other emscripten port of a
      * console game is that a one-shot unlock is not enough: on iOS the context
@@ -194,7 +202,7 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
                 pa.underruns = e.data.u;
                 pa.pushed = 0;
             };
-            pa.node.connect(pa.ctx.destination);
+            pa.node.connect(pa.out);
             pa.push = function (f32) {
                 pa.node.port.postMessage(f32, [f32.buffer]);
                 pa.pushed += f32.length >> 1;
@@ -230,7 +238,7 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
             pa.depth = have;
             pa.pushed = 0;
         };
-        sp.connect(pa.ctx.destination);
+        sp.connect(pa.out);
         pa.push = function (f32) {
             var n = f32.length >> 1;
             if (n > ringCap - have) n = ringCap - have;
