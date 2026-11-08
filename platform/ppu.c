@@ -506,13 +506,20 @@ static void RenderSprites(int line)
          * screen x 250 -- inside a 320-wide picture -- reads as -262 and jumps
          * to the far side of the screen.  So the fold points move with the
          * view.  This is also the hard ceiling on how far the view can widen:
-         * the fields hold -256..255 and -128..127, and no amount of renderer
-         * can invent a bit the game never wrote. */
+         * the X field is 512 wide, and no amount of renderer can
+         * invent a bit the game never wrote.
+         *
+         * Never below the hardware's own 240/160, though.  The Y field is not
+         * a symmetric -128..127: a sprite at OAM y 128..159 is on screen, and
+         * folding at 128 (as this once did) erased Kirby's feet at the
+         * default view -- every sprite in the bottom 32 lines. */
         {
             s32 foldX = gPortViewX + gPortViewW;
             s32 foldY = gPortViewY + gPortViewH;
+            if (foldX < SCREEN_W) foldX = SCREEN_W;
+            if (foldY < SCREEN_H) foldY = SCREEN_H;
             if (foldX > 256) foldX = 256;
-            if (foldY > 128) foldY = 128;
+            if (foldY > 256) foldY = 256;
             if (x >= foldX) x -= 512;
             if (y >= foldY) y -= 256;
         }
