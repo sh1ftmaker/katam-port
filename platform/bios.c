@@ -86,11 +86,19 @@ u16 ArcTan2(s16 x, s16 y)
  * before the bounds check that ends the transfer -- is harmless there and
  * fatal here.  Found by two networked instances reaching that transfer, the
  * first code path ever to run it in this port. */
-static int CpuRangeOk(const char *who, const void *src, void *dest, u32 bytes)
+/*
+ * A fill (fixed source) reads only one unit from src, so that is all of src
+ * that is checked.  Checking the full byte count against it refused every
+ * large CpuFill from a local on the native builds: the span ran off the top
+ * of the stack, and the VRAM/palette clear was skipped -- or not, depending
+ * on where ASLR had put the stack that run.
+ */
+static int CpuRangeOk(const char *who, const void *src, void *dest, u32 bytes,
+                      u32 srcBytes)
 {
     static u32 sReported;
 
-    if (PortTransferRangeOk((uintptr_t)src, bytes)
+    if (PortTransferRangeOk((uintptr_t)src, srcBytes)
      && PortTransferRangeOk((uintptr_t)dest, bytes))
         return 1;
     if (sReported < 8) {
@@ -110,7 +118,9 @@ void CpuSet(const void *src, void *dest, u32 control)
     PortVBlankConsume(count * ((control & CPU_SET_32BIT) ? 4 : 2));
     PORT_WATCH("CpuSet", dest, count * ((control & CPU_SET_32BIT) ? 4 : 2), src);
     if (!CpuRangeOk("CpuSet", src, dest,
-                    count * ((control & CPU_SET_32BIT) ? 4 : 2)))
+                    count * ((control & CPU_SET_32BIT) ? 4 : 2),
+                    fixed ? ((control & CPU_SET_32BIT) ? 4 : 2)
+                          : count * ((control & CPU_SET_32BIT) ? 4 : 2)))
         return;
 
     /* Like DMA, the BIOS aligns to the transfer width rather than faulting. */
@@ -139,7 +149,8 @@ void CpuFastSet(const void *src, void *dest, u32 control)
 
     PortVBlankConsume(count * 4);
     PORT_WATCH("CpuFastSet", dest, count * 4, src);
-    if (!CpuRangeOk("CpuFastSet", src, dest, count * 4))
+    if (!CpuRangeOk("CpuFastSet", src, dest, count * 4,
+                    fixed ? 4 : count * 4))
         return;
 
     for (i = 0; i < count; i++)

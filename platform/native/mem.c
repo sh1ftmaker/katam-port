@@ -261,6 +261,13 @@ int PortHostRangeOk(uintptr_t addr, u32 len)
     if (page == sMemoPage && ((addr + len - 1) & ~(uintptr_t)0xFFFu) == page)
         return sMemoOk;
 
+    /* Memoise only a verdict about this one page.  A multi-page range that
+     * fails because a *later* page is unmapped says nothing about the first
+     * one, and storing it under the first page refused every later one-page
+     * check there -- a DmaFill from a local after a big CpuFill from the
+     * same stack page, for instance. */
+    if (((addr + len - 1) & ~(uintptr_t)0xFFFu) != page)
+        return PortHostAddrValid(addr, len);
     sMemoOk = PortHostAddrValid(addr, len);
     sMemoPage = page;
     return sMemoOk;
