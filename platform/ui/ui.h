@@ -69,6 +69,7 @@ typedef struct PortUiStatus {
     float simFps, drawFps;
     int viewW, viewH, world, gpu;
     float zoomNow;              /* effective zoom including dynamic         */
+    float hudScaleNow;          /* window pixels per HUD pixel              */
 } PortUiStatus;
 extern PortUiStatus gPortUiStatus;
 
