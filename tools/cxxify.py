@@ -476,6 +476,19 @@ CXX_SITES = {
         ('    struct Object **objs;',
          '    PTR32(struct Object) *objs;'),
     ],
+    'object_spawner.c': [
+        # The spawner's live-object list is game-allocated in EWRAM --
+        # EwramMalloc(n << 3), then CpuFill32 over n << 2 bytes -- so its
+        # elements are the console's four-byte pointers.  Walked as
+        # `struct ObjectBase **` at LP64 the stride doubles and the second half
+        # of the walk reads heap the fill never zeroed.  Present before the
+        # upstream sync too (sub_0811BA30 in all-work); no type check sees it,
+        # because the buffer is a void* member.
+        ('                struct ObjectBase **entities;',
+         '                PTR32(struct ObjectBase) *entities;'),
+        ('    struct ObjectBase **entities = spawner->obj.unk8C;',
+         '    PTR32(struct ObjectBase) *entities = spawner->obj.unk8C;'),
+    ],
     'code_080332BC.c': [
         # gUnk_08D60B44 is `const u8 *gUnk_08D60B44[8]` in ROM: eight four-byte
         # pointers the console laid out end to end, so the cursor over them is a
