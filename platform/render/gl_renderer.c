@@ -1,6 +1,7 @@
 /* The GL backend for the render list.
  *
- * Three passes per frame, all at the view's own resolution (game pixels):
+ * Three passes per frame, at the view's own resolution (game pixels) times a
+ * whole factor k (GlrDrawScaled; 1 for GlrDraw):
  *
  *   1. OBJ: every sprite as an instanced quad into an RGBA8UI target, back to
  *      front with plain overwrite, so the front-most opaque sprite pixel wins
@@ -15,6 +16,15 @@
  *      can be compared pixel for pixel.
  *   3. Present: a nearest-neighbour blit of the composite into the window at
  *      the largest integer scale that fits.
+ *
+ * At k > 1 every target pixel is 1/k of a game pixel, and every position is
+ * carried in 1/256 px: the view's origin (RlFrame.viewSubX/Y), each layer's
+ * shift (subX/Y) and each sprite's (subX/Y).  A pixel finds the texel under
+ * its centre -- every texel still k pixels square, sharp -- so a camera or a
+ * sprite between two whole game pixels is drawn there, which is what makes
+ * scrolling smooth at a large scale.  The GBA rules (priority, windows,
+ * blending) are evaluated per target pixel exactly as at k = 1, and at k = 1
+ * with no fractions the arithmetic is the old integer one, bit for bit.
  *
  * With the HUD as its own layer (GlrSetHudLayer) a world frame takes two more
  * steps: passes 1 and 2 leave the HUD out, and run again for the HUD alone
@@ -109,7 +119,8 @@ static int sPicW, sPicH, sMidW, sMidH;
 static int sSrcPic;
 
 /* Uniform locations. */
-static GLint uObjView, uObjWinPass;
+static GLint uObjView, uObjWinPass, uObjK;
+static GLint uCSub;
 static GLint uCView, uCContent, uCLayer, uCValid, uCMapGeom, uCMapScroll,
              uCNumHud, uCHudRect, uCHudD;
 
@@ -126,17 +137,22 @@ static const char *kCommon =
     "int pal(int i) { return int(texelFetch(uPal, ivec2(i, 0), 0).r); }\n";
 
 static const char *kObjVs =
-    "layout(location = 0) in ivec4 aA;\n"   /* x y boxW boxH, view coords */
+    "layout(location = 0) in ivec4 aA;\n"   /* x y (view, 1/256 px) boxW boxH */
     "layout(location = 1) in ivec4 aB;\n"   /* w h tile flags            */
     "layout(location = 2) in ivec4 aC;\n"   /* pa pb pc pd               */
-    "uniform ivec2 uViewSize;\n"
+    "uniform ivec2 uViewSize;\n"            /* the target, pixels         */
+    "uniform int uK;\n"                     /* target pixels per game px  */
     "flat out ivec4 vA;\n"
     "flat out ivec4 vB;\n"
     "flat out ivec4 vC;\n"
     "void main() {\n"
     "  int c = gl_VertexID;\n"
-    "  ivec2 corner = ivec2(c & 1, c >> 1);\n"
-    "  vec2 p = vec2(aA.xy + corner * aA.zw);\n"
+    "  vec2 corner = vec2(float(c & 1), float(c >> 1));\n"
+    /* The box in target pixels, a pixel larger all round: the fragment
+     * shader decides which pixels it really covers. */
+    "  vec2 lo = vec2(aA.xy) / 256.0 * float(uK) - 1.0;\n"
+    "  vec2 hi = (vec2(aA.xy) / 256.0 + vec2(aA.zw)) * float(uK) + 1.0;\n"
+    "  vec2 p = mix(floor(lo), ceil(hi), corner);\n"
     "  gl_Position = vec4(p / vec2(uViewSize) * 2.0 - 1.0, 0.0, 1.0);\n"
     "  vA = aA; vB = aB; vC = aC;\n"
     "}\n";
@@ -148,9 +164,14 @@ static const char *kObjFs =
     "flat in ivec4 vB;\n"
     "flat in ivec4 vC;\n"
     "uniform int uWinPass;\n"
+    "uniform int uK;\n"
     "out uvec4 oObj;\n"
     "void main() {\n"
-    "  ivec2 q = ivec2(gl_FragCoord.xy) - vA.xy;\n"
+    /* This pixel's centre in view coordinates, 1/256 px, and the sprite
+     * texel under it. */
+    "  ivec2 c = ((ivec2(gl_FragCoord.xy) * 2 + 1) * 128) / uK;\n"
+    "  ivec2 q = (c - vA.xy) >> 8;\n"
+    "  if (q.x < 0 || q.y < 0 || q.x >= vA.z || q.y >= vA.w) discard;\n"
     "  int px = q.x, row = q.y;\n"
     "  int w = vB.x, h = vB.y, tile = vB.z, fl = vB.w;\n"
     "  bool is256 = (fl & 16) != 0;\n"
@@ -199,8 +220,9 @@ static const char *kCompFs =
     "uniform usampler2D uObjWin;\n"
     "uniform usampler2D uMap;\n"
     "uniform ivec4 uView;\n"          /* viewX viewY viewW viewH (screen) */
+    "uniform ivec4 uSub;\n"           /* viewSubX viewSubY k -            */
     "uniform ivec4 uContent;\n"       /* l t r b (screen)                */
-    "uniform ivec4 uLayer[4];\n"      /* space, flags, shiftX, shiftY    */
+    "uniform ivec4 uLayer[4];\n"      /* space, flags, shiftX, shiftY (1/256 px) */
     "uniform ivec4 uValid[4];\n"      /* l r t b                         */
     "uniform ivec4 uMapGeom[4];\n"    /* w h base -                      */
     "uniform ivec4 uMapScroll[4];\n"  /* scrollX scrollY offX offY       */
@@ -238,7 +260,7 @@ static const char *kCompFs =
     "  int sx = (x + hofs) & (wT * 8 - 1);\n"
     "  int entry;\n"
     "  bool outside = false;\n"
-    "  int st = uLayer[bg].y;\n"      /* 1 map, 2 window only, 4 wrapX, 8 clampY, 16 mirrorX, 32 picture */
+    "  int st = uLayer[bg].y;\n"      /* 1 map, 2 window only, 4 wrapX, 8 mirrorY, 16 mirrorX, 32 picture */
     "  if ((st & 32) != 0) {\n"      /* a picture smaller than its block: mirror at its edges */
     "    int W = uMapGeom[bg].x, H = uMapGeom[bg].y;\n"
     "    if (W > 0) { sx = imod(x + hofs, 2 * W); if (sx >= W) sx = 2 * W - 1 - sx; }\n"
@@ -255,7 +277,7 @@ static const char *kCompFs =
     "    int ly = uMapScroll[bg].w * 8 + uMapScroll[bg].y + y;\n"
     "    if ((st & 16) != 0) { lx = imod(lx, 2 * W); if (lx >= W) lx = 2 * W - 1 - lx; }\n"
     "    else if ((st & 4) != 0) lx = imod(lx, W);\n"
-    "    if ((st & 8) != 0) ly = clamp(ly, 0, H - 1);\n"
+    "    if ((st & 8) != 0) { ly = imod(ly, 2 * H); if (ly >= H) ly = 2 * H - 1 - ly; }\n"
     "    if (lx < 0 || ly < 0 || lx >= W || ly >= H) return -1;\n"
     "    entry = mapEntry(bg, (ly >> 3) * uMapGeom[bg].x + (lx >> 3));\n"
     "    px = lx & 7; py = ly & 7;\n"
@@ -315,9 +337,9 @@ static const char *kCompFs =
     "    if (right > 240 || right < left) right = 240;\n"
     "    if (bottom > 160 || bottom < top) bottom = 160;\n"
     "    if (left <= 0) left = uView.x;\n"
-    "    if (right >= 240) right = uView.x + uView.z;\n"
+    "    if (right >= 240) right = uView.x + uView.z + (uSub.x != 0 ? 1 : 0);\n"
     "    if (top <= 0) top = uView.y;\n"
-    "    if (bottom >= 160) bottom = uView.y + uView.w;\n"
+    "    if (bottom >= 160) bottom = uView.y + uView.w + (uSub.y != 0 ? 1 : 0);\n"
     "    if (sx >= left && sx < right && sy >= top && sy < bottom)\n"
     "      return (winin >> (w * 8)) & 0x3F;\n"
     "  }\n"
@@ -342,9 +364,15 @@ static const char *kCompFs =
     "  return vec4(float(r), float(g), float(b), 255.0) / 255.0;\n"
     "}\n"
     "void main() {\n"
-    "  ivec2 v = ivec2(gl_FragCoord.xy);\n"
+    /* h: the target pixel.  v: the view pixel it lies in (the HUD's grid).
+     * b: its centre in SCREEN coordinates, 1/256 px -- the world's grid.
+     * The HUD pass draws at k = 1 with no fraction (GlrDrawScaled). */
+    "  ivec2 h = ivec2(gl_FragCoord.xy);\n"
     "  bool hudPass = uHudPass == 2;\n"
-    "  int sx = v.x + uView.x, sy = v.y + uView.y;\n"
+    "  ivec2 c = ((h * 2 + 1) * 128) / uSub.z;\n"
+    "  ivec2 v = c >> 8;\n"
+    "  ivec2 b = uView.xy * 256 + uSub.xy + c;\n"
+    "  int sx = b.x >> 8, sy = b.y >> 8;\n"
     "  if (hudPass) { sx = v.x - uHudOrg.x; sy = v.y - uHudOrg.y; }\n"
     "  bool letterbox = !hudPass && (sx < uContent.x || sy < uContent.y || sx >= uContent.z || sy >= uContent.w);\n"
     "  int rl = clamp(sy, 0, 159);\n"
@@ -358,7 +386,7 @@ static const char *kCompFs =
     "    if ((dispcnt & (0x100 << bg)) == 0) continue;\n"
     "    if (uLayer[bg].x < 0 || (letterbox && uLayer[bg].x != 2)) continue;\n"
     "    if (hudPass != (uLayer[bg].x == 2) && uHudPass != 0) continue;\n"
-    "    int x = sx + uLayer[bg].z, y = sy + uLayer[bg].w;\n"
+    "    int x = (b.x + uLayer[bg].z) >> 8, y = (b.y + uLayer[bg].w) >> 8;\n"
     "    if (hudPass) {\n"
     "      ivec4 R = uHudRect[uHudSel];\n"
     "      if (sx < R.x || sy < R.y || sx >= R.z || sy >= R.w) continue;\n"
@@ -378,12 +406,12 @@ static const char *kCompFs =
     "    else if ((mode == 1 && bg == 2) || (mode == 2 && bg >= 2)) lc[bg] = sampleAffine(bg, x, y, rl);\n"
     "  }\n"
     "  bool objOn = (dispcnt & 0x1000) != 0;\n"
-    "  uvec4 o = texelFetch(uObj, v, 0);\n"
+    "  uvec4 o = texelFetch(uObj, h, 0);\n"
     "  bool objOpq = objOn && (o.b & 8u) != 0u && (!letterbox || (o.b & 16u) != 0u);\n"
     "  int objPri = objOpq ? int(o.b & 3u) : 3;\n"
     "  bool semi = (o.b & 4u) != 0u;\n"
     "  int objCol = int(o.r) | (int(o.g) << 8);\n"
-    "  bool objwin = !hudPass && objOn && texelFetch(uObjWin, v, 0).r != 0u;\n"
+    "  bool objwin = !hudPass && objOn && texelFetch(uObjWin, h, 0).r != 0u;\n"
     "  int ctrl = windowControl(sx, sy, rl, dispcnt, objwin);\n"
     "  bool allowBlend = (ctrl & 0x20) != 0;\n"
     "  int bd = letterbox ? 0 : pal(0);\n"
@@ -566,8 +594,10 @@ int GlrInit(void *(*getProc)(const char *), int es)
     SetSamplers(sProgObj);
     uObjView = G(glGetUniformLocation)(sProgObj, "uViewSize");
     uObjWinPass = G(glGetUniformLocation)(sProgObj, "uWinPass");
+    uObjK = G(glGetUniformLocation)(sProgObj, "uK");
     SetSamplers(sProgComp);
     uCView = G(glGetUniformLocation)(sProgComp, "uView");
+    uCSub = G(glGetUniformLocation)(sProgComp, "uSub");
     uCContent = G(glGetUniformLocation)(sProgComp, "uContent");
     uCLayer = G(glGetUniformLocation)(sProgComp, "uLayer");
     uCValid = G(glGetUniformLocation)(sProgComp, "uValid");
@@ -756,23 +786,23 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count, int which,
         s32 w = kObjW[shape][size], h = kObjH[shape][size];
         int affine = (s->attr0 & 0x100) != 0;
         int dbl = affine && (s->attr0 & 0x200);
-        s32 bw = w << dbl, bh = h << dbl, x, y;
+        s32 bw = w << dbl, bh = h << dbl, x, y;   /* x, y: 1/256 px */
         s32 *o = sInst + n * 12;
         int flags;
 
         if ((which == SPR_HUD) != (s->space == RL_SPACE_HUD) && which != SPR_ALL)
             continue;
         if (which == SPR_HUD) {
-            x = s->x + HudOrgX(s->anchor);
-            y = s->y + HudOrgY(s->anchor);
+            x = (s->x + HudOrgX(s->anchor)) * 256;
+            y = (s->y + HudOrgY(s->anchor)) * 256;
         } else if (s->space == RL_SPACE_HUD) {
-            x = s->x + f->hud[s->anchor].dx;
-            y = s->y + f->hud[s->anchor].dy;
+            x = (s->x + f->hud[s->anchor].dx) * 256;
+            y = (s->y + f->hud[s->anchor].dy) * 256;
         } else {
-            x = s->x - f->viewX;
-            y = s->y - f->viewY;
+            x = (s->x - f->viewX) * 256 + s->subX - f->viewSubX;
+            y = (s->y - f->viewY) * 256 + s->subY - f->viewSubY;
         }
-        if (x >= tw || y >= th || x + bw <= 0 || y + bh <= 0)
+        if (x >= tw * 256 || y >= th * 256 || x + bw * 256 <= 0 || y + bh * 256 <= 0)
             continue;
         flags = (s->attr2 >> 12) & 15;
         if (s->attr0 & 0x2000) flags |= 16;
@@ -792,19 +822,20 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count, int which,
 }
 
 static void DrawSprites(const RlFrame *f, GLuint fbo, u32 from, u32 count, int winPass,
-                        int which, int tw, int th)
+                        int which, int tw, int th, int k)
 {
     static const GLuint kZero[4] = { 0, 0, 0, 0 };
     int n;
 
     G(glBindFramebuffer)(GL_FRAMEBUFFER, fbo);
-    G(glViewport)(0, 0, tw, th);
+    G(glViewport)(0, 0, tw * k, th * k);
     G(glClearBufferuiv)(GL_COLOR, 0, kZero);
     n = BuildInstances(f, from, count, which, tw, th);
     if (n == 0)
         return;
     G(glUseProgram)(sProgObj);
-    G(glUniform2i)(uObjView, tw, th);
+    G(glUniform2i)(uObjView, tw * k, th * k);
+    G(glUniform1i)(uObjK, k);
     G(glUniform1i)(uObjWinPass, winPass);
     G(glBindVertexArray)(sVaoObj);
     G(glBindBuffer)(GL_ARRAY_BUFFER, sInstBuf);
@@ -845,13 +876,21 @@ int GlrHudActive(void)
 
 void GlrDraw(const RlFrame *f)
 {
+    GlrDrawScaled(f, 1);
+}
+
+void GlrDrawScaled(const RlFrame *f, int k)
+{
     GLint layer[16], valid[16], geom[16], scroll[16], hudRect[32], hudD[16];
     int bg, r, hudSep = sHudWant && f->world && f->numHud > 0;
     int which = hudSep ? SPR_WORLD : SPR_ALL;
 
     if (!sReady)
         return;
-    EnsureTargets(f->viewW, f->viewH);
+    if (k < 1) k = 1;
+    while (k > 1 && (f->viewW * k > sMaxTex || f->viewH * k > sMaxTex))
+        k--;
+    EnsureTargets(f->viewW * k, f->viewH * k);
     G(glDisable)(GL_BLEND);
     G(glDisable)(GL_DEPTH_TEST);
     G(glDisable)(GL_SCISSOR_TEST);
@@ -881,11 +920,11 @@ void GlrDraw(const RlFrame *f)
     G(glBindTexture)(GL_TEXTURE_2D, 0);
 
     /* Pass 1: sprites. */
-    DrawSprites(f, sFboObj, 0, f->numSprites, 0, which, f->viewW, f->viewH);
-    DrawSprites(f, sFboObjWin, f->numSprites, f->numObjWin, 1, which, f->viewW, f->viewH);
+    DrawSprites(f, sFboObj, 0, f->numSprites, 0, which, f->viewW, f->viewH, k);
+    DrawSprites(f, sFboObjWin, f->numSprites, f->numObjWin, 1, which, f->viewW, f->viewH, k);
     if (hudSep) {
         EnsureHudTargets();
-        DrawSprites(f, sFboObjHud, 0, f->numSprites, 0, SPR_HUD, HUD_ATLAS_W, HUD_ATLAS_H);
+        DrawSprites(f, sFboObjHud, 0, f->numSprites, 0, SPR_HUD, HUD_ATLAS_W, HUD_ATLAS_H, 1);
     }
 
     /* Pass 2: composite. */
@@ -896,13 +935,13 @@ void GlrDraw(const RlFrame *f)
         if (L->streamed)
             streamed = ((L->map && sMapLen[bg]) ? 1 : 2)
                      | (L->wrapX == 1 ? 4 : 0) | (L->wrapX == 2 ? 16 : 0)
-                     | (L->clampY ? 8 : 0);
+                     | (L->mirrorY ? 8 : 0);
         else if (L->picW > 0 || L->picH > 0)
             streamed = 32;
         layer[bg * 4 + 0] = L->enabled ? L->space : -1;
         layer[bg * 4 + 1] = streamed;
-        layer[bg * 4 + 2] = L->shiftX;
-        layer[bg * 4 + 3] = L->shiftY;
+        layer[bg * 4 + 2] = L->shiftX * 256 + L->subX;
+        layer[bg * 4 + 3] = L->shiftY * 256 + L->subY;
         valid[bg * 4 + 0] = L->validL;
         valid[bg * 4 + 1] = L->validR;
         valid[bg * 4 + 2] = L->validT;
@@ -927,7 +966,7 @@ void GlrDraw(const RlFrame *f)
         hudD[r * 2 + 1] = f->hud[r].dy;
     }
     G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboComp);
-    G(glViewport)(0, 0, f->viewW, f->viewH);
+    G(glViewport)(0, 0, f->viewW * k, f->viewH * k);
     G(glUseProgram)(sProgComp);
     G(glActiveTexture)(GL_TEXTURE0 + 3);
     G(glBindTexture)(GL_TEXTURE_2D, sTexObj);
@@ -936,6 +975,7 @@ void GlrDraw(const RlFrame *f)
     G(glActiveTexture)(GL_TEXTURE0 + 5);
     G(glBindTexture)(GL_TEXTURE_2D, sTexMap);
     G(glUniform4i)(uCView, f->viewX, f->viewY, f->viewW, f->viewH);
+    G(glUniform4i)(uCSub, f->viewSubX, f->viewSubY, k, 0);
     G(glUniform4i)(uCContent, f->contentL, f->contentT, f->contentR, f->contentB);
     G(glUniform4iv)(uCLayer, 4, layer);
     G(glUniform4iv)(uCValid, 4, valid);
@@ -958,6 +998,7 @@ void GlrDraw(const RlFrame *f)
         G(glActiveTexture)(GL_TEXTURE0 + 3);
         G(glBindTexture)(GL_TEXTURE_2D, sTexObjHud);
         G(glUniform4i)(uCView, 0, 0, HUD_W, HUD_H);
+        G(glUniform4i)(uCSub, 0, 0, 1, 0);
         G(glUniform1i)(uHPass, 2);
         for (r = 0; r < f->numHud && r < RL_MAX_HUD_REGIONS; r++) {
             const RlHudRegion *h = &f->hud[r];
@@ -974,8 +1015,8 @@ void GlrDraw(const RlFrame *f)
     sHudActive = hudSep;
     G(glBindVertexArray)(0);
     G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
-    sLastW = f->viewW;
-    sLastH = f->viewH;
+    sLastW = f->viewW * k;
+    sLastH = f->viewH * k;
     sSrcPic = 0;
 }
 

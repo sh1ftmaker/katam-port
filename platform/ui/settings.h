@@ -46,6 +46,8 @@ typedef struct PortSettings {
     int volume;         /* 0..100                                           */
     int mute;
     float uiScale;      /* menu size multiplier, 1.0 = automatic            */
+    int smoothCam;      /* GPU: the camera at the game's sub-pixel position */
+    int interp;         /* GPU: lerp between sim frames at display rate     */
 } PortSettings;
 
 extern PortSettings gPortSettings;

@@ -1,0 +1,9 @@
+{
+  "format": "katam-project/1",
+  "id": "examples.sky_garden",
+  "name": "Sky Garden (example)",
+  "description": "Two hand-written rooms on top of the vanilla game, to show the authoring format. Original content, CC0.",
+  "base": "vanilla",
+  "authors": ["katam-port"],
+  "license": "CC0-1.0"
+}

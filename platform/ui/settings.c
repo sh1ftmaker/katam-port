@@ -34,6 +34,8 @@ void PortSettingsDefaults(PortSettings *s)
     s->volume = 100;
     s->mute = 0;
     s->uiScale = 1.0f;
+    s->smoothCam = 1;
+    s->interp = 1;
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -58,6 +60,8 @@ void PortSettingsClamp(PortSettings *s)
     s->volume = ClampI(s->volume, 0, 100);
     s->mute = !!s->mute;
     s->uiScale = ClampF(s->uiScale, 0.6f, 2.0f);
+    s->smoothCam = !!s->smoothCam;
+    s->interp = !!s->interp;
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
@@ -94,6 +98,8 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("volume", volume)
                 INT_KEY("mute", mute)
                 FLT_KEY("uiscale", uiScale)
+                INT_KEY("smoothcam", smoothCam)
+                INT_KEY("interp", interp)
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -112,6 +118,9 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->renderer, (double)s->zoom, s->dynZoom, s->aspect, s->scaling,
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
+    if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam=%d\ninterp=%d\n",
+                      s->smoothCam, s->interp);
     return n < size ? n : size - 1;
 }
 

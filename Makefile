@@ -139,7 +139,7 @@ LDLINT := -Wl,--fatal-warnings $(RENDER_LDFLAGS)
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_PortWebDrawRateJs,_PortWebSimRateJs,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -179,7 +179,7 @@ TARGET := $(OUT)/katam.html
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
-        res-extract res-roundtrip regress-pack manifest-check \
+        res-extract res-roundtrip regress-pack manifest-check authoring-check authoring-roundtrip \
         lint-determinism
 
 all: $(TARGET)
@@ -614,6 +614,20 @@ regress-pack: res-extract
 
 manifest-check:
 	@python3 tools/gen_asset_manifest.py --check
+
+# --- the authoring layer (docs/design/AUTHORING.md) ----------------------------
+# authoring-check needs no ROM: the library self-test, the committed schemas
+# and vocab are current, the example mod validates.  authoring-roundtrip is
+# the gate against YOUR ROM: decompile -> compile is byte-identical, the
+# compiled pack passes --res-check, and the regression recordings hold with
+# the game served from it (writes only under build/authoring).
+authoring-check:
+	@node tools/katam/test/selftest.mjs
+	@node tools/katam/katam.mjs vocab --check
+	@node tools/katam/katam.mjs validate examples/authoring/sky_garden
+
+authoring-roundtrip:
+	@ROM=$(ROM) bash tests/authoring_roundtrip.sh --bin "$(RES_BIN)" --dir $(BUILD)/authoring
 
 native-clean:
 	rm -rf $(NATIVE_DIR)

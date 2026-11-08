@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "katam:schema/palette",
+  "title": "katam foreground palette (katam-palette/1)",
+  "description": "The playfield's six 16-colour banks (BG palette banks 0-5). Colour 0 of each bank is transparent.",
+  "type": "object",
+  "required": ["format", "id", "banks"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "katam-palette/1"},
+    "id": {"$ref": "katam:schema/common#/$defs/paletteRef"},
+    "bind": {"type": "object", "properties": {"index": {"type": "integer"}}, "additionalProperties": false},
+    "banks": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "array",
+        "minItems": 16,
+        "maxItems": 16,
+        "items": {
+          "type": "string",
+          "pattern": "^#[0-9A-F]{6}$",
+          "description": "#RRGGBB; stored as BGR555 (5 bits per channel), so use multiples of 8 (+ low bits copied from the top: #RRGGBB = c5<<3|c5>>2 round-trips exactly)."
+        }
+      }
+    },
+    "bit15": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 95}},
+    "roomTag": {"type": "integer"},
+    "animations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {"type": "integer"},
+        "vanillaRef": {
+          "type": "string",
+          "description": "Palette-cycling animations are not decoded into the authoring format yet; this keeps the original's."
+        }
+      }
+    }
+  }
+}

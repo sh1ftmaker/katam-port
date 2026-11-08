@@ -1012,11 +1012,23 @@ void PortHostSetVolume(float gain)
     gPortNativeAudioGain = gain;
 }
 
+/* Interpolation needs PaceFrame's display-rate presents (vsync), and is kept
+ * out of turbo and scripted runs, whose pictures must depend on the frame
+ * alone.  KATAM_INTERP=1 forces it (measuring it on a replay). */
+static void UpdateDisplayRate(void)
+{
+    const char *e = getenv("KATAM_INTERP");
+
+    gPortShowDisplayRate = (e != NULL && atoi(e) > 0)
+        || (sUiMode && sVsync && !sTurbo && !sScripted);
+}
+
 void PortHostSetVsync(int on)
 {
     sVsync = on;
     if (sGl != NULL)
         SDL_GL_SetSwapInterval(on ? 1 : 0);
+    UpdateDisplayRate();
 }
 
 void PortHostUiOpenChanged(int open)
@@ -1108,6 +1120,9 @@ static void WriteWindowShotsAt(int w, int h)
 static void UiBlit(const u32 *pixels, int w, int h)
 {
     UpdateDrawable();
+    /* PaceFrame waited for sNextFrame before this frame ran. */
+    if (sNextFrame != 0 && !sTurbo)
+        PortShowFrameDue((double)sNextFrame * 1000.0 / (double)sPerfFreq);
     PortShowNewFrame(sDrawW, sDrawH, sDpr, NowMs(), pixels, w, h);
     if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit)
         WriteWindowShot(sReadbackPath, sDrawW, sDrawH);
@@ -1115,6 +1130,7 @@ static void UiBlit(const u32 *pixels, int w, int h)
     if (!sVsync || sTurbo) {
         SDL_GL_SwapWindow(sWindow);
         sPresents++;
+        PortShowNoteSwap(NowMs());
     }
 }
 
@@ -1656,6 +1672,30 @@ static void HandleEvents(void)
  * too.  More than four frames behind and the schedule is simply restarted:
  * that is a machine that was suspended, or a debugger, and running 200 frames
  * of catch-up at once helps nobody. */
+/* KATAM_FAKE_HZ=N: a swap that waits for an N Hz vblank, for measuring the
+ * display-rate path where the swap does not block (SDL's offscreen driver). */
+static void FakeVblank(void)
+{
+    static int hz = -1;
+    static Uint64 tick;
+    Uint64 per, now;
+
+    if (hz < 0) {
+        const char *e = getenv("KATAM_FAKE_HZ");
+        hz = e ? atoi(e) : 0;
+    }
+    if (hz <= 0)
+        return;
+    per = sPerfFreq / (Uint64)hz;
+    now = SDL_GetPerformanceCounter();
+    if (tick == 0 || now > tick + 4 * per)
+        tick = now;
+    while (tick <= now)
+        tick += per;
+    while (SDL_GetPerformanceCounter() < tick)
+        SDL_Delay(0);
+}
+
 static void PaceFrame(void)
 {
     Uint64 period, now;
@@ -1675,11 +1715,11 @@ static void PaceFrame(void)
     }
 
     /* The GPU renderer with --vsync: present at the display's rate until
-     * the next simulation frame is due, re-showing the latest frame.  This is
-     * where interpolation goes (docs/RENDERER.md): the render list of the
-     * previous and the current frame, blended by how far `now` is between
-     * them.  Each swap blocks for one refresh, so stop when less than half a
-     * refresh is left and let the sleep below land on the boundary. */
+     * the next simulation frame is due.  In the menu-driven (UI) mode each
+     * of these draws the world interpolated between the last two frames
+     * (platform/ui/present.c, docs/RENDERER.md "Smooth motion").  Each swap
+     * blocks for one refresh, so stop when less than half a refresh is left
+     * and let the sleep below land on the boundary. */
     if ((sRendererMode != RENDERER_PPU || sUiMode) && sVsync) {
         for (;;) {
             Uint64 t0 = SDL_GetPerformanceCounter(), t1;
@@ -1694,6 +1734,9 @@ static void PaceFrame(void)
             }
             SDL_GL_SwapWindow(sWindow);
             sPresents++;
+            FakeVblank();
+            if (sUiMode)
+                PortShowNoteSwap(NowMs());
             t1 = SDL_GetPerformanceCounter();
             sPresentInterval = sPresentInterval
                 ? (sPresentInterval * 7 + (t1 - t0)) / 8 : (t1 - t0);
@@ -1916,6 +1959,7 @@ void PortHostInit(int argc, char **argv)
             PortSetStateDumpAt((u32)sDumps[d].frame);
     }
 
+    UpdateDisplayRate();
     if (sTurbo)
         PortLog("[katam-port] frame pacing off -- running as fast as this "
                 "machine allows");

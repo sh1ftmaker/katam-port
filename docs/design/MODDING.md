@@ -143,6 +143,30 @@ DIR/objects/types.json           {"obj_desc": [ one line per type: id, name, fie
   builds; the code is compiled in), F1 cross-platform `pack.lock`
   comparison, `--res-identity`, PNG output, every other kind.
 
+### Authoring layer (branch `authoring`): the editable, AI-facing formats
+
+`docs/design/AUTHORING.md`.  A second layer above the pack: one JSON file per
+room / tileset / background / palette / object type, string ids
+(`room:rainbow_route/126`), semantic names from the semantics registry
+(`assets/schema/semantics`, with `raw.<cField>` always accepted), grids as
+row strings with a legend, tile sheets as 4-bit indexed PNGs, and a JSON
+Schema per kind (`assets/schema/authoring`).  `tools/katam/katam.mjs`
+(node, browser-safe library) decompiles ROM + pack into it, validates,
+renders and compiles it back into this document's pack (the three M1 kinds,
+loadable today) plus GBA-native blobs for the room bundle, tilesets and
+backgrounds (`katam-native/0`, for the R2 room-bundle loader that does not
+exist yet).
+  - *Differs from §2.2:* the editable formats are the authoring layer's,
+    not the pack's: the pack stays GBA-shaped (field names = C members),
+    and §2.2's per-room CSV files are replaced by one room file with row
+    strings.  §5's editor reads and writes authoring files through the same
+    JS library.
+  - Gate (`make authoring-roundtrip`): every vanilla room (286), tileset
+    (34), background (36), palette (42) and object type (219) round-trips
+    byte-identically, compressed streams included (928/928); the compiled
+    pack equals `--res-extract` output and passes `--res-check`; the
+    regression recordings hold with the game served from it.
+
 ---
 
 ## 0. Decisions in one table
@@ -928,6 +952,10 @@ V2 §11).
 ## 5. Level editor
 
 ### 5.1 What it edits
+
+*Implementation note:* the editor's file formats, validation, rendering and compilation now
+exist as `tools/katam/lib` (docs/design/AUTHORING.md); the editor UI is a front end over them.
+
 
 | Entity | Backing data (pack) | Compiles to |
 |---|---|---|
