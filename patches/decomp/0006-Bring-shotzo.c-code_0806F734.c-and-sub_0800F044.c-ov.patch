@@ -1,0 +1,6729 @@
+From 3f92d3ab211bc1ac00909c20fee20def0cccdbd6 Mon Sep 17 00:00:00 2001
+From: sh1ftmaker <shiftmaker@gmail.com>
+Date: Sat, 7 Nov 2026 21:43:11 -0800
+Subject: [PATCH 6/6] Bring shotzo.c, code_0806F734.c and sub_0800F044.c over
+ from all-work
+
+Upstream still has these three as assembly (asm/shotzo.s,
+asm/code_0806F734.s, asm/sub_0800F044.s); the all-work branch had them
+in C, with NAKED wrappers + NONMATCHING bodies for six functions
+(sub_0811A934, sub_0811AA80, sub_0811AB74, sub_08098E54, sub_0809924C,
+sub_0800F044) and their asm/nonmatching/*.inc.  Ported to current
+upstream names: symbols by address against the current katam.elf,
+struct Object/Object2/Object4 -> ObjectTemplate/Object/EffectObject,
+Kirby's base.base.base -> base, ->object -> ->objTemplate,
+ObjectBase/EffectObject unk0 -> header.kind.  make compare: OK.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ asm/code_0806F734.s                           | 1732 ---------------
+ .../sub_0800F044.inc}                         |    5 +-
+ asm/nonmatching/sub_08098E54.inc              |  144 ++
+ asm/nonmatching/sub_0809924C.inc              |  441 ++++
+ asm/nonmatching/sub_0811A934.inc              |   90 +
+ asm/nonmatching/sub_0811AA80.inc              |  138 ++
+ asm/nonmatching/sub_0811AB74.inc              |  480 +++++
+ asm/shotzo.s                                  | 1904 -----------------
+ include/shotzo.h                              |   10 +
+ linker.ld                                     |    6 +-
+ src/code_0806F734.c                           |  370 ++++
+ src/shotzo.c                                  |  741 +++++++
+ src/sub_0800F044.c                            |  509 +++++
+ 13 files changed, 2928 insertions(+), 3642 deletions(-)
+ delete mode 100644 asm/code_0806F734.s
+ rename asm/{sub_0800F044.s => nonmatching/sub_0800F044.inc} (99%)
+ create mode 100644 asm/nonmatching/sub_08098E54.inc
+ create mode 100644 asm/nonmatching/sub_0809924C.inc
+ create mode 100644 asm/nonmatching/sub_0811A934.inc
+ create mode 100644 asm/nonmatching/sub_0811AA80.inc
+ create mode 100644 asm/nonmatching/sub_0811AB74.inc
+ delete mode 100644 asm/shotzo.s
+ create mode 100644 include/shotzo.h
+ create mode 100644 src/code_0806F734.c
+ create mode 100644 src/shotzo.c
+ create mode 100644 src/sub_0800F044.c
+
+diff --git a/asm/code_0806F734.s b/asm/code_0806F734.s
+deleted file mode 100644
+index b616149..0000000
+--- a/asm/code_0806F734.s
++++ /dev/null
+@@ -1,1732 +0,0 @@
+-	.include "asm/macros.inc"
+-	.include "constants/constants.inc"
+-
+-	.syntax unified
+-
+-	.text
+-
+-	thumb_func_start sub_08098E54
+-sub_08098E54: @ 0x08098E54
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sb
+-	mov r6, r8
+-	push {r6, r7}
+-	sub sp, #8
+-	adds r5, r0, #0
+-	ldr r0, [sp, #0x24]
+-	lsls r1, r1, #0x18
+-	lsrs r6, r1, #0x18
+-	lsls r2, r2, #0x18
+-	lsrs r2, r2, #0x18
+-	mov sb, r2
+-	lsls r3, r3, #0x10
+-	lsrs r7, r3, #0x10
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	mov r8, r0
+-	ldr r0, _08098EA0 @ =sub_08098F6C
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	ldr r1, _08098EA4 @ =ObjectBaseDestroy
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0x10
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08098EA8
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _08098EB0
+-	.align 2, 0
+-_08098EA0: .4byte sub_08098F6C
+-_08098EA4: .4byte ObjectBaseDestroy
+-_08098EA8:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_08098EB0:
+-	adds r4, r0, #0
+-	bl ClearEffectObject
+-	movs r0, #3
+-	strb r0, [r4]
+-	ldr r0, [r5, #0x40]
+-	str r0, [r4, #0x34]
+-	ldr r0, [r5, #0x44]
+-	str r0, [r4, #0x38]
+-	str r5, [r4, #0x44]
+-	adds r0, r5, #0
+-	adds r0, #0x60
+-	ldrh r0, [r0]
+-	adds r1, r4, #0
+-	adds r1, #0x42
+-	strh r0, [r1]
+-	ldrh r1, [r4, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #7
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r4, #6]
+-	strh r7, [r4, #0x3c]
+-	mov r0, r8
+-	strh r0, [r4, #0x3e]
+-	mov r2, sb
+-	lsls r1, r2, #0x18
+-	asrs r1, r1, #0x10
+-	ldr r0, [r4, #0x38]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x38]
+-	ldr r0, [r5, #8]
+-	movs r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08098F02
+-	lsls r1, r6, #0x18
+-	asrs r1, r1, #0x10
+-	ldr r0, [r4, #0x34]
+-	subs r0, r0, r1
+-	b _08098F0A
+-_08098F02:
+-	lsls r1, r6, #0x18
+-	asrs r1, r1, #0x10
+-	ldr r0, [r4, #0x34]
+-	adds r0, r0, r1
+-_08098F0A:
+-	str r0, [r4, #0x34]
+-	ldr r0, _08098F60 @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	adds r1, r5, #0
+-	adds r1, #0x56
+-	movs r5, #1
+-	adds r0, r5, #0
+-	ldrb r1, [r1]
+-	lsls r0, r1
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _08098F32
+-	ldrh r1, [r4, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #6
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r4, #6]
+-_08098F32:
+-	ldrh r1, [r4, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #7
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r4, #6]
+-	adds r1, r4, #0
+-	adds r1, #0xc
+-	ldr r2, _08098F64 @ =0x06012000
+-	ldr r3, _08098F68 @ =0x00000297
+-	str r5, [sp]
+-	movs r0, #0xc
+-	str r0, [sp, #4]
+-	adds r0, r4, #0
+-	bl EffectObjectInitSprite
+-	add sp, #8
+-	pop {r3, r4}
+-	mov r8, r3
+-	mov sb, r4
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_08098F60: .4byte gUnk_03000510
+-_08098F64: .4byte 0x06012000
+-_08098F68: .4byte 0x00000297
+-
+-	thumb_func_start sub_08098F6C
+-sub_08098F6C: @ 0x08098F6C
+-	push {r4, r5, r6, r7, lr}
+-	ldr r2, _08098F8C @ =gCurTask
+-	ldr r3, [r2]
+-	ldrh r1, [r3, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	adds r5, r2, #0
+-	cmp r0, #0
+-	beq _08098F90
+-	ldrh r0, [r3, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _08098F98
+-	.align 2, 0
+-_08098F8C: .4byte gCurTask
+-_08098F90:
+-	ldrh r1, [r3, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_08098F98:
+-	adds r3, r0, #0
+-	ldrh r1, [r3, #6]
+-	movs r4, #0x80
+-	lsls r4, r4, #5
+-	adds r0, r4, #0
+-	ands r0, r1
+-	lsls r0, r0, #0x10
+-	lsrs r2, r0, #0x10
+-	cmp r2, #0
+-	beq _08098FB4
+-	ldr r0, [r5]
+-	bl TaskDestroy
+-	b _08099112
+-_08098FB4:
+-	ldr r1, [r3, #0x44]
+-	cmp r1, #0
+-	beq _08099000
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _08098FCC
+-	ldr r0, [r1, #8]
+-	ands r0, r4
+-	cmp r0, #0
+-	beq _08098FCC
+-	str r2, [r3, #0x44]
+-	movs r1, #0
+-_08098FCC:
+-	cmp r1, #0
+-	beq _08099000
+-	ldr r0, _08098FFC @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	adds r1, #0x56
+-	movs r0, #1
+-	ldrb r1, [r1]
+-	lsls r0, r1
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _08099070
+-	ldrh r1, [r3, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099070
+-	adds r0, r3, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099112
+-	.align 2, 0
+-_08098FFC: .4byte gUnk_03000510
+-_08099000:
+-	adds r5, r3, #0
+-	movs r4, #0
+-	ldr r2, _08099068 @ =gKirbys
+-	adds r0, r2, #0
+-	adds r0, #0x60
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	beq _08099042
+-	movs r4, #1
+-	movs r6, #0x82
+-	lsls r6, r6, #2
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099042
+-	movs r4, #2
+-	movs r7, #0xec
+-	lsls r7, r7, #2
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099042
+-	movs r4, #3
+-	movs r6, #0xab
+-	lsls r6, r6, #3
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099042
+-	movs r4, #4
+-_08099042:
+-	ldr r0, _0809906C @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	movs r0, #1
+-	lsls r0, r4
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _08099070
+-	ldrh r1, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099070
+-	adds r0, r5, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099112
+-	.align 2, 0
+-_08099068: .4byte gKirbys
+-_0809906C: .4byte gUnk_03000510
+-_08099070:
+-	ldr r0, _080990DC @ =gNumKirbys
+-	ldrb r0, [r0]
+-	cmp r0, #0
+-	beq _080990B4
+-	ldr r6, _080990E0 @ =gCurLevelInfo
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r4, [r1]
+-	ldr r5, _080990E4 @ =gUnk_02026D50
+-_08099082:
+-	subs r2, r0, #1
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r0, r2, r0
+-	adds r1, r0, r6
+-	movs r7, #0xbf
+-	lsls r7, r7, #3
+-	adds r0, r1, r7
+-	ldrh r0, [r0]
+-	cmp r0, r4
+-	bne _080990AC
+-	adds r7, #0x66
+-	adds r0, r1, r7
+-	ldrb r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r5
+-	ldrh r1, [r0]
+-	movs r0, #8
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _080990C6
+-_080990AC:
+-	lsls r0, r2, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #0
+-	bne _08099082
+-_080990B4:
+-	movs r0, #1
+-	cmp r0, #0
+-	beq _080990C6
+-	ldrh r1, [r3, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r3, #6]
+-_080990C6:
+-	ldrh r1, [r3, #6]
+-	movs r0, #2
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _080990E8
+-	movs r6, #0x80
+-	lsls r6, r6, #5
+-	adds r0, r6, #0
+-	orrs r0, r1
+-	strh r0, [r3, #6]
+-	b _08099112
+-	.align 2, 0
+-_080990DC: .4byte gNumKirbys
+-_080990E0: .4byte gCurLevelInfo
+-_080990E4: .4byte gUnk_02026D50
+-_080990E8:
+-	ldrh r0, [r3, #4]
+-	adds r0, #1
+-	strh r0, [r3, #4]
+-	movs r0, #0x80
+-	lsls r0, r0, #4
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809910C
+-	movs r7, #0x3c
+-	ldrsh r1, [r3, r7]
+-	ldr r0, [r3, #0x34]
+-	adds r0, r0, r1
+-	str r0, [r3, #0x34]
+-	movs r0, #0x3e
+-	ldrsh r1, [r3, r0]
+-	ldr r0, [r3, #0x38]
+-	subs r0, r0, r1
+-	str r0, [r3, #0x38]
+-_0809910C:
+-	adds r0, r3, #0
+-	bl EffectObjectPostUpdate
+-_08099112:
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-
+-	thumb_func_start sub_08099118
+-sub_08099118: @ 0x08099118
+-	push {r4, r5, r6, r7, lr}
+-	sub sp, #8
+-	adds r6, r0, #0
+-	ldr r0, _08099148 @ =sub_0809924C
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	ldr r1, _0809914C @ =ObjectBaseDestroy
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0x10
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099150
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r5, r0, r1
+-	b _08099158
+-	.align 2, 0
+-_08099148: .4byte sub_0809924C
+-_0809914C: .4byte ObjectBaseDestroy
+-_08099150:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r5, r1, r0
+-_08099158:
+-	adds r0, r5, #0
+-	bl ClearEffectObject
+-	movs r2, #0
+-	movs r0, #3
+-	strb r0, [r5]
+-	ldr r0, [r6, #0x40]
+-	str r0, [r5, #0x34]
+-	ldr r0, [r6, #0x44]
+-	str r0, [r5, #0x38]
+-	str r6, [r5, #0x44]
+-	adds r4, r6, #0
+-	adds r4, #0x60
+-	ldrh r0, [r4]
+-	adds r1, r5, #0
+-	adds r1, #0x42
+-	strh r0, [r1]
+-	ldrh r1, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #7
+-	adds r3, r0, #0
+-	orrs r1, r3
+-	movs r7, #0x80
+-	lsls r7, r7, #3
+-	adds r0, r7, #0
+-	orrs r1, r0
+-	strh r2, [r5, #0x3c]
+-	strh r2, [r5, #0x3e]
+-	ldr r0, [r5, #0x38]
+-	ldr r2, _0809922C @ =0xFFFF6000
+-	adds r0, r0, r2
+-	str r0, [r5, #0x38]
+-	ldr r0, [r5, #0x34]
+-	adds r0, r0, r2
+-	str r0, [r5, #0x34]
+-	orrs r1, r3
+-	strh r1, [r5, #6]
+-	adds r1, r5, #0
+-	adds r1, #0xc
+-	ldr r2, _08099230 @ =0x06012000
+-	movs r3, #0xa7
+-	lsls r3, r3, #2
+-	movs r0, #1
+-	str r0, [sp]
+-	movs r0, #0x1a
+-	str r0, [sp, #4]
+-	adds r0, r5, #0
+-	bl EffectObjectInitSprite
+-	ldr r1, _08099234 @ =gKirbys
+-	ldr r0, _08099238 @ =gLocalPlayerId
+-	ldrb r2, [r0]
+-	movs r0, #0xd4
+-	lsls r0, r0, #1
+-	muls r0, r2, r0
+-	adds r0, r0, r1
+-	adds r0, #0x60
+-	ldrh r0, [r0]
+-	ldrh r4, [r4]
+-	cmp r0, r4
+-	bne _08099222
+-	ldrb r0, [r6]
+-	cmp r0, #0
+-	bne _080991E2
+-	adds r0, r6, #0
+-	adds r0, #0x56
+-	ldrb r0, [r0]
+-	cmp r0, r2
+-	bne _08099222
+-_080991E2:
+-	ldr r1, _0809923C @ =gUnk_08D60FA4
+-	ldr r4, _08099240 @ =gSongTable
+-	ldr r2, _08099244 @ =0x00001004
+-	adds r0, r4, r2
+-	ldrh r3, [r0]
+-	lsls r0, r3, #2
+-	adds r0, r0, r1
+-	ldr r2, [r0]
+-	ldr r0, [r2, #4]
+-	cmp r0, #0
+-	blt _08099208
+-	movs r7, #0x80
+-	lsls r7, r7, #5
+-	adds r0, r4, r7
+-	ldr r1, [r0]
+-	ldrb r0, [r2, #9]
+-	ldrb r1, [r1, #2]
+-	cmp r0, r1
+-	bhi _08099222
+-_08099208:
+-	cmp r3, #0
+-	beq _0809921A
+-	ldr r0, _08099248 @ =gUnk_0203AD10
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099222
+-_0809921A:
+-	movs r0, #0x80
+-	lsls r0, r0, #2
+-	bl m4aSongNumStart
+-_08099222:
+-	add sp, #8
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0809922C: .4byte 0xFFFF6000
+-_08099230: .4byte 0x06012000
+-_08099234: .4byte gKirbys
+-_08099238: .4byte gLocalPlayerId
+-_0809923C: .4byte gUnk_08D60FA4
+-_08099240: .4byte gSongTable
+-_08099244: .4byte 0x00001004
+-_08099248: .4byte gUnk_0203AD10
+-
+-	thumb_func_start sub_0809924C
+-sub_0809924C: @ 0x0809924C
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, r8
+-	push {r7}
+-	ldr r2, _0809926C @ =gCurTask
+-	ldr r3, [r2]
+-	ldrh r1, [r3, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099270
+-	ldrh r0, [r3, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _08099278
+-	.align 2, 0
+-_0809926C: .4byte gCurTask
+-_08099270:
+-	ldrh r1, [r3, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_08099278:
+-	adds r5, r0, #0
+-	ldr r6, [r5, #0x44]
+-	ldrh r1, [r5, #6]
+-	movs r4, #0x80
+-	lsls r4, r4, #5
+-	adds r0, r4, #0
+-	ands r0, r1
+-	lsls r0, r0, #0x10
+-	lsrs r3, r0, #0x10
+-	cmp r3, #0
+-	beq _08099296
+-	ldr r0, [r2]
+-	bl TaskDestroy
+-	b _0809959E
+-_08099296:
+-	adds r1, r6, #0
+-	cmp r6, #0
+-	beq _080992E0
+-	ldrb r0, [r6]
+-	cmp r0, #0
+-	beq _080992AE
+-	ldr r0, [r6, #8]
+-	ands r0, r4
+-	cmp r0, #0
+-	beq _080992AE
+-	str r3, [r5, #0x44]
+-	movs r1, #0
+-_080992AE:
+-	cmp r1, #0
+-	beq _080992E0
+-	ldr r0, _080992DC @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	adds r1, #0x56
+-	movs r0, #1
+-	ldrb r1, [r1]
+-	lsls r0, r1
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _08099350
+-	ldrh r1, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099350
+-	adds r0, r5, #0
+-	bl EffectObjectDisplaySprite
+-	b _0809959E
+-	.align 2, 0
+-_080992DC: .4byte gUnk_03000510
+-_080992E0:
+-	adds r4, r5, #0
+-	movs r3, #0
+-	ldr r2, _08099348 @ =gKirbys
+-	adds r0, r2, #0
+-	adds r0, #0x60
+-	adds r1, r5, #0
+-	adds r1, #0x42
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	beq _08099322
+-	movs r3, #1
+-	movs r7, #0x82
+-	lsls r7, r7, #2
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099322
+-	movs r3, #2
+-	movs r7, #0xec
+-	lsls r7, r7, #2
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099322
+-	movs r3, #3
+-	movs r7, #0xab
+-	lsls r7, r7, #3
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _08099322
+-	movs r3, #4
+-_08099322:
+-	ldr r0, _0809934C @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	movs r0, #1
+-	lsls r0, r3
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _08099350
+-	ldrh r1, [r4, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099350
+-	adds r0, r4, #0
+-	bl EffectObjectDisplaySprite
+-	b _0809959E
+-	.align 2, 0
+-_08099348: .4byte gKirbys
+-_0809934C: .4byte gUnk_03000510
+-_08099350:
+-	ldr r0, _080993FC @ =gNumKirbys
+-	ldrb r0, [r0]
+-	ldrh r1, [r5, #4]
+-	mov ip, r1
+-	cmp r0, #0
+-	beq _0809939C
+-	ldr r2, _08099400 @ =gCurLevelInfo
+-	mov r8, r2
+-	adds r1, r5, #0
+-	adds r1, #0x42
+-	ldrh r3, [r1]
+-	ldr r4, _08099404 @ =gUnk_02026D50
+-_08099368:
+-	subs r2, r0, #1
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r0, r2, r0
+-	mov r7, r8
+-	adds r1, r0, r7
+-	movs r7, #0xbf
+-	lsls r7, r7, #3
+-	adds r0, r1, r7
+-	ldrh r0, [r0]
+-	cmp r0, r3
+-	bne _08099394
+-	adds r7, #0x66
+-	adds r0, r1, r7
+-	ldrb r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r4
+-	ldrh r1, [r0]
+-	movs r0, #8
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _080993AE
+-_08099394:
+-	lsls r0, r2, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #0
+-	bne _08099368
+-_0809939C:
+-	movs r0, #1
+-	cmp r0, #0
+-	beq _080993AE
+-	ldrh r1, [r5, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r5, #6]
+-_080993AE:
+-	mov r7, ip
+-	lsls r0, r7, #0x10
+-	asrs r0, r0, #0x10
+-	cmp r0, #0x20
+-	ble _080993BA
+-	b _080994EC
+-_080993BA:
+-	ldrh r2, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #3
+-	ands r0, r2
+-	cmp r0, #0
+-	beq _08099442
+-	ldr r0, [r6, #8]
+-	movs r1, #0x80
+-	lsls r1, r1, #2
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809940C
+-	adds r0, r6, #0
+-	adds r0, #0xd4
+-	ldrh r1, [r0]
+-	cmp r1, #0x63
+-	beq _080993E6
+-	ldr r7, _08099408 @ =0x00000103
+-	adds r0, r6, r7
+-	ldrb r0, [r0]
+-	cmp r0, #0xe
+-	bne _08099484
+-_080993E6:
+-	cmp r1, #0x36
+-	bne _080993EC
+-	b _0809959E
+-_080993EC:
+-	ldr r1, _08099408 @ =0x00000103
+-	adds r0, r6, r1
+-	ldrb r0, [r0]
+-	cmp r0, #0xe
+-	beq _080993F8
+-	b _0809959E
+-_080993F8:
+-	b _08099484
+-	.align 2, 0
+-_080993FC: .4byte gNumKirbys
+-_08099400: .4byte gCurLevelInfo
+-_08099404: .4byte gUnk_02026D50
+-_08099408: .4byte 0x00000103
+-_0809940C:
+-	ldr r0, _080994FC @ =0x0000FBFF
+-	ands r0, r2
+-	strh r0, [r5, #6]
+-	ldr r0, [r6, #0x44]
+-	ldr r1, _08099500 @ =0xFFFF6000
+-	adds r0, r0, r1
+-	str r0, [r5, #0x38]
+-	ldr r0, [r6, #0x40]
+-	adds r0, r0, r1
+-	str r0, [r5, #0x34]
+-	ldr r0, _08099504 @ =gLocalPlayerId
+-	adds r1, r6, #0
+-	adds r1, #0x56
+-	ldrb r0, [r0]
+-	ldrb r1, [r1]
+-	cmp r0, r1
+-	beq _08099442
+-	ldr r2, _08099508 @ =0x00000292
+-	adds r0, r6, #0
+-	movs r1, #0
+-	movs r3, #0
+-	bl CreateEffectObject
+-	ldr r1, [r5, #0x34]
+-	str r1, [r0, #0x34]
+-	ldr r1, [r5, #0x38]
+-	str r1, [r0, #0x38]
+-_08099442:
+-	adds r0, r6, #0
+-	adds r0, #0xd4
+-	ldrh r1, [r0]
+-	cmp r1, #0x63
+-	beq _08099456
+-	ldr r7, _0809950C @ =0x00000103
+-	adds r0, r6, r7
+-	ldrb r0, [r0]
+-	cmp r0, #0xe
+-	bne _08099470
+-_08099456:
+-	cmp r1, #0x36
+-	beq _08099464
+-	ldr r1, _0809950C @ =0x00000103
+-	adds r0, r6, r1
+-	ldrb r0, [r0]
+-	cmp r0, #0xe
+-	beq _08099470
+-_08099464:
+-	ldr r0, [r6, #0xc]
+-	movs r1, #0x80
+-	lsls r1, r1, #0xb
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809952C
+-_08099470:
+-	ldr r2, _08099508 @ =0x00000292
+-	adds r0, r6, #0
+-	movs r1, #0
+-	movs r3, #0
+-	bl CreateEffectObject
+-	ldr r1, [r5, #0x34]
+-	str r1, [r0, #0x34]
+-	ldr r1, [r5, #0x38]
+-	str r1, [r0, #0x38]
+-_08099484:
+-	ldr r1, _08099510 @ =gKirbys
+-	ldr r0, _08099504 @ =gLocalPlayerId
+-	ldrb r2, [r0]
+-	movs r0, #0xd4
+-	lsls r0, r0, #1
+-	muls r0, r2, r0
+-	adds r0, r0, r1
+-	adds r0, #0x60
+-	adds r1, r6, #0
+-	adds r1, #0x60
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	bne _080994EC
+-	ldrb r0, [r6]
+-	cmp r0, #0
+-	bne _080994B0
+-	adds r0, r6, #0
+-	adds r0, #0x56
+-	ldrb r0, [r0]
+-	cmp r0, r2
+-	bne _080994EC
+-_080994B0:
+-	ldr r1, _08099514 @ =gUnk_08D60FA4
+-	ldr r4, _08099518 @ =gSongTable
+-	ldr r2, _0809951C @ =0x0000107C
+-	adds r0, r4, r2
+-	ldrh r3, [r0]
+-	lsls r0, r3, #2
+-	adds r0, r0, r1
+-	ldr r2, [r0]
+-	ldr r0, [r2, #4]
+-	cmp r0, #0
+-	blt _080994D4
+-	ldr r7, _08099520 @ =0x00001078
+-	adds r0, r4, r7
+-	ldr r1, [r0]
+-	ldrb r0, [r2, #9]
+-	ldrb r1, [r1, #2]
+-	cmp r0, r1
+-	bhi _080994EC
+-_080994D4:
+-	cmp r3, #0
+-	beq _080994E6
+-	ldr r0, _08099524 @ =gUnk_0203AD10
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _080994EC
+-_080994E6:
+-	ldr r0, _08099528 @ =0x0000020F
+-	bl m4aSongNumStart
+-_080994EC:
+-	ldrh r1, [r5, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r5, #6]
+-	b _0809959E
+-	.align 2, 0
+-_080994FC: .4byte 0x0000FBFF
+-_08099500: .4byte 0xFFFF6000
+-_08099504: .4byte gLocalPlayerId
+-_08099508: .4byte 0x00000292
+-_0809950C: .4byte 0x00000103
+-_08099510: .4byte gKirbys
+-_08099514: .4byte gUnk_08D60FA4
+-_08099518: .4byte gSongTable
+-_0809951C: .4byte 0x0000107C
+-_08099520: .4byte 0x00001078
+-_08099524: .4byte gUnk_0203AD10
+-_08099528: .4byte 0x0000020F
+-_0809952C:
+-	ldrh r0, [r5, #6]
+-	movs r3, #4
+-	orrs r3, r0
+-	strh r3, [r5, #6]
+-	ldr r4, _080995A8 @ =gUnk_0835104A
+-	movs r7, #4
+-	ldrsh r1, [r5, r7]
+-	movs r0, #0x20
+-	subs r0, r0, r1
+-	asrs r0, r0, #2
+-	lsls r0, r0, #1
+-	adds r0, r0, r4
+-	ldrh r1, [r0]
+-	adds r0, r6, #0
+-	adds r0, #0x52
+-	ldrh r0, [r0]
+-	adds r2, r6, #0
+-	adds r2, #0xd2
+-	subs r0, r0, r1
+-	ldrh r2, [r2]
+-	adds r0, r0, r2
+-	strh r0, [r5, #0x3e]
+-	ldrh r2, [r5, #4]
+-	lsls r0, r2, #0x10
+-	asrs r0, r0, #0x12
+-	lsls r0, r0, #1
+-	adds r0, r0, r4
+-	adds r1, r6, #0
+-	adds r1, #0x50
+-	ldrh r1, [r1]
+-	ldrh r0, [r0]
+-	adds r1, r1, r0
+-	adds r0, r6, #0
+-	adds r0, #0xd0
+-	ldrh r0, [r0]
+-	adds r0, r0, r1
+-	strh r0, [r5, #0x3c]
+-	adds r2, #1
+-	strh r2, [r5, #4]
+-	movs r0, #0x80
+-	lsls r0, r0, #4
+-	ands r3, r0
+-	cmp r3, #0
+-	bne _08099598
+-	movs r0, #0x3c
+-	ldrsh r1, [r5, r0]
+-	ldr r0, [r5, #0x34]
+-	adds r0, r0, r1
+-	str r0, [r5, #0x34]
+-	movs r2, #0x3e
+-	ldrsh r1, [r5, r2]
+-	ldr r0, [r5, #0x38]
+-	subs r0, r0, r1
+-	str r0, [r5, #0x38]
+-_08099598:
+-	adds r0, r5, #0
+-	bl EffectObjectPostUpdate
+-_0809959E:
+-	pop {r3}
+-	mov r8, r3
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_080995A8: .4byte gUnk_0835104A
+-
+-	thumb_func_start sub_080995AC
+-sub_080995AC: @ 0x080995AC
+-	push {r4, r5, lr}
+-	sub sp, #8
+-	adds r5, r0, #0
+-	ldr r0, _080995DC @ =sub_08099668
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	ldr r1, _080995E0 @ =ObjectBaseDestroy
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _080995E4
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _080995EC
+-	.align 2, 0
+-_080995DC: .4byte sub_08099668
+-_080995E0: .4byte ObjectBaseDestroy
+-_080995E4:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_080995EC:
+-	adds r0, r4, #0
+-	bl ClearEffectObject
+-	movs r0, #3
+-	strb r0, [r4]
+-	ldr r0, [r5, #0x40]
+-	str r0, [r4, #0x34]
+-	ldr r0, [r5, #0x44]
+-	str r0, [r4, #0x38]
+-	str r5, [r4, #0x44]
+-	adds r0, r5, #0
+-	adds r0, #0x60
+-	ldrh r0, [r0]
+-	adds r1, r4, #0
+-	adds r1, #0x42
+-	strh r0, [r1]
+-	movs r1, #0x80
+-	lsls r1, r1, #2
+-	strh r1, [r4, #0x3c]
+-	adds r0, r5, #0
+-	adds r0, #0x50
+-	movs r2, #0
+-	ldrsh r0, [r0, r2]
+-	cmp r0, #0
+-	ble _08099622
+-	rsbs r0, r1, #0
+-	strh r0, [r4, #0x3c]
+-_08099622:
+-	movs r0, #0xfe
+-	lsls r0, r0, #8
+-	strh r0, [r4, #0x3e]
+-	adds r0, r5, #0
+-	adds r0, #0x52
+-	movs r2, #0
+-	ldrsh r0, [r0, r2]
+-	cmp r0, #0
+-	bge _08099636
+-	strh r1, [r4, #0x3e]
+-_08099636:
+-	ldrh r0, [r4, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #7
+-	adds r1, r2, #0
+-	orrs r0, r1
+-	strh r0, [r4, #6]
+-	adds r1, r4, #0
+-	adds r1, #0xc
+-	ldr r2, _08099664 @ =0x06012000
+-	movs r3, #0xa9
+-	lsls r3, r3, #2
+-	movs r0, #0
+-	str r0, [sp]
+-	movs r0, #0xc
+-	str r0, [sp, #4]
+-	adds r0, r4, #0
+-	bl EffectObjectInitSprite
+-	add sp, #8
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_08099664: .4byte 0x06012000
+-
+-	thumb_func_start sub_08099668
+-sub_08099668: @ 0x08099668
+-	push {r4, r5, r6, r7, lr}
+-	ldr r2, _08099688 @ =gCurTask
+-	ldr r3, [r2]
+-	ldrh r1, [r3, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	adds r5, r2, #0
+-	cmp r0, #0
+-	beq _0809968C
+-	ldrh r0, [r3, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _08099694
+-	.align 2, 0
+-_08099688: .4byte gCurTask
+-_0809968C:
+-	ldrh r1, [r3, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_08099694:
+-	adds r3, r0, #0
+-	ldrh r1, [r3, #6]
+-	movs r4, #0x80
+-	lsls r4, r4, #5
+-	adds r0, r4, #0
+-	ands r0, r1
+-	lsls r0, r0, #0x10
+-	lsrs r2, r0, #0x10
+-	cmp r2, #0
+-	beq _080996B0
+-	ldr r0, [r5]
+-	bl TaskDestroy
+-	b _08099820
+-_080996B0:
+-	ldr r1, [r3, #0x44]
+-	cmp r1, #0
+-	beq _080996FC
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _080996C8
+-	ldr r0, [r1, #8]
+-	ands r0, r4
+-	cmp r0, #0
+-	beq _080996C8
+-	str r2, [r3, #0x44]
+-	movs r1, #0
+-_080996C8:
+-	cmp r1, #0
+-	beq _080996FC
+-	ldr r0, _080996F8 @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	adds r1, #0x56
+-	movs r0, #1
+-	ldrb r1, [r1]
+-	lsls r0, r1
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _0809976C
+-	ldrh r1, [r3, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809976C
+-	adds r0, r3, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099820
+-	.align 2, 0
+-_080996F8: .4byte gUnk_03000510
+-_080996FC:
+-	adds r5, r3, #0
+-	movs r4, #0
+-	ldr r2, _08099764 @ =gKirbys
+-	adds r0, r2, #0
+-	adds r0, #0x60
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	beq _0809973E
+-	movs r4, #1
+-	movs r6, #0x82
+-	lsls r6, r6, #2
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809973E
+-	movs r4, #2
+-	movs r7, #0xec
+-	lsls r7, r7, #2
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809973E
+-	movs r4, #3
+-	movs r6, #0xab
+-	lsls r6, r6, #3
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809973E
+-	movs r4, #4
+-_0809973E:
+-	ldr r0, _08099768 @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	movs r0, #1
+-	lsls r0, r4
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _0809976C
+-	ldrh r1, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809976C
+-	adds r0, r5, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099820
+-	.align 2, 0
+-_08099764: .4byte gKirbys
+-_08099768: .4byte gUnk_03000510
+-_0809976C:
+-	ldr r0, _080997DC @ =gNumKirbys
+-	ldrb r0, [r0]
+-	cmp r0, #0
+-	beq _080997B0
+-	ldr r6, _080997E0 @ =gCurLevelInfo
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r4, [r1]
+-	ldr r5, _080997E4 @ =gUnk_02026D50
+-_0809977E:
+-	subs r2, r0, #1
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r0, r2, r0
+-	adds r1, r0, r6
+-	movs r7, #0xbf
+-	lsls r7, r7, #3
+-	adds r0, r1, r7
+-	ldrh r0, [r0]
+-	cmp r0, r4
+-	bne _080997A8
+-	adds r7, #0x66
+-	adds r0, r1, r7
+-	ldrb r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r5
+-	ldrh r1, [r0]
+-	movs r0, #8
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _080997C2
+-_080997A8:
+-	lsls r0, r2, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #0
+-	bne _0809977E
+-_080997B0:
+-	movs r0, #1
+-	cmp r0, #0
+-	beq _080997C2
+-	ldrh r1, [r3, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r3, #6]
+-_080997C2:
+-	ldrh r1, [r3, #6]
+-	movs r0, #2
+-	ands r0, r1
+-	adds r2, r1, #0
+-	cmp r0, #0
+-	beq _080997E8
+-	movs r4, #0x80
+-	lsls r4, r4, #5
+-	adds r0, r4, #0
+-	orrs r0, r2
+-	strh r0, [r3, #6]
+-	b _08099820
+-	.align 2, 0
+-_080997DC: .4byte gNumKirbys
+-_080997E0: .4byte gCurLevelInfo
+-_080997E4: .4byte gUnk_02026D50
+-_080997E8:
+-	ldrh r2, [r3, #4]
+-	movs r6, #4
+-	ldrsh r0, [r3, r6]
+-	cmp r0, #1
+-	bne _080997F8
+-	movs r0, #0xc8
+-	lsls r0, r0, #3
+-	strh r0, [r3, #0x20]
+-_080997F8:
+-	adds r0, r2, #1
+-	strh r0, [r3, #4]
+-	movs r0, #0x80
+-	lsls r0, r0, #4
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0809981A
+-	movs r7, #0x3c
+-	ldrsh r1, [r3, r7]
+-	ldr r0, [r3, #0x34]
+-	adds r0, r0, r1
+-	str r0, [r3, #0x34]
+-	movs r0, #0x3e
+-	ldrsh r1, [r3, r0]
+-	ldr r0, [r3, #0x38]
+-	subs r0, r0, r1
+-	str r0, [r3, #0x38]
+-_0809981A:
+-	adds r0, r3, #0
+-	bl EffectObjectPostUpdate
+-_08099820:
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_08099828
+-sub_08099828: @ 0x08099828
+-	push {r4, r5, lr}
+-	sub sp, #8
+-	adds r5, r0, #0
+-	ldr r0, _08099858 @ =sub_080998B8
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	ldr r1, _0809985C @ =ObjectBaseDestroy
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099860
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _08099868
+-	.align 2, 0
+-_08099858: .4byte sub_080998B8
+-_0809985C: .4byte ObjectBaseDestroy
+-_08099860:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_08099868:
+-	adds r0, r4, #0
+-	bl ClearEffectObject
+-	movs r0, #3
+-	strb r0, [r4]
+-	ldr r0, [r5, #0x40]
+-	str r0, [r4, #0x34]
+-	ldr r0, [r5, #0x44]
+-	str r0, [r4, #0x38]
+-	str r5, [r4, #0x44]
+-	adds r0, r5, #0
+-	adds r0, #0x60
+-	ldrh r0, [r0]
+-	adds r1, r4, #0
+-	adds r1, #0x42
+-	strh r0, [r1]
+-	ldrh r1, [r4, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #7
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r4, #6]
+-	adds r1, r4, #0
+-	adds r1, #0xc
+-	ldr r2, _080998B4 @ =0x06012000
+-	movs r3, #0xa9
+-	lsls r3, r3, #2
+-	movs r0, #1
+-	str r0, [sp]
+-	movs r0, #0xc
+-	str r0, [sp, #4]
+-	adds r0, r4, #0
+-	bl EffectObjectInitSprite
+-	add sp, #8
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_080998B4: .4byte 0x06012000
+-
+-	thumb_func_start sub_080998B8
+-sub_080998B8: @ 0x080998B8
+-	push {r4, r5, r6, r7, lr}
+-	ldr r2, _080998D8 @ =gCurTask
+-	ldr r3, [r2]
+-	ldrh r1, [r3, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	adds r5, r2, #0
+-	cmp r0, #0
+-	beq _080998DC
+-	ldrh r0, [r3, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _080998E4
+-	.align 2, 0
+-_080998D8: .4byte gCurTask
+-_080998DC:
+-	ldrh r1, [r3, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_080998E4:
+-	adds r3, r0, #0
+-	ldrh r1, [r3, #6]
+-	movs r4, #0x80
+-	lsls r4, r4, #5
+-	adds r0, r4, #0
+-	ands r0, r1
+-	lsls r0, r0, #0x10
+-	lsrs r2, r0, #0x10
+-	cmp r2, #0
+-	beq _08099900
+-	ldr r0, [r5]
+-	bl TaskDestroy
+-	b _08099A58
+-_08099900:
+-	ldr r1, [r3, #0x44]
+-	cmp r1, #0
+-	beq _0809994C
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _08099918
+-	ldr r0, [r1, #8]
+-	ands r0, r4
+-	cmp r0, #0
+-	beq _08099918
+-	str r2, [r3, #0x44]
+-	movs r1, #0
+-_08099918:
+-	cmp r1, #0
+-	beq _0809994C
+-	ldr r0, _08099948 @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	adds r1, #0x56
+-	movs r0, #1
+-	ldrb r1, [r1]
+-	lsls r0, r1
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _080999BC
+-	ldrh r1, [r3, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _080999BC
+-	adds r0, r3, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099A58
+-	.align 2, 0
+-_08099948: .4byte gUnk_03000510
+-_0809994C:
+-	adds r5, r3, #0
+-	movs r4, #0
+-	ldr r2, _080999B4 @ =gKirbys
+-	adds r0, r2, #0
+-	adds r0, #0x60
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	beq _0809998E
+-	movs r4, #1
+-	movs r6, #0x82
+-	lsls r6, r6, #2
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809998E
+-	movs r4, #2
+-	movs r7, #0xec
+-	lsls r7, r7, #2
+-	adds r0, r2, r7
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809998E
+-	movs r4, #3
+-	movs r6, #0xab
+-	lsls r6, r6, #3
+-	adds r0, r2, r6
+-	ldrh r0, [r0]
+-	cmp r0, r1
+-	beq _0809998E
+-	movs r4, #4
+-_0809998E:
+-	ldr r0, _080999B8 @ =gUnk_03000510
+-	ldrb r2, [r0, #4]
+-	movs r0, #1
+-	lsls r0, r4
+-	movs r1, #0x10
+-	orrs r0, r1
+-	ands r2, r0
+-	cmp r2, #0
+-	beq _080999BC
+-	ldrh r1, [r5, #6]
+-	movs r0, #0x80
+-	lsls r0, r0, #6
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _080999BC
+-	adds r0, r5, #0
+-	bl EffectObjectDisplaySprite
+-	b _08099A58
+-	.align 2, 0
+-_080999B4: .4byte gKirbys
+-_080999B8: .4byte gUnk_03000510
+-_080999BC:
+-	ldr r0, _08099A28 @ =gNumKirbys
+-	ldrb r0, [r0]
+-	cmp r0, #0
+-	beq _08099A00
+-	ldr r6, _08099A2C @ =gCurLevelInfo
+-	adds r1, r3, #0
+-	adds r1, #0x42
+-	ldrh r4, [r1]
+-	ldr r5, _08099A30 @ =gUnk_02026D50
+-_080999CE:
+-	subs r2, r0, #1
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r0, r2, r0
+-	adds r1, r0, r6
+-	movs r7, #0xbf
+-	lsls r7, r7, #3
+-	adds r0, r1, r7
+-	ldrh r0, [r0]
+-	cmp r0, r4
+-	bne _080999F8
+-	adds r7, #0x66
+-	adds r0, r1, r7
+-	ldrb r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r5
+-	ldrh r1, [r0]
+-	movs r0, #8
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099A12
+-_080999F8:
+-	lsls r0, r2, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #0
+-	bne _080999CE
+-_08099A00:
+-	movs r0, #1
+-	cmp r0, #0
+-	beq _08099A12
+-	ldrh r1, [r3, #6]
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	orrs r0, r1
+-	strh r0, [r3, #6]
+-_08099A12:
+-	ldrh r1, [r3, #6]
+-	movs r0, #2
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099A34
+-	movs r6, #0x80
+-	lsls r6, r6, #5
+-	adds r0, r6, #0
+-	orrs r0, r1
+-	strh r0, [r3, #6]
+-	b _08099A58
+-	.align 2, 0
+-_08099A28: .4byte gNumKirbys
+-_08099A2C: .4byte gCurLevelInfo
+-_08099A30: .4byte gUnk_02026D50
+-_08099A34:
+-	movs r0, #0x80
+-	lsls r0, r0, #4
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _08099A52
+-	movs r7, #0x3c
+-	ldrsh r1, [r3, r7]
+-	ldr r0, [r3, #0x34]
+-	adds r0, r0, r1
+-	str r0, [r3, #0x34]
+-	movs r0, #0x3e
+-	ldrsh r1, [r3, r0]
+-	ldr r0, [r3, #0x38]
+-	subs r0, r0, r1
+-	str r0, [r3, #0x38]
+-_08099A52:
+-	adds r0, r3, #0
+-	bl EffectObjectPostUpdate
+-_08099A58:
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_08099A60
+-sub_08099A60: @ 0x08099A60
+-	push {r4, r5, lr}
+-	sub sp, #4
+-	adds r5, r0, #0
+-	ldr r0, _08099A90 @ =sub_08098400
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099A94
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _08099A9C
+-	.align 2, 0
+-_08099A90: .4byte sub_08098400
+-_08099A94:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_08099A9C:
+-	adds r0, r4, #0
+-	bl ClearEffectObject
+-	movs r0, #3
+-	strb r0, [r4]
+-	ldr r0, [r5, #0x40]
+-	str r0, [r4, #0x34]
+-	ldr r0, [r5, #0x44]
+-	str r0, [r4, #0x38]
+-	str r5, [r4, #0x44]
+-	adds r0, r5, #0
+-	adds r0, #0x60
+-	ldrh r1, [r0]
+-	adds r0, r4, #0
+-	adds r0, #0x42
+-	strh r1, [r0]
+-	add sp, #4
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-
+-	thumb_func_start sub_08099AC4
+-sub_08099AC4: @ 0x08099AC4
+-	push {r4, r5, lr}
+-	sub sp, #4
+-	adds r5, r0, #0
+-	ldr r0, _08099AF4 @ =sub_08098700
+-	movs r2, #0xd4
+-	lsls r2, r2, #6
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x48
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099AF8
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _08099B00
+-	.align 2, 0
+-_08099AF4: .4byte sub_08098700
+-_08099AF8:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_08099B00:
+-	adds r0, r4, #0
+-	bl ClearEffectObject
+-	movs r0, #3
+-	strb r0, [r4]
+-	ldr r0, [r5, #0x40]
+-	str r0, [r4, #0x34]
+-	ldr r0, [r5, #0x44]
+-	str r0, [r4, #0x38]
+-	str r5, [r4, #0x44]
+-	adds r0, r5, #0
+-	adds r0, #0x60
+-	ldrh r1, [r0]
+-	adds r0, r4, #0
+-	adds r0, #0x42
+-	strh r1, [r0]
+-	add sp, #4
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-
+-	thumb_func_start sub_08099B28
+-sub_08099B28: @ 0x08099B28
+-	push {r4, r5, r6, lr}
+-	adds r4, r0, #0
+-	ldrh r1, [r4, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _08099B42
+-	ldrh r0, [r4, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _08099B4A
+-_08099B42:
+-	ldrh r1, [r4, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_08099B4A:
+-	ldr r0, [r0, #0x44]
+-	adds r5, r0, #0
+-	adds r5, #0x56
+-	ldr r6, _08099B7C @ =gLocalPlayerId
+-	ldrb r0, [r5]
+-	ldrb r1, [r6]
+-	cmp r0, r1
+-	bne _08099B6E
+-	movs r0, #0xdd
+-	bl m4aSongNumStop
+-	ldrb r0, [r5]
+-	ldrb r6, [r6]
+-	cmp r0, r6
+-	bne _08099B6E
+-	movs r0, #0xde
+-	bl m4aSongNumStop
+-_08099B6E:
+-	adds r0, r4, #0
+-	bl ObjectBaseDestroy
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_08099B7C: .4byte gLocalPlayerId
+diff --git a/asm/sub_0800F044.s b/asm/nonmatching/sub_0800F044.inc
+similarity index 99%
+rename from asm/sub_0800F044.s
+rename to asm/nonmatching/sub_0800F044.inc
+index 76fafb2..ae9947d 100644
+--- a/asm/sub_0800F044.s
++++ b/asm/nonmatching/sub_0800F044.inc
+@@ -2,11 +2,8 @@
+ 	.include "constants/constants.inc"
+ 
+ 	.syntax unified
+-
+ 	.text
+ 
+-	thumb_func_start sub_0800F044
+-sub_0800F044: @ 0x0800F044
+ 	push {r4, r5, r6, r7, lr}
+ 	mov r7, sl
+ 	mov r6, sb
+@@ -1884,3 +1881,5 @@ _0800FE40:
+ 	pop {r4, r5, r6, r7}
+ 	pop {r0}
+ 	bx r0
++
++	.syntax divided
+diff --git a/asm/nonmatching/sub_08098E54.inc b/asm/nonmatching/sub_08098E54.inc
+new file mode 100644
+index 0000000..d0c26da
+--- /dev/null
++++ b/asm/nonmatching/sub_08098E54.inc
+@@ -0,0 +1,144 @@
++	.syntax unified
++	.text
++
++	push {r4, r5, r6, r7, lr}
++	mov r7, sb
++	mov r6, r8
++	push {r6, r7}
++	sub sp, #8
++	adds r5, r0, #0
++	ldr r0, [sp, #0x24]
++	lsls r1, r1, #0x18
++	lsrs r6, r1, #0x18
++	lsls r2, r2, #0x18
++	lsrs r2, r2, #0x18
++	mov sb, r2
++	lsls r3, r3, #0x10
++	lsrs r7, r3, #0x10
++	lsls r0, r0, #0x10
++	lsrs r0, r0, #0x10
++	mov r8, r0
++	ldr r0, _08098EA0 @ =sub_08098F6C
++	movs r2, #0xd4
++	lsls r2, r2, #6
++	ldr r1, _08098EA4 @ =ObjectBaseDestroy
++	str r1, [sp]
++	movs r1, #0x48
++	movs r3, #0x10
++	bl TaskCreate
++	adds r2, r0, #0
++	ldrh r1, [r2, #0x12]
++	movs r0, #0x10
++	ands r0, r1
++	cmp r0, #0
++	beq _08098EA8
++	ldrh r0, [r2, #6]
++	lsls r0, r0, #2
++	movs r1, #0x80
++	lsls r1, r1, #0x12
++	adds r0, r0, r1
++	b _08098EB0
++	.align 2, 0
++_08098EA0: .4byte sub_08098F6C
++_08098EA4: .4byte ObjectBaseDestroy
++_08098EA8:
++	ldrh r1, [r2, #6]
++	movs r0, #0xc0
++	lsls r0, r0, #0x12
++	adds r0, r1, r0
++_08098EB0:
++	adds r4, r0, #0
++	bl ClearEffectObject
++	movs r0, #3
++	strb r0, [r4]
++	ldr r0, [r5, #0x40]
++	str r0, [r4, #0x34]
++	ldr r0, [r5, #0x44]
++	str r0, [r4, #0x38]
++	str r5, [r4, #0x44]
++	adds r0, r5, #0
++	adds r0, #0x60
++	ldrh r0, [r0]
++	adds r1, r4, #0
++	adds r1, #0x42
++	strh r0, [r1]
++	ldrh r1, [r4, #6]
++	movs r2, #0x80
++	lsls r2, r2, #7
++	adds r0, r2, #0
++	orrs r0, r1
++	strh r0, [r4, #6]
++	strh r7, [r4, #0x3c]
++	mov r0, r8
++	strh r0, [r4, #0x3e]
++	mov r2, sb
++	lsls r1, r2, #0x18
++	asrs r1, r1, #0x10
++	ldr r0, [r4, #0x38]
++	adds r0, r0, r1
++	str r0, [r4, #0x38]
++	ldr r0, [r5, #8]
++	movs r1, #1
++	ands r0, r1
++	cmp r0, #0
++	beq _08098F02
++	lsls r1, r6, #0x18
++	asrs r1, r1, #0x10
++	ldr r0, [r4, #0x34]
++	subs r0, r0, r1
++	b _08098F0A
++_08098F02:
++	lsls r1, r6, #0x18
++	asrs r1, r1, #0x10
++	ldr r0, [r4, #0x34]
++	adds r0, r0, r1
++_08098F0A:
++	str r0, [r4, #0x34]
++	ldr r0, _08098F60 @ =gUnk_03000510
++	ldrb r2, [r0, #4]
++	adds r1, r5, #0
++	adds r1, #0x56
++	movs r5, #1
++	adds r0, r5, #0
++	ldrb r1, [r1]
++	lsls r0, r1
++	movs r1, #0x10
++	orrs r0, r1
++	ands r2, r0
++	cmp r2, #0
++	beq _08098F32
++	ldrh r1, [r4, #6]
++	movs r2, #0x80
++	lsls r2, r2, #6
++	adds r0, r2, #0
++	orrs r0, r1
++	strh r0, [r4, #6]
++_08098F32:
++	ldrh r1, [r4, #6]
++	movs r2, #0x80
++	lsls r2, r2, #7
++	adds r0, r2, #0
++	orrs r0, r1
++	strh r0, [r4, #6]
++	adds r1, r4, #0
++	adds r1, #0xc
++	ldr r2, _08098F64 @ =0x06012000
++	ldr r3, _08098F68 @ =0x00000297
++	str r5, [sp]
++	movs r0, #0xc
++	str r0, [sp, #4]
++	adds r0, r4, #0
++	bl EffectObjectInitSprite
++	add sp, #8
++	pop {r3, r4}
++	mov r8, r3
++	mov sb, r4
++	pop {r4, r5, r6, r7}
++	pop {r0}
++	bx r0
++	.align 2, 0
++_08098F60: .4byte gUnk_03000510
++_08098F64: .4byte 0x06012000
++_08098F68: .4byte 0x00000297
++
++	.syntax divided
+diff --git a/asm/nonmatching/sub_0809924C.inc b/asm/nonmatching/sub_0809924C.inc
+new file mode 100644
+index 0000000..5a1d8ee
+--- /dev/null
++++ b/asm/nonmatching/sub_0809924C.inc
+@@ -0,0 +1,441 @@
++	.syntax unified
++	.text
++
++	push {r4, r5, r6, r7, lr}
++	mov r7, r8
++	push {r7}
++	ldr r2, _0809926C @ =gCurTask
++	ldr r3, [r2]
++	ldrh r1, [r3, #0x12]
++	movs r0, #0x10
++	ands r0, r1
++	cmp r0, #0
++	beq _08099270
++	ldrh r0, [r3, #6]
++	lsls r0, r0, #2
++	movs r1, #0x80
++	lsls r1, r1, #0x12
++	adds r0, r0, r1
++	b _08099278
++	.align 2, 0
++_0809926C: .4byte gCurTask
++_08099270:
++	ldrh r1, [r3, #6]
++	movs r0, #0xc0
++	lsls r0, r0, #0x12
++	adds r0, r1, r0
++_08099278:
++	adds r5, r0, #0
++	ldr r6, [r5, #0x44]
++	ldrh r1, [r5, #6]
++	movs r4, #0x80
++	lsls r4, r4, #5
++	adds r0, r4, #0
++	ands r0, r1
++	lsls r0, r0, #0x10
++	lsrs r3, r0, #0x10
++	cmp r3, #0
++	beq _08099296
++	ldr r0, [r2]
++	bl TaskDestroy
++	b _0809959E
++_08099296:
++	adds r1, r6, #0
++	cmp r6, #0
++	beq _080992E0
++	ldrb r0, [r6]
++	cmp r0, #0
++	beq _080992AE
++	ldr r0, [r6, #8]
++	ands r0, r4
++	cmp r0, #0
++	beq _080992AE
++	str r3, [r5, #0x44]
++	movs r1, #0
++_080992AE:
++	cmp r1, #0
++	beq _080992E0
++	ldr r0, _080992DC @ =gUnk_03000510
++	ldrb r2, [r0, #4]
++	adds r1, #0x56
++	movs r0, #1
++	ldrb r1, [r1]
++	lsls r0, r1
++	movs r1, #0x10
++	orrs r0, r1
++	ands r2, r0
++	cmp r2, #0
++	beq _08099350
++	ldrh r1, [r5, #6]
++	movs r0, #0x80
++	lsls r0, r0, #6
++	ands r0, r1
++	cmp r0, #0
++	bne _08099350
++	adds r0, r5, #0
++	bl EffectObjectDisplaySprite
++	b _0809959E
++	.align 2, 0
++_080992DC: .4byte gUnk_03000510
++_080992E0:
++	adds r4, r5, #0
++	movs r3, #0
++	ldr r2, _08099348 @ =gKirbys
++	adds r0, r2, #0
++	adds r0, #0x60
++	adds r1, r5, #0
++	adds r1, #0x42
++	ldrh r0, [r0]
++	ldrh r1, [r1]
++	cmp r0, r1
++	beq _08099322
++	movs r3, #1
++	movs r7, #0x82
++	lsls r7, r7, #2
++	adds r0, r2, r7
++	ldrh r0, [r0]
++	cmp r0, r1
++	beq _08099322
++	movs r3, #2
++	movs r7, #0xec
++	lsls r7, r7, #2
++	adds r0, r2, r7
++	ldrh r0, [r0]
++	cmp r0, r1
++	beq _08099322
++	movs r3, #3
++	movs r7, #0xab
++	lsls r7, r7, #3
++	adds r0, r2, r7
++	ldrh r0, [r0]
++	cmp r0, r1
++	beq _08099322
++	movs r3, #4
++_08099322:
++	ldr r0, _0809934C @ =gUnk_03000510
++	ldrb r2, [r0, #4]
++	movs r0, #1
++	lsls r0, r3
++	movs r1, #0x10
++	orrs r0, r1
++	ands r2, r0
++	cmp r2, #0
++	beq _08099350
++	ldrh r1, [r4, #6]
++	movs r0, #0x80
++	lsls r0, r0, #6
++	ands r0, r1
++	cmp r0, #0
++	bne _08099350
++	adds r0, r4, #0
++	bl EffectObjectDisplaySprite
++	b _0809959E
++	.align 2, 0
++_08099348: .4byte gKirbys
++_0809934C: .4byte gUnk_03000510
++_08099350:
++	ldr r0, _080993FC @ =gNumKirbys
++	ldrb r0, [r0]
++	ldrh r1, [r5, #4]
++	mov ip, r1
++	cmp r0, #0
++	beq _0809939C
++	ldr r2, _08099400 @ =gCurLevelInfo
++	mov r8, r2
++	adds r1, r5, #0
++	adds r1, #0x42
++	ldrh r3, [r1]
++	ldr r4, _08099404 @ =gUnk_02026D50
++_08099368:
++	subs r2, r0, #1
++	movs r0, #0xcd
++	lsls r0, r0, #3
++	muls r0, r2, r0
++	mov r7, r8
++	adds r1, r0, r7
++	movs r7, #0xbf
++	lsls r7, r7, #3
++	adds r0, r1, r7
++	ldrh r0, [r0]
++	cmp r0, r3
++	bne _08099394
++	adds r7, #0x66
++	adds r0, r1, r7
++	ldrb r0, [r0]
++	lsls r0, r0, #1
++	adds r0, r0, r4
++	ldrh r1, [r0]
++	movs r0, #8
++	ands r0, r1
++	cmp r0, #0
++	beq _080993AE
++_08099394:
++	lsls r0, r2, #0x18
++	lsrs r0, r0, #0x18
++	cmp r0, #0
++	bne _08099368
++_0809939C:
++	movs r0, #1
++	cmp r0, #0
++	beq _080993AE
++	ldrh r1, [r5, #6]
++	movs r2, #0x80
++	lsls r2, r2, #5
++	adds r0, r2, #0
++	orrs r0, r1
++	strh r0, [r5, #6]
++_080993AE:
++	mov r7, ip
++	lsls r0, r7, #0x10
++	asrs r0, r0, #0x10
++	cmp r0, #0x20
++	ble _080993BA
++	b _080994EC
++_080993BA:
++	ldrh r2, [r5, #6]
++	movs r0, #0x80
++	lsls r0, r0, #3
++	ands r0, r2
++	cmp r0, #0
++	beq _08099442
++	ldr r0, [r6, #8]
++	movs r1, #0x80
++	lsls r1, r1, #2
++	ands r0, r1
++	cmp r0, #0
++	bne _0809940C
++	adds r0, r6, #0
++	adds r0, #0xd4
++	ldrh r1, [r0]
++	cmp r1, #0x63
++	beq _080993E6
++	ldr r7, _08099408 @ =0x00000103
++	adds r0, r6, r7
++	ldrb r0, [r0]
++	cmp r0, #0xe
++	bne _08099484
++_080993E6:
++	cmp r1, #0x36
++	bne _080993EC
++	b _0809959E
++_080993EC:
++	ldr r1, _08099408 @ =0x00000103
++	adds r0, r6, r1
++	ldrb r0, [r0]
++	cmp r0, #0xe
++	beq _080993F8
++	b _0809959E
++_080993F8:
++	b _08099484
++	.align 2, 0
++_080993FC: .4byte gNumKirbys
++_08099400: .4byte gCurLevelInfo
++_08099404: .4byte gUnk_02026D50
++_08099408: .4byte 0x00000103
++_0809940C:
++	ldr r0, _080994FC @ =0x0000FBFF
++	ands r0, r2
++	strh r0, [r5, #6]
++	ldr r0, [r6, #0x44]
++	ldr r1, _08099500 @ =0xFFFF6000
++	adds r0, r0, r1
++	str r0, [r5, #0x38]
++	ldr r0, [r6, #0x40]
++	adds r0, r0, r1
++	str r0, [r5, #0x34]
++	ldr r0, _08099504 @ =gLocalPlayerId
++	adds r1, r6, #0
++	adds r1, #0x56
++	ldrb r0, [r0]
++	ldrb r1, [r1]
++	cmp r0, r1
++	beq _08099442
++	ldr r2, _08099508 @ =0x00000292
++	adds r0, r6, #0
++	movs r1, #0
++	movs r3, #0
++	bl CreateEffectObject
++	ldr r1, [r5, #0x34]
++	str r1, [r0, #0x34]
++	ldr r1, [r5, #0x38]
++	str r1, [r0, #0x38]
++_08099442:
++	adds r0, r6, #0
++	adds r0, #0xd4
++	ldrh r1, [r0]
++	cmp r1, #0x63
++	beq _08099456
++	ldr r7, _0809950C @ =0x00000103
++	adds r0, r6, r7
++	ldrb r0, [r0]
++	cmp r0, #0xe
++	bne _08099470
++_08099456:
++	cmp r1, #0x36
++	beq _08099464
++	ldr r1, _0809950C @ =0x00000103
++	adds r0, r6, r1
++	ldrb r0, [r0]
++	cmp r0, #0xe
++	beq _08099470
++_08099464:
++	ldr r0, [r6, #0xc]
++	movs r1, #0x80
++	lsls r1, r1, #0xb
++	ands r0, r1
++	cmp r0, #0
++	bne _0809952C
++_08099470:
++	ldr r2, _08099508 @ =0x00000292
++	adds r0, r6, #0
++	movs r1, #0
++	movs r3, #0
++	bl CreateEffectObject
++	ldr r1, [r5, #0x34]
++	str r1, [r0, #0x34]
++	ldr r1, [r5, #0x38]
++	str r1, [r0, #0x38]
++_08099484:
++	ldr r1, _08099510 @ =gKirbys
++	ldr r0, _08099504 @ =gLocalPlayerId
++	ldrb r2, [r0]
++	movs r0, #0xd4
++	lsls r0, r0, #1
++	muls r0, r2, r0
++	adds r0, r0, r1
++	adds r0, #0x60
++	adds r1, r6, #0
++	adds r1, #0x60
++	ldrh r0, [r0]
++	ldrh r1, [r1]
++	cmp r0, r1
++	bne _080994EC
++	ldrb r0, [r6]
++	cmp r0, #0
++	bne _080994B0
++	adds r0, r6, #0
++	adds r0, #0x56
++	ldrb r0, [r0]
++	cmp r0, r2
++	bne _080994EC
++_080994B0:
++	ldr r1, _08099514 @ =gUnk_08D60FA4
++	ldr r4, _08099518 @ =gSongTable
++	ldr r2, _0809951C @ =0x0000107C
++	adds r0, r4, r2
++	ldrh r3, [r0]
++	lsls r0, r3, #2
++	adds r0, r0, r1
++	ldr r2, [r0]
++	ldr r0, [r2, #4]
++	cmp r0, #0
++	blt _080994D4
++	ldr r7, _08099520 @ =0x00001078
++	adds r0, r4, r7
++	ldr r1, [r0]
++	ldrb r0, [r2, #9]
++	ldrb r1, [r1, #2]
++	cmp r0, r1
++	bhi _080994EC
++_080994D4:
++	cmp r3, #0
++	beq _080994E6
++	ldr r0, _08099524 @ =gUnk_0203AD10
++	ldr r0, [r0]
++	movs r1, #0x80
++	lsls r1, r1, #1
++	ands r0, r1
++	cmp r0, #0
++	bne _080994EC
++_080994E6:
++	ldr r0, _08099528 @ =0x0000020F
++	bl m4aSongNumStart
++_080994EC:
++	ldrh r1, [r5, #6]
++	movs r2, #0x80
++	lsls r2, r2, #5
++	adds r0, r2, #0
++	orrs r0, r1
++	strh r0, [r5, #6]
++	b _0809959E
++	.align 2, 0
++_080994FC: .4byte 0x0000FBFF
++_08099500: .4byte 0xFFFF6000
++_08099504: .4byte gLocalPlayerId
++_08099508: .4byte 0x00000292
++_0809950C: .4byte 0x00000103
++_08099510: .4byte gKirbys
++_08099514: .4byte gUnk_08D60FA4
++_08099518: .4byte gSongTable
++_0809951C: .4byte 0x0000107C
++_08099520: .4byte 0x00001078
++_08099524: .4byte gUnk_0203AD10
++_08099528: .4byte 0x0000020F
++_0809952C:
++	ldrh r0, [r5, #6]
++	movs r3, #4
++	orrs r3, r0
++	strh r3, [r5, #6]
++	ldr r4, _080995A8 @ =gUnk_0835104A
++	movs r7, #4
++	ldrsh r1, [r5, r7]
++	movs r0, #0x20
++	subs r0, r0, r1
++	asrs r0, r0, #2
++	lsls r0, r0, #1
++	adds r0, r0, r4
++	ldrh r1, [r0]
++	adds r0, r6, #0
++	adds r0, #0x52
++	ldrh r0, [r0]
++	adds r2, r6, #0
++	adds r2, #0xd2
++	subs r0, r0, r1
++	ldrh r2, [r2]
++	adds r0, r0, r2
++	strh r0, [r5, #0x3e]
++	ldrh r2, [r5, #4]
++	lsls r0, r2, #0x10
++	asrs r0, r0, #0x12
++	lsls r0, r0, #1
++	adds r0, r0, r4
++	adds r1, r6, #0
++	adds r1, #0x50
++	ldrh r1, [r1]
++	ldrh r0, [r0]
++	adds r1, r1, r0
++	adds r0, r6, #0
++	adds r0, #0xd0
++	ldrh r0, [r0]
++	adds r0, r0, r1
++	strh r0, [r5, #0x3c]
++	adds r2, #1
++	strh r2, [r5, #4]
++	movs r0, #0x80
++	lsls r0, r0, #4
++	ands r3, r0
++	cmp r3, #0
++	bne _08099598
++	movs r0, #0x3c
++	ldrsh r1, [r5, r0]
++	ldr r0, [r5, #0x34]
++	adds r0, r0, r1
++	str r0, [r5, #0x34]
++	movs r2, #0x3e
++	ldrsh r1, [r5, r2]
++	ldr r0, [r5, #0x38]
++	subs r0, r0, r1
++	str r0, [r5, #0x38]
++_08099598:
++	adds r0, r5, #0
++	bl EffectObjectPostUpdate
++_0809959E:
++	pop {r3}
++	mov r8, r3
++	pop {r4, r5, r6, r7}
++	pop {r0}
++	bx r0
++	.align 2, 0
++_080995A8: .4byte gUnk_0835104A
++
++	.syntax divided
+diff --git a/asm/nonmatching/sub_0811A934.inc b/asm/nonmatching/sub_0811A934.inc
+new file mode 100644
+index 0000000..afdd27d
+--- /dev/null
++++ b/asm/nonmatching/sub_0811A934.inc
+@@ -0,0 +1,90 @@
++	.syntax unified
++	.text
++
++	push {lr}
++	adds r3, r0, #0
++	movs r0, #0x9e
++	adds r0, r0, r3
++	mov ip, r0
++	ldrb r0, [r0]
++	lsls r1, r0, #0x18
++	lsrs r0, r1, #0x18
++	cmp r0, #7
++	bhi _0811A9BA
++	adds r0, r3, #0
++	adds r0, #0x83
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811A96C
++	cmp r0, #1
++	bgt _0811A95C
++	cmp r0, #0
++	beq _0811A962
++	b _0811A99C
++_0811A95C:
++	cmp r0, #3
++	beq _0811A974
++	b _0811A99C
++_0811A962:
++	ldr r2, _0811A968 @ =gUnk_08357C14
++	b _0811A976
++	.align 2, 0
++_0811A968: .4byte gUnk_08357C14
++_0811A96C:
++	ldr r2, _0811A970 @ =gUnk_08357C24
++	b _0811A976
++	.align 2, 0
++_0811A970: .4byte gUnk_08357C24
++_0811A974:
++	ldr r2, _0811A9D0 @ =gUnk_08357C34
++_0811A976:
++	lsrs r0, r1, #0x19
++	lsls r0, r0, #2
++	adds r0, r0, r2
++	ldrh r0, [r0]
++	lsrs r0, r0, #8
++	adds r1, r3, #0
++	adds r1, #0x54
++	strb r0, [r1]
++	mov r0, ip
++	ldrb r1, [r0]
++	movs r0, #1
++	orrs r0, r1
++	lsls r0, r0, #1
++	adds r0, r0, r2
++	ldrh r0, [r0]
++	lsrs r0, r0, #8
++	adds r1, r3, #0
++	adds r1, #0x55
++	strb r0, [r1]
++_0811A99C:
++	adds r1, r3, #0
++	adds r1, #0x9e
++	ldrb r0, [r1]
++	adds r0, #1
++	strb r0, [r1]
++	ldr r0, [r3, #8]
++	movs r1, #1
++	ands r0, r1
++	cmp r0, #0
++	beq _0811A9BA
++	adds r1, r3, #0
++	adds r1, #0x54
++	ldrb r0, [r1]
++	rsbs r0, r0, #0
++	strb r0, [r1]
++_0811A9BA:
++	ldrh r0, [r3, #4]
++	subs r0, #1
++	strh r0, [r3, #4]
++	lsls r0, r0, #0x10
++	cmp r0, #0
++	bne _0811A9CC
++	adds r0, r3, #0
++	bl sub_0811A874
++_0811A9CC:
++	pop {r0}
++	bx r0
++	.align 2, 0
++_0811A9D0: .4byte gUnk_08357C34
++	.syntax divided
+diff --git a/asm/nonmatching/sub_0811AA80.inc b/asm/nonmatching/sub_0811AA80.inc
+new file mode 100644
+index 0000000..e641aee
+--- /dev/null
++++ b/asm/nonmatching/sub_0811AA80.inc
+@@ -0,0 +1,138 @@
++	.syntax unified
++	.text
++
++	push {lr}
++	adds r3, r0, #0
++	movs r0, #0x9e
++	adds r0, r0, r3
++	mov ip, r0
++	ldrb r0, [r0]
++	lsls r1, r0, #0x18
++	lsrs r0, r1, #0x18
++	cmp r0, #7
++	bhi _0811AB06
++	adds r0, r3, #0
++	adds r0, #0x83
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811AAB8
++	cmp r0, #1
++	bgt _0811AAA8
++	cmp r0, #0
++	beq _0811AAAE
++	b _0811AAE8
++_0811AAA8:
++	cmp r0, #3
++	beq _0811AAC0
++	b _0811AAE8
++_0811AAAE:
++	ldr r2, _0811AAB4 @ =gUnk_08357C14
++	b _0811AAC2
++	.align 2, 0
++_0811AAB4: .4byte gUnk_08357C14
++_0811AAB8:
++	ldr r2, _0811AABC @ =gUnk_08357C24
++	b _0811AAC2
++	.align 2, 0
++_0811AABC: .4byte gUnk_08357C24
++_0811AAC0:
++	ldr r2, _0811AB34 @ =gUnk_08357C34
++_0811AAC2:
++	lsrs r0, r1, #0x19
++	lsls r0, r0, #2
++	adds r0, r0, r2
++	ldrh r0, [r0]
++	lsrs r0, r0, #8
++	adds r1, r3, #0
++	adds r1, #0x54
++	strb r0, [r1]
++	mov r0, ip
++	ldrb r1, [r0]
++	movs r0, #1
++	orrs r0, r1
++	lsls r0, r0, #1
++	adds r0, r0, r2
++	ldrh r0, [r0]
++	lsrs r0, r0, #8
++	adds r1, r3, #0
++	adds r1, #0x55
++	strb r0, [r1]
++_0811AAE8:
++	adds r1, r3, #0
++	adds r1, #0x9e
++	ldrb r0, [r1]
++	adds r0, #1
++	strb r0, [r1]
++	ldr r0, [r3, #8]
++	movs r1, #1
++	ands r0, r1
++	cmp r0, #0
++	beq _0811AB06
++	adds r1, r3, #0
++	adds r1, #0x54
++	ldrb r0, [r1]
++	rsbs r0, r0, #0
++	strb r0, [r1]
++_0811AB06:
++	ldrh r0, [r3, #4]
++	subs r0, #1
++	strh r0, [r3, #4]
++	lsls r0, r0, #0x10
++	cmp r0, #0
++	bne _0811AB70
++	adds r1, r3, #0
++	adds r1, #0x9e
++	movs r0, #0
++	strb r0, [r1]
++	adds r1, #1
++	ldrb r0, [r1]
++	adds r0, #1
++	strb r0, [r1]
++	lsls r0, r0, #0x18
++	lsrs r0, r0, #0x18
++	cmp r0, #2
++	bls _0811AB38
++	adds r0, r3, #0
++	bl sub_0811A9D4
++	b _0811AB70
++	.align 2, 0
++_0811AB34: .4byte gUnk_08357C34
++_0811AB38:
++	adds r0, r3, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811AB5A
++	cmp r0, #1
++	bgt _0811AB4C
++	cmp r0, #0
++	beq _0811AB56
++	b _0811AB66
++_0811AB4C:
++	cmp r0, #2
++	beq _0811AB5E
++	cmp r0, #3
++	beq _0811AB62
++	b _0811AB66
++_0811AB56:
++	movs r0, #0x32
++	b _0811AB68
++_0811AB5A:
++	movs r0, #0x28
++	b _0811AB68
++_0811AB5E:
++	movs r0, #0x1e
++	b _0811AB68
++_0811AB62:
++	movs r0, #0x16
++	b _0811AB68
++_0811AB66:
++	movs r0, #0x11
++_0811AB68:
++	strh r0, [r3, #4]
++	adds r0, r3, #0
++	bl sub_0811AEDC
++_0811AB70:
++	pop {r0}
++	bx r0
++	.syntax divided
+diff --git a/asm/nonmatching/sub_0811AB74.inc b/asm/nonmatching/sub_0811AB74.inc
+new file mode 100644
+index 0000000..ab74aea
+--- /dev/null
++++ b/asm/nonmatching/sub_0811AB74.inc
+@@ -0,0 +1,480 @@
++	.syntax unified
++	.text
++
++	push {r4, r5, r6, lr}
++	adds r4, r0, #0
++	bl FindTargetKirby
++	adds r2, r0, #0
++	adds r0, r4, #0
++	adds r0, #0xac
++	str r2, [r0]
++	ldr r0, [r2, #0x40]
++	ldr r1, [r4, #0x40]
++	subs r0, r0, r1
++	lsls r0, r0, #8
++	ldr r1, [r2, #0x44]
++	ldr r2, [r4, #0x44]
++	subs r1, r1, r2
++	lsls r1, r1, #8
++	asrs r0, r0, #0x10
++	asrs r1, r1, #0x10
++	bl ArcTan2
++	lsls r0, r0, #0x10
++	lsrs r0, r0, #0x1c
++	cmp r0, #0xf
++	bls _0811ABA6
++	b _0811AECE
++_0811ABA6:
++	lsls r0, r0, #2
++	ldr r1, _0811ABB0 @ =_0811ABB4
++	adds r0, r0, r1
++	ldr r0, [r0]
++	mov pc, r0
++	.align 2, 0
++_0811ABB0: .4byte _0811ABB4
++_0811ABB4: @ jump table
++	.4byte _0811ADBA @ case 0
++	.4byte _0811AE4A @ case 1
++	.4byte _0811AE4A @ case 2
++	.4byte _0811AE4A @ case 3
++	.4byte _0811AE8C @ case 4
++	.4byte _0811AE8C @ case 5
++	.4byte _0811AE8C @ case 6
++	.4byte _0811ABF4 @ case 7
++	.4byte _0811ABF4 @ case 8
++	.4byte _0811AC6A @ case 9
++	.4byte _0811AC6A @ case 10
++	.4byte _0811ACE0 @ case 11
++	.4byte _0811ACE0 @ case 12
++	.4byte _0811AD36 @ case 13
++	.4byte _0811AD36 @ case 14
++	.4byte _0811ADBA @ case 15
++_0811ABF4:
++	adds r0, r4, #0
++	adds r0, #0x83
++	ldrb r5, [r0]
++	adds r3, r0, #0
++	cmp r5, #0
++	bne _0811AC40
++	ldr r1, [r4, #8]
++	movs r5, #1
++	adds r0, r1, #0
++	ands r0, r5
++	adds r2, r1, #0
++	cmp r0, #0
++	beq _0811AC50
++	adds r1, r4, #0
++	adds r1, #0x85
++	ldrb r0, [r1]
++	cmp r0, #0
++	bne _0811AC1A
++	b _0811AD7C
++_0811AC1A:
++	adds r0, r4, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811AC38
++	cmp r0, #1
++	bgt _0811AC2E
++	cmp r0, #0
++	beq _0811AC34
++	b _0811ADFE
++_0811AC2E:
++	cmp r0, #2
++	beq _0811AC3C
++	b _0811ADFE
++_0811AC34:
++	movs r0, #0x50
++	b _0811AE00
++_0811AC38:
++	movs r0, #0x3c
++	b _0811AE00
++_0811AC3C:
++	movs r0, #0x28
++	b _0811AE00
++_0811AC40:
++	ldr r1, [r4, #8]
++	movs r0, #1
++	ands r0, r1
++	adds r2, r1, #0
++	cmp r0, #0
++	beq _0811AC50
++	subs r0, r5, #1
++	b _0811AE32
++_0811AC50:
++	ldrb r0, [r3]
++	cmp r0, #3
++	beq _0811AC58
++	b _0811AE30
++_0811AC58:
++	movs r1, #1
++	orrs r2, r1
++	str r2, [r4, #8]
++	movs r0, #2
++	strb r0, [r3]
++	adds r0, r4, #0
++	adds r0, #0x9f
++	strb r1, [r0]
++	b _0811AEC6
++_0811AC6A:
++	adds r0, r4, #0
++	adds r0, #0x83
++	ldrb r5, [r0]
++	adds r6, r5, #0
++	adds r3, r0, #0
++	cmp r6, #1
++	bne _0811ACB8
++	ldr r1, [r4, #8]
++	adds r0, r1, #0
++	ands r0, r6
++	adds r2, r1, #0
++	cmp r0, #0
++	beq _0811ACD8
++	adds r1, r4, #0
++	adds r1, #0x85
++	ldrb r0, [r1]
++	cmp r0, #0
++	beq _0811ACB4
++	adds r0, r4, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811ACAC
++	cmp r0, #1
++	bgt _0811ACA2
++	cmp r0, #0
++	beq _0811ACA8
++	b _0811ADFE
++_0811ACA2:
++	cmp r0, #2
++	beq _0811ACB0
++	b _0811ADFE
++_0811ACA8:
++	movs r0, #0x50
++	b _0811AE00
++_0811ACAC:
++	movs r0, #0x3c
++	b _0811AE00
++_0811ACB0:
++	movs r0, #0x28
++	b _0811AE00
++_0811ACB4:
++	strb r6, [r1]
++	b _0811AECE
++_0811ACB8:
++	ldr r1, [r4, #8]
++	movs r0, #1
++	ands r0, r1
++	adds r2, r1, #0
++	cmp r0, #0
++	beq _0811ACD8
++	cmp r6, #0
++	bne _0811ACD4
++	adds r0, r5, #1
++	strb r0, [r3]
++	adds r0, r4, #0
++	adds r0, #0x85
++	strb r6, [r0]
++	b _0811AECE
++_0811ACD4:
++	subs r0, r5, #1
++	b _0811AE32
++_0811ACD8:
++	ldrb r0, [r3]
++	cmp r0, #3
++	beq _0811AC58
++	b _0811AE30
++_0811ACE0:
++	adds r0, r4, #0
++	adds r0, #0x83
++	ldrb r2, [r0]
++	adds r3, r0, #0
++	cmp r2, #3
++	bne _0811AD2A
++	ldr r0, [r4, #8]
++	movs r2, #1
++	ands r0, r2
++	cmp r0, #0
++	beq _0811ACF8
++	b _0811AE2A
++_0811ACF8:
++	adds r1, r4, #0
++	adds r1, #0x85
++	ldrb r0, [r1]
++	cmp r0, #0
++	bne _0811AD04
++	b _0811AE1C
++_0811AD04:
++	adds r0, r4, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811AD22
++	cmp r0, #1
++	bgt _0811AD18
++	cmp r0, #0
++	beq _0811AD1E
++	b _0811ADFE
++_0811AD18:
++	cmp r0, #2
++	beq _0811AD26
++	b _0811ADFE
++_0811AD1E:
++	movs r0, #0x50
++	b _0811AE00
++_0811AD22:
++	movs r0, #0x3c
++	b _0811AE00
++_0811AD26:
++	movs r0, #0x28
++	b _0811AE00
++_0811AD2A:
++	ldr r1, [r4, #8]
++	movs r0, #1
++	ands r1, r0
++	cmp r1, #0
++	beq _0811ADAE
++	b _0811AE2A
++_0811AD36:
++	adds r0, r4, #0
++	adds r0, #0x83
++	ldrb r2, [r0]
++	adds r5, r2, #0
++	adds r3, r0, #0
++	cmp r5, #1
++	bne _0811AD80
++	ldr r0, [r4, #8]
++	ands r0, r5
++	cmp r0, #0
++	bne _0811AE2A
++	adds r1, r4, #0
++	adds r1, #0x85
++	ldrb r0, [r1]
++	cmp r0, #0
++	beq _0811AD7C
++	adds r0, r4, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811AD74
++	cmp r0, #1
++	bgt _0811AD6A
++	cmp r0, #0
++	beq _0811AD70
++	b _0811ADFE
++_0811AD6A:
++	cmp r0, #2
++	beq _0811AD78
++	b _0811ADFE
++_0811AD70:
++	movs r0, #0x50
++	b _0811AE00
++_0811AD74:
++	movs r0, #0x3c
++	b _0811AE00
++_0811AD78:
++	movs r0, #0x28
++	b _0811AE00
++_0811AD7C:
++	strb r5, [r1]
++	b _0811AECE
++_0811AD80:
++	ldr r1, [r4, #8]
++	movs r6, #1
++	ands r1, r6
++	cmp r1, #0
++	bne _0811AE2A
++	cmp r5, #3
++	bne _0811ADAE
++	subs r0, r2, #1
++	strb r0, [r3]
++	lsls r0, r0, #0x18
++	lsrs r0, r0, #0x18
++	cmp r0, #2
++	beq _0811AD9C
++	b _0811AEC6
++_0811AD9C:
++	adds r0, r4, #0
++	adds r0, #0x9f
++	strb r6, [r0]
++	b _0811AEC6
++_0811ADA4:
++	adds r1, r4, #0
++	adds r1, #0x9f
++	movs r0, #2
++	strb r0, [r1]
++	b _0811AE32
++_0811ADAE:
++	adds r0, r2, #1
++	strb r0, [r3]
++	adds r0, r4, #0
++	adds r0, #0x85
++	strb r1, [r0]
++	b _0811AECE
++_0811ADBA:
++	adds r1, r4, #0
++	adds r1, #0x83
++	ldrb r2, [r1]
++	adds r3, r1, #0
++	cmp r2, #0
++	bne _0811AE20
++	ldr r0, [r4, #8]
++	movs r2, #1
++	ands r0, r2
++	cmp r0, #0
++	bne _0811AE2A
++	adds r1, #2
++	ldrb r0, [r1]
++	cmp r0, #0
++	beq _0811AE1C
++	adds r0, r4, #0
++	adds r0, #0x87
++	ldrb r0, [r0]
++	cmp r0, #1
++	beq _0811ADF6
++	cmp r0, #1
++	bgt _0811ADEC
++	cmp r0, #0
++	beq _0811ADF2
++	b _0811ADFE
++_0811ADEC:
++	cmp r0, #2
++	beq _0811ADFA
++	b _0811ADFE
++_0811ADF2:
++	movs r0, #0x50
++	b _0811AE00
++_0811ADF6:
++	movs r0, #0x3c
++	b _0811AE00
++_0811ADFA:
++	movs r0, #0x28
++	b _0811AE00
++_0811ADFE:
++	movs r0, #0x14
++_0811AE00:
++	strh r0, [r4, #4]
++	adds r1, r4, #0
++	adds r1, #0x9e
++	movs r0, #0
++	strb r0, [r1]
++	ldr r0, _0811AE18 @ =sub_0811A934
++	str r0, [r4, #0x78]
++	adds r0, r4, #0
++	bl sub_0811AEDC
++	b _0811AED4
++	.align 2, 0
++_0811AE18: .4byte sub_0811A934
++_0811AE1C:
++	strb r2, [r1]
++	b _0811AECE
++_0811AE20:
++	ldr r0, [r4, #8]
++	movs r5, #1
++	ands r0, r5
++	cmp r0, #0
++	beq _0811AE36
++_0811AE2A:
++	ldrb r0, [r3]
++	cmp r0, #1
++	beq _0811ADA4
++_0811AE30:
++	adds r0, #1
++_0811AE32:
++	strb r0, [r3]
++	b _0811AEC6
++_0811AE36:
++	subs r0, r2, #1
++	strb r0, [r1]
++	lsls r0, r0, #0x18
++	lsrs r0, r0, #0x18
++	cmp r0, #2
++	bne _0811AEC6
++	adds r0, r4, #0
++	adds r0, #0x9f
++	strb r5, [r0]
++	b _0811AEC6
++_0811AE4A:
++	ldr r0, [r4, #8]
++	movs r2, #1
++	ands r0, r2
++	cmp r0, #0
++	beq _0811AE70
++	adds r1, r4, #0
++	adds r1, #0x83
++	ldrb r0, [r1]
++	cmp r0, #1
++	bne _0811AE6A
++	adds r2, r4, #0
++	adds r2, #0x9f
++	movs r0, #2
++	strb r0, [r2]
++	strb r0, [r1]
++	b _0811AEC6
++_0811AE6A:
++	adds r0, #1
++	strb r0, [r1]
++	b _0811AEC6
++_0811AE70:
++	adds r1, r4, #0
++	adds r1, #0x83
++	ldrb r0, [r1]
++	cmp r0, #0
++	beq _0811AE7E
++	subs r0, #1
++	strb r0, [r1]
++_0811AE7E:
++	ldrb r0, [r1]
++	cmp r0, #2
++	bne _0811AEC6
++	adds r0, r4, #0
++	adds r0, #0x9f
++	strb r2, [r0]
++	b _0811AEC6
++_0811AE8C:
++	ldr r1, [r4, #8]
++	movs r3, #1
++	adds r0, r1, #0
++	ands r0, r3
++	cmp r0, #0
++	beq _0811AEA8
++	adds r1, r4, #0
++	adds r1, #0x83
++	ldrb r0, [r1]
++	cmp r0, #0
++	beq _0811AEC6
++	subs r0, #1
++	strb r0, [r1]
++	b _0811AEC6
++_0811AEA8:
++	adds r2, r4, #0
++	adds r2, #0x83
++	ldrb r0, [r2]
++	cmp r0, #3
++	bne _0811AEC2
++	orrs r1, r3
++	str r1, [r4, #8]
++	movs r0, #2
++	strb r0, [r2]
++	adds r0, r4, #0
++	adds r0, #0x9f
++	strb r3, [r0]
++	b _0811AEC6
++_0811AEC2:
++	adds r0, #1
++	strb r0, [r2]
++_0811AEC6:
++	adds r1, r4, #0
++	adds r1, #0x85
++	movs r0, #0
++	strb r0, [r1]
++_0811AECE:
++	adds r0, r4, #0
++	bl sub_0811A874
++_0811AED4:
++	pop {r4, r5, r6}
++	pop {r0}
++	bx r0
++	.align 2, 0
++	.syntax divided
+diff --git a/asm/shotzo.s b/asm/shotzo.s
+deleted file mode 100644
+index 783d042..0000000
+--- a/asm/shotzo.s
++++ /dev/null
+@@ -1,1904 +0,0 @@
+-	.include "asm/macros.inc"
+-	.include "constants/constants.inc"
+-
+-	.syntax unified
+-
+-	.text
+-
+-	thumb_func_start CreateShotzo
+-CreateShotzo: @ 0x0811A740
+-	push {r4, r5, r6, lr}
+-	sub sp, #4
+-	adds r6, r0, #0
+-	lsls r1, r1, #0x18
+-	lsrs r4, r1, #0x18
+-	ldr r0, _0811A774 @ =ObjectMain
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	ldr r1, _0811A778 @ =ObjectDestroy
+-	str r1, [sp]
+-	movs r1, #0xb4
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811A77C
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0811A784
+-	.align 2, 0
+-_0811A774: .4byte ObjectMain
+-_0811A778: .4byte ObjectDestroy
+-_0811A77C:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0811A784:
+-	adds r5, r0, #0
+-	adds r1, r6, #0
+-	adds r2, r4, #0
+-	bl InitObject
+-	adds r1, r5, #0
+-	adds r1, #0x85
+-	movs r0, #0
+-	strb r0, [r1]
+-	adds r1, #0x1a
+-	strb r0, [r1]
+-	ldr r0, [r5, #0xc]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	orrs r0, r1
+-	str r0, [r5, #0xc]
+-	ldr r0, [r5, #8]
+-	movs r1, #0x80
+-	lsls r1, r1, #8
+-	orrs r0, r1
+-	str r0, [r5, #8]
+-	ldr r0, [r5, #0x5c]
+-	movs r1, #0x20
+-	orrs r0, r1
+-	str r0, [r5, #0x5c]
+-	subs r1, #0x25
+-	movs r4, #6
+-	rsbs r4, r4, #0
+-	movs r0, #3
+-	str r0, [sp]
+-	adds r0, r5, #0
+-	adds r2, r4, #0
+-	movs r3, #5
+-	bl sub_0803E2B0
+-	movs r2, #7
+-	rsbs r2, r2, #0
+-	movs r0, #7
+-	str r0, [sp]
+-	adds r0, r5, #0
+-	adds r1, r4, #0
+-	movs r3, #6
+-	bl ObjectSetBounds
+-	adds r0, r5, #0
+-	bl ObjectInitSprite
+-	adds r0, r5, #0
+-	adds r0, #0xb0
+-	ldr r0, [r0]
+-	ldrb r0, [r0, #0xe]
+-	cmp r0, #0
+-	bne _0811A80E
+-	adds r0, r5, #0
+-	adds r0, #0xac
+-	ldr r0, [r0]
+-	ldr r1, [r5, #0x40]
+-	ldr r0, [r0, #0x40]
+-	cmp r1, r0
+-	ble _0811A804
+-	ldr r0, [r5, #8]
+-	movs r1, #1
+-	orrs r0, r1
+-	b _0811A80C
+-_0811A804:
+-	ldr r0, [r5, #8]
+-	movs r1, #2
+-	rsbs r1, r1, #0
+-	ands r0, r1
+-_0811A80C:
+-	str r0, [r5, #8]
+-_0811A80E:
+-	adds r0, r5, #0
+-	adds r0, #0xb0
+-	ldr r0, [r0]
+-	ldrb r0, [r0, #0xe]
+-	cmp r0, #4
+-	bne _0811A842
+-	adds r0, r5, #0
+-	adds r0, #0xac
+-	ldr r0, [r0]
+-	ldr r1, [r5, #0x40]
+-	ldr r0, [r0, #0x40]
+-	cmp r1, r0
+-	ble _0811A830
+-	ldr r0, [r5, #8]
+-	movs r1, #1
+-	orrs r0, r1
+-	b _0811A838
+-_0811A830:
+-	ldr r0, [r5, #8]
+-	movs r1, #2
+-	rsbs r1, r1, #0
+-	ands r0, r1
+-_0811A838:
+-	str r0, [r5, #8]
+-	adds r0, r5, #0
+-	bl sub_0811B400
+-	b _0811A85C
+-_0811A842:
+-	ldr r2, _0811A870 @ =gUnk_08351648
+-	adds r0, r5, #0
+-	adds r0, #0x82
+-	ldrb r1, [r0]
+-	lsls r0, r1, #1
+-	adds r0, r0, r1
+-	lsls r0, r0, #3
+-	adds r2, #0x10
+-	adds r0, r0, r2
+-	ldr r1, [r0]
+-	adds r0, r5, #0
+-	bl _call_via_r1
+-_0811A85C:
+-	adds r1, r5, #0
+-	adds r1, #0x9e
+-	movs r0, #0
+-	strb r0, [r1]
+-	str r0, [r5, #0x7c]
+-	adds r0, r5, #0
+-	add sp, #4
+-	pop {r4, r5, r6}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-_0811A870: .4byte gUnk_08351648
+-
+-	thumb_func_start sub_0811A874
+-sub_0811A874: @ 0x0811A874
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r0, #0xb0
+-	ldr r0, [r0]
+-	ldrb r0, [r0, #0xe]
+-	cmp r0, #0
+-	beq _0811A88E
+-	cmp r0, #4
+-	beq _0811A88E
+-	adds r0, r3, #0
+-	bl sub_0811A9D4
+-	b _0811A8CC
+-_0811A88E:
+-	adds r0, r3, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811A8AC
+-	cmp r0, #1
+-	bgt _0811A8A2
+-	cmp r0, #0
+-	beq _0811A8A8
+-	b _0811A8B4
+-_0811A8A2:
+-	cmp r0, #2
+-	beq _0811A8B0
+-	b _0811A8B4
+-_0811A8A8:
+-	movs r0, #0x50
+-	b _0811A8B6
+-_0811A8AC:
+-	movs r0, #0x3c
+-	b _0811A8B6
+-_0811A8B0:
+-	movs r0, #0x28
+-	b _0811A8B6
+-_0811A8B4:
+-	movs r0, #0x14
+-_0811A8B6:
+-	strh r0, [r3, #4]
+-	adds r1, r3, #0
+-	adds r1, #0x50
+-	movs r2, #0
+-	movs r0, #0
+-	strh r0, [r1]
+-	adds r0, r3, #0
+-	adds r0, #0x9e
+-	strb r2, [r0]
+-	ldr r0, _0811A8D0 @ =sub_0811A8D4
+-	str r0, [r3, #0x78]
+-_0811A8CC:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811A8D0: .4byte sub_0811A8D4
+-
+-	thumb_func_start sub_0811A8D4
+-sub_0811A8D4: @ 0x0811A8D4
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	ldrh r0, [r4, #4]
+-	subs r0, #1
+-	strh r0, [r4, #4]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bne _0811A8EA
+-	adds r0, r4, #0
+-	bl sub_0811AB74
+-_0811A8EA:
+-	adds r2, r4, #0
+-	adds r2, #0x83
+-	ldrb r0, [r2]
+-	cmp r0, #2
+-	bne _0811A92C
+-	adds r1, r4, #0
+-	adds r1, #0x9e
+-	ldrb r0, [r1]
+-	adds r0, #1
+-	strb r0, [r1]
+-	lsls r0, r0, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #3
+-	bls _0811A92C
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	ldrb r1, [r0]
+-	adds r3, r0, #0
+-	cmp r1, #0
+-	beq _0811A924
+-	cmp r1, #2
+-	beq _0811A91A
+-	movs r0, #1
+-	b _0811A926
+-_0811A91A:
+-	ldr r0, [r4, #8]
+-	movs r1, #2
+-	rsbs r1, r1, #0
+-	ands r0, r1
+-	str r0, [r4, #8]
+-_0811A924:
+-	movs r0, #3
+-_0811A926:
+-	strb r0, [r2]
+-	movs r0, #0
+-	strb r0, [r3]
+-_0811A92C:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_0811A934
+-sub_0811A934: @ 0x0811A934
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0x9e
+-	adds r0, r0, r3
+-	mov ip, r0
+-	ldrb r0, [r0]
+-	lsls r1, r0, #0x18
+-	lsrs r0, r1, #0x18
+-	cmp r0, #7
+-	bhi _0811A9BA
+-	adds r0, r3, #0
+-	adds r0, #0x83
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811A96C
+-	cmp r0, #1
+-	bgt _0811A95C
+-	cmp r0, #0
+-	beq _0811A962
+-	b _0811A99C
+-_0811A95C:
+-	cmp r0, #3
+-	beq _0811A974
+-	b _0811A99C
+-_0811A962:
+-	ldr r2, _0811A968 @ =gUnk_08357C14
+-	b _0811A976
+-	.align 2, 0
+-_0811A968: .4byte gUnk_08357C14
+-_0811A96C:
+-	ldr r2, _0811A970 @ =gUnk_08357C24
+-	b _0811A976
+-	.align 2, 0
+-_0811A970: .4byte gUnk_08357C24
+-_0811A974:
+-	ldr r2, _0811A9D0 @ =gUnk_08357C34
+-_0811A976:
+-	lsrs r0, r1, #0x19
+-	lsls r0, r0, #2
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	lsrs r0, r0, #8
+-	adds r1, r3, #0
+-	adds r1, #0x54
+-	strb r0, [r1]
+-	mov r0, ip
+-	ldrb r1, [r0]
+-	movs r0, #1
+-	orrs r0, r1
+-	lsls r0, r0, #1
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	lsrs r0, r0, #8
+-	adds r1, r3, #0
+-	adds r1, #0x55
+-	strb r0, [r1]
+-_0811A99C:
+-	adds r1, r3, #0
+-	adds r1, #0x9e
+-	ldrb r0, [r1]
+-	adds r0, #1
+-	strb r0, [r1]
+-	ldr r0, [r3, #8]
+-	movs r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811A9BA
+-	adds r1, r3, #0
+-	adds r1, #0x54
+-	ldrb r0, [r1]
+-	rsbs r0, r0, #0
+-	strb r0, [r1]
+-_0811A9BA:
+-	ldrh r0, [r3, #4]
+-	subs r0, #1
+-	strh r0, [r3, #4]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bne _0811A9CC
+-	adds r0, r3, #0
+-	bl sub_0811A874
+-_0811A9CC:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811A9D0: .4byte gUnk_08357C34
+-
+-	thumb_func_start sub_0811A9D4
+-sub_0811A9D4: @ 0x0811A9D4
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r0, #0xb0
+-	ldr r0, [r0]
+-	ldrb r1, [r0, #0xe]
+-	cmp r1, #1
+-	beq _0811A9EE
+-	cmp r1, #2
+-	beq _0811A9FA
+-	adds r1, r3, #0
+-	adds r1, #0x83
+-	movs r0, #1
+-	b _0811AA00
+-_0811A9EE:
+-	adds r0, r3, #0
+-	adds r0, #0x83
+-	strb r1, [r0]
+-	ldr r0, [r3, #8]
+-	orrs r0, r1
+-	b _0811AA0A
+-_0811A9FA:
+-	adds r1, r3, #0
+-	adds r1, #0x83
+-	movs r0, #3
+-_0811AA00:
+-	strb r0, [r1]
+-	ldr r0, [r3, #8]
+-	movs r1, #2
+-	rsbs r1, r1, #0
+-	ands r0, r1
+-_0811AA0A:
+-	str r0, [r3, #8]
+-	adds r1, r3, #0
+-	adds r1, #0x50
+-	movs r2, #0
+-	movs r0, #0
+-	strh r0, [r1]
+-	adds r0, r3, #0
+-	adds r0, #0x9e
+-	strb r2, [r0]
+-	movs r0, #0x64
+-	strh r0, [r3, #4]
+-	ldr r0, _0811AA28 @ =sub_0811B3E4
+-	str r0, [r3, #0x78]
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811AA28: .4byte sub_0811B3E4
+-
+-	thumb_func_start sub_0811AA2C
+-sub_0811AA2C: @ 0x0811AA2C
+-	push {lr}
+-	adds r2, r0, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AA50
+-	cmp r0, #1
+-	bgt _0811AA42
+-	cmp r0, #0
+-	beq _0811AA4C
+-	b _0811AA5C
+-_0811AA42:
+-	cmp r0, #2
+-	beq _0811AA54
+-	cmp r0, #3
+-	beq _0811AA58
+-	b _0811AA5C
+-_0811AA4C:
+-	movs r0, #0x32
+-	b _0811AA5E
+-_0811AA50:
+-	movs r0, #0x28
+-	b _0811AA5E
+-_0811AA54:
+-	movs r0, #0x1e
+-	b _0811AA5E
+-_0811AA58:
+-	movs r0, #0x16
+-	b _0811AA5E
+-_0811AA5C:
+-	movs r0, #0x11
+-_0811AA5E:
+-	strh r0, [r2, #4]
+-	adds r1, r2, #0
+-	adds r1, #0x9e
+-	movs r0, #0
+-	strb r0, [r1]
+-	adds r1, #1
+-	strb r0, [r1]
+-	ldr r0, _0811AA7C @ =sub_0811AA80
+-	str r0, [r2, #0x78]
+-	adds r0, r2, #0
+-	bl sub_0811AEDC
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811AA7C: .4byte sub_0811AA80
+-
+-	thumb_func_start sub_0811AA80
+-sub_0811AA80: @ 0x0811AA80
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0x9e
+-	adds r0, r0, r3
+-	mov ip, r0
+-	ldrb r0, [r0]
+-	lsls r1, r0, #0x18
+-	lsrs r0, r1, #0x18
+-	cmp r0, #7
+-	bhi _0811AB06
+-	adds r0, r3, #0
+-	adds r0, #0x83
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AAB8
+-	cmp r0, #1
+-	bgt _0811AAA8
+-	cmp r0, #0
+-	beq _0811AAAE
+-	b _0811AAE8
+-_0811AAA8:
+-	cmp r0, #3
+-	beq _0811AAC0
+-	b _0811AAE8
+-_0811AAAE:
+-	ldr r2, _0811AAB4 @ =gUnk_08357C14
+-	b _0811AAC2
+-	.align 2, 0
+-_0811AAB4: .4byte gUnk_08357C14
+-_0811AAB8:
+-	ldr r2, _0811AABC @ =gUnk_08357C24
+-	b _0811AAC2
+-	.align 2, 0
+-_0811AABC: .4byte gUnk_08357C24
+-_0811AAC0:
+-	ldr r2, _0811AB34 @ =gUnk_08357C34
+-_0811AAC2:
+-	lsrs r0, r1, #0x19
+-	lsls r0, r0, #2
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	lsrs r0, r0, #8
+-	adds r1, r3, #0
+-	adds r1, #0x54
+-	strb r0, [r1]
+-	mov r0, ip
+-	ldrb r1, [r0]
+-	movs r0, #1
+-	orrs r0, r1
+-	lsls r0, r0, #1
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	lsrs r0, r0, #8
+-	adds r1, r3, #0
+-	adds r1, #0x55
+-	strb r0, [r1]
+-_0811AAE8:
+-	adds r1, r3, #0
+-	adds r1, #0x9e
+-	ldrb r0, [r1]
+-	adds r0, #1
+-	strb r0, [r1]
+-	ldr r0, [r3, #8]
+-	movs r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811AB06
+-	adds r1, r3, #0
+-	adds r1, #0x54
+-	ldrb r0, [r1]
+-	rsbs r0, r0, #0
+-	strb r0, [r1]
+-_0811AB06:
+-	ldrh r0, [r3, #4]
+-	subs r0, #1
+-	strh r0, [r3, #4]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bne _0811AB70
+-	adds r1, r3, #0
+-	adds r1, #0x9e
+-	movs r0, #0
+-	strb r0, [r1]
+-	adds r1, #1
+-	ldrb r0, [r1]
+-	adds r0, #1
+-	strb r0, [r1]
+-	lsls r0, r0, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #2
+-	bls _0811AB38
+-	adds r0, r3, #0
+-	bl sub_0811A9D4
+-	b _0811AB70
+-	.align 2, 0
+-_0811AB34: .4byte gUnk_08357C34
+-_0811AB38:
+-	adds r0, r3, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AB5A
+-	cmp r0, #1
+-	bgt _0811AB4C
+-	cmp r0, #0
+-	beq _0811AB56
+-	b _0811AB66
+-_0811AB4C:
+-	cmp r0, #2
+-	beq _0811AB5E
+-	cmp r0, #3
+-	beq _0811AB62
+-	b _0811AB66
+-_0811AB56:
+-	movs r0, #0x32
+-	b _0811AB68
+-_0811AB5A:
+-	movs r0, #0x28
+-	b _0811AB68
+-_0811AB5E:
+-	movs r0, #0x1e
+-	b _0811AB68
+-_0811AB62:
+-	movs r0, #0x16
+-	b _0811AB68
+-_0811AB66:
+-	movs r0, #0x11
+-_0811AB68:
+-	strh r0, [r3, #4]
+-	adds r0, r3, #0
+-	bl sub_0811AEDC
+-_0811AB70:
+-	pop {r0}
+-	bx r0
+-
+-	thumb_func_start sub_0811AB74
+-sub_0811AB74: @ 0x0811AB74
+-	push {r4, r5, r6, lr}
+-	adds r4, r0, #0
+-	bl FindTargetKirby
+-	adds r2, r0, #0
+-	adds r0, r4, #0
+-	adds r0, #0xac
+-	str r2, [r0]
+-	ldr r0, [r2, #0x40]
+-	ldr r1, [r4, #0x40]
+-	subs r0, r0, r1
+-	lsls r0, r0, #8
+-	ldr r1, [r2, #0x44]
+-	ldr r2, [r4, #0x44]
+-	subs r1, r1, r2
+-	lsls r1, r1, #8
+-	asrs r0, r0, #0x10
+-	asrs r1, r1, #0x10
+-	bl ArcTan2
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x1c
+-	cmp r0, #0xf
+-	bls _0811ABA6
+-	b _0811AECE
+-_0811ABA6:
+-	lsls r0, r0, #2
+-	ldr r1, _0811ABB0 @ =_0811ABB4
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	mov pc, r0
+-	.align 2, 0
+-_0811ABB0: .4byte _0811ABB4
+-_0811ABB4: @ jump table
+-	.4byte _0811ADBA @ case 0
+-	.4byte _0811AE4A @ case 1
+-	.4byte _0811AE4A @ case 2
+-	.4byte _0811AE4A @ case 3
+-	.4byte _0811AE8C @ case 4
+-	.4byte _0811AE8C @ case 5
+-	.4byte _0811AE8C @ case 6
+-	.4byte _0811ABF4 @ case 7
+-	.4byte _0811ABF4 @ case 8
+-	.4byte _0811AC6A @ case 9
+-	.4byte _0811AC6A @ case 10
+-	.4byte _0811ACE0 @ case 11
+-	.4byte _0811ACE0 @ case 12
+-	.4byte _0811AD36 @ case 13
+-	.4byte _0811AD36 @ case 14
+-	.4byte _0811ADBA @ case 15
+-_0811ABF4:
+-	adds r0, r4, #0
+-	adds r0, #0x83
+-	ldrb r5, [r0]
+-	adds r3, r0, #0
+-	cmp r5, #0
+-	bne _0811AC40
+-	ldr r1, [r4, #8]
+-	movs r5, #1
+-	adds r0, r1, #0
+-	ands r0, r5
+-	adds r2, r1, #0
+-	cmp r0, #0
+-	beq _0811AC50
+-	adds r1, r4, #0
+-	adds r1, #0x85
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	bne _0811AC1A
+-	b _0811AD7C
+-_0811AC1A:
+-	adds r0, r4, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AC38
+-	cmp r0, #1
+-	bgt _0811AC2E
+-	cmp r0, #0
+-	beq _0811AC34
+-	b _0811ADFE
+-_0811AC2E:
+-	cmp r0, #2
+-	beq _0811AC3C
+-	b _0811ADFE
+-_0811AC34:
+-	movs r0, #0x50
+-	b _0811AE00
+-_0811AC38:
+-	movs r0, #0x3c
+-	b _0811AE00
+-_0811AC3C:
+-	movs r0, #0x28
+-	b _0811AE00
+-_0811AC40:
+-	ldr r1, [r4, #8]
+-	movs r0, #1
+-	ands r0, r1
+-	adds r2, r1, #0
+-	cmp r0, #0
+-	beq _0811AC50
+-	subs r0, r5, #1
+-	b _0811AE32
+-_0811AC50:
+-	ldrb r0, [r3]
+-	cmp r0, #3
+-	beq _0811AC58
+-	b _0811AE30
+-_0811AC58:
+-	movs r1, #1
+-	orrs r2, r1
+-	str r2, [r4, #8]
+-	movs r0, #2
+-	strb r0, [r3]
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	strb r1, [r0]
+-	b _0811AEC6
+-_0811AC6A:
+-	adds r0, r4, #0
+-	adds r0, #0x83
+-	ldrb r5, [r0]
+-	adds r6, r5, #0
+-	adds r3, r0, #0
+-	cmp r6, #1
+-	bne _0811ACB8
+-	ldr r1, [r4, #8]
+-	adds r0, r1, #0
+-	ands r0, r6
+-	adds r2, r1, #0
+-	cmp r0, #0
+-	beq _0811ACD8
+-	adds r1, r4, #0
+-	adds r1, #0x85
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _0811ACB4
+-	adds r0, r4, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811ACAC
+-	cmp r0, #1
+-	bgt _0811ACA2
+-	cmp r0, #0
+-	beq _0811ACA8
+-	b _0811ADFE
+-_0811ACA2:
+-	cmp r0, #2
+-	beq _0811ACB0
+-	b _0811ADFE
+-_0811ACA8:
+-	movs r0, #0x50
+-	b _0811AE00
+-_0811ACAC:
+-	movs r0, #0x3c
+-	b _0811AE00
+-_0811ACB0:
+-	movs r0, #0x28
+-	b _0811AE00
+-_0811ACB4:
+-	strb r6, [r1]
+-	b _0811AECE
+-_0811ACB8:
+-	ldr r1, [r4, #8]
+-	movs r0, #1
+-	ands r0, r1
+-	adds r2, r1, #0
+-	cmp r0, #0
+-	beq _0811ACD8
+-	cmp r6, #0
+-	bne _0811ACD4
+-	adds r0, r5, #1
+-	strb r0, [r3]
+-	adds r0, r4, #0
+-	adds r0, #0x85
+-	strb r6, [r0]
+-	b _0811AECE
+-_0811ACD4:
+-	subs r0, r5, #1
+-	b _0811AE32
+-_0811ACD8:
+-	ldrb r0, [r3]
+-	cmp r0, #3
+-	beq _0811AC58
+-	b _0811AE30
+-_0811ACE0:
+-	adds r0, r4, #0
+-	adds r0, #0x83
+-	ldrb r2, [r0]
+-	adds r3, r0, #0
+-	cmp r2, #3
+-	bne _0811AD2A
+-	ldr r0, [r4, #8]
+-	movs r2, #1
+-	ands r0, r2
+-	cmp r0, #0
+-	beq _0811ACF8
+-	b _0811AE2A
+-_0811ACF8:
+-	adds r1, r4, #0
+-	adds r1, #0x85
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	bne _0811AD04
+-	b _0811AE1C
+-_0811AD04:
+-	adds r0, r4, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AD22
+-	cmp r0, #1
+-	bgt _0811AD18
+-	cmp r0, #0
+-	beq _0811AD1E
+-	b _0811ADFE
+-_0811AD18:
+-	cmp r0, #2
+-	beq _0811AD26
+-	b _0811ADFE
+-_0811AD1E:
+-	movs r0, #0x50
+-	b _0811AE00
+-_0811AD22:
+-	movs r0, #0x3c
+-	b _0811AE00
+-_0811AD26:
+-	movs r0, #0x28
+-	b _0811AE00
+-_0811AD2A:
+-	ldr r1, [r4, #8]
+-	movs r0, #1
+-	ands r1, r0
+-	cmp r1, #0
+-	beq _0811ADAE
+-	b _0811AE2A
+-_0811AD36:
+-	adds r0, r4, #0
+-	adds r0, #0x83
+-	ldrb r2, [r0]
+-	adds r5, r2, #0
+-	adds r3, r0, #0
+-	cmp r5, #1
+-	bne _0811AD80
+-	ldr r0, [r4, #8]
+-	ands r0, r5
+-	cmp r0, #0
+-	bne _0811AE2A
+-	adds r1, r4, #0
+-	adds r1, #0x85
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _0811AD7C
+-	adds r0, r4, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811AD74
+-	cmp r0, #1
+-	bgt _0811AD6A
+-	cmp r0, #0
+-	beq _0811AD70
+-	b _0811ADFE
+-_0811AD6A:
+-	cmp r0, #2
+-	beq _0811AD78
+-	b _0811ADFE
+-_0811AD70:
+-	movs r0, #0x50
+-	b _0811AE00
+-_0811AD74:
+-	movs r0, #0x3c
+-	b _0811AE00
+-_0811AD78:
+-	movs r0, #0x28
+-	b _0811AE00
+-_0811AD7C:
+-	strb r5, [r1]
+-	b _0811AECE
+-_0811AD80:
+-	ldr r1, [r4, #8]
+-	movs r6, #1
+-	ands r1, r6
+-	cmp r1, #0
+-	bne _0811AE2A
+-	cmp r5, #3
+-	bne _0811ADAE
+-	subs r0, r2, #1
+-	strb r0, [r3]
+-	lsls r0, r0, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #2
+-	beq _0811AD9C
+-	b _0811AEC6
+-_0811AD9C:
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	strb r6, [r0]
+-	b _0811AEC6
+-_0811ADA4:
+-	adds r1, r4, #0
+-	adds r1, #0x9f
+-	movs r0, #2
+-	strb r0, [r1]
+-	b _0811AE32
+-_0811ADAE:
+-	adds r0, r2, #1
+-	strb r0, [r3]
+-	adds r0, r4, #0
+-	adds r0, #0x85
+-	strb r1, [r0]
+-	b _0811AECE
+-_0811ADBA:
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	ldrb r2, [r1]
+-	adds r3, r1, #0
+-	cmp r2, #0
+-	bne _0811AE20
+-	ldr r0, [r4, #8]
+-	movs r2, #1
+-	ands r0, r2
+-	cmp r0, #0
+-	bne _0811AE2A
+-	adds r1, #2
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _0811AE1C
+-	adds r0, r4, #0
+-	adds r0, #0x87
+-	ldrb r0, [r0]
+-	cmp r0, #1
+-	beq _0811ADF6
+-	cmp r0, #1
+-	bgt _0811ADEC
+-	cmp r0, #0
+-	beq _0811ADF2
+-	b _0811ADFE
+-_0811ADEC:
+-	cmp r0, #2
+-	beq _0811ADFA
+-	b _0811ADFE
+-_0811ADF2:
+-	movs r0, #0x50
+-	b _0811AE00
+-_0811ADF6:
+-	movs r0, #0x3c
+-	b _0811AE00
+-_0811ADFA:
+-	movs r0, #0x28
+-	b _0811AE00
+-_0811ADFE:
+-	movs r0, #0x14
+-_0811AE00:
+-	strh r0, [r4, #4]
+-	adds r1, r4, #0
+-	adds r1, #0x9e
+-	movs r0, #0
+-	strb r0, [r1]
+-	ldr r0, _0811AE18 @ =sub_0811A934
+-	str r0, [r4, #0x78]
+-	adds r0, r4, #0
+-	bl sub_0811AEDC
+-	b _0811AED4
+-	.align 2, 0
+-_0811AE18: .4byte sub_0811A934
+-_0811AE1C:
+-	strb r2, [r1]
+-	b _0811AECE
+-_0811AE20:
+-	ldr r0, [r4, #8]
+-	movs r5, #1
+-	ands r0, r5
+-	cmp r0, #0
+-	beq _0811AE36
+-_0811AE2A:
+-	ldrb r0, [r3]
+-	cmp r0, #1
+-	beq _0811ADA4
+-_0811AE30:
+-	adds r0, #1
+-_0811AE32:
+-	strb r0, [r3]
+-	b _0811AEC6
+-_0811AE36:
+-	subs r0, r2, #1
+-	strb r0, [r1]
+-	lsls r0, r0, #0x18
+-	lsrs r0, r0, #0x18
+-	cmp r0, #2
+-	bne _0811AEC6
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	strb r5, [r0]
+-	b _0811AEC6
+-_0811AE4A:
+-	ldr r0, [r4, #8]
+-	movs r2, #1
+-	ands r0, r2
+-	cmp r0, #0
+-	beq _0811AE70
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	ldrb r0, [r1]
+-	cmp r0, #1
+-	bne _0811AE6A
+-	adds r2, r4, #0
+-	adds r2, #0x9f
+-	movs r0, #2
+-	strb r0, [r2]
+-	strb r0, [r1]
+-	b _0811AEC6
+-_0811AE6A:
+-	adds r0, #1
+-	strb r0, [r1]
+-	b _0811AEC6
+-_0811AE70:
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _0811AE7E
+-	subs r0, #1
+-	strb r0, [r1]
+-_0811AE7E:
+-	ldrb r0, [r1]
+-	cmp r0, #2
+-	bne _0811AEC6
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	strb r2, [r0]
+-	b _0811AEC6
+-_0811AE8C:
+-	ldr r1, [r4, #8]
+-	movs r3, #1
+-	adds r0, r1, #0
+-	ands r0, r3
+-	cmp r0, #0
+-	beq _0811AEA8
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	ldrb r0, [r1]
+-	cmp r0, #0
+-	beq _0811AEC6
+-	subs r0, #1
+-	strb r0, [r1]
+-	b _0811AEC6
+-_0811AEA8:
+-	adds r2, r4, #0
+-	adds r2, #0x83
+-	ldrb r0, [r2]
+-	cmp r0, #3
+-	bne _0811AEC2
+-	orrs r1, r3
+-	str r1, [r4, #8]
+-	movs r0, #2
+-	strb r0, [r2]
+-	adds r0, r4, #0
+-	adds r0, #0x9f
+-	strb r3, [r0]
+-	b _0811AEC6
+-_0811AEC2:
+-	adds r0, #1
+-	strb r0, [r2]
+-_0811AEC6:
+-	adds r1, r4, #0
+-	adds r1, #0x85
+-	movs r0, #0
+-	strb r0, [r1]
+-_0811AECE:
+-	adds r0, r4, #0
+-	bl sub_0811A874
+-_0811AED4:
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_0811AEDC
+-sub_0811AEDC: @ 0x0811AEDC
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sb
+-	mov r6, r8
+-	push {r6, r7}
+-	adds r5, r0, #0
+-	ldr r1, _0811AF28 @ =gCurLevelInfo
+-	adds r3, r5, #0
+-	adds r3, #0x56
+-	ldrb r2, [r3]
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r0, r2, r0
+-	adds r1, #0x54
+-	adds r0, r0, r1
+-	ldr r1, [r5, #0x44]
+-	ldr r0, [r0]
+-	cmp r1, r0
+-	blt _0811AF02
+-	b _0811B1AC
+-_0811AF02:
+-	movs r4, #0
+-	ldr r1, _0811AF2C @ =gUnk_020229D4
+-	movs r6, #1
+-	ldr r2, [r1]
+-	adds r0, r2, #0
+-	ands r0, r6
+-	mov ip, r3
+-	ldr r7, _0811AF30 @ =gUnk_020229E0
+-	movs r3, #0x87
+-	adds r3, r3, r5
+-	mov r8, r3
+-	movs r3, #0x83
+-	adds r3, r3, r5
+-	mov sb, r3
+-	cmp r0, #0
+-	bne _0811AF34
+-	orrs r2, r6
+-	b _0811AF4E
+-	.align 2, 0
+-_0811AF28: .4byte gCurLevelInfo
+-_0811AF2C: .4byte gUnk_020229D4
+-_0811AF30: .4byte gUnk_020229E0
+-_0811AF34:
+-	adds r0, r4, #1
+-	lsls r0, r0, #0x18
+-	lsrs r4, r0, #0x18
+-	cmp r4, #0x1f
+-	bhi _0811AF50
+-	movs r3, #1
+-	lsls r3, r4
+-	ldr r2, [r1]
+-	adds r0, r2, #0
+-	ands r0, r3
+-	cmp r0, #0
+-	bne _0811AF34
+-	orrs r2, r3
+-_0811AF4E:
+-	str r2, [r1]
+-_0811AF50:
+-	lsls r1, r4, #3
+-	adds r1, r1, r4
+-	lsls r1, r1, #2
+-	adds r1, r1, r7
+-	movs r4, #0
+-	movs r7, #1
+-	strb r7, [r1]
+-	movs r0, #0x24
+-	strb r0, [r1, #1]
+-	ldr r0, [r5, #0x40]
+-	asrs r0, r0, #8
+-	movs r6, #0
+-	strh r0, [r1, #6]
+-	ldr r0, [r5, #0x44]
+-	asrs r0, r0, #8
+-	strh r0, [r1, #8]
+-	strb r6, [r1, #2]
+-	movs r0, #0x1f
+-	strb r0, [r1, #3]
+-	strb r6, [r1, #4]
+-	strb r6, [r1, #5]
+-	movs r0, #0xd7
+-	strb r0, [r1, #0xc]
+-	strb r6, [r1, #0xe]
+-	strb r6, [r1, #0xf]
+-	mov r2, r8
+-	ldrb r0, [r2]
+-	strb r0, [r1, #0x10]
+-	strh r4, [r1, #0x22]
+-	strh r4, [r1, #0x1a]
+-	strh r4, [r1, #0x1c]
+-	strh r4, [r1, #0x1e]
+-	strh r4, [r1, #0x20]
+-	strb r6, [r1, #0x11]
+-	strh r4, [r1, #0x12]
+-	strh r4, [r1, #0x14]
+-	strh r4, [r1, #0x16]
+-	strh r4, [r1, #0x18]
+-	mov r3, ip
+-	ldrb r0, [r3]
+-	bl CreateObject
+-	str r5, [r0, #0x70]
+-	adds r3, r0, #0
+-	ldr r0, [r5, #8]
+-	ands r0, r7
+-	cmp r0, #0
+-	beq _0811AFB6
+-	ldr r0, [r3, #8]
+-	orrs r0, r7
+-	str r0, [r3, #8]
+-_0811AFB6:
+-	mov r0, sb
+-	ldrb r1, [r0]
+-	cmp r1, #1
+-	beq _0811B05E
+-	cmp r1, #1
+-	bgt _0811AFC8
+-	cmp r1, #0
+-	beq _0811AFD0
+-	b _0811B15A
+-_0811AFC8:
+-	cmp r1, #3
+-	bne _0811AFCE
+-	b _0811B0DE
+-_0811AFCE:
+-	b _0811B15A
+-_0811AFD0:
+-	ldr r0, [r5, #8]
+-	ands r0, r7
+-	cmp r0, #0
+-	beq _0811AFE4
+-	ldr r0, [r3, #0x40]
+-	ldr r1, _0811AFE0 @ =0xFFFFF400
+-	adds r0, r0, r1
+-	b _0811AFEC
+-	.align 2, 0
+-_0811AFE0: .4byte 0xFFFFF400
+-_0811AFE4:
+-	ldr r0, [r3, #0x40]
+-	movs r2, #0xc0
+-	lsls r2, r2, #4
+-	adds r0, r0, r2
+-_0811AFEC:
+-	str r0, [r3, #0x40]
+-	ldr r0, [r3, #0x44]
+-	movs r1, #0x80
+-	lsls r1, r1, #2
+-	adds r0, r0, r1
+-	str r0, [r3, #0x44]
+-	mov r0, r8
+-	ldrb r2, [r0]
+-	cmp r2, #1
+-	beq _0811B024
+-	cmp r2, #1
+-	bgt _0811B00A
+-	cmp r2, #0
+-	beq _0811B014
+-	b _0811B04C
+-_0811B00A:
+-	cmp r2, #2
+-	beq _0811B030
+-	cmp r2, #3
+-	beq _0811B03C
+-	b _0811B04C
+-_0811B014:
+-	adds r1, r3, #0
+-	adds r1, #0x50
+-	movs r0, #0xb3
+-	strh r0, [r1]
+-	adds r0, r3, #0
+-	adds r0, #0x52
+-	strh r2, [r0]
+-	b _0811B15A
+-_0811B024:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r2, #0
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	b _0811B056
+-_0811B030:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r2, #0
+-	movs r1, #0xb3
+-	lsls r1, r1, #1
+-	b _0811B056
+-_0811B03C:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r2, #0
+-	ldr r1, _0811B048 @ =0x000001CD
+-	b _0811B056
+-	.align 2, 0
+-_0811B048: .4byte 0x000001CD
+-_0811B04C:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r2, #0
+-	movs r1, #0x80
+-	lsls r1, r1, #3
+-_0811B056:
+-	strh r1, [r0]
+-	adds r0, #2
+-	strh r2, [r0]
+-	b _0811B15A
+-_0811B05E:
+-	ldr r0, [r3, #8]
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811B074
+-	ldr r0, [r3, #0x40]
+-	ldr r1, _0811B070 @ =0xFFFFF800
+-	adds r0, r0, r1
+-	b _0811B07C
+-	.align 2, 0
+-_0811B070: .4byte 0xFFFFF800
+-_0811B074:
+-	ldr r0, [r3, #0x40]
+-	movs r2, #0x80
+-	lsls r2, r2, #4
+-	adds r0, r0, r2
+-_0811B07C:
+-	str r0, [r3, #0x40]
+-	ldr r0, [r3, #0x44]
+-	ldr r1, _0811B098 @ =0xFFFFFA00
+-	adds r0, r0, r1
+-	str r0, [r3, #0x44]
+-	mov r2, r8
+-	ldrb r0, [r2]
+-	cmp r0, #1
+-	beq _0811B0AE
+-	cmp r0, #1
+-	bgt _0811B09C
+-	cmp r0, #0
+-	beq _0811B0A6
+-	b _0811B0CE
+-	.align 2, 0
+-_0811B098: .4byte 0xFFFFFA00
+-_0811B09C:
+-	cmp r0, #2
+-	beq _0811B0B6
+-	cmp r0, #3
+-	beq _0811B0C4
+-	b _0811B0CE
+-_0811B0A6:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r1, #0x82
+-	b _0811B0D6
+-_0811B0AE:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r1, #0xbb
+-	b _0811B0D6
+-_0811B0B6:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	ldr r1, _0811B0C0 @ =0x00000105
+-	b _0811B0D6
+-	.align 2, 0
+-_0811B0C0: .4byte 0x00000105
+-_0811B0C4:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r1, #0xa8
+-	lsls r1, r1, #1
+-	b _0811B0D6
+-_0811B0CE:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r1, #0xbb
+-	lsls r1, r1, #2
+-_0811B0D6:
+-	strh r1, [r0]
+-	adds r0, #2
+-	strh r1, [r0]
+-	b _0811B15A
+-_0811B0DE:
+-	ldr r0, [r3, #0x44]
+-	ldr r1, _0811B0F8 @ =0xFFFFF600
+-	adds r0, r0, r1
+-	str r0, [r3, #0x44]
+-	mov r2, r8
+-	ldrb r0, [r2]
+-	cmp r0, #1
+-	beq _0811B114
+-	cmp r0, #1
+-	bgt _0811B0FC
+-	cmp r0, #0
+-	beq _0811B106
+-	b _0811B148
+-	.align 2, 0
+-_0811B0F8: .4byte 0xFFFFF600
+-_0811B0FC:
+-	cmp r0, #2
+-	beq _0811B124
+-	cmp r0, #3
+-	beq _0811B134
+-	b _0811B148
+-_0811B106:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	strh r4, [r0]
+-	adds r1, r3, #0
+-	adds r1, #0x52
+-	movs r0, #0xb3
+-	b _0811B158
+-_0811B114:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	strh r4, [r0]
+-	adds r1, r3, #0
+-	adds r1, #0x52
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	b _0811B158
+-_0811B124:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	strh r4, [r0]
+-	adds r1, r3, #0
+-	adds r1, #0x52
+-	movs r0, #0xb3
+-	lsls r0, r0, #1
+-	b _0811B158
+-_0811B134:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	strh r4, [r0]
+-	adds r1, r3, #0
+-	adds r1, #0x52
+-	ldr r0, _0811B144 @ =0x000001CD
+-	b _0811B158
+-	.align 2, 0
+-_0811B144: .4byte 0x000001CD
+-_0811B148:
+-	adds r0, r3, #0
+-	adds r0, #0x50
+-	movs r1, #0
+-	strh r1, [r0]
+-	adds r1, r3, #0
+-	adds r1, #0x52
+-	movs r0, #0x80
+-	lsls r0, r0, #3
+-_0811B158:
+-	strh r0, [r1]
+-_0811B15A:
+-	ldr r0, [r3, #8]
+-	movs r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811B16E
+-	adds r1, r3, #0
+-	adds r1, #0x50
+-	ldrh r0, [r1]
+-	rsbs r0, r0, #0
+-	strh r0, [r1]
+-_0811B16E:
+-	mov r1, r8
+-	ldrb r0, [r1]
+-	cmp r0, #1
+-	beq _0811B18E
+-	cmp r0, #1
+-	bgt _0811B180
+-	cmp r0, #0
+-	beq _0811B18A
+-	b _0811B19A
+-_0811B180:
+-	cmp r0, #2
+-	beq _0811B192
+-	cmp r0, #3
+-	beq _0811B196
+-	b _0811B19A
+-_0811B18A:
+-	movs r0, #0xd6
+-	b _0811B19C
+-_0811B18E:
+-	movs r0, #0x96
+-	b _0811B19C
+-_0811B192:
+-	movs r0, #0x6b
+-	b _0811B19C
+-_0811B196:
+-	movs r0, #0x53
+-	b _0811B19C
+-_0811B19A:
+-	movs r0, #0x26
+-_0811B19C:
+-	strh r0, [r3, #4]
+-	movs r2, #0xa6
+-	lsls r2, r2, #2
+-	adds r0, r3, #0
+-	movs r1, #0
+-	movs r3, #1
+-	bl CreateEffectObject
+-_0811B1AC:
+-	pop {r3, r4}
+-	mov r8, r3
+-	mov sb, r4
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-
+-	thumb_func_start CreateShotzoBullet
+-CreateShotzoBullet: @ 0x0811B1B8
+-	push {r4, r5, r6, lr}
+-	sub sp, #4
+-	adds r6, r0, #0
+-	lsls r1, r1, #0x18
+-	lsrs r4, r1, #0x18
+-	ldr r0, _0811B1EC @ =ObjectMain
+-	movs r2, #0x80
+-	lsls r2, r2, #5
+-	ldr r1, _0811B1F0 @ =ObjectDestroy
+-	str r1, [sp]
+-	movs r1, #0xb4
+-	movs r3, #0x10
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811B1F4
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r5, r0, r1
+-	b _0811B1FC
+-	.align 2, 0
+-_0811B1EC: .4byte ObjectMain
+-_0811B1F0: .4byte ObjectDestroy
+-_0811B1F4:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r5, r1, r0
+-_0811B1FC:
+-	adds r0, r5, #0
+-	adds r1, r6, #0
+-	adds r2, r4, #0
+-	bl InitObject
+-	adds r0, r5, #0
+-	adds r0, #0x63
+-	movs r3, #0
+-	movs r1, #1
+-	strb r1, [r0]
+-	ldr r2, [r5, #8]
+-	movs r0, #0x40
+-	orrs r2, r0
+-	ldr r0, [r5, #0xc]
+-	orrs r0, r1
+-	movs r1, #4
+-	orrs r0, r1
+-	movs r4, #2
+-	orrs r0, r4
+-	str r0, [r5, #0xc]
+-	movs r0, #0x80
+-	lsls r0, r0, #7
+-	orrs r2, r0
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	orrs r2, r0
+-	movs r0, #0x80
+-	lsls r0, r0, #0x15
+-	orrs r2, r0
+-	str r2, [r5, #8]
+-	ldr r0, _0811B298 @ =0x20000043
+-	str r0, [r5, #0x68]
+-	ldr r0, [r5, #0x5c]
+-	movs r1, #0x88
+-	lsls r1, r1, #2
+-	orrs r0, r1
+-	str r0, [r5, #0x5c]
+-	adds r0, r5, #0
+-	adds r0, #0x9e
+-	strb r3, [r0]
+-	ldr r0, _0811B29C @ =sub_0809F840
+-	str r0, [r5, #0x7c]
+-	movs r2, #2
+-	rsbs r2, r2, #0
+-	str r4, [sp]
+-	adds r0, r5, #0
+-	adds r1, r2, #0
+-	movs r3, #2
+-	bl sub_0803E2B0
+-	str r4, [sp]
+-	adds r0, r5, #0
+-	movs r1, #2
+-	movs r2, #2
+-	movs r3, #2
+-	bl ObjectSetBounds
+-	adds r0, r5, #0
+-	bl ObjectInitSprite
+-	ldr r2, _0811B2A0 @ =gUnk_08351648
+-	adds r0, r5, #0
+-	adds r0, #0x82
+-	ldrb r1, [r0]
+-	lsls r0, r1, #1
+-	adds r0, r0, r1
+-	lsls r0, r0, #3
+-	adds r2, #0x10
+-	adds r0, r0, r2
+-	ldr r1, [r0]
+-	adds r0, r5, #0
+-	bl _call_via_r1
+-	adds r0, r5, #0
+-	add sp, #4
+-	pop {r4, r5, r6}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-_0811B298: .4byte 0x20000043
+-_0811B29C: .4byte sub_0809F840
+-_0811B2A0: .4byte gUnk_08351648
+-
+-	thumb_func_start sub_0811B2A4
+-sub_0811B2A4: @ 0x0811B2A4
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	ldr r2, _0811B330 @ =sub_0811B34C
+-	movs r1, #0
+-	bl ObjectSetFunc
+-	ldr r0, [r4, #8]
+-	movs r1, #0x40
+-	orrs r0, r1
+-	subs r1, #0x61
+-	ands r0, r1
+-	str r0, [r4, #8]
+-	ldr r1, _0811B334 @ =gKirbys
+-	ldr r0, _0811B338 @ =gLocalPlayerId
+-	ldrb r2, [r0]
+-	movs r0, #0xd4
+-	lsls r0, r0, #1
+-	muls r0, r2, r0
+-	adds r0, r0, r1
+-	adds r0, #0x60
+-	adds r1, r4, #0
+-	adds r1, #0x60
+-	ldrh r0, [r0]
+-	ldrh r1, [r1]
+-	cmp r0, r1
+-	bne _0811B328
+-	ldrb r0, [r4]
+-	cmp r0, #0
+-	bne _0811B2E8
+-	adds r0, r4, #0
+-	adds r0, #0x56
+-	ldrb r0, [r0]
+-	cmp r0, r2
+-	bne _0811B328
+-_0811B2E8:
+-	ldr r1, _0811B33C @ =gUnk_08D60FA4
+-	ldr r4, _0811B340 @ =gSongTable
+-	ldr r2, _0811B344 @ =0x00000A34
+-	adds r0, r4, r2
+-	ldrh r3, [r0]
+-	lsls r0, r3, #2
+-	adds r0, r0, r1
+-	ldr r2, [r0]
+-	ldr r0, [r2, #4]
+-	cmp r0, #0
+-	blt _0811B30E
+-	movs r1, #0xa3
+-	lsls r1, r1, #4
+-	adds r0, r4, r1
+-	ldr r1, [r0]
+-	ldrb r0, [r2, #9]
+-	ldrb r1, [r1, #2]
+-	cmp r0, r1
+-	bhi _0811B328
+-_0811B30E:
+-	cmp r3, #0
+-	beq _0811B320
+-	ldr r0, _0811B348 @ =gUnk_0203AD10
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0811B328
+-_0811B320:
+-	movs r0, #0xa3
+-	lsls r0, r0, #1
+-	bl m4aSongNumStart
+-_0811B328:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811B330: .4byte sub_0811B34C
+-_0811B334: .4byte gKirbys
+-_0811B338: .4byte gLocalPlayerId
+-_0811B33C: .4byte gUnk_08D60FA4
+-_0811B340: .4byte gSongTable
+-_0811B344: .4byte 0x00000A34
+-_0811B348: .4byte gUnk_0203AD10
+-
+-	thumb_func_start sub_0811B34C
+-sub_0811B34C: @ 0x0811B34C
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	ldr r0, [r4, #8]
+-	movs r1, #4
+-	orrs r0, r1
+-	ldr r1, _0811B3DC @ =0xFFFFFEFF
+-	ands r0, r1
+-	str r0, [r4, #8]
+-	ldr r2, _0811B3E0 @ =gCurLevelInfo
+-	adds r0, r4, #0
+-	adds r0, #0x56
+-	ldrb r1, [r0]
+-	movs r0, #0xcd
+-	lsls r0, r0, #3
+-	muls r1, r0, r1
+-	adds r0, r2, #0
+-	adds r0, #0x50
+-	adds r0, r1, r0
+-	ldr r3, [r4, #0x40]
+-	ldr r0, [r0]
+-	cmp r3, r0
+-	bgt _0811B3A4
+-	adds r0, r2, #0
+-	adds r0, #0x48
+-	adds r0, r1, r0
+-	ldr r0, [r0]
+-	cmp r3, r0
+-	blt _0811B3A4
+-	adds r0, r2, #0
+-	adds r0, #0x54
+-	adds r0, r1, r0
+-	ldr r3, [r4, #0x44]
+-	ldr r0, [r0]
+-	cmp r3, r0
+-	bgt _0811B3A4
+-	adds r0, r2, #0
+-	adds r0, #0x4c
+-	adds r0, r1, r0
+-	ldr r0, [r0]
+-	cmp r3, r0
+-	blt _0811B3A4
+-	adds r0, r4, #0
+-	bl sub_0806FC70
+-_0811B3A4:
+-	ldr r0, [r4, #8]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	orrs r0, r1
+-	str r0, [r4, #8]
+-	ldrh r0, [r4, #4]
+-	subs r0, #1
+-	strh r0, [r4, #4]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	beq _0811B3C4
+-	adds r0, r4, #0
+-	adds r0, #0x62
+-	ldrb r0, [r0]
+-	cmp r0, #0
+-	beq _0811B3D4
+-_0811B3C4:
+-	adds r0, r4, #0
+-	bl sub_0809DA30
+-	ldr r0, [r4, #8]
+-	movs r1, #0x80
+-	lsls r1, r1, #5
+-	orrs r0, r1
+-	str r0, [r4, #8]
+-_0811B3D4:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811B3DC: .4byte 0xFFFFFEFF
+-_0811B3E0: .4byte gCurLevelInfo
+-
+-	thumb_func_start sub_0811B3E4
+-sub_0811B3E4: @ 0x0811B3E4
+-	push {lr}
+-	adds r1, r0, #0
+-	ldrh r0, [r1, #4]
+-	subs r0, #1
+-	strh r0, [r1, #4]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bne _0811B3FA
+-	adds r0, r1, #0
+-	bl sub_0811AA2C
+-_0811B3FA:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_0811B400
+-sub_0811B400: @ 0x0811B400
+-	push {r4, lr}
+-	sub sp, #4
+-	adds r4, r0, #0
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	movs r0, #0
+-	strb r0, [r1]
+-	subs r1, #0x33
+-	movs r2, #0
+-	strh r0, [r1]
+-	adds r1, #2
+-	strh r0, [r1]
+-	adds r1, #0x4c
+-	strb r2, [r1]
+-	strh r0, [r4, #4]
+-	movs r1, #5
+-	rsbs r1, r1, #0
+-	movs r2, #0x10
+-	rsbs r2, r2, #0
+-	movs r0, #8
+-	str r0, [sp]
+-	adds r0, r4, #0
+-	movs r3, #5
+-	bl sub_0803E2B0
+-	ldr r0, [r4, #8]
+-	movs r1, #0x80
+-	lsls r1, r1, #6
+-	orrs r0, r1
+-	str r0, [r4, #8]
+-	ldr r0, _0811B448 @ =sub_0811B44C
+-	str r0, [r4, #0x78]
+-	add sp, #4
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811B448: .4byte sub_0811B44C
+-
+-	thumb_func_start sub_0811B44C
+-sub_0811B44C: @ 0x0811B44C
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	ldr r0, [r4, #8]
+-	ldr r1, _0811B484 @ =0xFFFFDFFF
+-	ands r0, r1
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	movs r1, #0
+-	bl sub_080C29C0
+-	adds r1, r4, #0
+-	adds r1, #0x83
+-	movs r0, #0
+-	strb r0, [r1]
+-	subs r1, #0x33
+-	movs r2, #0
+-	strh r0, [r1]
+-	adds r1, #2
+-	strh r0, [r1]
+-	adds r1, #0x4c
+-	strb r2, [r1]
+-	strh r0, [r4, #4]
+-	ldr r0, _0811B488 @ =sub_0811B48C
+-	str r0, [r4, #0x78]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0811B484: .4byte 0xFFFFDFFF
+-_0811B488: .4byte sub_0811B48C
+-
+-	thumb_func_start sub_0811B48C
+-sub_0811B48C: @ 0x0811B48C
+-	push {r4, lr}
+-	sub sp, #4
+-	adds r4, r0, #0
+-	adds r0, #0x62
+-	ldrb r1, [r0]
+-	movs r0, #4
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0811B4D8
+-	ldr r1, [r4, #8]
+-	movs r2, #0x80
+-	lsls r2, r2, #0x11
+-	adds r0, r1, #0
+-	ands r0, r2
+-	cmp r0, #0
+-	beq _0811B4D4
+-	ldr r0, _0811B4D0 @ =0xFEFFFFFF
+-	ands r1, r0
+-	str r1, [r4, #8]
+-	movs r1, #5
+-	rsbs r1, r1, #0
+-	movs r2, #6
+-	rsbs r2, r2, #0
+-	movs r0, #3
+-	str r0, [sp]
+-	adds r0, r4, #0
+-	movs r3, #5
+-	bl sub_0803E2B0
+-	adds r0, r4, #0
+-	bl sub_0811A874
+-	b _0811B4E8
+-	.align 2, 0
+-_0811B4D0: .4byte 0xFEFFFFFF
+-_0811B4D4:
+-	orrs r1, r2
+-	str r1, [r4, #8]
+-_0811B4D8:
+-	ldr r1, [r4, #8]
+-	movs r0, #0x40
+-	ands r1, r0
+-	cmp r1, #0
+-	bne _0811B4E8
+-	adds r0, r4, #0
+-	adds r0, #0x50
+-	strh r1, [r0]
+-_0811B4E8:
+-	add sp, #4
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+diff --git a/include/shotzo.h b/include/shotzo.h
+new file mode 100644
+index 0000000..8ad8fa8
+--- /dev/null
++++ b/include/shotzo.h
+@@ -0,0 +1,10 @@
++#ifndef GUARD_SHOTZO_H
++#define GUARD_SHOTZO_H
++
++#include "global.h"
++#include "data.h"
++
++void *CreateShotzo(struct ObjectTemplate *, u8);
++void *CreateShotzoBullet(struct ObjectTemplate *, u8);
++
++#endif
+diff --git a/linker.ld b/linker.ld
+index 9537409..d6501d7 100644
+--- a/linker.ld
++++ b/linker.ld
+@@ -230,7 +230,7 @@ SECTIONS {
+         src/warp_star.o(.text);
+         src/code_0800E0E4.o(.text);
+         src/code_0800ECAC.o(.text);
+-        asm/sub_0800F044.o(.text);
++        src/sub_0800F044.o(.text);
+         src/code_0800ECAC_2.o(.text);
+         src/treasures.o(.text);
+         src/multi_08019F28.o(.text);
+@@ -265,7 +265,7 @@ SECTIONS {
+         src/palette_effects.o(.text);
+         src/kirby.o(.text);
+         src/code_0806F780.o(.text);
+-        asm/code_0806F734.o(.text);
++        src/code_0806F734.o(.text);
+         src/object.o(.text);
+         src/gordo.o(.text);
+         src/droppy.o(.text);
+@@ -336,7 +336,7 @@ SECTIONS {
+         src/big_small_switch.o(.text);
+         src/fire.o(.text);
+         src/mirror_door.o(.text);
+-        asm/shotzo.o(.text);
++        src/shotzo.o(.text);
+         src/vert_sliding_door.o(.text);
+         src/object_spawner.o(.text);
+         src/destroyable_rock_block.o(.text);
+diff --git a/src/code_0806F734.c b/src/code_0806F734.c
+new file mode 100644
+index 0000000..6ca0a2c
+--- /dev/null
++++ b/src/code_0806F734.c
+@@ -0,0 +1,370 @@
++#include "global.h"
++#include "data.h"
++#include "task.h"
++#include "kirby.h"
++#include "object.h"
++#include "constants/kirby.h"
++#include "constants/songs.h"
++
++void sub_08098F6C(void);
++void sub_0809924C(void);
++void sub_08099668(void);
++void sub_080998B8(void);
++
++// code_0806F780.c
++void sub_08098400(void);
++void sub_08098700(void);
++bool32 EffectObjectPostUpdate(struct EffectObject *);
++void EffectObjectInitSprite(struct EffectObject *, struct Sprite *, u32, u16, u8, u16);
++struct EffectObject *CreateEffectObject(struct ObjectBase *, u32, u16, u8);
++extern const s16 gUnk_0835104A[];
++
++void sub_08099B28(struct Task *);
++
++// sub_08098E54: functionally equivalent; remaining diff is register allocation.
++#ifndef NONMATCHING
++NAKED void sub_08098E54(struct Kirby *kirby, u8 a2, u8 a3, u16 a4, u16 a5) {
++    asm(".include \"asm/nonmatching/sub_08098E54.inc\"");
++}
++#else
++void sub_08098E54(struct Kirby *kirby, u8 a2, u8 a3, u16 a4, u16 a5) {
++    struct Task *t = TaskCreate(sub_08098F6C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
++    struct EffectObject *tmp = TaskGetStructPtr(t), *obj4 = tmp;
++
++    ClearEffectObject(tmp);
++    obj4->header.kind = 3;
++    obj4->x = kirby->base.x;
++    obj4->y = kirby->base.y;
++    obj4->parent = kirby;
++    obj4->roomId = kirby->base.roomId;
++    obj4->flags |= 0x4000;
++    obj4->unk3C = a4;
++    obj4->unk3E = a5;
++    obj4->y += (s8)a3 << 8;
++    if (kirby->base.flags & 1)
++        obj4->x -= (s8)a2 << 8;
++    else
++        obj4->x += (s8)a2 << 8;
++    if (Macro_0810B1F4(&kirby->base))
++        obj4->flags |= 0x2000;
++    obj4->flags |= 0x4000;
++    EffectObjectInitSprite(obj4, &obj4->sprite, 0x6012000, 0x297, 1, 12);
++}
++#endif
++
++void sub_08098F6C(void) {
++    struct EffectObject *tmp = TaskGetStructPtr(gCurTask), *obj4 = tmp;
++    struct Kirby *kirby2;
++    u16 dead = obj4->flags & 0x1000;
++
++    if (dead) {
++        TaskDestroy(gCurTask);
++    } else {
++        kirby2 = obj4->parent;
++        if (kirby2) {
++            if (kirby2->base.header.kind && kirby2->base.flags & 0x1000) {
++                obj4->parent = NULL;
++                kirby2 = NULL;
++            }
++            if (!kirby2) goto _08099000;
++            if (Macro_0810B1F4(&kirby2->base) && !(obj4->flags & 0x2000)) {
++                EffectObjectDisplaySprite(obj4);
++                return;
++            }
++        } else {
++        _08099000:
++            KirbySomething(obj4);
++        }
++        Macro_0809E55C(obj4);
++        if (obj4->flags & 2) {
++            obj4->flags |= 0x1000;
++            return;
++        }
++        ++obj4->unk4;
++        if (!(obj4->flags & 0x800)) {
++            obj4->x += obj4->unk3C;
++            obj4->y -= obj4->unk3E;
++        }
++        EffectObjectPostUpdate(obj4);
++    }
++}
++
++void sub_08099118(struct Kirby *kirby) {
++    struct Task *t = TaskCreate(sub_0809924C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++    u16 zero;
++    u16 fl;
++
++    ClearEffectObject(obj4);
++    zero = 0;
++    obj4->header.kind = 3;
++    obj4->x = kirby->base.x;
++    obj4->y = kirby->base.y;
++    obj4->parent = kirby;
++    obj4->roomId = kirby->base.roomId;
++    fl = obj4->flags;
++    fl |= 0x4000;
++    fl |= 0x400;
++    obj4->unk3C = zero;
++    obj4->unk3E = zero;
++    obj4->y += -0xA000;
++    obj4->x += -0xA000;
++    fl |= 0x4000;
++    obj4->flags = fl;
++    EffectObjectInitSprite(obj4, &obj4->sprite, 0x6012000, 0x29C, 1, 0x1A);
++    PlaySfx(&kirby->base, SE_08D5B84C);
++}
++
++// sub_0809924C: functionally equivalent; remaining diff is register allocation.
++#ifndef NONMATCHING
++NAKED void sub_0809924C(void) {
++    asm(".include \"asm/nonmatching/sub_0809924C.inc\"");
++}
++#else
++void sub_0809924C(void) {
++    struct EffectObject *tmp = TaskGetStructPtr(gCurTask), *obj4 = tmp;
++    struct Kirby *kirby = obj4->parent, *kirby2;
++    u16 dead = obj4->flags & 0x1000;
++    s16 counter;
++
++    if (dead) {
++        TaskDestroy(gCurTask);
++    } else {
++        kirby2 = obj4->parent;
++        if (kirby2) {
++            if (kirby2->base.header.kind && kirby2->base.flags & 0x1000) {
++                obj4->parent = NULL;
++                kirby2 = NULL;
++            }
++            if (!kirby2) goto _080992E0;
++            if (Macro_0810B1F4(&kirby2->base) && !(obj4->flags & 0x2000)) {
++                EffectObjectDisplaySprite(obj4);
++                return;
++            }
++        } else {
++        _080992E0:
++            KirbySomething(obj4);
++        }
++        {
++            bool32 flag = TRUE;
++            u8 i = gNumKirbys;
++
++            counter = obj4->unk4;
++            if (gNumKirbys) {
++                while (1) {
++                    if (gCurLevelInfo[i - 1].currentRoom == obj4->roomId
++                        && !(gUnk_02026D50[gCurLevelInfo[i - 1].unk65E] & 8)) {
++                        flag = FALSE;
++                        break;
++                    }
++                    if (!--i)
++                        break;
++                }
++            }
++            if (flag)
++                obj4->flags |= 0x1000;
++        }
++        if (counter > 0x20)
++            goto _080994EC;
++        if (obj4->flags & 0x400) {
++            if (!(kirby->base.flags & 0x200)) {
++                if (kirby->animationIndex == 0x63 || kirby->ability == KIRBY_ABILITY_UFO) {
++                    if (kirby->animationIndex == 0x36)
++                        return;
++                    if (kirby->ability != KIRBY_ABILITY_UFO)
++                        return;
++                }
++                goto _08099484;
++            }
++            obj4->flags &= ~0x400;
++            obj4->y = kirby->base.y + -0xA000;
++            obj4->x = kirby->base.x + -0xA000;
++            if (gLocalPlayerId != kirby->base.unk56) {
++                struct EffectObject *effect = CreateEffectObject(&kirby->base, 0, 0x292, 0);
++
++                effect->x = obj4->x;
++                effect->y = obj4->y;
++            }
++        }
++        if ((kirby->animationIndex == 0x63 || kirby->ability == KIRBY_ABILITY_UFO)
++            && (kirby->animationIndex == 0x36 || kirby->ability != KIRBY_ABILITY_UFO)
++            && (kirby->base.unkC & 0x40000))
++            goto _0809952C;
++        {
++            struct EffectObject *effect = CreateEffectObject(&kirby->base, 0, 0x292, 0);
++
++            effect->x = obj4->x;
++            effect->y = obj4->y;
++        }
++    _08099484:
++        PlaySfx(&kirby->base, SE_WARPSTAR_ACTIVATE_DESTROY);
++    _080994EC:
++        obj4->flags |= 0x1000;
++        return;
++
++    _0809952C:
++        obj4->flags |= 4;
++        {
++            u16 t = gUnk_0835104A[(0x20 - obj4->unk4) >> 2];
++            obj4->unk3E = kirby->base.yspeed - t + kirby->movementOverride.y;
++        }
++        obj4->unk3C = gUnk_0835104A[obj4->unk4 >> 2] + kirby->base.xspeed
++            + kirby->movementOverride.x;
++        ++obj4->unk4;
++        if (!(obj4->flags & 0x800)) {
++            obj4->x += obj4->unk3C;
++            obj4->y -= obj4->unk3E;
++        }
++        EffectObjectPostUpdate(obj4);
++    }
++}
++#endif
++
++void sub_080995AC(struct ThrowAbilityObject *obj3) {
++    struct Task *t = TaskCreate(sub_08099668, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++    u16 speed;
++
++    ClearEffectObject(obj4);
++    obj4->header.kind = 3;
++    obj4->x = obj3->base.x;
++    obj4->y = obj3->base.y;
++    obj4->parent = obj3;
++    obj4->roomId = obj3->base.roomId;
++    speed = 0x200;
++    obj4->unk3C = speed;
++    if (obj3->base.xspeed > 0)
++        obj4->unk3C = -speed;
++    obj4->unk3E = -0x200;
++    if (obj3->base.yspeed < 0)
++        obj4->unk3E = speed;
++    obj4->flags |= 0x4000;
++    EffectObjectInitSprite(obj4, &obj4->sprite, 0x6012000, 0x2A4, 0, 12);
++}
++
++void sub_08099668(void) {
++    struct EffectObject *tmp = TaskGetStructPtr(gCurTask), *obj4 = tmp;
++    struct ThrowAbilityObject *obj3;
++    u16 dead = obj4->flags & 0x1000;
++    u16 c;
++
++    if (dead) {
++        TaskDestroy(gCurTask);
++    } else {
++        obj3 = obj4->parent;
++        if (obj3) {
++            if (obj3->base.header.kind && obj3->base.flags & 0x1000) {
++                obj4->parent = NULL;
++                obj3 = NULL;
++            }
++            if (!obj3) goto _080996FC;
++            if (Macro_0810B1F4(&obj3->base) && !(obj4->flags & 0x2000)) {
++                EffectObjectDisplaySprite(obj4);
++                return;
++            }
++        } else {
++        _080996FC:
++            KirbySomething(obj4);
++        }
++        Macro_0809E55C(obj4);
++        if (obj4->flags & 2) {
++            obj4->flags |= 0x1000;
++            return;
++        }
++        c = obj4->unk4;
++        if (obj4->unk4 == 1)
++            obj4->sprite.unk14 = 0x640;
++        obj4->unk4 = c + 1;
++        if (!(obj4->flags & 0x800)) {
++            obj4->x += obj4->unk3C;
++            obj4->y -= obj4->unk3E;
++        }
++        EffectObjectPostUpdate(obj4);
++    }
++}
++
++void sub_08099828(struct ThrowAbilityObject *obj3) {
++    struct Task *t = TaskCreate(sub_080998B8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++
++    ClearEffectObject(obj4);
++    obj4->header.kind = 3;
++    obj4->x = obj3->base.x;
++    obj4->y = obj3->base.y;
++    obj4->parent = obj3;
++    obj4->roomId = obj3->base.roomId;
++    obj4->flags |= 0x4000;
++    EffectObjectInitSprite(obj4, &obj4->sprite, 0x6012000, 0x2A4, 1, 12);
++}
++
++void sub_080998B8(void) {
++    struct EffectObject *tmp = TaskGetStructPtr(gCurTask), *obj4 = tmp;
++    struct ThrowAbilityObject *obj3;
++    u16 dead = obj4->flags & 0x1000;
++
++    if (dead) {
++        TaskDestroy(gCurTask);
++    } else {
++        obj3 = obj4->parent;
++        if (obj3) {
++            if (obj3->base.header.kind && obj3->base.flags & 0x1000) {
++                obj4->parent = NULL;
++                obj3 = NULL;
++            }
++            if (!obj3) goto _0809994C;
++            if (Macro_0810B1F4(&obj3->base) && !(obj4->flags & 0x2000)) {
++                EffectObjectDisplaySprite(obj4);
++                return;
++            }
++        } else {
++        _0809994C:
++            KirbySomething(obj4);
++        }
++        Macro_0809E55C(obj4);
++        if (obj4->flags & 2) {
++            obj4->flags |= 0x1000;
++            return;
++        }
++        if (!(obj4->flags & 0x800)) {
++            obj4->x += obj4->unk3C;
++            obj4->y -= obj4->unk3E;
++        }
++        EffectObjectPostUpdate(obj4);
++    }
++}
++
++void sub_08099A60(struct Kirby *kirby) {
++    struct Task *t = TaskCreate(sub_08098400, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++
++    ClearEffectObject(obj4);
++    obj4->header.kind = 3;
++    obj4->x = kirby->base.x;
++    obj4->y = kirby->base.y;
++    obj4->parent = kirby;
++    obj4->roomId = kirby->base.roomId;
++}
++
++void sub_08099AC4(struct ObjectBase *objBase) {
++    struct Task *t = TaskCreate(sub_08098700, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++
++    ClearEffectObject(obj4);
++    obj4->header.kind = 3;
++    obj4->x = objBase->x;
++    obj4->y = objBase->y;
++    obj4->parent = objBase;
++    obj4->roomId = objBase->roomId;
++}
++
++void sub_08099B28(struct Task *t) {
++    struct EffectObject *obj4 = TaskGetStructPtr(t);
++    struct Kirby *kirby = obj4->parent;
++
++    if (kirby->base.unk56 == gLocalPlayerId) {
++        m4aSongNumStop(SE_ABILITY_CUPID_CHARGE_1);
++        if (kirby->base.unk56 == gLocalPlayerId)
++            m4aSongNumStop(SE_ABILITY_CUPID_CHARGE_2);
++    }
++    ObjectBaseDestroy(t);
++}
+diff --git a/src/shotzo.c b/src/shotzo.c
+new file mode 100644
+index 0000000..eb326fb
+--- /dev/null
++++ b/src/shotzo.c
+@@ -0,0 +1,741 @@
++#include "shotzo.h"
++#include "functions.h"
++#include "kirby.h"
++#include "object.h"
++#include "code_0806F780.h"
++#include "parasol.h"
++#include "constants/songs.h"
++
++void sub_0811A874(struct Object *);
++void sub_0811A8D4(struct Object *);
++void sub_0811A934(struct Object *);
++void sub_0811A9D4(struct Object *);
++void sub_0811AA2C(struct Object *);
++void sub_0811AA80(struct Object *);
++void sub_0811AB74(struct Object *);
++void sub_0811AEDC(struct Object *);
++void sub_0811B2A4(struct Object *);
++void sub_0811B34C(struct Object *);
++void sub_0811B3E4(struct Object *);
++void sub_0811B400(struct Object *);
++void sub_0811B44C(struct Object *);
++void sub_0811B48C(struct Object *);
++
++extern const u16 gUnk_08357C14[];
++extern const u16 gUnk_08357C24[];
++extern const u16 gUnk_08357C34[];
++
++#define ShotzoFire(shotzo) ({ \
++    switch ((shotzo)->subtype) \
++    { \
++    case 0: \
++        (shotzo)->base.counter = 0x50; \
++        break; \
++    case 1: \
++        (shotzo)->base.counter = 0x3C; \
++        break; \
++    case 2: \
++        (shotzo)->base.counter = 0x28; \
++        break; \
++    default: \
++        (shotzo)->base.counter = 0x14; \
++        break; \
++    } \
++    (shotzo)->unk9E = 0; \
++    (shotzo)->unk78 = sub_0811A934; \
++    sub_0811AEDC(shotzo); \
++})
++
++void *CreateShotzo(struct ObjectTemplate *template, u8 a2)
++{
++    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
++    struct Object *tmp = TaskGetStructPtr(t), *shotzo = tmp;
++
++    InitObject(tmp, template, a2);
++    shotzo->unk85 = 0;
++    shotzo->unk9F = 0;
++    shotzo->base.unkC |= 0x100;
++    shotzo->base.flags |= 0x8000;
++    shotzo->base.unk5C |= 0x20;
++    sub_0803E2B0(&shotzo->base, -5, -6, 5, 3);
++    ObjectSetBounds(&shotzo->base, -6, -7, 6, 7);
++    ObjectInitSprite(shotzo);
++    if (shotzo->objTemplate->subtype1 == 0)
++    {
++        if (shotzo->base.x > shotzo->kirby3->base.x)
++            shotzo->base.flags |= 1;
++        else
++            shotzo->base.flags &= ~1;
++    }
++    if (shotzo->objTemplate->subtype1 == 4)
++    {
++        if (shotzo->base.x > shotzo->kirby3->base.x)
++            shotzo->base.flags |= 1;
++        else
++            shotzo->base.flags &= ~1;
++        sub_0811B400(shotzo);
++    }
++    else
++        gUnk_08351648[shotzo->type].unk10(shotzo);
++    shotzo->unk9E = 0;
++    shotzo->unk7C = NULL;
++    return shotzo;
++}
++
++void sub_0811A874(struct Object *shotzo)
++{
++    if (shotzo->objTemplate->subtype1 != 0 && shotzo->objTemplate->subtype1 != 4)
++        sub_0811A9D4(shotzo);
++    else
++    {
++        switch (shotzo->subtype)
++        {
++        case 0:
++            shotzo->base.counter = 0x50;
++            break;
++        case 1:
++            shotzo->base.counter = 0x3C;
++            break;
++        case 2:
++            shotzo->base.counter = 0x28;
++            break;
++        default:
++            shotzo->base.counter = 0x14;
++            break;
++        }
++        shotzo->base.xspeed = 0;
++        shotzo->unk9E = 0;
++        shotzo->unk78 = sub_0811A8D4;
++    }
++}
++
++void sub_0811A8D4(struct Object *shotzo)
++{
++    if (!--shotzo->base.counter)
++        sub_0811AB74(shotzo);
++    if (shotzo->unk83 == 2)
++    {
++        if (++shotzo->unk9E > 3)
++        {
++            switch (shotzo->unk9F)
++            {
++            case 0:
++                shotzo->unk83 = 3;
++                break;
++            case 2:
++                shotzo->base.flags &= ~1;
++                shotzo->unk83 = 3;
++                break;
++            default:
++                shotzo->unk83 = 1;
++                break;
++            }
++            shotzo->unk9F = 0;
++        }
++    }
++}
++
++// sub_0811A934: functionally equivalent; remaining diff is register allocation.
++#ifndef NONMATCHING
++NAKED void sub_0811A934(struct Object *shotzo) {
++    asm(".include \"asm/nonmatching/sub_0811A934.inc\"");
++}
++#else
++void sub_0811A934(struct Object *shotzo)
++{
++    u8 *framePtr = &shotzo->unk9E;
++    u32 frameShifted = *framePtr << 24;
++
++    if (frameShifted >> 24 <= 7)
++    {
++        const u16 *offsetTable;
++
++        switch (shotzo->unk83)
++        {
++        case 0:
++            offsetTable = gUnk_08357C14;
++            break;
++        case 1:
++            offsetTable = gUnk_08357C24;
++            break;
++        case 3:
++            offsetTable = gUnk_08357C34;
++            break;
++        default:
++            goto skip;
++        }
++        shotzo->base.objBase54 = offsetTable[(frameShifted >> 25) * 2] >> 8;
++        shotzo->base.objBase55 = offsetTable[*framePtr | 1] >> 8;
++    skip:
++        shotzo->unk9E++;
++        if (shotzo->base.flags & 1)
++            shotzo->base.objBase54 = -shotzo->base.objBase54;
++    }
++    if (!--shotzo->base.counter)
++        sub_0811A874(shotzo);
++}
++#endif
++
++void sub_0811A9D4(struct Object *shotzo)
++{
++    switch (shotzo->objTemplate->subtype1)
++    {
++    case 1:
++        shotzo->unk83 = 1;
++        shotzo->base.flags |= 1;
++        break;
++    case 2:
++        shotzo->unk83 = 3;
++        shotzo->base.flags &= ~1;
++        break;
++    default:
++        shotzo->unk83 = 1;
++        shotzo->base.flags &= ~1;
++        break;
++    }
++    shotzo->base.xspeed = 0;
++    shotzo->unk9E = 0;
++    shotzo->base.counter = 0x64;
++    shotzo->unk78 = sub_0811B3E4;
++}
++
++void sub_0811AA2C(struct Object *shotzo)
++{
++    switch (shotzo->subtype)
++    {
++    case 0:
++        shotzo->base.counter = 0x32;
++        break;
++    case 1:
++        shotzo->base.counter = 0x28;
++        break;
++    case 2:
++        shotzo->base.counter = 0x1E;
++        break;
++    case 3:
++        shotzo->base.counter = 0x16;
++        break;
++    default:
++        shotzo->base.counter = 0x11;
++        break;
++    }
++    shotzo->unk9E = 0;
++    shotzo->unk9F = 0;
++    shotzo->unk78 = sub_0811AA80;
++    sub_0811AEDC(shotzo);
++}
++
++// sub_0811AA80: functionally equivalent; remaining diff is register allocation.
++#ifndef NONMATCHING
++NAKED void sub_0811AA80(struct Object *shotzo) {
++    asm(".include \"asm/nonmatching/sub_0811AA80.inc\"");
++}
++#else
++void sub_0811AA80(struct Object *shotzo)
++{
++    u8 *framePtr = &shotzo->unk9E;
++    u32 frameShifted = *framePtr << 24;
++
++    if (frameShifted >> 24 <= 7)
++    {
++        const u16 *offsetTable;
++
++        switch (shotzo->unk83)
++        {
++        case 0:
++            offsetTable = gUnk_08357C14;
++            break;
++        case 1:
++            offsetTable = gUnk_08357C24;
++            break;
++        case 3:
++            offsetTable = gUnk_08357C34;
++            break;
++        default:
++            goto skip;
++        }
++        shotzo->base.objBase54 = offsetTable[(frameShifted >> 25) * 2] >> 8;
++        shotzo->base.objBase55 = offsetTable[*framePtr | 1] >> 8;
++    skip:
++        shotzo->unk9E++;
++        if (shotzo->base.flags & 1)
++            shotzo->base.objBase54 = -shotzo->base.objBase54;
++    }
++    if (!--shotzo->base.counter)
++    {
++        shotzo->unk9E = 0;
++        if (++shotzo->unk9F > 2)
++            sub_0811A9D4(shotzo);
++        else
++        {
++            switch (shotzo->subtype)
++            {
++            case 0:
++                shotzo->base.counter = 0x32;
++                break;
++            case 1:
++                shotzo->base.counter = 0x28;
++                break;
++            case 2:
++                shotzo->base.counter = 0x1E;
++                break;
++            case 3:
++                shotzo->base.counter = 0x16;
++                break;
++            default:
++                shotzo->base.counter = 0x11;
++                break;
++            }
++            sub_0811AEDC(shotzo);
++        }
++    }
++}
++#endif
++
++// sub_0811AB74: functionally equivalent; remaining diff is register allocation.
++#ifndef NONMATCHING
++NAKED void sub_0811AB74(struct Object *shotzo) {
++    asm(".include \"asm/nonmatching/sub_0811AB74.inc\"");
++}
++#else
++void sub_0811AB74(struct Object *shotzo)
++{
++    s32 dx, dy;
++
++    shotzo->kirby3 = FindTargetKirby(&shotzo->base);
++    dx = (shotzo->kirby3->base.x - shotzo->base.x) << 8;
++    dy = (shotzo->kirby3->base.y - shotzo->base.y) << 8;
++    switch (ArcTan2(dx >> 16, dy >> 16) >> 12)
++    {
++    case 7:
++    case 8:
++        if (shotzo->unk83 == 0)
++        {
++            if (shotzo->base.flags & 1)
++            {
++                if (shotzo->unk85 != 0)
++                {
++                    ShotzoFire(shotzo);
++                    return;
++                }
++                shotzo->unk85 = 1;
++                break;
++            }
++        }
++        else
++        {
++            if (shotzo->base.flags & 1)
++            {
++                shotzo->unk83 -= 1;
++                shotzo->unk85 = 0;
++                break;
++            }
++        }
++        if (shotzo->unk83 == 3)
++        {
++            shotzo->base.flags |= 1;
++            shotzo->unk83 = 2;
++            shotzo->unk9F = 1;
++        }
++        else
++            shotzo->unk83++;
++        shotzo->unk85 = 0;
++        break;
++    case 9:
++    case 10:
++        if (shotzo->unk83 == 1)
++        {
++            if (shotzo->base.flags & 1)
++            {
++                if (shotzo->unk85 != 0)
++                {
++                    ShotzoFire(shotzo);
++                    return;
++                }
++                shotzo->unk85 = 1;
++                break;
++            }
++        }
++        else
++        {
++            if (shotzo->base.flags & 1)
++            {
++                if (shotzo->unk83 == 0)
++                {
++                    shotzo->unk83++;
++                    shotzo->unk85 = 0;
++                    break;
++                }
++                shotzo->unk83--;
++                shotzo->unk85 = 0;
++                break;
++            }
++        }
++        if (shotzo->unk83 == 3)
++        {
++            shotzo->base.flags |= 1;
++            shotzo->unk83 = 2;
++            shotzo->unk9F = 1;
++        }
++        else
++            shotzo->unk83++;
++        shotzo->unk85 = 0;
++        break;
++    case 11:
++    case 12:
++        if (shotzo->unk83 == 3)
++        {
++            if (shotzo->base.flags & 1)
++                goto rot;
++            if (shotzo->unk85 != 0)
++            {
++                ShotzoFire(shotzo);
++                return;
++            }
++            shotzo->unk85 = 1;
++            break;
++        }
++        else
++        {
++            if (shotzo->base.flags & 1)
++                goto rot;
++            shotzo->unk83++;
++            shotzo->unk85 = 0;
++            break;
++        }
++    case 13:
++    case 14:
++        if (shotzo->unk83 == 1)
++        {
++            if (shotzo->base.flags & 1)
++                goto rot;
++            if (shotzo->unk85 != 0)
++            {
++                ShotzoFire(shotzo);
++                return;
++            }
++            shotzo->unk85 = 1;
++            break;
++        }
++        else
++        {
++            if (shotzo->base.flags & 1)
++                goto rot;
++            if (shotzo->unk83 == 3)
++            {
++                if (--shotzo->unk83 == 2)
++                    shotzo->unk9F = 1;
++                shotzo->unk85 = 0;
++                break;
++            }
++            shotzo->unk83++;
++            shotzo->unk85 = 0;
++            break;
++        }
++    case 0:
++    case 15:
++        if (shotzo->unk83 == 0)
++        {
++            if (shotzo->base.flags & 1)
++                goto rot;
++            if (shotzo->unk85 != 0)
++            {
++                ShotzoFire(shotzo);
++                return;
++            }
++            shotzo->unk85 = 1;
++            break;
++        }
++        else
++        {
++            if (shotzo->base.flags & 1)
++            {
++            rot:
++                if (shotzo->unk83 == 1)
++                {
++                    shotzo->unk9F = 2;
++                    shotzo->unk83 = 2;
++                }
++                else
++                    shotzo->unk83++;
++                shotzo->unk85 = 0;
++                break;
++            }
++            if (--shotzo->unk83 == 2)
++                shotzo->unk9F = 1;
++            shotzo->unk85 = 0;
++            break;
++        }
++    case 1:
++    case 2:
++    case 3:
++        if (shotzo->base.flags & 1)
++        {
++            if (shotzo->unk83 == 1)
++            {
++                shotzo->unk9F = 2;
++                shotzo->unk83 = 2;
++            }
++            else
++                shotzo->unk83++;
++        }
++        else
++        {
++            if (shotzo->unk83 != 0)
++                shotzo->unk83--;
++            if (shotzo->unk83 == 2)
++                shotzo->unk9F = 1;
++        }
++        shotzo->unk85 = 0;
++        break;
++    case 4:
++    case 5:
++    case 6:
++        if (shotzo->base.flags & 1)
++        {
++            if (shotzo->unk83 != 0)
++                shotzo->unk83--;
++        }
++        else
++        {
++            if (shotzo->unk83 == 3)
++            {
++                shotzo->base.flags |= 1;
++                shotzo->unk83 = 2;
++                shotzo->unk9F = 1;
++            }
++            else
++                shotzo->unk83++;
++        }
++        shotzo->unk85 = 0;
++        break;
++    }
++    sub_0811A874(shotzo);
++}
++#endif
++
++void sub_0811AEDC(struct Object *shotzo)
++{
++    struct Object *bullet;
++
++    if (shotzo->base.y < gCurLevelInfo[shotzo->base.unk56].levelMaxPosition.y)
++    {
++        bullet = CreateObjTemplateAndObjWithSettingParent(shotzo, 1, 0x24,
++            shotzo->base.x >> 8, shotzo->base.y >> 8, 0, 0x1F, 0, 0, OBJ_SHOTZO_BULLET,
++            0, 0, shotzo->subtype, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
++        if (shotzo->base.flags & 1)
++            bullet->base.flags |= 1;
++        switch (shotzo->unk83)
++        {
++        case 0:
++            if (shotzo->base.flags & 1)
++                bullet->base.x += -0xC00;
++            else
++                bullet->base.x += 0xC00;
++            bullet->base.y += 0x200;
++            switch (shotzo->subtype)
++            {
++            case 0:
++                bullet->base.xspeed = 0xB3;
++                bullet->base.yspeed = 0;
++                break;
++            case 1:
++                bullet->base.xspeed = 0x100;
++                bullet->base.yspeed = 0;
++                break;
++            case 2:
++                bullet->base.xspeed = 0x166;
++                bullet->base.yspeed = 0;
++                break;
++            case 3:
++                bullet->base.xspeed = 0x1CD;
++                bullet->base.yspeed = 0;
++                break;
++            default:
++                bullet->base.xspeed = 0x400;
++                bullet->base.yspeed = 0;
++                break;
++            }
++            break;
++        case 1:
++            if (bullet->base.flags & 1)
++                bullet->base.x += -0x800;
++            else
++                bullet->base.x += 0x800;
++            bullet->base.y += -0x600;
++            switch (shotzo->subtype)
++            {
++            case 0:
++                bullet->base.xspeed = 0x82;
++                bullet->base.yspeed = 0x82;
++                break;
++            case 1:
++                bullet->base.xspeed = 0xBB;
++                bullet->base.yspeed = 0xBB;
++                break;
++            case 2:
++                bullet->base.xspeed = 0x105;
++                bullet->base.yspeed = 0x105;
++                break;
++            case 3:
++                bullet->base.xspeed = 0x150;
++                bullet->base.yspeed = 0x150;
++                break;
++            default:
++                bullet->base.xspeed = 0x2EC;
++                bullet->base.yspeed = 0x2EC;
++                break;
++            }
++            break;
++        case 3:
++            bullet->base.y += -0xA00;
++            switch (shotzo->subtype)
++            {
++            case 0:
++                bullet->base.xspeed = 0;
++                bullet->base.yspeed = 0xB3;
++                break;
++            case 1:
++                bullet->base.xspeed = 0;
++                bullet->base.yspeed = 0x100;
++                break;
++            case 2:
++                bullet->base.xspeed = 0;
++                bullet->base.yspeed = 0x166;
++                break;
++            case 3:
++                bullet->base.xspeed = 0;
++                bullet->base.yspeed = 0x1CD;
++                break;
++            default:
++                bullet->base.xspeed = 0;
++                bullet->base.yspeed = 0x400;
++                break;
++            }
++            break;
++        }
++        if (bullet->base.flags & 1)
++            bullet->base.xspeed = -bullet->base.xspeed;
++        switch (shotzo->subtype)
++        {
++        case 0:
++            bullet->base.counter = 0xD6;
++            break;
++        case 1:
++            bullet->base.counter = 0x96;
++            break;
++        case 2:
++            bullet->base.counter = 0x6B;
++            break;
++        case 3:
++            bullet->base.counter = 0x53;
++            break;
++        default:
++            bullet->base.counter = 0x26;
++            break;
++        }
++        CreateEffectObject(&bullet->base, 0, 0x298, 1);
++    }
++}
++
++void *CreateShotzoBullet(struct ObjectTemplate *template, u8 a2)
++{
++    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
++    struct Object *bullet = TaskGetStructPtr(t);
++    u32 flags, unkC;
++
++    InitObject(bullet, template, a2);
++    bullet->base.unk63 = 1;
++    flags = bullet->base.flags;
++    flags |= 0x40;
++    unkC = bullet->base.unkC;
++    unkC |= 1;
++    unkC |= 4;
++    unkC |= 2;
++    bullet->base.unkC = unkC;
++    flags |= 0x4000;
++    flags |= 0x100;
++    flags |= 0x10000000;
++    bullet->base.flags = flags;
++    bullet->base.unk68 = 0x20000043;
++    bullet->base.unk5C |= 0x220;
++    bullet->unk9E = 0;
++    bullet->unk7C = sub_0809F840;
++    sub_0803E2B0(&bullet->base, -2, -2, 2, 2);
++    ObjectSetBounds(&bullet->base, 2, 2, 2, 2);
++    ObjectInitSprite(bullet);
++    gUnk_08351648[bullet->type].unk10(bullet);
++    return bullet;
++}
++
++void sub_0811B2A4(struct Object *bullet)
++{
++    ObjectSetFunc(bullet, 0, sub_0811B34C);
++    bullet->base.flags |= 0x40;
++    bullet->base.flags &= ~0x20;
++    PlaySfx(&bullet->base, SE_BULLET_ATTACK);
++}
++
++void sub_0811B34C(struct Object *bullet)
++{
++    bullet->base.flags |= 4;
++    bullet->base.flags &= ~0x100;
++    if (bullet->base.x <= gCurLevelInfo[bullet->base.unk56].levelMaxPosition.x
++        && bullet->base.x >= gCurLevelInfo[bullet->base.unk56].levelMinPosition.x
++        && bullet->base.y <= gCurLevelInfo[bullet->base.unk56].levelMaxPosition.y
++        && bullet->base.y >= gCurLevelInfo[bullet->base.unk56].levelMinPosition.y)
++        sub_0806FC70(&bullet->base);
++    bullet->base.flags |= 0x100;
++    if (!--bullet->base.counter || bullet->base.unk62)
++    {
++        sub_0809DA30(bullet);
++        bullet->base.flags |= 0x1000;
++    }
++}
++
++void sub_0811B3E4(struct Object *shotzo)
++{
++    if (!--shotzo->base.counter)
++        sub_0811AA2C(shotzo);
++}
++
++void sub_0811B400(struct Object *shotzo)
++{
++    shotzo->unk83 = 0;
++    shotzo->base.xspeed = 0;
++    shotzo->base.yspeed = 0;
++    shotzo->unk9E = 0;
++    shotzo->base.counter = 0;
++    sub_0803E2B0(&shotzo->base, -5, -16, 5, 8);
++    shotzo->base.flags |= 0x2000;
++    shotzo->unk78 = sub_0811B44C;
++}
++
++void sub_0811B44C(struct Object *shotzo)
++{
++    shotzo->base.flags &= ~0x2000;
++    sub_080C29C0(shotzo, 0);
++    shotzo->unk83 = 0;
++    shotzo->base.xspeed = 0;
++    shotzo->base.yspeed = 0;
++    shotzo->unk9E = 0;
++    shotzo->base.counter = 0;
++    shotzo->unk78 = sub_0811B48C;
++}
++
++void sub_0811B48C(struct Object *shotzo)
++{
++    if (shotzo->base.unk62 & 4)
++    {
++        if (shotzo->base.flags & 0x1000000)
++        {
++            shotzo->base.flags &= ~0x1000000;
++            sub_0803E2B0(&shotzo->base, -5, -6, 5, 3);
++            sub_0811A874(shotzo);
++            return;
++        }
++        shotzo->base.flags |= 0x1000000;
++    }
++    if (!(shotzo->base.flags & 0x40))
++        shotzo->base.xspeed = 0;
++}
+diff --git a/src/sub_0800F044.c b/src/sub_0800F044.c
+new file mode 100644
+index 0000000..f935a53
+--- /dev/null
++++ b/src/sub_0800F044.c
+@@ -0,0 +1,509 @@
++#include "code_0800ECAC.h"
++#include "kirby.h"
++#include "constants/kirby.h"
++
++u8 sub_080024F0(struct LevelInfo *, u32 x, u32 y);
++struct Object **GetRoomSolidCollisionList(struct ObjectBase *);
++
++// Builds the 5x5-ish collision/passability neighborhood around Kirby
++// (a1->unk1C/unk26/unk2B cells) from the tile attribute table, then widens the
++// cells with the hitboxes of the objects returned by GetRoomSolidCollisionList.
++//
++// Semantics below from zalo's contrib-field-docs branch, verified there
++// against runtime behaviour in a behaviour-accurate port. It is the AI's
++// terrain-awareness grid around the buddy's tile:
++//   grid index = (dy + 2) * 5 + (dx + 2), base pointer unk1C -- rows run
++//   contiguously across unk1C/unk26/unk2B, which is what makes the pointer
++//   arithmetic here look out-of-bounds when it is not.
++//   cell values: 0 = air, 1 = hazard (attr 0x2000), 2 = solid (0x200; also
++//   0x400 semisolids unless KIRBY_ABILITY_MINI), 3 = destructible
++//   (0x200|0x1000), 0xFF = outside the room bounds.
++//   Only the 13 cells of the centre row/column and inner diagonals are
++//   written each frame; distant cells inherit the nearer cell's value when
++//   it is nonzero. The trailing loops merge moving platforms into the grid
++//   as value 2, split by travel direction (yspeed sign) and facing.
++//
++// That answers the "why do we have out-of-bounds r/w here?" question the
++// old code_0800ECAC.c comment raised: the reads are in bounds, the three
++// arrays are contiguous.
++//
++// The C below is believed functionally equivalent (control flow, memory
++// accesses and arithmetic all line up instruction-for-instruction), but the
++// original's register allocation could not be reproduced: the ~10 long-lived
++// locals (kirbyCellX/kirbyPixelX/kirbyPixelY, the xm1/xp1/ym1/yp1 guard caches and the per-loop
++// bound temps) spill in a different order, which shifts every stack offset and
++// register choice in this 1900-instruction function.
++#ifndef NONMATCHING
++NAKED void sub_0800F044(struct Unk_02038590 *a1) {
++    asm(".include \"asm/nonmatching/sub_0800F044.inc\"");
++}
++#else
++void sub_0800F044(struct Unk_02038590 *a1) {
++    struct Kirby *kirby = a1->unk40;
++    struct LevelInfo *li = a1->unk14;
++    s16 array[4] = {
++        li->unk_S32Vec2_6C.x >> 12, li->unk_S32Vec2_6C.y >> 12,
++        li->unk_S32Vec2_74.x >> 12, li->unk_S32Vec2_74.y >> 12,
++    };
++    u16 kirbyCellX;
++    s32 kirbyCellY;
++    u8 *r5;
++    u8 *q;
++    bool32 r6;
++    struct Object **objs;
++    s32 xm1, xp1, ym1, yp1;
++    s16 kirbyPixelX, kirbyPixelY;
++
++    kirbyCellX = kirby->base.x >> 12;
++    kirbyCellY = (u16)(kirby->base.y >> 12);
++    r6 = FALSE;
++    a1->unk26[2] = 0;
++    switch (gCollisionAttributes[sub_080024F0(a1->unk14, kirbyCellX, kirbyCellY)] & 0xF0000000) {
++    case 0x20000000:
++    case 0x30000000:
++    case 0x40000000:
++    case 0x60000000:
++        r6 = TRUE;
++        break;
++    }
++    r5 = a1->unk26;
++    xm1 = kirbyCellX - 1;
++    if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2])
++        r5[1] = 0xFF;
++    else if (a1->unk26[2])
++        r5[1] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), kirbyCellY)];
++
++        if (r1 & 0x2000)
++            r5[1] = 1;
++        else if (r1 & 0x200) {
++            if (r6)
++                r5[1] = 0;
++            else if (r1 & 0x1000)
++                r5[1] = 3;
++            else
++                r5[1] = 2;
++        } else if (r1 & 0x400) {
++            r5[1] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[1] = 0;
++        }
++    }
++    if ((u16)array[0] >= kirbyCellX - 2 || kirbyCellX - 2 >= (u16)array[2])
++        r5[0] = 0xFF;
++    else if (a1->unk26[1])
++        r5[0] = a1->unk26[1];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -2), kirbyCellY)];
++
++        if (r1 & 0x2000)
++            r5[0] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                r5[0] = 3;
++            else
++                r5[0] = 2;
++        } else if (r1 & 0x400) {
++            r5[0] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0] = 0;
++        }
++    }
++    xp1 = kirbyCellX + 1;
++    if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2])
++        r5[3] = 0xFF;
++    else if (a1->unk26[2])
++        r5[3] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, kirbyCellY)];
++
++        if (r1 & 0x2000)
++            r5[3] = 1;
++        else if (r1 & 0x200) {
++            if (r6)
++                r5[3] = 0;
++            else if (r1 & 0x1000)
++                r5[3] = 3;
++            else
++                r5[3] = 2;
++        } else if (r1 & 0x400) {
++            r5[3] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[3] = 0;
++        }
++    }
++    q = r5;
++    if ((u16)array[0] >= kirbyCellX + 2 || kirbyCellX + 2 >= (u16)array[2])
++        q[4] = 0xFF;
++    else if (a1->unk26[3])
++        q[4] = a1->unk26[3];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + 2), kirbyCellY)];
++
++        if (r1 & 0x2000)
++            q[4] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                q[4] = 3;
++            else
++                q[4] = 2;
++        } else if (r1 & 0x400) {
++            q[4] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[4] = 0;
++        }
++    }
++    r5 = a1->unk1C;
++    ym1 = kirbyCellY - 1;
++    if ((u16)array[1] >= ym1 || ym1 >= (u16)array[3])
++        r5[7] = 0xFF;
++    else if (a1->unk26[2])
++        r5[7] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + -1))];
++
++        if (r1 & 0x2000)
++            r5[7] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                r5[7] = 3;
++            else
++                r5[7] = 2;
++        } else if (r1 & 0x400) {
++            r5[7] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[7] = 0;
++        }
++    }
++    if ((u16)array[1] >= kirbyCellY - 2 || kirbyCellY - 2 >= (u16)array[3])
++        r5[2] = 0xFF;
++    else if (a1->unk1C[7])
++        r5[2] = a1->unk1C[7];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + -2))];
++
++        if (r1 & 0x2000)
++            r5[2] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                r5[2] = 3;
++            else
++                r5[2] = 2;
++        } else if (r1 & 0x400) {
++            r5[2] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[2] = 0;
++        }
++    }
++    yp1 = kirbyCellY + 1;
++    if ((u16)array[1] >= yp1 || yp1 >= (u16)array[3])
++        r5[0x11] = 0xFF;
++    else if (a1->unk26[2])
++        r5[0x11] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)yp1)];
++
++        if (r1 & 0x2000)
++            r5[0x11] = 1;
++        else if (r1 & 0x20C) {
++            if (r1 & 0x1000)
++                r5[0x11] = 3;
++            else
++                r5[0x11] = 2;
++        } else if (r1 & 0x400) {
++            r5[0x11] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0x11] = 0;
++        }
++    }
++    if ((u16)array[1] >= kirbyCellY + 2 || kirbyCellY + 2 >= (u16)array[3])
++        r5[0x16] = 0xFF;
++    else if (a1->unk2B[2])
++        r5[0x16] = a1->unk2B[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + 2))];
++
++        if (r1 & 0x2000)
++            r5[0x16] = 1;
++        else if (r1 & 0x20C) {
++            if (r1 & 0x1000)
++                r5[0x16] = 3;
++            else
++                r5[0x16] = 2;
++        } else if (r1 & 0x400) {
++            r5[0x16] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0x16] = 0;
++        }
++    }
++    q = r5;
++    if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2]
++        || (u16)array[1] >= ym1 || ym1 >= (u16)array[3])
++        q[0x6] = 0xFF;
++    else if (a1->unk26[2])
++        r5[0x6] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), (u16)(kirbyCellY + -1))];
++
++        if (r1 & 0x2000)
++            r5[0x6] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                r5[0x6] = 3;
++            else
++                r5[0x6] = 2;
++        } else if (r1 & 0x400) {
++            r5[0x6] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0x6] = 0;
++        }
++    }
++    q = r5;
++    if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2]
++        || (u16)array[1] >= ym1 || ym1 >= (u16)array[3])
++        q[8] = 0xFF;
++    else if (a1->unk26[2])
++        r5[8] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, (u16)(kirbyCellY + -1))];
++
++        if (r1 & 0x2000)
++            r5[8] = 1;
++        else if (r1 & 0x200) {
++            if (r1 & 0x1000)
++                r5[8] = 3;
++            else
++                r5[8] = 2;
++        } else if (r1 & 0x400) {
++            r5[8] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[8] = 0;
++        }
++    }
++    q = r5;
++    if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2]
++        || (u16)array[1] >= yp1 || yp1 >= (u16)array[3])
++        q[0x12] = 0xFF;
++    else if (a1->unk26[2])
++        r5[0x12] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, (u16)yp1)];
++
++        if (r1 & 0x2000)
++            r5[0x12] = 1;
++        else if (r1 & 0x20C) {
++            if (r1 & 0x1000)
++                r5[0x12] = 3;
++            else
++                r5[0x12] = 2;
++        } else if (r1 & 0x400) {
++            r5[0x12] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0x12] = 0;
++        }
++    }
++    q = r5;
++    if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2]
++        || (u16)array[1] >= yp1 || yp1 >= (u16)array[3])
++        q[0x10] = 0xFF;
++    else if (a1->unk26[2])
++        r5[0x10] = a1->unk26[2];
++    else {
++        u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), (u16)yp1)];
++
++        if (r1 & 0x2000)
++            r5[0x10] = 1;
++        else if (r1 & 0x20C) {
++            if (r1 & 0x1000)
++                r5[0x10] = 3;
++            else
++                r5[0x10] = 2;
++        } else if (r1 & 0x400) {
++            r5[0x10] = kirby->ability != KIRBY_ABILITY_MINI ? 2 : 0;
++        } else {
++            r5[0x10] = 0;
++        }
++    }
++    objs = GetRoomSolidCollisionList(&kirby->base);
++    kirbyPixelX = kirby->base.x >> 8;
++    kirbyPixelY = kirby->base.y >> 8;
++    if (kirby->base.yspeed > 0) {
++        if (kirby->base.flags & 1) {
++            if (*objs != NULL) {
++                s16 ty1 = kirbyPixelY - 0x10;
++                s16 ty2 = kirbyPixelY - 0x20;
++                s16 tx1 = kirbyPixelX - 0x10;
++                s16 tx2 = kirbyPixelX - 0x20;
++
++                do {
++                    s16 rx = (*objs)->base.x >> 8;
++                    s16 ry = (*objs)->base.y >> 8;
++
++                    array[0] = (*objs)->base.unk3C + rx;
++                    array[1] = (*objs)->base.unk3D + ry;
++                    array[2] = (*objs)->base.unk3E + rx;
++                    array[3] = (*objs)->base.unk3F + ry;
++                    if (array[0] <= kirbyPixelX && array[2] >= kirbyPixelX) {
++                        if (!r5[7]) {
++                            if (array[1] <= ty1 && array[3] >= ty1)
++                                r5[7] = 2;
++                        } else if (!r5[2]) {
++                            if (array[1] <= ty2 && array[3] >= ty2)
++                                r5[2] = 2;
++                        }
++                    }
++                    if (array[1] <= kirbyPixelY && array[3] >= kirbyPixelY) {
++                        if (!r5[0xB]) {
++                            if (array[0] <= tx1 && array[2] >= tx1)
++                                r5[0xB] = 2;
++                        } else if (!r5[0xA]) {
++                            if (array[0] <= tx2 && array[2] >= tx2)
++                                r5[0xA] = 2;
++                        }
++                    }
++                    if (!r5[0x6]) {
++                        s16 zz = kirbyPixelY - 0x10;
++
++                        if (array[0] <= tx1 && array[2] >= tx1
++                            && array[1] <= zz && array[3] >= zz)
++                            r5[0x6] = 2;
++                    }
++                    objs++;
++                } while (*objs != NULL);
++            }
++        } else {
++            if (*objs != NULL) {
++                s16 ty1 = kirbyPixelY - 0x10;
++                s16 ty2 = kirbyPixelY - 0x20;
++                s16 tx1 = kirbyPixelX + 0x10;
++                s16 tx2 = kirbyPixelX + 0x20;
++
++                do {
++                    s16 rx = (*objs)->base.x >> 8;
++                    s16 ry = (*objs)->base.y >> 8;
++
++                    array[0] = (*objs)->base.unk3C + rx;
++                    array[1] = (*objs)->base.unk3D + ry;
++                    array[2] = (*objs)->base.unk3E + rx;
++                    array[3] = (*objs)->base.unk3F + ry;
++                    if (array[0] <= kirbyPixelX && array[2] >= kirbyPixelX) {
++                        if (!r5[7]) {
++                            if (array[1] <= ty1 && array[3] >= ty1)
++                                r5[7] = 2;
++                        } else if (!r5[2]) {
++                            if (array[1] <= ty2 && array[3] >= ty2)
++                                r5[2] = 2;
++                        }
++                    }
++                    if (array[1] <= kirbyPixelY && array[3] >= kirbyPixelY) {
++                        if (!r5[0xD]) {
++                            if (array[0] <= tx1 && array[2] >= tx1)
++                                r5[0xD] = 2;
++                        } else if (!r5[0xE]) {
++                            if (array[0] <= tx2 && array[2] >= tx2)
++                                r5[0xE] = 2;
++                        }
++                    }
++                    if (!r5[8]) {
++                        s16 zz = kirbyPixelY - 0x10;
++
++                        if (array[0] <= tx1 && array[2] >= tx1
++                            && array[1] <= zz && array[3] >= zz)
++                            r5[8] = 2;
++                    }
++                    objs++;
++                } while (*objs != NULL);
++            }
++        }
++    } else {
++        if (kirby->base.flags & 1) {
++            if (*objs != NULL) {
++                s16 ty1 = kirbyPixelY - 0x10;
++                s16 ty2 = kirbyPixelY - 0x20;
++                s16 tx1 = kirbyPixelX - 0x10;
++                s16 tx2 = kirbyPixelX - 0x20;
++
++                do {
++                    s16 rx = (*objs)->base.x >> 8;
++                    s16 ry = (*objs)->base.y >> 8;
++
++                    array[0] = (*objs)->base.unk3C + rx;
++                    array[1] = (*objs)->base.unk3D + ry;
++                    array[2] = (*objs)->base.unk3E + rx;
++                    array[3] = (*objs)->base.unk3F + ry;
++                    if (array[0] <= kirbyPixelX && array[2] >= kirbyPixelX) {
++                        if (!r5[7]) {
++                            if (array[1] <= ty1 && array[3] >= ty1)
++                                r5[7] = 2;
++                        } else if (!r5[2]) {
++                            if (array[1] <= ty2 && array[3] >= ty2)
++                                r5[2] = 2;
++                        }
++                    }
++                    if (array[1] <= kirbyPixelY && array[3] >= kirbyPixelY) {
++                        if (!r5[0xB]) {
++                            if (array[0] <= tx1 && array[2] >= tx1)
++                                r5[0xB] = 2;
++                        } else if (!r5[0xA]) {
++                            if (array[0] <= tx2 && array[2] >= tx2)
++                                r5[0xA] = 2;
++                        }
++                    }
++                    if (!r5[0x10]) {
++                        s16 zz = kirbyPixelY + 0x10;
++
++                        if (array[0] <= tx1 && array[2] >= tx1
++                            && array[1] <= zz && array[3] >= zz)
++                            r5[0x10] = 2;
++                    }
++                    objs++;
++                } while (*objs != NULL);
++            }
++        } else {
++            if (*objs != NULL) {
++                s16 ty1 = kirbyPixelY - 0x10;
++                s16 ty2 = kirbyPixelY - 0x20;
++                s16 tx1 = kirbyPixelX + 0x10;
++                s16 tx2 = kirbyPixelX + 0x20;
++
++                do {
++                    s16 rx = (*objs)->base.x >> 8;
++                    s16 ry = (*objs)->base.y >> 8;
++
++                    array[0] = (*objs)->base.unk3C + rx;
++                    array[1] = (*objs)->base.unk3D + ry;
++                    array[2] = (*objs)->base.unk3E + rx;
++                    array[3] = (*objs)->base.unk3F + ry;
++                    if (array[0] <= kirbyPixelX && array[2] >= kirbyPixelX) {
++                        if (!r5[7]) {
++                            if (array[1] <= ty1 && array[3] >= ty1)
++                                r5[7] = 2;
++                        } else if (!r5[2]) {
++                            if (array[1] <= ty2 && array[3] >= ty2)
++                                r5[2] = 2;
++                        }
++                    }
++                    if (array[1] <= kirbyPixelY && array[3] >= kirbyPixelY) {
++                        if (!r5[0xD]) {
++                            if (array[0] <= tx1 && array[2] >= tx1)
++                                r5[0xD] = 2;
++                        } else if (!r5[0xE]) {
++                            if (array[0] <= tx2 && array[2] >= tx2)
++                                r5[0xE] = 2;
++                        }
++                    }
++                    if (!r5[0x12]) {
++                        s16 zz = kirbyPixelY + 0x10;
++
++                        if (array[0] <= tx1 && array[2] >= tx1
++                            && array[1] <= zz && array[3] >= zz)
++                            r5[0x12] = 2;
++                    }
++                    objs++;
++                } while (*objs != NULL);
++            }
++        }
++    }
++}
++#endif
+-- 
+2.56.0
+

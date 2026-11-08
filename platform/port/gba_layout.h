@@ -41,6 +41,7 @@
 #include "code_0801DA58.h"
 #include "code_080257A8.h"
 #include "code_08026044.h"
+#include "code_0802B4A8.h"
 #include "code_0802E16C.h"
 #include "code_0802E57C.h"
 #include "code_0802F8D8.h"
@@ -1802,7 +1803,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, tiles8bpp) == 20, "struct Sprit
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, unk18) == 24, "struct SpriteTables::unk18 moved");
 
 /* struct SpriteTransform -- sprite.h:104 */
-PORT_LAYOUT_ASSERT(sizeof(struct SpriteTransform) == 10, "struct SpriteTransform changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(sizeof(struct SpriteTransform) == 12, "struct SpriteTransform changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, rotation) == 0, "struct SpriteTransform::rotation moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, qScaleX) == 2, "struct SpriteTransform::qScaleX moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, qScaleY) == 4, "struct SpriteTransform::qScaleY moved");
@@ -2191,28 +2192,88 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk36) == 54, "struct Unk_08029
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk38) == 56, "struct Unk_080299B4::unk38 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk3A) == 58, "struct Unk_080299B4::unk3A moved");
 
+/* struct Unk_0802B4A8 -- code_0802B4A8.h:20 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802B4A8) == 704, "struct Unk_0802B4A8 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk0) == 0, "struct Unk_0802B4A8::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk4) == 4, "struct Unk_0802B4A8::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unkCC) == 204, "struct Unk_0802B4A8::unkCC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unkF4) == 244, "struct Unk_0802B4A8::unkF4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk11C) == 284, "struct Unk_0802B4A8::unk11C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk144) == 324, "struct Unk_0802B4A8::unk144 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk16C) == 364, "struct Unk_0802B4A8::unk16C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk194) == 404, "struct Unk_0802B4A8::unk194 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk1D4) == 468, "struct Unk_0802B4A8::unk1D4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, flags) == 532, "struct Unk_0802B4A8::flags moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk218) == 536, "struct Unk_0802B4A8::unk218 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk240) == 576, "struct Unk_0802B4A8::unk240 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk254) == 596, "struct Unk_0802B4A8::unk254 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk25E) == 606, "struct Unk_0802B4A8::unk25E moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk268) == 616, "struct Unk_0802B4A8::unk268 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, filler272) == 626, "struct Unk_0802B4A8::filler272 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk274) == 628, "struct Unk_0802B4A8::unk274 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk2B4) == 692, "struct Unk_0802B4A8::unk2B4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk2B8) == 696, "struct Unk_0802B4A8::unk2B8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk2BA) == 698, "struct Unk_0802B4A8::unk2BA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk2BC) == 700, "struct Unk_0802B4A8::unk2BC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8, unk2BE) == 702, "struct Unk_0802B4A8::unk2BE moved");
+
+/* struct Unk_0802B4A8_274 -- code_0802B4A8.h:13 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802B4A8_274) == 16, "struct Unk_0802B4A8_274 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8_274, x) == 0, "struct Unk_0802B4A8_274::x moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8_274, y) == 4, "struct Unk_0802B4A8_274::y moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8_274, dx) == 8, "struct Unk_0802B4A8_274::dx moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802B4A8_274, dy) == 12, "struct Unk_0802B4A8_274::dy moved");
+
+/* struct Unk_0802CE64 -- code_0802B4A8.h:45 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802CE64) == 60, "struct Unk_0802CE64 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, spr) == 0, "struct Unk_0802CE64::spr moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, parent) == 40, "struct Unk_0802CE64::parent moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk2C) == 44, "struct Unk_0802CE64::unk2C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk30) == 48, "struct Unk_0802CE64::unk30 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk34) == 52, "struct Unk_0802CE64::unk34 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk36) == 54, "struct Unk_0802CE64::unk36 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk38) == 56, "struct Unk_0802CE64::unk38 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802CE64, unk3A) == 58, "struct Unk_0802CE64::unk3A moved");
+
+/* struct Unk_0802DB48 -- code_0802B4A8.h:56 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802DB48) == 80, "struct Unk_0802DB48 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, unk0) == 0, "struct Unk_0802DB48::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, bg) == 4, "struct Unk_0802DB48::bg moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, parent) == 68, "struct Unk_0802DB48::parent moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, unk48) == 72, "struct Unk_0802DB48::unk48 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, unk4A) == 74, "struct Unk_0802DB48::unk4A moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802DB48, unk4C) == 76, "struct Unk_0802DB48::unk4C moved");
+
 /* struct Unk_0802E16C -- code_0802E16C.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E16C) == 72, "struct Unk_0802E16C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk0) == 0, "struct Unk_0802E16C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk40) == 64, "struct Unk_0802E16C::unk40 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk44) == 68, "struct Unk_0802E16C::unk44 moved");
 
-/* struct Unk_0802E57C -- code_0802E57C.h:35 */
+/* struct Unk_0802E57C -- code_0802E57C.h:43 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C) == 404, "struct Unk_0802E57C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk0) == 0, "struct Unk_0802E57C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk4) == 4, "struct Unk_0802E57C::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk8) == 8, "struct Unk_0802E57C::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unkC) == 12, "struct Unk_0802E57C::unkC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk14C) == 332, "struct Unk_0802E57C::unk14C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, filler174) == 372, "struct Unk_0802E57C::filler174 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk174) == 372, "struct Unk_0802E57C::unk174 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk178) == 376, "struct Unk_0802E57C::unk178 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk17C) == 380, "struct Unk_0802E57C::unk17C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk180) == 384, "struct Unk_0802E57C::unk180 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk182) == 386, "struct Unk_0802E57C::unk182 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, filler184) == 388, "struct Unk_0802E57C::filler184 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk184) == 388, "struct Unk_0802E57C::unk184 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk186) == 390, "struct Unk_0802E57C::unk186 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk188) == 392, "struct Unk_0802E57C::unk188 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk18C) == 396, "struct Unk_0802E57C::unk18C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk190) == 400, "struct Unk_0802E57C::unk190 moved");
+
+/* struct Unk_0802E57C_174 -- code_0802E57C.h:36 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C_174) == 8, "struct Unk_0802E57C_174 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk0) == 0, "struct Unk_0802E57C_174::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk2) == 2, "struct Unk_0802E57C_174::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk4) == 4, "struct Unk_0802E57C_174::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk6) == 6, "struct Unk_0802E57C_174::unk6 moved");
 
 /* struct Unk_0802E57C_C -- code_0802E57C.h:18 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C_C) == 80, "struct Unk_0802E57C_C changed size -- it is read at a fixed address");
@@ -2229,7 +2290,8 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk42) == 66, "struct Unk_080
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk44) == 68, "struct Unk_0802E57C_C::unk44 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk46) == 70, "struct Unk_0802E57C_C::unk46 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk48) == 72, "struct Unk_0802E57C_C::unk48 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, filler4A) == 74, "struct Unk_0802E57C_C::filler4A moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk4A) == 74, "struct Unk_0802E57C_C::unk4A moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, filler4C) == 76, "struct Unk_0802E57C_C::filler4C moved");
 
 /* struct Unk_0802F8D8 -- code_0802F8D8.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802F8D8) == 60, "struct Unk_0802F8D8 changed size -- it is read at a fixed address");

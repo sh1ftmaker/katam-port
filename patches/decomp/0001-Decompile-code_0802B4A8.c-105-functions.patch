@@ -1,0 +1,7629 @@
+From 31c06ced56a9e3f2555227bc5407db13f9eaf586 Mon Sep 17 00:00:00 2001
+From: sh1ftmaker <shiftmaker@gmail.com>
+Date: Sun, 1 Nov 2026 21:33:52 -0800
+Subject: [PATCH 1/6] Decompile code_0802B4A8.c (105 functions)
+
+The cutscene played after Dark Mind is defeated, structured like
+code_08026044.c. sub_0802B4A8 is its only global function, started from
+dark_mind.c; everything else is static (checked by scanning the ROM for
+pointers and bl calls).
+
+The file's rodata (gUnk_082EB4A0 to gUnk_082EB640) moves out of
+data_17.s into the file, and gUnk_082EB6D0 moves into code_0802E16C.c.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ asm/code_0802B4A8.s     | 5832 ---------------------------------------
+ data/data_17.s          |   54 -
+ include/code_0802B4A8.h |   62 +
+ include/functions.h     |    1 -
+ linker.ld               |    4 +-
+ src/code_0802B4A8.c     | 1555 +++++++++++
+ src/code_0802E16C.c     |    9 +-
+ src/dark_mind.c         |    1 +
+ 8 files changed, 1629 insertions(+), 5889 deletions(-)
+ delete mode 100644 asm/code_0802B4A8.s
+ create mode 100644 include/code_0802B4A8.h
+ create mode 100644 src/code_0802B4A8.c
+
+diff --git a/asm/code_0802B4A8.s b/asm/code_0802B4A8.s
+deleted file mode 100644
+index 68ac146..0000000
+--- a/asm/code_0802B4A8.s
++++ /dev/null
+@@ -1,5832 +0,0 @@
+-	.include "asm/macros.inc"
+-	.include "constants/constants.inc"
+-
+-	.syntax unified
+-
+-	.text
+-
+-	thumb_func_start sub_0802B4A8
+-sub_0802B4A8: @ 0x0802B4A8
+-	push {r4, r5, r6, r7, lr}
+-	sub sp, #0x10
+-	ldr r4, _0802B508 @ =0x00007FFF
+-	str r4, [sp, #4]
+-	ldr r1, _0802B50C @ =gBgPalette
+-	ldr r5, _0802B510 @ =0x05000080
+-	add r0, sp, #4
+-	adds r2, r5, #0
+-	bl CpuSet
+-	str r4, [sp, #8]
+-	add r0, sp, #8
+-	ldr r1, _0802B514 @ =gObjPalette
+-	adds r2, r5, #0
+-	bl CpuSet
+-	ldr r2, _0802B518 @ =gMainFlags
+-	ldr r0, [r2]
+-	movs r1, #3
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r1, _0802B51C @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	movs r4, #0x10
+-	strh r4, [r1, #4]
+-	ldr r0, _0802B520 @ =sub_0802BA6C
+-	movs r1, #0xb0
+-	lsls r1, r1, #2
+-	movs r2, #0x80
+-	lsls r2, r2, #1
+-	ldr r3, _0802B524 @ =sub_0802D360
+-	str r3, [sp]
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r1, r0, #0
+-	ldrh r0, [r1, #0x12]
+-	ands r4, r0
+-	cmp r4, #0
+-	beq _0802B528
+-	ldrh r0, [r1, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r1, r0, r1
+-	b _0802B530
+-	.align 2, 0
+-_0802B508: .4byte 0x00007FFF
+-_0802B50C: .4byte gBgPalette
+-_0802B510: .4byte 0x05000080
+-_0802B514: .4byte gObjPalette
+-_0802B518: .4byte gMainFlags
+-_0802B51C: .4byte gBldRegs
+-_0802B520: .4byte sub_0802BA6C
+-_0802B524: .4byte sub_0802D360
+-_0802B528:
+-	ldrh r1, [r1, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r1, r1, r0
+-_0802B530:
+-	adds r7, r1, #0
+-	add r0, sp, #0xc
+-	movs r6, #0
+-	strh r6, [r0]
+-	ldr r2, _0802B614 @ =0x01000160
+-	bl CpuSet
+-	movs r0, #0xae
+-	lsls r0, r0, #2
+-	adds r1, r7, r0
+-	movs r5, #0
+-	subs r0, #0xb8
+-	strh r0, [r1]
+-	movs r2, #0xb6
+-	lsls r2, r2, #1
+-	adds r4, r7, r2
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	bl VramMalloc
+-	str r0, [r4]
+-	strh r5, [r4, #0x14]
+-	ldr r0, _0802B618 @ =0x00000292
+-	strh r0, [r4, #0xc]
+-	strb r6, [r4, #0x1a]
+-	strh r5, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r4, #0x1c]
+-	movs r0, #0xd
+-	strb r0, [r4, #0x1f]
+-	strh r5, [r4, #0x10]
+-	strh r5, [r4, #0x12]
+-	str r5, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	movs r4, #0
+-	ldr r5, _0802B61C @ =gUnk_082EB4EC
+-	adds r6, r5, #4
+-_0802B582:
+-	movs r0, #0x10
+-	bl VramMalloc
+-	lsls r2, r4, #2
+-	adds r2, r2, r4
+-	lsls r2, r2, #3
+-	adds r1, r7, #4
+-	adds r1, r1, r2
+-	str r0, [r1]
+-	lsls r2, r4, #3
+-	movs r0, #0x86
+-	lsls r0, r0, #2
+-	adds r1, r7, r0
+-	adds r1, r1, r2
+-	adds r0, r2, r5
+-	ldr r0, [r0]
+-	str r0, [r1]
+-	movs r0, #0x87
+-	lsls r0, r0, #2
+-	adds r1, r7, r0
+-	adds r1, r1, r2
+-	adds r2, r2, r6
+-	ldr r0, [r2]
+-	str r0, [r1]
+-	lsls r1, r4, #1
+-	movs r0, #0x95
+-	lsls r0, r0, #2
+-	adds r2, r7, r0
+-	adds r2, r2, r1
+-	ldr r0, _0802B620 @ =gUnk_082EB5B4
+-	adds r1, r1, r0
+-	ldrh r0, [r1]
+-	strh r0, [r2]
+-	adds r0, r4, #1
+-	lsls r0, r0, #0x10
+-	lsrs r4, r0, #0x10
+-	cmp r4, #4
+-	bls _0802B582
+-	movs r0, #0x10
+-	bl VramMalloc
+-	adds r1, r7, #0
+-	adds r1, #0xcc
+-	str r0, [r1]
+-	movs r0, #0x30
+-	bl VramMalloc
+-	adds r1, r7, #0
+-	adds r1, #0xf4
+-	str r0, [r1]
+-	movs r0, #0x30
+-	bl VramMalloc
+-	movs r2, #0x8e
+-	lsls r2, r2, #1
+-	adds r1, r7, r2
+-	str r0, [r1]
+-	movs r0, #0x10
+-	bl VramMalloc
+-	movs r2, #0xa2
+-	lsls r2, r2, #1
+-	adds r1, r7, r2
+-	str r0, [r1]
+-	ldr r1, _0802B624 @ =gUnk_0300000C
+-	movs r0, #0
+-	strh r0, [r1]
+-	ldr r0, _0802B628 @ =sub_0802BCEC
+-	str r0, [r7]
+-	add sp, #0x10
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802B614: .4byte 0x01000160
+-_0802B618: .4byte 0x00000292
+-_0802B61C: .4byte gUnk_082EB4EC
+-_0802B620: .4byte gUnk_082EB5B4
+-_0802B624: .4byte gUnk_0300000C
+-_0802B628: .4byte sub_0802BCEC
+-
+-	thumb_func_start sub_0802B62C
+-sub_0802B62C: @ 0x0802B62C
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #0x1c
+-	adds r6, r0, #0
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	ldr r0, [r0]
+-	cmp r0, #0
+-	blt _0802B65A
+-	adds r0, r6, #0
+-	adds r0, #0xcc
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802B65A
+-	adds r1, r6, #0
+-	adds r1, #0xe7
+-	movs r0, #0xff
+-	strb r0, [r1]
+-_0802B65A:
+-	movs r2, #0
+-	str r2, [sp, #0x14]
+-	mov sl, r2
+-_0802B660:
+-	movs r0, #1
+-	ldr r3, [sp, #0x14]
+-	lsls r0, r3
+-	movs r4, #0x85
+-	lsls r4, r4, #2
+-	adds r1, r6, r4
+-	ldr r1, [r1]
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0802B676
+-	b _0802B8CA
+-_0802B676:
+-	mov r5, sl
+-	lsls r0, r5, #2
+-	add r0, sl
+-	lsls r0, r0, #3
+-	adds r0, #4
+-	adds r7, r6, r0
+-	lsls r3, r5, #1
+-	movs r0, #0x95
+-	lsls r0, r0, #2
+-	adds r2, r6, r0
+-	adds r2, r2, r3
+-	ldrh r0, [r2]
+-	adds r0, #4
+-	ldr r4, _0802B6CC @ =0x000003FF
+-	adds r1, r4, #0
+-	ands r0, r1
+-	strh r0, [r2]
+-	ldr r5, _0802B6D0 @ =0x0000025E
+-	adds r0, r6, r5
+-	adds r5, r0, r3
+-	movs r1, #0x9a
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	adds r0, r0, r3
+-	ldrh r1, [r5]
+-	movs r4, #0
+-	ldrsh r2, [r5, r4]
+-	mov r8, r2
+-	movs r4, #0
+-	ldrsh r2, [r0, r4]
+-	mov sb, r3
+-	cmp r8, r2
+-	bge _0802B6D4
+-	adds r1, #4
+-	strh r1, [r5]
+-	lsls r1, r1, #0x10
+-	asrs r1, r1, #0x10
+-	ldrh r2, [r0]
+-	movs r3, #0
+-	ldrsh r0, [r0, r3]
+-	cmp r1, r0
+-	ble _0802B6EC
+-	b _0802B6EA
+-	.align 2, 0
+-_0802B6CC: .4byte 0x000003FF
+-_0802B6D0: .4byte 0x0000025E
+-_0802B6D4:
+-	cmp r8, r2
+-	ble _0802B6EC
+-	subs r1, #4
+-	strh r1, [r5]
+-	lsls r1, r1, #0x10
+-	asrs r1, r1, #0x10
+-	ldrh r2, [r0]
+-	movs r4, #0
+-	ldrsh r0, [r0, r4]
+-	cmp r1, r0
+-	bge _0802B6EC
+-_0802B6EA:
+-	strh r2, [r5]
+-_0802B6EC:
+-	mov r5, sl
+-	lsls r3, r5, #3
+-	movs r1, #0x86
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	adds r0, r0, r3
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x10]
+-	movs r4, #0x87
+-	lsls r4, r4, #2
+-	adds r2, r6, r4
+-	adds r2, r2, r3
+-	ldr r1, _0802BA40 @ =gSineTable
+-	movs r5, #0x95
+-	lsls r5, r5, #2
+-	adds r0, r6, r5
+-	add r0, sb
+-	ldrh r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r1
+-	ldrh r1, [r0]
+-	lsls r1, r1, #0x10
+-	asrs r1, r1, #0x1a
+-	adds r4, #0x42
+-	adds r0, r6, r4
+-	add r0, sb
+-	ldrh r0, [r0]
+-	lsls r0, r0, #0x10
+-	asrs r0, r0, #0x14
+-	muls r1, r0, r1
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x12]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r5, r6, r0
+-	ldr r0, [r5]
+-	mov r8, r3
+-	cmp r0, #0
+-	blt _0802B77A
+-	movs r4, #2
+-	ldr r1, [sp, #0x14]
+-	lsls r4, r1
+-	ands r0, r4
+-	cmp r0, #0
+-	bne _0802B764
+-	adds r0, r7, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802B75C
+-	ldr r0, [r5]
+-	orrs r0, r4
+-	str r0, [r5]
+-_0802B75C:
+-	ldr r0, [r5]
+-	ands r4, r0
+-	cmp r4, #0
+-	beq _0802B77A
+-_0802B764:
+-	movs r3, #0x85
+-	lsls r3, r3, #2
+-	adds r2, r6, r3
+-	movs r1, #2
+-	ldr r4, [sp, #0x14]
+-	lsls r1, r4
+-	ldr r0, [r2]
+-	bics r0, r1
+-	str r0, [r2]
+-	movs r0, #0xff
+-	strb r0, [r7, #0x1b]
+-_0802B77A:
+-	adds r0, r7, #0
+-	bl DisplaySprite
+-	movs r1, #4
+-	ldr r5, [sp, #0x14]
+-	lsls r1, r5
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r4, r6, r0
+-	ldr r0, [r4]
+-	ands r1, r0
+-	cmp r1, #0
+-	bne _0802B796
+-	b _0802B8CA
+-_0802B796:
+-	ldrh r1, [r7, #0x10]
+-	adds r0, r6, #0
+-	adds r0, #0xdc
+-	strh r1, [r0]
+-	ldrh r0, [r7, #0x12]
+-	adds r1, r6, #0
+-	adds r1, #0xde
+-	strh r0, [r1]
+-	adds r0, r6, #0
+-	adds r0, #0xcc
+-	bl DisplaySprite
+-	ldr r0, [r4]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802B7BC
+-	b _0802B8CA
+-_0802B7BC:
+-	ldr r1, _0802BA44 @ =0x000002BA
+-	adds r4, r6, r1
+-	ldrh r0, [r4]
+-	mov r3, sb
+-	adds r2, r0, r3
+-	movs r0, #7
+-	ands r2, r0
+-	cmp r2, #0
+-	bne _0802B810
+-	movs r5, #0xb6
+-	lsls r5, r5, #1
+-	adds r0, r6, r5
+-	ldr r3, [r0]
+-	subs r1, #6
+-	adds r0, r6, r1
+-	adds r5, #0xac
+-	adds r1, r6, r5
+-	add r1, r8
+-	ldr r0, [r0]
+-	ldr r1, [r1]
+-	adds r0, r0, r1
+-	movs r1, #0x80
+-	lsls r1, r1, #5
+-	adds r0, r0, r1
+-	str r0, [sp]
+-	adds r5, #4
+-	adds r0, r6, r5
+-	add r0, r8
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #4
+-	adds r0, r0, r1
+-	str r0, [sp, #4]
+-	str r2, [sp, #8]
+-	str r2, [sp, #0xc]
+-	movs r0, #1
+-	str r0, [sp, #0x10]
+-	adds r0, r6, #0
+-	ldr r1, _0802BA48 @ =0x00000295
+-	movs r2, #2
+-	bl sub_0802CFF0
+-_0802B810:
+-	ldrh r0, [r4]
+-	mov r2, sb
+-	adds r7, r0, r2
+-	movs r3, #0xf
+-	mov sb, r3
+-	ands r7, r3
+-	cmp r7, #0
+-	bne _0802B8CA
+-	ldr r4, _0802BA4C @ =gRngVal
+-	ldr r0, [r4]
+-	ldr r5, _0802BA50 @ =0x00196225
+-	adds r4, r0, #0
+-	muls r4, r5, r4
+-	ldr r0, _0802BA54 @ =0x3C6EF35F
+-	adds r4, r4, r0
+-	ldr r1, _0802BA4C @ =gRngVal
+-	str r4, [r1]
+-	lsrs r1, r4, #0x10
+-	movs r2, #0x1f
+-	ands r1, r2
+-	ldr r3, _0802BA58 @ =gUnk_082EB5E0
+-	ldr r0, _0802BA5C @ =gUnk_082EB610
+-	adds r1, r1, r0
+-	ldrb r2, [r1]
+-	lsls r2, r2, #2
+-	adds r0, r2, r3
+-	ldrh r1, [r0]
+-	adds r3, #2
+-	adds r2, r2, r3
+-	ldrh r2, [r2]
+-	movs r3, #0xb6
+-	lsls r3, r3, #1
+-	adds r0, r6, r3
+-	ldr r0, [r0]
+-	str r0, [sp, #0x18]
+-	adds r0, r5, #0
+-	adds r5, r4, #0
+-	muls r5, r0, r5
+-	ldr r3, _0802BA54 @ =0x3C6EF35F
+-	adds r5, r5, r3
+-	movs r4, #0xad
+-	lsls r4, r4, #2
+-	movs r3, #0x86
+-	lsls r3, r3, #2
+-	adds r0, r6, r3
+-	add r0, r8
+-	ldr r4, [r4, r6]
+-	mov ip, r4
+-	ldr r0, [r0]
+-	add ip, r0
+-	lsrs r0, r5, #0x10
+-	mov r3, sb
+-	ands r0, r3
+-	adds r0, #8
+-	lsls r0, r0, #8
+-	add r0, ip
+-	str r0, [sp]
+-	ldr r4, _0802BA50 @ =0x00196225
+-	muls r5, r4, r5
+-	ldr r0, _0802BA54 @ =0x3C6EF35F
+-	adds r5, r5, r0
+-	movs r3, #0x87
+-	lsls r3, r3, #2
+-	adds r4, r6, r3
+-	add r8, r4
+-	lsrs r0, r5, #0x10
+-	movs r4, #0x1f
+-	ands r0, r4
+-	subs r0, #0x10
+-	lsls r0, r0, #8
+-	mov r3, r8
+-	ldr r3, [r3]
+-	mov r8, r3
+-	add r0, r8
+-	str r0, [sp, #4]
+-	ldr r4, _0802BA50 @ =0x00196225
+-	adds r0, r5, #0
+-	muls r0, r4, r0
+-	ldr r5, _0802BA54 @ =0x3C6EF35F
+-	adds r0, r0, r5
+-	ldr r3, _0802BA4C @ =gRngVal
+-	str r0, [r3]
+-	lsrs r0, r0, #0x10
+-	movs r4, #0xff
+-	ands r0, r4
+-	adds r0, #0x80
+-	str r0, [sp, #8]
+-	str r7, [sp, #0xc]
+-	str r7, [sp, #0x10]
+-	adds r0, r6, #0
+-	ldr r3, [sp, #0x18]
+-	bl sub_0802CE64
+-_0802B8CA:
+-	mov r0, sl
+-	adds r0, #1
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	mov sl, r0
+-	ldr r0, [sp, #0x14]
+-	adds r0, #3
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	str r0, [sp, #0x14]
+-	mov r4, sl
+-	cmp r4, #4
+-	bhi _0802B8E6
+-	b _0802B660
+-_0802B8E6:
+-	movs r5, #0x85
+-	lsls r5, r5, #2
+-	adds r4, r6, r5
+-	ldr r1, [r4]
+-	movs r0, #0x80
+-	lsls r0, r0, #8
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802B952
+-	adds r7, r6, #0
+-	adds r7, #0xf4
+-	cmp r1, #0
+-	blt _0802B934
+-	movs r5, #0x80
+-	lsls r5, r5, #9
+-	ands r1, r5
+-	cmp r1, #0
+-	bne _0802B922
+-	adds r0, r7, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802B91A
+-	ldr r0, [r4]
+-	orrs r0, r5
+-	str r0, [r4]
+-_0802B91A:
+-	ldr r0, [r4]
+-	ands r0, r5
+-	cmp r0, #0
+-	beq _0802B934
+-_0802B922:
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r6, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802BA60 @ =0xFFFEFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r0, #0xff
+-	strb r0, [r7, #0x1b]
+-_0802B934:
+-	movs r1, #0x9d
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x10]
+-	movs r2, #0x9e
+-	lsls r2, r2, #2
+-	adds r0, r6, r2
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x12]
+-	adds r0, r7, #0
+-	bl DisplaySprite
+-_0802B952:
+-	movs r3, #0x85
+-	lsls r3, r3, #2
+-	adds r4, r6, r3
+-	ldr r1, [r4]
+-	movs r0, #0x80
+-	lsls r0, r0, #0xa
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802B9C0
+-	movs r5, #0x8e
+-	lsls r5, r5, #1
+-	adds r7, r6, r5
+-	cmp r1, #0
+-	blt _0802B9A2
+-	movs r5, #0x80
+-	lsls r5, r5, #0xb
+-	ands r1, r5
+-	cmp r1, #0
+-	bne _0802B990
+-	adds r0, r7, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802B988
+-	ldr r0, [r4]
+-	orrs r0, r5
+-	str r0, [r4]
+-_0802B988:
+-	ldr r0, [r4]
+-	ands r0, r5
+-	cmp r0, #0
+-	beq _0802B9A2
+-_0802B990:
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r6, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802BA64 @ =0xFFFBFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r0, #0xff
+-	strb r0, [r7, #0x1b]
+-_0802B9A2:
+-	movs r1, #0xa5
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x10]
+-	movs r2, #0xa6
+-	lsls r2, r2, #2
+-	adds r0, r6, r2
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x12]
+-	adds r0, r7, #0
+-	bl DisplaySprite
+-_0802B9C0:
+-	movs r3, #0x85
+-	lsls r3, r3, #2
+-	adds r4, r6, r3
+-	ldr r1, [r4]
+-	movs r0, #0x80
+-	lsls r0, r0, #0xc
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BA2E
+-	movs r5, #0xa2
+-	lsls r5, r5, #1
+-	adds r7, r6, r5
+-	cmp r1, #0
+-	blt _0802BA10
+-	movs r5, #0x80
+-	lsls r5, r5, #0xd
+-	ands r1, r5
+-	cmp r1, #0
+-	bne _0802B9FE
+-	adds r0, r7, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802B9F6
+-	ldr r0, [r4]
+-	orrs r0, r5
+-	str r0, [r4]
+-_0802B9F6:
+-	ldr r0, [r4]
+-	ands r0, r5
+-	cmp r0, #0
+-	beq _0802BA10
+-_0802B9FE:
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r6, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802BA68 @ =0xFFEFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r0, #0xff
+-	strb r0, [r7, #0x1b]
+-_0802BA10:
+-	movs r1, #0xa9
+-	lsls r1, r1, #2
+-	adds r0, r6, r1
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x10]
+-	movs r2, #0xaa
+-	lsls r2, r2, #2
+-	adds r0, r6, r2
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r7, #0x12]
+-	adds r0, r7, #0
+-	bl DisplaySprite
+-_0802BA2E:
+-	add sp, #0x1c
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802BA40: .4byte gSineTable
+-_0802BA44: .4byte 0x000002BA
+-_0802BA48: .4byte 0x00000295
+-_0802BA4C: .4byte gRngVal
+-_0802BA50: .4byte 0x00196225
+-_0802BA54: .4byte 0x3C6EF35F
+-_0802BA58: .4byte gUnk_082EB5E0
+-_0802BA5C: .4byte gUnk_082EB610
+-_0802BA60: .4byte 0xFFFEFFFF
+-_0802BA64: .4byte 0xFFFBFFFF
+-_0802BA68: .4byte 0xFFEFFFFF
+-
+-	thumb_func_start sub_0802BA6C
+-sub_0802BA6C: @ 0x0802BA6C
+-	push {r4, r5, r6, r7, lr}
+-	sub sp, #0x10
+-	ldr r0, _0802BA8C @ =gCurTask
+-	ldr r2, [r0]
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BA90
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0802BA98
+-	.align 2, 0
+-_0802BA8C: .4byte gCurTask
+-_0802BA90:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0802BA98:
+-	adds r5, r0, #0
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r3, r5, r0
+-	ldr r2, [r3]
+-	movs r0, #0x80
+-	lsls r0, r0, #0x14
+-	ands r0, r2
+-	cmp r0, #0
+-	beq _0802BAC0
+-	ldr r0, _0802BB80 @ =gPressedKeys
+-	ldrh r1, [r0]
+-	movs r0, #0xb
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BAC0
+-	movs r0, #0x80
+-	lsls r0, r0, #0x17
+-	orrs r2, r0
+-	str r2, [r3]
+-_0802BAC0:
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r4, r5, r1
+-	ldr r3, [r4]
+-	movs r1, #0xc0
+-	lsls r1, r1, #0x17
+-	ands r1, r3
+-	movs r0, #0x80
+-	lsls r0, r0, #0x17
+-	cmp r1, r0
+-	bne _0802BAD8
+-	b _0802BC30
+-_0802BAD8:
+-	ldr r1, [r5]
+-	adds r0, r5, #0
+-	bl _call_via_r1
+-	ldr r0, _0802BB84 @ =gUnk_0300000C
+-	ldrh r0, [r0]
+-	cmp r0, #0
+-	beq _0802BAEA
+-	b _0802BCDA
+-_0802BAEA:
+-	ldr r0, [r4]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x11
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BB12
+-	movs r3, #0xad
+-	lsls r3, r3, #2
+-	adds r2, r5, r3
+-	movs r1, #0xae
+-	lsls r1, r1, #2
+-	adds r0, r5, r1
+-	movs r3, #0
+-	ldrsh r1, [r0, r3]
+-	ldr r0, [r2]
+-	subs r0, r0, r1
+-	str r0, [r2]
+-	ldr r1, _0802BB88 @ =gBgScrollRegs
+-	asrs r0, r0, #9
+-	strh r0, [r1]
+-_0802BB12:
+-	ldr r0, [r4]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BC0C
+-	ldr r4, _0802BB8C @ =0x000002BA
+-	adds r0, r5, r4
+-	ldrh r1, [r0]
+-	movs r0, #0x3f
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0802BC0C
+-	ldr r2, _0802BB90 @ =gRngVal
+-	ldr r0, [r2]
+-	ldr r6, _0802BB94 @ =0x00196225
+-	muls r0, r6, r0
+-	ldr r3, _0802BB98 @ =0x3C6EF35F
+-	adds r0, r0, r3
+-	lsrs r1, r0, #0x10
+-	movs r4, #3
+-	ands r1, r4
+-	muls r0, r6, r0
+-	adds r0, r0, r3
+-	str r0, [r2]
+-	lsrs r3, r0, #0x10
+-	ands r3, r4
+-	adds r7, r2, #0
+-	cmp r1, #1
+-	bhi _0802BB9C
+-	adds r2, r0, #0
+-	muls r2, r6, r2
+-	ldr r0, _0802BB98 @ =0x3C6EF35F
+-	adds r2, r2, r0
+-	lsrs r0, r2, #0x10
+-	movs r1, #0xf
+-	ands r0, r1
+-	adds r0, #0x10
+-	rsbs r0, r0, #0
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	mov ip, r0
+-	adds r0, r2, #0
+-	muls r0, r6, r0
+-	ldr r1, _0802BB98 @ =0x3C6EF35F
+-	adds r0, r0, r1
+-	str r0, [r7]
+-	lsrs r0, r0, #0x10
+-	movs r1, #0x1f
+-	ands r0, r1
+-	lsls r0, r0, #0xb
+-	movs r1, #0x80
+-	lsls r1, r1, #5
+-	b _0802BBC0
+-	.align 2, 0
+-_0802BB80: .4byte gPressedKeys
+-_0802BB84: .4byte gUnk_0300000C
+-_0802BB88: .4byte gBgScrollRegs
+-_0802BB8C: .4byte 0x000002BA
+-_0802BB90: .4byte gRngVal
+-_0802BB94: .4byte 0x00196225
+-_0802BB98: .4byte 0x3C6EF35F
+-_0802BB9C:
+-	adds r2, r0, #0
+-	muls r2, r6, r2
+-	ldr r4, _0802BC18 @ =0x3C6EF35F
+-	adds r2, r2, r4
+-	lsrs r0, r2, #0x10
+-	movs r1, #0xf
+-	ands r0, r1
+-	adds r0, #0x10
+-	mov ip, r0
+-	adds r0, r2, #0
+-	muls r0, r6, r0
+-	adds r0, r0, r4
+-	str r0, [r7]
+-	lsrs r0, r0, #0x10
+-	movs r1, #0x1f
+-	ands r0, r1
+-	lsls r0, r0, #0xb
+-	ldr r1, _0802BC1C @ =0xFFFFE000
+-_0802BBC0:
+-	adds r4, r0, r1
+-	ldr r2, _0802BC20 @ =gUnk_082EB5E0
+-	ldr r0, _0802BC24 @ =gUnk_082EB630
+-	adds r0, r3, r0
+-	ldrb r0, [r0]
+-	lsls r0, r0, #2
+-	adds r1, r0, r2
+-	ldrh r1, [r1]
+-	adds r2, #2
+-	adds r0, r0, r2
+-	ldrh r2, [r0]
+-	movs r3, #0xb6
+-	lsls r3, r3, #1
+-	adds r0, r5, r3
+-	ldr r3, [r0]
+-	str r4, [sp]
+-	ldr r4, [r7]
+-	ldr r0, _0802BC28 @ =0x00196225
+-	muls r0, r4, r0
+-	ldr r4, _0802BC18 @ =0x3C6EF35F
+-	adds r0, r0, r4
+-	str r0, [r7]
+-	lsrs r0, r0, #0x10
+-	movs r4, #0xf
+-	ands r0, r4
+-	adds r0, #0x20
+-	rsbs r0, r0, #0
+-	lsls r0, r0, #8
+-	str r0, [sp, #4]
+-	mov r4, ip
+-	lsls r0, r4, #0x10
+-	asrs r0, r0, #0x10
+-	str r0, [sp, #8]
+-	movs r0, #0x40
+-	str r0, [sp, #0xc]
+-	adds r0, r5, #0
+-	bl sub_0802D198
+-_0802BC0C:
+-	ldr r0, _0802BC2C @ =0x000002BA
+-	adds r1, r5, r0
+-	ldrh r0, [r1]
+-	adds r0, #1
+-	strh r0, [r1]
+-	b _0802BCCC
+-	.align 2, 0
+-_0802BC18: .4byte 0x3C6EF35F
+-_0802BC1C: .4byte 0xFFFFE000
+-_0802BC20: .4byte gUnk_082EB5E0
+-_0802BC24: .4byte gUnk_082EB630
+-_0802BC28: .4byte 0x00196225
+-_0802BC2C: .4byte 0x000002BA
+-_0802BC30:
+-	ands r1, r3
+-	cmp r1, #0
+-	beq _0802BCCC
+-	movs r6, #0x80
+-	lsls r6, r6, #0x18
+-	adds r2, r6, #0
+-	ands r2, r3
+-	cmp r2, #0
+-	bne _0802BC90
+-	ldr r1, _0802BC7C @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	strh r2, [r1, #4]
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r5, r1
+-	strh r2, [r0]
+-	ldr r0, _0802BC80 @ =gMPlayInfo_0
+-	movs r1, #4
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802BC84 @ =gMPlayInfo_1
+-	movs r1, #4
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802BC88 @ =gMPlayInfo_2
+-	movs r1, #4
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802BC8C @ =gMPlayInfo_3
+-	movs r1, #4
+-	bl m4aMPlayFadeOut
+-	ldr r0, [r4]
+-	orrs r0, r6
+-	str r0, [r4]
+-	b _0802BCCC
+-	.align 2, 0
+-_0802BC7C: .4byte gBldRegs
+-_0802BC80: .4byte gMPlayInfo_0
+-_0802BC84: .4byte gMPlayInfo_1
+-_0802BC88: .4byte gMPlayInfo_2
+-_0802BC8C: .4byte gMPlayInfo_3
+-_0802BC90:
+-	movs r3, #0xaf
+-	lsls r3, r3, #2
+-	adds r1, r5, r3
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802BCC8
+-	ldr r0, [r4]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x15
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802BCB8
+-	adds r0, r5, #0
+-	bl sub_0802CB60
+-	b _0802BCDA
+-_0802BCB8:
+-	movs r0, #0xa0
+-	lsls r0, r0, #0x15
+-	str r0, [r4]
+-	ldr r0, _0802BCC4 @ =sub_0802D480
+-	str r0, [r5]
+-	b _0802BCDA
+-	.align 2, 0
+-_0802BCC4: .4byte sub_0802D480
+-_0802BCC8:
+-	ldr r0, _0802BCE4 @ =gBldRegs
+-	strh r2, [r0, #4]
+-_0802BCCC:
+-	ldr r0, _0802BCE8 @ =gUnk_0300000C
+-	ldrh r0, [r0]
+-	cmp r0, #0
+-	bne _0802BCDA
+-	adds r0, r5, #0
+-	bl sub_0802B62C
+-_0802BCDA:
+-	add sp, #0x10
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802BCE4: .4byte gBldRegs
+-_0802BCE8: .4byte gUnk_0300000C
+-
+-	thumb_func_start sub_0802BCEC
+-sub_0802BCEC: @ 0x0802BCEC
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	adds r7, r0, #0
+-	ldr r1, _0802BE04 @ =gDispCnt
+-	movs r2, #0x8a
+-	lsls r2, r2, #5
+-	adds r0, r2, #0
+-	strh r0, [r1]
+-	movs r5, #0xca
+-	lsls r5, r5, #1
+-	adds r4, r7, r5
+-	ldr r0, _0802BE08 @ =gBgScrollRegs
+-	movs r3, #0
+-	movs r2, #0
+-	strh r2, [r0]
+-	strh r2, [r0, #2]
+-	ldr r1, _0802BE0C @ =gBgCntRegs
+-	ldr r0, _0802BE10 @ =0x00001F0A
+-	strh r0, [r1]
+-	ldr r1, _0802BE14 @ =0x06008000
+-	str r1, [r4, #4]
+-	strh r2, [r4, #0xa]
+-	ldr r0, _0802BE18 @ =0x0600F800
+-	str r0, [r4, #0xc]
+-	strh r2, [r4, #0x18]
+-	strh r2, [r4, #0x1a]
+-	movs r0, #0xac
+-	lsls r0, r0, #2
+-	strh r0, [r4, #0x1c]
+-	strh r2, [r4, #0x1e]
+-	strh r2, [r4, #0x20]
+-	strh r2, [r4, #0x22]
+-	strh r2, [r4, #0x24]
+-	movs r0, #0x20
+-	strh r0, [r4, #0x26]
+-	strh r0, [r4, #0x28]
+-	adds r5, #0x2a
+-	adds r0, r7, r5
+-	strb r3, [r0]
+-	adds r5, #1
+-	adds r0, r7, r5
+-	strb r3, [r0]
+-	adds r5, #1
+-	adds r0, r7, r5
+-	strb r3, [r0]
+-	movs r0, #8
+-	strh r0, [r4, #0x2e]
+-	strh r2, [r4, #0x30]
+-	strh r2, [r4, #0x32]
+-	ldr r0, _0802BE1C @ =0x00007FFF
+-	strh r0, [r4, #0x34]
+-	strh r0, [r4, #0x36]
+-	ldr r0, _0802BE20 @ =gUnk_082D7850
+-	movs r2, #0xac
+-	lsls r2, r2, #4
+-	adds r0, r0, r2
+-	ldr r0, [r0]
+-	ldr r0, [r0, #8]
+-	bl LZ77UnCompVram
+-	adds r0, r4, #0
+-	bl sub_08153060
+-	movs r6, #0
+-	mov r8, r6
+-_0802BD74:
+-	lsls r5, r6, #2
+-	adds r0, r5, r6
+-	lsls r0, r0, #3
+-	adds r0, #4
+-	adds r4, r7, r0
+-	lsls r3, r6, #3
+-	movs r0, #0x86
+-	lsls r0, r0, #2
+-	adds r1, r7, r0
+-	adds r1, r1, r3
+-	ldr r2, _0802BE24 @ =gUnk_082EB4EC
+-	adds r0, r3, r2
+-	ldr r0, [r0]
+-	str r0, [r1]
+-	movs r0, #0x87
+-	lsls r0, r0, #2
+-	adds r1, r7, r0
+-	adds r1, r1, r3
+-	ldr r2, _0802BE28 @ =gUnk_082EB4F0
+-	adds r0, r3, r2
+-	ldr r0, [r0]
+-	str r0, [r1]
+-	lsls r1, r6, #1
+-	movs r0, #0x95
+-	lsls r0, r0, #2
+-	adds r2, r7, r0
+-	adds r2, r2, r1
+-	ldr r0, _0802BE2C @ =gUnk_082EB5B4
+-	adds r1, r1, r0
+-	ldrh r0, [r1]
+-	strh r0, [r2]
+-	mov sb, r3
+-	cmp r6, #3
+-	bhi _0802BE3C
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	strh r0, [r4, #0x14]
+-	ldr r2, _0802BE30 @ =gKirbys
+-	adds r0, #0xa8
+-	adds r1, r6, #0
+-	muls r1, r0, r1
+-	adds r1, r1, r2
+-	adds r1, #0xdf
+-	ldrb r0, [r1]
+-	lsls r0, r0, #2
+-	ldr r2, _0802BE34 @ =gUnk_082EB4B4
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	strh r0, [r4, #0xc]
+-	ldrb r0, [r1]
+-	lsls r0, r0, #2
+-	ldr r5, _0802BE38 @ =gUnk_082EB4B6
+-	adds r0, r0, r5
+-	ldrh r0, [r0]
+-	strb r0, [r4, #0x1a]
+-	mov r0, r8
+-	strh r0, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r4, #0x1c]
+-	strb r6, [r4, #0x1f]
+-	mov r1, r8
+-	strh r1, [r4, #0x10]
+-	strh r1, [r4, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	b _0802BE70
+-	.align 2, 0
+-_0802BE04: .4byte gDispCnt
+-_0802BE08: .4byte gBgScrollRegs
+-_0802BE0C: .4byte gBgCntRegs
+-_0802BE10: .4byte 0x00001F0A
+-_0802BE14: .4byte 0x06008000
+-_0802BE18: .4byte 0x0600F800
+-_0802BE1C: .4byte 0x00007FFF
+-_0802BE20: .4byte gUnk_082D7850
+-_0802BE24: .4byte gUnk_082EB4EC
+-_0802BE28: .4byte gUnk_082EB4F0
+-_0802BE2C: .4byte gUnk_082EB5B4
+-_0802BE30: .4byte gKirbys
+-_0802BE34: .4byte gUnk_082EB4B4
+-_0802BE38: .4byte gUnk_082EB4B6
+-_0802BE3C:
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	strh r0, [r4, #0x14]
+-	ldr r1, _0802BF58 @ =gUnk_082EB4A0
+-	adds r0, r5, r1
+-	ldrh r0, [r0]
+-	strh r0, [r4, #0xc]
+-	adds r1, #2
+-	adds r1, r5, r1
+-	ldrh r0, [r1]
+-	strb r0, [r4, #0x1a]
+-	mov r2, r8
+-	strh r2, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r4, #0x1c]
+-	strb r6, [r4, #0x1f]
+-	strh r2, [r4, #0x10]
+-	strh r2, [r4, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-_0802BE70:
+-	movs r0, #0x80
+-	lsls r0, r0, #1
+-	strh r0, [r4, #0x14]
+-	movs r0, #0x2d
+-	strh r0, [r4, #0xc]
+-	movs r0, #4
+-	strb r0, [r4, #0x1a]
+-	mov r5, r8
+-	strh r5, [r4, #0x16]
+-	subs r0, #5
+-	mov sl, r0
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r1, #0x10
+-	strb r1, [r4, #0x1c]
+-	strb r6, [r4, #0x1f]
+-	movs r2, #0x86
+-	lsls r2, r2, #2
+-	adds r0, r7, r2
+-	add r0, sb
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x10]
+-	movs r5, #0x87
+-	lsls r5, r5, #2
+-	adds r0, r7, r5
+-	add r0, sb
+-	ldr r0, [r0]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x12]
+-	movs r0, #0x82
+-	lsls r0, r0, #0xb
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	adds r0, r6, #1
+-	lsls r0, r0, #0x10
+-	lsrs r6, r0, #0x10
+-	cmp r6, #4
+-	bhi _0802BEC4
+-	b _0802BD74
+-_0802BEC4:
+-	adds r0, r7, #0
+-	adds r0, #0xcc
+-	movs r4, #0
+-	movs r6, #0
+-	movs r1, #0xa0
+-	lsls r1, r1, #1
+-	strh r1, [r0, #0x14]
+-	ldr r1, _0802BF5C @ =0x000002DE
+-	strh r1, [r0, #0xc]
+-	strb r4, [r0, #0x1a]
+-	strh r6, [r0, #0x16]
+-	ldrb r1, [r0, #0x1b]
+-	mov r2, sl
+-	orrs r1, r2
+-	strb r1, [r0, #0x1b]
+-	movs r5, #0x10
+-	strb r5, [r0, #0x1c]
+-	movs r1, #0xf
+-	strb r1, [r0, #0x1f]
+-	movs r4, #0xff
+-	lsls r4, r4, #8
+-	strh r4, [r0, #0x10]
+-	strh r4, [r0, #0x12]
+-	movs r5, #0x80
+-	lsls r5, r5, #5
+-	str r5, [r0, #8]
+-	bl sub_08155128
+-	adds r0, r7, #0
+-	adds r0, #0xf4
+-	movs r1, #0xc0
+-	lsls r1, r1, #2
+-	strh r1, [r0, #0x14]
+-	subs r1, #0x2d
+-	strh r1, [r0, #0xc]
+-	movs r1, #1
+-	strb r1, [r0, #0x1a]
+-	strh r6, [r0, #0x16]
+-	ldrb r1, [r0, #0x1b]
+-	mov r2, sl
+-	orrs r1, r2
+-	strb r1, [r0, #0x1b]
+-	movs r1, #0x10
+-	strb r1, [r0, #0x1c]
+-	movs r1, #0xe
+-	strb r1, [r0, #0x1f]
+-	strh r4, [r0, #0x10]
+-	strh r4, [r0, #0x12]
+-	str r5, [r0, #8]
+-	bl sub_08155128
+-	movs r5, #0x85
+-	lsls r5, r5, #2
+-	adds r2, r7, r5
+-	ldr r0, [r2]
+-	ldr r1, _0802BF60 @ =0x01005B6D
+-	orrs r0, r1
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	movs r0, #0x12
+-	bl m4aSongNumStart
+-	ldr r0, _0802BF64 @ =sub_0802D3E0
+-	str r0, [r7]
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802BF58: .4byte gUnk_082EB4A0
+-_0802BF5C: .4byte 0x000002DE
+-_0802BF60: .4byte 0x01005B6D
+-_0802BF64: .4byte sub_0802D3E0
+-
+-	thumb_func_start sub_0802BF68
+-sub_0802BF68: @ 0x0802BF68
+-	push {r4, lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	movs r4, #0
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802BFA8
+-	ldr r0, _0802BF9C @ =gBldRegs
+-	strh r4, [r0]
+-	strh r4, [r0, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802BFA0 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802BFA4 @ =sub_0802D3F4
+-	str r0, [r3]
+-	b _0802BFB0
+-	.align 2, 0
+-_0802BF9C: .4byte gBldRegs
+-_0802BFA0: .4byte 0xDFFFFFFF
+-_0802BFA4: .4byte sub_0802D3F4
+-_0802BFA8:
+-	ldr r1, _0802BFB8 @ =gBldRegs
+-	movs r0, #0x10
+-	subs r0, r0, r2
+-	strh r0, [r1, #4]
+-_0802BFB0:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802BFB8: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802BFBC
+-sub_0802BFBC: @ 0x0802BFBC
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	mov r8, r0
+-	movs r0, #0
+-	mov sb, r0
+-	movs r5, #0
+-	movs r1, #0x86
+-	lsls r1, r1, #2
+-	add r1, r8
+-	mov ip, r1
+-	movs r7, #0x90
+-	lsls r7, r7, #2
+-	add r7, r8
+-	movs r2, #0x9a
+-	lsls r2, r2, #2
+-	add r2, r8
+-	mov sl, r2
+-_0802BFE4:
+-	lsls r0, r5, #3
+-	ldr r3, _0802C05C @ =gUnk_082EB53C
+-	adds r1, r0, r3
+-	mov r3, ip
+-	adds r2, r3, r0
+-	ldr r3, [r1]
+-	ldr r1, [r2]
+-	adds r6, r0, #0
+-	lsls r4, r5, #2
+-	cmp r3, r1
+-	blt _0802C01E
+-	adds r1, r7, r4
+-	ldrh r2, [r1]
+-	movs r3, #0
+-	ldrsh r0, [r1, r3]
+-	cmp r0, #0
+-	beq _0802C01E
+-	adds r0, r2, #4
+-	movs r2, #0
+-	strh r0, [r1]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	blt _0802C01E
+-	strh r2, [r1]
+-	lsls r0, r5, #1
+-	add r0, sl
+-	movs r1, #0x80
+-	lsls r1, r1, #4
+-	strh r1, [r0]
+-_0802C01E:
+-	mov r0, ip
+-	adds r2, r0, r6
+-	adds r3, r7, r4
+-	movs r0, #0
+-	ldrsh r1, [r3, r0]
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	ldrh r0, [r3]
+-	mov r1, sb
+-	orrs r1, r0
+-	mov sb, r1
+-	adds r0, r5, #1
+-	lsls r0, r0, #0x10
+-	lsrs r5, r0, #0x10
+-	cmp r5, #3
+-	bls _0802BFE4
+-	lsls r0, r1, #0x10
+-	cmp r0, #0
+-	bne _0802C04C
+-	ldr r0, _0802C060 @ =sub_0802D408
+-	mov r2, r8
+-	str r0, [r2]
+-_0802C04C:
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C05C: .4byte gUnk_082EB53C
+-_0802C060: .4byte sub_0802D408
+-
+-	thumb_func_start sub_0802C064
+-sub_0802C064: @ 0x0802C064
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #4
+-	mov ip, r0
+-	movs r0, #0
+-	str r0, [sp]
+-	movs r5, #0
+-	ldr r6, _0802C0E0 @ =0x00000242
+-	add r6, ip
+-	movs r1, #0x86
+-	lsls r1, r1, #2
+-	add r1, ip
+-	mov r8, r1
+-	movs r7, #0x90
+-	lsls r7, r7, #2
+-	add r7, ip
+-_0802C08A:
+-	cmp r5, #4
+-	bne _0802C0EC
+-	movs r0, #0x8e
+-	lsls r0, r0, #2
+-	add r0, ip
+-	ldr r2, _0802C0E4 @ =gUnk_082EB58C
+-	ldr r1, [r2, #0x20]
+-	ldr r0, [r0]
+-	movs r3, #0x10
+-	mov sl, r3
+-	movs r4, #0x20
+-	mov sb, r4
+-	cmp r1, r0
+-	blt _0802C160
+-	movs r2, #0x94
+-	lsls r2, r2, #2
+-	add r2, ip
+-	ldrh r1, [r2]
+-	movs r3, #0
+-	ldrsh r0, [r2, r3]
+-	cmp r0, #0
+-	beq _0802C160
+-	adds r0, r1, #2
+-	movs r3, #0
+-	strh r0, [r2]
+-	ldr r1, _0802C0E8 @ =0x00000252
+-	add r1, ip
+-	ldrh r0, [r1]
+-	adds r0, #2
+-	strh r0, [r1]
+-	movs r4, #0
+-	ldrsh r0, [r2, r4]
+-	cmp r0, #0
+-	blt _0802C160
+-	strh r3, [r2]
+-	strh r3, [r1]
+-	movs r1, #0x9c
+-	lsls r1, r1, #2
+-	add r1, ip
+-	movs r0, #0x80
+-	lsls r0, r0, #4
+-	strh r0, [r1]
+-	b _0802C160
+-	.align 2, 0
+-_0802C0E0: .4byte 0x00000242
+-_0802C0E4: .4byte gUnk_082EB58C
+-_0802C0E8: .4byte 0x00000252
+-_0802C0EC:
+-	lsls r0, r5, #2
+-	adds r2, r6, r0
+-	ldrh r3, [r2]
+-	movs r4, #0
+-	ldrsh r1, [r2, r4]
+-	mov sl, r0
+-	cmp r1, #0
+-	ble _0802C10A
+-	subs r0, r3, #2
+-	movs r1, #0
+-	strh r0, [r2]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bge _0802C11C
+-	b _0802C11A
+-_0802C10A:
+-	cmp r1, #0
+-	bge _0802C11C
+-	adds r0, r3, #2
+-	movs r1, #0
+-	strh r0, [r2]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	ble _0802C11C
+-_0802C11A:
+-	strh r1, [r2]
+-_0802C11C:
+-	lsls r0, r5, #3
+-	ldr r2, _0802C1D0 @ =gUnk_082EB58C
+-	adds r1, r0, r2
+-	mov r3, r8
+-	adds r2, r3, r0
+-	ldr r3, [r1]
+-	ldr r1, [r2]
+-	mov sb, r0
+-	cmp r3, r1
+-	bgt _0802C160
+-	mov r4, sl
+-	adds r1, r7, r4
+-	ldrh r2, [r1]
+-	movs r3, #0
+-	ldrsh r0, [r1, r3]
+-	cmp r0, #0
+-	beq _0802C160
+-	subs r0, r2, #2
+-	movs r2, #0
+-	strh r0, [r1]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	blt _0802C160
+-	strh r2, [r1]
+-	adds r0, r6, r4
+-	strh r2, [r0]
+-	lsls r1, r5, #1
+-	movs r0, #0x9a
+-	lsls r0, r0, #2
+-	add r0, ip
+-	adds r0, r0, r1
+-	movs r1, #0x80
+-	lsls r1, r1, #4
+-	strh r1, [r0]
+-_0802C160:
+-	mov r2, r8
+-	add r2, sb
+-	mov r0, sl
+-	adds r4, r7, r0
+-	movs r3, #0
+-	ldrsh r1, [r4, r3]
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	movs r1, #0x87
+-	lsls r1, r1, #2
+-	add r1, ip
+-	add r1, sb
+-	mov r0, sl
+-	adds r3, r6, r0
+-	movs r0, #0
+-	ldrsh r2, [r3, r0]
+-	ldr r0, [r1]
+-	adds r0, r0, r2
+-	str r0, [r1]
+-	ldrh r0, [r4]
+-	ldrh r1, [r3]
+-	orrs r0, r1
+-	ldr r1, [sp]
+-	orrs r1, r0
+-	str r1, [sp]
+-	adds r0, r5, #1
+-	lsls r0, r0, #0x10
+-	lsrs r5, r0, #0x10
+-	cmp r5, #4
+-	bhi _0802C1A0
+-	b _0802C08A
+-_0802C1A0:
+-	lsls r0, r1, #0x10
+-	cmp r0, #0
+-	bne _0802C1BE
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	add r0, ip
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802C1BE
+-	ldr r0, _0802C1D4 @ =sub_0802D430
+-	mov r2, ip
+-	str r0, [r2]
+-_0802C1BE:
+-	add sp, #4
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C1D0: .4byte gUnk_082EB58C
+-_0802C1D4: .4byte sub_0802D430
+-
+-	thumb_func_start sub_0802C1D8
+-sub_0802C1D8: @ 0x0802C1D8
+-	push {r4, r5, r6, lr}
+-	adds r5, r0, #0
+-	movs r1, #0x9d
+-	lsls r1, r1, #2
+-	adds r0, r5, r1
+-	ldr r2, _0802C258 @ =0x000002BE
+-	adds r4, r5, r2
+-	ldrh r3, [r4]
+-	lsls r3, r3, #3
+-	movs r6, #0x86
+-	lsls r6, r6, #2
+-	adds r1, r5, r6
+-	adds r1, r1, r3
+-	ldr r0, [r0]
+-	ldr r1, [r1]
+-	subs r0, r0, r1
+-	lsls r0, r0, #8
+-	asrs r0, r0, #0x10
+-	subs r2, #0x46
+-	adds r1, r5, r2
+-	adds r6, #4
+-	adds r2, r5, r6
+-	adds r2, r2, r3
+-	ldr r1, [r1]
+-	ldr r2, [r2]
+-	subs r1, r1, r2
+-	lsls r1, r1, #8
+-	asrs r1, r1, #0x10
+-	bl sub_08154FE8
+-	ldr r1, _0802C25C @ =0x000003FF
+-	ands r1, r0
+-	ldrh r0, [r4]
+-	lsls r0, r0, #2
+-	movs r3, #0x90
+-	lsls r3, r3, #2
+-	adds r2, r5, r3
+-	adds r2, r2, r0
+-	ldr r3, _0802C260 @ =gSineTable
+-	lsls r0, r1, #1
+-	adds r0, r0, r3
+-	ldrh r0, [r0]
+-	lsls r0, r0, #0x10
+-	asrs r0, r0, #0x17
+-	strh r0, [r2]
+-	ldrh r0, [r4]
+-	lsls r0, r0, #2
+-	ldr r4, _0802C264 @ =0x00000242
+-	adds r2, r5, r4
+-	adds r2, r2, r0
+-	movs r6, #0x80
+-	lsls r6, r6, #1
+-	adds r1, r1, r6
+-	lsls r1, r1, #1
+-	adds r1, r1, r3
+-	ldrh r0, [r1]
+-	lsls r0, r0, #0x10
+-	asrs r0, r0, #0x17
+-	strh r0, [r2]
+-	ldr r0, _0802C268 @ =sub_0802C26C
+-	str r0, [r5]
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C258: .4byte 0x000002BE
+-_0802C25C: .4byte 0x000003FF
+-_0802C260: .4byte gSineTable
+-_0802C264: .4byte 0x00000242
+-_0802C268: .4byte sub_0802C26C
+-
+-	thumb_func_start sub_0802C26C
+-sub_0802C26C: @ 0x0802C26C
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, r8
+-	push {r7}
+-	mov ip, r0
+-	ldr r0, _0802C2C4 @ =0x000002BE
+-	add r0, ip
+-	mov r8, r0
+-	ldrh r6, [r0]
+-	lsls r3, r6, #3
+-	movs r0, #0x86
+-	lsls r0, r0, #2
+-	add r0, ip
+-	adds r7, r0, r3
+-	movs r0, #0x9d
+-	lsls r0, r0, #2
+-	add r0, ip
+-	ldr r5, [r7]
+-	ldr r2, [r0]
+-	subs r2, r5, r2
+-	asrs r2, r2, #8
+-	movs r4, #0x87
+-	lsls r4, r4, #2
+-	add r4, ip
+-	adds r3, r4, r3
+-	movs r1, #0x9e
+-	lsls r1, r1, #2
+-	add r1, ip
+-	ldr r0, [r3]
+-	ldr r1, [r1]
+-	subs r0, r0, r1
+-	asrs r0, r0, #8
+-	adds r1, r2, #0
+-	muls r1, r2, r1
+-	adds r2, r0, #0
+-	muls r2, r0, r2
+-	adds r0, r2, #0
+-	adds r1, r1, r0
+-	cmp r1, #0x8f
+-	bgt _0802C2CC
+-	ldr r0, _0802C2C8 @ =sub_0802D5D4
+-	mov r3, ip
+-	str r0, [r3]
+-	b _0802C2F8
+-	.align 2, 0
+-_0802C2C4: .4byte 0x000002BE
+-_0802C2C8: .4byte sub_0802D5D4
+-_0802C2CC:
+-	lsls r1, r6, #2
+-	movs r0, #0x90
+-	lsls r0, r0, #2
+-	add r0, ip
+-	adds r0, r0, r1
+-	movs r1, #0
+-	ldrsh r0, [r0, r1]
+-	adds r0, r5, r0
+-	str r0, [r7]
+-	mov r2, r8
+-	ldrh r1, [r2]
+-	lsls r2, r1, #3
+-	adds r2, r4, r2
+-	lsls r1, r1, #2
+-	ldr r0, _0802C304 @ =0x00000242
+-	add r0, ip
+-	adds r0, r0, r1
+-	movs r3, #0
+-	ldrsh r1, [r0, r3]
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-_0802C2F8:
+-	pop {r3}
+-	mov r8, r3
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C304: .4byte 0x00000242
+-
+-	thumb_func_start sub_0802C308
+-sub_0802C308: @ 0x0802C308
+-	push {lr}
+-	mov ip, r0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	add r1, ip
+-	ldrh r0, [r1]
+-	adds r3, r0, #1
+-	movs r2, #0
+-	strh r3, [r1]
+-	lsls r0, r3, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0x3f
+-	bls _0802C34C
+-	ldr r0, _0802C340 @ =gBldRegs
+-	strh r2, [r0]
+-	strh r2, [r0, #4]
+-	movs r2, #0x85
+-	lsls r2, r2, #2
+-	add r2, ip
+-	ldr r0, [r2]
+-	ldr r1, _0802C344 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802C348 @ =sub_0802D708
+-	mov r1, ip
+-	str r0, [r1]
+-	b _0802C358
+-	.align 2, 0
+-_0802C340: .4byte gBldRegs
+-_0802C344: .4byte 0xDFFFFFFF
+-_0802C348: .4byte sub_0802D708
+-_0802C34C:
+-	ldr r2, _0802C35C @ =gBldRegs
+-	lsls r1, r3, #0x10
+-	lsrs r1, r1, #0x12
+-	movs r0, #0x10
+-	subs r0, r0, r1
+-	strh r0, [r2, #4]
+-_0802C358:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C35C: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802C360
+-sub_0802C360: @ 0x0802C360
+-	push {r4, lr}
+-	mov ip, r0
+-	movs r4, #0x94
+-	lsls r4, r4, #2
+-	add r4, ip
+-	ldrh r0, [r4]
+-	subs r0, #4
+-	strh r0, [r4]
+-	lsls r0, r0, #0x10
+-	ldr r1, _0802C3B4 @ =0xFF800000
+-	cmp r0, r1
+-	bge _0802C37C
+-	ldr r0, _0802C3B8 @ =0x0000FF80
+-	strh r0, [r4]
+-_0802C37C:
+-	movs r3, #0x8e
+-	lsls r3, r3, #2
+-	add r3, ip
+-	ldr r1, [r3]
+-	ldr r0, _0802C3BC @ =0xFFFFE000
+-	cmp r1, r0
+-	bge _0802C3A2
+-	movs r2, #0x85
+-	lsls r2, r2, #2
+-	add r2, ip
+-	ldr r0, [r2]
+-	ldr r1, _0802C3C0 @ =0xFFFF8FFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r0, #0
+-	strh r0, [r4]
+-	ldr r0, _0802C3C4 @ =sub_0802D444
+-	mov r1, ip
+-	str r0, [r1]
+-_0802C3A2:
+-	movs r0, #0
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r3]
+-	adds r0, r0, r1
+-	str r0, [r3]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C3B4: .4byte 0xFF800000
+-_0802C3B8: .4byte 0x0000FF80
+-_0802C3BC: .4byte 0xFFFFE000
+-_0802C3C0: .4byte 0xFFFF8FFF
+-_0802C3C4: .4byte sub_0802D444
+-
+-	thumb_func_start sub_0802C3C8
+-sub_0802C3C8: @ 0x0802C3C8
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	adds r7, r0, #0
+-	movs r1, #0x8e
+-	lsls r1, r1, #1
+-	adds r0, r7, r1
+-	movs r2, #0xa5
+-	lsls r2, r2, #2
+-	adds r5, r7, r2
+-	movs r1, #0x8c
+-	lsls r1, r1, #9
+-	str r1, [r5]
+-	movs r1, #0xa6
+-	lsls r1, r1, #2
+-	adds r6, r7, r1
+-	movs r1, #0xa0
+-	lsls r1, r1, #7
+-	str r1, [r6]
+-	adds r2, #8
+-	adds r1, r7, r2
+-	movs r4, #0
+-	str r4, [r1]
+-	adds r2, #4
+-	adds r1, r7, r2
+-	str r4, [r1]
+-	movs r1, #0
+-	movs r2, #0x80
+-	lsls r2, r2, #1
+-	strh r2, [r0, #0x14]
+-	ldr r2, _0802C4B4 @ =0x00000395
+-	mov sb, r2
+-	mov r2, sb
+-	strh r2, [r0, #0xc]
+-	strb r1, [r0, #0x1a]
+-	strh r4, [r0, #0x16]
+-	movs r1, #0xff
+-	strb r1, [r0, #0x1b]
+-	movs r1, #0x10
+-	mov sl, r1
+-	mov r2, sl
+-	strb r2, [r0, #0x1c]
+-	movs r1, #5
+-	strb r1, [r0, #0x1f]
+-	ldr r1, [r5]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x10]
+-	ldr r1, [r6]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x12]
+-	movs r1, #0xa0
+-	lsls r1, r1, #5
+-	mov r8, r1
+-	str r1, [r0, #8]
+-	bl sub_08155128
+-	movs r2, #0xa2
+-	lsls r2, r2, #1
+-	adds r0, r7, r2
+-	movs r1, #0xa9
+-	lsls r1, r1, #2
+-	adds r2, r7, r1
+-	ldr r1, [r5]
+-	str r1, [r2]
+-	movs r5, #0xaa
+-	lsls r5, r5, #2
+-	adds r3, r7, r5
+-	ldr r1, [r6]
+-	str r1, [r3]
+-	adds r5, #4
+-	adds r1, r7, r5
+-	str r4, [r1]
+-	adds r5, #4
+-	adds r1, r7, r5
+-	str r4, [r1]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	strh r1, [r0, #0x14]
+-	mov r5, sb
+-	strh r5, [r0, #0xc]
+-	movs r1, #1
+-	strb r1, [r0, #0x1a]
+-	strh r4, [r0, #0x16]
+-	subs r1, #2
+-	strb r1, [r0, #0x1b]
+-	mov r1, sl
+-	strb r1, [r0, #0x1c]
+-	movs r1, #6
+-	strb r1, [r0, #0x1f]
+-	ldr r1, [r2]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x10]
+-	ldr r1, [r3]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x12]
+-	mov r2, r8
+-	str r2, [r0, #8]
+-	bl sub_08155128
+-	movs r5, #0x85
+-	lsls r5, r5, #2
+-	adds r2, r7, r5
+-	ldr r0, [r2]
+-	movs r1, #0xa0
+-	lsls r1, r1, #0xc
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802C4B8 @ =sub_0802C4BC
+-	str r0, [r7]
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C4B4: .4byte 0x00000395
+-_0802C4B8: .4byte sub_0802C4BC
+-
+-	thumb_func_start sub_0802C4BC
+-sub_0802C4BC: @ 0x0802C4BC
+-	push {r4, r5, r6, lr}
+-	adds r3, r0, #0
+-	movs r0, #0xa7
+-	lsls r0, r0, #2
+-	adds r6, r3, r0
+-	ldr r0, _0802C53C @ =0xFFFFFEC0
+-	str r0, [r6]
+-	movs r2, #0xa5
+-	lsls r2, r2, #2
+-	adds r5, r3, r2
+-	ldr r1, [r5]
+-	ldr r0, _0802C540 @ =0x0000DBFF
+-	cmp r1, r0
+-	bgt _0802C4E4
+-	movs r0, #0xa8
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r1]
+-	subs r0, #8
+-	str r0, [r1]
+-_0802C4E4:
+-	movs r2, #0xa6
+-	lsls r2, r2, #2
+-	adds r4, r3, r2
+-	ldr r1, [r4]
+-	ldr r0, _0802C544 @ =0xFFFFE000
+-	cmp r1, r0
+-	bge _0802C50E
+-	movs r1, #0
+-	str r1, [r6]
+-	adds r2, #8
+-	adds r0, r3, r2
+-	str r1, [r0]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802C548 @ =0xFFF7FFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802C54C @ =sub_0802D458
+-	str r0, [r3]
+-_0802C50E:
+-	ldr r0, [r5]
+-	ldr r1, [r6]
+-	adds r0, r0, r1
+-	str r0, [r5]
+-	movs r2, #0xa8
+-	lsls r2, r2, #2
+-	adds r1, r3, r2
+-	ldr r0, [r4]
+-	ldr r1, [r1]
+-	adds r0, r0, r1
+-	str r0, [r4]
+-	movs r0, #0xa9
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r5]
+-	str r0, [r1]
+-	adds r2, #8
+-	adds r1, r3, r2
+-	ldr r0, [r4]
+-	str r0, [r1]
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C53C: .4byte 0xFFFFFEC0
+-_0802C540: .4byte 0x0000DBFF
+-_0802C544: .4byte 0xFFFFE000
+-_0802C548: .4byte 0xFFF7FFFF
+-_0802C54C: .4byte sub_0802D458
+-
+-	thumb_func_start sub_0802C550
+-sub_0802C550: @ 0x0802C550
+-	push {r4, r5, r6, lr}
+-	adds r6, r0, #0
+-	movs r1, #0xa2
+-	lsls r1, r1, #1
+-	adds r0, r6, r1
+-	movs r2, #0xa9
+-	lsls r2, r2, #2
+-	adds r4, r6, r2
+-	movs r1, #0xf0
+-	lsls r1, r1, #7
+-	str r1, [r4]
+-	movs r1, #0xaa
+-	lsls r1, r1, #2
+-	adds r5, r6, r1
+-	ldr r1, _0802C5D4 @ =0xFFFFD800
+-	str r1, [r5]
+-	adds r2, #8
+-	adds r1, r6, r2
+-	movs r3, #0
+-	str r3, [r1]
+-	movs r1, #0xac
+-	lsls r1, r1, #2
+-	adds r2, r6, r1
+-	subs r1, #0xb0
+-	str r1, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #1
+-	strh r1, [r0, #0x14]
+-	ldr r1, _0802C5D8 @ =0x000002C3
+-	strh r1, [r0, #0xc]
+-	movs r1, #3
+-	strb r1, [r0, #0x1a]
+-	strh r3, [r0, #0x16]
+-	movs r1, #0xff
+-	strb r1, [r0, #0x1b]
+-	movs r1, #0x10
+-	strb r1, [r0, #0x1c]
+-	movs r1, #6
+-	strb r1, [r0, #0x1f]
+-	ldr r1, [r4]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x10]
+-	ldr r1, [r5]
+-	asrs r1, r1, #8
+-	strh r1, [r0, #0x12]
+-	movs r1, #0x80
+-	lsls r1, r1, #5
+-	str r1, [r0, #8]
+-	bl sub_08155128
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r6, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802C5DC @ =0xFFEFFFFF
+-	ands r0, r1
+-	movs r1, #0x80
+-	lsls r1, r1, #0xc
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802C5E0 @ =sub_0802D780
+-	str r0, [r6]
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C5D4: .4byte 0xFFFFD800
+-_0802C5D8: .4byte 0x000002C3
+-_0802C5DC: .4byte 0xFFEFFFFF
+-_0802C5E0: .4byte sub_0802D780
+-
+-	thumb_func_start sub_0802C5E4
+-sub_0802C5E4: @ 0x0802C5E4
+-	push {r4, r5, lr}
+-	adds r5, r0, #0
+-	movs r0, #0xca
+-	lsls r0, r0, #1
+-	adds r4, r5, r0
+-	ldr r0, _0802C664 @ =gBgScrollRegs
+-	movs r3, #0
+-	movs r1, #0
+-	strh r1, [r0]
+-	strh r1, [r0, #2]
+-	ldr r2, _0802C668 @ =gBgCntRegs
+-	ldr r0, _0802C66C @ =0x00001F0A
+-	strh r0, [r2]
+-	ldr r0, _0802C670 @ =0x06008000
+-	str r0, [r4, #4]
+-	strh r1, [r4, #0xa]
+-	ldr r0, _0802C674 @ =0x0600F800
+-	str r0, [r4, #0xc]
+-	strh r1, [r4, #0x18]
+-	strh r1, [r4, #0x1a]
+-	ldr r0, _0802C678 @ =0x00000306
+-	strh r0, [r4, #0x1c]
+-	strh r1, [r4, #0x1e]
+-	strh r1, [r4, #0x20]
+-	strh r1, [r4, #0x22]
+-	strh r1, [r4, #0x24]
+-	movs r0, #0x1e
+-	strh r0, [r4, #0x26]
+-	movs r0, #0x14
+-	strh r0, [r4, #0x28]
+-	movs r2, #0xdf
+-	lsls r2, r2, #1
+-	adds r0, r5, r2
+-	strb r3, [r0]
+-	adds r2, #1
+-	adds r0, r5, r2
+-	strb r3, [r0]
+-	adds r2, #1
+-	adds r0, r5, r2
+-	strb r3, [r0]
+-	movs r0, #8
+-	strh r0, [r4, #0x2e]
+-	strh r1, [r4, #0x30]
+-	strh r1, [r4, #0x32]
+-	ldr r0, _0802C67C @ =0x00007FFF
+-	strh r0, [r4, #0x34]
+-	strh r0, [r4, #0x36]
+-	ldr r0, _0802C680 @ =gUnk_082D7850
+-	ldr r1, _0802C684 @ =0x00000C18
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	ldr r0, [r0, #8]
+-	ldr r1, [r4, #4]
+-	bl LZ77UnCompVram
+-	adds r0, r4, #0
+-	bl sub_08153060
+-	ldr r0, _0802C688 @ =sub_0802C68C
+-	str r0, [r5]
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C664: .4byte gBgScrollRegs
+-_0802C668: .4byte gBgCntRegs
+-_0802C66C: .4byte 0x00001F0A
+-_0802C670: .4byte 0x06008000
+-_0802C674: .4byte 0x0600F800
+-_0802C678: .4byte 0x00000306
+-_0802C67C: .4byte 0x00007FFF
+-_0802C680: .4byte gUnk_082D7850
+-_0802C684: .4byte 0x00000C18
+-_0802C688: .4byte sub_0802C68C
+-
+-	thumb_func_start sub_0802C68C
+-sub_0802C68C: @ 0x0802C68C
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, r8
+-	push {r7}
+-	mov r8, r0
+-	ldr r1, _0802C700 @ =gRoomTiledBGs
+-	ldr r0, _0802C704 @ =gRoomProps
+-	ldr r2, _0802C708 @ =0x00007D46
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	lsls r0, r0, #2
+-	adds r0, r0, r1
+-	ldr r5, [r0]
+-	ldr r1, _0802C70C @ =gBgScrollRegs
+-	movs r0, #0
+-	strh r0, [r1, #4]
+-	strh r0, [r1, #6]
+-	ldr r1, _0802C710 @ =gBgCntRegs
+-	ldr r0, _0802C714 @ =0x00001E03
+-	strh r0, [r1, #2]
+-	ldr r0, [r5, #8]
+-	movs r1, #0xc0
+-	lsls r1, r1, #0x13
+-	bl LZ77UnCompVram
+-	ldr r4, [r5, #0x18]
+-	ldr r7, _0802C718 @ =0x0600F000
+-	ldrh r0, [r5]
+-	lsls r0, r0, #4
+-	adds r4, r4, r0
+-	movs r6, #0
+-_0802C6C8:
+-	adds r0, r4, #0
+-	adds r1, r7, #0
+-	movs r2, #0x1e
+-	bl CpuSet
+-	ldrh r0, [r5]
+-	lsls r0, r0, #1
+-	adds r4, r4, r0
+-	adds r7, #0x40
+-	adds r0, r6, #1
+-	lsls r0, r0, #0x10
+-	lsrs r6, r0, #0x10
+-	cmp r6, #0x13
+-	bls _0802C6C8
+-	ldr r4, _0802C71C @ =gMainFlags
+-	ldr r3, [r4]
+-	movs r0, #0x80
+-	lsls r0, r0, #9
+-	ands r0, r3
+-	cmp r0, #0
+-	beq _0802C720
+-	ldr r0, [r5, #0x10]
+-	ldrb r1, [r5, #0x14]
+-	ldrh r2, [r5, #0x16]
+-	bl LoadBgPaletteWithTransformation
+-	b _0802C742
+-	.align 2, 0
+-_0802C700: .4byte gRoomTiledBGs
+-_0802C704: .4byte gRoomProps
+-_0802C708: .4byte 0x00007D46
+-_0802C70C: .4byte gBgScrollRegs
+-_0802C710: .4byte gBgCntRegs
+-_0802C714: .4byte 0x00001E03
+-_0802C718: .4byte 0x0600F000
+-_0802C71C: .4byte gMainFlags
+-_0802C720:
+-	ldr r2, _0802C760 @ =0x040000D4
+-	ldr r0, [r5, #0x10]
+-	str r0, [r2]
+-	ldrh r0, [r5, #0x14]
+-	lsls r0, r0, #1
+-	ldr r1, _0802C764 @ =gBgPalette
+-	adds r0, r0, r1
+-	str r0, [r2, #4]
+-	ldrh r0, [r5, #0x16]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x18
+-	orrs r0, r1
+-	str r0, [r2, #8]
+-	ldr r0, [r2, #8]
+-	movs r0, #1
+-	orrs r3, r0
+-	str r3, [r4]
+-_0802C742:
+-	ldr r2, _0802C768 @ =gDispCnt
+-	ldrh r0, [r2]
+-	movs r3, #0xc0
+-	lsls r3, r3, #2
+-	adds r1, r3, #0
+-	orrs r0, r1
+-	strh r0, [r2]
+-	ldr r0, _0802C76C @ =sub_0802D46C
+-	mov r1, r8
+-	str r0, [r1]
+-	pop {r3}
+-	mov r8, r3
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C760: .4byte 0x040000D4
+-_0802C764: .4byte gBgPalette
+-_0802C768: .4byte gDispCnt
+-_0802C76C: .4byte sub_0802D46C
+-
+-	thumb_func_start sub_0802C770
+-sub_0802C770: @ 0x0802C770
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	mov sl, r0
+-	ldr r2, _0802C8A4 @ =gDispCnt
+-	ldrh r0, [r2]
+-	movs r3, #0xc0
+-	lsls r3, r3, #2
+-	adds r1, r3, #0
+-	orrs r0, r1
+-	strh r0, [r2]
+-	ldr r6, _0802C8A8 @ =gBgScrollRegs
+-	movs r0, #0
+-	mov r8, r0
+-	movs r4, #0
+-	strh r4, [r6]
+-	strh r4, [r6, #2]
+-	ldr r0, _0802C8AC @ =0x00001F09
+-	ldr r1, _0802C8B0 @ =gBgCntRegs
+-	strh r0, [r1]
+-	movs r7, #0xca
+-	lsls r7, r7, #1
+-	add r7, sl
+-	ldr r0, _0802C8B4 @ =0x06008000
+-	str r0, [r7, #4]
+-	strh r4, [r7, #0xa]
+-	ldr r0, _0802C8B8 @ =0x0600F800
+-	str r0, [r7, #0xc]
+-	strh r4, [r7, #0x18]
+-	strh r4, [r7, #0x1a]
+-	ldr r1, _0802C8BC @ =gUnk_082EB634
+-	ldr r0, _0802C8C0 @ =gLanguage
+-	ldrh r0, [r0]
+-	lsls r0, r0, #1
+-	adds r0, r0, r1
+-	ldrh r0, [r0]
+-	strh r0, [r7, #0x1c]
+-	strh r4, [r7, #0x1e]
+-	strh r4, [r7, #0x20]
+-	strh r4, [r7, #0x22]
+-	strh r4, [r7, #0x24]
+-	movs r3, #0x1e
+-	strh r3, [r7, #0x26]
+-	movs r0, #0x14
+-	strh r0, [r7, #0x28]
+-	movs r0, #0xdf
+-	lsls r0, r0, #1
+-	add r0, sl
+-	mov r1, r8
+-	strb r1, [r0]
+-	ldr r0, _0802C8C4 @ =0x000001BF
+-	add r0, sl
+-	strb r1, [r0]
+-	movs r0, #0xe0
+-	lsls r0, r0, #1
+-	add r0, sl
+-	strb r1, [r0]
+-	movs r0, #0x18
+-	strh r0, [r7, #0x2e]
+-	strh r4, [r7, #0x30]
+-	strh r4, [r7, #0x32]
+-	ldr r5, _0802C8C8 @ =0x00007FFF
+-	strh r5, [r7, #0x34]
+-	strh r5, [r7, #0x36]
+-	adds r0, r7, #0
+-	bl sub_08153060
+-	ldr r3, _0802C8CC @ =gUnk_082D7850
+-	mov sb, r3
+-	ldrh r0, [r7, #0x1c]
+-	lsls r0, r0, #2
+-	add r0, sb
+-	ldr r0, [r0]
+-	ldr r0, [r0, #8]
+-	ldr r1, [r7, #4]
+-	bl LZ77UnCompVram
+-	strh r4, [r6, #4]
+-	strh r4, [r6, #6]
+-	ldr r0, _0802C8D0 @ =0x00001E02
+-	ldr r1, _0802C8B0 @ =gBgCntRegs
+-	strh r0, [r1, #2]
+-	movs r7, #0xea
+-	lsls r7, r7, #1
+-	add r7, sl
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x13
+-	str r0, [r7, #4]
+-	strh r4, [r7, #0xa]
+-	ldr r0, _0802C8D4 @ =0x0600F000
+-	str r0, [r7, #0xc]
+-	strh r4, [r7, #0x18]
+-	strh r4, [r7, #0x1a]
+-	ldr r0, _0802C8D8 @ =0x000002B1
+-	strh r0, [r7, #0x1c]
+-	strh r4, [r7, #0x1e]
+-	strh r4, [r7, #0x20]
+-	strh r4, [r7, #0x22]
+-	strh r4, [r7, #0x24]
+-	movs r3, #0x1e
+-	strh r3, [r7, #0x26]
+-	movs r0, #0x14
+-	strh r0, [r7, #0x28]
+-	movs r0, #0xff
+-	lsls r0, r0, #1
+-	add r0, sl
+-	mov r1, r8
+-	strb r1, [r0]
+-	ldr r0, _0802C8DC @ =0x000001FF
+-	add r0, sl
+-	strb r1, [r0]
+-	movs r0, #0x80
+-	lsls r0, r0, #2
+-	add r0, sl
+-	strb r1, [r0]
+-	movs r0, #9
+-	strh r0, [r7, #0x2e]
+-	strh r5, [r7, #0x34]
+-	strh r5, [r7, #0x36]
+-	adds r0, r7, #0
+-	bl sub_08153060
+-	ldrh r0, [r7, #0x1c]
+-	lsls r0, r0, #2
+-	add r0, sb
+-	ldr r0, [r0]
+-	ldr r0, [r0, #8]
+-	ldr r1, [r7, #4]
+-	bl LZ77UnCompVram
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	add r0, sl
+-	strh r4, [r0]
+-	movs r2, #0x85
+-	lsls r2, r2, #2
+-	add r2, sl
+-	ldr r0, [r2]
+-	ldr r1, _0802C8E0 @ =0xFFF7FFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802C8E4 @ =sub_0802D800
+-	mov r3, sl
+-	str r0, [r3]
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802C8A4: .4byte gDispCnt
+-_0802C8A8: .4byte gBgScrollRegs
+-_0802C8AC: .4byte 0x00001F09
+-_0802C8B0: .4byte gBgCntRegs
+-_0802C8B4: .4byte 0x06008000
+-_0802C8B8: .4byte 0x0600F800
+-_0802C8BC: .4byte gUnk_082EB634
+-_0802C8C0: .4byte gLanguage
+-_0802C8C4: .4byte 0x000001BF
+-_0802C8C8: .4byte 0x00007FFF
+-_0802C8CC: .4byte gUnk_082D7850
+-_0802C8D0: .4byte 0x00001E02
+-_0802C8D4: .4byte 0x0600F000
+-_0802C8D8: .4byte 0x000002B1
+-_0802C8DC: .4byte 0x000001FF
+-_0802C8E0: .4byte 0xFFF7FFFF
+-_0802C8E4: .4byte sub_0802D800
+-
+-	thumb_func_start sub_0802C8E8
+-sub_0802C8E8: @ 0x0802C8E8
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #4
+-	adds r7, r0, #0
+-	movs r3, #0
+-	mov r8, r3
+-_0802C8FA:
+-	lsls r2, r3, #2
+-	adds r4, r2, r3
+-	lsls r4, r4, #3
+-	adds r4, #4
+-	adds r4, r7, r4
+-	lsls r1, r3, #3
+-	movs r0, #0x86
+-	lsls r0, r0, #2
+-	adds r6, r7, r0
+-	adds r6, r6, r1
+-	ldr r5, _0802CA4C @ =gUnk_082EB5C0
+-	adds r0, r1, r5
+-	ldr r0, [r0]
+-	str r0, [r6]
+-	movs r0, #0x87
+-	lsls r0, r0, #2
+-	adds r5, r7, r0
+-	adds r5, r5, r1
+-	ldr r0, _0802CA50 @ =gUnk_082EB5C4
+-	adds r1, r1, r0
+-	ldr r0, [r1]
+-	str r0, [r5]
+-	movs r1, #0x90
+-	lsls r1, r1, #2
+-	adds r0, r7, r1
+-	adds r0, r0, r2
+-	adds r1, #0xc0
+-	strh r1, [r0]
+-	subs r1, #0xbe
+-	adds r0, r7, r1
+-	adds r0, r0, r2
+-	ldr r1, _0802CA54 @ =0x0000FF80
+-	strh r1, [r0]
+-	lsls r1, r3, #1
+-	ldr r2, _0802CA58 @ =0x0000025E
+-	adds r0, r7, r2
+-	adds r0, r0, r1
+-	mov r2, r8
+-	strh r2, [r0]
+-	movs r2, #0x9a
+-	lsls r2, r2, #2
+-	adds r0, r7, r2
+-	adds r0, r0, r1
+-	mov r1, r8
+-	strh r1, [r0]
+-	movs r2, #0x80
+-	lsls r2, r2, #1
+-	strh r2, [r4, #0x14]
+-	ldr r2, _0802CA5C @ =gKirbys
+-	movs r0, #0xd4
+-	lsls r0, r0, #1
+-	adds r1, r3, #0
+-	muls r1, r0, r1
+-	adds r1, r1, r2
+-	adds r1, #0xdf
+-	ldrb r0, [r1]
+-	lsls r0, r0, #2
+-	ldr r2, _0802CA60 @ =gUnk_082EB4B4
+-	adds r0, r0, r2
+-	ldrh r0, [r0]
+-	strh r0, [r4, #0xc]
+-	ldrb r0, [r1]
+-	lsls r0, r0, #2
+-	ldr r1, _0802CA64 @ =gUnk_082EB4B6
+-	adds r0, r0, r1
+-	ldrh r0, [r0]
+-	strb r0, [r4, #0x1a]
+-	mov r2, r8
+-	strh r2, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	mov sb, r0
+-	mov r1, sb
+-	strb r1, [r4, #0x1c]
+-	strb r3, [r4, #0x1f]
+-	strh r2, [r4, #0x10]
+-	strh r2, [r4, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	str r3, [sp]
+-	bl sub_08155128
+-	movs r2, #0x80
+-	lsls r2, r2, #1
+-	strh r2, [r4, #0x14]
+-	movs r0, #0x2d
+-	strh r0, [r4, #0xc]
+-	movs r0, #0
+-	strb r0, [r4, #0x1a]
+-	mov r1, r8
+-	strh r1, [r4, #0x16]
+-	movs r2, #1
+-	rsbs r2, r2, #0
+-	mov sl, r2
+-	adds r0, r2, #0
+-	strb r0, [r4, #0x1b]
+-	mov r0, sb
+-	strb r0, [r4, #0x1c]
+-	ldr r3, [sp]
+-	strb r3, [r4, #0x1f]
+-	ldr r0, [r6]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x10]
+-	ldr r0, [r5]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x12]
+-	movs r0, #0x82
+-	lsls r0, r0, #0xb
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	str r3, [sp]
+-	bl sub_08155128
+-	ldr r3, [sp]
+-	adds r0, r3, #1
+-	lsls r0, r0, #0x10
+-	lsrs r3, r0, #0x10
+-	cmp r3, #3
+-	bls _0802C8FA
+-	adds r0, r7, #0
+-	adds r0, #0xcc
+-	movs r2, #0
+-	movs r3, #0
+-	movs r1, #0xa0
+-	lsls r1, r1, #1
+-	strh r1, [r0, #0x14]
+-	ldr r1, _0802CA68 @ =0x000002DE
+-	strh r1, [r0, #0xc]
+-	strb r2, [r0, #0x1a]
+-	strh r3, [r0, #0x16]
+-	ldrb r1, [r0, #0x1b]
+-	mov r2, sl
+-	orrs r1, r2
+-	strb r1, [r0, #0x1b]
+-	mov r5, sb
+-	strb r5, [r0, #0x1c]
+-	movs r1, #0xf
+-	strb r1, [r0, #0x1f]
+-	movs r1, #0xff
+-	lsls r1, r1, #8
+-	strh r1, [r0, #0x10]
+-	strh r1, [r0, #0x12]
+-	movs r1, #0x80
+-	lsls r1, r1, #5
+-	str r1, [r0, #8]
+-	bl sub_08155128
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r7, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802CA6C @ =0xF0800000
+-	ands r0, r1
+-	ldr r1, _0802CA70 @ =0x00000B6D
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802CA74 @ =sub_0802CA78
+-	str r0, [r7]
+-	add sp, #4
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CA4C: .4byte gUnk_082EB5C0
+-_0802CA50: .4byte gUnk_082EB5C4
+-_0802CA54: .4byte 0x0000FF80
+-_0802CA58: .4byte 0x0000025E
+-_0802CA5C: .4byte gKirbys
+-_0802CA60: .4byte gUnk_082EB4B4
+-_0802CA64: .4byte gUnk_082EB4B6
+-_0802CA68: .4byte 0x000002DE
+-_0802CA6C: .4byte 0xF0800000
+-_0802CA70: .4byte 0x00000B6D
+-_0802CA74: .4byte sub_0802CA78
+-
+-	thumb_func_start sub_0802CA78
+-sub_0802CA78: @ 0x0802CA78
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #4
+-	adds r5, r0, #0
+-	movs r0, #1
+-	mov sl, r0
+-	movs r6, #0
+-	movs r1, #0x90
+-	lsls r1, r1, #2
+-	adds r1, r5, r1
+-	str r1, [sp]
+-	movs r2, #0x86
+-	lsls r2, r2, #2
+-	adds r2, r2, r5
+-	mov sb, r2
+-	movs r3, #0x87
+-	lsls r3, r3, #2
+-	adds r3, r3, r5
+-	mov r8, r3
+-	ldr r4, _0802CB08 @ =0x00000242
+-	adds r4, r4, r5
+-	mov ip, r4
+-_0802CAAA:
+-	lsls r1, r6, #2
+-	ldr r7, [sp]
+-	adds r2, r7, r1
+-	ldrh r3, [r2]
+-	movs r4, #0
+-	ldrsh r0, [r2, r4]
+-	adds r4, r1, #0
+-	cmp r0, #0x80
+-	ble _0802CADA
+-	subs r0, r3, #6
+-	strh r0, [r2]
+-	lsls r0, r0, #0x10
+-	asrs r0, r0, #0x10
+-	cmp r0, #0x80
+-	bgt _0802CADA
+-	adds r1, r4, r6
+-	lsls r1, r1, #3
+-	adds r1, r5, r1
+-	movs r0, #0x2d
+-	strh r0, [r1, #0x10]
+-	movs r0, #6
+-	strb r0, [r1, #0x1e]
+-	movs r0, #0x80
+-	strh r0, [r2]
+-_0802CADA:
+-	lsls r1, r6, #3
+-	mov r7, sb
+-	adds r0, r7, r1
+-	ldr r2, [r0]
+-	movs r0, #0x98
+-	lsls r0, r0, #9
+-	adds r3, r1, #0
+-	cmp r2, r0
+-	bgt _0802CAF8
+-	mov r1, r8
+-	adds r0, r1, r3
+-	ldr r1, [r0]
+-	ldr r0, _0802CB0C @ =0xFFFFC000
+-	cmp r1, r0
+-	bge _0802CB10
+-_0802CAF8:
+-	ldr r7, [sp]
+-	adds r2, r7, r4
+-	mov r0, ip
+-	adds r1, r0, r4
+-	movs r0, #0
+-	strh r0, [r1]
+-	strh r0, [r2]
+-	b _0802CB14
+-	.align 2, 0
+-_0802CB08: .4byte 0x00000242
+-_0802CB0C: .4byte 0xFFFFC000
+-_0802CB10:
+-	movs r1, #0
+-	mov sl, r1
+-_0802CB14:
+-	mov r7, sb
+-	adds r2, r7, r3
+-	ldr r1, [sp]
+-	adds r0, r1, r4
+-	movs r7, #0
+-	ldrsh r1, [r0, r7]
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	mov r0, r8
+-	adds r2, r0, r3
+-	mov r1, ip
+-	adds r0, r1, r4
+-	movs r3, #0
+-	ldrsh r1, [r0, r3]
+-	ldr r0, [r2]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	adds r0, r6, #1
+-	lsls r0, r0, #0x10
+-	lsrs r6, r0, #0x10
+-	cmp r6, #3
+-	bls _0802CAAA
+-	mov r4, sl
+-	cmp r4, #0
+-	beq _0802CB4C
+-	ldr r0, _0802CB5C @ =sub_0802D4F4
+-	str r0, [r5]
+-_0802CB4C:
+-	add sp, #4
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CB5C: .4byte sub_0802D4F4
+-
+-	thumb_func_start sub_0802CB60
+-sub_0802CB60: @ 0x0802CB60
+-	push {r4, r5, r6, lr}
+-	sub sp, #4
+-	ldr r1, _0802CC00 @ =gBldRegs
+-	movs r6, #0
+-	movs r0, #0
+-	strh r0, [r1]
+-	strh r0, [r1, #4]
+-	mov r0, sp
+-	ldr r1, _0802CC04 @ =0x00007FFF
+-	adds r4, r1, #0
+-	strh r4, [r0]
+-	ldr r1, _0802CC08 @ =gBgPalette
+-	ldr r5, _0802CC0C @ =0x01000100
+-	adds r2, r5, #0
+-	bl CpuSet
+-	mov r0, sp
+-	adds r0, #2
+-	strh r4, [r0]
+-	ldr r1, _0802CC10 @ =gObjPalette
+-	adds r2, r5, #0
+-	bl CpuSet
+-	ldr r2, _0802CC14 @ =gMainFlags
+-	ldr r0, [r2]
+-	movs r1, #3
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r1, _0802CC18 @ =gUnk_0300000C
+-	movs r0, #1
+-	strh r0, [r1]
+-	ldr r1, _0802CC1C @ =0x0000FFFF
+-	movs r0, #0
+-	bl TasksDestroyInPriorityRange
+-	ldr r1, _0802CC20 @ =gUnk_03003A04
+-	ldr r0, _0802CC24 @ =gUnk_03003790
+-	ldrb r0, [r0]
+-	strb r0, [r1]
+-	ldr r0, _0802CC28 @ =gUnk_030068B0
+-	strb r6, [r0]
+-	ldr r1, _0802CC2C @ =gUnk_03006078
+-	ldr r0, _0802CC30 @ =gUnk_030039A4
+-	ldrb r0, [r0]
+-	strb r0, [r1]
+-	ldr r2, _0802CC34 @ =gAIKirbyState
+-	ldrh r1, [r2]
+-	ldr r0, _0802CC38 @ =0x0000270E
+-	cmp r1, r0
+-	bhi _0802CC6A
+-	ldr r1, _0802CC3C @ =0x0000270F
+-	adds r0, r1, #0
+-	strh r0, [r2]
+-	ldr r0, _0802CC40 @ =gUnk_0203AD10
+-	ldr r1, [r0]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	bne _0802CC6A
+-	movs r0, #2
+-	ands r1, r0
+-	cmp r1, #0
+-	beq _0802CC58
+-	ldr r0, _0802CC44 @ =gLocalPlayerId
+-	ldr r1, _0802CC48 @ =gUnk_0203AD24
+-	ldrb r0, [r0]
+-	ldrb r1, [r1]
+-	cmp r0, r1
+-	bne _0802CC50
+-	ldr r2, _0802CC4C @ =gSaveID
+-	ldrh r0, [r2]
+-	movs r1, #0
+-	cmp r0, #2
+-	bhi _0802CBF6
+-	adds r1, r0, #0
+-_0802CBF6:
+-	movs r0, #1
+-	bl UpdateSaveBufferByOffset
+-	b _0802CC6A
+-	.align 2, 0
+-_0802CC00: .4byte gBldRegs
+-_0802CC04: .4byte 0x00007FFF
+-_0802CC08: .4byte gBgPalette
+-_0802CC0C: .4byte 0x01000100
+-_0802CC10: .4byte gObjPalette
+-_0802CC14: .4byte gMainFlags
+-_0802CC18: .4byte gUnk_0300000C
+-_0802CC1C: .4byte 0x0000FFFF
+-_0802CC20: .4byte gUnk_03003A04
+-_0802CC24: .4byte gUnk_03003790
+-_0802CC28: .4byte gUnk_030068B0
+-_0802CC2C: .4byte gUnk_03006078
+-_0802CC30: .4byte gUnk_030039A4
+-_0802CC34: .4byte gAIKirbyState
+-_0802CC38: .4byte 0x0000270E
+-_0802CC3C: .4byte 0x0000270F
+-_0802CC40: .4byte gUnk_0203AD10
+-_0802CC44: .4byte gLocalPlayerId
+-_0802CC48: .4byte gUnk_0203AD24
+-_0802CC4C: .4byte gSaveID
+-_0802CC50:
+-	movs r0, #8
+-	bl sub_08031CE4
+-	b _0802CC6A
+-_0802CC58:
+-	ldr r2, _0802CC78 @ =gSaveID
+-	ldrh r0, [r2]
+-	movs r1, #0
+-	cmp r0, #2
+-	bhi _0802CC64
+-	adds r1, r0, #0
+-_0802CC64:
+-	movs r0, #1
+-	bl UpdateSaveBufferByOffset
+-_0802CC6A:
+-	bl sub_0814EBE4
+-	add sp, #4
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CC78: .4byte gSaveID
+-
+-	thumb_func_start sub_0802CC7C
+-sub_0802CC7C: @ 0x0802CC7C
+-	push {r4, r5, r6, r7, lr}
+-	sub sp, #8
+-	adds r7, r0, #0
+-	ldr r2, _0802CD64 @ =gDispCnt
+-	ldrh r0, [r2]
+-	movs r3, #0x80
+-	lsls r3, r3, #3
+-	adds r1, r3, #0
+-	orrs r0, r1
+-	strh r0, [r2]
+-	ldr r1, _0802CD68 @ =gBldRegs
+-	movs r6, #0
+-	movs r5, #0
+-	ldr r0, _0802CD6C @ =0x00001344
+-	strh r0, [r1]
+-	movs r0, #0x80
+-	lsls r0, r0, #5
+-	strh r0, [r1, #2]
+-	adds r4, r7, #4
+-	ldr r3, _0802CD70 @ =gUnk_082EB640
+-	adds r0, r7, #0
+-	adds r0, #0x4c
+-	ldrh r1, [r0]
+-	lsls r1, r1, #2
+-	ldr r0, _0802CD74 @ =gLanguage
+-	ldrh r2, [r0]
+-	lsls r0, r2, #1
+-	adds r0, r0, r2
+-	lsls r0, r0, #3
+-	adds r1, r1, r0
+-	adds r1, r1, r3
+-	ldrh r2, [r1]
+-	ldr r0, _0802CD78 @ =gBgScrollRegs
+-	strh r5, [r0, #8]
+-	strh r5, [r0, #0xa]
+-	ldr r1, _0802CD7C @ =gBgCntRegs
+-	movs r0, #0xe8
+-	lsls r0, r0, #5
+-	strh r0, [r1, #4]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x13
+-	str r0, [r4, #4]
+-	strh r5, [r4, #0xa]
+-	ldr r0, _0802CD80 @ =0x0600E800
+-	str r0, [r4, #0xc]
+-	strh r5, [r4, #0x18]
+-	strh r5, [r4, #0x1a]
+-	strh r2, [r4, #0x1c]
+-	strh r5, [r4, #0x1e]
+-	strh r5, [r4, #0x20]
+-	strh r5, [r4, #0x22]
+-	movs r1, #0xa
+-	strh r1, [r4, #0x24]
+-	movs r0, #0x1e
+-	strh r0, [r4, #0x26]
+-	strh r1, [r4, #0x28]
+-	adds r0, r7, #0
+-	adds r0, #0x2e
+-	strb r6, [r0]
+-	adds r0, #1
+-	strb r6, [r0]
+-	adds r0, #1
+-	strb r6, [r0]
+-	movs r0, #0x1a
+-	strh r0, [r4, #0x2e]
+-	strh r5, [r4, #0x30]
+-	strh r5, [r4, #0x32]
+-	ldr r0, _0802CD84 @ =0x00007FFF
+-	strh r0, [r4, #0x34]
+-	strh r0, [r4, #0x36]
+-	ldr r0, _0802CD88 @ =gUnk_082D7850
+-	lsls r2, r2, #2
+-	adds r2, r2, r0
+-	ldr r0, [r2]
+-	ldr r0, [r0, #8]
+-	ldr r1, [r4, #4]
+-	bl LZ77UnCompVram
+-	str r5, [sp]
+-	ldr r1, [r4, #4]
+-	ldr r0, _0802CD8C @ =0x00003FE0
+-	adds r1, r1, r0
+-	ldr r2, _0802CD90 @ =0x05000008
+-	mov r0, sp
+-	bl CpuSet
+-	add r0, sp, #4
+-	ldr r2, _0802CD94 @ =0x000001FF
+-	adds r1, r2, #0
+-	strh r1, [r0]
+-	ldr r1, [r4, #0xc]
+-	ldr r2, _0802CD98 @ =0x01000400
+-	bl CpuSet
+-	adds r0, r4, #0
+-	bl sub_08153060
+-	adds r0, r7, #0
+-	adds r0, #0x4a
+-	strh r5, [r0]
+-	ldr r1, [r7, #0x44]
+-	movs r3, #0x85
+-	lsls r3, r3, #2
+-	adds r1, r1, r3
+-	ldr r0, [r1]
+-	movs r2, #0x80
+-	lsls r2, r2, #0x16
+-	orrs r0, r2
+-	str r0, [r1]
+-	ldr r0, _0802CD9C @ =sub_0802CDA0
+-	str r0, [r7]
+-	add sp, #8
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CD64: .4byte gDispCnt
+-_0802CD68: .4byte gBldRegs
+-_0802CD6C: .4byte 0x00001344
+-_0802CD70: .4byte gUnk_082EB640
+-_0802CD74: .4byte gLanguage
+-_0802CD78: .4byte gBgScrollRegs
+-_0802CD7C: .4byte gBgCntRegs
+-_0802CD80: .4byte 0x0600E800
+-_0802CD84: .4byte 0x00007FFF
+-_0802CD88: .4byte gUnk_082D7850
+-_0802CD8C: .4byte 0x00003FE0
+-_0802CD90: .4byte 0x05000008
+-_0802CD94: .4byte 0x000001FF
+-_0802CD98: .4byte 0x01000400
+-_0802CD9C: .4byte sub_0802CDA0
+-
+-	thumb_func_start sub_0802CDA0
+-sub_0802CDA0: @ 0x0802CDA0
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r1, r3, #0
+-	adds r1, #0x4a
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802CDE4
+-	ldr r1, _0802CDD8 @ =gBldRegs
+-	movs r0, #0
+-	strh r0, [r1]
+-	movs r0, #0x10
+-	strh r0, [r1, #2]
+-	ldr r1, [r3, #0x44]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r1, r1, r0
+-	ldr r0, [r1]
+-	ldr r2, _0802CDDC @ =0xDFFFFFFF
+-	ands r0, r2
+-	str r0, [r1]
+-	ldr r0, _0802CDE0 @ =sub_0802D898
+-	str r0, [r3]
+-	b _0802CDF0
+-	.align 2, 0
+-_0802CDD8: .4byte gBldRegs
+-_0802CDDC: .4byte 0xDFFFFFFF
+-_0802CDE0: .4byte sub_0802D898
+-_0802CDE4:
+-	ldr r1, _0802CDF4 @ =gBldRegs
+-	movs r0, #0x10
+-	subs r0, r0, r2
+-	lsls r0, r0, #8
+-	orrs r2, r0
+-	strh r2, [r1, #2]
+-_0802CDF0:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CDF4: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802CDF8
+-sub_0802CDF8: @ 0x0802CDF8
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r1, r3, #0
+-	adds r1, #0x4a
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802CE50
+-	ldr r2, _0802CE3C @ =gDispCnt
+-	ldrh r1, [r2]
+-	ldr r0, _0802CE40 @ =0x0000FBFF
+-	ands r0, r1
+-	strh r0, [r2]
+-	ldr r1, _0802CE44 @ =gBldRegs
+-	movs r0, #0
+-	strh r0, [r1]
+-	movs r0, #0x80
+-	lsls r0, r0, #5
+-	strh r0, [r1, #2]
+-	ldr r1, [r3, #0x44]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r1, r1, r0
+-	ldr r0, [r1]
+-	ldr r2, _0802CE48 @ =0xDFFFFFFF
+-	ands r0, r2
+-	str r0, [r1]
+-	ldr r0, _0802CE4C @ =sub_0802D92C
+-	str r0, [r3]
+-	b _0802CE5C
+-	.align 2, 0
+-_0802CE3C: .4byte gDispCnt
+-_0802CE40: .4byte 0x0000FBFF
+-_0802CE44: .4byte gBldRegs
+-_0802CE48: .4byte 0xDFFFFFFF
+-_0802CE4C: .4byte sub_0802D92C
+-_0802CE50:
+-	ldr r0, _0802CE60 @ =gBldRegs
+-	movs r1, #0x10
+-	subs r1, r1, r2
+-	lsls r2, r2, #8
+-	orrs r1, r2
+-	strh r1, [r0, #2]
+-_0802CE5C:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CE60: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802CE64
+-sub_0802CE64: @ 0x0802CE64
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #8
+-	mov sb, r0
+-	str r3, [sp, #4]
+-	ldr r0, [sp, #0x30]
+-	ldr r3, [sp, #0x34]
+-	ldr r4, [sp, #0x38]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	mov sl, r1
+-	lsls r2, r2, #0x10
+-	lsrs r2, r2, #0x10
+-	mov r8, r2
+-	lsls r0, r0, #0x10
+-	lsrs r7, r0, #0x10
+-	lsls r3, r3, #0x10
+-	lsrs r6, r3, #0x10
+-	lsls r4, r4, #0x10
+-	lsrs r5, r4, #0x10
+-	ldr r0, _0802CEBC @ =sub_0802CF2C
+-	ldr r2, _0802CEC0 @ =0x00000101
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x3c
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802CEC4
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _0802CECC
+-	.align 2, 0
+-_0802CEBC: .4byte sub_0802CF2C
+-_0802CEC0: .4byte 0x00000101
+-_0802CEC4:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_0802CECC:
+-	mov r0, sb
+-	str r0, [r4, #0x28]
+-	ldr r1, [sp, #0x28]
+-	str r1, [r4, #0x2c]
+-	ldr r0, [sp, #0x2c]
+-	str r0, [r4, #0x30]
+-	movs r1, #0
+-	strh r7, [r4, #0x34]
+-	strh r6, [r4, #0x36]
+-	strh r5, [r4, #0x38]
+-	ldr r0, [sp, #4]
+-	str r0, [r4]
+-	movs r0, #0xa0
+-	lsls r0, r0, #1
+-	strh r0, [r4, #0x14]
+-	mov r0, sl
+-	strh r0, [r4, #0xc]
+-	mov r0, r8
+-	strb r0, [r4, #0x1a]
+-	strh r1, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r4, #0x1c]
+-	movs r0, #0xd
+-	strb r0, [r4, #0x1f]
+-	ldr r1, [sp, #0x28]
+-	asrs r0, r1, #8
+-	strh r0, [r4, #0x10]
+-	ldr r1, [sp, #0x2c]
+-	asrs r0, r1, #8
+-	strh r0, [r4, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	adds r0, r4, #0
+-	add sp, #8
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-
+-	thumb_func_start sub_0802CF2C
+-sub_0802CF2C: @ 0x0802CF2C
+-	push {r4, r5, lr}
+-	ldr r0, _0802CF48 @ =gCurTask
+-	ldr r2, [r0]
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802CF4C
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0802CF54
+-	.align 2, 0
+-_0802CF48: .4byte gCurTask
+-_0802CF4C:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0802CF54:
+-	adds r4, r0, #0
+-	adds r5, r4, #0
+-	ldr r1, [r4, #0x28]
+-	movs r0, #0xad
+-	lsls r0, r0, #2
+-	adds r1, r1, r0
+-	ldr r0, [r4, #0x2c]
+-	ldr r1, [r1]
+-	subs r0, r0, r1
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x10]
+-	ldr r0, [r4, #0x30]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x12]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802CF7E
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-_0802CF7E:
+-	adds r0, r4, #0
+-	bl DisplaySprite
+-	movs r0, #0x34
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r4, #0x2c]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x2c]
+-	movs r0, #0x36
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r4, #0x30]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x30]
+-	ldrh r0, [r4, #0x38]
+-	cmp r0, #0
+-	beq _0802CFA8
+-	subs r0, #1
+-	strh r0, [r4, #0x38]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	beq _0802CFDA
+-_0802CFA8:
+-	ldrh r0, [r5, #0x10]
+-	adds r0, #0x40
+-	lsls r0, r0, #0x10
+-	movs r1, #0xb8
+-	lsls r1, r1, #0x11
+-	cmp r0, r1
+-	bhi _0802CFDA
+-	movs r0, #0x12
+-	ldrsh r1, [r5, r0]
+-	movs r0, #0x40
+-	rsbs r0, r0, #0
+-	cmp r1, r0
+-	blt _0802CFDA
+-	cmp r1, #0xe0
+-	bgt _0802CFDA
+-	ldr r0, [r4, #0x28]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x13
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802CFE2
+-_0802CFDA:
+-	ldr r0, _0802CFE8 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802CFEC @ =sub_0802D528
+-	str r0, [r1, #8]
+-_0802CFE2:
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802CFE8: .4byte gCurTask
+-_0802CFEC: .4byte sub_0802D528
+-
+-	thumb_func_start sub_0802CFF0
+-sub_0802CFF0: @ 0x0802CFF0
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #8
+-	mov sb, r0
+-	str r3, [sp, #4]
+-	ldr r0, [sp, #0x30]
+-	ldr r3, [sp, #0x34]
+-	ldr r4, [sp, #0x38]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	mov sl, r1
+-	lsls r2, r2, #0x10
+-	lsrs r2, r2, #0x10
+-	mov r8, r2
+-	lsls r0, r0, #0x10
+-	lsrs r7, r0, #0x10
+-	lsls r3, r3, #0x10
+-	lsrs r6, r3, #0x10
+-	lsls r4, r4, #0x10
+-	lsrs r5, r4, #0x10
+-	ldr r0, _0802D048 @ =sub_0802D0B8
+-	ldr r2, _0802D04C @ =0x00000101
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x3c
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D050
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _0802D058
+-	.align 2, 0
+-_0802D048: .4byte sub_0802D0B8
+-_0802D04C: .4byte 0x00000101
+-_0802D050:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_0802D058:
+-	mov r0, sb
+-	str r0, [r4, #0x28]
+-	ldr r1, [sp, #0x28]
+-	str r1, [r4, #0x2c]
+-	ldr r0, [sp, #0x2c]
+-	str r0, [r4, #0x30]
+-	movs r1, #0
+-	strh r7, [r4, #0x34]
+-	strh r6, [r4, #0x36]
+-	strh r5, [r4, #0x38]
+-	ldr r0, [sp, #4]
+-	str r0, [r4]
+-	movs r0, #0xa0
+-	lsls r0, r0, #1
+-	strh r0, [r4, #0x14]
+-	mov r0, sl
+-	strh r0, [r4, #0xc]
+-	mov r0, r8
+-	strb r0, [r4, #0x1a]
+-	strh r1, [r4, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r4, #0x1c]
+-	movs r0, #0xd
+-	strb r0, [r4, #0x1f]
+-	ldr r1, [sp, #0x28]
+-	asrs r0, r1, #8
+-	strh r0, [r4, #0x10]
+-	ldr r1, [sp, #0x2c]
+-	asrs r0, r1, #8
+-	strh r0, [r4, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r4, #8]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	adds r0, r4, #0
+-	add sp, #8
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-
+-	thumb_func_start sub_0802D0B8
+-sub_0802D0B8: @ 0x0802D0B8
+-	push {r4, r5, lr}
+-	ldr r0, _0802D0D4 @ =gCurTask
+-	ldr r2, [r0]
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D0D8
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0802D0E0
+-	.align 2, 0
+-_0802D0D4: .4byte gCurTask
+-_0802D0D8:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0802D0E0:
+-	adds r4, r0, #0
+-	adds r5, r4, #0
+-	ldr r1, [r4, #0x28]
+-	movs r0, #0xad
+-	lsls r0, r0, #2
+-	adds r1, r1, r0
+-	ldr r0, [r4, #0x2c]
+-	ldr r1, [r1]
+-	subs r0, r0, r1
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x10]
+-	ldr r0, [r4, #0x30]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x12]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802D12C
+-	ldrh r0, [r4, #0x38]
+-	cmp r0, #0
+-	beq _0802D128
+-	subs r0, #1
+-	strh r0, [r4, #0x38]
+-	lsls r0, r0, #0x10
+-	cmp r0, #0
+-	bne _0802D128
+-	ldr r0, _0802D120 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802D124 @ =sub_0802D53C
+-	str r0, [r1, #8]
+-	b _0802D12C
+-	.align 2, 0
+-_0802D120: .4byte gCurTask
+-_0802D124: .4byte sub_0802D53C
+-_0802D128:
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-_0802D12C:
+-	adds r0, r5, #0
+-	bl DisplaySprite
+-	movs r0, #0x34
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r4, #0x2c]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x2c]
+-	movs r0, #0x36
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r4, #0x30]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x30]
+-	ldrh r0, [r5, #0x10]
+-	adds r0, #0x40
+-	lsls r0, r0, #0x10
+-	movs r1, #0xb8
+-	lsls r1, r1, #0x11
+-	cmp r0, r1
+-	bhi _0802D164
+-	movs r0, #0x12
+-	ldrsh r1, [r5, r0]
+-	movs r0, #0x40
+-	rsbs r0, r0, #0
+-	cmp r1, r0
+-	blt _0802D164
+-	cmp r1, #0xe0
+-	ble _0802D16C
+-_0802D164:
+-	ldr r0, _0802D190 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802D194 @ =sub_0802D53C
+-	str r0, [r1, #8]
+-_0802D16C:
+-	ldr r0, [r4, #0x28]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x13
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D188
+-	ldr r0, _0802D190 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802D194 @ =sub_0802D53C
+-	str r0, [r1, #8]
+-_0802D188:
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D190: .4byte gCurTask
+-_0802D194: .4byte sub_0802D53C
+-
+-	thumb_func_start sub_0802D198
+-sub_0802D198: @ 0x0802D198
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sl
+-	mov r6, sb
+-	mov r5, r8
+-	push {r5, r6, r7}
+-	sub sp, #4
+-	adds r5, r0, #0
+-	mov sl, r3
+-	ldr r0, [sp, #0x2c]
+-	ldr r3, [sp, #0x30]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	mov sb, r1
+-	lsls r2, r2, #0x10
+-	lsrs r2, r2, #0x10
+-	mov r8, r2
+-	lsls r0, r0, #0x10
+-	lsrs r7, r0, #0x10
+-	lsls r3, r3, #0x10
+-	lsrs r4, r3, #0x10
+-	ldr r0, _0802D1E8 @ =sub_0802D288
+-	ldr r2, _0802D1EC @ =0x00000101
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x3c
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D1F0
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r6, r0, r1
+-	b _0802D1F8
+-	.align 2, 0
+-_0802D1E8: .4byte sub_0802D288
+-_0802D1EC: .4byte 0x00000101
+-_0802D1F0:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r6, r1, r0
+-_0802D1F8:
+-	str r5, [r6, #0x28]
+-	ldr r0, [sp, #0x24]
+-	str r0, [r6, #0x2c]
+-	ldr r1, [sp, #0x28]
+-	str r1, [r6, #0x30]
+-	movs r5, #0
+-	strh r7, [r6, #0x34]
+-	strh r4, [r6, #0x36]
+-	ldr r2, _0802D27C @ =gRngVal
+-	ldr r0, [r2]
+-	ldr r4, _0802D280 @ =0x00196225
+-	adds r1, r0, #0
+-	muls r1, r4, r1
+-	ldr r3, _0802D284 @ =0x3C6EF35F
+-	adds r1, r1, r3
+-	str r1, [r2]
+-	lsls r0, r1, #6
+-	lsrs r0, r0, #0x16
+-	strh r0, [r6, #0x38]
+-	adds r0, r1, #0
+-	muls r0, r4, r0
+-	adds r0, r0, r3
+-	str r0, [r2]
+-	lsls r0, r0, #5
+-	lsrs r0, r0, #0x15
+-	movs r1, #0x80
+-	lsls r1, r1, #4
+-	adds r0, r0, r1
+-	strh r0, [r6, #0x3a]
+-	mov r0, sl
+-	str r0, [r6]
+-	movs r0, #0xa0
+-	lsls r0, r0, #1
+-	strh r0, [r6, #0x14]
+-	mov r1, sb
+-	strh r1, [r6, #0xc]
+-	mov r0, r8
+-	strb r0, [r6, #0x1a]
+-	strh r5, [r6, #0x16]
+-	movs r0, #0xff
+-	strb r0, [r6, #0x1b]
+-	movs r0, #0x10
+-	strb r0, [r6, #0x1c]
+-	movs r0, #0xd
+-	strb r0, [r6, #0x1f]
+-	ldr r1, [sp, #0x24]
+-	asrs r0, r1, #8
+-	strh r0, [r6, #0x10]
+-	ldr r1, [sp, #0x28]
+-	asrs r0, r1, #8
+-	strh r0, [r6, #0x12]
+-	movs r0, #0x81
+-	lsls r0, r0, #0xc
+-	str r0, [r6, #8]
+-	adds r0, r6, #0
+-	bl sub_08155128
+-	adds r0, r6, #0
+-	add sp, #4
+-	pop {r3, r4, r5}
+-	mov r8, r3
+-	mov sb, r4
+-	mov sl, r5
+-	pop {r4, r5, r6, r7}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-_0802D27C: .4byte gRngVal
+-_0802D280: .4byte 0x00196225
+-_0802D284: .4byte 0x3C6EF35F
+-
+-	thumb_func_start sub_0802D288
+-sub_0802D288: @ 0x0802D288
+-	push {r4, lr}
+-	ldr r0, _0802D2A4 @ =gCurTask
+-	ldr r2, [r0]
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D2A8
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0802D2B0
+-	.align 2, 0
+-_0802D2A4: .4byte gCurTask
+-_0802D2A8:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0802D2B0:
+-	adds r4, r0, #0
+-	ldr r1, _0802D350 @ =gSineTable
+-	ldrh r0, [r4, #0x38]
+-	lsls r0, r0, #1
+-	adds r0, r0, r1
+-	ldrh r0, [r0]
+-	lsls r0, r0, #0x10
+-	asrs r0, r0, #0x16
+-	movs r2, #0x3a
+-	ldrsh r1, [r4, r2]
+-	muls r1, r0, r1
+-	asrs r1, r1, #8
+-	ldr r0, [r4, #0x2c]
+-	adds r0, r0, r1
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x10]
+-	ldr r0, [r4, #0x30]
+-	asrs r0, r0, #8
+-	strh r0, [r4, #0x12]
+-	adds r0, r4, #0
+-	bl sub_08155128
+-	cmp r0, #0
+-	bne _0802D2E4
+-	movs r0, #0xff
+-	strb r0, [r4, #0x1b]
+-_0802D2E4:
+-	adds r0, r4, #0
+-	bl DisplaySprite
+-	movs r0, #0x34
+-	ldrsh r1, [r4, r0]
+-	ldr r0, [r4, #0x2c]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x2c]
+-	movs r2, #0x36
+-	ldrsh r1, [r4, r2]
+-	ldr r0, [r4, #0x30]
+-	adds r0, r0, r1
+-	str r0, [r4, #0x30]
+-	ldrh r0, [r4, #0x38]
+-	adds r0, #8
+-	ldr r1, _0802D354 @ =0x000003FF
+-	ands r0, r1
+-	strh r0, [r4, #0x38]
+-	ldrh r0, [r4, #0x10]
+-	adds r0, #0x40
+-	lsls r0, r0, #0x10
+-	movs r1, #0xb8
+-	lsls r1, r1, #0x11
+-	cmp r0, r1
+-	bhi _0802D326
+-	movs r0, #0x12
+-	ldrsh r1, [r4, r0]
+-	movs r0, #0x40
+-	rsbs r0, r0, #0
+-	cmp r1, r0
+-	blt _0802D326
+-	cmp r1, #0xe0
+-	ble _0802D32E
+-_0802D326:
+-	ldr r0, _0802D358 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802D35C @ =sub_0802D550
+-	str r0, [r1, #8]
+-_0802D32E:
+-	ldr r0, [r4, #0x28]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x13
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D34A
+-	ldr r0, _0802D358 @ =gCurTask
+-	ldr r1, [r0]
+-	ldr r0, _0802D35C @ =sub_0802D550
+-	str r0, [r1, #8]
+-_0802D34A:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D350: .4byte gSineTable
+-_0802D354: .4byte 0x000003FF
+-_0802D358: .4byte gCurTask
+-_0802D35C: .4byte sub_0802D550
+-
+-	thumb_func_start sub_0802D360
+-sub_0802D360: @ 0x0802D360
+-	push {r4, r5, r6, lr}
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802D37A
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r0, r0, r1
+-	b _0802D382
+-_0802D37A:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r0, r1, r0
+-_0802D382:
+-	adds r5, r0, #0
+-	movs r4, #0
+-	adds r6, r5, #4
+-_0802D388:
+-	lsls r0, r4, #2
+-	adds r0, r0, r4
+-	lsls r0, r0, #3
+-	adds r0, r6, r0
+-	ldr r0, [r0]
+-	bl VramFree
+-	adds r0, r4, #1
+-	lsls r0, r0, #0x10
+-	lsrs r4, r0, #0x10
+-	cmp r4, #4
+-	bls _0802D388
+-	adds r0, r5, #0
+-	adds r0, #0xcc
+-	ldr r0, [r0]
+-	bl VramFree
+-	adds r0, r5, #0
+-	adds r0, #0xf4
+-	ldr r0, [r0]
+-	bl VramFree
+-	movs r1, #0x8e
+-	lsls r1, r1, #1
+-	adds r0, r5, r1
+-	ldr r0, [r0]
+-	bl VramFree
+-	movs r1, #0xa2
+-	lsls r1, r1, #1
+-	adds r0, r5, r1
+-	ldr r0, [r0]
+-	bl VramFree
+-	movs r1, #0xb6
+-	lsls r1, r1, #1
+-	adds r0, r5, r1
+-	ldr r0, [r0]
+-	bl VramFree
+-	pop {r4, r5, r6}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_0802D3E0
+-sub_0802D3E0: @ 0x0802D3E0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D3F0 @ =sub_0802BF68
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D3F0: .4byte sub_0802BF68
+-
+-	thumb_func_start sub_0802D3F4
+-sub_0802D3F4: @ 0x0802D3F4
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D404 @ =sub_0802D564
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D404: .4byte sub_0802D564
+-
+-	thumb_func_start sub_0802D408
+-sub_0802D408: @ 0x0802D408
+-	adds r3, r0, #0
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x14
+-	orrs r0, r1
+-	str r0, [r2]
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0
+-	strh r0, [r1]
+-	ldr r0, _0802D42C @ =sub_0802D588
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802D42C: .4byte sub_0802D588
+-
+-	thumb_func_start sub_0802D430
+-sub_0802D430: @ 0x0802D430
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D440 @ =sub_0802D5B0
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D440: .4byte sub_0802D5B0
+-
+-	thumb_func_start sub_0802D444
+-sub_0802D444: @ 0x0802D444
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D454 @ =sub_0802D738
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D454: .4byte sub_0802D738
+-
+-	thumb_func_start sub_0802D458
+-sub_0802D458: @ 0x0802D458
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D468 @ =sub_0802D75C
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D468: .4byte sub_0802D75C
+-
+-	thumb_func_start sub_0802D46C
+-sub_0802D46C: @ 0x0802D46C
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D47C @ =sub_0802D7DC
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D47C: .4byte sub_0802D7DC
+-
+-	thumb_func_start sub_0802D480
+-sub_0802D480: @ 0x0802D480
+-	push {r4, lr}
+-	ldr r2, _0802D4C4 @ =gBgPalette
+-	movs r4, #0
+-	ldr r1, _0802D4C8 @ =0x00007FFF
+-	strh r1, [r2]
+-	ldr r3, _0802D4CC @ =gMainFlags
+-	ldr r1, [r3]
+-	movs r2, #1
+-	orrs r1, r2
+-	str r1, [r3]
+-	ldr r2, _0802D4D0 @ =gDispCnt
+-	movs r3, #0x82
+-	lsls r3, r3, #5
+-	adds r1, r3, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D4D4 @ =gBldRegs
+-	strh r4, [r1]
+-	strh r4, [r1, #4]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r3, r0, r1
+-	ldr r1, [r3]
+-	ldr r2, _0802D4D8 @ =0xFBF7FFFF
+-	ands r1, r2
+-	movs r2, #0x84
+-	lsls r2, r2, #0x15
+-	orrs r1, r2
+-	str r1, [r3]
+-	ldr r1, _0802D4DC @ =sub_0802D4E0
+-	str r1, [r0]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D4C4: .4byte gBgPalette
+-_0802D4C8: .4byte 0x00007FFF
+-_0802D4CC: .4byte gMainFlags
+-_0802D4D0: .4byte gDispCnt
+-_0802D4D4: .4byte gBldRegs
+-_0802D4D8: .4byte 0xFBF7FFFF
+-_0802D4DC: .4byte sub_0802D4E0
+-
+-	thumb_func_start sub_0802D4E0
+-sub_0802D4E0: @ 0x0802D4E0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D4F0 @ =sub_0802D824
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D4F0: .4byte sub_0802D824
+-
+-	thumb_func_start sub_0802D4F4
+-sub_0802D4F4: @ 0x0802D4F4
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	movs r2, #0
+-	strh r2, [r0]
+-	ldr r1, _0802D520 @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	strh r2, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D524 @ =sub_0802D84C
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802D520: .4byte gBldRegs
+-_0802D524: .4byte sub_0802D84C
+-
+-	thumb_func_start sub_0802D528
+-sub_0802D528: @ 0x0802D528
+-	push {lr}
+-	ldr r0, _0802D538 @ =gCurTask
+-	ldr r0, [r0]
+-	bl TaskDestroy
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D538: .4byte gCurTask
+-
+-	thumb_func_start sub_0802D53C
+-sub_0802D53C: @ 0x0802D53C
+-	push {lr}
+-	ldr r0, _0802D54C @ =gCurTask
+-	ldr r0, [r0]
+-	bl TaskDestroy
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D54C: .4byte gCurTask
+-
+-	thumb_func_start sub_0802D550
+-sub_0802D550: @ 0x0802D550
+-	push {lr}
+-	ldr r0, _0802D560 @ =gCurTask
+-	ldr r0, [r0]
+-	bl TaskDestroy
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D560: .4byte gCurTask
+-
+-	thumb_func_start sub_0802D564
+-sub_0802D564: @ 0x0802D564
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D580
+-	ldr r0, _0802D584 @ =sub_0802D9B8
+-	str r0, [r3]
+-_0802D580:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D584: .4byte sub_0802D9B8
+-
+-	thumb_func_start sub_0802D588
+-sub_0802D588: @ 0x0802D588
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldrh r0, [r2]
+-	adds r1, r0, #1
+-	strh r1, [r2]
+-	lsls r0, r0, #0x10
+-	movs r1, #0xb4
+-	lsls r1, r1, #0x11
+-	cmp r0, r1
+-	bls _0802D5A6
+-	ldr r0, _0802D5AC @ =sub_0802D9F4
+-	str r0, [r3]
+-_0802D5A6:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D5AC: .4byte sub_0802D9F4
+-
+-	thumb_func_start sub_0802D5B0
+-sub_0802D5B0: @ 0x0802D5B0
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D5CC
+-	ldr r0, _0802D5D0 @ =sub_0802DA54
+-	str r0, [r3]
+-_0802D5CC:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D5D0: .4byte sub_0802DA54
+-
+-	thumb_func_start sub_0802D5D4
+-sub_0802D5D4: @ 0x0802D5D4
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r4, r1
+-	movs r2, #0
+-	strh r2, [r0]
+-	ldr r1, _0802D60C @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	strh r2, [r1, #4]
+-	ldr r0, _0802D610 @ =0x00000213
+-	bl m4aSongNumStart
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r4, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D614 @ =sub_0802D618
+-	str r0, [r4]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D60C: .4byte gBldRegs
+-_0802D610: .4byte 0x00000213
+-_0802D614: .4byte sub_0802D618
+-
+-	thumb_func_start sub_0802D618
+-sub_0802D618: @ 0x0802D618
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802D658
+-	ldr r1, _0802D64C @ =gBldRegs
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802D650 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D654 @ =sub_0802D664
+-	str r0, [r3]
+-	b _0802D65C
+-	.align 2, 0
+-_0802D64C: .4byte gBldRegs
+-_0802D650: .4byte 0xDFFFFFFF
+-_0802D654: .4byte sub_0802D664
+-_0802D658:
+-	ldr r0, _0802D660 @ =gBldRegs
+-	strh r2, [r0, #4]
+-_0802D65C:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D660: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802D664
+-sub_0802D664: @ 0x0802D664
+-	push {r4, r5, lr}
+-	movs r2, #0xaf
+-	lsls r2, r2, #2
+-	adds r1, r0, r2
+-	movs r3, #0
+-	strh r3, [r1]
+-	ldr r5, _0802D6AC @ =0x000002BE
+-	adds r4, r0, r5
+-	ldrh r2, [r4]
+-	lsls r2, r2, #2
+-	subs r5, #0x7e
+-	adds r1, r0, r5
+-	adds r1, r1, r2
+-	strh r3, [r1]
+-	ldrh r2, [r4]
+-	lsls r2, r2, #2
+-	adds r5, #2
+-	adds r1, r0, r5
+-	adds r1, r1, r2
+-	strh r3, [r1]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r3, r0, r1
+-	ldrh r2, [r4]
+-	lsls r1, r2, #1
+-	adds r1, r1, r2
+-	movs r2, #7
+-	lsls r2, r1
+-	ldr r1, [r3]
+-	bics r1, r2
+-	str r1, [r3]
+-	ldr r1, _0802D6B0 @ =sub_0802D6B4
+-	str r1, [r0]
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D6AC: .4byte 0x000002BE
+-_0802D6B0: .4byte sub_0802D6B4
+-
+-	thumb_func_start sub_0802D6B4
+-sub_0802D6B4: @ 0x0802D6B4
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D6D0
+-	ldr r0, _0802D6D4 @ =sub_0802D6D8
+-	str r0, [r3]
+-_0802D6D0:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D6D4: .4byte sub_0802D6D8
+-
+-	thumb_func_start sub_0802D6D8
+-sub_0802D6D8: @ 0x0802D6D8
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0
+-	strh r0, [r1]
+-	ldr r1, _0802D700 @ =gBldRegs
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D704 @ =sub_0802C308
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802D700: .4byte gBldRegs
+-_0802D704: .4byte sub_0802C308
+-
+-	thumb_func_start sub_0802D708
+-sub_0802D708: @ 0x0802D708
+-	push {lr}
+-	adds r2, r0, #0
+-	ldr r0, _0802D724 @ =0x000002BE
+-	adds r1, r2, r0
+-	ldrh r0, [r1]
+-	adds r0, #1
+-	strh r0, [r1]
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #3
+-	bhi _0802D72C
+-	ldr r0, _0802D728 @ =sub_0802C1D8
+-	b _0802D72E
+-	.align 2, 0
+-_0802D724: .4byte 0x000002BE
+-_0802D728: .4byte sub_0802C1D8
+-_0802D72C:
+-	ldr r0, _0802D734 @ =sub_0802DAA0
+-_0802D72E:
+-	str r0, [r2]
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D734: .4byte sub_0802DAA0
+-
+-	thumb_func_start sub_0802D738
+-sub_0802D738: @ 0x0802D738
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x78
+-	bls _0802D754
+-	ldr r0, _0802D758 @ =sub_0802C3C8
+-	str r0, [r3]
+-_0802D754:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D758: .4byte sub_0802C3C8
+-
+-	thumb_func_start sub_0802D75C
+-sub_0802D75C: @ 0x0802D75C
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D778
+-	ldr r0, _0802D77C @ =sub_0802C550
+-	str r0, [r3]
+-_0802D778:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D77C: .4byte sub_0802C550
+-
+-	thumb_func_start sub_0802D780
+-sub_0802D780: @ 0x0802D780
+-	push {r4, lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaa
+-	lsls r0, r0, #2
+-	adds r4, r3, r0
+-	ldr r1, [r4]
+-	movs r0, #0xc8
+-	lsls r0, r0, #8
+-	cmp r1, r0
+-	ble _0802D7B0
+-	movs r0, #0xa8
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0
+-	str r0, [r1]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802D7D4 @ =0xFFF7FFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D7D8 @ =sub_0802DAB4
+-	str r0, [r3]
+-_0802D7B0:
+-	movs r0, #0xac
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r1]
+-	adds r0, #0x40
+-	str r0, [r1]
+-	movs r2, #0x80
+-	lsls r2, r2, #3
+-	cmp r0, r2
+-	ble _0802D7C6
+-	str r2, [r1]
+-_0802D7C6:
+-	ldr r0, [r4]
+-	ldr r1, [r1]
+-	adds r0, r0, r1
+-	str r0, [r4]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D7D4: .4byte 0xFFF7FFFF
+-_0802D7D8: .4byte sub_0802DAB4
+-
+-	thumb_func_start sub_0802D7DC
+-sub_0802D7DC: @ 0x0802D7DC
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D7F8
+-	ldr r0, _0802D7FC @ =sub_0802DAC8
+-	str r0, [r3]
+-_0802D7F8:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D7FC: .4byte sub_0802DAC8
+-
+-	thumb_func_start sub_0802D800
+-sub_0802D800: @ 0x0802D800
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802D81C
+-	ldr r0, _0802D820 @ =sub_0802DB00
+-	str r0, [r3]
+-_0802D81C:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D820: .4byte sub_0802DB00
+-
+-	thumb_func_start sub_0802D824
+-sub_0802D824: @ 0x0802D824
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldrh r0, [r2]
+-	adds r1, r0, #1
+-	strh r1, [r2]
+-	lsls r0, r0, #0x10
+-	movs r1, #0xf0
+-	lsls r1, r1, #0x11
+-	cmp r0, r1
+-	bls _0802D842
+-	ldr r0, _0802D848 @ =sub_0802C8E8
+-	str r0, [r3]
+-_0802D842:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D848: .4byte sub_0802C8E8
+-
+-	thumb_func_start sub_0802D84C
+-sub_0802D84C: @ 0x0802D84C
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802D88C
+-	ldr r1, _0802D880 @ =gBldRegs
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802D884 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802D888 @ =sub_0802DB34
+-	str r0, [r3]
+-	b _0802D890
+-	.align 2, 0
+-_0802D880: .4byte gBldRegs
+-_0802D884: .4byte 0xDFFFFFFF
+-_0802D888: .4byte sub_0802DB34
+-_0802D88C:
+-	ldr r0, _0802D894 @ =gBldRegs
+-	strh r2, [r0, #4]
+-_0802D890:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D894: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802D898
+-sub_0802D898: @ 0x0802D898
+-	adds r2, r0, #0
+-	adds r2, #0x4a
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D8A8 @ =sub_0802D8AC
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D8A8: .4byte sub_0802D8AC
+-
+-	thumb_func_start sub_0802D8AC
+-sub_0802D8AC: @ 0x0802D8AC
+-	push {lr}
+-	mov ip, r0
+-	ldr r3, _0802D8E8 @ =gUnk_082EB640
+-	adds r0, #0x4c
+-	ldrh r2, [r0]
+-	lsls r2, r2, #2
+-	ldr r0, _0802D8EC @ =gLanguage
+-	ldrh r1, [r0]
+-	lsls r0, r1, #1
+-	adds r0, r0, r1
+-	lsls r0, r0, #3
+-	adds r2, r2, r0
+-	adds r3, #2
+-	adds r2, r2, r3
+-	mov r3, ip
+-	adds r3, #0x4a
+-	ldrh r0, [r3]
+-	adds r1, r0, #1
+-	strh r1, [r3]
+-	ldrh r1, [r2]
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r1, r0
+-	bhs _0802D8E2
+-	ldr r0, _0802D8F0 @ =sub_0802D8F4
+-	mov r1, ip
+-	str r0, [r1]
+-_0802D8E2:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D8E8: .4byte gUnk_082EB640
+-_0802D8EC: .4byte gLanguage
+-_0802D8F0: .4byte sub_0802D8F4
+-
+-	thumb_func_start sub_0802D8F4
+-sub_0802D8F4: @ 0x0802D8F4
+-	ldr r2, _0802D920 @ =gBldRegs
+-	movs r3, #0
+-	ldr r1, _0802D924 @ =0x00001344
+-	strh r1, [r2]
+-	movs r1, #0x10
+-	strh r1, [r2, #2]
+-	adds r1, r0, #0
+-	adds r1, #0x4a
+-	strh r3, [r1]
+-	ldr r2, [r0, #0x44]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r2, r2, r1
+-	ldr r1, [r2]
+-	movs r3, #0x80
+-	lsls r3, r3, #0x16
+-	orrs r1, r3
+-	str r1, [r2]
+-	ldr r1, _0802D928 @ =sub_0802CDF8
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D920: .4byte gBldRegs
+-_0802D924: .4byte 0x00001344
+-_0802D928: .4byte sub_0802CDF8
+-
+-	thumb_func_start sub_0802D92C
+-sub_0802D92C: @ 0x0802D92C
+-	adds r2, r0, #0
+-	adds r2, #0x4a
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802D93C @ =sub_0802D940
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802D93C: .4byte sub_0802D940
+-
+-	thumb_func_start sub_0802D940
+-sub_0802D940: @ 0x0802D940
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r2, r3, #0
+-	adds r2, #0x4a
+-	ldrh r0, [r2]
+-	adds r1, r0, #1
+-	strh r1, [r2]
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0x1e
+-	bls _0802D95A
+-	ldr r0, _0802D960 @ =sub_0802D964
+-	str r0, [r3]
+-_0802D95A:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D960: .4byte sub_0802D964
+-
+-	thumb_func_start sub_0802D964
+-sub_0802D964: @ 0x0802D964
+-	push {lr}
+-	adds r3, r0, #0
+-	adds r1, r3, #0
+-	adds r1, #0x4c
+-	ldrh r0, [r1]
+-	adds r0, #1
+-	strh r0, [r1]
+-	lsls r0, r0, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #5
+-	bhi _0802D984
+-	ldr r0, _0802D980 @ =sub_0802CC7C
+-	b _0802D998
+-	.align 2, 0
+-_0802D980: .4byte sub_0802CC7C
+-_0802D984:
+-	ldr r1, [r3, #0x44]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r1, r1, r0
+-	ldr r0, [r1]
+-	movs r2, #0x80
+-	lsls r2, r2, #0x12
+-	orrs r0, r2
+-	str r0, [r1]
+-	ldr r0, _0802D9A0 @ =sub_0802D9A4
+-_0802D998:
+-	str r0, [r3]
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D9A0: .4byte sub_0802D9A4
+-
+-	thumb_func_start sub_0802D9A4
+-sub_0802D9A4: @ 0x0802D9A4
+-	push {lr}
+-	ldr r0, _0802D9B4 @ =gCurTask
+-	ldr r0, [r0]
+-	bl TaskDestroy
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D9B4: .4byte gCurTask
+-
+-	thumb_func_start sub_0802D9B8
+-sub_0802D9B8: @ 0x0802D9B8
+-	push {r4, r5, lr}
+-	adds r4, r0, #0
+-	movs r2, #0
+-	movs r0, #0x90
+-	lsls r0, r0, #2
+-	adds r3, r4, r0
+-	ldr r5, _0802D9EC @ =gUnk_082EB514
+-_0802D9C6:
+-	lsls r1, r2, #2
+-	adds r1, r3, r1
+-	lsls r0, r2, #3
+-	adds r0, r0, r5
+-	ldr r0, [r0]
+-	strh r0, [r1]
+-	adds r0, r2, #1
+-	lsls r0, r0, #0x10
+-	lsrs r2, r0, #0x10
+-	cmp r2, #3
+-	bls _0802D9C6
+-	adds r0, r4, #0
+-	bl sub_0802DB48
+-	ldr r0, _0802D9F0 @ =sub_0802BFBC
+-	str r0, [r4]
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802D9EC: .4byte gUnk_082EB514
+-_0802D9F0: .4byte sub_0802BFBC
+-
+-	thumb_func_start sub_0802D9F4
+-sub_0802D9F4: @ 0x0802D9F4
+-	push {r4, r5, r6, r7, lr}
+-	mov r7, sb
+-	mov r6, r8
+-	push {r6, r7}
+-	adds r5, r0, #0
+-	movs r4, #0
+-	ldr r0, _0802DA48 @ =sub_0802C064
+-	mov sb, r0
+-	movs r0, #0x90
+-	lsls r0, r0, #2
+-	adds r0, r0, r5
+-	mov ip, r0
+-	ldr r6, _0802DA4C @ =gUnk_082EB564
+-	ldr r0, _0802DA50 @ =0x00000242
+-	adds r7, r5, r0
+-	adds r0, r6, #4
+-	mov r8, r0
+-_0802DA16:
+-	lsls r2, r4, #2
+-	mov r0, ip
+-	adds r3, r0, r2
+-	lsls r1, r4, #3
+-	adds r0, r1, r6
+-	ldr r0, [r0]
+-	strh r0, [r3]
+-	adds r2, r7, r2
+-	add r1, r8
+-	ldr r0, [r1]
+-	strh r0, [r2]
+-	adds r0, r4, #1
+-	lsls r0, r0, #0x10
+-	lsrs r4, r0, #0x10
+-	cmp r4, #4
+-	bls _0802DA16
+-	mov r0, sb
+-	str r0, [r5]
+-	pop {r3, r4}
+-	mov r8, r3
+-	mov sb, r4
+-	pop {r4, r5, r6, r7}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DA48: .4byte sub_0802C064
+-_0802DA4C: .4byte gUnk_082EB564
+-_0802DA50: .4byte 0x00000242
+-
+-	thumb_func_start sub_0802DA54
+-sub_0802DA54: @ 0x0802DA54
+-	adds r3, r0, #0
+-	movs r0, #0x9d
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0xf0
+-	lsls r0, r0, #7
+-	str r0, [r1]
+-	movs r0, #0x9e
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0xb4
+-	lsls r0, r0, #8
+-	str r0, [r1]
+-	movs r0, #0x9f
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0
+-	str r0, [r1]
+-	movs r0, #0xa0
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, _0802DA98 @ =0xFFFFFF00
+-	str r0, [r1]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #8
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802DA9C @ =sub_0802DBC0
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802DA98: .4byte 0xFFFFFF00
+-_0802DA9C: .4byte sub_0802DBC0
+-
+-	thumb_func_start sub_0802DAA0
+-sub_0802DAA0: @ 0x0802DAA0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DAB0 @ =sub_0802DC10
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DAB0: .4byte sub_0802DC10
+-
+-	thumb_func_start sub_0802DAB4
+-sub_0802DAB4: @ 0x0802DAB4
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DAC4 @ =sub_0802DC34
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DAC4: .4byte sub_0802DC34
+-
+-	thumb_func_start sub_0802DAC8
+-sub_0802DAC8: @ 0x0802DAC8
+-	adds r3, r0, #0
+-	movs r0, #0xaa
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, _0802DAF4 @ =0xFFFFF000
+-	str r0, [r1]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0xc
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802DAF8 @ =0x0000015F
+-	adds r1, r3, r0
+-	movs r0, #0xff
+-	strb r0, [r1]
+-	ldr r0, _0802DAFC @ =sub_0802DC58
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802DAF4: .4byte 0xFFFFF000
+-_0802DAF8: .4byte 0x0000015F
+-_0802DAFC: .4byte sub_0802DC58
+-
+-	thumb_func_start sub_0802DB00
+-sub_0802DB00: @ 0x0802DB00
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	movs r0, #0
+-	strh r0, [r1]
+-	ldr r1, _0802DB2C @ =gBldRegs
+-	movs r0, #0xaf
+-	strh r0, [r1]
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802DB30 @ =sub_0802DCC4
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802DB2C: .4byte gBldRegs
+-_0802DB30: .4byte sub_0802DCC4
+-
+-	thumb_func_start sub_0802DB34
+-sub_0802DB34: @ 0x0802DB34
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DB44 @ =sub_0802DD18
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DB44: .4byte sub_0802DD18
+-
+-	thumb_func_start sub_0802DB48
+-sub_0802DB48: @ 0x0802DB48
+-	push {r4, r5, lr}
+-	sub sp, #8
+-	adds r5, r0, #0
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r5, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802DB84 @ =0xFDFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802DB88 @ =sub_0802DD3C
+-	ldr r2, _0802DB8C @ =0x00000101
+-	movs r1, #0
+-	str r1, [sp]
+-	movs r1, #0x50
+-	movs r3, #0
+-	bl TaskCreate
+-	adds r2, r0, #0
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802DB90
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _0802DB98
+-	.align 2, 0
+-_0802DB84: .4byte 0xFDFFFFFF
+-_0802DB88: .4byte sub_0802DD3C
+-_0802DB8C: .4byte 0x00000101
+-_0802DB90:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_0802DB98:
+-	add r1, sp, #4
+-	movs r0, #0
+-	strh r0, [r1]
+-	ldr r2, _0802DBB8 @ =0x01000028
+-	adds r0, r1, #0
+-	adds r1, r4, #0
+-	bl CpuSet
+-	str r5, [r4, #0x44]
+-	ldr r0, _0802DBBC @ =sub_0802DD94
+-	str r0, [r4]
+-	adds r0, r4, #0
+-	add sp, #8
+-	pop {r4, r5}
+-	pop {r1}
+-	bx r1
+-	.align 2, 0
+-_0802DBB8: .4byte 0x01000028
+-_0802DBBC: .4byte sub_0802DD94
+-
+-	thumb_func_start sub_0802DBC0
+-sub_0802DBC0: @ 0x0802DBC0
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0x9e
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldr r1, [r0]
+-	ldr r0, _0802DBEC @ =0x000063FF
+-	cmp r1, r0
+-	bgt _0802DBF4
+-	movs r0, #0xa0
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r1]
+-	cmp r0, #0
+-	beq _0802DBF0
+-	adds r0, #4
+-	str r0, [r1]
+-	cmp r0, #0
+-	ble _0802DBF4
+-	movs r0, #0
+-	str r0, [r1]
+-	b _0802DBF4
+-	.align 2, 0
+-_0802DBEC: .4byte 0x000063FF
+-_0802DBF0:
+-	ldr r0, _0802DC0C @ =sub_0802DDA0
+-	str r0, [r3]
+-_0802DBF4:
+-	movs r1, #0x9e
+-	lsls r1, r1, #2
+-	adds r2, r3, r1
+-	movs r0, #0xa0
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, [r1]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DC0C: .4byte sub_0802DDA0
+-
+-	thumb_func_start sub_0802DC10
+-sub_0802DC10: @ 0x0802DC10
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802DC2C
+-	ldr r0, _0802DC30 @ =sub_0802DDB4
+-	str r0, [r3]
+-_0802DC2C:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DC30: .4byte sub_0802DDB4
+-
+-	thumb_func_start sub_0802DC34
+-sub_0802DC34: @ 0x0802DC34
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802DC50
+-	ldr r0, _0802DC54 @ =sub_0802DDC0
+-	str r0, [r3]
+-_0802DC50:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DC54: .4byte sub_0802DDC0
+-
+-	thumb_func_start sub_0802DC58
+-sub_0802DC58: @ 0x0802DC58
+-	push {r4, lr}
+-	adds r3, r0, #0
+-	movs r0, #0xac
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldr r0, [r1]
+-	adds r0, #8
+-	str r0, [r1]
+-	movs r2, #0x80
+-	lsls r2, r2, #4
+-	cmp r0, r2
+-	ble _0802DC72
+-	str r2, [r1]
+-_0802DC72:
+-	movs r0, #0xaa
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r4, #0x80
+-	lsls r4, r4, #8
+-	cmp r0, r4
+-	ble _0802DC8C
+-	movs r0, #0
+-	str r0, [r1]
+-	str r4, [r2]
+-	ldr r0, _0802DC9C @ =sub_0802DCA0
+-	str r0, [r3]
+-_0802DC8C:
+-	ldr r0, [r2]
+-	ldr r1, [r1]
+-	adds r0, r0, r1
+-	str r0, [r2]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DC9C: .4byte sub_0802DCA0
+-
+-	thumb_func_start sub_0802DCA0
+-sub_0802DCA0: @ 0x0802DCA0
+-	adds r2, r0, #0
+-	movs r0, #0xa8
+-	lsls r0, r0, #1
+-	adds r1, r2, r0
+-	ldr r0, _0802DCBC @ =0x000002C3
+-	strh r0, [r1]
+-	movs r0, #0xaf
+-	lsls r0, r0, #1
+-	adds r1, r2, r0
+-	movs r0, #4
+-	strb r0, [r1]
+-	ldr r0, _0802DCC0 @ =sub_0802DDEC
+-	str r0, [r2]
+-	bx lr
+-	.align 2, 0
+-_0802DCBC: .4byte 0x000002C3
+-_0802DCC0: .4byte sub_0802DDEC
+-
+-	thumb_func_start sub_0802DCC4
+-sub_0802DCC4: @ 0x0802DCC4
+-	push {lr}
+-	mov ip, r0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	add r1, ip
+-	ldrh r0, [r1]
+-	adds r3, r0, #1
+-	strh r3, [r1]
+-	lsls r0, r3, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0x3f
+-	bls _0802DD04
+-	ldr r1, _0802DCF8 @ =gBldRegs
+-	movs r0, #0
+-	strh r0, [r1, #4]
+-	movs r2, #0x85
+-	lsls r2, r2, #2
+-	add r2, ip
+-	ldr r0, [r2]
+-	ldr r1, _0802DCFC @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802DD00 @ =sub_0802DE00
+-	mov r1, ip
+-	str r0, [r1]
+-	b _0802DD10
+-	.align 2, 0
+-_0802DCF8: .4byte gBldRegs
+-_0802DCFC: .4byte 0xDFFFFFFF
+-_0802DD00: .4byte sub_0802DE00
+-_0802DD04:
+-	ldr r2, _0802DD14 @ =gBldRegs
+-	lsls r1, r3, #0x10
+-	lsrs r1, r1, #0x12
+-	movs r0, #0x10
+-	subs r0, r0, r1
+-	strh r0, [r2, #4]
+-_0802DD10:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DD14: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802DD18
+-sub_0802DD18: @ 0x0802DD18
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802DD34
+-	ldr r0, _0802DD38 @ =sub_0802CB60
+-	str r0, [r3]
+-_0802DD34:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DD38: .4byte sub_0802CB60
+-
+-	thumb_func_start sub_0802DD3C
+-sub_0802DD3C: @ 0x0802DD3C
+-	push {r4, lr}
+-	ldr r0, _0802DD58 @ =gCurTask
+-	ldr r2, [r0]
+-	ldrh r1, [r2, #0x12]
+-	movs r0, #0x10
+-	ands r0, r1
+-	cmp r0, #0
+-	beq _0802DD5C
+-	ldrh r0, [r2, #6]
+-	lsls r0, r0, #2
+-	movs r1, #0x80
+-	lsls r1, r1, #0x12
+-	adds r4, r0, r1
+-	b _0802DD64
+-	.align 2, 0
+-_0802DD58: .4byte gCurTask
+-_0802DD5C:
+-	ldrh r1, [r2, #6]
+-	movs r0, #0xc0
+-	lsls r0, r0, #0x12
+-	adds r4, r1, r0
+-_0802DD64:
+-	ldr r0, [r4, #0x44]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r0, r0, r1
+-	ldr r0, [r0]
+-	cmp r0, #0
+-	blt _0802DD86
+-	ldr r1, [r4]
+-	adds r0, r4, #0
+-	bl _call_via_r1
+-	adds r1, r4, #0
+-	adds r1, #0x48
+-	ldrh r0, [r1]
+-	adds r0, #1
+-	strh r0, [r1]
+-	b _0802DD8C
+-_0802DD86:
+-	adds r0, r4, #0
+-	bl sub_0802D9A4
+-_0802DD8C:
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-
+-	thumb_func_start sub_0802DD94
+-sub_0802DD94: @ 0x0802DD94
+-	ldr r1, _0802DD9C @ =sub_0802CC7C
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DD9C: .4byte sub_0802CC7C
+-
+-	thumb_func_start sub_0802DDA0
+-sub_0802DDA0: @ 0x0802DDA0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DDB0 @ =sub_0802DE14
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DDB0: .4byte sub_0802DE14
+-
+-	thumb_func_start sub_0802DDB4
+-sub_0802DDB4: @ 0x0802DDB4
+-	ldr r1, _0802DDBC @ =sub_0802DE38
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DDBC: .4byte sub_0802DE38
+-
+-	thumb_func_start sub_0802DDC0
+-sub_0802DDC0: @ 0x0802DDC0
+-	ldr r2, _0802DDE0 @ =gDispCnt
+-	movs r3, #0x82
+-	lsls r3, r3, #5
+-	adds r1, r3, #0
+-	strh r1, [r2]
+-	movs r1, #0x85
+-	lsls r1, r1, #2
+-	adds r3, r0, r1
+-	ldr r1, [r3]
+-	ldr r2, _0802DDE4 @ =0xFAFFFFFF
+-	ands r1, r2
+-	str r1, [r3]
+-	ldr r1, _0802DDE8 @ =sub_0802C5E4
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DDE0: .4byte gDispCnt
+-_0802DDE4: .4byte 0xFAFFFFFF
+-_0802DDE8: .4byte sub_0802C5E4
+-
+-	thumb_func_start sub_0802DDEC
+-sub_0802DDEC: @ 0x0802DDEC
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DDFC @ =sub_0802DE94
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DDFC: .4byte sub_0802DE94
+-
+-	thumb_func_start sub_0802DE00
+-sub_0802DE00: @ 0x0802DE00
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DE10 @ =sub_0802DEB8
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DE10: .4byte sub_0802DEB8
+-
+-	thumb_func_start sub_0802DE14
+-sub_0802DE14: @ 0x0802DE14
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802DE30
+-	ldr r0, _0802DE34 @ =sub_0802DEE0
+-	str r0, [r3]
+-_0802DE30:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DE34: .4byte sub_0802DEE0
+-
+-	thumb_func_start sub_0802DE38
+-sub_0802DE38: @ 0x0802DE38
+-	push {r4, lr}
+-	mov ip, r0
+-	movs r3, #0xa0
+-	lsls r3, r3, #2
+-	add r3, ip
+-	ldr r0, [r3]
+-	subs r0, #4
+-	str r0, [r3]
+-	ldr r1, _0802DE84 @ =0xFFFFFF00
+-	cmp r0, r1
+-	bge _0802DE50
+-	str r1, [r3]
+-_0802DE50:
+-	movs r4, #0x9e
+-	lsls r4, r4, #2
+-	add r4, ip
+-	ldr r1, [r4]
+-	ldr r0, _0802DE88 @ =0xFFFFC400
+-	cmp r1, r0
+-	bge _0802DE76
+-	movs r2, #0x85
+-	lsls r2, r2, #2
+-	add r2, ip
+-	ldr r0, [r2]
+-	ldr r1, _0802DE8C @ =0xFFFE7FFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r0, #0
+-	str r0, [r3]
+-	ldr r0, _0802DE90 @ =sub_0802DF0C
+-	mov r1, ip
+-	str r0, [r1]
+-_0802DE76:
+-	ldr r0, [r4]
+-	ldr r1, [r3]
+-	adds r0, r0, r1
+-	str r0, [r4]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DE84: .4byte 0xFFFFFF00
+-_0802DE88: .4byte 0xFFFFC400
+-_0802DE8C: .4byte 0xFFFE7FFF
+-_0802DE90: .4byte sub_0802DF0C
+-
+-	thumb_func_start sub_0802DE94
+-sub_0802DE94: @ 0x0802DE94
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x1e
+-	bls _0802DEB0
+-	ldr r0, _0802DEB4 @ =sub_0802DF30
+-	str r0, [r3]
+-_0802DEB0:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DEB4: .4byte sub_0802DF30
+-
+-	thumb_func_start sub_0802DEB8
+-sub_0802DEB8: @ 0x0802DEB8
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldrh r0, [r2]
+-	adds r1, r0, #1
+-	strh r1, [r2]
+-	lsls r0, r0, #0x10
+-	movs r1, #0xff
+-	lsls r1, r1, #0x12
+-	cmp r0, r1
+-	bls _0802DED6
+-	ldr r0, _0802DEDC @ =sub_0802DFB4
+-	str r0, [r3]
+-_0802DED6:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DEDC: .4byte sub_0802DFB4
+-
+-	thumb_func_start sub_0802DEE0
+-sub_0802DEE0: @ 0x0802DEE0
+-	adds r3, r0, #0
+-	adds r1, r3, #0
+-	adds r1, #0xb0
+-	movs r2, #0
+-	movs r0, #0x2d
+-	strh r0, [r1]
+-	adds r1, #0xe
+-	movs r0, #7
+-	strb r0, [r1]
+-	ldr r1, _0802DF04 @ =0x000002BE
+-	adds r0, r3, r1
+-	strh r2, [r0]
+-	subs r1, #2
+-	adds r0, r3, r1
+-	strh r2, [r0]
+-	ldr r0, _0802DF08 @ =sub_0802E01C
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802DF04: .4byte 0x000002BE
+-_0802DF08: .4byte sub_0802E01C
+-
+-	thumb_func_start sub_0802DF0C
+-sub_0802DF0C: @ 0x0802DF0C
+-	adds r3, r0, #0
+-	adds r1, r3, #0
+-	adds r1, #0xb0
+-	movs r2, #0
+-	movs r0, #0x2d
+-	strh r0, [r1]
+-	adds r1, #0xe
+-	movs r0, #4
+-	strb r0, [r1]
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	strh r2, [r0]
+-	ldr r0, _0802DF2C @ =sub_0802E040
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802DF2C: .4byte sub_0802E040
+-
+-	thumb_func_start sub_0802DF30
+-sub_0802DF30: @ 0x0802DF30
+-	push {r4, r5, lr}
+-	sub sp, #0x14
+-	adds r4, r0, #0
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r4, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802DF94 @ =0xFBFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	movs r1, #0xad
+-	lsls r1, r1, #2
+-	adds r0, r4, r1
+-	movs r2, #0
+-	str r2, [r0]
+-	subs r1, #0x25
+-	movs r3, #0xb6
+-	lsls r3, r3, #1
+-	adds r0, r4, r3
+-	ldr r3, [r0]
+-	movs r5, #0xa9
+-	lsls r5, r5, #2
+-	adds r0, r4, r5
+-	ldr r0, [r0]
+-	str r0, [sp]
+-	adds r5, #4
+-	adds r0, r4, r5
+-	ldr r0, [r0]
+-	str r0, [sp, #4]
+-	str r2, [sp, #8]
+-	str r2, [sp, #0xc]
+-	movs r0, #1
+-	str r0, [sp, #0x10]
+-	adds r0, r4, #0
+-	movs r2, #3
+-	bl sub_0802CFF0
+-	ldrb r1, [r0, #0x1c]
+-	lsrs r1, r1, #1
+-	strb r1, [r0, #0x1c]
+-	ldr r0, _0802DF98 @ =0x00000212
+-	bl m4aSongNumStart
+-	ldr r0, _0802DF9C @ =sub_0802DFA0
+-	str r0, [r4]
+-	add sp, #0x14
+-	pop {r4, r5}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802DF94: .4byte 0xFBFFFFFF
+-_0802DF98: .4byte 0x00000212
+-_0802DF9C: .4byte sub_0802DFA0
+-
+-	thumb_func_start sub_0802DFA0
+-sub_0802DFA0: @ 0x0802DFA0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802DFB0 @ =sub_0802E064
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802DFB0: .4byte sub_0802E064
+-
+-	thumb_func_start sub_0802DFB4
+-sub_0802DFB4: @ 0x0802DFB4
+-	push {r4, lr}
+-	adds r4, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r4, r1
+-	movs r2, #0
+-	strh r2, [r0]
+-	ldr r1, _0802E004 @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	strh r2, [r1, #4]
+-	ldr r0, _0802E008 @ =gMPlayInfo_0
+-	movs r1, #8
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802E00C @ =gMPlayInfo_1
+-	movs r1, #8
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802E010 @ =gMPlayInfo_2
+-	movs r1, #8
+-	bl m4aMPlayFadeOut
+-	ldr r0, _0802E014 @ =gMPlayInfo_3
+-	movs r1, #8
+-	bl m4aMPlayFadeOut
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r4, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802E018 @ =sub_0802E088
+-	str r0, [r4]
+-	pop {r4}
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E004: .4byte gBldRegs
+-_0802E008: .4byte gMPlayInfo_0
+-_0802E00C: .4byte gMPlayInfo_1
+-_0802E010: .4byte gMPlayInfo_2
+-_0802E014: .4byte gMPlayInfo_3
+-_0802E018: .4byte sub_0802E088
+-
+-	thumb_func_start sub_0802E01C
+-sub_0802E01C: @ 0x0802E01C
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0xb4
+-	bls _0802E038
+-	ldr r0, _0802E03C @ =sub_0802C1D8
+-	str r0, [r3]
+-_0802E038:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E03C: .4byte sub_0802C1D8
+-
+-	thumb_func_start sub_0802E040
+-sub_0802E040: @ 0x0802E040
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0x3c
+-	bls _0802E05C
+-	ldr r0, _0802E060 @ =sub_0802E0D4
+-	str r0, [r3]
+-_0802E05C:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E060: .4byte sub_0802E0D4
+-
+-	thumb_func_start sub_0802E064
+-sub_0802E064: @ 0x0802E064
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	ldrh r1, [r0]
+-	adds r2, r1, #1
+-	strh r2, [r0]
+-	lsls r1, r1, #0x10
+-	lsrs r1, r1, #0x10
+-	cmp r1, #0xb4
+-	bls _0802E080
+-	ldr r0, _0802E084 @ =sub_0802E0E8
+-	str r0, [r3]
+-_0802E080:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E084: .4byte sub_0802E0E8
+-
+-	thumb_func_start sub_0802E088
+-sub_0802E088: @ 0x0802E088
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0xf
+-	bls _0802E0C8
+-	ldr r1, _0802E0BC @ =gBldRegs
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802E0C0 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802E0C4 @ =sub_0802D480
+-	str r0, [r3]
+-	b _0802E0CC
+-	.align 2, 0
+-_0802E0BC: .4byte gBldRegs
+-_0802E0C0: .4byte 0xDFFFFFFF
+-_0802E0C4: .4byte sub_0802D480
+-_0802E0C8:
+-	ldr r0, _0802E0D0 @ =gBldRegs
+-	strh r2, [r0, #4]
+-_0802E0CC:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E0D0: .4byte gBldRegs
+-
+-	thumb_func_start sub_0802E0D4
+-sub_0802E0D4: @ 0x0802E0D4
+-	movs r1, #0x94
+-	lsls r1, r1, #2
+-	adds r2, r0, r1
+-	movs r1, #0
+-	strh r1, [r2]
+-	ldr r1, _0802E0E4 @ =sub_0802C360
+-	str r1, [r0]
+-	bx lr
+-	.align 2, 0
+-_0802E0E4: .4byte sub_0802C360
+-
+-	thumb_func_start sub_0802E0E8
+-sub_0802E0E8: @ 0x0802E0E8
+-	adds r3, r0, #0
+-	movs r1, #0xaf
+-	lsls r1, r1, #2
+-	adds r0, r3, r1
+-	movs r2, #0
+-	strh r2, [r0]
+-	ldr r1, _0802E114 @ =gBldRegs
+-	movs r0, #0xbf
+-	strh r0, [r1]
+-	strh r2, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	movs r1, #0x80
+-	lsls r1, r1, #0x16
+-	orrs r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802E118 @ =sub_0802E11C
+-	str r0, [r3]
+-	bx lr
+-	.align 2, 0
+-_0802E114: .4byte gBldRegs
+-_0802E118: .4byte sub_0802E11C
+-
+-	thumb_func_start sub_0802E11C
+-sub_0802E11C: @ 0x0802E11C
+-	push {lr}
+-	adds r3, r0, #0
+-	movs r0, #0xaf
+-	lsls r0, r0, #2
+-	adds r1, r3, r0
+-	ldrh r0, [r1]
+-	adds r2, r0, #1
+-	strh r2, [r1]
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x10
+-	cmp r0, #0x3f
+-	bls _0802E15C
+-	ldr r1, _0802E150 @ =gBldRegs
+-	movs r0, #0x10
+-	strh r0, [r1, #4]
+-	movs r0, #0x85
+-	lsls r0, r0, #2
+-	adds r2, r3, r0
+-	ldr r0, [r2]
+-	ldr r1, _0802E154 @ =0xDFFFFFFF
+-	ands r0, r1
+-	str r0, [r2]
+-	ldr r0, _0802E158 @ =sub_0802C770
+-	str r0, [r3]
+-	b _0802E164
+-	.align 2, 0
+-_0802E150: .4byte gBldRegs
+-_0802E154: .4byte 0xDFFFFFFF
+-_0802E158: .4byte sub_0802C770
+-_0802E15C:
+-	ldr r1, _0802E168 @ =gBldRegs
+-	lsls r0, r2, #0x10
+-	lsrs r0, r0, #0x12
+-	strh r0, [r1, #4]
+-_0802E164:
+-	pop {r0}
+-	bx r0
+-	.align 2, 0
+-_0802E168: .4byte gBldRegs
+diff --git a/data/data_17.s b/data/data_17.s
+index 8e9769b..0fd138d 100644
+--- a/data/data_17.s
++++ b/data/data_17.s
+@@ -3,60 +3,6 @@
+ 
+ 	.section .rodata
+ 
+-gUnk_082EB4A0:: @ 082EB4A0
+-	.incbin "baserom.gba", 0x2EB4A0, 0x0000014
+-
+-gUnk_082EB4B4:: @ 082EB4B4
+-	.incbin "baserom.gba", 0x2EB4B4, 0x0000002
+-
+-gUnk_082EB4B6:: @ 082EB4B6
+-	.incbin "baserom.gba", 0x2EB4B6, 0x0000036
+-
+-gUnk_082EB4EC:: @ 082EB4EC
+-	.incbin "baserom.gba", 0x2EB4EC, 0x0000004
+-
+-gUnk_082EB4F0:: @ 082EB4F0
+-	.incbin "baserom.gba", 0x2EB4F0, 0x0000024
+-
+-gUnk_082EB514:: @ 082EB514
+-	.incbin "baserom.gba", 0x2EB514, 0x0000028
+-
+-gUnk_082EB53C:: @ 082EB53C
+-	.incbin "baserom.gba", 0x2EB53C, 0x0000028
+-
+-gUnk_082EB564:: @ 082EB564
+-	.incbin "baserom.gba", 0x2EB564, 0x0000028
+-
+-gUnk_082EB58C:: @ 082EB58C
+-	.incbin "baserom.gba", 0x2EB58C, 0x0000028
+-
+-gUnk_082EB5B4:: @ 082EB5B4
+-	.incbin "baserom.gba", 0x2EB5B4, 0x000000C
+-
+-gUnk_082EB5C0:: @ 082EB5C0
+-	.incbin "baserom.gba", 0x2EB5C0, 0x0000004
+-
+-gUnk_082EB5C4:: @ 082EB5C4
+-	.incbin "baserom.gba", 0x2EB5C4, 0x000001C
+-
+-gUnk_082EB5E0:: @ 082EB5E0
+-	.incbin "baserom.gba", 0x2EB5E0, 0x0000030
+-
+-gUnk_082EB610:: @ 082EB610
+-	.incbin "baserom.gba", 0x2EB610, 0x0000020
+-
+-gUnk_082EB630:: @ 082EB630
+-	.incbin "baserom.gba", 0x2EB630, 0x0000004
+-
+-gUnk_082EB634:: @ 082EB634
+-	.incbin "baserom.gba", 0x2EB634, 0x000000C
+-
+-gUnk_082EB640:: @ 082EB640
+-	.incbin "baserom.gba", 0x2EB640, 0x0000090
+-
+-gUnk_082EB6D0:: @ 082EB6D0
+-	.incbin "baserom.gba", 0x2EB6D0, 0x000000C
+-
+ gUnk_082EB6DC:: @ 082EB6DC
+ 	.incbin "baserom.gba", 0x2EB6DC, 0x0000010
+ 
+diff --git a/include/code_0802B4A8.h b/include/code_0802B4A8.h
+new file mode 100644
+index 0000000..4814d50
+--- /dev/null
++++ b/include/code_0802B4A8.h
+@@ -0,0 +1,62 @@
++#ifndef GUARD_CODE_0802B4A8_H
++#define GUARD_CODE_0802B4A8_H
++
++#include "global.h"
++#include "data.h"
++#include "sprite.h"
++
++struct Unk_0802B4A8_274 {
++    /* 0x00 */ s32 x;
++    /* 0x04 */ s32 y;
++    /* 0x08 */ s32 dx;
++    /* 0x0C */ s32 dy;
++}; /* size = 0x10 */
++
++struct Unk_0802B4A8 {
++    /* 0x000 */ void (*unk0)(struct Unk_0802B4A8 *);
++    /* 0x004 */ struct Sprite unk4[5];
++    /* 0x0CC */ struct Sprite unkCC;
++    /* 0x0F4 */ struct Sprite unkF4;
++    /* 0x11C */ struct Sprite unk11C;
++    /* 0x144 */ struct Sprite unk144;
++    /* 0x16C */ struct Sprite unk16C;
++    /* 0x194 */ struct Background unk194;
++    /* 0x1D4 */ struct Background unk1D4;
++    /* 0x214 */ u32 flags;
++    /* 0x218 */ s32 unk218[5][2];
++    /* 0x240 */ s16 unk240[5][2];
++    /* 0x254 */ u16 unk254[5];
++    /* 0x25E */ s16 unk25E[5];
++    /* 0x268 */ s16 unk268[5];
++    /* 0x272 */ u8 filler272[2];
++    /* 0x274 */ struct Unk_0802B4A8_274 unk274[4];
++    /* 0x2B4 */ s32 unk2B4;
++    /* 0x2B8 */ s16 unk2B8;
++    /* 0x2BA */ u16 unk2BA;
++    /* 0x2BC */ u16 unk2BC;
++    /* 0x2BE */ u16 unk2BE;
++}; /* size = 0x2C0 */
++
++struct Unk_0802CE64 {
++    /* 0x00 */ struct Sprite spr;
++    /* 0x28 */ struct Unk_0802B4A8 *parent;
++    /* 0x2C */ s32 unk2C;
++    /* 0x30 */ s32 unk30;
++    /* 0x34 */ s16 unk34;
++    /* 0x36 */ s16 unk36;
++    /* 0x38 */ u16 unk38;
++    /* 0x3A */ s16 unk3A;
++}; /* size = 0x3C */
++
++struct Unk_0802DB48 {
++    /* 0x00 */ void (*unk0)(struct Unk_0802DB48 *);
++    /* 0x04 */ struct Background bg;
++    /* 0x44 */ struct Unk_0802B4A8 *parent;
++    /* 0x48 */ u16 unk48;
++    /* 0x4A */ u16 unk4A;
++    /* 0x4C */ u16 unk4C;
++}; /* size = 0x50 */
++
++void sub_0802B4A8(void);
++
++#endif
+diff --git a/include/functions.h b/include/functions.h
+index 7f78404..a51da0f 100644
+--- a/include/functions.h
++++ b/include/functions.h
+@@ -128,7 +128,6 @@ void sub_0800A8F8(u8 arg0, u8 arg1, u8 arg2);
+ void sub_0800EE04(u8, u32);
+ u8 sub_0800EEBC(struct ObjectBase *);
+ 
+-void sub_0802B4A8(void);
+ struct Unk_0802E57C *sub_0802E57C(void);
+ void sub_0802E6C4(struct Unk_0802E57C *);
+ void sub_08033674(u8);
+diff --git a/linker.ld b/linker.ld
+index 13a67e4..ab6ab57 100644
+--- a/linker.ld
++++ b/linker.ld
+@@ -251,7 +251,7 @@ SECTIONS {
+         src/demo.o(.text);
+         src/code_08026044.o(.text);
+         src/special_doors.o(.text);
+-        asm/code_0802B4A8.o(.text);
++        src/code_0802B4A8.o(.text);
+         src/code_0802E16C.o(.text);
+         asm/code_0802E57C.o(.text);
+         src/code_0802F8D8.o(.text);
+@@ -445,6 +445,8 @@ SECTIONS {
+         src/demo.o(.rodata);
+         src/code_08026044.o(.rodata);
+         src/special_doors.o(.rodata);
++        src/code_0802B4A8.o(.rodata);
++        src/code_0802E16C.o(.rodata);
+         data/data_17.o(.rodata);
+         src/code_0802F8D8.o(.rodata);
+         data/data_24.o(.rodata);
+diff --git a/src/code_0802B4A8.c b/src/code_0802B4A8.c
+new file mode 100644
+index 0000000..d7d7acd
+--- /dev/null
++++ b/src/code_0802B4A8.c
+@@ -0,0 +1,1555 @@
++#include "code_0802B4A8.h"
++#include "code_0814EBE4.h"
++#include "functions.h"
++#include "kirby.h"
++#include "main.h"
++#include "malloc_vram.h"
++#include "palette.h"
++#include "random.h"
++#include "save.h"
++#include "task.h"
++#include "trig.h"
++#include "constants/languages.h"
++
++static void sub_0802BA6C(void);
++static void sub_0802BCEC(struct Unk_0802B4A8 *);
++static void sub_0802C26C(struct Unk_0802B4A8 *);
++static void sub_0802C4BC(struct Unk_0802B4A8 *);
++static void sub_0802C68C(struct Unk_0802B4A8 *);
++static void sub_0802CA78(struct Unk_0802B4A8 *);
++static void sub_0802CB60(struct Unk_0802B4A8 *);
++static void sub_0802CDA0(struct Unk_0802DB48 *);
++static struct Unk_0802CE64 *sub_0802CE64(struct Unk_0802B4A8 *, u16, u16, u32, s32, s32, s16, s16, u16);
++static void sub_0802CF2C(void);
++static struct Unk_0802CE64 *sub_0802CFF0(struct Unk_0802B4A8 *, u16, u16, u32, s32, s32, s16, s16, u16);
++static void sub_0802D0B8(void);
++static struct Unk_0802CE64 *sub_0802D198(struct Unk_0802B4A8 *, u16, u16, u32, s32, s32, s16, s16);
++static void sub_0802D288(void);
++static void sub_0802D360(struct Task *);
++static void sub_0802D3E0(struct Unk_0802B4A8 *);
++static void sub_0802D3F4(struct Unk_0802B4A8 *);
++static void sub_0802D408(struct Unk_0802B4A8 *);
++static void sub_0802D430(struct Unk_0802B4A8 *);
++static void sub_0802D444(struct Unk_0802B4A8 *);
++static void sub_0802D458(struct Unk_0802B4A8 *);
++static void sub_0802D46C(struct Unk_0802B4A8 *);
++static void sub_0802D480(struct Unk_0802B4A8 *);
++static void sub_0802D4E0(struct Unk_0802B4A8 *);
++static void sub_0802D4F4(struct Unk_0802B4A8 *);
++static void sub_0802D528(void);
++static void sub_0802D53C(void);
++static void sub_0802D550(void);
++static void sub_0802D564(struct Unk_0802B4A8 *);
++static void sub_0802D588(struct Unk_0802B4A8 *);
++static void sub_0802D5B0(struct Unk_0802B4A8 *);
++static void sub_0802D5D4(struct Unk_0802B4A8 *);
++static void sub_0802D618(struct Unk_0802B4A8 *);
++static void sub_0802D664(struct Unk_0802B4A8 *);
++static void sub_0802D6B4(struct Unk_0802B4A8 *);
++static void sub_0802D6D8(struct Unk_0802B4A8 *);
++static void sub_0802D708(struct Unk_0802B4A8 *);
++static void sub_0802D738(struct Unk_0802B4A8 *);
++static void sub_0802D75C(struct Unk_0802B4A8 *);
++static void sub_0802D780(struct Unk_0802B4A8 *);
++static void sub_0802D7DC(struct Unk_0802B4A8 *);
++static void sub_0802D800(struct Unk_0802B4A8 *);
++static void sub_0802D824(struct Unk_0802B4A8 *);
++static void sub_0802D84C(struct Unk_0802B4A8 *);
++static void sub_0802D898(struct Unk_0802DB48 *);
++static void sub_0802D8AC(struct Unk_0802DB48 *);
++static void sub_0802D8F4(struct Unk_0802DB48 *);
++static void sub_0802D92C(struct Unk_0802DB48 *);
++static void sub_0802D940(struct Unk_0802DB48 *);
++static void sub_0802D964(struct Unk_0802DB48 *);
++static void sub_0802D9A4(struct Unk_0802DB48 *);
++static void sub_0802D9B8(struct Unk_0802B4A8 *);
++static void sub_0802D9F4(struct Unk_0802B4A8 *);
++static void sub_0802DA54(struct Unk_0802B4A8 *);
++static void sub_0802DAA0(struct Unk_0802B4A8 *);
++static void sub_0802DAB4(struct Unk_0802B4A8 *);
++static void sub_0802DAC8(struct Unk_0802B4A8 *);
++static void sub_0802DB00(struct Unk_0802B4A8 *);
++static void sub_0802DB34(struct Unk_0802B4A8 *);
++static struct Unk_0802DB48 *sub_0802DB48(struct Unk_0802B4A8 *);
++static void sub_0802DBC0(struct Unk_0802B4A8 *);
++static void sub_0802DC10(struct Unk_0802B4A8 *);
++static void sub_0802DC34(struct Unk_0802B4A8 *);
++static void sub_0802DC58(struct Unk_0802B4A8 *);
++static void sub_0802DCA0(struct Unk_0802B4A8 *);
++static void sub_0802DCC4(struct Unk_0802B4A8 *);
++static void sub_0802DD18(struct Unk_0802B4A8 *);
++static void sub_0802DD3C(void);
++static void sub_0802DD94(struct Unk_0802DB48 *);
++static void sub_0802DDA0(struct Unk_0802B4A8 *);
++static void sub_0802DDB4(struct Unk_0802B4A8 *);
++static void sub_0802DDC0(struct Unk_0802B4A8 *);
++static void sub_0802DDEC(struct Unk_0802B4A8 *);
++static void sub_0802DE00(struct Unk_0802B4A8 *);
++static void sub_0802DE14(struct Unk_0802B4A8 *);
++static void sub_0802DE38(struct Unk_0802B4A8 *);
++static void sub_0802DE94(struct Unk_0802B4A8 *);
++static void sub_0802DEB8(struct Unk_0802B4A8 *);
++static void sub_0802DEE0(struct Unk_0802B4A8 *);
++static void sub_0802DF0C(struct Unk_0802B4A8 *);
++static void sub_0802DF30(struct Unk_0802B4A8 *);
++static void sub_0802DFA0(struct Unk_0802B4A8 *);
++static void sub_0802DFB4(struct Unk_0802B4A8 *);
++static void sub_0802E01C(struct Unk_0802B4A8 *);
++static void sub_0802E040(struct Unk_0802B4A8 *);
++static void sub_0802E064(struct Unk_0802B4A8 *);
++static void sub_0802E088(struct Unk_0802B4A8 *);
++static void sub_0802E0D4(struct Unk_0802B4A8 *);
++static void sub_0802E0E8(struct Unk_0802B4A8 *);
++static void sub_0802E11C(struct Unk_0802B4A8 *);
++
++extern bool16 gUnk_0300000C;
++
++static const u16 gUnk_082EB4A0[][2] = {
++    { 0x15, 0 },
++    { 0x15, 1 },
++    { 0x15, 2 },
++    { 0x15, 3 },
++    { 0x383, 0 },
++};
++
++static const u16 gUnk_082EB4B4[][2] = {
++    { 0x15, 0 },
++    { 0x15, 1 },
++    { 0x15, 2 },
++    { 0x15, 3 },
++    { 0x15, 4 },
++    { 0x15, 5 },
++    { 0x15, 6 },
++    { 0x15, 7 },
++    { 0x15, 8 },
++    { 0x15, 9 },
++    { 0x15, 0xA },
++    { 0x15, 0xB },
++    { 0x15, 0xC },
++    { 0x15, 0xD },
++};
++
++static const s32 gUnk_082EB4EC[][2] = {
++    { 0x11800, 0x6400 },
++    { 0x12C00, 0x5000 },
++    { 0x14000, 0x6400 },
++    { 0x14000, 0x3C00 },
++    { 0xB400, 0xC800 },
++};
++
++static const s32 gUnk_082EB514[][2] = {
++    { -0x100, 0 },
++    { -0xF0, 0 },
++    { -0xE0, 0 },
++    { -0xD0, 0 },
++    { 0, 0 },
++};
++
++static const s32 gUnk_082EB53C[][2] = {
++    { 0x5000, 0x6400 },
++    { 0x7800, 0x5000 },
++    { 0xA000, 0x6400 },
++    { 0xB400, 0x3C00 },
++    { 0, 0 },
++};
++
++static const s32 gUnk_082EB564[][2] = {
++    { 0x80, 0 },
++    { 0x70, -0x60 },
++    { 0x60, 0xA0 },
++    { 0x50, -0x80 },
++    { -0x80, -0x70 },
++};
++
++static const s32 gUnk_082EB58C[][2] = {
++    { 0xA000, 0x6400 },
++    { 0xB400, 0x4600 },
++    { 0xBE00, 0x7800 },
++    { 0xD200, 0x2800 },
++    { 0x3C00, 0x6400 },
++};
++
++static const u16 gUnk_082EB5B4[] = { 0, 0xA0, 0x140, 0x1E0, 0x280 };
++
++static const s32 gUnk_082EB5C0[][2] = {
++    { -0x3000, 0xA400 },
++    { -0x6000, 0x7400 },
++    { -0x9000, 0xA400 },
++    { -0x6000, 0xD400 },
++};
++
++static const u16 gUnk_082EB5E0[][2] = {
++    { 0x291, 1 },
++    { 0x291, 2 },
++    { 0x291, 3 },
++    { 0x291, 4 },
++    { 0x291, 5 },
++    { 0x291, 6 },
++    { 0x291, 7 },
++    { 0x291, 8 },
++    { 0x291, 9 },
++    { 0x291, 0xA },
++    { 0x291, 0xB },
++    { 0x291, 0xC },
++};
++
++static const u8 gUnk_082EB610[] = {
++    4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 0, 0, 0, 0, 6, 6,
++    6, 7, 7, 7, 1, 1, 1, 8, 8, 9, 9, 2, 2, 0xA, 0xB, 3,
++};
++
++static const u8 gUnk_082EB630[] = { 0, 1, 6, 7 };
++
++static const u16 gUnk_082EB634[NUM_LANGUAGES] = {
++    [LANGUAGE_JAPANESE] = 0x2B2,
++    [LANGUAGE_ENGLISH]  = 0x2B9,
++    [LANGUAGE_GERMAN]   = 0x2C0,
++    [LANGUAGE_FRENCH]   = 0x2C7,
++    [LANGUAGE_SPANISH]  = 0x2CE,
++    [LANGUAGE_ITALIAN]  = 0x2D5,
++};
++
++static const u16 gUnk_082EB640[NUM_LANGUAGES][6][2] = {
++    [LANGUAGE_JAPANESE] = {
++        { 0x2B3, 300 },
++        { 0x2B4, 300 },
++        { 0x2B5, 300 },
++        { 0x2B6, 300 },
++        { 0x2B7, 300 },
++        { 0x2B8, 300 },
++    },
++    [LANGUAGE_ENGLISH] = {
++        { 0x2BA, 300 },
++        { 0x2BB, 300 },
++        { 0x2BC, 300 },
++        { 0x2BD, 300 },
++        { 0x2BE, 300 },
++        { 0x2BF, 300 },
++    },
++    [LANGUAGE_GERMAN] = {
++        { 0x2C1, 300 },
++        { 0x2C2, 300 },
++        { 0x2C3, 300 },
++        { 0x2C4, 300 },
++        { 0x2C5, 300 },
++        { 0x2C6, 300 },
++    },
++    [LANGUAGE_FRENCH] = {
++        { 0x2C8, 300 },
++        { 0x2C9, 300 },
++        { 0x2CA, 300 },
++        { 0x2CB, 300 },
++        { 0x2CC, 300 },
++        { 0x2CD, 300 },
++    },
++    [LANGUAGE_SPANISH] = {
++        { 0x2CF, 300 },
++        { 0x2D0, 300 },
++        { 0x2D1, 300 },
++        { 0x2D2, 300 },
++        { 0x2D3, 300 },
++        { 0x2D4, 300 },
++    },
++    [LANGUAGE_ITALIAN] = {
++        { 0x2D6, 300 },
++        { 0x2D7, 300 },
++        { 0x2D8, 300 },
++        { 0x2D9, 300 },
++        { 0x2DA, 300 },
++        { 0x2DB, 300 },
++    },
++};
++
++void sub_0802B4A8(void) {
++    struct Task *t;
++    struct Unk_0802B4A8 *tmp, *x;
++    u16 i;
++
++    // TODO: Original bug: a 32-bit fill of 0x00007FFF makes even palette entries white and odd entries black (sub_0802CB60 uses CpuFill16).
++    CpuFill32(RGB_WHITE, gBgPalette, sizeof(gBgPalette));
++    CpuFill32(RGB_WHITE, gObjPalette, sizeof(gObjPalette));
++    gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
++    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0x10;
++    t = TaskCreate(sub_0802BA6C, sizeof(struct Unk_0802B4A8), 0x100, TASK_USE_IWRAM, sub_0802D360);
++    tmp = TaskGetStructPtr(t);
++    x = tmp;
++    CpuFill16(0, x, sizeof(struct Unk_0802B4A8));
++    x->unk2B8 = 0x200;
++    SpriteInit(&x->unk16C, VramMalloc(0x100), 0, 0x292, 0, 0, 0xFF, 0x10, 0xD, 0, 0, 0);
++    for (i = 0; i < ARRAY_COUNT(x->unk4); ++i) {
++        x->unk4[i].tilesVram = VramMalloc(0x10);
++        x->unk218[i][0] = gUnk_082EB4EC[i][0];
++        x->unk218[i][1] = gUnk_082EB4EC[i][1];
++        x->unk254[i] = gUnk_082EB5B4[i];
++    }
++    x->unkCC.tilesVram = VramMalloc(0x10);
++    x->unkF4.tilesVram = VramMalloc(0x30);
++    x->unk11C.tilesVram = VramMalloc(0x30);
++    x->unk144.tilesVram = VramMalloc(0x10);
++    gUnk_0300000C = FALSE;
++    x->unk0 = sub_0802BCEC;
++}
++
++static void sub_0802B62C(struct Unk_0802B4A8 *x) {
++    u16 i, j;
++    struct Sprite *sprite;
++
++    if (!(x->flags & 0x80000000) && !sub_08155128(&x->unkCC))
++        x->unkCC.unk1B = 0xFF;
++    for (j = 0, i = 0; i < ARRAY_COUNT(x->unk4); ++i, j += 3) {
++        if ((1 << j) & x->flags) {
++            sprite = &x->unk4[i];
++            x->unk254[i] = (x->unk254[i] + 4) & 0x3FF;
++            if (x->unk25E[i] < x->unk268[i]) {
++                x->unk25E[i] += 4;
++                if (x->unk25E[i] > x->unk268[i])
++                    x->unk25E[i] = x->unk268[i];
++            } else if (x->unk25E[i] > x->unk268[i]) {
++                x->unk25E[i] -= 4;
++                if (x->unk25E[i] < x->unk268[i])
++                    x->unk25E[i] = x->unk268[i];
++            }
++            sprite->x = x->unk218[i][0] >> 8;
++            sprite->y = (x->unk218[i][1] + (gSineTable[x->unk254[i]] >> 10) * (x->unk25E[i] >> 4)) >> 8;
++            if (!(x->flags & 0x80000000)) {
++                if (!((2 << j) & x->flags) && !sub_08155128(sprite))
++                    x->flags |= 2 << j;
++                if ((2 << j) & x->flags) {
++                    x->flags &= ~(2 << j);
++                    sprite->unk1B = 0xFF;
++                }
++            }
++            DisplaySprite(sprite);
++            if ((4 << j) & x->flags) {
++                x->unkCC.x = sprite->x;
++                x->unkCC.y = sprite->y;
++                DisplaySprite(&x->unkCC);
++                if (!(x->flags & 0x800000)) {
++                    if (!((x->unk2BA + i * 2) & 7))
++                        sub_0802CFF0(x, 0x295, 2, x->unk16C.tilesVram,
++                            x->unk2B4 + x->unk218[i][0] + 0x1000, x->unk218[i][1] + 0x800, 0, 0, 1);
++                    if (!((x->unk2BA + i * 2) & 0xF)) {
++                        u32 val = Rand16() & 0x1F;
++
++                        sub_0802CE64(x, gUnk_082EB5E0[gUnk_082EB610[val]][0], gUnk_082EB5E0[gUnk_082EB610[val]][1], x->unk16C.tilesVram,
++                            x->unk2B4 + x->unk218[i][0] + ((Rand16() & 0xF) + 8) * 0x100,
++                            x->unk218[i][1] + ((Rand16() & 0x1F) - 0x10) * 0x100,
++                            (Rand16() & 0xFF) + 0x80, 0, 0);
++                    }
++                }
++            }
++        }
++    }
++    if (x->flags & 0x8000) {
++        sprite = &x->unkF4;
++        if (!(x->flags & 0x80000000)) {
++            if (!(x->flags & 0x10000) && !sub_08155128(sprite))
++                x->flags |= 0x10000;
++            if (x->flags & 0x10000) {
++                x->flags &= ~0x10000;
++                sprite->unk1B = 0xFF;
++            }
++        }
++        sprite->x = x->unk274[0].x >> 8;
++        sprite->y = x->unk274[0].y >> 8;
++        DisplaySprite(sprite);
++    }
++    if (x->flags & 0x20000) {
++        sprite = &x->unk11C;
++        if (!(x->flags & 0x80000000)) {
++            if (!(x->flags & 0x40000) && !sub_08155128(sprite))
++                x->flags |= 0x40000;
++            if (x->flags & 0x40000) {
++                x->flags &= ~0x40000;
++                sprite->unk1B = 0xFF;
++            }
++        }
++        sprite->x = x->unk274[2].x >> 8;
++        sprite->y = x->unk274[2].y >> 8;
++        DisplaySprite(sprite);
++    }
++    if (x->flags & 0x80000) {
++        sprite = &x->unk144;
++        if (!(x->flags & 0x80000000)) {
++            if (!(x->flags & 0x100000) && !sub_08155128(sprite))
++                x->flags |= 0x100000;
++            if (x->flags & 0x100000) {
++                x->flags &= ~0x100000;
++                sprite->unk1B = 0xFF;
++            }
++        }
++        sprite->x = x->unk274[3].x >> 8;
++        sprite->y = x->unk274[3].y >> 8;
++        DisplaySprite(sprite);
++    }
++}
++
++static void sub_0802BA6C(void) {
++    struct Unk_0802B4A8 *tmp = TaskGetStructPtr(gCurTask), *x = tmp;
++
++    if (x->flags & 0x8000000 && gPressedKeys & (START_BUTTON | A_BUTTON | B_BUTTON))
++        x->flags |= 0x40000000;
++    if (!(x->flags & 0x40000000) || x->flags & 0x20000000) {
++        x->unk0(x);
++        if (gUnk_0300000C)
++            return;
++        if (x->flags & 0x1000000) {
++            x->unk2B4 -= x->unk2B8;
++            gBgScrollRegs[0][0] = x->unk2B4 >> 9;
++        }
++        if (x->flags & 0x800000 && !(x->unk2BA & 0x3F)) {
++            u16 side = Rand16() & 3;
++            u16 idx = Rand16() & 3;
++            s16 dx;
++            s32 posX;
++
++            if (side < 2) {
++                dx = -((Rand16() & 0xF) + 0x10);
++                posX = ((Rand16() & 0x1F) << 11) + 0x1000;
++            } else {
++                dx = (Rand16() & 0xF) + 0x10;
++                posX = ((Rand16() & 0x1F) << 11) - 0x2000;
++            }
++            sub_0802D198(x, gUnk_082EB5E0[gUnk_082EB630[idx]][0], gUnk_082EB5E0[gUnk_082EB630[idx]][1], x->unk16C.tilesVram,
++                posX, -((Rand16() & 0xF) + 0x20) * 0x100, dx, 0x40);
++        }
++        ++x->unk2BA;
++    } else if (x->flags & 0x40000000) {
++        if (!(x->flags & 0x80000000)) {
++            gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++            gBldRegs.bldY = 0;
++            x->unk2BC = 0;
++            m4aMPlayFadeOut(&gMPlayInfo_0, 4);
++            m4aMPlayFadeOut(&gMPlayInfo_1, 4);
++            m4aMPlayFadeOut(&gMPlayInfo_2, 4);
++            m4aMPlayFadeOut(&gMPlayInfo_3, 4);
++            x->flags |= 0x80000000;
++        } else if (++x->unk2BC > 0xF) {
++            if (x->flags & 0x10000000) {
++                sub_0802CB60(x);
++                return;
++            }
++            x->flags = 0x14000000;
++            x->unk0 = sub_0802D480;
++            return;
++        } else {
++            gBldRegs.bldY = x->unk2BC;
++        }
++    }
++    if (!gUnk_0300000C)
++        sub_0802B62C(x);
++}
++
++static void sub_0802BCEC(struct Unk_0802B4A8 *x) {
++    u16 i;
++    struct Sprite *sprite, *sprite2, *sprite3;
++    struct Background *bg;
++
++    gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_BG0_ON | DISPCNT_OBJ_1D_MAP;
++    bg = &x->unk194;
++    gBgScrollRegs[0][0] = 0;
++    gBgScrollRegs[0][1] = 0;
++    gBgCntRegs[0] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_SCREENBASE(31);
++    BgInit(bg, (u32)BG_CHAR_ADDR(2), 0, (u32)BG_SCREEN_ADDR(31), 0, 0, 0x2B0, 0, 0, 0, 0, 0x20, 0x20, 0, 0, 0, 8, 0, 0, 0x7FFF, 0x7FFF);
++    LZ77UnCompVram(gUnk_082D7850[0x2B0]->tileset, BG_CHAR_ADDR(2));
++    sub_08153060(bg);
++    for (i = 0; i < ARRAY_COUNT(x->unk4); ++i) {
++        sprite = &x->unk4[i];
++        x->unk218[i][0] = gUnk_082EB4EC[i][0];
++        x->unk218[i][1] = gUnk_082EB4EC[i][1];
++        x->unk254[i] = gUnk_082EB5B4[i];
++        if (i < 4) {
++            sprite->unk14 = 0x100;
++            sprite->animId = gUnk_082EB4B4[gKirbys[i].color][0];
++            sprite->variant = gUnk_082EB4B4[gKirbys[i].color][1];
++            sprite->unk16 = 0;
++            sprite->unk1B = 0xFF;
++            sprite->unk1C = 0x10;
++            sprite->palId = i;
++            sprite->x = 0;
++            sprite->y = 0;
++            sprite->unk8 = 0x81000;
++            sub_08155128(sprite);
++        } else {
++            sprite->unk14 = 0x100;
++            sprite->animId = gUnk_082EB4A0[i][0];
++            sprite->variant = gUnk_082EB4A0[i][1];
++            sprite->unk16 = 0;
++            sprite->unk1B = 0xFF;
++            sprite->unk1C = 0x10;
++            sprite->palId = i;
++            sprite->x = 0;
++            sprite->y = 0;
++            sprite->unk8 = 0x81000;
++            sub_08155128(sprite);
++        }
++        sprite->unk14 = 0x100;
++        sprite->animId = 0x2D;
++        sprite->variant = 4;
++        sprite->unk16 = 0;
++        sprite->unk1B = 0xFF;
++        sprite->unk1C = 0x10;
++        sprite->palId = i;
++        sprite->x = x->unk218[i][0] >> 8;
++        sprite->y = x->unk218[i][1] >> 8;
++        sprite->unk8 = 0x41000;
++        sub_08155128(sprite);
++    }
++    sprite2 = &x->unkCC;
++    sprite2->unk14 = 0x140;
++    sprite2->animId = 0x2DE;
++    sprite2->variant = 0;
++    sprite2->unk16 = 0;
++    sprite2->unk1B = 0xFF;
++    sprite2->unk1C = 0x10;
++    sprite2->palId = 0xF;
++    sprite2->x = -0x100;
++    sprite2->y = -0x100;
++    sprite2->unk8 = 0x1000;
++    sub_08155128(sprite2);
++    sprite3 = &x->unkF4;
++    sprite3->unk14 = 0x300;
++    sprite3->animId = 0x2D3;
++    sprite3->variant = 1;
++    sprite3->unk16 = 0;
++    sprite3->unk1B = 0xFF;
++    sprite3->unk1C = 0x10;
++    sprite3->palId = 0xE;
++    sprite3->x = -0x100;
++    sprite3->y = -0x100;
++    sprite3->unk8 = 0x1000;
++    sub_08155128(sprite3);
++    x->flags |= 0x1005B6D;
++    x->flags |= 0x20000000;
++    m4aSongNumStart(MUS_ENDING);
++    x->unk0 = sub_0802D3E0;
++}
++
++static void sub_0802BF68(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0xF) {
++        gBldRegs.bldCnt = 0;
++        gBldRegs.bldY = 0;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802D3F4;
++    } else {
++        gBldRegs.bldY = 0x10 - x->unk2BC;
++    }
++}
++
++static void sub_0802BFBC(struct Unk_0802B4A8 *x) {
++    s16 moving = 0;
++    u16 i;
++
++    for (i = 0; i < 4; ++i) {
++        if (gUnk_082EB53C[i][0] >= x->unk218[i][0] && x->unk240[i][0]) {
++            x->unk240[i][0] += 4;
++            if (x->unk240[i][0] >= 0) {
++                x->unk240[i][0] = 0;
++                x->unk268[i] = 0x800;
++            }
++        }
++        x->unk218[i][0] += x->unk240[i][0];
++        moving |= x->unk240[i][0];
++    }
++    if (!moving)
++        x->unk0 = sub_0802D408;
++}
++
++static void sub_0802C064(struct Unk_0802B4A8 *x) {
++    s16 moving = 0;
++    u16 i;
++
++    for (i = 0; i < ARRAY_COUNT(x->unk4); ++i) {
++        if (i == 4) {
++            if (gUnk_082EB58C[i][0] >= x->unk218[i][0] && x->unk240[i][0]) {
++                x->unk240[i][0] += 2;
++                x->unk240[i][1] += 2;
++                if (x->unk240[i][0] >= 0) {
++                    x->unk240[i][0] = 0;
++                    x->unk240[i][1] = 0;
++                    x->unk268[i] = 0x800;
++                }
++            }
++        } else {
++            if (x->unk240[i][1] > 0) {
++                x->unk240[i][1] -= 2;
++                if (x->unk240[i][1] < 0)
++                    x->unk240[i][1] = 0;
++            } else if (x->unk240[i][1] < 0) {
++                x->unk240[i][1] += 2;
++                if (x->unk240[i][1] > 0)
++                    x->unk240[i][1] = 0;
++            }
++            if (gUnk_082EB58C[i][0] <= x->unk218[i][0] && x->unk240[i][0]) {
++                x->unk240[i][0] -= 2;
++                if (x->unk240[i][0] >= 0) {
++                    x->unk240[i][0] = 0;
++                    x->unk240[i][1] = 0;
++                    x->unk268[i] = 0x800;
++                }
++            }
++        }
++        x->unk218[i][0] += x->unk240[i][0];
++        x->unk218[i][1] += x->unk240[i][1];
++        moving |= x->unk240[i][0] | x->unk240[i][1];
++    }
++    if (!moving && x->flags & 0x2000000)
++        x->unk0 = sub_0802D430;
++}
++
++static void sub_0802C1D8(struct Unk_0802B4A8 *x) {
++    u32 angle = sub_08154FE8((x->unk274[0].x - x->unk218[x->unk2BE][0]) >> 8,
++        (x->unk274[0].y - x->unk218[x->unk2BE][1]) >> 8) & 0x3FF;
++
++    x->unk240[x->unk2BE][0] = gSineTable[angle] >> 7;
++    x->unk240[x->unk2BE][1] = gSineTable[angle + 0x100] >> 7;
++    x->unk0 = sub_0802C26C;
++}
++
++static void sub_0802C26C(struct Unk_0802B4A8 *x) {
++    s32 dx = (x->unk218[x->unk2BE][0] - x->unk274[0].x) >> 8;
++    s32 dy = (x->unk218[x->unk2BE][1] - x->unk274[0].y) >> 8;
++
++    if (dx * dx + dy * dy < 0x90) {
++        x->unk0 = sub_0802D5D4;
++    } else {
++        x->unk218[x->unk2BE][0] += x->unk240[x->unk2BE][0];
++        x->unk218[x->unk2BE][1] += x->unk240[x->unk2BE][1];
++    }
++}
++
++static void sub_0802C308(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0x3F) {
++        gBldRegs.bldCnt = 0;
++        gBldRegs.bldY = 0;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802D708;
++    } else {
++        gBldRegs.bldY = 0x10 - (x->unk2BC >> 2);
++    }
++}
++
++static void sub_0802C360(struct Unk_0802B4A8 *x) {
++    x->unk240[4][0] -= 4;
++    if (x->unk240[4][0] < -0x80)
++        x->unk240[4][0] = -0x80;
++    if (x->unk218[4][0] < -0x2000) {
++        x->flags &= ~0x7000;
++        x->unk240[4][0] = 0;
++        x->unk0 = sub_0802D444;
++    }
++    x->unk218[4][0] += x->unk240[4][0];
++}
++
++static void sub_0802C3C8(struct Unk_0802B4A8 *x) {
++    struct Sprite *sprite = &x->unk11C;
++    struct Sprite *sprite2;
++
++    x->unk274[2].x = 0x11800;
++    x->unk274[2].y = 0x5000;
++    x->unk274[2].dx = 0;
++    x->unk274[2].dy = 0;
++    sprite->unk14 = 0x100;
++    sprite->animId = 0x395;
++    sprite->variant = 0;
++    sprite->unk16 = 0;
++    sprite->unk1B = 0xFF;
++    sprite->unk1C = 0x10;
++    sprite->palId = 5;
++    sprite->x = x->unk274[2].x >> 8;
++    sprite->y = x->unk274[2].y >> 8;
++    sprite->unk8 = 0x1400;
++    sub_08155128(sprite);
++    sprite2 = &x->unk144;
++    x->unk274[3].x = x->unk274[2].x;
++    x->unk274[3].y = x->unk274[2].y;
++    x->unk274[3].dx = 0;
++    x->unk274[3].dy = 0;
++    SpriteInitNoTilesVram(sprite2, 0x100, 0x395, 1, 0, 0xFF, 0x10, 6, x->unk274[3].x >> 8, x->unk274[3].y >> 8, 0x1400);
++    x->flags |= 0xA0000;
++    x->unk0 = sub_0802C4BC;
++}
++
++static void sub_0802C4BC(struct Unk_0802B4A8 *x) {
++    x->unk274[2].dx = -0x140;
++    if (x->unk274[2].x < 0xDC00)
++        x->unk274[2].dy -= 8;
++    if (x->unk274[2].y < -0x2000) {
++        x->unk274[2].dx = 0;
++        x->unk274[2].dy = 0;
++        x->flags &= ~0x80000;
++        x->unk0 = sub_0802D458;
++    }
++    x->unk274[2].x += x->unk274[2].dx;
++    x->unk274[2].y += x->unk274[2].dy;
++    x->unk274[3].x = x->unk274[2].x;
++    x->unk274[3].y = x->unk274[2].y;
++}
++
++static void sub_0802C550(struct Unk_0802B4A8 *x) {
++    struct Sprite *sprite = &x->unk144;
++
++    x->unk274[3].x = 0x7800;
++    x->unk274[3].y = -0x2800;
++    x->unk274[3].dx = 0;
++    x->unk274[3].dy = 0x200;
++    sprite->unk14 = 0x100;
++    sprite->animId = 0x2C3;
++    sprite->variant = 3;
++    sprite->unk16 = 0;
++    sprite->unk1B = 0xFF;
++    sprite->unk1C = 0x10;
++    sprite->palId = 6;
++    sprite->x = x->unk274[3].x >> 8;
++    sprite->y = x->unk274[3].y >> 8;
++    sprite->unk8 = 0x1000;
++    sub_08155128(sprite);
++    x->flags &= ~0x100000;
++    x->flags |= 0x80000;
++    x->unk0 = sub_0802D780;
++}
++
++static void sub_0802C5E4(struct Unk_0802B4A8 *x) {
++    struct Background *bg = &x->unk194;
++
++    gBgScrollRegs[0][0] = 0;
++    gBgScrollRegs[0][1] = 0;
++    gBgCntRegs[0] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_SCREENBASE(31);
++    BgInit(bg, (u32)BG_CHAR_ADDR(2), 0, (u32)BG_SCREEN_ADDR(31), 0, 0, 0x306, 0, 0, 0, 0, 0x1E, 0x14, 0, 0, 0, 8, 0, 0, 0x7FFF, 0x7FFF);
++    LZ77UnCompVram(gUnk_082D7850[0x306]->tileset, (u16 *)bg->tilesVram);
++    sub_08153060(bg);
++    x->unk0 = sub_0802C68C;
++}
++
++static void sub_0802C68C(struct Unk_0802B4A8 *x) {
++    const struct RoomTiledBG *bg = gRoomTiledBGs[gRoomProps[0x321].backgroundIdx];
++    const u16 *src;
++    u16 *dst;
++    u16 i;
++
++    gBgScrollRegs[1][0] = 0;
++    gBgScrollRegs[1][1] = 0;
++    gBgCntRegs[1] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(3) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(30);
++    LZ77UnCompVram(bg->tileset, BG_CHAR_ADDR(0));
++    src = bg->tilemap;
++    dst = BG_SCREEN_ADDR(30);
++    src += 8 * bg->width;
++    for (i = 0; i < 0x14; ++i) {
++        CpuCopy16(src, dst, 0x3C);
++        src += bg->width;
++        dst += 0x20;
++    }
++    if (gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE) {
++        LoadBgPaletteWithTransformation(bg->palette, bg->paletteOffset, bg->paletteSize);
++    } else {
++        DmaCopy16(3, bg->palette, gBgPalette + bg->paletteOffset, bg->paletteSize * sizeof(u16));
++        gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
++    }
++    gDispCnt |= DISPCNT_BG0_ON | DISPCNT_BG1_ON;
++    x->unk0 = sub_0802D46C;
++}
++
++static void sub_0802C770(struct Unk_0802B4A8 *x) {
++    struct Background *bg;
++
++    gDispCnt |= DISPCNT_BG0_ON | DISPCNT_BG1_ON;
++    gBgScrollRegs[0][0] = 0;
++    gBgScrollRegs[0][1] = 0;
++    gBgCntRegs[0] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(1) | BGCNT_CHARBASE(2) | BGCNT_SCREENBASE(31);
++    bg = &x->unk194;
++    BgInit(bg, (u32)BG_CHAR_ADDR(2), 0, (u32)BG_SCREEN_ADDR(31), 0, 0, gUnk_082EB634[gLanguage], 0, 0, 0, 0, 0x1E, 0x14, 0, 0, 0, 0x18, 0, 0, 0x7FFF, 0x7FFF);
++    sub_08153060(bg);
++    LZ77UnCompVram(gUnk_082D7850[bg->unk1C]->tileset, (u16 *)bg->tilesVram);
++    gBgScrollRegs[1][0] = 0;
++    gBgScrollRegs[1][1] = 0;
++    gBgCntRegs[1] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(2) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(30);
++    bg = &x->unk1D4;
++    bg->tilesVram = (u32)BG_CHAR_ADDR(0);
++    bg->unkA = 0;
++    bg->tilemapVram = (u32)BG_SCREEN_ADDR(30);
++    bg->unk18 = 0;
++    bg->unk1A = 0;
++    bg->unk1C = 0x2B1;
++    bg->unk1E = 0;
++    bg->unk20 = 0;
++    bg->unk22 = 0;
++    bg->unk24 = 0;
++    bg->unk26 = 0x1E;
++    bg->unk28 = 0x14;
++    bg->paletteOffset = 0;
++    bg->animFrameCounter = 0;
++    bg->animDelayCounter = 0;
++    bg->unk2E = 9;
++    bg->prevScrollX = 0x7FFF;
++    bg->prevScrollY = 0x7FFF;
++    sub_08153060(bg);
++    LZ77UnCompVram(gUnk_082D7850[bg->unk1C]->tileset, (u16 *)bg->tilesVram);
++    x->unk2BC = 0;
++    x->flags &= ~0x80000;
++    x->unk0 = sub_0802D800;
++}
++
++static void sub_0802C8E8(struct Unk_0802B4A8 *x) {
++    u16 i;
++    struct Sprite *sprite, *sprite2;
++
++    for (i = 0; i < ARRAY_COUNT(gUnk_082EB5C0); ++i) {
++        sprite = &x->unk4[i];
++        x->unk218[i][0] = gUnk_082EB5C0[i][0];
++        x->unk218[i][1] = gUnk_082EB5C0[i][1];
++        x->unk240[i][0] = 0x300;
++        x->unk240[i][1] = -0x80;
++        x->unk25E[i] = 0;
++        x->unk268[i] = 0;
++        sprite->unk14 = 0x100;
++        sprite->animId = gUnk_082EB4B4[gKirbys[i].color][0];
++        sprite->variant = gUnk_082EB4B4[gKirbys[i].color][1];
++        sprite->unk16 = 0;
++        sprite->unk1B = 0xFF;
++        sprite->unk1C = 0x10;
++        sprite->palId = i;
++        sprite->x = 0;
++        sprite->y = 0;
++        sprite->unk8 = 0x81000;
++        sub_08155128(sprite);
++        sprite->unk14 = 0x100;
++        sprite->animId = 0x2D;
++        sprite->variant = 0;
++        sprite->unk16 = 0;
++        sprite->unk1B = 0xFF;
++        sprite->unk1C = 0x10;
++        sprite->palId = i;
++        sprite->x = x->unk218[i][0] >> 8;
++        sprite->y = x->unk218[i][1] >> 8;
++        sprite->unk8 = 0x41000;
++        sub_08155128(sprite);
++    }
++    sprite2 = &x->unkCC;
++    sprite2->unk14 = 0x140;
++    sprite2->animId = 0x2DE;
++    sprite2->variant = 0;
++    sprite2->unk16 = 0;
++    sprite2->unk1B = 0xFF;
++    sprite2->unk1C = 0x10;
++    sprite2->palId = 0xF;
++    sprite2->x = -0x100;
++    sprite2->y = -0x100;
++    sprite2->unk8 = 0x1000;
++    sub_08155128(sprite2);
++    x->flags &= 0xF0800000;
++    x->flags |= 0xB6D;
++    x->unk0 = sub_0802CA78;
++}
++
++static void sub_0802CA78(struct Unk_0802B4A8 *x) {
++    bool32 done = TRUE;
++    u16 i;
++
++    for (i = 0; i < 4; ++i) {
++        if (x->unk240[i][0] > 0x80) {
++            x->unk240[i][0] -= 6;
++            if (x->unk240[i][0] <= 0x80) {
++                x->unk4[i].animId = 0x2D;
++                x->unk4[i].variant = 6;
++                x->unk240[i][0] = 0x80;
++            }
++        }
++        if (x->unk218[i][0] > 0x13000 || x->unk218[i][1] < -0x4000)
++            x->unk240[i][0] = x->unk240[i][1] = 0;
++        else
++            done = FALSE;
++        x->unk218[i][0] += x->unk240[i][0];
++        x->unk218[i][1] += x->unk240[i][1];
++    }
++    if (done)
++        x->unk0 = sub_0802D4F4;
++}
++
++static void sub_0802CB60(UNUSED struct Unk_0802B4A8 *x) {
++    gBldRegs.bldCnt = 0;
++    gBldRegs.bldY = 0;
++    CpuFill16(RGB_WHITE, gBgPalette, sizeof(gBgPalette));
++    CpuFill16(RGB_WHITE, gObjPalette, sizeof(gObjPalette));
++    gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
++    gUnk_0300000C = TRUE;
++    TasksDestroyInPriorityRange(0, 0xFFFF);
++    gUnk_03003A04 = gUnk_03003790;
++    gUnk_030068B0 = 0;
++    gUnk_03006078 = gUnk_030039A4;
++    if (gAIKirbyState < AI_KIRBY_STATE_UNK1) {
++        gAIKirbyState = AI_KIRBY_STATE_UNK1;
++        if (!(gUnk_0203AD10 & 0x10)) {
++            if (gUnk_0203AD10 & 2) {
++                if (gLocalPlayerId == gUnk_0203AD24)
++                    UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
++                else
++                    sub_08031CE4(8);
++            } else {
++                UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
++            }
++        }
++    }
++    sub_0814EBE4();
++}
++
++static void sub_0802CC7C(struct Unk_0802DB48 *var) {
++    struct Background *bg;
++    u16 id;
++
++    gDispCnt |= DISPCNT_BG2_ON;
++    gBldRegs.bldCnt = BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG0 | BLDCNT_TGT2_BG1 | BLDCNT_TGT2_OBJ;
++    gBldRegs.bldAlpha = BLDALPHA_BLEND(0, 0x10);
++    bg = &var->bg;
++    id = gUnk_082EB640[gLanguage][var->unk4C][0];
++    gBgScrollRegs[2][0] = 0;
++    gBgScrollRegs[2][1] = 0;
++    gBgCntRegs[2] = BGCNT_TXT256x256 | BGCNT_16COLOR | BGCNT_PRIORITY(0) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(29);
++    BgInit(bg, (u32)BG_CHAR_ADDR(0), 0, (u32)BG_SCREEN_ADDR(29), 0, 0, id, 0, 0, 0, 0xA, 0x1E, 0xA, 0, 0, 0, 0x1A, 0, 0, 0x7FFF, 0x7FFF);
++    LZ77UnCompVram(gUnk_082D7850[id]->tileset, (u16 *)bg->tilesVram);
++    CpuFill32(0, (u32 *)(bg->tilesVram + TILE_SIZE_4BPP * 0x1FF), TILE_SIZE_4BPP);
++    CpuFill16(0x1FF, (u16 *)bg->tilemapVram, BG_SCREEN_SIZE);
++    sub_08153060(bg);
++    var->unk4A = 0;
++    var->parent->flags |= 0x20000000;
++    var->unk0 = sub_0802CDA0;
++}
++
++static void sub_0802CDA0(struct Unk_0802DB48 *var) {
++    if (++var->unk4A > 0xF) {
++        gBldRegs.bldCnt = 0;
++        gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
++        var->parent->flags &= ~0x20000000;
++        var->unk0 = sub_0802D898;
++    } else {
++        gBldRegs.bldAlpha = BLDALPHA_BLEND(var->unk4A, 0x10 - var->unk4A);
++    }
++}
++
++static void sub_0802CDF8(struct Unk_0802DB48 *var) {
++    if (++var->unk4A > 0xF) {
++        gDispCnt &= ~DISPCNT_BG2_ON;
++        gBldRegs.bldCnt = 0;
++        gBldRegs.bldAlpha = BLDALPHA_BLEND(0, 0x10);
++        var->parent->flags &= ~0x20000000;
++        var->unk0 = sub_0802D92C;
++    } else {
++        gBldRegs.bldAlpha = BLDALPHA_BLEND2(0x10 - var->unk4A, var->unk4A);
++    }
++}
++
++static struct Unk_0802CE64 *sub_0802CE64(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy, u16 timer) {
++    struct Task *t = TaskCreate(sub_0802CF2C, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
++    struct Unk_0802CE64 *var = TaskGetStructPtr(t);
++
++    var->parent = x;
++    var->unk2C = posX;
++    var->unk30 = posY;
++    var->unk34 = dx;
++    var->unk36 = dy;
++    var->unk38 = timer;
++    SpriteInit(&var->spr, tilesVram, 0x140, animId, variant, 0, 0xFF, 0x10, 0xD, posX >> 8, posY >> 8, 0x81000);
++    return var;
++}
++
++static void sub_0802CF2C(void) {
++    struct Unk_0802CE64 *tmp = TaskGetStructPtr(gCurTask), *var = tmp;
++    struct Sprite *sprite = &var->spr;
++
++    sprite->x = (var->unk2C - var->parent->unk2B4) >> 8;
++    sprite->y = var->unk30 >> 8;
++    if (!sub_08155128(sprite))
++        sprite->unk1B = 0xFF;
++    DisplaySprite(sprite);
++    var->unk2C += var->unk34;
++    var->unk30 += var->unk36;
++    if (var->unk38 && !--var->unk38)
++        gCurTask->main = sub_0802D528;
++    else if (sprite->x < -0x40 || sprite->x > 0x130 || sprite->y < -0x40 || sprite->y > 0xE0
++        || var->parent->flags & 0x4000000)
++        gCurTask->main = sub_0802D528;
++}
++
++static struct Unk_0802CE64 *sub_0802CFF0(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy, u16 timer) {
++    struct Task *t = TaskCreate(sub_0802D0B8, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
++    struct Unk_0802CE64 *var = TaskGetStructPtr(t);
++
++    var->parent = x;
++    var->unk2C = posX;
++    var->unk30 = posY;
++    var->unk34 = dx;
++    var->unk36 = dy;
++    var->unk38 = timer;
++    SpriteInit(&var->spr, tilesVram, 0x140, animId, variant, 0, 0xFF, 0x10, 0xD, posX >> 8, posY >> 8, 0x81000);
++    return var;
++}
++
++static void sub_0802D0B8(void) {
++    struct Unk_0802CE64 *tmp = TaskGetStructPtr(gCurTask), *var = tmp;
++    struct Sprite *sprite = &var->spr;
++
++    sprite->x = (var->unk2C - var->parent->unk2B4) >> 8;
++    sprite->y = var->unk30 >> 8;
++    if (!sub_08155128(sprite)) {
++        if (var->unk38 && !--var->unk38)
++            gCurTask->main = sub_0802D53C;
++        else
++            var->spr.unk1B = 0xFF;
++    }
++    DisplaySprite(sprite);
++    var->unk2C += var->unk34;
++    var->unk30 += var->unk36;
++    if (sprite->x < -0x40 || sprite->x > 0x130 || sprite->y < -0x40 || sprite->y > 0xE0)
++        gCurTask->main = sub_0802D53C;
++    if (var->parent->flags & 0x4000000)
++        gCurTask->main = sub_0802D53C;
++}
++
++static struct Unk_0802CE64 *sub_0802D198(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy) {
++    struct Task *t = TaskCreate(sub_0802D288, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
++    struct Unk_0802CE64 *var = TaskGetStructPtr(t);
++
++    var->parent = x;
++    var->unk2C = posX;
++    var->unk30 = posY;
++    var->unk34 = dx;
++    var->unk36 = dy;
++    var->unk38 = Rand16() & 0x3FF;
++    var->unk3A = (Rand16() & 0x7FF) + 0x800;
++    SpriteInit(&var->spr, tilesVram, 0x140, animId, variant, 0, 0xFF, 0x10, 0xD, posX >> 8, posY >> 8, 0x81000);
++    return var;
++}
++
++static void sub_0802D288(void) {
++    struct Unk_0802CE64 *tmp = TaskGetStructPtr(gCurTask), *var = tmp;
++
++    var->spr.x = (var->unk2C + (((gSineTable[var->unk38] >> 6) * var->unk3A) >> 8)) >> 8;
++    var->spr.y = var->unk30 >> 8;
++    if (!sub_08155128(&var->spr))
++        var->spr.unk1B = 0xFF;
++    DisplaySprite(&var->spr);
++    var->unk2C += var->unk34;
++    var->unk30 += var->unk36;
++    var->unk38 += 8;
++    var->unk38 &= 0x3FF;
++    if (var->spr.x < -0x40 || var->spr.x > 0x130 || var->spr.y < -0x40 || var->spr.y > 0xE0)
++        gCurTask->main = sub_0802D550;
++    if (var->parent->flags & 0x4000000)
++        gCurTask->main = sub_0802D550;
++}
++
++static void sub_0802D360(struct Task *t) {
++    struct Unk_0802B4A8 *tmp = TaskGetStructPtr(t), *x = tmp;
++    u16 i;
++
++    for (i = 0; i < ARRAY_COUNT(x->unk4); ++i)
++        VramFree(x->unk4[i].tilesVram);
++    VramFree(x->unkCC.tilesVram);
++    VramFree(x->unkF4.tilesVram);
++    VramFree(x->unk11C.tilesVram);
++    VramFree(x->unk144.tilesVram);
++    VramFree(x->unk16C.tilesVram);
++}
++
++static void sub_0802D3E0(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802BF68;
++}
++
++static void sub_0802D3F4(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D564;
++}
++
++static void sub_0802D408(struct Unk_0802B4A8 *x) {
++    x->flags |= 0x8000000;
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D588;
++}
++
++static void sub_0802D430(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D5B0;
++}
++
++static void sub_0802D444(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D738;
++}
++
++static void sub_0802D458(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D75C;
++}
++
++static void sub_0802D46C(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D7DC;
++}
++
++static void sub_0802D480(struct Unk_0802B4A8 *x) {
++    gBgPalette[0] = RGB_WHITE;
++    gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
++    gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
++    gBldRegs.bldCnt = 0;
++    gBldRegs.bldY = 0;
++    x->flags &= ~0x4080000;
++    x->flags |= 0x10800000;
++    x->unk0 = sub_0802D4E0;
++}
++
++static void sub_0802D4E0(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802D824;
++}
++
++static void sub_0802D4F4(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0;
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802D84C;
++}
++
++static void sub_0802D528(void) {
++    TaskDestroy(gCurTask);
++}
++
++static void sub_0802D53C(void) {
++    TaskDestroy(gCurTask);
++}
++
++static void sub_0802D550(void) {
++    TaskDestroy(gCurTask);
++}
++
++static void sub_0802D564(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802D9B8;
++}
++
++static void sub_0802D588(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 360)
++        x->unk0 = sub_0802D9F4;
++}
++
++static void sub_0802D5B0(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DA54;
++}
++
++static void sub_0802D5D4(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0;
++    m4aSongNumStart(SE_MIRROR_COMPLETE);
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802D618;
++}
++
++static void sub_0802D618(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0xF) {
++        gBldRegs.bldY = 0x10;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802D664;
++    } else {
++        gBldRegs.bldY = x->unk2BC;
++    }
++}
++
++static void sub_0802D664(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk240[x->unk2BE][0] = 0;
++    x->unk240[x->unk2BE][1] = 0;
++    x->flags &= ~(7 << (x->unk2BE * 3));
++    x->unk0 = sub_0802D6B4;
++}
++
++static void sub_0802D6B4(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802D6D8;
++}
++
++static void sub_0802D6D8(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldY = 0x10;
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802C308;
++}
++
++static void sub_0802D708(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BE < 4)
++        x->unk0 = sub_0802C1D8;
++    else
++        x->unk0 = sub_0802DAA0;
++}
++
++static void sub_0802D738(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 120)
++        x->unk0 = sub_0802C3C8;
++}
++
++static void sub_0802D75C(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802C550;
++}
++
++static void sub_0802D780(struct Unk_0802B4A8 *x) {
++    if (x->unk274[3].y > 0xC800) {
++        x->unk274[2].dy = 0;
++        x->flags &= ~0x80000;
++        x->unk0 = sub_0802DAB4;
++    }
++    x->unk274[3].dy += 0x40;
++    if (x->unk274[3].dy > 0x400)
++        x->unk274[3].dy = 0x400;
++    x->unk274[3].y += x->unk274[3].dy;
++}
++
++static void sub_0802D7DC(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DAC8;
++}
++
++static void sub_0802D800(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DB00;
++}
++
++static void sub_0802D824(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 480)
++        x->unk0 = sub_0802C8E8;
++}
++
++static void sub_0802D84C(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0xF) {
++        gBldRegs.bldY = 0x10;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802DB34;
++    } else {
++        gBldRegs.bldY = x->unk2BC;
++    }
++}
++
++static void sub_0802D898(struct Unk_0802DB48 *var) {
++    var->unk4A = 0;
++    var->unk0 = sub_0802D8AC;
++}
++
++static void sub_0802D8AC(struct Unk_0802DB48 *var) {
++    if (gUnk_082EB640[gLanguage][var->unk4C][1] < var->unk4A++)
++        var->unk0 = sub_0802D8F4;
++}
++
++static void sub_0802D8F4(struct Unk_0802DB48 *var) {
++    gBldRegs.bldCnt = BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG0 | BLDCNT_TGT2_BG1 | BLDCNT_TGT2_OBJ;
++    gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
++    var->unk4A = 0;
++    var->parent->flags |= 0x20000000;
++    var->unk0 = sub_0802CDF8;
++}
++
++static void sub_0802D92C(struct Unk_0802DB48 *var) {
++    var->unk4A = 0;
++    var->unk0 = sub_0802D940;
++}
++
++static void sub_0802D940(struct Unk_0802DB48 *var) {
++    if (var->unk4A++ > 30)
++        var->unk0 = sub_0802D964;
++}
++
++static void sub_0802D964(struct Unk_0802DB48 *var) {
++    if (++var->unk4C < ARRAY_COUNT(gUnk_082EB640[0])) {
++        var->unk0 = sub_0802CC7C;
++    } else {
++        var->parent->flags |= 0x2000000;
++        var->unk0 = sub_0802D9A4;
++    }
++}
++
++static void sub_0802D9A4(UNUSED struct Unk_0802DB48 *var) {
++    TaskDestroy(gCurTask);
++}
++
++static void sub_0802D9B8(struct Unk_0802B4A8 *x) {
++    u16 i;
++
++    for (i = 0; i < 4; ++i)
++        x->unk240[i][0] = gUnk_082EB514[i][0];
++    sub_0802DB48(x);
++    x->unk0 = sub_0802BFBC;
++}
++
++static void sub_0802D9F4(struct Unk_0802B4A8 *x) {
++    u16 i;
++
++    for (i = 0; i < ARRAY_COUNT(x->unk240); ++i) {
++        x->unk240[i][0] = gUnk_082EB564[i][0];
++        x->unk240[i][1] = gUnk_082EB564[i][1];
++    }
++    x->unk0 = sub_0802C064;
++}
++
++static void sub_0802DA54(struct Unk_0802B4A8 *x) {
++    x->unk274[0].x = 0x7800;
++    x->unk274[0].y = 0xB400;
++    x->unk274[0].dx = 0;
++    x->unk274[0].dy = -0x100;
++    x->flags |= 0x8000;
++    x->unk0 = sub_0802DBC0;
++}
++
++static void sub_0802DAA0(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DC10;
++}
++
++static void sub_0802DAB4(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DC34;
++}
++
++static void sub_0802DAC8(struct Unk_0802B4A8 *x) {
++    x->unk274[3].y = -0x1000;
++    x->flags |= 0x80000;
++    x->unk144.unk1B = 0xFF;
++    x->unk0 = sub_0802DC58;
++}
++
++static void sub_0802DB00(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldCnt = BLDCNT_TGT1_BG0 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BD | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0x10;
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802DCC4;
++}
++
++static void sub_0802DB34(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DD18;
++}
++
++static struct Unk_0802DB48 *sub_0802DB48(struct Unk_0802B4A8 *x) {
++    struct Task *t;
++    struct Unk_0802DB48 *var;
++
++    x->flags &= ~0x2000000;
++    t = TaskCreate(sub_0802DD3C, sizeof(struct Unk_0802DB48), 0x101, TASK_USE_IWRAM, NULL);
++    var = TaskGetStructPtr(t);
++    CpuFill16(0, var, sizeof(struct Unk_0802DB48));
++    var->parent = x;
++    var->unk0 = sub_0802DD94;
++    return var;
++}
++
++static void sub_0802DBC0(struct Unk_0802B4A8 *x) {
++    if (x->unk274[0].y < 0x6400) {
++        if (x->unk274[0].dy) {
++            x->unk274[0].dy += 4;
++            if (x->unk274[0].dy > 0)
++                x->unk274[0].dy = 0;
++        } else {
++            x->unk0 = sub_0802DDA0;
++        }
++    }
++    x->unk274[0].y += x->unk274[0].dy;
++}
++
++static void sub_0802DC10(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DDB4;
++}
++
++static void sub_0802DC34(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DDC0;
++}
++
++static void sub_0802DC58(struct Unk_0802B4A8 *x) {
++    x->unk274[3].dy += 8;
++    if (x->unk274[3].dy > 0x800)
++        x->unk274[3].dy = 0x800;
++    if (x->unk274[3].y > 0x8000) {
++        x->unk274[3].dy = 0;
++        x->unk274[3].y = 0x8000;
++        x->unk0 = sub_0802DCA0;
++    }
++    x->unk274[3].y += x->unk274[3].dy;
++}
++
++static void sub_0802DCA0(struct Unk_0802B4A8 *x) {
++    x->unk144.animId = 0x2C3;
++    x->unk144.variant = 4;
++    x->unk0 = sub_0802DDEC;
++}
++
++static void sub_0802DCC4(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0x3F) {
++        gBldRegs.bldY = 0;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802DE00;
++    } else {
++        gBldRegs.bldY = 0x10 - (x->unk2BC >> 2);
++    }
++}
++
++static void sub_0802DD18(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802CB60;
++}
++
++static void sub_0802DD3C(void) {
++    struct Unk_0802DB48 *var = TaskGetStructPtr(gCurTask);
++
++    if (!(var->parent->flags & 0x80000000)) {
++        var->unk0(var);
++        ++var->unk48;
++    } else {
++        sub_0802D9A4(var);
++    }
++}
++
++static void sub_0802DD94(struct Unk_0802DB48 *var) {
++    var->unk0 = sub_0802CC7C;
++}
++
++static void sub_0802DDA0(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DE14;
++}
++
++static void sub_0802DDB4(struct Unk_0802B4A8 *x) {
++    x->unk0 = sub_0802DE38;
++}
++
++static void sub_0802DDC0(struct Unk_0802B4A8 *x) {
++    gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
++    x->flags &= ~0x5000000;
++    x->unk0 = sub_0802C5E4;
++}
++
++static void sub_0802DDEC(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DE94;
++}
++
++static void sub_0802DE00(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802DEB8;
++}
++
++static void sub_0802DE14(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802DEE0;
++}
++
++static void sub_0802DE38(struct Unk_0802B4A8 *x) {
++    x->unk274[0].dy -= 4;
++    if (x->unk274[0].dy < -0x100)
++        x->unk274[0].dy = -0x100;
++    if (x->unk274[0].y < -0x3C00) {
++        x->flags &= ~0x18000;
++        x->unk274[0].dy = 0;
++        x->unk0 = sub_0802DF0C;
++    }
++    x->unk274[0].y += x->unk274[0].dy;
++}
++
++static void sub_0802DE94(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 30)
++        x->unk0 = sub_0802DF30;
++}
++
++static void sub_0802DEB8(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 1020)
++        x->unk0 = sub_0802DFB4;
++}
++
++static void sub_0802DEE0(struct Unk_0802B4A8 *x) {
++    x->unk4[4].animId = 0x2D;
++    x->unk4[4].variant = 7;
++    x->unk2BE = 0;
++    x->unk2BC = 0;
++    x->unk0 = sub_0802E01C;
++}
++
++static void sub_0802DF0C(struct Unk_0802B4A8 *x) {
++    x->unk4[4].animId = 0x2D;
++    x->unk4[4].variant = 4;
++    x->unk2BC = 0;
++    x->unk0 = sub_0802E040;
++}
++
++static void sub_0802DF30(struct Unk_0802B4A8 *x) {
++    x->flags &= ~0x4000000;
++    x->unk2B4 = 0;
++    sub_0802CFF0(x, 0x28F, 3, x->unk16C.tilesVram, x->unk274[3].x, x->unk274[3].y, 0, 0, 1)->spr.unk1C >>= 1;
++    m4aSongNumStart(SE_SHARD_OBTAINED);
++    x->unk0 = sub_0802DFA0;
++}
++
++static void sub_0802DFA0(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    x->unk0 = sub_0802E064;
++}
++
++static void sub_0802DFB4(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0;
++    m4aMPlayFadeOut(&gMPlayInfo_0, 8);
++    m4aMPlayFadeOut(&gMPlayInfo_1, 8);
++    m4aMPlayFadeOut(&gMPlayInfo_2, 8);
++    m4aMPlayFadeOut(&gMPlayInfo_3, 8);
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802E088;
++}
++
++static void sub_0802E01C(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 180)
++        x->unk0 = sub_0802C1D8;
++}
++
++static void sub_0802E040(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 60)
++        x->unk0 = sub_0802E0D4;
++}
++
++static void sub_0802E064(struct Unk_0802B4A8 *x) {
++    if (x->unk2BC++ > 180)
++        x->unk0 = sub_0802E0E8;
++}
++
++static void sub_0802E088(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0xF) {
++        gBldRegs.bldY = 0x10;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802D480;
++    } else {
++        gBldRegs.bldY = x->unk2BC;
++    }
++}
++
++static void sub_0802E0D4(struct Unk_0802B4A8 *x) {
++    x->unk240[4][0] = 0;
++    x->unk0 = sub_0802C360;
++}
++
++static void sub_0802E0E8(struct Unk_0802B4A8 *x) {
++    x->unk2BC = 0;
++    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
++    gBldRegs.bldY = 0;
++    x->flags |= 0x20000000;
++    x->unk0 = sub_0802E11C;
++}
++
++static void sub_0802E11C(struct Unk_0802B4A8 *x) {
++    if (++x->unk2BC > 0x3F) {
++        gBldRegs.bldY = 0x10;
++        x->flags &= ~0x20000000;
++        x->unk0 = sub_0802C770;
++    } else {
++        gBldRegs.bldY = x->unk2BC >> 2;
++    }
++}
+diff --git a/src/code_0802E16C.c b/src/code_0802E16C.c
+index a01518c..89b3198 100644
+--- a/src/code_0802E16C.c
++++ b/src/code_0802E16C.c
+@@ -18,7 +18,14 @@ static void sub_0802E484(struct Unk_0802E16C *);
+ static void sub_0802E500(struct Unk_0802E16C *);
+ static void sub_0802E55C(struct Unk_0802E16C *);
+ 
+-extern const u16 gUnk_082EB6D0[];
++static const u16 gUnk_082EB6D0[NUM_LANGUAGES] = {
++    [LANGUAGE_JAPANESE] = 0x309,
++    [LANGUAGE_ENGLISH]  = 0x30A,
++    [LANGUAGE_GERMAN]   = 0x30B,
++    [LANGUAGE_FRENCH]   = 0x30C,
++    [LANGUAGE_SPANISH]  = 0x30D,
++    [LANGUAGE_ITALIAN]  = 0x30E,
++};
+ 
+ void sub_0802E16C(void) {
+     struct Task *t = TaskCreate(sub_0802E390, sizeof(struct Unk_0802E16C), 0x1000, TASK_USE_IWRAM | TASK_x0004, nullsub_11);
+diff --git a/src/dark_mind.c b/src/dark_mind.c
+index d52dc24..89c2253 100644
+--- a/src/dark_mind.c
++++ b/src/dark_mind.c
+@@ -1,6 +1,7 @@
+ #include "hud.h"
+ #include "object_collision.h"
+ #include "palette_effects.h"
++#include "code_0802B4A8.h"
+ #include "code_080332BC.h"
+ #include "global.h"
+ #include "data.h"
+-- 
+2.56.0
+
