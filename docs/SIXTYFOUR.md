@@ -392,6 +392,11 @@ At LP64 that is an 8-byte store into a 4-byte field of a structure whose stride
 the ROM fixed at 0x18. It clobbers the next field and the value it writes is
 above 4 GiB. Both halves need the conversion's answer, not a new mechanism.
 
+(Both halves since solved differently: the game stores canonical code IDs,
+not host addresses -- docs/DETERMINISM.md, "Code IDs" -- so a function
+pointer in GBA memory is four bytes on every host by construction and the ROM
+tables need no patching.)
+
 **Not solved, and not visible to any type analysis**: 52 members across 31
 types are declared as function pointers, and more are not. The example that
 started this — `ws->unk0.obj2.unk78 = sub_0800C124;` — assigns a function to a

@@ -7,7 +7,8 @@ same thing, frame for frame?*  This is the instrument that answers it.
     make regress            # sim mode: the game's state must not move
     make regress-pixels     # pixels mode: where the picture changed
     make regress-wasm       # the node build against the same goldens
-    make lint-determinism   # no unsequenced RNG use (run by both regress targets)
+    make lint-determinism   # no unsequenced RNG use, no host code pointer
+                            # (FN/CALL); run by both regress targets
 
 `tests/regress.sh` builds nothing; build the native binary (`make native`, or
 the LP64 CMake build in `build/lp64`) or `build/katam-node.js` first. It needs
@@ -87,24 +88,54 @@ it; a renderer change may legitimately change how the PPU latches move, and the
 game never reads the picture back. `sim` mode fails on `keys` or `sim` and
 reports `vid`/`sram`/`pix` without failing.
 
-### Host addresses in game memory
+### Code IDs: no host function pointers in game memory
 
 The game stores function pointers in its own memory -- task callbacks,
-`Object::unk78` state functions, `gIntrTable`, the sound engine's jump table --
-and pointers to its C-defined const tables. Natively those are addresses in
-this executable, which move whenever code linked ahead of them changes size, so
-a raw hash of EWRAM would report a divergence for a change that altered
-nothing. `platform/native/symtab.c` reads the executable's own ELF symbol table
-and the hash replaces a word that is *exactly* a function's entry point with
-`0xC0000000|hash(name)`, and exactly a data object's start with
-`0x80000000|hash(name)`. Exact starts only: the game's data is full of aligned
-words that fall inside some object by coincidence (the shadow OAM, for one),
-and the first version, which canonicalised interior pointers, turned every one
-of them into a false divergence. Identical-code-folded aliases share one token.
-Verified: inserting code and data into the first game file and into
-`platform/ppu.c` leaves every hash of the 7299-frame play recording unchanged.
-Linux only (`/proc/self/exe`); elsewhere the hook is the identity and the hash
-is still deterministic, just layout-sensitive. `PORT_HASH_RAW=1` turns it off.
+`Object2::unk78` state functions, the AI's state table, `gIntrTable`, the
+sound engine's jump table and callbacks.  Those used to be host values: a code
+address in this executable natively, a function-table index in wasm.  So the
+same state was spelled differently on every host and moved whenever code
+linked ahead of a function changed size.
+
+Since netplay-v2 R5 every function-pointer *value* the game handles is a
+canonical **code ID** (`platform/port/fnid.h`):
+
+- a function the ROM has: its GBA ROM address with the Thumb bit as the ROM
+  stores it (katam.elf's symbol value), so a value the game copies out of a
+  ROM table is already an ID -- `gSpawnFuncTable1` and the 212 resolved
+  function fields inside ROM structs hold exactly the ROM's bytes;
+- one it does not (port-only code, `PORT-FORK` replacements, stubs):
+  `0x0E000001 | (fnv1a(name) & 0xFFFFFE)`, a range no ROM function uses;
+- `MultiSioIntr`: `0x030068E0`, the IWRAM buffer the console ran it from,
+  which is what the console's `gIntrTable[0]` held.
+
+`FN(f)` is `FNID_f` as `f`'s own pointer type (a constant expression, so
+static tables work); `CALL(p)(args)` maps the ID back to the host function
+through an open-addressing table built at start-up from a registration block
+at the end of each defining file (`platform/fnid.c`).  An ID nobody registered
+is reported with its value and the call site and aborts, in every build.
+`tools/codemod_fnid.py` wrote all of it -- 5613 `FN` and 336 `CALL` sites in
+153 files -- and reruns cleanly (`--apply`, then `--gen` for the IDs and the
+blocks; it needs `katam.elf` only for IDs of names it has not seen).  `make
+lint-determinism` fails on a function that decays to a pointer without `FN`, a
+call through a pointer without `CALL`, or a stale ID table
+(`tests/lint/fnid_selftest.c` is its self-test).  In the LP64 build calling a
+`P32` code member without `CALL` is a compile error, and `PORT_CHECK_POINTERS`
+aborts on a function stored through a `P32` that is not a known ID.
+
+So EWRAM and IWRAM are the same bytes natively and in wasm wherever the game
+stores code: raw (`PORT_HASH_RAW=1`) native dumps and wasm dumps of every
+recording, at 16 frames each, differ only in pointers into the port's own C
+data ("Native vs wasm" below).
+
+The game also stores pointers to its C-defined const tables.  Those are still
+host addresses (netplay-v2 R6), and `platform/native/symtab.c` still makes the
+hash replace a word that is *exactly* a data object's start with
+`0x80000000|hash(name)` (exact starts only: the game's data is full of aligned
+words that fall inside some object by coincidence).  It no longer touches
+functions: with code IDs a word equal to a host function's entry point can
+only be a coincidence (`PORT_HASH_FNCHECK=1` counts them).  Linux only
+(`/proc/self/exe`); `PORT_HASH_RAW=1` turns it off.
 
 Two copies of host machine code into IWRAM (`IntrMain`, `MultiSioIntr`) made
 IWRAM differ between any two builds; they were never executed and are gone
@@ -122,22 +153,22 @@ removed here:
   pooled ahead of them, so a platform file losing a `double` moved every game
   table.  `-fno-merge-constants` (CMakeLists.txt): each object's constants
   stay in its own `.rodata`, game first, platform after.
-- **Shadow OAM words that equal a function.**  OAM attribute pairs are
+- **Shadow OAM words that equal a function** (before code IDs).  OAM attribute pairs are
   arbitrary 32-bit words; `0x10190050` was `sub_0800E0AC` in one layout and
   mid-function in the next.  `gUnk_030031C0` and `gOamBuffer` are hashed and
   dumped raw (`kNoPointers`, platform/inputlog.c).
 
-Left: any game word that coincides with a symbol's start elsewhere in memory,
-and *stale bytes* -- a destroyed task's host function pointer partly
-overwritten by the next struct (attract's last frames leave `0x10000000`
-natively where wasm has `0` at iwram 0x03004880; the game does not read the
-byte, or `vid`/`pix` would follow).  So a change that moves code re-records the
+Left: any game word that coincides with a data object's start, and stale
+bytes of a host *data* pointer (warp_sweep leaves `0x10270000` natively where
+wasm has `0x0A020000` at iwram 0x03004754).  Stale bytes of host *function*
+pointers (attract's `0x10000000` at iwram 0x03004880) are gone: a destroyed
+task's callback is a code ID, the same in every build.  So a change that moves code re-records the
 goldens, and the commit has to show the move is layout-only: `keys`, `vid`,
 `sram` and `pix` identical on every frame, and raw dumps
 (`PORT_HASH_RAW=1 --dump-state`) differing only in words that are the same
 host pointer at two layouts -- `tools/layout_diff.py` and
-`tests/layout_neutral.sh` on the resources branch do exactly that.  The real
-fix is host-independent function references (netplay-v2 R5).
+`tests/layout_neutral.sh` on the resources branch do exactly that.  Code IDs took the function half of this away; the data half is netplay-v2
+R6.
 
 ## The recordings
 
@@ -168,22 +199,25 @@ room: movement, enemies, collisions, abilities.
 Run `make regress-wasm`, or by hand: replay the same file through both, then
 compare `keys`/`vid`/`sram`/`pix` per frame and `sim` through dumps.
 
-| recording | keys, vid, sram, pix | sim (state_diff at the last frame) |
-|---|---|---|
-| boot_to_level | identical, all 1399 frames | identical but for pointer spelling |
-| attract | identical, all 8999 frames | identical but for pointer spelling and one stale host byte (above) |
-| play_rooms | identical, all 7299 frames | identical but for pointer spelling |
-| warp_sweep | identical, all 7059 frames | identical but for pointer spelling |
-| aim | identical, all 6699 frames | identical but for pointer spelling |
-| wide_view | identical, all 7899 frames | not compared (the regress-wasm gate) |
+| recording | keys, vid, sram, pix | raw dumps, 16 frames: words differing | raw `sim` hash equal |
+|---|---|---|---|
+| boot_to_level | identical, all 1399 frames | 0-5, all R6 | frames 0-243; 263 of 1399 |
+| attract | identical, all 8999 frames | 0-1, all R6 | frames 0-1550; 3865 of 8999 |
+| play_rooms | identical, all 7299 frames | 0-5, all R6 | frames 0-243; 263 of 7299 |
+| warp_sweep | identical, all 7059 frames | 0-5, all R6 | frames 0-243; 265 of 7059 |
+| aim | identical, all 6699 frames | 0-5, all R6 | frames 0-243; 264 of 6699 |
+| wide_view | identical, all 7899 frames | 0-6, all R6 | frames 0-243; 262 of 7899 |
 
-"Pointer spelling": a stored function pointer is a code address natively and a
-table index in wasm, a pointer to the game's const data is in the executable
-natively and above `GLOBAL_BASE` in wasm. `tools/state_diff.py --a-bin
-build/lp64/katam --b-bin build/katam-node.wasm` maps both back to names
-(including identical-code-folded ones) and reports what is left. A per-frame
-cross-platform `sim` hash would need the game to store host-independent
-function references, which is the netplay-v2 work (`design/NETPLAY-V2.md`).
+No function pointer differs (code IDs, above).  What is left is pointers into
+the port's own C data -- an address in this executable natively, one above
+`GLOBAL_BASE` in wasm -- all in IWRAM: `gUnk_03002E60 = gUnk_082D8D74`
+(level.c), `entry->unk3C = gUnk_082EB7F8` in four object slots
+(code_0802F8D8.c, code_0802E57C.c), `&gUnk_082EB2B8[gLanguage]` (attract,
+code_08026044.c), a pointer to `gUnk_08355578` at 0x03003CC4 (wide_view), and
+stale bytes of those.  `tools/state_diff.py --a-bin
+build/lp64/katam --b-bin build/katam-node.wasm` maps them back to names and
+reports no real difference.  A per-frame cross-platform `sim` hash needs them
+to stop being host addresses: netplay-v2 R6 (`design/NETPLAY-V2.md`).
 
 ### Unsequenced RNG: `make lint-determinism`
 
@@ -321,8 +355,9 @@ game does.  Found when the resource seam (docs/design/MODDING.md §1.5, R0)
 turned every ROM table macro into a load, which changes the size of most game
 functions:
 
-- **Coincidence.** `PortHostCanonWord` turns a word that is *exactly* a
-  symbol's start into a name token.  The image is at `0x10000000`, and
+- **Coincidence** (for functions, before code IDs; for data objects,
+  still).  `PortHostCanonWord` turns a word that is *exactly* a symbol's
+  start into a name token.  The image is at `0x10000000`, and
   `0x10000000` is one of the objects' flag bits; game words in `0x10xxxxxx`
   are common (1549 of 2.7 M in a sample of 24 snapshots).  `0x10030000` in an
   IWRAM task struct is game data, and in the fork's build `sub_08005DE0`
@@ -337,8 +372,8 @@ functions:
 
 None of these can be fixed by looking at values: moving the image to a
 sparser range and canonicalising interior pointers were both tried, and game
-words turned up in every candidate range.  They go away with netplay-v2's
-canonical code IDs (the game stops storing host addresses).  Until then a
+words turned up in every candidate range.  The function half went away with
+netplay-v2's code IDs; the data half goes with R6.  Until then a
 refactor that moves code proves it is neutral with
 
     tests/layout_neutral.sh OLD/build/lp64/katam NEW/build/lp64/katam
