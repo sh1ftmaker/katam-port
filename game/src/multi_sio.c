@@ -33,8 +33,11 @@ void MultiSioInit(u32 connectedFlags)
     REG_SIOCNT |= SIO_INTR_ENABLE | MULTI_SIO_BAUD_RATE_NO;
     CpuFill32(0, &gMultiSioArea, sizeof(struct MultiSioArea)); // Clear Multi-play Communication Work Area
 #ifdef MULTI_SIO_DI_FUNC_FAST // Copy Function
-    CpuCopy32(MultiSioRecvBufChange, gMultiSioRecvFuncBuf, sizeof(gMultiSioRecvFuncBuf));
-    CpuCopy32(MultiSioIntr,          gMultiSioIntrFuncBuf, sizeof(gMultiSioIntrFuncBuf));
+    /* PORT-FORK: the console copies the routine's machine code into IWRAM to
+     * run it from there.  Here that would copy host code bytes (natively) or
+     * whatever low memory a table index names (wasm) into game memory -- never
+     * executed (platform/main.c CallIntr recognises the buffer's address), but
+     * build-dependent junk in every state hash.  The buffer stays zero. */
 #endif
     gMultiSioArea.connectedFlags  = connectedFlags;
     gMultiSioArea.sendBufCounter  = -1;

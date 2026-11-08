@@ -162,7 +162,11 @@ void Sio32MultiLoadInit(u32 type, void *datap)
     REG_IME = 1;
     CpuFill32(0, &gSio32MultiLoadArea, sizeof(gSio32MultiLoadArea)); // Clears 32bit serial communication work area
 #ifdef SIO32ML_DI_FUNC_FAST // Copies function
-    CpuCopy32(Sio32MultiLoadIntr, gMultiSioIntrFuncBuf, sizeof(gMultiSioIntrFuncBuf));
+    /* PORT-FORK: the console copies the routine's machine code into IWRAM to
+     * run it from there.  Here that would copy host code bytes (natively) or
+     * whatever low memory a table index names (wasm) into game memory -- never
+     * executed (platform/main.c CallIntr recognises the buffer's address), but
+     * build-dependent junk in every state hash.  The buffer stays zero. */
 #endif
     *(vu32 *)REG_ADDR_SIOCNT = SIO_MULTI_MODE | MULTI_SIO_BAUD_RATE_NO; // Stops multi-play communication
     gSio32MultiLoadArea.datap = datap; // Sets data pointer

@@ -194,8 +194,10 @@ void GameInit(void) {
     gVramHeapMaxTileSlots = 0x400;
     gVramHeapStartAddr = 0x06010000;
     VramResetHeapState();
-    DmaCopy32(3, IntrMain, gIntrMainBuf, sizeof(gIntrMainBuf));
-    DmaWait(3);
+    /* PORT-FORK: the console runs its interrupt dispatcher from an IWRAM copy.
+     * The port dispatches interrupts itself (platform/main.c), so the copy
+     * only put host machine code -- different in every build -- into game
+     * memory, where it made every state hash build-dependent.  Left zero. */
     INTR_VECTOR = gIntrMainBuf;
     REG_IE = INTR_FLAG_VBLANK;
     REG_DISPSTAT = DISPSTAT_HBLANK_INTR | DISPSTAT_VBLANK_INTR;
