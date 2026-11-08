@@ -117,6 +117,40 @@ not. `#rom=` works too, and keeps the address out of Referer headers. The last
 ROM you loaded is remembered in IndexedDB so you do not have to supply it
 again.
 
+### Settings menu
+
+A Dear ImGui menu drawn by the game itself over the picture, on the web
+(WebGL2) and in the native window. Open it with **F1** or **Tab**, the
+**gear** button (top right of the picture; beside *Menu* on a landscape
+phone), or *Menu* in the native window; **Esc**, *Resume* or a tap outside
+the panel closes it. The game pauses while it is open (the host simply stops
+asking for frames; nothing in the game changes). On a phone, drag the panel
+to scroll, tap to press, and hold or slide sideways to move a slider.
+
+- **Renderer**: GPU (the render list, default where WebGL2 / GL ES 3 exists)
+  or PPU (the emulated scanline renderer, always 240x160).
+- **Camera zoom**: 0.5x-2x (1x = 160 world rows, as on the GBA) with presets,
+  and **dynamic zoom** (eases in while the camera rests, out when it moves).
+- **Aspect ratio**: Auto (the window's shape, 3:2 to 21:9), Original 3:2, 4:3,
+  16:10, 16:9, 21:9, Fill window. With zoom this is the GPU view; past the
+  game's 48-px spawn margin the menu warns that objects visibly pop in -- the
+  game's culling is deliberately not widened (that would change the game).
+- **Scaling**: integer, fit (sharp nearest) or smooth (sharp bilinear), and
+  the border colour. **HUD**: pinned to the corners or the original strip.
+- **Display**: FPS overlay, VSync (native). **Audio**: volume, mute.
+  **Menu size**, controls help, reset to defaults, and the build label.
+
+All of it is presentation: none of it reaches game memory, recordings or the
+regression hashes (a replay with the GPU at 0.6x 21:9, dynamic zoom and the
+menu opened mid-run matches a plain run's keys/sim/vid/sram on every frame).
+Settings are kept in `localStorage` (`katam.settings`) on the web and in
+`settings.ini` in SDL's pref directory natively (scripted runs -- `--replay`,
+`--frames` and friends -- never read it; `--ui` forces the menu on anyway).
+`?renderer=gpu|ppu` overrides the renderer for one visit; `?renderer=2d` is
+the old 2D-canvas page with no menu, which is also what a browser without
+WebGL2 gets. Code: `platform/ui/` (`settings.c` is the struct and the layout
+maths, `present.c` the shared GL present, `ui_menu.cpp` the menu).
+
 ### Saves
 
 Save files persist in the browser. The game's save memory is written to
