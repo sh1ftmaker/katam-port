@@ -50,7 +50,7 @@ static void sub_080A29F0(struct Object *);
 
 void* CreatePrank(struct ObjectTemplate* arg0, u8 arg1)
 {
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x02000000;
@@ -71,7 +71,7 @@ void* CreatePrank(struct ObjectTemplate* arg0, u8 arg1)
     }
     else
     {
-        gUnk_08351648[obj->type].unk10(obj);
+        CALL(gUnk_08351648[obj->type].unk10)(obj);
     }
     if (obj->objTemplate->subtype1 == 3)
     {
@@ -119,7 +119,7 @@ void sub_080A12E4(struct Object *prank)
         sub_080A2534(prank);
         return;
     }
-    ObjectSetFunc(prank, 0, sub_080A24B0);
+    ObjectSetFunc(prank, 0, FN(sub_080A24B0));
     prank->base.counter = 0x3c;
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
@@ -202,7 +202,7 @@ static void sub_080A14FC(struct Object *prank)
         {
         case 0:
             prank->unk83 = 1;
-            prank->unk78 = sub_080A1344;
+            prank->unk78 = FN(sub_080A1344);
             prank->base.xspeed = 0x80;
             if (prank->base.flags & 1)
             {
@@ -211,7 +211,7 @@ static void sub_080A14FC(struct Object *prank)
             prank->unk9E = temp;
             break;
         case 2:
-            ObjectSetFunc(prank, 2, sub_080A1430);
+            ObjectSetFunc(prank, 2, FN(sub_080A1430));
             prank->base.xspeed = 0x180;
             if (prank->base.flags & 1)
             {
@@ -229,7 +229,7 @@ static void sub_080A14FC(struct Object *prank)
 
 void sub_080A158C(struct Object *prank)
 {
-    ObjectSetFunc(prank, 0xe, sub_080A163C);
+    ObjectSetFunc(prank, 0xe, FN(sub_080A163C));
     prank->base.flags &= ~2;
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
@@ -240,7 +240,7 @@ static void sub_080A163C(struct Object *prank)
 {
     if (prank->base.flags & 2)
     {
-        ObjectSetFunc(prank, 0, sub_080A250C);
+        ObjectSetFunc(prank, 0, FN(sub_080A250C));
         prank->base.flags &= ~0x800;
         prank->base.counter = 0x28;
         prank->base.xspeed = 0;
@@ -271,7 +271,7 @@ static void sub_080A170C(struct Object *prank)
                 if (prank->base.unk62 & 4)
                 {
                     prank->unk83 = 3;
-                    prank->unk78 = sub_080A265C;
+                    prank->unk78 = FN(sub_080A265C);
                     prank->base.xspeed = 0;
                     prank->base.yspeed = 0;
                 }
@@ -296,7 +296,7 @@ bool32 sub_080A1804(struct Object *prank, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(prank, 0x10, sub_080A1898);
+    ObjectSetFunc(prank, 0x10, FN(sub_080A1898));
     prank->base.flags &= ~2;
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
@@ -311,7 +311,7 @@ static void sub_080A1898(struct Object *prank)
 {
     if (prank->base.flags & 2)
     {
-        ObjectSetFunc(prank, 0, sub_080A250C);
+        ObjectSetFunc(prank, 0, FN(sub_080A250C));
         prank->base.flags &= ~0x800;
         prank->base.counter = 0x28;
         prank->base.xspeed = 0;
@@ -388,7 +388,7 @@ static void sub_080A19DC(struct Object *prank)
 
 void *CreatePrankItem(struct ObjectTemplate *template_, u8 arg1)
 {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *item = tmp;
 
     InitObject(item, template_, arg1);
@@ -407,11 +407,11 @@ void *CreatePrankItem(struct ObjectTemplate *template_, u8 arg1)
     ObjectInitSprite(item);
     item->base.sprite.unk14 = 0x640;
     item->unk9E = 0;
-    item->unk7C = sub_0809F840;
+    item->unk7C = FN(sub_0809F840);
     if (item->type == OBJ_PRANK_BOMB && item->objTemplate->subtype1)
         sub_080A2940(item);
     else
-        gUnk_08351648[item->type].unk10(item);
+        CALL(gUnk_08351648[item->type].unk10)(item);
     return item;
 }
 
@@ -423,7 +423,7 @@ static void sub_080A1C20(struct Object *item)
 
     item->unk9E = 0;
     item->unk7C = NULL;
-    ObjectSetFunc(item, 0, sub_080A1DE4);
+    ObjectSetFunc(item, 0, FN(sub_080A1DE4));
     dist = abs(kirby->base.x - item->base.x) >> 8;
     if (dist < 0x32)
     {
@@ -493,7 +493,7 @@ static void sub_080A1E74(struct Object *item)
         if (!(Rand16() & 7))
         {
             item->base.counter = 0x258;
-            item->unk78 = sub_080A290C;
+            item->unk78 = FN(sub_080A290C);
         }
         else
         {
@@ -515,7 +515,7 @@ static void sub_080A1EF4(struct Object *prank)
 
 static void sub_080A1FB8(struct Object *prank)
 {
-    struct Task *t = TaskCreate(sub_080A2080, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080A2080), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -573,7 +573,7 @@ static void sub_080A21AC(struct Object *prank)
 
 void *CreateBananaPeel(struct ObjectTemplate *template_, u8 arg1)
 {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *peel = tmp;
 
     InitObject(peel, template_, arg1);
@@ -594,8 +594,8 @@ void *CreateBananaPeel(struct ObjectTemplate *template_, u8 arg1)
         peel->base.flags |= 1;
     ObjectInitSprite(peel);
     peel->unk9E = 0;
-    peel->unk7C = sub_080A29F0;
-    gUnk_08351648[peel->type].unk10(peel);
+    peel->unk7C = FN(sub_080A29F0);
+    CALL(gUnk_08351648[peel->type].unk10)(peel);
     return peel;
 }
 
@@ -605,14 +605,14 @@ static void sub_080A2380(struct Object *peel)
     {
         struct Object *prank = peel->base.parent;
 
-        ObjectSetFunc(peel, 0, sub_080A29A0);
+        ObjectSetFunc(peel, 0, FN(sub_080A29A0));
         peel->base.xspeed = 0x80;
         peel->base.yspeed = 0x180;
         if (Rand16() & 1)
             peel->base.xspeed = -peel->base.xspeed;
         if (prank && prank->unk83 <= 2)
         {
-            ObjectSetFunc(prank, 0, sub_080A250C);
+            ObjectSetFunc(prank, 0, FN(sub_080A250C));
             prank->base.flags &= ~0x800;
             prank->base.counter = 0x28;
             prank->base.xspeed = 0;
@@ -628,13 +628,13 @@ static void sub_080A2380(struct Object *peel)
 
 void sub_080A243C(struct Object *item)
 {
-    ObjectSetFunc(item, 0, sub_080A28BC);
+    ObjectSetFunc(item, 0, FN(sub_080A28BC));
     item->base.flags |= 0x40;
 }
 
 void sub_080A245C(struct Object *prank)
 {
-    ObjectSetFunc(prank, 0, sub_080A250C);
+    ObjectSetFunc(prank, 0, FN(sub_080A250C));
     prank->base.flags &= ~0x800;
     prank->base.counter = 0x28;
     prank->base.xspeed = 0;
@@ -644,7 +644,7 @@ void sub_080A245C(struct Object *prank)
 
 void sub_080A2494(struct Object *peel)
 {
-    ObjectSetFunc(peel, 0, sub_080A2970);
+    ObjectSetFunc(peel, 0, FN(sub_080A2970));
     peel->base.xspeed = 0;
 }
 
@@ -661,7 +661,7 @@ static void sub_080A24B0(struct Object *prank)
 static void sub_080A24D8(struct Object *prank)
 {
     prank->unk83 = 1;
-    prank->unk78 = sub_080A1344;
+    prank->unk78 = FN(sub_080A1344);
     prank->base.xspeed = 0x80;
     if (prank->base.flags & 1)
         prank->base.xspeed = -prank->base.xspeed;
@@ -680,7 +680,7 @@ static void sub_080A250C(struct Object *prank)
 
 static void sub_080A2534(struct Object *prank)
 {
-    ObjectSetFunc(prank, 2, sub_080A1430);
+    ObjectSetFunc(prank, 2, FN(sub_080A1430));
     prank->base.xspeed = 0x180;
     if (prank->base.flags & 1)
         prank->base.xspeed = -prank->base.xspeed;
@@ -694,7 +694,7 @@ static void sub_080A2570(struct Object *prank)
         sub_080A2800(prank);
     else
     {
-        ObjectSetFunc(prank, 0xA, sub_080A25DC);
+        ObjectSetFunc(prank, 0xA, FN(sub_080A25DC));
         prank->base.xspeed = 0;
         prank->base.yspeed = 0;
         prank->base.flags &= ~2;
@@ -713,7 +713,7 @@ static void sub_080A25DC(struct Object *prank)
         sub_080A19DC(prank);
     if (prank->base.flags & 2)
     {
-        ObjectSetFunc(prank, 0, sub_080A250C);
+        ObjectSetFunc(prank, 0, FN(sub_080A250C));
         prank->base.flags &= ~0x800;
         prank->base.counter = 0x28;
         prank->base.xspeed = 0;
@@ -727,7 +727,7 @@ static void sub_080A262C(struct Object *prank)
     if (prank->base.unk62 & 4)
     {
         prank->unk83 = 3;
-        prank->unk78 = sub_080A265C;
+        prank->unk78 = FN(sub_080A265C);
         prank->base.xspeed = 0;
         prank->base.yspeed = 0;
     }
@@ -742,7 +742,7 @@ static void sub_080A265C(struct Object *prank)
 static void sub_080A2674(struct Object *prank)
 {
     prank->unk83 = 4;
-    prank->unk78 = sub_080A26B4;
+    prank->unk78 = FN(sub_080A26B4);
     prank->base.xspeed = 0x100;
     prank->base.yspeed = 0x200;
     prank->base.flags |= 0x20;
@@ -764,14 +764,14 @@ static void sub_080A26B4(struct Object *prank)
 static void sub_080A26F0(struct Object *prank)
 {
     prank->unk83 = 7;
-    prank->unk78 = sub_080A14FC;
+    prank->unk78 = FN(sub_080A14FC);
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
 }
 
 static void sub_080A2710(struct Object *prank)
 {
-    ObjectSetFunc(prank, 2, sub_080A170C);
+    ObjectSetFunc(prank, 2, FN(sub_080A170C));
     prank->base.xspeed = 0x180;
     if (prank->base.flags & 1)
         prank->base.xspeed = -prank->base.xspeed;
@@ -780,7 +780,7 @@ static void sub_080A2710(struct Object *prank)
 
 static void sub_080A2748(struct Object *prank)
 {
-    ObjectSetFunc(prank, 8, sub_080A196C);
+    ObjectSetFunc(prank, 8, FN(sub_080A196C));
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
     prank->base.flags |= 0x200;
@@ -788,7 +788,7 @@ static void sub_080A2748(struct Object *prank)
 
 static void sub_080A2774(struct Object *prank)
 {
-    ObjectSetFunc(prank, 9, sub_080A27A0);
+    ObjectSetFunc(prank, 9, FN(sub_080A27A0));
     prank->base.flags &= ~2;
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
@@ -807,7 +807,7 @@ static void sub_080A27A0(struct Object *prank)
 
 static void sub_080A27D0(struct Object *prank)
 {
-    ObjectSetFunc(prank, 0, sub_080A27F4);
+    ObjectSetFunc(prank, 0, FN(sub_080A27F4));
     prank->base.xspeed = 0;
     prank->base.yspeed = 0;
 }
@@ -819,7 +819,7 @@ static void sub_080A27F4(struct Object *prank)
 
 static void sub_080A2800(struct Object *prank)
 {
-    ObjectSetFunc(prank, 0xB, sub_080A2850);
+    ObjectSetFunc(prank, 0xB, FN(sub_080A2850));
     prank->base.flags &= ~2;
     prank->base.xspeed = 0;
     prank->kirby3 = FindTargetKirby(&prank->base);
@@ -842,7 +842,7 @@ static void sub_080A2850(struct Object *prank)
 
 static void sub_080A2880(struct Object *prank)
 {
-    ObjectSetFunc(prank, 0xC, sub_080A28A0);
+    ObjectSetFunc(prank, 0xC, FN(sub_080A28A0));
     prank->base.flags &= ~4;
 }
 
@@ -877,7 +877,7 @@ static void sub_080A290C(struct Object *item)
 
 static void sub_080A2940(struct Object *item)
 {
-    ObjectSetFunc(item, 0, sub_080A1E74);
+    ObjectSetFunc(item, 0, FN(sub_080A1E74));
     item->base.xspeed = 0;
     item->base.yspeed = 0;
     item->kirbyAbility = KIRBY_ABILITY_BOMB;
@@ -903,7 +903,7 @@ static void sub_080A29A0(struct Object *peel)
     if (peel->base.unk62 & 4)
     {
         peel->base.flags &= ~0x200;
-        ObjectSetFunc(peel, 0, sub_080A2970);
+        ObjectSetFunc(peel, 0, FN(sub_080A2970));
         peel->base.xspeed = 0;
     }
 }
@@ -919,3 +919,41 @@ static void sub_080A29F0(struct Object *peel)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_prank) {
+    PORT_FNID(CreatePrank),
+    PORT_FNID(sub_080A12E4),
+    PORT_FNID(sub_080A1344),
+    PORT_FNID(sub_080A1430),
+    PORT_FNID(sub_080A14FC),
+    PORT_FNID(sub_080A163C),
+    PORT_FNID(sub_080A170C),
+    PORT_FNID(sub_080A1898),
+    PORT_FNID(sub_080A196C),
+    PORT_FNID(CreatePrankItem),
+    PORT_FNID(sub_080A1DE4),
+    PORT_FNID(sub_080A1E74),
+    PORT_FNID(sub_080A2080),
+    PORT_FNID(CreateBananaPeel),
+    PORT_FNID(sub_080A243C),
+    PORT_FNID(sub_080A2494),
+    PORT_FNID(sub_080A24B0),
+    PORT_FNID(sub_080A250C),
+    PORT_FNID(sub_080A25DC),
+    PORT_FNID(sub_080A265C),
+    PORT_FNID(sub_080A26B4),
+    PORT_FNID(sub_080A27A0),
+    PORT_FNID(sub_080A27F4),
+    PORT_FNID(sub_080A2850),
+    PORT_FNID(sub_080A28A0),
+    PORT_FNID(sub_080A28BC),
+    PORT_FNID(sub_080A290C),
+    PORT_FNID(sub_080A2970),
+    PORT_FNID(sub_080A29A0),
+    PORT_FNID(sub_080A29F0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

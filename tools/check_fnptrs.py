@@ -976,7 +976,12 @@ def main():
         out = []
         for p in paths:
             raw = p.read_text(errors='replace')
-            out.append((str(p.relative_to(root)), blank_comments(raw), raw))
+            # FN(f) is f as a code ID (platform/port/fnid.h); the slot it
+            # goes into is typed exactly as before, so check it as f.  Padded
+            # so offsets and line numbers still match the file.
+            text = re.sub(r'\bFN\((\w+)\)', lambda m: m.group(1) + '    ',
+                          blank_comments(raw))
+            out.append((str(p.relative_to(root)), text, raw))
         return out
 
     src = load(sources)

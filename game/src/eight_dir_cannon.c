@@ -65,7 +65,7 @@ static void sub_081222AC(struct ObjectBase *objBase, u8 direction) {
 
 void *CreateEightDirCannon(struct ObjectTemplate *arg0, u8 arg1) {
     struct EightDirCannon *cannon;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct EightDirCannon), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct EightDirCannon), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     cannon = TaskGetStructPtr(task);
     InitObject(&cannon->obj, arg0, arg1);
     cannon->obj.base.flags |= 0x00218940;
@@ -76,7 +76,7 @@ void *CreateEightDirCannon(struct ObjectTemplate *arg0, u8 arg1) {
     sub_0803E2B0(&cannon->obj.base, -8, -8, 8, 8);
     ObjectSetBounds(&cannon->obj.base, -8, -8, 8, 8);
     ObjectInitSprite(&cannon->obj);
-    gUnk_08351648[cannon->obj.type].unk10(&cannon->obj);
+    CALL(gUnk_08351648[cannon->obj.type].unk10)(&cannon->obj);
     return cannon;
 }
 
@@ -90,7 +90,7 @@ void EightDirCannonSetFunc(struct EightDirCannon *cannon) {
     cannon->unkB9 = 0;
     cannon->unkBA = 0;
     cannon->obj.unk83 = cannon->unkB4;
-    cannon->obj.unk78 = EightDirCannonIdle;
+    cannon->obj.unk78 = FN(EightDirCannonIdle);
 }
 
 static void EightDirCannonIdle(struct EightDirCannon *cannon) {
@@ -173,7 +173,7 @@ static void EightDirCannonRotate(struct EightDirCannon *cannon) {
                     if ((cannon2->unkBA >> i) & 1)
                         sub_08051F70(&gKirbys[i], cannon2->unkB4);
                 }
-                cannon->obj.unk78 = EightDirCannonRecoil;
+                cannon->obj.unk78 = FN(EightDirCannonRecoil);
                 cannon2->unkB7 &= ~8;
                 sub_081222AC(&cannon->obj.base, cannon2->unkB4);
                 RequestScreenShake(3, &cannon->obj.base);
@@ -184,7 +184,7 @@ static void EightDirCannonRotate(struct EightDirCannon *cannon) {
                 if ((cannon2->unkBA >> i) & 1)
                     sub_08051F70(&gKirbys[i], cannon2->unkB4);
             }
-            cannon->obj.unk78 = EightDirCannonRecoil;
+            cannon->obj.unk78 = FN(EightDirCannonRecoil);
             cannon2->unkB7 &= ~8;
             sub_081222AC(&cannon->obj.base, cannon2->unkB4);
             RequestScreenShake(3, &cannon->obj.base);
@@ -274,7 +274,7 @@ static void EightDirCannonRecoil(struct EightDirCannon *cannon) {
         cannon->unkB7 = 8;
         cannon->unkB5 = 5;
         cannon->unkBA = 0;
-        cannon->obj.unk78 = EightDirCannonIdle;
+        cannon->obj.unk78 = FN(EightDirCannonIdle);
     }
     cannon->obj.base.counter++;
 }
@@ -282,3 +282,15 @@ static void EightDirCannonRecoil(struct EightDirCannon *cannon) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_eight_dir_cannon) {
+    PORT_FNID(CreateEightDirCannon),
+    PORT_FNID(EightDirCannonSetFunc),
+    PORT_FNID(EightDirCannonIdle),
+    PORT_FNID(EightDirCannonRecoil),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

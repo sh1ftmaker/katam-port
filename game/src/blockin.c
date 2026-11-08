@@ -23,7 +23,7 @@ extern const struct AnimInfo gUnk_08353420[] = {
 void* CreateBlockin(struct ObjectTemplate* arg0, u8 arg1) {
     struct Task *task;
     struct Object *obj;
-    task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     obj = TaskGetStructPtr(task);
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x8000;
@@ -35,7 +35,7 @@ void* CreateBlockin(struct ObjectTemplate* arg0, u8 arg1) {
     ObjectSetBounds(&obj->base, -6, -10, 6, 7);
     ObjectInitSprite(obj);
     obj->base.sprite.unk14 = 0x700;
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = 0;
     return obj;
@@ -167,7 +167,7 @@ static void sub_080A4840(struct Object* arg0) {
 }
 
 void sub_080A49D0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A4728);
+    ObjectSetFunc(arg0, 0, FN(sub_080A4728));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->base.flags |= 0x40;
@@ -181,7 +181,7 @@ static void sub_080A4A08(struct Object* arg0) {
     if (arg0->kirby3->base.header.kind != 0 && arg0->kirby3->base.parent != NULL) {
         arg0->kirby3 = arg0->kirby3->base.parent;
     }
-    ObjectSetFunc(arg0, 1, sub_080A47C8);
+    ObjectSetFunc(arg0, 1, FN(sub_080A47C8));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -196,9 +196,22 @@ static void sub_080A4A08(struct Object* arg0) {
 }
 
 static void sub_080A4A7C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080A4840);
+    ObjectSetFunc(arg0, 2, FN(sub_080A4840));
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_blockin) {
+    PORT_FNID(CreateBlockin),
+    PORT_FNID(sub_080A4728),
+    PORT_FNID(sub_080A47C8),
+    PORT_FNID(sub_080A4840),
+    PORT_FNID(sub_080A49D0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

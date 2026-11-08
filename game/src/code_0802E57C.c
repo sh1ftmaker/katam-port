@@ -71,14 +71,14 @@ static const struct Unk_0802E57C_174 gUnk_082EB740[] = {
 };
 
 struct Unk_0802E57C *sub_0802E57C(void) {
-    struct Task *t = TaskCreate(sub_0802E78C, sizeof(struct Unk_0802E57C), 0x100, TASK_USE_IWRAM, sub_0802E71C);
+    struct Task *t = TaskCreate(FN(sub_0802E78C), sizeof(struct Unk_0802E57C), 0x100, TASK_USE_IWRAM, FN(sub_0802E71C));
     struct Unk_0802E57C *tmp = TaskGetStructPtr(t), *x = tmp;
     struct Sprite *s;
     u16 i;
 
     CpuFill16(0, x, sizeof(struct Unk_0802E57C));
     x->unk0 = t;
-    x->unk4 = sub_0802FD3C;
+    x->unk4 = FN(sub_0802FD3C);
     gDispCnt |= DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
     s = &x->unk14C;
     SpriteInitNoFunc(s, VramMalloc(0x10), 0x280, 0x2DE, 0, 0, 0xFF, 0x10, 0xB, 0, 0, 0);
@@ -96,7 +96,7 @@ struct Unk_0802E57C *sub_0802E57C(void) {
 void sub_0802E6C4(struct Unk_0802E57C *x) {
     struct Sprite s;
 
-    x->unk4 = sub_0802EA4C;
+    x->unk4 = FN(sub_0802EA4C);
     if (!x->unk8) {
         x->unk8 = VramMalloc(0x100);
         SpriteInitNoPointer(&s, x->unk8, 0, 0x292, 0, 0, 0xFF, 0x10, 0xB, 0, 0, 0);
@@ -149,7 +149,7 @@ static void sub_0802E78C(void) {
             sub_0802F8D8(x, gUnk_082EB954[gUnk_082EB984[idx]][0], gUnk_082EB954[gUnk_082EB984[idx]][1], x->unk8,
                          pos[0], pos[1], speed[0], speed[1], duration);
         }
-        x->unk4(x);
+        CALL(x->unk4)(x);
         x->unk18C++;
     } else if (x->unk188 & 0x80000000) {
         TaskDestroy(gCurTask);
@@ -231,10 +231,10 @@ static void sub_0802EA4C(struct Unk_0802E57C *x) {
             c->unk3A = -0x400;
             break;
         }
-        c->unk28 = sub_0802FC08;
+        c->unk28 = FN(sub_0802FC08);
     }
     x->unk188 |= 0x100;
-    x->unk4 = sub_0802EBB0;
+    x->unk4 = FN(sub_0802EBB0);
     sub_0802EBB0(x);
 }
 
@@ -272,7 +272,7 @@ static void sub_0802EBB0(struct Unk_0802E57C *x) {
         }
         sub_0802FA40(x, 0x292, 0, x->unk8, x->unk178, x->unk17C, 0, 0, 1);
         m4aSongNumStart(SE_KIRBY_STAR_DESTROY);
-        x->unk4 = sub_0802FE30;
+        x->unk4 = FN(sub_0802FE30);
     }
 }
 
@@ -294,7 +294,7 @@ void sub_0802ECBC(struct Unk_0802E57C *x) {
         sub_0802EF90(x, c);
     }
     if (x->unk190++ > 30) {
-        x->unk4 = sub_0802ED44;
+        x->unk4 = FN(sub_0802ED44);
     }
 }
 
@@ -316,7 +316,7 @@ static void sub_0802ED44(struct Unk_0802E57C *x) {
         sub_0802EF90(x, c);
     }
     if (x->unk188 & 0x200) {
-        x->unk4 = sub_0802EDC8;
+        x->unk4 = FN(sub_0802EDC8);
     }
 }
 
@@ -335,7 +335,7 @@ static void sub_0802EDC8(struct Unk_0802E57C *x) {
     } else {
         m4aSongNumStart(SE_08D5C490);
     }
-    x->unk4 = sub_0802EE54;
+    x->unk4 = FN(sub_0802EE54);
     sub_0802EE54(x);
 }
 
@@ -346,7 +346,7 @@ static void sub_0802EE54(struct Unk_0802E57C *x) {
     if (x->unk174[x->unk184].unk6 & 1 || x->unk178 < -0x4000 || x->unk178 > 0x13000 || x->unk17C < -0x4000
         || x->unk17C > 0xE000) {
         x->unk188 &= ~0x100;
-        x->unk4 = sub_0802FE4C;
+        x->unk4 = FN(sub_0802FE4C);
         return;
     }
     if (x->unk174[x->unk184].unk4 < x->unk186++) {
@@ -395,7 +395,7 @@ void sub_0802EF90(struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
             }
         }
     }
-    c->unk28(x, c);
+    CALL(c->unk28)(x, c);
     s = &c->unk0;
     if (c->unk2C & 1) {
         s->unk8 |= 0x400;
@@ -433,7 +433,7 @@ void sub_0802F088(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
     }
     c->unk48 = 0;
     c->unk4A = 0;
-    c->unk28 = sub_0802F110;
+    c->unk28 = FN(sub_0802F110);
 }
 
 static void sub_0802F110(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
@@ -484,7 +484,7 @@ void sub_0802F1C4(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
     }
     c->unk34 = 0x8000;
     c->unk48 = Rand16() & 0x1F;
-    c->unk28 = sub_0802F240;
+    c->unk28 = FN(sub_0802F240);
 }
 
 static void sub_0802F240(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
@@ -528,7 +528,7 @@ void sub_0802F2D0(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
     c->unk34 = 0x8000;
     c->unk48 = Rand16() & 0x1F;
     c->unk4A = 0;
-    c->unk28 = sub_0802F354;
+    c->unk28 = FN(sub_0802F354);
 }
 
 static void sub_0802F354(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
@@ -575,7 +575,7 @@ void sub_0802F40C(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
         c->unk0.unk1B = 0xFF;
         c->unk2C &= ~8;
         c->unk2C &= ~0x10;
-        c->unk28 = sub_0802F464;
+        c->unk28 = FN(sub_0802F464);
     }
 }
 
@@ -589,7 +589,7 @@ static void sub_0802F464(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c
         c->unk0.unk1B = 0xFF;
         c->unk2C &= ~8;
         c->unk2C |= 0x10;
-        c->unk28 = sub_08030018;
+        c->unk28 = FN(sub_08030018);
     }
 }
 
@@ -607,7 +607,7 @@ void sub_0802F4BC(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
     c->unk34 = 0x8000;
     c->unk48 = 0;
     c->unk4A = 0;
-    c->unk28 = sub_08030024;
+    c->unk28 = FN(sub_08030024);
 }
 
 void sub_0802F51C(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
@@ -633,9 +633,9 @@ void sub_0802F51C(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
         c->unk2C &= ~8;
         c->unk2C |= 0x10;
         if (c->unk2C & 0x40) {
-            c->unk28 = sub_08030068;
+            c->unk28 = FN(sub_08030068);
         } else {
-            c->unk28 = sub_080301DC;
+            c->unk28 = FN(sub_080301DC);
         }
     }
 }
@@ -656,10 +656,10 @@ void sub_0802F5B8(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
         c->unk3A += 0x26;
         c->unk3A = c->unk3A < -0x150 ? -0x150 : (c->unk3A > 0x280 ? 0x280 : c->unk3A);
         if (c->unk48++ > 30) {
-            c->unk28 = sub_080300A0;
+            c->unk28 = FN(sub_080300A0);
         }
     } else {
-        c->unk28 = sub_0803010C;
+        c->unk28 = FN(sub_0803010C);
     }
 }
 
@@ -673,10 +673,10 @@ void sub_0802F638(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
             c->unk0.unk1B = 0xFF;
             c->unk2C &= ~8;
             c->unk2C &= ~0x10;
-            c->unk28 = sub_080300CC;
+            c->unk28 = FN(sub_080300CC);
         }
     } else {
-        c->unk28 = sub_0803017C;
+        c->unk28 = FN(sub_0803017C);
     }
 }
 
@@ -697,7 +697,7 @@ void sub_0802F6A0(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
         c->unk3A = c->unk3A < -0x280 ? -0x280 : (c->unk3A > 0x280 ? 0x280 : c->unk3A);
     }
     if (c->unk2C & 8) {
-        c->unk28 = sub_080301B0;
+        c->unk28 = FN(sub_080301B0);
     }
 }
 
@@ -717,7 +717,7 @@ void sub_0802F714(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
         c->unk3A += 0x26;
         c->unk3A = c->unk3A < -0x280 ? -0x280 : (c->unk3A > 0x280 ? 0x280 : c->unk3A);
     } else {
-        c->unk28 = sub_0803010C;
+        c->unk28 = FN(sub_0803010C);
     }
 }
 
@@ -743,7 +743,7 @@ void sub_0802F77C(struct Unk_0802E57C *x, struct Unk_0802E57C_C *c) {
     } else if (c->unk30 > 0xA000) {
         c->unk2C |= 1;
     }
-    c->unk28 = sub_0802F810;
+    c->unk28 = FN(sub_0802F810);
     sub_0802F810(x, c);
 }
 
@@ -766,7 +766,7 @@ static void sub_0802F810(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c
         }
         c->unk38 = c->unk38 < -0x110 ? -0x110 : (c->unk38 > 0x110 ? 0x110 : c->unk38);
         if (v == c->unk4A) {
-            c->unk28 = sub_0802F77C;
+            c->unk28 = FN(sub_0802F77C);
         }
         c->unk48++;
     }
@@ -775,3 +775,36 @@ static void sub_0802F810(UNUSED struct Unk_0802E57C *x, struct Unk_0802E57C_C *c
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0802E57C) {
+    PORT_FNID(sub_0802E71C),
+    PORT_FNID(sub_0802E78C),
+    PORT_FNID(sub_0802E97C),
+    PORT_FNID(sub_0802EA4C),
+    PORT_FNID(sub_0802EBB0),
+    PORT_FNID(sub_0802ECBC),
+    PORT_FNID(sub_0802ED44),
+    PORT_FNID(sub_0802EDC8),
+    PORT_FNID(sub_0802EE54),
+    PORT_FNID(sub_0802F088),
+    PORT_FNID(sub_0802F110),
+    PORT_FNID(sub_0802F1C4),
+    PORT_FNID(sub_0802F240),
+    PORT_FNID(sub_0802F2D0),
+    PORT_FNID(sub_0802F354),
+    PORT_FNID(sub_0802F40C),
+    PORT_FNID(sub_0802F464),
+    PORT_FNID(sub_0802F4BC),
+    PORT_FNID(sub_0802F51C),
+    PORT_FNID(sub_0802F5B8),
+    PORT_FNID(sub_0802F638),
+    PORT_FNID(sub_0802F6A0),
+    PORT_FNID(sub_0802F714),
+    PORT_FNID(sub_0802F77C),
+    PORT_FNID(sub_0802F810),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

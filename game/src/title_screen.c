@@ -74,11 +74,11 @@ void CreateTitleScreen(void) {
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 16;
-    task = TaskCreate(TitleScreenMain, sizeof(struct TitleStruct), 0x1000, TASK_USE_IWRAM, sub_0814A1C8);
+    task = TaskCreate(FN(TitleScreenMain), sizeof(struct TitleStruct), 0x1000, TASK_USE_IWRAM, FN(sub_0814A1C8));
     title = TaskGetStructPtr(task);
     CpuFill16(0, title, sizeof(struct TitleStruct));
     title->unk4 = 0;
-    title->unk130 = sub_0814A410;
+    title->unk130 = FN(sub_0814A410);
     sub_0814A274(title);
 }
 
@@ -91,19 +91,19 @@ static void TitleScreenMain(void) {
     title->unk0++;
 
     if ((title->unk4 != 0) && (title->unk4 != 2) && (title->unk0 > 0x4a) && (gPressedKeys & (START_BUTTON | A_BUTTON))) {
-        title->unk130 = sub_0814A6BC;
+        title->unk130 = FN(sub_0814A6BC);
         title->unk4 = 2;
     }
     else if ((title->unk0 > 0x257) && (title->unk4 != 2)) {
-        title->unk130 = sub_0814A518;
+        title->unk130 = FN(sub_0814A518);
         title->unk4 = 2;
     }
 
     if (title->unk144 != NULL) {
-        title->unk144(title);
+        CALL(title->unk144)(title);
     }
 
-    title->unk130(title);
+    CALL(title->unk130)(title);
 }
 
 static void TitleScreenSpriteInit(struct TitleStruct* arg0) {
@@ -126,7 +126,7 @@ static void TitleScreenSpriteInit(struct TitleStruct* arg0) {
         sub_08155128(cur);
     }
 
-    arg0->unk12C = sub_08149F08;
+    arg0->unk12C = FN(sub_08149F08);
 }
 
 static void sub_08149F08(struct TitleStruct* arg0) {
@@ -140,7 +140,7 @@ static void sub_08149F08(struct TitleStruct* arg0) {
     if (sub_08155128(r6) == 0) {
         r6->unk1B = 0xff;
         if (++arg0->unk128 > 9) {
-            arg0->unk12C = sub_0814A404;
+            arg0->unk12C = FN(sub_0814A404);
             arg0->unk8 &= ~1;
         }
     }
@@ -201,7 +201,7 @@ static void TitleScreenGraphicsInit(struct TitleStruct* arg0) {
 
     TitleScreenSpriteInit(arg0);
     arg0->unk134 = 0;
-    arg0->unk130 = TitleScreenFadeIn;
+    arg0->unk130 = FN(TitleScreenFadeIn);
 }
 
 static void TitleScreenFadeIn(struct TitleStruct* arg0) {
@@ -213,7 +213,7 @@ static void TitleScreenFadeIn(struct TitleStruct* arg0) {
         gBldRegs.bldAlpha = 0;
         gBldRegs.bldCnt = 0;
         arg0->unk4 = 1;
-        arg0->unk130 = sub_0814A420;
+        arg0->unk130 = FN(sub_0814A420);
     }
 }
 
@@ -242,33 +242,33 @@ static void TitleScreenClearMap(u8 arg0) {
 
 static void sub_0814A274(struct TitleStruct* arg0) {
     sub_0814F3C4(&arg0->unk138, *gUnk_08D626F0[gLanguage][1]);
-    arg0->unk144 = sub_0814A2B0;
+    arg0->unk144 = FN(sub_0814A2B0);
 }
 
 static void sub_0814A2B0(struct TitleStruct* arg0) {
     if (arg0->unk4 == 1) {
-        arg0->unk144 = sub_0814A2CC;
+        arg0->unk144 = FN(sub_0814A2CC);
     }
 }
 
 static void sub_0814A2CC(struct TitleStruct* arg0) {
     if (!sub_0814F274(&arg0->unk138)) {
         sub_0814F3C4(&arg0->unk138, *gUnk_08D626F0[gLanguage][0]);
-        arg0->unk144 = sub_0814A310;
+        arg0->unk144 = FN(sub_0814A310);
     }
 }
 
 static void sub_0814A310(struct TitleStruct* arg0) {
     if (!sub_0814F274(&arg0->unk138)) {
         sub_0814F3C4(&arg0->unk138, *gUnk_08D626F0[gLanguage][1]);
-        arg0->unk144 = sub_0814A358;
+        arg0->unk144 = FN(sub_0814A358);
     }
 }
 
 static void sub_0814A358(struct TitleStruct* arg0) {
     if (!sub_0814F274(&arg0->unk138)) {
         sub_0814F3C4(&arg0->unk138, *gUnk_08D626F0[gLanguage][0]);
-        arg0->unk144 = sub_0814A310;
+        arg0->unk144 = FN(sub_0814A310);
     }
 }
 
@@ -287,7 +287,7 @@ static void sub_0814A404(struct TitleStruct* arg0) {
 }
 
 static void sub_0814A410(struct TitleStruct* arg0) {
-    arg0->unk130 = TitleScreenGraphicsInit;
+    arg0->unk130 = FN(TitleScreenGraphicsInit);
 }
 
 static void sub_0814A420(struct TitleStruct* arg0) {
@@ -296,12 +296,12 @@ static void sub_0814A420(struct TitleStruct* arg0) {
     gBldRegs.bldAlpha = BLDALPHA_BLEND(16, 16);
     gBldRegs.bldY = 0;
     gDispCnt |= DISPCNT_BG0_ON;
-    arg0->unk130 = sub_0814A46C;
+    arg0->unk130 = FN(sub_0814A46C);
 }
 
 static void sub_0814A46C(struct TitleStruct* arg0) {
     if (++arg0->unk134 > 2) {
-        arg0->unk130 = sub_0814A49C;
+        arg0->unk130 = FN(sub_0814A49C);
         arg0->unk134 = 0;
     }
 }
@@ -309,33 +309,33 @@ static void sub_0814A46C(struct TitleStruct* arg0) {
 static void sub_0814A49C(struct TitleStruct* arg0) {
     m4aSongNumStartOrChange(MUS_TITLE_SCREEN);
     arg0->unk134 = 0;
-    arg0->unk130 = sub_0814A4C4;
+    arg0->unk130 = FN(sub_0814A4C4);
 }
 
 static void sub_0814A4C4(struct TitleStruct* arg0) {
     if (arg0->unk0 > 0x18f) {
         m4aMPlayFadeOut(&gMPlayInfo_0, 0x11);
-        arg0->unk130 = sub_0814A504;
+        arg0->unk130 = FN(sub_0814A504);
     }
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A504(struct TitleStruct* arg0) {
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A518(struct TitleStruct* arg0) {
     arg0->unk144 = NULL;
     arg0->unk138.unk6 &= ~0x40;
-    arg0->unk130 = sub_0814A558;
-    arg0->unk12C(arg0);
+    arg0->unk130 = FN(sub_0814A558);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A558(struct TitleStruct* arg0) {
     if (!sub_0814F274(&arg0->unk138)) {
-        arg0->unk130 = TitleScreenFadeSetup;
+        arg0->unk130 = FN(TitleScreenFadeSetup);
     }
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void TitleScreenFadeSetup(struct TitleStruct* arg0) {
@@ -344,8 +344,8 @@ static void TitleScreenFadeSetup(struct TitleStruct* arg0) {
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
     arg0->unk134 = 0;
-    arg0->unk130 = TitleScreenFadeOut;
-    arg0->unk12C(arg0);
+    arg0->unk130 = FN(TitleScreenFadeOut);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void TitleScreenFadeOut(struct TitleStruct* arg0) {
@@ -353,10 +353,10 @@ static void TitleScreenFadeOut(struct TitleStruct* arg0) {
     gBldRegs.bldY = arg0->unk134 * 16 / 60;
 
     if (arg0->unk134 > 59) {
-        arg0->unk130 = TitleScreenShowDemo;
+        arg0->unk130 = FN(TitleScreenShowDemo);
     }
 
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void TitleScreenShowDemo(struct TitleStruct* arg0) {
@@ -382,8 +382,8 @@ static void sub_0814A6BC(struct TitleStruct* arg0) {
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
     arg0->unk134 = 0;
-    arg0->unk130 = sub_0814A70C;
-    arg0->unk12C(arg0);
+    arg0->unk130 = FN(sub_0814A70C);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A70C(struct TitleStruct* arg0) {
@@ -391,24 +391,24 @@ static void sub_0814A70C(struct TitleStruct* arg0) {
     gBldRegs.bldY = arg0->unk134 * 16 / 10;
 
     if (arg0->unk134 > 9) {
-        arg0->unk130 = sub_0814A75C;
+        arg0->unk130 = FN(sub_0814A75C);
     }
     
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A75C(struct TitleStruct* arg0) {
     m4aSongNumStop(MUS_TITLE_SCREEN);
     arg0->unk134 = 0;
-    arg0->unk130 = sub_0814A794;
-    arg0->unk12C(arg0);
+    arg0->unk130 = FN(sub_0814A794);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A794(struct TitleStruct* arg0) {
     if (++arg0->unk134 > 4) {
-        arg0->unk130 = sub_0814A7CC;
+        arg0->unk130 = FN(sub_0814A7CC);
     }
-    arg0->unk12C(arg0);
+    CALL(arg0->unk12C)(arg0);
 }
 
 static void sub_0814A7CC(struct TitleStruct* arg0) {
@@ -422,3 +422,38 @@ static void sub_0814A7CC(struct TitleStruct* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_title_screen) {
+    PORT_FNID(CreateTitleScreen),
+    PORT_FNID(TitleScreenMain),
+    PORT_FNID(sub_08149F08),
+    PORT_FNID(TitleScreenGraphicsInit),
+    PORT_FNID(TitleScreenFadeIn),
+    PORT_FNID(sub_0814A1C8),
+    PORT_FNID(sub_0814A2B0),
+    PORT_FNID(sub_0814A2CC),
+    PORT_FNID(sub_0814A310),
+    PORT_FNID(sub_0814A358),
+    PORT_FNID(sub_0814A404),
+    PORT_FNID(sub_0814A410),
+    PORT_FNID(sub_0814A420),
+    PORT_FNID(sub_0814A46C),
+    PORT_FNID(sub_0814A49C),
+    PORT_FNID(sub_0814A4C4),
+    PORT_FNID(sub_0814A504),
+    PORT_FNID(sub_0814A518),
+    PORT_FNID(sub_0814A558),
+    PORT_FNID(TitleScreenFadeSetup),
+    PORT_FNID(TitleScreenFadeOut),
+    PORT_FNID(TitleScreenShowDemo),
+    PORT_FNID(sub_0814A6BC),
+    PORT_FNID(sub_0814A70C),
+    PORT_FNID(sub_0814A75C),
+    PORT_FNID(sub_0814A794),
+    PORT_FNID(sub_0814A7CC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -94,26 +94,26 @@ static const struct Unk_08353510 gUnk_0835477C[] = {
 };
 
 static void (*const gUnk_083547AC[])(struct Object *) = {
-    nullsub_125,
-    sub_080BA780,
-    sub_080BA800,
-    sub_080BA5C8,
-    sub_080BA638,
-    sub_080BA880,
-    sub_080BA908,
-    sub_080BAA78,
-    sub_080BAAF8,
-    sub_080BA6A4,
-    sub_080BA714,
-    sub_080BA97C,
-    sub_080BA9F0,
+    FN(nullsub_125),
+    FN(sub_080BA780),
+    FN(sub_080BA800),
+    FN(sub_080BA5C8),
+    FN(sub_080BA638),
+    FN(sub_080BA880),
+    FN(sub_080BA908),
+    FN(sub_080BAA78),
+    FN(sub_080BAAF8),
+    FN(sub_080BA6A4),
+    FN(sub_080BA714),
+    FN(sub_080BA97C),
+    FN(sub_080BA9F0),
 };
 
 static const s8 gUnk_083547E0[] = { 0, -4, 4, 0 };
 
 void *CreateFlamer(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *flamer = tmp;
 
     InitObject(flamer, template_, a2);
@@ -375,7 +375,7 @@ static u32 sub_080B819C(struct Object *flamer)
 
 static void sub_080B8954(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 0, sub_080B89DC);
+    ObjectSetFunc(flamer, 0, FN(sub_080B89DC));
     flamer->base.flags |= 0x40;
     switch (flamer->subtype)
     {
@@ -497,7 +497,7 @@ static void sub_080B89DC(struct Object *flamer)
                 flamer->base.xspeed = Macro_080B89DC(flamer, 0x90, 0xE2, 0x21F);
                 break;
             }
-            gUnk_083547AC[attr2 >> 28](flamer);
+            CALL(gUnk_083547AC[attr2 >> 28])(flamer);
         }
     }
     else if (!(flamer->unk85 & 0x40) && !(flamer->unk85 & 0x80))
@@ -519,7 +519,7 @@ static void sub_080B89DC(struct Object *flamer)
                 flamer->base.xspeed = -Macro_080B89DC(flamer, 0x90, 0xE2, 0x21F);
                 break;
             }
-            gUnk_083547AC[attr2 >> 28](flamer);
+            CALL(gUnk_083547AC[attr2 >> 28])(flamer);
         }
     }
     else if (!(flamer->unk85 & 0x40) && flamer->unk85 & 0x80)
@@ -551,7 +551,7 @@ static void sub_080B89DC(struct Object *flamer)
                 flamer->base.yspeed = Macro_080B89DC(flamer, 0x90, 0xE2, 0x21F);
                 break;
             }
-            gUnk_083547AC[attr2 >> 28](flamer);
+            CALL(gUnk_083547AC[attr2 >> 28])(flamer);
         }
     }
     else if (flamer->unk85 & 0x40 && flamer->unk85 & 0x80)
@@ -583,7 +583,7 @@ static void sub_080B89DC(struct Object *flamer)
                 flamer->base.yspeed = -Macro_080B89DC(flamer, 0x90, 0xE2, 0x21F);
                 break;
             }
-            gUnk_083547AC[attr2 >> 28](flamer);
+            CALL(gUnk_083547AC[attr2 >> 28])(flamer);
         }
     }
     if (flamer->base.flags & 1)
@@ -606,7 +606,7 @@ static void sub_080B89DC(struct Object *flamer)
 
 static void sub_080B9048(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 3, sub_080BA36C);
+    ObjectSetFunc(flamer, 3, FN(sub_080BA36C));
     flamer->base.flags &= ~0x140;
     flamer->base.unkC &= ~1;
     flamer->base.xspeed = 0;
@@ -920,7 +920,7 @@ static void sub_080B9AF0(struct Object *flamer)
 
 static struct EffectObject *sub_080B9DF0(struct Object *flamer, s8 a1)
 {
-    struct Task *t = TaskCreate(sub_080BA004, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080BA004), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
     s32 val;
 
@@ -1023,7 +1023,7 @@ static void sub_080BA36C(struct Object *flamer)
 
 static void sub_080BA39C(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 4, sub_080B937C);
+    ObjectSetFunc(flamer, 4, FN(sub_080B937C));
     flamer->base.xspeed = 0;
     flamer->base.yspeed = 0;
     flamer->base.flags |= 0x140;
@@ -1036,12 +1036,12 @@ static void sub_080BA39C(struct Object *flamer)
 
 static void sub_080BA3EC(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 6, sub_080B94F4);
+    ObjectSetFunc(flamer, 6, FN(sub_080B94F4));
 }
 
 static void sub_080BA400(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 7, sub_080B95F0);
+    ObjectSetFunc(flamer, 7, FN(sub_080B95F0));
     flamer->base.xspeed = 0;
     flamer->base.yspeed = 0;
     flamer->base.flags |= 0x140;
@@ -1054,7 +1054,7 @@ static void sub_080BA400(struct Object *flamer)
 
 static void sub_080BA450(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 8, sub_080B976C);
+    ObjectSetFunc(flamer, 8, FN(sub_080B976C));
     flamer->base.xspeed = 0x400;
     flamer->base.yspeed = 0;
     flamer->base.unk68 |= 0x100;
@@ -1065,7 +1065,7 @@ static void sub_080BA450(struct Object *flamer)
 
 static void sub_080BA498(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 9, sub_080B9810);
+    ObjectSetFunc(flamer, 9, FN(sub_080B9810));
     flamer->unk85 |= 0x10;
     flamer->base.unk68 &= ~0x100;
     flamer->base.flags |= 0x140;
@@ -1073,13 +1073,13 @@ static void sub_080BA498(struct Object *flamer)
 
 static void sub_080BA4D0(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 9, sub_080B998C);
+    ObjectSetFunc(flamer, 9, FN(sub_080B998C));
     flamer->base.flags |= 0x140;
 }
 
 static void sub_080BA4F0(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 6, sub_080B9AF0);
+    ObjectSetFunc(flamer, 6, FN(sub_080B9AF0));
     flamer->base.xspeed = 0;
     flamer->base.yspeed = 0;
     flamer->unk9E = 4;
@@ -1093,7 +1093,7 @@ static void sub_080BA4F0(struct Object *flamer)
 
 static void sub_080BA54C(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 10, sub_080BA58C);
+    ObjectSetFunc(flamer, 10, FN(sub_080BA58C));
     flamer->base.xspeed = 0;
     flamer->base.yspeed = 0;
     if (flamer->base.x > flamer->kirby3->base.x)
@@ -1110,7 +1110,7 @@ static void sub_080BA58C(struct Object *flamer)
 
 static void sub_080BA5A4(struct Object *flamer)
 {
-    ObjectSetFunc(flamer, 0, sub_080BA5B8);
+    ObjectSetFunc(flamer, 0, FN(sub_080BA5B8));
 }
 
 static void sub_080BA5B8(struct Object *flamer)
@@ -1341,3 +1341,38 @@ static void sub_080BAAF8(struct Object *flamer)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_flamer) {
+    PORT_FNID(CreateFlamer),
+    PORT_FNID(sub_080B89DC),
+    PORT_FNID(sub_080B937C),
+    PORT_FNID(sub_080B94F4),
+    PORT_FNID(sub_080B95F0),
+    PORT_FNID(sub_080B976C),
+    PORT_FNID(sub_080B9810),
+    PORT_FNID(sub_080B998C),
+    PORT_FNID(sub_080B9AF0),
+    PORT_FNID(sub_080BA004),
+    PORT_FNID(sub_080BA334),
+    PORT_FNID(sub_080BA36C),
+    PORT_FNID(sub_080BA58C),
+    PORT_FNID(sub_080BA5B8),
+    PORT_FNID(nullsub_125),
+    PORT_FNID(sub_080BA5C8),
+    PORT_FNID(sub_080BA638),
+    PORT_FNID(sub_080BA6A4),
+    PORT_FNID(sub_080BA714),
+    PORT_FNID(sub_080BA780),
+    PORT_FNID(sub_080BA800),
+    PORT_FNID(sub_080BA880),
+    PORT_FNID(sub_080BA908),
+    PORT_FNID(sub_080BA97C),
+    PORT_FNID(sub_080BA9F0),
+    PORT_FNID(sub_080BAA78),
+    PORT_FNID(sub_080BAAF8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

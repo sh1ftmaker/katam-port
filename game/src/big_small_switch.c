@@ -24,23 +24,23 @@ static void sub_08119BB8(struct Switch *);
 static void sub_08119C0C(struct Switch *);
 
 static void (*const gUnk_08357B8C[])(void) = {
-    [WORLDMAP_NO_UNLOCK] = nullsub_127,
-    [WORLDMAP_MOONLIGHT_MANSION] = StartWorldMapUnlockMoonlightMansion,
-    [WORLDMAP_RAINBOW_ROUTE_EAST] = StartWorldMapUnlockRainbowRouteEast,
-    [WORLDMAP_RAINBOW_ROUTE_SOUTH] = StartWorldMapUnlockRainbowRouteSouth,
-    [WORLDMAP_CABBAGE_CAVERN_CENTER] = StartWorldMapUnlockCabbageCavernCenter,
-    [WORLDMAP_RAINBOW_ROUTE_WEST] = StartWorldMapUnlockRainbowRouteWest,
-    [WORLDMAP_CARROT_CASTLE] = StartWorldMapUnlockCarrotCastle,
-    [WORLDMAP_RAINBOW_ROUTE_NORTH] = StartWorldMapUnlockRainbowRouteNorth,
-    [WORLDMAP_MUSTARD_MOUNTAIN] = StartWorldMapUnlockMustardMountain,
-    [WORLDMAP_CABBAGE_CAVERN_WEST] = StartWorldMapUnlockCabbageCavernWest,
-    [WORLDMAP_RADISH_RUINS] = StartWorldMapUnlockRadishRuins,
-    [WORLDMAP_PEPPERMINT_PALACE_EAST] = StartWorldMapUnlockPeppermintPalaceEast,
-    [WORLDMAP_PEPPERMINT_PALACE_WEST] = StartWorldMapUnlockPeppermintPalaceWest,
-    [WORLDMAP_CABBAGE_CAVERN_EAST] = StartWorldMapUnlockCabbageCavernEast,
-    [WORLDMAP_OLIVE_OCEAN] = StartWorldMapUnlockOliveOcean,
-    [WORLDMAP_CANDY_CONSTELLATION] = StartWorldMapUnlockCandyConstellation,
-    sub_080396BC,
+    [WORLDMAP_NO_UNLOCK] = FN(nullsub_127),
+    [WORLDMAP_MOONLIGHT_MANSION] = FN(StartWorldMapUnlockMoonlightMansion),
+    [WORLDMAP_RAINBOW_ROUTE_EAST] = FN(StartWorldMapUnlockRainbowRouteEast),
+    [WORLDMAP_RAINBOW_ROUTE_SOUTH] = FN(StartWorldMapUnlockRainbowRouteSouth),
+    [WORLDMAP_CABBAGE_CAVERN_CENTER] = FN(StartWorldMapUnlockCabbageCavernCenter),
+    [WORLDMAP_RAINBOW_ROUTE_WEST] = FN(StartWorldMapUnlockRainbowRouteWest),
+    [WORLDMAP_CARROT_CASTLE] = FN(StartWorldMapUnlockCarrotCastle),
+    [WORLDMAP_RAINBOW_ROUTE_NORTH] = FN(StartWorldMapUnlockRainbowRouteNorth),
+    [WORLDMAP_MUSTARD_MOUNTAIN] = FN(StartWorldMapUnlockMustardMountain),
+    [WORLDMAP_CABBAGE_CAVERN_WEST] = FN(StartWorldMapUnlockCabbageCavernWest),
+    [WORLDMAP_RADISH_RUINS] = FN(StartWorldMapUnlockRadishRuins),
+    [WORLDMAP_PEPPERMINT_PALACE_EAST] = FN(StartWorldMapUnlockPeppermintPalaceEast),
+    [WORLDMAP_PEPPERMINT_PALACE_WEST] = FN(StartWorldMapUnlockPeppermintPalaceWest),
+    [WORLDMAP_CABBAGE_CAVERN_EAST] = FN(StartWorldMapUnlockCabbageCavernEast),
+    [WORLDMAP_OLIVE_OCEAN] = FN(StartWorldMapUnlockOliveOcean),
+    [WORLDMAP_CANDY_CONSTELLATION] = FN(StartWorldMapUnlockCandyConstellation),
+    FN(sub_080396BC),
 };
 
 extern const struct AnimInfo gUnk_08357BD0[] = {
@@ -57,7 +57,7 @@ extern const struct AnimInfo gUnk_08357BDC[] = {
 
 void *CreateSmallSwitch(struct ObjectTemplate *template_, u8 arg1)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Switch), 0x1001, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Switch), 0x1001, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Switch *sw = TaskGetStructPtr(t);
 
     InitObject(&sw->obj, template_, arg1);
@@ -70,13 +70,13 @@ void *CreateSmallSwitch(struct ObjectTemplate *template_, u8 arg1)
     ObjectSetBounds(&sw->obj.base, -7, -10, 7, -2);
     sw->obj.base.unk4C = sw->obj.base.y = ((sw->obj.base.y + sw->obj.base.unk3F * 0x100 + 0xFFF) & ~0xFFF) - sw->obj.base.unk3F * 0x100 - 1;
     ObjectInitSprite(&sw->obj);
-    gUnk_08351648[sw->obj.type].unk10(&sw->obj);
+    CALL(gUnk_08351648[sw->obj.type].unk10)(&sw->obj);
     return sw;
 }
 
 void *CreateBigSwitch(struct ObjectTemplate *template_, u8 arg1)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Switch), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Switch), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Switch *sw = TaskGetStructPtr(t);
 
     InitObject(&sw->obj, template_, arg1);
@@ -87,7 +87,7 @@ void *CreateBigSwitch(struct ObjectTemplate *template_, u8 arg1)
     sub_0803E2B0(&sw->obj.base, -14, -24, 14, 0);
     ObjectSetBounds(&sw->obj.base, -14, -24, 14, 0);
     ObjectInitSprite(&sw->obj);
-    gUnk_08351648[sw->obj.type].unk10(&sw->obj);
+    CALL(gUnk_08351648[sw->obj.type].unk10)(&sw->obj);
     return sw;
 }
 
@@ -95,9 +95,9 @@ void sub_0811938C(struct Switch *arg0)
 {
     struct Switch *sw = arg0;
 
-    ObjectSetFunc(arg0, 0, sub_08119980);
+    ObjectSetFunc(arg0, 0, FN(sub_08119980));
     if (arg0->unkB8 && *GetStateSlot(STATE_SLOT_WORLD, arg0->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[arg0->obj.base.unk56].unk65E))) {
-        arg0->obj.unk78 = sub_08119C0C;
+        arg0->obj.unk78 = FN(sub_08119C0C);
         arg0->obj.base.flags |= 0xF40;
     } else {
         sw->unkB4 = 0;
@@ -319,7 +319,7 @@ static void sub_08119B3C(struct Switch *sw)
         sw->unkB6 |= 0x2000;
     }
     if (sw->unkB6 & 0x1000 && CanStartInGameInterlude()) {
-        gUnk_08357B8C[sw->obj.objTemplate->unk14]();
+        CALL(gUnk_08357B8C[sw->obj.objTemplate->unk14])();
         sw->unkB6 &= ~0x1000;
     }
 }
@@ -347,3 +347,17 @@ static void sub_08119C0C(struct Switch *sw)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_big_small_switch) {
+    PORT_FNID(CreateSmallSwitch),
+    PORT_FNID(CreateBigSwitch),
+    PORT_FNID(sub_0811938C),
+    PORT_FNID(sub_08119980),
+    PORT_FNID(nullsub_127),
+    PORT_FNID(sub_08119C0C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

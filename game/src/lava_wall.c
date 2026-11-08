@@ -17,7 +17,7 @@ extern const struct AnimInfo gUnk_08357C5C[] = {
 
 void *CreateLavaWall(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, sub_0811C768);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(sub_0811C768));
     struct Object *tmp = TaskGetStructPtr(t), *lavaWall = tmp;
     s8 array[4];
     
@@ -53,7 +53,7 @@ void *CreateLavaWall(struct ObjectTemplate *template_, u8 a2)
         ObjectSetBounds(&lavaWall->base, array[0], array[1], array[2], array[3]);
     if (lavaWall->objTemplate->unk22 & 1)
         *GetStateSlot(STATE_SLOT_ROOM, lavaWall->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[lavaWall->base.unk56].unk65E)) = 1;
-    gUnk_08351648[lavaWall->type].unk10(lavaWall);
+    CALL(gUnk_08351648[lavaWall->type].unk10)(lavaWall);
 
     return lavaWall;
 }
@@ -81,7 +81,7 @@ static void sub_0811C5D8(struct Object *lavaWall) {
 
 void sub_0811C758(struct Object *lavaWall) {
     lavaWall->base.counter = 0;
-    lavaWall->unk78 = sub_0811C5D8;
+    lavaWall->unk78 = FN(sub_0811C5D8);
 }
 
 static void sub_0811C768(struct Task* t) {
@@ -103,3 +103,15 @@ static void sub_0811C768(struct Task* t) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_lava_wall) {
+    PORT_FNID(CreateLavaWall),
+    PORT_FNID(sub_0811C5D8),
+    PORT_FNID(sub_0811C758),
+    PORT_FNID(sub_0811C768),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

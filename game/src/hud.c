@@ -189,7 +189,7 @@ void CreateGameplayHud(void)
     CpuFill16(0, BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x184), TILE_SIZE_4BPP * 0x30);
     gBgScrollRegs[1][0] = 0;
     gBgScrollRegs[1][1] = 0;
-    task = TaskCreate(UpdateGameplayHud, sizeof(struct GameplayHud), 0xF500, TASK_USE_IWRAM, GameplayHudDestructor);
+    task = TaskCreate(FN(UpdateGameplayHud), sizeof(struct GameplayHud), 0xF500, TASK_USE_IWRAM, FN(GameplayHudDestructor));
     gGameplayHudTask = task;
     tmp = TaskGetStructPtr(task);
     hud = tmp;
@@ -197,7 +197,7 @@ void CreateGameplayHud(void)
     kirby = &gKirbys[gLocalPlayerId];
     if (gUnk_0203AD10 & 0x10) {
         DrawDemoHud();
-        task->main = sub_08034034;
+        task->main = FN(sub_08034034);
         return;
     }
     LoadGameplayHudGraphics();
@@ -819,9 +819,9 @@ struct GameplayHud *TryTrackHudEnemy(struct Object *object)
     if (gUnk_0203AD10 & 0x10)
         return NULL;
     // These are comparisons against the calling task, as in the original.
-    if (gCurTask->main == UpdateGameOverHudIndicators)
+    if (gCurTask->main == FN(UpdateGameOverHudIndicators))
         return NULL;
-    if (gCurTask->main == UpdateBorrowLifeHud)
+    if (gCurTask->main == FN(UpdateBorrowLifeHud))
         return NULL;
     // TODO: Original UB: object is dereferenced before its null check; preserve that ordering.
     if (!(ObjType0To37(object) || ObjType38To52(object) || ObjType53To5C(object) || object->type == OBJ_EMPTY_5D))
@@ -868,7 +868,7 @@ void DrawEnemyHealthOrAreaName(struct GameplayHud *hud)
     u16 *tiles;
     if (gUnk_0203AD10 & 0x10)
         return;
-    if (gGameplayHudTask->main == UpdateGameOverHudIndicators || gGameplayHudTask->main == UpdateBorrowLifeHud)
+    if (gGameplayHudTask->main == FN(UpdateGameOverHudIndicators) || gGameplayHudTask->main == FN(UpdateBorrowLifeHud))
         return;
     tiles = BG_SCREEN_ADDR(28) + 0x4E8;
     if (hud == NULL) {
@@ -1102,12 +1102,12 @@ void RefreshGameplayHud(struct Kirby *kirby)
         return;
     }
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
-    if (gGameplayHudTask->main == UpdateGameOverHudIndicators) {
+    if (gGameplayHudTask->main == FN(UpdateGameOverHudIndicators)) {
         DrawGameOverMessageInline();
         return;
     }
     LoadGameplayHudGraphicsInline();
-    if (gGameplayHudTask->main == UpdateBorrowLifeHud) {
+    if (gGameplayHudTask->main == FN(UpdateBorrowLifeHud)) {
         DrawBorrowLifePrompt();
         return;
     }
@@ -1319,7 +1319,7 @@ void ShowGameOverHud(void)
     if (!(gUnk_0203AD10 & 0x10)) {
         CpuFill16(0x184, BG_SCREEN_ADDR(28), 0x500);
         DrawGameOverMessage();
-        gGameplayHudTask->main = UpdateGameOverHudIndicators;
+        gGameplayHudTask->main = FN(UpdateGameOverHudIndicators);
     }
 }
 
@@ -1328,22 +1328,22 @@ void ShowBorrowLifeHud(void)
     if (!(gUnk_0203AD10 & 0x10)) {
         CpuFill16(0x184, BG_SCREEN_ADDR(28), 0x500);
         DrawBorrowLifePrompt();
-        gGameplayHudTask->main = UpdateBorrowLifeHud;
+        gGameplayHudTask->main = FN(UpdateBorrowLifeHud);
     }
 }
 
 void RestoreHudAfterLifeBorrow(void)
 {
-    if (!(gUnk_0203AD10 & 0x10) && gGameplayHudTask->main == UpdateBorrowLifeHud) {
+    if (!(gUnk_0203AD10 & 0x10) && gGameplayHudTask->main == FN(UpdateBorrowLifeHud)) {
         CpuFill16(0x184, BG_SCREEN_ADDR(28), 0x500);
-        gGameplayHudTask->main = UpdateGameplayHud;
+        gGameplayHudTask->main = FN(UpdateGameplayHud);
         RefreshGameplayHud(&gKirbys[gLocalPlayerId]);
     }
 }
 
 void ClearBorrowLifeHud(struct ObjectBase *object UNUSED)
 {
-    if (!(gUnk_0203AD10 & 0x10) && gGameplayHudTask->main == UpdateBorrowLifeHud) {
+    if (!(gUnk_0203AD10 & 0x10) && gGameplayHudTask->main == FN(UpdateBorrowLifeHud)) {
         CpuFill16(0x184, BG_SCREEN_ADDR(28), 0x500);
         DrawHudPhoneBattery(&gKirbys[gLocalPlayerId]);
     }
@@ -1905,3 +1905,16 @@ void PortResRebind_hud(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_hud) {
+    PORT_FNID(UpdateGameplayHud),
+    PORT_FNID(sub_08034034),
+    PORT_FNID(UpdateBorrowLifeHud),
+    PORT_FNID(UpdateGameOverHudIndicators),
+    PORT_FNID(GameplayHudDestructor),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

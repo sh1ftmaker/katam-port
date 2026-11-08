@@ -27,7 +27,7 @@ void sub_0811BA30(struct ObjectSpawner *spawner) {
     }
     spawner->obj.unk8C = EwramMalloc((spawner->obj.objTemplate->unk14 >> 8) << 3);
     CpuFill32(0, spawner->obj.unk8C, (spawner->obj.objTemplate->unk14 >> 8) << 2);
-    spawner2->obj.unk78 = sub_0811BAAC;
+    spawner2->obj.unk78 = FN(sub_0811BAAC);
     spawner2->unkDE = 0;
     spawner2->unkDF = 0;
     spawner2->unkDC = 0;
@@ -95,14 +95,14 @@ void sub_0811BAAC(struct ObjectSpawner *spawner) {
 }
 
 void *CreateObjectSpawner(struct ObjectTemplate *template_, u8 playerId) {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct ObjectSpawner), 0x1000, TASK_USE_IWRAM, sub_0811BEBC);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct ObjectSpawner), 0x1000, TASK_USE_IWRAM, FN(sub_0811BEBC));
     struct ObjectSpawner *spawner = TaskGetStructPtr(t);
 
     InitObject(&spawner->obj, template_, playerId);
     spawner->obj.base.flags |= 0x2018F40;
     spawner->obj.base.unk5C |= 0x20;
     spawner->obj.base.unkC |= 1;
-    gUnk_08351648[spawner->obj.type].unk10(&spawner->obj);
+    CALL(gUnk_08351648[spawner->obj.type].unk10)(&spawner->obj);
     return spawner;
 }
 
@@ -134,3 +134,15 @@ static void sub_0811BEBC(struct Task *t) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_object_spawner) {
+    PORT_FNID(sub_0811BA30),
+    PORT_FNID(sub_0811BAAC),
+    PORT_FNID(CreateObjectSpawner),
+    PORT_FNID(sub_0811BEBC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

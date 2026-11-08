@@ -27,7 +27,7 @@ extern const struct AnimInfo gUnk_08354074[] = {
 };
 
 void* CreateMinny(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     if (obj->base.x > obj->kirby3->base.x) {
@@ -39,7 +39,7 @@ void* CreateMinny(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -2, -2, 2, 2);
     ObjectSetBounds(&obj->base, -5, 0, 7, 4);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = 0;
     return obj;
@@ -66,7 +66,7 @@ static void MinnySetDirection(struct Object* arg0) {
 }
 
 static void MinnyInitSpeed(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, MinnyTurnAround);
+    ObjectSetFunc(arg0, 1, FN(MinnyTurnAround));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -136,7 +136,7 @@ static void MinnyCalcSpeed(struct Object* arg0) {
     if ((((arg0->base.flags & 1) && (arg0->base.xspeed < 0)) 
         || (!(arg0->base.flags & 1) && (arg0->base.xspeed > 0))) 
         && (--arg0->base.counter == 0)) {
-        ObjectSetFunc(arg0, 1, MinnyCalcSpeed);
+        ObjectSetFunc(arg0, 1, FN(MinnyCalcSpeed));
         arg0->base.flags ^= 1;
         arg0->base.counter = (Rand16() & 3) * 10 + 10;
     }
@@ -154,7 +154,7 @@ void MinnyStart(struct Object* arg0) {
         MinnySubtype1Start(arg0);
     }
     else {
-        ObjectSetFunc(arg0, 0, MinnySetDirection);
+        ObjectSetFunc(arg0, 0, FN(MinnySetDirection));
         arg0->base.xspeed = 0;
         arg0->base.counter = (arg0->objTemplate->unk11 + 1) * 60;
     }
@@ -175,7 +175,7 @@ static void MinnyTurnAround(struct Object* arg0) {
 }
 
 static void MinnySubtype1Start(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, MinnyCalcSpeed);
+    ObjectSetFunc(arg0, 1, FN(MinnyCalcSpeed));
     arg0->base.flags ^= 1;
     arg0->base.counter = (Rand16() % 4) * 10 + 10;
 }
@@ -183,3 +183,16 @@ static void MinnySubtype1Start(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_minny) {
+    PORT_FNID(CreateMinny),
+    PORT_FNID(MinnySetDirection),
+    PORT_FNID(MinnyCalcSpeed),
+    PORT_FNID(MinnyStart),
+    PORT_FNID(MinnyTurnAround),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

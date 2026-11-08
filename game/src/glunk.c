@@ -31,7 +31,7 @@ extern const struct AnimInfo gUnk_08353C34[] = {
 
 void *CreateGlunk(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *glunk = tmp;
 
     InitObject(glunk, template_, a2);
@@ -43,7 +43,7 @@ void *CreateGlunk(struct ObjectTemplate *template_, u8 a2)
     sub_0803E2B0(&glunk->base, -5, -5, 5, 6);
     ObjectSetBounds(&glunk->base, -6, -6, 6, 8);
     ObjectInitSprite(glunk);
-    gUnk_08351648[glunk->type].unk10(glunk);
+    CALL(gUnk_08351648[glunk->type].unk10)(glunk);
     return glunk;
 }
 
@@ -57,13 +57,13 @@ static void sub_080AEEA4(struct Object *glunk)
             sub_080AF204(glunk);
             glunk->base.counter = 0xC;
             if (++glunk->unk85 > 4)
-                ObjectSetFunc(glunk, 0, sub_080AF624);
+                ObjectSetFunc(glunk, 0, FN(sub_080AF624));
         }
     }
     else
     {
         if (++glunk->base.counter > 0x23)
-            ObjectSetFunc(glunk, 0, sub_080AF624);
+            ObjectSetFunc(glunk, 0, FN(sub_080AF624));
     }
 }
 
@@ -79,7 +79,7 @@ static void sub_080AEF14(struct Object *glunk)
 
 void *CreateGlunkBullet(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *bullet = TaskGetStructPtr(t);
     u32 flags;
 
@@ -97,17 +97,17 @@ void *CreateGlunkBullet(struct ObjectTemplate *template_, u8 a2)
     bullet->base.unk5C |= 0x20;
     bullet->base.flags = flags | 0x40;
     bullet->unk9E = 0;
-    bullet->unk7C = sub_0809F840;
+    bullet->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&bullet->base, -2, -2, 2, 2);
     ObjectSetBounds(&bullet->base, 2, 2, 2, 2);
     ObjectInitSprite(bullet);
-    gUnk_08351648[bullet->type].unk10(bullet);
+    CALL(gUnk_08351648[bullet->type].unk10)(bullet);
     return bullet;
 }
 
 void sub_080AF0A8(struct Object *bullet)
 {
-    ObjectSetFunc(bullet, 0, sub_080AF16C);
+    ObjectSetFunc(bullet, 0, FN(sub_080AF16C));
     bullet->base.flags |= 0x40;
     bullet->base.flags &= ~0x20;
     bullet->base.xspeed = 0;
@@ -135,7 +135,7 @@ static void sub_080AF16C(struct Object *bullet)
 
 static void sub_080AF204(struct Object *glunk)
 {
-    struct Task *t = TaskCreate(sub_080AF330, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080AF330), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r6 = TaskGetStructPtr(t), *effectObject = r6;
 
     ClearEffectObject(effectObject);
@@ -205,7 +205,7 @@ static void sub_080AF330(void)
 
 void sub_080AF610(struct Object *glunk)
 {
-    ObjectSetFunc(glunk, 0, sub_080AF624);
+    ObjectSetFunc(glunk, 0, FN(sub_080AF624));
 }
 
 static void sub_080AF624(struct Object *glunk)
@@ -218,7 +218,7 @@ static void sub_080AF624(struct Object *glunk)
 
 static void sub_080AF65C(struct Object *glunk)
 {
-    ObjectSetFunc(glunk, 1, sub_080AEEA4);
+    ObjectSetFunc(glunk, 1, FN(sub_080AEEA4));
     glunk->unk85 = 0;
     glunk->base.counter = 1;
 }
@@ -226,3 +226,19 @@ static void sub_080AF65C(struct Object *glunk)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_glunk) {
+    PORT_FNID(CreateGlunk),
+    PORT_FNID(sub_080AEEA4),
+    PORT_FNID(CreateGlunkBullet),
+    PORT_FNID(sub_080AF0A8),
+    PORT_FNID(sub_080AF16C),
+    PORT_FNID(sub_080AF330),
+    PORT_FNID(sub_080AF610),
+    PORT_FNID(sub_080AF624),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -17,7 +17,7 @@ static void SpecialHubMirrorMain(struct SpecialHubMirror *);
 
 void *CreateSpecialHubMirror(struct ObjectTemplate *arg0, u8 arg1) {
     struct SpecialHubMirror *mirror;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct SpecialHubMirror), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct SpecialHubMirror), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     mirror = TaskGetStructPtr(task);
     InitObject(&mirror->obj, arg0, arg1);
     mirror->unkB4 = NULL;
@@ -28,7 +28,7 @@ void *CreateSpecialHubMirror(struct ObjectTemplate *arg0, u8 arg1) {
     mirror->obj.base.unk5C |= 4;
     sub_0803E2B0(&mirror->obj.base, -0x10, -0x10, 0x10, 0x10);
     ObjectSetBounds(&mirror->obj.base, -0x10, -0x10, 0x10, 0x10);
-    mirror->obj.unk78 = SpecialHubMirrorInit;
+    mirror->obj.unk78 = FN(SpecialHubMirrorInit);
     return mirror;
 }
 
@@ -78,13 +78,13 @@ static void SpecialHubMirrorInit(struct SpecialHubMirror *mirror) {
             SpecialHubMirrorClearTiles(mirror);
         }
         SpecialHubMirrorUpdateEffect(mirror);
-        mirror->obj.unk78 = SpecialHubMirrorMain;
+        mirror->obj.unk78 = FN(SpecialHubMirrorMain);
     }
 }
 
 static void SpecialHubMirrorMain(struct SpecialHubMirror *mirror) {
     if (!SpecialHubMirrorUpdateEffect(mirror)) {
-        mirror->obj.unk78 = nullsub_108;
+        mirror->obj.unk78 = FN(nullsub_108);
     }
 }
 
@@ -95,3 +95,16 @@ void nullsub_109(struct SpecialHubMirror *mirror) {}
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_special_hub_mirror) {
+    PORT_FNID(CreateSpecialHubMirror),
+    PORT_FNID(SpecialHubMirrorInit),
+    PORT_FNID(SpecialHubMirrorMain),
+    PORT_FNID(nullsub_108),
+    PORT_FNID(nullsub_109),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

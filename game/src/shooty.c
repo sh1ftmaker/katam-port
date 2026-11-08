@@ -159,7 +159,7 @@ static const struct Unk_08353510 gUnk_083552C0[] = {
 
 void *CreateShooty(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *shooty = tmp;
 
     InitObject(shooty, template_, a2);
@@ -172,7 +172,7 @@ void *CreateShooty(struct ObjectTemplate *template_, u8 a2)
     sub_0803E2B0(&shooty->base, -5, -3, 5, 8);
     ObjectSetBounds(&shooty->base, -6, -4, 6, 0xA);
     ObjectInitSprite(shooty);
-    gUnk_08351648[shooty->type].unk10(shooty);
+    CALL(gUnk_08351648[shooty->type].unk10)(shooty);
     shooty->unk9E = 0;
     shooty->unk7C = 0;
     return shooty;
@@ -341,9 +341,9 @@ static void sub_080C0E70(struct Object *shooty)
 static void sub_080C1420(struct Object *shooty)
 {
     if (shooty->base.y + 0x3000 < shooty->kirby3->base.y)
-        ObjectSetFunc(shooty, 0, sub_080C1658);
+        ObjectSetFunc(shooty, 0, FN(sub_080C1658));
     else
-        ObjectSetFunc(shooty, 0, sub_080C14A4);
+        ObjectSetFunc(shooty, 0, FN(sub_080C14A4));
     shooty->base.flags |= 0x140;
     if (shooty->base.x > shooty->kirby3->base.x)
         shooty->base.flags |= 1;
@@ -396,7 +396,7 @@ static void sub_080C14A4(struct Object *shooty)
     }
     sub_080C1FE4(shooty);
     if (shooty->base.y + 0x3000 < shooty->kirby3->base.y)
-        shooty->unk78 = sub_080C1658;
+        shooty->unk78 = FN(sub_080C1658);
     else if (!--shooty->unk85)
     {
         shooty->unk85 = 0x3C;
@@ -451,7 +451,7 @@ static void sub_080C1658(struct Object *shooty)
     }
     sub_080C1FE4(shooty);
     if (shooty->base.y + 0x3000 > shooty->kirby3->base.y)
-        shooty->unk78 = sub_080C14A4;
+        shooty->unk78 = FN(sub_080C14A4);
     else if (!--shooty->unk85)
     {
         shooty->unk85 = 0x3C;
@@ -475,7 +475,7 @@ static void sub_080C17D4(struct Object *shooty)
 
 static void sub_080C1818(struct Object *shooty)
 {
-    struct Task *t = TaskCreate(sub_080C1A1C, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080C1A1C), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -556,7 +556,7 @@ static void sub_080C1CA0(struct Object *shooty)
 
 void *CreateShootyBomb(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *sb = TaskGetStructPtr(t);
 
     InitObject(sb, template_, a2);
@@ -570,17 +570,17 @@ void *CreateShootyBomb(struct ObjectTemplate *template_, u8 a2)
     sb->base.unk68 = 0x20000043;
     sb->base.unk5C |= 0x20;
     sb->unk9E = 0;
-    sb->unk7C = sub_0809F840;
+    sb->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&sb->base, -2, -2, 2, 2);
     ObjectSetBounds(&sb->base, 2, 2, 2, 2);
     ObjectInitSprite(sb);
-    gUnk_08351648[sb->type].unk10(sb);
+    CALL(gUnk_08351648[sb->type].unk10)(sb);
     return sb;
 }
 
 void sub_080C1E38(struct Object *sb)
 {
-    ObjectSetFunc(sb, 0, sub_080C1ED4);
+    ObjectSetFunc(sb, 0, FN(sub_080C1ED4));
     PlaySfx(&sb->base, SE_BULLET_ATTACK);
 }
 
@@ -611,7 +611,7 @@ static void sub_080C1F78(struct Object *shooty)
         shooty->base.yspeed = 0x28A;
     if (shooty->base.counter > 0x28)
     {
-        ObjectSetFunc(shooty, 0, sub_080C17D4);
+        ObjectSetFunc(shooty, 0, FN(sub_080C17D4));
         shooty->base.xspeed = 0xC0;
         shooty->base.yspeed = 0x28A;
         if (shooty->base.flags & 1)
@@ -651,7 +651,7 @@ void sub_080C2044(struct Object *shooty)
         sub_080C1420(shooty);
     else
     {
-        ObjectSetFunc(shooty, 0, sub_080C0E70);
+        ObjectSetFunc(shooty, 0, FN(sub_080C0E70));
         if (shooty->base.x > shooty->kirby3->base.x)
             shooty->base.flags |= 1;
         else
@@ -665,7 +665,7 @@ void sub_080C2044(struct Object *shooty)
 static void sub_080C20B8(struct Object *shooty)
 {
     shooty->unk83 = 0xD;
-    shooty->unk78 = sub_080C20D4;
+    shooty->unk78 = FN(sub_080C20D4);
     shooty->base.flags |= 0x140;
 }
 
@@ -685,9 +685,9 @@ static void sub_080C20D4(struct Object *shooty)
         if (shooty->base.flags & 2)
         {
             if (shooty->base.y + 0x3000 < shooty->kirby3->base.y)
-                shooty->unk78 = sub_080C1658;
+                shooty->unk78 = FN(sub_080C1658);
             else
-                shooty->unk78 = sub_080C14A4;
+                shooty->unk78 = FN(sub_080C14A4);
         }
     }
 }
@@ -695,7 +695,7 @@ static void sub_080C20D4(struct Object *shooty)
 static void sub_080C2144(struct Object *shooty)
 {
     shooty->unk83 = 0xF;
-    shooty->unk78 = sub_080C2160;
+    shooty->unk78 = FN(sub_080C2160);
     shooty->base.flags |= 0x140;
 }
 
@@ -712,15 +712,15 @@ static void sub_080C2160(struct Object *shooty)
     else if (shooty->unk83 == 0x10 && shooty->base.flags & 2)
     {
         if (shooty->base.y + 0x3000 < shooty->kirby3->base.y)
-            shooty->unk78 = sub_080C1658;
+            shooty->unk78 = FN(sub_080C1658);
         else
-            shooty->unk78 = sub_080C14A4;
+            shooty->unk78 = FN(sub_080C14A4);
     }
 }
 
 static void sub_080C21BC(struct Object *shooty)
 {
-    ObjectSetFunc(shooty, 0, sub_080C1F78);
+    ObjectSetFunc(shooty, 0, FN(sub_080C1F78));
     shooty->base.xspeed = 0xC0;
     shooty->base.yspeed = -0x28A;
     if (shooty->base.flags & 1)
@@ -731,3 +731,24 @@ static void sub_080C21BC(struct Object *shooty)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_shooty) {
+    PORT_FNID(CreateShooty),
+    PORT_FNID(sub_080C0E70),
+    PORT_FNID(sub_080C14A4),
+    PORT_FNID(sub_080C1658),
+    PORT_FNID(sub_080C17D4),
+    PORT_FNID(sub_080C1A1C),
+    PORT_FNID(CreateShootyBomb),
+    PORT_FNID(sub_080C1E38),
+    PORT_FNID(sub_080C1ED4),
+    PORT_FNID(sub_080C1F78),
+    PORT_FNID(sub_080C2044),
+    PORT_FNID(sub_080C20D4),
+    PORT_FNID(sub_080C2160),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

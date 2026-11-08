@@ -281,10 +281,10 @@ void sub_0814A828(void) {
         m4aSoundVSyncOn();
         for (i = 0; i < gNumHumanPlayers; ++i)
             gKirbys[i].base.flags &= ~0x1000000;
-        t = TaskCreate(sub_0814A914, sizeof(struct Unk_0814A828), 0x1000, TASK_USE_IWRAM | TASK_x0004, nullsub_12);
+        t = TaskCreate(FN(sub_0814A914), sizeof(struct Unk_0814A828), 0x1000, TASK_USE_IWRAM | TASK_x0004, FN(nullsub_12));
         var = TaskGetStructPtr(t);
         CpuFill16(0, var, sizeof(struct Unk_0814A828));
-        var->unk8 = sub_0814E0B4;
+        var->unk8 = FN(sub_0814E0B4);
     }
 }
 
@@ -304,12 +304,12 @@ static void sub_0814A914(void) {
             var->unk4 |= 1;
     }
     if (var->unk4 & 1 && !(var->unk4 & 0x80000000) && !(var->unk4 & 4) && !(var->unk4 & 2)) {
-        var->unk8 = sub_0814E290;
+        var->unk8 = FN(sub_0814E290);
         var->unk4 |= 0x80000000;
     }
     if (var->unkA0)
-        var->unkA0(var);
-    var->unk8(var);
+        CALL(var->unkA0)(var);
+    CALL(var->unk8)(var);
 }
 
 static bool32 sub_0814A9E8(struct Unk_0814A828 *a1) {
@@ -398,7 +398,7 @@ static void sub_0814AC28(struct Unk_0814A828 *a1) {
     a1->unkA8[1] = sub_0814E394(a1, 1);
     a1->unkB8[1] = TaskGetStructPtr(a1->unkA8[1]);
     sub_0814ADC8(a1);
-    a1->unk8 = sub_0814ACA8;
+    a1->unk8 = FN(sub_0814ACA8);
 }
 
 static void sub_0814ACA8(struct Unk_0814A828 *a1) {
@@ -415,7 +415,7 @@ static void sub_0814ACA8(struct Unk_0814A828 *a1) {
     var2->unk6 = 0xFFFF;
     LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
     a1->unkC = 0;
-    a1->unk8 = sub_0814E0E8;
+    a1->unk8 = FN(sub_0814E0E8);
     a1->unk10.unk16 = 0x100;
     DisplaySprite(&a1->unk10);
 }
@@ -426,7 +426,7 @@ static void sub_0814AD44(struct Unk_0814A828 *a1) {
     a1->unk4 |= 4;
     a1->unkA4 = 0;
     a1->unkA6 = var;
-    a1->unkA0 = sub_0814A9E8;
+    a1->unkA0 = FN(sub_0814A9E8);
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0x10;
@@ -434,7 +434,7 @@ static void sub_0814AD44(struct Unk_0814A828 *a1) {
     sub_0814B2A0(a1->unkB8[0], FALSE);
     sub_0814B2A0(a1->unkB8[1], TRUE);
     a1->unkC = 0;
-    a1->unk8 = sub_0814E198;
+    a1->unk8 = FN(sub_0814E198);
     if (!sub_08155128(&a1->unk10))
         a1->unk10.unk1B = 0xFF;
     DisplaySprite(&a1->unk10);
@@ -459,8 +459,8 @@ static void sub_0814AE78(struct Unk_0814A828 *a1) {
     sub_08155128(&a1->unk10);
     SpriteSomething(&local, 0x6000000, sprite->animId, sprite->variant,
         0xFF, 0, 0, 0, 0, 0x10, sprite->palId & 0xF, 0x80000);
-    a1->unkC4->unk0 = sub_0814EA00;
-    a1->unk8 = sub_0814E264;
+    a1->unkC4->unk0 = FN(sub_0814EA00);
+    a1->unk8 = FN(sub_0814E264);
     DisplaySprite(sprite);
 }
 
@@ -555,7 +555,7 @@ static void sub_0814B2A0(struct Unk_0814E394 *a1, bool32 a2 __attribute__((unuse
         sprite->animId = gUnk_08387EB4[5][0];
         sprite->variant = gUnk_08387EB4[5][1];
         sub_08155128(sprite);
-        a1->unk4 = sub_0814B7D8;
+        a1->unk4 = FN(sub_0814B7D8);
     } else {
         a1->unk60 = 0x780000;
         a1->unk74 = 0xCAA;
@@ -568,7 +568,7 @@ static void sub_0814B2A0(struct Unk_0814E394 *a1, bool32 a2 __attribute__((unuse
         sprite->animId = gUnk_08387EB4[0x1D][0];
         sprite->variant = gUnk_08387EB4[0x1D][1];
         sub_08155128(sprite);
-        a1->unk4 = sub_0814CB60;
+        a1->unk4 = FN(sub_0814CB60);
     }
 }
 
@@ -588,7 +588,7 @@ static void sub_0814B368(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     m4aSongNumStart(SE_POST_TUTO_SLASH_MIRROR);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814B400;
+    a1->unk4 = FN(sub_0814B400);
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
     if (!sub_08155128(&a1->unk10[1]))
@@ -599,7 +599,7 @@ static void sub_0814B368(struct Unk_0814E394 *a1) {
 
 static void sub_0814B400(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0xE)
-        a1->unk4 = sub_0814B4A4;
+        a1->unk4 = FN(sub_0814B4A4);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -630,7 +630,7 @@ static void sub_0814B4A4(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xC][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814B54C;
+    a1->unk4 = FN(sub_0814B54C);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -663,7 +663,7 @@ static void sub_0814B54C(struct Unk_0814E394 *a1) {
     sub_08155128(&a1->unk10[0]);
     ret = !sub_08155128(&a1->unk10[1]);
     if (ret)
-        a1->unk4 = sub_0814B5D4;
+        a1->unk4 = FN(sub_0814B5D4);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -680,7 +680,7 @@ static void sub_0814B5D4(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xD][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814B67C;
+    a1->unk4 = FN(sub_0814B67C);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -708,7 +708,7 @@ static void sub_0814B67C(struct Unk_0814E394 *a1) {
     a1->unk64 += a1->unk6C;
     if (a1->unk64 >= 0x880000) {
         a1->unk64 = 0x880000;
-        a1->unk4 = sub_0814B728;
+        a1->unk4 = FN(sub_0814B728);
         m4aSongNumStart(SE_POST_TUTO_META_KNIGHT_GROUNDED);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
@@ -737,7 +737,7 @@ static void sub_0814B728(struct Unk_0814E394 *a1) {
     a1->unk70 = 0;
     a1->unk68 = 0;
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E47C;
+    a1->unk4 = FN(sub_0814E47C);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -754,7 +754,7 @@ static void sub_0814B784(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E4AC;
+    a1->unk4 = FN(sub_0814E4AC);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -780,9 +780,9 @@ static void sub_0814B7D8(struct Unk_0814E394 *a1) {
     if (!sub_08155128(&a1->unk10[1])) {
         a1->unk10[1].unk1B = 0xFF;
         if (!a1->unk68)
-            a1->unk4 = sub_0814E4C4;
+            a1->unk4 = FN(sub_0814E4C4);
         else
-            a1->unk4 = sub_0814B88C;
+            a1->unk4 = FN(sub_0814B88C);
     }
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
@@ -801,7 +801,7 @@ static void sub_0814B88C(struct Unk_0814E394 *a1) {
         a1->unk60 -= a1->unk68;
         a1->unk68 = 0;
         a1->unk70 = 0;
-        a1->unk4 = sub_0814E4C4;
+        a1->unk4 = FN(sub_0814E4C4);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
     a1->unk10[0].y = a1->unk10[1].y = a1->unk64 >> 0x10;
@@ -821,7 +821,7 @@ static void sub_0814B908(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E518;
+    a1->unk4 = FN(sub_0814E518);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -834,7 +834,7 @@ static void sub_0814B95C(struct Unk_0814E394 *a1) {
     unkC->unk4 |= 4;
     unkC->unkA4 = 0;
     unkC->unkA6 = var;
-    unkC->unkA0 = sub_0814A9E8;
+    unkC->unkA0 = FN(sub_0814A9E8);
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0x10;
@@ -853,14 +853,14 @@ static void sub_0814B95C(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0x18][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814BA0C;
+    a1->unk4 = FN(sub_0814BA0C);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
 
 static void sub_0814BA0C(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x1D)
-        a1->unk4 = sub_0814BAC4;
+        a1->unk4 = FN(sub_0814BAC4);
     if (a1->unk1 >= 0
         && ++a1->unk1 > 0xD) {
         a1->unk1 = -1;
@@ -894,7 +894,7 @@ static void sub_0814BAC4(struct Unk_0814E394 *a1) {
     unkC->unk4 |= 4;
     unkC->unkA4 = 0;
     unkC->unkA6 = var;
-    unkC->unkA0 = sub_0814A9E8;
+    unkC->unkA0 = FN(sub_0814A9E8);
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0x10;
@@ -920,7 +920,7 @@ static void sub_0814BAC4(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     a1->unk8 = 0;
     a1->unk1 = 0;
-    a1->unk4 = sub_0814BB9C;
+    a1->unk4 = FN(sub_0814BB9C);
     ++a1; --a1;
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(sprite);
@@ -928,7 +928,7 @@ static void sub_0814BAC4(struct Unk_0814E394 *a1) {
 
 static void sub_0814BB9C(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x1D)
-        a1->unk4 = sub_0814BC54;
+        a1->unk4 = FN(sub_0814BC54);
     if (a1->unk1 >= 0
         && ++a1->unk1 > 0xD) {
         a1->unk1 = -1;
@@ -962,7 +962,7 @@ static void sub_0814BC54(struct Unk_0814E394 *a1) {
     unkC->unk4 |= 4;
     unkC->unkA4 = 0;
     unkC->unkA6 = var;
-    unkC->unkA0 = sub_0814A9E8;
+    unkC->unkA0 = FN(sub_0814A9E8);
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0x10;
@@ -982,7 +982,7 @@ static void sub_0814BC54(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     a1->unk8 = 0;
     a1->unk1 = 0;
-    a1->unk4 = sub_0814BD00;
+    a1->unk4 = FN(sub_0814BD00);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1004,7 +1004,7 @@ static void sub_0814BD00(struct Unk_0814E394 *a1) {
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
     a1->unk10[0].y = a1->unk10[1].y = a1->unk64 >> 0x10;
     if (a1->unk64 >= 0x600000)
-        a1->unk4 = sub_0814BDC8;
+        a1->unk4 = FN(sub_0814BDC8);
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
     if (!sub_08155128(&a1->unk10[1]))
@@ -1025,7 +1025,7 @@ static void sub_0814BDC8(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xD][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814BE40;
+    a1->unk4 = FN(sub_0814BE40);
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
     if (!sub_08155128(&a1->unk10[1]))
@@ -1047,7 +1047,7 @@ static void sub_0814BE40(struct Unk_0814E394 *a1) {
     a1->unk10[0].y = a1->unk10[1].y = a1->unk64 >> 0x10;
     if (a1->unk64 >= 0x880000) {
         a1->unk64 = 0x880000;
-        a1->unk4 = sub_0814BEE4;
+        a1->unk4 = FN(sub_0814BEE4);
     }
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
@@ -1073,9 +1073,9 @@ static void sub_0814BEE4(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     var = a1->unkC;
     if (!(var->unk4 & 0x80000000))
-        var->unk8 = sub_0814E224;
+        var->unk8 = FN(sub_0814E224);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814BF70;
+    a1->unk4 = FN(sub_0814BF70);
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
     if (!sub_08155128(&a1->unk10[1]))
@@ -1086,7 +1086,7 @@ static void sub_0814BEE4(struct Unk_0814E394 *a1) {
 
 static void sub_0814BF70(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 9)
-        a1->unk4 = sub_0814C014;
+        a1->unk4 = FN(sub_0814C014);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1120,7 +1120,7 @@ static void sub_0814C014(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xB][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C0A0;
+    a1->unk4 = FN(sub_0814C0A0);
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
     if (!sub_08155128(&a1->unk10[1]))
@@ -1131,7 +1131,7 @@ static void sub_0814C014(struct Unk_0814E394 *a1) {
 
 static void sub_0814C0A0(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0xE)
-        a1->unk4 = sub_0814C144;
+        a1->unk4 = FN(sub_0814C144);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1162,7 +1162,7 @@ static void sub_0814C144(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xC][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C1EC;
+    a1->unk4 = FN(sub_0814C1EC);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1195,7 +1195,7 @@ static void sub_0814C1EC(struct Unk_0814E394 *a1) {
     sub_08155128(&a1->unk10[0]);
     ret = !sub_08155128(&a1->unk10[1]);
     if (ret)
-        a1->unk4 = sub_0814C274;
+        a1->unk4 = FN(sub_0814C274);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1212,7 +1212,7 @@ static void sub_0814C274(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xD][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C31C;
+    a1->unk4 = FN(sub_0814C31C);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1240,7 +1240,7 @@ static void sub_0814C31C(struct Unk_0814E394 *a1) {
     a1->unk64 += a1->unk6C;
     if (a1->unk64 >= 0x880000) {
         a1->unk64 = 0x880000;
-        a1->unk4 = sub_0814C3C8;
+        a1->unk4 = FN(sub_0814C3C8);
         m4aSongNumStart(SE_POST_TUTO_META_KNIGHT_GROUNDED);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
@@ -1269,7 +1269,7 @@ static void sub_0814C3C8(struct Unk_0814E394 *a1) {
     a1->unk70 = 0;
     a1->unk68 = 0;
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E600;
+    a1->unk4 = FN(sub_0814E600);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1285,7 +1285,7 @@ static void sub_0814C424(struct Unk_0814E394 *a1) {
     sprite->animId = gUnk_08387EB4[0][0];
     sprite->variant = gUnk_08387EB4[0][1];
     sub_08155128(sprite);    a1->unk8 = 0;
-    a1->unk4 = sub_0814E630;
+    a1->unk4 = FN(sub_0814E630);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1309,7 +1309,7 @@ static void sub_0814C478(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     a1->unk68 = 0xC000;
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C4F0;
+    a1->unk4 = FN(sub_0814C4F0);
     ++a1; --a1;
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(sprite);
@@ -1328,7 +1328,7 @@ static void sub_0814C4F0(struct Unk_0814E394 *a1) {
         a1->unk60 = 0xB80000;
         a1->unk70 = 0;
         a1->unk68 = 0;
-        a1->unk4 = sub_0814C598;
+        a1->unk4 = FN(sub_0814C598);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
     a1->unk10[0].y = a1->unk10[1].y = a1->unk64 >> 0x10;
@@ -1352,7 +1352,7 @@ static void sub_0814C598(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E660;
+    a1->unk4 = FN(sub_0814E660);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1376,7 +1376,7 @@ static void sub_0814C5EC(struct Unk_0814E394 *a1) {
     sub_08155128(sprite);
     m4aSongNumStart(SE_POST_TUTO_DMK_EXIT);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E690;
+    a1->unk4 = FN(sub_0814E690);
     ++a1; --a1;
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(sprite);
@@ -1407,7 +1407,7 @@ static void sub_0814C674(struct Unk_0814E394 *a1) {
     sprite->unk8 ^= 0x400;
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C728;
+    a1->unk4 = FN(sub_0814C728);
     ++a1; --a1;
     if (!sub_08155128(&a1->unk10[0]))
         a1->unk10[0].unk1B = 0xFF;
@@ -1419,7 +1419,7 @@ static void sub_0814C674(struct Unk_0814E394 *a1) {
 
 static void sub_0814C728(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x1D)
-        a1->unk4 = sub_0814C7CC;
+        a1->unk4 = FN(sub_0814C7CC);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1455,7 +1455,7 @@ static void sub_0814C7CC(struct Unk_0814E394 *a1) {
     a1->unk10[0].unk1C *= 2;
     a1->unk10[1].unk1C *= 2;
     a1->unk8 = 0;
-    a1->unk4 = sub_0814C898;
+    a1->unk4 = FN(sub_0814C898);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1488,7 +1488,7 @@ static void sub_0814C898(struct Unk_0814E394 *a1) {
     sub_08155128(&a1->unk10[0]);
     ret = !sub_08155128(&a1->unk10[1]);
     if (ret)
-        a1->unk4 = sub_0814C920;
+        a1->unk4 = FN(sub_0814C920);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1516,7 +1516,7 @@ static void sub_0814C920(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xD][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814CA04;
+    a1->unk4 = FN(sub_0814CA04);
     a1->unk68 += a1->unk70;
     a1->unk6C += a1->unk74;
     if (a1->unk6C >= 0x4A000) {
@@ -1545,7 +1545,7 @@ static void sub_0814CA04(struct Unk_0814E394 *a1) {
     a1->unk64 += a1->unk6C;
     if (a1->unk64 >= 0x880000) {
         a1->unk64 = 0x880000;
-        a1->unk4 = sub_0814CAB0;
+        a1->unk4 = FN(sub_0814CAB0);
         m4aSongNumStart(SE_POST_TUTO_META_KNIGHT_GROUNDED);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
@@ -1574,7 +1574,7 @@ static void sub_0814CAB0(struct Unk_0814E394 *a1) {
     a1->unk70 = 0;
     a1->unk68 = 0;
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E700;
+    a1->unk4 = FN(sub_0814E700);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1591,7 +1591,7 @@ static void sub_0814CB0C(struct Unk_0814E394 *a1) {
     sprite->variant = gUnk_08387EB4[0xA][1];
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E730;
+    a1->unk4 = FN(sub_0814E730);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -1609,7 +1609,7 @@ static void sub_0814CB60(struct Unk_0814E394 *a1) {
         a1->unk64 = 0x500000;
         a1->unk74 = 0;
         a1->unk6C = 0;
-        a1->unk4 = sub_0814CC0C;
+        a1->unk4 = FN(sub_0814CC0C);
     }
     a1->unk10[0].x = a1->unk10[1].x = a1->unk60 >> 0x10;
     a1->unk10[0].y = a1->unk10[1].y = a1->unk64 >> 0x10;
@@ -1622,9 +1622,9 @@ static void sub_0814CB60(struct Unk_0814E394 *a1) {
 }
 
 static void sub_0814CC0C(struct Unk_0814E394 *a1) {
-    a1->unkC->unkB8[0]->unk4 = sub_0814E4DC;
+    a1->unkC->unkB8[0]->unk4 = FN(sub_0814E4DC);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814CC80;
+    a1->unk4 = FN(sub_0814CC80);
     if (a1->unk10[0].unk1C < 0xFF) {
         ++a1->unk10[0].unk1C;
         ++a1->unk10[1].unk1C;
@@ -1639,7 +1639,7 @@ static void sub_0814CC0C(struct Unk_0814E394 *a1) {
 
 static void sub_0814CC80(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0xE)
-        a1->unk4 = sub_0814CCFC;
+        a1->unk4 = FN(sub_0814CCFC);
     if (a1->unk10[0].unk1C < 0xFF && !(a1->unk8 & 7)) {
         ++a1->unk10[0].unk1C;
         ++a1->unk10[1].unk1C;
@@ -1655,11 +1655,11 @@ static void sub_0814CC80(struct Unk_0814E394 *a1) {
 static void sub_0814CCFC(struct Unk_0814E394 *a1) {
     struct Unk_0814A828 *unkC = a1->unkC;
 
-    unkC->unkB8[0]->unk4 = sub_0814B908;
+    unkC->unkB8[0]->unk4 = FN(sub_0814B908);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814CDE4;
+    a1->unk4 = FN(sub_0814CDE4);
     if (unkC->unk4 & 0x80000000) {
-        a1->unk4 = sub_0814E7AC;
+        a1->unk4 = FN(sub_0814E7AC);
         if (!sub_08155128(&a1->unk10[0]))
             a1->unk10[0].unk1B = 0xFF;
         if (!sub_08155128(&a1->unk10[1]))
@@ -1688,7 +1688,7 @@ static void sub_0814CDE4(struct Unk_0814E394 *a1) {
     struct Sprite *sprite = &a1->unkC->unk38;
 
     if (++a1->unk8 > 0x4A)
-        a1->unk4 = sub_0814E748;
+        a1->unk4 = FN(sub_0814E748);
     gBldRegs.bldY = 0x10 * a1->unk8 / 0x4B;
     if (++a1->unk1 > 7) {
         a1->unk1 = 0;
@@ -1714,7 +1714,7 @@ static void sub_0814CEAC(struct Unk_0814E394 *a1) {
 
     if (++a1->unk8 > 9) {
         if (!(a1->unkC->unk4 & 0x80000000))
-            a1->unkC->unk8 = sub_0814E1C0;
+            a1->unkC->unk8 = FN(sub_0814E1C0);
         a1->unkC->unkA8[a1->unk0] = 0;
         a1->unkC->unkB8[a1->unk0] = 0;
         TaskDestroy(gCurTask);
@@ -1750,7 +1750,7 @@ static void sub_0814D034(struct Unk_0814EACC *a1) {
         a1->unk7 = 1;
     }
     if (++a1->unk4 > 0x22)
-        a1->unk0 = sub_0814D0F4;
+        a1->unk0 = FN(sub_0814D0F4);
     a1->unk3C += a1->unk44;
     if (abs(a1->unk3C) >= 0x14C00) {
         a1->unk3C = a1->unk3C > 0 ? 0x14C00 : -0x14C00;
@@ -1790,7 +1790,7 @@ static void sub_0814D0F4(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
-    a1->unk0 = sub_0814D198;
+    a1->unk0 = FN(sub_0814D198);
     if (!sub_08155128(&a1->unkC))
         a1->unkC.unk1B = 0xFF;
     DisplaySprite(&a1->unkC);
@@ -1815,7 +1815,7 @@ static void sub_0814D198(struct Unk_0814EACC *a1) {
     a1->unkC.y = a1->unk38 >> 0x10;
     var = !sub_08155128(&a1->unkC);
     if (var)
-        a1->unk0 = sub_0814D228;
+        a1->unk0 = FN(sub_0814D228);
     DisplaySprite(&a1->unkC);
 }
 
@@ -1839,7 +1839,7 @@ static void sub_0814D228(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
-    a1->unk0 = sub_0814D2CC;
+    a1->unk0 = FN(sub_0814D2CC);
     if (!sub_08155128(&a1->unkC))
         a1->unkC.unk1B = 0xFF;
     DisplaySprite(&a1->unkC);
@@ -1860,7 +1860,7 @@ static void sub_0814D2CC(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     if (a1->unk38 >= 0x880000) {
         a1->unk38 = 0x880000;
-        a1->unk0 = sub_0814D370;
+        a1->unk0 = FN(sub_0814D370);
     }
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
@@ -1893,7 +1893,7 @@ static void sub_0814D370(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
-    a1->unk0 = sub_0814D438;
+    a1->unk0 = FN(sub_0814D438);
     if (!sub_08155128(&a1->unkC))
         a1->unkC.unk1B = 0xFF;
     DisplaySprite(&a1->unkC);
@@ -1918,7 +1918,7 @@ static void sub_0814D438(struct Unk_0814EACC *a1) {
     a1->unkC.y = a1->unk38 >> 0x10;
     var = !sub_08155128(&a1->unkC);
     if (var)
-        a1->unk0 = sub_0814D4C8;
+        a1->unk0 = FN(sub_0814D4C8);
     DisplaySprite(&a1->unkC);
 }
 
@@ -1942,7 +1942,7 @@ static void sub_0814D4C8(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
-    a1->unk0 = sub_0814D56C;
+    a1->unk0 = FN(sub_0814D56C);
     if (!sub_08155128(&a1->unkC))
         a1->unkC.unk1B = 0xFF;
     DisplaySprite(&a1->unkC);
@@ -1964,7 +1964,7 @@ static void sub_0814D56C(struct Unk_0814EACC *a1) {
     if (a1->unk38 >= 0x880000) {
         a1->unk38 = 0x880000;
         m4aSongNumStart(SE_KIRBY_LANDING);
-        a1->unk0 = sub_0814E7F8;
+        a1->unk0 = FN(sub_0814E7F8);
     }
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
@@ -1998,7 +1998,7 @@ static void sub_0814D618(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
-    a1->unk0 = sub_0814D6A0;
+    a1->unk0 = FN(sub_0814D6A0);
     if (!sub_08155128(&a1->unkC))
         a1->unkC.unk1B = 0xFF;
     DisplaySprite(&a1->unkC);
@@ -2023,7 +2023,7 @@ static void sub_0814D6A0(struct Unk_0814EACC *a1) {
     a1->unk38 += a1->unk40;
     if (a1->unk34 >= 0xB80000) {
         a1->unk34 = 0xB80000;
-        a1->unk0 = sub_0814E85C;
+        a1->unk0 = FN(sub_0814E85C);
     }
     a1->unkC.x = a1->unk34 >> 0x10;
     a1->unkC.y = a1->unk38 >> 0x10;
@@ -2128,7 +2128,7 @@ static void sub_0814DCBC(struct Unk_0814E918 *a1) {
         a1->unk1E0[i][1] = ((gUnk_08387F70[i][1] - 0x50) << 0x10) / 0xF;
     }
     a1->unk4 = 0;
-    a1->unk0 = sub_0814DD64;
+    a1->unk0 = FN(sub_0814DD64);
     for (j = 0; j < 8; ++j)
         DisplaySprite(&a1->unkC[j]);
     sub_0814D984(a1);
@@ -2138,7 +2138,7 @@ static void sub_0814DD64(struct Unk_0814E918 *a1) {
     u8 i, j;
 
     if (++a1->unk4 > 0xE)
-        a1->unk0 = sub_0814DDDC;
+        a1->unk0 = FN(sub_0814DDDC);
     sub_0814DB40(a1);
     for (i = 0; i < 8; ++i) {
         a1->unkC[i].x = a1->unk1A0[i][0] >> 0x10;
@@ -2155,7 +2155,7 @@ static void sub_0814DDDC(struct Unk_0814E918 *a1) {
     for (i = 0; i < 8; ++i)
         a1->unk1E0[i][0] = a1->unk1E0[i][1] = 0;
     a1->unk4 = 0;
-    a1->unk0 = sub_0814DE5C;
+    a1->unk0 = FN(sub_0814DE5C);
     for (k = 0; k < 8; ++k) {
         if (!sub_08155128(&a1->unkC[k]))
             a1->unkC[k].unk1B = 0xFF;
@@ -2169,7 +2169,7 @@ static void sub_0814DE5C(struct Unk_0814E918 *a1) {
     u8 j, k;
 
     if (++a1->unk4 > 0)
-        a1->unk0 = sub_0814DEC4;
+        a1->unk0 = FN(sub_0814DEC4);
     for (k = 0; k < 8; ++k) {
         if (!sub_08155128(&a1->unkC[k]))
             a1->unkC[k].unk1B = 0xFF;
@@ -2185,7 +2185,7 @@ static void sub_0814DEC4(struct Unk_0814E918 *a1) {
     for (i = 0; i < 8; ++i)
         a1->unk280[i] = 0x369;
     a1->unk4 = 0;
-    a1->unk0 = sub_0814DF40;
+    a1->unk0 = FN(sub_0814DF40);
     for (k = 0; k < 8; ++k) {
         if (!sub_08155128(&a1->unkC[k]))
             a1->unkC[k].unk1B = 0xFF;
@@ -2205,9 +2205,9 @@ static void sub_0814DF40(struct Unk_0814E918 *a1) {
     }
     if (++a1->unk4 > 9) {
         if (!(a1->unk8->unk4 & 0x80000000))
-            a1->unk8->unk8 = sub_0814E270;
+            a1->unk8->unk8 = FN(sub_0814E270);
         a1->unk4 = 0;
-        a1->unk0 = sub_0814DFF8;
+        a1->unk0 = FN(sub_0814DFF8);
     }
     for (k = 0; k < 8; ++k) {
         if (!sub_08155128(&a1->unkC[k]))
@@ -2248,23 +2248,23 @@ static void nullsub_12(struct Task *t __attribute__((unused))) {}
 static void sub_0814E0B4(struct Unk_0814A828 *a1) {
     sub_0814AA50(a1);
     sub_0814AAF4(a1);
-    a1->unk8 = sub_0814E0D0;
+    a1->unk8 = FN(sub_0814E0D0);
 }
 
 static void sub_0814E0D0(struct Unk_0814A828 *a1) {
     sub_0814AB7C(a1);
-    a1->unk8 = sub_0814AC28;
+    a1->unk8 = FN(sub_0814AC28);
 }
 
 static void sub_0814E0E8(struct Unk_0814A828 *a1) {
     if (a1->unkC++ > 0x20)
-        a1->unk8 = sub_0814E110;
+        a1->unk8 = FN(sub_0814E110);
     DisplaySprite(&a1->unk10);
 }
 
 static void sub_0814E110(struct Unk_0814A828 *a1) {
     m4aSongNumStart(MUS_DARK_META_KNIGHT_APPEARS);
-    a1->unk8 = sub_0814E130;
+    a1->unk8 = FN(sub_0814E130);
     DisplaySprite(&a1->unk10);
 }
 
@@ -2272,14 +2272,14 @@ static void sub_0814E130(struct Unk_0814A828 *a1) {
     if (++a1->unkC > 0xB3) {
         m4aSongNumStart(SE_POST_TUTO_MK_HIT);
         a1->unkC = 0;
-        a1->unk8 = sub_0814E168;
+        a1->unk8 = FN(sub_0814E168);
     }
     DisplaySprite(&a1->unk10);
 }
 
 static void sub_0814E168(struct Unk_0814A828 *a1) {
     if (++a1->unkC > 4)
-        a1->unk8 = sub_0814AD44;
+        a1->unk8 = FN(sub_0814AD44);
     sub_08155128(&a1->unk10);
     DisplaySprite(&a1->unk10);
 }
@@ -2293,8 +2293,8 @@ static void sub_0814E198(struct Unk_0814A828 *a1) {
 static void sub_0814E1C0(struct Unk_0814A828 *a1) {
     a1->unkB0[1] = sub_0814E918(a1);
     a1->unkC4 = TaskGetStructPtr(a1->unkB0[1]);
-    a1->unkB8[0]->unk4 = sub_0814E5A8;
-    a1->unk8 = sub_0814E218;
+    a1->unkB8[0]->unk4 = FN(sub_0814E5A8);
+    a1->unk8 = FN(sub_0814E218);
     DisplaySprite(&a1->unk10);
 }
 
@@ -2304,13 +2304,13 @@ static void sub_0814E218(struct Unk_0814A828 *a1) {
 
 static void sub_0814E224(struct Unk_0814A828 *a1) {
     a1->unkC = 0;
-    a1->unk8 = sub_0814E23C;
+    a1->unk8 = FN(sub_0814E23C);
     DisplaySprite(&a1->unk10);
 }
 
 static void sub_0814E23C(struct Unk_0814A828 *a1) {
     if (++a1->unkC > 0x59)
-        a1->unk8 = sub_0814AE78;
+        a1->unk8 = FN(sub_0814AE78);
     DisplaySprite(&a1->unk10);
 }
 
@@ -2319,7 +2319,7 @@ static void sub_0814E264(struct Unk_0814A828 *a1) {
 }
 
 static void sub_0814E270(struct Unk_0814A828 *a1) {
-    a1->unk8 = sub_0814E284;
+    a1->unk8 = FN(sub_0814E284);
     DisplaySprite(&a1->unk10);
 }
 
@@ -2341,33 +2341,33 @@ static void sub_0814E290(struct Unk_0814A828 *a1) {
     m4aMPlayFadeOut(&gMPlayInfo_2, 2);
     m4aMPlayFadeOut(&gMPlayInfo_3, 2);
     a1->unkC = 0;
-    a1->unk8 = sub_0814E320;
+    a1->unk8 = FN(sub_0814E320);
     DisplaySprite(&a1->unk10);
 }
 
 static void sub_0814E320(struct Unk_0814A828 *a1) {
     if (a1->unkC++ > 0x20)
-        a1->unk8 = sub_0814E348;
+        a1->unk8 = FN(sub_0814E348);
     DisplaySprite(&a1->unk10);
 }
 
 static void sub_0814E348(struct Unk_0814A828 *a1) {
     m4aMPlayAllStop();
     gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
-    a1->unk8 = sub_0814E36C;
+    a1->unk8 = FN(sub_0814E36C);
 }
 
 static void sub_0814E36C(struct Unk_0814A828 *a1) {
     m4aSongNumStart(gRoomProps[0x321].songIdx);
-    a1->unk8 = sub_0814AF04;
+    a1->unk8 = FN(sub_0814AF04);
 }
 
 static struct Task *sub_0814E394(struct Unk_0814A828 *a1, u8 a2) {
-    struct Task *t = TaskCreate(sub_0814E408, sizeof(struct Unk_0814E394), 0x2000, TASK_x0004 | TASK_USE_IWRAM, nullsub_135);
+    struct Task *t = TaskCreate(FN(sub_0814E408), sizeof(struct Unk_0814E394), 0x2000, TASK_x0004 | TASK_USE_IWRAM, FN(nullsub_135));
     struct Unk_0814E394 *var = TaskGetStructPtr(t);
 
     CpuFill16(0, var, sizeof(struct Unk_0814E394));
-    var->unk4 = sub_0814E43C;
+    var->unk4 = FN(sub_0814E43C);
     var->unk0 = a2;
     var->unkC = a1;
     return t;
@@ -2378,25 +2378,25 @@ static void nullsub_135(struct Task *t __attribute__((unused))) {}
 static void sub_0814E408(void) {
     struct Unk_0814E394 *var = TaskGetStructPtr(gCurTask);
 
-    var->unk4(var);
+    CALL(var->unk4)(var);
 }
 
 static void sub_0814E43C(struct Unk_0814E394 *a1) {
     if (!a1->unk0) {
         a1->unk60 = 0x840000;
         a1->unk64 = 0x500000;
-        a1->unk4 = sub_0814B368;
+        a1->unk4 = FN(sub_0814B368);
     } else {
         a1->unk60 = 0x640000;
         a1->unk64 = 0x480000;
-        a1->unk4 = sub_0814C674;
+        a1->unk4 = FN(sub_0814C674);
     }
     sub_0814B024(a1);
 }
 
 static void sub_0814E47C(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x13)
-        a1->unk4 = sub_0814B784;
+        a1->unk4 = FN(sub_0814B784);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2412,7 +2412,7 @@ static void sub_0814E4C4(struct Unk_0814E394 *a1) {
 }
 
 static void sub_0814E4DC(struct Unk_0814E394 *a1) {
-    a1->unk4 = sub_0814E500;
+    a1->unk4 = FN(sub_0814E500);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2424,7 +2424,7 @@ static void sub_0814E500(struct Unk_0814E394 *a1) {
 
 static void sub_0814E518(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x27)
-        a1->unk4 = sub_0814E548;
+        a1->unk4 = FN(sub_0814E548);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2439,7 +2439,7 @@ static void sub_0814E548(struct Unk_0814E394 *a1) {
     sprite->unk8 ^= 0x400;
     sub_08155128(sprite);
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E590;
+    a1->unk4 = FN(sub_0814E590);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2451,35 +2451,35 @@ static void sub_0814E590(struct Unk_0814E394 *a1) {
 
 static void sub_0814E5A8(struct Unk_0814E394 *a1) {
     a1->unk8 = 0;
-    a1->unk4 = sub_0814E5D0;
+    a1->unk4 = FN(sub_0814E5D0);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
 
 static void sub_0814E5D0(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x4A)
-        a1->unk4 = sub_0814B95C;
+        a1->unk4 = FN(sub_0814B95C);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
 
 static void sub_0814E600(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x13)
-        a1->unk4 = sub_0814C424;
+        a1->unk4 = FN(sub_0814C424);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
 
 static void sub_0814E630(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x59)
-        a1->unk4 = sub_0814C478;
+        a1->unk4 = FN(sub_0814C478);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
 
 static void sub_0814E660(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x13)
-        a1->unk4 = sub_0814C5EC;
+        a1->unk4 = FN(sub_0814C5EC);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2487,7 +2487,7 @@ static void sub_0814E660(struct Unk_0814E394 *a1) {
 static void sub_0814E690(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x27) {
         if (!(a1->unkC->unk4 & 0x80000000))
-            a1->unkC->unk8 = sub_0814EA74;
+            a1->unkC->unk8 = FN(sub_0814EA74);
         a1->unkC->unkA8[a1->unk0] = 0;
         a1->unkC->unkB8[a1->unk0] = 0;
         TaskDestroy(gCurTask);
@@ -2501,7 +2501,7 @@ static void sub_0814E690(struct Unk_0814E394 *a1) {
 
 static void sub_0814E700(struct Unk_0814E394 *a1) {
     if (++a1->unk8 > 0x1D)
-        a1->unk4 = sub_0814CB0C;
+        a1->unk4 = FN(sub_0814CB0C);
     DisplaySprite(&a1->unk10[0]);
     DisplaySprite(&a1->unk10[1]);
 }
@@ -2522,7 +2522,7 @@ static void sub_0814E748(struct Unk_0814E394 *a1) {
         a1->unk1 = 0;
         m4aSongNumStart(SE_POST_TUTO_SMOKE);
     }
-    a1->unk4 = sub_0814E7AC;
+    a1->unk4 = FN(sub_0814E7AC);
     if (!sub_08155128(sprite))
         sprite->unk1B = 0xFF;
     DisplaySprite(sprite);
@@ -2532,7 +2532,7 @@ static void sub_0814E7AC(struct Unk_0814E394 *a1) {
     struct Sprite *sprite = &a1->unkC->unk38;
 
     a1->unk8 = 0;
-    a1->unk4 = sub_0814CEAC;
+    a1->unk4 = FN(sub_0814CEAC);
     if (++a1->unk1 > 7) {
         a1->unk1 = 0;
         m4aSongNumStart(SE_POST_TUTO_SMOKE);
@@ -2553,13 +2553,13 @@ static void sub_0814E7F8(struct Unk_0814EACC *a1) {
     sprite->variant = gUnk_08387F3C[0][1];
     sub_08155128(sprite);
     a1->unk4 = 0;
-    a1->unk0 = sub_0814E834;
+    a1->unk0 = FN(sub_0814E834);
     DisplaySprite(sprite);
 }
 
 static void sub_0814E834(struct Unk_0814EACC *a1) {
     if (++a1->unk4 > 0x13)
-        a1->unk0 = sub_0814D618;
+        a1->unk0 = FN(sub_0814D618);
     DisplaySprite(&a1->unkC);
 }
 
@@ -2571,13 +2571,13 @@ static void sub_0814E85C(struct Unk_0814EACC *a1) {
     sprite->variant = gUnk_08387F3C[1][1];
     sub_08155128(sprite);
     a1->unk4 = 0;
-    a1->unk0 = sub_0814E890;
+    a1->unk0 = FN(sub_0814E890);
     DisplaySprite(sprite);
 }
 
 static void sub_0814E890(struct Unk_0814EACC *a1) {
     if (++a1->unk4 > 2)
-        a1->unk0 = sub_0814E8B8;
+        a1->unk0 = FN(sub_0814E8B8);
     DisplaySprite(&a1->unkC);
 }
 
@@ -2591,8 +2591,8 @@ static void sub_0814E8B8(struct Unk_0814EACC *a1) {
     a1->unk44 = 0;
     a1->unk3C = 0;
     if (!(a1->unk8->unk4 & 0x80000000))
-        a1->unk8->unk8 = sub_0814E290;
-    a1->unk0 = sub_0814E900;
+        a1->unk8->unk8 = FN(sub_0814E290);
+    a1->unk0 = FN(sub_0814E900);
     DisplaySprite(sprite);
 }
 
@@ -2602,11 +2602,11 @@ static void sub_0814E900(struct Unk_0814EACC *a1) {
 }
 
 static struct Task *sub_0814E918(struct Unk_0814A828 *a1) {
-    struct Task *t = TaskCreate(sub_0814E988, sizeof(struct Unk_0814E918), 0x2000, TASK_x0004 | TASK_USE_IWRAM, nullsub_136);
+    struct Task *t = TaskCreate(FN(sub_0814E988), sizeof(struct Unk_0814E918), 0x2000, TASK_x0004 | TASK_USE_IWRAM, FN(nullsub_136));
     struct Unk_0814E918 *var = TaskGetStructPtr(t);
 
     CpuFill16(0, var, sizeof(struct Unk_0814E918));
-    var->unk0 = sub_0814E9BC;
+    var->unk0 = FN(sub_0814E9BC);
     var->unk8 = a1;
     return t;
 }
@@ -2616,7 +2616,7 @@ static void nullsub_136(struct Task *t __attribute__((unused))) {}
 static void sub_0814E988(void) {
     struct Unk_0814E918 *var = TaskGetStructPtr(gCurTask);
 
-    var->unk0(var);
+    CALL(var->unk0)(var);
 }
 
 static void sub_0814E9BC(struct Unk_0814E918 *a1) {
@@ -2627,7 +2627,7 @@ static void sub_0814E9BC(struct Unk_0814E918 *a1) {
         a1->unk1A0[i][0] = 0x780000;
         a1->unk1A0[i][1] = 0x500000;
     }
-    a1->unk0 = nullsub_137;
+    a1->unk0 = FN(nullsub_137);
 }
 
 static void nullsub_137(struct Unk_0814E918 *a1 __attribute__((unused))) {}
@@ -2636,7 +2636,7 @@ static void sub_0814EA00(struct Unk_0814E918 *a1) {
     u8 i;
 
     a1->unk4 = 0;
-    a1->unk0 = sub_0814EA3C;
+    a1->unk0 = FN(sub_0814EA3C);
     m4aSongNumStart(SE_POST_TUTO_MIRROR_SHATTER);
     for (i = 0; i < 8; ++i)
         DisplaySprite(&a1->unkC[i]);
@@ -2646,7 +2646,7 @@ static void sub_0814EA3C(struct Unk_0814E918 *a1) {
     u8 i;
 
     if (++a1->unk4 > 0)
-        a1->unk0 = sub_0814DEC4;
+        a1->unk0 = FN(sub_0814DEC4);
     for (i = 0; i < 8; ++i)
         DisplaySprite(&a1->unkC[i]);
 }
@@ -2654,7 +2654,7 @@ static void sub_0814EA3C(struct Unk_0814E918 *a1) {
 static void sub_0814EA74(struct Unk_0814A828 *a1) {
     a1->unkB0[0] = sub_0814EACC(a1);
     a1->unkC0 = TaskGetStructPtr(a1->unkB0[0]);
-    a1->unk8 = sub_0814EAC0;
+    a1->unk8 = FN(sub_0814EAC0);
     DisplaySprite(&a1->unk10);
 }
 
@@ -2663,11 +2663,11 @@ static void sub_0814EAC0(struct Unk_0814A828 *a1) {
 }
 
 static struct Task *sub_0814EACC(struct Unk_0814A828 *a1) {
-    struct Task *t = TaskCreate(sub_0814EB38, sizeof(struct Unk_0814EACC), 0x2000, TASK_x0004 | TASK_USE_IWRAM, nullsub_138);
+    struct Task *t = TaskCreate(FN(sub_0814EB38), sizeof(struct Unk_0814EACC), 0x2000, TASK_x0004 | TASK_USE_IWRAM, FN(nullsub_138));
     struct Unk_0814EACC *var = TaskGetStructPtr(t);
 
     CpuFill16(0, var, sizeof(struct Unk_0814EACC));
-    var->unk0 = sub_0814EB6C;
+    var->unk0 = FN(sub_0814EB6C);
     var->unk8 = a1;
     return t;
 }
@@ -2677,22 +2677,22 @@ static void nullsub_138(struct Task *t __attribute__((unused))) {}
 static void sub_0814EB38(void) {
     struct Unk_0814EACC *var = TaskGetStructPtr(gCurTask);
 
-    var->unk0(var);
+    CALL(var->unk0)(var);
 }
 
 static void sub_0814EB6C(struct Unk_0814EACC *a1) {
     sub_0814CF34(a1);
-    a1->unk0 = sub_0814EB84;
+    a1->unk0 = FN(sub_0814EB84);
 }
 
 static void sub_0814EB84(struct Unk_0814EACC *a1) {
     a1->unk4 = 0;
-    a1->unk0 = sub_0814EB94;
+    a1->unk0 = FN(sub_0814EB94);
 }
 
 static void sub_0814EB94(struct Unk_0814EACC *a1) {
     if (++a1->unk4 > 0x3B)
-        a1->unk0 = sub_0814EBB4;
+        a1->unk0 = FN(sub_0814EBB4);
 }
 
 static void sub_0814EBB4(struct Unk_0814EACC *a1) {
@@ -2703,9 +2703,149 @@ static void sub_0814EBB4(struct Unk_0814EACC *a1) {
     a1->unk40 = 0x1000;
     a1->unk48 = 0x2600;
     a1->unk4 = 0;
-    a1->unk0 = sub_0814D034;
+    a1->unk0 = FN(sub_0814D034);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0814A828) {
+    PORT_FNID(sub_0814A828),
+    PORT_FNID(sub_0814A914),
+    PORT_FNID(sub_0814A9E8),
+    PORT_FNID(sub_0814AC28),
+    PORT_FNID(sub_0814ACA8),
+    PORT_FNID(sub_0814AD44),
+    PORT_FNID(sub_0814AE78),
+    PORT_FNID(sub_0814AF04),
+    PORT_FNID(sub_0814B368),
+    PORT_FNID(sub_0814B400),
+    PORT_FNID(sub_0814B4A4),
+    PORT_FNID(sub_0814B54C),
+    PORT_FNID(sub_0814B5D4),
+    PORT_FNID(sub_0814B67C),
+    PORT_FNID(sub_0814B728),
+    PORT_FNID(sub_0814B784),
+    PORT_FNID(sub_0814B7D8),
+    PORT_FNID(sub_0814B88C),
+    PORT_FNID(sub_0814B908),
+    PORT_FNID(sub_0814B95C),
+    PORT_FNID(sub_0814BA0C),
+    PORT_FNID(sub_0814BAC4),
+    PORT_FNID(sub_0814BB9C),
+    PORT_FNID(sub_0814BC54),
+    PORT_FNID(sub_0814BD00),
+    PORT_FNID(sub_0814BDC8),
+    PORT_FNID(sub_0814BE40),
+    PORT_FNID(sub_0814BEE4),
+    PORT_FNID(sub_0814BF70),
+    PORT_FNID(sub_0814C014),
+    PORT_FNID(sub_0814C0A0),
+    PORT_FNID(sub_0814C144),
+    PORT_FNID(sub_0814C1EC),
+    PORT_FNID(sub_0814C274),
+    PORT_FNID(sub_0814C31C),
+    PORT_FNID(sub_0814C3C8),
+    PORT_FNID(sub_0814C424),
+    PORT_FNID(sub_0814C478),
+    PORT_FNID(sub_0814C4F0),
+    PORT_FNID(sub_0814C598),
+    PORT_FNID(sub_0814C5EC),
+    PORT_FNID(sub_0814C674),
+    PORT_FNID(sub_0814C728),
+    PORT_FNID(sub_0814C7CC),
+    PORT_FNID(sub_0814C898),
+    PORT_FNID(sub_0814C920),
+    PORT_FNID(sub_0814CA04),
+    PORT_FNID(sub_0814CAB0),
+    PORT_FNID(sub_0814CB0C),
+    PORT_FNID(sub_0814CB60),
+    PORT_FNID(sub_0814CC0C),
+    PORT_FNID(sub_0814CC80),
+    PORT_FNID(sub_0814CCFC),
+    PORT_FNID(sub_0814CDE4),
+    PORT_FNID(sub_0814CEAC),
+    PORT_FNID(sub_0814D034),
+    PORT_FNID(sub_0814D0F4),
+    PORT_FNID(sub_0814D198),
+    PORT_FNID(sub_0814D228),
+    PORT_FNID(sub_0814D2CC),
+    PORT_FNID(sub_0814D370),
+    PORT_FNID(sub_0814D438),
+    PORT_FNID(sub_0814D4C8),
+    PORT_FNID(sub_0814D56C),
+    PORT_FNID(sub_0814D618),
+    PORT_FNID(sub_0814D6A0),
+    PORT_FNID(sub_0814DD64),
+    PORT_FNID(sub_0814DDDC),
+    PORT_FNID(sub_0814DE5C),
+    PORT_FNID(sub_0814DEC4),
+    PORT_FNID(sub_0814DF40),
+    PORT_FNID(sub_0814DFF8),
+    PORT_FNID(nullsub_12),
+    PORT_FNID(sub_0814E0B4),
+    PORT_FNID(sub_0814E0D0),
+    PORT_FNID(sub_0814E0E8),
+    PORT_FNID(sub_0814E110),
+    PORT_FNID(sub_0814E130),
+    PORT_FNID(sub_0814E168),
+    PORT_FNID(sub_0814E198),
+    PORT_FNID(sub_0814E1C0),
+    PORT_FNID(sub_0814E218),
+    PORT_FNID(sub_0814E224),
+    PORT_FNID(sub_0814E23C),
+    PORT_FNID(sub_0814E264),
+    PORT_FNID(sub_0814E270),
+    PORT_FNID(sub_0814E284),
+    PORT_FNID(sub_0814E290),
+    PORT_FNID(sub_0814E320),
+    PORT_FNID(sub_0814E348),
+    PORT_FNID(sub_0814E36C),
+    PORT_FNID(nullsub_135),
+    PORT_FNID(sub_0814E408),
+    PORT_FNID(sub_0814E43C),
+    PORT_FNID(sub_0814E47C),
+    PORT_FNID(sub_0814E4AC),
+    PORT_FNID(sub_0814E4C4),
+    PORT_FNID(sub_0814E4DC),
+    PORT_FNID(sub_0814E500),
+    PORT_FNID(sub_0814E518),
+    PORT_FNID(sub_0814E548),
+    PORT_FNID(sub_0814E590),
+    PORT_FNID(sub_0814E5A8),
+    PORT_FNID(sub_0814E5D0),
+    PORT_FNID(sub_0814E600),
+    PORT_FNID(sub_0814E630),
+    PORT_FNID(sub_0814E660),
+    PORT_FNID(sub_0814E690),
+    PORT_FNID(sub_0814E700),
+    PORT_FNID(sub_0814E730),
+    PORT_FNID(sub_0814E748),
+    PORT_FNID(sub_0814E7AC),
+    PORT_FNID(sub_0814E7F8),
+    PORT_FNID(sub_0814E834),
+    PORT_FNID(sub_0814E85C),
+    PORT_FNID(sub_0814E890),
+    PORT_FNID(sub_0814E8B8),
+    PORT_FNID(sub_0814E900),
+    PORT_FNID(nullsub_136),
+    PORT_FNID(sub_0814E988),
+    PORT_FNID(sub_0814E9BC),
+    PORT_FNID(nullsub_137),
+    PORT_FNID(sub_0814EA00),
+    PORT_FNID(sub_0814EA3C),
+    PORT_FNID(sub_0814EA74),
+    PORT_FNID(sub_0814EAC0),
+    PORT_FNID(nullsub_138),
+    PORT_FNID(sub_0814EB38),
+    PORT_FNID(sub_0814EB6C),
+    PORT_FNID(sub_0814EB84),
+    PORT_FNID(sub_0814EB94),
+    PORT_FNID(sub_0814EBB4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

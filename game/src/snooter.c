@@ -16,7 +16,7 @@ static void sub_080ACC90(struct Object *);
 
 void *CreateSnooter(struct ObjectTemplate *arg0, u8 arg1) {
     struct Object *obj;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     obj = TaskGetStructPtr(task);
     InitObject(obj, arg0, arg1);
     sub_0803E2B0(&obj->base, -5, -5, 5, 6);
@@ -31,14 +31,14 @@ void *CreateSnooter(struct ObjectTemplate *arg0, u8 arg1) {
 }
 
 static void sub_080ACB74(struct Object *arg0) {
-    ObjectSetFunc(arg0, 0, sub_080ACBEC);
+    ObjectSetFunc(arg0, 0, FN(sub_080ACBEC));
     arg0->base.xspeed = 0;
     arg0->base.counter = 2;
     arg0->base.flags &= ~0x2000000;
 }
 
 void sub_080ACBA4(struct Object *arg0) {
-    ObjectSetFunc(arg0, 8, sub_080AC45C);
+    ObjectSetFunc(arg0, 8, FN(sub_080AC45C));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -64,14 +64,14 @@ void sub_080ACBEC(struct Object *arg0) {
 }
 
 static void sub_080ACC44(struct Object *arg0) {
-    ObjectSetFunc(arg0, 1, sub_080AC380);
+    ObjectSetFunc(arg0, 1, FN(sub_080AC380));
     arg0->base.counter = 0xB4;
 }
 
 void sub_080ACC60(struct Object *arg0) {
     arg0->base.flags |= 4;
     if (arg0->base.counter == 0x28) {
-        ObjectSetFunc(arg0, 6, sub_080ACC90);
+        ObjectSetFunc(arg0, 6, FN(sub_080ACC90));
     }
     else {
         arg0->base.counter++;
@@ -80,7 +80,7 @@ void sub_080ACC60(struct Object *arg0) {
 
 static void sub_080ACC90(struct Object *arg0) {
     if (arg0->base.flags & 2) {
-        ObjectSetFunc(arg0, 0, sub_080ACBEC);
+        ObjectSetFunc(arg0, 0, FN(sub_080ACBEC));
         arg0->base.xspeed = 0;
         arg0->base.counter = 2;
         arg0->base.flags &= ~0x2000000;
@@ -93,3 +93,16 @@ static void sub_080ACC90(struct Object *arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_snooter) {
+    PORT_FNID(CreateSnooter),
+    PORT_FNID(sub_080ACBA4),
+    PORT_FNID(sub_080ACBEC),
+    PORT_FNID(sub_080ACC60),
+    PORT_FNID(sub_080ACC90),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

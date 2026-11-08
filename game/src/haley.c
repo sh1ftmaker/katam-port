@@ -15,7 +15,7 @@ extern const struct AnimInfo gUnk_08352F00[] = {
 
 void* CreateHaley(struct ObjectTemplate *arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -31,7 +31,7 @@ void* CreateHaley(struct ObjectTemplate *arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -3, 5, 8);
     ObjectSetBounds(&obj->base, -6, -4, 6, 10);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
 
     return obj;
 }
@@ -62,7 +62,7 @@ void sub_080A0E98(struct Object *arg0) {
         sub_080A118C(arg0);
     }
     else {
-        ObjectSetFunc(arg0, 0, sub_080A0F2C);
+        ObjectSetFunc(arg0, 0, FN(sub_080A0F2C));
     }
 }
 
@@ -193,10 +193,22 @@ static void sub_080A100C(struct Object *arg0) {
 }
 
 static void sub_080A118C(struct Object *arg0) {
-    ObjectSetFunc(arg0, 1, sub_080A100C);
+    ObjectSetFunc(arg0, 1, FN(sub_080A100C));
     arg0->base.counter = arg0->base.xspeed;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_haley) {
+    PORT_FNID(CreateHaley),
+    PORT_FNID(sub_080A0E98),
+    PORT_FNID(sub_080A0F2C),
+    PORT_FNID(sub_080A100C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

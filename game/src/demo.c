@@ -40,20 +40,20 @@ static void sub_08025E00(UNUSED struct DemoStruct* arg0) {
             if (++gUnk_03000558 > 2) {
                 gUnk_03000558 = 0;
             }
-            sub_08020428(CreateLogo);
+            sub_08020428(FN(CreateLogo));
         }
         else {
-            sub_08020428(CreateTitleScreen);
+            sub_08020428(FN(CreateTitleScreen));
         }
     }
 }
 
 void CreateDemo(u16 arg0) {
-    struct Task* task = TaskCreate(sub_08025F50, sizeof(struct DemoStruct), 1, TASK_USE_IWRAM | TASK_x0004, NULL);
+    struct Task* task = TaskCreate(FN(sub_08025F50), sizeof(struct DemoStruct), 1, TASK_USE_IWRAM | TASK_x0004, NULL);
     struct DemoStruct* demo;
     demo = TaskGetStructPtr(task);
     CpuFill16(0, demo, sizeof(*demo));
-    demo->unk0 = sub_08025F84;
+    demo->unk0 = FN(sub_08025F84);
     demo->unk4 = arg0;
 }
 
@@ -63,7 +63,7 @@ u16 sub_08025F2C(void) {
 
 static void sub_08025F50(void) {
     struct DemoStruct* demo = TaskGetStructPtr(gCurTask);
-    demo->unk0(demo);
+    CALL(demo->unk0)(demo);
 }
 
 static void sub_08025F84(struct DemoStruct* arg0) {
@@ -82,9 +82,20 @@ static void sub_08025F84(struct DemoStruct* arg0) {
     gRngVal = r5->unk10;
     sub_080332BC(4, 0, r5->unk14, r5->unk1C[0], r5->unk3C);
     r5 = &gUnk_082EAB98[arg0->unk4]; // dummy
-    arg0->unk0 = sub_08025E00;
+    arg0->unk0 = FN(sub_08025E00);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_demo) {
+    PORT_FNID(sub_08025E00),
+    PORT_FNID(sub_08025F50),
+    PORT_FNID(sub_08025F84),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

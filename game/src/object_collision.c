@@ -60,7 +60,7 @@ static inline void ClearCollisionCounts(void)
 
 void CreateObjectCollisionManager(void)
 {
-    TaskCreate(UpdateObjectCollisions, 4, 0xFFFD, TASK_USE_IWRAM, ObjectCollisionTaskDestructor);
+    TaskCreate(FN(UpdateObjectCollisions), 4, 0xFFFD, TASK_USE_IWRAM, FN(ObjectCollisionTaskDestructor));
     gUnk_0203AD40 = 0;
     ClearCollisionCounts();
 }
@@ -559,7 +559,7 @@ static void ProcessAttackTileCollisions(struct ObjectBase *attack)
 }
 
 static bool16 (*const sObjectCollisionCallbacks[3])(struct ObjectBase *, struct ObjectBase *) = {
-    HandleKirbyCollision, HandleObjectCollision, HandleAttackObjectCollision,
+    FN(HandleKirbyCollision), FN(HandleObjectCollision), FN(HandleAttackObjectCollision),
 };
 
 static inline void CommitAttackContact(struct ObjectBase *attack)
@@ -639,8 +639,8 @@ static void ProcessObjectCollisionLists(void)
                                     (*slot)->sprite.unk20[0].unk6 - (*slot)->sprite.unk20[0].unk4, bx, other->unk3A * 2)
                                 && COLLISION_AXIS_OVERLAP(((*slot)->y >> 8) + (*slot)->sprite.unk20[0].unk5,
                                     (*slot)->sprite.unk20[0].unk7 - (*slot)->sprite.unk20[0].unk5, by, other->unk3B * 2))) {
-                            bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                            if (sObjectCollisionCallbacks[(*otherSlot)->header.kind](*slot, *otherSlot))
+                            bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                            if (CALL(sObjectCollisionCallbacks[(*otherSlot)->header.kind])(*slot, *otherSlot))
                                 *otherSlot = NULL;
                             if (removeAttack) {
                                 CommitAttackContact(*slot);
@@ -688,8 +688,8 @@ static void ProcessObjectCollisionLists(void)
                     if ((*slot)->unk3A != 0 && (*slot)->unk3B != 0
                         && COLLISION_AXIS_OVERLAP(ax, (*slot)->unk3A * 2, bx, other->unk3A * 2)
                         && COLLISION_AXIS_OVERLAP(ay, (*slot)->unk3B * 2, by, other->unk3B * 2)) {
-                        bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                        if (sObjectCollisionCallbacks[other->header.kind](*slot, other))
+                        bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                        if (CALL(sObjectCollisionCallbacks[other->header.kind])(*slot, other))
                             other = NULL;
                         if (removeAttack) {
                             CommitAttackContact(*slot);
@@ -701,8 +701,8 @@ static void ProcessObjectCollisionLists(void)
                         if (COLLISION_AXIS_OVERLAP(left, (*slot)->sprite.unk20[0].unk6 - (*slot)->sprite.unk20[0].unk4, bx, other->unk3A * 2)) {
                             s32 top = ((*slot)->y >> 8) + (*slot)->sprite.unk20[0].unk5;
                             if (COLLISION_AXIS_OVERLAP(top, (*slot)->sprite.unk20[0].unk7 - (*slot)->sprite.unk20[0].unk5, by, other->unk3B * 2)) {
-                                bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                                if (sObjectCollisionCallbacks[other->header.kind](*slot, other))
+                                bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                                if (CALL(sObjectCollisionCallbacks[other->header.kind])(*slot, other))
                                     other = NULL;
                                 if (removeAttack) {
                                     CommitAttackContact(*slot);
@@ -745,8 +745,8 @@ static void ProcessObjectCollisionLists(void)
                         by = (other->y >> 8) + other->unk39;
                         if (COLLISION_AXIS_OVERLAP(ax, (*slot)->unk3A * 2, bx, other->unk3A * 2)
                             && COLLISION_AXIS_OVERLAP(ay, (*slot)->unk3B * 2, by, other->unk3B * 2)) {
-                            bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                            if (sObjectCollisionCallbacks[(*otherSlot)->header.kind](*slot, *otherSlot)) {
+                            bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                            if (CALL(sObjectCollisionCallbacks[(*otherSlot)->header.kind])(*slot, *otherSlot)) {
                                 *otherSlot = NULL;
                                 break;
                             }
@@ -759,8 +759,8 @@ static void ProcessObjectCollisionLists(void)
                             if (COLLISION_AXIS_OVERLAP(left, (*slot)->sprite.unk20[0].unk6 - (*slot)->sprite.unk20[0].unk4, bx, other->unk3A * 2)) {
                                 s32 top = ((*slot)->y >> 8) + (*slot)->sprite.unk20[0].unk5;
                                 if (COLLISION_AXIS_OVERLAP(top, (*slot)->sprite.unk20[0].unk7 - (*slot)->sprite.unk20[0].unk5, by, other->unk3B * 2)) {
-                                    bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                                    if (sObjectCollisionCallbacks[(*otherSlot)->header.kind](*slot, *otherSlot)) {
+                                    bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                                    if (CALL(sObjectCollisionCallbacks[(*otherSlot)->header.kind])(*slot, *otherSlot)) {
                                         *otherSlot = NULL;
                                         break;
                                     }
@@ -830,8 +830,8 @@ static void ProcessObjectCollisionLists(void)
                     by = (entry->y >> 8) + entry->unk39;
                     if (COLLISION_AXIS_OVERLAP(ax, (*slot)->unk3A * 2, bx, entry->unk3A * 2)
                         && COLLISION_AXIS_OVERLAP(ay, (*slot)->unk3B * 2, by, entry->unk3B * 2)) {
-                        bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](entry, *slot);
-                        if (sObjectCollisionCallbacks[(*otherSlot)->header.kind](*slot, *otherSlot)) {
+                        bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(entry, *slot);
+                        if (CALL(sObjectCollisionCallbacks[(*otherSlot)->header.kind])(*slot, *otherSlot)) {
                             *otherSlot = NULL;
                             break;
                         }
@@ -844,8 +844,8 @@ static void ProcessObjectCollisionLists(void)
                         if (COLLISION_AXIS_OVERLAP(left, (*slot)->sprite.unk20[0].unk6 - (*slot)->sprite.unk20[0].unk4, bx, entry->unk3A * 2)) {
                             s32 top = ((*slot)->y >> 8) + (*slot)->sprite.unk20[0].unk5;
                             if (COLLISION_AXIS_OVERLAP(top, (*slot)->sprite.unk20[0].unk7 - (*slot)->sprite.unk20[0].unk5, by, entry->unk3B * 2)) {
-                                bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](entry, *slot);
-                                if (sObjectCollisionCallbacks[(*otherSlot)->header.kind](*slot, *otherSlot)) {
+                                bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(entry, *slot);
+                                if (CALL(sObjectCollisionCallbacks[(*otherSlot)->header.kind])(*slot, *otherSlot)) {
                                     *otherSlot = NULL;
                                     break;
                                 }
@@ -874,8 +874,8 @@ static void ProcessObjectCollisionLists(void)
                             by = (other->y >> 8) + other->unk39;
                             if (COLLISION_AXIS_OVERLAP(ax, (*slot)->unk3A * 2, bx, other->unk3A * 2)
                                 && COLLISION_AXIS_OVERLAP(ay, (*slot)->unk3B * 2, by, other->unk3B * 2)) {
-                                bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                                if (sObjectCollisionCallbacks[other->header.kind](*slot, other))
+                                bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                                if (CALL(sObjectCollisionCallbacks[other->header.kind])(*slot, other))
                                     break;
                                 if (removeAttack) {
                                     *slot = NULL;
@@ -886,8 +886,8 @@ static void ProcessObjectCollisionLists(void)
                                 if (COLLISION_AXIS_OVERLAP(left, (*slot)->sprite.unk20[0].unk6 - (*slot)->sprite.unk20[0].unk4, bx, other->unk3A * 2)) {
                                     s32 top = ((*slot)->y >> 8) + (*slot)->sprite.unk20[0].unk5;
                                     if (COLLISION_AXIS_OVERLAP(top, (*slot)->sprite.unk20[0].unk7 - (*slot)->sprite.unk20[0].unk5, by, other->unk3B * 2)) {
-                                        bool8 removeAttack = sObjectCollisionCallbacks[(*slot)->header.kind](other, *slot);
-                                        if (sObjectCollisionCallbacks[other->header.kind](*slot, other))
+                                        bool8 removeAttack = CALL(sObjectCollisionCallbacks[(*slot)->header.kind])(other, *slot);
+                                        if (CALL(sObjectCollisionCallbacks[other->header.kind])(*slot, other))
                                             break;
                                         if (removeAttack) {
                                             *slot = NULL;
@@ -1159,7 +1159,7 @@ static void ProcessKirbyContacts(void)
         struct ObjectBase *firstBase = &gKirbys[firstId].base;
         struct Kirby *first = (struct Kirby *)firstBase;
         if ((gUnk_03000510.unk4 & (0x10 | (1 << firstId)))
-            || (firstBase->flags & 0x3800F00) || first->stateFn == sub_080566E0
+            || (firstBase->flags & 0x3800F00) || first->stateFn == FN(sub_080566E0)
             || (first->animationIndex >= 0x4A && first->animationIndex <= 0x59) || firstBase->sprite.animId == 0x220)
             continue;
         secondId = firstId + 1;
@@ -1171,7 +1171,7 @@ static void ProcessKirbyContacts(void)
             // instead of the second's. The outer loop has already skipped firstId when
             // first->animationIndex is in 0x4A-0x59, so the term is always false here and the
             // second Kirby is never excluded from contact by its own animation.
-            if ((second->base.flags & 0x3800F00) || gKirbys[secondId].stateFn == sub_080566E0
+            if ((second->base.flags & 0x3800F00) || gKirbys[secondId].stateFn == FN(sub_080566E0)
                 || (first->animationIndex >= 0x4A && first->animationIndex <= 0x59) || second->base.sprite.animId == 0x220
                 || second->base.roomId != firstBase->roomId) {
                 ++secondId;
@@ -1409,3 +1409,16 @@ static void ObjectCollisionTaskDestructor(struct Task *task UNUSED)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_object_collision) {
+    PORT_FNID(UpdateObjectCollisions),
+    PORT_FNID(HandleKirbyCollision),
+    PORT_FNID(HandleObjectCollision),
+    PORT_FNID(HandleAttackObjectCollision),
+    PORT_FNID(ObjectCollisionTaskDestructor),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

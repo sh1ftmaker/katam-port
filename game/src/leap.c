@@ -26,7 +26,7 @@ static void sub_080B0C40(void);
 /* PORT: replaced by port/rom_data.h -- extern const struct Kirby_110 gUnk_08353EF4[]; */
 
 void *CreateLeap(struct ObjectTemplate *template_, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *leap = tmp;
 
     InitObject(leap, template_, arg1);
@@ -43,7 +43,7 @@ void *CreateLeap(struct ObjectTemplate *template_, u8 arg1) {
     sub_0803E2B0(&leap->base, -5, -5, 5, 6);
     ObjectSetBounds(&leap->base, -6, -6, 6, 8);
     ObjectInitSprite(leap);
-    gUnk_08351648[leap->type].unk10(leap);
+    CALL(gUnk_08351648[leap->type].unk10)(leap);
     leap->unk9E = 0;
     leap->unk7C = NULL;
     sub_080B0860(leap);
@@ -178,7 +178,7 @@ bool32 sub_080B0758(struct Object *leap, struct Kirby *kirby) {
 
     kirby->unk110 = gUnk_08353EF4;
     leap->kirby3 = kirby;
-    ObjectSetFunc(leap, 2, sub_080B07E4);
+    ObjectSetFunc(leap, 2, FN(sub_080B07E4));
     leap->base.xspeed = 0;
     leap->base.yspeed = 0;
     leap->base.flags &= ~2;
@@ -195,25 +195,25 @@ static void sub_080B07E4(struct Object *leap) {
         if (leap->objTemplate->subtype1 == 0) {
             switch (leap->subtype) {
             case 1:
-                ObjectSetFunc(leap, 0, sub_080B0428);
+                ObjectSetFunc(leap, 0, FN(sub_080B0428));
                 break;
             case 2:
-                ObjectSetFunc(leap, 0, sub_080B05C0);
+                ObjectSetFunc(leap, 0, FN(sub_080B05C0));
                 break;
             default:
-                ObjectSetFunc(leap, 0, sub_080B0290);
+                ObjectSetFunc(leap, 0, FN(sub_080B0290));
                 break;
             }
         }
         else {
-            ObjectSetFunc(leap, 0, sub_080B024C);
+            ObjectSetFunc(leap, 0, FN(sub_080B024C));
             leap->base.yspeed = 0x80;
         }
     }
 }
 
 static void sub_080B0860(struct Object *leap) {
-    struct Task *task = TaskCreate(sub_080B0938, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080B0938), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(task);
 
     ClearObjectBase(objBase);
@@ -261,7 +261,7 @@ static void sub_080B0938(void) {
 }
 
 static void sub_080B0A64(struct Object *leap) {
-    struct Task *task = TaskCreate(sub_080B0C40, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080B0C40), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(task), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -334,18 +334,18 @@ void sub_080B0F28(struct Object *leap) {
     if (leap->objTemplate->subtype1 == 0) {
         switch (leap->subtype) {
         case 1:
-            ObjectSetFunc(leap, 0, sub_080B0428);
+            ObjectSetFunc(leap, 0, FN(sub_080B0428));
             break;
         case 2:
-            ObjectSetFunc(leap, 0, sub_080B05C0);
+            ObjectSetFunc(leap, 0, FN(sub_080B05C0));
             break;
         default:
-            ObjectSetFunc(leap, 0, sub_080B0290);
+            ObjectSetFunc(leap, 0, FN(sub_080B0290));
             break;
         }
     }
     else {
-        ObjectSetFunc(leap, 0, sub_080B024C);
+        ObjectSetFunc(leap, 0, FN(sub_080B024C));
         leap->base.yspeed = 0x80;
     }
 }
@@ -353,3 +353,20 @@ void sub_080B0F28(struct Object *leap) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_leap) {
+    PORT_FNID(CreateLeap),
+    PORT_FNID(sub_080B024C),
+    PORT_FNID(sub_080B0290),
+    PORT_FNID(sub_080B0428),
+    PORT_FNID(sub_080B05C0),
+    PORT_FNID(sub_080B07E4),
+    PORT_FNID(sub_080B0938),
+    PORT_FNID(sub_080B0C40),
+    PORT_FNID(sub_080B0F28),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

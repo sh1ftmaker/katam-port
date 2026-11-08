@@ -253,7 +253,7 @@ static const struct AnimInfo gUnk_083568D8[] = {
 
 void *CreateKracko(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Kracko), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Kracko), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Kracko *tmp = TaskGetStructPtr(t);
     struct Kracko *kracko = tmp, *krackoAlias = kracko;
 
@@ -275,7 +275,7 @@ void *CreateKracko(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(&kracko->obj);
     Macro_080E7D74(&kracko->obj);
     kracko->obj.unk9E = 0;
-    kracko->obj.unk7C = sub_080DEF64;
+    kracko->obj.unk7C = FN(sub_080DEF64);
     sub_080DF000(kracko);
     krackoAlias->unkBC = NULL;
     krackoAlias->unkC0 = 0;
@@ -411,7 +411,7 @@ static void sub_080DBCA0(struct Kracko *kracko)
 
 void sub_080DBE3C(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 0, sub_080DBEE0);
+    ObjectSetFunc(kracko, 0, FN(sub_080DBEE0));
     if (kracko->obj.base.x < 0x8000)
     {
         kracko->obj.base.flags &= ~1;
@@ -456,7 +456,7 @@ static void sub_080DBEE0(struct Kracko *kracko)
 
 static void sub_080DBF40(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DC050);
+    ObjectSetFunc(kracko, 1, FN(sub_080DC050));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     kracko->obj.base.counter = 0x5A;
@@ -464,7 +464,7 @@ static void sub_080DBF40(struct Kracko *kracko)
     if ((kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)
         && Rand16() & 1)
     {
-        kracko->obj.unk78 = sub_080DC1CC;
+        kracko->obj.unk78 = FN(sub_080DC1CC);
         kracko->obj.unk83 = 0;
     }
 }
@@ -764,7 +764,7 @@ static void sub_080DCA44(struct Kracko *kracko)
 
 static void sub_080DCB38(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DF18C);
+    ObjectSetFunc(kracko, 1, FN(sub_080DF18C));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)
@@ -829,7 +829,7 @@ static void sub_080DCCB0(struct Kracko *kracko)
 
 static void sub_080DCDC0(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DF1E4);
+    ObjectSetFunc(kracko, 1, FN(sub_080DF1E4));
     kracko->obj.kirby3 = FindTargetKirby(&kracko->obj.base);
     kracko->obj.base.xspeed = (u32)(kracko->obj.base.x - kracko->obj.kirby3->base.x) >> 5;
     kracko->obj.base.yspeed = 0;
@@ -894,7 +894,7 @@ static void sub_080DCEA8(struct Kracko *kracko)
 
 static struct EffectObject *sub_080DCF18(struct Kracko *kracko)
 {
-    struct Task *t = TaskCreate(sub_080DD044, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DD044), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -996,7 +996,7 @@ static void sub_080DD044(void)
 
 static struct EffectObject *sub_080DD55C(struct Kracko *kracko)
 {
-    struct Task *t = TaskCreate(sub_080DD62C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DD62C), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -1070,7 +1070,7 @@ static void sub_080DD62C(void)
 
 static struct EffectObject *sub_080DD8D8(struct Kracko *kracko)
 {
-    struct Task *t = TaskCreate(sub_080DD9B4, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DD9B4), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -1133,7 +1133,7 @@ static void sub_080DD9B4(void)
 
 static struct EffectObject *sub_080DDC44(struct ObjectBase *objBase, s8 a, s8 b)
 {
-    struct Task *t = TaskCreate(sub_080DDD60, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DDD60), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -1263,7 +1263,7 @@ static void sub_080DE064(struct Kracko *kracko)
     obj = CreateObjTemplateAndObj(kracko->obj.base.unk56, 1, 0x24, x, y, 0, 0x1F, 0, 0, type,
         subtype1, 0, subtype2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     obj->base.parent = kracko;
-    obj->unk7C = sub_0809F840;
+    obj->unk7C = FN(sub_0809F840);
 }
 
 static void sub_080DE188(struct Kracko *kracko)
@@ -1290,7 +1290,7 @@ static void sub_080DE188(struct Kracko *kracko)
 
 static void sub_080DE2B4(struct Kracko *kracko, s8 a, s8 b, u8 c)
 {
-    struct Task *t = TaskCreate(sub_080DE42C, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080DE42C), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(t), *objBase2;
 
 #ifndef NONMATCHING
@@ -1351,7 +1351,7 @@ static void sub_080DE42C(void)
 
 static void sub_080DE658(struct Kracko *kracko, u8 a, bool8 b)
 {
-    struct Task *t = TaskCreate(sub_080DE80C, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DE80C), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t), *objBase2;
 
 #ifndef NONMATCHING
@@ -1430,7 +1430,7 @@ static void sub_080DE80C(void)
 
 static void sub_080DEA94(struct Kracko *kracko, u8 a2)
 {
-    struct Task *t = TaskCreate(sub_080DECE4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DECE4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1529,7 +1529,7 @@ static void sub_080DEF64(struct Kracko *kracko)
 
 static void sub_080DF000(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 0, sub_080DBA1C);
+    ObjectSetFunc(kracko, 0, FN(sub_080DBA1C));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     kracko->obj.base.flags |= 0x40;
@@ -1541,7 +1541,7 @@ static void sub_080DF02C(struct Kracko *kracko)
         sub_080DF0EC(kracko);
     else
     {
-        ObjectSetFunc(kracko, 1, sub_080DC3D4);
+        ObjectSetFunc(kracko, 1, FN(sub_080DC3D4));
         kracko->obj.base.xspeed = 0;
         kracko->obj.base.yspeed = 0;
         kracko->unkBC = sub_0808671C(&kracko->obj);
@@ -1550,7 +1550,7 @@ static void sub_080DF02C(struct Kracko *kracko)
 
 static void sub_080DF088(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DC6D8);
+    ObjectSetFunc(kracko, 1, FN(sub_080DC6D8));
     kracko->obj.base.xspeed = 0x140;
     kracko->obj.base.yspeed = 0;
     if (kracko->obj.base.flags & 1)
@@ -1559,7 +1559,7 @@ static void sub_080DF088(struct Kracko *kracko)
 
 static void sub_080DF0C0(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DC800);
+    ObjectSetFunc(kracko, 1, FN(sub_080DC800));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     sub_080867A0(kracko->unkBC);
@@ -1567,7 +1567,7 @@ static void sub_080DF0C0(struct Kracko *kracko)
 
 static void sub_080DF0EC(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DC550);
+    ObjectSetFunc(kracko, 1, FN(sub_080DC550));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     kracko->unkBC = sub_0808671C(&kracko->obj);
@@ -1575,7 +1575,7 @@ static void sub_080DF0EC(struct Kracko *kracko)
 
 static void sub_080DF118(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 0, sub_080DC97C);
+    ObjectSetFunc(kracko, 0, FN(sub_080DC97C));
     kracko->obj.base.xspeed = 0x140;
     kracko->obj.base.yspeed = 0;
     if (kracko->obj.base.flags & 1)
@@ -1585,7 +1585,7 @@ static void sub_080DF118(struct Kracko *kracko)
 
 static void sub_080DF158(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DCA44);
+    ObjectSetFunc(kracko, 1, FN(sub_080DCA44));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
     kracko->obj.base.counter = 0x1C;
@@ -1601,9 +1601,9 @@ static void sub_080DF18C(struct Kracko *kracko)
         kracko->obj.unk9E = 0;
         kracko->obj.unk9F = 0;
         if (Rand16() & 1)
-            kracko->obj.unk78 = sub_080DCBA0;
+            kracko->obj.unk78 = FN(sub_080DCBA0);
         else
-            kracko->obj.unk78 = sub_080DCCB0;
+            kracko->obj.unk78 = FN(sub_080DCCB0);
     }
 }
 
@@ -1615,13 +1615,13 @@ static void sub_080DF1E4(struct Kracko *kracko)
 
 static void sub_080DF200(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DCE28);
+    ObjectSetFunc(kracko, 1, FN(sub_080DCE28));
     kracko->obj.unk9F = 0;
 }
 
 static void sub_080DF21C(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DCEA8);
+    ObjectSetFunc(kracko, 1, FN(sub_080DCEA8));
     kracko->obj.base.flags |= 0x800;
     if (kracko->obj.subtype)
         kracko->obj.unk9F = 0;
@@ -1631,7 +1631,7 @@ static void sub_080DF21C(struct Kracko *kracko)
 
 static void sub_080DF258(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 1, sub_080DF278);
+    ObjectSetFunc(kracko, 1, FN(sub_080DF278));
     kracko->obj.base.xspeed = -kracko->obj.base.xspeed;
 }
 
@@ -1649,7 +1649,7 @@ static void sub_080DF278(struct Kracko *kracko)
 
 static void sub_080DF2BC(struct Kracko *kracko)
 {
-    ObjectSetFunc(kracko, 0, sub_080DBAF8);
+    ObjectSetFunc(kracko, 0, FN(sub_080DBAF8));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = -0x100;
     kracko->obj.base.x = 0xB000;
@@ -1664,3 +1664,39 @@ static void sub_080DF2BC(struct Kracko *kracko)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_kracko) {
+    PORT_FNID(CreateKracko),
+    PORT_FNID(sub_080DBA1C),
+    PORT_FNID(sub_080DBAF8),
+    PORT_FNID(sub_080DBE3C),
+    PORT_FNID(sub_080DBEE0),
+    PORT_FNID(sub_080DC050),
+    PORT_FNID(sub_080DC1CC),
+    PORT_FNID(sub_080DC3D4),
+    PORT_FNID(sub_080DC550),
+    PORT_FNID(sub_080DC6D8),
+    PORT_FNID(sub_080DC800),
+    PORT_FNID(sub_080DC97C),
+    PORT_FNID(sub_080DCA44),
+    PORT_FNID(sub_080DCBA0),
+    PORT_FNID(sub_080DCCB0),
+    PORT_FNID(sub_080DCE28),
+    PORT_FNID(sub_080DCEA8),
+    PORT_FNID(sub_080DD044),
+    PORT_FNID(sub_080DD62C),
+    PORT_FNID(sub_080DD9B4),
+    PORT_FNID(sub_080DDD60),
+    PORT_FNID(sub_080DE42C),
+    PORT_FNID(sub_080DE80C),
+    PORT_FNID(sub_080DECE4),
+    PORT_FNID(sub_080DEF64),
+    PORT_FNID(sub_080DF18C),
+    PORT_FNID(sub_080DF1E4),
+    PORT_FNID(sub_080DF278),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -348,18 +348,18 @@ static const struct { u32 flag; int index; } sIntrIndex[] = {
  * that a cartridge waitstate cannot delay a serial interrupt, and the game
  * then installs the *buffer* as the handler -- gIntrTableTemplate[0] is
  * literally `(void *)gMultiSioIntrFuncBuf`, and multi_08019F28.c and
- * multi_sio_08158934.c write it into gIntrTable[0] again by hand.
+ * multi_sio_util.c write it into gIntrTable[0] again by hand.
  *
- * Here that address is data, not code, and a wasm function pointer is a table
- * index rather than an address, so calling it goes out of bounds.  It is the
- * same problem agb_sram.c had at boot, with the same answer: recognise the
- * buffer and call the real function.  platform/multi_sio_intr.c is the real
- * function. */
+ * Here those sites install FN(MultiSioIntr) instead, and MultiSioIntr's code
+ * ID is that buffer's GBA address, 0x030068E0 (port/fnid.h): the value the
+ * console's table held, so CALL reaches platform/multi_sio_intr.c's
+ * MultiSioIntr like any other handler.  (It used to be recognised here by the
+ * buffer's host address, which put a host data pointer in IWRAM.) */
 static void CallIntr(int index)
 {
     IntrFunc handler = gIntrTable[index];
 
-    if ((const void *)handler == (const void *)gMultiSioIntrFuncBuf) {
+    if ((u32)(uintptr_t)handler == FNID_MultiSioIntr) {
         static int said;
 
         /* Said once, because "did the link driver's interrupt actually run"
@@ -371,11 +371,10 @@ static void CallIntr(int index)
                     "(the IWRAM copy of the link driver's interrupt); "
                     "calling MultiSioIntr");
         }
-        MultiSioIntr();
-        return;
     }
+    /* PORT-FNID: the table holds code IDs. */
     if (handler)
-        handler();
+        CALL(handler)();
 }
 
 void PortDispatchInterrupt(u32 flag)

@@ -38,11 +38,11 @@ void CreateLogo(void) {
     for (i = 0; i < 4; i++) {
         gBgScrollRegs[i][0] = gBgScrollRegs[i][1] = 0;
     }
-    r0 = TaskCreate(LogoMain, sizeof(struct LogoStruct), 0x1000, TASK_USE_IWRAM, LogoDestroy);
+    r0 = TaskCreate(FN(LogoMain), sizeof(struct LogoStruct), 0x1000, TASK_USE_IWRAM, FN(LogoDestroy));
     r4 = TaskGetStructPtr(r0);
     CpuFill16(0, r4, sizeof(struct LogoStruct));
     m4aMPlayAllStop();
-    r4->unk8 = sub_081388C4;
+    r4->unk8 = FN(sub_081388C4);
 }
 
 static void LogoMain(void) {
@@ -52,7 +52,7 @@ static void LogoMain(void) {
     if (r2->unk4 & 2) {
         r2->unk0++;
     }
-    r2->unk8(r2);
+    CALL(r2->unk8)(r2);
 }
 
 static void LogoDestroy(struct Task* arg0) {
@@ -60,7 +60,7 @@ static void LogoDestroy(struct Task* arg0) {
 }
 
 static void sub_081388C4(struct LogoStruct* arg0) {
-    arg0->unk8 = LogoInitGraphics;
+    arg0->unk8 = FN(LogoInitGraphics);
 }
 
 static void LogoInitGraphics(struct LogoStruct* arg0) {
@@ -69,7 +69,7 @@ static void LogoInitGraphics(struct LogoStruct* arg0) {
     LogoCopyPalette(0xc6, 0x50, 0x50, 0x30);
     arg0->unkC = gUnk_083877EE[0xF];
     arg0->unkE = 0;
-    arg0->unk8 = LogoFadeIn;
+    arg0->unk8 = FN(LogoFadeIn);
 }
 
 static void LogoFadeIn(struct LogoStruct* arg0) {
@@ -79,14 +79,14 @@ static void LogoFadeIn(struct LogoStruct* arg0) {
     else {
         gBldRegs.bldY = 0;
         arg0->unk4 |= 2;
-        arg0->unk8 = LogoWait;
+        arg0->unk8 = FN(LogoWait);
     }
 }
 
 static void LogoWait(struct LogoStruct* arg0) {
     if (--arg0->unkC <= 0) {
         arg0->unkE = 0;
-        arg0->unk8 = LogoEnd;
+        arg0->unk8 = FN(LogoEnd);
     }
 }
 
@@ -155,3 +155,19 @@ static void LogoCopyPalette(u16 arg0, u8 arg1, u8 arg2, u16 arg3) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_logo) {
+    PORT_FNID(CreateLogo),
+    PORT_FNID(LogoMain),
+    PORT_FNID(LogoDestroy),
+    PORT_FNID(sub_081388C4),
+    PORT_FNID(LogoInitGraphics),
+    PORT_FNID(LogoFadeIn),
+    PORT_FNID(LogoWait),
+    PORT_FNID(LogoEnd),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

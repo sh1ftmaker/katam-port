@@ -38,7 +38,7 @@ u32 TasksInit(void) {
         return 0;
     }
 
-    cur->main = TaskMainDummy;
+    cur->main = FN(TaskMainDummy);
     cur->priority = 0;
     cur->flags = 0;
     cur->parent = 0;
@@ -51,7 +51,7 @@ u32 TasksInit(void) {
 
     ((struct Task*)(cur->next + IWRAM_START))->prev = (u32)cur;
     cur = (struct Task*)(cur->next + IWRAM_START);
-    cur->main = TaskMainDummy2;
+    cur->main = FN(TaskMainDummy2);
     cur->priority = 0xffff;
     cur->flags = 0;
     cur->parent = 0;
@@ -149,7 +149,7 @@ void TaskDestroy(struct Task* task) {
                 #ifdef PORT_CHECK_POINTERS
                 PortCallDtor(task);
 #else
-                task->dtor(task);
+                CALL(task->dtor)(task);
 #endif
             }
 
@@ -178,7 +178,7 @@ void TaskDestroy(struct Task* task) {
             gTaskPtrs[--gNumTasks] = task;
             task->parent = 0;
             task->prev = 0;
-            task->main = TaskMainDummy3;
+            task->main = FN(TaskMainDummy3);
             task->priority = 0;
             task->flags = 0;
             task->structOffset = 0;
@@ -193,7 +193,7 @@ void TasksExec(void) {
             gNextTask = (struct Task*)(IWRAM_START + gCurTask->next);
 
             if (!(gCurTask->flags & TASK_INACTIVE)) {
-                gCurTask->main();
+                CALL(gCurTask->main)();
             }
 
             gCurTask = gNextTask;
@@ -210,7 +210,7 @@ void TasksExec(void) {
             gNextTask = (struct Task*)(IWRAM_START + gCurTask->next);
 
             if ((gCurTask->flags & TASK_x0004) && !(gCurTask->flags & TASK_INACTIVE)) {
-                gCurTask->main();
+                CALL(gCurTask->main)();
             }
 
             gCurTask = gNextTask;
@@ -415,3 +415,14 @@ static void TaskMainDummy3(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_task) {
+    PORT_FNID(TaskMainDummy),
+    PORT_FNID(TaskMainDummy2),
+    PORT_FNID(TaskMainDummy3),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

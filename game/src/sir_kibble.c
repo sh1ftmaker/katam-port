@@ -22,7 +22,7 @@ static void sub_080B2160(struct Object *arg0);
 static void sub_080B2210(struct Object *arg0);
 void* CreateSirKibble(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -139,7 +139,7 @@ static void sub_080B14A0(struct Object *arg0) {
         }
     }
     if (arg0->base.counter >= 163) {
-        ObjectSetFunc(arg0, 0, sub_080B1368);
+        ObjectSetFunc(arg0, 0, FN(sub_080B1368));
         if (arg0->objTemplate->subtype1) {
             arg0->unk83 = 1;
             arg0->base.xspeed = 0x80;
@@ -187,7 +187,7 @@ static void sub_080B1550(struct Object* arg0) {
 
     if (arg0->base.counter > 120) {
         if (arg0->base.unk62 & 4) {
-            ObjectSetFunc(arg0, 0, sub_080B1368);
+            ObjectSetFunc(arg0, 0, FN(sub_080B1368));
             if (arg0->objTemplate->subtype1) {
                 arg0->unk83 = 1;
                 arg0->base.xspeed = 0x80;
@@ -228,7 +228,7 @@ extern const struct AnimInfo gUnk_08353F6C[] = {
 
 void* CreateUnknownA0(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -241,7 +241,7 @@ void* CreateUnknownA0(struct ObjectTemplate* arg0, u8 arg1) {
     if (arg0->subtype1 & 1) {
         obj->base.flags |= 1;
     }
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
 
     return obj;
 }
@@ -280,7 +280,7 @@ static void sub_080B17BC(struct Object *arg0) {
 static void sub_080B1AC4(void);
 void sub_080B1850(struct Object *arg0) {
     struct ObjectBase *tmp, *obj;
-    struct Task *task = TaskCreate(sub_080B1AC4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080B1AC4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
 
@@ -404,7 +404,7 @@ static void sub_080B1DF8(struct Object *arg0) {
 static void sub_080B2224(struct Object *arg0);
 void* CreateSirKibbleCutter(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -419,18 +419,18 @@ void* CreateSirKibbleCutter(struct ObjectTemplate* arg0, u8 arg1) {
     obj->base.unk68 = 0x20000043;
     obj->base.unk5C |= 0x20;
     obj->unk9E = 0;
-    obj->unk7C = sub_080B2224;
+    obj->unk7C = FN(sub_080B2224);
     sub_0803E2B0(&obj->base, -3, -2, 3, 2);
     ObjectSetBounds(&obj->base, 2, 2, 2, 2);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
 
     return obj;
 }
 
 static void sub_080B207C(struct Object *arg0);
 void sub_080B1FD0(struct Object *arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B207C);
+    ObjectSetFunc(arg0, 0, FN(sub_080B207C));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~0x20;
     PlaySfx(&arg0->base, SE_SIR_KIBBLE_BOOMERANG_ATTACK);
@@ -477,14 +477,14 @@ void sub_080B2108(struct Object *arg0) {
 }
 
 void sub_080B2130(struct Object *arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B17BC);
+    ObjectSetFunc(arg0, 0, FN(sub_080B17BC));
     arg0->base.xspeed = 0x2a8;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
 }
 
 static void sub_080B2160(struct Object *arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B1368);
+    ObjectSetFunc(arg0, 0, FN(sub_080B1368));
     if (arg0->objTemplate->subtype1 != 0) {
         arg0->unk83 = 1;
         arg0->base.xspeed = 0x80;
@@ -494,7 +494,7 @@ static void sub_080B2160(struct Object *arg0) {
 }
 
 static void sub_080B21A0(struct Object *arg0) {
-    ObjectSetFunc(arg0, 2, sub_080B14A0);
+    ObjectSetFunc(arg0, 2, FN(sub_080B14A0));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -504,7 +504,7 @@ static void sub_080B21A0(struct Object *arg0) {
 }
 
 static void sub_080B21D8(struct Object *arg0) {
-    ObjectSetFunc(arg0, 3, sub_080B1550);
+    ObjectSetFunc(arg0, 3, FN(sub_080B1550));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags &= ~1;
     }
@@ -514,7 +514,7 @@ static void sub_080B21D8(struct Object *arg0) {
 }
 
 static void sub_080B2210(struct Object *arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B16A8);
+    ObjectSetFunc(arg0, 0, FN(sub_080B16A8));
 }
 
 static void sub_080B2224(struct Object *arg0) {
@@ -527,3 +527,25 @@ static void sub_080B2224(struct Object *arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_sir_kibble) {
+    PORT_FNID(CreateSirKibble),
+    PORT_FNID(sub_080B1368),
+    PORT_FNID(sub_080B14A0),
+    PORT_FNID(sub_080B1550),
+    PORT_FNID(sub_080B16A8),
+    PORT_FNID(CreateUnknownA0),
+    PORT_FNID(sub_080B17BC),
+    PORT_FNID(sub_080B1AC4),
+    PORT_FNID(CreateSirKibbleCutter),
+    PORT_FNID(sub_080B1FD0),
+    PORT_FNID(sub_080B207C),
+    PORT_FNID(sub_080B2108),
+    PORT_FNID(sub_080B2130),
+    PORT_FNID(sub_080B2224),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

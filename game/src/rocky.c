@@ -44,7 +44,7 @@ static void sub_080BE9D8(struct Object*);
 static void sub_080BE9FC(struct Object*);
 
 void *CreateRocky(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     
     InitObject(obj, arg0, arg1);
@@ -131,7 +131,7 @@ static void sub_080BE4BC(struct Object* arg0) {
         sub_080BE978(arg0);
     }
     if (arg0->base.counter & 0x80) {
-        ObjectSetFunc(arg0, 0, sub_080BE404);
+        ObjectSetFunc(arg0, 0, FN(sub_080BE404));
         arg0->base.xspeed = 0;
         arg0->base.flags &= ~0x40;
     }
@@ -164,7 +164,7 @@ static void sub_080BE4BC(struct Object* arg0) {
 }
 
 static void sub_080BE67C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080BE74C);
+    ObjectSetFunc(arg0, 2, FN(sub_080BE74C));
     arg0->base.xspeed = 0x180;
     arg0->base.yspeed = 0x2e8;
     arg0->base.flags &= ~2;
@@ -200,7 +200,7 @@ static void sub_080BE7B8(struct Object* arg0) {
         arg0->base.yspeed = 0;
         arg0->unk9A = 0;
         PlaySfx(&arg0->base, SE_ROCKY_SLAM);
-        ObjectSetFunc(arg0, 0, sub_080BE404);
+        ObjectSetFunc(arg0, 0, FN(sub_080BE404));
         arg0->base.xspeed = 0;
         arg0->base.flags &= ~0x40;
     }
@@ -223,13 +223,13 @@ void sub_080BE898(struct Object* arg0) {
 }
 
 static void sub_080BE8C8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BE404);
+    ObjectSetFunc(arg0, 0, FN(sub_080BE404));
     arg0->base.xspeed = 0;
     arg0->base.flags &= ~0x40;
 }
 
 static void sub_080BE8F0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080BE4BC);
+    ObjectSetFunc(arg0, 1, FN(sub_080BE4BC));
     if (arg0->unk85 & 1) {
         arg0->base.flags |= 1;
     }
@@ -239,7 +239,7 @@ static void sub_080BE8F0(struct Object* arg0) {
 }
 
 static void sub_080BE928(struct Object* arg0) {
-    ObjectSetFunc(arg0, 3, sub_080BE95C);
+    ObjectSetFunc(arg0, 3, FN(sub_080BE95C));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     if (arg0->subtype != 0) {
@@ -257,14 +257,14 @@ static void sub_080BE95C(struct Object* arg0) {
 }
 
 static void sub_080BE978(struct Object* arg0) {
-    ObjectSetFunc(arg0, 4, sub_080BE7B8);
+    ObjectSetFunc(arg0, 4, FN(sub_080BE7B8));
     arg0->base.flags |= 0x40;
     arg0->base.xspeed = 0;
     arg0->base.yspeed = -0x800;
 }
 
 static void sub_080BE9A8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080BE9CC);
+    ObjectSetFunc(arg0, 1, FN(sub_080BE9CC));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
 }
@@ -274,7 +274,7 @@ static void sub_080BE9CC(struct Object* arg0) {
 }
 
 static void sub_080BE9D8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BE9FC);
+    ObjectSetFunc(arg0, 0, FN(sub_080BE9FC));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
 }
@@ -286,3 +286,20 @@ static void sub_080BE9FC(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_rocky) {
+    PORT_FNID(CreateRocky),
+    PORT_FNID(sub_080BE404),
+    PORT_FNID(sub_080BE4BC),
+    PORT_FNID(sub_080BE74C),
+    PORT_FNID(sub_080BE7B8),
+    PORT_FNID(sub_080BE898),
+    PORT_FNID(sub_080BE95C),
+    PORT_FNID(sub_080BE9CC),
+    PORT_FNID(sub_080BE9FC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

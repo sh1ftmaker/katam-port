@@ -30,7 +30,7 @@ static const u8 gUnk_08357E78[] = {
 
 void *CreateKirbyCannon(struct ObjectTemplate *template_, u8 arg1)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct KirbyCannon), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct KirbyCannon), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct KirbyCannon *cannon = TaskGetStructPtr(t);
 
     InitObject(&cannon->obj, template_, arg1);
@@ -43,7 +43,7 @@ void *CreateKirbyCannon(struct ObjectTemplate *template_, u8 arg1)
     ObjectSetBounds(&cannon->obj.base, -8, -0x10, 8, 0);
     cannon->obj.base.unk48 = cannon->obj.base.x -= 0x300;
     ObjectInitSprite(&cannon->obj);
-    gUnk_08351648[cannon->obj.type].unk10(&cannon->obj);
+    CALL(gUnk_08351648[cannon->obj.type].unk10)(&cannon->obj);
     return cannon;
 }
 
@@ -61,7 +61,7 @@ void sub_08121AF8(struct KirbyCannon *cannon)
     cannon->unkBC = cannon->obj.objTemplate->unk18 >> 8;
     cannon->unkBD = cannon->obj.objTemplate->unk18 != 0;
     cannon->obj.base.flags |= 1;
-    cannon->obj.unk78 = sub_08121B70;
+    cannon->obj.unk78 = FN(sub_08121B70);
 }
 
 static void sub_08121B70(struct KirbyCannon *cannon)
@@ -154,7 +154,7 @@ static void sub_08121B70(struct KirbyCannon *cannon)
             sub_08094EDC(&cannon->obj.base);
             PlaySfx(&cannon->obj.base, SE_08D5B9E8);
         }
-        cannon->obj.unk78 = sub_08121FCC;
+        cannon->obj.unk78 = FN(sub_08121FCC);
     }
     cannon->obj.base.counter++;
 }
@@ -166,7 +166,7 @@ static void sub_08121FCC(struct KirbyCannon *cannon)
 
     if (cannon->obj.base.flags & 2) {
         cannon->obj.unk83 = 2;
-        cannon->obj.unk78 = sub_08122248;
+        cannon->obj.unk78 = FN(sub_08122248);
         effect = CreateEffectObject(&cannon->obj.base, 0, 0x2A8, 0);
         effect->y -= 0x2000;
         RequestScreenShake(3, &cannon->obj.base);
@@ -237,7 +237,7 @@ static void sub_08122248(struct KirbyCannon *cannon)
         if (!sub_0812214C(cannon)) {
             cannon->unkB6 = 8;
             cannon->unkB7 = 3;
-            cannon->obj.unk78 = sub_08121B70;
+            cannon->obj.unk78 = FN(sub_08121B70);
         }
     } else if (--cannon->unkB7 == 0xFF) {
         cannon->unkB6 |= 4;
@@ -249,3 +249,16 @@ static void sub_08122248(struct KirbyCannon *cannon)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_kirby_cannon) {
+    PORT_FNID(CreateKirbyCannon),
+    PORT_FNID(sub_08121AF8),
+    PORT_FNID(sub_08121B70),
+    PORT_FNID(sub_08121FCC),
+    PORT_FNID(sub_08122248),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

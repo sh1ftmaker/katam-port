@@ -129,7 +129,7 @@ static const s8 gUnk_08356178[] = {
 
 void *CreateMasterHand(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *mh = tmp;
 
     InitObject(mh, template_, a2);
@@ -208,7 +208,7 @@ static void sub_080D1978(struct Object *mh)
 
 void sub_080D1A38(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0, sub_080D1AD4);
+    ObjectSetFunc(mh, 0, FN(sub_080D1AD4));
     if (mh->subtype || mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)
         mh->base.counter = (Rand16() & 0xF) + 0x20;
     else
@@ -256,7 +256,7 @@ static void sub_080D1AD4(struct Object *mh)
 
 static void sub_080D1B60(struct Object *mh)
 {
-    ObjectSetFunc(mh, 1, sub_080D1BB4);
+    ObjectSetFunc(mh, 1, FN(sub_080D1BB4));
     mh->kirby3 = FindTargetKirby(&mh->base);
     mh->base.flags |= 0x100;
     mh->unkA0 = mh->kirby3->base.x >> 8;
@@ -432,7 +432,7 @@ static void sub_080D1E10(struct Object *mh)
 
 static void sub_080D1FB4(struct Object *mh)
 {
-    ObjectSetFunc(mh, 3, sub_080D2028);
+    ObjectSetFunc(mh, 3, FN(sub_080D2028));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -561,7 +561,7 @@ static void sub_080D2088(struct Object *mh)
 
 static void sub_080D22B0(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0, sub_080D230C);
+    ObjectSetFunc(mh, 0, FN(sub_080D230C));
     mh->kirby3 = FindTargetKirby(&mh->base);
     mh->base.flags |= 0x100;
     mh->unkA0 = mh->kirby3->base.x >> 8;
@@ -868,7 +868,7 @@ static void sub_080D25DC(struct Object *mh)
         else
             mh->unk9F = 0x30;
         mh->unk85 = 0;
-        mh->unk78 = sub_080D2954;
+        mh->unk78 = FN(sub_080D2954);
     }
 }
 
@@ -1015,7 +1015,7 @@ static void sub_080D2954(struct Object *mh)
 
 static void sub_080D2C4C(struct Object *mh)
 {
-    ObjectSetFunc(mh, 6, sub_080D2CB0);
+    ObjectSetFunc(mh, 6, FN(sub_080D2CB0));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->unk9F = 0;
@@ -1065,7 +1065,7 @@ static void sub_080D2CB0(struct Object *mh)
                         mh->unk9F = 0xC;
                     else
                         mh->unk9F = 0x10;
-                    mh->unk78 = sub_080D2954;
+                    mh->unk78 = FN(sub_080D2954);
                     return;
                 }
             }
@@ -1488,7 +1488,7 @@ static void sub_080D3380(struct Object *mh)
 
 static void sub_080D36F8(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0xA, sub_080D379C);
+    ObjectSetFunc(mh, 0xA, FN(sub_080D379C));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     if (Rand16() & 3)
@@ -1576,7 +1576,7 @@ static void sub_080D379C(struct Object *mh)
 
 static void sub_080D394C(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0xA, sub_080D53C4);
+    ObjectSetFunc(mh, 0xA, FN(sub_080D53C4));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->unk9F = 0;
@@ -1690,7 +1690,7 @@ static void sub_080D39C8(struct Object *mh)
 
 static void sub_080D3BF0(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0xC, sub_080D3C58);
+    ObjectSetFunc(mh, 0xC, FN(sub_080D3C58));
     mh->kirby3 = FindTargetKirby(&mh->base);
     mh->base.flags |= 0x100;
     mh->base.flags &= ~2;
@@ -1904,7 +1904,7 @@ bool32 sub_080D4004(struct Object *mh, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(mh, 0xE, sub_080D5458);
+    ObjectSetFunc(mh, 0xE, FN(sub_080D5458));
     sub_0803E2B0(&mh->base, -0x10, -0xC, 8, 0xC);
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
@@ -1922,7 +1922,7 @@ bool32 sub_080D4004(struct Object *mh, struct Kirby *kirby)
 static void sub_080D4144(struct Object *mh)
 {
     mh->kirby3->unk110 = gUnk_08356140;
-    ObjectSetFunc(mh, 0xF, sub_080D41BC);
+    ObjectSetFunc(mh, 0xF, FN(sub_080D41BC));
     mh->base.flags |= 0x100;
     mh->base.flags &= ~2;
     mh->unkA0 = mh->unkA4 + 0x78;
@@ -2341,7 +2341,7 @@ static void sub_080D48CC(struct Object *mh)
 
 static void sub_080D4AF4(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0x16, sub_080D4B5C);
+    ObjectSetFunc(mh, 0x16, FN(sub_080D4B5C));
     mh->base.flags |= 0x100;
     mh->base.flags &= ~2;
     mh->base.xspeed = 0;
@@ -2466,7 +2466,7 @@ static void sub_080D4DA4(struct Object *mh, u8 a2)
 
 void *CreateShootingEnemyStar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *star = TaskGetStructPtr(t);
 
     InitObject(star, template_, a2);
@@ -2476,7 +2476,7 @@ void *CreateShootingEnemyStar(struct ObjectTemplate *template_, u8 a2)
     star->base.flags |= 0x4000;
     star->base.unkC |= 2;
     star->unk9E = 0;
-    star->unk7C = sub_0809F840;
+    star->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&star->base, -5, -3, 5, 8);
     ObjectSetBounds(&star->base, -6, -4, 6, 0xA);
     ObjectInitSprite(star);
@@ -2487,7 +2487,7 @@ void *CreateShootingEnemyStar(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080D4F3C(struct Object *star)
 {
-    ObjectSetFunc(star, 0, sub_080D5618);
+    ObjectSetFunc(star, 0, FN(sub_080D5618));
     if (star->objTemplate->subtype1)
         star->base.flags |= 1;
     switch (star->subtype)
@@ -2502,12 +2502,12 @@ void sub_080D4F3C(struct Object *star)
     }
     if (star->base.flags & 1)
         star->base.xspeed = -star->base.xspeed;
-    sub_080706A0(&star->base, 0 ,0x2A1, 1, sub_08072B98, sub_08084AA0);
+    sub_080706A0(&star->base, 0 ,0x2A1, 1, FN(sub_08072B98), FN(sub_08084AA0));
 }
 
 static void sub_080D4FCC(struct Object *mh)
 {
-    struct Task *t = TaskCreate(sub_080D50A0, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080D50A0), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -2569,7 +2569,7 @@ static void sub_080D50A0(void)
 
 static void sub_080D51EC(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0, sub_080D1780);
+    ObjectSetFunc(mh, 0, FN(sub_080D1780));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x40;
@@ -2577,7 +2577,7 @@ static void sub_080D51EC(struct Object *mh)
 
 static void sub_080D5218(struct Object *mh)
 {
-    ObjectSetFunc(mh, 2, sub_080D1E10);
+    ObjectSetFunc(mh, 2, FN(sub_080D1E10));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2592,7 +2592,7 @@ static void sub_080D5218(struct Object *mh)
 
 static void sub_080D526C(struct Object *mh)
 {
-    ObjectSetFunc(mh, 4, sub_080D2088);
+    ObjectSetFunc(mh, 4, FN(sub_080D2088));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2604,7 +2604,7 @@ static void sub_080D526C(struct Object *mh)
 
 static void sub_080D52C0(struct Object *mh)
 {
-    ObjectSetFunc(mh, -1, sub_080D25DC);
+    ObjectSetFunc(mh, -1, FN(sub_080D25DC));
     mh->unk85 = 0;
     mh->unk9F = 0;
     mh->base.counter = 8;
@@ -2614,7 +2614,7 @@ static void sub_080D52C0(struct Object *mh)
 
 static void sub_080D52F8(struct Object *mh)
 {
-    ObjectSetFunc(mh, 8, sub_080D2EA8);
+    ObjectSetFunc(mh, 8, FN(sub_080D2EA8));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2626,7 +2626,7 @@ static void sub_080D52F8(struct Object *mh)
 
 static void sub_080D534C(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0, sub_080D30D0);
+    ObjectSetFunc(mh, 0, FN(sub_080D30D0));
     mh->kirby3 = FindTargetKirby(&mh->base);
     mh->base.flags |= 0x100;
     mh->unk9F = 0;
@@ -2636,7 +2636,7 @@ static void sub_080D534C(struct Object *mh)
 
 static void sub_080D5390(struct Object *mh)
 {
-    ObjectSetFunc(mh, -1, sub_080D3380);
+    ObjectSetFunc(mh, -1, FN(sub_080D3380));
     mh->unk9F = 0;
     mh->base.counter = 8;
     mh->base.flags &= ~2;
@@ -2656,7 +2656,7 @@ static void sub_080D53C4(struct Object *mh)
 
 static void sub_080D540C(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0xB, sub_080D39C8);
+    ObjectSetFunc(mh, 0xB, FN(sub_080D39C8));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2682,7 +2682,7 @@ static void sub_080D5458(struct Object *mh)
 
 static void sub_080D54A4(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0x10, sub_080D43A8);
+    ObjectSetFunc(mh, 0x10, FN(sub_080D43A8));
     mh->base.xspeed = 0;
     mh->base.flags |= 0x100;
     mh->base.counter = 8;
@@ -2691,7 +2691,7 @@ static void sub_080D54A4(struct Object *mh)
 
 static void sub_080D54D8(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0x10, sub_080D450C);
+    ObjectSetFunc(mh, 0x10, FN(sub_080D450C));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2703,7 +2703,7 @@ static void sub_080D54D8(struct Object *mh)
 static void sub_080D5514(struct Object *mh)
 {
     mh->kirby3->unk110 = gUnk_08356150;
-    ObjectSetFunc(mh, 0x11, sub_080D459C);
+    ObjectSetFunc(mh, 0x11, FN(sub_080D459C));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2714,7 +2714,7 @@ static void sub_080D5514(struct Object *mh)
 
 static void sub_080D5574(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0xE, sub_080D4800);
+    ObjectSetFunc(mh, 0xE, FN(sub_080D4800));
     mh->base.flags |= 0x100;
     mh->base.flags &= ~2;
     mh->unkA0 = mh->objTemplate->x;
@@ -2724,7 +2724,7 @@ static void sub_080D5574(struct Object *mh)
 
 static void sub_080D55CC(struct Object *mh)
 {
-    ObjectSetFunc(mh, 0x11, sub_080D48CC);
+    ObjectSetFunc(mh, 0x11, FN(sub_080D48CC));
     mh->base.xspeed = 0;
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
@@ -2741,3 +2741,42 @@ static void sub_080D5618(struct Object *star)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_master_hand) {
+    PORT_FNID(CreateMasterHand),
+    PORT_FNID(sub_080D1780),
+    PORT_FNID(sub_080D1A38),
+    PORT_FNID(sub_080D1AD4),
+    PORT_FNID(sub_080D1BB4),
+    PORT_FNID(sub_080D1E10),
+    PORT_FNID(sub_080D2028),
+    PORT_FNID(sub_080D2088),
+    PORT_FNID(sub_080D230C),
+    PORT_FNID(sub_080D25DC),
+    PORT_FNID(sub_080D2954),
+    PORT_FNID(sub_080D2CB0),
+    PORT_FNID(sub_080D2EA8),
+    PORT_FNID(sub_080D30D0),
+    PORT_FNID(sub_080D3380),
+    PORT_FNID(sub_080D379C),
+    PORT_FNID(sub_080D39C8),
+    PORT_FNID(sub_080D3C58),
+    PORT_FNID(sub_080D41BC),
+    PORT_FNID(sub_080D43A8),
+    PORT_FNID(sub_080D450C),
+    PORT_FNID(sub_080D459C),
+    PORT_FNID(sub_080D4800),
+    PORT_FNID(sub_080D48CC),
+    PORT_FNID(sub_080D4B5C),
+    PORT_FNID(CreateShootingEnemyStar),
+    PORT_FNID(sub_080D4F3C),
+    PORT_FNID(sub_080D50A0),
+    PORT_FNID(sub_080D53C4),
+    PORT_FNID(sub_080D5458),
+    PORT_FNID(sub_080D5618),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

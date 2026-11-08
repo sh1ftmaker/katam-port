@@ -116,7 +116,7 @@ static const struct Unk_08353510 gUnk_083542D4[] = {
 
 void *CreateBoxin(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *boxin = tmp;
 
     InitObject(boxin, template_, a2);
@@ -127,7 +127,7 @@ void *CreateBoxin(struct ObjectTemplate *template_, u8 a2)
     sub_0803E2B0(&boxin->base, -5, -7, 5, 4);
     ObjectSetBounds(&boxin->base, -6, -8, 6, 6);
     ObjectInitSprite(boxin);
-    gUnk_08351648[boxin->type].unk10(boxin);
+    CALL(gUnk_08351648[boxin->type].unk10)(boxin);
     if (boxin->objTemplate->subtype1 > 1)
         sub_080B5614(boxin);
     boxin->unk9E = 0;
@@ -230,7 +230,7 @@ static void sub_080B4338(struct Object *boxin)
                 sub_080B5AC8(boxin);
             else
             {
-                ObjectSetFunc(boxin, 2, sub_080B408C);
+                ObjectSetFunc(boxin, 2, FN(sub_080B408C));
                 if (boxin->base.x > boxin->kirby3->base.x)
                     boxin->base.flags |= 1;
                 else
@@ -282,7 +282,7 @@ static void sub_080B4338(struct Object *boxin)
         sub_080B4DF4(boxin);
     if (!(boxin->base.unk62 & 4))
     {
-        ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+        ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
         boxin->base.xspeed = 0;
         boxin->base.yspeed = 0;
 
@@ -301,7 +301,7 @@ static void sub_080B4570(struct Object *boxin)
                 sub_080B5AC8(boxin);
             else
             {
-                ObjectSetFunc(boxin, 2, sub_080B408C);
+                ObjectSetFunc(boxin, 2, FN(sub_080B408C));
                 if (boxin->base.x > boxin->kirby3->base.x)
                     boxin->base.flags |= 1;
                 else
@@ -353,7 +353,7 @@ static void sub_080B4570(struct Object *boxin)
         sub_080B4DF4(boxin);
     if (!(boxin->base.unk62 & 4))
     {
-        ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+        ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
         boxin->base.xspeed = 0;
         boxin->base.yspeed = 0;
 
@@ -372,7 +372,7 @@ static void sub_080B479C(struct Object *boxin)
                 sub_080B5AC8(boxin);
             else
             {
-                ObjectSetFunc(boxin, 2, sub_080B408C);
+                ObjectSetFunc(boxin, 2, FN(sub_080B408C));
                 if (boxin->base.x > boxin->kirby3->base.x)
                     boxin->base.flags |= 1;
                 else
@@ -426,7 +426,7 @@ static void sub_080B479C(struct Object *boxin)
         sub_080B50A8(boxin);
     if (!(boxin->base.unk62 & 4))
     {
-        ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+        ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
         boxin->base.xspeed = 0;
         boxin->base.yspeed = 0;
 
@@ -445,7 +445,7 @@ static void sub_080B49E8(struct Object *boxin)
                 sub_080B5AC8(boxin);
             else
             {
-                ObjectSetFunc(boxin, 2, sub_080B408C);
+                ObjectSetFunc(boxin, 2, FN(sub_080B408C));
                 if (boxin->base.x > boxin->kirby3->base.x)
                     boxin->base.flags |= 1;
                 else
@@ -499,7 +499,7 @@ static void sub_080B49E8(struct Object *boxin)
         sub_080B50A8(boxin);
     if (!(boxin->base.unk62 & 4))
     {
-        ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+        ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
         boxin->base.xspeed = 0;
         boxin->base.yspeed = 0;
 
@@ -515,7 +515,7 @@ static void sub_080B4C38(struct Object *boxin)
     {
         if (!boxin->unk9E)
         {
-            ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+            ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
             boxin->base.xspeed = 0;
             boxin->base.yspeed = 0;
             return;
@@ -563,7 +563,7 @@ static void sub_080B4C38(struct Object *boxin)
 
 static void sub_080B4DF4(struct Object *boxin)
 {
-    struct Task *t = TaskCreate(sub_080B4F6C, 0x78, 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B4F6C), 0x78, 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -628,7 +628,7 @@ static void sub_080B4F6C(void)
 
 static void sub_080B50A8(struct Object *boxin)
 {
-    struct Task *t = TaskCreate(sub_080B5220, 0x78, 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B5220), 0x78, 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -693,7 +693,7 @@ static void sub_080B5220(void)
 
 static void sub_080B535C(struct Object *boxin)
 {
-    struct Task *t = TaskCreate(sub_080B54D8, 0x78, 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B54D8), 0x78, 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -758,7 +758,7 @@ static void sub_080B54D8(void)
 
 static void sub_080B5614(struct Object *boxin)
 {
-    struct Task *t = TaskCreate(sub_080B56F0, 0x78, 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080B56F0), 0x78, 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -803,7 +803,7 @@ static void sub_080B56F0(void)
             if (objBase->flags & 0x40000)
             {
                 objBase->flags &= ~0x40000;
-                ObjectSetFunc(boxin, 3, sub_080B4C38);
+                ObjectSetFunc(boxin, 3, FN(sub_080B4C38));
                 boxin->base.xspeed = 0;
                 boxin->base.yspeed = 0;
             }
@@ -819,7 +819,7 @@ void sub_080B5838(struct Object *boxin)
         sub_080B5AC8(boxin);
     else
     {
-        ObjectSetFunc(boxin, 2, sub_080B408C);
+        ObjectSetFunc(boxin, 2, FN(sub_080B408C));
         if (boxin->base.x > boxin->kirby3->base.x)
             boxin->base.flags |= 1;
         else
@@ -832,7 +832,7 @@ void sub_080B5838(struct Object *boxin)
 
 static void sub_080B5898(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 0xA, sub_080B58C0);
+    ObjectSetFunc(boxin, 0xA, FN(sub_080B58C0));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0x280;
 }
@@ -845,7 +845,7 @@ static void sub_080B58C0(struct Object *boxin)
         boxin->unk83 = 0xB;
     if (boxin->base.unk62 & 4)
     {
-        ObjectSetFunc(boxin, 0xD, sub_080B5910);
+        ObjectSetFunc(boxin, 0xD, FN(sub_080B5910));
         boxin->base.xspeed = 0;
     }
 }
@@ -858,7 +858,7 @@ static void sub_080B5910(struct Object *boxin)
             sub_080B5AC8(boxin);
         else
         {
-            ObjectSetFunc(boxin, 2, sub_080B408C);
+            ObjectSetFunc(boxin, 2, FN(sub_080B408C));
             if (boxin->base.x > boxin->kirby3->base.x)
                 boxin->base.flags |= 1;
             else
@@ -897,42 +897,42 @@ static void sub_080B597C(struct Object *boxin)
 
 static void sub_080B5A14(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 3, sub_080B4338);
+    ObjectSetFunc(boxin, 3, FN(sub_080B4338));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0;
 }
 
 static void sub_080B5A38(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 3, sub_080B4570);
+    ObjectSetFunc(boxin, 3, FN(sub_080B4570));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0;
 }
 
 static void sub_080B5A5C(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 3, sub_080B479C);
+    ObjectSetFunc(boxin, 3, FN(sub_080B479C));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0;
 }
 
 static void sub_080B5A80(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 3, sub_080B49E8);
+    ObjectSetFunc(boxin, 3, FN(sub_080B49E8));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0;
 }
 
 static void sub_080B5AA4(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 3, sub_080B4C38);
+    ObjectSetFunc(boxin, 3, FN(sub_080B4C38));
     boxin->base.xspeed = 0;
     boxin->base.yspeed = 0;
 }
 
 static void sub_080B5AC8(struct Object *boxin)
 {
-    ObjectSetFunc(boxin, 0, sub_080B5B0C);
+    ObjectSetFunc(boxin, 0, FN(sub_080B5B0C));
     if (boxin->base.x > boxin->kirby3->base.x)
         boxin->base.flags |= 1;
     else
@@ -949,3 +949,26 @@ static void sub_080B5B0C(struct Object *boxin)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_boxin) {
+    PORT_FNID(CreateBoxin),
+    PORT_FNID(sub_080B408C),
+    PORT_FNID(sub_080B4338),
+    PORT_FNID(sub_080B4570),
+    PORT_FNID(sub_080B479C),
+    PORT_FNID(sub_080B49E8),
+    PORT_FNID(sub_080B4C38),
+    PORT_FNID(sub_080B4F6C),
+    PORT_FNID(sub_080B5220),
+    PORT_FNID(sub_080B54D8),
+    PORT_FNID(sub_080B56F0),
+    PORT_FNID(sub_080B5838),
+    PORT_FNID(sub_080B58C0),
+    PORT_FNID(sub_080B5910),
+    PORT_FNID(sub_080B5B0C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -15,7 +15,7 @@ static void VertSlidingDoorClose(struct VertSlidingDoor *);
 
 void *CreateVertSlidingDoor(struct ObjectTemplate *arg0, u8 arg1) {
     struct VertSlidingDoor *door;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct VertSlidingDoor), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct VertSlidingDoor), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     door = TaskGetStructPtr(task);
     InitObject(&door->obj, arg0, arg1);
     door->obj.base.flags |= 0x02408940;
@@ -26,7 +26,7 @@ void *CreateVertSlidingDoor(struct ObjectTemplate *arg0, u8 arg1) {
     ObjectSetBounds(&door->obj.base, -8, -0x20, 8, 0);
     sub_0803E2B0(&door->obj.base, -8, -0x20, 8, 0);
     ObjectInitSprite(&door->obj);
-    gUnk_08351648[door->obj.type].unk10(&door->obj);
+    CALL(gUnk_08351648[door->obj.type].unk10)(&door->obj);
     return door;
 }
 
@@ -38,14 +38,14 @@ static void VertSlidingDoorIdle(struct VertSlidingDoor *door) {
     if (!(door->unkB4 & 1)) {
         if (open) {
             if (!(door->unkB4 & 2)) {
-                door->obj.unk78 = VertSlidingDoorOpen;
+                door->obj.unk78 = FN(VertSlidingDoorOpen);
                 door->obj.unk83 = 1;
                 door->unkB7 = 0;
                 door->unkB4 |= 1;
                 PlaySfx(&door->obj.base, SE_VERT_SLIDING_DOOR_OPEN_CLOSE);
             }
         } else if (door->unkB4 & 2) {
-            door->obj.unk78 = VertSlidingDoorClose;
+            door->obj.unk78 = FN(VertSlidingDoorClose);
             door->obj.unk83 = 2;
             door->unkB4 |= 1;
             PlaySfx(&door->obj.base, SE_VERT_SLIDING_DOOR_OPEN_CLOSE);
@@ -70,7 +70,7 @@ static void VertSlidingDoorOpen(struct VertSlidingDoor *door) {
         door->unkB7 = 7;
         ObjectSetBounds(&obj->base, -8, -0x20, 8, -0x1C);
         sub_0803E2B0(&obj->base, -8, -0x20, 8, -(door->unkB7 * 4));
-        obj->unk78 = VertSlidingDoorIdle;
+        obj->unk78 = FN(VertSlidingDoorIdle);
         door->unkB4 &= ~1;
         door->unkB4 |= 2;
     }
@@ -93,7 +93,7 @@ static void VertSlidingDoorClose(struct VertSlidingDoor *door) {
         door->unkB7 = 0;
         ObjectSetBounds(&obj->base, -8, -0x20, 8, 0);
         sub_0803E2B0(&obj->base, -8, -0x20, 8, 0);
-        obj->unk78 = VertSlidingDoorIdle;
+        obj->unk78 = FN(VertSlidingDoorIdle);
         door->unkB4 &= ~1;
         door->unkB4 &= ~2;
     }
@@ -102,7 +102,7 @@ static void VertSlidingDoorClose(struct VertSlidingDoor *door) {
 
 void VertSlidingDoorSetFunc(struct VertSlidingDoor *door) {
     door->obj.base.counter = 0;
-    door->obj.unk78 = VertSlidingDoorIdle;
+    door->obj.unk78 = FN(VertSlidingDoorIdle);
     door->unkB4 = 0;
     door->unkB6 = 0;
     door->unkB7 = 0;
@@ -111,3 +111,16 @@ void VertSlidingDoorSetFunc(struct VertSlidingDoor *door) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_vert_sliding_door) {
+    PORT_FNID(CreateVertSlidingDoor),
+    PORT_FNID(VertSlidingDoorIdle),
+    PORT_FNID(VertSlidingDoorOpen),
+    PORT_FNID(VertSlidingDoorClose),
+    PORT_FNID(VertSlidingDoorSetFunc),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

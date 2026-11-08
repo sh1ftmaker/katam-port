@@ -670,7 +670,7 @@ static const s8 gUnk_08357B14[] = { -4, 2, 2, 0 };
 
 void *CreateDarkMindForm1(struct ObjectTemplate *r6, u8 r4_)
 {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct DarkMindForm1), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct DarkMindForm1), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct DarkMindForm1 *r0 = TaskGetStructPtr(task), *r5 = r0;
 
     InitObject(&r5->unk0, r6, r4_);
@@ -709,7 +709,7 @@ void *CreateDarkMindForm1(struct ObjectTemplate *r6, u8 r4_)
     ObjectInitSprite(&r5->unk0);
     Macro_080E7D74(&r5->unk0);
     r5->unk0.unk9E = 0;
-    r5->unk0.unk7C = sub_08104E04;
+    r5->unk0.unk7C = FN(sub_08104E04);
     sub_081099D4(r5);
     return r5;
 }
@@ -1189,7 +1189,7 @@ static void sub_08100EA0(struct DarkMindForm1 *r4)
 {
     struct DarkMindForm1 *r5 = r4;
 
-    ObjectSetFunc(r5, 0, sub_08100F18);
+    ObjectSetFunc(r5, 0, FN(sub_08100F18));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.y = -0x3000;
     r4->unk0.base.yspeed = -128;
@@ -1295,7 +1295,7 @@ static void sub_08101350(struct DarkMindForm1 *r4)
         sub_08109CB4(r4);
     else
     {
-        ObjectSetFunc(r4, 0, sub_08109C8C);
+        ObjectSetFunc(r4, 0, FN(sub_08109C8C));
         r4->unk0.base.flags |= 0x200;
         r4->unk0.base.counter = 60;
         if (r4->unk0.base.xspeed > 0x80)
@@ -1381,7 +1381,7 @@ void sub_08101630(struct DarkMindForm1 *r5)
     else
     {
         r5->unkD5 = 0;
-        ObjectSetFunc(r5, 0, sub_08101784);
+        ObjectSetFunc(r5, 0, FN(sub_08101784));
         r5->unk0.base.xspeed = 0;
         r5->unk0.base.yspeed = 0;
         r5->unk0.base.flags |= 0x40;
@@ -1454,7 +1454,7 @@ static void sub_0810181C(struct DarkMindForm1 *r4)
 {
     struct DarkMindForm1 *r5 = r4;
 
-    ObjectSetFunc(r4, 0, sub_08101B28);
+    ObjectSetFunc(r4, 0, FN(sub_08101B28));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -1472,7 +1472,7 @@ static void sub_0810181C(struct DarkMindForm1 *r4)
         if (x1 - x2 <= 0 || !r4->unk0.subtype || x1 - x2 < 0x6000)
         {
             r4->unk0.unkA0 = (x2 >> 8) + 108;
-            r4->unk0.unk78 = sub_08101E38;
+            r4->unk0.unk78 = FN(sub_08101E38);
         }
         else
         {
@@ -1489,13 +1489,13 @@ static void sub_0810181C(struct DarkMindForm1 *r4)
         if (x1 - x2 >= 0 || !r4->unk0.subtype || x1 - x2 > -0x6000)
         {
             r4->unk0.unkA0 = (x2 >> 8) - 108;
-            r4->unk0.unk78 = sub_08102414;
+            r4->unk0.unk78 = FN(sub_08102414);
         }
         else
         {
             r4->unk0.unkA0 = (x2 >> 8) - 96;
             r4->unk0.unkA2 = (r4->unk0.kirby3->base.y >> 8) - 48;
-            r4->unk0.unk78 = sub_08102104;
+            r4->unk0.unk78 = FN(sub_08102104);
             r5->unkD5 = 2;
         }
     }
@@ -1512,7 +1512,7 @@ static void sub_0810181C(struct DarkMindForm1 *r4)
 static void sub_08101968(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 3;
-    ObjectSetFunc(r5, 0, sub_08101B28);
+    ObjectSetFunc(r5, 0, FN(sub_08101B28));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -1524,12 +1524,12 @@ static void sub_08101968(struct DarkMindForm1 *r5)
     if (r5->unk0.base.flags & 1)
     {
         r5->unk0.unkA0 = (r5->unk0.kirby3->base.x >> 8) + 108;
-        r5->unk0.unk78 = sub_08101E38;
+        r5->unk0.unk78 = FN(sub_08101E38);
     }
     else
     {
         r5->unk0.unkA0 = (r5->unk0.kirby3->base.x >> 8) - 108;
-        r5->unk0.unk78 = sub_08102414;
+        r5->unk0.unk78 = FN(sub_08102414);
     }
     sub_0803E2B0(&r5->unk0.base, -28, -24, 28, 18);
     r5->unk0.unk91 = -8;
@@ -1544,7 +1544,7 @@ static void sub_08101968(struct DarkMindForm1 *r5)
 static void sub_08101A40(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 2;
-    ObjectSetFunc(r5, 0, sub_08101B28);
+    ObjectSetFunc(r5, 0, FN(sub_08101B28));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -1562,7 +1562,7 @@ static void sub_08101A40(struct DarkMindForm1 *r5)
     {
         r5->unk0.unkA0 = (r5->unk0.kirby3->base.x >> 8) - 96;
         r5->unk0.unkA2 = (r5->unk0.kirby3->base.y >> 8) - 48;
-        r5->unk0.unk78 = sub_08102104;
+        r5->unk0.unk78 = FN(sub_08102104);
     }
     sub_0803E2B0(&r5->unk0.base, -28, -24, 28, 18);
     r5->unk0.unk91 = -8;
@@ -1932,7 +1932,7 @@ static void sub_08102414(struct DarkMindForm1 *r3)
 
 static void sub_081026E0(struct DarkMindForm1 *r5)
 {
-    ObjectSetFunc(r5, 5, sub_081027C0);
+    ObjectSetFunc(r5, 5, FN(sub_081027C0));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -2004,9 +2004,9 @@ static void sub_08102938(struct DarkMindForm1 *r4)
 
     if (r4->unkD5 != 6)
         r4->unkD5 = 1;
-    if (r4->unk0.unk78 == sub_08102D9C)
+    if (r4->unk0.unk78 == FN(sub_08102D9C))
         r5 = TRUE;
-    ObjectSetFunc(r4, 1, sub_08109A00);
+    ObjectSetFunc(r4, 1, FN(sub_08109A00));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     if (r4->unk0.base.flags & 1)
@@ -2035,7 +2035,7 @@ static void sub_08102A80(struct DarkMindForm1 *r6)
 {
     struct DarkMindForm1 *r5 = r6;
 
-    ObjectSetFunc(r6, 2, sub_08102D9C);
+    ObjectSetFunc(r6, 2, FN(sub_08102D9C));
     r6->unk0.base.flags |= 0x40;
     r6->unk0.base.flags |= 0x100;
     r6->unk0.base.flags &= ~2;
@@ -2233,7 +2233,7 @@ static void sub_08102D9C(struct DarkMindForm1 *r4)
 
 static void sub_08102F3C(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08102FD0);
+    ObjectSetFunc(r4, 0, FN(sub_08102FD0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -2296,7 +2296,7 @@ static void sub_08102FD0(struct DarkMindForm1 *r3)
 
 static void sub_081030A8(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 6, sub_08109A38);
+    ObjectSetFunc(r4, 6, FN(sub_08109A38));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -2323,7 +2323,7 @@ static void sub_08103138(struct DarkMindForm1 *r4)
 {
     struct DarkMindForm1 *r6 = r4;
 
-    ObjectSetFunc(r4, 7, sub_08103268);
+    ObjectSetFunc(r4, 7, FN(sub_08103268));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -2478,7 +2478,7 @@ static void sub_08103404(struct DarkMindForm1 *r5)
         r5->unkB8->unkA2 = r5->unkB4->unkA2;
         if (r5->unkB4->unkA0 == v1 && r5->unkB4->unkA2 == v2)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2527,7 +2527,7 @@ static void sub_08103688(struct DarkMindForm1 *r5)
         r5->unkB8->unkA2 = r5->unkB4->unkA2;
         if (r5->unkB4->unkA0 == v1 && r5->unkB4->unkA2 == v2)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2542,7 +2542,7 @@ static void sub_08103688(struct DarkMindForm1 *r5)
 static void sub_081038CC(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 8, sub_081039AC);
+    ObjectSetFunc(r5, 8, FN(sub_081039AC));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -2562,7 +2562,7 @@ static void sub_081039AC(struct DarkMindForm1 *r4)
     r4->unk0.base.flags |= 4;
     if (!--r4->unk0.base.counter)
     {
-        ObjectSetFunc(r4, 11, sub_08103380);
+        ObjectSetFunc(r4, 11, FN(sub_08103380));
         r4->unk0.base.xspeed = 0;
         r4->unk0.base.yspeed = 0;
         r4->unk0.base.flags |= 0x40;
@@ -2591,7 +2591,7 @@ static void sub_08103A00(struct DarkMindForm1 *r4)
 static void sub_08103A64(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 10, sub_08103AE4);
+    ObjectSetFunc(r5, 10, FN(sub_08103AE4));
     r5->unk0.base.xspeed = -64;
     r5->unk0.base.yspeed = 0;
     if (r5->unkDA == 2)
@@ -2638,7 +2638,7 @@ static void sub_08103AE4(struct DarkMindForm1 *r5)
     case 1:
         if (!--r5->unk0.base.counter)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2654,7 +2654,7 @@ static void sub_08103AE4(struct DarkMindForm1 *r5)
 static void sub_08103C68(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 10, sub_08103CD0);
+    ObjectSetFunc(r5, 10, FN(sub_08103CD0));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -2694,7 +2694,7 @@ static void sub_08103CD0(struct DarkMindForm1 *r5)
     case 1:
         if (!--r5->unk0.base.counter)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2727,7 +2727,7 @@ static void sub_08103E60(struct DarkMindForm1 *r5)
     case 1:
         if (!--r5->unk0.base.counter)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2762,7 +2762,7 @@ static void sub_08103FC0(struct DarkMindForm1 *r4)
 static void sub_08104028(struct DarkMindForm1 *r4)
 {
     r4->unkD5 = 5;
-    ObjectSetFunc(r4, 8, sub_08104080);
+    ObjectSetFunc(r4, 8, FN(sub_08104080));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     if (r4->unkDA == 7)
@@ -2842,7 +2842,7 @@ static void sub_08104080(struct DarkMindForm1 *r5)
         }
         if (!--r5->unk0.base.counter)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -2860,7 +2860,7 @@ static void sub_081042C8(struct DarkMindForm1 *r6)
     struct DarkMindForm1 *r5 = r6;
 
     r6->unkD5 = 5;
-    ObjectSetFunc(r6, 8, sub_08104424);
+    ObjectSetFunc(r6, 8, FN(sub_08104424));
     r6->unk0.base.xspeed = 0;
     r6->unk0.base.yspeed = 0;
     r6->unk0.base.flags |= 0x40;
@@ -2903,7 +2903,7 @@ static void sub_08104424(struct DarkMindForm1 *r4)
     case 1:
         if (!--r4->unk0.base.counter)
         {
-            ObjectSetFunc(r4, 11, sub_08103380);
+            ObjectSetFunc(r4, 11, FN(sub_08103380));
             r4->unk0.base.xspeed = 0;
             r4->unk0.base.yspeed = 0;
             r4->unk0.base.flags |= 0x40;
@@ -2934,7 +2934,7 @@ static void sub_081044D0(struct DarkMindForm1 *r4)
 static void sub_0810451C(struct DarkMindForm1 *r4)
 {
     r4->unkD5 = 5;
-    ObjectSetFunc(r4, 8, sub_0810457C);
+    ObjectSetFunc(r4, 8, FN(sub_0810457C));
     r4->unk0.base.xspeed = 0x500;
     r4->unk0.base.yspeed = -0x100;
     if (r4->unk0.base.flags & 1)
@@ -2987,7 +2987,7 @@ static void sub_0810457C(struct DarkMindForm1 *r5)
     case 1:
         if (!--r5->unk0.base.counter)
         {
-            ObjectSetFunc(r5, 11, sub_08103380);
+            ObjectSetFunc(r5, 11, FN(sub_08103380));
             r5->unk0.base.xspeed = 0;
             r5->unk0.base.yspeed = 0;
             r5->unk0.base.flags |= 0x40;
@@ -3003,7 +3003,7 @@ static void sub_0810457C(struct DarkMindForm1 *r5)
 static void sub_08104704(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 8, sub_081047D0);
+    ObjectSetFunc(r5, 8, FN(sub_081047D0));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -3032,7 +3032,7 @@ static void sub_081047D0(struct DarkMindForm1 *r4)
     case 1:
         if (!--r4->unk0.base.counter)
         {
-            ObjectSetFunc(r4, 11, sub_08103380);
+            ObjectSetFunc(r4, 11, FN(sub_08103380));
             r4->unk0.base.xspeed = 0;
             r4->unk0.base.yspeed = 0;
             r4->unk0.base.flags |= 0x40;
@@ -3091,7 +3091,7 @@ static void sub_0810487C(struct DarkMindForm1 *sb)
 static void sub_081049E8(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 7, sub_08104AA8);
+    ObjectSetFunc(r5, 7, FN(sub_08104AA8));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -3179,7 +3179,7 @@ static void sub_08104AA8(struct DarkMindForm1 *r4)
 static void sub_08104C80(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 6;
-    ObjectSetFunc(r5, 8, sub_08104CD8);
+    ObjectSetFunc(r5, 8, FN(sub_08104CD8));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -3236,9 +3236,9 @@ static void sub_08104CD8(struct DarkMindForm1 *r4)
 
 static void sub_08104D94(struct DarkMindForm1 *r4)
 {
-    if (r4->unk0.unk78 != sub_08109C08)
+    if (r4->unk0.unk78 != FN(sub_08109C08))
     {
-        ObjectSetFunc(r4, 0, sub_08109C08);
+        ObjectSetFunc(r4, 0, FN(sub_08109C08));
         r4->unk0.base.xspeed = 0;
         r4->unk0.base.yspeed = 0;
         r4->unk0.base.flags |= 0x40;
@@ -3299,7 +3299,7 @@ static void sub_08104E04(struct DarkMindForm1 *r4)
                 if (r5->unkDE > 8)
                     r4->unk0.base.flags |= 0x8000;
                 r2 = r5->unkDB;
-                if (!r2 && r4->unk0.unk78 != sub_08104CD8 && r5->unkDA != 14)
+                if (!r2 && r4->unk0.unk78 != FN(sub_08104CD8) && r5->unkDA != 14)
                 {
                     r5->unkDA = 0;
                     r5->unkD8 = r2;
@@ -3384,7 +3384,7 @@ static void sub_08104E04(struct DarkMindForm1 *r4)
 
 static void sub_081050E8(struct Object *r5, u8 r7)
 {
-    struct Task *t = TaskCreate(sub_08105278, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08105278), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -3523,7 +3523,7 @@ static void sub_08105278(void)
 
 static struct EffectObject *sub_081055B8(struct Object *r5)
 {
-    struct Task *t = TaskCreate(sub_08105698, sizeof(struct EffectObject), 0x1000, TASK_USE_EWRAM, sub_0810A130);
+    struct Task *t = TaskCreate(FN(sub_08105698), sizeof(struct EffectObject), 0x1000, TASK_USE_EWRAM, FN(sub_0810A130));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -3657,7 +3657,7 @@ static void sub_081059A8(struct DarkMindForm1 *r5)
 
 void *CreateShadowKirbyBomb(struct ObjectTemplate *r6, u8 r5)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(t);
 
     InitObject(r4, r6, r5);
@@ -3670,7 +3670,7 @@ void *CreateShadowKirbyBomb(struct ObjectTemplate *r6, u8 r5)
     r4->base.unk5C |= 7; // ???
     r4->base.unk5C |= 0xFFFF;
     r4->unk9E = 0;
-    r4->unk7C = sub_0809F840;
+    r4->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&r4->base, -4, -8, 4, 8);
     ObjectInitSprite(r4);
     r4->base.sprite.unk14 = 0x240;
@@ -3791,7 +3791,7 @@ static void sub_08105D78(struct Object *ip)
     {
         ip->unk83 = 0;
         ip->base.flags &= ~0x200;
-        ip->unk78 = sub_08105CE0;
+        ip->unk78 = FN(sub_08105CE0);
         ip->unk9F = 0;
     }
 }
@@ -3895,7 +3895,7 @@ static void sub_081062B4(struct DarkMindForm1 *r2)
 
 void *CreateDarkMindStar(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *obj = TaskGetStructPtr(t);
 
     InitObject(obj, r5, r4);
@@ -3905,7 +3905,7 @@ void *CreateDarkMindStar(struct ObjectTemplate *r5, u8 r4)
     obj->base.unkC |= 2;
     obj->base.unk5C |= 0x100000 | 0x8000;
     obj->unk9E = 0;
-    obj->unk7C = sub_0809F840;
+    obj->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&obj->base, -4, -4, 4, 4);
     ObjectSetBounds(&obj->base, -4, -4, 4, 4);
     ObjectInitSprite(obj);
@@ -3919,7 +3919,7 @@ void sub_08106508(struct Object *star) // TODO: also used by OBJ_UNKNOWN_D4
     s16 r1;
     s32 r0;
 
-    ObjectSetFunc(star, 0, sub_081065B0);
+    ObjectSetFunc(star, 0, FN(sub_081065B0));
     star->unk83 += star->type - OBJ_DARK_MIND_STAR_FIRE;
     r1 = gSineTable[gUnk_08357278[star->unk85] + 0x100] >> 6;
     r0 = 12 * r1;
@@ -3975,7 +3975,7 @@ static void sub_081065B0(struct Object *star)
 // TODO: the function depends on object type order
 static void sub_08106804(struct DarkMindForm1 *r4, s16 r5, s16 r6)
 {
-    ObjectSetFunc(r4, 0, sub_08109E98);
+    ObjectSetFunc(r4, 0, FN(sub_08109E98));
     r4->unk0.unk83 += r4->unk0.type - OBJ_DARK_MIND_STAR_FIRE;
     r4->unk0.base.xspeed = r5;
     r4->unk0.base.yspeed = r6;
@@ -4005,7 +4005,7 @@ static void sub_08106874(struct DarkMindForm1 *r7)
 
         r7->unk0.base.xspeed = div1 * 0x40;
         r7->unk0.base.yspeed = div2 * 0x40;
-        r7->unk0.unk78 = sub_08109E98;
+        r7->unk0.unk78 = FN(sub_08109E98);
         sub_08106AD0(&r7->unk0);
     }
 }
@@ -4017,7 +4017,7 @@ static void sub_081068F8(struct DarkMindForm1 *r5)
     s32 diffX, diffY, div1, div2, tmp1, tmp2;
     u16 d;
 
-    ObjectSetFunc(r5, 0, sub_08109F40);
+    ObjectSetFunc(r5, 0, FN(sub_08109F40));
     r5->unk0.unk83 += r5->unk0.type - OBJ_DARK_MIND_STAR_FIRE;
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
@@ -4046,7 +4046,7 @@ static void sub_081069BC(struct Object *star)
 
     if (!(star->base.flags & 0x1000))
     {
-        t = TaskCreate(sub_08106BE0, sizeof(struct EffectObject), 0xFFF, TASK_USE_EWRAM, ObjectBaseDestroy);
+        t = TaskCreate(FN(sub_08106BE0), sizeof(struct EffectObject), 0xFFF, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
         r5 = TaskGetStructPtr(t);
         r4 = r5;
         ClearEffectObject(r4);
@@ -4074,7 +4074,7 @@ static void sub_08106AD0(struct Object *r5)
     r6 = r5;
     if (!(r5->base.flags & 0x1000))
     {
-        t = TaskCreate(sub_08106BE0, sizeof(struct EffectObject), 0xFFF, TASK_USE_EWRAM, ObjectBaseDestroy);
+        t = TaskCreate(FN(sub_08106BE0), sizeof(struct EffectObject), 0xFFF, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
         r0 = TaskGetStructPtr(t);
         r4 = r0;
         ClearEffectObject(r4);
@@ -4188,7 +4188,7 @@ static struct DarkMindBomb *sub_08107254(struct Object *r3)
 
 void *CreateDarkMindBomb(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct DarkMindBomb), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct DarkMindBomb), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct DarkMindBomb *bomb = TaskGetStructPtr(t);
 
     InitObject(&bomb->unk0, r5, r4);
@@ -4200,7 +4200,7 @@ void *CreateDarkMindBomb(struct ObjectTemplate *r5, u8 r4)
     bomb->unk0.base.unk5C &= ~7;
     bomb->unk0.base.unk5C |= 3;
     bomb->unk0.unk9E = 0;
-    bomb->unk0.unk7C = sub_0810A034;
+    bomb->unk0.unk7C = FN(sub_0810A034);
     sub_0803E2B0(&bomb->unk0.base, -4, -4, 4, 4);
     ObjectSetBounds(&bomb->unk0.base, -4, -4, 4, 4);
     ObjectInitSprite(&bomb->unk0);
@@ -4309,7 +4309,7 @@ static void sub_081075DC(struct DarkMindForm1 *r5) // not referenced
 
 void *sub_08107780(struct ObjectTemplate *r6, u8 r5)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(t);
 
     InitObject(r4, r6, r5);
@@ -4324,7 +4324,7 @@ void *sub_08107780(struct ObjectTemplate *r6, u8 r5)
     r4->base.unk5C |= 7;
     r4->base.unk5C |= 0xFFFF;
     r4->unk9E = 0;
-    r4->unk7C = sub_0809F840;
+    r4->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&r4->base, -8, -8, 8, 8);
     ObjectInitSprite(r4);
     sub_081099C0(r4);
@@ -4333,7 +4333,7 @@ void *sub_08107780(struct ObjectTemplate *r6, u8 r5)
 
 static void sub_08107844(struct Object *r5)
 {
-    struct Task *t = TaskCreate(sub_0810792C, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0810792C), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *r4 = TaskGetStructPtr(t);
 
     ClearObjectBase(r4);
@@ -4381,7 +4381,7 @@ static void sub_0810792C(void)
 
 static struct ObjectBase *sub_08107A48(struct Object *r4)
 {
-    struct Task *t = TaskCreate(sub_08107BA8, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, sub_0810A104);
+    struct Task *t = TaskCreate(FN(sub_08107BA8), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(sub_0810A104));
     struct ObjectBase *r0 = TaskGetStructPtr(t), *r5 = r0;
 
     ClearObjectBase(r0);
@@ -4469,7 +4469,7 @@ static void sub_08107BA8(void)
 
 static void sub_08107ED4(struct ObjectBase *r4)
 {
-    struct Task *t = TaskCreate(sub_08107FC4, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08107FC4), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r5 = TaskGetStructPtr(t);
 
     ClearEffectObject(r5);
@@ -4527,7 +4527,7 @@ static void sub_08107FC4(void)
 
 static void sub_08108280(struct Object *r5)
 {
-    struct Task *t = TaskCreate(sub_08108368, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08108368), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r4 = TaskGetStructPtr(t);
 
     ClearEffectObject(r4);
@@ -4582,7 +4582,7 @@ static void sub_08108368(void)
 
 static void sub_08108960(struct Object *r4)
 {
-    struct Task *t = TaskCreate(sub_08108A50, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08108A50), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r5 = TaskGetStructPtr(t);
 
     ClearEffectObject(r5);
@@ -4645,7 +4645,7 @@ static void sub_08108A50(void)
 static struct EffectObject *sub_08109304(struct Object *sp10, u8 sp08)
 {
     u8 sp0C = 16;
-    struct Task *t = TaskCreate(sub_081094C4, sizeof(struct Object9), 0x3501, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_081094C4), sizeof(struct Object9), 0x3501, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct Object9 *r0, *r5;
     struct EffectObject *r4;
     u8 i;
@@ -4743,7 +4743,7 @@ static void sub_081094C4(void)
 
 void sub_08109960(struct Object *skb)
 {
-    ObjectSetFunc(skb, 0, sub_08105CE0);
+    ObjectSetFunc(skb, 0, FN(sub_08105CE0));
     sub_08109DC4(skb, &skb->unkA0, &skb->unkA2);
     if (skb->objTemplate->subtype1)
         skb->base.counter = 0;
@@ -4754,18 +4754,18 @@ void sub_08109960(struct Object *skb)
 
 void sub_081099A4(struct DarkMindBomb *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08107408);
+    ObjectSetFunc(r4, 0, FN(sub_08107408));
     r4->unk0.unk9F = 0;
 }
 
 void sub_081099C0(struct Object *r0)
 {
-    ObjectSetFunc(r0, -1, sub_0810A098);
+    ObjectSetFunc(r0, -1, FN(sub_0810A098));
 }
 
 static void sub_081099D4(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081003EC);
+    ObjectSetFunc(r4, 0, FN(sub_081003EC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -4802,7 +4802,7 @@ static void sub_08109A38(struct DarkMindForm1 *r4)
 static void sub_08109A8C(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 4;
-    ObjectSetFunc(r5, 8, sub_08103404);
+    ObjectSetFunc(r5, 8, FN(sub_08103404));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -4815,7 +4815,7 @@ static void sub_08109A8C(struct DarkMindForm1 *r5)
 static void sub_08109AD4(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 4;
-    ObjectSetFunc(r5, 8, sub_08103688);
+    ObjectSetFunc(r5, 8, FN(sub_08103688));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -4828,7 +4828,7 @@ static void sub_08109AD4(struct DarkMindForm1 *r5)
 static void sub_08109B1C(struct DarkMindForm1 *r5)
 {
     r5->unkD5 = 5;
-    ObjectSetFunc(r5, 10, sub_08103E60);
+    ObjectSetFunc(r5, 10, FN(sub_08103E60));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -4884,7 +4884,7 @@ static void sub_08109C08(struct DarkMindForm1 *r2)
 
 static void sub_08109C40(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08109C74);
+    ObjectSetFunc(r4, 0, FN(sub_08109C74));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.y = -0x3000;
     r4->unk0.base.counter = 180;
@@ -4907,7 +4907,7 @@ static void sub_08109C8C(struct DarkMindForm1 *r2)
 
 static void sub_08109CB4(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08109CEC);
+    ObjectSetFunc(r4, 1, FN(sub_08109CEC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.counter = 64;
@@ -4939,7 +4939,7 @@ static void sub_08109CEC(struct DarkMindForm1 *r2)
 
 static void sub_08109D5C(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081013C8);
+    ObjectSetFunc(r4, 0, FN(sub_081013C8));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.yspeed = 0x20;
     r4->unk0.base.counter = 0;
@@ -4949,7 +4949,7 @@ static void sub_08109D5C(struct DarkMindForm1 *r4)
 
 static void sub_08109D98(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08101560);
+    ObjectSetFunc(r4, 0, FN(sub_08101560));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.counter = 0;
     r4->unk0.unk9E = 0;
@@ -4979,7 +4979,7 @@ static void sub_08109E00(struct Object *r0)
 {
     r0->unk83 = 0;
     r0->base.flags &= ~0x200;
-    r0->unk78 = sub_08105CE0;
+    r0->unk78 = FN(sub_08105CE0);
     r0->unk9F = 0;
 }
 
@@ -4988,12 +4988,12 @@ static void sub_08109E24(struct Object *r2)
     r2->unk83 = 1;
     r2->unk9E = 0;
     r2->base.flags |= 0x200;
-    r2->unk78 = sub_08105D78;
+    r2->unk78 = FN(sub_08105D78);
 }
 
 static void sub_08109E4C(struct Object *r5)
 {
-    ObjectSetFunc(r5, 2, sub_08105BF0);
+    ObjectSetFunc(r5, 2, FN(sub_08105BF0));
     sub_08109DC4(r5, &r5->unkA0, &r5->unkA2);
     r5->unkA2 = 0;
     if (r5->objTemplate->subtype1)
@@ -5019,7 +5019,7 @@ static void sub_08109E98(struct DarkMindForm1 *r4)
 // TODO: the function depends on object type order
 static void sub_08109EF8(struct DarkMindForm1 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08106874);
+    ObjectSetFunc(r4, 0, FN(sub_08106874));
     r4->unk0.unk83 += r4->unk0.type - OBJ_DARK_MIND_STAR_FIRE;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -5038,14 +5038,14 @@ static void sub_08109F40(struct DarkMindForm1 *r3)
         r3->unk0.base.flags &= ~0x200;
         r3->unk0.base.flags &= ~0x800;
         r3->unk0.base.flags &= ~0x400;
-        r3->unk0.unk78 = sub_08109E98;
+        r3->unk0.unk78 = FN(sub_08109E98);
         sub_08106AD0(&r3->unk0);
     }
 }
 
 static void sub_08109F90(struct DarkMindBomb *r4)
 {
-    ObjectSetFunc(r4, 2, sub_08107560);
+    ObjectSetFunc(r4, 2, FN(sub_08107560));
     r4->unk0.base.counter = 40;
     r4->unk0.base.flags |= 0x200;
     r4->unk0.unk9F = 0;
@@ -5053,7 +5053,7 @@ static void sub_08109F90(struct DarkMindBomb *r4)
 
 static void sub_08109FBC(struct DarkMindBomb *r4)
 {
-    ObjectSetFunc(r4, 3, sub_08109FF4);
+    ObjectSetFunc(r4, 3, FN(sub_08109FF4));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.flags |= 0x800;
     r4->unk0.base.flags &= ~2;
@@ -5795,9 +5795,9 @@ static void sub_0810B1F4(void)
     else
     {
         fp2 = r8->unk0.unk7C;
-        if (fp2) fp2(r8);
+        if (fp2) CALL(fp2)(r8);
         fp = r8->unk0.unk78;
-        fp(r8);
+        CALL(fp)(r8);
         if (r8->unk0.base.flags & 0x40000)
             r8->unk0.base.flags &= ~0x40000;
         SetPointerSomething(&r8->unk0.base);
@@ -5916,7 +5916,7 @@ static void sub_0810B904(struct Task *task)
 
 void *CreateDarkMindForm2(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *t = TaskCreate(sub_0810B1F4, sizeof(struct DarkMindForm2), 0xFFF, TASK_USE_EWRAM, sub_0810B904);
+    struct Task *t = TaskCreate(FN(sub_0810B1F4), sizeof(struct DarkMindForm2), 0xFFF, TASK_USE_EWRAM, FN(sub_0810B904));
     struct DarkMindForm2 *r0 = TaskGetStructPtr(t);
     struct DarkMindForm2 *r7 = r0;
 
@@ -6011,7 +6011,7 @@ void *CreateDarkMindForm2(struct ObjectTemplate *r5, u8 r4)
     r7->unkF0.unk6 |= 0x40;
     Macro_080E7D74(&r7->unk0);
     r7->unk0.unk9E = 0;
-    r7->unk0.unk7C = sub_0810EDEC;
+    r7->unk0.unk7C = FN(sub_0810EDEC);
     sub_080700D8(&r7->unk0.base);
     sub_08113DE8(r7);
     return r7;
@@ -6040,7 +6040,7 @@ static void sub_0810BE08(struct DarkMindForm2 *r4)
     else
     {
         *r1 = 1;
-        ObjectSetFunc(r4, 0, sub_0810BE7C);
+        ObjectSetFunc(r4, 0, FN(sub_0810BE7C));
         r4->unk0.base.xspeed = 0;
         r4->unk0.base.yspeed = 0;
         r4->unk0.base.x = 0x7E00;
@@ -6145,7 +6145,7 @@ static void sub_0810C15C(struct DarkMindForm2 *r5)
 {
     struct DarkMindForm2 *r8 = r5;
 
-    ObjectSetFunc(r5, 0, sub_08113D2C);
+    ObjectSetFunc(r5, 0, FN(sub_08113D2C));
     Macro_08100F18(&r5->unk0);
     r8->unk11C = 0x100;
     r8->unk11E = 0x100;
@@ -6169,7 +6169,7 @@ static void sub_0810C414(struct DarkMindForm2 *r5)
     sub_080886A8(&r5->unk0.base);
     sub_08088700(&r5->unk0.base, 0x11);
     sub_0810CBE8(r5);
-    ObjectSetFunc(r5, 0, sub_08113D68);
+    ObjectSetFunc(r5, 0, FN(sub_08113D68));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -6188,7 +6188,7 @@ static void sub_0810C414(struct DarkMindForm2 *r5)
 
 static void sub_0810C4AC(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810C510);
+    ObjectSetFunc(r4, 0, FN(sub_0810C510));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -6227,7 +6227,7 @@ static void sub_0810C62C(struct DarkMindForm2 *r5)
 {
     struct PaletteEffect *s;
 
-    ObjectSetFunc(r5, 0, sub_0810C6A4);
+    ObjectSetFunc(r5, 0, FN(sub_0810C6A4));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.flags |= 0x40;
@@ -6299,7 +6299,7 @@ static void sub_0810C6A4(struct DarkMindForm2 *r7)
 
 void sub_0810C9C8(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810CA50);
+    ObjectSetFunc(r4, 0, FN(sub_0810CA50));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -6412,7 +6412,7 @@ static void sub_0810CC90(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r6 = r4;
 
-    ObjectSetFunc(r4, 1, sub_08113E14);
+    ObjectSetFunc(r4, 1, FN(sub_08113E14));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -6492,7 +6492,7 @@ static void sub_0810CEB0(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 1, sub_0810CF60);
+    ObjectSetFunc(r4, 1, FN(sub_0810CF60));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -6676,7 +6676,7 @@ static void sub_0810D234(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 1, sub_0810D2EC);
+    ObjectSetFunc(r4, 1, FN(sub_0810D2EC));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -6764,7 +6764,7 @@ static void sub_0810D2EC(struct DarkMindForm2 *r3)
 
 static void sub_0810D430(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 2, sub_0810D4E0);
+    ObjectSetFunc(r4, 2, FN(sub_0810D4E0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags ^= 1;
@@ -6790,7 +6790,7 @@ static void sub_0810D4E0(struct DarkMindForm2 *ip)
 {
     if (ip->unk0.unk83 == 4)
     {
-        ip->unk0.unk78 = sub_0810D1D0;
+        ip->unk0.unk78 = FN(sub_0810D1D0);
         ip->unk0.base.xspeed = 0;
         ip->unk0.base.yspeed = 0;
         ip->unk0.base.flags &= ~1;
@@ -6901,7 +6901,7 @@ static void sub_0810D4E0(struct DarkMindForm2 *ip)
         }
         if (!ip->unk0.base.xspeed)
         {
-            ip->unk0.unk78 = sub_0810D1D0;
+            ip->unk0.unk78 = FN(sub_0810D1D0);
             ip->unk0.base.xspeed = 0; // redundant
             ip->unk0.base.yspeed = 0;
             ip->unk0.base.flags &= ~1;
@@ -6914,7 +6914,7 @@ static void sub_0810D4E0(struct DarkMindForm2 *ip)
 
 static void sub_0810D6C0(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810D730);
+    ObjectSetFunc(r4, 5, FN(sub_0810D730));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -7000,7 +7000,7 @@ static void sub_0810D870(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810D914);
+    ObjectSetFunc(r4, 5, FN(sub_0810D914));
     r4->unk0.base.flags &= ~4;
     r4->unk135 = 0;
     r4->unk0.base.xspeed = 0;
@@ -7210,7 +7210,7 @@ static void sub_0810DC2C(struct DarkMindForm2 *r4)
 
 static void sub_0810DCA4(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810DD60);
+    ObjectSetFunc(r4, 5, FN(sub_0810DD60));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk126 = 6;
@@ -7291,7 +7291,7 @@ static void sub_0810DED0(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r6 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810DF60);
+    ObjectSetFunc(r4, 5, FN(sub_0810DF60));
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
     r4->unk135 = 2;
@@ -7409,7 +7409,7 @@ static void sub_0810E110(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r6 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810E230);
+    ObjectSetFunc(r4, 5, FN(sub_0810E230));
     r6->unk135 = 2;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -7467,7 +7467,7 @@ static void sub_0810E230(struct DarkMindForm2 *r3)
 
 static void sub_0810E300(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_081141D0);
+    ObjectSetFunc(r4, 5, FN(sub_081141D0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -7483,7 +7483,7 @@ static void sub_0810E354(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r6 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810E4A0);
+    ObjectSetFunc(r4, 5, FN(sub_0810E4A0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk135 = 2;
@@ -7563,7 +7563,7 @@ static void sub_0810E590(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810E65C);
+    ObjectSetFunc(r4, 5, FN(sub_0810E65C));
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
     r5->unk135 = 2;
@@ -7656,7 +7656,7 @@ static void sub_0810E65C(struct DarkMindForm2 *r5)
     }
     if (!r5->unk0.base.xspeed && !r5->unk0.base.yspeed && !--r5->unk0.base.counter)
     {
-        ObjectSetFunc(r5, 5, sub_081141D0);
+        ObjectSetFunc(r5, 5, FN(sub_081141D0));
         r5->unk0.base.xspeed = 0;
         r5->unk0.base.yspeed = 0;
         r5->unk0.base.flags &= ~1;
@@ -7707,7 +7707,7 @@ static void sub_0810E7D0(struct DarkMindForm2 *r6)
     }
     if (!--r6->unk0.base.counter)
     {
-        ObjectSetFunc(r6, 5, sub_081141D0);
+        ObjectSetFunc(r6, 5, FN(sub_081141D0));
         r6->unk0.base.xspeed = 0;
         r6->unk0.base.yspeed = 0;
         r6->unk0.base.flags &= ~1;
@@ -7720,7 +7720,7 @@ static void sub_0810E8D0(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810E938);
+    ObjectSetFunc(r4, 5, FN(sub_0810E938));
     r4->unk0.base.yspeed = 0;
     r4->unk135 = 2;
     if (r4->unk0.base.x < 0x7E00)
@@ -7804,7 +7804,7 @@ static void sub_0810E938(struct DarkMindForm2 *r2)
 
 static void sub_0810EA50(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_081141F4);
+    ObjectSetFunc(r4, 5, FN(sub_081141F4));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -8033,7 +8033,7 @@ static void sub_0810F13C(struct DarkMindForm2 *r5)
 
 void *sub_0810F320(struct ObjectTemplate *r6, u8 r5)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct DarkMindMirror), 0xFFF, TASK_USE_EWRAM, sub_081147F0);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct DarkMindMirror), 0xFFF, TASK_USE_EWRAM, FN(sub_081147F0));
     struct DarkMindMirror *r4 = TaskGetStructPtr(t);
 
     InitObject(&r4->unk0, r6, r5);
@@ -8061,7 +8061,7 @@ void *sub_0810F320(struct ObjectTemplate *r6, u8 r5)
     r4->unk0.unk96 = 0;
     r4->unk0.unk97 = -0x16;
     r4->unk0.unk9E = 0;
-    r4->unk0.unk7C = sub_08110F80;
+    r4->unk0.unk7C = FN(sub_08110F80);
     sub_0803E2B0(&r4->unk0.base, -4, -8, 4, 8);
     ObjectInitSprite(&r4->unk0);
     sub_08114528(r4);
@@ -8082,7 +8082,7 @@ static void sub_0810F4A0(struct DarkMindMirror *r4)
 {
     struct DarkMindForm2 *r5 = r4->unk0.base.parent;
 
-    ObjectSetFunc(r4, 1, sub_0810F5A4);
+    ObjectSetFunc(r4, 1, FN(sub_0810F5A4));
     r4->unk0.unkA0 = 0x4800;
     r4->unk0.unkA2 = 0x20;
     if (r4->unk0.objTemplate->subtype1)
@@ -8094,7 +8094,7 @@ static void sub_0810F4A0(struct DarkMindMirror *r4)
     r4->unk0.kirby3 = sub_0803D46C(&r4->unk0.base);
     if (r5->unk126 == 3 || r5->unk126 == 4 || r5->unk126 == 5)
     {
-        if ((r5->unkFC->unk0.unk78 == sub_0810F5A4 || r5->unk100->unk0.unk78 == sub_0810F5A4)
+        if ((r5->unkFC->unk0.unk78 == FN(sub_0810F5A4) || r5->unk100->unk0.unk78 == FN(sub_0810F5A4))
             && Rand16() & 1)
         {
             r5->unkFC->unk0.unk9E = 0x40;
@@ -8160,7 +8160,7 @@ static void sub_0810F77C(struct DarkMindMirror *r4)
 {
     struct DarkMindForm2 *r5 = r4->unk0.base.parent;
 
-    ObjectSetFunc(r4, 1, sub_0810F818);
+    ObjectSetFunc(r4, 1, FN(sub_0810F818));
     r4->unk0.unkA0 = 0x2000;
     r4->unk0.unkA2 = 0x18;
     r4->unk0.base.counter = 0;
@@ -8226,7 +8226,7 @@ static void sub_0810F9D4(struct DarkMindMirror *r4)
 {
     struct DarkMindForm2 *r5 = r4->unk0.base.parent;
 
-    ObjectSetFunc(r4, 3, sub_081144A0);
+    ObjectSetFunc(r4, 3, FN(sub_081144A0));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.flags &= ~0x400;
     r4->unk0.base.flags &= ~2;
@@ -8260,7 +8260,7 @@ static void sub_0810F9D4(struct DarkMindMirror *r4)
 
 static void sub_0810FB68(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810FC44);
+    ObjectSetFunc(r4, 0, FN(sub_0810FC44));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     if (r4->unk0.objTemplate->subtype1)
@@ -8335,7 +8335,7 @@ static void sub_0810FC44(struct DarkMindMirror *r3)
 
 static void sub_0810FDA4(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, DarkMindForm2CreateRandomEnemies);
+    ObjectSetFunc(r4, 0, FN(DarkMindForm2CreateRandomEnemies));
     r4->unk0.base.flags &= ~1;
     r4->unk0.base.xspeed = 0x800;
     r4->unk0.base.yspeed = 0;
@@ -8411,7 +8411,7 @@ static void DarkMindForm2CreateRandomEnemies(struct DarkMindMirror *r5)
 
 static void sub_081103C8(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081104C8);
+    ObjectSetFunc(r4, 0, FN(sub_081104C8));
     r4->unk0.kirby3 = sub_0803D46C(&r4->unk0.base);
     if (r4->unk0.base.x > r4->unk0.kirby3->base.x)
         r4->unk0.base.flags |= 1;
@@ -8493,7 +8493,7 @@ static void sub_081104C8(struct DarkMindMirror *r4)
 
 static void sub_081106F4(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0811076C);
+    ObjectSetFunc(r4, 0, FN(sub_0811076C));
     if (r4->unk0.base.x > 0x7E00)
         r4->unk0.base.flags |= 1;
     else
@@ -8609,7 +8609,7 @@ static void sub_0811076C(struct DarkMindMirror *r4)
 
 static void sub_081109AC(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081145EC);
+    ObjectSetFunc(r4, 0, FN(sub_081145EC));
     r4->unk0.base.flags &= ~1;
     r4->unk0.base.xspeed = 0x800;
     r4->unk0.base.yspeed = 0;
@@ -8632,7 +8632,7 @@ static void sub_08110A20(struct DarkMindMirror *r4)
     u32 r0, r1;
     s32 r3, r6;
 
-    ObjectSetFunc(r4, 0, sub_08110B64);
+    ObjectSetFunc(r4, 0, FN(sub_08110B64));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     // dead code
@@ -8756,7 +8756,7 @@ static void sub_08110C68(struct DarkMindMirror *r4)
     struct DarkMindForm2 *r5 = r4->unk0.base.parent;
     u8 r2; // required for matching
 
-    ObjectSetFunc(r4, 3, sub_08110DEC);
+    ObjectSetFunc(r4, 3, FN(sub_08110DEC));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.flags &= ~0x400;
     r4->unk0.base.flags &= ~2;
@@ -8799,7 +8799,7 @@ static void sub_08110DEC(struct DarkMindMirror *r4)
     {
         r4->unk0.base.flags &= ~0x200;
         r4->unk0.base.yspeed = 0;
-        ObjectSetFunc(r4, 0, sub_08110C10);
+        ObjectSetFunc(r4, 0, FN(sub_08110C10));
         if (r4->unk0.base.x > 0x8000)
             r4->unk0.base.flags |= 1;
         else
@@ -8814,7 +8814,7 @@ static void sub_08110DEC(struct DarkMindMirror *r4)
 
 static void sub_08110E60(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 2, sub_081144EC);
+    ObjectSetFunc(r4, 2, FN(sub_081144EC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0xA00;
     r4->unk0.base.flags |= 0x200;
@@ -8825,7 +8825,7 @@ static void sub_08110E60(struct DarkMindMirror *r4)
 
 static void sub_08110F28(struct DarkMindMirror *r2)
 {
-    r2->unk0.unk78 = sub_08114578;
+    r2->unk0.unk78 = FN(sub_08114578);
     r2->unk0.unk83 = 8;
     r2->unk0.base.xspeed = 0;
     r2->unk0.base.yspeed = 0;
@@ -8967,7 +8967,7 @@ static void sub_08111314(struct DarkMindForm2 *r5)
 
 void *sub_081113EC(struct ObjectTemplate *r6, u8 r5)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     InitObject(r4, r6, r5);
@@ -8982,7 +8982,7 @@ void *sub_081113EC(struct ObjectTemplate *r6, u8 r5)
     r4->base.unk5C |= 7;
     r4->base.unk5C |= 0x100000 | 0x8000 | 0x80 | 0x20;
     r4->unk9E = 0;
-    r4->unk7C = sub_0809F840;
+    r4->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&r4->base, -14, -2, 14, 2);
     r4->base.sprite.unk14 = 0x640;
     ObjectInitSprite(r4);
@@ -8997,7 +8997,7 @@ static void sub_08111534(struct Object *r3, struct DarkMindMirror *r1)
     r3->base.x = r1->unk0.base.x;
     r3->base.y = r1->unk0.base.y;
     r3->unk83 = 3;
-    r3->unk78 = sub_08114714;
+    r3->unk78 = FN(sub_08114714);
     r3->base.counter = 18;
     r3->base.sprite.unk14 = 0x480;
     PlaySfx(&r3->base, SE_DARK_MIND_LASER_REBOUND);
@@ -9074,7 +9074,7 @@ static void sub_081115F4(struct Object *r5)
         else
             r5->base.flags &= ~1;
     }
-    r5->unk78 = sub_08114708;
+    r5->unk78 = FN(sub_08114708);
     r5->base.counter = 18;
     PlaySfx(&r5->base, SE_LASER_ATTACK);
 }
@@ -9097,7 +9097,7 @@ static void DarkMindForm2CreateLaserShower(struct DarkMindForm2 *r5)
 
 void *sub_08111984(struct ObjectTemplate *r6, u8 r5)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     InitObject(r4, r6, r5);
@@ -9114,7 +9114,7 @@ void *sub_08111984(struct ObjectTemplate *r6, u8 r5)
     r4->base.unk5C |= 7;
     r4->base.unk5C |= 0x100000 | 0x8000 | 0x80 | 0x20;
     r4->unk9E = 0;
-    r4->unk7C = sub_0809F840;
+    r4->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&r4->base, -24, 8, 24, 0x80);
     r4->base.sprite.unk14 = 0x5C0;
     ObjectInitSprite(r4);
@@ -9160,7 +9160,7 @@ static void sub_08111AEC(struct Object *r4)
 
 static void sub_08111B88(struct Object *r5)
 {
-    struct Task *t = TaskCreate(sub_08111C5C, sizeof(struct EffectObject), 0x1001, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08111C5C), sizeof(struct EffectObject), 0x1001, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r4 = TaskGetStructPtr(t);
 
     ClearEffectObject(r4);
@@ -9226,7 +9226,7 @@ static void sub_08111C5C(void)
 static struct EffectObject *sub_08111EF4(struct DarkMindForm2 *r6)
 {
     struct DarkMindForm2 *r5 = r6;
-    struct Task *t = TaskCreate(sub_08112024, sizeof(struct EffectObject), 0x3501, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08112024), sizeof(struct EffectObject), 0x3501, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -9297,7 +9297,7 @@ static void sub_08112024(void)
 
 static struct EffectObject *sub_081122A0(struct Object *r6, u8 sb)
 {
-    struct Task *t = TaskCreate(sub_081123CC, sizeof(struct EffectObject), 0x3501, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_081123CC), sizeof(struct EffectObject), 0x3501, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -9377,7 +9377,7 @@ static void sub_081123CC(void)
 static struct EffectObject *sub_081126C0(struct DarkMindForm2 *sb, u8 sp08)
 {
     u8 sp0C = 40, i;
-    struct Task *t = TaskCreate(sub_08112880, sizeof(struct Object13), 0x3501, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08112880), sizeof(struct Object13), 0x3501, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct Object13 *r0 = TaskGetStructPtr(t);
     struct EffectObject *r6 = &r0->unk0;
     struct Object13 *r8 = r0;
@@ -9512,7 +9512,7 @@ static void sub_08112D58(struct DarkMindMirror *r6)
 
 void *CreateDarkMindMirrorCutter(struct ObjectTemplate *r6, u8 r4)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r5 = TaskGetStructPtr(t);
 
     InitObject(r5, r6, r4);
@@ -9528,7 +9528,7 @@ void *CreateDarkMindMirrorCutter(struct ObjectTemplate *r6, u8 r4)
     r5->base.unk5C |= 7;
     r5->base.unk5C |= 0x100000 | 0x8000 | 0x80 | 0x20;
     r5->unk9E = 0;
-    r5->unk7C = sub_0809F840;
+    r5->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&r5->base, -8, -4, 8, 4);
     r5->base.sprite.unk14 = 0x5C0;
     ObjectInitSprite(r5);
@@ -9635,7 +9635,7 @@ static struct Task *sub_08113508(struct DarkMindForm2 *r5, u16 r6)
     else
     {
         struct PaletteEffect *s;
-        struct Task *t = TaskCreate(sub_081135A8, sizeof(struct Unk_08113508), 0xFFFE, TASK_USE_IWRAM, sub_081147B0);
+        struct Task *t = TaskCreate(FN(sub_081135A8), sizeof(struct Unk_08113508), 0xFFFE, TASK_USE_IWRAM, FN(sub_081147B0));
         struct Unk_08113508 *var = TaskGetStructPtr(t);
 
         var->unk2 = 0;
@@ -9691,7 +9691,7 @@ static void sub_081135A8(void)
                 s->unk4 = 0xFFFF;
                 s->unk6 = 0x3FFF;
                 s->unk3 = 0xF;
-                gCurTask->main = sub_0811370C;
+                gCurTask->main = FN(sub_0811370C);
             }
         }
     }
@@ -9744,7 +9744,7 @@ static void sub_081138D0(struct Task *t)
     struct PaletteEffect *r0;
     const struct DarkMindForm2 *r3 = r2->unk8;
 
-    if (t->main == sub_0811370C)
+    if (t->main == FN(sub_0811370C))
     {
         r2->unk6 = 9;
         r0 = CreateRoomPaletteEffect(5, r3->unk0.base.roomId);
@@ -9754,7 +9754,7 @@ static void sub_081138D0(struct Task *t)
         r0->unk4 = 0xFFFF;
         r0->unk6 = 0x3FFF;
         r0->unk3 = 0xF;
-        t->main = sub_08113940;
+        t->main = FN(sub_08113940);
     }
 }
 
@@ -9811,7 +9811,7 @@ static void DarkMindForm2FlipSprites(void)
 
 void sub_08113B68(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810F428);
+    ObjectSetFunc(r4, 0, FN(sub_0810F428));
     r4->unk0.unkA0 = 0x4800;
     r4->unk0.unkA2 = 0x20;
     if (r4->unk0.objTemplate->subtype1)
@@ -9824,7 +9824,7 @@ void sub_08113B68(struct DarkMindMirror *r4)
 void sub_08113BAC(struct Object *r5)
 {
     struct DarkMindForm2 *r4 = r5->base.parent;
-    ObjectSetFunc(r5, 0, sub_08114708);
+    ObjectSetFunc(r5, 0, FN(sub_08114708));
     r5->base.xspeed = 0x800;
     if (!r4->unk127)
     {
@@ -9835,14 +9835,14 @@ void sub_08113BAC(struct Object *r5)
 
 void sub_08113BEC(struct Object *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08111AEC);
+    ObjectSetFunc(r4, 0, FN(sub_08111AEC));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
 }
 
 void sub_08113C10(struct Object *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0811323C);
+    ObjectSetFunc(r4, 0, FN(sub_0811323C));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
 }
@@ -9871,7 +9871,7 @@ void sub_08113C90(void)
 
 static void sub_08113C9C(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08113CCC);
+    ObjectSetFunc(r4, 0, FN(sub_08113CCC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -9886,7 +9886,7 @@ static void sub_08113CCC(struct DarkMindForm2 *r1)
 
 static void sub_08113CE8(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810BFC0);
+    ObjectSetFunc(r4, 0, FN(sub_0810BFC0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -9929,7 +9929,7 @@ static void sub_08113D68(struct DarkMindForm2 *r4)
 
 static void sub_08113DE8(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 0, sub_0810BD28);
+    ObjectSetFunc(r4, 0, FN(sub_0810BD28));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -9945,7 +9945,7 @@ static void sub_08113E30(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 1, sub_0810CD98);
+    ObjectSetFunc(r4, 1, FN(sub_0810CD98));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk129 = 1;
@@ -9959,7 +9959,7 @@ static void sub_08113E30(struct DarkMindForm2 *r4)
 
 static void sub_08113E98(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_08113EE8);
+    ObjectSetFunc(r4, 5, FN(sub_08113EE8));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -9976,7 +9976,7 @@ static void sub_08113EE8(struct DarkMindForm2 *r2)
 
 static void sub_08113F00(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_08113F38);
+    ObjectSetFunc(r4, 5, FN(sub_08113F38));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -9991,7 +9991,7 @@ static void sub_08113F38(struct DarkMindForm2 *r2)
 
 static void sub_08113F50(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08113F88);
+    ObjectSetFunc(r4, 1, FN(sub_08113F88));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -10006,7 +10006,7 @@ static void sub_08113F88(struct DarkMindForm2 *r2)
 
 static void sub_08113FA0(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 2, sub_0810D0EC);
+    ObjectSetFunc(r4, 2, FN(sub_0810D0EC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -10020,7 +10020,7 @@ static void sub_08113FA0(struct DarkMindForm2 *r4)
 
 static void sub_08113FF8(struct DarkMindForm2 *r3)
 {
-    r3->unk0.unk78 = sub_0810D1D0;
+    r3->unk0.unk78 = FN(sub_0810D1D0);
     r3->unk0.base.xspeed = 0;
     r3->unk0.base.yspeed = 0;
     r3->unk0.base.flags &= ~1;
@@ -10029,7 +10029,7 @@ static void sub_08113FF8(struct DarkMindForm2 *r3)
 
 static void sub_0811401C(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08114054);
+    ObjectSetFunc(r4, 1, FN(sub_08114054));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -10044,7 +10044,7 @@ static void sub_08114054(struct DarkMindForm2 *r2)
 
 static void sub_0811406C(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_081140A4);
+    ObjectSetFunc(r4, 5, FN(sub_081140A4));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -10059,7 +10059,7 @@ static void sub_081140A4(struct DarkMindForm2 *r2)
 
 static void sub_081140BC(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810DB14);
+    ObjectSetFunc(r4, 5, FN(sub_0810DB14));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk135 = 2;
@@ -10069,7 +10069,7 @@ static void sub_081140BC(struct DarkMindForm2 *r4)
 
 static void sub_081140F4(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810DC2C);
+    ObjectSetFunc(r4, 5, FN(sub_0810DC2C));
     r4->unk129 = 0;
     r4->unk135 = 0;
     r4->unk0.base.flags &= ~2;
@@ -10079,7 +10079,7 @@ static void sub_081140F4(struct DarkMindForm2 *r4)
 
 static void sub_08114130(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810E7D0);
+    ObjectSetFunc(r4, 5, FN(sub_0810E7D0));
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
     r4->unk0.base.counter = 0x10;
@@ -10089,7 +10089,7 @@ static void sub_08114130(struct DarkMindForm2 *r4)
 
 static void sub_08114170(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_081141AC);
+    ObjectSetFunc(r4, 5, FN(sub_081141AC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -10122,7 +10122,7 @@ static void sub_081141F4(struct DarkMindForm2 *r4)
 
 static void sub_08114218(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_08114250);
+    ObjectSetFunc(r4, 5, FN(sub_08114250));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -10137,7 +10137,7 @@ static void sub_08114250(struct DarkMindForm2 *r2)
 
 static void sub_08114268(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810EB30);
+    ObjectSetFunc(r4, 5, FN(sub_0810EB30));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -10151,7 +10151,7 @@ static void sub_081142B0(struct DarkMindForm2 *r4)
 {
     struct DarkMindForm2 *r5 = r4;
 
-    ObjectSetFunc(r4, 5, sub_0810EC0C);
+    ObjectSetFunc(r4, 5, FN(sub_0810EC0C));
     r4->unk0.base.flags &= ~4;
     r4->unk0.base.yspeed = 0;
     if (r4->unk0.base.x < 0x7E00)
@@ -10165,7 +10165,7 @@ static void sub_081142B0(struct DarkMindForm2 *r4)
 
 static void sub_08114310(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_08114348);
+    ObjectSetFunc(r4, 5, FN(sub_08114348));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~2;
@@ -10180,7 +10180,7 @@ static void sub_08114348(struct DarkMindForm2 *r2)
 
 static void sub_08114360(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810ECB4);
+    ObjectSetFunc(r4, 5, FN(sub_0810ECB4));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -10192,7 +10192,7 @@ static void sub_08114360(struct DarkMindForm2 *r4)
 
 static void sub_081143AC(struct DarkMindForm2 *r4)
 {
-    ObjectSetFunc(r4, 5, sub_0810EDA0);
+    ObjectSetFunc(r4, 5, FN(sub_0810EDA0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags &= ~1;
@@ -10203,7 +10203,7 @@ static void sub_081143AC(struct DarkMindForm2 *r4)
 
 static void sub_081143F0(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08114420);
+    ObjectSetFunc(r4, 0, FN(sub_08114420));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unkE0 = 0;
@@ -10272,7 +10272,7 @@ static void sub_081144EC(struct DarkMindMirror *r2)
 
 static void sub_08114528(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08114554);
+    ObjectSetFunc(r4, 0, FN(sub_08114554));
     r4->unk0.base.flags |= 0x200;
     r4->unk0.base.flags |= 0x400;
     r4->unkE0 = 0;
@@ -10299,7 +10299,7 @@ static void sub_08114578(struct DarkMindMirror *r4)
 
 static void sub_0811459C(struct DarkMindMirror *r3)
 {
-    r3->unk0.unk78 = sub_081145C8;
+    r3->unk0.unk78 = FN(sub_081145C8);
     r3->unk0.base.xspeed = 0;
     r3->unk0.base.yspeed = 0;
     r3->unk0.base.flags |= 0x200;
@@ -10328,7 +10328,7 @@ static void sub_081145EC(struct DarkMindMirror *r3)
 
 static void sub_0811461C(struct DarkMindMirror *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08110C10);
+    ObjectSetFunc(r4, 0, FN(sub_08110C10));
     if (r4->unk0.base.x > 0x8000)
         r4->unk0.base.flags |= 1;
     else
@@ -10342,7 +10342,7 @@ static void sub_0811461C(struct DarkMindMirror *r4)
 
 static void sub_08114674(struct DarkMindMirror *r0)
 {
-    r0->unk0.unk78 = sub_0811468C;
+    r0->unk0.unk78 = FN(sub_0811468C);
     ++r0->unk0.unk83;
     r0->unk0.base.counter = 0x16;
 }
@@ -10393,7 +10393,7 @@ static void sub_0811473C(struct Object *r4)
 
 static void sub_08114784(struct Object *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08113310);
+    ObjectSetFunc(r4, 0, FN(sub_08113310));
     r4->base.xspeed = 0;
     r4->base.yspeed = 0;
     r4->unkA0 = 0;
@@ -10425,7 +10425,7 @@ static void sub_081147F0(struct Task *t)
 
 void *CreateDarkMindTrigger(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct DarkMindTrigger), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct DarkMindTrigger), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct DarkMindTrigger *r6 = TaskGetStructPtr(t);
 
     InitObject(&r6->unk0, r5, r4);
@@ -10451,7 +10451,7 @@ void *CreateDarkMindTrigger(struct ObjectTemplate *r5, u8 r4)
     ObjectSetBounds(&r6->unk0.base, -40, -30, 40, 30);
     ObjectInitSprite(&r6->unk0);
     r6->unk0.unk9E = 0;
-    r6->unk0.unk7C = sub_0811643C;
+    r6->unk0.unk7C = FN(sub_0811643C);
     r6->unkB4 = sub_081171BC(r6);
     if (!r6->unk0.objTemplate->subtype1)
         sub_081188EC(r6);
@@ -10547,9 +10547,9 @@ static void sub_08114B28(struct DarkMindTrigger *r5)
 
 void sub_08114BA0(struct DarkMindTrigger *r4)
 {
-    if (r4->unk0.unk80 <= 0 && r4->unk0.unk7C != sub_081164E0)
+    if (r4->unk0.unk80 <= 0 && r4->unk0.unk7C != FN(sub_081164E0))
         sub_08118990(r4);
-    ObjectSetFunc(r4, 0, sub_08114C44);
+    ObjectSetFunc(r4, 0, FN(sub_08114C44));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -10672,7 +10672,7 @@ static void sub_08114CBC(struct DarkMindTrigger *r6)
 
 static void sub_08114FF4(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081150C0);
+    ObjectSetFunc(r4, 0, FN(sub_081150C0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -10723,7 +10723,7 @@ static void sub_081150C0(struct DarkMindTrigger *r4)
 
 static void sub_08115180(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08115240);
+    ObjectSetFunc(r4, 1, FN(sub_08115240));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -10773,7 +10773,7 @@ static void sub_08115284(struct DarkMindTrigger *r2)
 
 static void sub_0811530C(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08115370);
+    ObjectSetFunc(r4, 1, FN(sub_08115370));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -10796,7 +10796,7 @@ static void sub_08115370(struct DarkMindTrigger *r6)
         {
         case 0 ... 1:
             sub_08117964(r6, 0, -0x280, 0);
-            ObjectSetFunc(r6, 0, sub_08114CBC);
+            ObjectSetFunc(r6, 0, FN(sub_08114CBC));
             r6->unk0.base.xspeed = 0;
             r6->unk0.base.yspeed = 0;
             r6->unk0.base.flags |= 0x40;
@@ -10896,7 +10896,7 @@ static void sub_08115638(struct DarkMindTrigger *r4)
 
 static void sub_08115814(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_0811589C);
+    ObjectSetFunc(r4, 1, FN(sub_0811589C));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -11164,7 +11164,7 @@ static void sub_081164E0(struct DarkMindTrigger *r6)
     struct DarkMindTrigger *r4 = r6;
     struct Kirby *kirby;
 
-    if (r6->unk0.unk78 != sub_08116E74 && gUnk_0203AD10 & 0x40)
+    if (r6->unk0.unk78 != FN(sub_08116E74) && gUnk_0203AD10 & 0x40)
         sub_08116DE4(r6);
     if (!Macro_0810B1F4(&r4->unk0.base))
     {
@@ -11308,7 +11308,7 @@ static void sub_08116BC0(struct DarkMindTrigger *r5)
     struct GameplayHud *hud;
     u8 i;
 
-    ObjectSetFunc(r5, 0, sub_08118964);
+    ObjectSetFunc(r5, 0, FN(sub_08118964));
     r5->unk0.base.xspeed = 0;
     r5->unk0.base.yspeed = 0;
     r5->unk0.base.counter = 0x40;
@@ -11359,7 +11359,7 @@ static void sub_08116C54(struct DarkMindTrigger *r6)
 
 static void sub_08116DE4(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08116E74);
+    ObjectSetFunc(r4, 0, FN(sub_08116E74));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -11457,7 +11457,7 @@ static void sub_08116E74(struct DarkMindTrigger *r4)
 
 static void sub_08116FFC(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08118A00);
+    ObjectSetFunc(r4, 1, FN(sub_08118A00));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.unk7C = 0;
@@ -11472,7 +11472,7 @@ static void sub_08116FFC(struct DarkMindTrigger *r4)
 
 static void sub_081170D0(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08118A1C);
+    ObjectSetFunc(r4, 1, FN(sub_08118A1C));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x400;
@@ -11488,7 +11488,7 @@ static void sub_081170D0(struct DarkMindTrigger *r4)
 
 static struct EffectObject *sub_081171BC(struct DarkMindTrigger *r5)
 {
-    struct Task *t = TaskCreate(sub_08117298, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08117298), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -11631,7 +11631,7 @@ static void sub_08117964(struct DarkMindTrigger *r5, s16 a2, s16 a3, u8 a4)
     r4 = Macro_081059A8_2(&r5->unk0, r7, sp00, OBJ_UNKNOWN_D4, 0, ip->unk0.subtype);
     r4->base.parent = r5;
     sub_08118600(r4, a2, a3);
-    if (r5->unk0.unk78 != sub_08115E2C)
+    if (r5->unk0.unk78 != FN(sub_08115E2C))
         sub_08106AD0(r4);
 }
 
@@ -11652,7 +11652,7 @@ static void sub_08117A9C(struct DarkMindTrigger *r6, s16 a2, s16 a3, s8 a4, s8 a
 
 void *sub_08117BBC(struct ObjectTemplate *r5, u8 r4)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r6 = TaskGetStructPtr(t);
 
     InitObject(r6, r5, r4);
@@ -11665,7 +11665,7 @@ void *sub_08117BBC(struct ObjectTemplate *r5, u8 r4)
     r6->base.unk68 &= ~7;
     r6->base.unk5C |= 0x100000 | 0x8000 | 0x80 | 0x20;
     r6->unk9E = 0;
-    r6->unk7C = sub_08118AD4;
+    r6->unk7C = FN(sub_08118AD4);
     sub_0803E2B0(&r6->base, -4, -4, 4, 4);
     ObjectSetBounds(&r6->base, -4, -4, 4, 4);
     ObjectInitSprite(r6);
@@ -11675,7 +11675,7 @@ void *sub_08117BBC(struct ObjectTemplate *r5, u8 r4)
 
 static void sub_08117C84(struct DarkMindTrigger *r4)
 {
-    struct Task *t = TaskCreate(sub_08117DA0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08117DA0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r7 = r0;
     u16 r4_;
     u32 a, b;
@@ -11762,7 +11762,7 @@ static void sub_08117DA0(void)
 
 static void sub_08117F6C(struct DarkMindTrigger *r4)
 {
-    struct Task *t = TaskCreate(sub_08118064, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08118064), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r7 = TaskGetStructPtr(t);
     u32 v;
 
@@ -11830,7 +11830,7 @@ static void sub_08118064(void)
 
 static void sub_08118220(struct DarkMindTrigger *r5, u8 r6)
 {
-    struct Task *t = TaskCreate(sub_08118310, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08118310), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r4 = TaskGetStructPtr(t);
 
     ClearEffectObject(r4);
@@ -11899,7 +11899,7 @@ static void sub_08118310(void)
 
 static void sub_08118600(struct Object *r5, s16 r4, s16 r6)
 {
-    ObjectSetFunc(r5, 0, sub_08118AC8);
+    ObjectSetFunc(r5, 0, FN(sub_08118AC8));
     Rand32();
     r5->unk83 += (gRngVal >> 16) & 3;
     r5->base.xspeed = r4;
@@ -11912,7 +11912,7 @@ static void sub_08118600(struct Object *r5, s16 r4, s16 r6)
 
 static void sub_08118678(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08114CBC);
+    ObjectSetFunc(r4, 0, FN(sub_08114CBC));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -11923,7 +11923,7 @@ static void sub_08118678(struct DarkMindTrigger *r4)
 
 static void sub_081186B8(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_081186F0);
+    ObjectSetFunc(r4, 1, FN(sub_081186F0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0x40;
     r4->unk0.base.flags |= 0x40;
@@ -11942,7 +11942,7 @@ static void sub_081186F0(struct DarkMindTrigger *r3)
 
 static void sub_08118734(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08115284);
+    ObjectSetFunc(r4, 0, FN(sub_08115284));
     r4->unk0.base.xspeed = 0;
     if (Rand16() & 1)
     {
@@ -11956,7 +11956,7 @@ static void sub_08118734(struct DarkMindTrigger *r4)
 
 static void sub_0811879C(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081187D0);
+    ObjectSetFunc(r4, 0, FN(sub_081187D0));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -11973,7 +11973,7 @@ static void sub_081187D0(struct DarkMindTrigger *r2)
 
 static void sub_081187F4(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08115504);
+    ObjectSetFunc(r4, 1, FN(sub_08115504));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -11983,7 +11983,7 @@ static void sub_081187F4(struct DarkMindTrigger *r4)
 
 static void sub_08118828(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08115638);
+    ObjectSetFunc(r4, 1, FN(sub_08115638));
     r4->unk0.kirby3 = FindTargetKirby(&r4->unk0.base);
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
@@ -11994,7 +11994,7 @@ static void sub_08118828(struct DarkMindTrigger *r4)
 
 static void sub_08118868(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 1, sub_08115E2C);
+    ObjectSetFunc(r4, 1, FN(sub_08115E2C));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.flags |= 0x40;
@@ -12004,7 +12004,7 @@ static void sub_08118868(struct DarkMindTrigger *r4)
 
 static void sub_0811889C(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08116654);
+    ObjectSetFunc(r4, 0, FN(sub_08116654));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.x = 0x7800;
@@ -12018,7 +12018,7 @@ static void sub_0811889C(struct DarkMindTrigger *r4)
 
 static void sub_081188EC(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_08116920);
+    ObjectSetFunc(r4, 0, FN(sub_08116920));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.x = 0x6800;
@@ -12029,7 +12029,7 @@ static void sub_081188EC(struct DarkMindTrigger *r4)
 
 static void sub_08118928(struct DarkMindTrigger *r4)
 {
-    ObjectSetFunc(r4, 0, sub_081169E4);
+    ObjectSetFunc(r4, 0, FN(sub_081169E4));
     r4->unk0.base.xspeed = 0;
     r4->unk0.base.yspeed = 0;
     r4->unk0.base.counter = 0;
@@ -12056,7 +12056,7 @@ static void sub_08118990(struct DarkMindTrigger *r4)
     r4->unk0.unk80 = 1;
     r4->unk0.base.unk5C &= ~7;
     r4->unk0.base.unk5C |= 7; // ???
-    r4->unk0.unk7C = sub_081164E0;
+    r4->unk0.unk7C = FN(sub_081164E0);
     if (gUnk_0203AD10 & 4)
     {
         gUnk_0203AD10 |= 0x40;
@@ -12082,15 +12082,15 @@ static void sub_08118A1C(struct DarkMindTrigger *r0)
     if (++r0->unk0.base.counter > 300)
     {
         if (gUnk_0203AD10 & 4)
-            sub_08020428(sub_08025A80);
+            sub_08020428(FN(sub_08025A80));
         else
-            sub_08020428(sub_0802B4A8);
+            sub_08020428(FN(sub_0802B4A8));
     }
 }
 
 static void sub_08118A60(struct DarkMindTrigger *r5)
 {
-    struct Task *t = TaskCreate(sub_08117530, sizeof(struct EffectObject), 0xFFF, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08117530), sizeof(struct EffectObject), 0xFFF, TASK_USE_IWRAM, NULL);
     struct EffectObject *r4 = TaskGetStructPtr(t);
     ClearEffectObject(r4);
     r4->header.kind = 3;
@@ -12128,3 +12128,194 @@ static void sub_08118AD4(struct Object *r4)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_dark_mind) {
+    PORT_FNID(CreateDarkMindForm1),
+    PORT_FNID(sub_081003EC),
+    PORT_FNID(sub_08100F18),
+    PORT_FNID(sub_081013C8),
+    PORT_FNID(sub_08101560),
+    PORT_FNID(sub_08101630),
+    PORT_FNID(sub_08101784),
+    PORT_FNID(sub_08101B28),
+    PORT_FNID(sub_08101E38),
+    PORT_FNID(sub_08102104),
+    PORT_FNID(sub_08102414),
+    PORT_FNID(sub_081027C0),
+    PORT_FNID(sub_08102D9C),
+    PORT_FNID(sub_08102FD0),
+    PORT_FNID(sub_08103268),
+    PORT_FNID(sub_08103380),
+    PORT_FNID(sub_08103404),
+    PORT_FNID(sub_08103688),
+    PORT_FNID(sub_081039AC),
+    PORT_FNID(sub_08103AE4),
+    PORT_FNID(sub_08103CD0),
+    PORT_FNID(sub_08103E60),
+    PORT_FNID(sub_08104080),
+    PORT_FNID(sub_08104424),
+    PORT_FNID(sub_0810457C),
+    PORT_FNID(sub_081047D0),
+    PORT_FNID(sub_08104AA8),
+    PORT_FNID(sub_08104CD8),
+    PORT_FNID(sub_08104E04),
+    PORT_FNID(sub_08105278),
+    PORT_FNID(sub_08105698),
+    PORT_FNID(CreateShadowKirbyBomb),
+    PORT_FNID(sub_08105BF0),
+    PORT_FNID(sub_08105CE0),
+    PORT_FNID(sub_08105D78),
+    PORT_FNID(CreateDarkMindStar),
+    PORT_FNID(sub_081065B0),
+    PORT_FNID(sub_08106874),
+    PORT_FNID(sub_08106BE0),
+    PORT_FNID(CreateDarkMindBomb),
+    PORT_FNID(sub_08107408),
+    PORT_FNID(sub_08107560),
+    PORT_FNID(sub_08107780),
+    PORT_FNID(sub_0810792C),
+    PORT_FNID(sub_08107BA8),
+    PORT_FNID(sub_08107FC4),
+    PORT_FNID(sub_08108368),
+    PORT_FNID(sub_08108A50),
+    PORT_FNID(sub_081094C4),
+    PORT_FNID(sub_08109960),
+    PORT_FNID(sub_081099A4),
+    PORT_FNID(sub_081099C0),
+    PORT_FNID(sub_08109A00),
+    PORT_FNID(sub_08109A38),
+    PORT_FNID(sub_08109C08),
+    PORT_FNID(sub_08109C74),
+    PORT_FNID(sub_08109C8C),
+    PORT_FNID(sub_08109CEC),
+    PORT_FNID(sub_08109E98),
+    PORT_FNID(sub_08109F40),
+    PORT_FNID(sub_08109FF4),
+    PORT_FNID(sub_0810A034),
+    PORT_FNID(sub_0810A098),
+    PORT_FNID(sub_0810A104),
+    PORT_FNID(sub_0810A130),
+    PORT_FNID(sub_0810B1F4),
+    PORT_FNID(sub_0810B904),
+    PORT_FNID(CreateDarkMindForm2),
+    PORT_FNID(sub_0810BD28),
+    PORT_FNID(sub_0810BE7C),
+    PORT_FNID(sub_0810BFC0),
+    PORT_FNID(sub_0810C510),
+    PORT_FNID(sub_0810C6A4),
+    PORT_FNID(sub_0810C9C8),
+    PORT_FNID(sub_0810CA50),
+    PORT_FNID(sub_0810CD98),
+    PORT_FNID(sub_0810CF60),
+    PORT_FNID(sub_0810D0EC),
+    PORT_FNID(sub_0810D1D0),
+    PORT_FNID(sub_0810D2EC),
+    PORT_FNID(sub_0810D4E0),
+    PORT_FNID(sub_0810D730),
+    PORT_FNID(sub_0810D914),
+    PORT_FNID(sub_0810DB14),
+    PORT_FNID(sub_0810DC2C),
+    PORT_FNID(sub_0810DD60),
+    PORT_FNID(sub_0810DF60),
+    PORT_FNID(sub_0810E230),
+    PORT_FNID(sub_0810E4A0),
+    PORT_FNID(sub_0810E65C),
+    PORT_FNID(sub_0810E7D0),
+    PORT_FNID(sub_0810E938),
+    PORT_FNID(sub_0810EB30),
+    PORT_FNID(sub_0810EC0C),
+    PORT_FNID(sub_0810ECB4),
+    PORT_FNID(sub_0810EDA0),
+    PORT_FNID(sub_0810EDEC),
+    PORT_FNID(sub_0810F320),
+    PORT_FNID(sub_0810F428),
+    PORT_FNID(sub_0810F5A4),
+    PORT_FNID(sub_0810F818),
+    PORT_FNID(sub_0810FC44),
+    PORT_FNID(DarkMindForm2CreateRandomEnemies),
+    PORT_FNID(sub_081104C8),
+    PORT_FNID(sub_0811076C),
+    PORT_FNID(sub_08110B64),
+    PORT_FNID(sub_08110C10),
+    PORT_FNID(sub_08110DEC),
+    PORT_FNID(sub_08110F80),
+    PORT_FNID(sub_081113EC),
+    PORT_FNID(sub_08111984),
+    PORT_FNID(sub_08111AEC),
+    PORT_FNID(sub_08111C5C),
+    PORT_FNID(sub_08112024),
+    PORT_FNID(sub_081123CC),
+    PORT_FNID(sub_08112880),
+    PORT_FNID(CreateDarkMindMirrorCutter),
+    PORT_FNID(sub_0811323C),
+    PORT_FNID(sub_08113310),
+    PORT_FNID(sub_081135A8),
+    PORT_FNID(sub_0811370C),
+    PORT_FNID(sub_08113940),
+    PORT_FNID(sub_08113B68),
+    PORT_FNID(sub_08113BAC),
+    PORT_FNID(sub_08113BEC),
+    PORT_FNID(sub_08113C10),
+    PORT_FNID(sub_08113CCC),
+    PORT_FNID(sub_08113D2C),
+    PORT_FNID(sub_08113D68),
+    PORT_FNID(sub_08113E14),
+    PORT_FNID(sub_08113EE8),
+    PORT_FNID(sub_08113F38),
+    PORT_FNID(sub_08113F88),
+    PORT_FNID(sub_08114054),
+    PORT_FNID(sub_081140A4),
+    PORT_FNID(sub_081141AC),
+    PORT_FNID(sub_081141D0),
+    PORT_FNID(sub_081141F4),
+    PORT_FNID(sub_08114250),
+    PORT_FNID(sub_08114348),
+    PORT_FNID(sub_08114420),
+    PORT_FNID(sub_081144A0),
+    PORT_FNID(sub_081144EC),
+    PORT_FNID(sub_08114554),
+    PORT_FNID(sub_08114578),
+    PORT_FNID(sub_081145C8),
+    PORT_FNID(sub_081145EC),
+    PORT_FNID(sub_0811468C),
+    PORT_FNID(sub_08114708),
+    PORT_FNID(sub_08114714),
+    PORT_FNID(sub_081147B0),
+    PORT_FNID(sub_081147F0),
+    PORT_FNID(CreateDarkMindTrigger),
+    PORT_FNID(sub_08114BA0),
+    PORT_FNID(sub_08114C44),
+    PORT_FNID(sub_08114CBC),
+    PORT_FNID(sub_081150C0),
+    PORT_FNID(sub_08115240),
+    PORT_FNID(sub_08115284),
+    PORT_FNID(sub_08115370),
+    PORT_FNID(sub_08115504),
+    PORT_FNID(sub_08115638),
+    PORT_FNID(sub_0811589C),
+    PORT_FNID(sub_08115E2C),
+    PORT_FNID(sub_0811643C),
+    PORT_FNID(sub_081164E0),
+    PORT_FNID(sub_08116654),
+    PORT_FNID(sub_08116920),
+    PORT_FNID(sub_081169E4),
+    PORT_FNID(sub_08116E74),
+    PORT_FNID(sub_08117298),
+    PORT_FNID(sub_08117530),
+    PORT_FNID(sub_08117BBC),
+    PORT_FNID(sub_08117DA0),
+    PORT_FNID(sub_08118064),
+    PORT_FNID(sub_08118310),
+    PORT_FNID(sub_081186F0),
+    PORT_FNID(sub_081187D0),
+    PORT_FNID(sub_08118964),
+    PORT_FNID(sub_08118A00),
+    PORT_FNID(sub_08118A1C),
+    PORT_FNID(sub_08118AC8),
+    PORT_FNID(sub_08118AD4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -24,7 +24,7 @@ static void sub_081238FC(struct Object*);
 static void sub_0812385C(struct Object*);
 
 void* CreateBonus(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x2f9c, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x2f9c, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *obj, *tmp;
 
     tmp = TaskGetStructPtr(task);
@@ -157,13 +157,13 @@ void BonusSetFunc(struct Object* arg0) {
             default:
                 sub_08033540(kirby->base.unk56);
                 arg0->base.flags |= 0x2000;
-                arg0->unk78 = BonusAddHpOrBattery;
+                arg0->unk78 = FN(BonusAddHpOrBattery);
                 break;
             case OBJ_1UP:
-                arg0->unk78 = BonusAddLives;
+                arg0->unk78 = FN(BonusAddLives);
                 break;
             case OBJ_INVINCIBLE_CANDY:
-                arg0->unk78 = BonusGiveInvincibility;
+                arg0->unk78 = FN(BonusGiveInvincibility);
                 break;
             }
 
@@ -302,7 +302,7 @@ struct Object* BonusCreateTomato(struct Kirby* arg0) {
     obj->base.yspeed = 0;
     obj->base.flags |= 0xf00;
     obj->base.unk6C = arg0;
-    obj->unk78 = sub_081238FC;
+    obj->unk78 = FN(sub_081238FC);
     return obj;
 }
 
@@ -333,7 +333,7 @@ void sub_08123780(struct Object* arg0) {
     arg0->base.counter = 0;
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
-    arg0->unk78 = sub_08122ED4;
+    arg0->unk78 = FN(sub_08122ED4);
 }
 
 void sub_0812379C(struct Kirby* arg0) {
@@ -356,7 +356,7 @@ static void sub_08123814(struct Object* arg0) {
     arg0->base.flags &= ~0x400;
     arg0->base.flags &= ~0x800;
     arg0->base.flags &= ~0x200;
-    arg0->unk78 = sub_0812385C;
+    arg0->unk78 = FN(sub_0812385C);
     if (arg0->objTemplate->subtype2 == 4) {
         arg0->base.flags &= ~0x100;
     }
@@ -388,7 +388,7 @@ static void sub_081238D0(struct Object* arg0) {
     arg0->base.flags |= 0x800;
     arg0->base.flags |= 0x100;
     arg0->base.flags |= 0x200;
-    arg0->unk78 = sub_08122CEC;
+    arg0->unk78 = FN(sub_08122CEC);
 }
 
 static void sub_081238FC(struct Object* arg0) {
@@ -406,9 +406,28 @@ static void sub_08123924(struct Object* arg0) {
     arg0->base.flags |= 0x800;
     arg0->base.flags |= 0x100;
     arg0->base.flags |= 0x200;
-    arg0->unk78 = sub_08122E08;
+    arg0->unk78 = FN(sub_08122E08);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bonus) {
+    PORT_FNID(CreateBonus),
+    PORT_FNID(sub_08122CEC),
+    PORT_FNID(sub_08122E08),
+    PORT_FNID(sub_08122ED4),
+    PORT_FNID(BonusSetFunc),
+    PORT_FNID(BonusAddHpOrBattery),
+    PORT_FNID(BonusAddLives),
+    PORT_FNID(sub_08123780),
+    PORT_FNID(BonusGiveInvincibility),
+    PORT_FNID(sub_0812385C),
+    PORT_FNID(sub_081238FC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

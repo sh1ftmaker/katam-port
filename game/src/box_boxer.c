@@ -148,7 +148,7 @@ static const struct Kirby_110 gUnk_083558B8[] = {
         sub_080C75D0(boxBoxer); \
     else \
     { \
-        ObjectSetFunc(boxBoxer, 1, sub_080C776C); \
+        ObjectSetFunc(boxBoxer, 1, FN(sub_080C776C)); \
         (boxBoxer)->kirby3 = FindTargetKirby(&boxBoxer->base); \
         if ((boxBoxer)->base.x > (boxBoxer)->kirby3->base.x) \
             (boxBoxer)->base.flags |= 1; \
@@ -160,7 +160,7 @@ static const struct Kirby_110 gUnk_083558B8[] = {
 
 void *CreateBoxBoxer(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *boxBoxer = tmp;
 
     InitObject(boxBoxer, template_, a2);
@@ -249,7 +249,7 @@ static void sub_080C7504(struct Object *boxBoxer)
 
 void sub_080C75D0(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0, sub_080C769C);
+    ObjectSetFunc(boxBoxer, 0, FN(sub_080C769C));
     if (boxBoxer->base.x > boxBoxer->kirby3->base.x)
         boxBoxer->base.flags |= 1;
     else
@@ -313,7 +313,7 @@ static void sub_080C769C(struct Object *boxBoxer)
 
 static void sub_080C76EC(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 1, sub_080C776C);
+    ObjectSetFunc(boxBoxer, 1, FN(sub_080C776C));
     boxBoxer->kirby3 = FindTargetKirby(&boxBoxer->base);
     if (boxBoxer->base.x > boxBoxer->kirby3->base.x)
         boxBoxer->base.flags |= 1;
@@ -412,7 +412,7 @@ static void sub_080C7980(struct Object *boxBoxer)
 
 static void sub_080C7B1C(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 6, sub_080C7C18);
+    ObjectSetFunc(boxBoxer, 6, FN(sub_080C7C18));
     PlaySfx(&boxBoxer->base, SE_BOX_BOXER_JUMP);
     RequestScreenShake(1, &boxBoxer->base);
     sub_08089864(&boxBoxer->base, -8, 0xC, (boxBoxer->base.flags & 1) ^ 1);
@@ -434,7 +434,7 @@ static void sub_080C7C18(struct Object *boxBoxer)
 
 static void sub_080C7CD8(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 3, sub_080C7D80);
+    ObjectSetFunc(boxBoxer, 3, FN(sub_080C7D80));
     boxBoxer->kirby3 = FindTargetKirby(&boxBoxer->base);
     if (boxBoxer->base.x > boxBoxer->kirby3->base.x)
         boxBoxer->base.flags |= 1;
@@ -614,7 +614,7 @@ bool32 sub_080C8548(struct Object *boxBoxer, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(boxBoxer, 0xA, sub_080C8678);
+    ObjectSetFunc(boxBoxer, 0xA, FN(sub_080C8678));
     boxBoxer->base.xspeed = 0;
     boxBoxer->base.yspeed = 0;
     boxBoxer->unk9F = 0;
@@ -694,7 +694,7 @@ static void sub_080C891C(struct Object *boxBoxer)
 
 static void sub_080C89E0(struct Object *boxBoxer)
 {
-    struct Task *t = TaskCreate(sub_080C8AB8, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080C8AB8), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -772,7 +772,7 @@ static void sub_080C8C30(struct Object *boxBoxer, u8 a2)
 
 void *CreateBoxBoxerEnergyBall(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *energyBall = TaskGetStructPtr(t);
 
     InitObject(energyBall, template_, a2);
@@ -782,7 +782,7 @@ void *CreateBoxBoxerEnergyBall(struct ObjectTemplate *template_, u8 a2)
     energyBall->base.unkC |= 2;
     energyBall->base.unk5C |= 0x80000;
     energyBall->unk9E = 0;
-    energyBall->unk7C = sub_0809F840;
+    energyBall->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&energyBall->base, -0xA, -0xA, 0xA, 0xA);
     ObjectInitSprite(energyBall);
     energyBall->base.sprite.unk14 = 0x240;
@@ -792,7 +792,7 @@ void *CreateBoxBoxerEnergyBall(struct ObjectTemplate *template_, u8 a2)
 
 static void sub_080C8DB0(struct Object *boxBoxer)
 {
-    struct Task *t = TaskCreate(sub_080C8EA4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080C8EA4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
 
     if (tmp) objBase = tmp; // see also: sub_080BF914
@@ -841,7 +841,7 @@ static void sub_080C8EA4(void)
 
 void sub_080C8FA4(struct Object *energyBall)
 {
-    ObjectSetFunc(energyBall, 0, sub_080C9274);
+    ObjectSetFunc(energyBall, 0, FN(sub_080C9274));
     if (energyBall->objTemplate->subtype1)
         energyBall->base.flags |= 1;
     switch (energyBall->subtype)
@@ -859,14 +859,14 @@ void sub_080C8FA4(struct Object *energyBall)
 
 static void sub_080C9008(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0, sub_080C72CC);
+    ObjectSetFunc(boxBoxer, 0, FN(sub_080C72CC));
     boxBoxer->base.xspeed = 0;
     boxBoxer->base.yspeed = 0;
 }
 
 static void sub_080C902C(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 2, sub_080C9084);
+    ObjectSetFunc(boxBoxer, 2, FN(sub_080C9084));
     boxBoxer->kirby3 = FindTargetKirby(&boxBoxer->base);
     boxBoxer->base.xspeed = 0;
     boxBoxer->base.yspeed = 0;
@@ -885,7 +885,7 @@ static void sub_080C9084(struct Object *boxBoxer)
 
 static void sub_080C909C(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 3, sub_080C7980);
+    ObjectSetFunc(boxBoxer, 3, FN(sub_080C7980));
     boxBoxer->base.xspeed = 0x180;
     boxBoxer->base.yspeed = 0x500;
     boxBoxer->base.flags |= 0x20;
@@ -895,7 +895,7 @@ static void sub_080C909C(struct Object *boxBoxer)
 
 static void sub_080C90DC(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0xF, sub_080C9134);
+    ObjectSetFunc(boxBoxer, 0xF, FN(sub_080C9134));
     boxBoxer->kirby3 = FindTargetKirby(&boxBoxer->base);
     boxBoxer->base.xspeed = 0;
     boxBoxer->base.yspeed = 0;
@@ -914,7 +914,7 @@ static void sub_080C9134(struct Object *boxBoxer)
 
 static void sub_080C914C(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0x10, sub_080C8320);
+    ObjectSetFunc(boxBoxer, 0x10, FN(sub_080C8320));
     if (boxBoxer->subtype)
         boxBoxer->base.counter = 0x10;
     else
@@ -923,19 +923,19 @@ static void sub_080C914C(struct Object *boxBoxer)
 
 static void sub_080C9178(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0x11, sub_080C83D0);
+    ObjectSetFunc(boxBoxer, 0x11, FN(sub_080C83D0));
     boxBoxer->base.flags &= ~2;
 }
 
 static void sub_080C9198(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0x12, sub_080C8488);
+    ObjectSetFunc(boxBoxer, 0x12, FN(sub_080C8488));
     boxBoxer->base.flags &= ~2;
 }
 
 static void sub_080C91B8(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 7, sub_080C9280);
+    ObjectSetFunc(boxBoxer, 7, FN(sub_080C9280));
     boxBoxer->kirby3 = FindTargetKirby(&boxBoxer->base);
     boxBoxer->base.xspeed = 0;
     boxBoxer->base.yspeed = 0;
@@ -948,19 +948,19 @@ static void sub_080C91B8(struct Object *boxBoxer)
 
 static void sub_080C9210(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 9, sub_080C8234);
+    ObjectSetFunc(boxBoxer, 9, FN(sub_080C8234));
     boxBoxer->base.flags &= ~2;
 }
 
 static void sub_080C9230(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0xE, sub_080C885C);
+    ObjectSetFunc(boxBoxer, 0xE, FN(sub_080C885C));
     boxBoxer->base.flags &= ~2;
 }
 
 static void sub_080C9250(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 0x13, sub_080C891C);
+    ObjectSetFunc(boxBoxer, 0x13, FN(sub_080C891C));
     boxBoxer->base.flags &= ~2;
     boxBoxer->base.counter = 0x10;
 }
@@ -978,10 +978,42 @@ static void sub_080C9280(struct Object *boxBoxer)
 
 static void sub_080C9298(struct Object *boxBoxer)
 {
-    ObjectSetFunc(boxBoxer, 8, sub_080C7F64);
+    ObjectSetFunc(boxBoxer, 8, FN(sub_080C7F64));
     boxBoxer->base.flags &= ~2;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_box_boxer) {
+    PORT_FNID(CreateBoxBoxer),
+    PORT_FNID(sub_080C72CC),
+    PORT_FNID(sub_080C75D0),
+    PORT_FNID(sub_080C769C),
+    PORT_FNID(sub_080C776C),
+    PORT_FNID(sub_080C7980),
+    PORT_FNID(sub_080C7C18),
+    PORT_FNID(sub_080C7D80),
+    PORT_FNID(sub_080C7F64),
+    PORT_FNID(sub_080C8234),
+    PORT_FNID(sub_080C8320),
+    PORT_FNID(sub_080C83D0),
+    PORT_FNID(sub_080C8488),
+    PORT_FNID(sub_080C8678),
+    PORT_FNID(sub_080C885C),
+    PORT_FNID(sub_080C891C),
+    PORT_FNID(sub_080C8AB8),
+    PORT_FNID(CreateBoxBoxerEnergyBall),
+    PORT_FNID(sub_080C8EA4),
+    PORT_FNID(sub_080C8FA4),
+    PORT_FNID(sub_080C9084),
+    PORT_FNID(sub_080C9134),
+    PORT_FNID(sub_080C9274),
+    PORT_FNID(sub_080C9280),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

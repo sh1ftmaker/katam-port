@@ -25,7 +25,9 @@ void EnableMultiSio(void)
         REG_IE &= ~INTR_FLAG_TIMER3;
         REG_IME = 1;
         REG_IME = 0;
-        gIntrTable[0] = (void *)gMultiSioIntrFuncBuf;
+        /* PORT-FNID: was (void *)gMultiSioIntrFuncBuf, the IWRAM copy of
+         * MultiSioIntr; its code ID is that buffer's GBA address. */
+        gIntrTable[0] = FN(MultiSioIntr);
         REG_IME = 1;
         MultiSioInit(0);
     }

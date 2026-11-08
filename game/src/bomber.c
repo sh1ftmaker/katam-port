@@ -37,7 +37,7 @@ static const struct Unk_08357260 gUnk_083555A8[] = {
 
 void* CreateBomber(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -51,7 +51,7 @@ void* CreateBomber(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -6, 5, 5);
     ObjectSetBounds(&obj->base, -6, -7, 6, 7);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     return obj;
@@ -62,7 +62,7 @@ void sub_080C478C(struct Object* arg0) {
         sub_080C48DC(arg0);
     }
     else {
-        ObjectSetFunc(arg0, 0, sub_080C485C);
+        ObjectSetFunc(arg0, 0, FN(sub_080C485C));
         arg0->base.xspeed = 0x4d;
         if (arg0->base.flags & 1) {
             arg0->base.xspeed = -arg0->base.xspeed;
@@ -110,13 +110,13 @@ static void sub_080C485C(struct Object* arg0) {
 }
 
 static void sub_080C48B8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080C47EC);
+    ObjectSetFunc(arg0, 1, FN(sub_080C47EC));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
 }
 
 static void sub_080C48DC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080C4900);
+    ObjectSetFunc(arg0, 2, FN(sub_080C4900));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
 }
@@ -130,7 +130,7 @@ static void sub_080C4900(struct Object* arg0) {
 }
 
 static void sub_080C4928(struct Object* arg0) {
-    ObjectSetFunc(arg0, 3, sub_080C4968);
+    ObjectSetFunc(arg0, 3, FN(sub_080C4968));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->base.flags |= 0x2000;
@@ -154,3 +154,17 @@ static void sub_080C4968(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bomber) {
+    PORT_FNID(CreateBomber),
+    PORT_FNID(sub_080C478C),
+    PORT_FNID(sub_080C47EC),
+    PORT_FNID(sub_080C485C),
+    PORT_FNID(sub_080C4900),
+    PORT_FNID(sub_080C4968),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

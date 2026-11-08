@@ -23,8 +23,8 @@ void InitLevelTasks(void)
     u8 i;
 
     gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_1D_MAP | DISPCNT_BG0_ON | DISPCNT_BG3_ON;
-    gUnk_02023350 = TaskCreate(sub_08001FF8, 0, 1, TASK_USE_IWRAM, sub_08002E3C);
-    gUnk_02023354 = TaskCreate(sub_08002118, sizeof(struct Unk_08002E48), 0x7FFF, TASK_USE_IWRAM, sub_08002E48);
+    gUnk_02023350 = TaskCreate(FN(sub_08001FF8), 0, 1, TASK_USE_IWRAM, FN(sub_08002E3C));
+    gUnk_02023354 = TaskCreate(FN(sub_08002118), sizeof(struct Unk_08002E48), 0x7FFF, TASK_USE_IWRAM, FN(sub_08002E48));
     var = TaskGetStructPtr(gUnk_02023354);
     gBgCntRegs[0] = BGCNT_PRIORITY(3) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(31);
     gBgCntRegs[3] = BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_SCREENBASE(30);

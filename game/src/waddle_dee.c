@@ -38,7 +38,7 @@ extern const struct AnimInfo gUnk_08353408[] = {
 void* CreateWaddleDee(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
     struct Kirby* kirby;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -144,7 +144,7 @@ static void sub_080A3D8C(struct Object* arg0) {
 }
 
 static void WaddleDeeChooseXSpeed0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, WaddleDeeReverseX);
+    ObjectSetFunc(arg0, 0, FN(WaddleDeeReverseX));
     switch (arg0->subtype) {
     case 0:
         arg0->base.xspeed = 0x80;
@@ -165,7 +165,7 @@ static void WaddleDeeChooseXSpeed0(struct Object* arg0) {
 }
 
 static void WaddleDeeChooseXSpeed1(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, WaddleDeeReverseXOnCounter);
+    ObjectSetFunc(arg0, 0, FN(WaddleDeeReverseXOnCounter));
     switch (arg0->subtype) {
     case 0:
         arg0->base.xspeed = 0x80;
@@ -226,7 +226,7 @@ static void WaddleDeeReverseXOnCounter(struct Object* arg0) {
 }
 
 static void WaddleDeeChooseXSpeed2(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A4044);
+    ObjectSetFunc(arg0, 0, FN(sub_080A4044));
     arg0->base.counter = 0x64;
     switch (arg0->subtype) {
     case 0:
@@ -271,7 +271,7 @@ static void sub_080A4044(struct Object* arg0) {
 }
 
 static void WaddleDeeChooseXSpeedAndPlaySfx(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080A4484);
+    ObjectSetFunc(arg0, 2, FN(sub_080A4484));
     arg0->base.yspeed = 0x280;
     switch (arg0->subtype) {
     case 0:
@@ -324,7 +324,7 @@ static void sub_080A41F4(struct Object* arg0) {
 }
 
 void WaddleDee37ChooseXSpeed(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, WaddleDee37CheckTurnAround);
+    ObjectSetFunc(arg0, 0, FN(WaddleDee37CheckTurnAround));
     switch (arg0->subtype) {
     case 0:
         arg0->base.xspeed = 0x80;
@@ -372,7 +372,7 @@ static void sub_080A4484(struct Object* arg0) {
 }
 
 static void sub_080A44C0(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080A44E4);
+    ObjectSetFunc(arg0, 1, FN(sub_080A44E4));
     arg0->base.xspeed = 0;
     arg0->unk85 = 0;
 }
@@ -390,7 +390,7 @@ static void sub_080A44E4(struct Object* arg0) {
 }
 
 static void WaddleDeeSetStill(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A4568);
+    ObjectSetFunc(arg0, 0, FN(sub_080A4568));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = 0;
@@ -412,7 +412,7 @@ static void sub_080A4568(struct Object* arg0) {
 }
 
 static void sub_080A45A8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A41F4);
+    ObjectSetFunc(arg0, 0, FN(sub_080A41F4));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = 0;
@@ -420,7 +420,7 @@ static void sub_080A45A8(struct Object* arg0) {
 }
 
 static void sub_080A45D8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A4608);
+    ObjectSetFunc(arg0, 0, FN(sub_080A4608));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = 0;
@@ -444,3 +444,23 @@ static void sub_080A4608(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_waddle_dee) {
+    PORT_FNID(CreateWaddleDee),
+    PORT_FNID(sub_080A3CF0),
+    PORT_FNID(WaddleDeeReverseXOnCounter),
+    PORT_FNID(sub_080A4044),
+    PORT_FNID(sub_080A41F4),
+    PORT_FNID(WaddleDee37ChooseXSpeed),
+    PORT_FNID(WaddleDee37CheckTurnAround),
+    PORT_FNID(WaddleDeeReverseX),
+    PORT_FNID(sub_080A4484),
+    PORT_FNID(sub_080A44E4),
+    PORT_FNID(sub_080A4568),
+    PORT_FNID(sub_080A4608),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -339,12 +339,12 @@ static void nullsub_111(struct Task*);
 
 void sub_0801E630(s32 arg0) {
     struct SubGameMenu* menu;
-    struct Task* task = TaskCreate(sub_0801FD58, sizeof(struct SubGameMenu), 0x100, TASK_USE_IWRAM, nullsub_29);
+    struct Task* task = TaskCreate(FN(sub_0801FD58), sizeof(struct SubGameMenu), 0x100, TASK_USE_IWRAM, FN(nullsub_29));
     menu = TaskGetStructPtr(task);
     CpuFill16(0, menu, sizeof(struct SubGameMenu));
     menu->unk14C = 0;
     menu->unk150 = arg0;
-    menu->unk154 = sub_0801ED94;
+    menu->unk154 = FN(sub_0801ED94);
     menu->unk178 = 0;
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldY = 0x10;
@@ -352,11 +352,11 @@ void sub_0801E630(s32 arg0) {
 
 void sub_0801E6C4(s32 arg0) {
     struct SubGameMenu* menu;
-    struct Task* task = TaskCreate(sub_0801F1F4, sizeof(struct SubGameMenu), 0x100, TASK_USE_IWRAM, nullsub_110);
+    struct Task* task = TaskCreate(FN(sub_0801F1F4), sizeof(struct SubGameMenu), 0x100, TASK_USE_IWRAM, FN(nullsub_110));
     menu = TaskGetStructPtr(task);
     CpuFill16(0, menu, sizeof(struct SubGameMenu));
     menu->unk150 = arg0;
-    menu->unk154 = sub_0801F2E8;
+    menu->unk154 = FN(sub_0801F2E8);
     menu->unk178 = 0;
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldY = 0x1f;
@@ -550,7 +550,7 @@ static void sub_0801ED94(struct SubGameMenu *ip) {
         gBgScrollRegs[1][0] = 0;
         gBgScrollRegs[1][1] = 0;
     }
-    ip->unk154 = sub_0801EDF8;
+    ip->unk154 = FN(sub_0801EDF8);
 }
 
 static void sub_0801EDF8(struct SubGameMenu *r6) {
@@ -579,16 +579,16 @@ static void sub_0801EDF8(struct SubGameMenu *r6) {
         LZ77UnCompVram(gUnk_082D7850[r5]->tileset, (u16 *)r4_->tilesVram);
         gDispCnt |= DISPCNT_BG1_ON;
     }
-    r6->unk154 = sub_0801FDB8;
+    r6->unk154 = FN(sub_0801FDB8);
 }
 
 static void sub_0801EF64(struct SubGameMenu *r2) {
     if (!--r2->unk170) {
         gBldRegs.bldCnt = 0;
         if (r2->unk150 != 3)
-            r2->unk154 = sub_0801FDD4;
+            r2->unk154 = FN(sub_0801FDD4);
         else
-            r2->unk154 = sub_0801FDE4;
+            r2->unk154 = FN(sub_0801FDE4);
     }
     gBldRegs.bldY = r2->unk170 & 0x1F;
 }
@@ -617,11 +617,11 @@ static void sub_0801EFC0(struct SubGameMenu *r5) {
     if (gPressedKeys & B_BUTTON) {
         m4aSongNumStart(SE_MAIN_MENU_BACK);
         r5->unk148 = 1;
-        r5->unk154 = sub_0801FE10;
+        r5->unk154 = FN(sub_0801FE10);
     } else if (gPressedKeys & (A_BUTTON | START_BUTTON)) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
         r5->unk148 = 0;
-        r5->unk154 = sub_0801FDF4;
+        r5->unk154 = FN(sub_0801FDF4);
     }
 }
 
@@ -629,7 +629,7 @@ static void sub_0801F0B0(struct SubGameMenu *r4) {
     u16 r1;
     SetSpriteUnk1F(r4, r1, 2);
     if (r4->unk170++ > 0x3C)
-        r4->unk154 = sub_0801FE10;
+        r4->unk154 = FN(sub_0801FE10);
 }
 
 static void sub_0801F118(struct SubGameMenu *r5) {
@@ -695,7 +695,7 @@ static void sub_0801F1F4(void) {
             SpriteParameterize2(sprite, 168, 160);
         }
     }
-    r4->unk154(r4);
+    CALL(r4->unk154)(r4);
 }
 
 static void sub_0801F2E8(struct SubGameMenu *ip) {
@@ -712,7 +712,7 @@ static void sub_0801F2E8(struct SubGameMenu *ip) {
         gBgScrollRegs[1][0] = 0;
         gBgScrollRegs[1][1] = 0;
     }
-    ip->unk154 = sub_0801F34C;
+    ip->unk154 = FN(sub_0801F34C);
 }
 
 static void sub_0801F34C(struct SubGameMenu *r6) {
@@ -741,7 +741,7 @@ static void sub_0801F34C(struct SubGameMenu *r6) {
         LZ77UnCompVram(gUnk_082D7850[r5]->tileset, (u16 *)r4_->tilesVram);
         gDispCnt |= DISPCNT_BG1_ON;
     }
-    r6->unk154 = sub_0801F4BC;
+    r6->unk154 = FN(sub_0801F4BC);
 }
 
 static void sub_0801F4BC(struct SubGameMenu* arg0) {
@@ -769,16 +769,16 @@ static void sub_0801F4BC(struct SubGameMenu* arg0) {
         }
         gDispCnt |= DISPCNT_BG1_ON;
     }
-    arg0->unk154 = sub_0801FE3C;
+    arg0->unk154 = FN(sub_0801FE3C);
 }
 
 static void sub_0801F5AC(struct SubGameMenu* arg0) {
     if (--arg0->unk170 == 0) {
         gBldRegs.bldCnt = 0;
         if (arg0->unk150 != 3) {
-            arg0->unk154 = sub_0801FE58;
+            arg0->unk154 = FN(sub_0801FE58);
         } else {
-            arg0->unk154 = sub_0801FE68;
+            arg0->unk154 = FN(sub_0801FE68);
         }
     }
     gBldRegs.bldY = arg0->unk170 & 0x1f;
@@ -801,7 +801,7 @@ static void sub_0801F608(struct SubGameMenu* arg0) {
     SetSpriteUnk1F(arg0, r1, 3);
     if (arg0->unk158[1][0] & 0x9) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
-        arg0->unk154 = sub_0801FE78;
+        arg0->unk154 = FN(sub_0801FE78);
     }
 }
 
@@ -809,7 +809,7 @@ static void sub_0801F6C8(struct SubGameMenu* arg0) {
     u16 r1;
     SetSpriteUnk1F(arg0, r1, 2);
     if (arg0->unk170++ > 0x3c) {
-        arg0->unk154 = sub_0801FE94;
+        arg0->unk154 = FN(sub_0801FE94);
     }
 }
 
@@ -859,7 +859,7 @@ static void sub_0801F7F8(void) {
             SpriteParameterize2(sprite, 168, 160);
         }
     }
-    menu->unk154(menu);
+    CALL(menu->unk154)(menu);
 }
 
 static void sub_0801F8EC(struct SubGameMenu* arg0) {
@@ -881,7 +881,7 @@ static void sub_0801F8EC(struct SubGameMenu* arg0) {
     }
     gDispCnt |= DISPCNT_BG1_ON;
     arg0->unk170 = 0;
-    arg0->unk154 = sub_08020058;
+    arg0->unk154 = FN(sub_08020058);
 }
 
 static void sub_0801F9FC(struct SubGameMenu* arg0) {
@@ -897,14 +897,14 @@ static void sub_0801F9FC(struct SubGameMenu* arg0) {
             gLocalPlayerId = (*(vu32*)REG_ADDR_SIOCNT) << 0x1a >> 0x1e;
             gNumKirbys = 4;
             gUnk_0203AD24 = 0;
-            arg0->unk154 = sub_0801FEFC;
+            arg0->unk154 = FN(sub_0801FEFC);
         } else if (res == 1) {
             if (arg0->unk174++ > 8) {
                 sub_08031C54();
             }
         } else if (res < 0) {
             sub_08031C3C();
-            arg0->unk154 = sub_08020094;
+            arg0->unk154 = FN(sub_08020094);
         } else {
             arg0->unk174 = 0;
         }
@@ -928,7 +928,7 @@ static void sub_0801FAD8(struct SubGameMenu* arg0) {
     SetSpriteUnk1F(arg0, r1, 3);
     if (arg0->unk158[1][0] & 0x9) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
-        arg0->unk154 = sub_0801FF0C;
+        arg0->unk154 = FN(sub_0801FF0C);
     }
 }
 
@@ -936,7 +936,7 @@ static void sub_0801FB98(struct SubGameMenu* arg0) {
     u16 r1;
     SetSpriteUnk1F(arg0, r1, 2);
     if (arg0->unk170++ > 0x3c) {
-        arg0->unk154 = sub_0801FF28;
+        arg0->unk154 = FN(sub_0801FF28);
     }
 }
 
@@ -966,12 +966,12 @@ static void sub_0801FC00(struct SubGameMenu* arg0) {
 }
 
 void sub_0801FCA8(s32 arg0) {
-    struct Task* task = TaskCreate(sub_0801F7F8, sizeof(struct SubGameMenu), 0x200, TASK_USE_IWRAM, nullsub_111);
+    struct Task* task = TaskCreate(FN(sub_0801F7F8), sizeof(struct SubGameMenu), 0x200, TASK_USE_IWRAM, FN(nullsub_111));
     struct SubGameMenu *menu;
     menu = TaskGetStructPtr(task);
     CpuFill16(0, menu, sizeof(struct SubGameMenu));
     menu->unk150 = arg0;
-    menu->unk154 = sub_0801FEC0;
+    menu->unk154 = FN(sub_0801FEC0);
     menu->unk178 = 0;
     sub_0801E9DC(menu);
 }
@@ -990,61 +990,61 @@ static void sub_0801FD58(void) {
     if (menu->unk14C != 0) {
         sub_0801ED08(menu);
     }
-    menu->unk154(menu);
+    CALL(menu->unk154)(menu);
 }
 
 static void nullsub_29(struct Task* arg0) {}
 
 static void sub_0801FDB8(struct SubGameMenu* arg0) {
     arg0->unk170 = 0x10;
-    arg0->unk154 = sub_0801EF64;
+    arg0->unk154 = FN(sub_0801EF64);
 }
 
 static void sub_0801FDD4(struct SubGameMenu* arg0) {
-    arg0->unk154 = sub_0801EFC0;
+    arg0->unk154 = FN(sub_0801EFC0);
 }
 
 static void sub_0801FDE4(struct SubGameMenu* arg0) {
-    arg0->unk154 = sub_0801FF50;
+    arg0->unk154 = FN(sub_0801FF50);
 }
 
 static void sub_0801FDF4(struct SubGameMenu* arg0) {
     arg0->unk170 = 0;
-    arg0->unk154 = sub_0801F0B0;
+    arg0->unk154 = FN(sub_0801F0B0);
 }
 
 static void sub_0801FE10(struct SubGameMenu* arg0) {
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldY = 0;
     arg0->unk170 = 0;
-    arg0->unk154 = sub_0801FFB0;
+    arg0->unk154 = FN(sub_0801FFB0);
 }
 
 static void nullsub_110(struct Task* arg0) {}
 
 static void sub_0801FE3C(struct SubGameMenu* arg0) {
     arg0->unk170 = 0x10;
-    arg0->unk154 = sub_0801F5AC;
+    arg0->unk154 = FN(sub_0801F5AC);
 }
 
 static void sub_0801FE58(struct SubGameMenu* arg0) {
-    arg0->unk154 = sub_0801F608;
+    arg0->unk154 = FN(sub_0801F608);
 }
 
 static void sub_0801FE68(struct SubGameMenu* arg0) {
-    arg0->unk154 = sub_0801FFEC;
+    arg0->unk154 = FN(sub_0801FFEC);
 }
 
 static void sub_0801FE78(struct SubGameMenu* arg0) {
     arg0->unk170 = 0;
-    arg0->unk154 = sub_0801F6C8;
+    arg0->unk154 = FN(sub_0801F6C8);
 }
 
 static void sub_0801FE94(struct SubGameMenu* arg0) {
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldY = 0;
     arg0->unk170 = 0;
-    arg0->unk154 = sub_0802001C;
+    arg0->unk154 = FN(sub_0802001C);
 }
 
 static void nullsub_111(struct Task* arg0) {}
@@ -1054,34 +1054,34 @@ static void sub_0801FEC0(struct SubGameMenu* arg0) {
     gDispCnt &= ~(DISPCNT_BG2_ON | DISPCNT_BG1_ON);
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
-    arg0->unk154 = sub_0801F8EC;
+    arg0->unk154 = FN(sub_0801F8EC);
 }
 
 static void sub_0801FEFC(struct SubGameMenu* arg0) {
-    arg0->unk154 = sub_080200C0;
+    arg0->unk154 = FN(sub_080200C0);
 }
 
 static void sub_0801FF0C(struct SubGameMenu* arg0) {
     arg0->unk170 = 0;
-    arg0->unk154 = sub_0801FB98;
+    arg0->unk154 = FN(sub_0801FB98);
 }
 
 static void sub_0801FF28(struct SubGameMenu* arg0) {
     gBldRegs.bldCnt = BLDCNT_EFFECT_LIGHTEN | BLDCNT_TGT1_BD | BLDCNT_TGT1_OBJ | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG0;
     gBldRegs.bldY = 0;
     arg0->unk170 = 0;
-    arg0->unk154 = sub_08020164;
+    arg0->unk154 = FN(sub_08020164);
 }
 
 static void sub_0801FF50(struct SubGameMenu* arg0) {
     if (gPressedKeys & B_BUTTON) {
         m4aSongNumStart(SE_MAIN_MENU_BACK);
         arg0->unk148 = 1;
-        arg0->unk154 = sub_0801FE10;
+        arg0->unk154 = FN(sub_0801FE10);
     } else if (gPressedKeys & (A_BUTTON | START_BUTTON)) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
         arg0->unk148 = 0;
-        arg0->unk154 = sub_0801FE10;
+        arg0->unk154 = FN(sub_0801FE10);
     }
 }
 
@@ -1089,14 +1089,14 @@ static void sub_0801FFB0(struct SubGameMenu* arg0) {
     gBldRegs.bldY = arg0->unk170 & 0x1f;
     if (++arg0->unk170 > 15) {
         gBldRegs.bldY = 31;
-        arg0->unk154 = sub_0801F118;
+        arg0->unk154 = FN(sub_0801F118);
     }
 }
 
 static void sub_0801FFEC(struct SubGameMenu* arg0) {
     if (arg0->unk158[1][0] & 9) {
         arg0->unk148 = 0;
-        arg0->unk154 = sub_0801FE94;
+        arg0->unk154 = FN(sub_0801FE94);
     }
 }
 
@@ -1104,21 +1104,21 @@ static void sub_0802001C(struct SubGameMenu* arg0) {
     gBldRegs.bldY = arg0->unk170 & 0x1f;
     if (++arg0->unk170 > 15) {
         gBldRegs.bldY = 31;
-        arg0->unk154 = sub_0801F730;
+        arg0->unk154 = FN(sub_0801F730);
     }
 }
 
 static void sub_08020058(struct SubGameMenu* arg0) {
     if (arg0->unk170++ > 0x3c) {
         gDispCnt &= ~DISPCNT_BG1_ON;
-        arg0->unk154 = sub_080201A0;
+        arg0->unk154 = FN(sub_080201A0);
     }
 }
 
 static void sub_08020094(struct SubGameMenu* arg0) {
     arg0->unk174 = 0;
     sub_08030C94(2, NULL);
-    arg0->unk154 = sub_0801F9FC;
+    arg0->unk154 = FN(sub_0801F9FC);
 }
 
 static void sub_080200C0(struct SubGameMenu* arg0) {
@@ -1131,7 +1131,7 @@ static void sub_080200C0(struct SubGameMenu* arg0) {
     }
     sub_08031C70(3);
     sub_08031CD4();
-    arg0->unk154 = sub_08020118;
+    arg0->unk154 = FN(sub_08020118);
 }
 
 static void sub_08020118(struct SubGameMenu* arg0) {
@@ -1141,7 +1141,7 @@ static void sub_08020118(struct SubGameMenu* arg0) {
         if (sub_08030D4C(0) == 0) {
             sub_08032E98();
         } else {
-            arg0->unk154 = sub_080201D0;
+            arg0->unk154 = FN(sub_080201D0);
         }
     }
 }
@@ -1150,7 +1150,7 @@ static void sub_08020164(struct SubGameMenu* arg0) {
     gBldRegs.bldY = arg0->unk170 & 0x1f;
     if (++arg0->unk170 > 15) {
         gBldRegs.bldY = 31;
-        arg0->unk154 = sub_0801FC00;
+        arg0->unk154 = FN(sub_0801FC00);
     }
 }
 
@@ -1158,21 +1158,79 @@ static void sub_080201A0(struct SubGameMenu* arg0) {
     ResetMultiSio();
     arg0->unk170 = 8;
     arg0->unk172 = 0xb4;
-    arg0->unk154 = sub_080201EC;
+    arg0->unk154 = FN(sub_080201EC);
 }
 
 static void sub_080201D0(struct SubGameMenu* arg0) {
     arg0->unk14C = 1;
-    arg0->unk154 = sub_0801FAD8;
+    arg0->unk154 = FN(sub_0801FAD8);
 }
 
 static void sub_080201EC(struct SubGameMenu* arg0) {
     if (--arg0->unk170 == 0xffff) {
         EnableMultiSio();
-        arg0->unk154 = sub_08020094;
+        arg0->unk154 = FN(sub_08020094);
     }
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_subgame_menu) {
+    PORT_FNID(sub_0801ED94),
+    PORT_FNID(sub_0801EDF8),
+    PORT_FNID(sub_0801EF64),
+    PORT_FNID(sub_0801EFC0),
+    PORT_FNID(sub_0801F0B0),
+    PORT_FNID(sub_0801F118),
+    PORT_FNID(sub_0801F1F4),
+    PORT_FNID(sub_0801F2E8),
+    PORT_FNID(sub_0801F34C),
+    PORT_FNID(sub_0801F4BC),
+    PORT_FNID(sub_0801F5AC),
+    PORT_FNID(sub_0801F608),
+    PORT_FNID(sub_0801F6C8),
+    PORT_FNID(sub_0801F730),
+    PORT_FNID(sub_0801F7F8),
+    PORT_FNID(sub_0801F8EC),
+    PORT_FNID(sub_0801F9FC),
+    PORT_FNID(sub_0801FAD8),
+    PORT_FNID(sub_0801FB98),
+    PORT_FNID(sub_0801FC00),
+    PORT_FNID(sub_0801FD58),
+    PORT_FNID(nullsub_29),
+    PORT_FNID(sub_0801FDB8),
+    PORT_FNID(sub_0801FDD4),
+    PORT_FNID(sub_0801FDE4),
+    PORT_FNID(sub_0801FDF4),
+    PORT_FNID(sub_0801FE10),
+    PORT_FNID(nullsub_110),
+    PORT_FNID(sub_0801FE3C),
+    PORT_FNID(sub_0801FE58),
+    PORT_FNID(sub_0801FE68),
+    PORT_FNID(sub_0801FE78),
+    PORT_FNID(sub_0801FE94),
+    PORT_FNID(nullsub_111),
+    PORT_FNID(sub_0801FEC0),
+    PORT_FNID(sub_0801FEFC),
+    PORT_FNID(sub_0801FF0C),
+    PORT_FNID(sub_0801FF28),
+    PORT_FNID(sub_0801FF50),
+    PORT_FNID(sub_0801FFB0),
+    PORT_FNID(sub_0801FFEC),
+    PORT_FNID(sub_0802001C),
+    PORT_FNID(sub_08020058),
+    PORT_FNID(sub_08020094),
+    PORT_FNID(sub_080200C0),
+    PORT_FNID(sub_08020118),
+    PORT_FNID(sub_08020164),
+    PORT_FNID(sub_080201A0),
+    PORT_FNID(sub_080201D0),
+    PORT_FNID(sub_080201EC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

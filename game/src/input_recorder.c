@@ -32,7 +32,7 @@ void InputRecorderLoadTape(void) {
     sTapeBuffer = EwramMalloc(TAPE_LENGTH * sizeof(u16));
     // Load the playback tape into the recorder
     LZ77UnCompWram(gInputPlaybackData, sTapeBuffer);
-    TaskCreate(Task_InputRecorder, 0, 0x2000, TASK_USE_IWRAM, InputRecorderEject); // Only emit the callback functions. No space needed
+    TaskCreate(FN(Task_InputRecorder), 0, 0x2000, TASK_USE_IWRAM, FN(InputRecorderEject)); // Only emit the callback functions. No space needed
     gInputRecorder.recordHead = 0;
     gInputRecorder.playbackHead = 0;
 }
@@ -63,3 +63,13 @@ static void InputRecorderEject(struct Task *unused __attribute__((unused))) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_input_recorder) {
+    PORT_FNID(Task_InputRecorder),
+    PORT_FNID(InputRecorderEject),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

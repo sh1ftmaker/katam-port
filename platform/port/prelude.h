@@ -57,6 +57,10 @@
  * C language linkage. */
 #include "port/p32.h"
 
+/* FN(f) and CALL(p): function-pointer values in game memory are canonical
+ * code IDs, not host pointers (netplay-v2 R5). */
+#include "port/fnid.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call

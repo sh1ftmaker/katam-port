@@ -56,7 +56,7 @@ void sub_08123950(void) {
     gBgScrollRegs[1][0] = 0;
     gBgScrollRegs[1][1] = 0;
 
-    task = TaskCreate(sub_08123F18, sizeof(struct Unk_08123950), 0x100, TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(sub_08123F18), sizeof(struct Unk_08123950), 0x100, TASK_USE_IWRAM, NULL);
     unk = TaskGetStructPtr(task);
     unk->unk80 = 0;
 
@@ -214,7 +214,7 @@ static void sub_08123F18(void) {
     if (unk->unk80 > 240) {
         if (gPressedKeys & (A_BUTTON | START_BUTTON)) {
             CreatePaletteFadeFromWhite(0);
-            gCurTask->main = sub_08123EA8;
+            gCurTask->main = FN(sub_08123EA8);
         }
         unk->unk80 = 250;
     }
@@ -248,3 +248,13 @@ void sub_08123FD4(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_08123950) {
+    PORT_FNID(sub_08123EA8),
+    PORT_FNID(sub_08123F18),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

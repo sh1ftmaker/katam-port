@@ -46,7 +46,7 @@ static void sub_080B7460(struct Object*);
 static void sub_080B74B4(struct Object*);
 
 void* CreateWaddleDoo(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     sub_0803E2B0(&obj->base, -5, -3, 5, 8);
@@ -101,7 +101,7 @@ void sub_080B6A54(struct Object* arg0) {
 }
 
 static void sub_080B6AD8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B6B68);
+    ObjectSetFunc(arg0, 0, FN(sub_080B6B68));
     arg0->kirbyAbility = KIRBY_ABILITY_BEAM;
     if (arg0->unk85 == 0) {
         arg0->base.counter = 0x41;
@@ -153,7 +153,7 @@ static void sub_080B6B68(struct Object* arg0) {
 }
 
 static void sub_080B6BFC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 4, sub_080B7324);
+    ObjectSetFunc(arg0, 4, FN(sub_080B7324));
     arg0->unk85 = 1;
     arg0->base.yspeed = 0x280;
     switch (arg0->subtype) {
@@ -176,7 +176,7 @@ static void sub_080B6BFC(struct Object* arg0) {
 }
 
 static void sub_080B6C78(struct Object* arg0) {
-    ObjectSetFunc(arg0, 6, sub_080B7360);
+    ObjectSetFunc(arg0, 6, FN(sub_080B7360));
     arg0->base.yspeed = 0;
     arg0->base.xspeed = 0;
     switch (arg0->subtype) {
@@ -247,7 +247,7 @@ static void sub_080B6D58(struct Object* arg0) {
 
 static void sub_080B6DDC(struct Object* arg0, u8 arg1) {
     u32 arg;
-    struct Task *task = TaskCreate(sub_080B7068, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080B7068), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(task), *obj = objBase;
     ClearObjectBase(obj);
     obj->header.kind = 2;
@@ -345,7 +345,7 @@ static void sub_080B7360(struct Object* arg0) {
 }
 
 static void sub_080B7394(struct Object* arg0) {
-    ObjectSetFunc(arg0, 7, sub_080B6CD8);
+    ObjectSetFunc(arg0, 7, FN(sub_080B6CD8));
     arg0->base.yspeed = 0;
     arg0->base.xspeed = 0;
     switch (arg0->subtype) {
@@ -361,7 +361,7 @@ static void sub_080B7394(struct Object* arg0) {
 }
 
 static void sub_080B73D8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B6D58);
+    ObjectSetFunc(arg0, 0, FN(sub_080B6D58));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = 0;
@@ -369,7 +369,7 @@ static void sub_080B73D8(struct Object* arg0) {
 }
 
 static void sub_080B7408(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B741C);
+    ObjectSetFunc(arg0, 0, FN(sub_080B741C));
 }
 
 static void sub_080B741C(struct Object* arg0) {
@@ -377,7 +377,7 @@ static void sub_080B741C(struct Object* arg0) {
 }
 
 static void sub_080B7428(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B743C);
+    ObjectSetFunc(arg0, 0, FN(sub_080B743C));
 }
 
 static void sub_080B743C(struct Object* arg0) {
@@ -388,7 +388,7 @@ static void sub_080B743C(struct Object* arg0) {
 }
 
 static void sub_080B7460(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080B74B4);
+    ObjectSetFunc(arg0, 0, FN(sub_080B74B4));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->unk85 = 0;
@@ -406,3 +406,22 @@ static void sub_080B74B4(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_waddle_doo) {
+    PORT_FNID(CreateWaddleDoo),
+    PORT_FNID(sub_080B6A54),
+    PORT_FNID(sub_080B6B68),
+    PORT_FNID(sub_080B6CD8),
+    PORT_FNID(sub_080B6D58),
+    PORT_FNID(sub_080B7068),
+    PORT_FNID(sub_080B7324),
+    PORT_FNID(sub_080B7360),
+    PORT_FNID(sub_080B741C),
+    PORT_FNID(sub_080B743C),
+    PORT_FNID(sub_080B74B4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -43,7 +43,7 @@ extern const struct AnimInfo gUnk_08357C64[] = {
 
 void *CreateCannonFuse(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct CannonFuse), 0xFFE, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct CannonFuse), 0xFFE, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct CannonFuse *cf = TaskGetStructPtr(t);
 
     InitObject(&cf->obj, template_, a2);
@@ -54,7 +54,7 @@ void *CreateCannonFuse(struct ObjectTemplate *template_, u8 a2)
     cf->obj.base.unkC |= 1;
     sub_0803E2B0(&cf->obj.base, -8, -8, 8, 8);
     ObjectInitSprite(&cf->obj);
-    gUnk_08351648[cf->obj.type].unk10(&cf->obj);
+    CALL(gUnk_08351648[cf->obj.type].unk10)(&cf->obj);
     return cf;
 }
 
@@ -70,7 +70,7 @@ void sub_0811DD94(struct CannonFuse *cf)
     cf->unkC0 = 0;
     cf->unkC2 = 0;
     cf->obj.unk83 = 0;
-    cf->obj.unk78 = sub_0811E92C;
+    cf->obj.unk78 = FN(sub_0811E92C);
 }
 
 static void sub_0811DDFC(struct CannonFuse *cf)
@@ -501,7 +501,7 @@ static void sub_0811E4B4(struct CannonFuse *cf)
         }
         else
         {
-            cf->obj.unk78 = sub_0811E890;
+            cf->obj.unk78 = FN(sub_0811E890);
             cf->obj.base.flags |= 0x400;
         }
     }
@@ -579,7 +579,7 @@ static void sub_0811E6FC(struct CannonFuse *cf)
                 sub_0811E3D0(cfAlias);
             else
             {
-                cf->obj.unk78 = sub_0811DD94;
+                cf->obj.unk78 = FN(sub_0811DD94);
                 cf->obj.unk83 = 0;
             }
         }
@@ -601,7 +601,7 @@ static void sub_0811E890(struct CannonFuse *cf)
         }
     }
     else if (!cf->unkB4--)
-        cf->obj.unk78 = sub_0811E6FC;
+        cf->obj.unk78 = FN(sub_0811E6FC);
     ++cf->obj.base.counter;
 }
 
@@ -609,7 +609,7 @@ static void sub_0811E92C(struct CannonFuse *cf)
 {
     if (cf->obj.base.flags & 0x40000)
     {
-        cf->obj.unk78 = sub_0811E4B4;
+        cf->obj.unk78 = FN(sub_0811E4B4);
         cf->unkB6 = 3;
         sub_08094930(&cf->obj.base);
     }
@@ -619,3 +619,17 @@ static void sub_0811E92C(struct CannonFuse *cf)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_cannon_fuse) {
+    PORT_FNID(CreateCannonFuse),
+    PORT_FNID(sub_0811DD94),
+    PORT_FNID(sub_0811E4B4),
+    PORT_FNID(sub_0811E6FC),
+    PORT_FNID(sub_0811E890),
+    PORT_FNID(sub_0811E92C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

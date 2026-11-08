@@ -70,7 +70,7 @@ static void sub_080257A8(struct Unk_080257A8 *var) {
     sub_08153060(bg);
     LZ77UnCompVram(gUnk_082D7850[bgId]->tileset, BG_CHAR_ADDR(2));
     gDispCnt |= DISPCNT_BG1_ON;
-    var->unk80 = sub_08025B58;
+    var->unk80 = FN(sub_08025B58);
 }
 
 static void sub_08025914(struct Unk_080257A8 *var) {
@@ -97,52 +97,52 @@ static void sub_08025914(struct Unk_080257A8 *var) {
     sub_08153060(bg);
     LZ77UnCompVram(gUnk_082D7850[bgId]->tileset, BG_CHAR_ADDR(2));
     gDispCnt |= DISPCNT_BG1_ON;
-    var->unk80 = sub_08025BA4;
+    var->unk80 = FN(sub_08025BA4);
 }
 
 void sub_08025A80(void) {
-    struct Task *t = TaskCreate(sub_08025B20, sizeof(struct Unk_080257A8), 1, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08025B20), sizeof(struct Unk_080257A8), 1, TASK_USE_IWRAM, NULL);
     struct Unk_080257A8 *var = TaskGetStructPtr(t);
 
-    var->unk80 = sub_080257A8;
+    var->unk80 = FN(sub_080257A8);
     var->unk84 = 0;
 }
 
 void sub_08025AD0(void) {
-    struct Task *t = TaskCreate(sub_08025B6C, sizeof(struct Unk_080257A8), 1, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08025B6C), sizeof(struct Unk_080257A8), 1, TASK_USE_IWRAM, NULL);
     struct Unk_080257A8 *var = TaskGetStructPtr(t);
 
-    var->unk80 = sub_08025914;
+    var->unk80 = FN(sub_08025914);
     var->unk84 = 0;
 }
 
 static void sub_08025B20(void) {
     struct Unk_080257A8 *var = TaskGetStructPtr(gCurTask);
 
-    var->unk80(var);
+    CALL(var->unk80)(var);
 }
 
 static void sub_08025B58(struct Unk_080257A8 *var) {
     var->unk84 = 0;
-    var->unk80 = sub_08025BB8;
+    var->unk80 = FN(sub_08025BB8);
 }
 
 static void sub_08025B6C(void) {
     struct Unk_080257A8 *var = TaskGetStructPtr(gCurTask);
 
-    var->unk80(var);
+    CALL(var->unk80)(var);
 }
 
 static void sub_08025BA4(struct Unk_080257A8 *var) {
     var->unk84 = 0;
-    var->unk80 = sub_08025BFC;
+    var->unk80 = FN(sub_08025BFC);
 }
 
 static void sub_08025BB8(struct Unk_080257A8 *var) {
     if (++var->unk84 > 0xF) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
-        var->unk80 = sub_08025C40;
+        var->unk80 = FN(sub_08025C40);
     } else {
         gBldRegs.bldY = 0x10 - var->unk84;
     }
@@ -152,7 +152,7 @@ static void sub_08025BFC(struct Unk_080257A8 *var) {
     if (++var->unk84 > 0xF) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
-        var->unk80 = sub_08025C64;
+        var->unk80 = FN(sub_08025C64);
     } else {
         gBldRegs.bldY = 0x10 - var->unk84;
     }
@@ -161,26 +161,26 @@ static void sub_08025BFC(struct Unk_080257A8 *var) {
 static void sub_08025C40(struct Unk_080257A8 *var) {
     var->unk84 = 0;
     m4aSongNumStart(SE_SUBGAME_AUDIENCE_CHEER);
-    var->unk80 = sub_08025C88;
+    var->unk80 = FN(sub_08025C88);
 }
 
 static void sub_08025C64(struct Unk_080257A8 *var) {
     var->unk84 = 0;
     m4aSongNumStart(MUS_GAME_OVER);
-    var->unk80 = sub_08025CCC;
+    var->unk80 = FN(sub_08025CCC);
 }
 
 static void sub_08025C88(struct Unk_080257A8 *var) {
     if (var->unk84++ > 600 || gPressedKeys & (A_BUTTON | B_BUTTON | START_BUTTON)) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
-        var->unk80 = sub_08025D10;
+        var->unk80 = FN(sub_08025D10);
     }
 }
 
 static void sub_08025CCC(struct Unk_080257A8 *var) {
     if (var->unk84++ > 600 || gPressedKeys & (A_BUTTON | B_BUTTON | START_BUTTON)) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
-        var->unk80 = sub_08025D30;
+        var->unk80 = FN(sub_08025D30);
     }
 }
 
@@ -188,20 +188,20 @@ static void sub_08025D10(struct Unk_080257A8 *var) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     var->unk84 = 0;
-    var->unk80 = sub_08025D50;
+    var->unk80 = FN(sub_08025D50);
 }
 
 static void sub_08025D30(struct Unk_080257A8 *var) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     var->unk84 = 0;
-    var->unk80 = sub_08025D8C;
+    var->unk80 = FN(sub_08025D8C);
 }
 
 static void sub_08025D50(struct Unk_080257A8 *var) {
     if (++var->unk84 > 0xF) {
         gBldRegs.bldY = 0x10;
-        var->unk80 = sub_08025DC8;
+        var->unk80 = FN(sub_08025DC8);
     } else {
         gBldRegs.bldY = var->unk84;
     }
@@ -210,7 +210,7 @@ static void sub_08025D50(struct Unk_080257A8 *var) {
 static void sub_08025D8C(struct Unk_080257A8 *var) {
     if (++var->unk84 > 0xF) {
         gBldRegs.bldY = 0x10;
-        var->unk80 = sub_08025DE4;
+        var->unk80 = FN(sub_08025DE4);
     } else {
         gBldRegs.bldY = var->unk84;
     }
@@ -231,3 +231,31 @@ static void sub_08025DE4(UNUSED struct Unk_080257A8 *var) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_080257A8) {
+    PORT_FNID(sub_080257A8),
+    PORT_FNID(sub_08025914),
+    PORT_FNID(sub_08025A80),
+    PORT_FNID(sub_08025AD0),
+    PORT_FNID(sub_08025B20),
+    PORT_FNID(sub_08025B58),
+    PORT_FNID(sub_08025B6C),
+    PORT_FNID(sub_08025BA4),
+    PORT_FNID(sub_08025BB8),
+    PORT_FNID(sub_08025BFC),
+    PORT_FNID(sub_08025C40),
+    PORT_FNID(sub_08025C64),
+    PORT_FNID(sub_08025C88),
+    PORT_FNID(sub_08025CCC),
+    PORT_FNID(sub_08025D10),
+    PORT_FNID(sub_08025D30),
+    PORT_FNID(sub_08025D50),
+    PORT_FNID(sub_08025D8C),
+    PORT_FNID(sub_08025DC8),
+    PORT_FNID(sub_08025DE4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

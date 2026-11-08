@@ -21,7 +21,7 @@ extern const struct AnimInfo gUnk_082DEB04[] = {
 
 void *CreateHammerPeg(struct ObjectTemplate *object, u8 r1)
 {
-    struct Task *newTask = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *newTask = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Object *newObject = TaskGetStructPtr(newTask);
 
     InitObject(newObject, object, r1);
@@ -36,14 +36,14 @@ void *CreateHammerPeg(struct ObjectTemplate *object, u8 r1)
 
     ObjectInitSprite(newObject);
 
-    gUnk_08351648[newObject->type].unk10(newObject);
+    CALL(gUnk_08351648[newObject->type].unk10)(newObject);
 
     return newObject;
 }
 
 void sub_08025320(struct Object *r0)
 {
-    r0->unk78 = sub_0802532C;
+    r0->unk78 = FN(sub_0802532C);
 }
 
 static void sub_0802532C(struct Object *object)
@@ -58,7 +58,7 @@ static void sub_0802532C(struct Object *object)
         object->unk85 = 0;
         object->unk83 = 1;
 
-        object->unk78 = sub_08025368;
+        object->unk78 = FN(sub_08025368);
     }
 }
 
@@ -73,3 +73,15 @@ static void sub_08025368(struct Object *object)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_hammer_peg) {
+    PORT_FNID(CreateHammerPeg),
+    PORT_FNID(sub_08025320),
+    PORT_FNID(sub_0802532C),
+    PORT_FNID(sub_08025368),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

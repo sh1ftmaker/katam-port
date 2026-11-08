@@ -126,7 +126,7 @@ void PortCallDtor(struct Task *task)
     PORT_TRACE[5] = task->structOffset | ((u32)task->parent << 16);
     PORT_TRACE[6]++;                        /* how many got this far */
 
-    task->dtor(task);
+    CALL(task->dtor)(task);                 /* a code ID (port/fnid.h) */
 }
 
 /* --- an address too wide for the member it is going into -------------------
@@ -159,6 +159,17 @@ void PortP32Truncated(const void *p)
             "observe that");
     PortLog("  nobody accounted for.  docs/SIXTYFOUR.md has the list of the "
             "ones that were.");
+    abort();
+}
+
+/* PORT_CHECK_POINTERS, too: a function stored into a P32 code-pointer member
+ * that is not a code ID (port/fnid.h) -- a host address that bypassed FN().
+ * Fatal for the reason above: the call through it comes later, elsewhere. */
+void PortP32HostFunction(uint32_t v)
+{
+    PortLog("[katam-port] FATAL: 0x%08X stored as a function is not a code ID "
+            "(a host function pointer that bypassed FN(); port/fnid.h).",
+            (unsigned)v);
     abort();
 }
 
