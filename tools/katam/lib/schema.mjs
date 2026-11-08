@@ -81,10 +81,10 @@ export class SchemaSet {
       if (s.uniqueItems && new Set(v.map((x) => JSON.stringify(x))).size !== v.length) errs.push({ path, message: 'items must be unique', schema: s });
     }
     for (const sub of s.allOf || []) this._v(root, sub, v, path, errs);
-    if (s.anyOf && !s.anyOf.some((sub) => this._ok(root, sub, v))) errs.push({ path, message: 'matches none of the allowed forms', hint: forms(s.anyOf), schema: s });
+    if (s.anyOf && !s.anyOf.some((sub) => this._ok(root, sub, v))) errs.push({ path, message: `${short(JSON.stringify(v) || '')} matches none of the allowed forms (${forms(s.anyOf)})`, hint: enumHint(v, s.anyOf) || s.description, schema: s });
     if (s.oneOf) {
       const n = s.oneOf.filter((sub) => this._ok(root, sub, v)).length;
-      if (n !== 1) errs.push({ path, message: n ? 'matches more than one allowed form' : 'matches none of the allowed forms', hint: forms(s.oneOf), schema: s });
+      if (n !== 1) errs.push({ path, message: n ? 'matches more than one allowed form' : `matches none of the allowed forms (${forms(s.oneOf)})`, hint: enumHint(v, s.oneOf) || s.description, schema: s });
     }
     if (s.not && this._ok(root, s.not, v)) errs.push({ path, message: 'matches a form that is not allowed', schema: s });
     if (s.if) {
@@ -103,6 +103,7 @@ function typeOf(v) {
 }
 const esc = (k) => String(k).replace(/~/g, '~0').replace(/\//g, '~1');
 const short = (s) => (s.length > 40 ? s.slice(0, 37) + '...' : s);
+const enumHint = (v, subs) => { const e = subs.flatMap((x) => x.enum || []); return e.length ? suggest(v, e) : undefined; };
 const forms = (subs) => subs.map((x) => x.description || x.type || (x.$ref || '').split('/').pop()).filter(Boolean).join(' | ');
 
 function lev(a, b) {

@@ -60,8 +60,16 @@ export function validatePath({ io, target, bases = [], vocab, registry, schemaDi
     if (doc.id !== id) add('error', 'id-path', d.rel, '/id', `id "${doc.id}" does not match the file's path (expects "${id}")`, `rename the file to ${want} or set "id": "${id}"`);
     const serr = schemas.validate(SCHEMA_PREFIX + kind, doc);
     for (const e of serr.slice(0, 40)) add('error', 'schema', d.rel, e.path, e.message, e.hint || (e.schema && e.schema.description));
-    if (serr.length) continue;
-    if (kind === 'room') checkRoom(d, doc);
+    if (kind === 'room') {
+      // keep going after schema errors, so one run reports as much as it can;
+      // drop later findings at a path the schema already reported
+      const seen = new Set(serr.map((e) => e.path));
+      const n0 = res.errors.length, w0 = res.warnings.length;
+      try { checkRoom(d, doc); } catch (e) { if (!serr.length) add('error', 'internal', d.rel, '', e.message); }
+      const keep = (f, i, start) => i < start || !seen.has(f.where);
+      res.errors = res.errors.filter((f, i) => keep(f, i, n0));
+      res.warnings = res.warnings.filter((f, i) => keep(f, i, w0));
+    }
   }
 
   function checkRoom(d, doc) {
@@ -121,6 +129,23 @@ export function validatePath({ io, target, bases = [], vocab, registry, schemaDi
     // spawn-ability: some door must deliver here, or it is a dead room
     const incoming = [...bindings.docs.values()].some(({ doc: o }) => o.format === 'katam-room/1' && (o.doors || []).some((x) => bindings.resolve(x.to) === bindings.resolve(doc.id)));
     if (!incoming && !doc.bind) add('warning', 'unreachable', d.rel, '', 'no door in the loaded projects leads here', 'add a door to this room from another room (or reach it by a warp star / --warp)');
+    // grids, each on its own so one bad row does not hide the others
+    let cgrid = null;
+    for (const layer of ['art', 'collision', 'nav']) {
+      if (!doc[layer]) continue;
+      try { const g = decodeGrid(doc[layer], W, H, layer); if (layer === 'collision') cgrid = g; } catch (e) { add('error', 'grid', d.rel, e.where || layer, e.message, 'every row must be width keys long and use legend keys only'); }
+    }
+    // doors need door terrain under their cells, and usually a door object there
+    if (cgrid) (doc.doors || []).forEach((dr, i) => (dr.cells || []).forEach(([x, y], j) => {
+      if (x >= W || y >= H) return;
+      let v; try { v = ctx.collisionValue(cgrid[y * W + x]); } catch { return; }
+      // a patch on the cell (a block that breaks open) may be what turns it into a door
+      const vals = [v, ...(doc.patches || []).filter((p) => p.x === x && p.y === y).map((p) => { try { return ctx.collisionValue(p.collision); } catch { return -1; } })];
+      const bits = vals.map((k) => (vocab.collision[k] || {}).bits || '').join(' then ');
+      if (!bits.includes('door')) add(doc.bind ? 'warning' : 'error', 'door-terrain', d.rel, `/doors/${i}/cells/${j}`, `door cell (${x}, ${y}) has collision ${v} (${bits || 'air'}), not a door value`, 'give door cells collision 255 (door), or a patch that turns the cell into a door (all 724 vanilla door cells do one or the other)');
+      const hasObj = (doc.objects || []).some((o) => Math.floor(o.x / 16) === x && Math.floor(o.y / 16) === y);
+      if (!hasObj && !doc.bind) add('warning', 'door-object', d.rel, `/doors/${i}/cells/${j}`, `no object at door cell (${x}, ${y})`, 'place a "door" object at the cell centre (x = cell*16+8) so the door is drawn');
+    }));
     // everything structural: run the compiler itself
     try { compileRoom(doc, ctx); } catch (e) { add('error', 'compile', d.rel, e.where || '', e.message, e.hint); }
   }
