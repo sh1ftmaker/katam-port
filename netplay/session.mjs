@@ -58,6 +58,9 @@ export const DEFAULT_PARAMS = Object.freeze({
     maxSpectators: 16,
     flushMs: 0,             // coalesce sealed-frame broadcasts (big rooms)
     joinSyncDelayMs: 3000,
+    excuseAfter: 20,        // frames sealed late in a row before a seat
+                            // stops being waited for at all (until on time)
+    rosterMs: 250,          // coalesce roster broadcasts in rooms > 8
 });
 
 // User-settable before START (host 'settings'); the rest are policy.
@@ -257,6 +260,8 @@ export class SessionCore {
             at = Math.min(at, this.flushAt);
         if (this.members.size)
             at = Math.min(at, this.nextStatsAt || t + 250);
+        if (this.rosterPending)
+            at = Math.min(at, (this.rosterAt || 0) + this.params.rosterMs);
         if (at === Infinity)
             return null;
         return Math.max(0, at - t);
@@ -271,6 +276,8 @@ export class SessionCore {
             this.nextStatsAt = t + 250;
             this._housekeeping(t);
         }
+        if (this.rosterPending)
+            this._flushRoster();
     }
 
     // --- helpers --------------------------------------------------------------
@@ -321,9 +328,18 @@ export class SessionCore {
         };
     }
 
-    _flushRoster() {
+    _flushRoster(force = false) {
         if (!this.dirty)
             return;
+        // Big rooms: a roster is O(members) and goes to every member, so a
+        // burst of joins would cost O(N^2) per join.  Coalesce.
+        const t = this.now();
+        if (!force && this.members.size > 8 && t < (this.rosterAt || 0) + this.params.rosterMs) {
+            this.rosterPending = true;
+            return;
+        }
+        this.rosterAt = t;
+        this.rosterPending = false;
         this.dirty = false;
         const r = JSON.stringify(this.roster());
         for (const m of this.members.values())
@@ -386,7 +402,7 @@ export class SessionCore {
                 joinedAt: t, seatedAt: null, ready: false, cleanStreak: 0, rtt: null,
                 latest: null, lateInputs: 0, fills: 0, bytesUp: 0, bytesDown: 0,
                 hashes: new Map(), lastHashFrame: 0, lastSyncAt: 0, needsSync: null,
-                sitAt: 0, streaming: false, wantKirby: -1,
+                sitAt: 0, streaming: false, wantKirby: -1, lateStreak: 0,
             };
             this.members.set(m.mid, m);
             this.byIdentity.set(h.identity, m.mid);
@@ -767,6 +783,8 @@ export class SessionCore {
             }
             if (!p.keys.has(seat))
                 p.keys.set(seat, k);
+            if (f === this.frontier || m.lateStreak)
+                m.lateStreak = 0;       // on time again: waited for again
             if (f > this.head)
                 this.head = f;
         }
@@ -791,7 +809,7 @@ export class SessionCore {
             if (mid < 0 || f < this.seatLiveFrom[s])
                 continue;
             const m = this.members.get(mid);
-            if (m && m.connId && m.seatLive)
+            if (m && m.connId && m.seatLive && m.lateStreak < this.params.excuseAfter)
                 out.push(s);
         }
         return out;
@@ -845,6 +863,7 @@ export class SessionCore {
                     if (m.latest && m.latest.frame <= F)
                         v[s] = m.latest.keys;
                     m.fills++;
+                    m.lateStreak++;
                     this.stats.fills++;
                 } else {
                     v[s] = 0;     // gone: neutral until the seat is sealed

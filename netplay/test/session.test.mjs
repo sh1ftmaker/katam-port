@@ -296,6 +296,7 @@ test('scale: 100 seats -- sealed at the deadline when one is slow, identical str
     const room = makeRoom({ seats: 100, deadlineMs: 50, hashEvery: 30 });
     const cs = [];
     for (let i = 0; i < 100; i++) cs.push(room.client('p' + i, { want: 'play', caps: { seats: 128, sync: true } }));
+    room.run(300);                                // rosters coalesce in big rooms
     assert.equal(room.core.params.seats, 100);
     assert.equal(room.core.params.kirbys, 4);
     assert.ok(cs.every((c) => c.me.seat >= 0));
@@ -323,4 +324,26 @@ test('persistence: export/import resumes the archive; seats come back as AI', ()
     assert.equal(core.phase, 'playing');
     assert.equal(core.archive.length, room.core.archive.length);
     assert.ok(core.events.filter((e) => e.kind === 'slot' && e.seat === -1).length === 2);
+});
+
+test('a chronically late seat stops being waited for, and is waited for again once on time', () => {
+    const { room, cs } = started(2, { deadlineMs: 100, excuseAfter: 20 });
+    const [a, b] = cs;
+    let f = S;
+    // b is 30 frames behind: every one of its inputs is late
+    for (let i = 0; i < 40; i++, f++) { a.input(f, [1]); room.run(17, 17); b.input(f - 30, [2]); }
+    const lat0 = room.core.stats.sealLatencyMax;
+    assert.ok(lat0 >= 100, 'sealed at the deadline while b was still expected');
+    // excused now: a's frames seal on arrival
+    const before = a.sealed.size;
+    a.input(f, [1]);
+    assert.equal(a.sealed.size, before + 1, 'no deadline wait');
+    assert.equal(a.sealed.get(f)[1], 2, 'b repeats its newest input');
+    f++;
+    // b catches up (fast-forwards) and sends on time: waited for again
+    b.input(f, [3]);
+    a.input(f, [1]);
+    assert.equal(a.sealed.get(f)[1], 3);
+    a.input(f + 1, [1]);
+    assert.ok(!a.sealed.has(f + 1), 'waiting for b again');
 });
