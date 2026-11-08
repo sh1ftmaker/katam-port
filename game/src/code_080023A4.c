@@ -1184,9 +1184,19 @@ void sub_08002118(void)
         sub_080019F8(gCurLevelInfo + var1->unk0);
 }
 
+/* PORT-FORK: both copies of this run after sub_0800233C has destroyed the
+ * display task and cleared gUnk_02023354 -- the attract demo's last frames
+ * (6744) and any VBlank callback (sub_080021E4) left queued past it -- and
+ * TaskGetStructPtr(NULL) reads the Task fields out of the BIOS.  The console
+ * gets open-bus values there (the last BIOS opcode fetched), so a struct
+ * address that depends on which BIOS routine ran last; natively page zero is
+ * unmapped and the LP64 build faulted.  With no display task there is no
+ * display player: answer player 0, the same on every host. */
 static inline u8 sub_08002374_2(void)
 {
     struct Unk_08002E48 *var0;
+    if (gUnk_02023354 == NULL)
+        return 0;
     var0 = TaskGetStructPtr(gUnk_02023354);
 
     return var0->unk0;
@@ -1265,6 +1275,9 @@ void sub_0800233C(void)
 u8 sub_08002374(void)
 {
     struct Unk_08002E48 *var0;
+    /* PORT-FORK: see sub_08002374_2 */
+    if (gUnk_02023354 == NULL)
+        return 0;
     var0 = TaskGetStructPtr(gUnk_02023354);
 
     return var0->unk0;

@@ -18,7 +18,7 @@ The scenarios:
   boot_to_level   power-on, logo, title, file select (new file), the intro
                   room.  Tap A+Right on a 20-frame period from frame 120 --
                   the pattern tools/native_smoke.sh has always used.
-  attract         no input at all for 6600 frames: the title screen times out
+  attract         no input at all for 9000 frames: the title screen times out
                   into the game's own attract-mode demo, which is the game
                   playing itself through a level with its own recorded input.
   play_rooms      boot to the first level, then a warp into each of a run of
@@ -93,7 +93,7 @@ def main():
     write(out / 'boot_to_level.txt', 1400, keys,
           comment='power-on -> title -> file select -> the first level')
 
-    write(out / 'attract.txt', 6600, {},
+    write(out / 'attract.txt', 9000, {},
           comment='no input: title screen, then the attract-mode demo')
 
     keys = {}
