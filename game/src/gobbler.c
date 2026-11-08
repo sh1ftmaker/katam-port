@@ -1463,7 +1463,10 @@ static void sub_080E5F20(void)
         {
             if (!(effectObject->unk4 & 0x3F))
             {
-                sub_080E625C(gobbler2, (Rand16() & 7) - 0x1B, (Rand16() & 7) - 3);
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd0 = Rand16(), rnd1 = Rand16();
+                    sub_080E625C(gobbler2, (rnd0 & 7) - 0x1B, (rnd1 & 7) - 3);
+                }
                 effectObject->unk4 += Rand16() & 0xF;
             }
         }
