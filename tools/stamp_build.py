@@ -30,6 +30,10 @@ def main():
                     help='directory holding index.html, katam.js and katam.wasm')
     ap.add_argument('--label', default='',
                     help='commit and date, shown on the page (#buildlabel)')
+    ap.add_argument('--sim-src', action='append', default=[], type=Path,
+                    help='a directory of simulation sources for simVersion (repeatable)')
+    ap.add_argument('--sim-flags', default='',
+                    help='the compiler flags the simulation is built with')
     args = ap.parse_args()
 
     page = args.dir / 'index.html'
@@ -72,12 +76,34 @@ def main():
                   lambda mm: mm.group(1) + label + mm.group(3), html, count=1)
     html = html.replace('<head>', '<head><meta name="katam-build" content="%s">' % label, 1)
 
+    # simVersion, the netplay version gate (netplay/session.mjs HELLO, and
+    # docs/design/NETPLAY-V2.md §8): a hash of the simulation sources, the
+    # flags and the boot script, so two builds of one commit agree -- plus,
+    # for as long as world syncs move same-build snapshots (host function
+    # pointers inside, R5), the wasm's own id.  Drop the second half when
+    # netsim's portable snapshots (M2) land.
+    sim = hashlib.sha256()
+    for d in args.sim_src:
+        for f in sorted(d.rglob('*')):
+            if f.is_file() and f.suffix in ('.c', '.h', '.cpp', '.inc', '.s'):
+                sim.update(str(f.relative_to(d)).encode() + b'\0')
+                sim.update(f.read_bytes())
+    sim.update(args.sim_flags.encode())
+    for name in ('rb_boot.js', 'net_game.js'):
+        f = args.dir / name
+        if f.exists():
+            sim.update(f.read_bytes())
+    sim_version = 's' + sim.hexdigest()[:16] + '.w' + build_id[:8]
+    html = html.replace('<head>', '<head><meta name="katam-sim" content="%s">'
+                        '<script>window.KATAM_SIM=%r;</script>' % (sim_version, sim_version), 1)
+
     # The netplay scripts are separate files with the same trap -- a stale
     # cached mp_net.js against a fresh page throws on the first API the old
     # copy lacks, and the whole netplay block dies looking like "the lobby
     # cannot connect".  Same cure: content-hashed URLs, per file, so an
     # unchanged file keeps its cache and a changed one busts it.
-    for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js'):
+    for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js',
+                 'lobby.js'):
         f = args.dir / name
         if not f.exists():
             continue
@@ -87,7 +113,7 @@ def main():
             r'\1?v=%s\3' % fid, html)
 
     page.write_text(html)
-    print('  STAMP   build %s' % build_id)
+    print('  STAMP   build %s, sim %s' % (build_id, sim_version))
     return 0
 
 

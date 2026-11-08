@@ -227,6 +227,11 @@ extern s32 gPortCamPadX, gPortCamPadY;
 void PortSimViewRequest(s32 w, s32 h);
 /* Netplay pages: hold the session view at 240x160 for the rest of the run. */
 void PortSimViewPinNative(void);
+/* Netplay v2 pages: the session's `view` events (scheduled with
+ * PortInputLogScheduleView) decide; the host's requests are only recorded,
+ * packed (w << 16) | h for the page to send to the room. */
+void PortSimViewUseSession(void);
+u32  PortSimViewRequested(void);
 int  PortSimViewLocked(void);
 /* Would a world view of w x h be covered by the margin a request gets? */
 int  PortSimViewCovers(s32 w, s32 h);

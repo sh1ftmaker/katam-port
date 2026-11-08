@@ -606,6 +606,7 @@ void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
  * 240x160 and stock. */
 #define sSim (gPortSim->view)
 static int sSimPinned;
+static int sSimSession;     /* netplay v2: the session's VIEW events decide */
 static s32 sReqW = PORT_SCREEN_W, sReqH = PORT_SCREEN_H;
 
 /* Diagnostics only (KATAM_SPAWNSTAT=1): never read by the game. */
@@ -623,7 +624,27 @@ static s32 RoundView(s32 v, s32 screen, s32 max)
 
 static int SimLocked(void)
 {
+    if (sSimSession)
+        return 0;
     return sSimPinned || PortRbActive() || PortMpCurrent() != NULL;
+}
+
+/* Netplay v2 (netplay/session.mjs): the room collects every seated peer's
+ * request, decides the per-axis max, and delivers it as a frame-stamped
+ * `view` event in the sealed stream, which the page schedules through
+ * PortInputLogScheduleView -- the same event list a recording uses, so a
+ * replay or a rollback re-latches the same value.  From here on the host's
+ * own requests are only *recorded* (PortSimViewRequested reads them out
+ * for the page to send), never scheduled locally. */
+void PortSimViewUseSession(void)
+{
+    sSimSession = 1;
+    sSimPinned = 0;
+}
+
+u32 PortSimViewRequested(void)
+{
+    return ((u32)sReqW << 16) | (u32)sReqH;
 }
 
 void PortSimViewPinNative(void)
@@ -640,6 +661,11 @@ void PortSimViewRequest(s32 w, s32 h)
 {
     w = RoundView(w, PORT_SCREEN_W, SIM_VIEW_MAX_W);
     h = RoundView(h, PORT_SCREEN_H, SIM_VIEW_MAX_H);
+    if (sSimSession) {
+        sReqW = w;
+        sReqH = h;
+        return;
+    }
     if (SimLocked() || PortInputLogReplaying())
         return;
     if (w == sReqW && h == sReqH)
@@ -651,6 +677,8 @@ void PortSimViewRequest(s32 w, s32 h)
 
 int PortSimViewCovers(s32 w, s32 h)
 {
+    if (sSimSession)
+        return w <= sSim.viewW && h <= sSim.viewH;
     if (SimLocked())
         return w <= PORT_SCREEN_W && h <= PORT_SCREEN_H;
     return w <= SIM_VIEW_MAX_W && h <= SIM_VIEW_MAX_H;

@@ -1,6 +1,10 @@
 # Netplay v2: deterministic simulation, input-only sync
 
-Design, 2026-11-08. Nothing here is implemented yet. It targets the hard fork
+Design, 2026-11-08. Revised the same day: §12 (model v2.1: no lockstep,
+deadline-sealed inputs, periodic world sync) and §13 (scaling past 4
+players) supersede the waiting parts of §2, §4.4 and §5, and §8's room
+code is now 4 letters. Protocol v2, the room and the lobby are implemented
+(branch `netlobby`); the rest is not yet. It targets the hard fork
 (branch `fork`, game source in `game/`) and the planned GPU renderer, where
 rendering becomes a read-only view of simulation state.
 
@@ -155,6 +159,18 @@ The v2 design:
 - A spectator's request never counts.
 - A joiner gets the event history with the input history, so its replay
   reaches the same value.
+
+**Implemented on branch `netlobby`** (a variation that keeps the max in one
+place): each seated peer sends its request to the room as a control message
+`{t:'view', w, h}` (the page reads it with `PortSimViewRequested`); the room
+(`SessionCore._viewChanged`) computes the per-axis max over the seated peers
+with the same rounding as `RoundView` (whole 16-px cells a side, 240x160 to
+1024x512) and, when it changes, emits a frame-stamped `view {w, h}` event in
+the event column, past the watermark. Every peer schedules it with
+`PortInputLogScheduleView` after `PortSimViewUseSession()`, which lifts the
+240x160 hold for that page and turns local requests into records only. A
+joiner gets the event history in the archive. Spectators' requests never
+count; a sealed seat stops counting.
 
 The netsim branch plans to keep the latched value (`struct PortSimView` in
 `platform/view.c`: `viewW, viewH, prevW, prevH, stock`) in the port sim block
@@ -311,6 +327,59 @@ per 64-byte block. Then map each differing block to a symbol through
 **Two more axes.**
 - Audio on vs off: this must not change S.
 - wasm vs lp64 vs aarch64: this must not change S once R1-R7 are fixed.
+
+### 3.4.1 The census as built (M1, branch netsim)
+
+**Measured.** `--census 4:450:OUT` over the six recordings (attract in
+focus-only mode, the others in session mode from frame 450), masks
+`tests/census/masks.txt`, `tools/census.py` to name blocks.
+
+The tool: `platform/census.c` driven by seats in census mode
+(`platform/seats.c`). The seats differ only by focus. In session mode (F0)
+they also run the game's network-input path with four slots: slot 0 takes
+the recording's keys, slots 1-3 the AI. Masks are byte-precise; the sprite
+screen fields and the display task's player byte are masked per round,
+because they move with the heap. `PORT_CENSUS_DUMP=F` dumps every seat's
+state at frame F, and `PORT_CENSUS_FOCUS=k` with one seat runs a single
+instance under gdb.
+
+**Real divergences found and fixed (class b):**
+
+- **The save owner.** `gLocalPlayerId == gUnk_0203AD24` is tested at 13
+  sites in 11 files. Only the link-play parent writes progress to SRAM; the
+  children count the write (`sub_08031CE4`). The Dark Mind ending advances
+  `gAIKirbyState` on the parent only (`code_0814EBE4.c`). Found at
+  boot_to_level frame 581 (`cutscene_trigger.c:835`).
+  - The fix is `PortSimSaveOwner()` (`platform/port/simblock.h`): every
+    peer is the owner when the sim block's `PORT_SIM_F_SESSION` flag is
+    set.
+
+**Masks so far:**
+
+| class | what |
+|---|---|
+| P | `gLocalPlayerId` |
+| P | the sound engine: `gMPlayTrack_*`, `gSoundInfo`..`gMPlayInfo_3` |
+| S* | `gCurLevelInfo[k]`: BG layers (`unkC0`..`unk1E0`) and alternate viewports |
+| S* | the display: shadow registers, upload queues, OAM and its draw order, palettes, I/O, PLTT/VRAM/OAM |
+| S* | sprite `tilesVram`, `x`/`y` and `unk1C..palId` |
+| H | the host's own key poll (`keysDown`, last seat only) |
+
+**Not converged.** Unmasked blocks remain: 38 in boot_to_level, 106-191 in
+the others; the first is at frame 653 (666 in wide_view, 5164 in attract).
+Each is still to be classified as a mask or a fix. The candidates:
+
+- the HUD task (`UpdateGameplayHud`, P);
+- `Kirby.base+45` (the sprite OAM slot);
+- the tasks `sub_08089BCC`, `sub_0808A208` and `sub_08088C0C`;
+- the AI task `sub_0800EF60` (2 bytes at frame 823: possibly real);
+- `gSourcePalettes` and `gPaletteEffectManager` (palette fades of the
+  local view, probably S*);
+- heap objects whose fields beyond the sprite differ.
+
+**So the M1 exit criterion (equal masked hashes over the corpus) is not met
+yet.** The method and tools are in place, and each remaining block is one
+`PORT_CENSUS_DUMP` plus a gdb watch away from classification.
 
 ---
 
@@ -533,19 +602,49 @@ relaying with no TURN. Its pricing and semantics are **unverified**.
 
 ## 8. Session, lobby and versioning (protocol level)
 
-- **Room code:** 6 characters of Crockford base32 (about 10⁹ codes), which is
-  also the DO name. Idle rooms persist the archive, the latest snapshot and
-  the session save for 7 days, so a world can be resumed.
+- **Room code: 4 letters** (changed from the 6-character Crockford code
+  first proposed; implemented in `netplay/codes.mjs`). The user asked for
+  four characters people can read out and type on a phone:
+  - Alphabet: `BCDFGHJKMNPQRSTVWXZ`, 19 consonants. Letters only, so a phone
+    shows one keyboard and never switches to digits mid-code. No vowels
+    (and no Y), so no code spells a word; a 12-entry substring blocklist
+    catches the few look-alike spellings (`FVCK`, `KKK`, ...; 269 codes, 0.2%
+    of the space). No L or O, so nothing reads as 1, I or 0.
+  - 19⁴ = 130,321 codes: two orders of magnitude above the rooms open at
+    once, so random allocation almost never probes twice.
+  - Input is tolerant: case, spaces, dashes and dots are ignored, a pasted
+    share link is reduced to its `?room=`, and look-alikes map to the letter
+    (`8`→B, `5`→S, `2`→Z, `6`→G, `U`→V).
+  - The server allocates codes at random from the free ones; clients never
+    choose. The code is **not** the DO name: a directory (one `Directory`
+    DO) maps code → room id (128 random bits, the `SessionRoom` DO name).
+    A code is reused only after its room has been empty for 20 minutes.
+  - A short code is guessable by design, so: per-IP token buckets at the
+    edge (30 lookups burst then one per 2 s; **6 misses burst then one per
+    20 s**, about 186 guesses an hour per IP), per-IP limits on creates and
+    on HELLOs per room, and host controls -- lock the lobby, approve each
+    join, kick (banned for the room's life).
+  - A persisted world (the 7-day archive) is never reachable by its old
+    short code: creating a room also returns a 192-bit **resume token**
+    (`POST /v2/resume`), which rebinds the room to a fresh code.
+  - HTTP surface: `POST /v2/rooms` → `{code, resume}`, `GET /v2/rooms/CODE`,
+    `POST /v2/resume {token}`, and the WebSocket at `/v2/rooms/CODE/ws`.
 - **Identity:** a 128-bit random token kept on the client (localStorage, or
   the native config file), sent as the partysocket `id`, plus a display name.
   The DO keeps `identity → last slot`. It is not an account; when abuse
   matters, add an HMAC-signed invite.
-- **Version gate:** checked in HELLO, and the DO refuses on any mismatch.
-  - `protoVersion`.
+- **Version gate:** checked in HELLO, and the DO refuses on any mismatch,
+  naming the field (`error {code:'version', field, room, yours}`), and the
+  lobby tells the player what to do about each one.
+  - `protoVersion` (2).
   - `simVersion`: a hash of the sim source tree, the sim compiler and flags,
     and determinism-relevant generated data. It is stamped at build time
     (`stamp_build.py`) and is the same for web and native builds of one
-    commit. It is *not* a binary hash.
+    commit. It is *not* a binary hash. **Implemented** in
+    `tools/stamp_build.py` (`window.KATAM_SIM`), with one temporary
+    addition: while world syncs move same-build ring snapshots (host
+    function pointers, R5), the wasm's own id is appended. Drop it when M2's
+    portable snapshots land. An unstamped dev page uses a hash of its wasm.
   - `romHash`: SHA-1 of the player's ROM, which must be the same dump.
   - `contentHash`: §11.
   - Release CI blocks if the cross-platform hash corpus (§9.3) disagrees.
@@ -713,6 +812,501 @@ of the latest presented sim state. They may differ per client and are never
 hashed or snapshotted. They must tolerate rewinds, because after a rollback
 they can see state jump backwards, and they receive the de-duplicated sound
 events (M8).
+
+---
+
+## 12. Model v2.1: no lockstep, deadline-sealed inputs, periodic world sync
+
+Revision, 2026-11-08, at the user's direction, implemented as protocol v2 on
+branch `netlobby` (`netplay/session.mjs`, `web/net_session.js`,
+`web/net_game.js`). It replaces the parts of §2, §4.4 and §5 that make peers
+wait for each other. Everything else (the sim/presentation split, the
+determinism audit, snapshots, mods) stands.
+
+### 12.1 What changes, and why
+
+| v2 as first designed | v2.1 | why |
+|---|---|---|
+| Each peer's column is authoritative for itself; a peer that misses the rollback window freezes everyone at the edge (§2.5) | **The room seals every frame at a deadline.** A seat whose input has not arrived is filled with its newest known input ("repeat last") and the late value is discarded. The sealed stream is the truth for everyone, the late sender included. | One slow phone must never hold up the other players. Waiting is the failure the user named. |
+| Rollback (W = 10) is the correction mechanism; past the window, stall | **Rollback is shallow, optional and local.** Today's engine keeps its ring as a cheap way to fix a misprediction a few frames back; nothing on the wire knows about it, and the stall gate is off (`PortRbSetStallGate(0)`). | "Rollback is not so important if they sync periodically." |
+| Desync recovery is an exceptional path (§5.3) | **World sync is a normal path.** A donor's state at a checkpoint replaces a peer's, which re-runs its inputs since. Triggers: hash mismatch, lag, join, a peer's request, and a low background rate. | Corrections that are frequent are small; the presentation layer blends them. |
+| Determinism is required to stay together | **Determinism is an optimisation**: it keeps syncs rare and small (a deterministic peer's state differs from the donor's in few or no pages). Peers stay together through syncs either way. | Cross-platform determinism (R1-R14) is weeks of work; play should not wait for it. |
+| Joining = snapshot + tail (or log replay until M2) | Unchanged in shape: archive (log replay) today, snapshot when portable, **plus a join sync** shortly after the joiner sits. | The join sync makes a joiner correct even if its replay was not. |
+| WATERMARK every 100 ms; peers never simulate past it | The watermark is carried in every FRAMES message and events are stamped past it, but **no peer stops at it**. An event that arrives late is applied one frame late locally, and the next sync reconciles. | No global barrier anywhere: start, join, leave, pause and room changes included. |
+| Host-less DO | Unchanged: the room is the sequencer, archive, referee and relay. The "host" is lobby metadata and passes on after 10 s away. | |
+
+### 12.2 The sequencer
+
+The room keeps a **session clock**: frame F is due at
+`clock.t + (F - clock.f) * 16.74 ms`, anchored on the first input it hears
+(and again when the room has been idle). Frame F is sealed when every
+*expected* seat's input for F is in, or `deadlineMs` (default 100) after it
+was due, whichever comes first. Due times come from the clock, not from the
+first sender: a peer that stamps its inputs far ahead must not shorten the
+others' deadline (an earlier draft did that, and measured as a slow-link peer
+fast-forwarding everyone else).
+
+- *Expected* means seated, connected, live at F, and not **excused**: a seat
+  that was filled `excuseAfter` (20) frames in a row stops being waited for
+  at all, and is waited for again after `rejoinAfter` (10) on-time inputs in
+  a row. Without excusal a chronically late seat made every frame seal at
+  the full deadline (measured: 100% deadline seals, 102 ms p50 latency for
+  everyone); with it, the other peers' p50 returns to 1-2 ms.
+- Fill: the seat's newest received input at or before F, else its last
+  sealed value. A disconnected seat reads neutral (0).
+- Late inputs are counted per seat and reported in `stats` (once a second).
+  The client raises its input delay one step per report that shows new late
+  inputs, and lowers it after 5 quiet seconds (§2.3's policy, driven by the
+  room's count instead of RTT percentiles).
+- Time sync (§2.4) steers by the room's clock: `stats.clock` is the room's
+  current frame. A peer targets `clock + one-way latency - delay + 2`; behind
+  it, it fast-forwards (`PortRbReplayTo`); ahead of it, it holds a frame now
+  and then (at most 6 a second, through the host's pacer: `portFrameDue` in
+  a browser). No peer ever waits for another.
+
+### 12.3 Hashes, the referee and donor election
+
+Every `hashEvery` (30) frames after `inputStart`, once frame C is sealed and
+simulated, each peer hashes the state at the start of C (today: the game's
+own desync quantity, `gRngVal` and every Kirby's position, read from the
+ring copy) and sends `{t:'hash', f, h}`. The room judges C when every live
+seat has reported, or `hashWaitMs` (1.5 s) after the first report:
+
+- the majority hash is the reference;
+- a tie goes to the group whose best donor wins the election below;
+- every peer outside the reference gets a sync, and everyone gets a
+  `desync` notice (for logs and the lobby).
+
+**Donor election** (`electDonor`), among peers holding the reference hash:
+
+| policy | rule | strengths | weaknesses |
+|---|---|---|---|
+| `majority` (default) | longest clean hash streak, then lowest RTT to the room, then seated longest | the donor is the peer most likely to be right; stable (the authority does not flap) | in a 2-player game a tie is decided by history, which a fresh pair lacks (falls to RTT) |
+| `rtt` | lowest RTT first | fastest transfer; best for big rooms | may pick a peer that just recovered |
+| `host` | the host when eligible | predictable; matches players' intuition ("the host's world") | the host may be on the worst link |
+| sim in the DO (later) | the room runs the sim headless from the sealed stream and is the donor | one authority, never wrong about its own inputs, needs no election | cost: wasm sim ~6 µs/frame (cited) is ~0.04% of a core at 60 Hz, but a DO's 128 MB memory limit must hold the sim arena (292 KiB after the split; the full GBA map is the problem today, SERVER-RENDER.md §4b) and the ROM is not on the server (§11: never uploaded). Viable only with a ROM-free sim pack, so not before M8/M9. |
+
+Background syncs never target the peer that would itself be elected donor,
+so the authority stays put unless a hash moves it.
+
+### 12.4 World sync
+
+Triggers, per peer, rate-limited to one per `minSyncGapMs` (2 s) except
+joins and explicit requests, one in flight at a time, cancelled after 8 s:
+`mismatch` (referee), `lag` (its checkpoints trail the reference by more than
+`lagSyncFrames`, 90), `join` (3 s after a mid-game SIT, or at its first
+hash), `ask` (`{t:'syncme'}`, e.g. after the engine counted inputs older
+than its ring), and `periodic` (`syncEveryMs`, default 10 s).
+
+The flow, relayed by the room as opaque bytes:
+
+```
+room   -> target  sync_req  {id, f, donor, reason}
+target -> room    sync_have {id, f, ps: 4096, hashes: base64(u32 per page)}   (or no hashes)
+room   -> donor   snap_req  {id, f, to, ps, hashes}
+donor  -> room    snap      {id, f, size, count, h, kind}  + count x CHUNK (16 KiB)
+room   -> target  snap ... + the chunks, as they arrive
+target -> room    sync_done {id, ok}
+```
+
+The payload is a **page diff**: the target sends a hash per 4 KiB page of
+its own state at C, and the donor sends only the pages that differ. A sync
+of a peer that is already right costs about 1.5 KB of page hashes and a
+36-byte empty blob. The blob layout is netsim's draft (`KSNP` header, kind
+full/pages, frame, raw size, state hash) with ver 0 = today's same-build
+ring snapshot, compressed with deflate (`CompressionStream`; netsim's zstd
+replaces it). The target rebuilds the state, checks the donor's hash, and
+calls `PortRbApplySnapshotAt(C, ...)`: the engine loads it at the next frame
+boundary, applies any events it jumped over, and re-runs (picture off) to
+where it was -- or jumps forward if it was behind.
+
+**Measured** (tools/netplay_v2_test.mjs, three game instances, 40 s):
+an injected desync (beta's `gRngVal` flipped) was detected at the next
+checkpoint and repaired in **1.6-3.5 s**; a sync after a real divergence
+moved 9-19 pages (6-16 KB compressed); a full join sync 97 pages (51 KB).
+Per-client traffic including syncs: **1-2.3 KB/s down, 0.3-0.6 KB/s up** for
+an ordinary peer, and up to 6.5 KB/s up for the donor while it serves syncs.
+
+### 12.5 The presentation seam
+
+After a sync is applied, `web/net_game.js` emits a **correction event**
+`{frame, kind: 'sync', pages, bytes, reason, at}` three ways:
+`opts.onCorrection`, `Module.portNetCorrection(info)` if the host defines
+it, and a DOM `CustomEvent('katam-net-correction')`. The renderer's
+interpolation (branch `smooth`) can blend camera and sprite positions across
+it instead of snapping. netsim's correction record (per-Kirby old/new
+positions) extends the same event when its engine lands.
+
+### 12.6 The engine seam
+
+**Implemented (branch netsim):** `platform/port/netsim.h` and
+`platform/netsim.c`. There is no rollback in the engine; that is v2.1's
+choice. The netlobby stopgaps in `rollback.c` (`PortRbSnapshotAt`,
+`PortRbApplySnapshotAt`, `PortRbSetStallGate`) still work, same-build only.
+`web/net_game.js` should move to the calls below; the protocol is
+unchanged.
+
+| stopgap | replacement |
+|---|---|
+| `PortRbSealInput` | `PortNetSealFrame(frame, keys, seats)` |
+| `PortRbSnapshotAt(C, dest)` | `PortNetSnapSave` / `PortNetPagesSave` of the frame-top image (`PortNetImageFrame()`) |
+| `PortRbApplySnapshotAt(f, src)` | `PortNetApplyAt(blob, len)` (the frame is in the blob) |
+| `PortRbSetStallGate(0)` | not needed: `PortNetSessionStart` never stalls |
+
+**Session and inputs.** `PortNetSessionStart(seats, localSeat,
+humanMask)` puts the game on its network-input path with four slots and
+sets the sim-block session flag. It also starts a 1024-frame input ring:
+`PortNetSetLocalInput(frame, keys)`, `PortNetSealFrame`, and
+`PortNetSetHumans(frame, mask)` (applied at that frame). A missing input
+is "repeat last", the same rule the room seals with. The global KEYINPUT
+latch carries the **menu owner's** column, the lowest human seat, on every
+peer (R8).
+
+**The image** (`PortNetImageCapture/Apply`) is canonical and
+pointer-free, 478,652 bytes at 4 seats. In order:
+
+- EWRAM;
+- IWRAM;
+- the sim block's used bytes;
+- I/O, with the DMA address mirrors zeroed;
+- the DMA channels, canonical;
+- the PPU latches;
+- PLTT, VRAM, OAM;
+- SRAM.
+
+It is captured at the top of every session frame (6-8 µs). Saves read that
+capture, and loads are queued to the next frame top, so any call is legal
+at any time.
+
+**Blob** (40-byte header, then one zstd frame):
+
+```
+u32 'KSNP'  u8 ver=1 u8 0 u8 kind (0 full, 1 delta, 2 pages) u8 0
+u32 frame   u32 baseFrame   u32 rawSize   u32 payloadSize
+u8 simVersion[8]   u8 stateHash[8]
+```
+
+- **full**: zstd level 1 of the image.
+- **delta**: the image XOR a base both sides hold. The base is a blob
+  this peer saved or loaded; the last 4 are kept.
+- **pages**: u32 count, then (u32 index, 4 KiB) for each page whose hash
+  differs from the peer's `PortNetPageHashes`.
+
+The page hashes are **64-bit** (8 bytes each), not the u32-per-page of the
+§12.4 draft. That is 117 pages, 936 B. Use the engine's hashes, so the donor
+and the target compute the same thing.
+
+The receiver rebuilds the image and checks `stateHash` before applying.
+The error codes are in `netsim.h`. `simVersion` hashes the image layout,
+`PORT_MAX_SEATS` and `KATAM_SIM_VERSION`; it does **not** include the
+binary or the wasm id. Native and wasm builds of one commit agree, so the
+room's `sim` gate can drop the wasm id.
+
+**Hashes.**
+
+- `PortNetStateHash`: 64-bit, over the whole image.
+- `PortNetRegionHashes`: the 16 regions of §5.1. Region 7 is folded into 0
+  for now, 11 is I/O+DMA+PPU, 12 is VRAM, 13 is PLTT+OAM.
+- `PortNetPageHashes`.
+- `PortNetCheckpointHash(frame)`: every 30 frames, the last 64 kept.
+
+The referee should use these instead of RNG plus Kirby positions. The
+census masks (§3.4.1) still have to be applied before a hash means "same
+world" across *different* local players: the image today includes
+per-peer S*. That is the next step for the referee.
+
+**Apply at frame.** `PortNetApplyAt` loads frame F at the next frame top,
+then re-runs this peer's ring from F to the frame it was at, with the
+picture off. `PortNetSnapLoad` loads without the catch-up.
+
+The scanline loop now always runs, so a re-simulated frame is the same
+frame. Before this, `PORT_NO_RENDER` changed the sim column on 7297 of the
+7299 frames of play_rooms (the "HBlank skip" issue).
+
+**The correction event.** `PortNetLastCorrection` returns {frame,
+fromFrame, kirbyMask, per-Kirby old/new x/y/room, seq} and calls smooth's
+`PortRlNoteCorrection(frame)`, which snaps the next present.
+
+**Measured** (native LP64 / node 22 wasm, play_rooms, session from 1250,
+zstd level 1):
+
+| | native | wasm |
+|---|---|---|
+| full blob | 56.8-67.0 KB (of 478.7 KB raw; VRAM and SRAM included) | same bytes |
+| compress full | 240-300 µs | 325-395 µs |
+| delta, 1 s apart | 0.9-4.7 KB, 135-210 µs | same sizes, 230-310 µs |
+| delta, 5 s apart | 1.0-6.2 KB within a room; 30-62 KB across a room change | same |
+| decompress + apply | 150-200 µs + 140-170 µs | 490 µs + 84 µs |
+| catch-up, 121 frames headless | 1.1-1.6 ms | 3.3 ms |
+
+**Tests.**
+
+- `--net-test session:F,rewind:F:N` (`NET_TEST=` under node) saves frame
+  F, applies it at F+N, catches up, and requires the state hash to equal the
+  first pass. It PASSED on five recordings, natively and in wasm. The wasm
+  and native hashes at that frame are equal (`98CFFA336C7D1D5A` both).
+- **`tests/netsim_xplat.sh`**:
+  - native and node each save frame 3000, and the two images are
+    byte-identical for all six recordings (`tools/netsnap_diff.py`);
+  - each platform then loads the other's blob at frame 200 and plays on;
+  - every frame after that matches the platform's own unbroken run on
+    keys/sim/vid/sram/pix, and the native run on keys/vid/sram/pix;
+  - the one exception is attract's first frame after the load, whose sim
+    hash differs while vid/pix and every later frame match. Probably a DMA
+    channel armed with a port-memory source, which a canonical image
+    cannot carry and disarms.
+
+**What made it portable:**
+
+- R5, canonical code IDs (branch netsim-fnid, merged).
+- R6, five store sites now use the ROM's own copy of a table the port also
+  defines in C (`PORT_ROM_TABLE`, checked byte for byte against the ROM):
+  `gUnk_082D8D74`, `gUnk_082EB7F8`, `gUnk_082EB2B8/2D0/2E8/300`,
+  `gUnk_08355578`.
+- R7, the sim block.
+
+Other R6 store sites may exist outside the corpus. The xplat test is the
+detector.
+
+### 12.7 Native client: plan (`--net CODE`, `--net-create`)
+
+Not implemented: the native build has no WebSocket or TLS library
+(`third_party/` holds only imgui), and same-build snapshot syncs cannot cross
+between a native and a wasm peer until M2 anyway (R5), nor can inputs stay
+in step until M0 (R1, R2). The plan, in order:
+
+1. **Library: libdatachannel** (MPL-2.0, C++17, Windows/macOS/Linux). It
+   ships `rtc::WebSocket` (with TLS via OpenSSL or mbedTLS) *and* the
+   WebRTC data channels M6 needs, so one dependency covers both, vendored
+   under `third_party/` and built only for native targets.
+2. **`platform/native/net_client.c`** speaks protocol v2: the HTTP calls
+   (`POST /v2/rooms`, `GET /v2/rooms/CODE`) over the same library, HELLO with
+   `platform: 'native'`, the FRAMES decoder (a port of `wire.mjs`, ~100
+   lines), and the engine calls `web/net_game.js` makes. `--net CODE` joins,
+   `--net-create` creates and prints the code (and a share URL for browser
+   players), `--net-server URL` overrides the default.
+3. **Lobby in the settings menu** (imgui): the same seats, ready, host
+   controls; the 4-letter code shown large.
+4. **Until M2**, the room's version gate (`sim` includes the binary id)
+   keeps native and web players in separate rooms -- a native-only room
+   works as soon as steps 1-2 land, since two copies of one native binary
+   share a layout. Mixed rooms need M0 + M2.
+
+Alternatively, for testing only, a native peer can run the session from a
+small node sidecar over a local pipe; not worth shipping.
+
+## 13. Scaling past 4 players
+
+The playable cap stays 4: it is the sim's (`gKirbys[4]`, the u8 free-slot
+mask, per-room object pools, the cable identity), and netsim owns it
+(`PORT_MAX_SEATS`, experiment flag 8). Nothing in the protocol or the room
+is sized by it.
+
+**What is variable now.** `seats` is a session parameter (u16 on the wire;
+the room caps it at 1024, and at the smallest `caps.seats` a member
+declares); `kirbys` is a separate parameter, the sim slots a seat can drive
+(4). FRAMES carries a seat bitmask of `ceil(seats/8)` bytes per frame plus a
+u16 for each seat whose input changed, so a frame where nobody changed costs
+the mask alone at any size. Hash reports, rosters, the lobby's seat list and
+donor election are all lists. INPUT carries one seat's own column (the room
+knows whose).
+
+**Measured** (`netplay/tools/load_test.mjs`, synthetic clients over the dev
+relay, inputs changing every ~23 frames, 12 s at 60 Hz):
+
+| clients | scenario | streams identical | seal latency, fast peers p50 / p95 / p99 ms | slow peers p50 ms | down B/s per client | up B/s per client | join burst B/client | room fan-out msgs/s |
+|---|---|---|---|---|---|---|---|---|
+| 4 | all on time | yes | 1 / 2 / 2 | - | 1,201 | 535 | 4,415 | 247 |
+| 8 | all on time | yes | 1 / 2 / 2 | - | 1,275 | 534 | 10,387 | 493 |
+| 16 | all on time | yes | 1 / 2 / 2 | - | 1,463 | 530 | 8,954 | 985 |
+| 100 | all on time | yes | 2 / 4 / 5 | - | 3,612 | 534 | 22,126 | 6,167 |
+| 16 | 1 on a 300 ms one-way link | yes | 1 / 2 / 106 | 650 | 1,494 | 534 | 11,130 | 1,005 |
+| 16 | 1 slow device (30 Hz) | yes | 1 / 74 / 106 | 18 | 1,456 | 522 | 8,954 | 971 |
+| 100 | 5 on 300 ms links | yes | 2 / 3 / 106 | 650 | 3,654 | 534 | 149,395 | 6,283 |
+| 100 | 5 on 300 ms links, `flushMs` 33 | yes | 20 / 37 / 138 | 651 | 3,097 | 534 | 149,397 | 2,308 |
+
+"Seal latency" is from a client sending frame f to it receiving f sealed.
+The p99 of ~106 ms in the slow scenarios is the deadline being paid while a
+late seat is still expected, before it is excused. Down includes the
+per-second stats and roster messages; the sealed stream alone was 2.1 KB/s
+per client at 100 seats. The join burst (rosters while 100 clients connect)
+is the cost the roster coalescing bounds; the slow-link runs show it higher
+because a delayed client receives rosters that coalescing could not merge.
+Over `wrangler dev` (local workerd), 4 clients: p50 1 ms, p95 2 ms, p99 161 ms,
+1.2% of frames sealed at the deadline -- local workerd's scheduling jitter,
+not the protocol.
+
+The room seals at the deadline only for seats that miss it; excusal stops a
+chronically late seat costing anyone else latency. What grows with N is
+fan-out: every sealed frame goes to every member, so 100 clients is 6,000
+messages a second out of one DO. `flushMs` (coalescing sealed frames, e.g.
+33 ms) cuts that roughly in half at the price of latency; the roster, which
+is O(N) and broadcast on change, is coalesced (`rosterMs`, 250 ms) in rooms
+above 8 so a burst of joins is not O(N²).
+
+**What a 16-to-100-player session needs, in order:**
+
+1. **The deadline sequencer as specified here** (done): nobody waits; a slow
+   player costs only themselves (their own inputs land late, the room fills
+   them).
+2. **Observer tiers.** Spectators already take no seat and send no input.
+   Add a *relay tier*: a few trusted peers (or a second DO) re-broadcast the
+   sealed stream to spectators, so the room's fan-out is to players only.
+   Spectators run confirmed-only and never need syncs beyond their join.
+3. **Sharding by area.** A big session is many small simulations: peers in
+   the same game room (or area) share a sim and need each other's inputs;
+   peers elsewhere do not. A *shard* is (room-or-area id, sim state); each
+   shard is its own SessionCore (its own seats, sequencer, referee, donor),
+   and a player moving between areas is a LEAVE from one shard and a
+   snapshot JOIN to the other -- the same operations as today. A directory
+   DO above the shards holds the session's global state (who is where, the
+   save). The shard boundary must be one the game respects: KATAM's levels
+   already isolate rooms (per-room object pools, per-room `LevelInfo`), so
+   "players in the same room" is the natural unit.
+4. **Interest management inside a shard** if a shard itself gets crowded:
+   FRAMES per member filtered to the seats near it would break the
+   one-stream-for-everyone property, so prefer smaller shards.
+
+**What the protocol needs now so this is possible later** (all present):
+seat counts as parameters, not constants; seat ids u16 with bitmask frames;
+per-member stream state in the room (`streaming`, delta base) so a member can
+be moved between streams; the sync relay keyed by transfer id, not by seat;
+`signal` relay as the seam for WebRTC (M6) and for relay-tier peers; and a
+room id that is not the code, so a directory can map one code to many
+shards.
+
+## 14. Simulation past 4 players (the sim side)
+
+§13 covers the protocol, which is sized by parameters. This section is the
+simulation's half. Citations are at `main` 568985c. "Measured" means a
+1edaa0f binary or a scratch instrumented copy that is layout-neutral
+against it, on a Ryzen 9 9950X with node 22.
+
+### 14.1 Where the game assumes four
+
+Counted by grep and a loop classifier:
+
+- **56** `for` loops with a literal 4 that index a per-player array. 22 are
+  in `cutscene_trigger.c` and 13 in `pause_help.c`.
+- **96** unrolled `gKirbys[0..3]`, mostly in `kirby_cannon.c`,
+  `eight_dir_cannon.c`, `code_0806F780.c` and `scroll_lock.c`, plus **33**
+  unrolled `gCurLevelInfo[0..3]`.
+- **74** `[gNumHumanPlayers - 1]` indexes into 4-column ROM tables
+  (difficulty, e.g. `bombar.c:668`).
+- 513 `gLocalPlayerId` reads.
+- 425 uses of the owner bit test `Macro_0810B1F4`.
+- 220 `FindTargetKirby` calls.
+- Loops bounded by `gNumKirbys` (99 of them) are correct once the arrays
+  are wider.
+
+| item | today | to lift | class |
+|---|---|---|---|
+| `gKirbys` | 0x02020EE0, 424 B × 4 | relocate (sim block), +424 B/player | layout |
+| `gCurLevelInfo` | 0x02023530, 1640 B × 4, including a 64-node object pool | relocate, +1640 B/player | layout |
+| AI `gUnk_02038590` | 244 B × 4; created for `arg0..3` (`code_080332BC.c:64`) | relocate | layout |
+| input block `gUnk_020382D0` | `unk8[3][4]` etc. (`include/main.h:27`) | widen every inner `[4]` | layout |
+| per-Kirby animation table and demo buffer | `gUnk_02021590`, `gUnk_02038990` | relocate | layout |
+| **room slots** | ≈19.8 KB per slot (tilemap, collision, lists), indexed by `LevelInfo.unk65E`; one per *occupied room*, a u8 mask over 4 (`level.c:345-360`) | widen the mask; slots ≥ distinct occupied rooms; split the slot/player loop at `object_collision.c:586` | layout |
+| owner/visibility mask `gUnk_03000510` | bits 0-3 are per Kirby, 0x10 is a flag (`object.h:46-62,226`) | u32, move the flag high | layout |
+| enemy targeting | `FindTargetKirby` scans the room (`kirby.c:5352`); `sub_0803D46C` has a local `u8 array[4]` (`:5390`, overflows past 4) | widen; O(enemies × N) | cost |
+| difficulty | 74 `[gNumHumanPlayers-1]` into 4-column ROM tables | policy: clamp at 4 | design |
+| phone/helpers, HUD | 4-entry ROM tables (`hud.c:1487`) | disable / new HUD | design |
+| OBJ palettes | Kirby *i* uses palettes *i* and *i*+4 (`kirby.c:6145-6168`) | 8 Kirbys use all 16; beyond that, palettes per viewer (M8) | hardware |
+| OBJ VRAM | 2 KiB per Kirby at 0x06010000 + (i << 11) | 16 Kirbys use all 32 KiB; beyond that, per viewer (M8) | hardware |
+| task pool | 128 (`task.h:16`); full means objects silently do not spawn; peak 58 measured | 100 players need about 200 for the Kirbys alone; move to EWRAM | layout |
+| SIO identity | 2 bits (`code_080332BC.c:44`) | retired in v2 | n/a |
+| port | `PORT_MP_PLAYERS 4` → `PORT_RB_PLAYERS`; `warp.c:162`; the sim block is already sized by `PORT_MAX_SEATS` | widen | layout |
+
+`FillLevelInfo` already hands a leaving Kirby's spawned objects to the Kirby
+that stays (`level.c:308-325`): a per-room ownership hand-off, which is the
+primitive sharding needs.
+
+### 14.2 Cost today
+
+**Measured**, per frame, with the scanline loop running and composition off:
+
+| | native | wasm (node) |
+|---|---|---|
+| sim (logic + VBlank handler) | mean 2.7 µs, p99 6.5 µs | mean 7.5 µs, p50 5.3 µs |
+| scanline loop | 0.64 µs | 1.31 µs |
+| composition | 715 µs | 1198 µs |
+
+Where the time goes:
+
+- 112-114 ns per Kirby task, 64-68 ns per AI, 109-145 ns per object.
+- **Objects drive the cost, not rooms.** All 4 Kirbys in one room costs
+  2.2-3.4 µs, spread over 4 rooms 2.9-3.2 µs.
+- Per Kirby, from N = 1..4: `1.96 + 0.25·N` µs in one room, `1.80 + 0.21·N`
+  spread.
+- Entering a room nobody else is in costs 11-19 µs once (decompress into
+  the slot). For the local Kirby it is 80-135 µs, mostly VRAM.
+
+### 14.3 Estimates at 8, 16 and 100
+
+The model is `T(N) ≈ 1.9 + 0.23·N + 0.63 µs + Q`, where Q is the
+O(enemies × N) targeting term: 25-50 µs at 100 players, 50 rooms and 250
+enemies. It is extrapolated from N ≤ 4. A mid-range phone is taken as ×3
+wasm (Geekbench ratio, cited).
+
+| N | native | wasm | phone mid | rollback / catch-up of 10 frames, phone |
+|---|---|---|---|---|
+| 4 | 3.3 µs | 6.6 µs | 20 µs | 0.28 ms |
+| 8 | 4.4 | 10 | 30 | 0.40 |
+| 16 | 6.2 | 14 | 43 | 0.64 |
+| 100 | 50-75 | 115-175 | 350-520 µs | 4.7-7.2 ms |
+
+Under v2.1 (no rollback; catch-up only after a sync), CPU fits even at 100.
+
+### 14.4 Snapshot size
+
+**Measured.** EWRAM+IWRAM is 288 KiB raw and 8.9-18 KB at zstd-3. That is
+about 1.5-2.2 KB per occupied room and 0.35-0.45 KB per Kirby. The engine's
+full image (§12.6) adds VRAM and SRAM, giving 57-67 KB at zstd-1.
+
+**Estimated**, with as many room slots as players:
+
+| N | rooms | raw | zstd |
+|---|---|---|---|
+| 8 | 8 | 395 KB | 23-29 KB |
+| 16 | 16 | 596 KB | 38-49 KB |
+| 100 | 50-100 | 2.7 MB | 125-270 KB |
+
+A 1 s delta is 1-5 KB today and grows with activity, not with N.
+
+### 14.5 Recommendation
+
+- **8: reachable by widening and relocating** the arrays above into the
+  sim block, behind a build flag (`PORT_MAX_SEATS=8` already sizes the
+  block). Two decisions are needed: palettes (all 16 used by Kirbys) and
+  four new Kirby colours.
+- **16: also needs the M8 presentation split.** OBJ VRAM and palettes must
+  be assigned per viewer, to the Kirbys on that viewer's screen. The task
+  pool must move to EWRAM.
+- **100: room sharding, not one world.**
+  - A shard is a set of game rooms, simulated only by the peers whose
+    players are in it, with its own sealed stream and donor (§13).
+  - **Handoff:** the old shard seals the Kirby at an agreed frame. Its
+    record (5.3 KB raw, about 0.45 KB compressed) moves to the destination,
+    which loads the room slot (11-19 µs).
+  - **Global state** (doors, chests, treasures, boss flags, `gWorldProps`)
+    becomes server events, not lockstep.
+  - **Drift repair** is a per-shard donor sync of 10-20 KB.
+  - **Design work:** "everyone in the room" gates (`scroll_lock.c:277`,
+    cutscene triggers) become per-shard quorums; difficulty is clamped;
+    phone helpers are disabled.
+  - **Cap per shard:** about 8 Kirbys, the palette limit. The collision
+    lists hold 32 per kind and slot, with no bounds check
+    (`code_0806F780.c:760-764`).
+- **A `KATAM_MAX_KIRBYS=8` flag** would have to change:
+  - `ram_symbols.h` relocations for every per-player and per-slot array;
+  - the inner `[4]`s of `Unk_020382D0`;
+  - `Unk_03000510`;
+  - `level.c:345-360`, `code_080332BC.c:59,64`, `object.h:46-62,226`,
+    `kirby.c:5390` and `kirby.c:6137-6168`, `object_collision.c:586`;
+  - the 56 + 129 literal and unrolled sites;
+  - the port's `PORT_MP_PLAYERS`.
+
+  Not prototyped here.
 
 ---
 

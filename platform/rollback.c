@@ -365,6 +365,62 @@ static u8 *SlotFor(u32 frame)
     return sRing + (size_t)(frame % (u32)sDepth) * sSnapBytes;
 }
 
+/* --- world sync (netplay v2, docs/design/NETPLAY-V2.md "Model v2.1") ------
+ *
+ * The seam the session layer (web/net_game.js) needs from today's engine
+ * until netsim's PortNet* API lands: read the state at the start of a past
+ * frame out of the ring, and replace the state at a frame with a donor's,
+ * then re-simulate to where this instance was.  Same-build only, like the
+ * ring itself: a snapshot holds host function pointers (R5). */
+static u8 *sPendingSnap;
+static u32 sPendingFrame;
+static int sPendingLoad;
+static int sStallGate = 1;
+
+/* The state at the start of `frame`, as last simulated, into dest
+ * (PortRbSnapshotBytes long).  0 when the ring no longer holds it, or while
+ * a rollback or a catch-up could still rewrite it. */
+int PortRbSnapshotAt(u32 frame, void *dest)
+{
+    u32 slot;
+
+    if (!sActive || dest == NULL || sPendingLoad || sCatchUp)
+        return 0;
+    if (frame >= sFrame)
+        return 0;
+    slot = frame % (u32)sDepth;
+    if (!sRingValid[slot] || sRingFrame[slot] != frame)
+        return 0;
+    memcpy(dest, SlotFor(frame), sSnapBytes);
+    return 1;
+}
+
+/* Take `src` as the state at the start of `frame`, at the next frame
+ * boundary, and re-simulate (picture off) to the frame this instance had
+ * reached -- or jump forward to `frame` if it was behind.  The timeline and
+ * the events are kept: they are the session's, not the donor's. */
+int PortRbApplySnapshotAt(u32 frame, const void *src)
+{
+    if (!sActive || src == NULL)
+        return 0;
+    if (sPendingSnap == NULL) {
+        sPendingSnap = (u8 *)malloc(sSnapBytes);
+        if (sPendingSnap == NULL)
+            return 0;
+    }
+    memcpy(sPendingSnap, src, sSnapBytes);
+    sPendingFrame = frame;
+    sPendingLoad = 1;
+    return 1;
+}
+
+/* 0 turns PortRbShouldStall off: in a v2 session nobody waits for anybody,
+ * and a frame beyond the ring is repaired by a world sync instead. */
+void PortRbSetStallGate(int on)
+{
+    sStallGate = on ? 1 : 0;
+}
+
 int PortRbActive(void) { return sActive; }
 int PortRbCatchingUp(void) { return sCatchUp; }
 
@@ -430,6 +486,9 @@ int PortRbInit(int depth, int players)
 
 void PortRbShutdown(void)
 {
+    free(sPendingSnap); sPendingSnap = NULL;
+    sPendingLoad = 0;
+    sStallGate = 1;
     free(sRing);   sRing = NULL;
     free(sTl.keys);  sTl.keys = NULL;
     free(sTl.known); sTl.known = NULL;
@@ -613,7 +672,7 @@ int PortRbShouldStall(void)
 
     /* Only a live net-play session (PortRbNetPlay ran) gates: the
      * self-tests and probes drive every column locally and would starve. */
-    if (!sActive || sCatchUp || sFocusSlot < 0)
+    if (!sActive || sCatchUp || sFocusSlot < 0 || !sStallGate)
         return 0;
     self = SelfId();
     for (s = 0; s < PORT_RB_PLAYERS; s++) {
@@ -824,6 +883,52 @@ void PortRbFrame(void)
 {
     if (!sActive)
         return;
+
+    /* A world sync arrived (PortRbApplySnapshotAt).  Same safe point as a
+     * rollback.  Events between the old frame and the snapshot's are applied
+     * on the way, so the slot map (timeline state outside the snapshot) is
+     * the one every peer has at that frame. */
+    if (sPendingLoad) {
+        u32 old = sFrame, to = sPendingFrame;
+        int i;
+
+        sPendingLoad = 0;
+        LoadFrom(sPendingSnap);
+        if (to > old) {
+            u32 last = 0xFFFFFFFFu;
+
+            for (i = 0; i < sNumEvents; i++)
+                if (sEvents[i].frame >= old && sEvents[i].frame < to
+                 && sEvents[i].frame != last) {
+                    last = sEvents[i].frame;
+                    ApplyEventsFor(last);
+                }
+        }
+        memset(sRingValid, 0, sizeof sRingValid);
+        sFrame = to;
+        {
+            int p;
+
+            for (p = 0; p < PORT_RB_PLAYERS; p++)
+                if (sPeerKnown[p] < to)
+                    sPeerKnown[p] = to;
+        }
+        if (sConfirmed < to)
+            sConfirmed = to;
+        if (!TimelineReserve(sFrame + 1))
+            return;
+        if (sTl.len < to)
+            sTl.len = to;
+        if (old > to) {
+            sCatchUpTo = old;
+            sCatchUp = 1;
+            PortSetRenderEnabled(0);
+        } else {
+            sCatchUp = 0;
+            PortSetRenderEnabled(1);
+        }
+        sStats.rollbacks++;
+    }
 
     /* A rollback was asked for while the last frame was running.  Now is when
      * it is safe: the stack is main -> AgbMain -> GameLoop -> VBlankIntrWait ->

@@ -137,7 +137,10 @@ struct PortSimBlock {
     struct PortSimGame    game;
     struct PortSimSession session;
     struct PortSimRando   rando;
-    /* the mod store follows `rando`, at PortSimModStore() */
+    /* New port-owned sim state goes here, after `rando` (the room-bundle
+     * loader, branch roomload, is expected to add its struct here), and
+     * bumps PORT_SIM_VERSION.  `spare` above and the header's reserved
+     * words are free too.  The mod store follows, at PortSimModStore(). */
 };
 
 #define gPortSim ((struct PortSimBlock *)(uintptr_t)PORT_SIM_BASE)
