@@ -33,6 +33,16 @@ void PortSettingsChanged(void);
 void PortSettingsApplyEarly(void);
 /* Which renderer is drawing right now (the setting, unless unavailable). */
 int PortShowUsingGpu(void);
+/* The host sets this when it calls PortShowAgain at the display's rate
+ * between sim frames (vsync; not turbo, not a scripted run): the condition
+ * for interpolating. */
+extern int gPortShowDisplayRate;
+/* The host, before PortShowNewFrame: when on its 59.73 Hz schedule the frame
+ * about to be shown was due (the clock nowMs is on).  Optional: without it
+ * the presenter follows the arrival times. */
+void PortShowFrameDue(double dueMs);
+/* The host: a picture just went to the display (KATAM_CAMLOG). */
+void PortShowNoteSwap(double nowMs);
 
 /* --- the menu (ui_menu.cpp) ---------------------------------------------- */
 

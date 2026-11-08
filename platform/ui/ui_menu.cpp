@@ -421,8 +421,16 @@ static int MenuBody(void)
             ImGui::SameLine();
             if (ImGui::Checkbox("VSync", &vs)) { s.vsync = vs; changed = 1; }
         }
+        bool sc = s.smoothCam != 0, ip = s.interp != 0;
+        ImGui::BeginDisabled(s.renderer != PS_RENDER_GPU);
+        if (ImGui::Checkbox("Smooth camera", &sc)) { s.smoothCam = sc; changed = 1; }
+        SameLineIfFits("Interpolation");
+        if (ImGui::Checkbox("Interpolation", &ip)) { s.interp = ip; changed = 1; }
+        ImGui::EndDisabled();
         ImGui::Text("Game %.1f frames/s, drawn %.1f/s", (double)st.simFps, (double)st.drawFps);
-        Hint("The game always runs at the GBA's 59.73 Hz; a faster display repeats frames.");
+        Hint("The game always runs at the GBA's 59.73 Hz. Smooth camera scrolls by fractions of a "
+             "game pixel; Interpolation draws in-between frames on a faster display (up to one "
+             "frame of extra delay).");
     }
 
     if (Section("Audio")) {

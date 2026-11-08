@@ -71,7 +71,10 @@ static struct {
     s32 recFp[3][2];
     s32 camVpX, camVpY;          /* viewportPosition, 8.8                     */
     s32 kirbyFp[4][2];
-    u8 kirbyOk[4][3];            /* base.sprite, sprites[0], sprites[1]      */
+    /* Per sprite struct (base.sprite, sprites[0], sprites[1]): whether its
+     * anchor is that position's pixel, rounded either way the game does it
+     * -- (x >> 8) - (camera >> 8) for objects, (x - camera) >> 8 for Kirby. */
+    u8 kirbyOk[4][3];
 } sScreen;
 
 /* --- sprite emission ----------------------------------------------------- */
@@ -548,18 +551,24 @@ void PortRlCommitScreen(void)
         s32 cj = sScreen.bg[1].offY * 8 + sScreen.bg[1].scrollY;
         s32 vx = li->viewportPosition.x >> 8, vy = li->viewportPosition.y >> 8;
 
+        s32 fx = li->viewportPosition.x & 0xFF, fy = li->viewportPosition.y & 0xFF;
+
         for (i = 0; i < 4; i++) {
             const struct Kirby *k = &gKirbys[i];
             const struct Sprite *spr[3];
-            s32 sx = (k->base.x >> 8) - vx, sy = (k->base.y >> 8) - vy;
+            s32 cx = k->base.x + (ci - vx) * 256, cy = k->base.y + (cj - vy) * 256;
             int j;
 
             spr[0] = &k->base.sprite; spr[1] = &k->sprites[0]; spr[2] = &k->sprites[1];
-            sScreen.kirbyFp[i][0] = k->base.x + (ci - vx) * 256;
-            sScreen.kirbyFp[i][1] = k->base.y + (cj - vy) * 256;
-            for (j = 0; j < 3; j++)
-                sScreen.kirbyOk[i][j] = spr[j]->x == sx && spr[j]->y == sy
-                                        && !(spr[j]->unk8 & 0x20000);
+            for (j = 0; j < 3; j++) {
+                s32 ax = spr[j]->x + ci, ay = spr[j]->y + cj;
+
+                sScreen.kirbyOk[i][j] = !(spr[j]->unk8 & 0x20000)
+                    && (ax == (cx >> 8) || ax == ((cx - fx) >> 8))
+                    && (ay == (cy >> 8) || ay == ((cy - fy) >> 8));
+            }
+            sScreen.kirbyFp[i][0] = cx;
+            sScreen.kirbyFp[i][1] = cy;
         }
     }
 }
@@ -1037,6 +1046,7 @@ static void MotFinish(Motion *m, const Motion *mp)
     s32 i, k, j;
 
     memcpy(m->kirbyFp, sScreen.kirbyFp, sizeof(m->kirbyFp));
+
     for (i = 0; i < m->nGroups; i++) {
         MotGroup *g = &m->g[i];
 
@@ -1491,8 +1501,23 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
     int lerp;
 
     sDiagOk = 0;
-    if (!flags || !sFrame.serial || !c->valid)
+    if (!flags || !sFrame.serial || !c->valid) {
+        /* As built; the diagnostics in whole pixels. */
+        n = (s32)(sFrame.numSprites + sFrame.numObjWin);
+        for (i = 0; i < n && c->valid; i++) {
+            s32 gi = sOutGroup[i];
+
+            if (gi >= 0 && gi < c->nGroups && c->g[gi].owner == kirby && c->g[gi].occ == 0) {
+                sDiag[0] = (c->g[gi].ax - sFrame.viewX) * 256;
+                sDiag[1] = (c->g[gi].ay - sFrame.viewY) * 256;
+                sDiagOk = 1;
+                break;
+            }
+        }
+        sDiag[2] = (sFrame.camX + sFrame.viewX) * 256;
+        sDiag[3] = (sFrame.camY + sFrame.viewY) * 256;
         return sFrame.serial ? &sFrame : NULL;
+    }
     t = (flags & RL_PRESENT_INTERP) ? (s32)(alpha * 256.0f + 0.5f) : 256;
     if (t < 0) t = 0;
     if (t > 256) t = 256;
