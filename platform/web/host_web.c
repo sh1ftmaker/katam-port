@@ -141,6 +141,10 @@ void PortHostInit(int argc, char **argv)
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
+/* Pictures drawn and frames simulated per second (the menu's numbers), for
+ * a test harness checking that paints between frames are being drawn. */
+EMSCRIPTEN_KEEPALIVE double PortWebDrawRateJs(void) { return gPortUiStatus.drawFps; }
+EMSCRIPTEN_KEEPALIVE double PortWebSimRateJs(void) { return gPortUiStatus.simFps; }
 
 /* Everything the port says goes to two places: the browser console, and the
  * page's own log.
