@@ -141,28 +141,10 @@ SKIP_TYPES = set()
 # One member in the tree.  The typedef is emitted next to the structure rather
 # than in a shared header so that it stays where its only user is.
 NARROW_SITES = {
-    # An anonymous union whose whole body is on one line.  narrow_members works
-    # a line at a time -- it finds a `{`, then rewrites the member declarations
-    # between it and the matching `}` -- so a body that opens and closes on the
-    # same line has no lines to rewrite and passes through untouched.
-    #
-    # The cost of missing it is not a wrong pointer.  It is eight bytes instead
-    # of four, which makes `struct CutsceneTrigger` 0x2C0 rather than 0x2B8,
-    # which makes `TaskCreate(..., sizeof(struct CutsceneTrigger), ...)` ask the
-    # IWRAM heap for more than the console would, which makes the heap run out
-    # sooner, which makes some *later* object fall back to EWRAM -- and the
-    # first frame that looks different is 73 frames after that.
-    #
-    # One instance in the tree, so the general fix (teach narrow_members to
-    # split a single-line body) would be more machinery than the problem.
-    # tools/abi_size_diff.py is what makes that a safe trade: a second instance
-    # shows up there as a type whose size differs between the two ABIs.
-    'cutscene_trigger.c': [
-        ('    /* 0x0C8 */ union { struct Object4 *obj4; s16 s; u16 h; '
-         'u8 b[4]; s8 sb[4]; } unkC8;',
-         '    /* 0x0C8 */ union { PTR32(struct Object4) obj4; s16 s; u16 h; '
-         'u8 b[4]; s8 sb[4]; } unkC8;'),
-    ],
+    # cutscene_trigger.c's one-line union at 0x0C8 used to be here.  Upstream
+    # moved struct CutsceneTrigger to cutscene_trigger.h and split the union
+    # into per-variant structs with ordinary multi-line bodies, which
+    # narrow_members handles; tools/abi_size_diff.py is what confirms it.
     'intro.h': [
         ('    void (*const *unkC)(struct Unk_08145B64_5EC *);',
          '    PTR32(PortFnpUnk_08387348_unkC) unkC;'),
@@ -206,7 +188,8 @@ NARROW_SITES = {
 # reports this as the only instance.  Run it after a decomp update; a new entry
 # here is the fix.
 ALIASED_ARRAYS = {
-    'code.c': [
+    # The extern used to be local to code.c; upstream moved it to data.h.
+    'data.h': [
         ('extern struct RoomTiledBG *const gUnk_082D8D74[];',
          'extern PTR32(struct RoomTiledBG) const gUnk_082D8D74[];'),
     ],

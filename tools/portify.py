@@ -111,14 +111,11 @@ UNDEF_NONMATCHING = {
 # callee's type at every indirect call.  Each is redirected to an adapter in
 # platform/adapters.c that has the signature the call site expects.
 FNPTR_CASTS = {
-    'code.c': [
-        ('(TaskDestructor)sub_08002E3C', 'PortDtor_sub_08002E3C'),
-    ],
-    'code_0802B4A8.c': [
-        ('(TaskMain)sub_0802D528', 'PortMain_sub_0802D528'),
-        ('(TaskMain)sub_0802D53C', 'PortMain_sub_0802D53C'),
-        ('(TaskMain)sub_0802D550', 'PortMain_sub_0802D550'),
-    ],
+    # Empty since the upstream sync of 2026-11: upstream retyped
+    # sub_08002E3C to take the task it is handed (so level.c passes it as a
+    # plain TaskDestructor), and the three (TaskMain)sub_0802D5xx casts were
+    # in the port's own decompilation of code_0802B4A8, which upstream still
+    # has as assembly.  Kept as the place to put the next one.
 }
 
 # Reads through a pointer built from a field that is not initialised yet.  On
@@ -132,9 +129,11 @@ FNPTR_CASTS = {
 # docs/DECOMP-REQUESTS.md asks the decompilation for a guard so the port does
 # not have to patch the text.
 WILD_READS = {
-    'code_08032E98.c': (
-        [('gUnk_08D6CD0C[gKirbys[gUnk_0203AD3C].base.base.base.roomId]->unk46',
-          'PortRoomTilesetIndex(gKirbys[gUnk_0203AD3C].base.base.base.roomId)')],
+    # Upstream split code_08032E98.c; the read now lives in hud.c's
+    # DrawEnemyHealthOrAreaName (was sub_08034FA8), twice.
+    'hud.c': (
+        [('gUnk_08D6CD0C[gKirbys[gLocalPlayerId].base.roomId]->unk46',
+          'PortRoomTilesetIndex(gKirbys[gLocalPlayerId].base.roomId)')],
         'u16 PortRoomTilesetIndex(u16 roomId);\n',
     ),
 }
@@ -188,23 +187,10 @@ NULL_DEREFS = {
 # DMA_ENABLE | DMA_START_NOW | DMA_16BIT | DMA_SRC_INC | DMA_DEST_INC, which is
 # exactly what DmaCopy16 expands to, and the count arithmetic is identical.
 RAW_DMA = {
-    'bg.c': [(
-        """                                vu32 *dmaRegs = (vu32 *)(0x4000000 + 0xd4);
-                                s32 size;
-                                size = r8 - 1;
-                                dmaRegs[0] = (vu32)(r2);
-                                dmaRegs[1] = (vu32)(r4);
-                                dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - (size)) * sp8)/(16/8)));
-                                //dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - ({ r8 - 1; })) * sp8)/(16/8)));
-                                dmaRegs[2];""",
-        """                                /* PORT: was an open-coded DMA3 register poke.
-                                 * Software DMA cannot see raw register stores,
-                                 * so this moved nothing and every scrolling
-                                 * background's tilemap stayed at its fill
-                                 * value.  This is the decompilation's own
-                                 * commented-out equivalent, restored. */
-                                DmaCopy16(3, r2, r4, (r6->unk26 - (r8 - 1)) * sp8);""",
-    )],
+    # The one instance (sub_08153184's scrolling-BG row copy in bg.c) was
+    # rewritten upstream as DmaCopy16 when the function was matched
+    # (decomp 1197474), so there is nothing left to substitute.  A grep of
+    # src/ for 0x40000D4 / REG_DMA3 finds no other raw register poke.
 }
 
 CODE_IN_RAM = {
@@ -317,20 +303,13 @@ def round_struct_sizes(text, rep, name):
 
 
 FNPTR_ADAPTER_DECLS = {
-    'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
-    'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
-                        'void PortMain_sub_0802D53C(void);\n'
-                        'void PortMain_sub_0802D550(void);\n'),
 }
 
 
 DECL_FIXES = {
-    'code_0802E57C.c': [
-        ('void sub_0802F8D8(struct Unk_0802E57C *',
-         'void *sub_0802F8D8(struct Unk_0802E57C *'),
-        ('void sub_0802FA40(struct Unk_0802E57C *',
-         'void *sub_0802FA40(struct Unk_0802E57C *'),
-    ],
+    # code_0802E57C.c's two `void` prototypes for functions returning a
+    # pointer were in the port's own decompilation of that file; upstream
+    # still has it as assembly (asm/code_0802E57C.s).
 }
 
 
@@ -861,6 +840,7 @@ def main():
         new = narrow32.narrow_members(new, rep, name=hp.name,
                                       typedefs=narrow_typedefs)
         new = round_struct_sizes(new, rep, hp.name)
+        new = narrow32.apply_aliased_arrays(new, hp.name, rep)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')
