@@ -20,6 +20,10 @@ int GlrInit(void *(*getProc)(const char *), int es);
 /* Draw the frame into the renderer's view-sized target.  Cheap to call again
  * with the same frame (a re-present at display rate). */
 void GlrDraw(const RlFrame *frame);
+/* The same at k target pixels per game pixel (reduced to fit the largest
+ * texture), honouring the frame's 1/256-px positions (see gl_renderer.c).
+ * The source GlrPresentRect/GlrReadback then see is viewW*k x viewH*k. */
+void GlrDrawScaled(const RlFrame *frame, int k);
 
 /* Scale the last drawn frame into the current framebuffer 0 of `w` x `h`
  * pixels: the largest integer scale that fits, nearest-neighbour, centred,

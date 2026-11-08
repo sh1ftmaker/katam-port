@@ -60,6 +60,18 @@ static struct {
     s32 rectL, rectT, rectR, rectB;  /* camera rectangle, world pixels         */
     s32 factor[3][2];            /* 8.8, per record                          */
     u32 serial;
+    /* For PortRlPresentFrame: the exact positions behind the whole pixels.
+     * recFp: each record's scroll in 1/256 px, the record's own whole-pixel
+     * scroll (offX * 8 + scrollX) plus the fraction the game dropped (the
+     * camera's for the room, altViewport's for the two parallax records);
+     * just the whole pixel when the fraction cannot be proven to belong to
+     * it.  kirby: each player's 8.8 position, offset as the room layer is
+     * (a camera shake moves the room, not the sprites), and per sprite
+     * struct whether its anchor is that position's whole pixel. */
+    s32 recFp[3][2];
+    s32 camVpX, camVpY;          /* viewportPosition, 8.8                     */
+    s32 kirbyFp[4][2];
+    u8 kirbyOk[4][3];            /* base.sprite, sprites[0], sprites[1]      */
 } sScreen;
 
 /* --- sprite emission ----------------------------------------------------- */
@@ -68,7 +80,8 @@ typedef struct {
     RlSprite s;
     u8 z;                /* the OAM link layer, (unk14 >> 6) & 0x1F          */
     u8 inOam;            /* the game wrote this one to its OAM pool         */
-    const void *owner;   /* the struct Sprite it came from (diagnostics)     */
+    const void *owner;   /* the struct Sprite it came from                   */
+    s32 ax, ay;          /* its anchor (sprite->x/y as drawn), for matching  */
 } PendingSprite;
 
 typedef struct {
@@ -172,7 +185,7 @@ static void EmitTilePatches(const struct Sprite *sprite, union SpriteAttributes 
 void PortRlEmitSprite(const struct Sprite *sprite, int variant)
 {
     union SpriteAttributes spriteAttrs;
-    s32 x, y, w, h;
+    s32 x, y, w, h, ax, ay;
     u16 a0bits = 0, a1bits = 0, a2bits;
     int vflip = 0, hflip = 0, accepted, k, n;
     s32 pool;
@@ -194,6 +207,8 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         x -= gUnk_030023F4.unk0;
         y -= gUnk_030023F4.unk2;
     }
+    ax = x;                 /* the anchor, before the frame's offsets */
+    ay = y;
     w = spriteAttrs.sub->width;
     h = spriteAttrs.sub->height;
     if (sprite->unk8 & 0x20) {
@@ -295,6 +310,8 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         if (p->z > 0x1F) p->z = 0x1F;
         p->inOam = (u8)inOam;
         p->owner = sprite;
+        p->ax = ax;
+        p->ay = ay;
     }
 
     if ((sprite->unk4 >> 28) == 1 && (sprite->unk8 & 0x4000000) && !uploadDone)
@@ -501,6 +518,50 @@ void PortRlCommitScreen(void)
     sScreen.factor[2][1] = (sScreen.roomFlags & 4) ? 0 : li->unkBA;
     sScreen.factor[0][0] = (sScreen.roomFlags & 2) ? 0 : li->unk_S16Vec2_B4.x;
     sScreen.factor[0][1] = (sScreen.roomFlags & 2) ? 0 : li->unk_S16Vec2_B4.y;
+
+    /* The fractions (see sScreen.recFp).  sub_080019F8: the room scrolls to
+     * viewportPosition >> 8 (+ a shake offset), BG0 to altViewport_34 >> 8,
+     * BG2 to altViewport_24 >> 8; each fraction counts only if the whole
+     * pixel it belongs to is the one the record holds. */
+    sScreen.camVpX = li->viewportPosition.x;
+    sScreen.camVpY = li->viewportPosition.y;
+    for (i = 0; i < 3; i++) {
+        const BgSnap *s = &sScreen.bg[i];
+        s32 wx = s->offX * 8 + s->scrollX, wy = s->offY * 8 + s->scrollY;
+        s32 fx, fy;
+        u16 hx, hy;
+
+        if (i == 1) {
+            fx = li->viewportPosition.x; fy = li->viewportPosition.y;
+        } else if (i == 2) {
+            fx = li->altViewport_34.x; fy = li->altViewport_34.y;
+        } else {
+            fx = li->altViewport_24.x; fy = li->altViewport_24.y;
+        }
+        hx = (u16)(fx >> 8);
+        hy = (u16)(fy >> 8);
+        sScreen.recFp[i][0] = wx * 256 + (hx == s->scrollX ? (fx & 0xFF) : 0);
+        sScreen.recFp[i][1] = wy * 256 + (hy == s->scrollY ? (fy & 0xFF) : 0);
+    }
+    {
+        s32 ci = sScreen.bg[1].offX * 8 + sScreen.bg[1].scrollX;
+        s32 cj = sScreen.bg[1].offY * 8 + sScreen.bg[1].scrollY;
+        s32 vx = li->viewportPosition.x >> 8, vy = li->viewportPosition.y >> 8;
+
+        for (i = 0; i < 4; i++) {
+            const struct Kirby *k = &gKirbys[i];
+            const struct Sprite *spr[3];
+            s32 sx = (k->base.x >> 8) - vx, sy = (k->base.y >> 8) - vy;
+            int j;
+
+            spr[0] = &k->base.sprite; spr[1] = &k->sprites[0]; spr[2] = &k->sprites[1];
+            sScreen.kirbyFp[i][0] = k->base.x + (ci - vx) * 256;
+            sScreen.kirbyFp[i][1] = k->base.y + (cj - vy) * 256;
+            for (j = 0; j < 3; j++)
+                sScreen.kirbyOk[i][j] = spr[j]->x == sx && spr[j]->y == sy
+                                        && !(spr[j]->unk8 & 0x20000);
+        }
+    }
 }
 
 /* --- per-line capture ---------------------------------------------------- */
@@ -606,6 +667,103 @@ static u32 sMapGen[4];
 static const u16 *sMapPtr[4];
 static s32 sMapW[4], sMapH[4];
 
+/* --- what PortRlPresentFrame needs from each built frame ------------------
+ *
+ * Two of these, the last frame built and the one before it.  A group is one
+ * PortRlEmitSprite call: a struct Sprite drawn at one anchor (the same struct
+ * drawn twice in a frame is two groups, told apart by `occ`).  Matching a
+ * group across frames by (struct, occ) is what lets a sprite be
+ * interpolated; its subframes all move with the anchor, so an animation
+ * frame changing the layout under it does not stop the anchor moving
+ * smoothly. */
+#define MOT_HASH 4096
+typedef struct {
+    const void *owner;
+    s32 occ, ax, ay;         /* anchor, SCREEN coords of its frame           */
+    s32 bx, by;              /* the anchor in world coords, 1/256 px         */
+    s32 fx, fy;              /* where it really is: bx/by, or Kirby's 8.8    */
+    s32 next;                /* next group of the same struct, -1            */
+} MotGroup;
+
+typedef struct {
+    u8 valid, world;
+    u16 room;
+    u32 commit;              /* sCommitSerial: consecutive frames differ by 1 */
+    s32 ciX, ciY;            /* world coords of SCREEN (0, 0); 0 if no room  */
+    s32 camFp[2];            /* the room's exact scroll, 1/256 px            */
+    s32 layFp[4][2], layInt[4][2];
+    u8 layOk[4];             /* hardware BG n is a WORLD layer of a record   */
+    u8 kirbyFocus;           /* local Kirby inside the 240x160 screen        */
+    s32 kirbyFp[4][2];
+    s32 nGroups;
+    MotGroup g[RL_MAX_SPRITES];
+    s32 hash[MOT_HASH];      /* struct -> its first group, -1                */
+} Motion;
+
+static Motion sMot[2];
+static int sMotCur;
+static s32 sOutGroup[RL_MAX_SPRITES + 128], sOutWinGroup[RL_MAX_SPRITES + 128];
+
+/* The view rectangle's limits as PortRlBuildFrame worked them out (SCREEN
+ * coords), and the parallax layers it re-fitted, to redo both in 1/256 px. */
+static struct { s32 rl, rr, rt, rb; } sViewLim;
+static struct { u8 on; s32 S, f, camMin, camMax, img, native; } sFit[4][2];
+
+static u32 MotHash(const void *owner)
+{
+    uintptr_t v = (uintptr_t)owner;
+    return (u32)((v >> 2) ^ (v >> 13)) & (MOT_HASH - 1);
+}
+
+/* The group of (owner, occ) in m, or NULL. */
+static const MotGroup *MotFind(const Motion *m, const void *owner, s32 occ)
+{
+    u32 h = MotHash(owner);
+    s32 i;
+
+    for (; m->hash[h] >= 0; h = (h + 1) & (MOT_HASH - 1)) {
+        if (m->g[m->hash[h]].owner != owner)
+            continue;
+        for (i = m->hash[h]; i >= 0; i = m->g[i].next)
+            if (m->g[i].occ == occ)
+                return &m->g[i];
+        return NULL;
+    }
+    return NULL;
+}
+
+/* The group for this anchor of this struct, made if new; -1 if full. */
+static s32 MotGroupFor(Motion *m, const void *owner, s32 ax, s32 ay)
+{
+    u32 h = MotHash(owner);
+    s32 i, last = -1, occ = 0;
+    MotGroup *g;
+
+    for (; m->hash[h] >= 0; h = (h + 1) & (MOT_HASH - 1))
+        if (m->g[m->hash[h]].owner == owner)
+            break;
+    for (i = m->hash[h]; i >= 0; i = m->g[i].next) {
+        if (m->g[i].ax == ax && m->g[i].ay == ay)
+            return i;
+        last = i;
+        occ++;
+    }
+    if (m->nGroups >= RL_MAX_SPRITES)
+        return -1;
+    i = m->nGroups++;
+    g = &m->g[i];
+    g->owner = owner;
+    g->occ = occ;
+    g->ax = ax;
+    g->ay = ay;
+    g->next = -1;
+    if (last >= 0)
+        m->g[last].next = i;
+    else
+        m->hash[h] = i;
+    return i;
+}
+
 /* Is this source map safe to read in full?  The same question view.c asks,
  * for the same reason: a stale Background record on a menu can describe a map
  * a long way past anything real. */
@@ -672,21 +830,25 @@ static void FillAffine(const u16 *oam, RlSprite *s)
     }
 }
 
-static void PushSprite(RlFrame *f, const u16 *oam, RlSprite s, u32 *n, u32 *nw)
+static void PushSprite(RlFrame *f, const u16 *oam, RlSprite s, u32 *n, u32 *nw, s32 group)
 {
     if (SpriteHidden(s.attr0))
         return;
     FillAffine(oam, &s);
+    s.subX = s.subY = 0;
     if (((s.attr0 >> 10) & 3) == 2) {
-        if (*nw < RL_MAX_SPRITES + 128)
+        if (*nw < RL_MAX_SPRITES + 128) {
+            sOutWinGroup[*nw] = group;
             sOutWin[(*nw)++] = s;
+        }
     } else if (*n < RL_MAX_SPRITES + 128) {
+        sOutGroup[*n] = group;
         sOut[(*n)++] = s;
     }
     (void)f;
 }
 
-static void BuildSprites(RlFrame *f)
+static void BuildSprites(RlFrame *f, Motion *m)
 {
     const u16 *oam = (const u16 *)GBA_OAM_BASE;
     u32 i, k = 0, n = 0, nw = 0;
@@ -713,8 +875,9 @@ static void BuildSprites(RlFrame *f)
     if (ok) {
         for (i = 0; i < sNumCommitted; i++) {
             const PendingSprite *p = &sCommitted[i];
+            s32 g = p->s.space == RL_SPACE_HUD ? -1 : MotGroupFor(m, p->owner, p->ax, p->ay);
 
-            PushSprite(f, oam, p->s, &n, &nw);
+            PushSprite(f, oam, p->s, &n, &nw, g);
             f->spritesFromHooks++;
             if (!p->inOam) {
                 s32 bw, bh;
@@ -737,10 +900,11 @@ static void BuildSprites(RlFrame *f)
         OamToSprite(oam, (int)i, &s);
         if (SpriteHidden(s.attr0))
             continue;
-        PushSprite(f, oam, s, &n, &nw);
+        PushSprite(f, oam, s, &n, &nw, -1);
         f->spritesFromOam++;
     }
     memcpy(&sOut[n], sOutWin, nw * sizeof(RlSprite));
+    memcpy(&sOutGroup[n], sOutWinGroup, nw * sizeof(s32));
     f->sprites = sOut;
     f->numSprites = n;
     f->numObjWin = nw;
@@ -781,24 +945,24 @@ static s32 Clamp(s32 v, s32 lo, s32 hi)
  * re-fitted to the view.  At 240 wide this is the identity.  A picture that
  * does run off its own end at 240 is one that tiles (bg.c's refill wraps it),
  * and keeps wrapping. */
-static void FitAxis(s32 S, s32 f, s32 cam, s32 camMin, s32 camMax, s32 img,
-                    s32 native, s32 view, s32 viewOrg, s32 *shift, u8 *wrap)
+static int FitAxis(s32 S, s32 f, s32 cam, s32 camMin, s32 camMax, s32 img,
+                   s32 native, s32 view, s32 viewOrg, s32 *shift, u8 *wrap)
 {
     s32 s0 = S + (f * (camMin - cam)) / 256;     /* layer scroll at camMin */
     s32 s1 = S + (f * (camMax - cam)) / 256;
     s32 lo, want;
 
     if (view <= native)
-        return;
+        return 0;
     if (s0 > s1) { s32 t = s0; s0 = s1; s1 = t; }
     if (s0 < 0 || s1 + native > img)
-        return;                                  /* tiles: keep the wrap */
+        return 0;                                /* tiles: keep the wrap */
     if (img < view) {
         /* Narrower than the view: it cannot be fitted, and wrapping it puts
          * its two edges side by side.  Mirror it instead -- the parallax
          * keeps its motion and the joins are continuous. */
         *wrap = 2;
-        return;
+        return 0;
     }
     lo = 0;
     if (s1 > s0)
@@ -808,10 +972,31 @@ static void FitAxis(s32 S, s32 f, s32 cam, s32 camMin, s32 camMax, s32 img,
     /* The sample point for view pixel 0 is S + viewOrg + shift. */
     *shift = want - (S + viewOrg);
     *wrap = 0;
+    return 1;
+}
+
+/* FitAxis in 1/256 px, for PortRlPresentFrame: the layer's exact scroll Sfp
+ * and the camera camFp (both 1/256), the view's origin viewOrg (1/256,
+ * SCREEN coords), the record's whole-pixel scroll S.  Returns the shift. */
+static s32 FitAxisFp(s64 Sfp, s32 f, s64 camFp, s32 camMin, s32 camMax, s32 img,
+                     s32 view, s64 viewOrg, s32 S)
+{
+    s64 s0 = Sfp + ((s64)f * ((s64)camMin * 256 - camFp)) / 256;
+    s64 s1 = Sfp + ((s64)f * ((s64)camMax * 256 - camFp)) / 256;
+    s64 want, hi = (s64)(img - view) * 256;
+
+    if (s0 > s1) { s64 t = s0; s0 = s1; s1 = t; }
+    if (s1 > s0)
+        want = (Sfp - s0) * (img - view) * 256 / (s1 - s0);
+    else
+        want = Sfp + viewOrg;
+    if (want < 0) want = 0;
+    if (want > hi) want = hi;
+    return (s32)(want - (s64)S * 256 - viewOrg);
 }
 
 static void FitParallax(RlTileLayer *L, const RlFrame *f, const BgSnap *s,
-                        s32 camX, s32 camY)
+                        s32 camX, s32 camY, int hw)
 {
     u8 dummy;
     s32 camMinX = sScreen.rectL, camMaxX = sScreen.rectR - PORT_SCREEN_W;
@@ -819,10 +1004,64 @@ static void FitParallax(RlTileLayer *L, const RlFrame *f, const BgSnap *s,
 
     if (camMaxX < camMinX || camMaxY < camMinY)
         return;
-    FitAxis(s->offX * 8 + s->scrollX, L->factorX, camX, camMinX, camMaxX,
-            s->w * 8, PORT_SCREEN_W, f->viewW, f->viewX, &L->shiftX, &L->wrapX);
-    FitAxis(s->offY * 8 + s->scrollY, L->factorY, camY, camMinY, camMaxY,
-            s->h * 8, PORT_SCREEN_H, f->viewH, f->viewY, &L->shiftY, &dummy);
+    if (FitAxis(s->offX * 8 + s->scrollX, L->factorX, camX, camMinX, camMaxX,
+                s->w * 8, PORT_SCREEN_W, f->viewW, f->viewX, &L->shiftX, &L->wrapX)) {
+        sFit[hw][0].on = 1;
+        sFit[hw][0].S = s->offX * 8 + s->scrollX;
+        sFit[hw][0].f = L->factorX;
+        sFit[hw][0].camMin = camMinX;
+        sFit[hw][0].camMax = camMaxX;
+        sFit[hw][0].img = s->w * 8;
+    }
+    if (FitAxis(s->offY * 8 + s->scrollY, L->factorY, camY, camMinY, camMaxY,
+                s->h * 8, PORT_SCREEN_H, f->viewH, f->viewY, &L->shiftY, &dummy)) {
+        sFit[hw][1].on = 1;
+        sFit[hw][1].S = s->offY * 8 + s->scrollY;
+        sFit[hw][1].f = L->factorY;
+        sFit[hw][1].camMin = camMinY;
+        sFit[hw][1].camMax = camMaxY;
+        sFit[hw][1].img = s->h * 8;
+    }
+}
+
+/* The groups' world positions.  A group drawn from one of Kirby's sprite
+ * structs, at the whole pixel of his 8.8 position, is placed at that
+ * position instead -- on an axis he moved along since the last frame.  At
+ * rest the game parks him on the last 1/256 before a tile edge as often as
+ * on the edge itself, and drawing that as a whole pixel down would sink him
+ * into the floor: at rest he stays where the GBA draws him. */
+static void MotFinish(Motion *m, const Motion *mp)
+{
+    int moving = mp->valid && mp->commit + 1 == m->commit && mp->world && m->world
+                 && mp->room == m->room;
+    s32 i, k, j;
+
+    memcpy(m->kirbyFp, sScreen.kirbyFp, sizeof(m->kirbyFp));
+    for (i = 0; i < m->nGroups; i++) {
+        MotGroup *g = &m->g[i];
+
+        g->bx = g->fx = (g->ax + m->ciX) * 256;
+        g->by = g->fy = (g->ay + m->ciY) * 256;
+        if (!m->world)
+            continue;
+        for (k = 0; k < 4; k++) {
+            const struct Kirby *kb = &gKirbys[k];
+            const void *spr[3];
+
+            spr[0] = &kb->base.sprite; spr[1] = &kb->sprites[0]; spr[2] = &kb->sprites[1];
+            for (j = 0; j < 3; j++)
+                if (g->owner == spr[j] && g->occ == 0 && sScreen.kirbyOk[k][j])
+                    break;
+            if (j == 3)
+                continue;
+            if (moving && mp->kirbyFp[k][0] != m->kirbyFp[k][0])
+                g->fx = m->kirbyFp[k][0];
+            if (moving && mp->kirbyFp[k][1] != m->kirbyFp[k][1])
+                g->fy = m->kirbyFp[k][1];
+            break;
+        }
+    }
+    m->valid = 1;
 }
 
 const RlFrame *PortRlBuildFrame(void)
@@ -832,6 +1071,16 @@ const RlFrame *PortRlBuildFrame(void)
     u32 dispcnt = (u32)line0[RL_LINE_DISPCNT];
     int fgRec = -1, i;
     s32 W = sWantW, H = sWantH;
+    const Motion *mp;
+    Motion *m;
+
+    sMotCur ^= 1;
+    m = &sMot[sMotCur];
+    mp = &sMot[sMotCur ^ 1];
+    memset(m, 0, offsetof(Motion, g));
+    memset(m->hash, 0xFF, sizeof(m->hash));
+    memset(sFit, 0, sizeof(sFit));
+    m->commit = sCommitSerial;
 
     f->serial++;
     f->objOneD = (dispcnt & DISPCNT_OBJ_1D_MAP) != 0;
@@ -861,6 +1110,7 @@ const RlFrame *PortRlBuildFrame(void)
         f->shiftX = f->shiftY = 0;
         f->contentL = 0; f->contentT = 0;
         f->contentR = PORT_SCREEN_W; f->contentB = PORT_SCREEN_H;
+        f->camX = f->camY = 0;
         for (i = 0; i < 4; i++) {
             f->layers[i].enabled = 1;
             f->layers[i].space = RL_SPACE_SCREEN;
@@ -932,6 +1182,22 @@ const RlFrame *PortRlBuildFrame(void)
         f->contentR = rr > PORT_SCREEN_W ? rr : PORT_SCREEN_W;
         f->contentT = rt < 0 ? rt : 0;
         f->contentB = rb > PORT_SCREEN_H ? rb : PORT_SCREEN_H;
+        f->camX = camX;
+        f->camY = camY;
+        sViewLim.rl = rl; sViewLim.rr = rr;
+        sViewLim.rt = rt; sViewLim.rb = rb;
+        m->world = 1;
+        m->room = sScreen.room;
+        m->ciX = camX;
+        m->ciY = camY;
+        m->camFp[0] = sScreen.recFp[1][0];
+        m->camFp[1] = sScreen.recFp[1][1];
+        {
+            /* PortRlFocus's test, on the committed frame. */
+            const s32 *k = sScreen.kirbyFp[gLocalPlayerId & 3];
+            s32 kx = (k[0] >> 8) - camX, ky = (k[1] >> 8) - camY;
+            m->kirbyFocus = kx > 0 && kx < PORT_SCREEN_W && ky > 0 && ky < PORT_SCREEN_H;
+        }
 
         for (i = 0; i < 4; i++) {
             f->layers[i].enabled = 1;
@@ -946,6 +1212,11 @@ const RlFrame *PortRlBuildFrame(void)
             if (!RecordMatches(s, hw, line0))
                 continue;
             L->space = RL_SPACE_WORLD;
+            m->layOk[hw] = 1;
+            m->layFp[hw][0] = sScreen.recFp[i][0];
+            m->layFp[hw][1] = sScreen.recFp[i][1];
+            m->layInt[hw][0] = s->offX * 8 + s->scrollX;
+            m->layInt[hw][1] = s->offY * 8 + s->scrollY;
             L->factorX = sScreen.factor[i][0];
             L->factorY = sScreen.factor[i][1];
             /* (factor - 1) * shift, the parallax of a view moved off the
@@ -1010,7 +1281,7 @@ const RlFrame *PortRlBuildFrame(void)
             if (i != 1) {
                 L->wrapX = 1;
                 L->mirrorY = 1;
-                FitParallax(L, f, s, camX, camY);
+                FitParallax(L, f, s, camX, camY, hw);
             }
             if (L->map != sMapPtr[hw] || L->mapW != sMapW[hw] || L->mapH != sMapH[hw]) {
                 sMapPtr[hw] = L->map;
@@ -1055,7 +1326,11 @@ const RlFrame *PortRlBuildFrame(void)
         }
     }
 
-    BuildSprites(f);
+    BuildSprites(f, m);
+    MotFinish(m, mp);
+    for (i = 0; i < 4; i++)
+        f->layers[i].subX = f->layers[i].subY = 0;
+    f->viewSubX = f->viewSubY = 0;
 
     {
         /* KATAM_RL_LAYERS=mask: draw only these BGs (bit n = BGn), for
@@ -1139,6 +1414,183 @@ const RlFrame *PortRlBuildFrame(void)
 const RlFrame *PortRlCurrentFrame(void)
 {
     return sFrame.serial ? &sFrame : NULL;
+}
+
+/* --- presentation: sub-pixel camera and interpolation --------------------- */
+
+static RlFrame sPres;
+static RlSprite sPresSpr[RL_MAX_SPRITES + 128];
+static s32 sDiag[4];
+static int sDiagOk;
+
+/* a + (b - a) * t / 256, t in 0..256 (256 gives b exactly). */
+static s32 Lerp(s32 a, s32 b, s32 t)
+{
+    return a + (s32)(((s64)(b - a) * t) >> 8);
+}
+
+static int Near(s32 a, s32 b, s32 px)
+{
+    s32 d = a - b;
+    return d <= px * 256 && d >= -px * 256;
+}
+
+static s32 ClampFp(s32 v, s32 lo, s32 hi)
+{
+    return v < lo ? lo : v > hi ? hi : v;
+}
+
+/* Where the view goes, in 1/256 px.  The same rules as PortRlBuildFrame --
+ * centred on the camera, or on Kirby when zoomed in; inside the room's
+ * rectangle; never off the 240x160 the game composed -- applied to the
+ * presented camera instead of the game's whole pixel.  `g` is that camera
+ * relative to the game's (SCREEN coords), `kx/ky` Kirby in SCREEN coords. */
+static void PresentView(RlFrame *o, s32 gx, s32 gy, int focus, s32 kx, s32 ky,
+                        s32 *vx, s32 *vy, s32 *ex, s32 *ey)
+{
+    s32 W = o->viewW, H = o->viewH, vx0, vy0, x, y;
+
+    vx0 = -(W - PORT_SCREEN_W) * 128;
+    vy0 = -(H - PORT_SCREEN_H) * 128;
+    if (W < PORT_SCREEN_W || H < PORT_SCREEN_H) {
+        /* Kirby relative to the presented camera's 240x160 screen. */
+        s32 fx = kx - gx, fy = ky - gy;
+
+        if (!focus || fx <= 0 || fx >= PORT_SCREEN_W * 256
+            || fy <= 0 || fy >= PORT_SCREEN_H * 256) {
+            fx = PORT_SCREEN_W / 2 * 256;
+            fy = PORT_SCREEN_H / 2 * 256;
+        }
+        if (W < PORT_SCREEN_W) vx0 = fx - W / 2 * 256;
+        if (H < PORT_SCREEN_H) vy0 = fy - H / 2 * 256;
+    }
+    x = gx + vx0;
+    y = gy + vy0;
+    x = (sViewLim.rr - sViewLim.rl >= W)
+        ? ClampFp(x, sViewLim.rl * 256, (sViewLim.rr - W) * 256)
+        : (sViewLim.rl + sViewLim.rr - W) / 2 * 256;
+    y = (sViewLim.rb - sViewLim.rt >= H)
+        ? ClampFp(y, sViewLim.rt * 256, (sViewLim.rb - H) * 256)
+        : (sViewLim.rt + sViewLim.rb - H) / 2 * 256;
+    x = gx + ClampFp(x - gx, (PORT_SCREEN_W - W < 0 ? PORT_SCREEN_W - W : 0) * 256,
+                     (PORT_SCREEN_W - W > 0 ? PORT_SCREEN_W - W : 0) * 256);
+    y = gy + ClampFp(y - gy, (PORT_SCREEN_H - H < 0 ? PORT_SCREEN_H - H : 0) * 256,
+                     (PORT_SCREEN_H - H > 0 ? PORT_SCREEN_H - H : 0) * 256);
+    *vx = x;
+    *vy = y;
+    *ex = x - gx - vx0;
+    *ey = y - gy - vy0;
+}
+
+const RlFrame *PortRlPresentFrame(int flags, float alpha)
+{
+    const Motion *c = &sMot[sMotCur], *p = &sMot[sMotCur ^ 1];
+    RlFrame *o = &sPres;
+    s32 t, n, i, gx = 0, gy = 0, px = 0, py = 0, vx = 0, vy = 0;
+    const void *kirby = &gKirbys[gLocalPlayerId & 3].base.sprite;
+    int lerp;
+
+    sDiagOk = 0;
+    if (!flags || !sFrame.serial || !c->valid)
+        return sFrame.serial ? &sFrame : NULL;
+    t = (flags & RL_PRESENT_INTERP) ? (s32)(alpha * 256.0f + 0.5f) : 256;
+    if (t < 0) t = 0;
+    if (t > 256) t = 256;
+    lerp = t < 256 && p->valid && p->commit + 1 == c->commit
+        && p->world == c->world && p->room == c->room;
+    if (lerp && c->world
+        && !(Near(p->camFp[0], c->camFp[0], 64) && Near(p->camFp[1], c->camFp[1], 64)))
+        lerp = 0;               /* the camera jumped: a door, a warp */
+
+    memcpy(o, &sFrame, sizeof(*o));
+    n = (s32)(sFrame.numSprites + sFrame.numObjWin);
+    memcpy(sPresSpr, sFrame.sprites, (size_t)n * sizeof(RlSprite));
+    o->sprites = sPresSpr;
+
+    if (c->world) {
+        const s32 *kc = c->kirbyFp[gLocalPlayerId & 3], *kp = p->kirbyFp[gLocalPlayerId & 3];
+        s32 kx = kc[0], ky = kc[1], ex, ey;
+
+        px = lerp ? Lerp(p->camFp[0], c->camFp[0], t) : c->camFp[0];
+        py = lerp ? Lerp(p->camFp[1], c->camFp[1], t) : c->camFp[1];
+        gx = px - c->ciX * 256;
+        gy = py - c->ciY * 256;
+        if (lerp && Near(kp[0], kc[0], 32) && Near(kp[1], kc[1], 32)) {
+            kx = Lerp(kp[0], kc[0], t);
+            ky = Lerp(kp[1], kc[1], t);
+        }
+        PresentView(o, gx, gy, c->kirbyFocus, kx - c->ciX * 256, ky - c->ciY * 256,
+                    &vx, &vy, &ex, &ey);
+        o->viewX = vx >> 8;
+        o->viewY = vy >> 8;
+        o->viewSubX = vx & 255;
+        o->viewSubY = vy & 255;
+        o->shiftX = ex >> 8;
+        o->shiftY = ey >> 8;
+        for (i = 0; i < 4; i++) {
+            RlTileLayer *L = &o->layers[i];
+            s32 sx, sy, shx, shy;
+
+            if (L->space != RL_SPACE_WORLD || !c->layOk[i])
+                continue;
+            sx = c->layFp[i][0];
+            sy = c->layFp[i][1];
+            if (lerp && p->layOk[i] && Near(p->layFp[i][0], sx, 64) && Near(p->layFp[i][1], sy, 64)) {
+                sx = Lerp(p->layFp[i][0], sx, t);
+                sy = Lerp(p->layFp[i][1], sy, t);
+            }
+            /* The layer's own fraction, the presented camera's offset from
+             * the game's undone (the composite adds it to every layer), and
+             * the parallax of the view's own displacement. */
+            shx = sx - c->layInt[i][0] * 256 - gx + (s32)(((s64)(L->factorX - 256) * ex) >> 8);
+            shy = sy - c->layInt[i][1] * 256 - gy + (s32)(((s64)(L->factorY - 256) * ey) >> 8);
+            if (sFit[i][0].on)
+                shx = FitAxisFp(sx, sFit[i][0].f, px, sFit[i][0].camMin, sFit[i][0].camMax,
+                                sFit[i][0].img, o->viewW, vx, sFit[i][0].S);
+            if (sFit[i][1].on)
+                shy = FitAxisFp(sy, sFit[i][1].f, py, sFit[i][1].camMin, sFit[i][1].camMax,
+                                sFit[i][1].img, o->viewH, vy, sFit[i][1].S);
+            L->shiftX = shx >> 8;
+            L->shiftY = shy >> 8;
+            L->subX = shx & 255;
+            L->subY = shy & 255;
+        }
+    }
+
+    for (i = 0; i < n; i++) {
+        s32 gi = sOutGroup[i], dx, dy;
+        const MotGroup *g, *q;
+
+        if (gi < 0 || gi >= c->nGroups)
+            continue;
+        g = &c->g[gi];
+        dx = g->fx;
+        dy = g->fy;
+        if (lerp && (q = MotFind(p, g->owner, g->occ)) != NULL
+            && Near(q->fx, g->fx, 32) && Near(q->fy, g->fy, 32)) {
+            dx = Lerp(q->fx, g->fx, t);
+            dy = Lerp(q->fy, g->fy, t);
+        }
+        sPresSpr[i].subX = (s16)ClampFp(dx - g->bx, -32767, 32767);
+        sPresSpr[i].subY = (s16)ClampFp(dy - g->by, -32767, 32767);
+        if (g->owner == kirby && g->occ == 0 && !sDiagOk) {
+            sDiag[0] = (g->ax - o->viewX) * 256 + sPresSpr[i].subX - o->viewSubX;
+            sDiag[1] = (g->ay - o->viewY) * 256 + sPresSpr[i].subY - o->viewSubY;
+            sDiagOk = 1;
+        }
+    }
+    sDiag[2] = (o->camX + o->viewX) * 256 + o->viewSubX;
+    sDiag[3] = (o->camY + o->viewY) * 256 + o->viewSubY;
+    return o;
+}
+
+int PortRlPresentDiag(s32 *kirbyViewX, s32 *kirbyViewY, s32 *viewWorldX, s32 *viewWorldY)
+{
+    *kirbyViewX = sDiag[0];
+    *kirbyViewY = sDiag[1];
+    *viewWorldX = sDiag[2];
+    *viewWorldY = sDiag[3];
+    return sDiagOk;
 }
 
 /* --- the hooks' attachment to the game ------------------------------------
