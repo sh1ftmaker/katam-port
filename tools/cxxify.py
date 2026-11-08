@@ -466,6 +466,16 @@ CXX_SITES = {
         ('    struct PaletteEffect **slot;',
          '    PTR32(struct PaletteEffect) *slot;'),
     ],
+    'sub_0800F044.c': [
+        # The other end of GetRoomSolidCollisionList: its local
+        # re-declaration and the variable that walks the row it returns.
+        # Upstream still has this file as assembly; it comes from the decomp
+        # patch series that carries all-work's C.
+        ('struct Object **GetRoomSolidCollisionList(struct ObjectBase *);',
+         'PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *);'),
+        ('    struct Object **objs;',
+         '    PTR32(struct Object) *objs;'),
+    ],
     'code_080332BC.c': [
         # gUnk_08D60B44 is `const u8 *gUnk_08D60B44[8]` in ROM: eight four-byte
         # pointers the console laid out end to end, so the cursor over them is a
