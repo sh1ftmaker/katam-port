@@ -12,6 +12,21 @@ extern "C" {
 #include "inhalable_star.h"
 #include "code_0806F780.h"
 
+/* PORT-FORK: each arm's setup function reads its parent's unkC4, and
+ * CreateTitanArm1-4 call it before sub_080EF010 & co. set the parent, so the
+ * console reads it through NULL: byte 0xC4 of the BIOS, which outside the
+ * BIOS reads as the last opcode the BIOS fetched -- 0xE3A02004 after a SWI
+ * returns, 0xE25EF004 after an IRQ, low byte 0x04 either way.  So non-zero,
+ * and the setup takes the branch that draws no Rand16().  Natively page zero
+ * is unmapped (the LP64 build faulted on arrival in room 738); wasm read 0
+ * there and drew one. */
+static inline u8 TitanArmParentUnkC4(struct Object *arm)
+{
+    if (arm->base.parent == NULL)
+        return 0x04;
+    return ((struct MegaTitan *)arm->base.parent)->unkC4;
+}
+
 static void sub_080EDD0C(struct MegaTitan *);
 static void sub_080EE358(struct MegaTitan *);
 static void sub_080EE514(struct MegaTitan *);
@@ -751,7 +766,7 @@ void sub_080EF1A8(struct Object *arm)
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -1013,7 +1028,7 @@ static void sub_080EF6E4(struct Object *arm)
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -2197,7 +2212,7 @@ void sub_080F1598(struct Object *arm)
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -2459,7 +2474,7 @@ static void sub_080F1ABC(struct Object *arm)
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -2761,7 +2776,7 @@ void sub_080F2170(struct Object *arm)
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -3023,7 +3038,7 @@ static void sub_080F26AC(struct Object *arm)
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -3325,7 +3340,7 @@ void sub_080F2D74(struct Object *arm)
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {
@@ -3587,7 +3602,7 @@ static void sub_080F3294(struct Object *arm)
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
-    if (((struct MegaTitan *)arm->base.parent)->unkC4)
+    if (TitanArmParentUnkC4(arm))
         arm->base.counter = 8;
     else
     {

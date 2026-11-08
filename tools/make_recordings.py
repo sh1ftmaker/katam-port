@@ -29,7 +29,8 @@ The scenarios:
   aim             boot, then 600 hands-off frames in each room that holds an
                   enemy aiming with the BIOS's ArcTan2 (Shotzo, Bang-Bang)
                   and the two bosses whose code drew RNG in argument lists
-                  (Kracko, Gobbler) -- the code the determinism work changed.
+                  (Kracko, Gobbler) -- the code the determinism work changed --
+                  and Mega Titan's room, which faulted the LP64 build.
 """
 import argparse
 from pathlib import Path
@@ -147,10 +148,12 @@ SWEEP = [
 
 # Rooms holding the enemies whose code changed in the determinism work, from
 # room_export.py's object lists and --spawn arrival cells: Shotzo (225, 113,
-# 203), Bang-Bang (325, 103, 118), Kracko (324), Gobbler (822).
+# 203), Bang-Bang (325, 103, 118), Kracko (324), Gobbler (822); and Mega
+# Titan (738), whose arm setup faulted the LP64 build.
 AIM = [
     (225, 13, 7), (113, 89, 7), (203, 59, 5), (325, 4, 20), (103, 2, 39),
     (118, 3, 5), (324, 4, 19), (822, 12, 3),
+    (738, 14, 7),   # Mega Titan: its arm setup read through NULL (mega_titan.c)
 ]
 
 if __name__ == '__main__':
