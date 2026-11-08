@@ -730,7 +730,7 @@ static void sub_080EC5B4(struct Moley *moley)
                 && kirby->base.flags & 0x1000000
                 && (moley->obj.objTemplate->unk2 != 0 || moley->obj.objTemplate->unk3 != 0x1F))
             {
-                ++*GetStateSlot(STATE_SLOT_ROOM, moley->obj.objTemplate->unk4, gCurLevelInfo[moley->obj.base.unk56].unk65E);
+                ++*GetStateSlot(STATE_SLOT_ROOM, moley->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[moley->obj.base.unk56].unk65E));
                 moley->obj.base.counter = 1;
             }
         }

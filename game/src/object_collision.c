@@ -1384,7 +1384,7 @@ PTR32(struct ObjectBase) *GetRoomObjectCollisionList(struct ObjectBase *object)
 {
     u8 group;
     if (object->unk56 != 0xFF)
-        group = gCurLevelInfo[object->unk56].unk65E;
+        group = EWRAM_MIRROR_U8(&gCurLevelInfo[object->unk56].unk65E);
     else
         // TODO: Original UB: the 0xFF sentinel produces an out-of-bounds array pointer.
         group = 0xFF;
@@ -1395,7 +1395,7 @@ PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *object)
 {
     u8 group;
     if (object->unk56 != 0xFF)
-        group = gCurLevelInfo[object->unk56].unk65E;
+        group = EWRAM_MIRROR_U8(&gCurLevelInfo[object->unk56].unk65E);
     else
         // TODO: Original UB: the 0xFF sentinel produces an out-of-bounds array pointer.
         group = 0xFF;

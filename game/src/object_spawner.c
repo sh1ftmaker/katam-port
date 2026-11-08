@@ -37,9 +37,9 @@ void sub_0811BAAC(struct ObjectSpawner *spawner) {
     struct ObjectSpawner *spawner2 = spawner;
 
     if (spawner->obj.objTemplate->unk22 & 2) {
-        spawner->unkDC = sub_080029E4(gCurLevelInfo[spawner->obj.kirby3->base.unk56].unk65E);
+        spawner->unkDC = sub_080029E4(EWRAM_MIRROR_U8(&gCurLevelInfo[spawner->obj.kirby3->base.unk56].unk65E));
     } else {
-        spawner->unkDC = sub_080029BC(gCurLevelInfo[spawner->obj.kirby3->base.unk56].unk65E);
+        spawner->unkDC = sub_080029BC(EWRAM_MIRROR_U8(&gCurLevelInfo[spawner->obj.kirby3->base.unk56].unk65E));
     }
 
     if (spawner2->unkDC >= ((spawner->obj.objTemplate->unk18 & 0xFF00) >> 8)
@@ -123,7 +123,7 @@ static void sub_0811BEBC(struct Task *t) {
     u8 unk56 = spawner->obj.base.unk56;
     u32 unk2 = spawner->obj.objTemplate->unk2;
     u8 unk3 = spawner->obj.objTemplate->unk3;
-    u8 unk65E = gCurLevelInfo[unk56].unk65E;
+    u8 unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
 
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xFF) {

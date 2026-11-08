@@ -59,7 +59,7 @@ static void sub_08121654(struct LargeStarStoneBlock *arg0)
             if (block->block.obj.base.xspeed < 0)
                 block->block.obj.base.xspeed = 0;
         }
-        *GetStateSlot(STATE_SLOT_ROOM, block->block.obj.objTemplate->unk4, gCurLevelInfo[block->block.obj.base.unk56].unk65E) = 0;
+        *GetStateSlot(STATE_SLOT_ROOM, block->block.obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[block->block.obj.base.unk56].unk65E)) = 0;
         sub_08121978(block->block.obj.base.unk56, block->block.obj.base.x >> 12, (block->block.obj.base.y >> 12) - 1);
         sub_08121978(block->block.obj.base.unk56, (block->block.obj.base.x >> 12) + 1, (block->block.obj.base.y >> 12) - 1);
         sub_08121978(block->block.obj.base.unk56, block->block.obj.base.x >> 12, block->block.obj.base.y >> 12);
@@ -141,8 +141,10 @@ static void sub_081219B4(struct Task *t)
     u8 unk56 = block->block.obj.base.unk56;
     u32 unk2 = block->block.obj.objTemplate->unk2;
     u8 unk3 = block->block.obj.objTemplate->unk3;
-    // TODO: Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
-    u8 unk65E = gCurLevelInfo[unk56].unk65E;
+    // Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
+    // PORT-FORK: read it the way the console does (EWRAM mirrors), rather than
+    // fault natively and read port memory in wasm.
+    u8 unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
 
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xFF)

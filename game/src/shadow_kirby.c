@@ -109,7 +109,7 @@ static void sub_08023910(struct Task *t)
     if (sk->objTemplate->unk16)
         gShadowKirbyEncounters |= 1 << (sk->objTemplate->unk16 - 1);
     if (sk->objTemplate->unk4)
-        ++*GetStateSlot(STATE_SLOT_ROOM, sk->objTemplate->unk4, gCurLevelInfo[sk->base.unk56].unk65E);
+        ++*GetStateSlot(STATE_SLOT_ROOM, sk->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[sk->base.unk56].unk65E));
     ObjectDestroy(t);
 }
 

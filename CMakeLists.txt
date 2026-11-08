@@ -389,8 +389,15 @@ endforeach()
 # shape of every object constructor in the game -- and -fpermissive demotes
 # exactly that to a warning.  Everything else C++ objects to was fixed at the
 # source by tools/legacy-sync/cxxify.py, and there are no remaining diagnostics.
+#
+# -ftrivial-auto-var-init=zero: the decompilation reads uninitialised locals in
+# a handful of places (scroll_lock.c, star_stone_block.c, the "Original UB"
+# notes), and what such a read sees is whatever the previous call left on the
+# stack -- which differs between compilers, between builds of the same
+# compiler, and between a run with the state hash on and one with it off.  Zero
+# is the same everywhere.  The Makefile's wasm build has the same flag.
 target_compile_options(katam PRIVATE
-  -fno-strict-aliasing -fwrapv -funsigned-char
+  -fno-strict-aliasing -fwrapv -funsigned-char -ftrivial-auto-var-init=zero
   $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
   $<$<COMPILE_LANGUAGE:C>:-fgnu89-inline>
   $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>

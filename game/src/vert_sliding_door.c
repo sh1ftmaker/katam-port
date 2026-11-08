@@ -34,7 +34,7 @@ static void VertSlidingDoorIdle(struct VertSlidingDoor *door) {
     u32 open;
 
     door->obj.base.counter = 0;
-    open = *GetStateSlot(STATE_SLOT_ROOM, door->obj.objTemplate->unk4, gCurLevelInfo[door->obj.base.unk56].unk65E);
+    open = *GetStateSlot(STATE_SLOT_ROOM, door->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[door->obj.base.unk56].unk65E));
     if (!(door->unkB4 & 1)) {
         if (open) {
             if (!(door->unkB4 & 2)) {

@@ -338,7 +338,7 @@ void ObjectDestroy(struct Task* arg0) {
     if (gUnk_0203AD10 & 4) {
         if (ObjType38To52(obj)) {
             if (obj->base.roomId >= 0x3bb && obj->base.roomId <= 0x3bd) {
-                if (sub_080029BC(gCurLevelInfo[obj->base.unk56].unk65E) > 1) {
+                if (sub_080029BC(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E)) > 1) {
                     *GetStateSlot(STATE_SLOT_SESSION, 9, 0xff) |= 0x80000000;
                     sub_0808859C(obj, 0x3b7, 0x5a);
                 }
@@ -377,7 +377,9 @@ void ObjectDestroy(struct Task* arg0) {
                     }
                     break;
                 }
-                sub_08001678(obj->objTemplate->unk2, obj->objTemplate->unk3, gCurLevelInfo[obj->base.unk56].unk65E, sb);
+                /* PORT-FORK: unk56 can be 0xFF here, which reads past
+                 * gCurLevelInfo; read it the way the console does. */
+                sub_08001678(obj->objTemplate->unk2, obj->objTemplate->unk3, EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E), sb);
             } else {
                 return;
             }
@@ -398,7 +400,7 @@ void ObjectDestroy(struct Task* arg0) {
             || ObjType53To64(obj)) {
             if (obj->objTemplate->unk22 & 1) {
                 if (obj->unk80 <= 0) {
-                    sub_080029CC(gCurLevelInfo[obj->base.unk56].unk65E, 1);
+                    sub_080029CC(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E), 1);
                 }
             }
         }
@@ -1287,7 +1289,7 @@ void sub_0809C6D0(struct Object *r4) {
         PlaySfx(&r4->base, SE_08D58DD4);
         if (r4->objTemplate && !ObjType43To52(r4)
             && (r4->objTemplate->unk2 || r4->objTemplate->unk3 != 31))
-            ++*GetStateSlot(STATE_SLOT_ROOM, r4->objTemplate->unk4, gCurLevelInfo[r4->base.unk56].unk65E);
+            ++*GetStateSlot(STATE_SLOT_ROOM, r4->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[r4->base.unk56].unk65E));
     }
     if (r4->type == OBJ_MIRRA)
         sub_080B11C0(r4);
@@ -1484,7 +1486,7 @@ static void sub_0809D060(struct Object *r4) {
     PlaySfx(&r4->base, SE_08D58DD4);
     if (r4->objTemplate && !ObjType43To52(r4)
         && (r4->objTemplate->unk2 || r4->objTemplate->unk3 != 31))
-        ++*GetStateSlot(STATE_SLOT_ROOM, r4->objTemplate->unk4, gCurLevelInfo[r4->base.unk56].unk65E);
+        ++*GetStateSlot(STATE_SLOT_ROOM, r4->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[r4->base.unk56].unk65E));
 }
 
 static void sub_0809D1E0(struct Object *r5) {
@@ -2100,7 +2102,7 @@ void InitObject(struct Object* arg0, struct ObjectTemplate* arg1, u8 arg2) {
         arg0->base.flags |= 0x400;
         arg0->base.flags |= 8;
     }
-    sub_08001678(arg1->unk2, arg1->unk3, gCurLevelInfo[arg2].unk65E, 1);
+    sub_08001678(arg1->unk2, arg1->unk3, EWRAM_MIRROR_U8(&gCurLevelInfo[arg2].unk65E), 1);
     if (ObjType0To37(arg0) || ObjType38To52(arg0) || ObjType53To5C(arg0)) {
         arg0->unk91 = gUnk_08352AD0[arg0->type].unk1;
         arg0->unk92 = gUnk_08352AD0[arg0->type].unk2;
@@ -2230,7 +2232,7 @@ void *CreateEmpty(struct ObjectTemplate *r6, u8 r7) {
     r4->base.flags = 0;
     r4->kirby3 = NULL;
     r4->unk9F = 0;
-    sub_08001678(r6->unk2, r6->unk3, gCurLevelInfo[r7].unk65E, 1);
+    sub_08001678(r6->unk2, r6->unk3, EWRAM_MIRROR_U8(&gCurLevelInfo[r7].unk65E), 1);
     if (r6->unk3 == 31) r4->objTemplate = NULL;
     r4->base.flags = 0xE40;
     return r4;

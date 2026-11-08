@@ -98,7 +98,7 @@ static void sub_0811FC88(struct Task *task) {
     u8 level = plat->obj.base.unk56;
     u32 spawnX = plat->obj.objTemplate->unk2;
     u8 spawnY = plat->obj.objTemplate->unk3;
-    u8 r4 = gCurLevelInfo[level].unk65E;
+    u8 r4 = EWRAM_MIRROR_U8(&gCurLevelInfo[level].unk65E);
     ObjectDestroy(task);
     if (spawnX != 0 || level != 0xFF) {
         sub_08001678(spawnX, spawnY, r4, 1);

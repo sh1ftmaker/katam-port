@@ -69,7 +69,7 @@ static inline bool32 SlotEquals(u8 *slot, u8 a, u8 b, u8 c)
 static void sub_08120EE0(struct Unknown87 *u)
 {
     u32 r1;
-    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, gCurLevelInfo[u->obj.base.unk56].unk65E);
+    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E));
 
     if (u->unkB6 & 1) {
         if (u->unkB8) {
@@ -111,7 +111,7 @@ void *CreateUnknown87(struct ObjectTemplate *template_, u8 a2)
 void sub_0812102C(struct Unknown87 *u)
 {
     u->obj.unk78 = sub_08121080;
-    *GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, gCurLevelInfo[u->obj.base.unk56].unk65E) = 0;
+    *GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E)) = 0;
     u->unkB4 = 0;
     u->unkB6 = 0;
     u->unkB8 = FALSE;

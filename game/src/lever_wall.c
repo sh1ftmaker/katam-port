@@ -17,12 +17,12 @@ static void LeverWallAction(struct Object* arg0) {
     struct Object *sb;
     switch (arg0->objTemplate->subtype1) {
     case 0:
-        if (sub_080029BC(gCurLevelInfo[arg0->base.unk56].unk65E) == arg0->objTemplate->unkF) {
+        if (sub_080029BC(EWRAM_MIRROR_U8(&gCurLevelInfo[arg0->base.unk56].unk65E)) == arg0->objTemplate->unkF) {
             r6 = TRUE;
         }
         break;
     case 1:
-        if (sub_080029E4(gCurLevelInfo[arg0->base.unk56].unk65E) == arg0->objTemplate->unkF) {
+        if (sub_080029E4(EWRAM_MIRROR_U8(&gCurLevelInfo[arg0->base.unk56].unk65E)) == arg0->objTemplate->unkF) {
             r6 = TRUE;
         }
         break;

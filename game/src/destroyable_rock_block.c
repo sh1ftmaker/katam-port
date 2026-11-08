@@ -97,7 +97,7 @@ static void DestroyDestroyableRockBlock(struct Task* arg0) {
     unk56 = obj->base.base.unk56;
     unk2 = obj->base.objTemplate->unk2;
     unk3 = obj->base.objTemplate->unk3;
-    r4 = gCurLevelInfo[unk56].unk65E;
+    r4 = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
     ObjectDestroy(arg0);
     if (unk2 != 0 || unk56 != 0xff) {
         sub_08001678(unk2, unk3, r4, 1);

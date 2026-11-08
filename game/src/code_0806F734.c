@@ -154,7 +154,7 @@ void sub_0809924C(void) {
             if (gNumKirbys) {
                 while (1) {
                     if (gCurLevelInfo[i - 1].currentRoom == obj4->roomId
-                        && !(gUnk_02026D50[gCurLevelInfo[i - 1].unk65E] & 8)) {
+                        && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i - 1].unk65E)] & 8)) {
                         flag = FALSE;
                         break;
                     }

@@ -87,7 +87,7 @@ static inline bool32 PositionsEqual(s16 x1, u16 y1, s16 x2, u16 y2)
 
 static void sub_0811F26C(struct Unknown7A *u)
 {
-    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, gCurLevelInfo[u->obj.base.unk56].unk65E);
+    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E));
 
     if (slot[0] || slot[1] || slot[2]) {
         if (StateSlotChanged(slot, &u->unkB4)) {
@@ -293,7 +293,7 @@ static void sub_0811F824(struct Task *t)
     if (u->obj.objTemplate) {
         if (u->obj.objTemplate->unk2 != 0 || u->obj.objTemplate->unk3 != 31) {
             if (u->obj.objTemplate->unk2 != 0 || u->obj.base.unk56 != 0xFF)
-                sub_08001678(u->obj.objTemplate->unk2, u->obj.objTemplate->unk3, gCurLevelInfo[u->obj.base.unk56].unk65E, 1);
+                sub_08001678(u->obj.objTemplate->unk2, u->obj.objTemplate->unk3, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E), 1);
             else
                 return;
         } else {

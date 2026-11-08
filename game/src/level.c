@@ -338,7 +338,7 @@ void FillLevelInfo(u8 playerId, u16 roomId, const u16 **arg2, const u16 **arg3)
         }
 
         if (i < gNumKirbys) {
-            levelInfo->unk65E = gCurLevelInfo[i].unk65E;
+            levelInfo->unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E);
             levelInfo->unk180[0].tilemap = gUnk_02028EE0[levelInfo->unk65E].text;
         }
         else {
@@ -349,7 +349,7 @@ void FillLevelInfo(u8 playerId, u16 roomId, const u16 **arg2, const u16 **arg3)
                     continue;
                 if (gCurLevelInfo[i].currentRoom == 0xFFFF)
                     continue;
-                mask |= 1 << gCurLevelInfo[i].unk65E;
+                mask |= 1 << EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E);
             }
 
             for (i = 0; i < 4; i++) {

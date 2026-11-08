@@ -85,6 +85,14 @@ struct Region {
 
 static const struct Region kMap[] = {
     { GBA_EWRAM_BASE, GBA_EWRAM_SIZE, "EWRAM"   },
+    /* Not the console's: zeroed memory past the end of EWRAM.  The game
+     * indexes gCurLevelInfo with an object's player id, and an object that
+     * belongs to no player has 0xFF there -- gCurLevelInfo[255] is 0x02089530,
+     * ~300 KiB past EWRAM.  The console reads a mirror, wasm reads its own
+     * (zero) linear memory, and natively the page was unmapped and the read
+     * faulted.  Mapping it makes the native build read what wasm reads, which
+     * is what cross-platform determinism needs.  docs/DETERMINISM.md. */
+    { GBA_EWRAM_BASE + GBA_EWRAM_SIZE, 0x00080000u, "EWRAM overrun" },
     { GBA_IWRAM_BASE, GBA_IWRAM_SIZE, "IWRAM"   },
     { GBA_IO_BASE,    GBA_IO_SIZE,    "I/O"     },
     { GBA_PLTT_BASE,  GBA_PLTT_SIZE,  "palette" },

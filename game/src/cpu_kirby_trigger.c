@@ -32,7 +32,7 @@ static void sub_08120670(struct Object *obj)
             s16 y = block->base.y >> 8;
 
             if (rect[0] <= x && rect[2] >= x && rect[1] <= y && rect[3] >= y) {
-                u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, gCurLevelInfo[obj->base.unk56].unk65E);
+                u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E));
 
                 if (*slot < obj->objTemplate->unk11)
                     *slot = obj->objTemplate->unk11;
@@ -62,7 +62,7 @@ static void sub_08120788(struct Object *obj)
             && (min = rect[0]) <= gKirbys[i].base.x >> 8 && rect[2] >= gKirbys[i].base.x >> 8
             && (min = rect[1]) <= gKirbys[i].base.y >> 8 && rect[3] >= gKirbys[i].base.y >> 8
             && !(gKirbys[i].base.unkC & 0x8000)) {
-            u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, gCurLevelInfo[obj->base.unk56].unk65E);
+            u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E));
 
             if (*slot < obj->objTemplate->unk11)
                 *slot = obj->objTemplate->unk11;
@@ -104,8 +104,10 @@ static void sub_081209D8(struct Task *t)
     u8 unk56 = obj->base.unk56;
     u32 unk2 = obj->objTemplate->unk2;
     u8 unk3 = obj->objTemplate->unk3;
-    // TODO: Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
-    u8 unk65E = gCurLevelInfo[unk56].unk65E;
+    // Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
+    // PORT-FORK: read it the way the console does (EWRAM mirrors), rather than
+    // fault natively and read port memory in wasm.
+    u8 unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
 
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xFF)

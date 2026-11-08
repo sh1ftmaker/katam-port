@@ -104,8 +104,10 @@ WARN := -Wno-everything -Werror=implicit-function-declaration
 # which it wants is a different program on each host, with nothing to report it.
 # Both smoke tests are byte-identical with and without the flag; it is here so
 # that stays true on hosts nobody has built on yet.
+# -ftrivial-auto-var-init=zero: uninitialised locals the decompilation reads
+# (see CMakeLists.txt) read zero on every host instead of stack leftovers.
 CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrapv \
-          -funsigned-char \
+          -funsigned-char -ftrivial-auto-var-init=zero \
           $(WARN) $(DEFINES) $(INCLUDES) $(FORCE_INCLUDE) -MMD -MP
 
 # --profiling-funcs keeps the wasm name section, so a trap on someone's phone

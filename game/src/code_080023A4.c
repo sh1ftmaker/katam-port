@@ -604,7 +604,7 @@ void sub_08001408(u8 playerId, union LevelInfo_1E0 arg1, void *arg2, u8 *arg3)
         struct Unk_0888562C *var1 = arg1.pat1;
         u16 *var2 = arg2;
 
-        u16 *var3 = gUnk_02028EE0[gCurLevelInfo[playerId].unk65E].text
+        u16 *var3 = gUnk_02028EE0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)].text
                   + ((var1->unk03 << 1) * var0 + var1->unk02 * 2);
 
         u8 *var4;
@@ -621,7 +621,7 @@ void sub_08001408(u8 playerId, union LevelInfo_1E0 arg1, void *arg2, u8 *arg3)
         var3[var0]     = var1->unk08[2];
         var3[var0 + 1] = var1->unk08[3];
 
-        var4 = gUnk_02024ED0[gCurLevelInfo[playerId].unk65E]
+        var4 = gUnk_02024ED0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)]
              + (var1->unk03 * (var0 / 2) + var1->unk02);
 
         if (arg3)
@@ -633,7 +633,7 @@ void sub_08001408(u8 playerId, union LevelInfo_1E0 arg1, void *arg2, u8 *arg3)
         struct Unk_0888562C_2 *var5 = arg1.pat2;
         u8 *var6 = arg2;
 
-        u8 *var7 = gUnk_02028EE0[gCurLevelInfo[playerId].unk65E].affine
+        u8 *var7 = gUnk_02028EE0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)].affine
                  + ((var5->unk03 << 1) * var0 + var5->unk02 * 2);
 
         u8 *var8;
@@ -650,7 +650,7 @@ void sub_08001408(u8 playerId, union LevelInfo_1E0 arg1, void *arg2, u8 *arg3)
         var7[var0]     = var5->unk08[2];
         var7[var0 + 1] = var5->unk08[3];
 
-        var8 = gUnk_02024ED0[gCurLevelInfo[playerId].unk65E]
+        var8 = gUnk_02024ED0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)]
              + (var5->unk03 * (var0 / 2) + var5->unk02);
 
         if (arg3)
@@ -675,7 +675,7 @@ void sub_080015A8(u8 playerId, u16 arg1, u16 arg2, void *arg3)
 
     if (unk1C == 0) {
         u16 *var1 = arg3;
-        u16 *var2 = gUnk_02028EE0[gCurLevelInfo[playerId].unk65E].text + ((arg2 << 1) * var0 + arg1 * 2);
+        u16 *var2 = gUnk_02028EE0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)].text + ((arg2 << 1) * var0 + arg1 * 2);
 
         var1[0] = var2[0];
         var1[1] = var2[1];
@@ -684,7 +684,7 @@ void sub_080015A8(u8 playerId, u16 arg1, u16 arg2, void *arg3)
     }
     else {
         u8 *var3 = arg3;
-        u8 *var4 = gUnk_02028EE0[gCurLevelInfo[playerId].unk65E].affine + ((arg2 << 1) * var0 + arg1 * 2);
+        u8 *var4 = gUnk_02028EE0[EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E)].affine + ((arg2 << 1) * var0 + arg1 * 2);
 
         var3[0] = var4[0];
         var3[1] = var4[1];

@@ -125,7 +125,7 @@ static void sub_0802AC5C(struct DoorToHub *door)
 
 static void sub_0802AD00(struct DoorToHub *door)
 {
-    if (*GetStateSlot(STATE_SLOT_WORLD, door->obj.objTemplate->unk4, gCurLevelInfo[door->obj.base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_WORLD, door->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[door->obj.base.unk56].unk65E)))
     {
         u8 playerId = door->obj.base.unk56;
         union LevelInfo_1E0 var = sub_080025AC(playerId, door->obj.base.x >> 12, (door->obj.base.y - 0x800) >> 12);

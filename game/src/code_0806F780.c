@@ -743,14 +743,14 @@ bool16 ObjectPreUpdate(struct ObjectBase *a1) {
         a1->flags |= 0x1000;
         return TRUE;
     }
-    if (gUnk_02026D50[gCurLevelInfo[a1->unk56].unk65E] & 8) {
+    if (gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[a1->unk56].unk65E)] & 8) {
         a1->flags |= 0x1000;
         return TRUE;
     }
     if (Macro_0810B1F4(a1) && !(a1->flags & 0x2000) && !(gMainFlags & 0x400)) {
         // TODO: semantically the same as SetPointerSomething
         if (!(a1->flags & 0x1000) && !(a1->flags & 0x200)) {
-            u32 temp = gCurLevelInfo[a1->unk56].unk65E;
+            u32 temp = EWRAM_MIRROR_U8(&gCurLevelInfo[a1->unk56].unk65E);
 
             if (a1->unk56 == 0xFF)
                 temp = 0xFF;
@@ -980,7 +980,7 @@ void sub_08070164(struct Unk_0806FDF4_0 *a1) {
             if (gCurLevelInfo[i - 1].currentRoom == a1->roomId) {
                 if (gUnk_03000510.unk4 & ((1 << (i - 1)) | 0x10))
                     v4 = TRUE;
-                if (!(gUnk_02026D50[gCurLevelInfo[i - 1].unk65E] & 8)) {
+                if (!(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i - 1].unk65E)] & 8)) {
                     flag = FALSE;
                     break;
                 }
@@ -1849,7 +1849,10 @@ void sub_080720F8(void) {
                 objBase->flags |= 0x200;
                 if (unk6C && unk6C->base.header.kind == 1 && ObjType5ETo6C(unk6C))
                     objBase->flags &= ~0x200;
-                if (kirby->base.unk56 >= gNumHumanPlayers) {
+                /* PORT-FORK: unk6C can be NULL here (a CPU Kirby with nothing
+                 * held).  The console reads the BIOS at 0 and gets no match;
+                 * natively page zero is unmapped, so ask first. */
+                if (kirby->base.unk56 >= gNumHumanPlayers && unk6C != NULL) {
                     if (unk6C->type == OBJ_ABILITY_STAR_2)
                         objBase->flags &= ~0x200;
                     if (unk6C->type == OBJ_ABILITY_STAR_1 && unk6C->base.unk56 < gNumHumanPlayers)
@@ -4254,7 +4257,7 @@ void sub_08079C28(struct Kirby *kirby) {
  \
     _b = FALSE; \
     for (_i = 0; _i < gNumKirbys; ++_i) { \
-        if (gKirbys[_i].base.roomId == (objBase)->roomId && !(gUnk_02026D50[gCurLevelInfo[_i].unk65E] & 8)) \
+        if (gKirbys[_i].base.roomId == (objBase)->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[_i].unk65E)] & 8)) \
             _b = TRUE; \
     } \
     _b; \
@@ -7891,12 +7894,12 @@ void sub_08083494(void) {
             if (gMainFlags & 0x800800) {
                 gUnk_0203AD20 &= ~4;
                 if (kirby->base.unk56 == gLocalPlayerId)
-                    m4aSongNumStartOrChange(GetRoomMusicId(gCurLevelInfo[kirby->base.unk56].unk65E));
+                    m4aSongNumStartOrChange(GetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[kirby->base.unk56].unk65E)));
             } else {
                 if (kirby->base.unk56 == gLocalPlayerId) {
                     gUnk_0203AD20 &= ~4;
                     if (kirby->base.unk56 == gLocalPlayerId)
-                        m4aSongNumStartOrChange(GetRoomMusicId(gCurLevelInfo[kirby->base.unk56].unk65E));
+                        m4aSongNumStartOrChange(GetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[kirby->base.unk56].unk65E)));
                 }
                 kirby->base.unkC &= ~0x40;
                 objBase->flags |= 0x1000;
@@ -7931,7 +7934,7 @@ void sub_08083494(void) {
                 }
                 // slightly different from SetPointerSomething
                 if (!(kirby->base.flags & 0x200) && !(objBase->flags & 0x1200)) {
-                    u32 temp = objBase->unk56 != 0xFF ? gCurLevelInfo[objBase->unk56].unk65E : 0xFF;
+                    u32 temp = objBase->unk56 != 0xFF ? EWRAM_MIRROR_U8(&gCurLevelInfo[objBase->unk56].unk65E) : 0xFF;
 
                     if (temp != 0xFF) {
                         u8 idx;
@@ -7960,7 +7963,7 @@ void sub_0808382C(struct Task *t) {
     kirby->base.unk68 = 0x82;
     if (kirby->base.unk56 == gLocalPlayerId && gUnk_0203AD20 & 4) {
         gUnk_0203AD20 &= ~4;
-        m4aSongNumStartOrChange(GetRoomMusicId(gCurLevelInfo[kirby->base.unk56].unk65E));
+        m4aSongNumStartOrChange(GetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[kirby->base.unk56].unk65E)));
     }
     ObjectBaseDestroy(t);
 }
@@ -8800,7 +8803,7 @@ void sub_080859B4(void) {
     struct Unk_08088234 *unk = TaskGetStructPtr(gCurTask);
 
     if (!(gUnk_03000510.unk4 & ((1 << unk->unk4) | 0x10))) { // TODO: we can probably use Macro_0810B1F4 here as long as unk4 is named correctly
-        u32 *ptr = GetStateSlot(STATE_SLOT_ROOM, unk->unk0, gCurLevelInfo[unk->unk4].unk65E);
+        u32 *ptr = GetStateSlot(STATE_SLOT_ROOM, unk->unk0, EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk4].unk65E));
 
         if (*ptr != unk->unk2)
             TaskDestroy(gCurTask);
@@ -9369,12 +9372,12 @@ void sub_08086C48(struct Object *obj) {
     unk->unk6 = 0x3C;
     unk->unk0 = obj->base.unk56;
     unk->roomId = obj->base.roomId;
-    v6 = sub_08002A2C(gCurLevelInfo[unk->unk0].unk65E, 0);
-    unk->unk4 = v7 = GetRoomMusicId(gCurLevelInfo[unk->unk0].unk65E);
+    v6 = sub_08002A2C(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E), 0);
+    unk->unk4 = v7 = GetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E));
     if (v6) {
-        SetRoomMusicId(gCurLevelInfo[unk->unk0].unk65E, v6);
+        SetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E), v6);
         for (i = 1; i < 2; ++i)
-            sub_08002A44(gCurLevelInfo[unk->unk0].unk65E, sub_08002A2C(gCurLevelInfo[unk->unk0].unk65E, i), i - 1);
+            sub_08002A44(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E), sub_08002A2C(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E), i), i - 1);
     }
     if (gKirbys[gLocalPlayerId].base.roomId == unk->roomId
         && v6 != v7
@@ -9392,7 +9395,7 @@ void sub_08086DAC(void) {
 
     if (!--unk->unk6) {
         if (gKirbys[gLocalPlayerId].base.roomId == unk->roomId) {
-            u16 v2 = GetRoomMusicId(gCurLevelInfo[unk->unk0].unk65E);
+            u16 v2 = GetRoomMusicId(EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk0].unk65E));
             // TODO: might be another struct?
             if ((u16)unk->unk4 != v2 && !(gUnk_0203AD20 & 4))
                 m4aSongNumStart(v2);
@@ -9588,7 +9591,7 @@ void sub_08087770(void) {
     u8 i;
 
     for (i = 0; i < gNumKirbys; ++i) {
-        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[gCurLevelInfo[i].unk65E] & 8))
+        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E)] & 8))
             b = TRUE;
     }
     if (!b) TaskDestroy(gCurTask);
@@ -9608,7 +9611,7 @@ void sub_0808781C(void) {
     u8 i, j;
 
     for (i = 0; i < gNumKirbys; ++i) {
-        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[gCurLevelInfo[i].unk65E] & 8))
+        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E)] & 8))
             b = TRUE;
     }
     if (!b)
@@ -9663,7 +9666,7 @@ void sub_08087A78(void) {
     u8 i;
 
     for (i = 0; i < gNumKirbys; ++i) {
-        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[gCurLevelInfo[i].unk65E] & 8))
+        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E)] & 8))
             b = TRUE;
     }
     if (!b)
@@ -9682,7 +9685,7 @@ void sub_08087B58(void) {
     struct PaletteEffect *v8;
 
     for (i = 0; i < gNumKirbys; ++i) {
-        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[gCurLevelInfo[i].unk65E] & 8))
+        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E)] & 8))
             b = TRUE;
     }
     if (!b)
@@ -9722,7 +9725,7 @@ void sub_08087CEC(void) {
     u8 v9;
 
     for (i = 0; i < gNumKirbys; ++i) {
-        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[gCurLevelInfo[i].unk65E] & 8))
+        if (gKirbys[i].base.roomId == unk->roomId && !(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E)] & 8))
             b = TRUE;
     }
     if (!b)
@@ -9867,7 +9870,7 @@ void sub_08088234(struct ObjectBase *objBase, u8 a2, u16 a3) {
     unk->unk4 = objBase->unk56;
     unk->unk2 = a3;
     unk->unk0 = a2;
-    *GetStateSlot(STATE_SLOT_ROOM, unk->unk0, gCurLevelInfo[objBase->unk56].unk65E) = unk->unk2;
+    *GetStateSlot(STATE_SLOT_ROOM, unk->unk0, EWRAM_MIRROR_U8(&gCurLevelInfo[objBase->unk56].unk65E)) = unk->unk2;
 }
 
 void sub_080882B4(struct Kirby *kirby) {

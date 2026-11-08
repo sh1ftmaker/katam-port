@@ -52,7 +52,7 @@ void *CreateLavaWall(struct ObjectTemplate *template_, u8 a2)
     else
         ObjectSetBounds(&lavaWall->base, array[0], array[1], array[2], array[3]);
     if (lavaWall->objTemplate->unk22 & 1)
-        *GetStateSlot(STATE_SLOT_ROOM, lavaWall->objTemplate->unk4, gCurLevelInfo[lavaWall->base.unk56].unk65E) = 1;
+        *GetStateSlot(STATE_SLOT_ROOM, lavaWall->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[lavaWall->base.unk56].unk65E)) = 1;
     gUnk_08351648[lavaWall->type].unk10(lavaWall);
 
     return lavaWall;
@@ -60,7 +60,7 @@ void *CreateLavaWall(struct ObjectTemplate *template_, u8 a2)
 
 static void sub_0811C5D8(struct Object *lavaWall) {
     if (lavaWall->objTemplate->unk22 & 1) {
-        if (*GetStateSlot(STATE_SLOT_ROOM, lavaWall->objTemplate->unk4, gCurLevelInfo[lavaWall->base.unk56].unk65E) == 0) {
+        if (*GetStateSlot(STATE_SLOT_ROOM, lavaWall->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[lavaWall->base.unk56].unk65E)) == 0) {
           lavaWall->base.flags |= 0x1000;
         }
         else {
@@ -93,7 +93,7 @@ static void sub_0811C768(struct Task* t) {
     unk56 = lavaWall->base.unk56;
     unk2 = lavaWall->objTemplate->unk2;
     unk3 = lavaWall->objTemplate->unk3;
-    r4 = gCurLevelInfo[unk56].unk65E;
+    r4 = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xff) {
         sub_08001678(unk2, unk3, r4, 1);

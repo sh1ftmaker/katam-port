@@ -96,7 +96,7 @@ void sub_0811938C(struct Switch *arg0)
     struct Switch *sw = arg0;
 
     ObjectSetFunc(arg0, 0, sub_08119980);
-    if (arg0->unkB8 && *GetStateSlot(STATE_SLOT_WORLD, arg0->obj.objTemplate->unk4, gCurLevelInfo[arg0->obj.base.unk56].unk65E)) {
+    if (arg0->unkB8 && *GetStateSlot(STATE_SLOT_WORLD, arg0->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[arg0->obj.base.unk56].unk65E))) {
         arg0->obj.unk78 = sub_08119C0C;
         arg0->obj.base.flags |= 0xF40;
     } else {
@@ -271,10 +271,10 @@ static void sub_08119A20(struct Switch *sw)
     u32 *count;
 
     if (sw->unkB6 & 2) {
-        count = GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, gCurLevelInfo[sw->obj.base.unk56].unk65E);
+        count = GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
         ++*count;
     } else if (sw->unkB6 & 4) {
-        count = GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, gCurLevelInfo[sw->obj.base.unk56].unk65E);
+        count = GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
         if (*count)
             --*count;
     }
@@ -292,7 +292,7 @@ static inline bool32 SlotEquals(u8 *slot, u8 a, u8 b, u8 c)
 static void sub_08119AA8(struct Switch *sw)
 {
     u32 r1;
-    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, gCurLevelInfo[sw->obj.base.unk56].unk65E);
+    u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
 
     if (sw->unkB6 & 1) {
         u8 val = sw->obj.objTemplate->unk14 >> 8;
@@ -332,7 +332,7 @@ static void sub_08119BB8(struct Switch *sw)
 {
     sub_08119A20(sw);
     if (sw->unkB6 & 1) {
-        u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, gCurLevelInfo[sw->obj.base.unk56].unk65E);
+        u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
 
         if (*slot < sw->obj.objTemplate->unk11)
             *slot = sw->obj.objTemplate->unk11;

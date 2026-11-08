@@ -76,8 +76,8 @@ static void sub_08120B90(struct Unknown82 *arg0)
     u8 roomId = u->obj.base.unk56;
     u32 i;
 
-    if (*GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, gCurLevelInfo[roomId].unk65E)) {
-        *GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, gCurLevelInfo[u->obj.base.unk56].unk65E) = 0;
+    if (*GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[roomId].unk65E))) {
+        *GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E)) = 0;
         u->unkBA = u->obj.objTemplate->unk12;
         if (!(u->unkB8 & 1))
             u->unkB8 |= 0x10;
@@ -123,8 +123,10 @@ static void sub_08120D78(struct Task *t)
     u8 unk56 = u->obj.base.unk56;
     u32 unk2 = u->obj.objTemplate->unk2;
     u8 unk3 = u->obj.objTemplate->unk3;
-    // TODO: Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
-    u8 unk65E = gCurLevelInfo[unk56].unk65E;
+    // Original UB: gCurLevelInfo is read out of bounds when unk56 is 0xFF.
+    // PORT-FORK: read it the way the console does (EWRAM mirrors), rather than
+    // fault natively and read port memory in wasm.
+    u8 unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
 
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xFF)

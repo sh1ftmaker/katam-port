@@ -597,7 +597,7 @@ static void sub_0811E890(struct CannonFuse *cf)
             cf->unkBA = cf->unkBE;
             cf->unkB4 = 0x23;
             cf->unkB6 = 5;
-            ++*GetStateSlot(STATE_SLOT_ROOM, cf->obj.objTemplate->unk4, gCurLevelInfo[cf->obj.base.unk56].unk65E);
+            ++*GetStateSlot(STATE_SLOT_ROOM, cf->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[cf->obj.base.unk56].unk65E));
         }
     }
     else if (!cf->unkB4--)

@@ -864,7 +864,7 @@ struct ForegroundPalette_4pp {
     // really?
     union {
         PTR32(PTR32(u16)) u16pp;
-        PTR32(PTR32(u16 *)) u16ppp;
+        PTR32(PTR32(PTR32(u16))) u16ppp; /* PORT-FORK: the innermost pointer is 4 bytes in ROM too */
     } unk0;
 
     u16 unk4[2];

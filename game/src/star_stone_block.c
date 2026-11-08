@@ -273,7 +273,7 @@ static void sub_0811F034(struct Task *t)
 
     // TODO: Original UB: unk65E is read uninitialized when unk56 is 0xFF and unk2 is nonzero.
     if (unk56 != 0xFF)
-        unk65E = gCurLevelInfo[unk56].unk65E;
+        unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
     ObjectDestroy(t);
     if (unk2 != 0 || unk56 != 0xFF) {
         if (unkE3 & 0x40)

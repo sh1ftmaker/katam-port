@@ -70,7 +70,7 @@ static void sub_08121B70(struct KirbyCannon *cannon)
     u16 roomId = cannon->obj.base.roomId;
     u32 *slot;
 
-    slot = GetStateSlot(STATE_SLOT_ROOM, cannon->obj.objTemplate->unk14, gCurLevelInfo[cannon->obj.base.unk56].unk65E);
+    slot = GetStateSlot(STATE_SLOT_ROOM, cannon->obj.objTemplate->unk14, EWRAM_MIRROR_U8(&gCurLevelInfo[cannon->obj.base.unk56].unk65E));
     if (*slot) {
         cannon->unkB6 &= ~8;
         cannon->unkB6 |= 0x20;
@@ -130,7 +130,7 @@ static void sub_08121B70(struct KirbyCannon *cannon)
                 cannon2->unkB6 &= ~1;
         }
     }
-    slot = GetStateSlot(STATE_SLOT_ROOM, cannon2->obj.objTemplate->unk4, gCurLevelInfo[cannon->obj.base.unk56].unk65E);
+    slot = GetStateSlot(STATE_SLOT_ROOM, cannon2->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[cannon->obj.base.unk56].unk65E));
     if (*slot) {
         --*slot;
         cannon2->unkB6 |= 2;

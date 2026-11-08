@@ -168,7 +168,7 @@ void BonusSetFunc(struct Object* arg0) {
             }
 
             if (arg0->objTemplate->unk2 != 0 || arg0->objTemplate->unk3 != 31) {
-                sub_080029F4(gCurLevelInfo[arg0->base.unk56].unk65E, 1);
+                sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[arg0->base.unk56].unk65E), 1);
             }
             PlaySfx(&arg0->base, SE_ITEM_COLLECT);
         }

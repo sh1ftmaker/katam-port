@@ -128,7 +128,7 @@ static void sub_08118D80(struct BossChallengeDoor *door) {
         u32 tmp;
         for (j = 0; j < gNumHumanPlayers; j++)
             ;
-        tmp = (*GetStateSlot(STATE_SLOT_SESSION, 9, gCurLevelInfo[door->obj.base.unk56].unk65E) & 0xF0000) >> 16;
+        tmp = (*GetStateSlot(STATE_SLOT_SESSION, 9, EWRAM_MIRROR_U8(&gCurLevelInfo[door->obj.base.unk56].unk65E)) & 0xF0000) >> 16;
         for (i = 0; i < 4; i++) {
             struct Kirby *kirby = &gKirbys[i];
             if (kirby->hp <= 0)
@@ -148,7 +148,7 @@ static void sub_08119094(struct BossChallengeDoor *door) {
     u32 *ptr;
     u32 field;
 
-    ptr = GetStateSlot(STATE_SLOT_SESSION, 9, gCurLevelInfo[door->obj.base.unk56].unk65E);
+    ptr = GetStateSlot(STATE_SLOT_SESSION, 9, EWRAM_MIRROR_U8(&gCurLevelInfo[door->obj.base.unk56].unk65E));
     field = (*ptr & 0xF0000) >> 16;
     if (field == 0)
         *ptr |= 0x80000000;

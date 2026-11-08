@@ -313,7 +313,7 @@ static void sub_0811CEF4(struct Object *scrollLock)
             sub_0811DB48(scrollLock, i);
         if (scrollLock->objTemplate->unk4)
         {
-            u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+            u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
             if (*pointer)
             {
@@ -376,7 +376,7 @@ static void sub_0811D158(struct Object *scrollLock)
                 sub_0811DB48(scrollLock, i);
             if (scrollLock->objTemplate->unk4)
             {
-                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
                 if (*pointer)
                 {
@@ -434,7 +434,7 @@ static void sub_0811D158(struct Object *scrollLock)
         {
             if (scrollLock->objTemplate->unk4)
             {
-                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
                 if (*pointer)
                 {
@@ -478,7 +478,7 @@ static void sub_0811D508(struct Object *scrollLock)
             }
             if (scrollLock->objTemplate->unk4)
             {
-                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
                 if (*pointer)
                 {
@@ -528,7 +528,7 @@ static void sub_0811D68C(struct Object *scrollLock)
                     sub_0811DB48(scrollLock, i);
                 if (scrollLock->objTemplate->unk4)
                 {
-                    u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+                    u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
                     if (*pointer)
                     {
@@ -587,7 +587,7 @@ static void sub_0811D68C(struct Object *scrollLock)
         {
             if (scrollLock->objTemplate->unk4)
             {
-                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[scrollLock->base.unk56].unk65E));
 
                 if (*pointer)
                 {
@@ -611,7 +611,7 @@ static void ScrollLockDestroy(struct Task *t)
 
     unk2 = scrollLock->objTemplate->unk2;
     unk3 = scrollLock->objTemplate->unk3;
-    unk65E = gCurLevelInfo[unk56].unk65E;
+    unk65E = EWRAM_MIRROR_U8(&gCurLevelInfo[unk56].unk65E);
     if (!(scrollLock->objTemplate->unk22 & 8))
     {
         for (i = 0; i < gNumKirbys; ++i)

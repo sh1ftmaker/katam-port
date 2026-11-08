@@ -843,7 +843,7 @@ static void sub_08021DD4(struct Task *t)
     }
     ObjectDestroy(t);
     if (unk2 != 0 || playerId != 0xFF)
-        sub_08001678(unk2, unk3, gCurLevelInfo[playerId].unk65E, 1);
+        sub_08001678(unk2, unk3, EWRAM_MIRROR_U8(&gCurLevelInfo[playerId].unk65E), 1);
 }
 
 static void sub_08021EB0(struct CutsceneTrigger4 *trigger)

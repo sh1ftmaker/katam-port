@@ -57,13 +57,13 @@ void *CreateJack(struct ObjectTemplate *template_, u8 a2)
     jack->unk9E = 0;
     jack->unk7C = 0;
     if (jack->objTemplate->unk14)
-        *GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk14, gCurLevelInfo[jack->base.unk56].unk65E) = 1;
+        *GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk14, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)) = 1;
     return jack;
 }
 
 static void sub_080A8338(struct Object *jack)
 {
-    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, gCurLevelInfo[jack->base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)))
         sub_080A8B68(jack);
     else
     {
@@ -93,7 +93,7 @@ static void sub_080A8338(struct Object *jack)
 
 static void sub_080A8458(struct Object *jack)
 {
-    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, gCurLevelInfo[jack->base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)))
         sub_080A8B68(jack);
     else
     {
@@ -243,7 +243,7 @@ static void sub_080A8938(struct Object *jack)
 
 static void sub_080A8964(struct Object *jack)
 {
-    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, gCurLevelInfo[jack->base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)))
         sub_080A8B68(jack);
     else if (jack->base.flags & 2)
         sub_080A89B8(jack);
@@ -270,7 +270,7 @@ static void sub_080A89E8(struct Object *jack)
 static void sub_080A8A3C(struct Object *jack)
 {
     jack->base.flags |= 4;
-    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, gCurLevelInfo[jack->base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)))
         sub_080A8B68(jack);
     else if (jack->base.flags & 2)
     {
@@ -292,7 +292,7 @@ static void sub_080A8ABC(struct Object *jack)
 
 static void sub_080A8AE8(struct Object *jack)
 {
-    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, gCurLevelInfo[jack->base.unk56].unk65E))
+    if (*GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)))
         sub_080A8B68(jack);
     else
     {
@@ -331,7 +331,7 @@ static void sub_080A8BC0(struct Task *t)
     struct Object *jack = TaskGetStructPtr(t);
 
     if (jack->objTemplate->unk14)
-        *GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk14, gCurLevelInfo[jack->base.unk56].unk65E) = 0;
+        *GetStateSlot(STATE_SLOT_ROOM, jack->objTemplate->unk14, EWRAM_MIRROR_U8(&gCurLevelInfo[jack->base.unk56].unk65E)) = 0;
     ObjectDestroy(t);
 }
 
