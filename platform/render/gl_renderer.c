@@ -16,6 +16,14 @@
  *   3. Present: a nearest-neighbour blit of the composite into the window at
  *      the largest integer scale that fits.
  *
+ * With the HUD as its own layer (GlrSetHudLayer) a world frame takes two more
+ * steps: passes 1 and 2 leave the HUD out, and run again for the HUD alone
+ * into a HUD atlas -- one slot per HUD region, the region at HUD resolution
+ * with a 32-px gutter round it for sprites that hang over its edge -- with
+ * the same priority, window and colour-effect rules (a fade darkens the HUD
+ * as on the GBA).  GlrPresentHud scales each slot over the world picture,
+ * pinned to its corner, at a scale of the host's choosing.
+ *
  * Texture cache: VRAM (96 KiB as a 256x384 R8UI texture) is uploaded by
  * dirty 256-byte rows against a shadow of what the GPU has; palette RAM and
  * the per-line register table are small and go up every frame; each world
@@ -52,7 +60,7 @@ static int sReady;
 static int sEs;
 static char sDesc[256];
 
-static GLuint sProgObj, sProgComp;
+static GLuint sProgObj, sProgComp, sProgHud;
 static GLuint sVaoObj, sVaoEmpty, sInstBuf;
 static GLuint sTexVram, sTexPal, sTexLines, sTexMap;
 static GLuint sTexObj, sTexObjWin, sTexComp;
@@ -74,6 +82,23 @@ static s32 *sInst;
 static int sInstCap;
 
 static int sLastW = 240, sLastH = 160;
+static int sLastDst[4];
+
+/* The HUD layer.  Atlas slot r holds HUD region r at HUD coordinates plus
+ * (HudOrgX(r), HudOrgY(r)); four slots a row, two rows (RL_MAX_HUD_REGIONS). */
+#define HUD_W 240
+#define HUD_H 160
+#define HUD_GUTTER 32
+#define HUD_SLOT_W (HUD_W + 2 * HUD_GUTTER)
+#define HUD_SLOT_H (HUD_H + 2 * HUD_GUTTER)
+#define HUD_ATLAS_W (4 * HUD_SLOT_W)
+#define HUD_ATLAS_H (2 * HUD_SLOT_H)
+#define HudOrgX(r) (((r) & 3) * HUD_SLOT_W + HUD_GUTTER)
+#define HudOrgY(r) (((r) >> 2) * HUD_SLOT_H + HUD_GUTTER)
+static int sHudWant, sHudActive, sHudNum;
+static RlHudRegion sHudReg[RL_MAX_HUD_REGIONS];
+static GLuint sTexObjHud, sFboObjHud, sTexHud, sFboHud;
+static GLint uHPass, uHSel, uHOrg, uBDst, uBSrc, uBSharp, uBScale, uBTexSize;
 
 /* The host-driven present (GlrPresentRect): the source is either the
  * composite or an uploaded picture (the PPU's framebuffer, so the PPU path can
@@ -182,6 +207,9 @@ static const char *kCompFs =
     "uniform int uNumHud;\n"
     "uniform ivec4 uHudRect[8];\n"
     "uniform ivec2 uHudD[8];\n"
+    "uniform int uHudPass;\n"        /* 0 HUD in the view, 1 world only, 2 HUD only */
+    "uniform int uHudSel;\n"         /* HUD pass: the region                */
+    "uniform ivec2 uHudOrg;\n"       /* HUD pass: atlas = HUD coords + this */
     "out vec4 oColor;\n"
     "int L(int line, int w) {\n"
     "  ivec4 t = texelFetch(uLines, ivec2(w >> 2, line), 0);\n"
@@ -315,11 +343,13 @@ static const char *kCompFs =
     "}\n"
     "void main() {\n"
     "  ivec2 v = ivec2(gl_FragCoord.xy);\n"
+    "  bool hudPass = uHudPass == 2;\n"
     "  int sx = v.x + uView.x, sy = v.y + uView.y;\n"
-    "  bool letterbox = sx < uContent.x || sy < uContent.y || sx >= uContent.z || sy >= uContent.w;\n"
+    "  if (hudPass) { sx = v.x - uHudOrg.x; sy = v.y - uHudOrg.y; }\n"
+    "  bool letterbox = !hudPass && (sx < uContent.x || sy < uContent.y || sx >= uContent.z || sy >= uContent.w);\n"
     "  int rl = clamp(sy, 0, 159);\n"
     "  int dispcnt = L(rl, 16);\n"
-    "  if ((dispcnt & 0x80) != 0) { oColor = vec4(1.0); return; }\n"
+    "  if ((dispcnt & 0x80) != 0) { oColor = hudPass ? vec4(0.0) : vec4(1.0); return; }\n"
     "  int mode = dispcnt & 7;\n"
     "  int lc[4]; int lp[4];\n"
     "  for (int bg = 0; bg < 4; bg++) {\n"
@@ -327,8 +357,13 @@ static const char *kCompFs =
     "    lp[bg] = L(rl, 27 + bg) & 3;\n"
     "    if ((dispcnt & (0x100 << bg)) == 0) continue;\n"
     "    if (uLayer[bg].x < 0 || (letterbox && uLayer[bg].x != 2)) continue;\n"
+    "    if (hudPass != (uLayer[bg].x == 2) && uHudPass != 0) continue;\n"
     "    int x = sx + uLayer[bg].z, y = sy + uLayer[bg].w;\n"
-    "    if (uLayer[bg].x == 2) {\n"
+    "    if (hudPass) {\n"
+    "      ivec4 R = uHudRect[uHudSel];\n"
+    "      if (sx < R.x || sy < R.y || sx >= R.z || sy >= R.w) continue;\n"
+    "      x = sx; y = sy;\n"
+    "    } else if (uLayer[bg].x == 2) {\n"
     "      bool found = false;\n"
     "      for (int r = 0; r < 8; r++) {\n"
     "        if (r >= uNumHud) break;\n"
@@ -348,7 +383,7 @@ static const char *kCompFs =
     "  int objPri = objOpq ? int(o.b & 3u) : 3;\n"
     "  bool semi = (o.b & 4u) != 0u;\n"
     "  int objCol = int(o.r) | (int(o.g) << 8);\n"
-    "  bool objwin = objOn && texelFetch(uObjWin, v, 0).r != 0u;\n"
+    "  bool objwin = !hudPass && objOn && texelFetch(uObjWin, v, 0).r != 0u;\n"
     "  int ctrl = windowControl(sx, sy, rl, dispcnt, objwin);\n"
     "  bool allowBlend = (ctrl & 0x20) != 0;\n"
     "  int bd = letterbox ? 0 : pal(0);\n"
@@ -367,6 +402,7 @@ static const char *kCompFs =
     "      else { second = idx; secC = c; break; }\n"
     "    }\n"
     "  }\n"
+    "  if (hudPass && top < 0) { oColor = vec4(0.0); return; }\n"
     "  int result = top < 0 ? bd : topC;\n"
     "  if (topBlend && top >= 0) {\n"
     "    int bldcnt = L(rl, 17), alpha = L(rl, 18), bldy = L(rl, 19);\n"
@@ -375,12 +411,54 @@ static const char *kCompFs =
     "    int secBit = second < 0 ? 5 : second;\n"
     "    bool t1 = ((bldcnt >> top) & 1) != 0;\n"
     "    bool t2 = ((bldcnt >> (8 + secBit)) & 1) != 0;\n"
-    "    if (top == 4 && semi && t2) result = blendAlpha(topC, secC, eva, evb);\n"
-    "    else if (effect == 1 && t1 && t2) result = blendAlpha(topC, secC, eva, evb);\n"
+    /* HUD pass, nothing of the HUD under the top pixel: the second target is
+     * the world, drawn elsewhere.  Blend with it if any world layer could be
+     * one, as premultiplied colour + (1 - alpha) * world at present time. */
+    "    bool under = hudPass && second < 0;\n"
+    "    if (under) {\n"
+    "      int hm = 0;\n"
+    "      for (int b = 0; b < 4; b++) if (uLayer[b].x == 2) hm |= 1 << b;\n"
+    "      t2 = (((bldcnt >> 8) & 0x3F) & ~hm) != 0;\n"
+    "    }\n"
+    "    bool alphaFx = (top == 4 && semi && t2) || (effect == 1 && t1 && t2);\n"
+    "    if (alphaFx && under) {\n"
+    "      oColor = vec4(toRgba(topC).rgb * float(eva) / 16.0, 1.0 - float(evb) / 16.0);\n"
+    "      return;\n"
+    "    }\n"
+    "    if (alphaFx) result = blendAlpha(topC, secC, eva, evb);\n"
     "    else if (effect == 2 && t1) result = bright(topC, evy, true);\n"
     "    else if (effect == 3 && t1) result = bright(topC, evy, false);\n"
     "  }\n"
     "  oColor = toRgba(result);\n"
+    "}\n";
+
+/* The HUD atlas over the window: one quad per region.  Nearest, or sharp
+ * bilinear (nearest inside a texel, linear across its edge, one output pixel
+ * wide) for a smooth fractional scale.  The atlas is premultiplied. */
+static const char *kHudVs =
+    "uniform vec4 uDst;\n"            /* NDC x0 y0 x1 y1 (y0 the top)       */
+    "uniform vec4 uSrc;\n"            /* atlas texels x0 y0 x1 y1           */
+    "out vec2 vT;\n"
+    "void main() {\n"
+    "  vec2 c = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));\n"
+    "  gl_Position = vec4(mix(uDst.xy, uDst.zw, c), 0.0, 1.0);\n"
+    "  vT = mix(uSrc.xy, uSrc.zw, c);\n"
+    "}\n";
+
+static const char *kHudFs =
+    "precision highp sampler2D;\n"
+    "uniform sampler2D uHud;\n"
+    "uniform int uSharp;\n"
+    "uniform vec2 uScale;\n"          /* output pixels per texel            */
+    "uniform vec2 uTexSize;\n"
+    "in vec2 vT;\n"
+    "out vec4 oColor;\n"
+    "void main() {\n"
+    "  if (uSharp == 0) { oColor = texelFetch(uHud, ivec2(floor(vT)), 0); return; }\n"
+    "  vec2 p = vT - 0.5;\n"
+    "  vec2 i = floor(p);\n"
+    "  vec2 f = clamp((p - i - 0.5) * uScale + 0.5, 0.0, 1.0);\n"
+    "  oColor = texture(uHud, (i + 0.5 + f) / uTexSize);\n"
     "}\n";
 
 static GLuint Compile(GLenum type, const char *body, const char *what)
@@ -482,7 +560,8 @@ int GlrInit(void *(*getProc)(const char *), int es)
 
     sProgObj = Link(kObjVs, kObjFs, "sprite");
     sProgComp = Link(kCompVs, kCompFs, "composite");
-    if (!sProgObj || !sProgComp)
+    sProgHud = Link(kHudVs, kHudFs, "hud");
+    if (!sProgObj || !sProgComp || !sProgHud)
         return 0;
     SetSamplers(sProgObj);
     uObjView = G(glGetUniformLocation)(sProgObj, "uViewSize");
@@ -497,6 +576,16 @@ int GlrInit(void *(*getProc)(const char *), int es)
     uCNumHud = G(glGetUniformLocation)(sProgComp, "uNumHud");
     uCHudRect = G(glGetUniformLocation)(sProgComp, "uHudRect");
     uCHudD = G(glGetUniformLocation)(sProgComp, "uHudD");
+    uHPass = G(glGetUniformLocation)(sProgComp, "uHudPass");
+    uHSel = G(glGetUniformLocation)(sProgComp, "uHudSel");
+    uHOrg = G(glGetUniformLocation)(sProgComp, "uHudOrg");
+    G(glUseProgram)(sProgHud);
+    G(glUniform1i)(G(glGetUniformLocation)(sProgHud, "uHud"), 0);
+    uBDst = G(glGetUniformLocation)(sProgHud, "uDst");
+    uBSrc = G(glGetUniformLocation)(sProgHud, "uSrc");
+    uBSharp = G(glGetUniformLocation)(sProgHud, "uSharp");
+    uBScale = G(glGetUniformLocation)(sProgHud, "uScale");
+    uBTexSize = G(glGetUniformLocation)(sProgHud, "uTexSize");
 
     G(glPixelStorei)(GL_UNPACK_ALIGNMENT, 1);
     G(glPixelStorei)(GL_PACK_ALIGNMENT, 1);
@@ -645,8 +734,14 @@ static void UploadMaps(const RlFrame *f)
 static const u8 kObjW[4][4] = { {8,16,32,64}, {16,32,32,64}, {8,8,16,32}, {8,8,8,8} };
 static const u8 kObjH[4][4] = { {8,16,32,64}, {8,8,16,32}, {16,32,32,64}, {8,8,8,8} };
 
+/* Which sprites a sprite pass draws, and where. */
+#define SPR_ALL   0             /* everything, HUD sprites at their view place */
+#define SPR_WORLD 1             /* everything but the HUD                     */
+#define SPR_HUD   2             /* the HUD only, into the HUD atlas           */
+
 /* Fill the instance buffer back to front; returns the count. */
-static int BuildInstances(const RlFrame *f, u32 from, u32 count)
+static int BuildInstances(const RlFrame *f, u32 from, u32 count, int which,
+                          int tw, int th)
 {
     int n = 0;
     u32 i;
@@ -665,14 +760,19 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count)
         s32 *o = sInst + n * 12;
         int flags;
 
-        if (s->space == RL_SPACE_HUD) {
+        if ((which == SPR_HUD) != (s->space == RL_SPACE_HUD) && which != SPR_ALL)
+            continue;
+        if (which == SPR_HUD) {
+            x = s->x + HudOrgX(s->anchor);
+            y = s->y + HudOrgY(s->anchor);
+        } else if (s->space == RL_SPACE_HUD) {
             x = s->x + f->hud[s->anchor].dx;
             y = s->y + f->hud[s->anchor].dy;
         } else {
             x = s->x - f->viewX;
             y = s->y - f->viewY;
         }
-        if (x >= f->viewW || y >= f->viewH || x + bw <= 0 || y + bh <= 0)
+        if (x >= tw || y >= th || x + bw <= 0 || y + bh <= 0)
             continue;
         flags = (s->attr2 >> 12) & 15;
         if (s->attr0 & 0x2000) flags |= 16;
@@ -691,19 +791,20 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count)
     return n;
 }
 
-static void DrawSprites(const RlFrame *f, GLuint fbo, u32 from, u32 count, int winPass)
+static void DrawSprites(const RlFrame *f, GLuint fbo, u32 from, u32 count, int winPass,
+                        int which, int tw, int th)
 {
     static const GLuint kZero[4] = { 0, 0, 0, 0 };
     int n;
 
     G(glBindFramebuffer)(GL_FRAMEBUFFER, fbo);
-    G(glViewport)(0, 0, f->viewW, f->viewH);
+    G(glViewport)(0, 0, tw, th);
     G(glClearBufferuiv)(GL_COLOR, 0, kZero);
-    n = BuildInstances(f, from, count);
+    n = BuildInstances(f, from, count, which, tw, th);
     if (n == 0)
         return;
     G(glUseProgram)(sProgObj);
-    G(glUniform2i)(uObjView, f->viewW, f->viewH);
+    G(glUniform2i)(uObjView, tw, th);
     G(glUniform1i)(uObjWinPass, winPass);
     G(glBindVertexArray)(sVaoObj);
     G(glBindBuffer)(GL_ARRAY_BUFFER, sInstBuf);
@@ -712,10 +813,41 @@ static void DrawSprites(const RlFrame *f, GLuint fbo, u32 from, u32 count, int w
     G(glBindVertexArray)(0);
 }
 
+static void EnsureHudTargets(void)
+{
+    if (sFboHud)
+        return;
+    sTexObjHud = MakeTex(GL_RGBA8UI, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, HUD_ATLAS_W, HUD_ATLAS_H);
+    sTexHud = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, HUD_ATLAS_W, HUD_ATLAS_H);
+    /* Linear for the sharp-bilinear present; texelFetch ignores it. */
+    G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    G(glGenFramebuffers)(1, &sFboObjHud);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboObjHud);
+    G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sTexObjHud, 0);
+    G(glGenFramebuffers)(1, &sFboHud);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboHud);
+    G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sTexHud, 0);
+    if (G(glCheckFramebufferStatus)(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        PortError("[katam-port] gpu: HUD target incomplete");
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+}
+
+void GlrSetHudLayer(int on)
+{
+    sHudWant = on;
+}
+
+int GlrHudActive(void)
+{
+    return sReady && sHudActive && !sSrcPic;
+}
+
 void GlrDraw(const RlFrame *f)
 {
     GLint layer[16], valid[16], geom[16], scroll[16], hudRect[32], hudD[16];
-    int bg, r;
+    int bg, r, hudSep = sHudWant && f->world && f->numHud > 0;
+    int which = hudSep ? SPR_WORLD : SPR_ALL;
 
     if (!sReady)
         return;
@@ -749,8 +881,12 @@ void GlrDraw(const RlFrame *f)
     G(glBindTexture)(GL_TEXTURE_2D, 0);
 
     /* Pass 1: sprites. */
-    DrawSprites(f, sFboObj, 0, f->numSprites, 0);
-    DrawSprites(f, sFboObjWin, f->numSprites, f->numObjWin, 1);
+    DrawSprites(f, sFboObj, 0, f->numSprites, 0, which, f->viewW, f->viewH);
+    DrawSprites(f, sFboObjWin, f->numSprites, f->numObjWin, 1, which, f->viewW, f->viewH);
+    if (hudSep) {
+        EnsureHudTargets();
+        DrawSprites(f, sFboObjHud, 0, f->numSprites, 0, SPR_HUD, HUD_ATLAS_W, HUD_ATLAS_H);
+    }
 
     /* Pass 2: composite. */
     for (bg = 0; bg < 4; bg++) {
@@ -808,8 +944,34 @@ void GlrDraw(const RlFrame *f)
     G(glUniform1i)(uCNumHud, f->numHud);
     G(glUniform4iv)(uCHudRect, 8, hudRect);
     G(glUniform2iv)(uCHudD, 8, hudD);
+    G(glUniform1i)(uHPass, hudSep ? 1 : 0);
     G(glBindVertexArray)(sVaoEmpty);
     G(glDrawArrays)(GL_TRIANGLES, 0, 3);
+
+    /* The HUD layer: the same composite, region by region into the atlas,
+     * HUD layer and HUD sprites only, at HUD coordinates. */
+    if (hudSep) {
+        G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboHud);
+        G(glViewport)(0, 0, HUD_ATLAS_W, HUD_ATLAS_H);
+        G(glClearColor)(0.0f, 0.0f, 0.0f, 0.0f);
+        G(glClear)(GL_COLOR_BUFFER_BIT);
+        G(glActiveTexture)(GL_TEXTURE0 + 3);
+        G(glBindTexture)(GL_TEXTURE_2D, sTexObjHud);
+        G(glUniform4i)(uCView, 0, 0, HUD_W, HUD_H);
+        G(glUniform1i)(uHPass, 2);
+        for (r = 0; r < f->numHud && r < RL_MAX_HUD_REGIONS; r++) {
+            const RlHudRegion *h = &f->hud[r];
+
+            G(glViewport)(HudOrgX(r) + h->x0 - HUD_GUTTER, HudOrgY(r) + h->y0 - HUD_GUTTER,
+                          h->x1 - h->x0 + 2 * HUD_GUTTER, h->y1 - h->y0 + 2 * HUD_GUTTER);
+            G(glUniform1i)(uHSel, r);
+            G(glUniform2i)(uHOrg, HudOrgX(r), HudOrgY(r));
+            G(glDrawArrays)(GL_TRIANGLES, 0, 3);
+        }
+        memcpy(sHudReg, f->hud, sizeof(sHudReg));
+        sHudNum = f->numHud;
+    }
+    sHudActive = hudSep;
     G(glBindVertexArray)(0);
     G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
     sLastW = f->viewW;
@@ -843,6 +1005,53 @@ void GlrUploadPicture(const u32 *pixels, int w, int h)
     G(glBindTexture)(GL_TEXTURE_2D, sTexPic);
     G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     sSrcPic = 1;
+    sHudActive = 0;
+}
+
+void GlrLastPresentRect(int dst[4])
+{
+    memcpy(dst, sLastDst, sizeof(sLastDst));
+}
+
+void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smooth)
+{
+    int r;
+
+    if (!GlrHudActive() || scale <= 0.0 || fbW <= 0 || fbH <= 0)
+        return;
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+    G(glViewport)(0, 0, fbW, fbH);
+    G(glDisable)(GL_SCISSOR_TEST);
+    G(glEnable)(GL_BLEND);
+    G(glBlendFuncSeparate)(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    G(glUseProgram)(sProgHud);
+    G(glActiveTexture)(GL_TEXTURE0);
+    G(glBindTexture)(GL_TEXTURE_2D, sTexHud);
+    G(glUniform1i)(uBSharp, smooth && scale != (double)(int)scale);
+    G(glUniform2f)(uBScale, (float)scale, (float)scale);
+    G(glUniform2f)(uBTexSize, (float)HUD_ATLAS_W, (float)HUD_ATLAS_H);
+    G(glBindVertexArray)(sVaoEmpty);
+    for (r = 0; r < sHudNum; r++) {
+        const RlHudRegion *h = &sHudReg[r];
+        /* The HUD's origin for this region's anchor, whole pixels so the
+         * regions of one corner share one pixel grid. */
+        int fw = (int)(HUD_W * scale + 0.5), fh = (int)(HUD_H * scale + 0.5);
+        int bx = h->anchorH == RL_ANCHOR_RIGHT ? world[0] + world[2] - fw
+               : h->anchorH == RL_ANCHOR_CENTER ? world[0] + (world[2] - fw) / 2 : world[0];
+        int by = h->anchorV == RL_ANCHOR_BOTTOM ? world[1] + world[3] - fh : world[1];
+        double x0 = h->x0 - HUD_GUTTER, x1 = h->x1 + HUD_GUTTER;
+        double y0 = h->y0 - HUD_GUTTER, y1 = h->y1 + HUD_GUTTER;
+        double px0 = bx + x0 * scale, px1 = bx + x1 * scale;
+        double py0 = by + y0 * scale, py1 = by + y1 * scale;
+
+        G(glUniform4f)(uBDst, (float)(px0 / fbW * 2.0 - 1.0), (float)(1.0 - py0 / fbH * 2.0),
+                       (float)(px1 / fbW * 2.0 - 1.0), (float)(1.0 - py1 / fbH * 2.0));
+        G(glUniform4f)(uBSrc, (float)(HudOrgX(r) + x0), (float)(HudOrgY(r) + y0),
+                       (float)(HudOrgX(r) + x1), (float)(HudOrgY(r) + y1));
+        G(glDrawArrays)(GL_TRIANGLE_STRIP, 0, 4);
+    }
+    G(glBindVertexArray)(0);
+    G(glDisable)(GL_BLEND);
 }
 
 int GlrSourceSize(int *w, int *h)
@@ -902,9 +1111,29 @@ void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
     G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
 }
 
+void GlrFitRect(int w, int h, int vw, int vh, int dst[4])
+{
+    int s = w / vw < h / vh ? w / vw : h / vh, dw, dh;
+
+    if (s >= 1) {
+        dw = vw * s;
+        dh = vh * s;
+    } else if ((long)w * vh < (long)h * vw) {
+        dw = w;
+        dh = (int)((long)vh * w / vw);
+    } else {
+        dh = h;
+        dw = (int)((long)vw * h / vh);
+    }
+    dst[0] = (w - dw) / 2;
+    dst[1] = h - dh - (h - dh) / 2;     /* centred in GL's bottom-up rows */
+    dst[2] = dw;
+    dst[3] = dh;
+}
+
 void GlrPresent(int w, int h)
 {
-    int s, dw, dh, x0, y0;
+    int x0, y0, dw, dh;
 
     if (!sReady || !sFboComp)
         return;
@@ -912,19 +1141,11 @@ void GlrPresent(int w, int h)
     G(glViewport)(0, 0, w, h);
     G(glClearColor)(0.0f, 0.0f, 0.0f, 1.0f);
     G(glClear)(GL_COLOR_BUFFER_BIT);
-    s = w / sLastW < h / sLastH ? w / sLastW : h / sLastH;
-    if (s >= 1) {
-        dw = sLastW * s;
-        dh = sLastH * s;
-    } else if ((long)w * sLastH < (long)h * sLastW) {
-        dw = w;
-        dh = (int)((long)sLastH * w / sLastW);
-    } else {
-        dh = h;
-        dw = (int)((long)sLastW * h / sLastH);
-    }
-    x0 = (w - dw) / 2;
-    y0 = (h - dh) / 2;
+    GlrFitRect(w, h, sLastW, sLastH, sLastDst);
+    x0 = sLastDst[0];
+    dw = sLastDst[2];
+    dh = sLastDst[3];
+    y0 = h - (sLastDst[1] + dh);        /* GL rows count from the bottom */
     G(glBindFramebuffer)(GL_READ_FRAMEBUFFER, sFboComp);
     G(glBindFramebuffer)(GL_DRAW_FRAMEBUFFER, 0);
     /* View row 0 is the top of the picture and texture row 0; the window's
