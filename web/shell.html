@@ -1524,6 +1524,10 @@ var Module = (function () {
     portDiag: function (text, isErr) { log(text, isErr ? 'err' : ''); },
 
     onRuntimeInitialized: function () {
+      // Emscripten defines the Module._Port* export stubs before the wasm is
+      // instantiated, and they throw until it is; "does the function exist"
+      // is not "can it be called".  This flag is.
+      Module.portRuntimeUp = true;
       log('wasm runtime initialised.', 'ok');
       resolveRuntime();
     },
@@ -2031,7 +2035,7 @@ var Module = (function () {
     // borrowing it threw a ReferenceError which the crash panel dutifully
     // reported as the emulator having stopped -- while the emulator carried
     // on at 60 fps behind the panel. A poll cannot do that.
-    if (!window.Module || !Module._PortSetViewMode) {
+    if (!window.Module || !Module.portRuntimeUp || !Module._PortSetViewMode) {
       if (!pendingPush) pendingPush = setTimeout(function () {
         pendingPush = 0; apply();
       }, 250);
@@ -2128,7 +2132,7 @@ var Module = (function () {
     // not be up yet, and reaching into the loader's scope to find out is what
     // threw a ReferenceError that the crash panel reported as the emulator
     // having stopped.
-    if (!window.Module || !Module._PortSetRando) {
+    if (!window.Module || !Module.portRuntimeUp || !Module._PortSetRando) {
       if (!pendingPush) pendingPush = setTimeout(function () {
         pendingPush = 0; apply();
       }, 250);
@@ -2733,7 +2737,8 @@ var Module = (function () {
     if (mask === lastMask) return;
     lastMask = mask;
     // Guard: keys can be pressed before the wasm exports exist.
-    if (Module._PortSetKeys) Module._PortSetKeys(mask);
+    if (Module.portRuntimeUp && Module._PortSetKeys) Module._PortSetKeys(mask);
+    else lastMask = -1;           // send it again once the runtime is up
   }
 
   // A keystroke aimed at the URL box is not aimed at the game. Without this
@@ -3028,7 +3033,7 @@ var Module = (function () {
   var gearBtn = document.getElementById('uigear');
 
   shell.uiAvailable = function () {
-    return !!(Module.portGl && Module._PortUiToggle && body.classList.contains('rom-ready') &&
+    return !!(Module.portGl && Module.portRuntimeUp && Module._PortUiToggle && body.classList.contains('rom-ready') &&
               !body.classList.contains('crashed'));
   };
 
