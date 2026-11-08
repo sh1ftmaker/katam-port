@@ -75,9 +75,8 @@ fi
 #
 #   PAGES_SUBDIR=qol scripts/publish-pages.sh   ->  .../katam-port/qol/
 #
-# Only that subdirectory is cleared.  Wiping the whole worktree here -- which
-# is what the root publish does, and must keep doing -- would take the main
-# build down every time a branch was published.
+# Only that subdirectory is cleared; the root publish likewise clears only
+# the root's own files, never another page's directory (see below).
 if [ -n "${PAGES_SUBDIR:-}" ]; then
     # One or more plain segments: next, next/playtest.  No dots, no empty
     # segments, nothing that could climb out of the worktree.
@@ -85,21 +84,22 @@ if [ -n "${PAGES_SUBDIR:-}" ]; then
         echo "PAGES_SUBDIR must be plain directory names joined by / (e.g. next/playtest)" >&2; exit 1
     fi
     TARGET="$WORKTREE/$PAGES_SUBDIR"
-    # Clear what this publish owns, but keep nested publishes: a child
-    # directory with its own index.html (next/playtest under next) is
-    # another page, and publishing the parent must not take it down.
-    mkdir -p "$TARGET"
-    find "$TARGET" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) -exec rm -f {} +
-    for d in "$TARGET"/*/; do
-        [ -d "$d" ] || continue
-        [ -f "$d/index.html" ] && [ ! -e "$DIST/$(basename "$d")/index.html" ] && continue
-        rm -rf "$d"
-    done
     echo "    publishing into /$PAGES_SUBDIR/ (site root left alone)"
 else
     TARGET="$WORKTREE"
-    find "$WORKTREE" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+    echo "    publishing the site root (pages in subdirectories left alone)"
 fi
+# Clear what this publish owns, but keep nested publishes: a child directory
+# with its own index.html (next/ under the root, next/playtest/ under next/,
+# the old mp/ page) is another page, and publishing the parent must not take
+# it down.  Child directories without a page are this publish's to clear.
+mkdir -p "$TARGET"
+find "$TARGET" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) ! -name .git -exec rm -f {} +
+for d in "$TARGET"/*/; do
+    [ -d "$d" ] || continue
+    [ -f "$d/index.html" ] && [ ! -e "$DIST/$(basename "$d")/index.html" ] && continue
+    rm -rf "$d"
+done
 
 if [ "$DIST_TARGET" = dist-playtest ]; then
     # The whole directory: the page, the game, the compiler library, data.json.
@@ -154,8 +154,7 @@ if ! gh api "repos/$repo/pages" >/dev/null 2>&1; then
     gh api -X POST "repos/$repo/pages" -f "source[branch]=$BRANCH" -f "source[path]=/" >/dev/null
     echo "    enabled Pages on $BRANCH"
 else
-    gh api -X PUT "repos/$repo/pages" -f "source[branch]=$BRANCH" -f "source[path]=/" >/dev/null
-    echo "    Pages already enabled; source set to $BRANCH"
+    echo "    Pages already enabled; configuration left as it is"
 fi
 
 url=$(gh api "repos/$repo/pages" -q .html_url 2>/dev/null || echo "")
