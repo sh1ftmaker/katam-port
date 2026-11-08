@@ -952,8 +952,26 @@ const RlFrame *PortRlBuildFrame(void)
              * game camera; see RlTileLayer.shiftX. */
             L->shiftX = ((L->factorX - 256) * f->shiftX) / 256;
             L->shiftY = ((L->factorY - 256) * f->shiftY) / 256;
-            if (!(s->flags & 0x20))
-                continue;               /* tiles for real: the wrap is right */
+            if (!(s->flags & 0x20)) {
+                /* Loaded whole into its screen block, and the hardware wraps
+                 * it at the block's size.  When the picture is smaller than
+                 * the block (most skies are 30x30 tiles in a 32x32 block) the
+                 * 240x160 screen never reaches past it, but a wider or taller
+                 * view does, and the wrap shows the block's unused columns as
+                 * a striped seam every 256 pixels.  Mirror at the picture's
+                 * own edges instead -- continuous, like a narrow streamed
+                 * picture (FitAxis).  Not at 240x160, which stays the PPU's. */
+                u32 cnt = (u32)line0[RL_LINE_BGCNT + hw];
+                s32 bw = (cnt & 0x4000) ? 64 : 32, bh = (cnt & 0x8000) ? 64 : 32;
+
+                if ((W != PORT_SCREEN_W || H != PORT_SCREEN_H)
+                    && s->w > 0 && s->h > 0 && s->w <= bw && s->h <= bh
+                    && (s->w < bw || s->h < bh)) {
+                    L->picW = s->w < bw ? s->w * 8 : 0;  /* 0: that axis wraps for real */
+                    L->picH = s->h < bh ? s->h * 8 : 0;
+                }
+                continue;
+            }
 
             /* Streamed: VRAM holds a 32x22 window of the map.  Its last two
              * rows are read from past the bottom of the map (bg.c does no

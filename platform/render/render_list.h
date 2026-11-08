@@ -60,6 +60,11 @@ typedef struct RlTileLayer {
     u8 wrapX;                /* outside the window: 1 repeat, 2 mirror      */
     u8 clampY;               /* ... and its edge rows extend up and down    */
     u8 pad_[3];
+    /* WORLD, not streamed: a picture smaller than its hardware screen block
+     * (a 30x30 sky in a 32x32 block).  Nonzero: samples outside it are
+     * mirrored back in at its own edges rather than wrapping at the block's,
+     * which would show the block's unused columns and rows. */
+    s32 picW, picH;          /* pixels                                      */
     /* Added to the screen coordinate of every pixel before sampling: the
      * parallax term for a view moved off the game camera,
      * (factor - 1) * viewShift.  Zero for the room layer and for SCREEN. */

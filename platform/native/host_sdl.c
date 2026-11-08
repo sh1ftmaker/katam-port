@@ -162,7 +162,7 @@ static SDL_GLContext sGl;
 static int sGpuViewW = 240, sGpuViewH = 160, sGpuViewAuto;
 static const char *sGpuShotPath, *sCompareLogPath;
 static FILE *sCompareLog;
-#define MAX_SHOTS 64
+#define MAX_SHOTS 512
 static struct { long frame; const char *prefix; } sShots[MAX_SHOTS];
 static int sNumShots;
 static u32 *sGpuPixels;
