@@ -163,9 +163,14 @@ void GameInit(void) {
     gInputPlaybackData = NULL;
     gFrameCount = 0;
 
-    for (i = 0; i < 15; i++) {
+    /* PORT-FORK: 15 slots, a 14-entry template.  The console copied the next
+     * ROM word into slot 14; the port copied whatever the linker put after the
+     * template -- a host address in IWRAM, different in every build (UBSan).
+     * Slot 14 is never raised; it is cleared instead. */
+    for (i = 0; i < 14; i++) {
         gIntrTable[i] = gIntrTableTemplate[i];
     }
+    gIntrTable[14] = NULL;
 
     DmaFill32(3, 0, gUnk_03002760, 0x500);
     DmaWait(3);

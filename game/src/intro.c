@@ -1277,11 +1277,16 @@ static bool32 sub_081465C4(struct Unk_08145B64 *a1) {
                 u16 i;
 
                 for (i = 0; i <= a1->unk0; ++i) {
-                    for (; i == gUnk_08387814[a1->unk10].unk0; ++a1->unk10)
+                    for (; a1->unk10 < gUnk_08387D54[0] && i == gUnk_08387814[a1->unk10].unk0; ++a1->unk10)
                         sub_0814669C(a1, &gUnk_08387814[a1->unk10]);
                 }
             } else {
-                for (; a1->unk0 == gUnk_08387814[a1->unk10].unk0; ++a1->unk10)
+                /* PORT-FORK: both loops ran one entry past the 56-entry script
+                 * before stopping (UBSan).  The console's next ROM word is the
+                 * count, 56, in gUnk_08387D54; the port's is whatever the linker
+                 * put there.  Bounded by the count instead: the same unless
+                 * unk0 reached 56, where the console ran a junk entry. */
+                for (; a1->unk10 < gUnk_08387D54[0] && a1->unk0 == gUnk_08387814[a1->unk10].unk0; ++a1->unk10)
                         sub_0814669C(a1, &gUnk_08387814[a1->unk10]);
             }
         }

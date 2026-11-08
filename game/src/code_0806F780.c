@@ -969,6 +969,15 @@ void sub_080700D8(struct ObjectBase *a1) {
     }
 }
 
+/* PORT-FORK: the switch below reads a row before checking whether it ran off
+ * the end (index 14 of a 14-row table, 18 of 18, 24 of 24).  The console then
+ * read the next table in the ROM, which these follow exactly (0x08350BB0 +
+ * 14 * 2 = 0x08350BCC, and so on); the port's tables are laid out by the
+ * linker, so it read whatever sat there -- a different value in every build.
+ * UBSan found it. */
+#define ROM_NEXT_ROW(t, rows, next, i, j) \
+    ((i) < (rows) ? (t)[i][j] : (next)[(i) - (rows)][j])
+
 void sub_08070164(struct Unk_0806FDF4_0 *a1) {
     u16 v2 = 0, v3 = 0;
     bool32 v4 = FALSE;
@@ -1000,8 +1009,8 @@ void sub_08070164(struct Unk_0806FDF4_0 *a1) {
     if (a1->flags & 0x100) {
         switch (a1->unk6) {
         case 1:
-            v2 = gUnk_08350BB0[a1->unk4][0];
-            v3 = gUnk_08350BB0[a1->unk4][1];
+            v2 = ROM_NEXT_ROW(gUnk_08350BB0, 14, gUnk_08350BCC, a1->unk4, 0);
+            v3 = ROM_NEXT_ROW(gUnk_08350BB0, 14, gUnk_08350BCC, a1->unk4, 1);
             if (a1->unk4 > 0xD) {
                 a1->flags = 0;
                 a1->unk6 = 0;
@@ -1009,8 +1018,8 @@ void sub_08070164(struct Unk_0806FDF4_0 *a1) {
             }
             break;
         case 2:
-            v2 = gUnk_08350BCC[a1->unk4][0];
-            v3 = gUnk_08350BCC[a1->unk4][1];
+            v2 = ROM_NEXT_ROW(gUnk_08350BCC, 18, gUnk_08350BF0, a1->unk4, 0);
+            v3 = ROM_NEXT_ROW(gUnk_08350BCC, 18, gUnk_08350BF0, a1->unk4, 1);
             if (a1->unk4 > 0x11) {
                 a1->flags = 0;
                 a1->unk6 = 0;
@@ -1018,8 +1027,8 @@ void sub_08070164(struct Unk_0806FDF4_0 *a1) {
             }
             break;
         case 3:
-            v2 = gUnk_08350BF0[a1->unk4][0];
-            v3 = gUnk_08350BF0[a1->unk4][1];
+            v2 = ROM_NEXT_ROW(gUnk_08350BF0, 24, gUnk_08350C20, a1->unk4, 0);
+            v3 = ROM_NEXT_ROW(gUnk_08350BF0, 24, gUnk_08350C20, a1->unk4, 1);
             if (a1->unk4 > 0x17) {
                 a1->flags = 0;
                 a1->unk6 = 0;
