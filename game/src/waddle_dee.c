@@ -1,0 +1,446 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "object.h"
+#include "waddle_dee.h"
+#include "parasol.h"
+#include "kirby.h"
+#include "random.h"
+#include "constants/kirby.h"
+
+static void WaddleDeeChooseXSpeed0(struct Object*);
+static void WaddleDeeChooseXSpeed1(struct Object*);
+static void WaddleDeeChooseXSpeed2(struct Object*);
+static void WaddleDee37CheckTurnAround(struct Object*);
+static void WaddleDeeReverseXOnCounter(struct Object*);
+static void WaddleDeeReverseX(struct Object*);
+static void WaddleDeeSetStill(struct Object*);
+static void sub_080A45D8(struct Object*);
+static void sub_080A4608(struct Object*);
+static void sub_080A45A8(struct Object*);
+static void sub_080A44C0(struct Object*);
+static void sub_080A44E4(struct Object*);
+static void sub_080A4484(struct Object*);
+static void sub_080A4044(struct Object*);
+static void sub_080A4568(struct Object*);
+
+extern const struct AnimInfo gUnk_08353408[] = {
+    { 0x308, 0, 0 },
+    { 0x308, 1, 0 },
+    { 0x308, 2, 0 },
+    { 0x308, 3, 0 },
+    { 0x308, 4, 0 },
+    { 0x308, 5, 0 },
+};
+
+void* CreateWaddleDee(struct ObjectTemplate* arg0, u8 arg1) {
+    struct Object *obj, *tmp;
+    struct Kirby* kirby;
+    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    tmp = TaskGetStructPtr(task);
+    obj = tmp;
+    InitObject(obj, arg0, arg1);
+    sub_0803E2B0(&obj->base, -5, -4, 5, 7);
+    ObjectSetBounds(&obj->base, -6, -5, 6, 9);
+    obj->base.unk4C = obj->base.y = ((obj->base.y + (obj->base.unk3F * 0x100)) & 0xfffff000) - (obj->base.unk3F * 0x100) - 1;
+    kirby = FindTargetKirby(&obj->base);
+    if (obj->base.x > kirby->base.x) {
+        obj->base.flags |= 1;
+    }
+    ObjectInitSprite(obj);
+    if (obj->type == OBJ_WADDLE_DEE_2) {
+        WaddleDee37ChooseXSpeed(obj);
+    }
+    else {
+        switch (arg0->subtype1) {
+        default:
+        case 0:
+            WaddleDeeChooseXSpeed0(obj);
+            break;
+        case 1:
+            WaddleDeeChooseXSpeed1(obj);
+            break;
+        case 2:
+            WaddleDeeChooseXSpeed2(obj);
+            break;
+        case 3:
+        case 4:
+            WaddleDeeSetStill(obj);
+            break;
+        }
+    }
+    return obj;
+}
+
+void sub_080A3CF0(struct Object* arg0) {
+    arg0->kirbyAbility = KIRBY_ABILITY_NORMAL;
+    switch (arg0->objTemplate->subtype1) {
+    case 1:
+        WaddleDeeChooseXSpeed1(arg0);
+        break;
+    case 2:
+        WaddleDeeChooseXSpeed2(arg0);
+        break;
+    case 3:
+        if (arg0->subtype == 2) {
+            sub_080A45A8(arg0);
+            break;
+        }
+        else {
+            sub_0803E2B0(&arg0->base, -5, -4, 5, 7);
+            ObjectSetBounds(&arg0->base, -6, -5, 6, 9);
+        }
+    case 0:
+    default:
+        WaddleDeeChooseXSpeed0(arg0);
+        break;
+    case 4:
+        sub_080A45D8(arg0);
+        break;
+    }
+}
+
+static void sub_080A3D8C(struct Object* arg0) {
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed -= 5;
+        if (arg0->base.xspeed < -0x80) {
+            arg0->base.xspeed = -0x80;
+        }
+        else if (arg0->base.xspeed > 0x80) {
+            arg0->base.xspeed = 0x80;
+        }
+    }
+    else {
+        arg0->base.xspeed += 5;
+        if (arg0->base.xspeed > 0x80) {
+            arg0->base.xspeed = 0x80;
+        }
+        else if (arg0->base.xspeed < -0x80) {
+            arg0->base.xspeed = -0x80;
+        }
+    }
+    arg0->base.counter &= 0x1ff;
+    if (arg0->base.counter & 0x100) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    if (arg0->base.unk62 & 1) {
+        if (arg0->base.counter & 0x100) {
+            arg0->base.counter = 0;
+            arg0->base.xspeed = 0;
+            arg0->base.flags &= ~1;
+        }
+        else {
+            arg0->base.xspeed = 0;
+            arg0->base.counter = 0x100;
+            arg0->base.flags |= 1;
+        }
+    }
+    arg0->base.counter++;
+}
+
+static void WaddleDeeChooseXSpeed0(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, WaddleDeeReverseX);
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void WaddleDeeChooseXSpeed1(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, WaddleDeeReverseXOnCounter);
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void WaddleDeeReverseXOnCounter(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+        arg0->base.counter = 0;
+    }
+    switch (arg0->subtype) {
+    case 0:
+        if (arg0->base.counter > 0xc0) {
+            arg0->base.flags ^= 1;
+            arg0->base.xspeed = -arg0->base.xspeed;
+            arg0->base.counter = 0;
+        }
+        break;
+    case 1:
+        if (arg0->base.counter > 0x80) {
+            arg0->base.flags ^= 1;
+            arg0->base.xspeed = -arg0->base.xspeed;
+            arg0->base.counter = 0;
+        }
+        break;
+    case 2:
+        if (arg0->base.counter > 0x60) {
+            arg0->base.flags ^= 1;
+            arg0->base.xspeed = -arg0->base.xspeed;
+            arg0->base.counter = 0;
+        }
+        break;
+    case 3:
+        if (arg0->base.counter > 0x40) {
+            arg0->base.flags ^= 1;
+            arg0->base.xspeed = -arg0->base.xspeed;
+            arg0->base.counter = 0;
+        }
+        break;
+    }
+    arg0->base.counter++;
+}
+
+static void WaddleDeeChooseXSpeed2(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080A4044);
+    arg0->base.counter = 0x64;
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void sub_080A4044(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    if (arg0->base.counter == 0x1e) {
+        arg0->base.counter = 0;
+        if ((Rand16() & 3) == 0) {
+            sub_080A44C0(arg0);
+        }
+    }
+    else if (arg0->base.counter > 0xb4) {
+        arg0->base.counter = 0;
+        if ((Rand16() & 3) == 0) {
+            sub_080A44C0(arg0);
+        }
+    }
+    if (arg0->base.unk62 & 4) {
+        arg0->base.counter++;
+    }
+}
+
+static void WaddleDeeChooseXSpeedAndPlaySfx(struct Object* arg0) {
+    ObjectSetFunc(arg0, 2, sub_080A4484);
+    arg0->base.yspeed = 0x280;
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    PlaySfx(&arg0->base, SE_BASIC_ENEMY_JUMP);
+}
+
+static void sub_080A41F4(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 4) {
+        arg0->kirbyAbility = KIRBY_ABILITY_NORMAL;
+        if (arg0->unk85 == 1) {
+            sub_080A3CF0(arg0);
+        }
+        else {
+            sub_0803E2B0(&arg0->base, -5, -4, 5, 7);
+            ObjectSetBounds(&arg0->base, -6, -5, 6, 9);
+            arg0->unk83 = 0;
+            arg0->base.flags &= ~0x40;
+            arg0->base.xspeed = 0x80;
+            if (arg0->base.unk62 & 1) {
+                arg0->base.flags ^= 1;
+            }
+            if (arg0->base.flags & 1) {
+                arg0->base.xspeed = -arg0->base.xspeed;
+            }
+        }
+    }
+    else {
+        arg0->unk83 = 3;
+        if (arg0->base.counter != 0) {
+            arg0->base.flags |= 0x40;
+            arg0->unk85 = 1;
+        }
+    }
+}
+
+void WaddleDee37ChooseXSpeed(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, WaddleDee37CheckTurnAround);
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void WaddleDee37CheckTurnAround(struct Object* arg0) {
+    ObjXSomething(arg0);
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void WaddleDeeReverseX(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void sub_080A4484(struct Object* arg0) {
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    if (arg0->base.unk62 & 4) {
+        WaddleDeeChooseXSpeed2(arg0);
+    }
+}
+
+static void sub_080A44C0(struct Object* arg0) {
+    ObjectSetFunc(arg0, 1, sub_080A44E4);
+    arg0->base.xspeed = 0;
+    arg0->unk85 = 0;
+}
+
+static void sub_080A44E4(struct Object* arg0) {
+    if (arg0->base.flags & 2) {
+        if (arg0->unk85 != 0) {
+            WaddleDeeChooseXSpeedAndPlaySfx(arg0);
+        }
+        else {
+            arg0->base.flags |= 4;
+            arg0->unk85 = 1;
+        }
+    }
+}
+
+static void WaddleDeeSetStill(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080A4568);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk85 = 0;
+    sub_0803E2B0(&arg0->base, -5, -16, 5, 7);
+    arg0->kirbyAbility = KIRBY_ABILITY_PARASOL;
+    arg0->base.flags |= 0x2000;
+}
+
+static void sub_080A4568(struct Object* arg0) {
+    arg0->base.flags &= ~0x2000;
+    if (arg0->objTemplate->subtype1 == 3) {
+        sub_080C29C0(arg0, arg0->objTemplate->subtype2);
+        sub_080A45A8(arg0);
+    }
+    else {
+        sub_080C29C0(arg0, 2);
+        sub_080A45D8(arg0);
+    }
+}
+
+static void sub_080A45A8(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080A41F4);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk85 = 0;
+    arg0->kirbyAbility = KIRBY_ABILITY_PARASOL;
+}
+
+static void sub_080A45D8(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080A4608);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk85 = 0;
+    arg0->kirbyAbility = KIRBY_ABILITY_PARASOL;
+}
+
+static void sub_080A4608(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 4) {
+        arg0->unk83 = 0;
+        arg0->base.flags &= ~0x40;
+        arg0->base.xspeed = 0;
+        arg0->base.yspeed = 0;
+    }
+    else {
+        arg0->unk83 = 3;
+        arg0->base.flags |= 0x40;
+    }
+}
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,0 +1,40 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "master_sword.h"
+#include "kirby.h"
+#include "functions.h"
+
+static void sub_08025440(struct Object* arg0);
+
+extern const struct AnimInfo gUnk_082DEB0C[] = {
+    { 0x2C3, 4, 0 },
+};
+
+void* CreateMasterSwordNonCollectible(struct ObjectTemplate* arg0, u8 arg1) {
+    struct Object *obj;
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    obj = TaskGetStructPtr(task);
+    InitObject(obj, arg0, arg1);
+    obj->unk85 = 0;
+    obj->base.flags |= 0x8200;
+    obj->base.unk68 &= -8;
+    ObjectSetBounds(&obj->base, -8, -12, 8, 12);
+    ObjectInitSprite(obj);
+    gUnk_08351648[obj->type].unk10(obj);
+    return obj;
+}
+
+void sub_08025434(struct Object* arg0) {
+    arg0->unk78 = sub_08025440;
+}
+
+static void sub_08025440(struct Object* arg0) {
+    arg0->base.flags |= 4;
+}
+
+#ifdef __cplusplus
+}
+#endif

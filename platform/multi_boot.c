@@ -1,7 +1,7 @@
 /* MultiBoot, the part of it this game actually needs.
  *
  * On hardware this is Nintendo's SDK library, hand-written ARM assembly, and
- * tools/portify.py keeps it out of the build (REPLACED_FILES) because there is
+ * tools/legacy-sync/portify.py keeps it out of the build (REPLACED_FILES) because there is
  * no C for it.  Everything here is the port supplying that library.
  *
  * --- why a port needs MultiBoot at all -------------------------------------

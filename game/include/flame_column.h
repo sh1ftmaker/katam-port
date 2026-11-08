@@ -1,0 +1,33 @@
+#ifndef GUARD_FLAME_COLUMN_H
+#define GUARD_FLAME_COLUMN_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+struct FlameColumn
+{
+    struct Object obj;
+    s16 unkB4;
+    u16 unkB6;
+    u16 unkB8;
+    s16 unkBA;
+    s16 unkBC;
+    u8 unkBE;
+    u8 unkBF;
+}; /* size = 0xC0 */
+
+void *CreateFlameColumn(struct ObjectTemplate *, u8);
+void sub_0811FDF0(struct FlameColumn *);
+
+extern const struct AnimInfo gUnk_08357CD8[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

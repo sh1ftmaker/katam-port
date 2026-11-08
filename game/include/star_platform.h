@@ -1,0 +1,25 @@
+#ifndef GUARD_STAR_PLATFORM_H
+#define GUARD_STAR_PLATFORM_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+struct StarPlatform
+{
+    struct Object obj;
+    s16 unkB4, unkB6, unkB8, unkBA;
+}; /* size = 0xBC */
+
+void *CreateStarPlatform(struct ObjectTemplate *, u8);
+void sub_0811FC3C(struct Object *);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // GUARD_STAR_PLATFORM_H

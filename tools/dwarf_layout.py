@@ -27,7 +27,7 @@ answers a related question, not this one.
 Only enough DWARF is implemented to answer it: .debug_abbrev, the DIE tree in
 .debug_info, the two string sections, and the DWARF 5 file table out of
 .debug_line so a struct can name the header it came from.  Pure python, no
-dependencies -- the same rule tools/gen_ram_symbols.py and tools/gen_rom_data.py
+dependencies -- the same rule tools/legacy-sync/gen_ram_symbols.py and tools/legacy-sync/gen_rom_data.py
 follow.
 """
 

@@ -3,7 +3,7 @@
 
 `make layout-check` asserts the 246 types whose GBA offsets are known, and it
 passes.  That is a smaller claim than it sounds: a type only appears in
-build/generated/port/gba_layout.h if gen_gba_layout.py had a console-side
+game/generated/port/gba_layout.h if gen_gba_layout.py had a console-side
 offset to compare against.  A type the decompilation declares but never places
 at a fixed address is not in the table, is never asserted, and can quietly
 double in size under LP64 -- taking with it every `sizeof` the game passes to
@@ -106,7 +106,7 @@ def main():
     # instead of one, and the one that mattered was sixth in the list.
     if not args.all:
         bad = [k for k in bad
-               if (files.get(k) or "").find("/build/port-src/") != -1]
+               if (files.get(k) or "").find("/game/") != -1]
 
     if not args.quiet:
         print("%d types in both builds, %d compared" % (len(common), len(common)))

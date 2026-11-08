@@ -62,7 +62,7 @@ if(NOT CMAKE_C_COMPILER)
 endif()
 # The C++ compiler is not optional here, unlike every other target: a 64-bit
 # build compiles the game through a C++ front end so that PTR32 can be a
-# 4-byte class.  See platform/port/p32.h and tools/cxxify.py.
+# 4-byte class.  See platform/port/p32.h and tools/legacy-sync/cxxify.py.
 if(NOT CMAKE_CXX_COMPILER)
   set(CMAKE_CXX_COMPILER "${KATAM_ARM64_PREFIX}g++")
 endif()

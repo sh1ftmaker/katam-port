@@ -1,0 +1,35 @@
+#ifndef GUARD_CRAZY_HAND_H
+#define GUARD_CRAZY_HAND_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "data.h"
+#include "kirby.h"
+
+struct CrazyHand
+{
+    struct Object obj;
+    PTR32(struct CrazyHand) unkB4; // ???
+    u8 unkB8;
+    u8 unkB9;
+    u8 unkBA;
+}; /* size = 0xBC */
+
+void *CreateCrazyHand(struct ObjectTemplate *, u8);
+void *CreateMasterHandBullet(struct ObjectTemplate *, u8);
+void sub_080DF894(struct CrazyHand *);
+void sub_080E3370(struct Object *);
+bool32 sub_080E1B8C(struct CrazyHand *, struct Kirby *);
+
+extern const struct AnimInfo gUnk_08356910[];
+extern const struct AnimInfo gUnk_08356974[];
+extern const struct AnimInfo gUnk_08356980[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

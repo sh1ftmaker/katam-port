@@ -16,7 +16,7 @@
  * off-screen: no enemies, because (4) never made them; no sprites, because (2)
  * rejects them; and enemies that wink out mid-stride, because (3) kills them.
  * So this file derives all five from one description of the view, and the
- * codemod in tools/portify.py replaces the literals at (2)-(5) with the
+ * codemod in tools/legacy-sync/portify.py replaces the literals at (2)-(5) with the
  * globals below.  Every one of them defaults to the hardware's number, and
  * PortViewApply on the default mode writes exactly those numbers back, so a
  * build that never leaves PORT_VIEW_NATIVE is the build that shipped.
@@ -67,7 +67,7 @@
 
 /* C linkage for the 64-bit builds.
  *
- * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * Those compile the game as C++ and tools/legacy-sync/cxxify.py gives it C linkage, so
  * everything on the seam has to agree.  It is applied to platform/*.c as a
  * class rather than to the files that happened to break: the failure is an
  * undefined reference to a mangled name, or -- for a `const`, which is

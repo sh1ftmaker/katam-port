@@ -1,0 +1,21 @@
+#ifndef GUARD_CONSTANTS_LANGUAGES_H
+#define GUARD_CONSTANTS_LANGUAGES_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#define LANGUAGE_JAPANESE 0
+#define LANGUAGE_ENGLISH  1
+#define LANGUAGE_GERMAN   2
+#define LANGUAGE_FRENCH   3
+#define LANGUAGE_SPANISH  4
+#define LANGUAGE_ITALIAN  5
+#define NUM_LANGUAGES     6
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

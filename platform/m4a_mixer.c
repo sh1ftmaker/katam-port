@@ -55,7 +55,7 @@
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
-/* C linkage for the 64-bit builds -- see tools/cxxify.py.  This file is on the
+/* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  This file is on the
  * seam: it implements the sound engine's assembly half, which the game calls,
  * and it calls back into functions the game or the stub generator defines.  It
  * also forward-declares some of them itself (MidiKeyToFreq), and a declaration
@@ -72,7 +72,7 @@ u32 MidiKeyToFreq(struct WaveData *wav, u8 key, u8 fineAdjust);
  *
  * These three are the only part of src/m4a_tables.c the port needs in C.  The
  * six pure-data tables in that file (gScaleTable, gFreqTable, ...) are read
- * straight out of the player's ROM through the macros tools/gen_rom_data.py
+ * straight out of the player's ROM through the macros tools/legacy-sync/gen_rom_data.py
  * emits.  These three cannot be, because a ROM entry is an ARM code address
  * and calling one in wasm is not merely wrong, it is out of bounds.
  * ------------------------------------------------------------------------- */
@@ -90,7 +90,7 @@ static const u8 sClockTable[] = {
 };
 
 /* Extended commands (0xCD, "xcmd").  m4a.c defines every handler; only the
- * table has to be rebuilt (under a port name -- see tools/portify.py).
+ * table has to be rebuilt (under a port name -- see tools/legacy-sync/portify.py).
  * Note entries 0 and 3 are the do-nothing ply_xxx,
  * which bounces through gMPlayJumpTable[0] -- normally ply_fine. */
 const XcmdFunc gPortXcmdTable[] = {
@@ -121,7 +121,7 @@ static MPlayFunc const sJumpTableTemplate[36] = {
 
 /* Correctly-typed replacements for `(void (*)(u8))nullsub_141`, which is what
  * SoundInit writes before MPlayExtender installs the real CGB driver.  See the
- * patch in tools/portify.py. */
+ * patch in tools/legacy-sync/portify.py. */
 void PortNullCgbOscOff(u8 chanNum) { (void)chanNum; }
 u32 PortNullMidiKeyToCgbFreq(u8 a, u8 b, u8 c)
 {

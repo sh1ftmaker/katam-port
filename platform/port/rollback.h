@@ -130,7 +130,7 @@ enum PortRbEventType {
                              * reads it back within one simulated frame, so
                              * the event latches a floor that the game itself
                              * applies at the top of the new-game path (the
-                             * STORY_HOOK in tools/portify.py calls
+                             * STORY_HOOK in tools/legacy-sync/portify.py calls
                              * PortRbStoryApply there).  Schedule it at any
                              * frame at or before the confirm; frame 0 is
                              * fine.                                         */

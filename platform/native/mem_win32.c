@@ -58,7 +58,7 @@
 
 #include "native.h"
 
-/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+/* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
  * so SDL's headers stay outside the block. */
 #ifdef __cplusplus
 extern "C" {

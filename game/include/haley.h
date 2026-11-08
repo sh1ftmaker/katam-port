@@ -1,0 +1,20 @@
+#ifndef GUARD_HALEY_H
+#define GUARD_HALEY_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "data.h"
+
+void* CreateHaley(struct ObjectTemplate *arg0, u8 arg1);
+void sub_080A0E98(struct Object *arg0);
+
+extern const struct AnimInfo gUnk_08352F00[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

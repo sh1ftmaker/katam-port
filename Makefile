@@ -1,24 +1,24 @@
 # katam-port -- WebAssembly port of the Kirby & The Amazing Mirror decompilation
 #
 #   make            build web/katam.html + katam.js + katam.wasm
-#   make sync       re-copy and re-codemod the decomp sources (do this after
-#                   pulling new decompilation work)
-#   make layout     re-measure the committed GBA struct layout table, after the
-#                   decompilation has changed a structure on purpose
+#   make regress    replay the committed input recordings and compare against
+#                   the golden per-frame simulation hashes (tests/regress.sh)
+#   make layout     re-measure the committed GBA struct layout table, after a
+#                   structure has been changed on purpose
 #   make serve      build and serve on http://localhost:8000
 #   make clean
 #
-# Point KATAM_DECOMP at your checkout of the decompilation if it is not the
-# default.  Nothing from the ROM is read at build time -- the player supplies
-# their own ROM to the page at run time.
+# The game source lives in this repository, in game/ -- see docs/FORK.md.  No
+# decompilation checkout and no ARM toolchain is needed to build.  Nothing from
+# the ROM is read at build time either -- the player supplies their own ROM at
+# run time.  ROM= is only used by the targets that run the game.
 
-KATAM_DECOMP ?= $(HOME)/Desktop/katam
-ROM          ?= $(KATAM_DECOMP)/baserom.gba
+ROM          ?= $(HOME)/Desktop/katam/baserom.gba
 EMSDK        ?= $(HOME)/emsdk
 
 BUILD     := build
-PORT_SRC  := $(BUILD)/port-src
-GENERATED := $(BUILD)/generated
+PORT_SRC  := game
+GENERATED := game/generated
 OUT       := web
 
 CC := $(EMSDK)/upstream/emscripten/emcc
@@ -164,24 +164,15 @@ TARGET := $(OUT)/katam.html
 
 all: $(TARGET)
 
-# --- source sync ----------------------------------------------------------
-# portify.py copies the decomp and rewrites what will not compile off ARM.
-# The two generators then turn the linker-script RAM symbols and the ROM data
-# labels into address macros, editing the copied headers as they go.
-sync:
-	@echo "  SYNC    $(KATAM_DECOMP)"
-	python3 tools/portify.py --decomp $(KATAM_DECOMP) --out $(PORT_SRC)
-	python3 tools/gen_ram_symbols.py \
-	    --linker-script $(KATAM_DECOMP)/linker.ld \
-	    --tree $(PORT_SRC) --out $(GENERATED)/port/ram_symbols.h \
-	    --map $(KATAM_DECOMP)/katam.map
-	python3 tools/gen_rom_data.py \
-	    --data-dir $(KATAM_DECOMP)/data \
-	    --tree $(PORT_SRC) --out $(GENERATED)/port/rom_data.h \
-	    --out-copies $(GENERATED)/rom_copies.c \
-	    --out-tables $(GENERATED)/rom_fn_tables.c \
-	    --map $(KATAM_DECOMP)/katam.map --elf $(KATAM_DECOMP)/katam.elf \
-	    --rom $(ROM)
+# --- source sync (retired) ------------------------------------------------
+# `make sync` used to re-copy the decompilation and rewrite it with
+# tools/portify.py on every build.  The port is a hard fork now: game/ is the
+# source and is edited directly.  The old pipeline is kept, off the build path,
+# in tools/legacy-sync/ -- docs/FORK.md says how to bring an upstream change
+# across by hand.
+sync stubs:
+	@echo "make $@ is retired: game/ is the source now.  See docs/FORK.md."
+	@exit 1
 
 # --- the GBA struct layout table ------------------------------------------
 # platform/port/gba_layout.h is committed: the size and every member offset of
@@ -314,13 +305,6 @@ p32-test:
 	@$(CC) -x c -std=gnu99 -w -fsyntax-only $(INCLUDES) tools/p32_test.c \
 	  && echo "p32_test (C, ILP32): layout assertions hold"
 
-# The functions that are still ARM-only turn up as undefined symbols at link
-# time.  The list is re-derived from a real link rather than maintained by
-# hand, because the decompilation keeps shrinking it.
-stubs:
-	@KATAM_DECOMP=$(KATAM_DECOMP) EMSDK=$(EMSDK) BUILD=$(BUILD) \
-	 PORT_SRC=$(PORT_SRC) GENERATED=$(GENERATED) bash tools/refresh_stubs.sh
-
 # A source that disappears (replaced by the platform layer, or renamed
 # upstream) leaves its object behind, and a stale object is still a definition.
 prune:
@@ -328,8 +312,6 @@ prune:
 	    src=$${o#$(OBJDIR)/}; src=$${src%.o}.c; \
 	    [ -f "$$src" ] || { echo "  PRUNE   $$o"; rm -f "$$o" "$${o%.o}.d"; }; \
 	done
-
-$(PORT_SRC)/src: ; @$(MAKE) sync
 
 # --- compile --------------------------------------------------------------
 $(OBJDIR)/%.o: %.c
@@ -351,7 +333,6 @@ $(TARGET): $(OBJS) web/shell.html
 # Boots the port under node with a real ROM and runs frames, so "does it get
 # past GameInit" can be answered without a browser.  Needs a ROM you own; the
 # path is yours to supply and nothing here is committed.
-ROM ?= $(KATAM_DECOMP)/baserom.gba
 
 # --profiling-funcs keeps the name section, which costs a little size and
 # nothing in speed.  Without it a trap's stack is `wasm-function[1911]` and

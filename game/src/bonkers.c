@@ -1,0 +1,879 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "bonkers.h"
+#include "kirby.h"
+#include "functions.h"
+#include "random.h"
+#include "inhalable_star.h"
+#include "code_0806F780.h"
+
+static void BonkersWaitForKirby(struct Object*);
+static void BonkersStartWalk(struct Object*);
+static void BonkersWalk(struct Object*);
+static void BonkersRunWindup(struct Object*);
+static void BonkersStartRunning(struct Object*);
+static void BonkersRunning(struct Object*);
+static void BonkersStartWallRecoil(struct Object*);
+static void BonkersWallRecoil(struct Object*);
+static void sub_080D02E0(struct Object*);
+static void sub_080D0598(struct Object*);
+static void sub_080D062C(struct Object*);
+static void BonkersHammerSwing(struct Object*);
+static void BonkersHammerCombo(struct Object*);
+static void BonkersJumpSlam(struct Object*);
+static void BonkersJumpSlamRecover(struct Object*);
+static void BonkersStartNutAttack(struct Object*);
+static void BonkersNutAttack(struct Object*);
+static void BonkersThrowNut(struct Object*);
+static void BonkersNutFly(struct Object*);
+static void BonkersStartWaitForKirby(struct Object*);
+static void BonkersIdle(struct Object*);
+static void BonkersStartRunWindup(struct Object*);
+static void sub_080D14F8(struct Object*);
+static void BonkersChooseAttack(struct Object*);
+static void BonkersStartHammerSwing(struct Object*);
+static void BonkersStartHammerCombo(struct Object*);
+static void BonkersStartJumpSlam(struct Object*);
+
+extern const struct AnimInfo gUnk_08356058[] = {
+    { 0x31A,    1, 0 },
+    { 0x31A,    0, 0 },
+    { 0x31A,    2, 0 },
+    { 0x31A,    3, 0 },
+    { 0x31A,    4, 0 },
+    { 0x31A,    5, 0 },
+    { 0x31A,    6, 0 },
+    { 0x31A,    7, 0 },
+    { 0x31A,    8, 0 },
+    { 0x31A,    9, 0 },
+    { 0x31A,  0xA, 0 },
+    { 0x31A,  0xB, 0 },
+    { 0x31A,  0xC, 0 },
+    { 0x31A,  0xD, 0 },
+    { 0x31A,  0xE, 0 },
+    { 0x31A,  0xF, 0 },
+    { 0x31A, 0x10, 0 },
+    { 0x31A, 0x11, 0 },
+    { 0x31A, 0x12, 0 },
+    { 0x31A, 0x13, 0 },
+    { 0x31A, 0x14, 0 },
+    { 0x31A, 0x14, 0 },
+    { 0x31A, 0x14, 0 },
+    { 0x31A, 0x15, 0 },
+};
+
+extern const struct AnimInfo gUnk_083560B8[] = {
+    { 0x31A, 0x15, 0 },
+    { 0x31A, 0x16, 0 },
+};
+
+extern const struct AnimInfo gUnk_083560C0[] = {
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A, 0x17,  2 },
+    { 0x31A,    2,  2 },
+    { 0x31A,    2, -1 },
+};
+
+extern const struct AnimInfo gUnk_083560FC[] = {
+    { 0x31A, 0x17, 2 },
+    { 0x31A,    2, 2 },
+    { 0x31A,    2, 0 },
+};
+
+void *CreateBonkers(struct ObjectTemplate *arg0, u8 arg1) {
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
+    InitObject(obj, arg0, arg1);
+    obj->base.unkC |= 1;
+    obj->base.flags |= 0x2000000;
+    obj->base.flags |= 0x200;
+    obj->base.flags |= 0x200000;
+    if (obj->base.x > obj->kirby3->base.x) {
+        obj->base.flags |= 1;
+    }
+    else {
+        obj->base.flags &= ~1;
+    }
+    obj->base.unk5C &= ~7;
+    obj->base.unk5C |= 3;
+    obj->base.unk5C |= 0xa0;
+    sub_0803E2B0(&obj->base, -10, -22, 16, 10);
+    ObjectSetBounds(&obj->base, -12, -24, 20, 10);
+    ObjectInitSprite(obj);
+    obj->base.sprite.unk14 = 0x6c0;
+    obj->unk9E = 0;
+    obj->unk7C = sub_0809EF88;
+    BonkersStartWaitForKirby(obj);
+    return obj;
+}
+
+static void BonkersWaitForKirby(struct Object *arg0) {
+    struct Kirby* kirby = FindTargetKirby(&arg0->base);
+    arg0->kirby3 = kirby;
+    if (!(kirby->base.unkC & 0x8000)) {
+        if (arg0->base.roomId == kirby->base.roomId) {
+            if (arg0->base.x > kirby->base.x) {
+                arg0->base.flags |= 1;
+            }
+            else {
+                arg0->base.flags &= ~1;
+            }
+            if (ObjectOriginOverlapsRectAtTemplate(&arg0->kirby3->base, arg0)) {
+                Macro_081003EC(arg0, &arg0->kirby3->base);
+                arg0->base.flags &= ~0x200;
+                BonkersStartIdle(arg0);
+                arg0->base.counter = 0x5a;
+                Macro_08100F18(arg0);
+            }
+        }
+    }
+}
+
+void BonkersStartIdle(struct Object *arg0) {
+    ObjectSetFunc(arg0, 0, BonkersIdle);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->base.counter = 0x1e;
+    if (arg0->unk80 <= (gUnk_08351530[1][gNumHumanPlayers - 1] >> 1)) {
+        arg0->base.counter = 0xf;
+    }
+    arg0->unk85 = 0;
+}
+
+static void BonkersStartWalk(struct Object *arg0) {
+    ObjectSetFunc(arg0, 2, BonkersWalk);
+    if (arg0->subtype != 0) {
+        arg0->base.xspeed = -0xc0;
+    }
+    else {
+        arg0->base.xspeed = -0x80;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    arg0->base.counter = Rand16() % 2;
+}
+
+static void BonkersWalk(struct Object *arg0) {
+    arg0->base.flags |= 4;
+    ObjXSomething(arg0);
+    if (!(arg0->base.header.unk1 & 7)) {
+        arg0->kirby3 = FindTargetKirby(&arg0->base);
+        if (arg0->base.x > arg0->kirby3->base.x) {
+            arg0->base.flags |= 1;
+        }
+        else {
+            arg0->base.flags &= ~1;
+        }
+    }
+    if (arg0->base.flags & 2) {
+        if (arg0->base.counter == 0) {
+            BonkersStartRunWindup(arg0);
+            return;
+        }
+        else {
+            arg0->base.counter--;
+        }
+    }
+    if (arg0->base.unk62 & 2) {
+        arg0->base.xspeed = 0;
+    }
+}
+
+static void BonkersRunWindup(struct Object *arg0) {
+    arg0->base.flags |= 4;
+    ObjXSomething(arg0);
+    if (arg0->base.header.unk1 > 0xc) {
+        arg0->base.xspeed = 0;
+    }
+    
+    if (arg0->base.flags & 2) {
+        BonkersStartRunning(arg0);
+    }
+    else if (arg0->base.unk62 & 2) {
+        arg0->base.xspeed = 0;
+    }
+}
+
+static void BonkersStartRunning(struct Object *arg0) {
+    ObjectSetFunc(arg0, 4, BonkersRunning);
+    arg0->kirby3 = FindTargetKirby(&arg0->base);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    if (RandLessThan3()) {
+        if (arg0->base.flags & 1) {
+            arg0->unkA0 = (arg0->kirby3->base.x >> 8) + 0x20;
+        }
+        else {
+            arg0->unkA0 = (arg0->kirby3->base.x >> 8) - 0x20;
+        }
+    }
+    else {
+        arg0->unkA0 = arg0->base.x >> 8;
+        for (;;) {
+            const u32* r0;
+            if (arg0->base.flags & 1) {
+                arg0->unkA0 -= 0x10;
+            }
+            else {
+                arg0->unkA0 += 0x10;
+            }
+
+            if ((arg0->unkA0 >= arg0->unkA8) || (arg0->unkA0 <= arg0->unkA4)) {
+                if (arg0->base.flags & 1) {
+                    arg0->unkA0 += 0x20;
+                }
+                else {
+                    arg0->unkA0 -= 0x20;
+                }
+                break;
+            }
+
+            r0 = gCollisionAttributes;
+            if (r0[GetCollisionTile(arg0->base.unk56, arg0->unkA0 >> 4, arg0->base.y >> 0xc)] & 0x200) {
+                if (arg0->base.flags & 1) {
+                    arg0->unkA0 += 0x30;
+                }
+                else {
+                    arg0->unkA0 -= 0x30;
+                }
+                break;
+            }
+        }
+    }
+    if (arg0->unk80 <= (gUnk_08351530[1][gNumHumanPlayers - 1] >> 1)) {
+        if (Rand16() % 2) {
+            arg0->base.xspeed = 0x200;
+        }
+        else {
+            arg0->base.xspeed = 0x180;
+        }
+    }
+    else {
+        if (arg0->subtype != 0) {
+            arg0->base.xspeed = 0x200;
+        }
+        else {
+            arg0->base.xspeed = 0x180;
+        }
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    PlaySfx(&arg0->base, SE_MINIBOSS_RUN);
+}
+
+void BonkersRunning(struct Object *arg0) {
+    ObjXSomething(arg0);
+    arg0->base.flags |= 4;
+    if (arg0->base.flags & 2) {
+        if (arg0->subtype != 0) {
+            sub_08089864(&arg0->base, -0x10, 8, arg0->base.flags);
+        }
+        else {
+            arg0->base.counter ^= 1;
+            if (arg0->base.counter != 0) {
+                sub_08089864(&arg0->base, -0x10, 8, arg0->base.flags);
+            }
+        }
+    }
+    if (arg0->base.x >= arg0->unkA0 * 0x100) {
+        if (arg0->base.xspeed > 0) {
+            BonkersChooseAttack(arg0);
+            return;
+        }
+        else if (arg0->base.x > arg0->unkA0 * 0x100) {
+            goto label;
+        }
+    }
+    if (arg0->base.xspeed < 0) {
+        BonkersChooseAttack(arg0);
+        return;
+    }
+label:
+    if (arg0->base.unk62 & 1) {
+        BonkersStartWallRecoil(arg0);
+    }
+}
+
+static void BonkersStartWallRecoil(struct Object *arg0) {
+    ObjectSetFunc(arg0, 5, BonkersWallRecoil);
+    arg0->base.xspeed = -0x100;
+    arg0->base.yspeed = 0x300;
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    RequestScreenShake(2, &arg0->base);
+    PlaySfx(&arg0->base, SE_BOSS_GROUND_POUND_ATTACK);
+    arg0->base.flags &= ~0x20;
+    arg0->base.flags |= 0x40;
+}
+
+static void BonkersWallRecoil(struct Object *arg0) {
+    if (arg0->unk83 == 5) {
+        arg0->base.yspeed -= 0x2a;
+        if (arg0->base.yspeed < -0x580) {
+            arg0->base.yspeed = -0x580;
+        }
+        if (arg0->base.unk62 & 4) {
+            PlaySfx(&arg0->base, SE_BOSS_GROUND_POUND_ATTACK);
+            RequestScreenShake(1, &arg0->base);
+            arg0->base.flags |= 0x40;
+            arg0->unk83 = 6;
+            arg0->base.flags &= ~0x40;
+        }
+    }
+    else {
+        arg0->base.xspeed = 0;
+        if ((arg0->unk9E & 3) <= 1) {
+            arg0->base.yspeed = 0x100;
+        }
+        else {
+            arg0->base.yspeed = -0x100;
+        }
+        if (arg0->unk9E > 0x27) {
+            arg0->base.flags &= ~0x40;
+            if (Rand16() % 2) {
+                sub_080D14F8(arg0);
+            }
+            else {
+                sub_080D0598(arg0);
+            }
+        }
+        else {
+            arg0->unk9E++;
+        }
+    }
+}
+
+static void sub_080D02E0(struct Object *arg0) {
+    ObjXSomething(arg0);
+    arg0->base.yspeed -= 0x58;
+    if (arg0->base.yspeed < -0x580) {
+        arg0->base.yspeed = -0x580;
+    }
+    if (arg0->unk83 == 8) {
+        if (++arg0->unk9E > 7) {
+            if (arg0->subtype != 0) {
+                arg0->base.xspeed = 0x140;
+            }
+            else {
+                arg0->base.xspeed = 0x100;
+            }
+            arg0->base.yspeed = 0x600;
+            if (arg0->base.flags & 1) {
+                arg0->base.xspeed = -arg0->base.xspeed;
+            }
+            arg0->unk83 = 9;
+            arg0->unk9E = 0;
+        }
+    }
+    else {
+        if (arg0->unk83 == 9) {
+            if (arg0->base.unk62 & 4) {
+                RequestScreenShake(1, &arg0->base);
+                sub_08089864(&arg0->base, -0x10, 8, 1);
+                sub_08089864(&arg0->base, -0x10, 8, 0);
+                arg0->unk83 = 10;
+                arg0->base.xspeed = 0;
+                PlaySfx(&arg0->base, SE_BOSS_GROUND_POUND_ATTACK);
+                arg0->base.flags &= ~0x40;
+            }
+        }
+        else {
+            if (++arg0->unk9E > 0x1d) {
+                if (arg0->unk9F == 0) {
+                    BonkersStartWalk(arg0);
+                }
+                else {
+                    BonkersStartNutAttack(arg0);
+                }
+                return;
+            }
+        }
+    }
+    if (arg0->base.unk62 & 1) {
+        arg0->base.xspeed = 0;
+    }
+}
+
+static void sub_080D0598(struct Object *arg0) {
+    u8 unk9F = arg0->unk9F;
+    ObjectSetFunc(arg0, 8, sub_080D062C);
+    arg0->kirby3 = FindTargetKirby(&arg0->base);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    if (Rand16() % 2) {
+        arg0->base.counter = 1;
+    }
+    else {
+        arg0->base.counter = 3;
+    }
+    arg0->unk9F = unk9F;
+    arg0->base.flags &= ~0x20;
+    arg0->base.flags |= 0x40;
+}
+
+static void sub_080D062C(struct Object *arg0) {
+    arg0->base.yspeed -= 0x58;
+    if (arg0->base.yspeed < -0x580) {
+        arg0->base.yspeed = -0x580;
+    }
+    if (arg0->unk83 == 8) {
+        if (++arg0->unk9E > 7) {
+            arg0->base.yspeed = 0x580;
+            arg0->unk83 = 9;
+            arg0->unk9E = 0;
+        }
+    }
+    else {
+        if (arg0->unk83 == 9) {
+            if (arg0->base.unk62 & 4) {
+                RequestScreenShake(1, &arg0->base);
+                sub_08089864(&arg0->base, -0x10, 8, 1);
+                sub_08089864(&arg0->base, -0x10, 8, 0);
+                PlaySfx(&arg0->base, SE_BOSS_GROUND_POUND_ATTACK);
+                if (--arg0->base.counter == 0) {
+                    arg0->unk83 = 10;
+                }
+                else {
+                    arg0->unk83 = 8;
+                }
+            }
+        }
+        else {
+            if (++arg0->unk9E > 0x1d) {
+                arg0->base.flags &= ~0x40;
+                if (arg0->unk9F == 0) {
+                    BonkersStartWalk(arg0);
+                }
+                else {
+                    BonkersStartNutAttack(arg0);
+                }
+            }
+        }
+    }
+}
+
+static void BonkersHammerSwing(struct Object *arg0) {
+    if (arg0->base.header.unk1 == 0x12) {
+        RequestScreenShake(1, &arg0->base);
+        sub_080A8C28(arg0, 0x28, 8);
+        PlaySfx(&arg0->base, SE_BONKERS_HAMMER_ATTACK);
+    }
+    if (arg0->base.flags & 2) {
+        if (Rand16() % 4) {
+            if (Rand16() % 2) {
+                u8 unk9F = arg0->unk9F;
+                ObjectSetFunc(arg0, 8, sub_080D02E0);
+                arg0->kirby3 = FindTargetKirby(&arg0->base);
+                if (arg0->base.x > arg0->kirby3->base.x) {
+                    arg0->base.flags |= 1;
+                }
+                else {
+                    arg0->base.flags &= ~1;
+                }
+                arg0->base.xspeed = 0;
+                arg0->base.yspeed = 0;
+                arg0->unk9F = unk9F;
+                arg0->base.flags &= ~0x20;
+                arg0->base.flags |= 0x40;
+            }
+            else {
+                sub_080D0598(arg0);
+            }
+        }
+        else {
+            BonkersStartHammerCombo(arg0);
+        }
+    }
+}
+
+static void BonkersHammerCombo(struct Object *arg0) {
+    if (arg0->base.header.unk1 == 0x12) {
+        RequestScreenShake(1, &arg0->base);
+        sub_080A8C28(arg0, 0x28, 8);
+        PlaySfx(&arg0->base, SE_BONKERS_HAMMER_ATTACK);
+    }
+    else {
+        if (arg0->base.header.unk1 == 0x26 || arg0->base.header.unk1 == 0x3a) {
+            RequestScreenShake(1, &arg0->base);
+            PlaySfx(&arg0->base, SE_BONKERS_HAMMER_ATTACK);
+        }
+    }
+    if (arg0->base.flags & 2) {
+        if (Rand16() % 2) {
+            u8 unk9F = arg0->unk9F;
+            ObjectSetFunc(arg0, 8, sub_080D02E0);
+            arg0->kirby3 = FindTargetKirby(&arg0->base);
+            if (arg0->base.x > arg0->kirby3->base.x) {
+                arg0->base.flags |= 1;
+            }
+            else {
+                arg0->base.flags &= ~1;
+            }
+            arg0->base.xspeed = 0;
+            arg0->base.yspeed = 0;
+            arg0->unk9F = unk9F;
+            arg0->base.flags &= ~0x20;
+            arg0->base.flags |= 0x40;
+        }
+        else {
+            sub_080D0598(arg0);
+        }
+    }
+}
+
+static void BonkersJumpSlam(struct Object *arg0) {
+    arg0->base.yspeed -= 0x2a;
+    if (arg0->base.yspeed < -0x580) {
+        arg0->base.yspeed = -0x580;
+    }
+    if (arg0->base.header.unk1 == 8) {
+        arg0->base.yspeed = 0x4a0;
+    }
+    if (arg0->base.flags & 2) {
+        arg0->unk83 = 0xd;
+    }
+    if (arg0->unk83 == 0xd) {
+        if (arg0->base.unk62 & 4) {
+            RequestScreenShake(1, &arg0->base);
+            sub_080A8C28(arg0, 0x28, 8);
+            PlaySfx(&arg0->base, SE_BOSS_GROUND_POUND_ATTACK);
+            arg0->unk83 = 0xe;
+            arg0->unk78 = BonkersJumpSlamRecover;
+        }
+    }
+}
+
+static void BonkersJumpSlamRecover(struct Object *arg0) {
+    arg0->base.yspeed -= 0x2a;
+    if (arg0->base.yspeed < -0x580) {
+        arg0->base.yspeed = -0x580;
+    }
+    if (arg0->unk83 == 0xe) {
+        if (arg0->base.header.unk1 == 8) {
+            arg0->base.yspeed = 0x280;
+        }
+        if (arg0->base.flags & 2) {
+            arg0->unk83 = 0xf;
+        }
+    }
+    else {
+        if (arg0->unk83 == 0xf) {
+            if (arg0->base.unk62 & 4) {
+                arg0->unk83 = 0x10;
+                PlaySfx(&arg0->base, SE_BONKERS_JUMP);
+            }
+        }
+        else {
+            if (arg0->unk83 == 0x10) {
+                if (++arg0->base.counter > 0xf) {
+                    arg0->base.flags &= ~0x40;
+                    if (Rand16() % 2) {
+                        u8 unk9F = arg0->unk9F;
+                        ObjectSetFunc(arg0, 8, sub_080D02E0);
+                        arg0->kirby3 = FindTargetKirby(&arg0->base);
+                        if (arg0->base.x > arg0->kirby3->base.x) {
+                            arg0->base.flags |= 1;
+                        }
+                        else {
+                            arg0->base.flags &= ~1;
+                        }
+                        arg0->base.xspeed = 0;
+                        arg0->base.yspeed = 0;
+                        arg0->unk9F = unk9F;
+                            arg0->base.flags &= ~0x20;
+                            arg0->base.flags |= 0x40;
+                    }
+                    else {
+                        sub_080D0598(arg0);
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void BonkersStartNutAttack(struct Object *arg0) {
+    ObjectSetFunc(arg0, 0x12, BonkersNutAttack);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    if (arg0->objTemplate->subtype1 != 0) {
+        arg0->unk83 = 0x13;
+    }
+    else {
+        arg0->base.xspeed = -0x180;
+        arg0->base.yspeed = 0x280;
+        if (arg0->base.flags & 1) {
+            arg0->base.xspeed = -arg0->base.xspeed;
+        }
+    }
+    arg0->unk9F = 0;
+    arg0->base.flags &= ~0x20;
+    arg0->base.flags |= 0x40;
+}
+
+static void BonkersNutAttack(struct Object *arg0) {
+    ObjXSomething(arg0);
+    arg0->base.yspeed -= 0x38;
+    if (arg0->base.yspeed < -0x580) {
+        arg0->base.yspeed = -0x580;
+    }
+    if (arg0->unk83 == 0x12) {
+        if (arg0->base.unk62 & 4) {
+            arg0->base.xspeed = 0;
+            arg0->base.yspeed = 0;
+            RequestScreenShake(1, &arg0->base);
+            sub_08089864(&arg0->base, -0x10, 8, 1);
+            sub_08089864(&arg0->base, -0x10, 8, 0);
+            PlaySfx(&arg0->base, SE_BONKERS_JUMP);
+            arg0->unk83 = 0x13;
+            arg0->base.flags &= ~0x40;
+        }
+    }
+    else {
+        if (arg0->base.header.unk1 == 0x44) {
+            BonkersThrowNut(arg0);
+        }
+        if (arg0->base.flags & 2) {
+            if (Rand16() % 2) {
+                u8 unk9F = arg0->unk9F;
+                ObjectSetFunc(arg0, 8, sub_080D02E0);
+                arg0->kirby3 = FindTargetKirby(&arg0->base);
+                if (arg0->base.x > arg0->kirby3->base.x) {
+                    arg0->base.flags |= 1;
+                }
+                else {
+                    arg0->base.flags &= ~1;
+                }
+                arg0->base.xspeed = 0;
+                arg0->base.yspeed = 0;
+                arg0->unk9F = unk9F;
+                arg0->base.flags &= ~0x20;
+                arg0->base.flags |= 0x40;
+            }
+            else {
+                sub_080D0598(arg0);
+            }
+            return;
+        }
+    }
+    if (arg0->base.unk62 & 3) {
+        arg0->base.xspeed = 0;
+    }
+}
+
+static void BonkersThrowNut(struct Object *arg0) {
+    struct Object* obj;
+    u32 x, y;
+    if (arg0->base.flags & 1) {
+        x = (arg0->base.x >> 8) - 0x18;
+    }
+    else {
+        x = (arg0->base.x >> 8) + 0x18;
+    }
+    y = arg0->base.y >> 8;
+    if (RandLessThan3()) {
+        obj = CreateObjTemplateAndObj(arg0->base.unk56, 1, 36, x, y, 
+        0, 31, 0, 0, OBJ_BONKERS_NUT_SMALL, arg0->base.flags & 1, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+    else {
+        obj = CreateObjTemplateAndObj(arg0->base.unk56, 1, 36, x, y, 
+        0, 31, 0, 0, OBJ_BONKERS_NUT_LARGE, arg0->base.flags & 1, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+    obj->base.parent = arg0;
+}
+
+void *CreateBonkersNut(struct ObjectTemplate *arg0, u8 arg1) {
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
+    InitObject(obj, arg0, arg1);
+    obj->base.flags |= 0x10000;
+    obj->base.unkC |= 2;
+    sub_0803E2B0(&obj->base, -5, -7, 5, 4);
+    ObjectSetBounds(&obj->base, -6, -8, 6, 6);
+    if (obj->type == OBJ_BONKERS_NUT_LARGE) {
+        obj->base.unk5C &= ~7;
+        obj->base.unk5C |= 3;
+        sub_0803E2B0(&obj->base, -8, -8, 8, 6);
+        ObjectSetBounds(&obj->base, -10, -10, 10, 8);
+    }
+    ObjectInitSprite(obj);
+    obj->unk9E = 0;
+    obj->unk7C = sub_0809F840;
+    BonkersNutInit(obj);
+    PlaySfx(&obj->base, SE_BOSS_THROW_OBJECT);
+    return obj;
+}
+
+void BonkersNutInit(struct Object *arg0) {
+    if (arg0->type == OBJ_BONKERS_NUT_LARGE) {
+        ObjectSetFunc(arg0, 1, BonkersNutFly);
+    }
+    else {
+        ObjectSetFunc(arg0, 0, BonkersNutFly);
+    }
+    if (arg0->objTemplate->subtype1 != 0) {
+        arg0->base.flags |= 1;
+    }
+    arg0->base.xspeed = 0x180;
+    arg0->base.yspeed = 0x1e0;
+    if (arg0->type == OBJ_BONKERS_NUT_LARGE) {
+        arg0->base.xspeed >>= 1;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void BonkersNutFly(struct Object *arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 4) {
+        if (arg0->base.counter == 0) {
+            arg0->base.counter = 1;
+            arg0->base.xspeed = 0x120;
+            arg0->base.yspeed = 0xf0;
+            if (arg0->type == OBJ_BONKERS_NUT_LARGE) {
+                arg0->base.xspeed >>= 1;
+            }
+            if (arg0->base.flags & 1) {
+                arg0->base.xspeed = -arg0->base.xspeed;
+            }
+        }
+        else {
+            sub_0809DA30(arg0);
+            arg0->base.flags |= 0x1000;
+            return;
+        }
+    }
+    if (arg0->base.unk62 & 1) {
+        sub_0809DA30(arg0);
+        arg0->base.flags |= 0x1000;
+    }
+}
+
+static void BonkersStartWaitForKirby(struct Object *arg0) {
+    ObjectSetFunc(arg0, 0, BonkersWaitForKirby);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+}
+
+static void BonkersIdle(struct Object *arg0) {
+    if (--arg0->base.counter == 0) {
+        BonkersStartWalk(arg0);
+    }
+}
+
+static void BonkersStartRunWindup(struct Object *arg0) {
+    ObjectSetFunc(arg0, 7, BonkersRunWindup);
+    arg0->base.xspeed = -0x80;
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = 0x80;
+    }
+}
+
+static void sub_080D14F8(struct Object *arg0) {
+    u8 unk9F = arg0->unk9F;
+    ObjectSetFunc(arg0, 8, sub_080D02E0);
+    arg0->kirby3 = FindTargetKirby(&arg0->base);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk9F = unk9F;
+    arg0->base.flags &= ~0x20;
+    arg0->base.flags |= 0x40;
+}
+
+static void BonkersChooseAttack(struct Object *arg0) {
+    arg0->kirby3 = FindTargetKirby(&arg0->base);
+    if (arg0->unk85 == 2) {
+        BonkersStartHammerCombo(arg0);
+    }
+    else {
+        if ((arg0->base.y - 0x1800) > arg0->kirby3->base.y) {
+            BonkersStartJumpSlam(arg0);
+        }
+        else {
+            BonkersStartHammerSwing(arg0);
+        }
+    }
+    if (++arg0->unk85 > 2) {
+        arg0->unk85 = 0;
+    }
+}
+
+static void BonkersStartHammerSwing(struct Object *arg0) {
+    ObjectSetFunc(arg0, 11, BonkersHammerSwing);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+}
+
+static void BonkersStartHammerCombo(struct Object *arg0) {
+    ObjectSetFunc(arg0, 17, BonkersHammerCombo);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+}
+
+static void BonkersStartJumpSlam(struct Object *arg0) {
+    ObjectSetFunc(arg0, 12, BonkersJumpSlam);
+    if (arg0->base.x > arg0->kirby3->base.x) {
+        arg0->base.flags |= 1;
+    }
+    else {
+        arg0->base.flags &= ~1;
+    }
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->base.flags &= ~0x20;
+    arg0->base.flags |= 0x40;
+}
+
+#ifdef __cplusplus
+}
+#endif

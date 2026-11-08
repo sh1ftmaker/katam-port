@@ -14,7 +14,7 @@
  * MultiSioIntr copies nothing useful, and the buffer the game then installs in
  * gIntrTable[0] is not callable.  The port answers that in two places:
  * PortDispatchInterrupt recognises the buffer address and calls MultiSioIntr
- * instead, and tools/portify.py rewrites MultiSioRecvDataCheck's call through
+ * instead, and tools/legacy-sync/portify.py rewrites MultiSioRecvDataCheck's call through
  * gMultiSioRecvFuncBuf into a direct one.  Both are noted where they are.
  *
  * Provenance
@@ -50,7 +50,7 @@
 
 /* C linkage for the 64-bit builds.
  *
- * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * Those compile the game as C++ and tools/legacy-sync/cxxify.py gives it C linkage, so
  * everything on the seam has to agree.  It is applied to platform/*.c as a
  * class rather than to the files that happened to break: the failure is an
  * undefined reference to a mangled name, or -- for a `const`, which is

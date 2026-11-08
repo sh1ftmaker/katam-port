@@ -1,0 +1,54 @@
+#ifndef GUARD_MEGA_TITAN_H
+#define GUARD_MEGA_TITAN_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+struct MegaTitan
+{
+    struct Object obj;
+    PTR32(struct Object) arms[4];
+    u8 unkC4;
+}; /* size = 0xC8 */
+
+struct TitanHead
+{
+    struct Object obj;
+    u32 unused[5];
+}; /* size = 0xC8 */
+
+void *CreateMegaTitan(struct ObjectTemplate *, u8);
+void sub_080EDC94(struct MegaTitan *);
+void *CreateTitanArm1(struct ObjectTemplate *, u8);
+void sub_080EF1A8(struct Object *);
+void *CreateTitanArm3(struct ObjectTemplate *, u8);
+void sub_080F1598(struct Object *);
+void *CreateTitanArm2(struct ObjectTemplate *, u8);
+void sub_080F2170(struct Object *);
+void *CreateTitanArm4(struct ObjectTemplate *, u8);
+void sub_080F2D74(struct Object *);
+void *CreateTitanHead(struct ObjectTemplate *, u8);
+void sub_080F486C(struct TitanHead *);
+void *CreateTitanHeadMissile(struct ObjectTemplate *, u8);
+void sub_080F55A8(struct Object *);
+
+extern const struct AnimInfo gUnk_08356E54[];
+extern const struct AnimInfo gUnk_08356E78[];
+extern const struct AnimInfo gUnk_08356EC8[];
+extern const struct AnimInfo gUnk_08356F18[];
+extern const struct AnimInfo gUnk_08356F68[];
+extern const struct AnimInfo gUnk_08356FB8[];
+extern const struct AnimInfo gUnk_08356FD8[];
+extern const struct AnimInfo gUnk_08356FE0[];
+extern const struct AnimInfo gUnk_0835703C[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

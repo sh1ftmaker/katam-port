@@ -1,0 +1,27 @@
+#ifndef GUARD_DROPPY_H
+#define GUARD_DROPPY_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "data.h"
+#include "functions.h"
+void* CreateDroppy(struct ObjectTemplate *arg0, u8 arg1);
+void sub_0809FE9C(struct Object *arg0);
+bool32 sub_080A049C(struct Object *arg0, struct Kirby *kirby);
+
+#define Macro_0809FF6C(obj, xOffset, yOffset) \
+    (((obj)->base.x + (xOffset)) <= gCurLevelInfo[(obj)->base.unk56].levelMaxPosition.x  \
+        && ((obj)->base.x + (xOffset)) >= gCurLevelInfo[(obj)->base.unk56].levelMinPosition.x \
+        && ((obj)->base.y + (yOffset)) <= gCurLevelInfo[(obj)->base.unk56].levelMaxPosition.y \
+        && ((obj)->base.y + (yOffset)) >= gCurLevelInfo[(obj)->base.unk56].levelMinPosition.y)
+
+extern const struct AnimInfo gUnk_08352E78[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

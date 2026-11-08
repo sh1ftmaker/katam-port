@@ -1,0 +1,110 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "star_platform.h"
+#include "kirby.h"
+#include "functions.h"
+#include "task.h"
+
+void sub_08089864(struct ObjectBase *, s8, s8, u32);
+
+static void sub_0811FA90(struct StarPlatform *);
+static void sub_0811FB54(struct StarPlatform *);
+static void sub_0811FC4C(struct StarPlatform *);
+static void sub_0811FC88(struct Task *);
+
+void *CreateStarPlatform(struct ObjectTemplate *arg0, u8 arg1) {
+    struct StarPlatform *plat;
+    struct Object *obj;
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct StarPlatform), 0x1000, TASK_USE_IWRAM, sub_0811FC88);
+    plat = TaskGetStructPtr(task);
+    obj = &plat->obj;
+    InitObject(obj, arg0, arg1);
+    obj->base.flags |= 0x210A940;
+    obj->base.unk5C |= ~0x2000;
+    obj->base.unkC |= 1;
+    obj->base.unk68 &= ~7;
+    obj->base.unk5C &= ~7;
+    obj->unk83 = 0;
+    plat->unkB4 = obj->objTemplate->unk1A + 8;
+    plat->unkB6 = obj->objTemplate->unk1C;
+    plat->unkB8 = plat->unkB4 + obj->objTemplate->unk1E - 0x10;
+    plat->unkBA = plat->unkB6 + obj->objTemplate->unk20;
+    sub_0803E2B0(&obj->base, plat->unkB4, plat->unkB6, plat->unkB8, plat->unkBA);
+    ObjectInitSprite(obj);
+    gUnk_08351648[obj->type].unk10(obj);
+    return obj;
+}
+
+static void sub_0811FA90(struct StarPlatform *plat) {
+    s16 rect[4];
+    u8 level = plat->obj.base.unk56;
+    s16 x, y;
+    u16 height;
+    u16 i;
+    rect[0] = (plat->obj.base.x >> 8) + plat->obj.objTemplate->unk1A;
+    rect[1] = (plat->obj.base.y >> 8) + plat->obj.objTemplate->unk1C;
+    rect[2] = rect[0] + plat->obj.objTemplate->unk1E;
+    rect[3] = rect[1] + plat->obj.objTemplate->unk20;
+    x = rect[0] >> 4;
+    y = rect[1] >> 4;
+    height = plat->obj.objTemplate->unk20 >> 4;
+    for (i = 0; i < height; i++) {
+        sub_08001408(level, sub_080025AC(level, x, y + i), 0, 0);
+        sub_08001408(level, sub_080025AC(level, x + 1, y + i), 0, 0);
+    }
+}
+
+static void sub_0811FB54(struct StarPlatform *plat) {
+    u8 level;
+    s32 offset;
+    const u32 *attrs;
+    if (plat->obj.base.flags & 0x40000
+     && ((struct ObjectBase *)plat->obj.base.unk6C)->unk68 & 0x2000) {
+        level = plat->obj.base.unk56;
+        attrs = gCollisionAttributes;
+        if (attrs[GetCollisionTile(level, plat->obj.base.x >> 12, plat->obj.base.y >> 12)] & 4) {
+            sub_08001408(level, sub_080025AC(level, plat->obj.base.x >> 12, plat->obj.base.y >> 12), 0, 0);
+            sub_08001408(level, sub_080025AC(level, (plat->obj.base.x >> 12) - 1, plat->obj.base.y >> 12), 0, 0);
+            plat->obj.base.flags &= ~0x40;
+            plat->obj.base.flags &= ~0x800;
+            plat->obj.base.flags |= 0x200;
+            sub_0811FA90(plat);
+            plat->obj.unk78 = sub_0811FC4C;
+            offset = (((struct ObjectBase *)plat->obj.base.unk6C)->y - plat->obj.base.y) >> 8;
+            sub_08089864(&plat->obj.base, 0, offset, 0);
+            sub_08089864(&plat->obj.base, 0, offset, 1);
+        }
+    }
+    plat->obj.base.counter++;
+}
+
+void sub_0811FC3C(struct Object *arg0) {
+    arg0->base.counter = 0;
+    arg0->unk78 = sub_0811FB54;
+}
+
+static void sub_0811FC4C(struct StarPlatform *plat) {
+    if (plat->obj.base.y >> 8 >= gCurLevelInfo[plat->obj.base.unk56].roomHeight + 8) {
+        plat->obj.base.flags |= 0x1000;
+    }
+    plat->obj.base.counter++;
+}
+
+static void sub_0811FC88(struct Task *task) {
+    struct StarPlatform *plat = TaskGetStructPtr(task);
+    u8 level = plat->obj.base.unk56;
+    u32 spawnX = plat->obj.objTemplate->unk2;
+    u8 spawnY = plat->obj.objTemplate->unk3;
+    u8 r4 = gCurLevelInfo[level].unk65E;
+    ObjectDestroy(task);
+    if (spawnX != 0 || level != 0xFF) {
+        sub_08001678(spawnX, spawnY, r4, 1);
+    }
+}
+
+#ifdef __cplusplus
+}
+#endif

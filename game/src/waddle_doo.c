@@ -1,0 +1,408 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "waddle_doo.h"
+
+#include "functions.h"
+#include "kirby.h"
+#include "object.h"
+#include "parasol.h"
+#include "task.h"
+#include "random.h"
+#include "code_0806F780.h"
+#include "constants/kirby.h"
+
+static const s16 gUnk_0835464C[] = {
+    0x0, 0x800, 
+    0x200, 0x600,
+    0x400, 0x400,
+    0x600, 0x200,
+    0x800, 0x0,
+    0x600, -0x200,
+    0x400, -0x400,
+    0x200, -0x600,
+    0x0, -0x800,
+};
+
+static void sub_080B6AD8(struct Object*);
+static void sub_080B6B68(struct Object*);
+static void sub_080B6BFC(struct Object*);
+static void sub_080B6C78(struct Object*);
+static void sub_080B6CD8(struct Object*);
+static void sub_080B6D58(struct Object*);
+static void sub_080B6DDC(struct Object*, u8);
+static void sub_080B7068(void);
+static void sub_080B7324(struct Object*);
+static void sub_080B7360(struct Object*);
+static void sub_080B7394(struct Object*);
+static void sub_080B73D8(struct Object*);
+static void sub_080B7408(struct Object*);
+static void sub_080B741C(struct Object*);
+static void sub_080B7428(struct Object*);
+static void sub_080B743C(struct Object*);
+static void sub_080B7460(struct Object*);
+static void sub_080B74B4(struct Object*);
+
+void* CreateWaddleDoo(struct ObjectTemplate* arg0, u8 arg1) {
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
+    InitObject(obj, arg0, arg1);
+    sub_0803E2B0(&obj->base, -5, -3, 5, 8);
+    ObjectSetBounds(&obj->base, -6, -4, 6, 10);
+    obj->base.unk4C = obj->base.y = ((obj->base.y + (obj->base.unk3F << 8)) & ~0xfff) - (obj->base.unk3F << 8) - 1;
+    if (obj->base.x > obj->kirby3->base.x) {
+        obj->base.flags |= 1;
+    }
+    ObjectInitSprite(obj);
+    switch (arg0->subtype1) {
+    case 0:
+    default:
+        sub_080B6AD8(obj);
+        break;
+    case 1:
+        sub_080B7460(obj);
+        break;
+    case 2:
+        sub_080B7408(obj);
+        break;
+    case 3:
+        sub_080B7428(obj);
+        break;
+    }
+    return obj;
+}
+
+void sub_080B6A54(struct Object* arg0) {
+    arg0->base.flags &= ~0x40;
+    switch (arg0->objTemplate->subtype1) {
+    case 0:
+    default:
+        sub_080B6AD8(arg0);
+        break;
+    case 1:
+        if (arg0->subtype == 2) {
+            sub_080B73D8(arg0);
+        }
+        else {
+            sub_0803E2B0(&arg0->base, -5, -3, 5, 8);
+            ObjectSetBounds(&arg0->base, -6, -4, 6, 10);
+            sub_080B6AD8(arg0);
+        }
+        break;
+    case 2:
+        sub_080B7408(arg0);
+        break;
+    case 3:
+        sub_080B7428(arg0);
+        break;
+    }
+}
+
+static void sub_080B6AD8(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080B6B68);
+    arg0->kirbyAbility = KIRBY_ABILITY_BEAM;
+    if (arg0->unk85 == 0) {
+        arg0->base.counter = 0x41;
+    }
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        arg0->unk83 = 0;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        arg0->unk83 = 1;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        arg0->unk83 = 2;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        arg0->unk83 = 3;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void sub_080B6B68(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    if (arg0->base.unk62 & 4) {
+        if (++arg0->base.counter > 0x50) {
+            if (Rand16() & 1) {
+                sub_080B6C78(arg0);
+            }
+            else {
+                if (Rand16() & 1) {
+                    arg0->base.counter = 0;
+                }
+                else {
+                    sub_080B6BFC(arg0);
+                }
+            }
+        }
+    }
+}
+
+static void sub_080B6BFC(struct Object* arg0) {
+    ObjectSetFunc(arg0, 4, sub_080B7324);
+    arg0->unk85 = 1;
+    arg0->base.yspeed = 0x280;
+    switch (arg0->subtype) {
+    case 0:
+        arg0->base.xspeed = 0x80;
+        break;
+    case 1:
+        arg0->base.xspeed = 0xc0;
+        break;
+    case 2:
+        arg0->base.xspeed = 0x100;
+        break;
+    case 3:
+        arg0->base.xspeed = 0x180;
+        break;
+    }
+    if (arg0->base.flags & 1) {
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+}
+
+static void sub_080B6C78(struct Object* arg0) {
+    ObjectSetFunc(arg0, 6, sub_080B7360);
+    arg0->base.yspeed = 0;
+    arg0->base.xspeed = 0;
+    switch (arg0->subtype) {
+    case 0:
+        arg0->unk85 = 0x10;
+        break;
+    case 1:
+        arg0->unk85 = 0xa;
+        break;
+    case 2:
+        arg0->unk85 = 0x8;
+        break;
+    case 3:
+        arg0->unk85 = 0x6;
+        break;
+    }
+}
+
+static void sub_080B6CD8(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.flags & 2) {
+        arg0->unk85--;
+    }
+    if (arg0->base.header.unk1 & 1) {
+        if (arg0->subtype < 2) {
+            sub_080B6DDC(arg0, arg0->base.counter >> 1);
+        }
+        else {
+            sub_080B6DDC(arg0, arg0->base.counter);
+        }
+        arg0->base.counter++;
+    }
+    if (arg0->unk85 == 0) {
+        arg0->unk85 = 1;
+        if (arg0->objTemplate->subtype1 == 3) {
+            sub_080B7428(arg0);
+        }
+        else {
+            sub_080B6AD8(arg0);
+        }
+    }
+}
+
+static void sub_080B6D58(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.unk62 & 4) {
+        if (arg0->unk85 == 1) {
+            sub_080B6A54(arg0);
+        }
+        else {
+            arg0->unk83 = 0;
+            arg0->base.flags &= ~0x40;
+            arg0->base.xspeed = 0x80;
+            if (arg0->base.unk62 & 1) {
+                arg0->base.flags ^= 1;
+            }
+            if (arg0->base.flags & 1) {
+                arg0->base.xspeed = -arg0->base.xspeed;
+            }
+        }
+    }
+    else {
+        arg0->unk83 = 5;
+        arg0->base.flags |= 0x40;
+        arg0->unk85 = 1;
+    }
+}
+
+static void sub_080B6DDC(struct Object* arg0, u8 arg1) {
+    u32 arg;
+    struct Task *task = TaskCreate(sub_080B7068, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct ObjectBase *objBase = TaskGetStructPtr(task), *obj = objBase;
+    ClearObjectBase(obj);
+    obj->header.kind = 2;
+    obj->x = arg0->base.x;
+    obj->y = arg0->base.y;
+    obj->parent = arg0;
+    obj->counter = 0;
+    obj->roomId = arg0->base.roomId;
+    obj->unk56 = arg0->base.unk56;
+    if (Macro_0810B1F4(obj)) {
+        obj->flags |= 0x2000;
+    }
+    obj->unk63 = 1;
+    obj->flags |= 0x4000;
+    obj->flags |= 0x10000000;
+    obj->flags |= 0x140;
+    obj->unk68 = 0x20000043;
+    obj->unk5C |= 0x80000;
+    obj->xspeed = gUnk_0835464C[(arg = arg1 * 2)];
+    obj->yspeed = gUnk_0835464C[arg1 * 2 + 1];
+    obj->y += 0x300;
+    if (arg0->base.flags & 1) {
+        obj->x -= 0x800;
+        obj->flags |= 1;
+        obj->xspeed = -obj->xspeed;
+    }
+    else {
+        obj->x += 0x800;
+        obj->flags &= ~1;
+    }
+    sub_0803E2B0(obj, -2, -2, 2, 2);
+    ObjectSetBounds(obj, 0, 0, 0, 0);
+    ObjectBaseInitSprite(obj, &obj->sprite, 8, 0x330, 0xa, 0xc);
+    obj->sprite.palId = 0;
+    if (arg0->base.unkC & 0x10) {
+        Macro_081050E8(obj, &obj->sprite, gUnk_08351648[OBJ_DROPPY].unk8, 0, 1);
+    }
+    else {
+        Macro_081050E8(obj, &obj->sprite, 0x308, 0, 1);
+    }
+    PlaySfx(obj, SE_WADDLE_DOO_BEAM_ATTACK);
+}
+
+static void sub_080B7068(void) {
+    struct Sprite sprite;
+    struct ObjectBase *objBase = TaskGetStructPtr(gCurTask), *obj = objBase;
+    struct Object *parent = obj->parent;
+    Macro_08107BA8_4(obj, &obj->sprite, &sprite, 8, &obj->sprite);
+    if (parent->base.unkC & 0x10) {
+        Macro_081050E8(obj, &obj->sprite, gUnk_08351648[OBJ_DROPPY].unk8, 0, obj->sprite.palId == 0);
+    }
+    else {
+        Macro_081050E8(obj, &obj->sprite, 0x308, 0, obj->sprite.palId == 0);
+    }
+    parent = obj->parent;
+    if (obj->roomId != 0xffff && parent->base.flags & 0x1000) {
+        obj->roomId = 0xffff;
+    }
+    if (ObjectPreUpdate(obj) == 0) {
+        obj->flags |= 4;
+        if (obj->flags & 2 && ++obj->counter > 2) {
+            obj->flags |= 0x1000;
+        }
+        else {
+            if (!(obj->flags & 0x200)) {
+                SetPointerSomething(obj);
+            }
+            if (!(obj->flags & 0x800)) {
+                obj->x += obj->xspeed;
+                obj->y -= obj->yspeed;
+            }
+            sub_0806F8BC(obj);
+        }
+    }
+}
+
+static void sub_080B7324(struct Object* arg0) {
+    if (arg0->base.unk62 & 1) {
+        arg0->base.flags ^= 1;
+        arg0->base.xspeed = -arg0->base.xspeed;
+    }
+    if (arg0->base.unk62 & 4) {
+        sub_080B6AD8(arg0);
+    }
+}
+
+static void sub_080B7360(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (arg0->base.flags & 2) {
+        arg0->unk85--;
+    }
+    if (arg0->unk85 == 0) {
+        sub_080B7394(arg0);
+    }
+}
+
+static void sub_080B7394(struct Object* arg0) {
+    ObjectSetFunc(arg0, 7, sub_080B6CD8);
+    arg0->base.yspeed = 0;
+    arg0->base.xspeed = 0;
+    switch (arg0->subtype) {
+    case 0:
+    case 1:
+        arg0->unk85 = 8;
+        break;
+    case 2:
+    case 3:
+        arg0->unk85 = 4;
+        break;
+    }
+}
+
+static void sub_080B73D8(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080B6D58);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk85 = 0;
+    arg0->kirbyAbility = KIRBY_ABILITY_PARASOL;
+}
+
+static void sub_080B7408(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080B741C);
+}
+
+static void sub_080B741C(struct Object* arg0) {
+    arg0->base.flags |= 4;
+}
+
+static void sub_080B7428(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080B743C);
+}
+
+static void sub_080B743C(struct Object* arg0) {
+    arg0->base.flags |= 4;
+    if (++arg0->base.counter > 0x3e) {
+        sub_080B6C78(arg0);
+    }
+}
+
+static void sub_080B7460(struct Object* arg0) {
+    ObjectSetFunc(arg0, 0, sub_080B74B4);
+    arg0->base.xspeed = 0;
+    arg0->base.yspeed = 0;
+    arg0->unk85 = 0;
+    sub_0803E2B0(&arg0->base, -5, -5, 5, 8);
+    arg0->kirbyAbility = KIRBY_ABILITY_PARASOL;
+    arg0->base.flags |= 0x2000;
+}
+
+static void sub_080B74B4(struct Object* arg0) {
+    sub_080C29C0(arg0, arg0->objTemplate->subtype2);
+    arg0->base.flags &= ~0x2000;
+    sub_080B73D8(arg0);
+}
+
+#ifdef __cplusplus
+}
+#endif

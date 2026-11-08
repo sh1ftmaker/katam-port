@@ -82,7 +82,7 @@
  * here and the one in port/port.h agree.
  *
  * extern "C" for the 64-bit builds.  Those compile the game as C++ and
- * tools/cxxify.py gives every game header and source C linkage, so that the
+ * tools/legacy-sync/cxxify.py gives every game header and source C linkage, so that the
  * C++ build links by the same rules the C builds do -- see cxxify.py's
  * "linkage" section.  AgbMain is defined over there and called from here, so
  * this declaration has to agree with it; the Port* hooks are the other
@@ -106,7 +106,7 @@ void AgbMain(void);
 
 /* --- the sound engine's own globals, at their hardware addresses -----------
  *
- * These are the same problem tools/gen_ram_symbols.py solves for the game's
+ * These are the same problem tools/legacy-sync/gen_ram_symbols.py solves for the game's
  * 189 linker-script globals, but they come from a section placement
  * (`. = 0x00000560; src/m4a.o(common_data);` in linker.ld) rather than a named
  * symbol, so the generator does not see them.
@@ -120,7 +120,7 @@ void AgbMain(void);
  * nothing.  Putting them where the ROM already thinks they are is the same
  * decision the whole port rests on -- see docs/ARCHITECTURE.md.
  *
- * tools/portify.py deletes the definitions in src/m4a.c and comments the
+ * tools/legacy-sync/portify.py deletes the definitions in src/m4a.c and comments the
  * matching externs out of gba/m4a.h, exactly as gen_ram_symbols.py does.
  * Addresses are from katam.map (src/m4a.o(common_data) and
  * data/sound_data.o(ewram_data)).

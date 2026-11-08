@@ -9,7 +9,7 @@ names to it.
 
 Two sources of names, and the difference between them matters:
 
-  build/generated/port/ram_symbols.h   184 globals the GBA build's linker
+  game/generated/port/ram_symbols.h   184 globals the GBA build's linker
                                        placed at fixed addresses.  Exact, and
                                        generated from linker.ld, so it cannot
                                        drift from what the game actually uses.
@@ -98,7 +98,7 @@ def main():
                          'in both are dropped. This is what separates "the '
                          'game was running" from "the game did the thing".')
     ap.add_argument('--symbols',
-                    default='build/generated/port/ram_symbols.h')
+                    default='game/generated/port/ram_symbols.h')
     ap.add_argument('--linker',
                     default=str(Path.home() / 'Desktop/katam/linker.ld'))
     ap.add_argument('--min', type=int, default=1,

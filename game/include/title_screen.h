@@ -1,0 +1,44 @@
+#ifndef GUARD_TITLE_H
+#define GUARD_TITLE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+#include "code_0814F274.h"
+
+struct TitleStruct;
+
+typedef void (*TitleFunc)(struct TitleStruct*);
+
+struct TitleStruct {
+    u32 unk0;
+    u32 unk4;
+    u32 unk8;
+    u8 fillerC[4];
+    struct Sprite unk10[7];
+    u8 unk128;
+    u8 filler129[3];
+    PTR32_TD(TitleFunc) unk12C;
+    PTR32_TD(TitleFunc) unk130;
+    s16 unk134;
+    u8 filler136[2];
+    struct Object11 unk138;
+    PTR32_TD(TitleFunc) unk144;
+};
+
+/* PORT: replaced by port/rom_data.h -- extern const struct Object11_8 *const *const gUnk_08D626F0[][2]; */
+/* PORT: replaced by port/rom_data.h -- extern const u16 gUnk_08D62720[7][3]; */
+/* PORT: replaced by port/rom_data.h -- extern const u8 gUnk_08D6274A[]; */
+
+extern void CreateTitleScreen(void);
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

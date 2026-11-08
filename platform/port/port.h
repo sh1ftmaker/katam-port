@@ -3,7 +3,7 @@
 /* C linkage for the 64-bit builds.
  *
  * They compile the game as C++ so that its structures keep 4-byte pointer
- * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * members (docs/SIXTYFOUR.md), and tools/legacy-sync/cxxify.py gives every game header and
  * source C linkage so the C++ build links by the same rules the C builds do.
  * This header declares the seam between the two, so it has to say the same
  * thing -- otherwise the game calls a mangled name and the platform defines an
@@ -43,7 +43,7 @@ extern "C" {
 #define GBA_OAM_SIZE   0x00000400u
 #define GBA_ROM_BASE   0x08000000u
 #define GBA_ROM_MAX    0x02000000u
-/* Relocated from the hardware's 0x0E000000 by tools/portify.py -- see the
+/* Relocated from the hardware's 0x0E000000 by tools/legacy-sync/portify.py -- see the
  * note there.  It saves 80 MiB of wasm memory reservation, which is the
  * difference between running on a phone and not. */
 #define GBA_SRAM_BASE  0x09000000u
@@ -210,7 +210,7 @@ void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
                      u32 tilemap);
 extern u32 gPortClipToStreamed, gPortSynthesiseColumns;
 
-/* The literals tools/portify.py lifts out of the game's own sources.  Each
+/* The literals tools/legacy-sync/portify.py lifts out of the game's own sources.  Each
  * holds the constant it replaced until platform/view.c says otherwise. */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 extern s32 gPortCullHalfW, gPortCullHalfH;

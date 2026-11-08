@@ -30,9 +30,9 @@
 /* C linkage for the 64-bit builds.
  *
  * This file sits on the seam in both directions: it calls the game's functions
- * and the game calls its adapters back (tools/portify.py rewrites the call
+ * and the game calls its adapters back (tools/legacy-sync/portify.py rewrites the call
  * sites).  Those builds compile the game as C++ with C linkage -- see
- * tools/cxxify.py -- so this file has to agree, or the calls mangle one way
+ * tools/legacy-sync/cxxify.py -- so this file has to agree, or the calls mangle one way
  * and the definitions the other.  A no-op in C. */
 #ifdef __cplusplus
 extern "C" {

@@ -84,7 +84,7 @@ def main():
             [args.cc, '-std=gnu99', '-fgnu89-inline', '-fno-strict-aliasing',
              '-fwrapv', '-funsigned-char', '-w', '-DPORTABLE', '-DNONMATCHING',
              '-DMODERN=1', '-DPORT_GLOBAL_BASE=167772160u',
-             '-Ibuild/port-src/include', '-Ibuild/generated', '-Iplatform',
+             '-Igame/include', '-Igame/generated', '-Iplatform',
              '-include', 'port/prelude.h', '-include', 'port/ram_symbols.h',
              '-include', 'port/rom_data.h',
              '-ferror-limit=0', '-fsyntax-only', str(probe)],

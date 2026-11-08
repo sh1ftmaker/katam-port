@@ -1,0 +1,27 @@
+#ifndef GUARD_VERT_SLIDING_DOOR_H
+#define GUARD_VERT_SLIDING_DOOR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+#include "object.h"
+
+struct VertSlidingDoor {
+    struct Object obj;
+    u16 unkB4;
+    s8 unkB6;
+    s8 unkB7;
+}; /* size = 0xB8 */
+
+void *CreateVertSlidingDoor(struct ObjectTemplate *, u8);
+void VertSlidingDoorSetFunc(struct VertSlidingDoor *);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

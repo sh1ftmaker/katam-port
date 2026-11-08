@@ -34,7 +34,7 @@ wasm ABI terms rather than textually -- `void f(struct A *)` and
 `void f(struct B *)` are the same wasm type and are not a bug, while
 `void f(void)` and `void f(struct Task *)` are two types and are.
 
-The tree it reads is the portified one (build/port-src, produced by
+The tree it reads is the portified one (game, produced by
 portify.py), not the decomp, because that is what actually gets compiled.
 """
 
@@ -954,8 +954,8 @@ def main():
     ap = argparse.ArgumentParser(
         description='Find wasm call_indirect signature mismatches statically.')
     ap.add_argument('--tree', type=Path,
-                    default=Path(__file__).resolve().parent.parent / 'build' / 'port-src',
-                    help='portified source tree (default: build/port-src)')
+                    default=Path(__file__).resolve().parent.parent / 'game',
+                    help='portified source tree (default: game)')
     ap.add_argument('-v', '--verbose', action='store_true',
                     help='list every unresolved slot and assumed type')
     args = ap.parse_args()

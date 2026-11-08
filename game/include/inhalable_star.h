@@ -1,0 +1,24 @@
+#ifndef GUARD_INHALABLE_STAR_H
+#define GUARD_INHALABLE_STAR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+void *CreateInhalableStar(struct ObjectTemplate *, u8);
+void sub_080A8EF4(struct Object *);
+void sub_080A8C28(struct Object *, s16, s16);
+void sub_080A8D18(struct Object *, s16, s16, u8, u8);
+void sub_080A9038(struct Kirby *, bool8);
+
+extern const struct AnimInfo gUnk_0835366C[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

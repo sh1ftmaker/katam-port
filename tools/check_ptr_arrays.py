@@ -5,7 +5,7 @@ The bug this exists to catch, stated once:
 
     On the GBA every pointer is four bytes, so *every* array of pointers has a
     stride of four and the game may freely alias one to another.  The 64-bit
-    builds narrow pointer *members of structures* (tools/narrow32.py) because
+    builds narrow pointer *members of structures* (tools/legacy-sync/narrow32.py) because
     those structures are laid out by the ROM, the linker script or the game's
     own allocator.  A file-scope array of pointers has none of those
     constraints -- nothing outside the compiler decides where its elements go
@@ -33,7 +33,7 @@ passed as void * and cast at the far end, and this sees neither.  It is a list
 of the cases that can be found by looking, which is how the one above was
 found once its shape was known.
 
-    tools/check_ptr_arrays.py build/port-src
+    tools/check_ptr_arrays.py game
 """
 
 import os
@@ -74,7 +74,7 @@ def sources(root):
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else "build/port-src"
+    root = sys.argv[1] if len(sys.argv) > 1 else "game"
 
     text = {}
     for path in sources(root):

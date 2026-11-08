@@ -52,7 +52,7 @@
 
 #include "native.h"
 
-/* C linkage for the 64-bit builds -- see tools/cxxify.py.  Below the includes,
+/* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
  * so SDL's headers stay outside the block. */
 #ifdef __cplusplus
 extern "C" {
@@ -67,7 +67,7 @@ extern "C" {
  * untouched linear memory and come back zero; here they need real pages behind
  * them or they would fault.
  *
- * That 32 MiB swallows save memory, which tools/portify.py relocated from the
+ * That 32 MiB swallows save memory, which tools/legacy-sync/portify.py relocated from the
  * hardware's 0x0E000000 down to 0x09000000 to save the wasm build 80 MiB of
  * reservation.  So SRAM sits *inside* the ROM's address window.  The two do
  * not fight -- the image is 16 MiB and stops at 0x09000000 -- but they are one

@@ -3,7 +3,7 @@
 /* C linkage for the 64-bit builds.
  *
  * They compile the game as C++ so that its structures keep 4-byte pointer
- * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * members (docs/SIXTYFOUR.md), and tools/legacy-sync/cxxify.py gives every game header and
  * source C linkage so the C++ build links by the same rules the C builds do.
  * This header declares the seam between the two, so it has to say the same
  * thing -- otherwise the game calls a mangled name and the platform defines an
@@ -75,7 +75,7 @@ void PortAudioTestTone(u32 hz);
 
 /* The two symbols the sound driver reaches back for.
  *
- * tools/portify.py's M4A_PATCHES injects declarations of these into the game's
+ * tools/legacy-sync/portify.py's M4A_PATCHES injects declarations of these into the game's
  * own m4a.c -- gXcmdTable is redirected to the port's copy because a ROM entry
  * is an ARM code address, and SampleFreqSet is replaced by PortSampleRateSet
  * because the port's mixer runs at the host's rate rather than the console's.

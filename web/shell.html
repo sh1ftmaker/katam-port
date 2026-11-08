@@ -3291,7 +3291,7 @@ var Module = (function () {
   // the ROM base and the IWRAM globals above, and for the same reason: the
   // GBA map is reserved inside wasm linear memory at fixed addresses, so
   // there is no exported symbol for the page to look up. Relocated from the
-  // hardware's 0x0E000000 by tools/portify.py — GBA_SRAM_BASE in
+  // hardware's 0x0E000000 by tools/legacy-sync/portify.py — GBA_SRAM_BASE in
   // platform/port/port.h is the definition this must agree with.
   var SRAM_BASE = 0x09000000;
   var SRAM_SIZE = 0x10000;               // 64 KiB — exactly a GBA .sav file

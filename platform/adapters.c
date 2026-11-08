@@ -25,9 +25,9 @@
 /* C linkage for the 64-bit builds.
  *
  * This file sits on the seam in both directions: it calls the game's functions
- * and the game calls its adapters back (tools/portify.py rewrites the call
+ * and the game calls its adapters back (tools/legacy-sync/portify.py rewrites the call
  * sites).  Those builds compile the game as C++ with C linkage -- see
- * tools/cxxify.py -- so this file has to agree, or the calls mangle one way
+ * tools/legacy-sync/cxxify.py -- so this file has to agree, or the calls mangle one way
  * and the definitions the other.  A no-op in C. */
 #ifdef __cplusplus
 extern "C" {
@@ -37,7 +37,7 @@ extern "C" {
  * used to live here are gone: upstream retyped sub_08002E3C to take its task,
  * and the sub_0802D5xx casts were in the port's own decompilation of
  * code_0802B4A8, which upstream still has as assembly.  FNPTR_CASTS in
- * tools/portify.py is where the next one goes. */
+ * tools/legacy-sync/portify.py is where the next one goes. */
 
 /* --- reads through a pointer that is not valid yet ------------------------
  *

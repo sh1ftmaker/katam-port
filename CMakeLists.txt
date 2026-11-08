@@ -1,7 +1,5 @@
 # katam-port -- the native desktop build.
 #
-#   make sync            (Makefile; copies and codemods the decompilation)
-#   make stubs           (Makefile; works out what is still ARM-only)
 #   cmake -S . -B build/native -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build/native -j
 #   ./build/native/katam ~/roms/your-copy.gba
@@ -137,24 +135,15 @@ elseif(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     "Or build 64-bit: -DKATAM_ALLOW_LP64=ON compiles the game as C++ so that "
     "PTR32 can keep every structure at its GBA layout.  That path is finished "
     "and measured -- all four builds agree transfer for transfer and pixel for "
-    "pixel -- but it needs a C++ toolchain and the generated tree from "
-    "`make sync`, so it is not the default.  docs/SIXTYFOUR.md has the whole "
+    "pixel -- but it needs a C++ toolchain, so it is not the default.  docs/SIXTYFOUR.md has the whole "
     "argument, and `make arm64` is the worked example.")
 endif()
 
-set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/build/port-src")
-set(GENERATED  "${CMAKE_CURRENT_SOURCE_DIR}/build/generated")
-
-if(NOT EXISTS "${PORT_SRC}/src")
-  message(FATAL_ERROR
-    "build/port-src is not there.  The decompilation is copied and codemodded "
-    "into it at build time and is not committed:\n"
-    "    make sync KATAM_DECOMP=/path/to/your/katam\n"
-    "    make stubs KATAM_DECOMP=/path/to/your/katam")
-endif()
-if(NOT EXISTS "${GENERATED}/port/ram_symbols.h")
-  message(FATAL_ERROR "build/generated is incomplete -- run `make sync` first.")
-endif()
+# The game source is committed (docs/FORK.md): game/src and game/include are
+# the forked decompilation, game/generated the address tables frozen at the
+# fork.  Nothing here reads a decompilation checkout or needs an ARM toolchain.
+set(PORT_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/game")
+set(GENERATED  "${CMAKE_CURRENT_SOURCE_DIR}/game/generated")
 
 # ---------------------------------------------------------------------------
 # SDL2
@@ -257,8 +246,8 @@ endif()
 # Sources
 #
 # The same three lists the Makefile builds, which is the point: there is one
-# port, not a web one and a native one.  CONFIGURE_DEPENDS because `make sync`
-# adds and removes game sources whenever the decompilation moves, and a build
+# port, not a web one and a native one.  CONFIGURE_DEPENDS because adding or
+# removing a file under game/src has to be picked up, and a build
 # that quietly links yesterday's file list is the failure the Makefile's
 # `prune` target exists to prevent.
 # ---------------------------------------------------------------------------
@@ -322,7 +311,7 @@ add_executable(katam ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS})
 # resolve to something else.  One language throughout means one mangling
 # throughout and no seam to get wrong.
 #
-# tools/cxxify.py is what makes the decompilation's C acceptable to a C++ front
+# tools/legacy-sync/cxxify.py is what makes the decompilation's C acceptable to a C++ front
 # end.  Every transform it applies is valid C as well, so the ILP32 builds
 # compile the identical tree and stay the reference this build is checked
 # against.
@@ -399,7 +388,7 @@ endforeach()
 # performs constantly -- `void *p = TaskGetStructPtr(t); chest = p;` is the
 # shape of every object constructor in the game -- and -fpermissive demotes
 # exactly that to a warning.  Everything else C++ objects to was fixed at the
-# source by tools/cxxify.py, and there are no remaining diagnostics.
+# source by tools/legacy-sync/cxxify.py, and there are no remaining diagnostics.
 target_compile_options(katam PRIVATE
   -fno-strict-aliasing -fwrapv -funsigned-char
   $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
@@ -546,7 +535,7 @@ endif()
 #   type analysis can find, because the member is a void* and the assignment is
 #   perfectly legal C.  Fixed by the link line below.
 #
-#   The port's static data.  build/generated/rom_copies.c gives ROM arrays real
+#   The port's static data.  game/generated/rom_copies.c gives ROM arrays real
 #   storage and rom_fn_tables.c holds the rebuilt tables; the game takes
 #   pointers into both.  Both are .data/.bss, so the same link line covers them.
 #

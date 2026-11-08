@@ -205,7 +205,7 @@ def render(types, tree):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--tree', required=True, type=Path,
-                    help='portified source tree (build/port-src)')
+                    help='portified source tree (game)')
     ap.add_argument('--out', required=True, type=Path,
                     help='the committed assertion header')
     ap.add_argument('--cc', default=os.environ.get('CC', 'gcc'))

@@ -188,7 +188,7 @@ def rooms(rom):
 
 def names():
     hdr = (Path(__file__).parent.parent
-           / 'build' / 'port-src' / 'include' / 'constants' / 'object_types.h')
+           / 'game' / 'include' / 'constants' / 'object_types.h')
     out = {}
     if hdr.exists():
         for line in hdr.read_text().splitlines():

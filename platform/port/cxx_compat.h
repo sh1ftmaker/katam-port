@@ -6,7 +6,7 @@
  *
  * Only the 64-bit builds compile the game as C++, and only because a 4-byte
  * pointer member cannot be spelled in C -- see docs/SIXTYFOUR.md and
- * platform/port/p32.h.  tools/cxxify.py does the source-level half of the job;
+ * platform/port/p32.h.  tools/legacy-sync/cxxify.py does the source-level half of the job;
  * what is here is the half where a definition serves better than a rewrite,
  * because it covers constructs the decompilation has not written yet as well
  * as the ones it has.

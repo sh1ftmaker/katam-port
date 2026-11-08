@@ -107,7 +107,7 @@ def documented(inc):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--tree', default='build/port-src')
+    ap.add_argument('--tree', default='game')
     ap.add_argument('--cc', default=os.path.expanduser(
         os.environ.get('EMSDK', '~/emsdk') + '/upstream/emscripten/emcc'))
     ap.add_argument('--cflags', default='')
@@ -133,7 +133,7 @@ def main():
         '-std=gnu99', '-fgnu89-inline', '-fno-strict-aliasing', '-fwrapv',
         '-funsigned-char', '-w', '-DPORTABLE', '-DNONMATCHING', '-DMODERN=1',
         '-DPORT_GLOBAL_BASE=167772160u',
-        '-I%s' % inc, '-Ibuild/generated', '-Iplatform',
+        '-I%s' % inc, '-Igame/generated', '-Iplatform',
         '-include', 'port/prelude.h', '-include', 'port/ram_symbols.h',
         '-include', 'port/rom_data.h']
 

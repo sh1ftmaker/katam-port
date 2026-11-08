@@ -1,7 +1,7 @@
 /* The sound driver's platform half: what m4a needs that the GBA gave it for
  * free, and the once-a-frame decision of what to hand the speakers.
  *
- * src/m4a.c compiles as written -- tools/portify.py puts it back into the
+ * src/m4a.c compiles as written -- tools/legacy-sync/portify.py puts it back into the
  * build and patches four sites.  asm/m4a_asm.s has no C anywhere and is
  * platform/m4a_mixer.c.  What is left over is here.
  *
@@ -40,7 +40,7 @@
 
 /* C linkage for the 64-bit builds.
  *
- * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * Those compile the game as C++ and tools/legacy-sync/cxxify.py gives it C linkage, so
  * everything on the seam has to agree.  It is applied to platform/*.c as a
  * class rather than to the files that happened to break: the failure is an
  * undefined reference to a mangled name, or -- for a `const`, which is
@@ -148,7 +148,7 @@ static void RenderTone(s16 *dst, int frames)
  * The hooks src/m4a.c calls into.
  * ------------------------------------------------------------------------- */
 
-/* Replaces the body of SampleFreqSet (see tools/portify.py).
+/* Replaces the body of SampleFreqSet (see tools/legacy-sync/portify.py).
  *
  * On hardware this picks one of twelve fixed rates out of
  * gPcmSamplesPerVBlankTable and programs Timer 0 to clock the DAC at it.  Here

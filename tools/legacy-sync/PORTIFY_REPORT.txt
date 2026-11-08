@@ -1,0 +1,56 @@
+portify.py report
+========================================
+C files copied                           202
+C++ keyword identifiers renamed          207
+C++ strictness sites patched             22
+GNU range designators expanded positionally 64
+INCBIN files expanded                    143
+TaskDestroy dtor call made checkable     1
+TaskGetStructPtr made checkable          1
+asm wrappers stubbed                     6
+barriers removed                         47
+calls through copied machine code redirected 1
+conflicting declarations corrected for C++ 4
+const definitions given explicit external linkage 442
+file-scope pointer arrays narrowed to PTR32 2
+files built from the matching branch instead 1
+files replaced by platform layer         3
+flexible-array objects given shadow storage 14
+function-pointer members narrowed to PTR32_FN 55
+headers given C linkage for the C++ builds 179
+headers overridden                       2
+ldr translated                           2
+m4a sites patched                        11
+members narrowed via a generated typedef 2
+mov #0 translated                        2
+mov translated                           2
+nested struct/union tags hoisted to file scope 6
+netplay story hook planted               1
+null dereferences guarded                1
+object list routed through platform/rando.c 1
+pointer members narrowed to PTR32        267
+pointer-to-array members narrowed to PTR32_ARR 1
+reads through not-yet-valid pointers guarded 2
+redundant `static` dropped               2
+register pins removed                    45
+save-memory address relocated            3
+sources given C linkage for the C++ builds 202
+struct sizes rounded to the console's boundary 7
+swi 0x2A (MusicPlayerOpen) dropped -- never called 1
+swi 3 (Halt) translated                  1
+tentative static definitions made extern for C++ 14
+transparent unions given C++ converting constructors 5
+typedef-typed pointer members narrowed to PTR32_TD 9
+uintptr_t members narrowed to u32        3
+undefined-value barriers zeroed          3
+unprototyped declarations given their real prototype 1
+view bounds lifted into platform/view.c  15
+game assets pasted in via INCBIN         931 KiB
+
+functions stubbed (no C body exists): 6
+    sub_0800F044
+    sub_08098E54
+    sub_0809924C
+    sub_0811A934
+    sub_0811AA80
+    sub_0811AB74

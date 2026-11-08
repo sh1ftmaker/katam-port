@@ -1,0 +1,696 @@
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "malloc_ewram.h"
+#include "scroll_lock.h"
+#include "object.h"
+#include "kirby.h"
+#include "functions.h"
+
+static void sub_0811C8BC(struct Unk_0811C9D4_0 *, u8, u16);
+static void sub_0811CB44(struct Object *);
+static void sub_0811CBB8(struct Object *);
+static void sub_0811CD1C(struct Object *);
+static void sub_0811CD90(struct Object *);
+static void sub_0811CEF4(struct Object *);
+static void sub_0811D158(struct Object *);
+static void sub_0811D508(struct Object *);
+static void sub_0811D68C(struct Object *);
+static void sub_0811DB48(struct Object *, s32);
+
+extern const struct AnimInfo gUnk_08357C60[] = {
+    { 0x2D1, 2, 0 },
+};
+
+static void sub_0811C7D0(struct Unk_0811C9D4_0 *scr, u8 a2, u16 a3)
+{
+    gCurLevelInfo[a2].unk_S32Vec2_7C.x = scr->unk8;
+    gCurLevelInfo[a2].unk_S32Vec2_84.x = scr->unk10;
+    gCurLevelInfo[a2].unk_S32Vec2_7C.y = scr->unkC;
+    gCurLevelInfo[a2].unk_S32Vec2_84.y = scr->unk14;
+    gCurLevelInfo[a2].unkA0 = scr->unk8;
+    gCurLevelInfo[a2].unkA4 = scr->unkC;
+    gCurLevelInfo[a2].unkA8 = scr->unk10;
+    gCurLevelInfo[a2].unkAC = scr->unk14;
+    if (a3 & 0x10)
+    {
+        gCurLevelInfo[a2].unk_S32Vec2_6C.x = scr->unk8;
+        gCurLevelInfo[a2].unk_S32Vec2_74.x = scr->unk10;
+        gCurLevelInfo[a2].unk_S32Vec2_6C.y = scr->unkC;
+        gCurLevelInfo[a2].unk_S32Vec2_74.y = scr->unk14;
+        if (!(scr->unk4 & (0x10 << a2)))
+        {
+            scr->unk4 |= 0x10 << a2;
+            gCurLevelInfo[a2].unk90 = scr->unk8;
+            gCurLevelInfo[a2].unk94 = scr->unkC;
+            gCurLevelInfo[a2].unk98 = scr->unk10;
+            gCurLevelInfo[a2].unk9C = scr->unk14;
+        }
+    }
+    else
+        sub_0811C8BC(scr, a2, a3);
+}
+
+static void sub_0811C8BC(struct Unk_0811C9D4_0 *scr, u8 a2, u16 a3 __attribute__((unused)))
+{
+    if (!(scr->unk4 & (0x10 << a2))) {
+        scr->unk4 |= 0x10 << a2;
+        if (scr->unk10 - scr->unk8 >= 0xF000)
+        {
+            if (gCurLevelInfo[a2].unk_S32Vec2_6C.x <= gCurLevelInfo[a2].viewportPosition.x - 0x800)
+                gCurLevelInfo[a2].unk_S32Vec2_6C.x = gCurLevelInfo[a2].viewportPosition.x - 0x800;
+            if (gCurLevelInfo[a2].unk_S32Vec2_74.x >= gCurLevelInfo[a2].viewportPosition.x + 0xF800)
+                gCurLevelInfo[a2].unk_S32Vec2_74.x = gCurLevelInfo[a2].viewportPosition.x + 0xF800;
+        }
+        if (scr->unk14 - scr->unkC >= 0xA000)
+        {
+            if (gCurLevelInfo[a2].unk_S32Vec2_6C.y <= gCurLevelInfo[a2].viewportPosition.y - 0x800)
+                gCurLevelInfo[a2].unk_S32Vec2_6C.y = gCurLevelInfo[a2].viewportPosition.y - 0x800;
+            if (gCurLevelInfo[a2].unk_S32Vec2_74.y >= gCurLevelInfo[a2].viewportPosition.y + 0xA800)
+                gCurLevelInfo[a2].unk_S32Vec2_74.y = gCurLevelInfo[a2].viewportPosition.y + 0xA800;
+        }
+        if (gCurLevelInfo[a2].unk90 <= gCurLevelInfo[a2].viewportPosition.x - 0x800)
+            gCurLevelInfo[a2].unk90 = gCurLevelInfo[a2].viewportPosition.x - 0x800;
+        if (gCurLevelInfo[a2].unk94 <= gCurLevelInfo[a2].viewportPosition.y - 0x800)
+            gCurLevelInfo[a2].unk94 = gCurLevelInfo[a2].viewportPosition.y - 0x800;
+        if (gCurLevelInfo[a2].unk98 >= gCurLevelInfo[a2].viewportPosition.x + 0xF800)
+            gCurLevelInfo[a2].unk98 = gCurLevelInfo[a2].viewportPosition.x + 0xF800;
+        if (gCurLevelInfo[a2].unk9C >= gCurLevelInfo[a2].viewportPosition.y + 0xF800)
+            gCurLevelInfo[a2].unk9C = gCurLevelInfo[a2].viewportPosition.y + 0xF800;
+    }
+}
+
+void sub_0811C9D4(struct Object *scrollLock)
+{
+    u8 unk56;
+    struct Unk_0811C9D4_0 *p;
+
+    scrollLock->base.counter = 0;
+    switch (scrollLock->objTemplate->unk22 & 3)
+    {
+    case 0:
+        scrollLock->unk8C = EwramMalloc(sizeof(struct Unk_0811C9D4_0));
+        CpuFill32(0, scrollLock->unk8C, sizeof(struct Unk_0811C9D4_0));
+        ((struct Unk_0811C9D4_0 *)scrollLock->unk8C)->unk0 = 1;
+        break;
+    case 1:
+        scrollLock->unk8C = EwramMalloc(sizeof(struct Unk_0811C9D4));
+        CpuFill32(0, scrollLock->unk8C, sizeof(struct Unk_0811C9D4));
+        ((struct Unk_0811C9D4 *)scrollLock->unk8C)->unk0.unk0 = 1; // 2?
+        break;
+    case 2:
+        scrollLock->unk8C = EwramMalloc(sizeof(struct Unk_0811C9D4_0));
+        CpuFill32(0, scrollLock->unk8C, sizeof(struct Unk_0811C9D4_0));
+        ((struct Unk_0811C9D4_0 *)scrollLock->unk8C)->unk0 = 3;
+        break;
+    case 3:
+        scrollLock->unk8C = EwramMalloc(sizeof(struct Unk_0811C9D4));
+        CpuFill32(0, scrollLock->unk8C, sizeof(struct Unk_0811C9D4));
+        ((struct Unk_0811C9D4 *)scrollLock->unk8C)->unk0.unk0 = 4;
+        break;
+    }
+    unk56 = scrollLock->base.unk56;
+    p = (struct Unk_0811C9D4_0 *)scrollLock->unk8C;
+    p->unk18 = gCurLevelInfo[unk56].unk_S32Vec2_7C.x;
+    p->unk1C = gCurLevelInfo[unk56].unk_S32Vec2_7C.y;
+    p->unk20 = gCurLevelInfo[unk56].unk_S32Vec2_84.x;
+    p->unk24 = gCurLevelInfo[unk56].unk_S32Vec2_84.y;
+    p->unk28 = gCurLevelInfo[unk56].unkA0;
+    p->unk2C = gCurLevelInfo[unk56].unkA4;
+    p->unk30 = gCurLevelInfo[unk56].unkA8;
+    p->unk34 = gCurLevelInfo[unk56].unkAC;
+    switch (p->unk0)
+    {
+    case 1:
+        sub_0811CB44(scrollLock);
+        break;
+    case 2:
+        sub_0811CBB8(scrollLock);
+        break;
+    case 3:
+        sub_0811CD1C(scrollLock);
+        break;
+    case 4:
+        sub_0811CD90(scrollLock);
+        break;
+    }
+}
+
+static void sub_0811CB44(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4_0 *p = scrollLock->unk8C;
+
+    p->unk8 = (scrollLock->objTemplate->unk14 & 0xFF00) << 4;
+    p->unkC = (scrollLock->objTemplate->unk14 & 0xFF) << 12;
+    p->unk10 = p->unk8 + ((scrollLock->objTemplate->unk12 & 0xFF00) << 4);
+    p->unk14 = p->unkC + ((scrollLock->objTemplate->unk12 & 0xFF) << 12);
+    if (scrollLock->objTemplate->unk22 & 4)
+    {
+        p->unk8 += 0x800;
+        p->unkC += 0x800;
+        p->unk10 += 0x800;
+        p->unk14 += 0x800;
+    }
+    scrollLock->unk78 = sub_0811CEF4;
+    p->unk38 = p->unk8;
+    p->unk3C = p->unkC;
+}
+
+static void sub_0811CBB8(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4 *p = scrollLock->unk8C;
+
+    p->unk0.unk8 = (scrollLock->objTemplate->unk14 & 0xFF00) << 4;
+    p->unk0.unkC = (scrollLock->objTemplate->unk14 & 0xFF) << 12;
+    p->unk0.unk10 = p->unk0.unk8 + ((scrollLock->objTemplate->unk12 & 0xFF00) << 4);
+    p->unk0.unk14 = p->unk0.unkC + ((scrollLock->objTemplate->unk12 & 0xFF) << 12);
+#ifndef NONMATCHING
+    /* PORT: asm barrier removed */
+    /* PORT: asm barrier removed */
+#endif
+    p->unk44 = (scrollLock->objTemplate->unk18 & 0xFF00) >> 4;
+    p->unk46 = scrollLock->objTemplate->unk18;
+    p->unk48 = (scrollLock->objTemplate->unk16 & 0xFF00) >> 4;
+    p->unk4A = scrollLock->objTemplate->unk16;
+    if (p->unk46 >= 0)
+    {
+        p->unk4C = p->unk0.unk8 + p->unk0.unk10 - p->unk0.unk8 + (p->unk44 << 8);
+        if (p->unk4C > (gCurLevelInfo[scrollLock->base.unk56].roomWidth << 8) - 0x800)
+            p->unk4C = (gCurLevelInfo[scrollLock->base.unk56].roomWidth << 8) - 0x800;
+    }
+    else
+    {
+        p->unk4C = p->unk0.unk8 - (p->unk44 << 8);
+        if (p->unk4C < 0x800)
+            p->unk4C = 0x800;
+    }
+    if (p->unk4A >= 0)
+    {
+        p->unk50 = p->unk0.unkC + p->unk0.unk14 - p->unk0.unkC + (p->unk48 << 8);
+        if (p->unk50 > (gCurLevelInfo[scrollLock->base.unk56].roomHeight << 8) - 0x1800)
+            p->unk50 = (gCurLevelInfo[scrollLock->base.unk56].roomHeight << 8) - 0x1800;
+    }
+    else
+    {
+        p->unk50 = p->unk0.unkC + (p->unk48 << 8);
+        if (p->unk50 < 0x800)
+            p->unk50 = 0x800;
+    }
+    scrollLock->unk78 = sub_0811D158;
+    p->unk0.unk38 = p->unk0.unk8;
+    p->unk0.unk3C = p->unk0.unkC;
+}
+
+static void sub_0811CD1C(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4_0 *p = scrollLock->unk8C;
+
+    p->unk8 = (scrollLock->objTemplate->unk14 & 0xFF00) << 4;
+    p->unkC = (scrollLock->objTemplate->unk14 & 0xFF) << 12;
+    p->unk10 = p->unk8 + ((scrollLock->objTemplate->unk12 & 0xFF00) << 4);
+    p->unk14 = p->unkC + ((scrollLock->objTemplate->unk12 & 0xFF) << 12);
+    if (scrollLock->objTemplate->unk22 & 4)
+    {
+        p->unk8 += 0x800;
+        p->unkC += 0x800;
+        p->unk10 += 0x800;
+        p->unk14 += 0x800;
+    }
+    scrollLock->unk78 = sub_0811D508;
+    p->unk38 = p->unk8;
+    p->unk3C = p->unkC;
+}
+
+static void sub_0811CD90(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4 *p = scrollLock->unk8C;
+
+    p->unk0.unk8 = (scrollLock->objTemplate->unk14 & 0xFF00) << 4;
+    p->unk0.unkC = (scrollLock->objTemplate->unk14 & 0xFF) << 12;
+    p->unk0.unk10 = p->unk0.unk8 + ((scrollLock->objTemplate->unk12 & 0xFF00) << 4);
+    p->unk0.unk14 = p->unk0.unkC + ((scrollLock->objTemplate->unk12 & 0xFF) << 12);
+#ifndef NONMATCHING
+    /* PORT: asm barrier removed */
+    /* PORT: asm barrier removed */
+#endif
+    p->unk44 = (scrollLock->objTemplate->unk18 & 0xFF00) >> 4;
+    p->unk46 = scrollLock->objTemplate->unk18;
+    p->unk48 = (scrollLock->objTemplate->unk16 & 0xFF00) >> 4;
+    p->unk4A = scrollLock->objTemplate->unk16;
+    if (p->unk46 >= 0)
+    {
+        p->unk4C = p->unk0.unk8 + p->unk0.unk10 - p->unk0.unk8 + (p->unk44 << 8);
+        if (p->unk4C > (gCurLevelInfo[scrollLock->base.unk56].roomWidth << 8) - 0x800)
+            p->unk4C = (gCurLevelInfo[scrollLock->base.unk56].roomWidth << 8) - 0x800;
+    }
+    else
+    {
+        p->unk4C = p->unk0.unk8 - (p->unk44 << 8);
+        if (p->unk4C < 0x800)
+            p->unk4C = 0x800;
+    }
+    if (p->unk4A >= 0)
+    {
+        p->unk50 = p->unk0.unkC + p->unk0.unk14 - p->unk0.unkC + (p->unk48 << 8);
+        if (p->unk50 > (gCurLevelInfo[scrollLock->base.unk56].roomHeight << 8) - 0x1800)
+            p->unk50 = (gCurLevelInfo[scrollLock->base.unk56].roomHeight << 8) - 0x1800;
+    }
+    else
+    {
+        p->unk50 = p->unk0.unkC + (p->unk48 << 8);
+        if (p->unk50 < 0x800)
+            p->unk50 = 0x800;
+    }
+    scrollLock->unk78 = sub_0811D68C;
+    p->unk0.unk38 = p->unk0.unk8;
+    p->unk0.unk3C = p->unk0.unkC;
+}
+
+static void sub_0811CEF4(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4_0 *p = scrollLock->unk8C;
+    s8 i;
+    u16 roomId = scrollLock->base.roomId;
+
+    if (gKirbys[0].base.roomId == roomId
+        && gKirbys[1].base.roomId == gKirbys[0].base.roomId
+        && gKirbys[2].base.roomId == gKirbys[1].base.roomId
+        && gKirbys[3].base.roomId == gKirbys[2].base.roomId)
+    {
+        if (ObjectOriginOverlapsRectAtObject(&gKirbys[0].base, scrollLock)
+            && ObjectOriginOverlapsRectAtObject(&gKirbys[1].base, scrollLock)
+            && ObjectOriginOverlapsRectAtObject(&gKirbys[2].base, scrollLock)
+            && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock))
+        {
+            if (!(p->unk4 & 1))
+            {
+                p->unk4 |= 1;
+                gCurLevelInfo[0].unk1EC = 0;
+            }
+            if (!(p->unk4 & 2))
+            {
+                p->unk4 |= 2;
+                gCurLevelInfo[1].unk1EC = 0;
+            }
+            if (!(p->unk4 & 4))
+            {
+                p->unk4 |= 4;
+                gCurLevelInfo[2].unk1EC = 0;
+            }
+            if (!(p->unk4 & 8))
+            {
+                p->unk4 |= 8;
+                gCurLevelInfo[3].unk1EC = 0;
+            }
+            for (i = 0; i < gNumKirbys; ++i)
+                sub_0811C7D0(p, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
+        }
+        else
+            p->unk4 &= ~0xF;
+        if (gKirbys[i].hp <= 0) // TODO: UB: uninitialized use
+            sub_0811DB48(scrollLock, i);
+        if (scrollLock->objTemplate->unk4)
+        {
+            u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+            if (*pointer)
+            {
+                --*pointer;
+                scrollLock->base.flags |= 0x1000;
+            }
+        }
+    }
+    else
+        p->unk4 &= ~0xF;
+    ++scrollLock->base.counter;
+}
+
+static void sub_0811D158(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4 *p = scrollLock->unk8C;
+    u8 i;
+    u16 roomId = scrollLock->base.roomId;
+    u8 unk56 = scrollLock->base.unk56;
+
+    if (!(p->unk0.unk4 & 0x10000000))
+    {
+        if (gKirbys[0].base.roomId == roomId
+            && gKirbys[1].base.roomId == gKirbys[0].base.roomId
+            && gKirbys[2].base.roomId == gKirbys[1].base.roomId
+            && gKirbys[3].base.roomId == gKirbys[2].base.roomId)
+        {
+            if (ObjectOriginOverlapsRectAtObject(&gKirbys[0].base, scrollLock)
+                && ObjectOriginOverlapsRectAtObject(&gKirbys[1].base, scrollLock)
+                && ObjectOriginOverlapsRectAtObject(&gKirbys[2].base, scrollLock)
+                && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock))
+            {
+                if (!(p->unk0.unk4 & 1))
+                {
+                    p->unk0.unk4 |= 1;
+                    gCurLevelInfo[0].unk1EC = 0;
+                }
+                if (!(p->unk0.unk4 & 2))
+                {
+                    p->unk0.unk4 |= 2;
+                    gCurLevelInfo[1].unk1EC = 0;
+                }
+                if (!(p->unk0.unk4 & 4))
+                {
+                    p->unk0.unk4 |= 4;
+                    gCurLevelInfo[2].unk1EC = 0;
+                }
+                if (!(p->unk0.unk4 & 8))
+                {
+                    p->unk0.unk4 |= 8;
+                    gCurLevelInfo[3].unk1EC = 0;
+                }
+                for (i = 0; i < gNumKirbys; ++i)
+                    sub_0811C7D0(&p->unk0, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
+                p->unk0.unk4 |= 0x10000000;
+            }
+            else
+                p->unk0.unk4 &= ~0xF;
+            if (gKirbys[i].hp <= 0) // TODO: UB: uninitialized use
+                sub_0811DB48(scrollLock, i);
+            if (scrollLock->objTemplate->unk4)
+            {
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+                if (*pointer)
+                {
+                    --*pointer;
+                    scrollLock->base.flags |= 0x1000;
+                }
+            }
+        }
+        else
+            p->unk0.unk4 &= ~0xF;
+    }
+    else
+    {
+        if (p->unk46)
+        {
+            gCurLevelInfo[unk56].unk_S32Vec2_7C.x += p->unk46;
+            gCurLevelInfo[unk56].unk_S32Vec2_84.x += p->unk46;
+            gCurLevelInfo[unk56].unkA0 += p->unk46;
+            gCurLevelInfo[unk56].unkA8 += p->unk46;
+            if (p->unk46)
+            {
+                if (p->unk46 > 0)
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_84.x > p->unk4C)
+                        p->unk46 = 0;
+                }
+                else
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_7C.x < 0x800)
+                        p->unk46 = 0;
+                }
+            }
+        }
+        if (p->unk4A)
+        {
+            gCurLevelInfo[unk56].unk_S32Vec2_7C.y += p->unk4A;
+            gCurLevelInfo[unk56].unk_S32Vec2_84.y += p->unk4A;
+            gCurLevelInfo[unk56].unkA4 += p->unk4A;
+            gCurLevelInfo[unk56].unkAC += p->unk4A;
+            if (p->unk4A)
+            {
+                if (p->unk4A > 0)
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_84.y > p->unk50)
+                        p->unk4A = 0;
+                }
+                else
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_7C.y < 0x800)
+                        p->unk4A = 0;
+                }
+            }
+        }
+        if (!p->unk46 && !p->unk4A)
+        {
+            if (scrollLock->objTemplate->unk4)
+            {
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+                if (*pointer)
+                {
+                    --*pointer;
+                    scrollLock->base.flags |= 0x1000;
+                }
+            }
+        }
+    }
+    ++scrollLock->base.counter;
+}
+
+static void sub_0811D508(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4_0 *p = scrollLock->unk8C;
+    u16 roomId = scrollLock->base.roomId;
+    u8 i;
+
+    for (i = 0; i < gNumKirbys; ++i)
+    {
+        if (gKirbys[i].base.roomId == roomId)
+        {
+            if (ObjectOriginOverlapsRectAtObject(&gKirbys[i].base, scrollLock))
+            {
+                if (!(gKirbys[i].base.unkC & 0x8000))
+                {
+                    if (!(p->unk4 & (1 << i)))
+                    {
+                        p->unk4 |= 1 << i;
+                        gCurLevelInfo[i].unk1EC = 0;
+                    }
+                    sub_0811C7D0(p, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
+                }
+            }
+            else
+                p->unk4 &= ~(1 << i);
+            if (gKirbys[i].hp <= 0)
+            {
+                sub_0811DB48(scrollLock, i);
+                p->unk4 &= ~(0x10 << i);
+            }
+            if (scrollLock->objTemplate->unk4)
+            {
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+                if (*pointer)
+                {
+                    --*pointer;
+                    scrollLock->base.flags |= 0x1000;
+                }
+            }
+        }
+        else
+        {
+            p->unk4 &= ~(0x10 << i);
+            p->unk4 &= ~(1 << i);
+        }
+    }
+    ++scrollLock->base.counter;
+}
+
+static void sub_0811D68C(struct Object *scrollLock)
+{
+    struct Unk_0811C9D4 *p = scrollLock->unk8C;
+    u16 roomId = scrollLock->base.roomId;
+    u8 i;
+    u8 unk56 = scrollLock->base.unk56;
+
+    if (!(p->unk0.unk4 & 0x10000000))
+    {
+        for (i = 0; i < gNumKirbys; ++i)
+        {
+            if (gKirbys[i].base.roomId == roomId)
+            {
+                if (ObjectOriginOverlapsRectAtObject(&gKirbys[i].base, scrollLock))
+                {
+                    if (!(gKirbys[i].base.unkC & 0x8000))
+                    {
+                        if (!(p->unk0.unk4 & (1 << i)))
+                        {
+                            p->unk0.unk4 |= 1 << i;
+                            gCurLevelInfo[i].unk1EC = 0;
+                        }
+                        sub_0811C7D0(&p->unk0, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
+                        p->unk0.unk4 |= 0x10000000;
+                    }
+                }
+                else
+                    p->unk0.unk4 &= ~(1 << i);
+                if (gKirbys[i].hp <= 0)
+                    sub_0811DB48(scrollLock, i);
+                if (scrollLock->objTemplate->unk4)
+                {
+                    u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+                    if (*pointer)
+                    {
+                        --*pointer;
+                        scrollLock->base.flags |= 0x1000;
+                    }
+                }
+            }
+            else
+                p->unk0.unk4 &= ~(1 << i);
+        }
+    }
+    else
+    {
+        if (p->unk46)
+        {
+            gCurLevelInfo[unk56].unk_S32Vec2_7C.x += p->unk46;
+            gCurLevelInfo[unk56].unk_S32Vec2_84.x += p->unk46;
+            gCurLevelInfo[unk56].unkA0 += p->unk46;
+            gCurLevelInfo[unk56].unkA8 += p->unk46;
+            if (p->unk46)
+            {
+                if (p->unk46 > 0)
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_84.x > p->unk4C)
+                        p->unk46 = 0;
+                }
+                else
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_7C.x < 0x800)
+                        p->unk46 = 0;
+                }
+            }
+        }
+        if (p->unk4A)
+        {
+            gCurLevelInfo[unk56].unk_S32Vec2_7C.y += p->unk4A;
+            gCurLevelInfo[unk56].unk_S32Vec2_84.y += p->unk4A;
+            gCurLevelInfo[unk56].unkA4 += p->unk4A;
+            gCurLevelInfo[unk56].unkAC += p->unk4A;
+            if (p->unk4A)
+            {
+                if (p->unk4A > 0)
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_84.y > p->unk50)
+                        p->unk4A = 0;
+                }
+                else
+                {
+                    if (gCurLevelInfo[unk56].unk_S32Vec2_7C.y < 0x800)
+                        p->unk4A = 0;
+                }
+            }
+        }
+        if (!p->unk46 && !p->unk4A)
+        {
+            if (scrollLock->objTemplate->unk4)
+            {
+                u32 *pointer = GetStateSlot(STATE_SLOT_ROOM, scrollLock->objTemplate->unk4, gCurLevelInfo[scrollLock->base.unk56].unk65E);
+
+                if (*pointer)
+                {
+                    --*pointer;
+                    scrollLock->base.flags |= 0x1000;
+                }
+            }
+        }
+    }
+    ++scrollLock->base.counter;
+}
+
+static void ScrollLockDestroy(struct Task *t)
+{
+    struct Object *scrollLock = TaskGetStructPtr(t);
+    struct Unk_0811C9D4_0 *p = scrollLock->unk8C;
+    u16 roomId = scrollLock->base.roomId;
+    u8 unk2, unk3, unk65E;
+    u8 i;
+    u8 unk56 = scrollLock->base.unk56;
+
+    unk2 = scrollLock->objTemplate->unk2;
+    unk3 = scrollLock->objTemplate->unk3;
+    unk65E = gCurLevelInfo[unk56].unk65E;
+    if (!(scrollLock->objTemplate->unk22 & 8))
+    {
+        for (i = 0; i < gNumKirbys; ++i)
+        {
+            if (gKirbys[i].base.roomId == roomId
+                && p->unk38 == gCurLevelInfo[i].unk_S32Vec2_7C.x
+                && p->unk3C == gCurLevelInfo[i].unk_S32Vec2_7C.y)
+            {
+                gCurLevelInfo[i].unk_S32Vec2_7C.x = p->unk18;
+                gCurLevelInfo[i].unk_S32Vec2_7C.y = p->unk1C;
+                gCurLevelInfo[i].unk_S32Vec2_84.x = p->unk20;
+                gCurLevelInfo[i].unk_S32Vec2_84.y = p->unk24;
+                gCurLevelInfo[i].unkA0 = p->unk28;
+                gCurLevelInfo[i].unkA4 = p->unk2C;
+                gCurLevelInfo[i].unkA8 = p->unk30;
+                gCurLevelInfo[i].unkAC = p->unk34;
+                gCurLevelInfo[i].unk_S32Vec2_6C.x = p->unk18;
+                gCurLevelInfo[i].unk_S32Vec2_6C.y = p->unk1C;
+                gCurLevelInfo[i].unk_S32Vec2_74.x = p->unk20;
+                gCurLevelInfo[i].unk_S32Vec2_74.y = p->unk24;
+                gCurLevelInfo[i].unk90 = p->unk28;
+                gCurLevelInfo[i].unk94 = p->unk2C;
+                gCurLevelInfo[i].unk98 = p->unk30;
+                gCurLevelInfo[i].unk9C = p->unk34;
+                gCurLevelInfo[i].unk1EC = 0;
+            }
+        }
+    }
+    ObjectDestroy(t);
+    if (unk2 || unk56 != 0xFF)
+        sub_08001678(unk2, unk3, unk65E, 1);
+}
+
+static void sub_0811DB48(struct Object *scrollLock, s32 i)
+{
+    struct Unk_0811C9D4_0 *p;
+    u16 roomId;
+
+    i = (u8)i; // Actually i is u8, but we need s32 to fix other problems caused by implicit declaration
+    p = scrollLock->unk8C;
+    roomId = scrollLock->base.roomId;
+    if (gKirbys[i].base.roomId == roomId
+        && p->unk38 == gCurLevelInfo[i].unk_S32Vec2_7C.x
+        && p->unk3C == gCurLevelInfo[i].unk_S32Vec2_7C.y)
+    {
+        gCurLevelInfo[i].unk_S32Vec2_7C.x = p->unk18;
+        gCurLevelInfo[i].unk_S32Vec2_7C.y = p->unk1C;
+        gCurLevelInfo[i].unk_S32Vec2_84.x = p->unk20;
+        gCurLevelInfo[i].unk_S32Vec2_84.y = p->unk24;
+        gCurLevelInfo[i].unkA0 = p->unk28;
+        gCurLevelInfo[i].unkA4 = p->unk2C;
+        gCurLevelInfo[i].unkA8 = p->unk30;
+        gCurLevelInfo[i].unkAC = p->unk34;
+        gCurLevelInfo[i].unk_S32Vec2_6C.x = p->unk18;
+        gCurLevelInfo[i].unk_S32Vec2_6C.y = p->unk1C;
+        gCurLevelInfo[i].unk_S32Vec2_74.x = p->unk20;
+        gCurLevelInfo[i].unk_S32Vec2_74.y = p->unk24;
+        gCurLevelInfo[i].unk90 = p->unk28;
+        gCurLevelInfo[i].unk94 = p->unk2C;
+        gCurLevelInfo[i].unk98 = p->unk30;
+        gCurLevelInfo[i].unk9C = p->unk34;
+        gCurLevelInfo[i].unk1EC = 0;
+    }
+}
+
+void *CreateScrollLock(struct ObjectTemplate *arg0, u8 arg1)
+{
+    struct Object *obj;
+    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0xff6, TASK_USE_IWRAM, ScrollLockDestroy);
+
+    obj = TaskGetStructPtr(task);
+    InitObject(obj, arg0, arg1);
+    obj->base.flags |= 0x2018F40;
+    obj->base.unk5C |= 0x20;
+    obj->base.unkC |= 1;
+    gUnk_08351648[obj->type].unk10(obj);
+    return obj;
+}
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,0 +1,22 @@
+#ifndef GUARD_LASER_BALL_H
+#define GUARD_LASER_BALL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "data.h"
+#include "global.h"
+#include "object.h"
+
+void* CreateLaserBall(struct ObjectTemplate* arg0, u8 arg1);
+void sub_080B2BE0(struct Object* arg0);
+
+extern const struct AnimInfo gUnk_08353F70[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

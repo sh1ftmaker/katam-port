@@ -46,7 +46,7 @@
 
 /* C linkage for the 64-bit builds.
  *
- * Those compile the game as C++ and tools/cxxify.py gives it C linkage, so
+ * Those compile the game as C++ and tools/legacy-sync/cxxify.py gives it C linkage, so
  * everything on the seam has to agree.  It is applied to platform/*.c as a
  * class rather than to the files that happened to break: the failure is an
  * undefined reference to a mangled name, or -- for a `const`, which is

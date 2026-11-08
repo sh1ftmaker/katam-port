@@ -3,7 +3,7 @@
 /* C linkage for the 64-bit builds.
  *
  * They compile the game as C++ so that its structures keep 4-byte pointer
- * members (docs/SIXTYFOUR.md), and tools/cxxify.py gives every game header and
+ * members (docs/SIXTYFOUR.md), and tools/legacy-sync/cxxify.py gives every game header and
  * source C linkage so the C++ build links by the same rules the C builds do.
  * This header declares the seam between the two, so it has to say the same
  * thing -- otherwise the game calls a mangled name and the platform defines an

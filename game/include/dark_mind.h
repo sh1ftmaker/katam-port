@@ -1,0 +1,174 @@
+#ifndef GUARD_DARK_MIND_H
+#define GUARD_DARK_MIND_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "object.h"
+#include "code_0814F274.h"
+
+struct DarkMindForm1
+{
+    struct Object unk0;
+    PTR32(struct Object) unkB4;
+    PTR32(struct Object) unkB8;
+    PTR32(struct DarkMindBomb) unkBC;
+    PTR32(struct Object) unkC0;
+    PTR32(struct Object) unkC4;
+    PTR32(struct ObjectBase) unkC8;
+    PTR32(struct EffectObject) unkCC;
+    PTR32(struct Object6) unkD0;
+    u8 unkD4;
+    u8 unkD5;
+    s16 unkD6;
+    s16 unkD8;
+    u8 unkDA;
+    s8 unkDB;
+    s16 unkDC;
+    s16 unkDE;
+    s16 unkE0;
+    s8 unkE2;
+    u8 unkE3;
+}; /* size = 0xE4 */
+
+struct DarkMindBomb
+{
+    struct Object unk0;
+    PTR32(struct Object6) unkB4;
+}; /* size = 0xB8 */
+
+struct Object13
+{
+    struct EffectObject unk0;
+    s32 unk48[4][2];
+    s16 unk68[4];
+}; /* size = 0x70 */
+
+struct DarkMindMirror // sub_0810F320
+{
+    struct Object unk0;
+    struct Sprite unkB4;
+    u32 unkDC;
+    u8 unkE0;
+    s8 unkE1;
+    u8 unkE2;
+    s8 unkE3;
+    s16 unkE4;
+}; /* size = 0xE8 */
+
+struct DarkMindForm2
+{
+    struct Object unk0;
+    struct Sprite unkB4;
+    PTR32(struct Task) unkDC;
+    PTR32(const u8) unkE0;
+    struct Object11 unkE4;
+    struct Object11 unkF0;
+    PTR32(struct DarkMindMirror) unkFC;
+    PTR32(struct DarkMindMirror) unk100;
+    PTR32(struct Object) laser;
+    PTR32(struct Object) laserShower;
+    PTR32(struct DarkMindBomb) bomb;
+    PTR32(struct Object) enemy3;
+    PTR32(struct Object) enemy2;
+    PTR32(struct Object) enemy1;
+    s16 unk11C;
+    u16 unk11E;
+    s16 unk120;
+    s16 unk122;
+    s16 unk124;
+    u8 unk126;
+    u8 unk127;
+    u8 unk128;
+    u8 unk129;
+    u8 unk12A;
+    u8 unk12B;
+    u8 unk12C;
+    u8 unk12D;
+    u8 unk12E;
+    u8 unk12F;
+    u8 unk130;
+    u8 unk131;
+    u8 unk132;
+    u8 unk133;
+    u8 unk134;
+    u8 unk135;
+    u8 unk136;
+    u8 unk137;
+    u8 unk138;
+    u8 unk139;
+}; /* size = 0x13C */
+
+struct Unk_08113508 {
+    u16 roomId;
+    u16 unk2;
+    u16 unk4;
+    u16 unk6;
+    PTR32(struct DarkMindForm2) unk8;
+}; /* size = 0xC */
+
+struct DarkMindTrigger
+{
+    struct Object unk0;
+    PTR32(struct EffectObject) unkB4;
+    u16 fillerB8;
+    s16 unkBA;
+    s16 unkBC;
+    u8 unkBE;
+    u8 unkBF;
+    u8 unkC0;
+}; /* size = 0xC4 */
+
+void *CreateDarkMindForm1(struct ObjectTemplate *, u8);
+void *CreateShadowKirbyBomb(struct ObjectTemplate *, u8);
+void *CreateDarkMindStar(struct ObjectTemplate *, u8);
+void *CreateDarkMindBomb(struct ObjectTemplate *, u8);
+void *CreateDarkMindForm2(struct ObjectTemplate *, u8);
+void *sub_0810F320(struct ObjectTemplate *, u8);
+void *sub_081113EC(struct ObjectTemplate *, u8);
+void *sub_08111984(struct ObjectTemplate *, u8);
+void *CreateDarkMindMirrorCutter(struct ObjectTemplate *, u8);
+void *CreateDarkMindTrigger(struct ObjectTemplate *, u8);
+void *sub_08117BBC(struct ObjectTemplate *, u8);
+void *sub_08107780(struct ObjectTemplate *, u8);
+
+void sub_08101630(struct DarkMindForm1 *);
+void sub_081099A4(struct DarkMindBomb *);
+void sub_0810C9C8(struct DarkMindForm2 *);
+void sub_08114BA0(struct DarkMindTrigger *);
+void sub_08109960(struct Object *);
+void sub_08106508(struct Object *);
+void sub_08113BAC(struct Object *);
+void sub_08113BEC(struct Object *);
+void sub_08113C10(struct Object *);
+void sub_08113B68(struct DarkMindMirror *);
+void sub_081099C0(struct Object *);
+
+void sub_0810B830(void);
+void sub_081111C4(struct DarkMindMirror *);
+void sub_08113C34(UNUSED s32, u8);
+void sub_08113C90(void);
+
+extern const struct AnimInfo gUnk_083571F0[];
+extern const struct AnimInfo gUnk_08357220[];
+extern const struct AnimInfo gUnk_0835722C[];
+extern const struct AnimInfo gUnk_0835723C[];
+extern const struct AnimInfo gUnk_08357300;
+extern const struct AnimInfo gUnk_08357324[];
+extern const struct AnimInfo gUnk_08357348[];
+extern const struct AnimInfo gUnk_08357358[];
+extern const struct AnimInfo gUnk_08357364[];
+extern const struct Unk_08353510 gUnk_083576B4[];
+extern const struct Unk_08353510 gUnk_083577BC[];
+extern const struct Unk_08353510 gUnk_083578A0[];
+extern const struct Unk_08353510 gUnk_083579A8[];
+extern const struct AnimInfo gUnk_08357AC4[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

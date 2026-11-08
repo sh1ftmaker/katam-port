@@ -1,0 +1,38 @@
+#ifndef GUARD_MOLEY_H
+#define GUARD_MOLEY_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+struct Moley {
+    struct Object obj;
+    u8 unkB4;
+    u8 unkB5;
+    u16 unkB6;
+}; /* size = 0xB8 */
+
+void *CreateMoley(struct ObjectTemplate *, u8);
+void sub_080EB848(struct Moley *);
+void *CreateMoleyItem(struct ObjectTemplate *, u8);
+void sub_080EC8E8(struct Object *);
+
+extern const struct AnimInfo gUnk_08356D90[];
+extern const struct AnimInfo gUnk_08356DC4[];
+extern const struct AnimInfo gUnk_08356DD0[];
+extern const struct AnimInfo gUnk_08356DDC[];
+extern const struct AnimInfo gUnk_08356DE8[];
+extern const struct AnimInfo gUnk_08356DF4[];
+extern const struct AnimInfo gUnk_08356E00[];
+extern const struct AnimInfo gUnk_08356E0C[];
+extern const struct AnimInfo gUnk_08356E18[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

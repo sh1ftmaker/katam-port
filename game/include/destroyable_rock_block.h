@@ -1,0 +1,29 @@
+#ifndef GUARD_DESTROYABLE_ROCK_BLOCK_H
+#define GUARD_DESTROYABLE_ROCK_BLOCK_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "data.h"
+#include "global.h"
+#include "object.h"
+
+struct RockBlock {
+    struct Object base;
+    s16 unkB4;
+    u16 unkB6;
+}; /* size = 0xB8 */
+
+void* CreateDestroyableRockBlock(struct ObjectTemplate* arg0, u8 arg1);
+void DestroyableRockBlockInit(struct RockBlock*);
+void sub_0811BF24(struct RockBlock*);
+
+extern const struct AnimInfo gUnk_08357C54[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

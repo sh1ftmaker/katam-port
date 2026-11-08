@@ -1,0 +1,27 @@
+#ifndef GUARD_BATAFIRE_H
+#define GUARD_BATAFIRE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+void *CreateBatafire(struct ObjectTemplate *, u8);
+void *CreateBatafireFireball(struct ObjectTemplate *, u8);
+
+void sub_080C95D4(struct Object *);
+void sub_080CB4A0(struct Object *);
+
+extern const struct AnimInfo gUnk_083558E0[];
+extern const struct AnimInfo gUnk_0835591C[];
+extern const struct AnimInfo gUnk_08355CB0[];
+extern const struct AnimInfo gUnk_08355CEC[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

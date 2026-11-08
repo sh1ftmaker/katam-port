@@ -1,0 +1,22 @@
+#ifndef GUARD_PARASOL_H
+#define GUARD_PARASOL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+void *CreateParasol(struct ObjectTemplate *, u8);
+void sub_080C29C0(struct Object *, u8);
+void sub_080C2B28(struct Object *);
+
+extern const struct AnimInfo gUnk_08355464[];
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

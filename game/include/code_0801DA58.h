@@ -1,0 +1,33 @@
+#ifndef GUARD_CODE_0801DA58_H
+#define GUARD_CODE_0801DA58_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+#include "global.h"
+#include "data.h"
+
+struct Unk_0801DA58
+{
+    struct Background unk0;
+    struct Background unk40; // not sure
+    struct Sprite unk80[2];
+    u32 unkD0[2];
+    PTR32_FN(void, unkD8, (struct Unk_0801DA58 *));
+    u16 unkDC;
+    u16 unkDE;
+    u16 unkE0;
+    u16 unkE2;
+}; /* size = 0xE4 */
+
+void sub_0801DA58(u16);
+
+void sub_0801DFE8(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
