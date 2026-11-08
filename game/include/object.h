@@ -219,7 +219,12 @@ extern "C" {
     } \
 })
 
-#define Macro_0810B1F4(objBase) (gUnk_03000510.unk4 & ((1 << (objBase)->unk56) | 0x10))
+/* PORT-FORK: unk56 is 0xFF for an object no player owns, and `1 << 0xFF` is
+ * undefined: x86 and wasm mask the count to 5 bits (0x80000000), the ARM7's
+ * register LSL gives 0, and a compiler may assume it cannot happen at all.
+ * Spelled out as what the console computed. */
+#define Macro_0810B1F4(objBase) (gUnk_03000510.unk4 & \
+    (((objBase)->unk56 < 32 ? 1 << (objBase)->unk56 : 0) | 0x10))
 
 #define Macro_081003EC(obj, objBase) ({ \
     (obj)->unkA4 = gCurLevelInfo[(objBase)->unk56].unkA0 >> 8; \
