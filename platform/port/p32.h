@@ -303,10 +303,17 @@ struct P32<void> {
     void *operator+(u32 n) const
     { return reinterpret_cast<u8 *>(static_cast<uintptr_t>(v)) + n; }
 
-    /* The cast back out, to whatever the caller knows it really is.  Same
-     * reasoning as the primary template's. */
-    template <class U>
-    explicit operator U *() const { return reinterpret_cast<U *>(static_cast<uintptr_t>(v)); }
+    /* The cast back out, to whatever the caller knows it really is.
+     *
+     * Implicit, which is C's void*-to-T*: `struct Kirby *k =
+     * obj->base.parent;`, and -- GNU C, which the decompilation is -- the same
+     * to a function pointer (`form->fn = obj->unk78;`).  Up to GCC 15,
+     * -fpermissive let operator void*() above chain into that conversion and
+     * this could stay explicit; GCC 16 refuses ("cannot convert 'P32<void>'
+     * to 'Kirby*'") at two dozen sites, so the conversion is spelled out. */
+    template <class U,
+              typename std::enable_if<!std::is_void<U>::value, int>::type = 0>
+    operator U *() const { return reinterpret_cast<U *>(static_cast<uintptr_t>(v)); }
 
     /* From another PTR32 of a different pointee.  The decompilation assigns
      * across pointer types freely -- most often through a void* member -- and

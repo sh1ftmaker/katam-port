@@ -14,6 +14,12 @@ static int sCur;
 static u32 sSnapBytes;
 static u8 *sStates;                 /* sSeats snapshots, sSnapBytes apart    */
 
+/* C linkage: main.c defines it inside extern "C", and the 64-bit builds
+ * compile this file as C++ -- a bare declaration here links against a
+ * mangled name nothing defines. */
+#ifdef __cplusplus
+extern "C"
+#endif
 void PortRbApplyKeys(u16 keys);    /* platform/main.c, the key latch      */
 
 static u16 sPending[PORT_SEAT_MAX]; /* set by the host for the next round    */
