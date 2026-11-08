@@ -426,11 +426,11 @@ static int MenuBody(void)
     }
 
     if (Section("Controls")) {
-        ImGui::TextUnformatted("Menu: F1 or Tab (Esc closes), or the gear button");
-        ImGui::TextUnformatted("D-pad: arrows / WASD     A: J / Z     B: K / X");
-        ImGui::TextUnformatted("L: Q   R: E   Start: Enter   Select: Backspace / R-Shift");
+        ImGui::TextWrapped("Menu: F1 or Tab (Esc closes), or the gear button.");
+        ImGui::TextWrapped("D-pad: arrows / WASD. A: J / Z. B: K / X.");
+        ImGui::TextWrapped("L: Q. R: E. Start: Enter. Select: Backspace / R-Shift.");
         if (strcmp(st.platform ? st.platform : "", "native") == 0)
-            ImGui::TextUnformatted("F11 fullscreen, F12 screenshot, 1-6 window scale");
+            ImGui::TextWrapped("F11 fullscreen, F12 screenshot, 1-6 window scale.");
         else
             Hint("Phones: on-screen pads (turn them on in the page menu). Fullscreen from the page menu.");
         Hint("The game pauses while this menu is open.");
