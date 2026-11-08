@@ -167,7 +167,9 @@ extern const struct AnimInfo gUnk_083500D8[];
 extern const struct AnimInfo gUnk_083502C0[];
 extern const struct AnimInfo gUnk_08350474[];
 extern const struct AnimInfo gUnk_08350620[];
-extern const struct AnimInfo gUnk_083507F8[];
+/* PORT-FORK: offsets into gUnk_08350620, which holds all three (kirby.c) */
+#define gUnk_083507F8 (gUnk_08350620 + 118)
+#define gUnk_08350834 (gUnk_08350620 + 133)
 extern const struct AnimInfo gUnk_08350AAC[];
 extern const struct AnimInfo gUnk_08350B30[];
 

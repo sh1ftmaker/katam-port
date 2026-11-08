@@ -4962,7 +4962,17 @@ extern const struct AnimInfo gUnk_08350474[] = {
     { 0xBF, 0x5, 0x0 },
 };
 
-extern const struct AnimInfo gUnk_08350620[] = {
+/* PORT-FORK: gUnk_08350620, gUnk_083507F8 and gUnk_08350834 are one array.
+ * The decompilation splits them at the labels the code uses, but
+ * sub_080788AC indexes gUnk_083507F8 (15 entries) by Kirby's animationIndex,
+ * which runs past 100, and on the console that reads on into gUnk_08350834,
+ * which follows it in the ROM.  As separate arrays the linker placed them
+ * wherever it liked -- the LP64 build in reverse order, so it read
+ * gUnk_08350620's entries instead; wasm read past all three and trapped in
+ * sub_08155128 on a garbage animId (the 36-room sweep, frame 5781).  One
+ * array keeps the ROM's order on every host; the other two names are
+ * offsets into it (kirby.h). */
+extern const struct AnimInfo gUnk_08350620[118 + 15 + 103] = {
     { 0x269, 0x0, 0x0 },
     { 0x269, 0x1, 0x0 },
     { 0x269, 0x2, 0x0 },
@@ -5081,9 +5091,7 @@ extern const struct AnimInfo gUnk_08350620[] = {
     { 0x257, 0x3, 0x0 },
     { 0x257, 0x4, 0x0 },
     { 0x257, 0x5, 0x0 },
-};
-
-extern const struct AnimInfo gUnk_083507F8[] = {
+    /* gUnk_083507F8 = gUnk_08350620 + 118 */
     { 0x27A, 0x0, 0x0 },
     { 0x27A, 0x1, 0x0 },
     { 0x27A, 0x2, 0x0 },
@@ -5099,9 +5107,7 @@ extern const struct AnimInfo gUnk_083507F8[] = {
     { 0x27C, 0x1, 0x0 },
     { 0x27F, 0x0, 0x0 },
     {   0x0, 0x0, 0x0 },
-};
-
-extern const struct AnimInfo gUnk_08350834[] = {
+    /* gUnk_08350834 = gUnk_08350620 + 133 */
     { 0x277, 0x0, 0x0 },
     { 0x277, 0x1, 0x0 },
     { 0x277, 0x2, 0x0 },
