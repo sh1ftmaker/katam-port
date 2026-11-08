@@ -650,6 +650,7 @@ static void Shutdown(int code)
     }
     if (sGpuShotPath != NULL)
         WriteGpuShot(sGpuShotPath);
+    PortRlReportPopIn();
     if (sCompareLog != NULL) {
         PortLog("[katam-port] gpu vs ppu: %ld frames compared, %ld differ, "
                 "%ld pixels in all; %ld frames not comparable (view not 240x160)",

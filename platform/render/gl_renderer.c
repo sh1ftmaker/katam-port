@@ -151,7 +151,7 @@ static const char *kObjFs =
     "  }\n"
     "  if (uWinPass != 0) { oObj = uvec4(1u); return; }\n"
     "  oObj = uvec4(uint(col & 255), uint(col >> 8),\n"
-    "               uint(((fl >> 8) & 3) | (((fl >> 10) & 1) << 2) | 8), 0u);\n"
+    "               uint(((fl >> 8) & 3) | (((fl >> 10) & 1) << 2) | 8 | (((fl >> 13) & 1) << 4)), 0u);\n"
     "}\n";
 
 static const char *kCompVs =
@@ -167,7 +167,7 @@ static const char *kCompFs =
     "uniform usampler2D uMap;\n"
     "uniform ivec4 uView;\n"          /* viewX viewY viewW viewH (screen) */
     "uniform ivec4 uContent;\n"       /* l t r b (screen)                */
-    "uniform ivec4 uLayer[4];\n"      /* space, streamed, shiftX, shiftY */
+    "uniform ivec4 uLayer[4];\n"      /* space, flags, shiftX, shiftY    */
     "uniform ivec4 uValid[4];\n"      /* l r t b                         */
     "uniform ivec4 uMapGeom[4];\n"    /* w h base -                      */
     "uniform ivec4 uMapScroll[4];\n"  /* scrollX scrollY offX offY       */
@@ -202,15 +202,21 @@ static const char *kCompFs =
     "  int sx = (x + hofs) & (wT * 8 - 1);\n"
     "  int entry;\n"
     "  bool outside = false;\n"
-    "  int st = uLayer[bg].y;\n"
+    "  int st = uLayer[bg].y;\n"      /* 1 map, 2 window only, 4 wrapX, 8 clampY */
     "  if (st != 0)\n"
     "    outside = x < uValid[bg].x || x >= uValid[bg].y || y < uValid[bg].z || y >= uValid[bg].w;\n"
+    "  int px = sx & 7, py = sy & 7;\n"
     "  if (outside) {\n"
-    "    if (st != 1) return -1;\n"
-    "    int r = uMapScroll[bg].w + ((uMapScroll[bg].y + y) >> 3);\n"
-    "    int c = uMapScroll[bg].z + ((uMapScroll[bg].x + x) >> 3);\n"
-    "    if (r < 0 || r >= uMapGeom[bg].y || c < 0 || c >= uMapGeom[bg].x) return -1;\n"
-    "    entry = mapEntry(bg, r * uMapGeom[bg].x + c);\n"
+    "    if ((st & 1) == 0) return -1;\n"
+    "    int W = uMapGeom[bg].x * 8, H = uMapGeom[bg].y * 8;\n"
+    "    int lx = uMapScroll[bg].z * 8 + uMapScroll[bg].x + x;\n"
+    "    int ly = uMapScroll[bg].w * 8 + uMapScroll[bg].y + y;\n"
+    "    if ((st & 16) != 0) { lx = imod(lx, 2 * W); if (lx >= W) lx = 2 * W - 1 - lx; }\n"
+    "    else if ((st & 4) != 0) lx = imod(lx, W);\n"
+    "    if ((st & 8) != 0) ly = clamp(ly, 0, H - 1);\n"
+    "    if (lx < 0 || ly < 0 || lx >= W || ly >= H) return -1;\n"
+    "    entry = mapEntry(bg, (ly >> 3) * uMapGeom[bg].x + (lx >> 3));\n"
+    "    px = lx & 7; py = ly & 7;\n"
     "  } else {\n"
     "    int tx = sx >> 3, ty = sy >> 3;\n"
     "    int mo = screenBase;\n"
@@ -221,7 +227,6 @@ static const char *kCompFs =
     "    entry = vb(mo) | (vb(mo + 1) << 8);\n"
     "  }\n"
     "  int tile = entry & 0x3FF;\n"
-    "  int px = sx & 7, py = sy & 7;\n"
     "  if ((entry & 0x400) != 0) px = 7 - px;\n"
     "  if ((entry & 0x800) != 0) py = 7 - py;\n"
     "  if (is256) {\n"
@@ -297,9 +302,7 @@ static const char *kCompFs =
     "void main() {\n"
     "  ivec2 v = ivec2(gl_FragCoord.xy);\n"
     "  int sx = v.x + uView.x, sy = v.y + uView.y;\n"
-    "  if (sx < uContent.x || sy < uContent.y || sx >= uContent.z || sy >= uContent.w) {\n"
-    "    oColor = vec4(0.0, 0.0, 0.0, 1.0); return;\n"
-    "  }\n"
+    "  bool letterbox = sx < uContent.x || sy < uContent.y || sx >= uContent.z || sy >= uContent.w;\n"
     "  int rl = clamp(sy, 0, 159);\n"
     "  int dispcnt = L(rl, 16);\n"
     "  if ((dispcnt & 0x80) != 0) { oColor = vec4(1.0); return; }\n"
@@ -309,6 +312,7 @@ static const char *kCompFs =
     "    lc[bg] = -1;\n"
     "    lp[bg] = L(rl, 27 + bg) & 3;\n"
     "    if ((dispcnt & (0x100 << bg)) == 0) continue;\n"
+    "    if (uLayer[bg].x < 0 || (letterbox && uLayer[bg].x != 2)) continue;\n"
     "    int x = sx + uLayer[bg].z, y = sy + uLayer[bg].w;\n"
     "    if (uLayer[bg].x == 2) {\n"
     "      bool found = false;\n"
@@ -326,14 +330,14 @@ static const char *kCompFs =
     "  }\n"
     "  bool objOn = (dispcnt & 0x1000) != 0;\n"
     "  uvec4 o = texelFetch(uObj, v, 0);\n"
-    "  bool objOpq = objOn && (o.b & 8u) != 0u;\n"
+    "  bool objOpq = objOn && (o.b & 8u) != 0u && (!letterbox || (o.b & 16u) != 0u);\n"
     "  int objPri = objOpq ? int(o.b & 3u) : 3;\n"
     "  bool semi = (o.b & 4u) != 0u;\n"
     "  int objCol = int(o.r) | (int(o.g) << 8);\n"
     "  bool objwin = objOn && texelFetch(uObjWin, v, 0).r != 0u;\n"
     "  int ctrl = windowControl(sx, sy, rl, dispcnt, objwin);\n"
     "  bool allowBlend = (ctrl & 0x20) != 0;\n"
-    "  int bd = pal(0);\n"
+    "  int bd = letterbox ? 0 : pal(0);\n"
     "  int top = -1, second = -1, topC = bd, secC = bd;\n"
     "  bool topBlend = true;\n"
     "  for (int p = 0; p < 4; p++) {\n"
@@ -664,6 +668,7 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count)
         flags |= ((s->attr2 >> 10) & 3) << 8;
         if (((s->attr0 >> 10) & 3) == 1) flags |= 1024;
         if (f->objOneD) flags |= 4096;
+        if (s->space == RL_SPACE_HUD) flags |= 8192;
         o[0] = x; o[1] = y; o[2] = bw; o[3] = bh;
         o[4] = w; o[5] = h; o[6] = s->attr2 & 0x3FF; o[7] = flags;
         o[8] = s->pa; o[9] = s->pb; o[10] = s->pc; o[11] = s->pd;
@@ -739,8 +744,10 @@ void GlrDraw(const RlFrame *f)
         int streamed = 0;
 
         if (L->streamed)
-            streamed = (L->map && sMapLen[bg]) ? 1 : 2;
-        layer[bg * 4 + 0] = L->space;
+            streamed = ((L->map && sMapLen[bg]) ? 1 : 2)
+                     | (L->wrapX == 1 ? 4 : 0) | (L->wrapX == 2 ? 16 : 0)
+                     | (L->clampY ? 8 : 0);
+        layer[bg * 4 + 0] = L->enabled ? L->space : -1;
         layer[bg * 4 + 1] = streamed;
         layer[bg * 4 + 2] = L->shiftX;
         layer[bg * 4 + 3] = L->shiftY;

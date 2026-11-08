@@ -56,8 +56,10 @@ extern "C" {
 typedef struct RlTileLayer {
     u8 enabled;
     u8 space;                /* RL_SPACE_*                                   */
-    u8 streamed;             /* WORLD: VRAM holds only a window of `map`     */
-    u8 pad_;
+    u8 streamed;             /* WORLD: VRAM holds only a window of the map   */
+    u8 wrapX;                /* outside the window: 1 repeat, 2 mirror      */
+    u8 clampY;               /* ... and its edge rows extend up and down    */
+    u8 pad_[3];
     /* Added to the screen coordinate of every pixel before sampling: the
      * parallax term for a view moved off the game camera,
      * (factor - 1) * viewShift.  Zero for the room layer and for SCREEN. */
@@ -168,6 +170,8 @@ void PortRlCaptureLine(int line, s32 aff2x, s32 aff2y, s32 aff3x, s32 aff3y);
 /* Build the frame to present from the current console state and the game
  * state committed at the last UpdateScreen.  Never writes game memory. */
 const RlFrame *PortRlBuildFrame(void);
+/* KATAM_RL_POPSTAT=1: objects appearing/vanishing in the widened margin. */
+void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
 

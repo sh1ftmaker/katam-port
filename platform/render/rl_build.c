@@ -22,6 +22,7 @@
  * window, which is what the old widescreen path did.
  */
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "port/port.h"
@@ -41,12 +42,32 @@ extern "C" {
 
 int gPortRlEnabled;
 
+/* --- the committed screen (see PortRlCommitScreen) ----------------------- */
+
+typedef struct {
+    u32 tilesVram, tilemapVram;
+    u32 map;
+    u16 w, h, offX, offY, unk22, unk24, cols, rows, flags;
+    u16 scrollX, scrollY;
+} BgSnap;
+
+static struct {
+    int valid;
+    u16 room;
+    u16 roomFlags;
+    BgSnap bg[3];                /* LevelInfo.unkC0[0..2]                     */
+    s32 rectL, rectT, rectR, rectB;  /* camera rectangle, world pixels         */
+    s32 factor[3][2];            /* 8.8, per record                          */
+    u32 serial;
+} sScreen;
+
 /* --- sprite emission ----------------------------------------------------- */
 
 typedef struct {
     RlSprite s;
     u8 z;                /* the OAM link layer, (unk14 >> 6) & 0x1F          */
     u8 inOam;            /* the game wrote this one to its OAM pool         */
+    const void *owner;   /* the struct Sprite it came from (diagnostics)     */
 } PendingSprite;
 
 typedef struct {
@@ -272,6 +293,7 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         p->z = (u8)((sprite->unk14 & 0x7C0) >> 6);
         if (p->z > 0x1F) p->z = 0x1F;
         p->inOam = (u8)inOam;
+        p->owner = sprite;
     }
 
     if ((sprite->unk4 >> 28) == 1 && (sprite->unk8 & 0x4000000) && !uploadDone)
@@ -281,6 +303,130 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
 /* DrawToOamBuffer walks the 32 link layers in order and each layer in the
  * order its sprites were submitted: a stable sort by layer.  The committed
  * list is that order, with the sprites the game did not write kept in place. */
+/* --- pop-in census (KATAM_RL_POPSTAT=1) -----------------------------------
+ *
+ * The game creates objects inside a window 48 pixels beyond the 240x160
+ * screen and destroys them beyond the same margin; a wider view sees past
+ * that.  Changing the game's windows changes the simulation, which this
+ * renderer must not do, so instead it counts: every frame, which sprite
+ * owners (struct Sprite addresses) appeared or vanished, and where.  An
+ * appearance inside the view but outside the 240x160 screen is an object
+ * popping in where a player can see it.  Printed at exit. */
+#define POP_MAX 512
+static struct { const void *owner; s32 cx, cy; } sPopPrev[POP_MAX], sPopCur[POP_MAX];
+static int sPopPrevN, sPopEnabled = -1;
+static u32 sPopFrames, sPopFramesWithMargin;
+static u32 sPopAppearNative, sPopAppearMargin, sPopVanishNative, sPopVanishMargin;
+static u32 sPopMarginHist[8];   /* by distance past the screen edge, 16px bins */
+static s32 sPopViewX, sPopViewY, sPopViewW = PORT_SCREEN_W, sPopViewH = PORT_SCREEN_H;
+
+static int PopInView(s32 x, s32 y)
+{
+    return x >= sPopViewX && x < sPopViewX + sPopViewW
+        && y >= sPopViewY && y < sPopViewY + sPopViewH;
+}
+
+static int PopInScreen(s32 x, s32 y)
+{
+    return x >= 0 && x < PORT_SCREEN_W && y >= 0 && y < PORT_SCREEN_H;
+}
+
+static s32 PopDistance(s32 x, s32 y)
+{
+    s32 d = 0;
+    if (x < 0) d = -x;
+    if (x >= PORT_SCREEN_W && x - PORT_SCREEN_W + 1 > d) d = x - PORT_SCREEN_W + 1;
+    if (y < 0 && -y > d) d = -y;
+    if (y >= PORT_SCREEN_H && y - PORT_SCREEN_H + 1 > d) d = y - PORT_SCREEN_H + 1;
+    return d;
+}
+
+static u16 sPopRoom = 0xFFFF;
+static u32 sPopSettle;
+
+static void PopCensus(void)
+{
+    int n = 0, i, j, margin = 0, count;
+
+    /* A room change makes everything appear at once; that is not pop-in.
+     * Half a second for the transition to finish. */
+    if (sScreen.room != sPopRoom || !sScreen.valid) {
+        sPopRoom = sScreen.valid ? sScreen.room : 0xFFFF;
+        sPopSettle = 30;
+    }
+    count = sPopSettle == 0;
+    if (sPopSettle)
+        sPopSettle--;
+
+    for (i = 0; i < (int)sNumEmit && n < POP_MAX; i++) {
+        const PendingSprite *p = &sEmit[i];
+        if (p->s.space != RL_SPACE_WORLD)
+            continue;
+        for (j = 0; j < n; j++)
+            if (sPopCur[j].owner == p->owner)
+                break;
+        if (j < n)
+            continue;
+        sPopCur[n].owner = p->owner;
+        sPopCur[n].cx = p->s.x + 8;
+        sPopCur[n].cy = p->s.y + 8;
+        n++;
+    }
+    for (i = 0; i < n; i++) {
+        for (j = 0; j < sPopPrevN; j++)
+            if (sPopPrev[j].owner == sPopCur[i].owner)
+                break;
+        if (j < sPopPrevN)
+            continue;
+        if (!count)
+            continue;
+        if (PopInScreen(sPopCur[i].cx, sPopCur[i].cy))
+            sPopAppearNative++;
+        else if (PopInView(sPopCur[i].cx, sPopCur[i].cy)) {
+            s32 d = PopDistance(sPopCur[i].cx, sPopCur[i].cy) / 16;
+            sPopAppearMargin++;
+            sPopMarginHist[d > 7 ? 7 : d]++;
+            margin = 1;
+        }
+    }
+    for (j = 0; j < sPopPrevN; j++) {
+        for (i = 0; i < n; i++)
+            if (sPopPrev[j].owner == sPopCur[i].owner)
+                break;
+        if (i < n || !count)
+            continue;
+        if (PopInScreen(sPopPrev[j].cx, sPopPrev[j].cy))
+            sPopVanishNative++;
+        else if (PopInView(sPopPrev[j].cx, sPopPrev[j].cy)) {
+            sPopVanishMargin++;
+            margin = 1;
+        }
+    }
+    memcpy(sPopPrev, sPopCur, (size_t)n * sizeof(sPopCur[0]));
+    sPopPrevN = n;
+    sPopFrames += (u32)count;
+    sPopFramesWithMargin += (u32)margin;
+}
+
+void PortRlReportPopIn(void)
+{
+    if (sPopEnabled != 1)
+        return;
+    PortLog("[katam-port] pop-in census, view %dx%d: %u frames (room entries "
+            "excluded), %u with an object appearing or vanishing in the margin past 240x160", (int)sPopViewW,
+            (int)sPopViewH, (unsigned)sPopFrames, (unsigned)sPopFramesWithMargin);
+    PortLog("[katam-port]   appear: %u on the 240x160 screen, %u in the margin; "
+            "vanish: %u on screen, %u in the margin", (unsigned)sPopAppearNative,
+            (unsigned)sPopAppearMargin, (unsigned)sPopVanishNative,
+            (unsigned)sPopVanishMargin);
+    PortLog("[katam-port]   margin appearances by distance past the screen edge "
+            "(16px bins): %u %u %u %u %u %u %u %u",
+            (unsigned)sPopMarginHist[0], (unsigned)sPopMarginHist[1],
+            (unsigned)sPopMarginHist[2], (unsigned)sPopMarginHist[3],
+            (unsigned)sPopMarginHist[4], (unsigned)sPopMarginHist[5],
+            (unsigned)sPopMarginHist[6], (unsigned)sPopMarginHist[7]);
+}
+
 void PortRlCommitSprites(void)
 {
     u32 counts[33];
@@ -288,6 +434,10 @@ void PortRlCommitSprites(void)
 
     if (!gPortRlEnabled)
         return;
+    if (sPopEnabled < 0)
+        sPopEnabled = getenv("KATAM_RL_POPSTAT") != NULL;
+    if (sPopEnabled)
+        PopCensus();
     memset(counts, 0, sizeof(counts));
     for (i = 0; i < sNumEmit; i++)
         counts[sEmit[i].z + 1]++;
@@ -304,23 +454,6 @@ void PortRlCommitSprites(void)
 }
 
 /* --- screen commit ------------------------------------------------------- */
-
-typedef struct {
-    u32 tilesVram, tilemapVram;
-    u32 map;
-    u16 w, h, offX, offY, unk22, unk24, cols, rows, flags;
-    u16 scrollX, scrollY;
-} BgSnap;
-
-static struct {
-    int valid;
-    u16 room;
-    u16 roomFlags;
-    BgSnap bg[3];                /* LevelInfo.unkC0[0..2]                     */
-    s32 rectL, rectT, rectR, rectB;  /* camera rectangle, world pixels         */
-    s32 factor[3][2];            /* 8.8, per record                          */
-    u32 serial;
-} sScreen;
 
 void PortRlCommitScreen(void)
 {
@@ -608,6 +741,61 @@ static s32 Clamp(s32 v, s32 lo, s32 hi)
     return v < lo ? lo : v > hi ? hi : v;
 }
 
+/* A parallax picture is drawn to be seen through a 240-pixel window that
+ * slides across it as the camera crosses the room: at the room's left edge
+ * the window is at (or near) the picture's left edge, at the right edge near
+ * its right.  A wider window, slid by the same rule, runs off both ends --
+ * the picture does not tile, and wrapping it shows its right edge abutting
+ * its left.  So when the picture was made to fit the room (its 240-pixel
+ * window stays inside it over the whole camera range), the wider window is
+ * slid over the same range of the picture instead: the parallax rate is
+ * re-fitted to the view.  At 240 wide this is the identity.  A picture that
+ * does run off its own end at 240 is one that tiles (bg.c's refill wraps it),
+ * and keeps wrapping. */
+static void FitAxis(s32 S, s32 f, s32 cam, s32 camMin, s32 camMax, s32 img,
+                    s32 native, s32 view, s32 viewOrg, s32 *shift, u8 *wrap)
+{
+    s32 s0 = S + (f * (camMin - cam)) / 256;     /* layer scroll at camMin */
+    s32 s1 = S + (f * (camMax - cam)) / 256;
+    s32 lo, want;
+
+    if (view <= native)
+        return;
+    if (s0 > s1) { s32 t = s0; s0 = s1; s1 = t; }
+    if (s0 < 0 || s1 + native > img)
+        return;                                  /* tiles: keep the wrap */
+    if (img < view) {
+        /* Narrower than the view: it cannot be fitted, and wrapping it puts
+         * its two edges side by side.  Mirror it instead -- the parallax
+         * keeps its motion and the joins are continuous. */
+        *wrap = 2;
+        return;
+    }
+    lo = 0;
+    if (s1 > s0)
+        want = lo + (s32)((long long)(S - s0) * (img - view) / (s1 - s0));
+    else
+        want = Clamp(S + viewOrg, 0, img - view);
+    /* The sample point for view pixel 0 is S + viewOrg + shift. */
+    *shift = want - (S + viewOrg);
+    *wrap = 0;
+}
+
+static void FitParallax(RlTileLayer *L, const RlFrame *f, const BgSnap *s,
+                        s32 camX, s32 camY)
+{
+    u8 dummy;
+    s32 camMinX = sScreen.rectL, camMaxX = sScreen.rectR - PORT_SCREEN_W;
+    s32 camMinY = sScreen.rectT, camMaxY = sScreen.rectB - PORT_SCREEN_H;
+
+    if (camMaxX < camMinX || camMaxY < camMinY)
+        return;
+    FitAxis(s->offX * 8 + s->scrollX, L->factorX, camX, camMinX, camMaxX,
+            s->w * 8, PORT_SCREEN_W, f->viewW, f->viewX, &L->shiftX, &L->wrapX);
+    FitAxis(s->offY * 8 + s->scrollY, L->factorY, camY, camMinY, camMaxY,
+            s->h * 8, PORT_SCREEN_H, f->viewH, f->viewY, &L->shiftY, &dummy);
+}
+
 const RlFrame *PortRlBuildFrame(void)
 {
     RlFrame *f = &sFrame;
@@ -658,11 +846,17 @@ const RlFrame *PortRlBuildFrame(void)
         f->viewW = W;
         f->viewH = H;
 
-        /* The camera rectangle the game itself obeys (sub_08002DA0), in
-         * screen coordinates.  If it is not a sane rectangle, the map. */
-        rl = sScreen.rectL - camX;
-        rr = sScreen.rectR - camX;
-        rt = sScreen.rectT - camY;
+        /* Where the view may go, in screen coordinates.  The game's own
+         * camera rectangle (sub_08002DA0) is inset from the map by 8 pixels
+         * at the top, left and right and by 40 at the bottom.  A wider view
+         * gets the 8-pixel margins back -- authored rows of the room -- but
+         * not the bottom 40, which the game never shows and which in places
+         * is not drawn at all (room 101 is empty below its ground), and no
+         * more, so a scroll lock (a rectangle narrower than the room) still
+         * hides what it hides.  Never past the map itself. */
+        rl = sScreen.rectL - 8 - camX;
+        rr = sScreen.rectR + 8 - camX;
+        rt = sScreen.rectT - 8 - camY;
         rb = sScreen.rectB - camY;
         if (rr - rl < PORT_SCREEN_W || rl > 0 || rr < PORT_SCREEN_W) {
             rl = -camX;
@@ -672,11 +866,15 @@ const RlFrame *PortRlBuildFrame(void)
             rt = -camY;
             rb = fg->h * 8 - camY;
         }
+        if (rl < -camX) rl = -camX;
+        if (rt < -camY) rt = -camY;
+        if (rr > fg->w * 8 - camX) rr = fg->w * 8 - camX;
+        if (rb > fg->h * 8 - camY) rb = fg->h * 8 - camY;
 
         /* Centre the view on the game's camera, then keep it inside the
          * rectangle -- unless the rectangle is narrower than the view, in
-         * which case centre the rectangle.  Never so far that the 240x160
-         * the game composed leaves the view. */
+         * which case centre the rectangle and letterbox the rest.  Never so
+         * far that the 240x160 the game composed leaves the view. */
         vx0 = -(W - PORT_SCREEN_W) / 2;
         vy0 = -(H - PORT_SCREEN_H) / 2;
         vx = (rr - rl >= W) ? Clamp(vx0, rl, rr - W) : (rl + rr - W) / 2;
@@ -700,6 +898,7 @@ const RlFrame *PortRlBuildFrame(void)
             const BgSnap *s = &sScreen.bg[i];
             int hw = s->flags & 3;
             RlTileLayer *L = &f->layers[hw];
+            s32 ox = s->scrollX & 7, oy = s->scrollY & 7;
 
             if (!RecordMatches(s, hw, line0))
                 continue;
@@ -710,30 +909,51 @@ const RlFrame *PortRlBuildFrame(void)
              * game camera; see RlTileLayer.shiftX. */
             L->shiftX = ((L->factorX - 256) * f->shiftX) / 256;
             L->shiftY = ((L->factorY - 256) * f->shiftY) / 256;
-            if ((s->flags & 0x20) && !(s->flags & (0x40 | 0x80 | 0x100))
-                && SourceMapUsable(s->map, s->w, s->h)) {
-                s32 ox = s->scrollX & 7, oy = s->scrollY & 7;
+            if (!(s->flags & 0x20))
+                continue;               /* tiles for real: the wrap is right */
 
-                L->streamed = 1;
-                L->map = (const u16 *)(uintptr_t)s->map;
-                L->mapW = s->w;
-                L->mapH = s->h;
-                L->mapScrollX = s->scrollX;
-                L->mapScrollY = s->scrollY;
-                L->mapOffX = s->offX;
-                L->mapOffY = s->offY;
-                L->validL = -ox;
-                L->validR = (s->cols + 1) * 8 - ox;
-                L->validT = -oy;
-                L->validB = (s->rows + 1) * 8 - oy;
-                if (L->map != sMapPtr[hw] || L->mapW != sMapW[hw] || L->mapH != sMapH[hw]) {
-                    sMapPtr[hw] = L->map;
-                    sMapW[hw] = L->mapW;
-                    sMapH[hw] = L->mapH;
-                    sMapGen[hw]++;
-                }
-                L->mapGen = sMapGen[hw];
+            /* Streamed: VRAM holds a 32x22 window of the map.  Its last two
+             * rows are read from past the bottom of the map (bg.c does no
+             * vertical wrap and never needed to: they land below line 160),
+             * so the window ends where the map does. */
+            L->streamed = 1;
+            L->validL = -ox;
+            L->validR = (s->cols + 1) * 8 - ox;
+            L->validT = -oy;
+            L->validB = (s->rows + 1) * 8 - oy;
+            if (s->h > 0) {
+                s32 below = ((s32)s->h - (s->offY + s->scrollY / 8)) * 8 - oy;
+                if (below < L->validB)
+                    L->validB = below;
             }
+            if ((s->flags & (0x40 | 0x80 | 0x100))
+                || !SourceMapUsable(s->map, s->w, s->h))
+                continue;               /* window only: clip outside it */
+
+            L->map = (const u16 *)(uintptr_t)s->map;
+            L->mapW = s->w;
+            L->mapH = s->h;
+            L->mapScrollX = s->scrollX;
+            L->mapScrollY = s->scrollY;
+            L->mapOffX = s->offX;
+            L->mapOffY = s->offY;
+            /* The room itself stops at its edges -- the view is kept inside
+             * them and anything else is letterbox.  A parallax layer is a
+             * picture behind the room: bg.c's refill wraps it horizontally
+             * (the overflow copy from column 0), so it repeats, and past its
+             * top or bottom the edge row is the least wrong thing to show. */
+            if (i != 1) {
+                L->wrapX = 1;
+                L->clampY = 1;
+                FitParallax(L, f, s, camX, camY);
+            }
+            if (L->map != sMapPtr[hw] || L->mapW != sMapW[hw] || L->mapH != sMapH[hw]) {
+                sMapPtr[hw] = L->map;
+                sMapW[hw] = L->mapW;
+                sMapH[hw] = L->mapH;
+                sMapGen[hw]++;
+            }
+            L->mapGen = sMapGen[hw];
         }
 
         /* The HUD: BG1 on screen block 28 (sub_080338B4).  Four regions,
@@ -772,6 +992,38 @@ const RlFrame *PortRlBuildFrame(void)
 
     BuildSprites(f);
 
+    {
+        /* KATAM_RL_LAYERS=mask: draw only these BGs (bit n = BGn), for
+         * looking at one layer at a time. */
+        static int mask = -2;
+        if (mask == -2) {
+            const char *e = getenv("KATAM_RL_LAYERS");
+            mask = e ? (int)strtol(e, NULL, 0) : -1;
+        }
+        if (mask >= 0)
+            for (i = 0; i < 4; i++)
+                if (!(mask & (1 << i)))
+                    f->layers[i].enabled = 0;
+    }
+    {
+        static int debug = -1;
+        if (debug < 0)
+            debug = getenv("KATAM_RL_DEBUG") != NULL;
+        if (debug && (f->serial % 120) == 0) {
+            PortLog("[rl] frame %u world=%d room=%u view %d,%d %dx%d shift %d,%d content %d..%d x %d..%d",
+                    (unsigned)f->serial, f->world, (unsigned)sScreen.room, (int)f->viewX, (int)f->viewY,
+                    (int)f->viewW, (int)f->viewH, (int)f->shiftX, (int)f->shiftY,
+                    (int)f->contentL, (int)f->contentR, (int)f->contentT, (int)f->contentB);
+            for (i = 0; i < 3; i++) {
+                const BgSnap *b = &sScreen.bg[i];
+                PortLog("[rl]   rec%d hw%d flags %04X map %08X %ux%u off %u,%u scroll %u,%u win %u,%u at %u,%u match %d",
+                        i, b->flags & 3, b->flags, (unsigned)b->map, b->w, b->h, b->offX, b->offY,
+                        b->scrollX, b->scrollY, b->cols, b->rows, b->unk22, b->unk24,
+                        RecordMatches(b, b->flags & 3, line0));
+            }
+        }
+    }
+
     /* HUD sprites: the region holding the box centre decides the anchor.
      * Outside a world frame they are ordinary screen sprites. */
     for (i = 0; i < (int)(f->numSprites + f->numObjWin); i++) {
@@ -808,6 +1060,10 @@ const RlFrame *PortRlBuildFrame(void)
     for (i = 0; i < (int)sNumCommitPatch; i++) {
         const TilePatch *p = &sCommitPatch[i];
         memcpy(sVram + p->vramOff, p->src, p->len);
+    }
+    if (f->world) {
+        sPopViewX = f->viewX; sPopViewY = f->viewY;
+        sPopViewW = f->viewW; sPopViewH = f->viewH;
     }
     f->vram = sVram;
     memcpy(sPal, (const void *)GBA_PLTT_BASE, sizeof(sPal));
