@@ -68,12 +68,61 @@ u16 Sqrt(u32 num)
     return (u16)(root >> 1);
 }
 
+/* ArcTan2 is the BIOS's own integer routine (SWI 0x0A), bit for bit: not
+ * atan2().  The game buckets the angle into 8 or 16 directions (kracko.c,
+ * shotzo.c, bang_bang.c, code_0806F780.c), so an angle one unit off on a
+ * bucket edge changes an enemy's aim, and two libms -- glibc, musl, macOS,
+ * MSVC -- need not round alike.  Integers are the same on every host, and
+ * these are the integers the console computed.
+ *
+ * Written from the BIOS's code (ArcTan at 0x474, ARM; ArcTan2 at 0x4FC,
+ * Thumb; GBATEK documents the same polynomial) and checked against that code
+ * run under an emulator: identical for every input tried (DETERMINISM.md).
+ * BiosArcTan is the BIOS's ArcTan (SWI 0x09): tan in 1.14 fixed point, |tan|
+ * <= 1 here, to an angle in 0x10000-per-turn units, an odd polynomial in
+ * tan^2 evaluated in 2.14 with 32-bit wrapping multiplies and arithmetic
+ * shifts.  ArcTan2 reduces to the octant whose tangent is at most 1 and
+ * divides with the BIOS's Div (truncating).  The routine returns 32 bits
+ * (0x10000 + a negative angle in the fourth octant); the u16 is the caller's
+ * truncation, as agbcc's callers did. */
+static s32 BiosArcTan(s32 i)
+{
+    /* u32 for the multiplies: the BIOS's MUL wraps, C's signed one may not */
+    s32 a = -((s32)((u32)i * (u32)i) >> 14);
+    s32 b = ((s32)(0xA9u * (u32)a) >> 14) + 0x390;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0x91C;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0xFB6;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0x16AA;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0x2081;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0x3651;
+    b = ((s32)((u32)b * (u32)a) >> 14) + 0xA2F9;
+    return (s32)((u32)i * (u32)b) >> 16;
+}
+
+/* x << 14 without C's undefined left shift of a negative number */
+static s32 Shl14(s32 v) { return (s32)((u32)v << 14); }
+
 u16 ArcTan2(s16 x, s16 y)
 {
-    /* BIOS angle units: 0x10000 is a full turn, measured counter-clockwise. */
-    double a = atan2((double)y, (double)x);
-    s32 angle = (s32)(a * 65536.0 / (2.0 * 3.14159265358979323846));
-    return (u16)(angle & 0xFFFF);
+    s32 r;
+
+    if (y == 0)
+        return x >= 0 ? 0 : 0x8000;
+    if (x == 0)
+        return y >= 0 ? 0x4000 : 0xC000;
+    if (y >= 0) {
+        if (x >= 0 ? x >= y : -x >= y)
+            r = BiosArcTan(Shl14(y) / x)
+                + (x >= 0 ? 0 : 0x8000);
+        else
+            r = 0x4000 - BiosArcTan(Shl14(x) / y);
+    } else {
+        if (x <= 0 ? -x > -y : x >= -y)
+            r = BiosArcTan(Shl14(y) / x) + (x <= 0 ? 0x8000 : 0x10000);
+        else
+            r = 0xC000 - BiosArcTan(Shl14(x) / y);
+    }
+    return (u16)r;
 }
 
 /* --- block moves --------------------------------------------------------- */
