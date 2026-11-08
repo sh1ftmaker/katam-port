@@ -9,6 +9,11 @@
 #include "port/port.h"
 #include "port/backend.h"
 
+/* EM_JS bodies below call UTF8ToString.  emscripten 3.1.5x stopped linking
+ * the runtime helpers in by default; without this the node build traps on
+ * its first log line with "UTF8ToString is not defined". */
+EM_JS_DEPS(katam_host_web, "$UTF8ToString");
+
 /* Nothing to do: the page has the module configured before main() runs, and
  * the wasm memory map is reserved by the linker (-sGLOBAL_BASE), not at run
  * time.  See docs/ARCHITECTURE.md. */
