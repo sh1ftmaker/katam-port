@@ -32,6 +32,9 @@
 #include "port/audio.h"
 #include "port/mp.h"
 #include "port/inputlog.h"
+#include "render/render_list.h"
+#include "render/gl_renderer.h"
+#include "render/gl_api.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
@@ -42,6 +45,30 @@ extern "C" {
 
 /* 280896 cycles per frame at 16.777216 MHz.  Do not round this to 60. */
 #define GBA_FRAME_HZ 59.7275
+
+extern int gPortPpuCompose;     /* platform/ppu.c */
+
+/* The SDL entry points only the GPU renderer uses are called through the GOT
+ * rather than the PLT.  A new PLT entry sits ahead of all of the game's code
+ * and moves every game function by sixteen bytes, and the regression hash is
+ * sensitive to where game functions are (see the end of
+ * platform/render/rl_build.c).  This keeps the game's code where it was. */
+#if defined(__GNUC__) && defined(__ELF__) && defined(__x86_64__)
+#define KATAM_NOPLT(fn) extern "C" __typeof__(fn) fn __attribute__((noplt));
+#ifndef __cplusplus
+#undef KATAM_NOPLT
+#define KATAM_NOPLT(fn) extern __typeof__(fn) fn __attribute__((noplt));
+#endif
+KATAM_NOPLT(SDL_DestroyWindow)
+KATAM_NOPLT(SDL_GL_CreateContext)
+KATAM_NOPLT(SDL_GL_DeleteContext)
+KATAM_NOPLT(SDL_GL_GetDrawableSize)
+KATAM_NOPLT(SDL_GL_GetProcAddress)
+KATAM_NOPLT(SDL_GL_MakeCurrent)
+KATAM_NOPLT(SDL_GL_SetAttribute)
+KATAM_NOPLT(SDL_GL_SetSwapInterval)
+KATAM_NOPLT(SDL_GL_SwapWindow)
+#endif
 
 int gPortNativeVerbose;
 int gPortNativeNoAudio;
@@ -111,6 +138,34 @@ static int sTexW = PORT_SCREEN_W, sTexH = PORT_SCREEN_H;
 
 static long sFrames;
 static Uint64 sPerfFreq, sNextFrame;
+
+/* --- the GPU renderer (platform/render, docs/RENDERER.md) -----------------
+ *
+ *   --renderer ppu|gpu|both  ppu is the emulated scanline PPU and the
+ *                            default; gpu draws the render list with GL;
+ *                            both runs the two and shows the GPU picture,
+ *                            for comparison (--compare-log)
+ *   --gpu-view WxH|auto[:H]  the world viewport in game pixels; auto takes
+ *                            the window's aspect at height H (default 160)
+ *   --gpu-shot PATH          PNG of the GPU picture at the last frame
+ *   --shot-at F:PREFIX       PREFIX-ppu.png / PREFIX-gpu.png at frame F
+ *   --compare-log FILE       with both: per frame, pixels where GPU != PPU */
+#define RENDERER_PPU  0
+#define RENDERER_GPU  1
+#define RENDERER_BOTH 2
+static int sRendererMode = RENDERER_PPU;
+static SDL_GLContext sGl;
+static int sGpuViewW = 240, sGpuViewH = 160, sGpuViewAuto;
+static const char *sGpuShotPath, *sCompareLogPath;
+static FILE *sCompareLog;
+#define MAX_SHOTS 64
+static struct { long frame; const char *prefix; } sShots[MAX_SHOTS];
+static int sNumShots;
+static u32 *sGpuPixels;
+static long sCompareFrames, sCompareDiffFrames, sCompareDiffPixels;
+static long sCompareSkipped;
+static Uint64 sPresentInterval;   /* measured swap interval, perf ticks */
+static long sPresents;
 
 /* --- the determinism harness (platform/inputlog.c, docs/DETERMINISM.md) ---
  *
@@ -187,6 +242,12 @@ static void Usage(const char *argv0)
 "  --hash-log FILE    write one line of simulation-state hashes per frame\n"
 "  --dump-state F:PATH write the canonical state bytes at frame F to PATH\n"
 "  --warp F:ROOM[:X:Y] warp to ROOM (cell X,Y) at frame F; recorded\n"
+"  --renderer R       ppu (default), gpu or both: see docs/RENDERER.md\n"
+"  --gpu-view WxH     the GPU renderer's world viewport (default 240x160);\n"
+"                     auto[:H] follows the window's aspect at height H\n"
+"  --gpu-shot PATH    write a PNG of the GPU picture at the last frame\n"
+"  --shot-at F:PREFIX write PREFIX-ppu.png and/or PREFIX-gpu.png at frame F\n"
+"  --compare-log FILE with --renderer both: per-frame GPU/PPU pixel diffs\n"
 "  --verbose          report the memory map and the frame timing\n"
 "  --help\n"
 "\n"
@@ -264,6 +325,43 @@ static void ParseArgs(int argc, char **argv)
                 fprintf(stderr, "katam-port: --cull wants stock, match or none\n");
                 exit(2);
             }
+        } else if (strcmp(a, "--renderer") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            if (strcmp(v, "ppu") == 0)       sRendererMode = RENDERER_PPU;
+            else if (strcmp(v, "gpu") == 0)  sRendererMode = RENDERER_GPU;
+            else if (strcmp(v, "both") == 0) sRendererMode = RENDERER_BOTH;
+            else {
+                fprintf(stderr, "katam-port: --renderer wants ppu, gpu or both\n");
+                exit(2);
+            }
+        } else if (strcmp(a, "--gpu-view") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            if (strncmp(v, "auto", 4) == 0) {
+                sGpuViewAuto = 1;
+                sGpuViewH = 160;
+                if (v[4] == ':')
+                    sGpuViewH = atoi(v + 5);
+            } else if (sscanf(v, "%dx%d", &sGpuViewW, &sGpuViewH) != 2) {
+                fprintf(stderr, "katam-port: --gpu-view wants WxH or auto[:H]\n");
+                exit(2);
+            }
+        } else if (strcmp(a, "--gpu-shot") == 0) {
+            sGpuShotPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--compare-log") == 0) {
+            sCompareLogPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--shot-at") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            const char *colon = strchr(v, ':');
+
+            if (colon == NULL || sNumShots >= MAX_SHOTS) {
+                fprintf(stderr, "katam-port: --shot-at wants FRAME:PREFIX\n");
+                exit(2);
+            }
+            sShots[sNumShots].frame = atol(v);
+            sShots[sNumShots].prefix = colon + 1;
+            sNumShots++;
         } else if (strcmp(a, "--rando") == 0) {
             /* Seed first, flags optional: the seed is the thing anyone
              * actually types, and the flag word is for the two people who
@@ -515,6 +613,24 @@ void PortHostFrameState(u32 frame, u16 keys, const u32 *hashes,
     }
 }
 
+static int WriteGpuShot(const char *path)
+{
+    int w, h;
+
+    if (sGpuPixels == NULL)
+        sGpuPixels = (u32 *)malloc(1024 * 512 * sizeof(u32));
+    if (sGpuPixels == NULL || !GlrReadback(sGpuPixels, 1024 * 512, &w, &h)) {
+        PortError("[katam-port] no GPU picture to write to %s", path);
+        return 0;
+    }
+    if (!PortNativeWritePng(path, sGpuPixels, w, h)) {
+        PortError("[katam-port] could not write %s", path);
+        return 0;
+    }
+    PortLog("[katam-port] wrote %s (%dx%d, gpu)", path, w, h);
+    return 1;
+}
+
 static void Shutdown(int code)
 {
     WriteRecording();
@@ -523,12 +639,24 @@ static void Shutdown(int code)
         sHashLog = NULL;
     }
     ReportFrame();
-    if (sShotPath != NULL) {
+    if (sShotPath != NULL && sRendererMode == RENDERER_GPU && sGpuShotPath == NULL)
+        sGpuShotPath = sShotPath;       /* the only picture there is */
+    else if (sShotPath != NULL) {
         if (PortNativeWritePng(sShotPath, gPortFramebuffer,
                                gPortViewW, gPortViewH))
             PortLog("[katam-port] wrote %s", sShotPath);
         else
             PortError("[katam-port] could not write %s", sShotPath);
+    }
+    if (sGpuShotPath != NULL)
+        WriteGpuShot(sGpuShotPath);
+    if (sCompareLog != NULL) {
+        PortLog("[katam-port] gpu vs ppu: %ld frames compared, %ld differ, "
+                "%ld pixels in all; %ld frames not comparable (view not 240x160)",
+                sCompareFrames, sCompareDiffFrames, sCompareDiffPixels,
+                sCompareSkipped);
+        fclose(sCompareLog);
+        sCompareLog = NULL;
     }
     PortNativeSaveFlush();
     PortNativeAudioClose();
@@ -679,6 +807,77 @@ static void ToggleFullscreen(void)
         ApplyScale();
 }
 
+/* The GPU renderer's window: a GL context instead of an SDL_Renderer.
+ *
+ * GLES 3.0 first where it is native (Linux, and what WebGL2 is), desktop 3.3
+ * core first elsewhere (macOS and Windows have no GLES without ANGLE); each
+ * falls back to the other.  KATAM_GL=es|core forces one. */
+static int TryGl(int es)
+{
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                        es ? SDL_GL_CONTEXT_PROFILE_ES : SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, es ? 0 : 3);
+#ifdef __APPLE__
+    if (!es)
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    sWindow = SDL_CreateWindow("katam-port",
+                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                               sTexW * sScale, sTexH * sScale,
+                               SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
+                               | SDL_WINDOW_ALLOW_HIGHDPI
+                               | (sFullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
+    if (sWindow == NULL)
+        return 0;
+    sGl = SDL_GL_CreateContext(sWindow);
+    if (sGl == NULL) {
+        SDL_DestroyWindow(sWindow);
+        sWindow = NULL;
+        return 0;
+    }
+    SDL_GL_MakeCurrent(sWindow, sGl);
+    if (!GlrInit((void *(*)(const char *))SDL_GL_GetProcAddress, es)) {
+        SDL_GL_DeleteContext(sGl);
+        SDL_DestroyWindow(sWindow);
+        sGl = NULL;
+        sWindow = NULL;
+        return 0;
+    }
+    return 1;
+}
+
+static void OpenGpuWindow(void)
+{
+    const char *force = getenv("KATAM_GL");
+#if defined(__linux__)
+    int esFirst = 1;
+#else
+    int esFirst = 0;
+#endif
+
+    if (force != NULL && strcmp(force, "core") == 0) esFirst = 0;
+    if (force != NULL && strcmp(force, "es") == 0) esFirst = 1;
+
+    sTexW = sGpuViewAuto ? 284 : sGpuViewW;
+    sTexH = sGpuViewH;
+    if (!TryGl(esFirst) && !(force == NULL && TryGl(!esFirst))) {
+        PortError("[katam-port] --renderer %s: no OpenGL ES 3.0 / GL 3.3 context "
+                  "(%s); try --renderer ppu", sRendererMode == RENDERER_GPU ? "gpu" : "both",
+                  SDL_GetError());
+        exit(2);
+    }
+    SDL_GL_SetSwapInterval(sVsync ? 1 : 0);
+    gPortRlEnabled = 1;
+    PortRlSetViewSize(sGpuViewW, sGpuViewH);
+    SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
+    OpenPads();
+    PortLog("[katam-port] video: %s, gpu renderer (%s), view %s%dx%d",
+            SDL_GetCurrentVideoDriver(), GlrDescribe(),
+            sGpuViewAuto ? "auto " : "", sGpuViewW, sGpuViewH);
+}
+
 static void OpenWindow(void)
 {
     Uint32 rflags = SDL_RENDERER_ACCELERATED | (sVsync ? SDL_RENDERER_PRESENTVSYNC : 0);
@@ -701,6 +900,11 @@ static void OpenWindow(void)
     /* Nearest-neighbour.  A 240x160 picture blown up eight times with bilinear
      * filtering is a smear, and the PPU's output is exact. */
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+
+    if (sRendererMode != RENDERER_PPU) {
+        OpenGpuWindow();
+        return;
+    }
 
     if (sViewMode == PORT_VIEW_WIDE || sViewMode == PORT_VIEW_WIDE_ZOOM) {
         sTexW = PORT_SCREEN_W + 2 * sViewPadX;
@@ -872,17 +1076,118 @@ void PortAwaitRom(void)
                     return;
             }
         }
-        SDL_SetRenderDrawColor(sRenderer, 24, 24, 32, 255);
-        SDL_RenderClear(sRenderer);
-        SDL_RenderPresent(sRenderer);
+        if (sRenderer != NULL) {
+            SDL_SetRenderDrawColor(sRenderer, 24, 24, 32, 255);
+            SDL_RenderClear(sRenderer);
+            SDL_RenderPresent(sRenderer);
+        }
         SDL_Delay(16);
     }
 }
 
 /* --- the frame boundary --------------------------------------------------- */
 
+/* The GPU path's blit: draw the render list built for this frame, compare
+ * and capture as asked, present. */
+static void GpuDrawSize(int *w, int *h)
+{
+    SDL_GL_GetDrawableSize(sWindow, w, h);
+    if (*w <= 0 || *h <= 0) {
+        *w = sTexW;
+        *h = sTexH;
+    }
+}
+
+static void GpuCompare(const RlFrame *f)
+{
+    int w, h, i, diff = 0;
+
+    if (sGpuPixels == NULL)
+        sGpuPixels = (u32 *)malloc(1024 * 512 * sizeof(u32));
+    if (!GlrReadback(sGpuPixels, 1024 * 512, &w, &h))
+        return;
+    if (w != gPortViewW || h != gPortViewH) {
+        sCompareSkipped++;
+        return;
+    }
+    for (i = 0; i < w * h; i++)
+        if (sGpuPixels[i] != gPortFramebuffer[i])
+            diff++;
+    sCompareFrames++;
+    if (diff) {
+        sCompareDiffFrames++;
+        sCompareDiffPixels += diff;
+    }
+    fprintf(sCompareLog, "%ld %d world=%d hooks=%d spr=%u/%u/%u/%u\n", sFrames, diff,
+            f->world, f->hookSpritesUsed, (unsigned)f->spritesFromHooks,
+            (unsigned)f->spritesFromOam, (unsigned)f->spritesOffscreen,
+            (unsigned)f->spritesOverflow);
+}
+
+static void GpuBlit(void)
+{
+    const RlFrame *f = PortRlCurrentFrame();
+    int w, h, i;
+
+    GpuDrawSize(&w, &h);
+    if (sGpuViewAuto) {
+        /* The world viewport follows the window's shape at a fixed height
+         * in game pixels -- applied to the next frame built. */
+        s32 vw = (s32)((long)sGpuViewH * w / (h ? h : 1));
+        PortRlSetViewSize(vw & ~1, sGpuViewH);
+    }
+    if (f == NULL)
+        return;
+    GlrDraw(f);
+    if (sCompareLog != NULL)
+        GpuCompare(f);
+    for (i = 0; i < sNumShots; i++) {
+        char name[1024];
+
+        if (sShots[i].frame != sFrames)
+            continue;
+        snprintf(name, sizeof(name), "%s-gpu.png", sShots[i].prefix);
+        WriteGpuShot(name);
+        if (sRendererMode == RENDERER_BOTH) {
+            snprintf(name, sizeof(name), "%s-ppu.png", sShots[i].prefix);
+            if (PortNativeWritePng(name, gPortFramebuffer, gPortViewW, gPortViewH))
+                PortLog("[katam-port] wrote %s", name);
+        }
+    }
+    GlrPresent(w, h);
+    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit) {
+        u32 *buf = (u32 *)malloc((size_t)w * h * 4);
+        int y;
+
+        if (buf != NULL) {
+            /* The window, read back: bottom row first in GL, so flip. */
+            GLR_FN(glReadPixels)(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+            for (y = 0; y < h / 2; y++) {
+                u32 tmp[4096];
+                int n = w < 4096 ? w : 4096;
+                memcpy(tmp, buf + y * w, n * 4);
+                memcpy(buf + y * w, buf + (h - 1 - y) * w, n * 4);
+                memcpy(buf + (h - 1 - y) * w, tmp, n * 4);
+            }
+            if (PortNativeWritePng(sReadbackPath, buf, w, h))
+                PortLog("[katam-port] wrote %s (%dx%d, the window)", sReadbackPath, w, h);
+            free(buf);
+        }
+    }
+    /* With --vsync the swap happens in PaceFrame, at display rate. */
+    if (!sVsync || sTurbo) {
+        SDL_GL_SwapWindow(sWindow);
+        sPresents++;
+    }
+}
+
 void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 {
+    if (sRendererMode != RENDERER_PPU) {
+        (void)pixels; (void)w; (void)h;
+        GpuBlit();
+        return;
+    }
     if (sTexture == NULL)
         return;
     /* The view rectangle can be any size up to PORT_MAX_VIEW_W/H, and under
@@ -967,8 +1272,10 @@ static void HandleEvents(void)
                     char name[64];
 
                     snprintf(name, sizeof(name), "katam-%06ld.png", sFrames);
-                    if (PortNativeWritePng(name, gPortFramebuffer,
-                                           gPortViewW, gPortViewH))
+                    if (sRendererMode != RENDERER_PPU)
+                        WriteGpuShot(name);
+                    else if (PortNativeWritePng(name, gPortFramebuffer,
+                                                gPortViewW, gPortViewH))
                         PortLog("[katam-port] wrote %s", name);
                 }
                 break;
@@ -1018,6 +1325,30 @@ static void PaceFrame(void)
     if (now > sNextFrame + 4 * period) {
         sNextFrame = now;
         return;
+    }
+
+    /* The GPU renderer with --vsync: present at the display's rate until
+     * the next simulation frame is due, re-showing the latest frame.  This is
+     * where interpolation goes (docs/RENDERER.md): the render list of the
+     * previous and the current frame, blended by how far `now` is between
+     * them.  Each swap blocks for one refresh, so stop when less than half a
+     * refresh is left and let the sleep below land on the boundary. */
+    if (sRendererMode != RENDERER_PPU && sVsync) {
+        for (;;) {
+            Uint64 t0 = SDL_GetPerformanceCounter(), t1;
+            int w, h;
+
+            GpuDrawSize(&w, &h);
+            GlrPresent(w, h);
+            SDL_GL_SwapWindow(sWindow);
+            sPresents++;
+            t1 = SDL_GetPerformanceCounter();
+            sPresentInterval = sPresentInterval
+                ? (sPresentInterval * 7 + (t1 - t0)) / 8 : (t1 - t0);
+            now = t1;
+            if (now + sPresentInterval / 2 >= sNextFrame)
+                break;
+        }
     }
 
     while (now < sNextFrame) {
@@ -1101,6 +1432,17 @@ void PortHostInit(int argc, char **argv)
 
     OpenWindow();
     sPerfFreq = SDL_GetPerformanceFrequency();
+    if (sRendererMode == RENDERER_GPU)
+        gPortPpuCompose = 0;
+    if (sCompareLogPath != NULL) {
+        sCompareLog = fopen(sCompareLogPath, "w");
+        if (sCompareLog == NULL) {
+            PortError("[katam-port] cannot write %s", sCompareLogPath);
+            exit(2);
+        }
+        if (sRendererMode != RENDERER_BOTH)
+            PortError("[katam-port] --compare-log needs --renderer both");
+    }
 
     signal(SIGSEGV, OnFatalSignal);
     signal(SIGABRT, OnFatalSignal);

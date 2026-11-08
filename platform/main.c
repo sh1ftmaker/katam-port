@@ -45,6 +45,7 @@
 #include "port/rollback.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
+#include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -869,6 +870,12 @@ void PortPresentFrame(void)
     /* Draw the visible frame from whatever the game last wrote. */
     if (render)
         PortRenderFrame();
+
+    /* ...and the GPU renderer's list of the same frame, taken at the same
+     * moment: after the scan, before the VBlank handler can touch anything.
+     * Presentation only -- it reads, and the host draws it at the blit. */
+    if (gPortRlEnabled && !PortRbCatchingUp())
+        PortRlBuildFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
      *

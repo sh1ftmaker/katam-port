@@ -43,6 +43,7 @@
 #include "port/dma.h"
 #include "gba/gba.h"
 #include "main.h"
+#include "render/render_list.h"
 
 /* C linkage for the 64-bit builds.
  *
@@ -73,6 +74,11 @@ s32 gPortViewX = 0, gPortViewY = 0;
 s32 gPortViewW = SCREEN_W, gPortViewH = SCREEN_H;
 
 u32 gPortScreenSpaceBgs = 0;
+
+/* 0 when the GPU renderer alone is presenting: the scanline loop still runs
+ * (it is game state -- HBlank DMA and interrupts) and still records each
+ * line's registers for the render list, but composes no pixels. */
+int gPortPpuCompose = 1;
 u32 gPortPinScreenSpace = 0;
 
 /* Per-BG limits on how far outside the screen a layer holds real data.
@@ -942,7 +948,7 @@ void PortPpuStateLoad(const void *src)
  * picture. */
 static void RenderOffScreenLines(int from, int to)
 {
-    int render = PortRenderEnabled();
+    int render = PortRenderEnabled() && gPortPpuCompose;
     int line;
 
     for (line = from; line < to; line++) {
@@ -969,7 +975,7 @@ static void RenderOffScreenLines(int from, int to)
  */
 void PortRenderFrame(void)
 {
-    int render = PortRenderEnabled();
+    int render = PortRenderEnabled() && gPortPpuCompose;
     int line;
     int topLine = gPortViewY;
     int bottomLine = gPortViewY + gPortViewH;
@@ -1002,6 +1008,10 @@ void PortRenderFrame(void)
          * frame.  Both skip only the *drawing*.  Everything below still runs
          * for all 160 lines, because the game arms per-scanline transfers and
          * counts on them firing whether or not anyone is looking. */
+        /* The render list's per-line table: this line's registers as the
+         * display sees them, after the previous HBlank's effects. */
+        if (gPortRlEnabled)
+            PortRlCaptureLine(line, sAffineX[0], sAffineY[0], sAffineX[1], sAffineY[1]);
         if (render && line >= topLine && line < bottomLine)
             RenderScanline(line);
         AdvanceAffineReferencePoints();
