@@ -32,6 +32,17 @@ int GlrReadback(u32 *out, int maxPixels, int *w, int *h);
 
 const char *GlrDescribe(void);
 
+/* The host-driven present (platform/ui/present.c).  UploadPicture makes a
+ * plain RGBA picture (the PPU framebuffer) the source instead of the
+ * composite; GlrDraw makes the composite the source again.  PresentRect
+ * clears framebuffer 0 (fbW x fbH) to `bg` and scales src = {x, y, w, h}
+ * (top-left origin, source pixels) into dst = {x, y, w, h} (top-left origin,
+ * framebuffer pixels): nearest, or sharp bilinear with `smooth`. */
+void GlrUploadPicture(const u32 *pixels, int w, int h);
+int GlrSourceSize(int *w, int *h);
+void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
+                    int smooth, const float bg[3]);
+
 #ifdef __cplusplus
 }
 #endif

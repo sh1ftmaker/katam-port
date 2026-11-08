@@ -161,7 +161,14 @@ extern int gPortRlEnabled;     /* hooks collect only when set                */
 
 /* The view the player asked for: 0 means 240x160.  `autoAspect` picks the
  * width from the window at present time. */
+#define RL_MIN_VIEW_W 96
+#define RL_MIN_VIEW_H 64
 void PortRlSetViewSize(s32 w, s32 h);
+/* 1: the HUD keeps its 240-wide strip, centred; 0: pinned to the corners. */
+extern int gPortRlHudStrip;
+/* Kirby's position on the GBA screen and the game camera (8.8), read-only;
+ * returns 0 (and the screen centre) outside a level. */
+int PortRlFocus(s32 *kx, s32 *ky, s32 *camX, s32 *camY);
 void PortRlGetViewSize(s32 *w, s32 *h);
 
 /* Called from the PPU scanline loop for each line before it is drawn. */

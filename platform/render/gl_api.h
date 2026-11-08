@@ -89,6 +89,13 @@ typedef ptrdiff_t GLintptr;
 #define GL_FRAMEBUFFER_COMPLETE 0x8CD5
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #define GL_BACK 0x0405
+#define GL_LINEAR 0x2601
+#define GL_ONE 1
+#define GL_SRC_ALPHA 0x0302
+#define GL_ONE_MINUS_SRC_ALPHA 0x0303
+#define GL_FUNC_ADD 0x8006
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+#define GL_DYNAMIC_DRAW 0x88E8
 #endif
 
 /* ret, name, (params) */
@@ -146,7 +153,13 @@ typedef ptrdiff_t GLintptr;
     X(void, glVertexAttribDivisor, (GLuint, GLuint)) \
     X(void, glDrawArrays, (GLenum, GLint, GLsizei)) \
     X(void, glDrawArraysInstanced, (GLenum, GLint, GLsizei, GLsizei)) \
-    X(void, glBindAttribLocation, (GLuint, GLuint, const GLchar *))
+    X(void, glBindAttribLocation, (GLuint, GLuint, const GLchar *)) \
+    X(void, glBlendEquation, (GLenum)) \
+    X(void, glBlendFuncSeparate, (GLenum, GLenum, GLenum, GLenum)) \
+    X(void, glScissor, (GLint, GLint, GLsizei, GLsizei)) \
+    X(void, glVertexAttribPointer, (GLuint, GLint, GLenum, GLboolean, GLsizei, const void *)) \
+    X(void, glUniformMatrix4fv, (GLint, GLsizei, GLboolean, const GLfloat *)) \
+    X(void, glDrawElements, (GLenum, GLsizei, GLenum, const void *))
 
 #ifdef __cplusplus
 extern "C" {

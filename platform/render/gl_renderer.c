@@ -75,6 +75,14 @@ static int sInstCap;
 
 static int sLastW = 240, sLastH = 160;
 
+/* The host-driven present (GlrPresentRect): the source is either the
+ * composite or an uploaded picture (the PPU's framebuffer, so the PPU path can
+ * share the GL window with the settings menu), and sharp-bilinear goes through
+ * an integer-prescaled intermediate. */
+static GLuint sTexPic, sFboPic, sTexMid, sFboMid;
+static int sPicW, sPicH, sMidW, sMidH;
+static int sSrcPic;
+
 /* Uniform locations. */
 static GLint uObjView, uObjWinPass;
 static GLint uCView, uCContent, uCLayer, uCValid, uCMapGeom, uCMapScroll,
@@ -798,6 +806,92 @@ void GlrDraw(const RlFrame *f)
     G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
     sLastW = f->viewW;
     sLastH = f->viewH;
+    sSrcPic = 0;
+}
+
+static void EnsureColorTarget(GLuint *tex, GLuint *fbo, int *cw, int *ch, int w, int h)
+{
+    if (*tex && *cw == w && *ch == h)
+        return;
+    if (*tex) {
+        G(glDeleteFramebuffers)(1, fbo);
+        G(glDeleteTextures)(1, tex);
+    }
+    *tex = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, w, h);
+    G(glGenFramebuffers)(1, fbo);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, *fbo);
+    G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *tex, 0);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+    *cw = w;
+    *ch = h;
+}
+
+void GlrUploadPicture(const u32 *pixels, int w, int h)
+{
+    if (!sReady || w <= 0 || h <= 0)
+        return;
+    EnsureColorTarget(&sTexPic, &sFboPic, &sPicW, &sPicH, w, h);
+    G(glActiveTexture)(GL_TEXTURE0);
+    G(glBindTexture)(GL_TEXTURE_2D, sTexPic);
+    G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    sSrcPic = 1;
+}
+
+int GlrSourceSize(int *w, int *h)
+{
+    if (!sReady)
+        return 0;
+    if (sSrcPic) {
+        *w = sPicW; *h = sPicH;
+        return sFboPic != 0;
+    }
+    *w = sLastW; *h = sLastH;
+    return sFboComp != 0;
+}
+
+void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
+                    int smooth, const float bg[3])
+{
+    GLuint from = sSrcPic ? sFboPic : sFboComp;
+    int sx = src[0], sy = src[1], sw = src[2], sh = src[3];
+    int dx = dst[0], dw = dst[2], dh = dst[3];
+    int gy = fbH - (dst[1] + dh);       /* GL rows count from the bottom */
+
+    if (!sReady)
+        return;
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+    G(glDisable)(GL_SCISSOR_TEST);
+    G(glViewport)(0, 0, fbW, fbH);
+    G(glClearColor)(bg[0], bg[1], bg[2], 1.0f);
+    G(glClear)(GL_COLOR_BUFFER_BIT);
+    if (!from || sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0)
+        return;
+    if (smooth) {
+        /* Sharp bilinear: nearest up to the largest whole multiple that fits,
+         * then linear the rest of the way -- crisp pixels, no shimmer. */
+        int kx = dw / sw, ky = dh / sh, k = kx < ky ? kx : ky;
+
+        if (k < 1) k = 1;
+        if (k > 8) k = 8;
+        if (sw * k != dw || sh * k != dh) {
+            EnsureColorTarget(&sTexMid, &sFboMid, &sMidW, &sMidH, sw * k, sh * k);
+            G(glBindFramebuffer)(GL_READ_FRAMEBUFFER, from);
+            G(glBindFramebuffer)(GL_DRAW_FRAMEBUFFER, sFboMid);
+            G(glBlitFramebuffer)(sx, sy, sx + sw, sy + sh, 0, 0, sw * k, sh * k,
+                                 GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            G(glBindFramebuffer)(GL_READ_FRAMEBUFFER, sFboMid);
+            G(glBindFramebuffer)(GL_DRAW_FRAMEBUFFER, 0);
+            G(glBlitFramebuffer)(0, 0, sw * k, sh * k, dx, gy + dh, dx + dw, gy,
+                                 GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+            return;
+        }
+    }
+    G(glBindFramebuffer)(GL_READ_FRAMEBUFFER, from);
+    G(glBindFramebuffer)(GL_DRAW_FRAMEBUFFER, 0);
+    G(glBlitFramebuffer)(sx, sy, sx + sw, sy + sh, dx, gy + dh, dx + dw, gy,
+                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
 }
 
 void GlrPresent(int w, int h)

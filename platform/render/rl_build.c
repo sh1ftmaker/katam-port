@@ -34,6 +34,7 @@
 #include "sprite.h"
 #include "task.h"
 #include "hud.h"
+#include "kirby.h"
 #include "render/render_list.h"
 
 #ifdef __cplusplus
@@ -555,12 +556,40 @@ void PortRlSetViewSize(s32 w, s32 h)
         w = PORT_SCREEN_W;
         h = PORT_SCREEN_H;
     }
-    if (w < PORT_SCREEN_W) w = PORT_SCREEN_W;
-    if (h < PORT_SCREEN_H) h = PORT_SCREEN_H;
+    /* Smaller than the GBA screen is a zoom in: the view then sits inside
+     * the 240x160 the game composed (see the clamp in PortRlBuildFrame). */
+    if (w < RL_MIN_VIEW_W) w = RL_MIN_VIEW_W;
+    if (h < RL_MIN_VIEW_H) h = RL_MIN_VIEW_H;
+    w &= ~1;
+    h &= ~1;
     if (w > 1024) w = 1024;
     if (h > 512) h = 512;
     sWantW = w;
     sWantH = h;
+}
+
+/* Presentation switches (platform/ui): the HUD's horizontal anchoring. */
+int gPortRlHudStrip;
+
+/* Where Kirby is on the GBA screen and where the game's camera is, for the
+ * host's zoom logic.  Reads only.  0 when there is no level to ask about. */
+int PortRlFocus(s32 *kx, s32 *ky, s32 *camX, s32 *camY)
+{
+    const struct LevelInfo *li = &gCurLevelInfo[gLocalPlayerId];
+    s32 x = (gKirbys[gLocalPlayerId].base.x >> 8) - (li->viewportPosition.x >> 8);
+    s32 y = (gKirbys[gLocalPlayerId].base.y >> 8) - (li->viewportPosition.y >> 8);
+
+    *camX = li->viewportPosition.x;
+    *camY = li->viewportPosition.y;
+    if (li->currentRoom == 0xFFFF || x <= 0 || x >= PORT_SCREEN_W
+        || y <= 0 || y >= PORT_SCREEN_H) {
+        *kx = PORT_SCREEN_W / 2;
+        *ky = PORT_SCREEN_H / 2;
+        return 0;
+    }
+    *kx = x;
+    *ky = y;
+    return 1;
 }
 
 void PortRlGetViewSize(s32 *w, s32 *h)
@@ -877,10 +906,24 @@ const RlFrame *PortRlBuildFrame(void)
          * far that the 240x160 the game composed leaves the view. */
         vx0 = -(W - PORT_SCREEN_W) / 2;
         vy0 = -(H - PORT_SCREEN_H) / 2;
+        /* A view narrower or shorter than the screen (zoomed in) follows
+         * Kirby inside it rather than the screen's centre: at a room edge
+         * the camera stops and he keeps walking (docs/VIEW.md). */
+        if (W < PORT_SCREEN_W || H < PORT_SCREEN_H) {
+            s32 kx, ky, cx, cy;
+
+            PortRlFocus(&kx, &ky, &cx, &cy);
+            if (W < PORT_SCREEN_W) vx0 = kx - W / 2;
+            if (H < PORT_SCREEN_H) vy0 = ky - H / 2;
+        }
         vx = (rr - rl >= W) ? Clamp(vx0, rl, rr - W) : (rl + rr - W) / 2;
         vy = (rb - rt >= H) ? Clamp(vy0, rt, rb - H) : (rt + rb - H) / 2;
-        vx = Clamp(vx, PORT_SCREEN_W - W, 0);
-        vy = Clamp(vy, PORT_SCREEN_H - H, 0);
+        /* Never so far that the 240x160 the game composed leaves the view
+         * (wider), or the view leaves it (narrower). */
+        vx = Clamp(vx, PORT_SCREEN_W - W < 0 ? PORT_SCREEN_W - W : 0,
+                   PORT_SCREEN_W - W > 0 ? PORT_SCREEN_W - W : 0);
+        vy = Clamp(vy, PORT_SCREEN_H - H < 0 ? PORT_SCREEN_H - H : 0,
+                   PORT_SCREEN_H - H > 0 ? PORT_SCREEN_H - H : 0);
         f->viewX = vx;
         f->viewY = vy;
         f->shiftX = vx - vx0;
@@ -980,7 +1023,7 @@ const RlFrame *PortRlBuildFrame(void)
 
                 h->x0 = kRegions[r][0]; h->y0 = kRegions[r][1];
                 h->x1 = kRegions[r][2]; h->y1 = kRegions[r][3];
-                h->anchorH = (u8)kRegions[r][4];
+                h->anchorH = (u8)(gPortRlHudStrip ? RL_ANCHOR_CENTER : kRegions[r][4]);
                 h->anchorV = (u8)kRegions[r][5];
                 h->dx = (s16)(h->anchorH == RL_ANCHOR_RIGHT ? W - PORT_SCREEN_W
                               : h->anchorH == RL_ANCHOR_CENTER ? (W - PORT_SCREEN_W) / 2 : 0);
