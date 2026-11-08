@@ -888,9 +888,15 @@ void PortPresentFrame(void)
      * and the rectangle the page is about to be handed are the same one. */
     PortViewUpdate();
 
-    /* Draw the visible frame from whatever the game last wrote. */
-    if (render)
-        PortRenderFrame();
+    /* Draw the visible frame from whatever the game last wrote -- and run the
+     * scanline loop even when nothing will be drawn (a rollback or catch-up
+     * re-simulation, PORT_NO_RENDER): it carries VCOUNT, the HBlank DMAs, the
+     * HBlank/VCount interrupts and the affine latches, all of which the game
+     * reads back.  PortRenderFrame skips only the composition when rendering
+     * is off.  Skipping the call, as this once did, made a re-simulated frame
+     * a different frame from the one it replaced. */
+    (void)render;
+    PortRenderFrame();
 
     /* ...and the GPU renderer's list of the same frame, taken at the same
      * moment: after the scan, before the VBlank handler can touch anything.
