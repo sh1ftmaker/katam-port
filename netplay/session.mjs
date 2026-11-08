@@ -37,6 +37,8 @@ export const PROTO_VERSION = 2;
 // parameter, `kirbys`, and a client's caps.seats.
 export const MAX_SEATS = 1024;
 
+export const FRAME_MS = 1000 / 59.7275;   // the GBA's frame period
+
 export const DEFAULT_PARAMS = Object.freeze({
     seats: 4,               // input columns (netsim: `seats`, u8 today)
     kirbys: 4,              // sim slots a seat can drive
@@ -60,6 +62,7 @@ export const DEFAULT_PARAMS = Object.freeze({
     joinSyncDelayMs: 3000,
     excuseAfter: 20,        // frames sealed late in a row before a seat
                             // stops being waited for at all (until on time)
+    rejoinAfter: 10,        // ... and on time this many in a row to return
     rosterMs: 250,          // coalesce roster broadcasts in rooms > 8
 });
 
@@ -144,6 +147,7 @@ export class SessionCore {
         };
         this.nextStatsAt = 0;
         this.nextSyncId = 1;
+        this.clock = null;            // {f, t}: the session's frame clock
         this.syncs = new Map();       // id -> sync
         this.checks = new Map();      // frame -> {at, reports: Map mid->h}
         this.reference = null;        // {f, h, mids}
@@ -253,9 +257,8 @@ export class SessionCore {
     nextWakeIn() {
         const t = this.now();
         let at = Infinity;
-        const p = this.pending.get(this.frontier) || this._earliestPending();
-        if (p)
-            at = Math.min(at, p.firstAt + this.params.deadlineMs);
+        if (this.clock && this.phase === 'playing' && (this.pending.size || this._expected(this.frontier).length))
+            at = Math.min(at, this._dueAt(this.frontier) + this.params.deadlineMs);
         if (this.out.length && this.params.flushMs)
             at = Math.min(at, this.flushAt);
         if (this.members.size)
@@ -402,7 +405,7 @@ export class SessionCore {
                 joinedAt: t, seatedAt: null, ready: false, cleanStreak: 0, rtt: null,
                 latest: null, lateInputs: 0, fills: 0, bytesUp: 0, bytesDown: 0,
                 hashes: new Map(), lastHashFrame: 0, lastSyncAt: 0, needsSync: null,
-                sitAt: 0, streaming: false, wantKirby: -1, lateStreak: 0,
+                sitAt: 0, streaming: false, wantKirby: -1, lateStreak: 0, onTime: 0,
             };
             this.members.set(m.mid, m);
             this.byIdentity.set(h.identity, m.mid);
@@ -776,6 +779,8 @@ export class SessionCore {
             }
             if (f > this.frontier + 3600)
                 continue;           // absurdly far ahead: ignore
+            if (!this.clock)
+                this.clock = { f, t };
             let p = this.pending.get(f);
             if (!p) {
                 p = { keys: new Map(), firstAt: t };
@@ -783,8 +788,11 @@ export class SessionCore {
             }
             if (!p.keys.has(seat))
                 p.keys.set(seat, k);
-            if (f === this.frontier || m.lateStreak)
-                m.lateStreak = 0;       // on time again: waited for again
+            // On time again for `rejoinAfter` frames in a row: waited for
+            // again.  (A 30 Hz device is on time every other frame -- it
+            // must not flap back into the expected set.)
+            if (++m.onTime >= this.params.rejoinAfter)
+                m.lateStreak = 0;
             if (f > this.head)
                 this.head = f;
         }
@@ -815,6 +823,20 @@ export class SessionCore {
         return out;
     }
 
+    // The session clock: frame F is due at clock.t + (F - clock.f) * PERIOD,
+    // anchored on the first input heard (and again after the room fell
+    // idle).  A frame is sealed when every expected seat's input is in, or
+    // `deadlineMs` after it was due -- whichever is first.  Due times come
+    // from the clock, not from whoever sent first: a peer stamping its
+    // inputs far ahead must not shorten everyone else's deadline.
+    _dueAt(F) {
+        return this.clock.t + (F - this.clock.f) * FRAME_MS;
+    }
+
+    clockFrame(t = this.now()) {
+        return this.clock ? this.clock.f + (t - this.clock.t) / FRAME_MS : null;
+    }
+
     _advance() {
         if (this.phase !== 'playing')
             return;
@@ -822,25 +844,22 @@ export class SessionCore {
         const dl = this.params.deadlineMs;
         for (;;) {
             const F = this.frontier;
-            let p = this.pending.get(F);
+            const p = this.pending.get(F);
             const exp = this._expected(F);
-            if (!exp.length && !p)
-                return;          // nobody to wait for and nothing heard
-            let firstAt = p ? p.firstAt : Infinity;
-            if (!p) {
-                // A later frame was heard: F's clock started no later.
-                const e = this._earliestPending();
-                if (!e) return;
-                firstAt = e.firstAt;
-            }
-            const all = p && exp.every((s) => p.keys.has(s));
-            const due = t - firstAt >= dl;
-            if (!all && !due)
+            if (!exp.length && !p) {
+                if (!this.pending.size) this.clock = null;   // idle: re-anchor later
                 return;
-            this._seal(F, p, exp, due && !all);
-            if (due && !all)
+            }
+            if (!this.clock)
+                return;
+            const due = this._dueAt(F);
+            const all = p && exp.every((s) => p.keys.has(s));
+            if (!all && t < due + dl)
+                return;
+            this._seal(F, p, exp, !all);
+            if (!all)
                 this.stats.deadlineSeals++;
-            const lat = t - firstAt;
+            const lat = Math.max(0, t - due);
             this.stats.sealLatencyMs += lat;
             if (lat > this.stats.sealLatencyMax)
                 this.stats.sealLatencyMax = lat;
@@ -864,6 +883,7 @@ export class SessionCore {
                         v[s] = m.latest.keys;
                     m.fills++;
                     m.lateStreak++;
+                    m.onTime = 0;
                     this.stats.fills++;
                 } else {
                     v[s] = 0;     // gone: neutral until the seat is sealed
@@ -1121,7 +1141,7 @@ export class SessionCore {
             const tg = this.members.get(s.target);
             if (!tg) return this._endSync(s, false, 'target gone');
             this._json(tg, { t: 'snap', id: s.id, f: s.f, size, count, h: String(msg.h || ''),
-                             kind: String(msg.kind || ''), from: m.mid });
+                             kind: String(msg.kind || ''), from: m.mid, reason: s.reason });
         } else if (msg.t === 'snap_fail' && m.mid === s.donor) {
             this._endSync(s, false, String(msg.why || 'donor failed'));
         } else if (msg.t === 'sync_done' && m.mid === s.target) {
@@ -1197,21 +1217,40 @@ export class SessionCore {
                     this._startSync(m, 'lag');
                     continue;
                 }
-                if (p.syncEveryMs > 0 && t - Math.max(m.lastSyncAt, m.sitAt || m.joinedAt) >= p.syncEveryMs
-                    && !(this.reference.mids.length === 1 && this.reference.mids[0] === m.mid))
-                    this._startSync(m, 'periodic');
+                // Background sync: never of the peer that would itself be
+                // the donor -- the authority stays put unless a hash moves it.
+                if (p.syncEveryMs > 0 && t - Math.max(m.lastSyncAt, m.sitAt || m.joinedAt) >= p.syncEveryMs) {
+                    const self = this._donorFor(null);
+                    if (self && self !== m)
+                        this._startSync(m, 'periodic');
+                    else
+                        m.lastSyncAt = t;
+                }
             }
         }
         // Per-peer stats, once a second.
         if (!this._statsTick || t - this._statsTick >= 1000) {
             this._statsTick = t;
-            for (const m of this.members.values())
-                if (m.connId && m.streaming)
-                    this._json(m, {
-                        t: 'stats', frontier: this.frontier, head: this.head, wm: this.wm,
-                        late: m.lateInputs, fills: m.fills,
-                        behind: m.latest ? this.frontier - 1 - m.latest.frame : null,
-                    });
+            // `ahead`: how far this seat's newest input leads the slowest
+            // other live seat's -- what a peer's rate dilation steers by
+            // (it holds a frame now and then; the slow one fast-forwards).
+            const live = this._seated().filter((x) => x.seatLive && x.connId && x.latest
+                                                    && x.lateStreak < p.excuseAfter);
+            for (const m of this.members.values()) {
+                if (!m.connId || !m.streaming)
+                    continue;
+                let ahead = null;
+                if (m.latest && m.seatLive) {
+                    const others = live.filter((x) => x !== m).map((x) => x.latest.frame);
+                    if (others.length) ahead = m.latest.frame - Math.min(...others);
+                }
+                this._json(m, {
+                    t: 'stats', frontier: this.frontier, head: this.head, wm: this.wm,
+                    clock: this.clock ? +this.clockFrame(t).toFixed(1) : null,
+                    late: m.lateInputs, fills: m.fills, ahead,
+                    behind: m.latest ? this.frontier - 1 - m.latest.frame : null,
+                });
+            }
         }
         this._flushRoster();
     }

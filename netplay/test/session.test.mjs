@@ -105,9 +105,10 @@ test('deadline sequencer: seal on all-arrived, else at the deadline with repeat-
     b.input(S, [2]);
     assert.deepEqual([...a.sealed.get(S)], [1, 2, 0, 0]);
     assert.deepEqual([...b.sealed.get(S)], [1, 2, 0, 0]);
-    // b goes quiet: a's frames seal 100 ms after they arrive, b repeats 2
+    // b goes quiet: S+1 is due one frame after S (the session clock) and
+    // seals deadlineMs after that; b repeats 2
     a.input(S + 1, [5]);
-    room.run(95);
+    room.run(110);
     assert.ok(!a.sealed.has(S + 1));
     room.run(10);
     assert.deepEqual([...a.sealed.get(S + 1)], [5, 2, 0, 0]);
@@ -119,8 +120,13 @@ test('deadline sequencer: seal on all-arrived, else at the deadline with repeat-
     a.input(S + 2, [5]);
     room.run(105);
     assert.deepEqual([...a.sealed.get(S + 2)], [5, 9, 0, 0]);
-    // a never waited more than the deadline
+    // nothing sealed later than the deadline past its due time
     assert.ok(room.core.stats.sealLatencyMax <= 105);
+    // the clock, not the first sender, decides: a far-ahead stamp does not
+    // shorten the deadline of the frames before it
+    a.input(S + 3, [5]);
+    a.input(S + 40, [5]);
+    assert.ok(!a.sealed.has(S + 3) || room.clock.t >= room.core._dueAt(S + 3) + 100);
     // both clients hold identical sealed streams
     for (const [f, v] of a.sealed) assert.deepEqual([...b.sealed.get(f)], [...v]);
 });
@@ -277,9 +283,13 @@ test('sync triggers: join, lag, periodic, ask; timeout cancels; rate floor', () 
     for (let k = 2; k <= 5; k++) { play(30); hash(a, S + 30 * k); hash(j, S + 30 * k); }
     room.run(3500);   // judged without b after hashWaitMs; b is first busy donating to a's periodic sync, which times out
     assert.equal(b.last('sync_req')?.reason, 'lag');
-    // periodic: a gets one within syncEveryMs
+    // periodic: within syncEveryMs, a non-donor gets one -- never the donor
     room.run(4500);
-    assert.ok(a.all('sync_req').some((r) => r.reason === 'periodic'));
+    const periodic = [a, b, j].filter((x) => x.all('sync_req').some((r) => r.reason === 'periodic'));
+    assert.ok(periodic.length >= 1);
+    for (const x of periodic)
+        for (const r of x.all('sync_req').filter((q) => q.reason === 'periodic'))
+            assert.notEqual(r.donor, x.mid);
 });
 
 test('session view: max of seated requests, rounded to 32 px cells, clamped; event in play', () => {
@@ -341,9 +351,9 @@ test('a chronically late seat stops being waited for, and is waited for again on
     assert.equal(a.sealed.get(f)[1], 2, 'b repeats its newest input');
     f++;
     // b catches up (fast-forwards) and sends on time: waited for again
-    b.input(f, [3]);
+    // after rejoinAfter (10) on-time frames
+    for (let i = 0; i < 10; i++, f++) { b.input(f, [3]); a.input(f, [1]); }
+    assert.equal(a.sealed.get(f - 1)[1], 3);
     a.input(f, [1]);
-    assert.equal(a.sealed.get(f)[1], 3);
-    a.input(f + 1, [1]);
-    assert.ok(!a.sealed.has(f + 1), 'waiting for b again');
+    assert.ok(!a.sealed.has(f), 'waiting for b again');
 });

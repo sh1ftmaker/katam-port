@@ -54,7 +54,7 @@ class Client {
     constructor(i) {
         this.i = i; this.slow = i >= N - SLOW; this.lagging = i >= N - LAG && !this.slow;
         this.delay = this.slow ? SLOW_MS : 0;
-        this.dec = new FrameDecoder(); this.sealedHash = createHash('sha1'); this.sealedN = 0;
+        this.dec = new FrameDecoder(); this.frameHashes = []; this.sealedN = 0;
         this.sentAt = new Map(); this.lat = []; this.up = 0; this.down = 0;
         this.frame = 0; this.frontier = 0; this.pings = 0; this.behindMax = 0; this.keys = 0; this.started = false;
         this.identity = 'load-' + i + '-' + Math.random().toString(36).slice(2) + 'xxxxxxxxxxxx';
@@ -98,7 +98,9 @@ class Client {
         const now = Date.now();
         r.frames.forEach((f, k) => {
             const fr = r.firstFrame + k;
-            this.sealedHash.update(new Uint8Array(f.buffer)); this.sealedN++;
+            let h = 0x811C9DC5;
+            for (let q = 0; q < f.length; q++) h = Math.imul(h ^ f[q], 0x01000193);
+            this.frameHashes.push(h >>> 0); this.sealedN++;
             const s = this.sentAt.get(fr);
             if (s !== undefined) { this.lat.push(now - s); this.sentAt.delete(fr); }
         });
@@ -144,13 +146,16 @@ await new Promise((r) => setTimeout(r, SLOW_MS * 2 + DEADLINE + 300));
 
 const secs = SECONDS;   // the played span; the tail wait only drains
 const fast = clients.filter((c) => !c.slow && !c.lagging);
-const hashes = new Set(clients.map((c) => c.sealedHash.digest('hex')));
+// The room keeps sealing while seats are connected (nobody waits), and a
+// slow link sees the stream later: compare the common prefix.
 const counts = clients.map((c) => c.sealedN);
+const common = Math.min(...counts);
+const hashes = new Set(clients.map((c) => createHash('sha1').update(new Uint32Array(c.frameHashes.slice(0, common))).digest('hex')));
 const res = {
     clients: N, seated, code, seconds: +secs.toFixed(1), deadlineMs: DEADLINE, flushMs: FLUSH,
     slow: SLOW, slowMs: SLOW_MS, lagging: LAG,
-    sealedFrames: Math.min(...counts), framesPerSec: +(Math.min(...counts) / secs).toFixed(1),
-    identicalStreams: hashes.size === 1 && Math.min(...counts) === Math.max(...counts),
+    sealedFrames: common, framesPerSec: +(common / secs).toFixed(1),
+    identicalStreams: hashes.size === 1 && common > 0,
     fastFramesSentPerSec: +(Math.min(...fast.map((c) => c.sentAt.size + c.lat.length)) / secs).toFixed(1),
     sealLatencyMs: { p50: pct(fast.flatMap((c) => c.lat), 0.5), p99: pct(fast.flatMap((c) => c.lat), 0.99),
                      max: Math.max(...fast.flatMap((c) => c.lat)) },
