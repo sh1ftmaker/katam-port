@@ -222,4 +222,8 @@ function roundtrip(a, io, registry) {
   return ok ? 0 : 1;
 }
 
-main().then((c) => process.exit(c || 0), (e) => { console.error(e.stack || e); process.exit(1); });
+main().then((c) => process.exit(c || 0), (e) => {
+  if (e && e.where !== undefined) console.error(`katam: ${e.where ? `[${e.where}] ` : ''}${e.message}${e.hint ? `\n    hint: ${e.hint}` : ''}`);
+  else console.error(e.stack || e);
+  process.exit(1);
+});

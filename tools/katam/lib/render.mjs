@@ -67,7 +67,7 @@ function drawTiles(cv, tm, wTiles, hTiles, tiles, bankColor, ox = 0, oy = 0, tra
 
 export function renderRoom({ io, layers, vocab, registry, roomId, overlay = [], scale = 1 }) {
   const bindings = new Bindings(vocab, layers);
-  const ctx = makeContext({ vocab, registry, bindings });
+  const ctx = makeContext({ vocab, registry, bindings, external: true });
   const rid = bindings.resolve(roomId);
   if (!rid) throw new Error(`room "${roomId}" not found in the loaded projects`);
   const doc = bindings.docs.get(rid).doc;
