@@ -14,7 +14,13 @@ static int sCur;
 static u32 sSnapBytes;
 static u8 *sStates;                 /* sSeats snapshots, sSnapBytes apart    */
 
-void PortRbApplyKeys(u16 keys);    /* platform/main.c, the key latch      */
+/* platform/main.c, the key latch.  main.c defines it inside extern "C", so
+ * the LP64 build (all C++) has to say so here too, or the call mangles and
+ * fails to link. */
+#ifdef __cplusplus
+extern "C"
+#endif
+void PortRbApplyKeys(u16 keys);
 
 static u16 sPending[PORT_SEAT_MAX]; /* set by the host for the next round    */
 static u8  sPendingDriven[PORT_SEAT_MAX] = { 1, 1, 1, 1 };
