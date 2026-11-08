@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "katam:schema/background",
+  "title": "katam background (katam-background/1)",
+  "description": "A parallax background layer (HW BG0): its tiles (indexed PNG), palette banks and tilemap. Shared by every room that names it.",
+  "type": "object",
+  "required": ["format", "id", "size", "image", "tileCount", "palette", "tilemap"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "katam-background/1"},
+    "id": {"$ref": "katam:schema/common#/$defs/backgroundRef"},
+    "bind": {"type": "object", "properties": {"index": {"type": "integer"}}, "additionalProperties": false},
+    "size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": {"type": "integer", "minimum": 1, "maximum": 255},
+        "height": {"type": "integer", "minimum": 1, "maximum": 1023}
+      },
+      "description": "8-px tiles."
+    },
+    "image": {"type": "string"},
+    "tileCount": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "palette": {
+      "type": "object",
+      "required": ["offset", "colors"],
+      "additionalProperties": false,
+      "properties": {
+        "offset": {"type": "integer", "description": "First BG palette entry written (colours; 96 = bank 6)."},
+        "colors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^#[0-9A-F]{6}$",
+            "description": "#RRGGBB; stored as BGR555 (5 bits per channel), so use multiples of 8 (+ low bits copied from the top: #RRGGBB = c5<<3|c5>>2 round-trips exactly)."
+          }
+        },
+        "bit15": {
+          "type": "array",
+          "items": {"type": "integer"},
+          "description": "Entries whose unused top bit is set (kept for exactness)."
+        }
+      }
+    },
+    "tilemap": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[0-9a-f]{3}[.hvx][0-9a-f]( [0-9a-f]{3}[.hvx][0-9a-f])*$"},
+      "description": "One row per line, width tile tokens separated by spaces."
+    },
+    "roomTag": {"type": "integer"},
+    "tilesetSizeField": {"type": "integer"},
+    "raw": {"type": "object"}
+  }
+}

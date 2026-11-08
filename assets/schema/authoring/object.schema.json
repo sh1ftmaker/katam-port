@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "katam:schema/object",
+  "title": "katam object type (katam-object/1)",
+  "description": "Per-type data of an enemy, item, gadget or boss: what the game keeps in a table (score, hit points, copy ability, tile budget). Behaviour is code; see docs/design/authoring/enemies.md.",
+  "type": "object",
+  "required": ["format", "id", "bind"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "katam-object/1"},
+    "id": {"type": "string", "pattern": "^object:[a-z0-9_]+$"},
+    "bind": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {"type": {"type": "integer", "minimum": 0, "maximum": 255}},
+      "additionalProperties": false
+    },
+    "constName": {"type": "string"},
+    "category": {"type": "string"},
+    "ability": {"$ref": "katam:schema/common#/$defs/ability"},
+    "numTiles": {"type": "integer", "minimum": 0, "description": "OBJ VRAM tiles reserved when it spawns."},
+    "stats": {"type": "object", "description": "Registry-named descriptor fields (score, hp, ...)."},
+    "raw": {
+      "type": "object",
+      "description": "Descriptor fields by C name (unk0, unk1, unk2, unk4, unk8, pad0A)."
+    },
+    "code": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"constructor": {"type": "string"}, "animation": {"type": "string"}},
+      "description": "ROM addresses of the type's constructor and animation bank: references to code, kept verbatim."
+    }
+  }
+}
