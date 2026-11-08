@@ -18,7 +18,10 @@
 // its slot intact, the same convention partysocket's `_pk` gives the
 // Cloudflare room.
 
+import http from 'http';
 import { WebSocketServer } from 'ws';
+import { SessionCore } from './session.mjs';
+import { DirectoryService, CORS } from './directory.mjs';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
     validClientInput, validClientPayload, decodeTaggedInput,
@@ -41,7 +44,14 @@ export function startRelay(port = 8787, opts = {}) {
         return rooms.get(path);
     }
 
-    const wss = new WebSocketServer({ port, host: '127.0.0.1' });
+    const wss = new WebSocketServer({ noServer: true });
+    const v2 = startV2(opts, log);
+    const server = http.createServer((req, res) => v2.http(req, res));
+    server.on('upgrade', (req, sock, head) => {
+        if (req.url.startsWith('/v2/'))
+            return v2.upgrade(req, sock, head);
+        wss.handleUpgrade(req, sock, head, (ws) => wss.emit('connection', ws, req));
+    });
 
     wss.on('connection', (ws, req) => {
         const url = new URL(req.url, 'http://relay');
@@ -138,15 +148,160 @@ export function startRelay(port = 8787, opts = {}) {
     });
 
     return new Promise((resolve, reject) => {
-        wss.on('error', reject);
-        wss.on('listening', () => {
-            const actual = wss.address().port;
-            log(`[relay] listening on ws://127.0.0.1:${actual}`);
-            resolve({ port: actual, close: () => wss.close() });
+        server.on('error', reject);
+        server.listen(port, opts.host || '127.0.0.1', () => {
+            const actual = server.address().port;
+            log(`[relay] listening on ws://127.0.0.1:${actual} (v1 rooms by path, v2 under /v2/)`);
+            resolve({
+                port: actual, v2,
+                close: () => { v2.close(); wss.close(); server.close();
+                               for (const c of wss.clients) c.terminate(); },
+            });
         });
     });
 }
 
+// --- protocol v2: the directory and SessionCore rooms ------------------------
+//
+// The same HTTP surface the Cloudflare worker serves (netplay/directory.mjs):
+//   POST /v2/rooms, GET /v2/rooms/<CODE>, POST /v2/resume, and the
+//   WebSocket at /v2/rooms/<CODE>/ws.
+// opts.ipHeader: trust X-Forwarded-For (tests fake many IPs with it).
+export function startV2(opts = {}, log = () => {}) {
+    const service = opts.directory || new DirectoryService({ idleMs: opts.idleMs });
+    const rooms = new Map();          /* roomId -> {core, socks: Map, timer} */
+    const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
+    let nextConn = 1;
+
+    function ipOf(req) {
+        if (opts.ipHeader && req.headers['x-forwarded-for'])
+            return String(req.headers['x-forwarded-for']).split(',')[0].trim();
+        return req.socket.remoteAddress || '?';
+    }
+
+    function room(roomId, code) {
+        let r = rooms.get(roomId);
+        if (r)
+            return r;
+        r = { socks: new Map(), timer: null, wakeAt: Infinity };
+        r.core = new SessionCore({
+            roomId, code,
+            params: opts.params,
+            send: (id, data) => {
+                const ws = r.socks.get(id);
+                if (ws && ws.readyState === 1)
+                    ws.send(data, { binary: typeof data !== 'string' });
+            },
+            close: (id, c, why) => {
+                const ws = r.socks.get(id);
+                if (ws) try { ws.close(c, why); } catch (e) { /* gone */ }
+            },
+            onOccupancy: (n) => service.touch(roomId, n),
+            log,
+        });
+        rooms.set(roomId, r);
+        return r;
+    }
+
+    function schedule(r) {
+        const ms = r.core.nextWakeIn();
+        if (ms === null)
+            return;
+        const at = Date.now() + ms;
+        if (r.timer && at >= r.wakeAt - 1)
+            return;
+        clearTimeout(r.timer);
+        r.wakeAt = at;
+        r.timer = setTimeout(() => {
+            r.timer = null;
+            r.wakeAt = Infinity;
+            r.core.tick();
+            schedule(r);
+        }, ms);
+    }
+
+    function reply(res, out) {
+        res.writeHead(out.status, { 'Content-Type': 'application/json', ...CORS,
+                                    ...(out.headers || {}) });
+        res.end(JSON.stringify(out.body));
+    }
+
+    function http_(req, res) {
+        const url = new URL(req.url, 'http://relay');
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204, CORS);
+            return res.end();
+        }
+        const ip = ipOf(req);
+        if (req.method === 'POST' && url.pathname === '/v2/rooms') {
+            const out = service.create(ip);
+            if (out.roomId) room(out.roomId, out.body.code);
+            return reply(res, out);
+        }
+        let m = /^\/v2\/rooms\/([^/]+)$/.exec(url.pathname);
+        if (req.method === 'GET' && m)
+            return reply(res, service.lookup(decodeURIComponent(m[1]), ip));
+        if (req.method === 'POST' && url.pathname === '/v2/resume') {
+            let body = '';
+            req.on('data', (d) => { body += d; if (body.length > 4096) req.destroy(); });
+            req.on('end', () => {
+                let tok = '';
+                try { tok = JSON.parse(body).token; } catch (e) { /* empty */ }
+                reply(res, service.resume(tok, ip));
+            });
+            return;
+        }
+        if (url.pathname.startsWith('/v2/')) {
+            res.writeHead(404, CORS);
+            return res.end();
+        }
+        res.writeHead(200, { 'Content-Type': 'text/plain', ...CORS });
+        res.end('katam-port netplay dev relay');
+    }
+
+    function upgrade(req, sock, head) {
+        const url = new URL(req.url, 'http://relay');
+        const m = /^\/v2\/rooms\/([^/]+)\/ws$/.exec(url.pathname);
+        const ip = ipOf(req);
+        const out = m ? service.lookup(decodeURIComponent(m[1]), ip) : { status: 404 };
+        if (out.status !== 200) {
+            sock.write(`HTTP/1.1 ${out.status} ${out.status === 429 ? 'Too Many Requests' : 'Not Found'}\r\n` +
+                       'Access-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n');
+            return sock.destroy();
+        }
+        const r = room(out.roomId, out.body.code);
+        wss.handleUpgrade(req, sock, head, (ws) => {
+            const id = 'c' + nextConn++;
+            r.socks.set(id, ws);
+            r.core.open(id, { ip });
+            ws.on('message', (data, isBinary) => {
+                r.core.message(id, isBinary
+                    ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+                    : data.toString());
+                schedule(r);
+            });
+            ws.on('close', () => {
+                r.socks.delete(id);
+                r.core.closed(id);
+                schedule(r);
+            });
+            schedule(r);
+        });
+    }
+
+    return {
+        http: http_, upgrade, rooms, service,
+        close() {
+            for (const r of rooms.values()) {
+                clearTimeout(r.timer);
+                for (const ws of r.socks.values()) ws.terminate();
+            }
+            wss.close();
+        },
+    };
+}
+
 /* CLI */
 if (import.meta.url === `file://${process.argv[1]}`)
-    startRelay(parseInt(process.argv[2] || '8787', 10));
+    startRelay(parseInt(process.argv[2] || '8787', 10),
+               { host: process.env.RELAY_HOST || '127.0.0.1' });
