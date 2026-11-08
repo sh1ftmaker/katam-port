@@ -1,0 +1,366 @@
+{
+  "format": "katam-semantics/1",
+  "record": "obj_desc",
+  "c_type": "struct Unk_08351648",
+  "c_decl": "game/include/data.h:547",
+  "size": 24,
+  "table": {
+    "symbol": "gUnk_08351648",
+    "addr": "0x08351648",
+    "count": 219,
+    "index": "object type (OBJ_* in game/include/constants/object_types.h), 0x00..0xDA"
+  },
+  "description": "Per-object-type descriptor. InitObject (game/src/object.c) copies the start-state function, the copy ability and the hit points into the new Object; ObjectInitSprite / the VRAM helpers take the tile budget, palette and animation list from it; ObjectMain awards the score from it when the object dies. 194 read sites in game/src (MODDING.md R0: OBJ_DESC()). It is the main per-type tuning table: hp, score and ability are plain numbers here. Boss/mini-boss hit points (types 0x38..0x52) are NOT taken from it; see tuning_inventory.json boss.hp.",
+  "notes": [
+    "The table is ROM-resident (PORT: replaced by port/rom_data.h, game/include/data.h:790); it is the manifest kind obj_desc (assets/manifest.json), served as objects/types.json.",
+    "unk10 and unk14 are ROM pointers (function / AnimInfo array); a served copy needs them relocated or rebound (MODDING.md: Res_ServedAddr).",
+    "Several fields are shared by unrelated item types with different meanings: for food items unk4 is the heal amount (it becomes Object.unk80 like hp)."
+  ],
+  "fields": [
+    {
+      "field": "unk0",
+      "offset": 0,
+      "type": "u8",
+      "name": "hurtAnimSlot",
+      "description": "Index into the unk14 AnimInfo list (Object.unk83 is the current animation slot) used for the 'hurt'/stunned pose. Damage, inhale and knock-back paths set obj->unk83 to unk0 or (randomly) unk1; kirby.c's inhale/carry check and cookin/parasol test unk83 >= unk0 to mean 'currently in the hurt pose'. Mega Titan uses it when it takes a hit.",
+      "unit": "index:unk14",
+      "range": [
+        0,
+        255
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:910",
+          "code": "r4->unk83 = gUnk_08351648[r4->type].unk0;",
+          "note": "random choice between unk0 and unk1 after a hit"
+        },
+        {
+          "loc": "game/src/object.c:490",
+          "code": "r6->animId = gUnk_08351648[r7->type].unk14[r7->unk83].animId;",
+          "note": "unk83 indexes the unk14 AnimInfo list"
+        },
+        {
+          "loc": "game/src/kirby.c:10164",
+          "code": "obj->unk83 >= gUnk_08351648[obj->type].unk0",
+          "note": "'is in hurt pose' test"
+        },
+        {
+          "data": "unk1 == unk0+1 in 55 of 219 rows and unk1 == unk0 in 163 (114 rows are 0/0: types without a hurt pose); max 29",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ],
+      "stats": {
+        "summary": "0..29; 0 for items, gadgets, doors and most bosses' children"
+      }
+    },
+    {
+      "field": "unk1",
+      "offset": 1,
+      "type": "u8",
+      "name": "hurtAnimSlotAlt",
+      "description": "Second hurt-pose animation slot; after a hit the engine picks unk0 or unk1 at random (Rand16() & 1). Usually unk0+1 (the mirrored/alternate pose) or equal to unk0.",
+      "unit": "index:unk14",
+      "range": [
+        0,
+        255
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:912",
+          "code": "r4->unk83 = gUnk_08351648[r4->type].unk1;"
+        },
+        {
+          "loc": "game/src/object.c:1526",
+          "code": "if (r5->unk83 == gUnk_08351648[r5->type].unk1) {"
+        }
+      ]
+    },
+    {
+      "field": "unk2",
+      "offset": 2,
+      "type": "u16",
+      "name": "score",
+      "description": "Score awarded to the Kirby that dealt the killing blow (Object.unk86) when the object is destroyed with hp <= 0. Dark Mind's final form adds it from its own code.",
+      "unit": "points",
+      "range": [
+        0,
+        65535
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:191",
+          "code": "gKirbys[obj->unk86].score += gUnk_08351648[obj->type].unk2;"
+        },
+        {
+          "loc": "game/src/dark_mind.c:5727",
+          "code": "score += gUnk_08351648[r8->unk0.type].unk2;"
+        },
+        {
+          "data": "values are round score amounts: 0,50,100,150,200,...,1000,1500,2000,5000,20000 (bosses), 30000 (Dark Meta Knight), 60000 (Dark Mind)",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ],
+      "stats": {
+        "summary": "20 distinct values; enemies 100..1000, mini-bosses 1000..2000, bosses 20000+"
+      }
+    },
+    {
+      "field": "unk4",
+      "offset": 4,
+      "type": "s16",
+      "name": "hp",
+      "description": "Starting hit points (copied to Object.unk80) for every type except the boss/mini-boss range 0x38..0x52, which take theirs from gUnk_08351530 / gUnk_08351608 scaled by player count. Damage subtracts the attacker's ObjectBase.unk63 (plus the per-element modifier) from unk80. For food items (0x5E..0x64) it is the heal amount: the item's unk80 counts down one hp per 5 frames while healing, and it is also copied into kirby->unkE2. It also sets the power of the star Kirby spits after inhaling the type: (unk4 >> 1) + 9.",
+      "unit": "hp",
+      "range": [
+        0,
+        32767
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2083",
+          "code": "arg0->unk80 = gUnk_08351648[arg0->type].unk4;",
+          "note": "non-boss branch"
+        },
+        {
+          "loc": "game/src/object.c:2078",
+          "code": "arg0->unk80 = gUnk_08351530[ObjTypeAltIdx(arg0)][gNumHumanPlayers - 1];",
+          "note": "bosses bypass unk4"
+        },
+        {
+          "loc": "game/src/object.c:708",
+          "code": "r10->unk80 -= sp04;",
+          "note": "damage"
+        },
+        {
+          "loc": "game/src/bonus.c:200",
+          "code": "kirby->unkE2 = gUnk_08351648[arg0->type].unk4;",
+          "note": "food items"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:5820",
+          "code": "var->base.unk63 = (gUnk_08351648[obj->type].unk4 >> 1) + 9;",
+          "note": "spit-star attack power"
+        },
+        {
+          "data": "enemies 0x00..0x37: mostly 2 or 4; Rocky 5, Golems 7, Heavy Knight 8, Giant Rocky/Metal Guardian 10; Dark Mind Mirror 9999; boss rows hold roughly the 1-player HP but are not read as hp",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ],
+      "stats": {
+        "summary": "1..10 for regular enemies; 9999 for OBJ_DARK_MIND_MIRROR (effectively unkillable)"
+      }
+    },
+    {
+      "field": "kirbyAbility",
+      "offset": 6,
+      "type": "u16",
+      "name": "copyAbility",
+      "description": "Copy ability Kirby gets from inhaling the type (KIRBY_ABILITY_* value, 0 = none). Copied into Object.kirbyAbility (a u8) by InitObject; some constructors override it afterwards (Golem switches between Stone and Wheel, Droppy takes Kirby's, ability statues take subtype1 through their own tables).",
+      "unit": "enum:KIRBY_ABILITY",
+      "range": [
+        0,
+        27
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2057",
+          "code": "arg0->kirbyAbility = gUnk_08351648[arg0->type].kirbyAbility;"
+        },
+        {
+          "loc": "game/src/golem.c:473",
+          "code": "golem->kirbyAbility = KIRBY_ABILITY_STONE;",
+          "note": "constructor override"
+        },
+        {
+          "data": "59 rows non-zero; e.g. Hot Head 1 (fire), Pengy 2 (ice), Sword Knight 18 (sword), Boxin 20 (fighter): match the in-game copy abilities",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ]
+    },
+    {
+      "field": "unk8",
+      "offset": 8,
+      "type": "u16",
+      "name": "paletteSpec",
+      "description": "Object palette to load. Low 12 bits: the sprite (animId) whose palette is loaded with SpriteSomething, using the room record's unkF as the palette variant; the slot is looked up/allocated in the 7 dynamic OBJ palette slots (8..14). Bit 0x1000: the palette is reference-counted and released (sub_0803E4D4) when the object is destroyed, used by bosses/mini-bosses. 0 = shared palette 15. Objects flagged unkC & 0x10 (Droppy copies) use OBJ_DROPPY's entry instead.",
+      "unit": null,
+      "range": [
+        0,
+        8191
+      ],
+      "default": 0,
+      "sentinel": {
+        "0": "no own palette: use OBJ palette slot 15"
+      },
+      "packed": [
+        {
+          "name": "paletteAnimId",
+          "mask": "0x0FFF",
+          "shift": 0,
+          "unit": "animId",
+          "description": "sprite whose palette is loaded",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/kirby.c:5797",
+              "code": "SpriteSomething(&sprite, 0x6000000, r2 & 0xFFF, r6, 0xFF, 0, 0, 0, 0, 0x10, r4 & 0xF, 0x80000);"
+            }
+          ]
+        },
+        {
+          "name": "refcountedPalette",
+          "mask": "0x1000",
+          "shift": 12,
+          "unit": null,
+          "description": "release the palette slot on destroy",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:348",
+              "code": "if (gUnk_08351648[obj->type].unk8 & 0x1000) {"
+            },
+            {
+              "loc": "game/src/kirby.c:5769",
+              "code": "if (r3 & 0x1000)"
+            }
+          ]
+        }
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2174",
+          "code": "r4 = gUnk_08351648[arg0->type].unk8;"
+        },
+        {
+          "loc": "game/src/object.c:2181",
+          "code": "sub_0803DFAC(r4, arg0->objTemplate->unkF);"
+        },
+        {
+          "loc": "game/src/kirby.c:5766",
+          "code": "if (!r3) return 0xF;"
+        },
+        {
+          "data": "64 rows are 0; 14 rows have bit 0x1000 (boss/mini-boss types); 97 distinct values",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ]
+    },
+    {
+      "field": "pad0A",
+      "offset": 10,
+      "type": "u8[2]",
+      "name": null,
+      "description": "Alignment padding before the u32 numTiles (not a C member: the manifest names it pad0A). Zero in all 219 rows.",
+      "unit": null,
+      "usage": "padding",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/include/data.h:553",
+          "code": "u32 numTiles;",
+          "note": "u32 at 0x0C forces 2 bytes of padding after unk8 at 0x08"
+        },
+        {
+          "data": "0 in all 219 entries",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ]
+    },
+    {
+      "field": "numTiles",
+      "offset": 12,
+      "type": "u32",
+      "name": "vramTiles",
+      "description": "Number of 8x8 4bpp sprite tiles reserved in OBJ VRAM for one instance (VramMalloc). 0 = the type has no sprite (InitObject marks it flags 0x400|8). 0xFFFFFFFF = uses the fixed shared tile block at 0x06012000 (ability/warp stars, doors). It also picks the size of the star an inhaled object becomes (<9, <25, larger).",
+      "unit": "tiles",
+      "range": [
+        0,
+        1024
+      ],
+      "sentinel": {
+        "0": "no sprite",
+        "4294967295": "shared tiles at 0x06012000"
+      },
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2166",
+          "code": "VramMalloc(gUnk_08351648[arg0->type].numTiles);"
+        },
+        {
+          "loc": "game/src/object.c:2101",
+          "code": "if (gUnk_08351648[arg0->type].numTiles == 0) {"
+        },
+        {
+          "loc": "game/src/kirby.c:5706",
+          "code": "if (gUnk_08351648[type].numTiles == 0xFFFFFFFF)"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:5848",
+          "code": "if (gUnk_08351648[obj->type].numTiles < 9) {"
+        },
+        {
+          "data": "30 rows 0, 7 rows 0xFFFFFFFF, others 2..779",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ]
+    },
+    {
+      "field": "unk10",
+      "offset": 16,
+      "type": "ptr",
+      "name": "startState",
+      "description": "Function pointer: the type's first behaviour state. InitObject stores it as the object's current state function (Object.unk78, run every frame by ObjectMain); most constructors also call it once after setting up hitboxes and sprite. Two rows (0x96, 0x9A) are NULL. A ROM code address: the port binds these via generated rom_fn_tables.",
+      "unit": null,
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2052",
+          "code": "arg0->unk78 = gUnk_08351648[arg0->type].unk10;"
+        },
+        {
+          "loc": "game/src/blockin.c:38",
+          "code": "gUnk_08351648[obj->type].unk10(obj);"
+        },
+        {
+          "data": "2 NULL rows; several types share a function (e.g. all Golems, all Moley projectiles)",
+          "tool": "ROM read of gUnk_08351648 (scratch script, not in repo)"
+        }
+      ]
+    },
+    {
+      "field": "unk14",
+      "offset": 20,
+      "type": "ptr",
+      "name": "animList",
+      "description": "Pointer to the type's AnimInfo list ({animId, variant}); Object.unk83 indexes it to pick the sprite animation; entry 0 is the default pose used when tiles are pre-decoded (sub_0803DD58). 8 rows NULL (sprite-less types).",
+      "unit": null,
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2169",
+          "code": "arg0->base.sprite.animId = gUnk_08351648[arg0->type].unk14[arg0->unk83].animId;"
+        },
+        {
+          "loc": "game/src/kirby.c:5719",
+          "code": "sprite.animId = gUnk_08351648[type].unk14->animId;"
+        }
+      ]
+    }
+  ]
+}

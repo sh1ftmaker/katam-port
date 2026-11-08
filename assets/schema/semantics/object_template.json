@@ -1,0 +1,586 @@
+{
+  "format": "katam-semantics/1",
+  "record": "object_template",
+  "c_type": "struct ObjectTemplate",
+  "c_decl": "game/include/data.h:266",
+  "size": 36,
+  "description": "One placed object in a room's object list (gLevelObjLists[objectListIdx]->unk0, see object_lists.json). The list is walked by stride (unk1) until a zero stride. The header fields below have one meaning for every type; from subtype1 on, fields are per-type parameters documented in object_params.json (the descriptions here give only the generic part).",
+  "notes": [
+    "3,482 records in 287 lists (longest 30); every retail record is 36 bytes with spawnTable 1 and unkA/unkB/unkD = 0xFF.",
+    "Spawning: CreateLevelObjects and the two scroll-in walks (game/src/code_080023A4.c ~5914-6014) skip an object whose despawn flag (unk2, unk3) is set, and, unless unk5 bit 0 is set, objects outside the spawn window around the viewport; CreateObject then calls gSpawnFuncTable{spawnTable}[type](template, playerId).",
+    "Positions: x/y are pixels, InitObject turns them into 8.8 world coordinates; object placement is free (not cell-snapped), though most retail values are multiples of 8."
+  ],
+  "fields": [
+    {
+      "field": "spawnTable",
+      "offset": 0,
+      "type": "u8",
+      "name": "spawnTable",
+      "description": "Which constructor table type indexes: 1 = gSpawnFuncTable1 (all retail data), 2 = gSpawnFuncTable2 (never selected by level data).",
+      "enum": {
+        "1": {
+          "name": "table1"
+        },
+        "2": {
+          "name": "table2",
+          "description": "reachable only from code; untested by retail levels"
+        }
+      },
+      "default": 1,
+      "usage": "code_only",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/code_080023A4.c:6116",
+          "code": "switch (obj->spawnTable) {"
+        },
+        {
+          "loc": "game/src/code_080023A4.c:6122",
+          "code": "var1 = gSpawnFuncTable2[obj->type](obj, playerId);"
+        },
+        {
+          "data": "1 in 3,476/3,476 records"
+        }
+      ]
+    },
+    {
+      "field": "unk1",
+      "offset": 1,
+      "type": "u8",
+      "name": "size",
+      "unit": "bytes",
+      "description": "Byte stride to the next record; 0 terminates the list. Always 36 in retail data, but the walker honours any value, so a record may carry extra trailing bytes.",
+      "default": 36,
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/code_080023A4.c:5914",
+          "code": "for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {"
+        },
+        {
+          "data": "36 in 3,476/3,476"
+        }
+      ]
+    },
+    {
+      "field": "unk2",
+      "offset": 2,
+      "type": "u8",
+      "name": "despawnScope",
+      "description": "Which 'already collected / defeated' bitmap unk3 indexes. If the bit is set the object is not spawned. 0 = per room visit (cleared on every room load, 32 bits), 1 = per area (cleared on area change, warp star and some Kirby transitions; used by all food/battery/1UP pickups so they stay collected while you remain in the area), 2 = saved with the file (never used by level data).",
+      "enum": {
+        "0": {
+          "name": "room",
+          "description": "gUnk_02023358[roomSlot], 32 bits"
+        },
+        "1": {
+          "name": "area",
+          "description": "gUnk_02023368, 256 bits"
+        },
+        "2": {
+          "name": "save",
+          "description": "gUnk_02028BF0 in gWorldProps, 256 bits, persisted"
+        }
+      },
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/code_080023A4.c:1447",
+          "code": "u32 sub_080027E8(u32 arg0, u16 arg1, u8 arg2)"
+        },
+        {
+          "loc": "game/src/code_080023A4.c:1451",
+          "code": "return gUnk_02023358[arg2][arg1 / 8] >> (arg1 & 7) & 1;"
+        },
+        {
+          "loc": "game/src/code_080023A4.c:5915",
+          "code": "if (sub_080027E8(obj->unk2, obj->unk3, levelInfo->unk65E) != 0)"
+        },
+        {
+          "loc": "game/src/level.c:366",
+          "code": "CpuFill32(0, gUnk_02023358[levelInfo->unk65E], sizeof(gUnk_02023358[0]));",
+          "note": "room scope cleared at load"
+        },
+        {
+          "data": "0 in 3,077 records (unk3 0..28), 1 in 399 (unk3 0..255; exactly the consumables), 2 in none"
+        }
+      ]
+    },
+    {
+      "field": "unk3",
+      "offset": 3,
+      "type": "u8",
+      "name": "despawnBit",
+      "description": "Bit index in the bitmap chosen by unk2; the object's constructor/defeat code sets it (sub_08001678) so it does not respawn. Must be unique per room (scope 0) or per area (scope 1). (unk2 = 0, unk3 = 31) is the 'no flag' sentinel used by dynamically created objects; level data never uses it, and the defeat counter (unk4) skips objects that carry it.",
+      "range": [
+        0,
+        255
+      ],
+      "sentinel": {
+        "31": "with unk2 = 0: no flag"
+      },
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/code_080023A4.c:700",
+          "code": "gUnk_02023358[arg2][arg1 >> 3] |= 1 << (arg1 & 7);",
+          "note": "sub_08001678, the setter"
+        },
+        {
+          "loc": "game/src/object.c:1291",
+          "code": "(r4->objTemplate->unk2 || r4->objTemplate->unk3 != 31))"
+        },
+        {
+          "data": "no room has two objects with the same (unk2, unk3); scope-1 ids form contiguous per-area blocks"
+        }
+      ]
+    },
+    {
+      "field": "unk4",
+      "offset": 4,
+      "type": "u8",
+      "name": "roomRegister",
+      "description": "Index of a per-room-visit u32 counter (GetStateSlot(STATE_SLOT_ROOM, unk4), 16 per room slot, zeroed at room load). Defeating an enemy increments its register; gates such as sliding doors, lava walls, scroll locks, Jack, big buttons watch theirs. 0 = none by convention. This is the 'beat all the enemies to open the wall' mechanism, entirely data-driven. Some types reinterpret it (see object_params.json).",
+      "range": [
+        0,
+        15
+      ],
+      "default": 0,
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:1292",
+          "code": "++*GetStateSlot(STATE_SLOT_ROOM, r4->objTemplate->unk4,",
+          "note": "on defeat"
+        },
+        {
+          "loc": "game/src/code_080023A4.c:1478",
+          "code": "return gUnk_02023388[roomSlot] + id;"
+        },
+        {
+          "loc": "game/src/level.c:367",
+          "code": "CpuFill32(0, gUnk_02023388[levelInfo->unk65E], sizeof(gUnk_02023388[0]));"
+        },
+        {
+          "data": "non-zero on scroll locks, buttons, sliding doors, bosses, cannons, doors-to-hub; room 801's hub mirrors use up to 18 (beyond the 16 room registers: they are read as another scope, see object_params)"
+        }
+      ]
+    },
+    {
+      "field": "unk5",
+      "offset": 5,
+      "type": "u8",
+      "name": "spawnFlags",
+      "description": "Spawn behaviour bits.",
+      "bits": [
+        {
+          "mask": "0x01",
+          "name": "spawnAtLoad",
+          "description": "Create the object when the room loads regardless of the camera (skip the viewport proximity test). Used by camera controllers, room logic and every boss.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:5918",
+              "code": "if ((obj->unk5 & 1) == 0) {"
+            },
+            {
+              "data": "235/3,476 records have it, all controllers, gates and bosses"
+            }
+          ]
+        },
+        {
+          "mask": "0xFE",
+          "name": null,
+          "description": "never set, never read",
+          "usage": "unused",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "only values 0 and 1 occur"
+            }
+          ]
+        }
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "data": "values 0 and 1 only"
+        }
+      ]
+    },
+    {
+      "field": "x",
+      "offset": 6,
+      "type": "s16",
+      "name": "x",
+      "unit": "px",
+      "description": "Object x in room pixels (InitObject: base.x = x * 0x100).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2044",
+          "code": "arg0->base.x = arg1->x * 0x100;"
+        }
+      ]
+    },
+    {
+      "field": "y",
+      "offset": 8,
+      "type": "s16",
+      "name": "y",
+      "unit": "px",
+      "description": "Object y in room pixels (y grows downward in room space).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2045",
+          "code": "arg0->base.y = arg1->y * 0x100;"
+        }
+      ]
+    },
+    {
+      "field": "unkA",
+      "offset": 10,
+      "type": "u8",
+      "name": null,
+      "description": "No reader found; 0xFF in every record. Preserve.",
+      "default": 255,
+      "usage": "unused",
+      "confidence": "likely",
+      "evidence": [
+        {
+          "data": "0xFF in 3,476/3,476"
+        }
+      ]
+    },
+    {
+      "field": "unkB",
+      "offset": 11,
+      "type": "u8",
+      "name": null,
+      "description": "No reader found; 0xFF in every record. Preserve.",
+      "default": 255,
+      "usage": "unused",
+      "confidence": "likely",
+      "evidence": [
+        {
+          "data": "0xFF in 3,476/3,476"
+        }
+      ]
+    },
+    {
+      "field": "type",
+      "offset": 12,
+      "type": "u8",
+      "name": "type",
+      "unit": "index:gSpawnFuncTable1 / gUnk_08351648",
+      "description": "Object type (game/include/constants/object_types.h): selects the constructor and the obj_desc descriptor (HP, ability, palette, tile budget).",
+      "range": [
+        0,
+        218
+      ],
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/code_080023A4.c:6118",
+          "code": "var1 = gSpawnFuncTable1[obj->type](obj, playerId);"
+        },
+        {
+          "loc": "game/src/object.c:2057",
+          "code": "arg0->kirbyAbility = gUnk_08351648[arg0->type].kirbyAbility;"
+        }
+      ]
+    },
+    {
+      "field": "unkD",
+      "offset": 13,
+      "type": "u8",
+      "name": null,
+      "description": "No reader found; 0xFF in every record (likely padding after type). Preserve.",
+      "default": 255,
+      "usage": "unused",
+      "confidence": "likely",
+      "evidence": [
+        {
+          "data": "0xFF in 3,476/3,476"
+        }
+      ]
+    },
+    {
+      "field": "subtype1",
+      "offset": 14,
+      "type": "u8",
+      "name": "variant",
+      "description": "Per-type behaviour / appearance variant (movement pattern for enemies, contents for chests, ability slot for statues, door art, warp-star route ...). Its enum is private to each type: see object_params.json.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md",
+          "note": "every consumer is a switch inside one type's constructor"
+        },
+        {
+          "data": "27+ distinct values, small consistent sets per type"
+        }
+      ]
+    },
+    {
+      "field": "unkF",
+      "offset": 15,
+      "type": "u8",
+      "name": "paletteVariant",
+      "description": "Sprite palette variant passed with the type's palette id to sub_0803DFAC (every other caller passes 0). Mostly 0; non-zero on chests, doors-to-hub, triggerable walls.",
+      "usage": "live",
+      "confidence": "likely",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:458",
+          "code": "sub_0803DFAC(v3, obj->objTemplate->unkF);"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:8805",
+          "code": "sub_0803DFAC(unk8, obj->objTemplate->unkF);"
+        },
+        {
+          "data": "non-zero in 81/3,476 records"
+        }
+      ]
+    },
+    {
+      "field": "subtype2",
+      "offset": 16,
+      "type": "u8",
+      "name": "subtype",
+      "description": "Copied to the runtime object's subtype by InitObject; meaning per type (often facing or a secondary variant): see object_params.json.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/object.c:2056",
+          "code": "arg0->subtype = arg1->subtype2;"
+        }
+      ]
+    },
+    {
+      "field": "unk11",
+      "offset": 17,
+      "type": "u8",
+      "name": "param11",
+      "description": "Per-type parameter (chest id, button register value, CPU-trigger route rank, ...).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md",
+          "note": "no generic reader; every consumer is one type"
+        }
+      ]
+    },
+    {
+      "field": "unk12",
+      "offset": 18,
+      "type": "u16",
+      "name": "param12",
+      "description": "Per-type parameter (scroll-lock window size, spawner interval, cannon timing, ...).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md"
+        }
+      ]
+    },
+    {
+      "field": "unk14",
+      "offset": 20,
+      "type": "u16",
+      "name": "param14",
+      "description": "Per-type parameter (scroll-lock anchor, spawned type, big-button effect, cannon direction, ...).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md"
+        }
+      ]
+    },
+    {
+      "field": "unk16",
+      "offset": 22,
+      "type": "u16",
+      "name": "param16",
+      "description": "Per-type parameter; non-zero only on 5 flame columns in retail data.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "data": "0 in 3,471/3,476"
+        }
+      ]
+    },
+    {
+      "field": "unk18",
+      "offset": 24,
+      "type": "u16",
+      "name": "param18",
+      "description": "Per-type parameter (spawner progress threshold, button timer, ...).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-621-982.md"
+        }
+      ]
+    },
+    {
+      "field": "unk1A",
+      "offset": 26,
+      "type": "s16",
+      "name": "rectX",
+      "unit": "px",
+      "description": "Left edge of a region relative to the object's x (trigger volume, arena, travel extent). Used by many types with the same decomposition; meaning of the region is per type.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "loc": "game/src/star_platform.c:47",
+          "code": "rect[0] = (plat->obj.base.x >> 8) + plat->obj.objTemplate->unk1A;"
+        },
+        {
+          "loc": "game/src/lava_wall.c:46",
+          "code": "array[2] = array[0] + lavaWall->objTemplate->unk1E;"
+        },
+        {
+          "doc": "docs/naming/sweep-101-330.md",
+          "note": "5 unrelated files spell rect = {x+unk1A, y+unk1C, +unk1E, +unk20}"
+        }
+      ]
+    },
+    {
+      "field": "unk1C",
+      "offset": 28,
+      "type": "s16",
+      "name": "rectY",
+      "unit": "px",
+      "description": "Top edge of the region relative to the object's y.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md"
+        },
+        {
+          "data": "boss arenas carry e.g. (-176, -48, 256, 136): a screen-sized box around the boss"
+        }
+      ]
+    },
+    {
+      "field": "unk1E",
+      "offset": 30,
+      "type": "u16",
+      "name": "rectW",
+      "unit": "px",
+      "description": "Region width (some types reuse the slot, e.g. warp stars/shards: destination room id).",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md"
+        }
+      ]
+    },
+    {
+      "field": "unk20",
+      "offset": 32,
+      "type": "u16",
+      "name": "rectH",
+      "unit": "px",
+      "description": "Region height.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md"
+        }
+      ]
+    },
+    {
+      "field": "unk22",
+      "offset": 34,
+      "type": "u16",
+      "name": "flags",
+      "description": "Bitfield. For enemy/boss/item types 0x00..0x64 the low bits are generic, read by InitObject/ObjectDestroy (object.c); higher bits and all bits of other types are per-type (chest facing, door marker art, scroll-lock mode, spawner mode, ...): see object_params.json.",
+      "usage": "live",
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "doc": "docs/naming/sweep-101-330.md",
+          "note": "bit 0 means different things in chest.c, object_spawner.c, scroll_lock.c"
+        }
+      ],
+      "bits": [
+        {
+          "mask": "0x0001",
+          "name": "countsForKillCounter",
+          "description": "types <= 0x64: the object's defeat increments the room-group counter gUnk_02023508, read by lever walls and object spawners",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:401",
+              "code": "if (obj->objTemplate->unk22 & 1) {"
+            }
+          ]
+        },
+        {
+          "mask": "0x0002",
+          "name": "collidesWithSolidObjects",
+          "description": "types <= 0x64: sets unkC |= 0x1000 so the object is pushed by / stands on solid objects like Kirby",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:2127",
+              "code": "if (arg0->objTemplate->unk22 & 2) {"
+            }
+          ]
+        },
+        {
+          "mask": "0x0004",
+          "name": "noMusicChange",
+          "description": "types <= 0x64: no boss-music switch on wake / no room-music restore on death",
+          "usage": "live",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:725",
+              "code": "!(r4->objTemplate->unk22 & 4)"
+            }
+          ]
+        },
+        {
+          "mask": "0x8000",
+          "name": "objFlag10",
+          "description": "types 0x00..0x32: sets runtime unkC |= 0x10 (the enemy agent read this as using OBJ_DROPPY palette; unverified)",
+          "usage": "code_only",
+          "confidence": "guess",
+          "evidence": [
+            {
+              "loc": "game/src/object.c:2132",
+              "code": "if (arg0->objTemplate->unk22 & 0x8000) {"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

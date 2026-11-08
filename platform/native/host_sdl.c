@@ -83,6 +83,7 @@ static SDL_Texture  *sTexture;
 static SDL_GameController *sPads[4];
 
 static int  sScale = 3;
+static int  sWinW, sWinH;       /* --window: the GL window's size, 0 = by scale */
 static int  sFullscreen;
 static int  sVsync;
 static int  sTurbo;
@@ -152,7 +153,8 @@ static Uint64 sPerfFreq, sNextFrame;
  *   --gpu-view WxH|auto[:H]  the world viewport in game pixels; auto takes
  *                            the window's aspect at height H (default 160)
  *   --gpu-shot PATH          PNG of the GPU picture at the last frame
- *   --shot-at F:PREFIX       PREFIX-ppu.png / PREFIX-gpu.png at frame F
+ *   --shot-at F:PREFIX       PREFIX-ppu.png / PREFIX-gpu.png at frame F,
+ *                            PREFIX-win.png the presented window
  *   --compare-log FILE       with both: per frame, pixels where GPU != PPU */
 #define RENDERER_PPU  0
 #define RENDERER_GPU  1
@@ -160,6 +162,7 @@ static Uint64 sPerfFreq, sNextFrame;
 static int sRendererMode = RENDERER_PPU;
 static SDL_GLContext sGl;
 static int sGpuViewW = 240, sGpuViewH = 160, sGpuViewAuto;
+static int sSimViewW, sSimViewH;        /* --sim-view, 0 = not given */
 static const char *sGpuShotPath, *sCompareLogPath;
 static FILE *sCompareLog;
 #define MAX_SHOTS 512
@@ -232,6 +235,8 @@ static void Usage(const char *argv0)
 "offers when you start it with no argument.\n"
 "\n"
 "  --scale N          window is N times 240x160 (default 3)\n"
+"  --window WxH       the GL window's size in pixels (GPU renderer and the\n"
+"                     settings menu's window), instead of --scale\n"
 "  --fullscreen       start fullscreen; F11 toggles, 1-6 set the scale\n"
 "  --vsync            present on the display's refresh as well as pacing to\n"
 "                     the GBA's 59.7275 Hz.  Off by default: the two clocks\n"
@@ -246,6 +251,9 @@ static void Usage(const char *argv0)
 "                     PX/PY pad each side in pixels (default 40:0, so wide\n"
 "                     is 320x160).  See docs/VIEW.md\n"
 "  --cull MODE        with --view: stock (default), match or none\n"
+"  --sim-view WxH     size the game's spawn/despawn windows for a WxH world\n"
+"                     view from frame 1 (recorded; the GPU renderer asks for\n"
+"                     its own view anyway).  docs/VIEW.md, \"Spawn margin\"\n"
 "  --rando SEED[:F]   shuffle the enemies, with F the flag word from\n"
 "                     platform/port/port.h (default 0x11: enemies, sizes\n"
 "                     matched, abilities kept; 0x17 adds bosses)\n"
@@ -269,7 +277,9 @@ static void Usage(const char *argv0)
 "  --gpu-view WxH     the GPU renderer's world viewport (default 240x160);\n"
 "                     auto[:H] follows the window's aspect at height H\n"
 "  --gpu-shot PATH    write a PNG of the GPU picture at the last frame\n"
-"  --shot-at F:PREFIX write PREFIX-ppu.png and/or PREFIX-gpu.png at frame F\n"
+"  --shot-at F:PREFIX write PREFIX-ppu.png and/or PREFIX-gpu.png at frame F,\n"
+"                     and PREFIX-win.png, the window as presented (GPU\n"
+"                     renderer or the settings menu's window)\n"
 "  --compare-log FILE with --renderer both: per-frame GPU/PPU pixel diffs\n"
 "  --ui               the settings menu even in a scripted run (F1 / Tab)\n"
 "  --ui-open-at F     open the settings menu at frame F\n"
@@ -286,7 +296,7 @@ static void Usage(const char *argv0)
 static int IsScriptedRun(int argc, char **argv)
 {
     static const char *const kInteractive[] = {
-        "--scale", "--fullscreen", "--vsync", "--no-audio", "--verbose",
+        "--scale", "--window", "--fullscreen", "--vsync", "--no-audio", "--verbose",
         "--ui", "--ui-open-at", "--rando", "--res-pack", "--mod", NULL,
     };
     int i, k;
@@ -326,6 +336,12 @@ static void ParseArgs(int argc, char **argv)
             sScale = atoi(argv[i = NeedValue(i, argc, argv)]);
             if (sScale < 1) sScale = 1;
             if (sScale > 16) sScale = 16;
+        } else if (strcmp(a, "--window") == 0) {
+            if (sscanf(argv[i = NeedValue(i, argc, argv)], "%dx%d", &sWinW, &sWinH) != 2
+                || sWinW < 1 || sWinH < 1) {
+                fprintf(stderr, "katam-port: --window wants WxH\n");
+                exit(2);
+            }
         } else if (strcmp(a, "--fullscreen") == 0) {
             sFullscreen = 1;
         } else if (strcmp(a, "--vsync") == 0) {
@@ -396,6 +412,13 @@ static void ParseArgs(int argc, char **argv)
                     sGpuViewH = atoi(v + 5);
             } else if (sscanf(v, "%dx%d", &sGpuViewW, &sGpuViewH) != 2) {
                 fprintf(stderr, "katam-port: --gpu-view wants WxH or auto[:H]\n");
+                exit(2);
+            }
+        } else if (strcmp(a, "--sim-view") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            if (sscanf(v, "%dx%d", &sSimViewW, &sSimViewH) != 2) {
+                fprintf(stderr, "katam-port: --sim-view wants WxH\n");
                 exit(2);
             }
         } else if (strcmp(a, "--gpu-shot") == 0) {
@@ -710,6 +733,7 @@ static void Shutdown(int code)
     if (sGpuShotPath != NULL)
         WriteGpuShot(sGpuShotPath);
     PortRlReportPopIn();
+    PortSimViewReport();
     if (sCompareLog != NULL) {
         PortLog("[katam-port] gpu vs ppu: %ld frames compared, %ld differ, "
                 "%ld pixels in all; %ld frames not comparable (view not 240x160)",
@@ -891,7 +915,7 @@ static int TryGl(int es)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     sWindow = SDL_CreateWindow("katam-port",
                                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                               sTexW * sScale, sTexH * sScale,
+                               sWinW ? sWinW : sTexW * sScale, sWinH ? sWinH : sTexH * sScale,
                                SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL
                                | SDL_WINDOW_ALLOW_HIGHDPI
                                | (sFullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
@@ -1045,29 +1069,49 @@ static int OpenUiWindow(void)
     return 1;
 }
 
+/* The window as presented, read back: bottom row first in GL, so flip. */
+static void WriteWindowShot(const char *path, int w, int h)
+{
+    u32 *buf = (u32 *)malloc((size_t)w * h * 4);
+    int y;
+
+    if (buf == NULL)
+        return;
+    GLR_FN(glReadPixels)(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+    for (y = 0; y < h / 2; y++) {
+        u32 tmp[4096];
+        int n = w < 4096 ? w : 4096;
+        memcpy(tmp, buf + y * w, n * 4);
+        memcpy(buf + y * w, buf + (h - 1 - y) * w, n * 4);
+        memcpy(buf + (h - 1 - y) * w, tmp, n * 4);
+    }
+    if (PortNativeWritePng(path, buf, w, h))
+        PortLog("[katam-port] wrote %s (%dx%d, the window)", path, w, h);
+    free(buf);
+}
+
+/* --shot-at's PREFIX-win.png: the final composed picture, HUD layer and all. */
+static void WriteWindowShotsAt(int w, int h)
+{
+    int i;
+
+    for (i = 0; i < sNumShots; i++) {
+        char name[1024];
+
+        if (sShots[i].frame != sFrames)
+            continue;
+        snprintf(name, sizeof(name), "%s-win.png", sShots[i].prefix);
+        WriteWindowShot(name, w, h);
+    }
+}
+
 static void UiBlit(const u32 *pixels, int w, int h)
 {
     UpdateDrawable();
     PortShowNewFrame(sDrawW, sDrawH, sDpr, NowMs(), pixels, w, h);
-    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit) {
-        u32 *buf = (u32 *)malloc((size_t)sDrawW * sDrawH * 4);
-        int y;
-
-        if (buf != NULL) {
-            GLR_FN(glReadPixels)(0, 0, sDrawW, sDrawH, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-            for (y = 0; y < sDrawH / 2; y++) {
-                u32 tmp[4096];
-                int n = sDrawW < 4096 ? sDrawW : 4096;
-                memcpy(tmp, buf + y * sDrawW, n * 4);
-                memcpy(buf + y * sDrawW, buf + (sDrawH - 1 - y) * sDrawW, n * 4);
-                memcpy(buf + (sDrawH - 1 - y) * sDrawW, tmp, n * 4);
-            }
-            if (PortNativeWritePng(sReadbackPath, buf, sDrawW, sDrawH))
-                PortLog("[katam-port] wrote %s (%dx%d, the window)", sReadbackPath,
-                        sDrawW, sDrawH);
-            free(buf);
-        }
-    }
+    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit)
+        WriteWindowShot(sReadbackPath, sDrawW, sDrawH);
+    WriteWindowShotsAt(sDrawW, sDrawH);
     if (!sVsync || sTurbo) {
         SDL_GL_SwapWindow(sWindow);
         sPresents++;
@@ -1333,6 +1377,20 @@ static void GpuCompare(const RlFrame *f)
             (unsigned)f->spritesOverflow);
 }
 
+/* The scripted GPU present: the composite, then the HUD layer if any. */
+static double sGpuHudScale = 1.0;
+
+static void GpuPresent(int w, int h)
+{
+    GlrPresent(w, h);
+    if (GlrHudActive()) {
+        int d[4];
+
+        GlrLastPresentRect(d);
+        GlrPresentHud(w, h, d, sGpuHudScale, 0);
+    }
+}
+
 static void GpuBlit(void)
 {
     const RlFrame *f = PortRlCurrentFrame();
@@ -1344,9 +1402,33 @@ static void GpuBlit(void)
          * in game pixels -- applied to the next frame built. */
         s32 vw = (s32)((long)sGpuViewH * w / (h ? h : 1));
         PortRlSetViewSize(vw & ~1, sGpuViewH);
+        PortSimViewRequest(vw & ~1, sGpuViewH);
+    } else {
+        /* The game's spawn window follows the view (platform/view.c); a
+         * recorded request, dropped while replaying. */
+        PortSimViewRequest(sGpuViewW, sGpuViewH);
     }
     if (f == NULL)
         return;
+    {
+        /* The HUD at the size a 240x160 picture would have in this window
+         * (what zoom 1 means here), as its own layer when that is not the
+         * world's scale or the view is smaller than the HUD; see
+         * platform/ui/present.c for the settings-driven equivalent. */
+        int d[4], g[4];
+        double kw, kh;
+
+        GlrFitRect(w, h, f->viewW, f->viewH, d);
+        GlrFitRect(w, h, PORT_SCREEN_W, PORT_SCREEN_H, g);
+        kw = (double)d[3] / f->viewH;
+        kh = (double)g[3] / PORT_SCREEN_H;
+        if (kh > (double)d[2] / PORT_SCREEN_W) kh = (double)d[2] / PORT_SCREEN_W;
+        if (kh > (double)d[3] / PORT_SCREEN_H) kh = (double)d[3] / PORT_SCREEN_H;
+        sGpuHudScale = kh;
+        GlrSetHudLayer(f->world && f->numHud > 0
+                       && (f->viewW < PORT_SCREEN_W || f->viewH < PORT_SCREEN_H
+                           || kw != kh));
+    }
     GlrDraw(f);
     if (sCompareLog != NULL)
         GpuCompare(f);
@@ -1363,26 +1445,10 @@ static void GpuBlit(void)
                 PortLog("[katam-port] wrote %s", name);
         }
     }
-    GlrPresent(w, h);
-    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit) {
-        u32 *buf = (u32 *)malloc((size_t)w * h * 4);
-        int y;
-
-        if (buf != NULL) {
-            /* The window, read back: bottom row first in GL, so flip. */
-            GLR_FN(glReadPixels)(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf);
-            for (y = 0; y < h / 2; y++) {
-                u32 tmp[4096];
-                int n = w < 4096 ? w : 4096;
-                memcpy(tmp, buf + y * w, n * 4);
-                memcpy(buf + y * w, buf + (h - 1 - y) * w, n * 4);
-                memcpy(buf + (h - 1 - y) * w, tmp, n * 4);
-            }
-            if (PortNativeWritePng(sReadbackPath, buf, w, h))
-                PortLog("[katam-port] wrote %s (%dx%d, the window)", sReadbackPath, w, h);
-            free(buf);
-        }
-    }
+    GpuPresent(w, h);
+    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit)
+        WriteWindowShot(sReadbackPath, w, h);
+    WriteWindowShotsAt(w, h);
     /* With --vsync the swap happens in PaceFrame, at display rate. */
     if (!sVsync || sTurbo) {
         SDL_GL_SwapWindow(sWindow);
@@ -1624,7 +1690,7 @@ static void PaceFrame(void)
                 PortShowAgain(sDrawW, sDrawH, sDpr, NowMs());
             } else {
                 GpuDrawSize(&w, &h);
-                GlrPresent(w, h);
+                GpuPresent(w, h);
             }
             SDL_GL_SwapWindow(sWindow);
             sPresents++;
@@ -1825,6 +1891,8 @@ void PortHostInit(int argc, char **argv)
         if (sViewSet)
             PortInputLogNoteView(sViewMode, sViewPadX, sViewPadY, sViewCull, 0, 2);
     }
+    if (sSimViewW > 0)
+        PortSimViewRequest(sSimViewW, sSimViewH);
     {
         int w;
 

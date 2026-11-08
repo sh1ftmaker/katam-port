@@ -25,12 +25,23 @@ warp the host asks for, by frame, as a text file:
     frames 7300
     option rando 4127 0x11         (only if set)
     option view 1 40 0 0 0 2       (only if set)
+    view 1 746 320                 (frame W H: the session view from here on)
     warp 1300 0 101 3 7            (frame player room cellX cellY)
     k 0 000                        (frame mask: the mask from this frame on)
     k 120 011
     end
 
 Inputs only. Nothing in a recording comes from the ROM.
+
+`view` lines are the simulation view (docs/VIEW.md, "Spawn margin"): the
+world view the game's spawn and despawn windows are sized for. The host asks
+for one whenever the GPU view's widest extent changes (the zoom/aspect
+settings, the window's shape, `--gpu-view`, `--sim-view`); the request is
+recorded at the next frame the latch has not yet run, and applied at the latch
+of that frame. The value at a frame is the last `view` line at or before it,
+240x160 if none. A recording without `view` lines replays exactly as before.
+Builds older than the line reject it as unreadable rather than replaying it
+wrong.
 
 **Replay** overrides the latch from the file, so a replay depends on nothing
 the host polls: not the keyboard, not `--mash`, not the harness. Recorded
@@ -140,6 +151,7 @@ fix is host-independent function references (netplay-v2 R5).
 | `play_rooms` | 7300 | boot, then a warp into each of ten level rooms (101, 104, 106, 202, 205, 310, 402, 502, 601, 704) and 600 frames of play in each: float right, Up for doors, exhale |
 | `warp_sweep` | 7060 | boot, then a warp every 160 frames through 36 rooms spread over every area (every eighth room with an arrival cell) |
 | `aim` | 6700 | boot, then 600 hands-off frames in rooms with the code the determinism work changed: Shotzo and Bang-Bang (aim with `ArcTan2`), Kracko, Gobbler (RNG in argument lists), Mega Titan (arm setup through a NULL parent) |
+| `wide_view` | 7900 | `play_rooms`' rooms and play plus Kracko's arena (a scroll lock), with the spawn/despawn windows sized for a 746x320 view (0.5x zoom at 21:9) from frame 1, narrowed to 400x224 at 3400 and to 240x160 at 4600, widened back at 5600 |
 
 Goldens are in `tests/golden/*.hash`, produced by the LP64 build. Every
 run uses a fresh `XDG_DATA_HOME`/`XDG_CONFIG_HOME` -- the native host loads and
@@ -163,6 +175,7 @@ compare `keys`/`vid`/`sram`/`pix` per frame and `sim` through dumps.
 | play_rooms | identical, all 7299 frames | identical but for pointer spelling |
 | warp_sweep | identical, all 7059 frames | identical but for pointer spelling |
 | aim | identical, all 6699 frames | identical but for pointer spelling |
+| wide_view | identical, all 7899 frames | not compared (the regress-wasm gate) |
 
 "Pointer spelling": a stored function pointer is a code address natively and a
 table index in wasm, a pointer to the game's const data is in the executable

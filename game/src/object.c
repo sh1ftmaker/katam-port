@@ -3,6 +3,7 @@
 extern "C" {
 #endif
 
+#include "port/spawn.h"
 #include "kirby.h"
 #include "dark_mind.h"
 #include "functions.h"
@@ -197,6 +198,8 @@ void ObjectMain(void) {
             obj->base.flags |= 0x1000;
         } else {
             if (sub_0803D6B4(obj)) {
+                /* PORT: diagnostics only (KATAM_SPAWNSTAT, port/spawn.h). */
+                PortSpawnNoteDespawn(obj->base.unk56, obj->base.x >> 8, obj->base.y >> 8);
                 if (ObjType0To37(obj)
                     && obj->unk80 <= 0) {
                     switch (RandLessThan3()) {

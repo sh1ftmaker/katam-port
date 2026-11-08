@@ -118,14 +118,59 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   tiles and wraps. One narrower than the view is mirrored. Vertical edges
   repeat the edge row (visible as streaks only where a room is taller than
   its sky, e.g. bottom of room 202 at 400x224).
-* **HUD**: four corner regions, BG1 and HUD sprites both.
+* **HUD**: four corner regions, BG1 and HUD sprites both; see below for
+  its size.
 
-### Object pop-in (game culling, not changed)
+### HUD layer
+
+The HUD lives in GBA screen space, 240x160, and the world view does not:
+zoomed in, the view is narrower and shorter than the HUD, so drawn in view
+pixels its regions overlap and the bottom strip leaves the picture; zoomed
+out, it shrinks with the world. So the HUD has a size of its own, tied to
+the window: **Auto** is the scale the world has at zoom 1 in this window
+(`PortLayoutHudScale`; the scripted path uses the scale a 240x160 picture
+would get), or the player's fixed 1x-8x; either way capped so the whole
+240x160 HUD fits inside the world picture (a portrait phone, Fill window).
+
+When that scale is the world's and the view is at least 240x160 -- zoom 1,
+Auto, any aspect -- the HUD stays in the composite exactly as before (the
+corner offsets are whole view pixels), which keeps the 240x160 picture
+identical to the PPU's. Otherwise (`GlrSetHudLayer`):
+
+* The sprite and composite passes leave the HUD out (the layer in
+  `RL_SPACE_HUD`, the sprites in it) and run again for the HUD alone into a
+  HUD atlas: one slot per region, at HUD coordinates with a 32-px gutter for
+  HUD sprites that hang over their region's edge (a sprite belongs to the
+  region holding its centre, as before, so nothing tears at x=160 or 120).
+  Same priority, window and per-line colour-effect rules, evaluated on the
+  HUD's own lines: a fade darkens or brightens the HUD exactly when it does
+  on the GBA. Where alpha blending has the world as its second target the
+  HUD pixel is written premultiplied (eva/16 of it, 1 - evb/16 of the world)
+  and blended at present -- the one place this is an approximation (no
+  5-bit rounding); a world layer the GBA would have drawn *over* the HUD by
+  priority is under it here.
+* `GlrPresentHud` draws each slot over the world picture, pinned to its
+  corner (or centred, original strip), nearest or -- with Smooth scaling and
+  a fractional scale -- sharp bilinear.
+
+Non-world frames (title, menus, pause) have no HUD regions and are the
+240x160 picture as always. Checked: forcing the layer at 1:1
+(`KATAM_HUD_LAYER=1`, window 240x160) gives the same window, pixel for
+pixel, as the in-composite HUD on every 15th frame of play_rooms and
+warp_sweep (956 frames, fades included). `--shot-at F:PREFIX` also writes
+`PREFIX-win.png`, the presented window, which is the picture that has the
+HUD layer in it (`PREFIX-gpu.png` is the composite only).
+
+### Object pop-in
 
 The game spawns objects 48 px (3 cells) past the 240x160 screen and destroys
-them past a 48-px margin; changing that changes the simulation and is a later
-decision. `KATAM_RL_POPSTAT=1` counts objects appearing/vanishing inside the
-view but outside 240x160 (room entries excluded):
+them past a 48-px margin. Those windows now follow the GPU view as a recorded
+simulation input (docs/VIEW.md, "Spawn margin"; the numbers below are from
+before that, with the stock windows). `KATAM_SPAWNSTAT=WxH` counts spawns and
+despawns inside a view, which is the measure that matters now (0 scroll-in
+spawns in view at 746x320, against 32 before). `KATAM_RL_POPSTAT=1` counts
+sprites appearing/vanishing inside the view but outside 240x160 (room entries
+excluded), animation and emitted effects included:
 
 | view | play_rooms | warp_sweep | attract |
 |---|---|---|---|
@@ -181,6 +226,7 @@ until the next 59.73 Hz sim frame is due (`PaceFrame`).
 * **Asset-by-id (M9, L)**: replace `map`/tile/palette references with
   resource ids; tiles as atlas textures, the composite unchanged in shape.
 * **Per-element HUD anchors** (S): regions from hud.c's own element list.
-* **Culling** (sim decision): a wider spawn/despawn window would remove the
-  pop-in above but changes the simulation and needs re-recorded goldens and
-  netplay agreement on the view.
+  The HUD layer's atlas takes any number of regions up to 8 unchanged.
+* **Culling**: done. The spawn/despawn windows follow the view, as a
+  recorded input (docs/VIEW.md, "Spawn margin"). Netplay holds them at
+  240x160 until v2 agrees on a session view.

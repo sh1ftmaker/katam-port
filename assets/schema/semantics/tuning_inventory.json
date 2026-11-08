@@ -1,0 +1,591 @@
+{
+  "format": "katam-semantics/1",
+  "record": "tuning_inventory",
+  "description": "Where the gameplay tuning numbers live in game/src, whether they are table-driven or literal, and whether they can become a data resource (MODDING.md R1/R2). Units: speeds are fx8.8 px/frame, timers are frames, hp/damage are hit points.",
+  "items": [
+    {
+      "id": "enemy.hp",
+      "subject": "enemies (types 0x00..0x37, plus items/projectiles)",
+      "what": "starting hit points",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2083",
+          "code": "arg0->unk80 = gUnk_08351648[arg0->type].unk4;",
+          "note": "obj_desc.unk4 -> Object.unk80"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "Already a manifest kind (obj_desc). Editing unk4 changes HP for every placement of the type. It also feeds the power of the star Kirby spits after inhaling (see kirby.spit_star_power) and is the heal amount for food items."
+    },
+    {
+      "id": "enemy.score",
+      "subject": "all killable types",
+      "what": "score awarded on kill",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:191",
+          "code": "gKirbys[obj->unk86].score += gUnk_08351648[obj->type].unk2;"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "obj_desc.unk2."
+    },
+    {
+      "id": "enemy.copy_ability",
+      "subject": "enemies, some boss projectiles",
+      "what": "copy ability granted on inhale",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2057",
+          "code": "arg0->kirbyAbility = gUnk_08351648[arg0->type].kirbyAbility;"
+        },
+        {
+          "loc": "game/src/golem.c:473",
+          "code": "golem->kirbyAbility = KIRBY_ABILITY_STONE;",
+          "note": "per-constructor override (literal)"
+        },
+        {
+          "loc": "game/src/ability_objects.c:612",
+          "code": "arg0->kirbyAbility = gUnk_083538FC[arg0->objTemplate->subtype1];",
+          "note": "ability statues: subtype1 -> ability via small C tables"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "obj_desc.kirbyAbility covers most types; Golem (stone/wheel), Droppy (copies Kirby) and the statues override it in code."
+    },
+    {
+      "id": "enemy.contact_damage",
+      "subject": "all objects",
+      "what": "damage dealt to Kirby on contact (ObjectBase.unk63 = attack power)",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2040",
+          "code": "arg0->base.unk63 = 1;",
+          "note": "InitObject default: every enemy hits for 1"
+        },
+        {
+          "loc": "game/src/kirby.c:9026",
+          "code": "if (kirby->hp == 0 || (kirby->hp -= objBase->unk63) <= 0)",
+          "note": "Kirby loses unk63 hp"
+        },
+        {
+          "loc": "game/src/mr_frosty.c:796",
+          "code": "objBase->unk63 = 1;",
+          "note": "boss attack sub-objects set their own, almost always 1"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "There is no per-type contact-damage table: InitObject hard-codes 1 and ~50 enemy/boss attack constructors set unk63 themselves. A data form would add a field to an obj_desc extension (or to a per-attack table)."
+    },
+    {
+      "id": "enemy.element_modifiers",
+      "subject": "enemies + bosses (types 0x00..0x5C)",
+      "what": "per-type damage modifier for each attack kind (resist/weakness): Object.unk91..unk96",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:51",
+          "code": "static const struct Unk_08352AD0 gUnk_08352AD0[] = {",
+          "note": "C const table, 6 x s8 per type"
+        },
+        {
+          "loc": "game/src/object.c:2107",
+          "code": "arg0->unk91 = gUnk_08352AD0[arg0->type].unk1;",
+          "note": "copied in InitObject"
+        },
+        {
+          "loc": "game/src/object.c:553",
+          "code": "if ((r7 += r10->unk91) <= 0)",
+          "note": "added to the attacker's unk63 when its unk68 has bit 0x100; result floored at 1"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "Struct Unk_08352AD0 in game/include/data.h. Which unk68 attack bit maps to which column: 0x100->unk91, 0x200->unk92, 0x400->unk93, 0x1000->unk94, 0x4000->unk96, 0x2000->unk95, 0x40->unk94, 0x10000->unk97 (sub_0809AA10). Dark Mind overrides them with literals (-8/-32) in dark_mind.c. Good candidate for a new manifest kind next to obj_desc."
+    },
+    {
+      "id": "enemy.hitbox",
+      "subject": "all objects",
+      "what": "hurt/hit rectangle (ObjectBase.unk38..unk3B) and terrain-collision bounds (unk3C..unk3F)",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2048",
+          "code": "sub_0803E2B0(&arg0->base, -4, -8, 4, 10);",
+          "note": "InitObject default hit rect"
+        },
+        {
+          "loc": "game/src/waddle_dee.c:45",
+          "code": "sub_0803E2B0(&obj->base, -5, -4, 5, 7);",
+          "note": "per-constructor hit rect (left, top, right, bottom px)"
+        },
+        {
+          "loc": "game/src/waddle_dee.c:46",
+          "code": "ObjectSetBounds(&obj->base, -6, -5, 6, 9);",
+          "note": "terrain bounds"
+        },
+        {
+          "loc": "game/src/bronto_burt.c:137",
+          "code": "sub_0803E2B0(&obj->base, -5, -6, 5, 5);"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "Each constructor calls sub_0803E2B0 / ObjectSetBounds with literals, often re-set per state (Waddle Dee 4x, Kirby attack objects ~90x). A per-type 'default hitbox' table could replace the constructor call; per-state changes stay in code."
+    },
+    {
+      "id": "enemy.movement",
+      "subject": "regular enemies",
+      "what": "walk/fly speeds, jump impulses, turn timers",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/bronto_burt.c:245",
+          "code": "else obj->base.xspeed = 0xC0;",
+          "note": "fx8.8 px/frame; subtype selects 0x100"
+        },
+        {
+          "loc": "game/src/bronto_burt.c:230",
+          "code": "obj->base.yspeed = -0x28A;"
+        },
+        {
+          "loc": "game/src/waddle_dee.c:109",
+          "code": "arg0->base.xspeed = -0x80;"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "Hard-coded in each behaviour state function. Moving them to data means a per-type parameter block and a code change in every enemy file; low value per effort except for a few showcase enemies."
+    },
+    {
+      "id": "enemy.motion_scripts",
+      "subject": "24 enemy/boss files (Heavy Knight, Kracko, Foley, Droppy, Batty, ...)",
+      "what": "keyframed motion: {xspeed, yspeed, xaccel, yaccel, frames, animSlot} steps",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/kracko.c:65",
+          "code": "static const struct Unk_08353510 gUnk_08356418[] = {",
+          "note": "struct Unk_08353510 (game/include/data.h:793)"
+        },
+        {
+          "loc": "game/src/heavy_knight.c:168",
+          "code": "arg0->unk9E = gUnk_08354C08[arg0->unk9F].unk8;",
+          "note": "unk8 = frames for this step; a 0 terminates"
+        },
+        {
+          "loc": "game/src/heavy_knight.c:174",
+          "code": "arg0->base.xspeed = gUnk_08354C08[arg0->unk9F].unk0;"
+        },
+        {
+          "loc": "game/src/heavy_knight.c:170",
+          "code": "arg0->unk83 = gUnk_08354C08[arg0->unk9F].unk9;",
+          "note": "unk9 = anim slot, 0xFF = keep"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "Static const C arrays at fixed ROM addresses (named gUnk_0835xxxx). Each is a self-contained, terminated list: an easy 'motion_script' resource kind. Kirby also has one pointer of this type (Kirby.unk114, ROM table gUnk_08D6112C)."
+    },
+    {
+      "id": "enemy.vram_palette",
+      "subject": "all sprite objects",
+      "what": "tile budget, palette, animation list",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2166",
+          "code": "VramMalloc(gUnk_08351648[arg0->type].numTiles);"
+        },
+        {
+          "loc": "game/src/object.c:2174",
+          "code": "r4 = gUnk_08351648[arg0->type].unk8;"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "obj_desc.numTiles / unk8 / unk14. Not gameplay tuning, but a mod that changes a sprite needs them."
+    },
+    {
+      "id": "kirby.hp",
+      "subject": "Kirby",
+      "what": "max hp",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:6187",
+          "code": "kirby->hp = kirby->maxHp = NumVitalitiesCollected() + 6;"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "6 + vitality pickups; one literal."
+    },
+    {
+      "id": "kirby.physics.walk_run",
+      "subject": "Kirby",
+      "what": "walk / dash max speed and acceleration",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:14487",
+          "code": "r3 = kirby->base.unkC & 0x40 ? 0x1AC : 0x14C;",
+          "note": "walk cap 0x14C (0x1AC with unkC&0x40); flags&0x10 path uses 0x1DC/0x24C; accel 0x20/frame"
+        },
+        {
+          "loc": "game/src/kirby.c:14519",
+          "code": "s32 r3 = kirby->base.unkC & 0x40 ? 0x25E : 0x1F8;",
+          "note": "dash cap 0x1F8, accel 0x30"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "All Kirby movement constants are literals inside ~40 state functions (kirby.c lines 6000..16500), several duplicated per ability/medium (water, Mini, UFO). A 'kirby_physics' table is feasible but touches many sites; worth it only for a curated subset (walk, dash, jump, gravity, float).",
+      "confidence": "likely"
+    },
+    {
+      "id": "kirby.physics.jump_gravity",
+      "subject": "Kirby",
+      "what": "jump impulse, gravity, terminal fall speed",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:8248",
+          "code": "kirby->base.yspeed = 0x300;",
+          "note": "jump impulse"
+        },
+        {
+          "loc": "game/src/kirby.c:8317",
+          "code": "kirby->base.yspeed -= 58;",
+          "note": "gravity while rising"
+        },
+        {
+          "loc": "game/src/kirby.c:9542",
+          "code": "kirby->base.yspeed -= 24;",
+          "note": "gravity while falling"
+        },
+        {
+          "loc": "game/src/kirby.c:9543",
+          "code": "if (kirby->base.yspeed < -0x250)",
+          "note": "terminal fall speed (repeated at ~15 sites)"
+        },
+        {
+          "loc": "game/src/kirby.c:7881",
+          "code": "(kirby)->base.yspeed -= 38; \\",
+          "note": "Macro_080435F8_3: other air state; water variant -8 / -0xE0"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "Same constants repeated at many sites (e.g. -0x250 cap in ~15 places): first step would be named constants, then a table.",
+      "confidence": "likely"
+    },
+    {
+      "id": "kirby.physics.float",
+      "subject": "Kirby",
+      "what": "float (puffed) horizontal cap, flap lift, sink rate",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:14569",
+          "code": "kirby->base.yspeed += 120;",
+          "note": "flap: +120 up to 0x150; sink -0x16 to -0x120; x cap 0x110"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "sub_0805B450.",
+      "confidence": "likely"
+    },
+    {
+      "id": "kirby.physics.tables",
+      "subject": "Kirby",
+      "what": "a few small motion curves are C tables",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:416",
+          "code": "extern const s16 gUnk_0834C190[] = { -0x380",
+          "note": "yspeed curve indexed by counter"
+        },
+        {
+          "loc": "game/src/kirby.c:13042",
+          "code": "kirby->base.yspeed = gUnk_0834C190[kirby->base.counter >> 1];"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "gUnk_0834C160..gUnk_0834C5B7 (kirby.c:386..715): short velocity/offset curves. Already data-shaped."
+    },
+    {
+      "id": "ability.attack_damage",
+      "subject": "Kirby copy abilities",
+      "what": "damage (unk63) and attack-kind bits (unk68) of each attack object",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/code_0806F780.c:1526",
+          "code": "objBase->unk63 = 3;",
+          "note": "Fighter 3 / Sword 4 / default 2 in one shared constructor"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:1521",
+          "code": "objBase->unk68 |= 0x10400042;",
+          "note": "attack-kind bits select the element modifier column"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:1969",
+          "code": "objBase->unk63 = 0x19;",
+          "note": "25 vs 10 depending on transitioningAbility"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:4544",
+          "code": "throwObj->base.unk63 = 0xC;"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "~97 unk63 assignments in code_0806F780.c, one per attack object constructor (plus kirby.c). No per-ability stat table exists. A per-attack table keyed by constructor is possible but each constructor must be rewritten."
+    },
+    {
+      "id": "ability.projectile_speed",
+      "subject": "Kirby copy abilities",
+      "what": "projectile / dash speeds and lifetimes",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/code_0806F780.c:2138",
+          "code": "objBase->xspeed = -0x3C0;"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:3962",
+          "code": "var->base.xspeed = 0x600;"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "Literals inside each attack object's constructor/state; lifetimes are counter comparisons in the same functions."
+    },
+    {
+      "id": "ability.dispatch",
+      "subject": "Kirby copy abilities",
+      "what": "per-ability behaviour and animation tables",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/kirby.c:629",
+          "code": "void (*const gUnk_0834C4B0[])(struct Kirby *) = {",
+          "note": "function table by KIRBY_ABILITY"
+        },
+        {
+          "loc": "game/src/kirby.c:666",
+          "code": "extern const u8 gUnk_0834C534[] = {",
+          "note": "ability list (roulette/random ability order)"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "Function-pointer tables are code, not tuning. The u8 ability lists and AnimInfo tables are data (gUnk_08350AAC/08350B30 HUD icons, gUnk_08D60FDC per-ability animation sets)."
+    },
+    {
+      "id": "kirby.spit_star_power",
+      "subject": "Kirby",
+      "what": "damage of the star spat after inhaling an object",
+      "kind": "derived",
+      "locations": [
+        {
+          "loc": "game/src/code_0806F780.c:5820",
+          "code": "var->base.unk63 = (gUnk_08351648[obj->type].unk4 >> 1) + 9;"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "Derived from obj_desc.unk4 (hp): editing an enemy's hp also changes its star's power."
+    },
+    {
+      "id": "item.heal",
+      "subject": "food / items 0x5E..0x64",
+      "what": "heal amount and rate",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/bonus.c:200",
+          "code": "kirby->unkE2 = gUnk_08351648[arg0->type].unk4;",
+          "note": "amount from obj_desc.unk4"
+        },
+        {
+          "loc": "game/src/bonus.c:182",
+          "code": "if (++arg0->base.counter > 4) {",
+          "note": "rate: 1 hp per 5 frames (literal)"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "Amount is in obj_desc; rate and the bonus roulette values (e.g. bonus.c:263 unkE2 = 1000) are literals."
+    },
+    {
+      "id": "boss.hp",
+      "subject": "bosses / mini-bosses 0x38..0x52",
+      "what": "starting hp by number of human players (1..4)",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2078",
+          "code": "arg0->unk80 = gUnk_08351530[ObjTypeAltIdx(arg0)][gNumHumanPlayers - 1];",
+          "note": "s16[27][4], index type-0x38"
+        },
+        {
+          "loc": "game/include/data.h:788",
+          "code": "extern const s16 gUnk_08351530[][4];",
+          "note": "ROM-resident (PORT: replaced by port/rom_data.h)"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "ROM table at 0x08351530 (27 x 4 x s16), not yet a manifest kind: add 'boss_hp'. obj_desc.unk4 is ignored for these types. Rows 0x40..0x44 (empty types) are 2."
+    },
+    {
+      "id": "boss.hp.dark_mind",
+      "subject": "Dark Mind form 1 (0x4F)",
+      "what": "hp per encounter (placement subtype2 0..3) and player count",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:2074",
+          "code": "arg0->unk80 = gUnk_08351608[arg1->subtype2][gNumHumanPlayers - 1];"
+        },
+        {
+          "loc": "game/src/dark_mind.c:685",
+          "code": "r5->unk0.unk80 = gUnk_08351608[r5->unk0.subtype][gNumHumanPlayers - 1];"
+        },
+        {
+          "loc": "game/src/dark_mind.c:678",
+          "code": "r5->unk0.subtype = 3;",
+          "note": "forced to the last row when gUnk_0203AD10 & 4"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "ROM table at 0x08351608, s16[8][4]: rows 0..3 are hp; rows 4..7 equal 0x4000/hp of rows 0..3 (a HUD scale like gUnk_08351458) but no reader of rows 4..7 was found."
+    },
+    {
+      "id": "boss.hud_scale",
+      "subject": "bosses",
+      "what": "HUD hp-bar scale per boss and player count",
+      "kind": "derived",
+      "locations": [
+        {
+          "loc": "game/src/hud.c:850",
+          "code": "scaledHp = tracked->unk80 * gUnk_08351458[ObjTypeAltIdx(tracked)][gNumHumanPlayers - 1];"
+        },
+        {
+          "loc": "game/src/hud.c:42",
+          "code": "extern const u16 gUnk_08351458[27][4];"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "Every entry is floor(0x4000 / boss.hp) for the same cell (checked against the ROM). A mod that edits boss hp must regenerate it, or the bar will be wrong: make the pack compiler derive it."
+    },
+    {
+      "id": "boss.phase_threshold",
+      "subject": "bosses",
+      "what": "phase change at half hp (some bosses also at 1/4 and 3/4)",
+      "kind": "derived",
+      "locations": [
+        {
+          "loc": "game/src/boxy.c:154",
+          "code": "else if (boxy->obj.unk80 <= gUnk_08351530[5][gNumHumanPlayers - 1] >> 1)"
+        },
+        {
+          "loc": "game/src/master_hand.c:212",
+          "code": "if (mh->subtype || mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)",
+          "note": "subtype (placement subtype2) != 0 forces the second phase"
+        },
+        {
+          "loc": "game/src/kracko.c:432",
+          "code": "if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)"
+        },
+        {
+          "loc": "game/src/dark_meta_knight.c:1459",
+          "code": "(gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1) - (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 2))",
+          "note": "quarter thresholds"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "Derived from boss.hp (>>1, >>2) with the row index as a literal in each file. Quirk: dark_meta_knight.c uses row 0x10 (Gobbler's) for all its thresholds, not its own row 0x16 (the hp it starts with): editing DMK's hp does not move its phase points. Mr Frosty, Box Boxer and Crazy Hand have no hp-based phase; they only use subtype."
+    },
+    {
+      "id": "boss.attack_timers",
+      "subject": "bosses",
+      "what": "attack choice odds, wind-up / cooldown timers, speeds",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/mr_frosty.c:182",
+          "code": "mf->base.counter = 0x5A;",
+          "note": "wake-up delay"
+        },
+        {
+          "loc": "game/src/mr_frosty.c:197",
+          "code": "if (!RandLessThan(7))",
+          "note": "attack choice odds"
+        },
+        {
+          "loc": "game/src/mr_frosty.c:226",
+          "code": "mf->base.xspeed = 0x190;",
+          "note": "0x200 when subtype != 0"
+        },
+        {
+          "loc": "game/src/mr_frosty.c:234",
+          "code": "mf->base.counter = 0x107;"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "Every boss file is a state machine with literal counters and RandLessThan / Rand16()&N odds (Dark Mind: ~100 Rand sites). Some movement is in motion-script tables (Kracko, Batafire, Gobbler, Bombar: see enemy.motion_scripts)."
+    },
+    {
+      "id": "boss.music",
+      "subject": "bosses",
+      "what": "song played when the fight starts",
+      "kind": "table",
+      "locations": [
+        {
+          "loc": "game/src/object.c:140",
+          "code": "extern const u16 gUnk_08352D80[] = {",
+          "note": "u16 per boss index"
+        },
+        {
+          "loc": "game/include/object.h:196",
+          "code": "SetRoomMusicId(_r6, gUnk_08352D80[_r3]);",
+          "note": "suppressed by placement unk22 & 4"
+        }
+      ],
+      "data_candidate": "yes",
+      "notes": "Small C table; trivially data."
+    },
+    {
+      "id": "boss.defeat_reward",
+      "subject": "bosses 0x43..0x52",
+      "what": "what defeating a boss does (mirror shard drop, positions)",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/code_0806F780.c:565",
+          "code": "void (*const gUnk_08350E58[])(struct Object *) = {",
+          "note": "function table indexed type-0x43"
+        },
+        {
+          "loc": "game/src/code_0806F780.c:9436",
+          "code": "gUnk_08350E58[obj->type - OBJ_EMPTY_43](obj);"
+        }
+      ],
+      "data_candidate": "no",
+      "notes": "Each handler hard-codes shard number and drop position (e.g. x=0x80, y=0x50). Progress logic, not tuning."
+    },
+    {
+      "id": "boss.attack_damage",
+      "subject": "boss attack objects",
+      "what": "damage of boss projectiles/attacks",
+      "kind": "literal",
+      "locations": [
+        {
+          "loc": "game/src/mr_frosty.c:796",
+          "code": "objBase->unk63 = 1;"
+        },
+        {
+          "loc": "game/src/dark_meta_knight.c:3221",
+          "code": "objBase->unk63 = 0;"
+        }
+      ],
+      "data_candidate": "partial",
+      "notes": "As for enemies: per attack constructor. Nearly all are 1, so a per-type field would cover most of them."
+    }
+  ]
+}

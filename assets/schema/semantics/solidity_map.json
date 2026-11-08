@@ -1,0 +1,609 @@
+{
+  "format": "katam-semantics/1",
+  "notes": [
+    "gSolidityMaps[RoomProps.solidityMapIdx] (0x08D63330, 287 pointers) -> struct SolidityMap: the room's collision grid plus a list of per-cell records.",
+    "The cell-record list is walked by sub_080025AC with NO terminator test: it searches for the record whose (cellValue, x, y) equals the live collision cell and loops forever if none exists. Every code path that calls it (block breaking, door objects, Kirby door transitions) must therefore find its record: a breakable block or door cell without a record hangs the game. docs/naming/warp-hang.md is a real instance.",
+    "Retail data: 9500 tag-1 records, 724 tag-3 records, 0 tag-2 records; every list ends with a record whose stride is 0. 10142 of 10224 record keys equal the room's initial collision value at (x, y); the other 82 key on a value the cell only takes after an earlier patch (chained changes, e.g. a hidden door revealed by a switch: 40 records turn air into door index 255).",
+    "Door cells: 724 tag-3 records across 559 distinct (destRoom, destX, destY) triples: a door is usually 2 vertically adjacent cells, one logical door. progress_list.json holds exactly one tag-2 entry per logical door, and the two must stay paired."
+  ],
+  "records": [
+    {
+      "record": "solidity_map",
+      "c_type": "struct SolidityMap",
+      "c_decl": "game/include/data.h:879",
+      "size": 8,
+      "table": {
+        "symbol": "gSolidityMaps",
+        "addr": "0x08D63330",
+        "count": 287,
+        "index": "RoomProps.solidityMapIdx"
+      },
+      "description": "Per-room collision grid and cell-record list.",
+      "fields": [
+        {
+          "field": "unk0",
+          "offset": 0,
+          "type": "ptr",
+          "name": "collisionGrid",
+          "description": "BIOS run-length-compressed (RLUnCompWram) grid of u8 cells, one per 16x16 px, row-major, stride roomWidth/16 (= foreground width/2). Each byte is an index into gCollisionAttributes (metatile_attributes.json). Decompressed into gUnk_02024ED0[roomSlot] (1950 bytes per slot: the hard size cap for a room: (w/16)*(h/16) <= 1950).",
+          "unit": "ptr to RL blob of u8 index:gCollisionAttributes",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/level.c:362",
+              "code": "RLUnCompWram(gSolidityMaps[gRoomProps[roomId].solidityMapIdx]->unk0, gUnk_02024ED0[levelInfo->unk65E]);"
+            },
+            {
+              "loc": "game/src/code_080023A4.c:1371",
+              "code": "u8 var2 = gUnk_02024ED0[var0->unk65E][y * (var0->roomWidth / 16) + x];"
+            },
+            {
+              "data": "declared decompressed size == (fgWidth/2)*(fgHeight/2) in 286/286 rooms; room 803's grid matched the running game byte for byte (docs/ROOM-FORMAT.md section 5)"
+            }
+          ]
+        },
+        {
+          "field": "unk4",
+          "offset": 4,
+          "type": "ptr",
+          "name": "cellRecords",
+          "description": "Head of the room's cell-record list (cell_record_patch16 / cell_record_door, self-striding, tag-discriminated). Copied to LevelInfo.unk1E0 at load.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/level.c:229",
+              "code": "levelInfo->unk1E0 = gSolidityMaps[gRoomProps[roomId].solidityMapIdx]->unk4;"
+            },
+            {
+              "loc": "game/src/code_080023A4.c:1385",
+              "code": "var1.pat1 = (void *) var1.pat1 + var1.pat1->unk04;",
+              "note": "walk by the u16 stride at +4, no terminator test"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "record": "cell_record_patch16",
+      "c_type": "struct Unk_0888562C",
+      "c_decl": "game/include/data.h:119",
+      "size": 18,
+      "description": "Tag 1: 'what this cell becomes'. Keyed by (current collision value, cell x, cell y); applying it (sub_08001408) writes four new 16-bit tilemap entries over the cell's 2x2 tiles and a new collision value into the grid, and redraws the cell for every player in the room. Applied when a breakable block is destroyed (object_collision.c), by chain explosions, switches/levers and door objects. A block of N breakable cells needs N records.",
+      "fields": [
+        {
+          "field": "unk00",
+          "offset": 0,
+          "type": "u8",
+          "name": "tag",
+          "description": "record kind: 1 = this layout",
+          "enum": {
+            "1": {
+              "name": "patch16"
+            }
+          },
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:603",
+              "code": "if (arg1.pat1->unk00 == 1) {"
+            },
+            {
+              "data": "9500 records"
+            }
+          ]
+        },
+        {
+          "field": "unk01",
+          "offset": 1,
+          "type": "u8",
+          "name": "keyValue",
+          "description": "Collision value (gCollisionAttributes index) the cell must currently hold for this record to match.",
+          "unit": "index:gCollisionAttributes",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1377",
+              "code": "var1.pat1->unk01 == var2 &&"
+            },
+            {
+              "data": "most common keys: 242 chain_solid 4074, 240 breakable_0 2623, 243 chain_gap 694, 241 403, 245 358, 0 air 343, 247 331, 13 solid 255"
+            }
+          ]
+        },
+        {
+          "field": "unk02",
+          "offset": 2,
+          "type": "u8",
+          "name": "cellX",
+          "unit": "cell16",
+          "description": "Cell column of the patched cell.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1378",
+              "code": "var1.pat1->unk02 == x &&"
+            },
+            {
+              "loc": "game/src/code_080023A4.c:608",
+              "code": "+ ((var1->unk03 << 1) * var0 + var1->unk02 * 2);",
+              "note": "tile coords = 2 * cell coords"
+            }
+          ]
+        },
+        {
+          "field": "unk03",
+          "offset": 3,
+          "type": "u8",
+          "name": "cellY",
+          "unit": "cell16",
+          "description": "Cell row of the patched cell.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1379",
+              "code": "var1.pat1->unk03 == y"
+            }
+          ]
+        },
+        {
+          "field": "unk04",
+          "offset": 4,
+          "type": "u16",
+          "name": "size",
+          "unit": "bytes",
+          "description": "Byte stride to the next record (18 for this tag in retail data; 0 ends the list).",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1385",
+              "code": "var1.pat1->unk04;"
+            },
+            {
+              "data": "18 in all 9500 tag-1 records"
+            }
+          ]
+        },
+        {
+          "field": "filler06",
+          "offset": 6,
+          "type": "u16",
+          "name": null,
+          "description": "Never read; 0xFFFF in retail data.",
+          "usage": "padding",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "0xFFFF in 9500/9500"
+            }
+          ]
+        },
+        {
+          "field": "unk08",
+          "offset": 8,
+          "type": "u16[4]",
+          "name": "newTiles",
+          "description": "Replacement playfield tilemap entries (BG screen-entry format: tile index | hflip | vflip | palette) for the cell's top-left, top-right, bottom-left, bottom-right 8x8 tiles.",
+          "unit": "tilemap entry",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:619",
+              "code": "var3[0]        = var1->unk08[0];"
+            },
+            {
+              "loc": "game/src/code_080023A4.c:622",
+              "code": "var3[var0 + 1] = var1->unk08[3];"
+            }
+          ]
+        },
+        {
+          "field": "unk10",
+          "offset": 16,
+          "type": "u8",
+          "name": "newValue",
+          "unit": "index:gCollisionAttributes",
+          "description": "Collision value written into the cell. Usually 0 (air) for a broken block, 72 (water) underwater, 13 solid etc.; 255 (door) reveals a door.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:630",
+              "code": "var4[0] = var1->unk10;"
+            },
+            {
+              "data": "0 in 7529, 72 in 618, 13 in 593, 255 in 82 records"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "record": "cell_record_patch8",
+      "c_type": "struct Unk_0888562C_2",
+      "c_decl": "game/include/data.h:130",
+      "size": 14,
+      "description": "Tag 2: the 8-bit-tilemap variant of patch16 (the else branch of sub_08001408 writes u8 tilemap entries). No retail room uses it; it pairs with the equally dead RoomTiledBG.unk1C 8-bit tilemap switch. Do not emit it.",
+      "fields": [
+        {
+          "field": "unk00",
+          "offset": 0,
+          "type": "u8",
+          "name": "tag",
+          "enum": {
+            "2": {
+              "name": "patch8"
+            }
+          },
+          "description": "record kind",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:633",
+              "code": "struct Unk_0888562C_2 *var5 = arg1.pat2;"
+            },
+            {
+              "data": "0 records in retail data"
+            }
+          ]
+        },
+        {
+          "field": "unk01",
+          "offset": 1,
+          "type": "u8",
+          "name": "keyValue",
+          "description": "as patch16",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1377",
+              "code": "var1.pat1->unk01 == var2 &&"
+            }
+          ]
+        },
+        {
+          "field": "unk02",
+          "offset": 2,
+          "type": "u8",
+          "name": "cellX",
+          "unit": "cell16",
+          "description": "as patch16",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:637",
+              "code": "+ ((var5->unk03 << 1) * var0 + var5->unk02 * 2);"
+            }
+          ]
+        },
+        {
+          "field": "unk03",
+          "offset": 3,
+          "type": "u8",
+          "name": "cellY",
+          "unit": "cell16",
+          "description": "as patch16",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:637",
+              "code": "(var5->unk03 << 1)"
+            }
+          ]
+        },
+        {
+          "field": "unk04",
+          "offset": 4,
+          "type": "u16",
+          "name": "size",
+          "unit": "bytes",
+          "description": "stride",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1385",
+              "code": "var1.pat1->unk04;"
+            }
+          ]
+        },
+        {
+          "field": "filler06",
+          "offset": 6,
+          "type": "u16",
+          "name": null,
+          "description": "never read",
+          "usage": "padding",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "data": "no records"
+            }
+          ]
+        },
+        {
+          "field": "unk08",
+          "offset": 8,
+          "type": "u8[4]",
+          "name": "newTiles",
+          "description": "replacement 8-bit tilemap entries (2x2)",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:648",
+              "code": "var7[0]        = var5->unk08[0];"
+            }
+          ]
+        },
+        {
+          "field": "unk0C",
+          "offset": 12,
+          "type": "u8",
+          "name": "newValue",
+          "unit": "index:gCollisionAttributes",
+          "description": "new collision value",
+          "usage": "code_only",
+          "confidence": "likely",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:659",
+              "code": "var8[0] = var5->unk0C;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "record": "cell_record_door",
+      "c_type": "struct Unk_0888562C_3",
+      "c_decl": "game/include/data.h:141",
+      "size": 14,
+      "description": "Tag 3: a door cell. Keyed like the patches by (door collision value 252-255, cell x, cell y); carries the destination. Read by Kirby's room transition (sub_080562D0) and by door objects (OBJ_DOOR/mirror_door.c, special_doors.c, special_hub_mirror.c), which also use (destRoom, destX, destY) to look up and set the door's 'used' bit in the source room's progress list.",
+      "fields": [
+        {
+          "field": "unk00",
+          "offset": 0,
+          "type": "u8",
+          "name": "tag",
+          "enum": {
+            "3": {
+              "name": "door"
+            }
+          },
+          "description": "record kind",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "724 records"
+            },
+            {
+              "loc": "game/src/mirror_door.c:117",
+              "code": "sub_080025AC(md->obj.base.unk56, md->unkBC, md->unkBE).pat3;"
+            }
+          ]
+        },
+        {
+          "field": "unk01",
+          "offset": 1,
+          "type": "u8",
+          "name": "keyValue",
+          "unit": "index:gCollisionAttributes",
+          "description": "The door cell's collision value: 255 door (535), 254 auto-warp door (123), 252/253 underwater doors (42/24).",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1377",
+              "code": "var1.pat1->unk01 == var2 &&"
+            },
+            {
+              "data": "keys are only 252..255, the four door indices"
+            }
+          ]
+        },
+        {
+          "field": "unk02",
+          "offset": 2,
+          "type": "u8",
+          "name": "cellX",
+          "unit": "cell16",
+          "description": "Door cell column in THIS room.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1378",
+              "code": "var1.pat1->unk02 == x &&"
+            }
+          ]
+        },
+        {
+          "field": "unk03",
+          "offset": 3,
+          "type": "u8",
+          "name": "cellY",
+          "unit": "cell16",
+          "description": "Door cell row in THIS room.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/code_080023A4.c:1379",
+              "code": "var1.pat1->unk03 == y"
+            }
+          ]
+        },
+        {
+          "field": "unk04",
+          "offset": 4,
+          "type": "u16",
+          "name": "size",
+          "unit": "bytes",
+          "description": "stride (14)",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "14 in 724/724"
+            }
+          ]
+        },
+        {
+          "field": "filler06",
+          "offset": 6,
+          "type": "u16",
+          "name": null,
+          "description": "never read; 0xFFFF",
+          "usage": "padding",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "0xFFFF in 724/724"
+            }
+          ]
+        },
+        {
+          "field": "unk08",
+          "offset": 8,
+          "type": "u16",
+          "name": "destRoom",
+          "unit": "room id",
+          "description": "Destination room id.",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/kirby.c:12893",
+              "code": "kirby->base.roomId = r4.pat3->unk08;"
+            },
+            {
+              "data": "a valid room id in 724/724"
+            }
+          ]
+        },
+        {
+          "field": "unk0A",
+          "offset": 10,
+          "type": "u8",
+          "name": "destX",
+          "unit": "cell16",
+          "description": "Arrival cell column in the destination room: Kirby is placed at destX*16 - 8 px (the left half-cell edge of the cell centre convention used by spawn points).",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/kirby.c:12894",
+              "code": "kirby->base.x = (r4.pat3->unk0A << 12) - 0x800;"
+            }
+          ]
+        },
+        {
+          "field": "unk0B",
+          "offset": 11,
+          "type": "u8",
+          "name": "destY",
+          "unit": "cell16",
+          "description": "Arrival cell row: Kirby's y = destY*16 - 7 px (feet on the floor of the cell above).",
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "loc": "game/src/kirby.c:12895",
+              "code": "kirby->base.y = (r4.pat3->unk0B << 12) - 0x701;"
+            }
+          ]
+        },
+        {
+          "field": "unk0C",
+          "offset": 12,
+          "type": "u8",
+          "name": "arrivalFlags",
+          "description": "Arrival behaviour bits.",
+          "range": [
+            0,
+            255
+          ],
+          "bits": [
+            {
+              "mask": "0x01",
+              "name": "faceRight",
+              "description": "arrive facing right",
+              "usage": "live",
+              "confidence": "confirmed",
+              "evidence": [
+                {
+                  "loc": "game/src/kirby.c:12902",
+                  "code": "if (r4.pat3->unk0C & 1)"
+                },
+                {
+                  "loc": "game/src/kirby.c:12904",
+                  "code": "kirby->base.flags &= ~1;",
+                  "note": "flags bit 0 = facing left"
+                }
+              ]
+            },
+            {
+              "mask": "0x02",
+              "name": "faceLeft",
+              "description": "arrive facing left (only if bit 0 clear); neither bit = keep facing",
+              "usage": "live",
+              "confidence": "confirmed",
+              "evidence": [
+                {
+                  "loc": "game/src/kirby.c:12907",
+                  "code": "else if (r4.pat3->unk0C & 2)"
+                }
+              ]
+            },
+            {
+              "mask": "0x80",
+              "name": "keepRespawnPoint",
+              "description": "do not make the arrival point the new respawn point (spawnLocation/roomId stay at the previous checkpoint)",
+              "usage": "live",
+              "confidence": "confirmed",
+              "evidence": [
+                {
+                  "loc": "game/src/kirby.c:12896",
+                  "code": "if (!(r4.pat3->unk0C & 0x80))"
+                },
+                {
+                  "data": "0x80/0x81/0x82 on 9 records"
+                }
+              ]
+            }
+          ],
+          "usage": "live",
+          "confidence": "confirmed",
+          "evidence": [
+            {
+              "data": "values: 1 (320), 2 (237), 0 (158), 0x81 (5), 0x80 (2), 0x82 (2)"
+            }
+          ],
+          "stats": {
+            "values": {
+              "1": 320,
+              "2": 237,
+              "0": 158,
+              "129": 5,
+              "128": 2,
+              "130": 2
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

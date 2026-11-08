@@ -77,6 +77,9 @@
      *         onStatus?: (text) => {} } */
     function createKatamWorldSession(opts) {
         var Module = opts.Module;
+        /* Same spawn window on every peer: the original (platform/view.c). */
+        if (Module._PortSimViewPinNative)
+            Module._PortSimViewPinNative();
         var driver = opts.driver;
         var log = opts.log || function (t) { console.log(t); };
         var status = opts.onStatus || log;
