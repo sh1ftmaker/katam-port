@@ -459,6 +459,13 @@ CXX_SITES = {
         ('        slot = (struct ObjectBase **)gUnk_02022EC0[group];',
          '        slot = (PTR32(struct ObjectBase) *)gUnk_02022EC0[group];'),
     ],
+    'palette_effects.c': [
+        # QueuePaletteEffect (was sub_08039FF8) walks gPaletteEffectManager's
+        # unk80[8], a member array of narrowed pointers, through a cursor --
+        # new in upstream's rewrite; the old body indexed it directly.
+        ('    struct PaletteEffect **slot;',
+         '    PTR32(struct PaletteEffect) *slot;'),
+    ],
     'code_080332BC.c': [
         # gUnk_08D60B44 is `const u8 *gUnk_08D60B44[8]` in ROM: eight four-byte
         # pointers the console laid out end to end, so the cursor over them is a
@@ -939,8 +946,46 @@ def wrap_source_extern_c(text, rep):
     return ''.join(lines)
 
 
+# `static const u16 sHudPalettes[18][16];` near the top of a file and
+# `static const u16 sHudPalettes[18][16] = { ... };` further down.  In C the
+# first is a tentative definition and the pair is one object.  C++ has no
+# tentative definitions: the first line *is* the definition and the second is
+# a redefinition.  Upstream's hud.c (split out of code_08032E98.c) does this
+# for 14 tables.
+#
+# The C++ way to forward-declare an object is `extern`, and `extern` cannot be
+# followed by `static`, so both lose their internal linkage: the declaration
+# becomes `extern`, the definition plain.  Valid C as well, so the ILP32
+# builds see the same thing.  These are s-prefixed file-local names; if two
+# files ever pick the same one, that is a duplicate-symbol link error, not a
+# silent merge.
+_STATIC_FWD = re.compile(
+    r'^static(\s+[^;=(){}]*?\b(?P<name>\w+)\s*(?:\[[^\]]*\]\s*)*;)', re.M)
+
+
+def externalise_tentative_statics(text, rep):
+    # Matches are collected first and the text rewritten back to front, so
+    # earlier offsets stay valid.
+    edits = []
+    for m in _STATIC_FWD.finditer(text):
+        defn = re.compile(r'^static\s+(?=[^;=(){}]*\b%s\s*(?:\[[^\]]*\]\s*)*=)'
+                          % re.escape(m.group('name')), re.M)
+        d = defn.search(text, m.end())
+        if not d:
+            continue
+        edits.append((d.start(), d.end(), ''))          # drop `static `
+        edits.append((m.start(), m.start() + len('static'), 'extern'))
+    for start, end, new in sorted(edits, reverse=True):
+        text = text[:start] + new + text[end:]
+    if edits:
+        rep.bump('tentative static definitions made extern for C++',
+                 len(edits) // 2)
+    return text
+
+
 def rewrite_source(text, rep, name='', header_fns=None, flex=None):
     text = rename_cxx_keywords(text, rep)
+    text = externalise_tentative_statics(text, rep)
     text = expand_designated_ranges(text, rep)
     if header_fns:
         text = fix_unprototyped_decls(text, header_fns, rep)
