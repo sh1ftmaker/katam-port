@@ -272,6 +272,10 @@ AGBCC_ROUNDED_STRUCTS = {
     'subgames.h':        [('Unk_0812DBB4_0', 8), ('Unk_0812EFB4', 4),
                           ('Unk_081377D4', 4)],
     'code_0800ECAC.h':   [('Unk_0800ECAC', 4)],
+    # New upstream (sub_08155604's argument).  Five s16, documented 0xC;
+    # only ever a local or a pointer today, so harmless, but size-check
+    # holds the list to the documented sizes.
+    'sprite.h':          [('SpriteTransform', 12)],
 }
 
 
