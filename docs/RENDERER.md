@@ -120,12 +120,16 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   its sky, e.g. bottom of room 202 at 400x224).
 * **HUD**: four corner regions, BG1 and HUD sprites both.
 
-### Object pop-in (game culling, not changed)
+### Object pop-in
 
 The game spawns objects 48 px (3 cells) past the 240x160 screen and destroys
-them past a 48-px margin; changing that changes the simulation and is a later
-decision. `KATAM_RL_POPSTAT=1` counts objects appearing/vanishing inside the
-view but outside 240x160 (room entries excluded):
+them past a 48-px margin. Those windows now follow the GPU view as a recorded
+simulation input (docs/VIEW.md, "Spawn margin"; the numbers below are from
+before that, with the stock windows). `KATAM_SPAWNSTAT=WxH` counts spawns and
+despawns inside a view, which is the measure that matters now (0 scroll-in
+spawns in view at 746x320, against 32 before). `KATAM_RL_POPSTAT=1` counts
+sprites appearing/vanishing inside the view but outside 240x160 (room entries
+excluded), animation and emitted effects included:
 
 | view | play_rooms | warp_sweep | attract |
 |---|---|---|---|
@@ -181,6 +185,6 @@ until the next 59.73 Hz sim frame is due (`PaceFrame`).
 * **Asset-by-id (M9, L)**: replace `map`/tile/palette references with
   resource ids; tiles as atlas textures, the composite unchanged in shape.
 * **Per-element HUD anchors** (S): regions from hud.c's own element list.
-* **Culling** (sim decision): a wider spawn/despawn window would remove the
-  pop-in above but changes the simulation and needs re-recorded goldens and
-  netplay agreement on the view.
+* **Culling**: done. The spawn/despawn windows follow the view, as a
+  recorded input (docs/VIEW.md, "Spawn margin"). Netplay holds them at
+  240x160 until v2 agrees on a session view.

@@ -126,6 +126,41 @@ WebSocket. Each is `{seq u32, frame u32, type u8, args}`. Types:
 
 They are applied at the top of `frame`, in `(frame, seq)` order.
 
+### 2.2a The simulation view
+
+The game's spawn and despawn windows are sized for the world view a player is
+shown (docs/VIEW.md, "Spawn margin"). That makes the view size simulation
+input. The fork already carries it as one:
+
+- `PortSimViewRequest(w, h)` is the host's request, rounded to whole cells.
+- `view FRAME W H` is a frame-stamped event in the input log.
+- `PortInputLogViewAt(frame)` is a pure lookup, applied at the latch, so a
+  rollback that re-latches a frame gets the same value.
+
+A session must give every peer the same value. Until it can, the engine holds
+the view at 240x160 whenever a rollback session or the game's link is active,
+or after a page has called `PortSimViewPinNative` (the `web/` drivers do this
+on creation).
+
+The v2 design:
+
+- Each peer's request travels as an event: `VIEW {seq, frame, peer, wCells,
+  hCells}`, scheduled past the rollback window
+  (`PortRbSuggestEventFrame`).
+- The session view at frame F is the per-axis max of each seated peer's
+  latest request at or before F. It is computed by every peer from the same
+  event stream, and replaces `PortInputLogViewAt` as the source for
+  `PortSimViewLatch`.
+- A peer that leaves stops counting from the frame its seat is sealed.
+- A spectator's request never counts.
+- A joiner gets the event history with the input history, so its replay
+  reaches the same value.
+
+The netsim branch plans to keep the latched value (`struct PortSimView` in
+`platform/view.c`: `viewW, viewH, prevW, prevH, stock`) in the port sim block
+(`platform/port/simblock.h`, 0x02040000). Hashing and snapshotting it there
+would cost nothing.
+
 ### 2.3 Input delay and prediction
 
 - **Prediction:** repeat the last known input. This is right about 96% of the
