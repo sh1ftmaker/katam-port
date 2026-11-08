@@ -47,6 +47,27 @@ RNG_VAR = "gRngVal"
 # Leaves of the compact trees pass 1 keeps.
 W, R = "W", "R"
 
+# Other shared state whose order matters the same way: the allocators.  Two
+# allocations in one full expression -- `f(TaskCreate(..), TaskCreate(..))` --
+# hand out blocks in an order the compiler picks.  Calls to these count as
+# writes to the named resource; anything that (transitively) calls them too.
+SEEDS = {
+    "TaskCreate": "W:heap", "TaskDestroy": "W:heap",
+    "EwramMalloc": "W:heap", "EwramFree": "W:heap",
+    "IwramMalloc": "W:heap", "IwramFree": "W:heap",
+    "VramMalloc": "W:vram", "VramFree": "W:vram",
+}
+
+
+def conflict(sa, sb):
+    """Do two unsequenced effect sets conflict?"""
+    if (W in sa and sb & {W, R}) or (W in sb and sa & {W, R}):
+        return "rng"
+    for t in sa & sb:
+        if t.startswith("W:"):
+            return t[2:]
+    return None
+
 
 def compile_args():
     sysroot = os.path.expanduser(
@@ -235,9 +256,9 @@ def effects(t, summ, conflicts, ctx):
         live = [(i, s) for i, s in enumerate(sets) if s]
         for a in range(len(live)):
             for b in range(a + 1, len(live)):
-                sa, sb = live[a][1], live[b][1]
-                if W in sa or W in sb:
-                    conflicts.append(ctx)
+                c = conflict(live[a][1], live[b][1])
+                if c:
+                    conflicts.append(c)
     out = frozenset()
     for s in sets:
         out |= s
@@ -285,6 +306,9 @@ def main():
 
     # close over the call graph
     summ = {n: set(k for k in (W, R) if f[k]) for n, f in funcs.items()}
+    for n, tok in SEEDS.items():
+        summ.setdefault(n, set()).add(tok)
+        funcs.setdefault(n, {"W": False, "R": False, "calls": set()})
     changed = True
     while changed:
         changed = False
@@ -299,11 +323,12 @@ def main():
     findings = {}
     for fname, f, line, t in exprs:
         conf = []
-        effects(t, summ, conf, (f, line))
+        effects(t, summ, conf, None)
         if conf:
             key = (os.path.relpath(f, ROOT), line)
             findings.setdefault(key, {"file": key[0], "line": line,
                                       "function": fname,
+                                      "resource": sorted(set(conf)),
                                       "rng_ops": count_rng_ops(t, summ)})
 
     if errors:
@@ -321,14 +346,16 @@ def main():
                 src = fh.read().split("\n")[f["line"] - 1].strip()
         except Exception:
             pass
-        print("%s:%d: unsequenced RNG use in %s: %s" %
-              (f["file"], f["line"], f["function"], src))
+        what = "RNG use" if f["resource"] == ["rng"] else \
+            "use of " + "/".join(f["resource"])
+        print("%s:%d: unsequenced %s in %s: %s" %
+              (f["file"], f["line"], what, f["function"], src))
     if a.json:
         with open(a.json, "w") as fh:
             json.dump({"findings": list(findings.values()),
                        "rng_functions": adv, "indirect_calls": indirect,
                        "parse_errors": errors}, fh, indent=1)
-    print("lint_determinism: %d unsequenced RNG site(s) in %d file(s); "
+    print("lint_determinism: %d unsequenced RNG/allocator site(s) in %d file(s); "
           "%d functions advance the RNG" %
           (len(findings), len(report), len(adv)), file=sys.stderr)
     return 1 if findings or errors else 0

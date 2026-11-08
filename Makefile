@@ -544,6 +544,11 @@ netplay-link-test: $(BUILD)/katam-node.js
 # rollback peer that draws different numbers is a desync.  regress runs it first.
 lint-determinism:
 	@python3 tools/lint_determinism.py
+	@python3 tools/lint_determinism.py tests/lint/determinism_selftest.c 2>/dev/null \
+	    | sed -n 's/^[^:]*:\([0-9]*\):.*/\1/p' > $(BUILD)/lint-selftest.got; \
+	  grep -n '/\* flag' tests/lint/determinism_selftest.c | cut -d: -f1 \
+	    | diff - $(BUILD)/lint-selftest.got >/dev/null \
+	  || { echo "lint-determinism: self-test failed (tests/lint/)"; exit 1; }
 
 # Replays tests/recordings/*.txt and compares every frame's hashes against
 # tests/golden/.  Builds nothing: build the binary first (make native, or the

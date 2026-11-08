@@ -5551,7 +5551,7 @@ bool16 sub_0803D8AC(struct EffectObject *r1)
     s16 r5, r3;
     struct LevelInfo *li;
 
-    r5 = r5 = r1->x >> 8;
+    r5 = r1->x >> 8; // PORT-FORK: was `r5 = r5 = ...`, two unsequenced writes
     r3 = r1->y >> 8;
     if (r1->flags & 0x2000000) // if (0)
         return FALSE;
