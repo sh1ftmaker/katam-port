@@ -96,14 +96,13 @@ because nobody has fought a randomized one yet.
 
 ## Running it
 
-You need [emscripten](https://emscripten.org/) and a checkout of the
-decompilation.
+You need [emscripten](https://emscripten.org/).  The game source is in this
+repository (`game/`) -- the port is a hard fork of the decompilation, see
+[docs/FORK.md](docs/FORK.md) -- so no decompilation checkout and no ARM
+toolchain are needed.
 
 ```sh
-git clone https://github.com/jiangzhengwenjz/katam.git ~/katam
-make KATAM_DECOMP=~/katam sync    # copy and adapt the decomp sources
-make KATAM_DECOMP=~/katam stubs   # work out what is still ARM-only
-make KATAM_DECOMP=~/katam         # build web/katam.{html,js,wasm}
+make                              # build web/katam.{html,js,wasm}
 make serve                        # http://localhost:8000/katam.html
 ```
 
@@ -131,10 +130,10 @@ loading a different copy cannot inherit or clobber another game's save. The
 page can export your save as a plain 64 KiB `.sav` (the format an emulator
 reads), import one back, and delete what it has stored.
 
-`sync` copies the decompilation and rewrites what will not compile off ARM; it
-never touches your checkout. Re-run all three whenever you pull new
-decompilation work — the set of stubbed functions shrinks by itself as the
-decompilation advances.
+Changes to the game go straight into `game/`; `tests/regress.sh` (`make
+regress`) replays the committed input recordings and reports the first frame
+whose simulation state differs from the golden logs -- see
+[docs/DETERMINISM.md](docs/DETERMINISM.md).
 
 ## The native build
 
@@ -143,8 +142,6 @@ sources — what changes is the host.
 
 ```sh
 sudo apt install gcc-multilib libsdl2-dev:i386   # or your distro's equivalent
-make sync KATAM_DECOMP=~/katam                   # if you have not already
-make stubs KATAM_DECOMP=~/katam
 make native
 ./build/native/katam ~/roms/your-copy.gba
 ```

@@ -5,8 +5,6 @@ sources. What changes is the host — SDL2 instead of a browser page — and two
 things the browser was hiding.
 
 ```sh
-make sync  KATAM_DECOMP=~/katam
-make stubs KATAM_DECOMP=~/katam
 make native
 ./build/native/katam ~/roms/your-copy.gba
 ```
@@ -584,8 +582,6 @@ toolchain file:
 
 ```sh
 sudo apt install build-essential cmake pkg-config libsdl2-dev
-make sync  KATAM_DECOMP=~/katam
-make stubs KATAM_DECOMP=~/katam
 make native
 ./build/native/katam ~/roms/your-copy.gba
 ```
