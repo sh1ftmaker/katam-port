@@ -30,6 +30,8 @@
 #endif
 
 #include "bg.h"
+#include "big_small_switch.h"
+#include "boss_challenge_door.h"
 #include "boxy.h"
 #include "cannon_fuse.h"
 #include "chest.h"
@@ -37,8 +39,11 @@
 #include "code_0800ECAC.h"
 #include "code_0801C6F8.h"
 #include "code_0801DA58.h"
+#include "code_080257A8.h"
 #include "code_08026044.h"
+#include "code_0802E16C.h"
 #include "code_0802E57C.h"
+#include "code_0802F8D8.h"
 #include "code_0806F780.h"
 #include "code_08138D64.h"
 #include "code_0814A828.h"
@@ -46,6 +51,7 @@
 #include "code_0814F274.h"
 #include "collection_room.h"
 #include "crazy_hand.h"
+#include "cutscene_trigger.h"
 #include "dark_meta_knight.h"
 #include "dark_mind.h"
 #include "data.h"
@@ -57,14 +63,17 @@
 #include "gba/m4a.h"
 #include "gba/multi_boot.h"
 #include "gba/types.h"
+#include "gbplayer.h"
 #include "goal_game_bonus.h"
 #include "gobbler.h"
+#include "hud.h"
 #include "input_recorder.h"
 #include "intro.h"
 #include "king_golem.h"
 #include "kirby.h"
+#include "kirby_cannon.h"
 #include "kracko.h"
-#include "large_stone_block_7D.h"
+#include "large_star_stone_block.h"
 #include "logo.h"
 #include "main.h"
 #include "malloc_ewram.h"
@@ -75,6 +84,8 @@
 #include "multi_08030C94.h"
 #include "multi_boot_util.h"
 #include "multi_sio.h"
+#include "object_spawner.h"
+#include "palette_effects.h"
 #include "pause_fade.h"
 #include "pause_help.h"
 #include "save.h"
@@ -92,82 +103,85 @@
 #include "title_screen.h"
 #include "treasures.h"
 #include "unknown_75.h"
+#include "unknown_7A.h"
+#include "unknown_82.h"
+#include "unknown_87.h"
 #include "vert_sliding_door.h"
 #include "warp_star.h"
 
-/* struct AnimCmd_10 -- sprite.h:189 */
+/* struct AnimCmd_10 -- sprite.h:199 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_10) == 16, "struct AnimCmd_10 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_10, cmdId) == 0, "struct AnimCmd_10::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_10, unk4) == 4, "struct AnimCmd_10::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_10, unk8) == 8, "struct AnimCmd_10::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_10, unkC) == 12, "struct AnimCmd_10::unkC moved");
 
-/* struct AnimCmd_12 -- sprite.h:201 */
+/* struct AnimCmd_12 -- sprite.h:211 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_12) == 8, "struct AnimCmd_12 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_12, cmdId) == 0, "struct AnimCmd_12::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_12, unk4) == 4, "struct AnimCmd_12::unk4 moved");
 
-/* struct AnimCmd_4 -- sprite.h:157 */
+/* struct AnimCmd_4 -- sprite.h:167 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_4) == 4, "struct AnimCmd_4 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_4, cmdId) == 0, "struct AnimCmd_4::cmdId moved");
 
-/* struct AnimCmd_6 -- sprite.h:166 */
+/* struct AnimCmd_6 -- sprite.h:176 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_6) == 12, "struct AnimCmd_6 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_6, cmdId) == 0, "struct AnimCmd_6::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_6, unk4) == 4, "struct AnimCmd_6::unk4 moved");
 
-/* struct AnimCmd_8 -- sprite.h:177 */
+/* struct AnimCmd_8 -- sprite.h:187 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_8) == 12, "struct AnimCmd_8 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_8, cmdId) == 0, "struct AnimCmd_8::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_8, unk4) == 4, "struct AnimCmd_8::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_8, unk8) == 8, "struct AnimCmd_8::unk8 moved");
 
-/* struct AnimCmd_GetPalette -- sprite.h:145 */
+/* struct AnimCmd_GetPalette -- sprite.h:155 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_GetPalette) == 12, "struct AnimCmd_GetPalette changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetPalette, cmdId) == 0, "struct AnimCmd_GetPalette::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetPalette, palId) == 4, "struct AnimCmd_GetPalette::palId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetPalette, numColors) == 8, "struct AnimCmd_GetPalette::numColors moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetPalette, insertOffset) == 10, "struct AnimCmd_GetPalette::insertOffset moved");
 
-/* struct AnimCmd_GetTiles -- sprite.h:139 */
+/* struct AnimCmd_GetTiles -- sprite.h:149 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_GetTiles) == 12, "struct AnimCmd_GetTiles changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetTiles, cmdId) == 0, "struct AnimCmd_GetTiles::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetTiles, tileIndex) == 4, "struct AnimCmd_GetTiles::tileIndex moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_GetTiles, numTilesToCopy) == 8, "struct AnimCmd_GetTiles::numTilesToCopy moved");
 
-/* struct AnimCmd_JumpBack -- sprite.h:152 */
+/* struct AnimCmd_JumpBack -- sprite.h:162 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_JumpBack) == 8, "struct AnimCmd_JumpBack changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_JumpBack, cmdId) == 0, "struct AnimCmd_JumpBack::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_JumpBack, offset) == 4, "struct AnimCmd_JumpBack::offset moved");
 
-/* struct AnimCmd_PlaySoundEffect -- sprite.h:161 */
+/* struct AnimCmd_PlaySoundEffect -- sprite.h:171 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_PlaySoundEffect) == 8, "struct AnimCmd_PlaySoundEffect changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_PlaySoundEffect, cmdId) == 0, "struct AnimCmd_PlaySoundEffect::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_PlaySoundEffect, songId) == 4, "struct AnimCmd_PlaySoundEffect::songId moved");
 
-/* struct AnimCmd_SetIdAndVariant -- sprite.h:183 */
+/* struct AnimCmd_SetIdAndVariant -- sprite.h:193 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_SetIdAndVariant) == 8, "struct AnimCmd_SetIdAndVariant changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_SetIdAndVariant, cmdId) == 0, "struct AnimCmd_SetIdAndVariant::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_SetIdAndVariant, animId) == 4, "struct AnimCmd_SetIdAndVariant::animId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_SetIdAndVariant, variant) == 6, "struct AnimCmd_SetIdAndVariant::variant moved");
 
-/* struct AnimCmd_SetPriority -- sprite.h:196 */
+/* struct AnimCmd_SetPriority -- sprite.h:206 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_SetPriority) == 8, "struct AnimCmd_SetPriority changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_SetPriority, cmdId) == 0, "struct AnimCmd_SetPriority::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_SetPriority, priority) == 4, "struct AnimCmd_SetPriority::priority moved");
 
-/* struct AnimCmd_ShowFrame -- sprite.h:206 */
+/* struct AnimCmd_ShowFrame -- sprite.h:216 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_ShowFrame) == 8, "struct AnimCmd_ShowFrame changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_ShowFrame, delay) == 0, "struct AnimCmd_ShowFrame::delay moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_ShowFrame, index) == 4, "struct AnimCmd_ShowFrame::index moved");
 
-/* struct AnimCmd_TranslateSprite -- sprite.h:171 */
+/* struct AnimCmd_TranslateSprite -- sprite.h:181 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimCmd_TranslateSprite) == 8, "struct AnimCmd_TranslateSprite changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_TranslateSprite, cmdId) == 0, "struct AnimCmd_TranslateSprite::cmdId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_TranslateSprite, x) == 4, "struct AnimCmd_TranslateSprite::x moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimCmd_TranslateSprite, y) == 6, "struct AnimCmd_TranslateSprite::y moved");
 
-/* struct AnimInfo -- data.h:670 */
+/* struct AnimInfo -- data.h:616 */
 PORT_LAYOUT_ASSERT(sizeof(struct AnimInfo) == 4, "struct AnimInfo changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimInfo, animId) == 0, "struct AnimInfo::animId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct AnimInfo, variant) == 2, "struct AnimInfo::variant moved");
@@ -175,8 +189,8 @@ PORT_LAYOUT_ASSERT(offsetof(struct AnimInfo, unk3) == 3, "struct AnimInfo::unk3 
 
 /* struct AreaDoor -- special_doors.h:18 */
 PORT_LAYOUT_ASSERT(sizeof(struct AreaDoor) == 184, "struct AreaDoor changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct AreaDoor, obj2) == 0, "struct AreaDoor::obj2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct AreaDoor, obj4) == 180, "struct AreaDoor::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct AreaDoor, obj) == 0, "struct AreaDoor::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct AreaDoor, effectObject) == 180, "struct AreaDoor::effectObject moved");
 
 /* struct Background -- bg.h:11 */
 PORT_LAYOUT_ASSERT(sizeof(struct Background) == 64, "struct Background changed size -- it is read at a fixed address");
@@ -255,15 +269,21 @@ PORT_LAYOUT_ASSERT(offsetof(struct BlendRegs, bldCnt) == 0, "struct BlendRegs::b
 PORT_LAYOUT_ASSERT(offsetof(struct BlendRegs, bldAlpha) == 2, "struct BlendRegs::bldAlpha moved");
 PORT_LAYOUT_ASSERT(offsetof(struct BlendRegs, bldY) == 4, "struct BlendRegs::bldY moved");
 
+/* struct BossChallengeDoor -- boss_challenge_door.h:11 */
+PORT_LAYOUT_ASSERT(sizeof(struct BossChallengeDoor) == 188, "struct BossChallengeDoor changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct BossChallengeDoor, obj) == 0, "struct BossChallengeDoor::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct BossChallengeDoor, unkB4) == 180, "struct BossChallengeDoor::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct BossChallengeDoor, unkB8) == 184, "struct BossChallengeDoor::unkB8 moved");
+
 /* struct Boxy -- boxy.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Boxy) == 188, "struct Boxy changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Boxy, obj2) == 0, "struct Boxy::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Boxy, obj) == 0, "struct Boxy::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Boxy, unkB4) == 180, "struct Boxy::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Boxy, unkB8) == 184, "struct Boxy::unkB8 moved");
 
 /* struct CannonFuse -- cannon_fuse.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct CannonFuse) == 196, "struct CannonFuse changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct CannonFuse, obj2) == 0, "struct CannonFuse::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CannonFuse, obj) == 0, "struct CannonFuse::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CannonFuse, unkB4) == 180, "struct CannonFuse::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CannonFuse, unkB6) == 182, "struct CannonFuse::unkB6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CannonFuse, unkB8) == 184, "struct CannonFuse::unkB8 moved");
@@ -315,7 +335,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct CgbChannel, d4) == 56, "struct CgbChannel::d4
 
 /* struct Chest -- chest.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Chest) == 232, "struct Chest changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Chest, obj2) == 0, "struct Chest::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Chest, obj) == 0, "struct Chest::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Chest, fillerB4) == 180, "struct Chest::fillerB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Chest, unkDC) == 220, "struct Chest::unkDC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Chest, unkE0) == 224, "struct Chest::unkE0 moved");
@@ -324,7 +344,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Chest, unkE4) == 228, "struct Chest::unkE4 mo
 
 /* struct ChestItemPopup -- chest.h:22 */
 PORT_LAYOUT_ASSERT(sizeof(struct ChestItemPopup) == 88, "struct ChestItemPopup changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, obj4) == 0, "struct ChestItemPopup::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, effectObject) == 0, "struct ChestItemPopup::effectObject moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, unk48) == 72, "struct ChestItemPopup::unk48 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, unk4C) == 76, "struct ChestItemPopup::unk4C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, unk50) == 80, "struct ChestItemPopup::unk50 moved");
@@ -332,7 +352,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct ChestItemPopup, filler52) == 82, "struct Ches
 
 /* struct CrazyHand -- crazy_hand.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct CrazyHand) == 188, "struct CrazyHand changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct CrazyHand, obj2) == 0, "struct CrazyHand::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CrazyHand, obj) == 0, "struct CrazyHand::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CrazyHand, unkB4) == 180, "struct CrazyHand::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CrazyHand, unkB8) == 184, "struct CrazyHand::unkB8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct CrazyHand, unkB9) == 185, "struct CrazyHand::unkB9 moved");
@@ -388,9 +408,74 @@ PORT_LAYOUT_ASSERT(offsetof(struct Cutscene, unk360) == 864, "struct Cutscene::u
 PORT_LAYOUT_ASSERT(offsetof(struct Cutscene, unk362) == 866, "struct Cutscene::unk362 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Cutscene, unk363) == 867, "struct Cutscene::unk363 moved");
 
+/* struct CutsceneAnimPair -- cutscene_trigger.h:72 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneAnimPair) == 4, "struct CutsceneAnimPair changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneAnimPair, animId) == 0, "struct CutsceneAnimPair::animId moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneAnimPair, variant) == 2, "struct CutsceneAnimPair::variant moved");
+
+/* struct CutsceneTrigger0 -- cutscene_trigger.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneTrigger0) == 216, "struct CutsceneTrigger0 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, obj) == 0, "struct CutsceneTrigger0::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkB4) == 180, "struct CutsceneTrigger0::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkB8) == 184, "struct CutsceneTrigger0::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkC8) == 200, "struct CutsceneTrigger0::unkC8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkCC) == 204, "struct CutsceneTrigger0::unkCC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkCE) == 206, "struct CutsceneTrigger0::unkCE moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkD0) == 208, "struct CutsceneTrigger0::unkD0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkD2) == 210, "struct CutsceneTrigger0::unkD2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger0, unkD4) == 212, "struct CutsceneTrigger0::unkD4 moved");
+
+/* struct CutsceneTrigger1 -- cutscene_trigger.h:24 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneTrigger1) == 192, "struct CutsceneTrigger1 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger1, obj) == 0, "struct CutsceneTrigger1::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger1, unkB4) == 180, "struct CutsceneTrigger1::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger1, unkB8) == 184, "struct CutsceneTrigger1::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger1, unkBA) == 186, "struct CutsceneTrigger1::unkBA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger1, unkBC) == 188, "struct CutsceneTrigger1::unkBC moved");
+
+/* struct CutsceneTrigger2 -- cutscene_trigger.h:32 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneTrigger2) == 696, "struct CutsceneTrigger2 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, obj) == 0, "struct CutsceneTrigger2::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unkB4) == 180, "struct CutsceneTrigger2::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unk294) == 660, "struct CutsceneTrigger2::unk294 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unk2A4) == 676, "struct CutsceneTrigger2::unk2A4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unk2AC) == 684, "struct CutsceneTrigger2::unk2AC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unk2B4) == 692, "struct CutsceneTrigger2::unk2B4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger2, unk2B6) == 694, "struct CutsceneTrigger2::unk2B6 moved");
+
+/* struct CutsceneTrigger4 -- cutscene_trigger.h:42 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneTrigger4) == 204, "struct CutsceneTrigger4 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, obj) == 0, "struct CutsceneTrigger4::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkB4) == 180, "struct CutsceneTrigger4::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkB8) == 184, "struct CutsceneTrigger4::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkBC) == 188, "struct CutsceneTrigger4::unkBC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkC0) == 192, "struct CutsceneTrigger4::unkC0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkC4) == 196, "struct CutsceneTrigger4::unkC4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkC6) == 198, "struct CutsceneTrigger4::unkC6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger4, unkC8) == 200, "struct CutsceneTrigger4::unkC8 moved");
+
+/* struct CutsceneTrigger5 -- cutscene_trigger.h:53 */
+PORT_LAYOUT_ASSERT(sizeof(struct CutsceneTrigger5) == 236, "struct CutsceneTrigger5 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, obj) == 0, "struct CutsceneTrigger5::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkB4) == 180, "struct CutsceneTrigger5::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkB8) == 184, "struct CutsceneTrigger5::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkBC) == 188, "struct CutsceneTrigger5::unkBC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkC0) == 192, "struct CutsceneTrigger5::unkC0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkC4) == 196, "struct CutsceneTrigger5::unkC4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkC8) == 200, "struct CutsceneTrigger5::unkC8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkC9) == 201, "struct CutsceneTrigger5::unkC9 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkCA) == 202, "struct CutsceneTrigger5::unkCA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkCB) == 203, "struct CutsceneTrigger5::unkCB moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkCC) == 204, "struct CutsceneTrigger5::unkCC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkCE) == 206, "struct CutsceneTrigger5::unkCE moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkDE) == 222, "struct CutsceneTrigger5::unkDE moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkE2) == 226, "struct CutsceneTrigger5::unkE2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkE6) == 230, "struct CutsceneTrigger5::unkE6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct CutsceneTrigger5, unkE8) == 232, "struct CutsceneTrigger5::unkE8 moved");
+
 /* struct DarkMetaKnight -- dark_meta_knight.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct DarkMetaKnight) == 208, "struct DarkMetaKnight changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct DarkMetaKnight, obj2) == 0, "struct DarkMetaKnight::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMetaKnight, obj) == 0, "struct DarkMetaKnight::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMetaKnight, unkB4) == 180, "struct DarkMetaKnight::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMetaKnight, unkB8) == 184, "struct DarkMetaKnight::unkB8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMetaKnight, unkBC) == 188, "struct DarkMetaKnight::unkBC moved");
@@ -477,6 +562,17 @@ PORT_LAYOUT_ASSERT(offsetof(struct DarkMindForm2, unk137) == 311, "struct DarkMi
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMindForm2, unk138) == 312, "struct DarkMindForm2::unk138 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMindForm2, unk139) == 313, "struct DarkMindForm2::unk139 moved");
 
+/* struct DarkMindMirror -- dark_mind.h:50 */
+PORT_LAYOUT_ASSERT(sizeof(struct DarkMindMirror) == 232, "struct DarkMindMirror changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unk0) == 0, "struct DarkMindMirror::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkB4) == 180, "struct DarkMindMirror::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkDC) == 220, "struct DarkMindMirror::unkDC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkE0) == 224, "struct DarkMindMirror::unkE0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkE1) == 225, "struct DarkMindMirror::unkE1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkE2) == 226, "struct DarkMindMirror::unkE2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkE3) == 227, "struct DarkMindMirror::unkE3 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DarkMindMirror, unkE4) == 228, "struct DarkMindMirror::unkE4 moved");
+
 /* struct DarkMindTrigger -- dark_mind.h:113 */
 PORT_LAYOUT_ASSERT(sizeof(struct DarkMindTrigger) == 196, "struct DarkMindTrigger changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct DarkMindTrigger, unk0) == 0, "struct DarkMindTrigger::unk0 moved");
@@ -496,12 +592,28 @@ PORT_LAYOUT_ASSERT(offsetof(struct DemoStruct, filler6) == 6, "struct DemoStruct
 
 /* struct DoorToHub -- special_doors.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct DoorToHub) == 188, "struct DoorToHub changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct DoorToHub, obj2) == 0, "struct DoorToHub::obj2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct DoorToHub, obj4) == 180, "struct DoorToHub::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DoorToHub, obj) == 0, "struct DoorToHub::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct DoorToHub, effectObjects) == 180, "struct DoorToHub::effectObjects moved");
+
+/* struct EffectObject -- data.h:402 */
+PORT_LAYOUT_ASSERT(sizeof(struct EffectObject) == 72, "struct EffectObject changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, header) == 0, "struct EffectObject::header moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, unk4) == 4, "struct EffectObject::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, flags) == 6, "struct EffectObject::flags moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, unk8) == 8, "struct EffectObject::unk8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, sprite) == 12, "struct EffectObject::sprite moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, x) == 52, "struct EffectObject::x moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, y) == 56, "struct EffectObject::y moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, unk3C) == 60, "struct EffectObject::unk3C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, unk3E) == 62, "struct EffectObject::unk3E moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, objBase54) == 64, "struct EffectObject::objBase54 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, objBase55) == 65, "struct EffectObject::objBase55 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, roomId) == 66, "struct EffectObject::roomId moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EffectObject, parent) == 68, "struct EffectObject::parent moved");
 
 /* struct EightDirCannon -- eight_dir_cannon.h:14 */
 PORT_LAYOUT_ASSERT(sizeof(struct EightDirCannon) == 192, "struct EightDirCannon changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct EightDirCannon, obj2) == 0, "struct EightDirCannon::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct EightDirCannon, obj) == 0, "struct EightDirCannon::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct EightDirCannon, unkB4) == 180, "struct EightDirCannon::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct EightDirCannon, unkB5) == 181, "struct EightDirCannon::unkB5 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct EightDirCannon, unkB6) == 182, "struct EightDirCannon::unkB6 moved");
@@ -520,7 +632,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct EwramNode, space) == 8, "struct EwramNode::sp
 
 /* struct FlameColumn -- flame_column.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct FlameColumn) == 192, "struct FlameColumn changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct FlameColumn, obj2) == 0, "struct FlameColumn::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct FlameColumn, obj) == 0, "struct FlameColumn::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct FlameColumn, unkB4) == 180, "struct FlameColumn::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct FlameColumn, unkB6) == 182, "struct FlameColumn::unkB6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct FlameColumn, unkB8) == 184, "struct FlameColumn::unkB8 moved");
@@ -553,7 +665,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct FlashType, sector) == 4, "struct FlashType::s
 PORT_LAYOUT_ASSERT(offsetof(struct FlashType, wait) == 16, "struct FlashType::wait moved");
 PORT_LAYOUT_ASSERT(offsetof(struct FlashType, ids) == 20, "struct FlashType::ids moved");
 
-/* struct ForegroundInfo -- data.h:893 */
+/* struct ForegroundInfo -- data.h:832 */
 PORT_LAYOUT_ASSERT(sizeof(struct ForegroundInfo) == 16, "struct ForegroundInfo changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo, tileset) == 0, "struct ForegroundInfo::tileset moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo, unk4) == 4, "struct ForegroundInfo::unk4 moved");
@@ -561,7 +673,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo, unk8) == 8, "struct Foregroun
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo, unkC) == 12, "struct ForegroundInfo::unkC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo, roomId) == 14, "struct ForegroundInfo::roomId moved");
 
-/* struct ForegroundInfo_8p -- data.h:901 */
+/* struct ForegroundInfo_8p -- data.h:840 */
 PORT_LAYOUT_ASSERT(sizeof(struct ForegroundInfo_8p) == 20, "struct ForegroundInfo_8p changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p, unk0) == 0, "struct ForegroundInfo_8p::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p, unk4) == 4, "struct ForegroundInfo_8p::unk4 moved");
@@ -570,27 +682,48 @@ PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p, unkC) == 12, "struct Foreg
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p, unk10) == 16, "struct ForegroundInfo_8p::unk10 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p, unk12) == 18, "struct ForegroundInfo_8p::unk12 moved");
 
-/* struct ForegroundInfo_8p_Cp -- data.h:910 */
+/* struct ForegroundInfo_8p_Cp -- data.h:849 */
 PORT_LAYOUT_ASSERT(sizeof(struct ForegroundInfo_8p_Cp) == 8, "struct ForegroundInfo_8p_Cp changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p_Cp, unk0) == 0, "struct ForegroundInfo_8p_Cp::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundInfo_8p_Cp, unk4) == 4, "struct ForegroundInfo_8p_Cp::unk4 moved");
 
-/* struct ForegroundPalette -- data.h:917 */
+/* struct ForegroundPalette -- data.h:856 */
 PORT_LAYOUT_ASSERT(sizeof(struct ForegroundPalette) == 12, "struct ForegroundPalette changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette, palette) == 0, "struct ForegroundPalette::palette moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette, unk4) == 4, "struct ForegroundPalette::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette, unk8) == 8, "struct ForegroundPalette::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette, roomId) == 10, "struct ForegroundPalette::roomId moved");
 
-/* struct ForegroundPalette_4pp -- data.h:924 */
+/* struct ForegroundPalette_4pp -- data.h:863 */
 PORT_LAYOUT_ASSERT(sizeof(struct ForegroundPalette_4pp) == 12, "struct ForegroundPalette_4pp changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette_4pp, unk0) == 0, "struct ForegroundPalette_4pp::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette_4pp, unk4) == 4, "struct ForegroundPalette_4pp::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ForegroundPalette_4pp, unk8) == 8, "struct ForegroundPalette_4pp::unk8 moved");
 
+/* struct GameplayHud -- hud.h:16 */
+PORT_LAYOUT_ASSERT(sizeof(struct GameplayHud) == 512, "struct GameplayHud changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk0) == 0, "struct GameplayHud::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk4) == 4, "struct GameplayHud::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk6) == 6, "struct GameplayHud::unk6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk7) == 7, "struct GameplayHud::unk7 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, filler8) == 8, "struct GameplayHud::filler8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk9) == 9, "struct GameplayHud::unk9 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkA) == 10, "struct GameplayHud::unkA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkB) == 11, "struct GameplayHud::unkB moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkC) == 12, "struct GameplayHud::unkC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkD) == 13, "struct GameplayHud::unkD moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkE) == 14, "struct GameplayHud::unkE moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unkF) == 15, "struct GameplayHud::unkF moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk10) == 16, "struct GameplayHud::unk10 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk14) == 20, "struct GameplayHud::unk14 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk15) == 21, "struct GameplayHud::unk15 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, filler19) == 25, "struct GameplayHud::filler19 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk1C) == 28, "struct GameplayHud::unk1C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GameplayHud, unk20) == 32, "struct GameplayHud::unk20 moved");
+
 /* struct GoalGameBonus -- goal_game_bonus.h:11 */
 PORT_LAYOUT_ASSERT(sizeof(struct GoalGameBonus) == 200, "struct GoalGameBonus changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct GoalGameBonus, obj2) == 0, "struct GoalGameBonus::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct GoalGameBonus, obj) == 0, "struct GoalGameBonus::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct GoalGameBonus, unkB4) == 180, "struct GoalGameBonus::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct GoalGameBonus, unkB8) == 184, "struct GoalGameBonus::unkB8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct GoalGameBonus, kirby) == 188, "struct GoalGameBonus::kirby moved");
@@ -625,7 +758,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct GoalStar_D4, unk2A) == 42, "struct GoalStar_D
 
 /* struct Gobbler -- gobbler.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Gobbler) == 196, "struct Gobbler changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Gobbler, obj2) == 0, "struct Gobbler::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Gobbler, obj) == 0, "struct Gobbler::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Gobbler, babies) == 180, "struct Gobbler::babies moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Gobbler, unkC0) == 192, "struct Gobbler::unkC0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Gobbler, unkC1) == 193, "struct Gobbler::unkC1 moved");
@@ -663,16 +796,18 @@ PORT_LAYOUT_ASSERT(sizeof(struct JoyStat) == 1, "struct JoyStat changed size -- 
 
 /* struct KingGolem -- king_golem.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct KingGolem) == 192, "struct KingGolem changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, obj2) == 0, "struct KingGolem::obj2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, obj4) == 180, "struct KingGolem::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, obj) == 0, "struct KingGolem::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, effectObject) == 180, "struct KingGolem::effectObject moved");
 PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, enemy) == 184, "struct KingGolem::enemy moved");
 PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, unkBC) == 188, "struct KingGolem::unkBC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, unkBD) == 189, "struct KingGolem::unkBD moved");
 PORT_LAYOUT_ASSERT(offsetof(struct KingGolem, unkBE) == 190, "struct KingGolem::unkBE moved");
 
-/* struct Kirby -- kirby.h:38 */
+/* struct Kirby -- kirby.h:27 */
 PORT_LAYOUT_ASSERT(sizeof(struct Kirby) == 424, "struct Kirby changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, base) == 0, "struct Kirby::base moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Kirby, stateFn) == 120, "struct Kirby::stateFn moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Kirby, sprites) == 124, "struct Kirby::sprites moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, task) == 204, "struct Kirby::task moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, movementOverride) == 208, "struct Kirby::movementOverride moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, animationIndex) == 212, "struct Kirby::animationIndex moved");
@@ -725,13 +860,19 @@ PORT_LAYOUT_ASSERT(offsetof(struct Kirby, unk1A0) == 416, "struct Kirby::unk1A0 
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, unk1A4) == 420, "struct Kirby::unk1A4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby, unk1A5) == 421, "struct Kirby::unk1A5 moved");
 
-/* struct Kirby_0_1 -- kirby.h:12 */
-PORT_LAYOUT_ASSERT(sizeof(struct Kirby_0_1) == 204, "struct Kirby_0_1 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Kirby_0_1, base) == 0, "struct Kirby_0_1::base moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Kirby_0_1, filler78) == 120, "struct Kirby_0_1::filler78 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Kirby_0_1, unk7C) == 124, "struct Kirby_0_1::unk7C moved");
+/* struct KirbyCannon -- kirby_cannon.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct KirbyCannon) == 192, "struct KirbyCannon changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, obj) == 0, "struct KirbyCannon::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkB4) == 180, "struct KirbyCannon::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkB5) == 181, "struct KirbyCannon::unkB5 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkB6) == 182, "struct KirbyCannon::unkB6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkB7) == 183, "struct KirbyCannon::unkB7 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkB8) == 184, "struct KirbyCannon::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkBA) == 186, "struct KirbyCannon::unkBA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkBC) == 188, "struct KirbyCannon::unkBC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct KirbyCannon, unkBD) == 189, "struct KirbyCannon::unkBD moved");
 
-/* struct Kirby_110 -- kirby.h:23 */
+/* struct Kirby_110 -- kirby.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Kirby_110) == 8, "struct Kirby_110 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_110, unk0) == 0, "struct Kirby_110::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_110, unk1) == 1, "struct Kirby_110::unk1 moved");
@@ -740,7 +881,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Kirby_110, unk3) == 3, "struct Kirby_110::unk
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_110, unk4) == 4, "struct Kirby_110::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_110, flags) == 6, "struct Kirby_110::flags moved");
 
-/* struct Kirby_124 -- kirby.h:32 */
+/* struct Kirby_124 -- kirby.h:21 */
 PORT_LAYOUT_ASSERT(sizeof(struct Kirby_124) == 4, "struct Kirby_124 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_124, unk0) == 0, "struct Kirby_124::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kirby_124, unk1) == 1, "struct Kirby_124::unk1 moved");
@@ -748,7 +889,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Kirby_124, filler2) == 2, "struct Kirby_124::
 
 /* struct Kracko -- kracko.h:11 */
 PORT_LAYOUT_ASSERT(sizeof(struct Kracko) == 196, "struct Kracko changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Kracko, obj2) == 0, "struct Kracko::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Kracko, obj) == 0, "struct Kracko::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkB4) == 180, "struct Kracko::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkB8) == 184, "struct Kracko::unkB8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkBC) == 188, "struct Kracko::unkBC moved");
@@ -757,15 +898,16 @@ PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkC1) == 193, "struct Kracko::unkC1 
 PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkC2) == 194, "struct Kracko::unkC2 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Kracko, unkC3) == 195, "struct Kracko::unkC3 moved");
 
-/* struct LargeStarStoneBlock7D -- large_stone_block_7D.h:12 */
-PORT_LAYOUT_ASSERT(sizeof(struct LargeStarStoneBlock7D) == 228, "struct LargeStarStoneBlock7D changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock7D, obj2) == 0, "struct LargeStarStoneBlock7D::obj2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock7D, fillerB4) == 180, "struct LargeStarStoneBlock7D::fillerB4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock7D, unkE1) == 225, "struct LargeStarStoneBlock7D::unkE1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock7D, unkE2) == 226, "struct LargeStarStoneBlock7D::unkE2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock7D, unkE3) == 227, "struct LargeStarStoneBlock7D::unkE3 moved");
+/* struct LargeStarStoneBlock -- large_star_stone_block.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct LargeStarStoneBlock) == 236, "struct LargeStarStoneBlock changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, block) == 0, "struct LargeStarStoneBlock::block moved");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, unkE4) == 228, "struct LargeStarStoneBlock::unkE4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, fillerE5) == 229, "struct LargeStarStoneBlock::fillerE5 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, unkE6) == 230, "struct LargeStarStoneBlock::unkE6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, unkE7) == 231, "struct LargeStarStoneBlock::unkE7 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct LargeStarStoneBlock, unkE8) == 232, "struct LargeStarStoneBlock::unkE8 moved");
 
-/* struct LevelInfo -- data.h:188 */
+/* struct LevelInfo -- data.h:190 */
 PORT_LAYOUT_ASSERT(sizeof(struct LevelInfo) == 1640, "struct LevelInfo changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo, unk0) == 0, "struct LevelInfo::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo, filler4) == 4, "struct LevelInfo::filler4 moved");
@@ -827,7 +969,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo, unk661) == 1633, "struct LevelInfo
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo, unk662) == 1634, "struct LevelInfo::unk662 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo, unk664) == 1636, "struct LevelInfo::unk664 moved");
 
-/* struct LevelInfo_1E4 -- data.h:167 */
+/* struct LevelInfo_1E4 -- data.h:169 */
 PORT_LAYOUT_ASSERT(sizeof(struct LevelInfo_1E4) == 16, "struct LevelInfo_1E4 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E4, unk0) == 0, "struct LevelInfo_1E4::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E4, unk4) == 4, "struct LevelInfo_1E4::unk4 moved");
@@ -835,14 +977,14 @@ PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E4, unk8) == 8, "struct LevelInfo_
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E4, unkC) == 12, "struct LevelInfo_1E4::unkC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E4, unkD) == 13, "struct LevelInfo_1E4::unkD moved");
 
-/* struct LevelInfo_1E8 -- data.h:160 */
+/* struct LevelInfo_1E8 -- data.h:162 */
 PORT_LAYOUT_ASSERT(sizeof(struct LevelInfo_1E8) == 28, "struct LevelInfo_1E8 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8, unk0) == 0, "struct LevelInfo_1E8::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8, unk10) == 16, "struct LevelInfo_1E8::unk10 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8, unk14) == 20, "struct LevelInfo_1E8::unk14 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8, unk18) == 24, "struct LevelInfo_1E8::unk18 moved");
 
-/* struct LevelInfo_1E8_14 -- data.h:152 */
+/* struct LevelInfo_1E8_14 -- data.h:154 */
 PORT_LAYOUT_ASSERT(sizeof(struct LevelInfo_1E8_14) == 52, "struct LevelInfo_1E8_14 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8_14, unk0) == 0, "struct LevelInfo_1E8_14::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct LevelInfo_1E8_14, unk20) == 32, "struct LevelInfo_1E8_14::unk20 moved");
@@ -861,13 +1003,13 @@ PORT_LAYOUT_ASSERT(offsetof(struct LogoStruct, unkE) == 14, "struct LogoStruct::
 
 /* struct MegaTitan -- mega_titan.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct MegaTitan) == 200, "struct MegaTitan changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct MegaTitan, obj2) == 0, "struct MegaTitan::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct MegaTitan, obj) == 0, "struct MegaTitan::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct MegaTitan, arms) == 180, "struct MegaTitan::arms moved");
 PORT_LAYOUT_ASSERT(offsetof(struct MegaTitan, unkC4) == 196, "struct MegaTitan::unkC4 moved");
 
 /* struct MirrorDoor -- mirror_door.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct MirrorDoor) == 196, "struct MirrorDoor changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, obj2) == 0, "struct MirrorDoor::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, obj) == 0, "struct MirrorDoor::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, unkB4) == 180, "struct MirrorDoor::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, unkBC) == 188, "struct MirrorDoor::unkBC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, unkBE) == 190, "struct MirrorDoor::unkBE moved");
@@ -876,7 +1018,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct MirrorDoor, unkC2) == 194, "struct MirrorDoor
 
 /* struct Moley -- moley.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Moley) == 184, "struct Moley changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Moley, obj2) == 0, "struct Moley::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Moley, obj) == 0, "struct Moley::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Moley, unkB4) == 180, "struct Moley::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Moley, unkB5) == 181, "struct Moley::unkB5 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Moley, unkB6) == 182, "struct Moley::unkB6 moved");
@@ -1154,33 +1296,42 @@ PORT_LAYOUT_ASSERT(offsetof(struct ObjAffineSrcData, xScale) == 0, "struct ObjAf
 PORT_LAYOUT_ASSERT(offsetof(struct ObjAffineSrcData, yScale) == 2, "struct ObjAffineSrcData::yScale moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjAffineSrcData, rotation) == 4, "struct ObjAffineSrcData::rotation moved");
 
-/* struct Object -- data.h:264 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object) == 36, "struct Object changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, spawnTable) == 0, "struct Object::spawnTable moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk1) == 1, "struct Object::unk1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk2) == 2, "struct Object::unk2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk3) == 3, "struct Object::unk3 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk4) == 4, "struct Object::unk4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk5) == 5, "struct Object::unk5 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, x) == 6, "struct Object::x moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, y) == 8, "struct Object::y moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA) == 10, "struct Object::unkA moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unkB) == 11, "struct Object::unkB moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, type) == 12, "struct Object::type moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unkD) == 13, "struct Object::unkD moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, subtype1) == 14, "struct Object::subtype1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unkF) == 15, "struct Object::unkF moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, subtype2) == 16, "struct Object::subtype2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk11) == 17, "struct Object::unk11 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk12) == 18, "struct Object::unk12 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk14) == 20, "struct Object::unk14 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk16) == 22, "struct Object::unk16 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk18) == 24, "struct Object::unk18 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk1A) == 26, "struct Object::unk1A moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk1C) == 28, "struct Object::unk1C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk1E) == 30, "struct Object::unk1E moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk20) == 32, "struct Object::unk20 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object, unk22) == 34, "struct Object::unk22 moved");
+/* struct Object -- data.h:365 */
+PORT_LAYOUT_ASSERT(sizeof(struct Object) == 180, "struct Object changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, base) == 0, "struct Object::base moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk78) == 120, "struct Object::unk78 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk7C) == 124, "struct Object::unk7C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk80) == 128, "struct Object::unk80 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, type) == 130, "struct Object::type moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk83) == 131, "struct Object::unk83 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, kirbyAbility) == 132, "struct Object::kirbyAbility moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk85) == 133, "struct Object::unk85 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk86) == 134, "struct Object::unk86 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, subtype) == 135, "struct Object::subtype moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk88) == 136, "struct Object::unk88 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk8C) == 140, "struct Object::unk8C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk90) == 144, "struct Object::unk90 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk91) == 145, "struct Object::unk91 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk92) == 146, "struct Object::unk92 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk93) == 147, "struct Object::unk93 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk94) == 148, "struct Object::unk94 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk95) == 149, "struct Object::unk95 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk96) == 150, "struct Object::unk96 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk97) == 151, "struct Object::unk97 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk98) == 152, "struct Object::unk98 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk9A) == 154, "struct Object::unk9A moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk9C) == 156, "struct Object::unk9C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk9D) == 157, "struct Object::unk9D moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk9E) == 158, "struct Object::unk9E moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unk9F) == 159, "struct Object::unk9F moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA0) == 160, "struct Object::unkA0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA2) == 162, "struct Object::unkA2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA4) == 164, "struct Object::unkA4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA6) == 166, "struct Object::unkA6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkA8) == 168, "struct Object::unkA8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, unkAA) == 170, "struct Object::unkAA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, kirby3) == 172, "struct Object::kirby3 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object, objTemplate) == 176, "struct Object::objTemplate moved");
 
 /* struct Object11 -- code_0814F274.h:16 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object11) == 12, "struct Object11 changed size -- it is read at a fixed address");
@@ -1195,115 +1346,25 @@ PORT_LAYOUT_ASSERT(sizeof(struct Object11_8) == 8, "struct Object11_8 changed si
 PORT_LAYOUT_ASSERT(offsetof(struct Object11_8, unk0) == 0, "struct Object11_8::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object11_8, unk4) == 4, "struct Object11_8::unk4 moved");
 
-/* struct Object12 -- dark_mind.h:50 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object12) == 232, "struct Object12 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unk0) == 0, "struct Object12::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkB4) == 180, "struct Object12::unkB4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkDC) == 220, "struct Object12::unkDC moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkE0) == 224, "struct Object12::unkE0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkE1) == 225, "struct Object12::unkE1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkE2) == 226, "struct Object12::unkE2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkE3) == 227, "struct Object12::unkE3 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object12, unkE4) == 228, "struct Object12::unkE4 moved");
-
 /* struct Object13 -- dark_mind.h:43 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object13) == 112, "struct Object13 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Object13, unk0) == 0, "struct Object13::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object13, unk48) == 72, "struct Object13::unk48 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object13, unk68) == 104, "struct Object13::unk68 moved");
 
-/* struct Object14 -- data.h:492 */
+/* struct Object14 -- data.h:438 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object14) == 80, "struct Object14 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object14, obj4) == 0, "struct Object14::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Object14, effectObject) == 0, "struct Object14::effectObject moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object14, func48) == 72, "struct Object14::func48 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object14, func4C) == 76, "struct Object14::func4C moved");
 
-/* struct Object2 -- data.h:398 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object2) == 180, "struct Object2 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, base) == 0, "struct Object2::base moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk78) == 120, "struct Object2::unk78 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk7C) == 124, "struct Object2::unk7C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk80) == 128, "struct Object2::unk80 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, type) == 130, "struct Object2::type moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk83) == 131, "struct Object2::unk83 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, kirbyAbility) == 132, "struct Object2::kirbyAbility moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk85) == 133, "struct Object2::unk85 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk86) == 134, "struct Object2::unk86 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, subtype) == 135, "struct Object2::subtype moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk88) == 136, "struct Object2::unk88 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk8C) == 140, "struct Object2::unk8C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk90) == 144, "struct Object2::unk90 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk91) == 145, "struct Object2::unk91 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk92) == 146, "struct Object2::unk92 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk93) == 147, "struct Object2::unk93 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk94) == 148, "struct Object2::unk94 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk95) == 149, "struct Object2::unk95 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk96) == 150, "struct Object2::unk96 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk97) == 151, "struct Object2::unk97 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk98) == 152, "struct Object2::unk98 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk9A) == 154, "struct Object2::unk9A moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk9C) == 156, "struct Object2::unk9C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk9D) == 157, "struct Object2::unk9D moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk9E) == 158, "struct Object2::unk9E moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unk9F) == 159, "struct Object2::unk9F moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkA0) == 160, "struct Object2::unkA0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkA2) == 162, "struct Object2::unkA2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkA4) == 164, "struct Object2::unkA4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkA6) == 166, "struct Object2::unkA6 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkA8) == 168, "struct Object2::unkA8 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, unkAA) == 170, "struct Object2::unkAA moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, kirby3) == 172, "struct Object2::kirby3 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object2, object) == 176, "struct Object2::object moved");
-
-/* struct Object3 -- data.h:393 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object3) == 124, "struct Object3 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object3, base) == 0, "struct Object3::base moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object3, unk78) == 120, "struct Object3::unk78 moved");
-
-/* struct Object4 -- data.h:435 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object4) == 72, "struct Object4 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk0) == 0, "struct Object4::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk1) == 1, "struct Object4::unk1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk2) == 2, "struct Object4::unk2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk4) == 4, "struct Object4::unk4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, flags) == 6, "struct Object4::flags moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk8) == 8, "struct Object4::unk8 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, sprite) == 12, "struct Object4::sprite moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, x) == 52, "struct Object4::x moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, y) == 56, "struct Object4::y moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk3C) == 60, "struct Object4::unk3C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, unk3E) == 62, "struct Object4::unk3E moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, objBase54) == 64, "struct Object4::objBase54 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, objBase55) == 65, "struct Object4::objBase55 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, roomId) == 66, "struct Object4::roomId moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object4, parent) == 68, "struct Object4::parent moved");
-
-/* struct Object5 -- data.h:453 */
-PORT_LAYOUT_ASSERT(sizeof(struct Object5) == 512, "struct Object5 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk0) == 0, "struct Object5::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk4) == 4, "struct Object5::unk4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk6) == 6, "struct Object5::unk6 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk7) == 7, "struct Object5::unk7 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, filler8) == 8, "struct Object5::filler8 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk9) == 9, "struct Object5::unk9 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkA) == 10, "struct Object5::unkA moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkB) == 11, "struct Object5::unkB moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkC) == 12, "struct Object5::unkC moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkD) == 13, "struct Object5::unkD moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkE) == 14, "struct Object5::unkE moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unkF) == 15, "struct Object5::unkF moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk10) == 16, "struct Object5::unk10 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, filler14) == 20, "struct Object5::filler14 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk1C) == 28, "struct Object5::unk1C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Object5, unk20) == 32, "struct Object5::unk20 moved");
-
-/* struct Object6 -- data.h:472 */
+/* struct Object6 -- data.h:418 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object6) == 8, "struct Object6 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Object6, unk0) == 0, "struct Object6::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object6, unk2) == 2, "struct Object6::unk2 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object6, unk4) == 4, "struct Object6::unk4 moved");
 
-/* struct Object7 -- data.h:478 */
+/* struct Object7 -- data.h:424 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object7) == 12, "struct Object7 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Object7, unk0) == 0, "struct Object7::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object7, unk1) == 1, "struct Object7::unk1 moved");
@@ -1311,17 +1372,15 @@ PORT_LAYOUT_ASSERT(offsetof(struct Object7, unk2) == 2, "struct Object7::unk2 mo
 PORT_LAYOUT_ASSERT(offsetof(struct Object7, unk4) == 4, "struct Object7::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object7, unk8) == 8, "struct Object7::unk8 moved");
 
-/* struct Object9 -- data.h:486 */
+/* struct Object9 -- data.h:432 */
 PORT_LAYOUT_ASSERT(sizeof(struct Object9) == 120, "struct Object9 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Object9, unk0) == 0, "struct Object9::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object9, unk48) == 72, "struct Object9::unk48 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Object9, unk68) == 104, "struct Object9::unk68 moved");
 
-/* struct ObjectBase -- data.h:292 */
+/* struct ObjectBase -- data.h:322 */
 PORT_LAYOUT_ASSERT(sizeof(struct ObjectBase) == 120, "struct ObjectBase changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk0) == 0, "struct ObjectBase::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk1) == 1, "struct ObjectBase::unk1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk2) == 2, "struct ObjectBase::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, header) == 0, "struct ObjectBase::header moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, counter) == 4, "struct ObjectBase::counter moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, filler6) == 6, "struct ObjectBase::filler6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, flags) == 8, "struct ObjectBase::flags moved");
@@ -1355,7 +1414,67 @@ PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk66) == 102, "struct ObjectBase
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk68) == 104, "struct ObjectBase::unk68 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk6C) == 108, "struct ObjectBase::unk6C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, parent) == 112, "struct ObjectBase::parent moved");
-PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, kirby2) == 116, "struct ObjectBase::kirby2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectBase, unk74) == 116, "struct ObjectBase::unk74 moved");
+
+/* struct ObjectHeader -- data.h:299 */
+PORT_LAYOUT_ASSERT(sizeof(struct ObjectHeader) == 4, "struct ObjectHeader changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectHeader, kind) == 0, "struct ObjectHeader::kind moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectHeader, unk1) == 1, "struct ObjectHeader::unk1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectHeader, unk2) == 2, "struct ObjectHeader::unk2 moved");
+
+/* struct ObjectSpawner -- object_spawner.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct ObjectSpawner) == 224, "struct ObjectSpawner changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectSpawner, obj) == 0, "struct ObjectSpawner::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectSpawner, fillerB4) == 180, "struct ObjectSpawner::fillerB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectSpawner, unkDC) == 220, "struct ObjectSpawner::unkDC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectSpawner, unkDE) == 222, "struct ObjectSpawner::unkDE moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectSpawner, unkDF) == 223, "struct ObjectSpawner::unkDF moved");
+
+/* struct ObjectTemplate -- data.h:266 */
+PORT_LAYOUT_ASSERT(sizeof(struct ObjectTemplate) == 36, "struct ObjectTemplate changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, spawnTable) == 0, "struct ObjectTemplate::spawnTable moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk1) == 1, "struct ObjectTemplate::unk1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk2) == 2, "struct ObjectTemplate::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk3) == 3, "struct ObjectTemplate::unk3 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk4) == 4, "struct ObjectTemplate::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk5) == 5, "struct ObjectTemplate::unk5 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, x) == 6, "struct ObjectTemplate::x moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, y) == 8, "struct ObjectTemplate::y moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unkA) == 10, "struct ObjectTemplate::unkA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unkB) == 11, "struct ObjectTemplate::unkB moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, type) == 12, "struct ObjectTemplate::type moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unkD) == 13, "struct ObjectTemplate::unkD moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, subtype1) == 14, "struct ObjectTemplate::subtype1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unkF) == 15, "struct ObjectTemplate::unkF moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, subtype2) == 16, "struct ObjectTemplate::subtype2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk11) == 17, "struct ObjectTemplate::unk11 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk12) == 18, "struct ObjectTemplate::unk12 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk14) == 20, "struct ObjectTemplate::unk14 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk16) == 22, "struct ObjectTemplate::unk16 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk18) == 24, "struct ObjectTemplate::unk18 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk1A) == 26, "struct ObjectTemplate::unk1A moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk1C) == 28, "struct ObjectTemplate::unk1C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk1E) == 30, "struct ObjectTemplate::unk1E moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk20) == 32, "struct ObjectTemplate::unk20 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ObjectTemplate, unk22) == 34, "struct ObjectTemplate::unk22 moved");
+
+/* struct PaletteEffect -- palette_effects.h:13 */
+PORT_LAYOUT_ASSERT(sizeof(struct PaletteEffect) == 16, "struct PaletteEffect changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk0) == 0, "struct PaletteEffect::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk1) == 1, "struct PaletteEffect::unk1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk2) == 2, "struct PaletteEffect::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk3) == 3, "struct PaletteEffect::unk3 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk4) == 4, "struct PaletteEffect::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk6) == 6, "struct PaletteEffect::unk6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unk8) == 8, "struct PaletteEffect::unk8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkA) == 10, "struct PaletteEffect::unkA moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkC) == 12, "struct PaletteEffect::unkC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkE) == 14, "struct PaletteEffect::unkE moved");
+
+/* struct PaletteEffectManager -- palette_effects.h:26 */
+PORT_LAYOUT_ASSERT(sizeof(struct PaletteEffectManager) == 160, "struct PaletteEffectManager changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffectManager, unk0) == 0, "struct PaletteEffectManager::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffectManager, unk80) == 128, "struct PaletteEffectManager::unk80 moved");
 
 /* struct PauseFadeStruct -- pause_fade.h:11 */
 PORT_LAYOUT_ASSERT(sizeof(struct PauseFadeStruct) == 4, "struct PauseFadeStruct changed size -- it is read at a fixed address");
@@ -1397,13 +1516,22 @@ PORT_LAYOUT_ASSERT(sizeof(struct RCnt) == 2, "struct RCnt changed size -- it is 
 /*     unused_13_9: bitfield at bit 0, 5 bits */
 /*     sioModeMaster: bitfield at bit 0, 2 bits */
 
+/* struct RfuSIO32Id -- gbplayer.h:11 */
+PORT_LAYOUT_ASSERT(sizeof(struct RfuSIO32Id) == 12, "struct RfuSIO32Id changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, MS_mode) == 0, "struct RfuSIO32Id::MS_mode moved");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, count) == 2, "struct RfuSIO32Id::count moved");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, send_id) == 4, "struct RfuSIO32Id::send_id moved");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, recv_id) == 6, "struct RfuSIO32Id::recv_id moved");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, filler8) == 8, "struct RfuSIO32Id::filler8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct RfuSIO32Id, lastId) == 10, "struct RfuSIO32Id::lastId moved");
+
 /* struct RockBlock -- destroyable_rock_block.h:13 */
 PORT_LAYOUT_ASSERT(sizeof(struct RockBlock) == 184, "struct RockBlock changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct RockBlock, base) == 0, "struct RockBlock::base moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RockBlock, unkB4) == 180, "struct RockBlock::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RockBlock, unkB6) == 182, "struct RockBlock::unkB6 moved");
 
-/* struct RoomProps -- data.h:498 */
+/* struct RoomProps -- data.h:444 */
 PORT_LAYOUT_ASSERT(sizeof(struct RoomProps) == 40, "struct RoomProps changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomProps, songIdx) == 0, "struct RoomProps::songIdx moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomProps, unk02) == 2, "struct RoomProps::unk02 moved");
@@ -1426,7 +1554,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct RoomProps, unk22) == 34, "struct RoomProps::u
 PORT_LAYOUT_ASSERT(offsetof(struct RoomProps, doorsIdx) == 36, "struct RoomProps::doorsIdx moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomProps, unk26) == 38, "struct RoomProps::unk26 moved");
 
-/* struct RoomTiledBG -- data.h:76 */
+/* struct RoomTiledBG -- data.h:78 */
 PORT_LAYOUT_ASSERT(sizeof(struct RoomTiledBG) == 32, "struct RoomTiledBG changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomTiledBG, width) == 0, "struct RoomTiledBG::width moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomTiledBG, height) == 2, "struct RoomTiledBG::height moved");
@@ -1441,12 +1569,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct RoomTiledBG, paletteSize) == 22, "struct Room
 PORT_LAYOUT_ASSERT(offsetof(struct RoomTiledBG, tilemap) == 24, "struct RoomTiledBG::tilemap moved");
 PORT_LAYOUT_ASSERT(offsetof(struct RoomTiledBG, unk1C) == 28, "struct RoomTiledBG::unk1C moved");
 
-/* struct S16Vec2 -- data.h:177 */
+/* struct S16Vec2 -- data.h:179 */
 PORT_LAYOUT_ASSERT(sizeof(struct S16Vec2) == 4, "struct S16Vec2 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct S16Vec2, x) == 0, "struct S16Vec2::x moved");
 PORT_LAYOUT_ASSERT(offsetof(struct S16Vec2, y) == 2, "struct S16Vec2::y moved");
 
-/* struct S32Vec2 -- data.h:183 */
+/* struct S32Vec2 -- data.h:185 */
 PORT_LAYOUT_ASSERT(sizeof(struct S32Vec2) == 8, "struct S32Vec2 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct S32Vec2, x) == 0, "struct S32Vec2::x moved");
 PORT_LAYOUT_ASSERT(offsetof(struct S32Vec2, y) == 4, "struct S32Vec2::y moved");
@@ -1465,8 +1593,8 @@ PORT_LAYOUT_ASSERT(offsetof(struct SaveChecksum, d) == 6, "struct SaveChecksum::
 
 /* struct Shard -- shard.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Shard) == 228, "struct Shard changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Shard, obj2) == 0, "struct Shard::obj2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Shard, obj4) == 180, "struct Shard::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Shard, obj) == 0, "struct Shard::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Shard, effectObjects) == 180, "struct Shard::effectObjects moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Shard, unkD4) == 212, "struct Shard::unkD4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Shard, unkD6) == 214, "struct Shard::unkD6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Shard, unkD8) == 216, "struct Shard::unkD8 moved");
@@ -1536,7 +1664,7 @@ PORT_LAYOUT_ASSERT(sizeof(struct SioUartCnt) == 4, "struct SioUartCnt changed si
 PORT_LAYOUT_ASSERT(offsetof(struct SioUartCnt, data) == 2, "struct SioUartCnt::data moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SioUartCnt, unused_31_24) == 3, "struct SioUartCnt::unused_31_24 moved");
 
-/* struct SolidityMap -- data.h:937 */
+/* struct SolidityMap -- data.h:876 */
 PORT_LAYOUT_ASSERT(sizeof(struct SolidityMap) == 8, "struct SolidityMap changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct SolidityMap, unk0) == 0, "struct SolidityMap::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SolidityMap, unk4) == 4, "struct SolidityMap::unk4 moved");
@@ -1623,13 +1751,13 @@ PORT_LAYOUT_ASSERT(offsetof(struct SoundInfo, pcmBuffer) == 848, "struct SoundIn
 
 /* struct SpecialHubMirror -- special_hub_mirror.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct SpecialHubMirror) == 192, "struct SpecialHubMirror changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, obj2) == 0, "struct SpecialHubMirror::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, obj) == 0, "struct SpecialHubMirror::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, unkB4) == 180, "struct SpecialHubMirror::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, unkB8) == 184, "struct SpecialHubMirror::unkB8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, unkBA) == 186, "struct SpecialHubMirror::unkBA moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpecialHubMirror, unkBC) == 188, "struct SpecialHubMirror::unkBC moved");
 
-/* struct Sprite -- sprite.h:102 */
+/* struct Sprite -- sprite.h:112 */
 PORT_LAYOUT_ASSERT(sizeof(struct Sprite) == 40, "struct Sprite changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite, tilesVram) == 0, "struct Sprite::tilesVram moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite, unk4) == 4, "struct Sprite::unk4 moved");
@@ -1649,12 +1777,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct Sprite, numSubframes) == 30, "struct Sprite::
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite, palId) == 31, "struct Sprite::palId moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite, unk20) == 32, "struct Sprite::unk20 moved");
 
-/* struct SpriteAttributes_Full -- sprite.h:266 */
+/* struct SpriteAttributes_Full -- sprite.h:276 */
 PORT_LAYOUT_ASSERT(sizeof(struct SpriteAttributes_Full) == 16, "struct SpriteAttributes_Full changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Full, sub) == 0, "struct SpriteAttributes_Full::sub moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Full, unkC) == 12, "struct SpriteAttributes_Full::unkC moved");
 
-/* struct SpriteAttributes_Sub -- sprite.h:249 */
+/* struct SpriteAttributes_Sub -- sprite.h:259 */
 PORT_LAYOUT_ASSERT(sizeof(struct SpriteAttributes_Sub) == 12, "struct SpriteAttributes_Sub changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Sub, bitfield) == 0, "struct SpriteAttributes_Sub::bitfield moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Sub, numSubframes) == 2, "struct SpriteAttributes_Sub::numSubframes moved");
@@ -1663,7 +1791,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Sub, height) == 6, "struct S
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Sub, offsetX) == 8, "struct SpriteAttributes_Sub::offsetX moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteAttributes_Sub, offsetY) == 10, "struct SpriteAttributes_Sub::offsetY moved");
 
-/* struct SpriteTables -- sprite.h:285 */
+/* struct SpriteTables -- sprite.h:295 */
 PORT_LAYOUT_ASSERT(sizeof(struct SpriteTables) == 28, "struct SpriteTables changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, anims) == 0, "struct SpriteTables::anims moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, attrs) == 4, "struct SpriteTables::attrs moved");
@@ -1673,7 +1801,15 @@ PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, tiles4bpp) == 16, "struct Sprit
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, tiles8bpp) == 20, "struct SpriteTables::tiles8bpp moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SpriteTables, unk18) == 24, "struct SpriteTables::unk18 moved");
 
-/* struct Sprite_20 -- sprite.h:94 */
+/* struct SpriteTransform -- sprite.h:104 */
+PORT_LAYOUT_ASSERT(sizeof(struct SpriteTransform) == 10, "struct SpriteTransform changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, rotation) == 0, "struct SpriteTransform::rotation moved");
+PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, qScaleX) == 2, "struct SpriteTransform::qScaleX moved");
+PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, qScaleY) == 4, "struct SpriteTransform::qScaleY moved");
+PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, x) == 6, "struct SpriteTransform::x moved");
+PORT_LAYOUT_ASSERT(offsetof(struct SpriteTransform, y) == 8, "struct SpriteTransform::y moved");
+
+/* struct Sprite_20 -- sprite.h:96 */
 PORT_LAYOUT_ASSERT(sizeof(struct Sprite_20) == 8, "struct Sprite_20 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite_20, unk0) == 0, "struct Sprite_20::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Sprite_20, unk4) == 4, "struct Sprite_20::unk4 moved");
@@ -1683,7 +1819,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Sprite_20, unk7) == 7, "struct Sprite_20::unk
 
 /* struct StarPlatform -- star_platform.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct StarPlatform) == 188, "struct StarPlatform changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, obj2) == 0, "struct StarPlatform::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, obj) == 0, "struct StarPlatform::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, unkB4) == 180, "struct StarPlatform::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, unkB6) == 182, "struct StarPlatform::unkB6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, unkB8) == 184, "struct StarPlatform::unkB8 moved");
@@ -1691,7 +1827,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct StarPlatform, unkBA) == 186, "struct StarPlat
 
 /* struct StarShared -- warp_star.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct StarShared) == 188, "struct StarShared changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct StarShared, obj2) == 0, "struct StarShared::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct StarShared, obj) == 0, "struct StarShared::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarShared, unkB4) == 180, "struct StarShared::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarShared, unkB5) == 181, "struct StarShared::unkB5 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarShared, unkB6) == 182, "struct StarShared::unkB6 moved");
@@ -1700,7 +1836,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct StarShared, unkBA) == 186, "struct StarShared
 
 /* struct StarStoneBlock -- star_stone_block.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct StarStoneBlock) == 228, "struct StarStoneBlock changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct StarStoneBlock, obj2) == 0, "struct StarStoneBlock::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct StarStoneBlock, obj) == 0, "struct StarStoneBlock::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarStoneBlock, fillerB4) == 180, "struct StarStoneBlock::fillerB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarStoneBlock, unkE0) == 224, "struct StarStoneBlock::unkE0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct StarStoneBlock, unkE1) == 225, "struct StarStoneBlock::unkE1 moved");
@@ -1722,6 +1858,13 @@ PORT_LAYOUT_ASSERT(offsetof(struct SubGameMenu, unk174) == 372, "struct SubGameM
 PORT_LAYOUT_ASSERT(offsetof(struct SubGameMenu, unk176) == 374, "struct SubGameMenu::unk176 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct SubGameMenu, unk178) == 376, "struct SubGameMenu::unk178 moved");
 
+/* struct Switch -- big_small_switch.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Switch) == 188, "struct Switch changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Switch, obj) == 0, "struct Switch::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Switch, unkB4) == 180, "struct Switch::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Switch, unkB6) == 182, "struct Switch::unkB6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Switch, unkB8) == 184, "struct Switch::unkB8 moved");
+
 /* struct Task -- task.h:25 */
 PORT_LAYOUT_ASSERT(sizeof(struct Task) == 20, "struct Task changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Task, parent) == 0, "struct Task::parent moved");
@@ -1733,7 +1876,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct Task, dtor) == 12, "struct Task::dtor moved")
 PORT_LAYOUT_ASSERT(offsetof(struct Task, priority) == 16, "struct Task::priority moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Task, flags) == 18, "struct Task::flags moved");
 
-/* struct TiledBg_082D7850 -- data.h:62 */
+/* struct ThrowAbilityObject -- data.h:360 */
+PORT_LAYOUT_ASSERT(sizeof(struct ThrowAbilityObject) == 124, "struct ThrowAbilityObject changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct ThrowAbilityObject, base) == 0, "struct ThrowAbilityObject::base moved");
+PORT_LAYOUT_ASSERT(offsetof(struct ThrowAbilityObject, unk78) == 120, "struct ThrowAbilityObject::unk78 moved");
+
+/* struct TiledBg_082D7850 -- data.h:64 */
 PORT_LAYOUT_ASSERT(sizeof(struct TiledBg_082D7850) == 28, "struct TiledBg_082D7850 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850, width) == 0, "struct TiledBg_082D7850::width moved");
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850, height) == 2, "struct TiledBg_082D7850::height moved");
@@ -1747,7 +1895,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850, paletteOffset) == 20, "stru
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850, paletteSize) == 22, "struct TiledBg_082D7850::paletteSize moved");
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850, tilemap) == 24, "struct TiledBg_082D7850::tilemap moved");
 
-/* struct TiledBg_082D7850_Full -- data.h:91 */
+/* struct TiledBg_082D7850_Full -- data.h:93 */
 PORT_LAYOUT_ASSERT(sizeof(struct TiledBg_082D7850_Full) == 36, "struct TiledBg_082D7850_Full changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850_Full, unk0) == 0, "struct TiledBg_082D7850_Full::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850_Full, unk1C) == 28, "struct TiledBg_082D7850_Full::unk1C moved");
@@ -1756,7 +1904,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct TiledBg_082D7850_Full, unk22) == 34, "struct 
 
 /* struct TitanHead -- mega_titan.h:19 */
 PORT_LAYOUT_ASSERT(sizeof(struct TitanHead) == 200, "struct TitanHead changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct TitanHead, obj2) == 0, "struct TitanHead::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct TitanHead, obj) == 0, "struct TitanHead::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct TitanHead, unused) == 180, "struct TitanHead::unused moved");
 
 /* struct TitleStruct -- title_screen.h:17 */
@@ -1796,32 +1944,14 @@ PORT_LAYOUT_ASSERT(offsetof(struct Treasures, musicPlayerAndSheetsField) == 24, 
 PORT_LAYOUT_ASSERT(offsetof(struct Treasures, bigChestField) == 28, "struct Treasures::bigChestField moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Treasures, vitalityField) == 32, "struct Treasures::vitalityField moved");
 
-/* struct Unk_02022930 -- data.h:691 */
-PORT_LAYOUT_ASSERT(sizeof(struct Unk_02022930) == 160, "struct Unk_02022930 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930, unk0) == 0, "struct Unk_02022930::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930, unk80) == 128, "struct Unk_02022930::unk80 moved");
-
-/* struct Unk_02022930_0 -- data.h:678 */
-PORT_LAYOUT_ASSERT(sizeof(struct Unk_02022930_0) == 16, "struct Unk_02022930_0 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk0) == 0, "struct Unk_02022930_0::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk1) == 1, "struct Unk_02022930_0::unk1 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk2) == 2, "struct Unk_02022930_0::unk2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk3) == 3, "struct Unk_02022930_0::unk3 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk4) == 4, "struct Unk_02022930_0::unk4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk6) == 6, "struct Unk_02022930_0::unk6 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unk8) == 8, "struct Unk_02022930_0::unk8 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unkA) == 10, "struct Unk_02022930_0::unkA moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unkC) == 12, "struct Unk_02022930_0::unkC moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_02022930_0, unkE) == 14, "struct Unk_02022930_0::unkE moved");
-
-/* struct Unk_02023720 -- data.h:49 */
+/* struct Unk_02023720 -- data.h:51 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_02023720) == 16, "struct Unk_02023720 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720, next) == 0, "struct Unk_02023720::next moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720, prev) == 4, "struct Unk_02023720::prev moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720, unk08) == 8, "struct Unk_02023720::unk08 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720, unk0C) == 12, "struct Unk_02023720::unk0C moved");
 
-/* struct Unk_02023720_Mgr -- data.h:56 */
+/* struct Unk_02023720_Mgr -- data.h:58 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_02023720_Mgr) == 1032, "struct Unk_02023720_Mgr changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720_Mgr, first) == 0, "struct Unk_02023720_Mgr::first moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02023720_Mgr, last) == 4, "struct Unk_02023720_Mgr::last moved");
@@ -1867,7 +1997,7 @@ PORT_LAYOUT_ASSERT(sizeof(struct Unk_020382D0_sub) == 8, "struct Unk_020382D0_su
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0_sub, unk0) == 0, "struct Unk_020382D0_sub::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0_sub, unk4) == 4, "struct Unk_020382D0_sub::unk4 moved");
 
-/* struct Unk_02038590 -- data.h:530 */
+/* struct Unk_02038590 -- data.h:476 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_02038590) == 244, "struct Unk_02038590 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590, unk0) == 0, "struct Unk_02038590::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590, flags) == 16, "struct Unk_02038590::flags moved");
@@ -1926,14 +2056,14 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590, unkEC) == 236, "struct Unk_0203
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590, unkEE) == 238, "struct Unk_02038590::unkEE moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590, fillerF0) == 240, "struct Unk_02038590::fillerF0 moved");
 
-/* struct Unk_02038590_4C -- data.h:523 */
+/* struct Unk_02038590_4C -- data.h:469 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_02038590_4C) == 12, "struct Unk_02038590_4C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unk0) == 0, "struct Unk_02038590_4C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unk4) == 4, "struct Unk_02038590_4C::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unk8) == 8, "struct Unk_02038590_4C::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unkA) == 10, "struct Unk_02038590_4C::unkA moved");
 
-/* struct Unk_03000510 -- data.h:622 */
+/* struct Unk_03000510 -- data.h:568 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_03000510) == 5, "struct Unk_03000510 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03000510, unk0) == 0, "struct Unk_03000510::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03000510, unk4) == 4, "struct Unk_03000510::unk4 moved");
@@ -1950,15 +2080,19 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_03002EC0, unk4) == 4, "struct Unk_03002EC
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03002EC0, unk8) == 8, "struct Unk_03002EC0::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03002EC0, fillerA) == 10, "struct Unk_03002EC0::fillerA moved");
 
-/* struct Unk_08002E48 -- data.h:945 */
+/* struct Unk_08002E48 -- data.h:884 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08002E48) == 40, "struct Unk_08002E48 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unk0) == 0, "struct Unk_08002E48::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, filler) == 1, "struct Unk_08002E48::filler moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unk2) == 2, "struct Unk_08002E48::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unk4) == 4, "struct Unk_08002E48::unk4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unkC) == 12, "struct Unk_08002E48::unkC moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unk1C) == 28, "struct Unk_08002E48::unk1C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, filler20) == 32, "struct Unk_08002E48::filler20 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08002E48, unk24) == 36, "struct Unk_08002E48::unk24 moved");
 
 /* struct Unk_0800D9E8 -- warp_star.h:58 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0800D9E8) == 204, "struct Unk_0800D9E8 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0800D9E8, obj4) == 0, "struct Unk_0800D9E8::obj4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0800D9E8, effectObject) == 0, "struct Unk_0800D9E8::effectObject moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0800D9E8, sprites) == 72, "struct Unk_0800D9E8::sprites moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0800D9E8, unkC0) == 192, "struct Unk_0800D9E8::unkC0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0800D9E8, unkC4) == 196, "struct Unk_0800D9E8::unkC4 moved");
@@ -2021,6 +2155,13 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0801DA58, unkDE) == 222, "struct Unk_0801
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0801DA58, unkE0) == 224, "struct Unk_0801DA58::unkE0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0801DA58, unkE2) == 226, "struct Unk_0801DA58::unkE2 moved");
 
+/* struct Unk_080257A8 -- code_080257A8.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_080257A8) == 136, "struct Unk_080257A8 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_080257A8, unk0) == 0, "struct Unk_080257A8::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_080257A8, unk40) == 64, "struct Unk_080257A8::unk40 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_080257A8, unk80) == 128, "struct Unk_080257A8::unk80 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_080257A8, unk84) == 132, "struct Unk_080257A8::unk84 moved");
+
 /* struct Unk_080296EC -- code_08026044.h:61 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_080296EC) == 84, "struct Unk_080296EC changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_080296EC, unk0) == 0, "struct Unk_080296EC::unk0 moved");
@@ -2050,32 +2191,30 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk36) == 54, "struct Unk_08029
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk38) == 56, "struct Unk_080299B4::unk38 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_080299B4, unk3A) == 58, "struct Unk_080299B4::unk3A moved");
 
-/* struct Unk_0802E57C -- code_0802E57C.h:42 */
+/* struct Unk_0802E16C -- code_0802E16C.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E16C) == 72, "struct Unk_0802E16C changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk0) == 0, "struct Unk_0802E16C::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk40) == 64, "struct Unk_0802E16C::unk40 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E16C, unk44) == 68, "struct Unk_0802E16C::unk44 moved");
+
+/* struct Unk_0802E57C -- code_0802E57C.h:35 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C) == 404, "struct Unk_0802E57C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk0) == 0, "struct Unk_0802E57C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk4) == 4, "struct Unk_0802E57C::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk8) == 8, "struct Unk_0802E57C::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unkC) == 12, "struct Unk_0802E57C::unkC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk14C) == 332, "struct Unk_0802E57C::unk14C moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk174) == 372, "struct Unk_0802E57C::unk174 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, filler174) == 372, "struct Unk_0802E57C::filler174 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk178) == 376, "struct Unk_0802E57C::unk178 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk17C) == 380, "struct Unk_0802E57C::unk17C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk180) == 384, "struct Unk_0802E57C::unk180 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk182) == 386, "struct Unk_0802E57C::unk182 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk184) == 388, "struct Unk_0802E57C::unk184 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk186) == 390, "struct Unk_0802E57C::unk186 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, filler184) == 388, "struct Unk_0802E57C::filler184 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk188) == 392, "struct Unk_0802E57C::unk188 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk18C) == 396, "struct Unk_0802E57C::unk18C moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C, unk190) == 400, "struct Unk_0802E57C::unk190 moved");
 
-/* struct Unk_0802E57C_174 -- code_0802E57C.h:35 */
-PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C_174) == 8, "struct Unk_0802E57C_174 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk0) == 0, "struct Unk_0802E57C_174::unk0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk2) == 2, "struct Unk_0802E57C_174::unk2 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk4) == 4, "struct Unk_0802E57C_174::unk4 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_174, unk6) == 6, "struct Unk_0802E57C_174::unk6 moved");
-
-/* struct Unk_0802E57C_C -- code_0802E57C.h:15 */
+/* struct Unk_0802E57C_C -- code_0802E57C.h:18 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802E57C_C) == 80, "struct Unk_0802E57C_C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk0) == 0, "struct Unk_0802E57C_C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk28) == 40, "struct Unk_0802E57C_C::unk28 moved");
@@ -2090,8 +2229,17 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk42) == 66, "struct Unk_080
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk44) == 68, "struct Unk_0802E57C_C::unk44 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk46) == 70, "struct Unk_0802E57C_C::unk46 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk48) == 72, "struct Unk_0802E57C_C::unk48 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, unk4A) == 74, "struct Unk_0802E57C_C::unk4A moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, filler4C) == 76, "struct Unk_0802E57C_C::filler4C moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802E57C_C, filler4A) == 74, "struct Unk_0802E57C_C::filler4A moved");
+
+/* struct Unk_0802F8D8 -- code_0802F8D8.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unk_0802F8D8) == 60, "struct Unk_0802F8D8 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, sprite) == 0, "struct Unk_0802F8D8::sprite moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, parent) == 40, "struct Unk_0802F8D8::parent moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, x) == 44, "struct Unk_0802F8D8::x moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, y) == 48, "struct Unk_0802F8D8::y moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, xspeed) == 52, "struct Unk_0802F8D8::xspeed moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, yspeed) == 54, "struct Unk_0802F8D8::yspeed moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unk_0802F8D8, unk38) == 56, "struct Unk_0802F8D8::unk38 moved");
 
 /* struct Unk_080C4EDC -- code_0806F780.h:12 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_080C4EDC) == 140, "struct Unk_080C4EDC changed size -- it is read at a fixed address");
@@ -2790,7 +2938,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0814EBE4, unk0) == 0, "struct Unk_0814EBE
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0814EBE4, unk4) == 4, "struct Unk_0814EBE4::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0814EBE4, unk8) == 8, "struct Unk_0814EBE4::unk8 moved");
 
-/* struct Unk_08351648 -- data.h:601 */
+/* struct Unk_08351648 -- data.h:547 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08351648) == 24, "struct Unk_08351648 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08351648, unk0) == 0, "struct Unk_08351648::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08351648, unk1) == 1, "struct Unk_08351648::unk1 moved");
@@ -2802,7 +2950,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08351648, numTiles) == 12, "struct Unk_08
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08351648, unk10) == 16, "struct Unk_08351648::unk10 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08351648, unk14) == 20, "struct Unk_08351648::unk14 moved");
 
-/* struct Unk_08352AD0 -- data.h:613 */
+/* struct Unk_08352AD0 -- data.h:559 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08352AD0) == 8, "struct Unk_08352AD0 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08352AD0, unk0) == 0, "struct Unk_08352AD0::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08352AD0, unk1) == 1, "struct Unk_08352AD0::unk1 moved");
@@ -2811,7 +2959,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08352AD0, unk3) == 3, "struct Unk_08352AD
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08352AD0, unk4) == 4, "struct Unk_08352AD0::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08352AD0, unk5) == 5, "struct Unk_08352AD0::unk5 moved");
 
-/* struct Unk_08353510 -- data.h:857 */
+/* struct Unk_08353510 -- data.h:793 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08353510) == 12, "struct Unk_08353510 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08353510, unk0) == 0, "struct Unk_08353510::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08353510, unk2) == 2, "struct Unk_08353510::unk2 moved");
@@ -2820,7 +2968,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08353510, unk6) == 6, "struct Unk_0835351
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08353510, unk8) == 8, "struct Unk_08353510::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08353510, unk9) == 9, "struct Unk_08353510::unk9 moved");
 
-/* struct Unk_08357260 -- data.h:662 */
+/* struct Unk_08357260 -- data.h:608 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08357260) == 4, "struct Unk_08357260 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08357260, unk0) == 0, "struct Unk_08357260::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08357260, unk2) == 2, "struct Unk_08357260::unk2 moved");
@@ -2855,7 +3003,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08387814, unk14) == 20, "struct Unk_08387
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08387814, unk15) == 21, "struct Unk_08387814::unk15 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08387814, unk16) == 22, "struct Unk_08387814::unk16 moved");
 
-/* struct Unk_0888562C -- data.h:117 */
+/* struct Unk_0888562C -- data.h:119 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0888562C) == 18, "struct Unk_0888562C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C, unk00) == 0, "struct Unk_0888562C::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C, unk01) == 1, "struct Unk_0888562C::unk01 moved");
@@ -2866,7 +3014,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C, filler06) == 6, "struct Unk_088
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C, unk08) == 8, "struct Unk_0888562C::unk08 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C, unk10) == 16, "struct Unk_0888562C::unk10 moved");
 
-/* struct Unk_0888562C_2 -- data.h:128 */
+/* struct Unk_0888562C_2 -- data.h:130 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0888562C_2) == 14, "struct Unk_0888562C_2 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_2, unk00) == 0, "struct Unk_0888562C_2::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_2, unk01) == 1, "struct Unk_0888562C_2::unk01 moved");
@@ -2877,7 +3025,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_2, filler06) == 6, "struct Unk_0
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_2, unk08) == 8, "struct Unk_0888562C_2::unk08 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_2, unk0C) == 12, "struct Unk_0888562C_2::unk0C moved");
 
-/* struct Unk_0888562C_3 -- data.h:139 */
+/* struct Unk_0888562C_3 -- data.h:141 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_0888562C_3) == 14, "struct Unk_0888562C_3 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_3, unk00) == 0, "struct Unk_0888562C_3::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_3, unk01) == 1, "struct Unk_0888562C_3::unk01 moved");
@@ -2895,7 +3043,7 @@ PORT_LAYOUT_ASSERT(sizeof(struct Unk_0888562C_4) == 24, "struct Unk_0888562C_4 c
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_4, unk0) == 0, "struct Unk_0888562C_4::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_0888562C_4, unk14) == 20, "struct Unk_0888562C_4::unk14 moved");
 
-/* struct Unk_08930E00_1 -- data.h:627 */
+/* struct Unk_08930E00_1 -- data.h:573 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08930E00_1) == 8, "struct Unk_08930E00_1 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_1, unk00) == 0, "struct Unk_08930E00_1::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_1, unk01) == 1, "struct Unk_08930E00_1::unk01 moved");
@@ -2903,7 +3051,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_1, unk02) == 2, "struct Unk_0893
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_1, unk04) == 4, "struct Unk_08930E00_1::unk04 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_1, unk06) == 6, "struct Unk_08930E00_1::unk06 moved");
 
-/* struct Unk_08930E00_2 -- data.h:635 */
+/* struct Unk_08930E00_2 -- data.h:581 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08930E00_2) == 8, "struct Unk_08930E00_2 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_2, unk00) == 0, "struct Unk_08930E00_2::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_2, unk01) == 1, "struct Unk_08930E00_2::unk01 moved");
@@ -2912,19 +3060,19 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_2, unk04) == 4, "struct Unk_0893
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_2, unk06) == 6, "struct Unk_08930E00_2::unk06 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E00_2, unk07) == 7, "struct Unk_08930E00_2::unk07 moved");
 
-/* struct Unk_08930E5C -- data.h:657 */
+/* struct Unk_08930E5C -- data.h:603 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08930E5C) == 8, "struct Unk_08930E5C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E5C, unk00) == 0, "struct Unk_08930E5C::unk00 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08930E5C, unk04) == 4, "struct Unk_08930E5C::unk04 moved");
 
-/* struct Unk_08D60FA4 -- data.h:594 */
+/* struct Unk_08D60FA4 -- data.h:540 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08D60FA4) == 12, "struct Unk_08D60FA4 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D60FA4, filler0) == 0, "struct Unk_08D60FA4::filler0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D60FA4, unk4) == 4, "struct Unk_08D60FA4::unk4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D60FA4, filler8) == 8, "struct Unk_08D60FA4::filler8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D60FA4, unk9) == 9, "struct Unk_08D60FA4::unk9 moved");
 
-/* struct Unk_08D6CD0C -- data.h:954 */
+/* struct Unk_08D6CD0C -- data.h:897 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08D6CD0C) == 76, "struct Unk_08D6CD0C changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6CD0C, unk0) == 0, "struct Unk_08D6CD0C::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6CD0C, unk4) == 4, "struct Unk_08D6CD0C::unk4 moved");
@@ -2934,12 +3082,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6CD0C, unk47) == 71, "struct Unk_08D6C
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6CD0C, unk48) == 72, "struct Unk_08D6CD0C::unk48 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6CD0C, unk49) == 73, "struct Unk_08D6CD0C::unk49 moved");
 
-/* struct Unk_08D6DCAC -- data.h:966 */
+/* struct Unk_08D6DCAC -- data.h:909 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_08D6DCAC) == 8, "struct Unk_08D6DCAC changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6DCAC, unk0) == 0, "struct Unk_08D6DCAC::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_08D6DCAC, unk4) == 4, "struct Unk_08D6DCAC::unk4 moved");
 
-/* struct Unk_3007DE0 -- data.h:812 */
+/* struct Unk_3007DE0 -- data.h:748 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_3007DE0) == 44, "struct Unk_3007DE0 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_3007DE0, x) == 0, "struct Unk_3007DE0::x moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_3007DE0, y) == 4, "struct Unk_3007DE0::y moved");
@@ -2961,22 +3109,42 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_3007DE0, unk28) == 40, "struct Unk_3007DE
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_3007DE0, unk29) == 41, "struct Unk_3007DE0::unk29 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_3007DE0, unk2A) == 42, "struct Unk_3007DE0::unk2A moved");
 
-/* struct Unknown7A -- star_stone_block.h:22 */
+/* struct Unknown7A -- unknown_7A.h:19 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unknown7A) == 200, "struct Unknown7A changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, obj2) == 0, "struct Unknown7A::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, obj) == 0, "struct Unknown7A::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkB4) == 180, "struct Unknown7A::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkB8) == 184, "struct Unknown7A::unkB8 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkBA) == 186, "struct Unknown7A::unkBA moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkBC) == 188, "struct Unknown7A::unkBC moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkBE) == 190, "struct Unknown7A::unkBE moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkC0) == 192, "struct Unknown7A::unkC0 moved");
-PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkC2) == 194, "struct Unknown7A::unkC2 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkC4) == 196, "struct Unknown7A::unkC4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unknown7A, unkC6) == 198, "struct Unknown7A::unkC6 moved");
 
+/* struct Unknown7AState -- unknown_7A.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unknown7AState) == 4, "struct Unknown7AState changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown7AState, unk0) == 0, "struct Unknown7AState::unk0 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown7AState, unk1) == 1, "struct Unknown7AState::unk1 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown7AState, unk2) == 2, "struct Unknown7AState::unk2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown7AState, unk3) == 3, "struct Unknown7AState::unk3 moved");
+
+/* struct Unknown82 -- unknown_82.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unknown82) == 188, "struct Unknown82 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown82, obj) == 0, "struct Unknown82::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown82, unkB4) == 180, "struct Unknown82::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown82, unkB6) == 182, "struct Unknown82::unkB6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown82, unkB8) == 184, "struct Unknown82::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown82, unkBA) == 186, "struct Unknown82::unkBA moved");
+
+/* struct Unknown87 -- unknown_87.h:12 */
+PORT_LAYOUT_ASSERT(sizeof(struct Unknown87) == 188, "struct Unknown87 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown87, obj) == 0, "struct Unknown87::obj moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown87, unkB4) == 180, "struct Unknown87::unkB4 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown87, unkB6) == 182, "struct Unknown87::unkB6 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown87, unkB8) == 184, "struct Unknown87::unkB8 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct Unknown87, unkBA) == 186, "struct Unknown87::unkBA moved");
+
 /* struct VertSlidingDoor -- vert_sliding_door.h:13 */
 PORT_LAYOUT_ASSERT(sizeof(struct VertSlidingDoor) == 184, "struct VertSlidingDoor changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(struct VertSlidingDoor, obj2) == 0, "struct VertSlidingDoor::obj2 moved");
+PORT_LAYOUT_ASSERT(offsetof(struct VertSlidingDoor, obj) == 0, "struct VertSlidingDoor::obj moved");
 PORT_LAYOUT_ASSERT(offsetof(struct VertSlidingDoor, unkB4) == 180, "struct VertSlidingDoor::unkB4 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct VertSlidingDoor, unkB6) == 182, "struct VertSlidingDoor::unkB6 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct VertSlidingDoor, unkB7) == 183, "struct VertSlidingDoor::unkB7 moved");
@@ -2998,7 +3166,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct WaveData, loopStart) == 8, "struct WaveData::
 PORT_LAYOUT_ASSERT(offsetof(struct WaveData, size) == 12, "struct WaveData::size moved");
 PORT_LAYOUT_ASSERT(offsetof(struct WaveData, data) == 16, "struct WaveData::data moved");
 
-/* union AnimCmd -- sprite.h:211 */
+/* union AnimCmd -- sprite.h:221 */
 PORT_LAYOUT_ASSERT(sizeof(union AnimCmd) == 4, "union AnimCmd changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union AnimCmd, getTiles) == 0, "union AnimCmd::getTiles moved");
 PORT_LAYOUT_ASSERT(offsetof(union AnimCmd, getPalette) == 0, "union AnimCmd::getPalette moved");
@@ -3015,12 +3183,7 @@ PORT_LAYOUT_ASSERT(offsetof(union AnimCmd, _12) == 0, "union AnimCmd::_12 moved"
 PORT_LAYOUT_ASSERT(offsetof(union AnimCmd, showFrame) == 0, "union AnimCmd::showFrame moved");
 PORT_LAYOUT_ASSERT(offsetof(union AnimCmd, words) == 0, "union AnimCmd::words moved");
 
-/* union Kirby_0 -- kirby.h:18 */
-PORT_LAYOUT_ASSERT(sizeof(union Kirby_0) == 204, "union Kirby_0 changed size -- it is read at a fixed address");
-PORT_LAYOUT_ASSERT(offsetof(union Kirby_0, base) == 0, "union Kirby_0::base moved");
-PORT_LAYOUT_ASSERT(offsetof(union Kirby_0, other) == 0, "union Kirby_0::other moved");
-
-/* union LevelInfo_1E0 -- data.h:101 */
+/* union LevelInfo_1E0 -- data.h:103 */
 PORT_LAYOUT_ASSERT(sizeof(union LevelInfo_1E0) == 4, "union LevelInfo_1E0 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union LevelInfo_1E0, pat1) == 0, "union LevelInfo_1E0::pat1 moved");
 PORT_LAYOUT_ASSERT(offsetof(union LevelInfo_1E0, pat2) == 0, "union LevelInfo_1E0::pat2 moved");
@@ -3032,17 +3195,22 @@ PORT_LAYOUT_ASSERT(offsetof(union MultiSioData, pat0) == 0, "union MultiSioData:
 PORT_LAYOUT_ASSERT(offsetof(union MultiSioData, pat1) == 0, "union MultiSioData::pat1 moved");
 PORT_LAYOUT_ASSERT(offsetof(union MultiSioData, pat2) == 0, "union MultiSioData::pat2 moved");
 
-/* union SpriteAttributes -- sprite.h:272 */
+/* union SpriteAttributes -- sprite.h:282 */
 PORT_LAYOUT_ASSERT(sizeof(union SpriteAttributes) == 4, "union SpriteAttributes changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union SpriteAttributes, sub) == 0, "union SpriteAttributes::sub moved");
 PORT_LAYOUT_ASSERT(offsetof(union SpriteAttributes, full) == 0, "union SpriteAttributes::full moved");
+
+/* union Unk_02028EE0 -- data.h:659 */
+PORT_LAYOUT_ASSERT(sizeof(union Unk_02028EE0) == 15600, "union Unk_02028EE0 changed size -- it is read at a fixed address");
+PORT_LAYOUT_ASSERT(offsetof(union Unk_02028EE0, affine) == 0, "union Unk_02028EE0::affine moved");
+PORT_LAYOUT_ASSERT(offsetof(union Unk_02028EE0, text) == 0, "union Unk_02028EE0::text moved");
 
 /* union Unk_020382A0_8 -- multi_08030C94.h:26 */
 PORT_LAYOUT_ASSERT(sizeof(union Unk_020382A0_8) == 8, "union Unk_020382A0_8 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_020382A0_8, pat0) == 0, "union Unk_020382A0_8::pat0 moved");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_020382A0_8, pat1) == 0, "union Unk_020382A0_8::pat1 moved");
 
-/* union Unk_03002E60 -- data.h:793 */
+/* union Unk_03002E60 -- data.h:728 */
 PORT_LAYOUT_ASSERT(sizeof(union Unk_03002E60) == 4, "union Unk_03002E60 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_03002E60, x) == 0, "union Unk_03002E60::x moved");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_03002E60, y) == 0, "union Unk_03002E60::y moved");
@@ -3061,7 +3229,7 @@ PORT_LAYOUT_ASSERT(offsetof(union Unk_08145B64_5EC_24, pat3) == 0, "union Unk_08
 PORT_LAYOUT_ASSERT(offsetof(union Unk_08145B64_5EC_24, pat4) == 0, "union Unk_08145B64_5EC_24::pat4 moved");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_08145B64_5EC_24, pat5) == 0, "union Unk_08145B64_5EC_24::pat5 moved");
 
-/* union Unk_08930E00 -- data.h:644 */
+/* union Unk_08930E00 -- data.h:590 */
 PORT_LAYOUT_ASSERT(sizeof(union Unk_08930E00) == 4, "union Unk_08930E00 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_08930E00, pat1) == 0, "union Unk_08930E00::pat1 moved");
 PORT_LAYOUT_ASSERT(offsetof(union Unk_08930E00, pat2) == 0, "union Unk_08930E00::pat2 moved");
