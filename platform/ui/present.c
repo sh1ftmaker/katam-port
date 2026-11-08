@@ -6,8 +6,10 @@
  * emulated PPU composes pixels; its scan, HBlank DMA and interrupts run
  * either way), exactly the two states `--renderer gpu` and `--renderer ppu`
  * select at start-up; docs/RENDERER.md has the proof both leave keys/sim/vid/
- * sram alone.  The view size is a render-list input that never reaches the
- * game.  Nothing here writes game memory.
+ * sram alone.  The view size is a render-list input; the one thing that
+ * reaches the game is the *request* for the widest view (PortSimViewRequest),
+ * which goes through the input log as a recorded event.  Nothing here writes
+ * game memory.
  */
 
 #include <math.h>
@@ -318,6 +320,19 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
     sWorldViewW = lay.viewW;
     sWorldViewH = lay.viewH;
     PortRlSetViewSize(lay.viewW, lay.viewH);
+    /* The game's spawn window is sized for the widest view this may show:
+     * the settings' zoom, before the dynamic ease-in (which only zooms in).
+     * A recorded simulation input, not presentation -- platform/view.c. */
+    {
+        PortLayout wide;
+
+        PortLayoutCompute(&gPortSettings, fbW, fbH, 1, gPortSettings.zoom,
+                          240, 160, &wide);
+        if (sUsingGpu == 1)
+            PortSimViewRequest(wide.viewW, wide.viewH);
+        else
+            PortSimViewRequest(240, 160);
+    }
 
     if (f != NULL) {
         /* The HUD as its own layer whenever drawing it in the view would

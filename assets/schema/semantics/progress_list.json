@@ -1,0 +1,57 @@
+{
+  "format": "katam-semantics/1",
+  "notes": [
+    "gUnk_08D640A4[RoomProps.doorsIdx] (0x08D640A4, 287 pointers) -> the room's progress checklist: the chests and doors that count for the area map, and the bit positions they own in the saved gVisitedDoors[doorsIdx] word.",
+    "gVisitedDoors[doorsIdx] (u16, saved in the world-props SRAM block, game/src/save.c): bit i = entry i done (chest collected / door used), bit 15 = room visited. The area map shows a room as completed when all chest bits are set.",
+    "The three walkers (sub_08002B30 / sub_08002BA8 / sub_08002C18) loop for(;;) until they find a matching entry and never test the terminator: a chest or door whose key is missing from its room's list hangs the game. An editor must keep exactly one tag-2 entry per logical door (559 in retail = the distinct (destRoom, destX, destY) triples among the 724 tag-3 door cells) and one tag-1 entry per chest object (84), chests first.",
+    "Retail: 643 entries, all stride 8, chests always the leading chestCount entries (286/286 lists), list length 0..11, terminator = 4 bytes {0, 0, 0xFF, 0xFF}."
+  ],
+  "records": [
+    {
+      "record": "progress_list",
+      "c_type": "struct Unk_08930E5C",
+      "c_decl": "game/include/data.h:603",
+      "size": 8,
+      "table": {"symbol": "gUnk_08D640A4", "addr": "0x08D640A4", "count": 287, "index": "RoomProps.doorsIdx"},
+      "description": "Header of a room's progress checklist.",
+      "fields": [
+        {"field": "unk00", "offset": 0, "type": "ptr", "name": "entries", "description": "Pointer to the tag-discriminated, self-striding entry array (progress_chest / progress_door), ended by a tag-0 entry.", "usage": "live", "confidence": "confirmed",
+         "evidence": [{"loc": "game/src/code_080023A4.c:1628", "code": "gUnk_08D640A4[gRoomProps[roomId].doorsIdx]->unk00.pat1;"}, {"loc": "game/src/code_080023A4.c:1640", "code": "var0 = (void *)var0 + var0->unk01;"}]},
+        {"field": "unk04", "offset": 4, "type": "u8", "name": "chestCount", "description": "Number of leading entries that count toward room completion on the area map (= the chests). sub_08002AD0 popcounts that many low bits of gVisitedDoors; pause_area_map marks the room completed when the counts are equal.", "unit": "count", "range": [0, 15], "usage": "live", "confidence": "confirmed",
+         "evidence": [{"loc": "game/src/code_080023A4.c:1608", "code": "return gUnk_08D640A4[gRoomProps[roomId].doorsIdx]->unk04;"}, {"loc": "game/src/code_080023A4.c:1618", "code": "for (i = 0; i < var1; i++) {"}, {"loc": "game/src/pause_area_map.c:2928", "code": "if (sub_08002AAC(roomId) == sub_08002AD0(roomId)) {"}, {"data": "equals the number of tag-1 entries in 287/287 lists: 0 (216), 1 (61), 2 (7), 3 (3); total 84 = chest objects"}]}
+      ]
+    },
+    {
+      "record": "progress_chest",
+      "c_type": "struct Unk_08930E00_1",
+      "c_decl": "game/include/data.h:573",
+      "size": 8,
+      "description": "Tag 1: a treasure chest of this room, identified by its object-template position. CreateChest's collect path calls sub_08002B30(roomId, template x, template y) to set the entry's bit.",
+      "fields": [
+        {"field": "unk00", "offset": 0, "type": "u8", "name": "tag", "description": "1 = chest; 0 = end of list", "enum": {"0": {"name": "end"}, "1": {"name": "chest"}, "2": {"name": "door"}}, "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1633", "code": "var0->unk00 == 1 &&"}]},
+        {"field": "unk01", "offset": 1, "type": "u8", "name": "size", "unit": "bytes", "description": "stride to the next entry (8)", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1640", "code": "var0->unk01;"}, {"data": "8 in 643/643 entries"}]},
+        {"field": "unk02", "offset": 2, "type": "u8[2]", "name": null, "description": "never read; FF FF", "usage": "padding", "confidence": "confirmed", "evidence": [{"data": "0xFFFF in 643/643"}]},
+        {"field": "unk04", "offset": 4, "type": "s16", "name": "chestX", "unit": "px", "description": "The chest object's template x (ObjectTemplate.x of the OBJ_SMALL_CHEST/OBJ_BIG_CHEST record in this room's object list).", "usage": "live", "confidence": "confirmed",
+         "evidence": [{"loc": "game/src/code_080023A4.c:1634", "code": "var0->unk04 == arg1 &&"}, {"loc": "game/src/chest.c:118", "code": "sub_08002B30(chest->obj.base.roomId, chest->obj.objTemplate->x, chest->obj.objTemplate->y);"}]},
+        {"field": "unk06", "offset": 6, "type": "s16", "name": "chestY", "unit": "px", "description": "The chest object's template y.", "usage": "live", "confidence": "confirmed",
+         "evidence": [{"loc": "game/src/code_080023A4.c:1635", "code": "var0->unk06 == arg2"}]}
+      ]
+    },
+    {
+      "record": "progress_door",
+      "c_type": "struct Unk_08930E00_2",
+      "c_decl": "game/include/data.h:581",
+      "size": 8,
+      "description": "Tag 2: one logical door of this room, identified by its EXIT (the destination triple of its tag-3 door cells, solidity_map.json). Door objects read the bit to show the door as explored (open mirror / no '?' marker) and Kirby's transition sets it.",
+      "fields": [
+        {"field": "unk00", "offset": 0, "type": "u8", "name": "tag", "description": "2 = door", "enum": {"2": {"name": "door"}}, "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1651", "code": "var0->unk00 == 2 &&"}]},
+        {"field": "unk01", "offset": 1, "type": "u8", "name": "size", "unit": "bytes", "description": "stride (8)", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1658", "code": "var0 = (void *) var0 + var0->unk01;"}]},
+        {"field": "unk02", "offset": 2, "type": "u8[2]", "name": null, "description": "never read; FF FF", "usage": "padding", "confidence": "confirmed", "evidence": [{"data": "0xFFFF in 643/643"}]},
+        {"field": "unk04", "offset": 4, "type": "u16", "name": "destRoom", "unit": "room id", "description": "Destination room of the door = cell_record_door.destRoom.", "usage": "live", "confidence": "confirmed",
+         "evidence": [{"loc": "game/src/code_080023A4.c:1652", "code": "var0->unk04 == arg1 &&"}, {"loc": "game/src/kirby.c:12892", "code": "sub_08002C18(kirby->base.roomId, r4.pat3->unk08, r4.pat3->unk0A, r4.pat3->unk0B);"}, {"data": "valid room id in 559/559"}]},
+        {"field": "unk06", "offset": 6, "type": "u8", "name": "destX", "unit": "cell16", "description": "= cell_record_door.destX (arrival cell in the destination room, not the door's own position).", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1653", "code": "var0->unk06 == arg2 &&"}]},
+        {"field": "unk07", "offset": 7, "type": "u8", "name": "destY", "unit": "cell16", "description": "= cell_record_door.destY.", "usage": "live", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1654", "code": "var0->unk07 == arg3"}]}
+      ]
+    }
+  ]
+}

@@ -33,6 +33,17 @@ struct Warp { u32 frame; u8 player, x, y; u16 room; };
 static struct Warp *sWarps;
 static u32 sNumWarps, sWarpsCap;
 
+/* Simulation-view changes (platform/view.c): the world view the session's
+ * spawn and despawn windows are sized for.  A frame-stamped event list like
+ * the warps, so a replay reproduces every change at the frame it happened;
+ * the value at a frame is the last event at or before it, which makes it a
+ * pure function of the frame number and safe to re-ask after a rollback. */
+struct ViewEv { u32 frame; u16 w, h; };
+static struct ViewEv *sViews;
+static u32 sNumViews, sViewsCap;
+static u32 sLastLatched;        /* the newest frame the latch has run for     */
+static int sLatchedAny;
+
 static int sReplaying, sRecording;
 static u32 sRunFrames;          /* what the host ran, if it says              */
 
@@ -78,6 +89,62 @@ static void AddWarp(u32 frame, u8 player, u16 room, u8 x, u8 y)
     sNumWarps++;
 }
 
+static void AddView(u32 frame, u16 w, u16 h)
+{
+    u32 i;
+
+    /* Kept sorted by frame; a second event at the same frame replaces the
+     * first, so the file never holds two values for one frame. */
+    for (i = 0; i < sNumViews; i++)
+        if (sViews[i].frame == frame) {
+            sViews[i].w = w;
+            sViews[i].h = h;
+            return;
+        }
+    if (sNumViews == sViewsCap) {
+        u32 cap = sViewsCap ? sViewsCap * 2 : 16;
+        struct ViewEv *v = (struct ViewEv *)realloc(sViews, cap * sizeof *v);
+
+        if (v == NULL)
+            return;
+        sViews = v;
+        sViewsCap = cap;
+    }
+    i = sNumViews;
+    while (i > 0 && sViews[i - 1].frame > frame) {
+        sViews[i] = sViews[i - 1];
+        i--;
+    }
+    sViews[i].frame = frame;
+    sViews[i].w = w;
+    sViews[i].h = h;
+    sNumViews++;
+}
+
+void PortInputLogViewAt(u32 frame, s32 *w, s32 *h)
+{
+    u32 i;
+
+    *w = PORT_SCREEN_W;
+    *h = PORT_SCREEN_H;
+    for (i = 0; i < sNumViews && sViews[i].frame <= frame; i++) {
+        *w = sViews[i].w;
+        *h = sViews[i].h;
+    }
+}
+
+u32 PortInputLogScheduleView(u32 frame, s32 w, s32 h)
+{
+    if (sReplaying)
+        return 0;
+    /* Never into a frame the latch has already run: live, that change would
+     * take effect a frame later than the recording says it did. */
+    if (sLatchedAny && frame <= sLastLatched)
+        frame = sLastLatched + 1;
+    AddView(frame, (u16)w, (u16)h);
+    return frame;
+}
+
 /* --- the file ------------------------------------------------------------- */
 
 long PortInputLogLoad(const char *text, u32 len)
@@ -89,6 +156,7 @@ long PortInputLogLoad(const char *text, u32 len)
 
     sKeysLen = 0;
     sNumWarps = 0;
+    sNumViews = 0;
 
     while (p < end) {
         char line[160];
@@ -122,6 +190,12 @@ long PortInputLogLoad(const char *text, u32 len)
             sKeys[last++] = mask;
         } else if (sscanf(line, "warp %u %u %u %u %u", &a, &b, &c, &d, &e) == 5) {
             AddWarp(a, (u8)b, (u16)c, (u8)d, (u8)e);
+        } else if (sscanf(line, "view %u %u %u", &a, &b, &c) == 3) {
+            if (b < PORT_SCREEN_W || b > 0xFFFF || c < PORT_SCREEN_H || c > 0xFFFF) {
+                PortError("[katam-port] replay: bad view line: %s", line);
+                return -1;
+            }
+            AddView(a, (u16)b, (u16)c);
         } else if (sscanf(line, "option rando %u %i", &a, &ia) == 2) {
             sHaveRando = 1;
             sRandoSeed = a;
@@ -155,8 +229,8 @@ long PortInputLogLoad(const char *text, u32 len)
     if (sHaveView)
         PortSetViewMode(sViewMode, sViewPadX, sViewPadY, sViewCull, sViewPin,
                         sViewTile);
-    PortLog("[katam-port] replay: %u frames, %u warps", (unsigned)sKeysLen,
-            (unsigned)sNumWarps);
+    PortLog("[katam-port] replay: %u frames, %u warps, %u view changes",
+            (unsigned)sKeysLen, (unsigned)sNumWarps, (unsigned)sNumViews);
     return (long)sKeysLen;
 }
 
@@ -197,9 +271,10 @@ void PortInputLogNoteView(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
 
 char *PortInputLogSerialize(u32 *outLen)
 {
-    size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48, len = 0;
+    size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48
+               + (size_t)sNumViews * 32, len = 0;
     char *s = (char *)malloc(cap);
-    u32 f, w = 0;
+    u32 f, w = 0, v = 0;
     int have = 0;
     u16 prev = 0;
 
@@ -216,6 +291,12 @@ char *PortInputLogSerialize(u32 *outLen)
              (int)sViewPadX, (int)sViewPadY, (unsigned)sViewCull,
              (unsigned)sViewPin, (unsigned)sViewTile);
     for (f = 0; f < sKeysLen; f++) {
+        while (v < sNumViews && sViews[v].frame <= f) {
+            if (cap - len < 64) break;
+            EMIT("view %u %u %u\n", (unsigned)sViews[v].frame,
+                 (unsigned)sViews[v].w, (unsigned)sViews[v].h);
+            v++;
+        }
         while (w < sNumWarps && sWarps[w].frame <= f) {
             if (cap - len < 64) break;
             EMIT("warp %u %u %u %u %u\n", (unsigned)sWarps[w].frame,
@@ -242,6 +323,12 @@ char *PortInputLogSerialize(u32 *outLen)
              (unsigned)sWarps[w].player, (unsigned)sWarps[w].room,
              (unsigned)sWarps[w].x, (unsigned)sWarps[w].y);
         w++;
+    }
+    while (v < sNumViews) {
+        if (cap - len < 64) break;
+        EMIT("view %u %u %u\n", (unsigned)sViews[v].frame,
+             (unsigned)sViews[v].w, (unsigned)sViews[v].h);
+        v++;
     }
     EMIT("end\n");
 #undef EMIT
@@ -529,6 +616,13 @@ void PortInputLogLatch(u32 frame, u16 *keys)
     for (i = 0; i < sNumWarps; i++)
         if (sWarps[i].frame == frame)
             PortWarp(sWarps[i].player, sWarps[i].room, sWarps[i].x, sWarps[i].y);
+
+    /* ...and the session view for this frame, which the game's spawn and
+     * despawn windows read until the next latch (platform/view.c). */
+    if (!sLatchedAny || frame > sLastLatched)
+        sLastLatched = frame;
+    sLatchedAny = 1;
+    PortSimViewLatch(frame);
 
     if (sHashPending && sHashFrame == frame) {
         sHashPending = 0;

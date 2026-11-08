@@ -5,8 +5,6 @@ extern "C" {
 
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
-extern s32 gPortCullHalfW, gPortCullHalfH;
-extern s32 gPortSpawnPadX, gPortSpawnPadY;
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "global.h"
 #include "gba/m4a.h"
