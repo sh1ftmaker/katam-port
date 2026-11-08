@@ -175,7 +175,7 @@ UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
 TARGET := $(OUT)/katam.html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test \
-        native native-run native-test native-clean \
+        lint-simstate native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
@@ -584,7 +584,13 @@ lint-determinism:
 # lp64 cmake build).  regress is the simulation check renderer work must pass;
 # regress-pixels shows where the picture changed; regress-wasm runs the same
 # recordings on the node build against the same goldens (cross-platform).
-regress: lint-determinism
+# No simulation state in host memory (NETPLAY-V2 R7): every writable object a
+# simulation unit defines is in the GBA map, the port sim block, or on
+# tests/sim_state_allowlist.txt with its reason.  Reads the LP64 objects.
+lint-simstate:
+	@python3 tools/check_sim_state.py build/lp64
+
+regress: lint-determinism lint-simstate
 	@ROM=$(ROM) bash tests/regress.sh --mode sim
 
 regress-pixels:
