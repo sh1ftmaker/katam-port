@@ -162,7 +162,7 @@ TARGET := $(OUT)/katam.html
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
-        layout layout-check regress regress-pixels regress-wasm
+        layout layout-check regress regress-pixels regress-wasm lint-determinism
 
 all: $(TARGET)
 
@@ -538,18 +538,25 @@ netplay-link-test: $(BUILD)/katam-node.js
 	node tools/netplay_link_test.mjs $(BUILD)/katam-node.js $(ROM)
 
 # --- the determinism/regression harness (docs/DETERMINISM.md) ---------------
+# lint-determinism: no two RNG operations in one full expression without a
+# sequence point between them (tools/lint_determinism.py; needs libclang's
+# Python bindings, no ROM).  gcc, g++ and clang order those differently, and a
+# rollback peer that draws different numbers is a desync.  regress runs it first.
+lint-determinism:
+	@python3 tools/lint_determinism.py
+
 # Replays tests/recordings/*.txt and compares every frame's hashes against
 # tests/golden/.  Builds nothing: build the binary first (make native, or the
 # lp64 cmake build).  regress is the simulation check renderer work must pass;
 # regress-pixels shows where the picture changed; regress-wasm runs the same
 # recordings on the node build against the same goldens (cross-platform).
-regress:
+regress: lint-determinism
 	@ROM=$(ROM) bash tests/regress.sh --mode sim
 
 regress-pixels:
 	@ROM=$(ROM) bash tests/regress.sh --mode pixels
 
-regress-wasm: $(BUILD)/katam-node.js
+regress-wasm: lint-determinism $(BUILD)/katam-node.js
 	@ROM=$(ROM) bash tests/regress.sh --wasm
 
 native-clean:
