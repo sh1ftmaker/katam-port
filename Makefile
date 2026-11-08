@@ -166,8 +166,11 @@ SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
 UI_CXX_SRCS   := third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp \
                  third_party/imgui/imgui_widgets.cpp third_party/imgui/imgui_tables.cpp \
                  $(wildcard platform/ui/*.cpp)
+# Zstandard (third_party/zstd, README there): the snapshot compressor.  Its
+# own flags, none of the game's, and linked last like the menu.
+ZSTD_OBJ      := $(OBJDIR)/third_party/zstd/zstd.o
 OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS)) \
-                 $(patsubst %.cpp,$(OBJDIR)/%.o,$(UI_CXX_SRCS))
+                 $(patsubst %.cpp,$(OBJDIR)/%.o,$(UI_CXX_SRCS)) $(ZSTD_OBJ)
 UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
                  -fno-threadsafe-statics -w -Iplatform -Ithird_party/imgui \
                  -I$(BUILD)/gen -MMD -MP
@@ -341,6 +344,10 @@ $(OBJDIR)/%.o: %.c
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) $(UI_CXXFLAGS) -c $< -o $@
+
+$(ZSTD_OBJ): third_party/zstd/zstd.c
+	@mkdir -p $(dir $@)
+	@$(CC) -O2 $(DBG_CFLAG) -w -c $< -o $@
 
 # The commit and date the menu and the page show (tools/gen_build_label.sh
 # rewrites it only when it changes).

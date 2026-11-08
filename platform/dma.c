@@ -397,6 +397,43 @@ void PortDmaStateCanon(u32 out[PORT_DMA_CANON_WORDS])
     }
 }
 
+/* The inverse, for a portable snapshot (platform/netsim.c): a canonical
+ * pointer is the GBA address itself, so it becomes that address again.  A
+ * marker (port memory, a DmaFill source on the stack) cannot be restored; such
+ * a channel is disarmed and counted.  Returns how many were. */
+static void *UncanonPtr(u32 w, int *lost)
+{
+    if (w == 0xFFFFFFFFu) {
+        (*lost)++;
+        return NULL;
+    }
+    return (void *)(uintptr_t)w;
+}
+
+int PortDmaStateFromCanon(const u32 in[PORT_DMA_CANON_WORDS])
+{
+    int i, lost = 0;
+
+    for (i = 0; i < 4; i++) {
+        struct DmaChannel *ch = &sChannels[i];
+        const u32 *o = in + i * 7;
+        int before = lost;
+
+        ch->src = (const u8 *)UncanonPtr(o[0], &lost);
+        ch->dest = (u8 *)UncanonPtr(o[1], &lost);
+        ch->srcReload = (const u8 *)UncanonPtr(o[2], &lost);
+        ch->destReload = (u8 *)UncanonPtr(o[3], &lost);
+        ch->count = o[4];
+        ch->flags = (u16)o[5];
+        ch->armed = (u8)o[6];
+        if (lost != before && ch->armed) {
+            ch->armed = 0;
+            ch->flags = 0;
+        }
+    }
+    return lost;
+}
+
 void PortDmaStop(int channel)
 {
     if (channel < 0 || channel > 3)

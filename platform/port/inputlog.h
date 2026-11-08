@@ -88,6 +88,9 @@ void PortStateHashes(u32 out[PORT_HASH_COUNT]);
 /* platform/dma.c: the channel table with host pointers made comparable. */
 #define PORT_DMA_CANON_WORDS (4 * 7)
 void PortDmaStateCanon(u32 out[PORT_DMA_CANON_WORDS]);
+/* The inverse (platform/dma.c); returns how many pointers could not be
+ * restored (their channel is disarmed). */
+int  PortDmaStateFromCanon(const u32 in[PORT_DMA_CANON_WORDS]);
 
 #ifdef __cplusplus
 }
