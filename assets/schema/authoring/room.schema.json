@@ -47,6 +47,23 @@
       }
     },
     "music": {"$ref": "katam:schema/common#/$defs/music"},
+    "area": {
+      "type": "string",
+      "enum": [
+        "tutorial",
+        "rainbow_route",
+        "moonlight_mansion",
+        "cabbage_cavern",
+        "mustard_mountain",
+        "carrot_castle",
+        "olive_ocean",
+        "peppermint_palace",
+        "radish_ruins",
+        "candy_constellation",
+        "dimension_mirror"
+      ],
+      "description": "New rooms only: the world area the game files the room under (the AI helpers' room graph and the pause screens' area lookup, gUnk_08D6CD0C.unk46). Default: the area of the vanilla room the first door leads to, else rainbow_route. Vanilla rooms ignore it (their area comes from the game)."
+    },
     "tileset": {"$ref": "katam:schema/common#/$defs/tilesetRef"},
     "palette": {"$ref": "katam:schema/common#/$defs/paletteRef"},
     "background": {"$ref": "katam:schema/common#/$defs/backgroundRef"},

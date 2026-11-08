@@ -13,6 +13,10 @@
 import { decodeGrid } from './grid.mjs';
 
 export const PROJECT_FORMAT = 'katam-project/1';
+/** The first id a new room gets: one past the original game's 983 room slots. */
+export const FIRST_NEW_ROOM = 983;
+/** The first content index a new room gets: one past the 287-entry per-room tables. */
+export const FIRST_NEW_CONTENT = 287;
 export const KINDS = {
   room: { dir: 'rooms', file: (n) => `${n}.room.json` },
   tileset: { dir: 'tilesets', file: (n) => `${n}/tileset.json` },
@@ -89,17 +93,20 @@ export class Bindings {
         if (doc.bind && Number.isInteger(doc.bind.index)) { this.num.set(id, doc.bind.index); used[kind].add(doc.bind.index); } else pending[kind].push(id);
       } else if (kind === 'object' && doc.bind) this.num.set(id, doc.bind.type);
     }
-    // New rooms take free room ids below the first vanilla room (1..100 are
-    // all filler slots in vanilla), then from 983 up; new content and table
-    // indices continue after the vanilla tables (see AUTHORING.md "Bindings").
+    // New rooms are numbered after the original game's ids: gRoomProps has
+    // NUM_ROOM_SLOTS (983) entries, so new rooms take 983 and up, by sorted
+    // id.  The runtime grows the room tables past the vanilla extent when it
+    // loads the room bundle (MODDING.md R2).  The vanilla filler slots 1-100
+    // are left alone, so a new room can never collide with an id the game
+    // (or a save) already gives a meaning to.  New content and table indices
+    // continue after the vanilla tables (see AUTHORING.md "Bindings").
     this.allocated = [];
-    let next = 1;
+    let next = FIRST_NEW_ROOM;
     for (const id of pending.room) {
-      while (used.room.has(next) || next === 0) next++;
-      if (next > 100 && next < 983) next = 983;
+      while (used.room.has(next)) next++;
       this.num.set(id, next); used.room.add(next); this.allocated.push([id, next]);
     }
-    let nc = 287;
+    let nc = FIRST_NEW_CONTENT;
     for (const id of [...this.docs.keys()].filter((i) => i.startsWith('room:')).sort()) {
       if (this.content.has(id)) continue;
       while (used.content.has(nc)) nc++;

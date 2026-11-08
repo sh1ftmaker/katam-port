@@ -111,6 +111,7 @@ function roomSchema(vocab, registry) {
       bind: { type: 'object', additionalProperties: false, description: 'Numeric ids in the game. Vanilla rooms carry them so they compile to the same slots; new rooms omit bind and the compiler allocates.', properties: { roomId: { type: 'integer', minimum: 0, maximum: 65534, description: 'gRoomProps index (vanilla: 101-982).' }, content: { type: 'integer', minimum: 0, maximum: 65534, description: 'Index shared by the room\'s tilemap, collision, object, progress and nav tables (vanilla: 0-286).' } } },
       size: { type: 'object', required: ['width', 'height'], additionalProperties: false, description: 'Room size in 16-px cells. The fg tilemap is twice this in 8-px tiles. One screen is 15x10 cells.', properties: { width: { type: 'integer', minimum: 15, maximum: 255 }, height: { type: 'integer', minimum: 10, maximum: 255 } } },
       music: C('music'),
+      area: { type: 'string', enum: Object.keys(vocab.areas), description: 'New rooms only: the world area the game files the room under (the AI helpers\' room graph and the pause screens\' area lookup, gUnk_08D6CD0C.unk46). Default: the area of the vanilla room the first door leads to, else rainbow_route. Vanilla rooms ignore it (their area comes from the game).' },
       tileset: C('tilesetRef'),
       palette: C('paletteRef'),
       background: C('backgroundRef'),

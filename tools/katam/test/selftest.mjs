@@ -51,4 +51,27 @@ t('scaffold compiles and survives decompile -> compile', () => {
   const again = compileRoom({ ...decompileRoom(nat, ctx), id: 'room:test/a' }, ctx);
   for (const k of Object.keys(c.blobs)) assert.deepEqual(again.blobs[k], c.blobs[k], k);
 });
+{ // new rooms are numbered after the original ids (983+); the bundle links them
+  const { nodeIO } = await import('../lib/io.mjs');
+  const { loadStack, compileStack, bundleOf } = await import('../lib/pipeline.mjs');
+  const { readBundle, BUNDLE_TABLES } = await import('../lib/native.mjs');
+  const { loadRegistry } = await import('../lib/registry.mjs');
+  const io = await nodeIO();
+  const vocab = indexVocab(buildVocab((p) => fs.readFileSync(path.join(ROOT, p), 'utf8')));
+  const registry = loadRegistry(io, path.join(ROOT, 'assets/schema/semantics'));
+  const layers = loadStack(io, [path.join(ROOT, 'examples/authoring/sky_garden')]);
+  const compiled = compileStack({ io, layers, vocab, registry, external: true });
+  assert.deepEqual(compiled.errors, []);
+  assert.deepEqual(compiled.bindings.allocated, [['room:sky_garden/meadow', 983], ['room:sky_garden/tower', 984]]);
+  const b = bundleOf(compiled);
+  const r = readBundle(b.bytes);
+  const at = (table, idx) => r.entries.find((e) => e.table === table && e.index === idx);
+  for (const id of [983, 984]) for (const tb of ['gRoomProps', 'gUnk_08D6CD0C', 'gUnk_0893CB44']) assert.ok(at(tb, id), `${tb}[${id}]`);
+  for (const c of [287, 288]) for (const tb of ['gForegroundTilemaps', 'gSolidityMaps', 'gLevelObjLists', 'gUnk_08D640A4', 'gUnk_08D63C28']) assert.ok(at(tb, c), `${tb}[${c}]`);
+  for (const e of r.entries) { assert.ok(BUNDLE_TABLES[e.table]); if (e.inline) assert.equal(r.blobs[e.blob].length, BUNDLE_TABLES[e.table][1]); }
+  for (const x of r.relocs) { assert.ok(x.target < r.blobs.length); assert.ok(x.at + 4 <= r.blobs[x.blob].length); }
+  // deterministic: the same project links to the same bytes
+  assert.deepEqual(bundleOf(compileStack({ io, layers: loadStack(io, [path.join(ROOT, 'examples/authoring/sky_garden')]), vocab, registry, external: true })).bytes, b.bytes);
+  n++;
+}
 console.log(`katam selftest: ${n} checks passed`);

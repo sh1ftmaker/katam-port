@@ -78,17 +78,18 @@ export function loadStack(io, dirs) {
   return dirs.map((d) => loadProject(io, d));
 }
 
-export function compileStack({ io, layers, vocab, registry }) {
+export function compileStack({ io, layers, vocab, registry, external = false }) {
   const bindings = new Bindings(vocab, layers);
-  const ctx = makeContext({ vocab, registry, bindings });
-  const out = { rooms: new Map(), tilesets: new Map(), backgrounds: new Map(), palettes: new Map(), objDesc: new Map(), errors: [], bindings };
+  const ctx = makeContext({ vocab, registry, bindings, external });
+  const vanillaLayers = new Set(layers.filter((L) => L.project && L.project.id === 'vanilla').map((L) => L.dir));
+  const out = { rooms: new Map(), tilesets: new Map(), backgrounds: new Map(), palettes: new Map(), objDesc: new Map(), errors: [], bindings, vocab, vanillaLayers, projectIds: new Map(layers.map((L) => [L.dir, (L.project && L.project.id) || L.dir.split('/').pop()])) };
   for (const [id, d] of [...bindings.docs].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     const kind = parseId(id).kind;
     const readFile = (n) => io.readBytes(`${d.base}/${n}`);
     try {
-      if (kind === 'room') { const c = compileRoom(d.doc, ctx); out.rooms.set(c.roomId, { id, ...c }); }
-      else if (kind === 'tileset') out.tilesets.set(bindings.num.get(id), compileTileset(d.doc, readFile));
-      else if (kind === 'background') out.backgrounds.set(bindings.num.get(id), compileBackground(d.doc, readFile));
+      if (kind === 'room') { const c = compileRoom(d.doc, ctx); out.rooms.set(c.roomId, { id, project: d.project, ...c }); }
+      else if (kind === 'tileset') out.tilesets.set(bindings.num.get(id), { id, project: d.project, ...compileTileset(d.doc, readFile) });
+      else if (kind === 'background') out.backgrounds.set(bindings.num.get(id), { id, project: d.project, ...compileBackground(d.doc, readFile) });
       else if (kind === 'palette') out.palettes.set(bindings.num.get(id), compilePalette(d.doc));
       else if (kind === 'object') out.objDesc.set(d.doc.bind.type, compileObjectType(d.doc, ctx));
     } catch (e) {
@@ -138,7 +139,49 @@ export function writeOutput({ io, compiled, outDir, manifest, manifestSha256 }, 
   for (const [i, t] of compiled.tilesets) { dump(`tilesets/${i}`, t.blobs); index.tilesets.push(i); report.native.tilesets++; }
   for (const [i, t] of compiled.backgrounds) { dump(`backgrounds/${i}`, t.blobs); index.backgrounds.push(i); report.native.backgrounds++; }
   io.writeText(`${outDir}/native/index.json`, writeJson(index));
+
+  // The room bundle (katam-native/1) the runtime loads: every room, tileset
+  // and background the stack defines above the decompiled vanilla project.
+  // Written next to the pack (OUT/pack/rooms.katn: --res-pack OUT/pack) and as
+  // a mod (OUT/mod: --res-pack <your vanilla pack> --mod OUT/mod, or --mod
+  // alone over the ROM).
+  const b = bundleOf(compiled);
+  report.bundle = { rooms: b.rooms.map((r) => [r.id, r.roomId]), tilesets: b.tilesets.length, backgrounds: b.backgrounds.length, bytes: b.bytes.length, sha256: b.bytes.length ? sha256(b.bytes) : null };
+  if (b.rooms.length || b.tilesets.length || b.backgrounds.length) {
+    if (report.pack) io.writeBytes(`${outDir}/pack/rooms.katn`, b.bytes);
+    io.writeBytes(`${outDir}/mod/rooms.katn`, b.bytes);
+    io.writeText(`${outDir}/mod/mod.toml`, `# Written by katam compile: the room bundle of this project.\n[mod]\nid = "${b.modId}"\nformat = 1\nrooms = "rooms.katn"\n`);
+    report.mod = `${outDir}/mod`;
+  }
   return report;
+}
+
+/** A new room's area (doc.area, else the area of the vanilla room its first
+ *  door leads to, else rainbow_route) and default cell (its first door's
+ *  first cell): what the runtime's room-graph tables get for ids >= 983. */
+function roomGraphOf(compiled, r) {
+  const d = compiled.bindings.docs.get(r.id);
+  const doc = d ? d.doc : {};
+  let area = doc.area;
+  const doors = doc.doors || [];
+  if (!area && doors.length) {
+    const m = /(\d+)$/.exec(doors[0].to || '');
+    const to = compiled.bindings.resolve(doors[0].to);
+    const num = to ? compiled.bindings.num.get(to) : m ? Number(m[1]) : undefined;
+    if (num !== undefined && num < N.NUM_ROOM_SLOTS) area = compiled.vocab.roomAreas[num];
+  }
+  const spawn = doors.length && doors[0].cells && doors[0].cells.length ? doors[0].cells[0] : [Math.floor((doc.size?.width || 15) / 2), Math.floor((doc.size?.height || 10) / 2)];
+  return { area: N.AREA_UNK46[area] ?? 0, spawn };
+}
+
+/** The rooms/tilesets/backgrounds a stack adds or replaces over vanilla, linked. */
+export function bundleOf(compiled) {
+  const mine = (c) => !compiled.vanillaLayers.has(c.project);
+  const rooms = [...compiled.rooms.values()].filter(mine).map((r) => ({ ...r, ...roomGraphOf(compiled, r) }));
+  const tilesets = [...compiled.tilesets].filter(([, t]) => mine(t)).map(([idx, t]) => ({ idx, blobs: t.blobs }));
+  const backgrounds = [...compiled.backgrounds].filter(([, t]) => mine(t)).map(([idx, t]) => ({ idx, blobs: t.blobs }));
+  const ids = [...new Set(rooms.map((r) => r.project))];
+  return { rooms, tilesets, backgrounds, modId: ids.length ? ids.map((d) => compiled.projectIds.get(d)).join('+') : 'none', bytes: N.linkBundle({ rooms, tilesets, backgrounds }) };
 }
 
 // --------------------------------------------------------------------- gate

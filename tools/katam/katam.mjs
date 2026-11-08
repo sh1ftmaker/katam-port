@@ -11,7 +11,10 @@
 //   katam new-room ID -o FILE [--width W --height H]   scaffold a valid room to edit
 //   katam describe room|collision|objects|music [filter]   reference text for people and models
 //   katam reach ROOM...                           (designed, not implemented: see AUTHORING.md)
-//   katam playtest ROOM                           (designed, not implemented: see AUTHORING.md)
+//   katam playtest PROJECT --rom R -o OUT [--base DIR]... [--room ID] [--door N | --at X:Y]
+//                  [--frames N] [--input SCRIPT] [--shots F,F] [--pack P] [--bin build/lp64/katam]
+//                                                 compile, boot the native game into the room, play
+//                                                 N frames (scripted input), screenshots + hash log
 //
 // Node >= 18, no dependencies.  The library under lib/ is browser-safe; only
 // this file touches node:fs, node:zlib, node:crypto and child_process.
@@ -103,7 +106,10 @@ async function main() {
       if (!a._[0] || !a.o) die('compile PROJECT [--base DIR]... -o OUT');
       const { vocab } = env();
       const layers = loadStack(io, [...a.base, a._[0]]);
-      const compiled = compileStack({ io, layers, vocab, registry });
+      // Without --base, references into vanilla resolve by the number their
+      // vanilla id carries (tileset:vanilla/29 -> 29), unchecked: enough to
+      // build the room bundle (OUT/mod), not the full pack.
+      const compiled = compileStack({ io, layers, vocab, registry, external: !a.base.length });
       if (compiled.errors.length) { printErrors(compiled.errors, a.json); return 1; }
       const rep = writeOutput({ io, compiled, outDir: a.o, ...manifest() }, sha256);
       console.log(writeJson({ rooms: compiled.rooms.size, ...rep, allocated: compiled.bindings.allocated }));
@@ -154,8 +160,8 @@ async function main() {
       console.log(describe(a._[0], a._[1], { vocab, registry, schemas: loadSchemas(io, R('assets/schema/authoring')) }));
       return 0;
     }
-    case 'reach':
-    case 'playtest': {
+    case 'playtest': return playtest(a, io, registry);
+    case 'reach': {
       const { plan } = await import('./lib/plans.mjs');
       console.log(plan(cmd));
       return 3;
@@ -164,6 +170,65 @@ async function main() {
       { const L = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n'); console.log(L.slice(1, L.findIndex((l, k) => k > 0 && !l.startsWith('//'))).map((l) => l.replace(/^\/\/ ?/, '')).join('\n')); }
       return cmd ? 2 : 0;
   }
+}
+
+async function playtest(a, io, registry) {
+  const { chooseArrival, parseScript, playtestRecording } = await import('./lib/playtest.mjs');
+  if (!a._[0] || !a.o || !a.rom) die('playtest PROJECT --rom ROM -o OUT [--base DIR]... [--room ID] [--door N | --at X:Y] [--frames N] [--input SCRIPT] [--shots F,F] [--pack VANILLA_PACK] [--bin KATAM]');
+  const out = path.resolve(a.o);
+  const bin = path.resolve(a.bin || R('build/lp64/katam'));
+  if (!fs.existsSync(bin)) die(`no game binary at ${bin} (build it: cmake --build build/lp64, or pass --bin)`);
+  readRom(a.rom);
+  const { vocab } = env();
+  fs.rmSync(out, { recursive: true, force: true });
+  const layers = loadStack(io, [...a.base, a._[0]].map((d) => path.resolve(d)));
+  const compiled = compileStack({ io, layers, vocab, registry, external: !a.base.length });
+  if (compiled.errors.length) { printErrors(compiled.errors, a.json); return 1; }
+  const rep = writeOutput({ io, compiled, outDir: `${out}/build`, ...manifest() }, sha256);
+  if (!rep.mod) die('the project adds no rooms: nothing to playtest');
+  // the room: --room (id or number), else the first room the project adds
+  let room;
+  if (a.room !== undefined) {
+    room = /^\d+$/.test(a.room) ? Number(a.room) : compiled.bindings.num.get(compiled.bindings.resolve(a.room));
+    if (room === undefined) die(`--room ${a.room}: no such room in the stack`);
+  } else room = rep.bundle.rooms[0][1];
+  const arr = chooseArrival(compiled, room, { door: Number(a.door || 0), at: a.at ? a.at.split(':').map(Number) : null });
+  const frames = Number(a.frames || 600);
+  const script = a.input ? parseScript(fs.readFileSync(a.input, 'utf8')) : [];
+  const rec = playtestRecording({ room, x: arr.x, y: arr.y, frames, script, note: `rooms.katn sha256 ${rep.bundle.sha256}` });
+  fs.writeFileSync(`${out}/playtest.txt`, rec.text);
+  const shots = (a.shots ? a.shots.split(',').map(Number) : [0, frames >> 1, frames - 1]).map((f) => rec.arriveFrame + f);
+  const args = ['--no-audio', '--turbo', '--replay', `${out}/playtest.txt`, '--hash-log', `${out}/hash.log`];
+  if (a.pack) args.push('--res-pack', path.resolve(a.pack), '--mod', rep.mod);
+  else args.push('--rooms', `${rep.mod}/rooms.katn`);
+  for (const f of shots) args.push('--shot-at', `${f}:${out}/shot-${f}`);
+  args.push(path.resolve(a.rom));
+  const xdg = fs.mkdtempSync(path.join(out, 'xdg-'));
+  const setarch = spawnSync('setarch', ['-R', 'true']).status === 0;
+  const t0 = Date.now();
+  const r = spawnSync(setarch ? 'setarch' : bin, setarch ? ['-R', bin, ...args] : args, {
+    encoding: 'utf8', maxBuffer: 64 << 20,
+    env: { ...process.env, XDG_DATA_HOME: `${xdg}/data`, XDG_CONFIG_HOME: `${xdg}/config`, SDL_VIDEODRIVER: 'dummy', SDL_AUDIODRIVER: 'dummy' },
+  });
+  fs.rmSync(xdg, { recursive: true, force: true });
+  const log = (r.stdout || '') + (r.stderr || '');
+  fs.writeFileSync(`${out}/game.log`, log);
+  const warped = new RegExp(`warp: player 0 -> room ${room} `).test(log);
+  const exit = /at exit: player 0 in room (\d+), hp (-?\d+)/.exec(log);
+  const linked = /\[res\] room bundles linked: (.*)/.exec(log);
+  const lsh = /levelSetHash ([0-9a-f]{64})/.exec(log);
+  const pngs = fs.readdirSync(out).filter((f) => f.endsWith('.png')).map((f) => `${out}/${f}`);
+  const res = {
+    room, roomId: compiled.bindings.byNum.room.get(room) || `room:vanilla/${room}`, arrive: arr,
+    bundle: rep.bundle, linked: linked ? linked[1] : null, levelSetHash: lsh ? lsh[1] : null,
+    warped, exitStatus: r.status, finalRoom: exit ? Number(exit[1]) : null, finalHp: exit ? Number(exit[2]) : null,
+    frames: { warp: rec.warpFrame, arrive: rec.arriveFrame, total: rec.totalFrames }, seconds: (Date.now() - t0) / 1000,
+    recording: `${out}/playtest.txt`, hashLog: `${out}/hash.log`, log: `${out}/game.log`, screenshots: pngs,
+  };
+  const ok = r.status === 0 && warped && linked && exit && res.finalHp > 0;
+  res.result = ok ? (res.finalRoom === room ? 'ok: in the room, alive' : `ok: alive, left for room ${res.finalRoom}`) : 'FAILED';
+  console.log(writeJson(res));
+  return ok ? 0 : 1;
 }
 
 function projectRootOf(p) {

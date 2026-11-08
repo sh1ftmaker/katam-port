@@ -249,3 +249,168 @@ export function compareBlobs(a, b, prefix = '') {
 }
 
 export { u8 };
+
+// ------------------------------------------------------------ room bundles
+//
+// katam-native/1: the room bundle the runtime loads (MODDING.md R2;
+// platform/res_rooms.c).  A position-independent object file: blobs, the
+// pointer fields inside them (relocations), and table entries that say which
+// blob a game table slot points at (or, for an array table, which blob is the
+// record itself).  The runtime places the blobs in the resource arena, grows
+// each named table past its vanilla extent when an index needs it, and patches
+// the pointers -- it knows no room layout; every layout fact stays here.
+//
+//   0x00 "KATN"  u32 version (1)  u32 nBlobs  u32 nRelocs  u32 nEntries
+//   0x14 u32 dataOffset  u32 totalSize  u32 0
+//   0x20 nBlobs   x {u32 offset (from dataOffset), u32 size, u32 align, u32 0}
+//        nRelocs  x {u32 blob, u32 at, u32 target blob, u32 addend}: blob[at] = &target + addend
+//        nEntries x {char table[24] (NUL-padded rom_tables.h label), u32 index, u32 blob, u32 inline}
+//   dataOffset: the blob bytes, each 4-aligned
+//
+// The bytes are a function of the compiled content only (no addresses), so
+// their SHA-256 is the bundle's term in the content hash.
+
+export const BUNDLE_FORMAT = 'katam-native/1';
+export const BUNDLE_MAGIC = 'KATN';
+export const BUNDLE_VERSION = 1;
+const TABLE_NAME_LEN = 24;
+
+/** The game tables a bundle may name: [label, vanilla count, inline record size or 0 for a pointer table]. */
+export const BUNDLE_TABLES = {
+  gRoomProps: [NUM_ROOM_SLOTS, ROOM_PROPS_SIZE],
+  gForegroundTilemaps: [NUM_CONTENT, 0],
+  gSolidityMaps: [NUM_CONTENT, 0],
+  gLevelObjLists: [NUM_CONTENT, 0],
+  gUnk_08D640A4: [NUM_CONTENT, 0],
+  gUnk_08D63C28: [NUM_CONTENT, 0],
+  gForegroundInfo: [34, 0],
+  gRoomTiledBGs: [36, 0],
+  gUnk_08D6CD0C: [1000, 0],      // room -> struct Unk_08D6CD0C: AI room graph + area (1000 slots, 286 used)
+  gUnk_0893CB44: [984, 2],       // room -> default cell (u8 x, u8 y), read by sub_08002D40
+};
+
+/** vocab area name -> Unk_08D6CD0C.unk46 (the switch in pause_world_map.c WorldMapGetCoorFromRoom). */
+export const AREA_UNK46 = {
+  rainbow_route: 0, moonlight_mansion: 1, cabbage_cavern: 2, mustard_mountain: 3, carrot_castle: 4,
+  olive_ocean: 5, peppermint_palace: 6, radish_ruins: 7, candy_constellation: 8, tutorial: 9, dimension_mirror: 10,
+};
+export const ROOM_GRAPH_SIZE = 0x4c;
+
+class Linker {
+  constructor() { this.blobs = []; this.relocs = []; this.entries = []; }
+  blob(bytes, align = 4) { this.blobs.push({ bytes: bytes.length ? bytes : new Uint8Array(4), align }); return this.blobs.length - 1; }
+  /** a record whose pointer fields (`ptrs`: {offset: target blob}) the runtime fills */
+  record(bytes, ptrs) {
+    const b = this.blob(Uint8Array.from(bytes));
+    for (const [at, t] of Object.entries(ptrs)) { put(this.blobs[b].bytes, Number(at), 4, 0); this.relocs.push([b, Number(at), t, 0]); }
+    return b;
+  }
+  entry(table, index, blob) {
+    const T = BUNDLE_TABLES[table];
+    if (!T) throw new Error(`bundle: ${table} is not a table the loader can grow`);
+    if (T[1] && this.blobs[blob].bytes.length !== T[1]) throw new Error(`bundle: ${table} records are ${T[1]} bytes`);
+    this.entries.push([table, index, blob, T[1] ? 1 : 0]);
+  }
+  bytes() {
+    const nb = this.blobs.length, nr = this.relocs.length, ne = this.entries.length;
+    const dataOffset = 0x20 + nb * 16 + nr * 16 + ne * (TABLE_NAME_LEN + 12);
+    const offs = [];
+    let at = 0;
+    for (const b of this.blobs) { at = (at + 3) & ~3; offs.push(at); at += b.bytes.length; }
+    const total = dataOffset + ((at + 3) & ~3);
+    const out = new Uint8Array(total);
+    for (let i = 0; i < 4; i++) out[i] = BUNDLE_MAGIC.charCodeAt(i);
+    put(out, 4, 4, BUNDLE_VERSION); put(out, 8, 4, nb); put(out, 12, 4, nr); put(out, 16, 4, ne);
+    put(out, 20, 4, dataOffset); put(out, 24, 4, total);
+    let o = 0x20;
+    this.blobs.forEach((b, i) => { put(out, o, 4, offs[i]); put(out, o + 4, 4, b.bytes.length); put(out, o + 8, 4, b.align); o += 16; });
+    for (const [b, a, t, add] of this.relocs) { put(out, o, 4, b); put(out, o + 4, 4, a); put(out, o + 8, 4, t); put(out, o + 12, 4, add); o += 16; }
+    for (const [name, idx, b, inl] of this.entries) {
+      for (let i = 0; i < name.length; i++) out[o + i] = name.charCodeAt(i);
+      put(out, o + TABLE_NAME_LEN, 4, idx); put(out, o + TABLE_NAME_LEN + 4, 4, b); put(out, o + TABLE_NAME_LEN + 8, 4, inl);
+      o += TABLE_NAME_LEN + 12;
+    }
+    this.blobs.forEach((b, i) => out.set(b.bytes, dataOffset + offs[i]));
+    return out;
+  }
+}
+
+const cat = (...parts) => {
+  const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+};
+
+/** Link compiled rooms ({roomId, content, blobs}), tilesets and backgrounds
+ *  ({idx, blobs}) into a katam-native/1 bundle.  Every pointer field is a
+ *  relocation; the field sets are the ones readRoomNative & co. zero. */
+export function linkBundle({ rooms = [], tilesets = [], backgrounds = [] }) {
+  const L = new Linker();
+  for (const r of [...rooms].sort((a, b) => a.roomId - b.roomId)) {
+    const B = r.blobs, c = r.content;
+    if (r.roomId >= 0x10000 - 1) throw new Error(`room id ${r.roomId} does not fit the game's u16 (0xFFFF means "no room")`);
+    L.entry('gRoomProps', r.roomId, L.blob(Uint8Array.from(B.props)));
+    // playfield layer: RoomTiledBG, tilemap pointer at 0x18 (tileset/palette 0: vanilla never sets them)
+    L.entry('gForegroundTilemaps', c, L.record(B.fgHeader, { 0x18: L.blob(B.fgTilemapPacked) }));
+    // collision: SolidityMap {RL map, cell records + terminator}
+    L.entry('gSolidityMaps', c, L.record(new Uint8Array(8), { 0: L.blob(B.collisionPacked), 4: L.blob(cat(B.cellRecords, B.cellTerminator)) }));
+    // objects: LevelInfo_1E4 {templates + terminator, type set, second type set, counts}
+    L.entry('gLevelObjLists', c, L.record(B.objHeader, { 0: L.blob(cat(B.templates, B.objTerminator)), 4: L.blob(B.objTypes), 8: L.blob(B.objTypes2) }));
+    // progress list (chests, door shadows): {entries + terminator, counts}
+    L.entry('gUnk_08D640A4', c, L.record(B.progressHeader, { 0: L.blob(cat(B.progress, B.progressTerminator)) }));
+    // nav graph: LevelInfo_1E8 {4 scripts, RL node map, nodes, count}
+    const nav = { 0x10: L.blob(B.navMapPacked), 0x14: L.blob(B.navNodes) };
+    for (let i = 0; i < 4; i++) nav[4 * i] = L.blob(B[`navScript${i}`]);
+    L.entry('gUnk_08D63C28', c, L.record(B.navHeader, nav));
+    // Only for rooms past the original ids: vanilla rooms keep the game's own
+    // room-graph record and default cell.
+    if (r.roomId >= NUM_ROOM_SLOTS) {
+      // struct Unk_08D6CD0C: no neighbour list (unk48 = 0), unk47 = 0x80 (the
+      // AI helpers' "not a routing target" flag: sub_080140B0/sub_080141EC
+      // then send a helper back to its previous goal), the area, the room id.
+      const g = new Uint8Array(ROOM_GRAPH_SIZE);
+      put(g, 0x44, 2, r.roomId);
+      g[0x46] = r.area ?? 0;
+      g[0x47] = 0x80;
+      L.entry('gUnk_08D6CD0C', r.roomId, L.record(g, { 0: L.blob(new Uint8Array(8)) }));
+      L.entry('gUnk_0893CB44', r.roomId, L.blob(Uint8Array.from(r.spawn || [0, 0])));
+    }
+  }
+  for (const t of [...tilesets].sort((a, b) => a.idx - b.idx)) {
+    const B = t.blobs;
+    // the animation records are one array (ForegroundInfo.unk8 + i*0x14), each with a frame-table pointer at 0x0c
+    let animArr = -1;
+    if (B.anims.length) {
+      const frames = B.anims.map((a) => L.blob(a.frames));
+      const arr = cat(...B.anims.map((a) => Uint8Array.from(a.record)));
+      animArr = L.blob(arr);
+      frames.forEach((f, k) => { put(arr, k * 0x14 + 0x0c, 4, 0); L.relocs.push([animArr, k * 0x14 + 0x0c, f, 0]); });
+    }
+    const ptrs = { 0: L.blob(B.tilesPacked), 4: L.blob(B.animGfx) };
+    if (animArr >= 0) ptrs[8] = animArr;
+    L.entry('gForegroundInfo', t.idx, L.record(B.header, ptrs));
+  }
+  for (const g of [...backgrounds].sort((a, b) => a.idx - b.idx)) {
+    const B = g.blobs;
+    L.entry('gRoomTiledBGs', g.idx, L.record(B.header, { 0x08: L.blob(B.tilesPacked), 0x10: L.blob(B.palette), 0x18: L.blob(B.tilemap) }));
+  }
+  return L.bytes();
+}
+
+/** Parse a bundle back (tests, `katam describe`): {blobs, relocs, entries}. */
+export function readBundle(b) {
+  if (String.fromCharCode(...b.subarray(0, 4)) !== BUNDLE_MAGIC) throw new Error('not a katam-native bundle (no KATN magic)');
+  if (u32(b, 4) !== BUNDLE_VERSION) throw new Error(`bundle version ${u32(b, 4)}, this tool reads ${BUNDLE_VERSION}`);
+  const nb = u32(b, 8), nr = u32(b, 12), ne = u32(b, 16), data = u32(b, 20);
+  let o = 0x20;
+  const blobs = [], relocs = [], entries = [];
+  for (let i = 0; i < nb; i++, o += 16) blobs.push(b.subarray(data + u32(b, o), data + u32(b, o) + u32(b, o + 4)));
+  for (let i = 0; i < nr; i++, o += 16) relocs.push({ blob: u32(b, o), at: u32(b, o + 4), target: u32(b, o + 8), addend: u32(b, o + 12) });
+  for (let i = 0; i < ne; i++, o += TABLE_NAME_LEN + 12) {
+    let n = '';
+    for (let k = 0; k < TABLE_NAME_LEN && b[o + k]; k++) n += String.fromCharCode(b[o + k]);
+    entries.push({ table: n, index: u32(b, o + TABLE_NAME_LEN), blob: u32(b, o + TABLE_NAME_LEN + 4), inline: u32(b, o + TABLE_NAME_LEN + 8) });
+  }
+  return { blobs, relocs, entries };
+}
