@@ -84,15 +84,51 @@ this executable, which move whenever code linked ahead of them changes size, so
 a raw hash of EWRAM would report a divergence for a change that altered
 nothing. `platform/native/symtab.c` reads the executable's own ELF symbol table
 and the hash replaces a word that is *exactly* a function's entry point with
-`0xC0000000|hash(name)`, and exactly a data object's start with
-`0x80000000|hash(name)`. Exact starts only: the game's data is full of aligned
-words that fall inside some object by coincidence (the shadow OAM, for one),
-and the first version, which canonicalised interior pointers, turned every one
-of them into a false divergence. Identical-code-folded aliases share one token.
-Verified: inserting code and data into the first game file and into
-`platform/ppu.c` leaves every hash of the 7299-frame play recording unchanged.
-Linux only (`/proc/self/exe`); elsewhere the hook is the identity and the hash
-is still deterministic, just layout-sensitive. `PORT_HASH_RAW=1` turns it off.
+`0xC0000000|hash(name)`, and a pointer to or into one of its data objects
+(start, interior, or one past the end) with `0x80000000|hash(name, offset)`.
+Identical-code-folded aliases share one token. Linux only (`/proc/self/exe`);
+elsewhere the hook is the identity and the hash is still deterministic, just
+layout-sensitive. `PORT_HASH_RAW=1` turns it off.
+
+**Why the image is pinned at 0xB5000000.** Recognising a host address *by
+value* is only sound if no game value can be mistaken for one. With the image
+at 0x10000000 that failed in both directions, and the first renderer commit,
+which changed no game code at all, "diverged" every recording:
+
+- *Constants taken for function pointers.* 0x1000 is 1.0 in the game's 4.12
+  fixed point, so packed u16 pairs in the 0x1000xxxx range are common; the old
+  goldens themselves canonicalised the constant 0x10030000 at 0x03003EE4 as
+  `sub_08005DE0` (boot_to_level, frame 580) because that function happened to
+  be linked there, and the intro's 0x10010000 at 0x03004E38 became
+  `sub_080CA0A4` the moment a 128-byte change to the PLT moved that function
+  onto it.
+- *Interior pointers left raw.* The attract demo keeps a pointer into one of
+  the port's static tables (frame 1551); any change that grew the code moved
+  the table and the raw pointer with it. Canonicalising interior pointers was
+  tried before and dropped because at 0x10000000 palette colour pairs and
+  shadow-OAM words fall inside objects by coincidence.
+
+Above 0x80000000 no BGR555 colour pair can reach, and 0xB5xx is not a
+fixed-point value the game has reason to hold, so both rules now hold:
+exact function entries, and start-or-interior data pointers. The goldens were
+re-recorded with this change alone (no game or renderer code): `keys`, `vid`,
+`sram` and `pix` are identical to the previous goldens on every frame of all
+four recordings; `sim` moved only on frames holding one of the two kinds of
+word above, and `tools/state_diff.py` between the old and new builds finds
+nothing else (boot_to_level 580/1398, attract 1551/6598, play_rooms
+4000/7298, warp_sweep 3000/5648).
+
+**What it still cannot see.** The game reuses heap memory without clearing
+it and sometimes initialises a struct only partly, so for a frame or a few it
+can hold a *fragment* of a stale host function pointer -- e.g. `unk1D` of the
+world map's Kirby sprite at 0x03004275 is the middle byte of the task callback
+that last owned that memory (warp_sweep frame 4988; attract 5715-5720). No
+by-value rule can recognise a fragment, so moving a game function moves those
+frames' hashes. Changes to game code should expect it and confirm with
+`state_diff.py`; changes outside game code do not move game functions and do
+not hit it (the renderer's hooks are linker wraps for that reason,
+docs/RENDERER.md). The real fix is netplay-v2's R5: no host pointers in
+simulation memory.
 
 Two copies of host machine code into IWRAM (`IntrMain`, `MultiSioIntr`) made
 IWRAM differ between any two builds; they were never executed and are gone

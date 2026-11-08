@@ -565,14 +565,26 @@ endif()
 # falsifiable rather than merely argued -- it aborts on any high address stored
 # through a PTR32, naming it.
 # ---------------------------------------------------------------------------
+#
+# Why 0xB5000000 and not the 0x10000000 it used to be: the regression hash
+# (platform/native/symtab.c) recognises host addresses in game memory by
+# value, and every word of game data is a candidate.  At 0x10000000 the image
+# overlapped values the game stores all the time -- 0x1000 is 1.0 in its 4.12
+# fixed point, so packed u16 pairs land in the code range, and any BGR555
+# colour pair lands somewhere below 0x80000000 -- and a change that merely
+# moved code turned one of them into a "function pointer" (the intro keeps
+# 0x10010000 at 0x03004E38; it diverged the moment a function was linked
+# there).  Above 0x80000000 a colour cannot reach, and 0xB5xx as the high half
+# of a fixed-point pair is a number the game has no reason to hold.  Still
+# below 4 GiB, still a PTR32.  docs/DETERMINISM.md has the measurement.
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND UNIX AND NOT APPLE)
   include(CheckCSourceCompiles)
-  set(CMAKE_REQUIRED_LINK_OPTIONS -no-pie -Wl,-Ttext-segment=0x10000000)
+  set(CMAKE_REQUIRED_LINK_OPTIONS -no-pie -Wl,-Ttext-segment=0xB5000000)
   check_c_source_compiles("int main(void){return 0;}" HAVE_TEXT_SEGMENT)
   unset(CMAKE_REQUIRED_LINK_OPTIONS)
   if(HAVE_TEXT_SEGMENT)
-    target_link_options(katam PRIVATE -no-pie "-Wl,-Ttext-segment=0x10000000")
-    message(STATUS "64-bit target: image pinned at 0x10000000 so code fits in a PTR32")
+    target_link_options(katam PRIVATE -no-pie "-Wl,-Ttext-segment=0xB5000000")
+    message(STATUS "64-bit target: image pinned at 0xB5000000 so code fits in a PTR32")
   else()
     message(WARNING
       "This linker does not take -Ttext-segment, so the image will be loaded "
