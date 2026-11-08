@@ -121,7 +121,12 @@ CFLAGS := -O2 $(DBG_CFLAG) -std=gnu99 -fgnu89-inline -fno-strict-aliasing -fwrap
 # a stub whose body is `unreachable` and links anyway.  That shipped once.  The
 # compile flag catches the implicit-declaration route in; this catches a wrong
 # prototype written out in full, which the compiler cannot see across files.
-LDLINT := -Wl,--fatal-warnings
+# The GPU renderer: WebGL2 (= GLES 3.0), and its game hooks as linker wraps
+# (platform/render/rl_build.c says why).  In every emcc link, so the node
+# build -- which has no WebGL and never asks for it -- links the same code.
+RENDER_LDFLAGS := -sMAX_WEBGL_VERSION=2 -Wl,--wrap=DisplaySprite \
+                  -Wl,--wrap=sub_081564D8 -Wl,--wrap=DrawToOamBuffer
+LDLINT := -Wl,--fatal-warnings $(RENDER_LDFLAGS)
 
 # One export list for all four link recipes.  They had drifted into four
 # identical copies, and an export present in one build and missing in another
@@ -151,7 +156,8 @@ GAME_SRCS     := $(shell find $(PORT_SRC)/src -name '*.c' 2>/dev/null)
 # platform/*.c is the console -- PPU, DMA, BIOS, the mixer -- and knows nothing
 # about the host.  platform/web/*.c is the browser half of port/backend.h; the
 # native build swaps in platform/native/*.c instead.  See docs/NATIVE.md.
-PLATFORM_SRCS := $(wildcard platform/*.c) $(wildcard platform/web/*.c)
+PLATFORM_SRCS := $(wildcard platform/*.c) $(wildcard platform/web/*.c) \
+                 $(wildcard platform/render/*.c)
 GEN_SRCS      := $(wildcard $(GENERATED)/*.c)
 SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
 OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
