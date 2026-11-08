@@ -99,6 +99,15 @@ static int  sMashMask, sMashPeriod;
  * console as everything else. */
 static unsigned sRandoSeed, sRandoFlags;
 
+/* --view and --cull: the web page's view controls (platform/view.c,
+ * docs/VIEW.md).  Off unless asked for -- PORT_VIEW_NATIVE is the 240x160
+ * picture the hardware draws.  sTexW/H follow whatever size the core hands
+ * PortBlitFramebuffer, which changes every frame under the zoom modes. */
+static int sViewSet;
+static unsigned sViewMode, sViewCull;
+static int sViewPadX = 40, sViewPadY;
+static int sTexW = PORT_SCREEN_W, sTexH = PORT_SCREEN_H;
+
 static long sFrames;
 static Uint64 sPerfFreq, sNextFrame;
 
@@ -140,6 +149,10 @@ static void Usage(const char *argv0)
 "  --window-shot PATH write a PNG of the scaled window, read back from the\n"
 "                     renderer -- what --screenshot cannot tell you is whether\n"
 "                     the picture reached the screen in the right pixel format\n"
+"  --view MODE[:PX[:PY]]  native (default), wide, zoom or widezoom;\n"
+"                     PX/PY pad each side in pixels (default 40:0, so wide\n"
+"                     is 320x160).  See docs/VIEW.md\n"
+"  --cull MODE        with --view: stock (default), match or none\n"
 "  --rando SEED[:F]   shuffle the enemies, with F the flag word from\n"
 "                     platform/port/port.h (default 0x11: enemies, sizes\n"
 "                     matched, abilities kept; 0x17 adds bosses)\n"
@@ -197,6 +210,35 @@ static void ParseArgs(int argc, char **argv)
             sShotPath = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--window-shot") == 0) {
             sReadbackPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--view") == 0) {
+            static const char *const kModes[] = { "native", "wide", "zoom",
+                                                  "widezoom" };
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            size_t len = strcspn(v, ":");
+            unsigned m;
+
+            for (m = 0; m < 4; m++)
+                if (strlen(kModes[m]) == len && strncmp(v, kModes[m], len) == 0)
+                    break;
+            if (m == 4) {
+                fprintf(stderr, "katam-port: --view wants native, wide, zoom "
+                                "or widezoom, optionally :PADX[:PADY]\n");
+                exit(2);
+            }
+            sViewSet = 1;
+            sViewMode = m;
+            if (v[len] == ':')
+                sscanf(v + len + 1, "%d:%d", &sViewPadX, &sViewPadY);
+        } else if (strcmp(a, "--cull") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            if (strcmp(v, "stock") == 0)      sViewCull = PORT_CULL_STOCK;
+            else if (strcmp(v, "match") == 0) sViewCull = PORT_CULL_MATCH;
+            else if (strcmp(v, "none") == 0)  sViewCull = PORT_CULL_NONE;
+            else {
+                fprintf(stderr, "katam-port: --cull wants stock, match or none\n");
+                exit(2);
+            }
         } else if (strcmp(a, "--rando") == 0) {
             /* Seed first, flags optional: the seed is the thing anyone
              * actually types, and the flag word is for the two people who
@@ -288,7 +330,7 @@ static int CountDistinctColours(void)
     int i;
 
     memset(used, 0, sizeof(used));
-    for (i = 0; i < PORT_SCREEN_W * PORT_SCREEN_H; i++) {
+    for (i = 0; i < gPortViewW * gPortViewH; i++) {
         u32 c = gPortFramebuffer[i];
         u32 h = (c * 2654435761u) % SLOTS;
 
@@ -339,7 +381,7 @@ static void SampleFrame(void)
         sBestFrame = sFrames;
     }
 
-    for (i = 0; i < PORT_SCREEN_W * PORT_SCREEN_H; i += 7)
+    for (i = 0; i < gPortViewW * gPortViewH; i += 7)
         h = (h ^ gPortFramebuffer[i]) * 16777619u;
 
     for (i = 0; i < sNumFrameHashes; i++)
@@ -355,7 +397,7 @@ static void ReportFrame(void)
     int nonBackdrop = 0;
     int i;
 
-    for (i = 0; i < PORT_SCREEN_W * PORT_SCREEN_H; i++)
+    for (i = 0; i < gPortViewW * gPortViewH; i++)
         if (gPortFramebuffer[i] != backdrop)
             nonBackdrop++;
 
@@ -363,7 +405,7 @@ static void ReportFrame(void)
     PortLog("[katam-port] final frame: %d distinct colours, %d%% of pixels "
             "differ from the corner, DISPCNT=0x%04X",
             CountDistinctColours(),
-            nonBackdrop * 100 / (PORT_SCREEN_W * PORT_SCREEN_H),
+            nonBackdrop * 100 / (gPortViewW * gPortViewH),
             (unsigned)*(vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPCNT));
     PortLog("[katam-port] best frame: %d distinct colours, at frame %ld of %ld",
             sBestColours, sBestFrame, sFrames);
@@ -377,7 +419,7 @@ static void Shutdown(int code)
     ReportFrame();
     if (sShotPath != NULL) {
         if (PortNativeWritePng(sShotPath, gPortFramebuffer,
-                               PORT_SCREEN_W, PORT_SCREEN_H))
+                               gPortViewW, gPortViewH))
             PortLog("[katam-port] wrote %s", sShotPath);
         else
             PortError("[katam-port] could not write %s", sShotPath);
@@ -517,7 +559,7 @@ static void ApplyScale(void)
 {
     if (sWindow == NULL || sFullscreen)
         return;
-    SDL_SetWindowSize(sWindow, PORT_SCREEN_W * sScale, PORT_SCREEN_H * sScale);
+    SDL_SetWindowSize(sWindow, sTexW * sScale, sTexH * sScale);
 }
 
 static void ToggleFullscreen(void)
@@ -552,9 +594,14 @@ static void OpenWindow(void)
      * filtering is a smear, and the PPU's output is exact. */
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
+    if (sViewMode == PORT_VIEW_WIDE || sViewMode == PORT_VIEW_WIDE_ZOOM) {
+        sTexW = PORT_SCREEN_W + 2 * sViewPadX;
+        sTexH = PORT_SCREEN_H + 2 * sViewPadY;
+    }
+
     sWindow = SDL_CreateWindow("katam-port",
                                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                               PORT_SCREEN_W * sScale, PORT_SCREEN_H * sScale,
+                               sTexW * sScale, sTexH * sScale,
                                SDL_WINDOW_RESIZABLE
                                | (sFullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0));
     if (sWindow == NULL) {
@@ -573,14 +620,14 @@ static void OpenWindow(void)
     /* Aspect and integer ratio in two calls: the logical size makes SDL
      * letterbox 3:2 inside whatever the window is, and integer scale stops it
      * landing on a 2.37x that gives every third pixel row a different height. */
-    SDL_RenderSetLogicalSize(sRenderer, PORT_SCREEN_W, PORT_SCREEN_H);
+    SDL_RenderSetLogicalSize(sRenderer, sTexW, sTexH);
     SDL_RenderSetIntegerScale(sRenderer, SDL_TRUE);
 
     /* ABGR8888 is exactly what ToRgba in platform/ppu.c produces:
      * 0xFF000000 | b << 16 | g << 8 | r. */
     sTexture = SDL_CreateTexture(sRenderer, SDL_PIXELFORMAT_ABGR8888,
                                  SDL_TEXTUREACCESS_STREAMING,
-                                 PORT_SCREEN_W, PORT_SCREEN_H);
+                                 sTexW, sTexH);
     if (sTexture == NULL) {
         PortError("[katam-port] no texture: %s", SDL_GetError());
         exit(2);
@@ -730,6 +777,20 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 {
     if (sTexture == NULL)
         return;
+    /* The view rectangle can be any size up to PORT_MAX_VIEW_W/H, and under
+     * zoom it changes as the camera creeps; a texture of the wrong size would
+     * read the frame with the wrong stride. */
+    if (w != sTexW || h != sTexH) {
+        SDL_Texture *t = SDL_CreateTexture(sRenderer, SDL_PIXELFORMAT_ABGR8888,
+                                           SDL_TEXTUREACCESS_STREAMING, w, h);
+        if (t == NULL)
+            return;
+        SDL_DestroyTexture(sTexture);
+        sTexture = t;
+        sTexW = w;
+        sTexH = h;
+        SDL_RenderSetLogicalSize(sRenderer, w, h);
+    }
     SDL_UpdateTexture(sTexture, NULL, pixels, w * (int)sizeof(u32));
     SDL_RenderClear(sRenderer);
     SDL_RenderCopy(sRenderer, sTexture, NULL, NULL);
@@ -799,7 +860,7 @@ static void HandleEvents(void)
 
                     snprintf(name, sizeof(name), "katam-%06ld.png", sFrames);
                     if (PortNativeWritePng(name, gPortFramebuffer,
-                                           PORT_SCREEN_W, PORT_SCREEN_H))
+                                           gPortViewW, gPortViewH))
                         PortLog("[katam-port] wrote %s", name);
                 }
                 break;
@@ -945,6 +1006,19 @@ void PortHostInit(int argc, char **argv)
      * asks for --turbo when it wants the run to be quick. */
     if (sRandoFlags)
         PortSetRando(sRandoFlags, sRandoSeed);
+
+    /* Only when asked: never calling PortSetViewMode leaves every view global
+     * at the hardware's number.  The tilemap setting is the page's default,
+     * 2 -- read the columns the hardware had no room for from the room's own
+     * map -- and the HUD floats. */
+    if (sViewSet) {
+        PortSetViewMode(sViewMode, sViewPadX, sViewPadY, sViewCull, 0, 2);
+        if (sViewMode != PORT_VIEW_NATIVE)
+            PortLog("[katam-port] view: %s, pad %d:%d, cull %u",
+                    sViewMode == PORT_VIEW_WIDE ? "wide"
+                    : sViewMode == PORT_VIEW_ZOOM ? "zoom" : "wide+zoom",
+                    sViewPadX, sViewPadY, sViewCull);
+    }
 
     if (sTurbo)
         PortLog("[katam-port] frame pacing off -- running as fast as this "
