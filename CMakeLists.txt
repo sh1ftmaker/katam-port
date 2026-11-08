@@ -403,9 +403,19 @@ endforeach()
 # any target that has one (aarch64, x86-64 with -march=native).  An FMA rounds
 # once instead of twice, so the arm64 build would compute a different angle
 # from the wasm one.  wasm has no FMA, so it never fuses; neither may we.
+#
+# -fno-merge-constants: the game stores pointers *into* its C-defined const
+# tables (an object walking gUnk_082EB2B8 keeps &table[1]), and the state hash
+# can only canonicalise a pointer to an object's first byte
+# (docs/DETERMINISM.md).  Mergeable constants -- float literals, string
+# literals -- from every object are pooled into one block that the linker
+# places ahead of the game's tables, so a platform file gaining or losing a
+# `double` constant moved every game table and changed the sim hash of a
+# replay whose game state had not changed.  Unmerged, each object's constants
+# stay in its own .rodata, in link order: game first, platform after.
 target_compile_options(katam PRIVATE
   -fno-strict-aliasing -fwrapv -funsigned-char -ftrivial-auto-var-init=zero
-  -ffp-contract=off
+  -ffp-contract=off -fno-merge-constants
   $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
   $<$<COMPILE_LANGUAGE:C>:-fgnu89-inline>
   $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>

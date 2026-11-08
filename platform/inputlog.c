@@ -299,16 +299,38 @@ static u32 HashWords(u32 h, const void *base, u32 bytes)
     return h;
 }
 
-/* The same over memory the game stores function pointers in. */
-static u32 HashWordsCanon(u32 h, const void *base, u32 bytes)
+/* Memory that never holds a pointer, so a word there is never canonicalised:
+ * the two shadow-OAM buffers.  OAM attribute pairs are 32-bit words with
+ * arbitrary bits, and one that happened to equal a function's entry point in
+ * one build (0x10190050 = attr0 0x0050, attr1 0x1019, sub_0800E0AC in one
+ * layout and mid-function in the next) was canonicalised there and not here
+ * -- a sim "divergence" between two builds whose game state was identical. */
+static const struct { u32 lo, hi; } kNoPointers[] = {
+    { 0x030031C0, 0x030031C0 + 0x400 },    /* gUnk_030031C0, OamData[128] */
+    { 0x030060B0, 0x030060B0 + 0x300 },    /* gOamBuffer */
+};
+
+static u32 CanonAt(u32 addr, u32 w)
 {
-    const u8 *p = (const u8 *)base;
+    unsigned k;
+
+    for (k = 0; k < sizeof kNoPointers / sizeof kNoPointers[0]; k++)
+        if (addr >= kNoPointers[k].lo && addr < kNoPointers[k].hi)
+            return w;
+    return PortHostCanonWord(w);
+}
+
+/* The same over memory the game stores function pointers in, at GBA address
+ * gba. */
+static u32 HashWordsCanon(u32 h, u32 gba, u32 bytes)
+{
+    const u8 *p = (const u8 *)(uintptr_t)gba;
     u32 i;
 
     for (i = 0; i < bytes; i += 4) {
         u32 w = (u32)p[i] | ((u32)p[i + 1] << 8) | ((u32)p[i + 2] << 16)
               | ((u32)p[i + 3] << 24);
-        h = (h ^ PortHostCanonWord(w)) * 16777619u;
+        h = (h ^ CanonAt(gba + i, w)) * 16777619u;
     }
     return h;
 }
@@ -351,8 +373,8 @@ void PortStateHashes(u32 out[PORT_HASH_COUNT])
     FrameStateCanon(fs);
 
     h = FNV_INIT;
-    h = HashWordsCanon(h, (const void *)(uintptr_t)GBA_EWRAM_BASE, GBA_EWRAM_SIZE);
-    h = HashWordsCanon(h, (const void *)(uintptr_t)GBA_IWRAM_BASE, GBA_IWRAM_SIZE);
+    h = HashWordsCanon(h, GBA_EWRAM_BASE, GBA_EWRAM_SIZE);
+    h = HashWordsCanon(h, GBA_IWRAM_BASE, GBA_IWRAM_SIZE);
     h = HashWords(h, io, GBA_IO_SIZE);
     {
         u8 le[PORT_DMA_CANON_WORDS * 4];
@@ -410,8 +432,9 @@ static void DumpTo(u8 *d)
         for (k = 0; k < 2; k++)
             for (j = 0; j < r[k].size; j += 4) {
                 const u8 *s = (const u8 *)(r[k].base + j);
-                u32 w = PortHostCanonWord((u32)s[0] | ((u32)s[1] << 8)
-                                          | ((u32)s[2] << 16) | ((u32)s[3] << 24));
+                u32 w = CanonAt((u32)(r[k].base + j),
+                                (u32)s[0] | ((u32)s[1] << 8)
+                                | ((u32)s[2] << 16) | ((u32)s[3] << 24));
                 d[0] = (u8)w; d[1] = (u8)(w >> 8); d[2] = (u8)(w >> 16);
                 d[3] = (u8)(w >> 24);
                 d += 4;
