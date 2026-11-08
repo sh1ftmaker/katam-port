@@ -26,6 +26,10 @@ The scenarios:
                   right, presses Up for doors, exhales, swallows.
   warp_sweep      boot to the first level, then a warp every 150 frames
                   through a spread of 29 rooms across every area.
+  aim             boot, then 600 hands-off frames in each room that holds an
+                  enemy aiming with the BIOS's ArcTan2 (Shotzo, Bang-Bang)
+                  and the two bosses whose code drew RNG in argument lists
+                  (Kracko, Gobbler) -- the code the determinism work changed.
 """
 import argparse
 from pathlib import Path
@@ -115,6 +119,16 @@ def main():
     write(out / 'warp_sweep.txt', f, keys, warps,
           comment='boot, then a warp every 150 frames through a spread of rooms')
 
+    keys = {}
+    boot(keys)
+    warps = []
+    f = 1300
+    for room, x, y in AIM:
+        warps.append((f, room, x, y))
+        f += 600
+    write(out / 'aim.txt', f, keys, warps,
+          comment='boot, then stand in rooms with ArcTan2 aimers and RNG bosses')
+
 
 # A spread of rooms over every area: every tenth room that has an arrival
 # cell, from room_export.py --spawn, less 738 (Mega Titan), whose arm
@@ -129,6 +143,14 @@ SWEEP = [
     (523, 19, 3), (533, 39, 17), (543, 31, 2), (557, 2, 5), (605, 44, 5),
     (617, 4, 9), (704, 2, 8), (716, 14, 49), (736, 44, 3), (790, 9, 3),
     (815, 5, 9), (828, 3, 4), (913, 0, 4), (969, 0, 8),
+]
+
+# Rooms holding the enemies whose code changed in the determinism work, from
+# room_export.py's object lists and --spawn arrival cells: Shotzo (225, 113,
+# 203), Bang-Bang (325, 103, 118), Kracko (324), Gobbler (822).
+AIM = [
+    (225, 13, 7), (113, 89, 7), (203, 59, 5), (325, 4, 20), (103, 2, 39),
+    (118, 3, 5), (324, 4, 19), (822, 12, 3),
 ]
 
 if __name__ == '__main__':
