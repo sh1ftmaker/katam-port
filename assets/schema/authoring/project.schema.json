@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "katam:schema/project",
+  "title": "katam project (katam-project/1)",
+  "description": "A folder of authoring files. A mod project names its base (usually the player's decompiled vanilla project) and adds or replaces resources by id.",
+  "type": "object",
+  "required": ["format", "id"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "katam-project/1"},
+    "id": {"type": "string", "pattern": "^[a-z0-9_.-]+$"},
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "note": {"type": "string"},
+    "base": {
+      "type": ["string", "null"],
+      "description": "\"vanilla\" for a mod on top of the game; compile/validate take the base folder with --base."
+    },
+    "authors": {"type": "array", "items": {"type": "string"}},
+    "license": {"type": "string"},
+    "romSha1": {"type": "string"},
+    "registry": {}
+  }
+}

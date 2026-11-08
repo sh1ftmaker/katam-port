@@ -1,0 +1,442 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "katam:schema/room",
+  "title": "katam room (katam-room/1)",
+  "description": "One room: its size, art, collision, objects, doors and properties. Coordinates: cells are 16x16 px, (0,0) top-left, x right, y down; objects are in pixels. A room is at least one screen (15x10 cells) and width*height must not exceed 1950 cells. See docs/design/authoring/rooms.md and docs/design/authoring/AI-GUIDE.md.",
+  "type": "object",
+  "required": ["format", "id", "size", "music", "tileset", "palette", "background", "art", "collision"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "katam-room/1"},
+    "id": {
+      "$ref": "katam:schema/common#/$defs/roomRef",
+      "description": "This room's id; must match the file path: rooms/<area>/<name>.room.json has id \"room:<area>/<name>\"."
+    },
+    "name": {"type": "string", "description": "Human-readable name (not used by the game)."},
+    "description": {
+      "type": "string",
+      "description": "Free text: intent, notes for the next editor or model (not used by the game)."
+    },
+    "bind": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Numeric ids in the game. Vanilla rooms carry them so they compile to the same slots; new rooms omit bind and the compiler allocates.",
+      "properties": {
+        "roomId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65534,
+          "description": "gRoomProps index (vanilla: 101-982)."
+        },
+        "content": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65534,
+          "description": "Index shared by the room's tilemap, collision, object, progress and nav tables (vanilla: 0-286)."
+        }
+      }
+    },
+    "size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "description": "Room size in 16-px cells. The fg tilemap is twice this in 8-px tiles. One screen is 15x10 cells.",
+      "properties": {
+        "width": {"type": "integer", "minimum": 15, "maximum": 255},
+        "height": {"type": "integer", "minimum": 10, "maximum": 255}
+      }
+    },
+    "music": {"$ref": "katam:schema/common#/$defs/music"},
+    "tileset": {"$ref": "katam:schema/common#/$defs/tilesetRef"},
+    "palette": {"$ref": "katam:schema/common#/$defs/paletteRef"},
+    "background": {"$ref": "katam:schema/common#/$defs/backgroundRef"},
+    "props": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "description": "Room properties with registry names (camera, parallax, flags). Empty until the semantics registry names them; use raw meanwhile."
+    },
+    "raw": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unk02": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "RoomProps.unk02: not decoded yet (provisional raw field). Omitted = 0."
+        },
+        "unk04": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "RoomProps.unk04: not decoded yet (provisional raw field). Omitted = 0."
+        },
+        "unkXmod_06": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "default": 256,
+          "description": "RoomProps.unkXmod_06: not decoded yet (provisional raw field). Omitted = 256."
+        },
+        "unkXmod_08": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "default": 256,
+          "description": "RoomProps.unkXmod_08: not decoded yet (provisional raw field). Omitted = 256."
+        },
+        "unk0A": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "RoomProps.unk0A: not decoded yet (provisional raw field). Omitted = 0."
+        },
+        "unk0C": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "RoomProps.unk0C: not decoded yet (provisional raw field). Omitted = 0."
+        },
+        "unk0E": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "default": -1,
+          "description": "RoomProps.unk0E: not decoded yet (provisional raw field). Omitted = -1."
+        },
+        "unk10": {
+          "type": "integer",
+          "minimum": -32768,
+          "maximum": 32767,
+          "default": -1,
+          "description": "RoomProps.unk10: not decoded yet (provisional raw field). Omitted = -1."
+        },
+        "priorityFlags": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 121,
+          "description": "RoomProps.priorityFlags: not decoded yet (provisional raw field). Omitted = 121."
+        }
+      },
+      "description": "Room properties by their C field name, for fields the registry has not named. Always accepted, even after a field gets a name."
+    },
+    "fgLayerRoomTag": {
+      "type": "integer",
+      "description": "Advanced: the room-id annotation in the playfield layer header; defaults to this room's numeric id."
+    },
+    "art": {
+      "type": "object",
+      "required": ["legend", "rows"],
+      "additionalProperties": false,
+      "description": "The playfield art (HW BG3), one legend key per 16x16 cell. Each legend value is a metatile: four 8x8 tile tokens from the room's tileset. Art is separate from collision: what you see vs. what is solid.",
+      "properties": {
+        "legend": {
+          "type": "object",
+          "propertyNames": {"$ref": "katam:schema/common#/$defs/legendKey"},
+          "additionalProperties": {"$ref": "katam:schema/common#/$defs/metatile"}
+        },
+        "rows": {"$ref": "katam:schema/common#/$defs/gridRows"}
+      }
+    },
+    "collision": {
+      "type": "object",
+      "required": ["legend", "rows"],
+      "additionalProperties": false,
+      "description": "What each 16x16 cell is to physics, one legend key per cell. Conventional keys: \".\" empty, \"#\" solid, \"=\" one-way platform, \"~\" water, \"^\" hazard, \"%\" breakable, \"D\" door cell, \"H\" ladder; the legend decides.",
+      "properties": {
+        "legend": {
+          "type": "object",
+          "propertyNames": {"$ref": "katam:schema/common#/$defs/legendKey"},
+          "additionalProperties": {"$ref": "katam:schema/common#/$defs/collisionValue"}
+        },
+        "rows": {"$ref": "katam:schema/common#/$defs/gridRows"}
+      }
+    },
+    "patches": {
+      "type": "array",
+      "description": "Cell changes the game applies at run time to a cell (e.g. a breakable block turning into air): new art and new collision for one cell. Several on one cell apply in order.",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "tiles", "collision"],
+        "additionalProperties": false,
+        "properties": {
+          "x": {"type": "integer", "minimum": 0},
+          "y": {"type": "integer", "minimum": 0},
+          "tiles": {
+            "type": "array",
+            "items": {"$ref": "katam:schema/common#/$defs/tileToken"},
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "New art for the cell: TL TR BL BR."
+          },
+          "collision": {"$ref": "katam:schema/common#/$defs/collisionValue"},
+          "key": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "description": "Advanced: the collision value that selects this patch; derived from the grid (and earlier patches on the cell) when omitted."
+          }
+        }
+      }
+    },
+    "doors": {
+      "type": "array",
+      "description": "Door transitions: standing on one of `cells` and entering takes Kirby to `arrive` in room `to`. Order matters: it is the order of the per-room save bits (chests first, then doors), so append rather than reorder in an existing room. Most doors need a door-typed collision value under their cells and often a door object for the graphics.",
+      "items": {
+        "type": "object",
+        "required": ["to", "arrive", "cells"],
+        "additionalProperties": false,
+        "properties": {
+          "to": {"$ref": "katam:schema/common#/$defs/roomRef"},
+          "arrive": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "description": "Where Kirby arrives in the destination room, in 16-px cells: the cell he lands ON (in vanilla, the floor cell right under the destination door), so the cell above it must be empty.",
+            "properties": {
+              "x": {"type": "integer", "minimum": 0, "maximum": 255},
+              "y": {"type": "integer", "minimum": 0, "maximum": 255}
+            }
+          },
+          "cells": {
+            "type": "array",
+            "items": {"$ref": "katam:schema/common#/$defs/cell"},
+            "minItems": 1,
+            "description": "The cells of this room that act as the door."
+          },
+          "flags": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "description": "Door behaviour bits (Unk_0888562C_3.unk0C): 0x80 = do not move the respawn point; 0x01 / 0x02 = arrive facing one way / the other (docs/naming/doors.md). Omitted = 0."
+          },
+          "cellFlags": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 0, "maximum": 255},
+            "description": "Advanced: per-cell flags when they differ between cells of one door."
+          },
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "description": "Things placed in the room: enemies, items, chests, gadgets, triggers. Positions are pixels (cell * 16 + 8 is a cell centre). Order is the spawn order.",
+      "items": {
+        "type": "object",
+        "required": ["type", "x", "y"],
+        "additionalProperties": false,
+        "allOf": [],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "description": "Stable handle within the room, for mod patches and the editor (not used by the game)."
+          },
+          "type": {"$ref": "katam:schema/common#/$defs/objectType"},
+          "x": {
+            "type": "integer",
+            "minimum": -32768,
+            "maximum": 32767,
+            "description": "pixels from the room's left edge"
+          },
+          "y": {
+            "type": "integer",
+            "minimum": -32768,
+            "maximum": 32767,
+            "description": "pixels from the room's top edge"
+          },
+          "params": {
+            "type": "object",
+            "description": "Type-specific parameters with registry names (see object_params in the semantics registry)."
+          },
+          "raw": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "spawnTable": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.spawnTable: meaning depends on the object type and is not decoded yet. Omitted = 1."
+              },
+              "unk2": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unk2: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk3": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unk3: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk4": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unk4: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk5": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unk5: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unkA": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unkA: meaning depends on the object type and is not decoded yet. Omitted = 255."
+              },
+              "unkB": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unkB: meaning depends on the object type and is not decoded yet. Omitted = 255."
+              },
+              "unkD": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unkD: meaning depends on the object type and is not decoded yet. Omitted = 255."
+              },
+              "subtype1": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.subtype1: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unkF": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unkF: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "subtype2": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.subtype2: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk11": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "description": "ObjectTemplate.unk11: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk12": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk12: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk14": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk14: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk16": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk16: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk18": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk18: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk1A": {
+                "type": "integer",
+                "minimum": -32768,
+                "maximum": 32767,
+                "description": "ObjectTemplate.unk1A: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk1C": {
+                "type": "integer",
+                "minimum": -32768,
+                "maximum": 32767,
+                "description": "ObjectTemplate.unk1C: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk1E": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk1E: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk20": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk20: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              },
+              "unk22": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "description": "ObjectTemplate.unk22: meaning depends on the object type and is not decoded yet. Omitted = 0."
+              }
+            },
+            "description": "Template fields by C name for anything not yet named. Meaning depends on the type."
+          },
+          "stride": {"type": "integer", "minimum": 0, "maximum": 255, "description": "Advanced: record size (36)."},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "nav": {
+      "type": "object",
+      "required": ["legend", "rows", "nodes"],
+      "additionalProperties": false,
+      "description": "Navigation graph for the computer-controlled helper Kirbys: which node region each cell belongs to, the nodes, and four per-player scripts. Optional: omitted, the compiler emits a one-node graph (helpers idle in the room).",
+      "properties": {
+        "legend": {
+          "type": "object",
+          "propertyNames": {"$ref": "katam:schema/common#/$defs/legendKey"},
+          "additionalProperties": {"type": "integer", "minimum": 0, "maximum": 255}
+        },
+        "rows": {"$ref": "katam:schema/common#/$defs/gridRows"},
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "required": ["x", "y", "nextHop"],
+            "additionalProperties": false,
+            "properties": {
+              "x": {"type": "integer", "description": "px"},
+              "y": {"type": "integer", "description": "px"},
+              "radius": {"type": "integer", "description": "px; default 32"},
+              "nextHop": {
+                "$ref": "katam:schema/common#/$defs/hexBytes",
+                "description": "32 bytes: for each destination node, the neighbour to step to (ff = unreachable)."
+              },
+              "extra": {
+                "$ref": "katam:schema/common#/$defs/hexBytes",
+                "description": "14 bytes nothing in the game reads (own index + a neighbour list)."
+              }
+            }
+          }
+        },
+        "scripts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"type": "array", "items": {"type": "integer", "minimum": 0, "maximum": 65535}},
+          "description": "Per-player AI bytecode (u16 words, without the 0xFFFF end)."
+        }
+      }
+    }
+  }
+}
