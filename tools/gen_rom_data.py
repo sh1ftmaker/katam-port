@@ -607,6 +607,7 @@ def main():
     # right signature that reports itself -- the call still does nothing, but
     # it does nothing survivably.
     fn_tables = []
+    table_const = {}
     for name, decl in skipped:
         if name not in labels:
             continue
@@ -624,6 +625,11 @@ def main():
         # entries when it is 3, and the 9 extra entries had a different
         # signature -- which is a trap waiting at the first dispatch.
         count = max(1, extent.get(name, 4) // 4)
+        # Follow the declaration's constness.  The definition below has to
+        # agree with it, and upstream does not always say const for a table
+        # that is in ROM (gUnk_08D6081C lost it in the sprite.c move).
+        table_const[name] = bool(re.search(r'\(\s*\*\s*const\b', decl)
+                                 or re.match(r'\s*extern\s+const\b', decl))
         fn_tables.append((name, ret, params, count, decl_source.get(name)))
     fn_names = {n for n, _, _, _, _ in fn_tables}
     copies = [c for c in copies if c[0] not in fn_names]
@@ -775,8 +781,11 @@ def main():
                 # linkage, not storage linkage -- so without this the table is
                 # defined here, invisible everywhere else, and the game's
                 # reference to it fails to link with no other symptom.
-                f.write('extern %s (*const %s[%d])(%s);\n' % (ret, name, count, params))
-                f.write('%s (*const %s[%d])(%s) = {\n' % (ret, name, count, params))
+                # A non-const table has external linkage in C++ already; the
+                # extern is harmless there.
+                cq = 'const ' if table_const.get(name, True) else ''
+                f.write('extern %s (*%s%s[%d])(%s);\n' % (ret, cq, name, count, params))
+                f.write('%s (*%s%s[%d])(%s) = {\n' % (ret, cq, name, count, params))
                 for entry in entries:
                     if entry:
                         f.write('    (%s (*)(%s))%s,\n' % (ret, params, entry))
