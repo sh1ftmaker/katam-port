@@ -3,7 +3,7 @@
   "id": "room:sky_garden/meadow",
   "name": "Sky Garden: meadow",
   "description": "Original example room (not derived from the game). A cloud meadow with a step, a star-block ledge, two enemies, a tomato on the ledge and a door on the right to the tower.",
-  "size": {"width": 30, "height": 12},
+  "size": {"width": 30, "height": 14},
   "music": "mus_rainbow_route",
   "tileset": "tileset:vanilla/29",
   "palette": "palette:vanilla/29",
@@ -28,6 +28,8 @@
       "#..........._--_-............#",
       "#--_--_--_--#####-_--_--_--_-#",
       "##############################",
+      "##############################",
+      "##############################",
       "##############################"
     ]
   },
@@ -44,6 +46,8 @@
       "#............................#",
       "#............................#",
       "#...........#####..........D.#",
+      "##############################",
+      "##############################",
       "##############################",
       "##############################"
     ]

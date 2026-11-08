@@ -22,9 +22,9 @@ export const NATIVE_FORMAT = 'katam-native/0';
 
 // ---------------------------------------------------------------- decompile
 
-export function decompileVanilla({ io, romBytes, romTables, packDir, vocab, registry, outDir, log = () => {} }) {
+export function decompileVanilla({ io, romBytes, romTables, packDir, pack: givenPack, vocab, registry, outDir, log = () => {} }) {
   const rom = new Rom(romBytes, romTables);
-  const pack = readPack(io, packDir);
+  const pack = givenPack || readPack(io, packDir);
   const ctx = makeContext({ vocab, registry, bindings: null });
   const write = (id, doc) => io.writeText(`${outDir}/${pathOf(id)}`, writeJson(doc));
   io.writeText(`${outDir}/project.json`, writeJson({

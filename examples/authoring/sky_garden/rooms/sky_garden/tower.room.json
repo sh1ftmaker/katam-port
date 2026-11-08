@@ -3,7 +3,7 @@
   "id": "room:sky_garden/tower",
   "name": "Sky Garden: tower",
   "description": "Original example room (not derived from the game), written with semantic names from the registry (collision \"air\"/\"solid\"/..., despawnBit); the meadow uses the equivalent raw numbers. A vertical climb on star-block ledges; the bottom door returns to the meadow, the top door leaves to the vanilla hub room 803 (room:other/803).",
-  "size": {"width": 16, "height": 20},
+  "size": {"width": 16, "height": 22},
   "music": "mus_rainbow_route",
   "tileset": "tileset:vanilla/29",
   "palette": "palette:vanilla/29",
@@ -36,6 +36,8 @@
       "#..............#",
       "#--_--_--_--_--#",
       "################",
+      "################",
+      "################",
       "################"
     ]
   },
@@ -60,6 +62,8 @@
       "#........====..#",
       "#..............#",
       "#..D...........#",
+      "################",
+      "################",
       "################",
       "################"
     ]

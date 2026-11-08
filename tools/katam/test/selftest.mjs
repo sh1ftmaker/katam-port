@@ -30,6 +30,16 @@ t('compression round trips', () => {
     assert.deepEqual(decompress(encodeRL(d)).data, d);
   }
 });
+{ // browser zlib (lib/zlib.mjs): stored deflate, and inflate of node zlib output
+  const Z = await import('../lib/zlib.mjs');
+  for (let k = 0; k < 30; k++) {
+    const d = Uint8Array.from({ length: rnd(200000) }, () => (rnd(3) ? rnd(4) : rnd(256)));
+    assert.deepEqual(new Uint8Array(zlib.inflateSync(Z.deflate(d))), d);
+    assert.deepEqual(Z.inflate(new Uint8Array(zlib.deflateSync(d, { level: 1 + (k % 9) }))), d);
+    assert.deepEqual(Z.inflate(Z.deflate(d)), d);
+  }
+  n++;
+}
 t('tile tokens', () => { for (let v = 0; v < 65536; v += 7) assert.equal(valueOf(tokenOf(v)), v); });
 t('colours', () => { for (let c = 0; c < 32768; c += 3) assert.equal(bgr555(colorOf(c)), c); });
 t('grid', () => {

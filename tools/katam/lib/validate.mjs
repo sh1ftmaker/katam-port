@@ -102,6 +102,12 @@ export function validatePath({ io, target, bases = [], vocab, registry, schemaDi
           const above = dr.arrive.y > 0 ? at(dr.arrive.x, dr.arrive.y - 1) : 'solid';
           if (/(^|\+)solid/.test(above) || above.includes('hazard')) add(doc.bind ? 'warning' : 'error', 'arrive-blocked', d.rel, `/doors/${i}/arrive`, `Kirby would arrive inside ${above} at cell (${dr.arrive.x}, ${dr.arrive.y - 1}) of ${dr.to}`, 'arrive is the cell Kirby stands on (usually the floor under the destination door); the cell above must be empty (23 vanilla doors break this rule, entering through a floor or ceiling)');
         } catch { /* destination's own errors are reported on it */ }
+        // The camera never shows the bottom 40 px of a room (the view stops
+        // at roomHeight - 200 px: FillLevelInfo's unk_S32Vec2_74), so Kirby
+        // standing on one of the last two rows is drawn below the screen.
+        // Vanilla floors sit 3-4 rows above the bottom (room 101: height 13,
+        // floor row 9).  Found by playtesting the examples (web/playtest/).
+        if (!doc.bind && dr.arrive.y > dest.size.height - 3) add('warning', 'camera-bottom', d.rel, `/doors/${i}/arrive`, `Kirby arrives on row ${dr.arrive.y} of ${dr.to}, ${dest.size.height - dr.arrive.y} row(s) from the bottom: the camera never shows the bottom 40 px of a room, so he would be off-screen`, 'keep floors at least 3 rows above the bottom of the room (vanilla rooms keep 3-4 solid rows under the floor)');
       }
     });
     // objects inside the room
