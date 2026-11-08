@@ -44,6 +44,8 @@ static SDL_atomic_t sWrite;         /* frames written, monotonic */
 static SDL_atomic_t sRead;          /* frames read, monotonic */
 static SDL_atomic_t sUnderruns;
 
+float gPortNativeAudioGain = 1.0f;
+
 static SDL_AudioDeviceID sDevice;
 static int sRate;
 static int sOpened;
@@ -65,8 +67,8 @@ static void SDLCALL Drain(void *userdata, Uint8 *stream, int lenBytes)
     for (i = 0; i < take; i++) {
         int slot = ((rd + i) & RING_MASK) * 2;
 
-        out[i * 2]     = sRing[slot];
-        out[i * 2 + 1] = sRing[slot + 1];
+        out[i * 2]     = sRing[slot] * gPortNativeAudioGain;
+        out[i * 2 + 1] = sRing[slot + 1] * gPortNativeAudioGain;
     }
     if (take < want) {
         memset(out + take * 2, 0,

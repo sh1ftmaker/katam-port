@@ -33,9 +33,12 @@
 #include "port/audio.h"
 #include "port/mp.h"
 #include "port/inputlog.h"
+#include "port/rollback.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "render/gl_api.h"
+#include "ui/settings.h"
+#include "ui/ui.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
@@ -166,6 +169,20 @@ static u32 *sGpuPixels;
 static long sCompareFrames, sCompareDiffFrames, sCompareDiffPixels;
 static long sCompareSkipped;
 static Uint64 sPresentInterval;   /* measured swap interval, perf ticks */
+
+/* --- UI mode: the settings menu (platform/ui, README "Settings menu") -----
+ *
+ * An interactive run -- no --renderer and none of the scripted-run options
+ * below -- opens one GL window for both renderers, loads settings.ini from
+ * SDL's pref dir and draws the Dear ImGui menu over the picture (F1 / Tab /
+ * the Menu button).  Scripted runs keep the exact window they always had and
+ * never read the settings, so the harness cannot be steered by a file in
+ * someone's home directory.  --ui forces UI mode (headless screenshots),
+ * --ui-open-at F opens the menu at frame F. */
+static int sUiMode, sUiForce, sScripted, sRendererGiven;
+static long sUiOpenAt = -1;
+static int sDrawW = 1, sDrawH = 1;
+static float sDpr = 1.0f;
 static long sPresents;
 
 /* --- the determinism harness (platform/inputlog.c, docs/DETERMINISM.md) ---
@@ -254,6 +271,8 @@ static void Usage(const char *argv0)
 "  --gpu-shot PATH    write a PNG of the GPU picture at the last frame\n"
 "  --shot-at F:PREFIX write PREFIX-ppu.png and/or PREFIX-gpu.png at frame F\n"
 "  --compare-log FILE with --renderer both: per-frame GPU/PPU pixel diffs\n"
+"  --ui               the settings menu even in a scripted run (F1 / Tab)\n"
+"  --ui-open-at F     open the settings menu at frame F\n"
 "  --verbose          report the memory map and the frame timing\n"
 "  --help\n"
 "\n"
@@ -261,6 +280,27 @@ static void Usage(const char *argv0)
 "Select = Backspace or right shift.  A gamepad works too.\n"
 "MASK is the GBA button mask: A=1 B=2 Select=4 Start=8 Right=16 Left=32\n"
 "Up=64 Down=128 R=256 L=512.\n", argv0);
+}
+
+/* Anything that is not one of these makes a run scripted (see sUiMode). */
+static int IsScriptedRun(int argc, char **argv)
+{
+    static const char *const kInteractive[] = {
+        "--scale", "--fullscreen", "--vsync", "--no-audio", "--verbose",
+        "--ui", "--ui-open-at", "--rando", "--res-pack", "--mod", NULL,
+    };
+    int i, k;
+
+    for (i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "--", 2) != 0)
+            continue;
+        for (k = 0; kInteractive[k] != NULL; k++)
+            if (strcmp(argv[i], kInteractive[k]) == 0)
+                break;
+        if (kInteractive[k] == NULL)
+            return 1;
+    }
+    return 0;
 }
 
 static int NeedValue(int i, int argc, char **argv)
@@ -296,6 +336,10 @@ static void ParseArgs(int argc, char **argv)
             sTurbo = 1;
         } else if (strcmp(a, "--verbose") == 0) {
             gPortNativeVerbose = 1;
+        } else if (strcmp(a, "--ui") == 0) {
+            sUiForce = 1;
+        } else if (strcmp(a, "--ui-open-at") == 0) {
+            sUiOpenAt = atol(argv[i = NeedValue(i, argc, argv)]);
         } else if (strcmp(a, "--frames") == 0) {
             sFrameLimit = atol(argv[i = NeedValue(i, argc, argv)]);
         } else if (strcmp(a, "--screenshot") == 0) {
@@ -334,6 +378,7 @@ static void ParseArgs(int argc, char **argv)
         } else if (strcmp(a, "--renderer") == 0) {
             const char *v = argv[i = NeedValue(i, argc, argv)];
 
+            sRendererGiven = 1;
             if (strcmp(v, "ppu") == 0)       sRendererMode = RENDERER_PPU;
             else if (strcmp(v, "gpu") == 0)  sRendererMode = RENDERER_GPU;
             else if (strcmp(v, "both") == 0) sRendererMode = RENDERER_BOTH;
@@ -737,6 +782,9 @@ static u16 ReadInput(void)
     size_t i;
     int p;
 
+    /* The menu has the keyboard and the pads while it is open. */
+    if (sUiMode && PortUiIsOpen())
+        goto scripted;
     for (i = 0; i < sizeof(kKeys) / sizeof(kKeys[0]); i++)
         if (keys[kKeys[i].key])
             down |= kKeys[i].bit;
@@ -764,6 +812,7 @@ static u16 ReadInput(void)
             down |= R_BUTTON;
     }
 
+scripted:
     down |= (u16)sHoldMask;
     if (sMashStart >= 0 && sFrames >= sMashStart
      && (sMashEnd < 0 || sFrames < sMashEnd)
@@ -827,6 +876,8 @@ static void ToggleFullscreen(void)
  * GLES 3.0 first where it is native (Linux, and what WebGL2 is), desktop 3.3
  * core first elsewhere (macOS and Windows have no GLES without ANGLE); each
  * falls back to the other.  KATAM_GL=es|core forces one. */
+static int sGlEs;
+
 static int TryGl(int es)
 {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
@@ -853,6 +904,7 @@ static int TryGl(int es)
         return 0;
     }
     SDL_GL_MakeCurrent(sWindow, sGl);
+    sGlEs = es;
     if (!GlrInit((void *(*)(const char *))SDL_GL_GetProcAddress, es)) {
         SDL_GL_DeleteContext(sGl);
         SDL_DestroyWindow(sWindow);
@@ -893,6 +945,135 @@ static void OpenGpuWindow(void)
             sGpuViewAuto ? "auto " : "", sGpuViewW, sGpuViewH);
 }
 
+/* --- UI mode ------------------------------------------------------------- */
+
+static char sSettingsPath[1024];
+
+static void LoadSettings(void)
+{
+    char *pref = SDL_GetPrefPath("katam-port", "katam-port");
+    SDL_RWops *f;
+
+    if (pref == NULL)
+        return;
+    snprintf(sSettingsPath, sizeof(sSettingsPath), "%ssettings.ini", pref);
+    SDL_free(pref);
+    f = SDL_RWFromFile(sSettingsPath, "rb");
+    if (f != NULL) {
+        char text[2048];
+        size_t n = SDL_RWread(f, text, 1, sizeof(text) - 1);
+
+        text[n] = '\0';
+        SDL_RWclose(f);
+        PortSettingsParse(&gPortSettings, text);
+        PortLog("[katam-port] settings: %s", sSettingsPath);
+    }
+}
+
+void PortHostSaveSettings(const char *text)
+{
+    SDL_RWops *f;
+
+    if (sScripted || sSettingsPath[0] == '\0')
+        return;
+    f = SDL_RWFromFile(sSettingsPath, "wb");
+    if (f == NULL)
+        return;
+    SDL_RWwrite(f, text, 1, strlen(text));
+    SDL_RWclose(f);
+}
+
+void PortHostSetVolume(float gain)
+{
+    gPortNativeAudioGain = gain;
+}
+
+void PortHostSetVsync(int on)
+{
+    sVsync = on;
+    if (sGl != NULL)
+        SDL_GL_SetSwapInterval(on ? 1 : 0);
+}
+
+void PortHostUiOpenChanged(int open)
+{
+    (void)open;     /* ReadInput holds the game's buttons up while it is */
+}
+
+static void UpdateDrawable(void)
+{
+    int ww = 0, wh = 0;
+
+    SDL_GL_GetDrawableSize(sWindow, &sDrawW, &sDrawH);
+    SDL_GetWindowSize(sWindow, &ww, &wh);
+    if (sDrawW <= 0 || sDrawH <= 0) { sDrawW = sTexW * sScale; sDrawH = sTexH * sScale; }
+    sDpr = (ww > 0) ? (float)sDrawW / (float)ww : 1.0f;
+    if (sDpr < 0.5f) sDpr = 1.0f;
+}
+
+static double NowMs(void)
+{
+    return (double)SDL_GetPerformanceCounter() * 1000.0 / (double)SDL_GetPerformanceFrequency();
+}
+
+/* One GL window for both renderers, the menu over it.  0 if GL is not to be
+ * had, and the caller opens the plain window instead. */
+static int OpenUiWindow(void)
+{
+    const char *force = getenv("KATAM_GL");
+#if defined(__linux__)
+    int esFirst = 1;
+#else
+    int esFirst = 0;
+#endif
+
+    if (force != NULL && strcmp(force, "core") == 0) esFirst = 0;
+    if (force != NULL && strcmp(force, "es") == 0) esFirst = 1;
+    sTexW = 284;        /* a 16:9-ish window to start; resizable */
+    sTexH = PORT_SCREEN_H;
+    if (!TryGl(esFirst) && !(force == NULL && TryGl(!esFirst)))
+        return 0;
+    SDL_GL_SetSwapInterval(sVsync ? 1 : 0);
+    SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
+    OpenPads();
+    gPortUiStatus.platform = "native";
+    gPortUiStatus.vsyncControl = 1;
+    gPortUiStatus.drawGear = 1;
+    PortShowInit(sGlEs, 1);
+    PortLog("[katam-port] video: %s, %s, settings menu on F1 / Tab",
+            SDL_GetCurrentVideoDriver(), GlrDescribe());
+    return 1;
+}
+
+static void UiBlit(const u32 *pixels, int w, int h)
+{
+    UpdateDrawable();
+    PortShowNewFrame(sDrawW, sDrawH, sDpr, NowMs(), pixels, w, h);
+    if (sReadbackPath != NULL && sFrames + 1 == sFrameLimit) {
+        u32 *buf = (u32 *)malloc((size_t)sDrawW * sDrawH * 4);
+        int y;
+
+        if (buf != NULL) {
+            GLR_FN(glReadPixels)(0, 0, sDrawW, sDrawH, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+            for (y = 0; y < sDrawH / 2; y++) {
+                u32 tmp[4096];
+                int n = sDrawW < 4096 ? sDrawW : 4096;
+                memcpy(tmp, buf + y * sDrawW, n * 4);
+                memcpy(buf + y * sDrawW, buf + (sDrawH - 1 - y) * sDrawW, n * 4);
+                memcpy(buf + (sDrawH - 1 - y) * sDrawW, tmp, n * 4);
+            }
+            if (PortNativeWritePng(sReadbackPath, buf, sDrawW, sDrawH))
+                PortLog("[katam-port] wrote %s (%dx%d, the window)", sReadbackPath,
+                        sDrawW, sDrawH);
+            free(buf);
+        }
+    }
+    if (!sVsync || sTurbo) {
+        SDL_GL_SwapWindow(sWindow);
+        sPresents++;
+    }
+}
+
 static void OpenWindow(void)
 {
     Uint32 rflags = SDL_RENDERER_ACCELERATED | (sVsync ? SDL_RENDERER_PRESENTVSYNC : 0);
@@ -919,6 +1100,19 @@ static void OpenWindow(void)
     if (sRendererMode != RENDERER_PPU) {
         OpenGpuWindow();
         return;
+    }
+    if (sUiMode) {
+        if (OpenUiWindow())
+            return;
+        sUiMode = 0;
+        PortLog("[katam-port] no GL context (%s) -- plain window, no settings menu",
+                SDL_GetError());
+        if (sWindow != NULL) {
+            SDL_DestroyWindow(sWindow);
+            sWindow = NULL;
+        }
+        sTexW = PORT_SCREEN_W;
+        sTexH = PORT_SCREEN_H;
     }
 
     if (sViewMode == PORT_VIEW_WIDE || sViewMode == PORT_VIEW_WIDE_ZOOM) {
@@ -1198,6 +1392,10 @@ static void GpuBlit(void)
 
 void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 {
+    if (sUiMode) {
+        UiBlit(pixels, w, h);
+        return;
+    }
     if (sRendererMode != RENDERER_PPU) {
         (void)pixels; (void)w; (void)h;
         GpuBlit();
@@ -1248,11 +1446,79 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
     SDL_RenderPresent(sRenderer);
 }
 
+static int UiKeyFor(SDL_Keycode k)
+{
+    switch (k) {
+    case SDLK_TAB: return PORT_UIK_TAB;
+    case SDLK_LEFT: return PORT_UIK_LEFT;
+    case SDLK_RIGHT: return PORT_UIK_RIGHT;
+    case SDLK_UP: return PORT_UIK_UP;
+    case SDLK_DOWN: return PORT_UIK_DOWN;
+    case SDLK_PAGEUP: return PORT_UIK_PGUP;
+    case SDLK_PAGEDOWN: return PORT_UIK_PGDN;
+    case SDLK_HOME: return PORT_UIK_HOME;
+    case SDLK_END: return PORT_UIK_END;
+    case SDLK_RETURN: case SDLK_KP_ENTER: return PORT_UIK_ENTER;
+    case SDLK_ESCAPE: return PORT_UIK_ESCAPE;
+    case SDLK_SPACE: return PORT_UIK_SPACE;
+    case SDLK_BACKSPACE: return PORT_UIK_BACKSPACE;
+    default: return PORT_UIK_NONE;
+    }
+}
+
+/* Menu input.  Returns 1 if the event was the menu's. */
+static int UiEvent(const SDL_Event *ev)
+{
+    switch (ev->type) {
+    case SDL_MOUSEMOTION:
+        if (ev->motion.which == SDL_TOUCH_MOUSEID) return 1;
+        PortUiPointer(PORT_UI_MOVE, ev->motion.x * sDpr, ev->motion.y * sDpr, 0);
+        return 1;
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+        if (ev->button.which == SDL_TOUCH_MOUSEID || ev->button.button != SDL_BUTTON_LEFT)
+            return 1;
+        PortUiPointer(ev->type == SDL_MOUSEBUTTONDOWN ? PORT_UI_DOWN : PORT_UI_UP,
+                      ev->button.x * sDpr, ev->button.y * sDpr, 0);
+        return 1;
+    case SDL_MOUSEWHEEL:
+        PortUiWheel((float)ev->wheel.x, (float)ev->wheel.y);
+        return 1;
+    case SDL_FINGERDOWN:
+    case SDL_FINGERMOTION:
+    case SDL_FINGERUP:
+        PortUiPointer(ev->type == SDL_FINGERDOWN ? PORT_UI_DOWN
+                      : ev->type == SDL_FINGERUP ? PORT_UI_UP : PORT_UI_MOVE,
+                      ev->tfinger.x * sDrawW, ev->tfinger.y * sDrawH, 1);
+        return 1;
+    case SDL_KEYDOWN:
+    case SDL_KEYUP: {
+        SDL_Keycode k = ev->key.keysym.sym;
+
+        if (ev->type == SDL_KEYDOWN && !ev->key.repeat
+            && (k == SDLK_F1 || (k == SDLK_TAB && !PortUiIsOpen()))) {
+            PortUiToggle();
+            return 1;
+        }
+        if (!PortUiIsOpen())
+            return 0;
+        if (k == SDLK_F11 || k == SDLK_F12)
+            return 0;
+        PortUiKey(UiKeyFor(k), ev->type == SDL_KEYDOWN);
+        return 1;
+    }
+    default:
+        return 0;
+    }
+}
+
 static void HandleEvents(void)
 {
     SDL_Event ev;
 
     while (SDL_PollEvent(&ev)) {
+        if (sUiMode && UiEvent(&ev))
+            continue;
         switch (ev.type) {
         case SDL_QUIT:
             Shutdown(0);
@@ -1348,13 +1614,18 @@ static void PaceFrame(void)
      * previous and the current frame, blended by how far `now` is between
      * them.  Each swap blocks for one refresh, so stop when less than half a
      * refresh is left and let the sleep below land on the boundary. */
-    if (sRendererMode != RENDERER_PPU && sVsync) {
+    if ((sRendererMode != RENDERER_PPU || sUiMode) && sVsync) {
         for (;;) {
             Uint64 t0 = SDL_GetPerformanceCounter(), t1;
             int w, h;
 
-            GpuDrawSize(&w, &h);
-            GlrPresent(w, h);
+            if (sUiMode) {
+                UpdateDrawable();
+                PortShowAgain(sDrawW, sDrawH, sDpr, NowMs());
+            } else {
+                GpuDrawSize(&w, &h);
+                GlrPresent(w, h);
+            }
             SDL_GL_SwapWindow(sWindow);
             sPresents++;
             t1 = SDL_GetPerformanceCounter();
@@ -1395,9 +1666,30 @@ void PortNetIdle(void)
 {
 }
 
+/* The menu pause: a host-level frame skip.  The game is simply not asked for
+ * its next frame while the menu is open; the last picture is re-presented
+ * with the menu over it.  Not under netplay (the peer would stall), and not
+ * in a run with a frame limit (it would never end). */
+static void UiPause(void)
+{
+    if (sUiMode && sUiOpenAt >= 0 && sFrames == sUiOpenAt)
+        PortUiSetOpen(1);
+    while (sUiMode && PortUiIsOpen() && sFrameLimit < 0 && !PortRbActive()) {
+        HandleEvents();
+        UpdateDrawable();
+        PortShowAgain(sDrawW, sDrawH, sDpr, NowMs());
+        SDL_GL_SwapWindow(sWindow);
+        if (!sVsync)
+            SDL_Delay(16);
+        sNextFrame = 0;         /* resume on a fresh schedule */
+    }
+    gPortUiStatus.netplay = PortRbActive();
+}
+
 void PortAwaitAnimationFrame(void)
 {
     HandleEvents();
+    UiPause();
     PortSetKeys(ReadInput());
     PortNativeSaveTick();
 
@@ -1437,6 +1729,17 @@ void PortAwaitAnimationFrame(void)
 void PortHostInit(int argc, char **argv)
 {
     ParseArgs(argc, argv);
+    sScripted = IsScriptedRun(argc, argv);
+    sUiMode = sUiForce || (!sScripted && !sRendererGiven);
+    PortSettingsDefaults(&gPortSettings);
+    if (sUiMode) {
+        int cliVsync = sVsync;
+
+        LoadSettings();
+        sVsync = gPortSettings.vsync || cliVsync;
+        gPortSettings.vsync = sVsync;
+        PortSettingsApplyEarly();
+    }
 
     /* First, before SDL allocates a byte or starts a thread.  The GBA's
      * addresses have to be claimed while nothing else in the process has had

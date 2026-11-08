@@ -143,6 +143,8 @@ int  PortNativeWritePng(const char *path, const u32 *rgba, int w, int h);
 /* host_sdl.c */
 extern int gPortNativeVerbose;
 extern int gPortNativeNoAudio;
+/* Output volume, 0..1: applied in the device callback only (settings menu). */
+extern float gPortNativeAudioGain;
 
 
 #ifdef __cplusplus

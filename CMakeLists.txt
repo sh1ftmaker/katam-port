@@ -44,9 +44,9 @@ cmake_minimum_required(VERSION 3.16)
 # CMAKE_SIZEOF_VOID_P is set by project(), so the test has to come after it,
 # and enable_language() is how a language is added later.
 project(katam-port C)
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-  enable_language(CXX)
-endif()
+# C++ for the 64-bit game build (below) and, on every host, for the settings
+# menu (Dear ImGui, third_party/imgui).
+enable_language(CXX)
 
 set(CMAKE_C_STANDARD 99)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -300,7 +300,37 @@ else()
                           platform/native/dialog_posix.c)
 endif()
 
+# The settings menu's C half (presentation and settings, no ImGui): linked
+# last of the executable's own sources, and -fno-plt, so the game's code and
+# the PLT ahead of it stay where they were (docs/DETERMINISM.md, layout).
+set(UI_SRCS platform/ui/settings.c platform/ui/present.c)
+list(APPEND NATIVE_SRCS ${UI_SRCS})
+set_source_files_properties(${UI_SRCS} PROPERTIES COMPILE_OPTIONS "-fno-plt")
+
 add_executable(katam ${GAME_SRCS} ${GEN_SRCS} ${PLATFORM_SRCS} ${NATIVE_SRCS})
+
+# Dear ImGui and the menu: a library of its own, so none of the game's
+# compile flags or force-included headers reach it, and it links after
+# everything else.
+set(KATAM_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/gen")
+add_custom_target(katam_build_label
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_build_label.sh"
+          "${KATAM_GEN_DIR}/build_label.h"
+  BYPRODUCTS "${KATAM_GEN_DIR}/build_label.h"
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+add_library(katam_ui STATIC
+  third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
+  third_party/imgui/imgui_widgets.cpp third_party/imgui/imgui_tables.cpp
+  platform/ui/ui_menu.cpp platform/ui/ui_gl.cpp)
+add_dependencies(katam_ui katam_build_label)
+target_include_directories(katam_ui PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui"
+  "${CMAKE_CURRENT_SOURCE_DIR}/platform" "${KATAM_GEN_DIR}")
+target_compile_options(katam_ui PRIVATE -std=gnu++17 -O2 -fno-plt
+  -fno-exceptions -fno-rtti -fno-threadsafe-statics -w)
+set_property(TARGET katam_ui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+target_link_libraries(katam PRIVATE katam_ui)
+set_target_properties(katam PROPERTIES LINKER_LANGUAGE CXX)
 
 # ---------------------------------------------------------------------------
 # The 64-bit builds compile as C++
