@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "port/port.h"
 #include "ui/settings.h"
 #include "render/render_list.h"
 
@@ -191,6 +192,10 @@ void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
 
 int PortLayoutPastSpawnMargin(int viewW, int viewH)
 {
+    /* The spawn margin follows the view (platform/view.c) unless a session
+     * holds it at the original. */
+    if (PortSimViewCovers(viewW, viewH))
+        return 0;
     return viewW > 240 + 2 * PORT_SPAWN_MARGIN || viewH > 160 + 2 * PORT_SPAWN_MARGIN;
 }
 
