@@ -5,8 +5,7 @@ extern "C" {
 
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
-extern s32 gPortCullHalfW, gPortCullHalfH;
-extern s32 gPortSpawnPadX, gPortSpawnPadY;
+#include "port/spawn.h"
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "hud.h"
 #include "in_game_interlude.h"
@@ -5484,17 +5483,22 @@ bool16 sub_0803D6B4(struct Object *ip)
         li = &gCurLevelInfo[i];
         if (ip->base.roomId == li->currentRoom)
         {
+            /* PORT-FORK: the box was abs(dx) <= 168, abs(dy) <= 128 around
+             * the centre of the 240x160 window; it is per side now, sized for
+             * the session's view (port/spawn.h), and exactly that at 240x160. */
+            struct PortSpawnMargin mg;
             s32 a, b, c, d, e, f;
 
+            PortSpawnMarginNow(i, &mg);
             c = sb - 120;
             d = li->viewportPosition.x >> 8;
-            a = abs(c - d);
-            if (a <= gPortCullHalfW)
+            a = c - d;
+            if (a >= -mg.cullL && a <= mg.cullR)
             {
                 e = r8 - 80;
                 f = li->viewportPosition.y >> 8;
-                b = abs(e - f);
-                if (b <= gPortCullHalfH)
+                b = e - f;
+                if (b >= -mg.cullT && b <= mg.cullB)
                     return FALSE;
             }
             if (ip->base.unkC & 0x100)
@@ -5504,13 +5508,13 @@ bool16 sub_0803D6B4(struct Object *ip)
                 r2 = ip->objTemplate;
                 c = r2->x - 120;
                 d = li->viewportPosition.x >> 8;
-                a = abs(c - d);
-                if (a <= gPortCullHalfW)
+                a = c - d;
+                if (a >= -mg.cullL && a <= mg.cullR)
                 {
                     e = r2->y - 80;
                     f = li->viewportPosition.y >> 8;
-                    b = abs(e - f);
-                    if (b <= gPortCullHalfH)
+                    b = e - f;
+                    if (b >= -mg.cullT && b <= mg.cullB)
                         return FALSE;
                 }
             }
@@ -5535,16 +5539,19 @@ bool16 sub_0803D80C(struct ObjectBase *r1)
         li = &gCurLevelInfo[i];
         if (r1->roomId == li->currentRoom)
         {
+            /* PORT-FORK: per side, see sub_0803D6B4. */
+            struct PortSpawnMargin mg;
             s32 a, b, c, d, e, f;
 
+            PortSpawnMarginNow(i, &mg);
             c = r5 - 120;
             d = li->viewportPosition.x >> 8;
-            a = abs(c - d);
-            if (a > gPortCullHalfW) continue;
+            a = c - d;
+            if (a < -mg.cullL || a > mg.cullR) continue;
             e = r3 - 80;
             f = li->viewportPosition.y >> 8;
-            b = abs(e - f);
-            if (b > gPortCullHalfH) continue;
+            b = e - f;
+            if (b < -mg.cullT || b > mg.cullB) continue;
             return FALSE;
         }
     }
@@ -5566,16 +5573,19 @@ bool16 sub_0803D8AC(struct EffectObject *r1)
         li = &gCurLevelInfo[i];
         if (r1->roomId == li->currentRoom)
         {
+            /* PORT-FORK: per side, see sub_0803D6B4. */
+            struct PortSpawnMargin mg;
             s32 a, b, c, d, e, f;
 
+            PortSpawnMarginNow(i, &mg);
             c = r5 - 120;
             d = li->viewportPosition.x >> 8;
-            a = abs(c - d);
-            if (a > gPortCullHalfW) continue;
+            a = c - d;
+            if (a < -mg.cullL || a > mg.cullR) continue;
             e = r3 - 80;
             f = li->viewportPosition.y >> 8;
-            b = abs(e - f);
-            if (b > gPortCullHalfH) continue;
+            b = e - f;
+            if (b < -mg.cullT || b > mg.cullB) continue;
             return FALSE;
         }
     }

@@ -160,6 +160,7 @@ static Uint64 sPerfFreq, sNextFrame;
 static int sRendererMode = RENDERER_PPU;
 static SDL_GLContext sGl;
 static int sGpuViewW = 240, sGpuViewH = 160, sGpuViewAuto;
+static int sSimViewW, sSimViewH;        /* --sim-view, 0 = not given */
 static const char *sGpuShotPath, *sCompareLogPath;
 static FILE *sCompareLog;
 #define MAX_SHOTS 512
@@ -246,6 +247,9 @@ static void Usage(const char *argv0)
 "                     PX/PY pad each side in pixels (default 40:0, so wide\n"
 "                     is 320x160).  See docs/VIEW.md\n"
 "  --cull MODE        with --view: stock (default), match or none\n"
+"  --sim-view WxH     size the game's spawn/despawn windows for a WxH world\n"
+"                     view from frame 1 (recorded; the GPU renderer asks for\n"
+"                     its own view anyway).  docs/VIEW.md, \"Spawn margin\"\n"
 "  --rando SEED[:F]   shuffle the enemies, with F the flag word from\n"
 "                     platform/port/port.h (default 0x11: enemies, sizes\n"
 "                     matched, abilities kept; 0x17 adds bosses)\n"
@@ -396,6 +400,13 @@ static void ParseArgs(int argc, char **argv)
                     sGpuViewH = atoi(v + 5);
             } else if (sscanf(v, "%dx%d", &sGpuViewW, &sGpuViewH) != 2) {
                 fprintf(stderr, "katam-port: --gpu-view wants WxH or auto[:H]\n");
+                exit(2);
+            }
+        } else if (strcmp(a, "--sim-view") == 0) {
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+
+            if (sscanf(v, "%dx%d", &sSimViewW, &sSimViewH) != 2) {
+                fprintf(stderr, "katam-port: --sim-view wants WxH\n");
                 exit(2);
             }
         } else if (strcmp(a, "--gpu-shot") == 0) {
@@ -710,6 +721,7 @@ static void Shutdown(int code)
     if (sGpuShotPath != NULL)
         WriteGpuShot(sGpuShotPath);
     PortRlReportPopIn();
+    PortSimViewReport();
     if (sCompareLog != NULL) {
         PortLog("[katam-port] gpu vs ppu: %ld frames compared, %ld differ, "
                 "%ld pixels in all; %ld frames not comparable (view not 240x160)",
@@ -1344,6 +1356,11 @@ static void GpuBlit(void)
          * in game pixels -- applied to the next frame built. */
         s32 vw = (s32)((long)sGpuViewH * w / (h ? h : 1));
         PortRlSetViewSize(vw & ~1, sGpuViewH);
+        PortSimViewRequest(vw & ~1, sGpuViewH);
+    } else {
+        /* The game's spawn window follows the view (platform/view.c); a
+         * recorded request, dropped while replaying. */
+        PortSimViewRequest(sGpuViewW, sGpuViewH);
     }
     if (f == NULL)
         return;
@@ -1825,6 +1842,8 @@ void PortHostInit(int argc, char **argv)
         if (sViewSet)
             PortInputLogNoteView(sViewMode, sViewPadX, sViewPadY, sViewCull, 0, 2);
     }
+    if (sSimViewW > 0)
+        PortSimViewRequest(sSimViewW, sSimViewH);
     {
         int w;
 
