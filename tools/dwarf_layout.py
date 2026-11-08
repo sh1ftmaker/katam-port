@@ -179,6 +179,43 @@ def read_elf_sections(path):
     heads = [hdr(i) for i in range(e_shnum)]
     names = [secname(h[0]) for h in heads]
 
+    # Section contents, decompressed.  Current toolchains (gcc 16 / binutils
+    # on Arch, at least) default to SHF_COMPRESSED debug sections, and every
+    # DIE read out of a still-compressed .debug_info is garbage -- it failed
+    # as "abbrev 7 not in table".  Relocations apply to the decompressed
+    # bytes, so this has to happen before they are applied.
+    SHF_COMPRESSED = 0x800
+    data = []
+    for i, h in enumerate(heads):
+        b = e_shoff + i * e_shentsize
+        flags, = struct.unpack_from(fmt, d, b + 0x08)
+        raw = bytes(d[h[2]:h[2] + h[3]]) if h[1] != 8 else b''  # SHT_NOBITS
+        if flags & SHF_COMPRESSED and raw:
+            if is64:
+                ch_type, _, ch_size, _ = struct.unpack_from('<IIQQ', raw, 0)
+                payload = raw[24:]
+            else:
+                ch_type, ch_size, _ = struct.unpack_from('<III', raw, 0)
+                payload = raw[12:]
+            if ch_type == 1:
+                import zlib
+                raw = zlib.decompress(payload)
+            elif ch_type == 2:
+                try:
+                    from compression import zstd
+                except ImportError:
+                    sys.exit('dwarf_layout: %s has zstd-compressed %s and this '
+                             'Python has no compression.zstd -- rebuild with '
+                             '-gz=none' % (path, names[i]))
+                raw = zstd.decompress(payload)
+            else:
+                sys.exit('dwarf_layout: %s: unknown compression type %d in %s'
+                         % (path, ch_type, names[i]))
+            if len(raw) != ch_size:
+                sys.exit('dwarf_layout: %s: %s decompressed to %d bytes, '
+                         'header says %d' % (path, names[i], len(raw), ch_size))
+        data.append(bytearray(raw))
+
     SHT_RELA = 4
     for i, h in enumerate(heads):
         _, ty, of, sz, link, es = h
@@ -187,18 +224,19 @@ def read_elf_sections(path):
         target = names[i][len('.rela'):]
         if target not in names:
             continue
-        t = heads[names.index(target)]
-        tgt_off, tgt_size = t[2], t[3]
+        tgt = data[names.index(target)]
+        tgt_size = len(tgt)
+        rel = data[i]
         # The symbol table this relocation section indexes, so a reference to a
         # real symbol rather than a section symbol still resolves.
         symtab = heads[link] if link < len(heads) else None
         step = 24 if is64 else 12
-        for p in range(of, of + sz, step):
+        for p in range(0, len(rel) - step + 1, step):
             if is64:
-                r_off, r_info, r_add = struct.unpack_from('<QQq', d, p)
+                r_off, r_info, r_add = struct.unpack_from('<QQq', rel, p)
                 sym_idx = r_info >> 32
             else:
-                r_off, r_info, r_add = struct.unpack_from('<IIi', d, p)
+                r_off, r_info, r_add = struct.unpack_from('<IIi', rel, p)
                 sym_idx = r_info >> 8
             base = 0
             if symtab is not None and sym_idx:
@@ -211,12 +249,9 @@ def read_elf_sections(path):
             # Four bytes, always.  Every relocated field in a 32-bit-format
             # DWARF section is a four-byte offset; the one exception is
             # DW_AT_low_pc, whose value nothing here reads.
-            struct.pack_into('<I', d, tgt_off + r_off, (base + r_add) & 0xFFFFFFFF)
+            struct.pack_into('<I', tgt, r_off, (base + r_add) & 0xFFFFFFFF)
 
-    out = {}
-    for i, h in enumerate(heads):
-        out[names[i]] = bytes(d[h[2]:h[2] + h[3]])
-    return out
+    return {names[i]: bytes(data[i]) for i in range(len(heads))}
 
 
 def parse_abbrev(data, offset):
