@@ -219,7 +219,7 @@ All commands take `--registry DIR` (default `assets/schema/semantics`).
 
 **validate** findings are `{severity, code, file, where, message, hint}`; `where` is a JSON
 pointer into the file (`/doors/0/arrive`), `code` is stable (`schema`, `id-path`, `ref`,
-`ref-unchecked`, `arrive-bounds`, `arrive-blocked`, `one-way`, `object-bounds`, `object-id`,
+`ref-unchecked`, `grid`, `door-terrain`, `door-object`, `arrive-bounds`, `arrive-blocked`, `one-way`, `object-bounds`, `object-id`,
 `limit-cells`, `limit-tile`, `limit-bank`, `tile-range`, `nav-node`, `nav-default`,
 `unreachable`, `compile`, …), `hint` says how to fix it. It runs, in order: JSON syntax, the
 schema (with "did you mean" on enum misses), id ↔ path, references (doors, tileset, palette,
