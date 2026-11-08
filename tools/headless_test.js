@@ -40,6 +40,12 @@ const NO_RENDER = !!process.env.PORT_NO_RENDER && process.env.PORT_NO_RENDER !==
 // way to cross a level.
 const HOLD = parseInt(process.env.HOLD || '0', 0);
 
+// RELEASE_AT=900 lets go of everything from that frame on. Anything that only
+// happens when the player *stops* -- a camera that settles, an idle animation,
+// a zoom that eases in -- is invisible to a run that holds Right for its whole
+// length, which every run here did until this existed.
+const RELEASE_AT = parseInt(process.env.RELEASE_AT || '0', 10);
+
 // --- link cable ------------------------------------------------------------
 // MP=loopback[:players] plugs the in-process transport into the serial port at
 // frame MP_AT, so the run has a before and an after and a link that comes up
@@ -56,6 +62,7 @@ const MP_AT = parseInt(process.env.MP_AT || '60', 10);
 const MP_ID = parseInt(process.env.MP_ID || '0', 10);
 
 function mashMask(frame) {
+    if (RELEASE_AT && frame >= RELEASE_AT) return 0;
     if (MASH.length < 3) return HOLD || null;
     const [start, mask, period, end] = MASH;
     // A fourth field stops the mashing again.  Needed for anything past the
@@ -196,6 +203,16 @@ const Module = {
     print: (t) => logs.push(t),
     printErr: (t) => logs.push(t),
 
+    // The port's own diagnostics do NOT arrive through print/printErr.
+    // PortConsole (platform/web/host_web.c:31) calls console.log/console.error
+    // directly and offers this hook instead.  Without it the summary counted
+    // only what emscripten happened to route through printErr, and reported
+    // "port diagnostics (0)" for runs whose logs plainly contained a missing
+    // function -- rooms 950 and 951 call CreateBossChallengeDoor, which is
+    // still ARM assembly, and scored clean.  Every "zero diagnostics" result
+    // recorded before this hook existed was a weaker claim than it looked.
+    portDiag: (text, isErr) => { if (isErr) logs.push(text); },
+
     portPresent(ptr, w, h) {
         // Copy out of the heap: the view is a Uint8Array, and it can be
         // detached under us between frames.
@@ -224,8 +241,49 @@ const Module = {
         // LAYERS=0b0001 renders BG0 alone, so "which layer holds the room"
         // stops being a guess.  Bits 0-3 are BG0-3, bit 4 is OBJ.
         // WATCH=0x06003FE0 names every block move that covers that address.
+        // WARP="frame:room[:cellX:cellY]" hands the game a synthetic door at
+        // that frame -- see platform/warp.c.  Asking early is fine: the port
+        // holds the request until the game is actually in a level.
+        if (WARP.length && frames === WARP[0] && Module._PortWarp)
+            Module._PortWarp(0, WARP[1], WARP[2], WARP[3]);
+
+        // DIFF="frameA:frameB" snapshots the game's RAM at frameA and again at
+        // frameB, and reports what moved in between.  This is the instrument
+        // for naming things: park the game somewhere, do one thing, and read
+        // off which globals responded.
+        if (DIFF.length) {
+            if (frames === DIFF[0]) snapA = snapshotRam();
+            if (frames === DIFF[1] && snapA) diffRam(snapA, snapshotRam());
+        }
+
         if (process.env.WATCH && Module._PortSetWatch && frames === 0)
             Module._PortSetWatch(parseInt(process.env.WATCH, 0));
+        // VIEW="mode:padX:padY:cull:pin" switches the view rectangle at the
+        // frame VIEW_AT names (default 0).  Late by default is wrong for the
+        // interesting case: the widened spawn window only takes effect as the
+        // camera scrolls past a tile boundary, so a mode set at frame 0 and a
+        // mode set mid-level look different, and both are worth capturing.
+        //   mode 0 native  1 wide  2 zoom  3 wide+zoom
+        //   cull 0 stock   1 matched to the view   2 off
+        if (process.env.VIEW && Module._PortSetViewMode
+            && frames === parseInt(process.env.VIEW_AT || '0', 10)) {
+            const v = process.env.VIEW.split(':').map(Number);
+            Module._PortSetViewMode(v[0] | 0, v[1] === undefined ? 40 : v[1],
+                                    v[2] | 0, v[3] | 0, v[4] | 0,
+                                    v[5] === undefined ? 1 : v[5]);
+        }
+        // RANDO="flags:seed" switches the enemy randomizer on at frame 0, so
+        // the first room the run enters is already rewritten.  Set at frame 0
+        // rather than at a RANDO_AT, because a room that is already loaded
+        // keeps the list it was given and a late switch would look like the
+        // randomizer doing nothing.
+        //   flags 0x1 enemies  0x2 mid-bosses  0x4 bosses
+        //         0x8 ignore tile sizes  0x10 keep ability enemies abilities
+        if (process.env.RANDO && Module._PortSetRando && frames === 0) {
+            const r = process.env.RANDO.split(':');
+            Module._PortSetRando(parseInt(r[0] || '0x11', 0),
+                                 parseInt(r[1] || '0', 10) >>> 0);
+        }
         if (TONE && Module._PortAudioTestTone && frames === 0)
             Module._PortAudioTestTone(TONE);
         // FORCE=0x04 draws BG2 even though the game disabled it.
@@ -407,11 +465,187 @@ const Module = {
     },
 };
 
+// WARP="frame:room[:cellX:cellY]" -- see platform/warp.c for why this is a
+// port call and not a heap poke.  Cell defaults put Kirby near the top-left,
+// which is survivable anywhere: if it is inside terrain the collision sweep
+// pushes him out, and if it is in mid-air he falls.
+const WARP = (process.env.WARP || '').split(':').filter(Boolean).map(Number);
+if (WARP.length) {
+    if (WARP[2] === undefined) WARP[2] = 3;
+    if (WARP[3] === undefined) WARP[3] = 5;
+}
+
+// --- the memory differ -----------------------------------------------------
+//
+// Naming a variable from static reading tells you what a value is *tested*
+// for.  It does not tell you what makes it move.  For that the cheapest
+// instrument is a before-and-after: park the game in a known room, let one
+// thing happen, and see which bytes changed.
+//
+// The whole of the game's mutable state is 288K -- EWRAM plus IWRAM -- so a
+// snapshot is a memcpy and a diff is a scan.  There is no need for
+// watchpoints, single-stepping, or instrumented builds; the frame loop is
+// already ours and the memory is a flat array.
+//
+// I/O, palette, VRAM and OAM are deliberately excluded.  They change every
+// frame in ways that say nothing about game state, and including them buries
+// the signal.
+const DIFF = (process.env.DIFF || '').split(':').filter(Boolean).map(Number);
+const DIFF_OUT = process.env.DIFF_OUT || 'build/ram-diff.json';
+const RAM_REGIONS = [
+    { name: 'EWRAM', base: 0x02000000, size: 0x40000 },
+    { name: 'IWRAM', base: 0x03000000, size: 0x08000 },
+];
+let snapA = null;
+
+function snapshotRam() {
+    return RAM_REGIONS.map((r) => ({
+        ...r, bytes: Buffer.from(Module.HEAPU8.subarray(r.base, r.base + r.size)),
+    }));
+}
+
+function diffRam(a, b) {
+    const runs = [];
+    let changedBytes = 0;
+
+    for (let i = 0; i < a.length; i++) {
+        const A = a[i].bytes, B = b[i].bytes, base = a[i].base;
+        let start = -1;
+        for (let o = 0; o <= A.length; o++) {
+            const differs = o < A.length && A[o] !== B[o];
+            if (differs && start < 0) start = o;
+            // Coalesce across gaps of up to 3 identical bytes: a changed s32
+            // whose middle bytes happen to match is one fact, not three.
+            if (!differs && start >= 0
+                && (o - start > 0)
+                && (o + 3 >= A.length
+                    || (A[o] === B[o] && A[o + 1] === B[o + 1]
+                        && A[o + 2] === B[o + 2] && A[o + 3] === B[o + 3]))) {
+                runs.push({
+                    addr: base + start, length: o - start,
+                    before: A.subarray(start, Math.min(o, start + 16)).toString('hex'),
+                    after: B.subarray(start, Math.min(o, start + 16)).toString('hex'),
+                });
+                changedBytes += o - start;
+                start = -1;
+            }
+        }
+    }
+
+    runs.sort((x, y) => y.length - x.length);
+    fs.writeFileSync(DIFF_OUT, JSON.stringify({
+        frameA: DIFF[0], frameB: DIFF[1],
+        changedBytes, runCount: runs.length, runs,
+    }, null, 1));
+    console.log('DIFF: frames %d..%d, %d bytes changed in %d runs -> %s',
+                DIFF[0], DIFF[1], changedBytes, runs.length, DIFF_OUT);
+}
+
+// A room warp was prototyped in JS here and removed; the finding is worth
+// keeping, and platform/warp.c is where it went.
+//
+// Writing roomId/x/y on gKirbys[0] -- the three fields src/kirby.c:12877-12880
+// writes when a door is taken -- is not enough. The write sticks (gKirbys[0]
+// .roomId reads back as the new room) and nothing acts on it: gCurLevelInfo
+// keeps the old room, because the loader is not driven by that field.
+//
+// A room change is a Kirby *state*. sub_08055D9C is installed as the state
+// function (kirby->base.base.unk78, src/kirby.c:12611) and calls sub_080562D0,
+// which is itself gated on unk58 & 0x4000 -- the DOOR bit of the metatile
+// Kirby is standing on -- and takes its destination from kirby->unk10C, the
+// door descriptor the collision sweep found in the room's solidity map.
+//
+// So a warp has to install a function pointer, and in WebAssembly a function
+// pointer is a table index that JS cannot fabricate. This belongs in port-side
+// C as PortWarp(room, cellX, cellY): point unk10C at a synthetic door
+// descriptor, set the two gate bits, install the state, and let the game's own
+// transition run -- the same shape as the randomizer, where the port supplies
+// data and the game's code does the work.
+
 function isBlank(px) {
     const first = px.readUInt32LE(0);
     for (let i = 4; i < px.length; i += 4)
         if (px.readUInt32LE(i) !== first) return false;
     return true;
+}
+
+// DUMP_ROOM=<path> writes the live room state as JSON when the run ends.
+//
+// It exists to check tools/room_export.py, which reconstructs a room's
+// collision grid from the ROM by decompressing it the way the loader does.
+// That reconstruction is a model, and a model nobody compared against the real
+// thing is a guess with a tool around it.  This is the real thing: the bytes
+// the game is actually reading collision out of, at the moment the run stops.
+//
+// The addresses come from the game's own linker.ld, and the struct offsets are
+// the ones platform/port/gba_layout.h asserts on every build -- so a struct
+// that moves breaks the build rather than silently shifting what gets read.
+function dumpRoomState(outPath) {
+    const G_CUR_LEVEL_INFO  = 0x02023530;   // linker.ld:46
+    const G_COLLISION_CELLS = 0x02024ED0;   // linker.ld:47 (gUnk_02024ED0)
+    const OFF_ROOM_WIDTH    = 188;          // gba_layout.h:799
+    const OFF_ROOM_HEIGHT   = 190;          // gba_layout.h:800
+    const OFF_CURRENT_ROOM  = 1528;         // gba_layout.h:808
+    const OFF_ROOM_SLOT     = 1630;         // gba_layout.h:813 (unk65E)
+    const COLLISION_STRIDE  = 1950;         // sizeof gUnk_02024ED0[n]
+
+    const h = Module.HEAPU8;
+    const dv = new DataView(h.buffer, h.byteOffset);
+    const li = G_CUR_LEVEL_INFO;            // player 0
+
+    const room = dv.getUint16(li + OFF_CURRENT_ROOM, true);
+    if (room === 0xFFFF) {
+        console.log('DUMP_ROOM: not in a room -- nothing dumped');
+        return;
+    }
+    const width = dv.getUint16(li + OFF_ROOM_WIDTH, true);
+    const height = dv.getUint16(li + OFF_ROOM_HEIGHT, true);
+    const slot = h[li + OFF_ROOM_SLOT];
+    const wc = Math.floor(width / 16), hc = Math.floor(height / 16);
+    const base = G_COLLISION_CELLS + slot * COLLISION_STRIDE;
+    const grid = Buffer.from(h.subarray(base, base + wc * hc));
+
+    // The four bytes at the tail of LevelInfo, for all four player entries.
+    // unk65F has zero references anywhere in the decompilation and LevelInfo
+    // is too large for a Thumb immediate offset, so its offset never appears
+    // as an assembly literal either -- static reading cannot settle what it
+    // holds, and a heap read is the only instrument left.  It costs four bytes
+    // to carry it here, so it is carried.
+    const tail = [];
+    for (let p = 0; p < 4; p++) {
+        const e = G_CUR_LEVEL_INFO + p * 1640;
+        tail.push({
+            player: p,
+            currentRoom: dv.getUint16(e + OFF_CURRENT_ROOM, true),
+            unk65E_slot: h[e + OFF_ROOM_SLOT],
+            unk65F: h[e + OFF_ROOM_SLOT + 1],
+            unk660: h[e + OFF_ROOM_SLOT + 2],
+            unk661: h[e + OFF_ROOM_SLOT + 3],
+        });
+    }
+
+    // The Kirby's own roomId, so "the write did not stick" can be told apart
+    // from "the write stuck and nothing acted on it".  Those need different
+    // fixes and look identical from gCurLevelInfo alone.
+    const kirbyRoom = dv.getUint16(0x02020EE0 + 96, true);
+
+    // Kirby's HP, because it is the cheapest proof that a fight is actually
+    // happening.  A boss room that merely loads looks identical to one that
+    // loads and does nothing; HP falling means something in the room is
+    // hitting the player, and nothing can hit the player if nothing is running.
+    // Offsets asserted in platform/port/gba_layout.h:696-697.
+    const hp = new Int8Array(h.buffer, h.byteOffset + 0x02020EE0 + 256, 2);
+
+    fs.writeFileSync(outPath, JSON.stringify({
+        room, roomWidthPx: width, roomHeightPx: height, roomSlot: slot,
+        kirbyRoomId: kirbyRoom,
+        kirbyHp: hp[0], kirbyMaxHp: hp[1],
+        widthCells: wc, heightCells: hc,
+        levelInfoTail: tail,
+        cells: Array.from(grid),
+    }, null, 1));
+    console.log('DUMP_ROOM: room %d, %dx%d cells, slot %d -> %s',
+                room, wc, hc, slot, outPath);
 }
 
 function finish() {
@@ -441,6 +675,11 @@ function finish() {
 
     // Before the summary, so the port's own report lands with the diagnostics.
     if (MP[0] && Module._PortMpReport) Module._PortMpReport();
+    if (process.env.RANDO && Module._PortRandoReport) Module._PortRandoReport();
+    // Reports a warp that was requested and never delivered, which otherwise
+    // looks exactly like a warp that worked and changed nothing.
+    if (WARP.length && Module._PortWarpReport) Module._PortWarpReport();
+    if (process.env.DUMP_ROOM) dumpRoomState(process.env.DUMP_ROOM);
 
     console.log('--- katam-port headless smoke test ---');
     console.log('frames rendered      : %d', frames);

@@ -94,6 +94,11 @@ static long sMpAt = -1;
 static int sMpAttached;
 static int  sMashMask, sMashPeriod;
 
+/* --rando.  Applied in PortHostInit rather than at parse time so that it
+ * lands after the platform layer exists and its report goes to the same
+ * console as everything else. */
+static unsigned sRandoSeed, sRandoFlags;
+
 static long sFrames;
 static Uint64 sPerfFreq, sNextFrame;
 
@@ -135,6 +140,9 @@ static void Usage(const char *argv0)
 "  --window-shot PATH write a PNG of the scaled window, read back from the\n"
 "                     renderer -- what --screenshot cannot tell you is whether\n"
 "                     the picture reached the screen in the right pixel format\n"
+"  --rando SEED[:F]   shuffle the enemies, with F the flag word from\n"
+"                     platform/port/port.h (default 0x11: enemies, sizes\n"
+"                     matched, abilities kept; 0x17 adds bosses)\n"
 "  --hold MASK        hold these buttons down for the whole run\n"
 "  --mash S:MASK:P[:E] from frame S, tap MASK every P frames, stop at E\n"
 "  --press F:MASK,... set the button mask at frame F and leave it set\n"
@@ -189,6 +197,21 @@ static void ParseArgs(int argc, char **argv)
             sShotPath = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--window-shot") == 0) {
             sReadbackPath = argv[i = NeedValue(i, argc, argv)];
+        } else if (strcmp(a, "--rando") == 0) {
+            /* Seed first, flags optional: the seed is the thing anyone
+             * actually types, and the flag word is for the two people who
+             * want bosses in it.  See docs/RANDO.md. */
+            const char *v = argv[i = NeedValue(i, argc, argv)];
+            unsigned seed = 0, flags = PORT_RANDO_ENEMIES
+                                     | PORT_RANDO_KEEP_ABILITY;
+
+            if (sscanf(v, "%u:%i", &seed, (int *)&flags) < 1) {
+                fprintf(stderr, "katam-port: --rando wants SEED or SEED:FLAGS, "
+                                "e.g. 4127 or 4127:0x17\n");
+                exit(2);
+            }
+            sRandoSeed = seed;
+            sRandoFlags = flags;
         } else if (strcmp(a, "--hold") == 0) {
             sHoldMask = (int)strtol(argv[i = NeedValue(i, argc, argv)], NULL, 0);
         } else if (strcmp(a, "--press") == 0) {
@@ -920,6 +943,9 @@ void PortHostInit(int argc, char **argv)
      * should take 600/59.7275 = 10.05 seconds, and a build where that comes
      * out at 10.00 has quietly gone back to 60 Hz.  tools/native_smoke.sh
      * asks for --turbo when it wants the run to be quick. */
+    if (sRandoFlags)
+        PortSetRando(sRandoFlags, sRandoSeed);
+
     if (sTurbo)
         PortLog("[katam-port] frame pacing off -- running as fast as this "
                 "machine allows");

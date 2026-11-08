@@ -387,6 +387,73 @@
     min-width: 200px;
   }
 
+  /* The view controls. Same furniture as the legend, so it reads as part of
+     the sheet rather than as a thing bolted on. */
+  #viewbox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .viewrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .viewrow[hidden] { display: none; }
+  .viewlabel {
+    color: var(--dim);
+    min-width: 60px;
+  }
+  /* A pressed segment has to be legible at a glance from across the room --
+     this is a comparison tool and the first question is always "which one am
+     I looking at". */
+  #viewbox button.on,
+  #randobox button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0d1015;
+  }
+  #viewnote,
+  #randonote {
+    margin: 0;
+    color: var(--dim);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* The randomizer panel wears the view panel's furniture; it is the same
+     kind of thing -- a switch that changes what the game is -- and giving it
+     a second look would say they were unrelated. */
+  #randobox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  #randoseedwrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #randoseedwrap[hidden] { display: none; }
+  #randoseed {
+    background: var(--panel);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    padding: 4px 8px;
+    min-width: 7em;
+  }
+
   /* Names the row of save-data controls. Without it "Export" and "Delete"
      sit in a line of buttons about the ROM and read as being about the ROM,
      and "Delete" is not a button anyone should have to guess about. */
@@ -972,6 +1039,77 @@
     </span>
   </div>
 
+  <!-- The view experiment. Everything here is off by default: the picture
+       this page exists to show is 240x160, and these are the two things that
+       were tried instead. docs/VIEW.md is the write-up. -->
+  <div id="viewbox">
+    <div class="viewrow">
+      <span class="viewlabel">Picture</span>
+      <button class="viewmode on" type="button" data-mode="0">240&#215;160</button>
+      <button class="viewmode" type="button" data-mode="2">Dynamic zoom</button>
+      <button class="viewmode" type="button" data-mode="1">Widescreen</button>
+      <button class="viewmode" type="button" data-mode="3">Both</button>
+    </div>
+    <div class="viewrow" id="viewopts" hidden>
+      <span class="viewlabel">Objects</span>
+      <button class="viewcull on" type="button" data-cull="0">Stock cull</button>
+      <button class="viewcull" type="button" data-cull="1">Cull matched to view</button>
+      <button class="viewcull" type="button" data-cull="2">No cull</button>
+      <button id="viewpin" type="button" aria-pressed="false">HUD: floating</button>
+    </div>
+    <div class="viewrow" id="viewtiles" hidden>
+      <span class="viewlabel">Tilemap</span>
+      <button class="viewtile" type="button" data-tile="0">Hardware wrap</button>
+      <button class="viewtile" type="button" data-tile="1">Blank past the window</button>
+      <button class="viewtile on" type="button" data-tile="2">Read the room&#8217;s map</button>
+    </div>
+    <p id="viewnote">
+      The GBA drew 240&#215;160 and the game is built around that number in
+      five separate places &#8212; the display, the sprite list, the object
+      cull, the spawn window and the camera clamp. Zooming in is a crop of a
+      real picture and cannot be wrong. Widening asks for world the game never
+      copied into video memory: <b>hardware wrap</b> is what a naive widening
+      shows (the room from 32 tiles ago, repeated), <b>blank</b> is that
+      admitted, and <b>read the room&#8217;s map</b> goes back to the level
+      data the copy was made from and draws what should have been there.
+    </p>
+  </div>
+
+  <!-- The randomizer. Unlike the view controls above, this one is remembered
+       between visits: it is a mode you play a whole run in, and a saved file
+       half-played under seed 4127 that comes back as the stock game is a
+       worse surprise than a page that remembers. docs/RANDO.md. -->
+  <div id="randobox">
+    <div class="viewrow">
+      <span class="viewlabel">Enemies</span>
+      <button class="randopool on" type="button" data-pool="0">As it shipped</button>
+      <button class="randopool" type="button" data-pool="1">Shuffled</button>
+      <button class="randopool" type="button" data-pool="7">Shuffled, bosses too</button>
+      <span id="randoseedwrap" hidden>
+        <label class="viewlabel" for="randoseed">Seed</label>
+        <input id="randoseed" type="text" inputmode="numeric" size="10" value="1">
+        <button id="randoreroll" type="button">Reroll</button>
+      </span>
+    </div>
+    <div class="viewrow" id="randoopts" hidden>
+      <span class="viewlabel">Rules</span>
+      <button id="randosize" type="button" aria-pressed="true" class="on">Match enemy sizes</button>
+      <button id="randoability" type="button" aria-pressed="true" class="on">Keep abilities where they were</button>
+    </div>
+    <p id="randonote">
+      Every enemy is one byte in the room&#8217;s level data, so this swaps the
+      byte as the room loads and the game builds a different enemy in the same
+      spot from its own code &#8212; graphics and palette included, because
+      KATAM loads those when an object is created rather than per room. A seed
+      is the whole run: the same number gives the same game every time.
+      <b>Takes effect at the next door</b>, since the room you are standing in
+      already has its list. <b>Match enemy sizes</b> keeps a room&#8217;s
+      video-memory demand near what it was built for &#8212; turning it off is
+      the setting that can overflow the tile heap. Bosses are the risky pool
+      and are off by default.
+    </p>
+  </div>
+
   <!-- The player's own copy of their save. Losing a save with no way to have
        taken a backup is the worst thing this page can do to someone, so the
        export is a first-class control rather than a diagnostic. The file is
@@ -1202,7 +1340,11 @@ var Module = (function () {
     var s = Math.max(1, Math.round(css * dpr));
     // Assigning width/height clears the canvas even when the value is
     // unchanged, so only touch it when it really moved.
-    if (screen.width !== GBA_W * s) {
+    // Both dimensions, not just the width. The width alone was a fair test
+    // while the picture was always 240x160; a crop can change the height and
+    // leave the width alone, and the canvas then kept its old height and
+    // drawImage stretched the frame to fill it.
+    if (screen.width !== GBA_W * s || screen.height !== GBA_H * s) {
       screen.width  = GBA_W * s;
       screen.height = GBA_H * s;
     }
@@ -1722,6 +1864,189 @@ var Module = (function () {
 
   // Off unless it was asked for: it is a debugging aid, not furniture.
   setDiag(lsGet(LS_DIAG_KEY) === '1', false);
+})();
+</script>
+
+<script>
+//======================================================================
+// The view experiment.
+//
+// Four buttons that call one C function. Everything the picture can be is
+// derived over there in platform/view.c, so the page never holds a second
+// opinion about how wide the world is -- it says "widescreen" and the
+// renderer, the object culling, the spawn window and the camera clamp all
+// move together or none of them do.
+//
+// Nothing here is remembered between sessions, deliberately. 240x160 is what
+// this page is for; the alternatives are an experiment you opt into and then
+// leave behind, and a reload that silently comes back in widescreen would
+// make the comparison it exists for impossible to trust.
+//
+// The framebuffer changes size when the mode does. That path already existed
+// -- present() has always honoured the w/h it is handed and re-fitted the
+// canvas when they moved -- so there is nothing to do here but call.
+//======================================================================
+(function () {
+  var box = document.getElementById('viewbox');
+  if (!box) return;
+  var opts    = document.getElementById('viewopts');
+  var tiles   = document.getElementById('viewtiles');
+  var pinBtn  = document.getElementById('viewpin');
+  var modeBtns = [].slice.call(box.querySelectorAll('.viewmode'));
+  var cullBtns = [].slice.call(box.querySelectorAll('.viewcull'));
+  var tileBtns = [].slice.call(box.querySelectorAll('.viewtile'));
+
+  var mode = 0, cull = 0, tile = 2, pin = 0;
+  var pendingPush = 0;
+  var PAD_X = 40;               // 320x160, the interesting widescreen case
+
+  function paint(list, attr, value) {
+    list.forEach(function (b) {
+      b.classList.toggle('on', +b.dataset[attr] === value);
+    });
+  }
+
+  function apply() {
+    paint(modeBtns, 'mode', mode);
+    paint(cullBtns, 'cull', cull);
+    paint(tileBtns, 'tile', tile);
+    // The object and tilemap options only mean anything when the picture is
+    // wider than the hardware's. A crop shows fewer objects, not more, and
+    // every pixel of it was inside the streamed window already.
+    opts.hidden = tiles.hidden = (mode !== 1 && mode !== 3);
+    pinBtn.textContent = 'HUD: ' + (pin ? 'pinned to edges' : 'floating');
+    pinBtn.setAttribute('aria-pressed', pin ? 'true' : 'false');
+
+    // The wasm may not be up yet. Retry rather than reach for the loader's
+    // own readiness promise: that lives inside another block's scope, and
+    // borrowing it threw a ReferenceError which the crash panel dutifully
+    // reported as the emulator having stopped -- while the emulator carried
+    // on at 60 fps behind the panel. A poll cannot do that.
+    if (!window.Module || !Module._PortSetViewMode) {
+      if (!pendingPush) pendingPush = setTimeout(function () {
+        pendingPush = 0; apply();
+      }, 250);
+      return;
+    }
+    if (pendingPush) { clearTimeout(pendingPush); pendingPush = 0; }
+    Module._PortSetViewMode(mode, mode === 1 || mode === 3 ? PAD_X : 0, 0,
+                            cull, pin, tile);
+  }
+
+  modeBtns.forEach(function (b) {
+    b.addEventListener('click', function () { mode = +b.dataset.mode; apply(); });
+  });
+  cullBtns.forEach(function (b) {
+    b.addEventListener('click', function () { cull = +b.dataset.cull; apply(); });
+  });
+  tileBtns.forEach(function (b) {
+    b.addEventListener('click', function () { tile = +b.dataset.tile; apply(); });
+  });
+  pinBtn.addEventListener('click', function () { pin ^= 1; apply(); });
+
+  apply();
+})();
+</script>
+
+<script>
+//======================================================================
+// The randomizer.
+//
+// Same shape as the view panel above: the page holds no opinion of its own,
+// it calls one C function and platform/rando.c derives everything from what
+// it is told. What is different is that this one is *remembered*. A run under
+// a seed is a thing a player is partway through, and the save that goes with
+// it is already persisted in IndexedDB; coming back to a stock game with a
+// randomized save half-finished would be the page losing state, not the page
+// staying out of the way.
+//
+// The seed is a plain unsigned 32-bit number and is shown rather than hidden,
+// because a seed people can read out to each other is most of the point of
+// there being a seed at all.
+//======================================================================
+(function () {
+  var box = document.getElementById('randobox');
+  if (!box) return;
+  var poolBtns = [].slice.call(box.querySelectorAll('.randopool'));
+  var seedWrap = document.getElementById('randoseedwrap');
+  var seedIn   = document.getElementById('randoseed');
+  var reroll   = document.getElementById('randoreroll');
+  var sizeBtn  = document.getElementById('randosize');
+  var abilBtn  = document.getElementById('randoability');
+
+  var ANY_SIZE = 0x08, KEEP_ABILITY = 0x10;
+  var KEY = 'katam.rando';
+  var pools = 0, matchSize = 1, keepAbility = 1, seed = 1;
+  var pendingPush = 0;
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  // "pools,size,ability,seed" -- four numbers, so a stored value from an
+  // older build cannot mean something else in a newer one without the count
+  // changing, and a malformed one falls back to off rather than to garbage.
+  (function restore() {
+    var v = lsGet(KEY).split(',').map(Number);
+    if (v.length !== 4 || v.some(function (n) { return !isFinite(n); })) return;
+    pools = v[0] & 0x07; matchSize = v[1] ? 1 : 0;
+    keepAbility = v[2] ? 1 : 0; seed = v[3] >>> 0;
+  })();
+
+  // No pool selected is *off*, not "off but with rules". The rule bits alone
+  // are a nonzero flag word that the port would report as a setting, which
+  // reads as the randomizer being on to anyone watching the console.
+  function flags() {
+    if (pools === 0) return 0;
+    return pools | (matchSize ? 0 : ANY_SIZE) | (keepAbility ? KEEP_ABILITY : 0);
+  }
+
+  function toggle(btn, on) {
+    btn.classList.toggle('on', !!on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  function apply() {
+    poolBtns.forEach(function (b) {
+      b.classList.toggle('on', +b.dataset.pool === pools);
+    });
+    seedWrap.hidden = document.getElementById('randoopts').hidden = (pools === 0);
+    toggle(sizeBtn, matchSize);
+    toggle(abilBtn, keepAbility);
+    seedIn.value = String(seed);
+    lsSet(KEY, [pools, matchSize, keepAbility, seed].join(','));
+
+    // The same retry as the view panel, for the same reason: the wasm may
+    // not be up yet, and reaching into the loader's scope to find out is what
+    // threw a ReferenceError that the crash panel reported as the emulator
+    // having stopped.
+    if (!window.Module || !Module._PortSetRando) {
+      if (!pendingPush) pendingPush = setTimeout(function () {
+        pendingPush = 0; apply();
+      }, 250);
+      return;
+    }
+    if (pendingPush) { clearTimeout(pendingPush); pendingPush = 0; }
+    Module._PortSetRando(flags(), seed >>> 0);
+  }
+
+  poolBtns.forEach(function (b) {
+    b.addEventListener('click', function () { pools = +b.dataset.pool; apply(); });
+  });
+  sizeBtn.addEventListener('click', function () { matchSize ^= 1; apply(); });
+  abilBtn.addEventListener('click', function () { keepAbility ^= 1; apply(); });
+  reroll.addEventListener('click', function () {
+    // Six digits: long enough not to collide by accident, short enough to
+    // read down a phone line.
+    seed = Math.floor(Math.random() * 1000000) >>> 0;
+    apply();
+  });
+  seedIn.addEventListener('change', function () {
+    var n = parseInt(seedIn.value, 10);
+    seed = isFinite(n) && n >= 0 ? (n >>> 0) : seed;
+    apply();
+  });
+
+  apply();
 })();
 </script>
 

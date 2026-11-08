@@ -11,6 +11,15 @@ web/katam.wasm
 *.ppm
 *.png
 
+# The one exception, and it is narrow on purpose: the figures in docs/VIEW.md.
+# An argument about what a wider picture does to a game that was drawn for a
+# 240-pixel screen cannot be made in prose, and these are a handful of frames
+# of the port's own output, at the size they are rendered. The blanket rule
+# above stays in force everywhere else -- nothing here is a route for a ROM,
+# a tileset or a rip, and `make dist` copies three files by name, so none of
+# it can reach a deployment either way.
+!docs/view/*.png
+
 __pycache__/
 *.pyc
 .wrangler/

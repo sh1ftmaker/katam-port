@@ -852,6 +852,10 @@ void PortPresentFrame(void)
     PortStateTrace();
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
+    /* Settle the view before drawing with it, so the rectangle the PPU uses
+     * and the rectangle the page is about to be handed are the same one. */
+    PortViewUpdate();
+
     /* Draw the visible frame from whatever the game last wrote. */
     if (render)
         PortRenderFrame();
@@ -896,7 +900,11 @@ void PortPresentFrame(void)
         if ((sFrameCount & 0x3FF) == 0)
             PortAwaitYield();
     } else {
-        PortBlitFramebuffer(gPortFramebuffer, PORT_SCREEN_W, PORT_SCREEN_H);
+        /* The view rectangle's size, not PORT_SCREEN_W/H: with a widescreen
+         * view the framebuffer is wider than a GBA screen, and the console
+         * dimensions would hand the host a short buffer to read a long one
+         * from (docs/VIEW.md). */
+        PortBlitFramebuffer(gPortFramebuffer, gPortViewW, gPortViewH);
         /* Under seats (platform/port/seats.h) a round is one frame for
          * every seat, and it is the round that is paced: the earlier seats'
          * pictures are handed over and the loop goes straight on. */
@@ -937,6 +945,11 @@ void PortPresentFrame(void)
 
     UpdateKeyInput();
     sFrameCount++;
+
+    /* A queued warp is delivered here rather than at the moment it is asked
+     * for, because a scripted run counts frames and cannot know which frame
+     * the level appears on.  Returns immediately unless one is queued. */
+    PortWarpPoll();
 
     /* Return with VBlank still in progress.  GameLoop does its screen flush
      * and queue draining now, and PortVBlankConsume ends VBlank once those
