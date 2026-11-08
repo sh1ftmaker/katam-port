@@ -19,6 +19,8 @@ void ResAddRelocation(u32 romLo, u32 size, void *dst);
 /* res_pack.c: compile the pack (with mods overlaid, whole-file replace) into
  * the arena and retarget the slots.  0 on success. */
 int  ResPackInstall(const char *packDir, const char *const *mods, u32 numMods);
+int  ResExtract(const char *dir);
+int  ResRoundTrip(const char *dir);
 
 #ifdef __cplusplus
 }

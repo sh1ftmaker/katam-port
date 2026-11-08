@@ -8,6 +8,11 @@ web/katam.wasm
 
 # Never commit game data.
 *.gba
+# The vanilla pack is extracted from the player's ROM (make res-extract writes
+# it under build/); a copy anywhere else in the tree is still ROM data.
+vanilla/
+pack.lock
+*.katmod
 *.ppm
 *.png
 

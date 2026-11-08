@@ -17,6 +17,9 @@
 #   pixels   pix must match: the picture.  Expected to move when the renderer
 #            changes; this is how to see exactly where and from which frame.
 #
+# KATAM_ARGS adds options to every native run, e.g. KATAM_ARGS="--res-pack DIR"
+# (make regress-pack) -- the goldens must still hold.
+#
 # --wasm compares the node build against the same native goldens: keys, vid
 # and sram (and pix in pixels mode) must match.  Not sim -- a function pointer
 # is a code address natively and a table index in wasm, so the two spell the
@@ -85,7 +88,7 @@ run_native() {   # name out.hash -> exit status
     XDG_DATA_HOME=$h/data XDG_CONFIG_HOME=$h/config \
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
         "${NORAND[@]}" "$BIN" --no-audio --turbo --replay "$REC_DIR/$1.txt" \
-        --hash-log "$2" "$ROM" >"$TMP/$1.log" 2>&1
+        --hash-log "$2" ${KATAM_ARGS:-} "$ROM" >"$TMP/$1.log" 2>&1
 }
 
 run_wasm() {

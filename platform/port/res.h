@@ -109,6 +109,15 @@ int         Res_BuildSession(void);
 void        Res_ConfigurePack(const char *dir);    /* L1: a folder written by --extract */
 void        Res_AddMod(const char *dir);           /* L3: a mod folder; call in load order */
 
+/* One-shot command-line actions, run by main() once the ROM is mapped and
+ * before anything patches it (platform/res_pack.c):
+ *   RES_CLI_EXTRACT    write the vanilla pack for this ROM into dir
+ *   RES_CLI_ROUNDTRIP  compile dir and compare with the ROM (gate F0)
+ * Res_RunCliAction returns -1 when none was asked for, else an exit status. */
+enum { RES_CLI_NONE, RES_CLI_EXTRACT, RES_CLI_ROUNDTRIP };
+void        Res_SetCliAction(int action, const char *dir);
+int         Res_RunCliAction(void);
+
 /* Where a ROM address is served from now: the arena copy if the resolved
  * table that contains it was relocated, otherwise the address itself.  Used
  * by PortPatchRomFunctionPointers so function pointers patched into ROM

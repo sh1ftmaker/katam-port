@@ -162,7 +162,8 @@ TARGET := $(OUT)/katam.html
         native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
-        layout layout-check regress regress-pixels regress-wasm
+        layout layout-check regress regress-pixels regress-wasm \
+        res-extract res-roundtrip regress-pack manifest-check
 
 all: $(TARGET)
 
@@ -551,6 +552,28 @@ regress-pixels:
 
 regress-wasm: $(BUILD)/katam-node.js
 	@ROM=$(ROM) bash tests/regress.sh --wasm
+
+# --- the vanilla pack (docs/design/MODDING.md §2) ------------------------------
+# Built from YOUR ROM at run time, into build/ only; nothing it writes may be
+# committed or shared.  res-roundtrip is gate F0: extract, compile, and compare
+# byte for byte with the ROM; plus re-extraction is identical, and an edited
+# pack is caught.  regress-pack replays the recordings with the game served
+# from the compiled pack instead of the ROM: the goldens must hold.  The demo
+# mod (examples/mods/) changes room 101's palette: see its README.
+RES_DIR ?= $(BUILD)/res/vanilla
+RES_BIN ?= $(firstword $(wildcard $(BUILD)/lp64/katam $(BUILD)/native/katam))
+
+res-extract:
+	@ROM=$(ROM) bash tests/res_roundtrip.sh --bin "$(RES_BIN)" --dir $(RES_DIR) --extract-only
+
+res-roundtrip:
+	@ROM=$(ROM) bash tests/res_roundtrip.sh --bin "$(RES_BIN)" --dir $(RES_DIR)
+
+regress-pack: res-extract
+	@ROM=$(ROM) KATAM_ARGS="--res-pack $(abspath $(RES_DIR))" bash tests/regress.sh --mode sim
+
+manifest-check:
+	@python3 tools/gen_asset_manifest.py --check
 
 native-clean:
 	rm -rf $(NATIVE_DIR)

@@ -1006,6 +1006,14 @@ int main(int argc, char **argv)
         return 1;
     }
     PortLog("[katam-port] ROM loaded (%u bytes), starting AgbMain", gPortRomSize);
+    /* --res-extract / --res-check: run on the pristine image and exit. */
+    {
+        int rc = Res_RunCliAction();
+
+        if (rc >= 0)
+            return rc;
+    }
+
     /* Resolve the resource layers (ROM, and a pack/mods if the host asked
      * for them) before anything reads a table or patches one. */
     Res_BuildSession();

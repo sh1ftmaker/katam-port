@@ -72,6 +72,77 @@ difference is noted here.
   difference explained as pointer spelling), then the goldens were
   re-recorded, moving only the `sim` column.
 
+### M1, first slice: manifest, extractor, pack compiler, gate F0, served pack
+
+Three kinds, chosen for value per decoding risk:
+
+| kind | table | why first | decoding risk |
+|---|---|---|---|
+| `room_props` (sim) | `gRoomProps`, 983 x 40 B | every room's song, palette/tileset/collision/object-list/nav/door indices, camera and parallax: the root of the room bundle (§1.5 item 1) and of every room edit | none: a flat array of a fully known struct, no pointers, only ever indexed (no game memory stores a pointer into it) |
+| `obj_desc` (sim) | `gUnk_08351648`, 219 x 24 B | per-type score, hp, ability, palette, tile budget: tuning mods (§1.5 item 2) | low: known struct; its start-function pointers are patched at load, which the served copy needed (`Res_ServedAddr`) |
+| `fg_palette` (presentation) | `gForegroundPalettes` -> 42 `ForegroundPalette` -> 6 x 16 BGR555 | the first visible, editable resource: the demo mod | low: a pointer table, records and payloads -- exercises relocation; the game copies the palette rather than keeping the pointer |
+
+Not chosen: object lists and tilemaps (the game keeps pointers into them in
+hashed memory -- `objlistPtr`, `objTemplate`, `unk180[]` -- so serving them
+from the arena moves the `sim` hash until M2's content-based comparison);
+text (there are no string tables: KATAM's text is tile graphics, §2.2).
+
+- **Manifest**: `assets/manifest.json`, written once by
+  `tools/gen_asset_manifest.py` from `katam.elf` (label addresses, extents
+  from symbol spacing), `game/include/data.h` schemas (checked against the
+  offsets `gba_layout.h` asserts) and `constants/object_types.h` names.  No
+  bytes.  *Differs from §2.1:* the same JSON is also generated as a C string,
+  `platform/res_manifest.h`, so every build carries it without a file to find;
+  `make manifest-check` keeps the two in step.
+- **Extractor** (`platform/res_pack.c`, in every build; native CLI
+  `--res-extract DIR`): refuses any ROM but sha1 `274b102b…`, runs on the
+  pristine image (before the function-pointer patch), writes:
+
+```
+DIR/pack.toml                    format, extractor = "1.0.0", rom_sha1, manifest_sha256, kinds
+DIR/pack.lock                    sha256 + path of every file, sorted
+DIR/rooms/<id 0000-0982>/room.json   RoomProps, C field names, integers (s16 signed), "unk26": [b, b]
+DIR/gfx/palettes/fg/<0-41>.json  ForegroundPalette: unk4 (anim, "0x…" ROM ref), unk8, roomId,
+                                 "colors": 6 banks x 16 "#RRGGBB", "bit15": [indices]
+DIR/objects/types.json           {"obj_desc": [ one line per type: id, name, fields; pointers "0x…" ]}
+```
+
+  Canonical: LF, two-space indent, keys in schema order, integers only.
+  *Differs from §2.2:* all 983 room ids get a folder (every entry is
+  non-zero, unused ones included), named by decimal id; field names are the
+  C member names until fields are decoded.  **Bit 15**: 1639 vanilla palette
+  entries have the (non-colour) top bit set, which `#RRGGBB` cannot carry, so
+  each palette lists the indices that do.
+- **Pack compiler** (same file): reads the folder through the overlay (mods
+  last-wins, whole file, then mod patches), produces per kind a table, plus
+  records and payloads for pointer tables, then places them either at the
+  ROM addresses vanilla uses (**identity**, the gate) or in the arena at
+  `0x09100000` (kinds in manifest order; payloads, records, table; ids
+  ascending; 16-byte aligned), fixing up the pointers between them.
+- **Gate F0**: `make res-roundtrip` (`tests/res_roundtrip.sh`): extract,
+  `--res-check` (compile, identity placement, compare with the ROM: 53,312
+  bytes in 87 blobs, identical), re-extract (identical, 1027 files), and a
+  negative control (an edited room 101 must fail).  Against the player's ROM
+  at test time; nothing extracted is committed (`.gitignore`: `build/`,
+  `vanilla/`, `pack.lock`, `*.katmod`).
+- **Served** (R2 for these kinds): `--res-pack DIR` compiles at boot,
+  copies the blobs into the arena and retargets the three slots.  `make
+  regress-pack` replays all four recordings so: the goldens hold on every
+  frame, `sim` included -- the overlay path end to end, bit-identical.
+- **Mods** (start of M3): `--mod DIR` (repeatable, load order).  A mod is a
+  folder with `mod.toml`, an optional `assets/` tree mirroring the pack
+  (whole-file replace) and `patches` listed in `mod.toml`: `{"target": rel,
+  "ops": [{"op": "set", "path": "colors/0/3", "value": …}, {"op": "merge",
+  "path": "", "value": {…}}]}` applied in load order from the winning layer
+  up.  *Differs from §3.2:* JSON-pointer `set`/`merge` ops instead of
+  uid-addressed list edits, which arrive with the list kinds; without them a
+  mod would have had to ship whole vanilla records.  The loader logs a
+  per-kind sha256 and a `levelSetHash` over the sim kinds (§3.5).
+  `examples/mods/sunset_route` recolours room 803's foreground.
+- Not yet: wasm cannot be given a pack (no file access in the node/web
+  builds; the code is compiled in), F1 cross-platform `pack.lock`
+  comparison, `--res-identity`, PNG output, every other kind.
+
 ---
 
 ## 0. Decisions in one table

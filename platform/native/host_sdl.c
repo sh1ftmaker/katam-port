@@ -29,6 +29,7 @@
 #include <SDL.h>
 
 #include "native.h"
+#include "port/res.h"
 #include "port/audio.h"
 #include "port/mp.h"
 #include "port/inputlog.h"
@@ -187,6 +188,11 @@ static void Usage(const char *argv0)
 "  --hash-log FILE    write one line of simulation-state hashes per frame\n"
 "  --dump-state F:PATH write the canonical state bytes at frame F to PATH\n"
 "  --warp F:ROOM[:X:Y] warp to ROOM (cell X,Y) at frame F; recorded\n"
+"  --res-extract DIR  write the vanilla pack for your ROM into DIR and exit\n"
+"                     (docs/design/MODDING.md; never share the result)\n"
+"  --res-check DIR    compile the pack in DIR and compare it with the ROM\n"
+"  --res-pack DIR     serve the kinds the pack compiler knows from DIR\n"
+"  --mod DIR          overlay a mod folder on the pack (repeatable, in order)\n"
 "  --verbose          report the memory map and the frame timing\n"
 "  --help\n"
 "\n"
@@ -357,6 +363,14 @@ static void ParseArgs(int argc, char **argv)
             sWarps[sNumWarps].x = x;
             sWarps[sNumWarps].y = y;
             sNumWarps++;
+        } else if (strcmp(a, "--res-extract") == 0) {
+            Res_SetCliAction(RES_CLI_EXTRACT, argv[i = NeedValue(i, argc, argv)]);
+        } else if (strcmp(a, "--res-check") == 0) {
+            Res_SetCliAction(RES_CLI_ROUNDTRIP, argv[i = NeedValue(i, argc, argv)]);
+        } else if (strcmp(a, "--res-pack") == 0) {
+            Res_ConfigurePack(argv[i = NeedValue(i, argc, argv)]);
+        } else if (strcmp(a, "--mod") == 0) {
+            Res_AddMod(argv[i = NeedValue(i, argc, argv)]);
         } else if (a[0] == '-' && a[1] != '\0') {
             fprintf(stderr, "katam-port: unknown option %s (--help)\n", a);
             exit(2);
