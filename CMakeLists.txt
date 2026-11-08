@@ -397,8 +397,15 @@ endforeach()
 # stack -- which differs between compilers, between builds of the same
 # compiler, and between a run with the state hash on and one with it off.  Zero
 # is the same everywhere.  The Makefile's wasm build has the same flag.
+#
+# -ffp-contract=off: platform/bios.c's ArcTan2 is double arithmetic that the
+# game buckets into directions, and gcc fuses a*b+c into an FMA by default on
+# any target that has one (aarch64, x86-64 with -march=native).  An FMA rounds
+# once instead of twice, so the arm64 build would compute a different angle
+# from the wasm one.  wasm has no FMA, so it never fuses; neither may we.
 target_compile_options(katam PRIVATE
   -fno-strict-aliasing -fwrapv -funsigned-char -ftrivial-auto-var-init=zero
+  -ffp-contract=off
   $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
   $<$<COMPILE_LANGUAGE:C>:-fgnu89-inline>
   $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
