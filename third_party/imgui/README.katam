@@ -1,0 +1,5 @@
+Dear ImGui v1.91.9b (MIT, see LICENSE.txt), unmodified core files from
+https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9b.tar.gz
+(sha256 8e1bbc76c71d74fef2fb85db7e7ca8eba13d6a86623c54992b60162db554ffdb).
+No backends: platform/ui/ui_gl.cpp draws through the renderer's GL table and
+platform/ui/ui_menu.cpp feeds input. Upgrade by replacing these files.
