@@ -33,56 +33,28 @@
 extern "C" {
 #endif
 
-/* --- destructors ---------------------------------------------------------
- * Unambiguous: the target takes no arguments, so the pointer ARM left in r0
- * was never read.  Dropping it is exactly equivalent. */
-
-void sub_08002E3C(void);
-
-void PortDtor_sub_08002E3C(struct Task *task)
-{
-    (void)task;
-    sub_08002E3C();
-}
-
-/* --- task mains ----------------------------------------------------------
- * These take the task's own struct.  TasksExec calls `gCurTask->main()` with
- * no argument, so on ARM they read whatever r0 happened to hold -- and the
- * only value that makes them work is the current task's struct pointer, which
- * is what every other main in the same files fetches for itself with
- * TaskGetStructPtr(gCurTask).
- *
- * INFERENCE, not proof: the reference assembly for TasksExec would settle
- * whether r0 genuinely holds that at the call.  Every other reading makes
- * these functions dereference garbage on hardware too, so this is the reading
- * that makes the original work.  If an object driven by one of these
- * misbehaves, start here.
- */
-
-struct Unk_0802B4A8;
-void sub_0802D528(struct Unk_0802B4A8 *);
-void sub_0802D53C(struct Unk_0802B4A8 *);
-void sub_0802D550(struct Unk_0802B4A8 *);
-
-void PortMain_sub_0802D528(void) { sub_0802D528(TaskGetStructPtr(gCurTask)); }
-void PortMain_sub_0802D53C(void) { sub_0802D53C(TaskGetStructPtr(gCurTask)); }
-void PortMain_sub_0802D550(void) { sub_0802D550(TaskGetStructPtr(gCurTask)); }
+/* The destructor (sub_08002E3C) and task-main (sub_0802D5xx) adapters that
+ * used to live here are gone: upstream retyped sub_08002E3C to take its task,
+ * and the sub_0802D5xx casts were in the port's own decompilation of
+ * code_0802B4A8, which upstream still has as assembly.  FNPTR_CASTS in
+ * tools/portify.py is where the next one goes. */
 
 /* --- reads through a pointer that is not valid yet ------------------------
  *
- * sub_080338B4 builds the HUD before the room is known.  CreateKirby leaves
- * ObjectBase.roomId at 0xFFFF -- sub_0803EA90 sets it deliberately -- and
- * nothing fills it in until sub_08055920, which sub_080332BC calls *after*
- * sub_080338B4 has returned.  So sub_08034FA8 runs this:
+ * CreateGameplayHud (was sub_080338B4) builds the HUD before the room is
+ * known.  CreateKirby leaves ObjectBase.roomId at 0xFFFF -- sub_0803EA90 sets
+ * it deliberately -- and nothing fills it in until sub_08055920, which
+ * sub_080332BC calls *after* CreateGameplayHud has returned.  So
+ * DrawEnemyHealthOrAreaName (was sub_08034FA8, now in hud.c) runs this:
  *
- *     gUnk_08D6CD0C[gKirbys[gUnk_0203AD3C].base.base.base.roomId]->unk46
+ *     gUnk_08D6CD0C[gKirbys[gLocalPlayerId].base.roomId]->unk46
  *
  * with roomId == 0xFFFF.  The index is still inside the ROM (0x08DACD08) and
  * yields 0x100F0D0F, which is not an address the GBA decodes: the console
- * returns open bus and carries on.  Nothing is lost, because sub_080338B4
+ * returns open bus and carries on.  Nothing is lost, because CreateGameplayHud
  * zeroes the very bytes this writes on the next line:
  *
- *     sub_08034FA8(NULL);
+ *     DrawEnemyHealthOrAreaName(NULL);
  *     CPU_FILL(0, (void *)0x060077A0, 0x100, 16);
  *
  * WebAssembly has no open bus.  0x100F0D55 is past the end of linear memory,

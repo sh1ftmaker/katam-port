@@ -303,16 +303,19 @@ struct P32<void> {
     void *operator+(u32 n) const
     { return reinterpret_cast<u8 *>(static_cast<uintptr_t>(v)) + n; }
 
-    /* The cast back out, to whatever the caller knows it really is.
+    /* The conversion out, to whatever the caller knows it really is --
+     * implicit, because that is what void* does in C, and the game writes
+     * `struct Kirby *k = obj->base.parent;` in two dozen places.
      *
-     * Implicit, which is C's void*-to-T*: `struct Kirby *k =
-     * obj->base.parent;`, and -- GNU C, which the decompilation is -- the same
-     * to a function pointer (`form->fn = obj->unk78;`).  Up to GCC 15,
-     * -fpermissive let operator void*() above chain into that conversion and
-     * this could stay explicit; GCC 16 refuses ("cannot convert 'P32<void>'
-     * to 'Kirby*'") at two dozen sites, so the conversion is spelled out. */
-    template <class U,
-              typename std::enable_if<!std::is_void<U>::value, int>::type = 0>
+     * This used to be `explicit`, and the build relied on -fpermissive
+     * letting GCC consider an explicit conversion function for
+     * copy-initialisation anyway.  GCC 16 stopped doing that ("explicit
+     * conversion function was not considered") and 26 sites failed, on the
+     * pre-sync tree as much as the current one.  P32<const void> already
+     * converts implicitly through the primary template; this matches it.
+     * The non-template operator void* above still wins for void*, and U
+     * cannot be deduced in a boolean context, so `if (p)` is unchanged. */
+    template <class U>
     operator U *() const { return reinterpret_cast<U *>(static_cast<uintptr_t>(v)); }
 
     /* From another PTR32 of a different pointee.  The decompilation assigns

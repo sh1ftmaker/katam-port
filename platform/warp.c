@@ -92,14 +92,14 @@ static bool8 CanWarpNow(struct Kirby *kirby)
     /* A warp is only meaningful once the player is in a level: before that
      * there is no room to leave, gCurLevelInfo holds 0xFFFF, and installing a
      * transition state would run it against a level that does not exist. */
-    if (kirby->base.base.base.roomId == 0xFFFF)
+    if (kirby->base.roomId == 0xFFFF)
         return FALSE;
-    if (gCurLevelInfo[kirby->base.base.base.unk56].currentRoom == 0xFFFF)
+    if (gCurLevelInfo[kirby->base.unk56].currentRoom == 0xFFFF)
         return FALSE;
     /* Already mid-transition -- flags bit 8 is the door/warp state, and
      * starting a second one on top of it is how you get two room loads racing
      * for one slot. */
-    if (kirby->base.base.base.flags & 0x100)
+    if (kirby->base.flags & 0x100)
         return FALSE;
     return TRUE;
 }
@@ -131,11 +131,11 @@ static void Deliver(u8 playerId, u16 room, u8 cellX, u8 cellY)
      * collision sweep has already set unk58 & 0x4000 for him.  sub_08055920
      * sets flags bit 8, which makes the sweep skip this object, so what is
      * written here survives to the frame sub_080562D0 runs on. */
-    kirby->base.base.base.unk58 &= ~0x4000;
-    kirby->base.base.base.unk62 &= ~0x10;
+    kirby->base.unk58 &= ~0x4000;
+    kirby->base.unk62 &= ~0x10;
 
     /* The destination, in the fields that branch reads.  Note the field-name
-     * collision: base.base.base.roomId at +0x60 is the live object's room and
+     * collision: base.roomId at +0x60 is the live object's room and
      * writing it from outside does nothing, while kirby->roomId at +0x106 is
      * the respawn record, which is an input the transition state reads.  This
      * writes the second.  A warp star writes the same two fields

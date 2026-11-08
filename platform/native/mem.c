@@ -258,16 +258,15 @@ int PortHostRangeOk(uintptr_t addr, u32 len)
         return 0;
 
     page = addr & ~(uintptr_t)0xFFFu;
-    if (page == sMemoPage && ((addr + len - 1) & ~(uintptr_t)0xFFFu) == page)
+    if (((addr + len - 1) & ~(uintptr_t)0xFFFu) != page)
+        return PortHostAddrValid(addr, len);   /* spans pages: not memoised */
+    if (page == sMemoPage)
         return sMemoOk;
 
-    /* Memoise only a verdict about this one page.  A multi-page range that
-     * fails because a *later* page is unmapped says nothing about the first
-     * one, and storing it under the first page refused every later one-page
-     * check there -- a DmaFill from a local after a big CpuFill from the
-     * same stack page, for instance. */
-    if (((addr + len - 1) & ~(uintptr_t)0xFFFu) != page)
-        return PortHostAddrValid(addr, len);
+    /* Only a single-page answer is an answer about that page.  This used to
+     * memoise a multi-page query under its first page too, so one run that
+     * went off the end of the stack marked the stack's top page bad for every
+     * small transfer after it. */
     sMemoOk = PortHostAddrValid(addr, len);
     sMemoPage = page;
     return sMemoOk;

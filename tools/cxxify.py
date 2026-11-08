@@ -388,17 +388,26 @@ CXX_SITES = {
          '? (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unk8 '
          ': (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unkC[a2->unkE];'),
     ],
+    # The callers of GetRoomObjectCollisionList / GetRoomSolidCollisionList
+    # (were sub_08039490 / sub_080394C8): see object_collision.c below.
+    # large_star_stone_block.c no longer calls it upstream.
     'code_0800ECAC_2.c': [
-        ('    struct Object2 **r7 = sub_08039490(&a1->unk40->base.base.base);',
-         '    PTR32(struct Object2) *r7 = sub_08039490(&a1->unk40->base.base.base);'),
+        ('    struct ObjectBase **r7 = GetRoomObjectCollisionList(&a1->unk40->base);',
+         '    PTR32(struct ObjectBase) *r7 = GetRoomObjectCollisionList(&a1->unk40->base);'),
     ],
-    'large_star_stone_block.c': [
-        ('    struct Object2 **list = sub_08039490(&block->base);',
-         '    PTR32(struct Object2) *list = sub_08039490(&block->base);'),
+    'cpu_kirby_trigger.c': [
+        ('    struct ObjectBase **list = GetRoomObjectCollisionList(&obj->base);',
+         '    PTR32(struct ObjectBase) *list = GetRoomObjectCollisionList(&obj->base);'),
     ],
     'big_small_switch.c': [
-        ('    struct Object2 **list;',
-         '    PTR32(struct Object2) *list;'),
+        ('    struct ObjectBase **list;',
+         '    PTR32(struct ObjectBase) *list;'),
+    ],
+    'code_0800ECAC.c': [
+        # Walks the row GetRoomSolidCollisionList returns (the job the old
+        # sub_0800F044.c site did; that function is assembly upstream now).
+        ('    struct Object **r7;',
+         '    PTR32(struct Object) *r7;'),
     ],
     'code_08026044.c': [
         # Locals mirroring a narrowed member whose pointee is itself a pointer.
@@ -430,31 +439,55 @@ CXX_SITES = {
         ('DmaCopy32(3, gHBlankCallbacks, gHBlankIntrs, gNumHBlankCallbacks * sizeof(HBlankFunc));',
          'DmaCopy32(3, gHBlankCallbacks, gHBlankIntrs, gNumHBlankCallbacks * sizeof(PTR32_TD(HBlankFunc)));'),
     ],
-    'code_08032E98.c': [
-        ('void *sub_08039490(struct ObjectBase *obj)',
-         'PTR32(struct Object2) *sub_08039490(struct ObjectBase *obj)'),
-        ('    return &gUnk_02022F50[temp * 64];',
-         '    return (PTR32(struct Object2) *)&gUnk_02022F50[temp * 64];'),
-        # The same shape as phan_phan.c below: locals holding the *address* of
-        # a narrowed member, which is a PTR32(T)* and not a T**.
-        ('    struct ObjectBase **q;\n    struct ObjectBase **r;',
-         '    PTR32(struct ObjectBase) *q;\n    PTR32(struct ObjectBase) *r;'),
-        # gUnk_02022EC0 is `struct Object2 *gUnk_02022EC0[][8]` at 0x02022EC0 --
+    # Upstream split code_08032E98.c; these two functions and the collision
+    # pass that walks both tables are in object_collision.c now.
+    'object_collision.c': [
+        ('struct ObjectBase **GetRoomObjectCollisionList(struct ObjectBase *object)',
+         'PTR32(struct ObjectBase) *GetRoomObjectCollisionList(struct ObjectBase *object)'),
+        # gUnk_02022EC0 is `struct Object *gUnk_02022EC0[][8]` at 0x02022EC0 --
         # a linker-placed array whose *elements* are pointers, so they are four
-        # bytes each and a row of it is a PTR32(struct Object2)*.  Everything
+        # bytes each and a row of it is a PTR32(struct Object)*.  Everything
         # that walks a row has to agree, which is this function and its callers.
-        ('struct Object2 **sub_080394C8(struct ObjectBase *obj)',
-         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *obj)'),
-        ('    struct Object2 **pp;',
-         '    PTR32(struct Object2) *pp;'),
+        ('struct Object **GetRoomSolidCollisionList(struct ObjectBase *object)',
+         'PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *object)'),
+        # ProcessObjectCollisionLists (was sub_08037314): the cursors over both
+        # tables.  The cast is the dangerous one -- a C-style cast compiles
+        # under C++ whatever it is given, so left alone it would have walked a
+        # four-byte table eight bytes at a time with no diagnostic at all.
+        ('    struct ObjectBase **slot;\n    struct ObjectBase **otherSlot;',
+         '    PTR32(struct ObjectBase) *slot;\n    PTR32(struct ObjectBase) *otherSlot;'),
+        ('        slot = (struct ObjectBase **)gUnk_02022EC0[group];',
+         '        slot = (PTR32(struct ObjectBase) *)gUnk_02022EC0[group];'),
+    ],
+    'palette_effects.c': [
+        # QueuePaletteEffect (was sub_08039FF8) walks gPaletteEffectManager's
+        # unk80[8], a member array of narrowed pointers, through a cursor --
+        # new in upstream's rewrite; the old body indexed it directly.
+        ('    struct PaletteEffect **slot;',
+         '    PTR32(struct PaletteEffect) *slot;'),
     ],
     'sub_0800F044.c': [
-        # The other end of sub_080394C8: its local re-declaration and the
-        # variable that walks the row it returns.
-        ('struct Object2 **sub_080394C8(struct ObjectBase *);',
-         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *);'),
-        ('    struct Object2 **objs;',
-         '    PTR32(struct Object2) *objs;'),
+        # The other end of GetRoomSolidCollisionList: its local
+        # re-declaration and the variable that walks the row it returns.
+        # Upstream still has this file as assembly; it comes from the decomp
+        # patch series that carries all-work's C.
+        ('struct Object **GetRoomSolidCollisionList(struct ObjectBase *);',
+         'PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *);'),
+        ('    struct Object **objs;',
+         '    PTR32(struct Object) *objs;'),
+    ],
+    'object_spawner.c': [
+        # The spawner's live-object list is game-allocated in EWRAM --
+        # EwramMalloc(n << 3), then CpuFill32 over n << 2 bytes -- so its
+        # elements are the console's four-byte pointers.  Walked as
+        # `struct ObjectBase **` at LP64 the stride doubles and the second half
+        # of the walk reads heap the fill never zeroed.  Present before the
+        # upstream sync too (sub_0811BA30 in all-work); no type check sees it,
+        # because the buffer is a void* member.
+        ('                struct ObjectBase **entities;',
+         '                PTR32(struct ObjectBase) *entities;'),
+        ('    struct ObjectBase **entities = spawner->obj.unk8C;',
+         '    PTR32(struct ObjectBase) *entities = spawner->obj.unk8C;'),
     ],
     'code_080332BC.c': [
         # gUnk_08D60B44 is `const u8 *gUnk_08D60B44[8]` in ROM: eight four-byte
@@ -516,22 +549,21 @@ CXX_HEADER_SITES = {
         ('extern HBlankFunc gHBlankIntrs[4];',
          'extern PTR32_TD(HBlankFunc) gHBlankIntrs[4];'),
     ],
-    'functions.h': [
-        ('u32 *sub_08002888(u32 arg0, u8 index, u8 subindex);',
-         'u32 *sub_08002888(enum SUB_08002888_ENUM arg0, u8 index, u8 subindex);'),
-        # See code_08032E98.c in CXX_SITES: sub_080394C8 returns a row of
-        # gUnk_02022EC0, whose elements are four-byte pointers.
-        ('struct Object2 **sub_080394C8(struct ObjectBase *);',
-         'PTR32(struct Object2) *sub_080394C8(struct ObjectBase *);'),
-        # Its twin, sitting immediately above it in code_08032E98.c and doing
-        # the same thing to gUnk_02022F50 -- but declared `void *`, so nothing
+    # functions.h's sub_08002888 (now GetStateSlot) prototype was fixed
+    # upstream to take the enum, so that entry is gone.
+    'object_collision.h': [
+        # See object_collision.c in CXX_SITES: GetRoomSolidCollisionList (was
+        # sub_080394C8) returns a row of gUnk_02022EC0, whose elements are
+        # four-byte pointers.
+        ('struct Object **GetRoomSolidCollisionList(struct ObjectBase *object);',
+         'PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *object);'),
+        # Its twin, GetRoomObjectCollisionList (was sub_08039490), does the
+        # same to gUnk_02022F50.  It used to be declared `void *`, so nothing
         # complained while three callers walked a four-byte table eight bytes
-        # at a time.  That `void *` is why sub_080394C8 was found in the first
-        # sweep and this one survived to be the last crash.  The
-        # decompilation's own comment on the line says it does not know the
-        # return type; this says.
-        ('void *sub_08039490(struct ObjectBase *); // TODO: may return struct Object2 ** or struct ObjectBase **',
-         'PTR32(struct Object2) *sub_08039490(struct ObjectBase *);'),
+        # at a time; upstream now types it ObjectBase **, which is right on the
+        # console and wrong by a factor of two at LP64.
+        ('struct ObjectBase **GetRoomObjectCollisionList(struct ObjectBase *object);',
+         'PTR32(struct ObjectBase) *GetRoomObjectCollisionList(struct ObjectBase *object);'),
     ],
 }
 
@@ -937,8 +969,46 @@ def wrap_source_extern_c(text, rep):
     return ''.join(lines)
 
 
+# `static const u16 sHudPalettes[18][16];` near the top of a file and
+# `static const u16 sHudPalettes[18][16] = { ... };` further down.  In C the
+# first is a tentative definition and the pair is one object.  C++ has no
+# tentative definitions: the first line *is* the definition and the second is
+# a redefinition.  Upstream's hud.c (split out of code_08032E98.c) does this
+# for 14 tables.
+#
+# The C++ way to forward-declare an object is `extern`, and `extern` cannot be
+# followed by `static`, so both lose their internal linkage: the declaration
+# becomes `extern`, the definition plain.  Valid C as well, so the ILP32
+# builds see the same thing.  These are s-prefixed file-local names; if two
+# files ever pick the same one, that is a duplicate-symbol link error, not a
+# silent merge.
+_STATIC_FWD = re.compile(
+    r'^static(\s+[^;=(){}]*?\b(?P<name>\w+)\s*(?:\[[^\]]*\]\s*)*;)', re.M)
+
+
+def externalise_tentative_statics(text, rep):
+    # Matches are collected first and the text rewritten back to front, so
+    # earlier offsets stay valid.
+    edits = []
+    for m in _STATIC_FWD.finditer(text):
+        defn = re.compile(r'^static\s+(?=[^;=(){}]*\b%s\s*(?:\[[^\]]*\]\s*)*=)'
+                          % re.escape(m.group('name')), re.M)
+        d = defn.search(text, m.end())
+        if not d:
+            continue
+        edits.append((d.start(), d.end(), ''))          # drop `static `
+        edits.append((m.start(), m.start() + len('static'), 'extern'))
+    for start, end, new in sorted(edits, reverse=True):
+        text = text[:start] + new + text[end:]
+    if edits:
+        rep.bump('tentative static definitions made extern for C++',
+                 len(edits) // 2)
+    return text
+
+
 def rewrite_source(text, rep, name='', header_fns=None, flex=None):
     text = rename_cxx_keywords(text, rep)
+    text = externalise_tentative_statics(text, rep)
     text = expand_designated_ranges(text, rep)
     if header_fns:
         text = fix_unprototyped_decls(text, header_fns, rep)

@@ -241,8 +241,8 @@ static int sHaveCam;
 
 static void UpdateZoom(void)
 {
-    s32 camX = gCurLevelInfo[gUnk_0203AD3C].viewportPosition.x;
-    s32 camY = gCurLevelInfo[gUnk_0203AD3C].viewportPosition.y;
+    s32 camX = gCurLevelInfo[gLocalPlayerId].viewportPosition.x;
+    s32 camY = gCurLevelInfo[gLocalPlayerId].viewportPosition.y;
     s32 dx, dy, speed, span;
 
     if (!sHaveCam) {
@@ -293,10 +293,10 @@ static void UpdateZoom(void)
  * actually produced -- outside that there is nothing to crop. */
 static void CropAround(s32 w, s32 h, s32 *outX, s32 *outY)
 {
-    s32 kx = (gKirbys[gUnk_0203AD3C].base.base.base.x >> 8)
-           - (gCurLevelInfo[gUnk_0203AD3C].viewportPosition.x >> 8);
-    s32 ky = (gKirbys[gUnk_0203AD3C].base.base.base.y >> 8)
-           - (gCurLevelInfo[gUnk_0203AD3C].viewportPosition.y >> 8);
+    s32 kx = (gKirbys[gLocalPlayerId].base.x >> 8)
+           - (gCurLevelInfo[gLocalPlayerId].viewportPosition.x >> 8);
+    s32 ky = (gKirbys[gLocalPlayerId].base.y >> 8)
+           - (gCurLevelInfo[gLocalPlayerId].viewportPosition.y >> 8);
     s32 x, y;
 
     /* Before a level is loaded these are zero, which would peg the crop to
@@ -386,7 +386,7 @@ static int SourceMapUsable(const u16 *map, s32 w, s32 h)
 
 static void ApplyBgLimits(void)
 {
-    struct LevelInfo *li = &gCurLevelInfo[gUnk_0203AD3C];
+    struct LevelInfo *li = &gCurLevelInfo[gLocalPlayerId];
     int i;
 
     ClearBgLimits();

@@ -114,6 +114,10 @@ _ARR_MEMBER = re.compile(
     r'[ \t]*\([ \t]*\*[ \t]*(?P<name>[A-Za-z_]\w*)[ \t]*\)[ \t]*'
     r'(?P<dims>(?:\[[^\];]*\])+)[ \t]*;' + _TAIL)
 
+_INTPTR_MEMBER = re.compile(
+    _LEAD + r'(?P<type>u?intptr_t)\s+(?P<name>[A-Za-z_]\w*)'
+    r'(?P<dims>(?:\s*\[[^\]]*\])*)\s*;' + _TAIL)
+
 _TAG_OPEN = re.compile(r'\b(?:struct|union)\b'r'(?:\s*__attribute__\s*\(\(.*?\)\))?'r'(?:\s+[A-Za-z_]\w*)?\s*\{')
 
 # Types whose members must not be narrowed.
@@ -141,28 +145,10 @@ SKIP_TYPES = set()
 # One member in the tree.  The typedef is emitted next to the structure rather
 # than in a shared header so that it stays where its only user is.
 NARROW_SITES = {
-    # An anonymous union whose whole body is on one line.  narrow_members works
-    # a line at a time -- it finds a `{`, then rewrites the member declarations
-    # between it and the matching `}` -- so a body that opens and closes on the
-    # same line has no lines to rewrite and passes through untouched.
-    #
-    # The cost of missing it is not a wrong pointer.  It is eight bytes instead
-    # of four, which makes `struct CutsceneTrigger` 0x2C0 rather than 0x2B8,
-    # which makes `TaskCreate(..., sizeof(struct CutsceneTrigger), ...)` ask the
-    # IWRAM heap for more than the console would, which makes the heap run out
-    # sooner, which makes some *later* object fall back to EWRAM -- and the
-    # first frame that looks different is 73 frames after that.
-    #
-    # One instance in the tree, so the general fix (teach narrow_members to
-    # split a single-line body) would be more machinery than the problem.
-    # tools/abi_size_diff.py is what makes that a safe trade: a second instance
-    # shows up there as a type whose size differs between the two ABIs.
-    'cutscene_trigger.c': [
-        ('    /* 0x0C8 */ union { struct Object4 *obj4; s16 s; u16 h; '
-         'u8 b[4]; s8 sb[4]; } unkC8;',
-         '    /* 0x0C8 */ union { PTR32(struct Object4) obj4; s16 s; u16 h; '
-         'u8 b[4]; s8 sb[4]; } unkC8;'),
-    ],
+    # cutscene_trigger.c's one-line union at 0x0C8 used to be here.  Upstream
+    # moved struct CutsceneTrigger to cutscene_trigger.h and split the union
+    # into per-variant structs with ordinary multi-line bodies, which
+    # narrow_members handles; tools/abi_size_diff.py is what confirms it.
     'intro.h': [
         ('    void (*const *unkC)(struct Unk_08145B64_5EC *);',
          '    PTR32(PortFnpUnk_08387348_unkC) unkC;'),
@@ -206,7 +192,8 @@ NARROW_SITES = {
 # reports this as the only instance.  Run it after a decomp update; a new entry
 # here is the fix.
 ALIASED_ARRAYS = {
-    'code.c': [
+    # The extern used to be local to code.c; upstream moved it to data.h.
+    'data.h': [
         ('extern struct RoomTiledBG *const gUnk_082D8D74[];',
          'extern PTR32(struct RoomTiledBG) const gUnk_082D8D74[];'),
     ],
@@ -263,7 +250,7 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
         text = apply_narrow_sites(text, name, rep)
     out = []
     pos = 0
-    data_n = fn_n = td_n = arr_n = 0
+    data_n = fn_n = td_n = arr_n = int_n = 0
 
     for m in _TAG_OPEN.finditer(text):
         if m.start() < pos:
@@ -289,6 +276,21 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
             # Skipping them left struct ForegroundPalette_4pp holding a
             # `u16 **u16pp` inside an anonymous union, eight bytes wide.
             if True:
+                # An address held as an integer.  Upstream retyped three
+                # members from u32 to uintptr_t (decomp d9806a0: Background's
+                # tilemap pointer, both words of struct Unk_03002EC0), which is
+                # eight bytes under LP64 and moved every member after them.
+                # Back to the four bytes the console and the pre-sync tree
+                # had; identical in the ILP32 builds, where uintptr_t is u32.
+                im = _INTPTR_MEMBER.match(line.rstrip('\n'))
+                if im:
+                    lines[i] = ('%s%s %s%s;%s\n'
+                                % (im.group('lead'),
+                                   's32' if im.group('type') == 'intptr_t' else 'u32',
+                                   im.group('name'), im.group('dims'),
+                                   im.group('tail')))
+                    int_n += 1
+                    continue
                 am = _ARR_MEMBER.match(line.rstrip('\n'))
                 if am:
                     lines[i] = ('%sPTR32_ARR(%s, %s, %s);%s\n'
@@ -359,4 +361,6 @@ def narrow_members(text, rep, skip=SKIP_TYPES, name='', typedefs=frozenset()):
         rep.bump('typedef-typed pointer members narrowed to PTR32_TD', td_n)
     if arr_n:
         rep.bump('pointer-to-array members narrowed to PTR32_ARR', arr_n)
+    if int_n:
+        rep.bump('uintptr_t members narrowed to u32', int_n)
     return text

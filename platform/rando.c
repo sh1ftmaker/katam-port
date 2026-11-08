@@ -18,9 +18,9 @@
  *
  * Not at the constructor call.  There are three of those (the room-entry
  * rescan in CreateObject, and the two scroll-in spawns in sub_0800A2B4 and
- * sub_0800A460), they all take `const struct Object *`, and -- this is the
+ * sub_0800A460), they all take `const struct ObjectTemplate *`, and -- this is the
  * part that decides the design -- the constructor *keeps* that pointer.
- * struct Object2 has an `object` back-pointer and sub_0809A630 dereferences
+ * struct Object has an `object` back-pointer and sub_0809A630 dereferences
  * it every frame the object is alive.  So a hook at the call site would have
  * to hand out a rewritten record that outlives the call, which means owning a
  * pool of them and knowing when each one dies.
@@ -447,7 +447,7 @@ const struct LevelInfo_1E4 *PortRandoObjList(u8 playerId, u16 roomId,
         for (i = 0; i < stride; i++)
             dst[i] = src[i];
 
-        /* offsetof(struct Object, type) is 12 and is frozen by
+        /* offsetof(struct ObjectTemplate, type) is 12 and is frozen by
          * platform/port/gba_layout.h, so the copy is addressed as bytes and
          * only this one is interpreted. */
         {
@@ -476,7 +476,7 @@ const struct LevelInfo_1E4 *PortRandoObjList(u8 playerId, u16 roomId,
     }
 
     sListHdr[slot][parity] = *list;      /* unk4/unk8/unkC/unkD unchanged */
-    sListHdr[slot][parity].unk0 = (const struct Object *)sListBuf[slot][parity];
+    sListHdr[slot][parity].unk0 = (const struct ObjectTemplate *)sListBuf[slot][parity];
     sRoomsSeen++;
     return &sListHdr[slot][parity];
 }

@@ -1,0 +1,35 @@
+From e6209744e160590d793db7edf50c7cc5df3ce39c Mon Sep 17 00:00:00 2001
+From: sh1ftmaker <shiftmaker@gmail.com>
+Date: Sat, 7 Nov 2026 21:41:21 -0800
+Subject: [PATCH 5/6] Follow upstream rename gUnk_03002558 -> gMultiSioEnabled
+ in code_0802E57C.c
+
+---
+ src/code_0802E57C.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/code_0802E57C.c b/src/code_0802E57C.c
+index a82ee5b..6639bd8 100644
+--- a/src/code_0802E57C.c
++++ b/src/code_0802E57C.c
+@@ -316,7 +316,7 @@ static void sub_0802ED44(struct Unk_0802E57C *x) {
+ }
+ 
+ static void sub_0802EDC8(struct Unk_0802E57C *x) {
+-    if (gUnk_03002558 == 1) {
++    if (gMultiSioEnabled == 1) {
+         x->unk174 = gUnk_082EB740;
+     } else {
+         x->unk174 = gUnk_082EB700;
+@@ -325,7 +325,7 @@ static void sub_0802EDC8(struct Unk_0802E57C *x) {
+     x->unk186 = 0;
+     x->unk180 = x->unk174->unk0;
+     x->unk182 = x->unk174->unk2;
+-    if (gUnk_03002558 == 1) {
++    if (gMultiSioEnabled == 1) {
+         m4aSongNumStart(SE_08D5BE24);
+     } else {
+         m4aSongNumStart(SE_08D5C490);
+-- 
+2.56.0
+

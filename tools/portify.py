@@ -111,14 +111,11 @@ UNDEF_NONMATCHING = {
 # callee's type at every indirect call.  Each is redirected to an adapter in
 # platform/adapters.c that has the signature the call site expects.
 FNPTR_CASTS = {
-    'code.c': [
-        ('(TaskDestructor)sub_08002E3C', 'PortDtor_sub_08002E3C'),
-    ],
-    'code_0802B4A8.c': [
-        ('(TaskMain)sub_0802D528', 'PortMain_sub_0802D528'),
-        ('(TaskMain)sub_0802D53C', 'PortMain_sub_0802D53C'),
-        ('(TaskMain)sub_0802D550', 'PortMain_sub_0802D550'),
-    ],
+    # Empty since the upstream sync of 2026-11: upstream retyped
+    # sub_08002E3C to take the task it is handed (so level.c passes it as a
+    # plain TaskDestructor), and the three (TaskMain)sub_0802D5xx casts were
+    # in the port's own decompilation of code_0802B4A8, which upstream still
+    # has as assembly.  Kept as the place to put the next one.
 }
 
 # Reads through a pointer built from a field that is not initialised yet.  On
@@ -132,9 +129,11 @@ FNPTR_CASTS = {
 # docs/DECOMP-REQUESTS.md asks the decompilation for a guard so the port does
 # not have to patch the text.
 WILD_READS = {
-    'code_08032E98.c': (
-        [('gUnk_08D6CD0C[gKirbys[gUnk_0203AD3C].base.base.base.roomId]->unk46',
-          'PortRoomTilesetIndex(gKirbys[gUnk_0203AD3C].base.base.base.roomId)')],
+    # Upstream split code_08032E98.c; the read now lives in hud.c's
+    # DrawEnemyHealthOrAreaName (was sub_08034FA8), twice.
+    'hud.c': (
+        [('gUnk_08D6CD0C[gKirbys[gLocalPlayerId].base.roomId]->unk46',
+          'PortRoomTilesetIndex(gKirbys[gLocalPlayerId].base.roomId)')],
         'u16 PortRoomTilesetIndex(u16 roomId);\n',
     ),
 }
@@ -188,23 +187,10 @@ NULL_DEREFS = {
 # DMA_ENABLE | DMA_START_NOW | DMA_16BIT | DMA_SRC_INC | DMA_DEST_INC, which is
 # exactly what DmaCopy16 expands to, and the count arithmetic is identical.
 RAW_DMA = {
-    'bg.c': [(
-        """                                vu32 *dmaRegs = (vu32 *)(0x4000000 + 0xd4);
-                                s32 size;
-                                size = r8 - 1;
-                                dmaRegs[0] = (vu32)(r2);
-                                dmaRegs[1] = (vu32)(r4);
-                                dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - (size)) * sp8)/(16/8)));
-                                //dmaRegs[2] = (vu32)((0x8000 | 0x0000 | 0x0000 | 0x0000 | 0x0000) << 16 | (((r6->unk26 - ({ r8 - 1; })) * sp8)/(16/8)));
-                                dmaRegs[2];""",
-        """                                /* PORT: was an open-coded DMA3 register poke.
-                                 * Software DMA cannot see raw register stores,
-                                 * so this moved nothing and every scrolling
-                                 * background's tilemap stayed at its fill
-                                 * value.  This is the decompilation's own
-                                 * commented-out equivalent, restored. */
-                                DmaCopy16(3, r2, r4, (r6->unk26 - (r8 - 1)) * sp8);""",
-    )],
+    # The one instance (sub_08153184's scrolling-BG row copy in bg.c) was
+    # rewritten upstream as DmaCopy16 when the function was matched
+    # (decomp 1197474), so there is nothing left to substitute.  A grep of
+    # src/ for 0x40000D4 / REG_DMA3 finds no other raw register poke.
 }
 
 # ---------------------------------------------------------------------------
@@ -246,7 +232,8 @@ VIEW_DECL = ('/* PORT: view bounds, see platform/view.c */\n'
 
 VIEW_PATCHES = {
     # --- OAM submission bounds ---------------------------------------------
-    'sprite_2.c': [
+    # (sprite_2.c until upstream folded it into sprite.c; the code is unchanged.)
+    'sprite.c': [
         ('(sp00 + sp04 >= 0 && sp00 <= 240 && sp08 + sl >= 0 && sl <= 160)',
          '(sp00 + sp04 >= gPortOamMinX && sp00 <= gPortOamMaxX'
          ' && sp08 + sl >= gPortOamMinY && sl <= gPortOamMaxY)'),
@@ -418,7 +405,8 @@ RANDO_DECL = ('/* PORT: the randomizer, see platform/rando.c */\n'
               'u8 playerId, u16 roomId, const struct LevelInfo_1E4 *list);\n')
 
 RANDO_PATCHES = {
-    'code.c': [(
+    # (code.c until upstream split it; the line moved to level.c unchanged.)
+    'level.c': [(
         '        levelInfo->objlistPtr = '
         'gLevelObjLists[gRoomProps[levelInfo->currentRoom].objectListIdx].obj;',
         '        levelInfo->objlistPtr = PortRandoObjList(playerId,\n'
@@ -526,6 +514,10 @@ AGBCC_ROUNDED_STRUCTS = {
     'subgames.h':        [('Unk_0812DBB4_0', 8), ('Unk_0812EFB4', 4),
                           ('Unk_081377D4', 4)],
     'code_0800ECAC.h':   [('Unk_0800ECAC', 4)],
+    # New upstream (sub_08155604's argument).  Five s16, documented 0xC;
+    # only ever a local or a pointer today, so harmless, but size-check
+    # holds the list to the documented sizes.
+    'sprite.h':          [('SpriteTransform', 12)],
 }
 
 
@@ -557,20 +549,13 @@ def round_struct_sizes(text, rep, name):
 
 
 FNPTR_ADAPTER_DECLS = {
-    'code.c': 'void PortDtor_sub_08002E3C(struct Task *);\n',
-    'code_0802B4A8.c': ('void PortMain_sub_0802D528(void);\n'
-                        'void PortMain_sub_0802D53C(void);\n'
-                        'void PortMain_sub_0802D550(void);\n'),
 }
 
 
 DECL_FIXES = {
-    'code_0802E57C.c': [
-        ('void sub_0802F8D8(struct Unk_0802E57C *',
-         'void *sub_0802F8D8(struct Unk_0802E57C *'),
-        ('void sub_0802FA40(struct Unk_0802E57C *',
-         'void *sub_0802FA40(struct Unk_0802E57C *'),
-    ],
+    # code_0802E57C.c's two `void` prototypes for functions returning a
+    # pointer were in the port's own decompilation of that file; upstream
+    # still has it as assembly (asm/code_0802E57C.s).
 }
 
 
@@ -1101,6 +1086,7 @@ def main():
         new = narrow32.narrow_members(new, rep, name=hp.name,
                                       typedefs=narrow_typedefs)
         new = round_struct_sizes(new, rep, hp.name)
+        new = narrow32.apply_aliased_arrays(new, hp.name, rep)
         if new != text:
             hp.write_text(new)
     cxx_protos = cxxify.header_function_prototypes(out / 'include')
@@ -1167,6 +1153,11 @@ def main():
                         text = text.replace(old, new)
                         rep.bump('mis-cast function pointers adapted')
                         hit = True
+                    else:
+                        rep.unhandled.append(
+                            '%s: a FNPTR_CASTS pattern no longer matches -- if '
+                            'the decompilation fixed the cast upstream, drop the '
+                            'entry and its adapter: %s' % (path.name, old))
                 if hit:
                     text = FNPTR_ADAPTER_DECLS[path.name] + text
             for old, new in RAW_DMA.get(path.name, ()):
@@ -1201,9 +1192,15 @@ def main():
                 hit = False
                 for old, new in reads:
                     if old in text:
+                        rep.bump('reads through not-yet-valid pointers guarded',
+                                 text.count(old))
                         text = text.replace(old, new)
-                        rep.bump('reads through not-yet-valid pointers guarded')
                         hit = True
+                    else:
+                        rep.unhandled.append(
+                            '%s: a WILD_READS pattern no longer matches -- the '
+                            'read is unguarded and will fault off the GBA: %s'
+                            % (path.name, ' '.join(old.split())[:70]))
                 if hit:
                     text = decl + text
             story = STORY_HOOK.get(path.name)
@@ -1224,6 +1221,11 @@ def main():
                 if old in text:
                     text = text.replace(old, new)
                     rep.bump('conflicting prototypes corrected')
+                else:
+                    rep.unhandled.append(
+                        '%s: a DECL_FIXES pattern no longer matches -- if the '
+                        'decompilation fixed the prototype upstream, drop the '
+                        'entry: %s' % (path.name, old))
             if path.name in UNDEF_NONMATCHING:
                 text = ('/* PORT: %s */\n#undef NONMATCHING\n\n'
                         % UNDEF_NONMATCHING[path.name]) + text
@@ -1299,9 +1301,45 @@ def main():
             path.write_text(new)
 
     write_overrides(out / 'include', rep)
+    report_vanished_files(out, decomp, rep)
 
     (out / 'PORTIFY_REPORT.txt').write_text(format_report(rep))
     print(format_report(rep))
+
+
+def report_vanished_files(out, decomp, rep):
+    """Every per-file table keyed by a file the tree no longer has.
+
+    Each table above reports a pattern that stops matching -- but only for a
+    file it is handed.  A file renamed, split or deleted upstream is never
+    handed to it, so its entries were skipped without a word: that is how the
+    upstream split of code_08032E98.c into hud.c, object_collision.c and
+    friends silently dropped a WILD_READS guard and five CXX_SITES fixes.
+    """
+    present = {p.name for p in out.rglob('*') if p.is_file()}
+    upstream = {p.name for p in (decomp / 'src').rglob('*.c')}
+    tables = {
+        'REPLACED_FILES': REPLACED_FILES, 'UNDEF_NONMATCHING': UNDEF_NONMATCHING,
+        'FNPTR_CASTS': FNPTR_CASTS, 'WILD_READS': WILD_READS,
+        'NULL_DEREFS': NULL_DEREFS, 'RAW_DMA': RAW_DMA,
+        'CODE_IN_RAM': CODE_IN_RAM, 'STORY_HOOK': STORY_HOOK,
+        'AGBCC_ROUNDED_STRUCTS': AGBCC_ROUNDED_STRUCTS,
+        'FNPTR_ADAPTER_DECLS': FNPTR_ADAPTER_DECLS, 'DECL_FIXES': DECL_FIXES,
+        'M4A_PATCHES': M4A_PATCHES, 'SRAM_RELOC': SRAM_RELOC,
+        'VIEW_PATCHES': VIEW_PATCHES, 'RANDO_PATCHES': RANDO_PATCHES,
+        'cxxify.CXX_SITES': cxxify.CXX_SITES,
+        'cxxify.CXX_HEADER_SITES': cxxify.CXX_HEADER_SITES,
+        'narrow32.NARROW_SITES': narrow32.NARROW_SITES,
+        'narrow32.ALIASED_ARRAYS': narrow32.ALIASED_ARRAYS,
+    }
+    for tname, table in tables.items():
+        for fname in sorted(table):
+            # REPLACED_FILES are deliberately never written to the tree.
+            if fname not in (upstream if tname == 'REPLACED_FILES' else present):
+                rep.unhandled.append(
+                    '%s: %s has an entry for a file the decompilation no longer '
+                    'has -- renamed, split or deleted upstream; find where the '
+                    'code went and move the entry' % (fname, tname))
 
 
 def format_report(rep):

@@ -210,7 +210,11 @@ def declaration_to_macro(decl, name, addr):
     body = re.sub(r'//[^\n]*', '', decl)
     body = re.sub(r'/\*.*?\*/', '', body, flags=re.S).strip()
     body = re.sub(r'^extern\s+', '', body).rstrip().rstrip(';').rstrip()
-    # Storage alignment is irrelevant to an address macro.
+    # Storage alignment is irrelevant to an address macro.  Upstream also
+    # spells it with the decomp's own ALIGNED(n) macro (include/gba/defines.h)
+    # -- `extern struct SourcePalettes gSourcePalettes ALIGNED(4);` -- which
+    # is not an __attribute__ until the preprocessor has run.
+    body = re.sub(r'\bALIGNED\s*\(\s*\w+\s*\)', '', body)
     body = strip_attributes(body).strip()
 
     body = select_declarator(body, name)
@@ -384,8 +388,13 @@ def main():
         # storage instead.  Emitting one collides with that storage and turns
         # the stub's declaration into nonsense.  Stripping comments first looks
         # like a bug fix and is a regression; it was tried.
+        # A symbol already resolved from its own declaration is not part of
+        # this one just because a comment names it (`extern u8
+        # gUnk_03002E82[]; // == gUnk_03002E80 + 2`); re-reading it here only
+        # produced a spurious SKIPPED line.
         group = [n for n in syms
-                 if n != name and re.search(r'\b%s\b' % re.escape(n), hit)]
+                 if n != name and n not in done
+                 and re.search(r'\b%s\b' % re.escape(n), hit)]
         for other in group:
             macro = declaration_to_macro(hit, other, syms[other])
             if macro is None:
@@ -399,6 +408,7 @@ def main():
             skipped.append((name, hit.strip()))
             continue
         resolved.append((name, addr, macro))
+        done.add(name)
 
         # Comment out every declaration of this symbol, everywhere.
 
