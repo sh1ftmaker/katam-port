@@ -1,6 +1,10 @@
 # Netplay v2: deterministic simulation, input-only sync
 
-Design, 2026-11-08. Nothing here is implemented yet. It targets the hard fork
+Design, 2026-11-08. Revised the same day: §12 (model v2.1: no lockstep,
+deadline-sealed inputs, periodic world sync) and §13 (scaling past 4
+players) supersede the waiting parts of §2, §4.4 and §5, and §8's room
+code is now 4 letters. Protocol v2, the room and the lobby are implemented
+(branch `netlobby`); the rest is not yet. It targets the hard fork
 (branch `fork`, game source in `game/`) and the planned GPU renderer, where
 rendering becomes a read-only view of simulation state.
 
@@ -155,6 +159,18 @@ The v2 design:
 - A spectator's request never counts.
 - A joiner gets the event history with the input history, so its replay
   reaches the same value.
+
+**Implemented on branch `netlobby`** (a variation that keeps the max in one
+place): each seated peer sends its request to the room as a control message
+`{t:'view', w, h}` (the page reads it with `PortSimViewRequested`); the room
+(`SessionCore._viewChanged`) computes the per-axis max over the seated peers
+with the same rounding as `RoundView` (whole 16-px cells a side, 240x160 to
+1024x512) and, when it changes, emits a frame-stamped `view {w, h}` event in
+the event column, past the watermark. Every peer schedules it with
+`PortInputLogScheduleView` after `PortSimViewUseSession()`, which lifts the
+240x160 hold for that page and turns local requests into records only. A
+joiner gets the event history in the archive. Spectators' requests never
+count; a sealed seat stops counting.
 
 The netsim branch plans to keep the latched value (`struct PortSimView` in
 `platform/view.c`: `viewW, viewH, prevW, prevH, stock`) in the port sim block
@@ -533,19 +549,49 @@ relaying with no TURN. Its pricing and semantics are **unverified**.
 
 ## 8. Session, lobby and versioning (protocol level)
 
-- **Room code:** 6 characters of Crockford base32 (about 10⁹ codes), which is
-  also the DO name. Idle rooms persist the archive, the latest snapshot and
-  the session save for 7 days, so a world can be resumed.
+- **Room code: 4 letters** (changed from the 6-character Crockford code
+  first proposed; implemented in `netplay/codes.mjs`). The user asked for
+  four characters people can read out and type on a phone:
+  - Alphabet: `BCDFGHJKMNPQRSTVWXZ`, 19 consonants. Letters only, so a phone
+    shows one keyboard and never switches to digits mid-code. No vowels
+    (and no Y), so no code spells a word; a 12-entry substring blocklist
+    catches the few look-alike spellings (`FVCK`, `KKK`, ...; 269 codes, 0.2%
+    of the space). No L or O, so nothing reads as 1, I or 0.
+  - 19⁴ = 130,321 codes: two orders of magnitude above the rooms open at
+    once, so random allocation almost never probes twice.
+  - Input is tolerant: case, spaces, dashes and dots are ignored, a pasted
+    share link is reduced to its `?room=`, and look-alikes map to the letter
+    (`8`→B, `5`→S, `2`→Z, `6`→G, `U`→V).
+  - The server allocates codes at random from the free ones; clients never
+    choose. The code is **not** the DO name: a directory (one `Directory`
+    DO) maps code → room id (128 random bits, the `SessionRoom` DO name).
+    A code is reused only after its room has been empty for 20 minutes.
+  - A short code is guessable by design, so: per-IP token buckets at the
+    edge (30 lookups burst then one per 2 s; **6 misses burst then one per
+    20 s**, about 186 guesses an hour per IP), per-IP limits on creates and
+    on HELLOs per room, and host controls -- lock the lobby, approve each
+    join, kick (banned for the room's life).
+  - A persisted world (the 7-day archive) is never reachable by its old
+    short code: creating a room also returns a 192-bit **resume token**
+    (`POST /v2/resume`), which rebinds the room to a fresh code.
+  - HTTP surface: `POST /v2/rooms` → `{code, resume}`, `GET /v2/rooms/CODE`,
+    `POST /v2/resume {token}`, and the WebSocket at `/v2/rooms/CODE/ws`.
 - **Identity:** a 128-bit random token kept on the client (localStorage, or
   the native config file), sent as the partysocket `id`, plus a display name.
   The DO keeps `identity → last slot`. It is not an account; when abuse
   matters, add an HMAC-signed invite.
-- **Version gate:** checked in HELLO, and the DO refuses on any mismatch.
-  - `protoVersion`.
+- **Version gate:** checked in HELLO, and the DO refuses on any mismatch,
+  naming the field (`error {code:'version', field, room, yours}`), and the
+  lobby tells the player what to do about each one.
+  - `protoVersion` (2).
   - `simVersion`: a hash of the sim source tree, the sim compiler and flags,
     and determinism-relevant generated data. It is stamped at build time
     (`stamp_build.py`) and is the same for web and native builds of one
-    commit. It is *not* a binary hash.
+    commit. It is *not* a binary hash. **Implemented** in
+    `tools/stamp_build.py` (`window.KATAM_SIM`), with one temporary
+    addition: while world syncs move same-build ring snapshots (host
+    function pointers, R5), the wasm's own id is appended. Drop it when M2's
+    portable snapshots land. An unstamped dev page uses a hash of its wasm.
   - `romHash`: SHA-1 of the player's ROM, which must be the same dump.
   - `contentHash`: §11.
   - Release CI blocks if the cross-platform hash corpus (§9.3) disagrees.
@@ -713,6 +759,256 @@ of the latest presented sim state. They may differ per client and are never
 hashed or snapshotted. They must tolerate rewinds, because after a rollback
 they can see state jump backwards, and they receive the de-duplicated sound
 events (M8).
+
+---
+
+## 12. Model v2.1: no lockstep, deadline-sealed inputs, periodic world sync
+
+Revision, 2026-11-08, at the user's direction, implemented as protocol v2 on
+branch `netlobby` (`netplay/session.mjs`, `web/net_session.js`,
+`web/net_game.js`). It replaces the parts of §2, §4.4 and §5 that make peers
+wait for each other. Everything else (the sim/presentation split, the
+determinism audit, snapshots, mods) stands.
+
+### 12.1 What changes, and why
+
+| v2 as first designed | v2.1 | why |
+|---|---|---|
+| Each peer's column is authoritative for itself; a peer that misses the rollback window freezes everyone at the edge (§2.5) | **The room seals every frame at a deadline.** A seat whose input has not arrived is filled with its newest known input ("repeat last") and the late value is discarded. The sealed stream is the truth for everyone, the late sender included. | One slow phone must never hold up the other players. Waiting is the failure the user named. |
+| Rollback (W = 10) is the correction mechanism; past the window, stall | **Rollback is shallow, optional and local.** Today's engine keeps its ring as a cheap way to fix a misprediction a few frames back; nothing on the wire knows about it, and the stall gate is off (`PortRbSetStallGate(0)`). | "Rollback is not so important if they sync periodically." |
+| Desync recovery is an exceptional path (§5.3) | **World sync is a normal path.** A donor's state at a checkpoint replaces a peer's, which re-runs its inputs since. Triggers: hash mismatch, lag, join, a peer's request, and a low background rate. | Corrections that are frequent are small; the presentation layer blends them. |
+| Determinism is required to stay together | **Determinism is an optimisation**: it keeps syncs rare and small (a deterministic peer's state differs from the donor's in few or no pages). Peers stay together through syncs either way. | Cross-platform determinism (R1-R14) is weeks of work; play should not wait for it. |
+| Joining = snapshot + tail (or log replay until M2) | Unchanged in shape: archive (log replay) today, snapshot when portable, **plus a join sync** shortly after the joiner sits. | The join sync makes a joiner correct even if its replay was not. |
+| WATERMARK every 100 ms; peers never simulate past it | The watermark is carried in every FRAMES message and events are stamped past it, but **no peer stops at it**. An event that arrives late is applied one frame late locally, and the next sync reconciles. | No global barrier anywhere: start, join, leave, pause and room changes included. |
+| Host-less DO | Unchanged: the room is the sequencer, archive, referee and relay. The "host" is lobby metadata and passes on after 10 s away. | |
+
+### 12.2 The sequencer
+
+The room keeps a **session clock**: frame F is due at
+`clock.t + (F - clock.f) * 16.74 ms`, anchored on the first input it hears
+(and again when the room has been idle). Frame F is sealed when every
+*expected* seat's input for F is in, or `deadlineMs` (default 100) after it
+was due, whichever comes first. Due times come from the clock, not from the
+first sender: a peer that stamps its inputs far ahead must not shorten the
+others' deadline (an earlier draft did that, and measured as a slow-link peer
+fast-forwarding everyone else).
+
+- *Expected* means seated, connected, live at F, and not **excused**: a seat
+  that was filled `excuseAfter` (20) frames in a row stops being waited for
+  at all, and is waited for again after `rejoinAfter` (10) on-time inputs in
+  a row. Without excusal a chronically late seat made every frame seal at
+  the full deadline (measured: 100% deadline seals, 102 ms p50 latency for
+  everyone); with it, the other peers' p50 returns to 1-2 ms.
+- Fill: the seat's newest received input at or before F, else its last
+  sealed value. A disconnected seat reads neutral (0).
+- Late inputs are counted per seat and reported in `stats` (once a second).
+  The client raises its input delay one step per report that shows new late
+  inputs, and lowers it after 5 quiet seconds (§2.3's policy, driven by the
+  room's count instead of RTT percentiles).
+- Time sync (§2.4) steers by the room's clock: `stats.clock` is the room's
+  current frame. A peer targets `clock + one-way latency - delay + 2`; behind
+  it, it fast-forwards (`PortRbReplayTo`); ahead of it, it holds a frame now
+  and then (at most 6 a second, through the host's pacer: `portFrameDue` in
+  a browser). No peer ever waits for another.
+
+### 12.3 Hashes, the referee and donor election
+
+Every `hashEvery` (30) frames after `inputStart`, once frame C is sealed and
+simulated, each peer hashes the state at the start of C (today: the game's
+own desync quantity, `gRngVal` and every Kirby's position, read from the
+ring copy) and sends `{t:'hash', f, h}`. The room judges C when every live
+seat has reported, or `hashWaitMs` (1.5 s) after the first report:
+
+- the majority hash is the reference;
+- a tie goes to the group whose best donor wins the election below;
+- every peer outside the reference gets a sync, and everyone gets a
+  `desync` notice (for logs and the lobby).
+
+**Donor election** (`electDonor`), among peers holding the reference hash:
+
+| policy | rule | strengths | weaknesses |
+|---|---|---|---|
+| `majority` (default) | longest clean hash streak, then lowest RTT to the room, then seated longest | the donor is the peer most likely to be right; stable (the authority does not flap) | in a 2-player game a tie is decided by history, which a fresh pair lacks (falls to RTT) |
+| `rtt` | lowest RTT first | fastest transfer; best for big rooms | may pick a peer that just recovered |
+| `host` | the host when eligible | predictable; matches players' intuition ("the host's world") | the host may be on the worst link |
+| sim in the DO (later) | the room runs the sim headless from the sealed stream and is the donor | one authority, never wrong about its own inputs, needs no election | cost: wasm sim ~6 µs/frame (cited) is ~0.04% of a core at 60 Hz, but a DO's 128 MB memory limit must hold the sim arena (292 KiB after the split; the full GBA map is the problem today, SERVER-RENDER.md §4b) and the ROM is not on the server (§11: never uploaded). Viable only with a ROM-free sim pack, so not before M8/M9. |
+
+Background syncs never target the peer that would itself be elected donor,
+so the authority stays put unless a hash moves it.
+
+### 12.4 World sync
+
+Triggers, per peer, rate-limited to one per `minSyncGapMs` (2 s) except
+joins and explicit requests, one in flight at a time, cancelled after 8 s:
+`mismatch` (referee), `lag` (its checkpoints trail the reference by more than
+`lagSyncFrames`, 90), `join` (3 s after a mid-game SIT, or at its first
+hash), `ask` (`{t:'syncme'}`, e.g. after the engine counted inputs older
+than its ring), and `periodic` (`syncEveryMs`, default 10 s).
+
+The flow, relayed by the room as opaque bytes:
+
+```
+room   -> target  sync_req  {id, f, donor, reason}
+target -> room    sync_have {id, f, ps: 4096, hashes: base64(u32 per page)}   (or no hashes)
+room   -> donor   snap_req  {id, f, to, ps, hashes}
+donor  -> room    snap      {id, f, size, count, h, kind}  + count x CHUNK (16 KiB)
+room   -> target  snap ... + the chunks, as they arrive
+target -> room    sync_done {id, ok}
+```
+
+The payload is a **page diff**: the target sends a hash per 4 KiB page of
+its own state at C, and the donor sends only the pages that differ. A sync
+of a peer that is already right costs about 1.5 KB of page hashes and a
+36-byte empty blob. The blob layout is netsim's draft (`KSNP` header, kind
+full/pages, frame, raw size, state hash) with ver 0 = today's same-build
+ring snapshot, compressed with deflate (`CompressionStream`; netsim's zstd
+replaces it). The target rebuilds the state, checks the donor's hash, and
+calls `PortRbApplySnapshotAt(C, ...)`: the engine loads it at the next frame
+boundary, applies any events it jumped over, and re-runs (picture off) to
+where it was -- or jumps forward if it was behind.
+
+**Measured** (tools/netplay_v2_test.mjs, three game instances, 40 s):
+an injected desync (beta's `gRngVal` flipped) was detected at the next
+checkpoint and repaired in **1.6-3.5 s**; a sync after a real divergence
+moved 9-19 pages (6-16 KB compressed); a full join sync 97 pages (51 KB).
+Per-client traffic including syncs: **1-2.3 KB/s down, 0.3-0.6 KB/s up** for
+an ordinary peer, and up to 6.5 KB/s up for the donor while it serves syncs.
+
+### 12.5 The presentation seam
+
+After a sync is applied, `web/net_game.js` emits a **correction event**
+`{frame, kind: 'sync', pages, bytes, reason, at}` three ways:
+`opts.onCorrection`, `Module.portNetCorrection(info)` if the host defines
+it, and a DOM `CustomEvent('katam-net-correction')`. The renderer's
+interpolation (branch `smooth`) can blend camera and sprite positions across
+it instead of snapping. netsim's correction record (per-Kirby old/new
+positions) extends the same event when its engine lands.
+
+### 12.6 The engine seam
+
+Today (`platform/rollback.c`, same-build only):
+
+| call | what |
+|---|---|
+| `PortRbSealInput(seat, f, keys)` | one sealed value; overwrite wins, rolls back inside the ring |
+| `PortRbSnapshotAt(f, dest)` | the ring's state at the start of a past frame (0 if gone or still subject to a rollback) |
+| `PortRbApplySnapshotAt(f, src)` | load at f at the next frame boundary, re-run to the present |
+| `PortRbSetStallGate(0)` | never stall |
+| `PortSimViewUseSession()`, `PortSimViewRequested()` | the session view (§2.2a) |
+
+netsim's draft API (`platform/port/netsim.h`) maps one to one and replaces
+these when it lands: `PortNetSealFrame(frame, keys, seats)` takes the room's
+canonical record `u32 frame; u16 keys[seats]` that the FRAMES message
+decompresses to; `PortNetPageHashes` / `PortNetPagesSave` are the page diff;
+`PortNetApplyAt(snap, len, nowFrame)` is the apply. The protocol does not
+change.
+
+### 12.7 Native client: plan (`--net CODE`, `--net-create`)
+
+Not implemented: the native build has no WebSocket or TLS library
+(`third_party/` holds only imgui), and same-build snapshot syncs cannot cross
+between a native and a wasm peer until M2 anyway (R5), nor can inputs stay
+in step until M0 (R1, R2). The plan, in order:
+
+1. **Library: libdatachannel** (MPL-2.0, C++17, Windows/macOS/Linux). It
+   ships `rtc::WebSocket` (with TLS via OpenSSL or mbedTLS) *and* the
+   WebRTC data channels M6 needs, so one dependency covers both, vendored
+   under `third_party/` and built only for native targets.
+2. **`platform/native/net_client.c`** speaks protocol v2: the HTTP calls
+   (`POST /v2/rooms`, `GET /v2/rooms/CODE`) over the same library, HELLO with
+   `platform: 'native'`, the FRAMES decoder (a port of `wire.mjs`, ~100
+   lines), and the engine calls `web/net_game.js` makes. `--net CODE` joins,
+   `--net-create` creates and prints the code (and a share URL for browser
+   players), `--net-server URL` overrides the default.
+3. **Lobby in the settings menu** (imgui): the same seats, ready, host
+   controls; the 4-letter code shown large.
+4. **Until M2**, the room's version gate (`sim` includes the binary id)
+   keeps native and web players in separate rooms -- a native-only room
+   works as soon as steps 1-2 land, since two copies of one native binary
+   share a layout. Mixed rooms need M0 + M2.
+
+Alternatively, for testing only, a native peer can run the session from a
+small node sidecar over a local pipe; not worth shipping.
+
+## 13. Scaling past 4 players
+
+The playable cap stays 4: it is the sim's (`gKirbys[4]`, the u8 free-slot
+mask, per-room object pools, the cable identity), and netsim owns it
+(`PORT_MAX_SEATS`, experiment flag 8). Nothing in the protocol or the room
+is sized by it.
+
+**What is variable now.** `seats` is a session parameter (u16 on the wire;
+the room caps it at 1024, and at the smallest `caps.seats` a member
+declares); `kirbys` is a separate parameter, the sim slots a seat can drive
+(4). FRAMES carries a seat bitmask of `ceil(seats/8)` bytes per frame plus a
+u16 for each seat whose input changed, so a frame where nobody changed costs
+the mask alone at any size. Hash reports, rosters, the lobby's seat list and
+donor election are all lists. INPUT carries one seat's own column (the room
+knows whose).
+
+**Measured** (`netplay/tools/load_test.mjs`, synthetic clients over the dev
+relay, inputs changing every ~23 frames, 12 s at 60 Hz):
+
+| clients | scenario | streams identical | seal latency, fast peers p50 / p95 / p99 ms | slow peers p50 ms | down B/s per client | up B/s per client | join burst B/client | room fan-out msgs/s |
+|---|---|---|---|---|---|---|---|---|
+| 4 | all on time | yes | 1 / 2 / 2 | - | 1,201 | 535 | 4,415 | 247 |
+| 8 | all on time | yes | 1 / 2 / 2 | - | 1,275 | 534 | 10,387 | 493 |
+| 16 | all on time | yes | 1 / 2 / 2 | - | 1,463 | 530 | 8,954 | 985 |
+| 100 | all on time | yes | 2 / 4 / 5 | - | 3,612 | 534 | 22,126 | 6,167 |
+| 16 | 1 on a 300 ms one-way link | yes | 1 / 2 / 106 | 650 | 1,494 | 534 | 11,130 | 1,005 |
+| 16 | 1 slow device (30 Hz) | yes | 1 / 74 / 106 | 18 | 1,456 | 522 | 8,954 | 971 |
+| 100 | 5 on 300 ms links | yes | 2 / 3 / 106 | 650 | 3,654 | 534 | 149,395 | 6,283 |
+| 100 | 5 on 300 ms links, `flushMs` 33 | yes | 20 / 37 / 138 | 651 | 3,097 | 534 | 149,397 | 2,308 |
+
+"Seal latency" is from a client sending frame f to it receiving f sealed.
+The p99 of ~106 ms in the slow scenarios is the deadline being paid while a
+late seat is still expected, before it is excused. Down includes the
+per-second stats and roster messages; the sealed stream alone was 2.1 KB/s
+per client at 100 seats. The join burst (rosters while 100 clients connect)
+is the cost the roster coalescing bounds; the slow-link runs show it higher
+because a delayed client receives rosters that coalescing could not merge.
+Over `wrangler dev` (local workerd), 4 clients: p50 1 ms, p95 2 ms, p99 161 ms,
+1.2% of frames sealed at the deadline -- local workerd's scheduling jitter,
+not the protocol.
+
+The room seals at the deadline only for seats that miss it; excusal stops a
+chronically late seat costing anyone else latency. What grows with N is
+fan-out: every sealed frame goes to every member, so 100 clients is 6,000
+messages a second out of one DO. `flushMs` (coalescing sealed frames, e.g.
+33 ms) cuts that roughly in half at the price of latency; the roster, which
+is O(N) and broadcast on change, is coalesced (`rosterMs`, 250 ms) in rooms
+above 8 so a burst of joins is not O(N²).
+
+**What a 16-to-100-player session needs, in order:**
+
+1. **The deadline sequencer as specified here** (done): nobody waits; a slow
+   player costs only themselves (their own inputs land late, the room fills
+   them).
+2. **Observer tiers.** Spectators already take no seat and send no input.
+   Add a *relay tier*: a few trusted peers (or a second DO) re-broadcast the
+   sealed stream to spectators, so the room's fan-out is to players only.
+   Spectators run confirmed-only and never need syncs beyond their join.
+3. **Sharding by area.** A big session is many small simulations: peers in
+   the same game room (or area) share a sim and need each other's inputs;
+   peers elsewhere do not. A *shard* is (room-or-area id, sim state); each
+   shard is its own SessionCore (its own seats, sequencer, referee, donor),
+   and a player moving between areas is a LEAVE from one shard and a
+   snapshot JOIN to the other -- the same operations as today. A directory
+   DO above the shards holds the session's global state (who is where, the
+   save). The shard boundary must be one the game respects: KATAM's levels
+   already isolate rooms (per-room object pools, per-room `LevelInfo`), so
+   "players in the same room" is the natural unit.
+4. **Interest management inside a shard** if a shard itself gets crowded:
+   FRAMES per member filtered to the seats near it would break the
+   one-stream-for-everyone property, so prefer smaller shards.
+
+**What the protocol needs now so this is possible later** (all present):
+seat counts as parameters, not constants; seat ids u16 with bitmask frames;
+per-member stream state in the room (`streaming`, delta base) so a member can
+be moved between streams; the sync relay keyed by transfer id, not by seat;
+`signal` relay as the seam for WebRTC (M6) and for relay-tier peers; and a
+room id that is not the code, so a directory can map one code to many
+shards.
 
 ---
 
