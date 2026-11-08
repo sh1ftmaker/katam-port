@@ -75,6 +75,13 @@ u32  PortRbSnapshotBytes(void);
 void PortRbSnapshotSave(void *dest);
 void PortRbSnapshotLoad(const void *src);
 
+/* World sync, netplay v2: the ring's state at the start of a past frame
+ * (0 if gone or still subject to a rollback), and a donor's state applied
+ * at a frame with a re-simulation back to the present.  Same build only. */
+int  PortRbSnapshotAt(u32 frame, void *dest);
+int  PortRbApplySnapshotAt(u32 frame, const void *src);
+void PortRbSetStallGate(int on);   /* 0: never stall (v2 sessions)       */
+
 /* --- input ---------------------------------------------------------------
  *
  * The local player's input for the frame about to run.  Called by the host

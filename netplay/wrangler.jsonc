@@ -13,7 +13,14 @@
   "main": "server.mjs",
   "compatibility_date": "2026-08-01",
   "durable_objects": {
-    "bindings": [{ "name": "GameRoom", "class_name": "GameRoom" }]
+    "bindings": [
+      { "name": "GameRoom", "class_name": "GameRoom" },          // protocol v1
+      { "name": "SessionRoom", "class_name": "SessionRoom" },    // protocol v2 rooms
+      { "name": "Directory", "class_name": "Directory" }         // v2 room codes
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }]
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["SessionRoom", "Directory"] }
+  ]
 }

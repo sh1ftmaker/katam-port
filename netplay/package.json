@@ -2,11 +2,13 @@
   "name": "katam-netplay",
   "private": true,
   "type": "module",
-  "description": "Relay room for katam-port link play: Cloudflare worker + local dev relay",
+  "description": "Netplay rooms for katam-port: protocol v2 sessions (SessionCore) + v1 relay; Cloudflare worker + local dev relay",
   "scripts": {
     "relay": "node dev-relay.mjs",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.mjs",
+    "load": "node tools/load_test.mjs"
   },
   "dependencies": {
     "partyserver": "^0.0.66",

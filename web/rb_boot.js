@@ -200,5 +200,8 @@
     }
 
     createKatamWorldSession.WORLD_VERSION = WORLD_VERSION;
+    /* The boot, for web/net_game.js (protocol v2 runs the same one). */
+    createKatamWorldSession.bootMask = bootMask;
+    createKatamWorldSession.F0 = F0;
     return createKatamWorldSession;
 }));
