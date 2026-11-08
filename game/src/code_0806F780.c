@@ -2315,12 +2315,18 @@ bool8 sub_080733D8(struct Object14 *obj14) {
         obj14->effectObject.unk4 = 0x20;
         obj14->effectObject.unk8 = 0xF - (Rand16() & 0x1F);
         if (obj14->effectObject.flags & 1) {
-            obj14->effectObject.x = obj14->effectObject.x - ((Rand16() & 7) + (Rand16() & 3) + 0x14) * 0x100;
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd = Rand16Twice();
+                obj14->effectObject.x = obj14->effectObject.x - ((rnd & 7) + (rnd & 3) + 0x14) * 0x100;
+            }
             obj14->effectObject.y = obj14->effectObject.y - (Rand16() & 7) * 0x100;
             obj14->effectObject.unk3C = -obj14->effectObject.unk3C;
             obj14->effectObject.unk4 = -obj14->effectObject.unk4;
         } else {
-            obj14->effectObject.x = obj14->effectObject.x + ((Rand16() & 7) + (Rand16() & 3) + 0x14) * 0x100;
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd = Rand16Twice();
+                obj14->effectObject.x = obj14->effectObject.x + ((rnd & 7) + (rnd & 3) + 0x14) * 0x100;
+            }
             obj14->effectObject.y = obj14->effectObject.y - (Rand16() & 7) * 0x100;
         }
     }
@@ -11967,8 +11973,14 @@ void sub_0808DC80(struct Kirby *kirby) {
     effectObject->flags |= 0x4000;
     if (kirby->base.flags & 1)
         effectObject->flags |= 1;
-    effectObject->x = kirby->base.x + (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-    effectObject->y = kirby->base.y + (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->x = kirby->base.x + (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->y = kirby->base.y + (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000;
@@ -12002,8 +12014,14 @@ void sub_0808DDD0(void) {
             effectObject->flags |= 0x1000;
         } else {
             if (effectObject->header.unk1 > 0xA) {
-                effectObject->x = kirby->base.x + (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->y = kirby->base.y + (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->x = kirby->base.x + (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->y = kirby->base.y + (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
                 effectObject->flags |= 4;
             } else {
                 effectObject->unk3E = gUnk_08350FFA[effectObject->header.unk1 >> 1];
@@ -12124,8 +12142,14 @@ void sub_0808E404(void) {
         } else {
             effectObject->flags |= 4;
             if (effectObject->header.unk1 == 5 || effectObject->header.unk1 == 7 || effectObject->header.unk1 == 0x13 || effectObject->header.unk1 == 0x15) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
             }
             if (effectObject->header.unk1 == 1 || effectObject->header.unk1 == 0xD) {
                 effectObject->unk3C = (0x10 - (Rand16() & 0x1F)) * 0x100;
@@ -12149,8 +12173,14 @@ void sub_0808E66C(struct Kirby *kirby) {
     effectObject->parent = kirby;
     effectObject->roomId = kirby->base.roomId;
     effectObject->flags |= 0x4000;
-    effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-    effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000; // redundant
@@ -12185,8 +12215,14 @@ void sub_0808E7A4(void) {
         } else {
             effectObject->flags |= 4;
             if (effectObject->header.unk1 == 1 || effectObject->header.unk1 == 6) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
             }
             effectObject->x = kirby->base.x + effectObject->unk3C;
             effectObject->y = kirby->base.y + effectObject->unk3E;
@@ -12208,8 +12244,14 @@ void sub_0808E9C8(struct Kirby *kirby) {
     effectObject->unk8 = 0;
     effectObject->flags |= 0x4000;
     effectObject->unk4 = 0x40;
-    effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-    effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+    }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000; // redundant
@@ -12245,15 +12287,27 @@ void sub_0808EB08(void) {
             effectObject->flags |= 0x1000;
         } else {
             if (effectObject->header.unk1 == 0x12) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
                 effectObject->unk4 = -0x40;
                 if (!effectObject->unk8)
                     effectObject->flags |= 4;
             }
             if (effectObject->header.unk1 == 0x24) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
                 effectObject->unk4 = 0x40;
             }
             if (effectObject->header.unk1 > 0x11) {
@@ -12389,7 +12443,10 @@ void sub_0808F1C8(void) {
                         Macro_0803DBC8(effectObject, &effectObject->sprite);
                     }
                     effectObject->x = kirby->base.x + (0x10 - (Rand16() & 0x1F)) * 0x100;
-                    effectObject->y = kirby->base.y + (0x24 - ((Rand16() & 0xF) + (Rand16() & 0x3F))) * 0x100;
+                    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                        u32 rnd = Rand16Twice();
+                        effectObject->y = kirby->base.y + (0x24 - ((rnd & 0xF) + (rnd & 0x3F))) * 0x100;
+                    }
                     effectObject->sprite.x = (effectObject->x >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.x >> 8);
                     effectObject->sprite.y = (effectObject->y >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.y >> 8);
                     if (!(effectObject->flags & 0x400) && gKirbys[gLocalPlayerId].base.roomId == effectObject->roomId) {
@@ -12397,7 +12454,10 @@ void sub_0808F1C8(void) {
                         effectObject->sprite.y += gUnk_0203AD18[1];
                         Macro_0803DBC8(effectObject, &effectObject->sprite);
                     }
-                    effectObject->x = kirby->base.x + (0x28 - ((Rand16() & 0xF) + (Rand16() & 0x3F))) * 0x100;
+                    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                        u32 rnd = Rand16Twice();
+                        effectObject->x = kirby->base.x + (0x28 - ((rnd & 0xF) + (rnd & 0x3F))) * 0x100;
+                    }
                     effectObject->y = kirby->base.y + (0x10 - (Rand16() & 0x1F)) * 0x100;
                     effectObject->sprite.x = (effectObject->x >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.x >> 8);
                     effectObject->sprite.y = (effectObject->y >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.y >> 8);
@@ -12458,14 +12518,32 @@ void sub_0808F8C0(void) {
             effectObject->sprite.unk8 &= ~0x80000;
             effectObject->flags |= 4;
             if (effectObject->unk4 == 0 || effectObject->unk4 == 2 || effectObject->unk4 == 4) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (8 - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->sprite.variant = (Rand16() & 7) + (Rand16() & 3);
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (8 - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->sprite.variant = (rnd & 7) + (rnd & 3);
+                }
             }
             if (effectObject->unk4 == 0xC || effectObject->unk4 == 0xE || effectObject->unk4 == 0x10 || effectObject->unk4 == 0x20) {
-                effectObject->unk3C = (0xC - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->unk3E = (-2 - ((Rand16() & 0xF) + (Rand16() & 7))) * 0x100;
-                effectObject->sprite.variant = (Rand16() & 7) + (Rand16() & 3);
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3C = (0xC - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->unk3E = (-2 - ((rnd & 0xF) + (rnd & 7))) * 0x100;
+                }
+                { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                    u32 rnd = Rand16Twice();
+                    effectObject->sprite.variant = (rnd & 7) + (rnd & 3);
+                }
             }
             if ((effectObject->unk4 < 6 || effectObject->unk4 > 0xB)
                 && (effectObject->unk4 < 0x12 || effectObject->unk4 > 0x1F)

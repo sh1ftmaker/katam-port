@@ -3360,7 +3360,10 @@ void sub_0801617C(struct Unk_02038590 *a1) {
             a1->unkE8 = (Rand16() & 0xF) + 0xC;
             break;
         case 3:
-            a1->unkE8 = (Rand16() & 7) + 0xF + (Rand16() & 0xF);
+            { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+                u32 rnd = Rand16Twice();
+                a1->unkE8 = (rnd & 7) + 0xF + (rnd & 0xF);
+            }
             break;
         default:
             a1->unkE8 = (Rand16() & 0x1F) + 0x2C;
@@ -4349,7 +4352,10 @@ void sub_08018110(struct Unk_02038590 *a1) {
     a1->unkDC = 0x1B;
     a1->flags |= 2;
     a1->unkE8 = 0;
-    a1->unkEA = ((Rand16() & 0x1F) + 0x10) | (((Rand16() & 0x1F) + 0x10) << 8);
+    { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
+        u32 rnd = Rand16Twice();
+        a1->unkEA = ((rnd & 0x1F) + 0x10) | (((rnd & 0x1F) + 0x10) << 8);
+    }
     a1->unkEC = (Rand16() & 0x1F) + 0x5A;
     a1->unk0[3] = sub_0801818C;
 }
