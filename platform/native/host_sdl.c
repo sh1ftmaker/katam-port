@@ -30,6 +30,7 @@
 
 #include "native.h"
 #include "port/census.h"
+#include "port/netsim.h"
 #include "port/seats.h"
 #include "port/res.h"
 #include "port/audio.h"
@@ -274,6 +275,7 @@ static void Usage(const char *argv0)
 "  --census N[:F0]:OUT divergence census: N seats, gLocalPlayerId 0..N-1, same\n"
 "                     input; F0 = session mode (4 slots, AI) from frame F0\n"
 "  --census-masks F   mask table for --census (tests/census/masks.txt)\n"
+"  --net-test SPEC    netplay engine test driver (platform/netsim.c)\n"
 "  --dump-state F:PATH write the canonical state bytes at frame F to PATH\n"
 "  --warp F:ROOM[:X:Y] warp to ROOM (cell X,Y) at frame F; recorded\n"
 "  --res-extract DIR  write the vanilla pack for your ROM into DIR and exit\n"
@@ -527,6 +529,8 @@ static void ParseArgs(int argc, char **argv)
                 sCensusOut = strchr(sCensusOut, ':') + 1;
             else
                 sCensusF0 = -1;
+        } else if (strcmp(a, "--net-test") == 0) {
+            PortNetTestArm(argv[i = NeedValue(i, argc, argv)]);
         } else if (strcmp(a, "--census-masks") == 0) {
             sCensusMasks = argv[i = NeedValue(i, argc, argv)];
         } else if (strcmp(a, "--hash-log") == 0) {

@@ -73,10 +73,18 @@ SIMBLK = [(0x00, 0x20, 'simblk.hdr'), (0x20, 0x30, 'simblk.frame'),
 
 
 def fn_names(binary):
-    if not binary:
-        return {}
-    txt = subprocess.run(['nm', '-C', binary], capture_output=True, text=True).stdout
+    # Task::main holds canonical code IDs (platform/port/fnid.h): name them
+    # from the generated table first, then fall back to the binary.
     names = {}
+    ids = os.path.join(ROOT, 'game', 'generated', 'fnid_ids.h')
+    if os.path.exists(ids):
+        for ln in open(ids):
+            m = re.match(r'#define FNID_(\w+) (0x[0-9A-Fa-f]+)u', ln)
+            if m:
+                names[int(m.group(2), 16)] = m.group(1)
+    if not binary:
+        return names
+    txt = subprocess.run(['nm', '-C', binary], capture_output=True, text=True).stdout
     for ln in txt.splitlines():
         p = ln.split(None, 2)
         if len(p) == 3 and p[1] in 'tTwW':

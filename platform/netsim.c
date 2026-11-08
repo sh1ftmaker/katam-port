@@ -229,6 +229,8 @@ static struct {
     u32 catchUpTo;
     u64 catchUpStart;
     s32 preX[4], preY[4];
+    u64 preHash;
+    u32 preFrame;
     u16 preRoom[4];
     struct PortNetCorrection corr;
     struct PortNetStats st;
@@ -740,6 +742,165 @@ void PortNetGetStats(struct PortNetStats *out)
         *out = N.st;
 }
 
+
+/* --- the built-in test driver ----------------------------------------------
+ * PortNetTestArm("session:F[:seats:local:humans],rewind:F:SPAN,stats:K,
+ *                 save:F:PATH,load:F:PATH") -- native --net-test, node
+ * NET_TEST=.  Drives a session from a replayed recording (the local seat's
+ * input is the recording's) and measures or checks the engine:
+ *   rewind  save the frame-F image; at F+SPAN apply it with catch-up; the
+ *           state after the catch-up must hash as F+SPAN did the first time
+ *   stats   every K frames: full size, and deltas against the images 60 and
+ *           300 frames back (1 s and 5 s sync intervals), with timings
+ *   save/load  a blob to/from a file (native; node does it in JS). */
+static struct {
+    int on;
+    s32 sessionAt; u32 seats, local, humans;
+    s32 rewindAt; u32 rewindSpan; u8 *rewindBlob; u32 rewindLen; u64 rewindHash;
+    int rewindPhase;
+    u32 statsEvery;
+    u8 *hist[2]; u32 histFrame[2];        /* images 60 and 300 frames back    */
+    u8 *ring60[6];                        /* images every 60 frames          */
+    s32 saveAt, loadAt; char savePath[512], loadPath[512];
+    u64 sumFull, sumD1, sumD5; u32 nStats;
+} T;
+
+static u32 DeltaBytes(const u8 *a, const u8 *b, u8 *tmp, u8 *out, u32 cap, u32 *us)
+{
+    u32 i;
+    size_t r;
+    u64 t0 = PortHostMicros();
+
+    for (i = 0; i < N.imgSize; i++)
+        tmp[i] = a[i] ^ b[i];
+    r = ZSTD_compressCCtx(N.cctx, out, cap, tmp, N.imgSize, 1);
+    *us = (u32)(PortHostMicros() - t0);
+    return ZSTD_isError(r) ? 0 : (u32)r + PORT_NET_HDR_BYTES;
+}
+
+void PortNetTestArm(const char *spec)
+{
+    const char *p = spec;
+
+    memset(&T, 0, sizeof T);
+    T.sessionAt = T.rewindAt = T.saveAt = T.loadAt = -1;
+    T.seats = 1; T.local = 0; T.humans = 1;
+    while (p && *p) {
+        int a = 0, b = 0, c = 0, d = 0, n = 0;
+        char path[512];
+
+        if (sscanf(p, "session:%d:%d:%d:%d%n", &a, &b, &c, &d, &n) == 4 && n) {
+            T.sessionAt = a; T.seats = (u32)b; T.local = (u32)c; T.humans = (u32)d;
+        } else if (n = 0, sscanf(p, "session:%d%n", &a, &n) == 1 && n) {
+            T.sessionAt = a;
+        } else if (n = 0, sscanf(p, "rewind:%d:%d%n", &a, &b, &n) == 2 && n) {
+            T.rewindAt = a; T.rewindSpan = (u32)b;
+        } else if (n = 0, sscanf(p, "stats:%d%n", &a, &n) == 1 && n) {
+            T.statsEvery = (u32)a;
+        } else if (n = 0, sscanf(p, "save:%d:%511[^,]%n", &a, path, &n) == 2 && n) {
+            T.saveAt = a; strcpy(T.savePath, path);
+        } else if (n = 0, sscanf(p, "load:%d:%511[^,]%n", &a, path, &n) == 2 && n) {
+            T.loadAt = a; strcpy(T.loadPath, path);
+        }
+        p = strchr(p, ',');
+        if (p) p++;
+    }
+    T.on = 1;
+    PortLog("[katam-port] netsim test: %s", spec);
+}
+
+static void TestStep(u32 frame)
+{
+    if (!T.on)
+        return;
+    if (T.sessionAt >= 0 && frame == (u32)T.sessionAt && !N.active)
+        PortNetSessionStart(T.seats, T.local, T.humans);
+    if (N.active && PortInputLogReplaying())
+        PortNetSetLocalInput(frame, PortInputLogKeysAt(frame));
+}
+
+static void TestAfterCapture(u32 frame)
+{
+    u32 bound;
+
+    if (!T.on || !N.active || N.catchingUp)
+        return;
+    bound = PortNetSnapBound();
+    if (T.rewindAt >= 0 && frame == (u32)T.rewindAt && T.rewindPhase == 0) {
+        T.rewindBlob = (u8 *)malloc(bound);
+        T.rewindLen = PortNetSnapSave(T.rewindBlob, bound);
+        T.rewindPhase = 1;
+        PortLog("[katam-port] netsim test: saved frame %u, %u bytes (%u raw), "
+                "capture %u us, compress %u us", (unsigned)frame, (unsigned)T.rewindLen,
+                (unsigned)N.imgSize, (unsigned)N.st.captureUs, (unsigned)N.st.compressUs);
+    } else if (T.rewindPhase == 1 && frame == (u32)T.rewindAt + T.rewindSpan) {
+        T.rewindPhase = 2;
+        PortNetApplyAt(T.rewindBlob, T.rewindLen);
+    } else if (T.rewindPhase == 2 && frame == N.preFrame && N.corr.frame == frame) {
+        u64 h = ImageHash(N.cur);
+
+        T.rewindHash = N.preHash;
+        T.rewindPhase = 3;
+        if (h == T.rewindHash)
+            PortLog("[katam-port] NETSIM REWIND PASSED: frame %u applied at %u, "
+                    "%u frames caught up in %u us (decompress %u us, apply %u us); "
+                    "state %016llX both times; correction mask 0x%X",
+                    (unsigned)T.rewindAt, (unsigned)frame, (unsigned)N.st.catchUpFrames,
+                    (unsigned)N.st.catchUpUs, (unsigned)N.st.decompressUs,
+                    (unsigned)N.st.applyUs, (unsigned long long)h,
+                    (unsigned)N.corr.kirbyMask);
+        else
+            PortError("[katam-port] NETSIM REWIND FAILED: after catch-up %016llX, "
+                      "first pass %016llX", (unsigned long long)h,
+                      (unsigned long long)T.rewindHash);
+    }
+    if (T.saveAt >= 0 && frame == (u32)T.saveAt) {
+        u8 *b = (u8 *)malloc(bound);
+        u32 n = PortNetSnapSave(b, bound);
+        FILE *f = fopen(T.savePath, "wb");
+
+        if (f) { fwrite(b, 1, n, f); fclose(f); }
+        PortLog("[katam-port] netsim test: frame %u -> %s (%u bytes)", (unsigned)frame,
+                T.savePath, (unsigned)n);
+        free(b);
+    }
+    if (T.loadAt >= 0 && frame == (u32)T.loadAt) {
+        FILE *f = fopen(T.loadPath, "rb");
+        u8 *b = (u8 *)malloc(bound);
+        u32 n = f ? (u32)fread(b, 1, bound, f) : 0;
+
+        if (f) fclose(f);
+        PortLog("[katam-port] netsim test: loading %s at frame %u: %d", T.loadPath,
+                (unsigned)frame, PortNetSnapLoad(b, n));
+        free(b);
+    }
+    if (T.statsEvery && frame % 60 == 0) {
+        int k = (int)((frame / 60) % 6);
+        u8 *old1 = T.ring60[(k + 5) % 6], *old5 = T.ring60[(k + 1) % 6];
+        int have5 = frame >= (u32)T.sessionAt + 300 + 60;
+
+        if (T.ring60[k] == NULL)
+            T.ring60[k] = (u8 *)malloc(N.imgSize);
+        if (frame % T.statsEvery == 0 && old1 != NULL && frame >= (u32)T.sessionAt + 120) {
+            u8 *blob = (u8 *)malloc(bound);
+            u32 full, d1, d5 = 0, us1, us5 = 0;
+
+            full = PortNetSnapSave(blob, bound);
+            d1 = DeltaBytes(N.cur, old1, N.scratch, blob, bound, &us1);
+            if (have5 && old5)
+                d5 = DeltaBytes(N.cur, old5, N.scratch, blob, bound, &us5);
+            PortLog("[katam-port] netsim stats: frame %u full %u (capture %u us, "
+                    "compress %u us) delta-1s %u (%u us) delta-5s %u (%u us)",
+                    (unsigned)frame, (unsigned)full, (unsigned)N.st.captureUs,
+                    (unsigned)N.st.compressUs, (unsigned)d1, (unsigned)us1,
+                    (unsigned)d5, (unsigned)us5);
+            T.sumFull += full; T.sumD1 += d1; T.sumD5 += d5; T.nStats++;
+            free(blob);
+        }
+        memcpy(T.ring60[k], N.cur, N.imgSize);
+    }
+}
+
 /* --- the frame hook --------------------------------------------------------- */
 
 #define KIRBY(k) (0x02020EE0u + (u32)(k) * 424u)
@@ -758,8 +919,12 @@ void PortNetFrameTop(void)
 {
     u32 frame;
 
-    if (!N.active && !N.havePending)
-        return;
+    if (!N.active && !N.havePending) {
+        if (T.on)
+            TestStep(PortFrameNumber());
+        if (!N.active)
+            return;
+    }
 
     /* A queued snapshot: now is the frame boundary. */
     if (N.havePending) {
@@ -767,8 +932,14 @@ void PortNetFrameTop(void)
         u64 t0 = PortHostMicros();
 
         N.havePending = 0;
-        if (N.active && N.pendingCatchUp)
+        if (N.active && N.pendingCatchUp) {
             KirbyPos(N.preX, N.preY, N.preRoom);
+            /* What this peer had at this frame: after the catch-up the state
+             * is compared with it (the correction's `changed`). */
+            PortNetImageCapture(N.scratch);
+            N.preHash = ImageHash(N.scratch);
+            N.preFrame = was;
+        }
         N.st.lostDmaPtrs += (u32)PortNetImageApply(N.pending);
         N.st.applyUs = (u32)(PortHostMicros() - t0);
         N.st.loads++;
@@ -787,6 +958,7 @@ void PortNetFrameTop(void)
     }
 
     frame = PortFrameNumber();
+    TestStep(frame);
     if (N.catchingUp && frame >= N.catchUpTo) {
         s32 x[4], y[4];
         u16 room[4];
@@ -829,6 +1001,7 @@ void PortNetFrameTop(void)
             N.cpValid[i] = 1;
         }
     }
+    TestAfterCapture(frame);
     DriveFrame(frame);
 }
 

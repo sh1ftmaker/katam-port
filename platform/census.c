@@ -27,6 +27,7 @@
 #include "port/rollback.h"
 #include "port/simblock.h"
 #include "port/census.h"
+#include "fnid_ids.h"
 #include "port/seats.h"
 
 #ifdef __cplusplus
@@ -95,7 +96,6 @@ static u64 *sMaskBits;
 #define MAX_DYN 512
 static u32 sDynAt[MAX_DYN];
 static int sNumDyn;
-extern void ObjectMain(void);
 
 static void DynAdd(u32 addr, u32 len)
 {
@@ -139,7 +139,8 @@ static void DynCollect(const u8 *state)
         u16 off = (u16)(t[6] | (t[7] << 8));
         u16 flags = (u16)(t[0x12] | (t[0x13] << 8));
 
-        if (fn == 0 || fn != (u32)(uintptr_t)&ObjectMain)
+        /* Task::main holds a canonical code ID (platform/port/fnid.h). */
+        if (fn == 0 || fn != FNID_ObjectMain)
             continue;
         DynSprite(((flags & 0x10) ? GBA_EWRAM_BASE + ((u32)off << 2)
                                   : GBA_IWRAM_BASE + off) + 16);

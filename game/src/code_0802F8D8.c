@@ -224,7 +224,7 @@ static void sub_0802FDF4(struct Unk_0802E57C *arg0) {
     for (i = 0; i < ARRAY_COUNT(arg0->unkC); i++) {
         struct Unk_0802E57C_C *entry = &arg0->unkC[i];
 
-        entry->unk3C = gUnk_082EB7F8;
+        entry->unk3C = PORT_ROM_TABLE(const u16 *, gUnk_082EB7F8, 0x082EB7F8); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
         entry->unk40 = 0;
     }
     arg0->unk4 = FN(sub_0802E97C);

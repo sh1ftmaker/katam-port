@@ -155,4 +155,14 @@ void AgbMain(void);
 #define gNumMusicPlayers   ((char *)4)
 #define gMaxLines          ((char *)0)
 
+
+/* NETPLAY-V2 R6: a table the port defines in C *and* the ROM holds at its own
+ * address, byte for byte (checked against the ROM when each site was
+ * changed).  A pointer to it that the game stores in its memory is a host
+ * address of the C copy -- different natively and in wasm, and on every
+ * layout -- so the store sites use the ROM's copy instead, which is what the
+ * console stored.  `sym` is named so the C copy stays referenced and the
+ * use is visible: PORT_ROM_TABLE(PTRTYPE, sym, addr) is addr as a PTRTYPE. */
+#define PORT_ROM_TABLE(PT, sym, addr) ((void)(sym), (PT)(uintptr_t)(addr))
+
 #endif

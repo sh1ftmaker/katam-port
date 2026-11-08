@@ -46,6 +46,7 @@
 #include "port/seats.h"
 #include "port/inputlog.h"
 #include "port/simblock.h"
+#include "port/netsim.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -288,6 +289,22 @@ void PortSimBlockInit(void)
     gPortSim->view.stock = 1;
 }
 
+/* Microseconds from an arbitrary origin, for statistics only (netsim.c).
+ * Host time must never reach the simulation (NETPLAY-V2 R14). */
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+u64 PortHostMicros(void) { return (u64)(emscripten_get_now() * 1000.0); }
+#else
+#include <time.h>
+u64 PortHostMicros(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (u64)ts.tv_sec * 1000000u + (u64)(ts.tv_nsec / 1000);
+}
+#endif
+
 /* --- input ---------------------------------------------------------------
  * The shell sends a mask of held buttons; KEYINPUT wants the complement. */
 
@@ -313,6 +330,8 @@ static void UpdateKeyInput(int frameLatch)
     u16 keys = sKeysDown;
 
     if (PortRbKeyOverride(&keys))
+        sKeysDown = keys;
+    if (PortNetKeyOverride(&keys))
         sKeysDown = keys;
     if (PortSeatKeyOverride(&keys))
         sKeysDown = keys;
@@ -875,6 +894,7 @@ void PortPresentFrame(void)
      * nothing the game will read again -- see platform/port/rollback.h.  Both
      * of these do nothing at all unless something armed them. */
     PortRbFrame();
+    PortNetFrameTop();
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 
@@ -900,7 +920,7 @@ void PortPresentFrame(void)
     /* ...and the GPU renderer's list of the same frame, taken at the same
      * moment: after the scan, before the VBlank handler can touch anything.
      * Presentation only -- it reads, and the host draws it at the blit. */
-    if (gPortRlEnabled && !PortRbCatchingUp())
+    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp())
         PortRlBuildFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
@@ -939,7 +959,7 @@ void PortPresentFrame(void)
      * milliseconds of simulation.  The host's own per-frame work (input
      * polling, frame counting, MASH scripts) does not run for caught-up
      * frames, which is correct: their input comes from the timeline. */
-    if (PortRbCatchingUp()) {
+    if (PortRbCatchingUp() || PortNetCatchingUp()) {
         if ((sFrameCount & 0x3FF) == 0)
             PortAwaitYield();
     } else {

@@ -197,7 +197,7 @@ static void sub_0802EA4C(struct Unk_0802E57C *x) {
         c->unk0.unk1B = 0xFF;
         c->unk2C &= ~8;
         c->unk2C &= ~0x10;
-        c->unk3C = gUnk_082EB7F8;
+        c->unk3C = PORT_ROM_TABLE(const u16 *, gUnk_082EB7F8, 0x082EB7F8); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
         c->unk40 = 0;
         c->unk42 = 0;
         c->unk44 = 0;

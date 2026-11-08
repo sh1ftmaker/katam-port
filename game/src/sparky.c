@@ -63,7 +63,7 @@ void* CreateSparky(struct ObjectTemplate* arg0, u8 arg1) {
         sub_08088398(obj, gUnk_08355584);
     }
     else {
-        sub_08085CE8(&obj->base, gUnk_08355578);
+        sub_08085CE8(&obj->base, PORT_ROM_TABLE(const struct AnimInfo *, gUnk_08355578, 0x08355578)); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     }
     CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;

@@ -121,6 +121,9 @@ u32  PortNetImageSize(void);
 void PortNetImageCapture(u8 *out);
 int  PortNetImageApply(const u8 *in);        /* returns lost DMA pointers   */
 
+/* --- tests ------------------------------------------------------------------ */
+void PortNetTestArm(const char *spec);       /* platform/netsim.c says what  */
+
 /* --- frame hooks (platform/main.c) ----------------------------------------- */
 void PortNetFrameTop(void);                  /* top of PortPresentFrame     */
 int  PortNetKeyOverride(u16 *keys);          /* the KEYINPUT latch          */

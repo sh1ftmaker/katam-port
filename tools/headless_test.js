@@ -495,6 +495,41 @@ const Module = {
                             fs.writeFileSync(path, Buffer.from(Module.HEAPU8.subarray(dump, dump + len)));
             };
         }
+        // The netplay engine (platform/netsim.c):
+        //   NET_TEST=spec      PortNetTestArm (session:F,rewind:F:N,stats:K)
+        //   NET_SAVE=F:path    write the frame-F snapshot blob to path
+        //   NET_LOAD=F:path    at frame F, queue a blob from path (PortNetSnapLoad)
+        if (process.env.NET_TEST) {
+            const t = Buffer.from(process.env.NET_TEST + '\0');
+            const p = Module._malloc(t.length);
+            Module.HEAPU8.set(t, p);
+            Module._PortNetTestArm(p);
+        }
+        const netAt = (v) => { if (!v) return null; const i = v.indexOf(':'); return [Number(v.slice(0, i)), v.slice(i + 1)]; };
+        const netSave = netAt(process.env.NET_SAVE), netLoad = netAt(process.env.NET_LOAD);
+        if (netSave || netLoad) {
+            Module._PortSetFrameStateLog(1);
+            const prev = Module.portFrameState;
+            let loaded = false;
+            Module.portFrameState = (frame, ...rest) => {
+                if (prev) prev(frame, ...rest);
+                if (netSave && frame === netSave[0]) {
+                    const cap = Module._PortNetSnapBound(), p = Module._malloc(cap);
+                    const n = Module._PortNetSnapSave(p, cap);
+                    fs.writeFileSync(netSave[1], Buffer.from(Module.HEAPU8.subarray(p, p + n)));
+                    console.log('netsim: saved frame %d, %d bytes -> %s', frame, n, netSave[1]);
+                    Module._free(p);
+                }
+                if (netLoad && frame === netLoad[0] && !loaded) {
+                    loaded = true;
+                    const b = fs.readFileSync(netLoad[1]), p = Module._malloc(b.length);
+                    Module.HEAPU8.set(b, p);
+                    console.log('netsim: load %s at frame %d -> %d', netLoad[1], frame,
+                                Module._PortNetSnapLoad(p, b.length));
+                    Module._free(p);
+                }
+            };
+        }
         Module._PortRomLoaded(rom.length);
         resolveRom();
     },

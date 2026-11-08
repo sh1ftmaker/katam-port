@@ -2111,14 +2111,14 @@ static void sub_0802A610(struct Cutscene *arg0) {
 static struct Unk_080296EC* sub_0802A764(struct Cutscene *arg0, const u16 (*arg1)[2], s16 arg2);
 static void sub_0802A864(struct Cutscene *arg0);
 static void sub_0802A634(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB2B8[gLanguage], 1);
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2B8, 0x082EB2B8)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     arg0->unk0 = FN(sub_0802A864);
 }
 
 static struct Unk_080298C8* sub_0802A7EC(struct Cutscene *arg0);
 static void sub_0802A888(struct Cutscene *arg0);
 static void sub_0802A660(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB2D0[gLanguage], 1);
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2D0, 0x082EB2D0)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     arg0->unk2D4 = sub_0802A7EC(arg0);
     arg0->unk0 = FN(sub_0802A888);
 }
@@ -2126,7 +2126,7 @@ static void sub_0802A660(struct Cutscene *arg0) {
 static void sub_0802A8AC(struct Cutscene *arg0);
 static void sub_0802A69C(struct Cutscene *arg0) {
     m4aSongNumStart(SE_INTRO_CUTSCENE_AMBIENT_3);
-    sub_0802A764(arg0, &gUnk_082EB2E8[gLanguage], 1);
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2E8, 0x082EB2E8)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     arg0->unk0 = FN(sub_0802A8AC);
 }
 
@@ -2137,7 +2137,7 @@ static void sub_0802A6D4(struct Cutscene *arg0) {
 
 static void sub_0802A8B8(struct Cutscene *arg0);
 static void sub_0802A6E8(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB300[gLanguage], 1);
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB300, 0x082EB300)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     arg0->unk0 = FN(sub_0802A8B8);
 }
 
