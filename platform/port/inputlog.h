@@ -23,6 +23,7 @@
  *     option view MODE PADX PADY CULL PINHUD TILEMAP
  *     k FRAME MASK        the latched mask from FRAME on (hex)
  *     warp FRAME PLAYER ROOM CELLX CELLY
+ *     view FRAME W H      the session view from FRAME on (platform/view.c)
  *
  * Lines starting with '#' are comments.  Nothing in it comes from the ROM. */
 #ifdef __cplusplus
@@ -52,6 +53,15 @@ char *PortInputLogSerialize(u32 *len);
  * at the latch, and recorded.  Ignored while replaying -- the recording's own
  * warps are the ones that happen. */
 void PortInputLogScheduleWarp(u32 frame, u8 player, u16 room, u8 cellX, u8 cellY);
+
+/* A change of the simulation view (the world view the game's spawn/despawn
+ * windows are sized for, platform/view.c) from frame on.  Recorded; ignored
+ * while replaying.  Moved past the newest frame already latched if it names
+ * one.  Returns the frame it was scheduled at (0 when ignored). */
+u32  PortInputLogScheduleView(u32 frame, s32 w, s32 h);
+/* The view in force at frame: the last `view` event at or before it, else
+ * 240x160.  A pure lookup, so a rollback can ask again. */
+void PortInputLogViewAt(u32 frame, s32 *w, s32 *h);
 
 /* Per-frame hashes on/off.  When on, PortHostFrameState is called once a
  * frame.  PortSetStateDumpAt additionally hands the host the canonical state

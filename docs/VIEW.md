@@ -184,6 +184,128 @@ spawning. It is the reason not to ship the option, not a reason to remove it —
 the switch is on the page so the claim can be tested by someone who can reach a
 big room.
 
+## Spawn margin: the windows follow the GPU view
+
+*Later work, on `main`.* The GPU renderer (docs/RENDERER.md) shows more of the
+world than 240x160 when zoomed out or wider than 3:2, and objects visibly
+popped in and out at the edges of the picture. The game's spawn and despawn
+windows are now sized for the view the player is shown. That changes the
+simulation, so the size is a **recorded input**, not something read off the
+window.
+
+**Where the number comes from.** `platform/ui/present.c` asks for the widest
+world view the settings may show -- the settings' zoom and aspect for this
+window, before dynamic zoom, which only ever zooms in -- with
+`PortSimViewRequest(w, h)`. `--gpu-view` and `--sim-view WxH` ask too. The
+request is rounded up to whole 16-pixel object cells a side (32 per
+dimension), from 240x160 to the render list's 1024x512 (so at most 1040x512).
+A change becomes a frame-stamped `view FRAME W H` line in the input log
+(docs/DETERMINISM.md). The latch applies the value for its frame:
+`platform/inputlog.c` `PortInputLogViewAt` returns the last event at or
+before the frame, so a replay, native or wasm, reproduces every change at the
+same frame. The window's float rounding only decides what the host *asks*
+for.
+
+**Where the margin goes.** `platform/view.c` `PortSpawnMarginNow` computes it
+from game state alone, in integers, with the placement rule
+`platform/render/rl_build.c` uses for the GPU view:
+
+- the view is centred on the camera;
+- it is kept inside the camera rectangle, extended 8 px at the left, right
+  and top (or inside the map, when the rectangle is narrower than the
+  screen);
+- it never moves so far that the 240x160 the game composed leaves the view.
+
+The margin is per player and per side. At a room's edge the view is pushed
+inwards, so there is little margin on the wall's side and up to W-240 on the
+other. Behind a scroll lock the picture stops at the lock, so the margin does
+too, and nothing beyond a boss arena's wall gets woken up. Each side gets
+`ceil(reach/16)` extra cells of spawn window, and the despawn box grows 16 px
+per cell, so it always contains the spawn window. The margin is never smaller
+than the original on any side. At 240x160, or narrower (zoomed in), every
+value is the stock one (`PortSpawnStock`) and the patched code is the code
+that shipped.
+
+**What the game does with it** (`game/src/code_080023A4.c`,
+`game/src/kirby.c`):
+
+- `CreateLevelObjects`, the whole-window walk at room entry and on camera
+  jumps, uses the per-side window.
+- The scroll-in walks (`sub_0800A60C`) still scan the two cells at the
+  leading edge when the camera crosses a cell, but at the widened edge. They
+  also scan the cells between a side's edge at the start of the frame and its
+  edge now: a window can grow without the camera moving, either because the
+  view changed or because a room edge stopped pushing the view inwards.
+- The walks only ever scan edges, never the whole margin. The interior is in
+  view, and the game never re-creates an object the player can see. The old
+  `--cull match` scanned the whole pad band on every cell crossing, which
+  brought back, in plain view, anything that had fallen into a pit.
+- The despawn tests (`sub_0803D6B4`, `sub_0803D80C`, `sub_0803D8AC`: level
+  objects, projectiles, effects) are per side: `abs(d) <= 168` became
+  `-cullL <= d <= cullR`.
+- In multiplayer, "another player's screen", where the walks will not create
+  an object, widens with that player's view.
+
+Left as they shipped, on purpose: OAM bounds (drawing only; the GPU path
+takes sprites from hooks), the camera clamp, and the gameplay meanings of
+"the screen". Those are Crash and similar abilities reaching what is on
+screen (`ability_objects.c`), attacks clamped to the screen edge, the
+off-screen indicator for other Kirbys (`hud.c`), and bosses picking a side by
+screen half. Widening those would be a balance change, not a fix for pop-in.
+
+**Pools.** Every object takes one of 64 nodes in `LevelInfo.unk1F0`, whose
+allocator walks off the end when it is full, and a task from a pool of 128,
+which hands out a shared dummy when it is full. The struct cannot grow: it is
+at a fixed address and the layout is checked. So `PortSpawnHeadroom` makes
+the room walks defer a spawn when fewer than 8 nodes or 24 tasks are free,
+and only when the window is widened. The deferred object comes in at the next
+scan that reaches it. Measured with `KATAM_SPAWNSTAT=1`:
+
+| run | peak nodes | peak tasks | deferred |
+|---|---|---|---|
+| `wide_view` rooms, 240x160 | 9/64 | 27/128 | -- |
+| same, 752x320 | 23/64 | 47/128 | 0 |
+| same, 1040x512 (the maximum) | 24/64 | 50/128 | 0 |
+| `warp_sweep`, 1040x512 | 24/64 | 57/128 | 0 |
+
+Cost is in the noise: the `wide_view` rooms replay in 5.8 s with or without
+the widest margin (native, turbo, no renderer). Objects created further out
+also take sprite VRAM. A failed `VramMalloc` returns a sentinel and the
+sprite draws garbage rather than crashing; it was not observed in these runs.
+
+**Pop-in, measured.** `KATAM_SPAWNSTAT=WxH` counts, inside a WxH view placed
+the renderer's way, every scroll-in spawn and every despawn of a level
+object. It also counts the whole-window walks (room entries, where everything
+appears at once anyway). Below are the `wide_view` rooms at 0.5x zoom 21:9
+(746x320), judged against that view:
+
+| | scroll-in spawns in view | despawns in view | whole-window walk spawns in view |
+|---|---|---|---|
+| stock windows (no `view` line) | 32 | 20 | 34 |
+| windows for 746x320 | **0** | **3** | 127 |
+
+The three despawns that remain are the room-bounds kill: objects that flew
+more than 64 px above the room, seen in the letterbox void of a room shorter
+than the view. The rule is unchanged from the original.
+
+`KATAM_RL_POPSTAT` gives the opposite answer, and it is the wrong question to
+put to it. It counts sprite *owners* appearing or vanishing in the margin
+(438 frames before, 1741 after). With objects now alive out there, that is
+mostly animation: three stationary objects in room 502 draw three frames in
+four, and they account for 285 toggles each. The rest is projectiles and
+effects that the newly live enemies emit. A blink-tolerant variant, which
+counts an owner unseen for 16 frames, still counts effects as they are
+created (83 before, 126 after). Neither count can tell a spawn from an
+effect. The spawn-level count can.
+
+**Netplay.** Every peer must use the same value. While the game's link
+(`platform/mp.c`) or a rollback session (`platform/rollback.c`) is active,
+or after a netplay page has called `PortSimViewPinNative`
+(`web/rb_net.js`, `web/rb_boot.js`, `web/mp_net.js`), the view is held at
+240x160, and requests are dropped. The original window is a common value, so
+those paths cannot desync over it. Netplay v2 replaces the hold with a
+session value (docs/design/NETPLAY-V2.md, "The simulation view").
+
 ## Cost
 
 1200 frames of the same scripted run, under node, on this machine. The number
@@ -218,6 +340,10 @@ interesting part of this whole exercise, but it is 24% of the frame budget for
 a picture that still breaks at every room boundary and needs four sources of
 truth to be kept in step with each other forever. It belongs where it is: on a
 branch, beside the real build, with the buttons that let you see why.
+
+(The game's object windows have since moved to the session view: see "Spawn
+margin" above. `--cull match` and `none` now set a floor on that view, plus
+the infinite despawn box for `none`, and keep moving the OAM bounds.)
 
 **Keep the cull plumbing either way.** It is the thing that would have to exist
 first if widescreen were ever taken further, it defaults to the game's own

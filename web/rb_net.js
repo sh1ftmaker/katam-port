@@ -45,6 +45,10 @@
     function createKatamRbSession(opts) {
         var Module = opts.Module;
         var log = opts.log || function (t) { console.log(t); };
+        /* Every peer must size the game's spawn window the same way: hold it
+         * at the original 240x160 for this page (platform/view.c). */
+        if (Module._PortSimViewPinNative)
+            Module._PortSimViewPinNative();
 
         var st = {
             slot: -1,               /* room slot == rollback peer id         */

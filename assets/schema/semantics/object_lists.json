@@ -1,0 +1,18 @@
+{
+  "format": "katam-semantics/1",
+  "record": "level_obj_list",
+  "c_type": "struct LevelInfo_1E4",
+  "c_decl": "game/include/data.h:169",
+  "size": 16,
+  "table": {"symbol": "gLevelObjLists", "addr": "0x08D637AC", "count": 287, "index": "RoomProps.objectListIdx"},
+  "description": "A room's object placement list header (gLevelObjLists entry read through union LevelObjList.obj; the same table is read as a RoomTiledBG through objectList2Idx, which no room uses).",
+  "fields": [
+    {"field": "unk0", "offset": 0, "type": "ptr", "name": "objects", "description": "Run of object_template records, walked by their stride byte until a zero stride.", "usage": "live", "confidence": "confirmed",
+     "evidence": [{"loc": "game/src/level.c:232", "code": "gLevelObjLists[gRoomProps[levelInfo->currentRoom].objectListIdx].obj);"}, {"loc": "game/src/code_080023A4.c:5914", "code": "for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {"}]},
+    {"field": "unk4", "offset": 4, "type": "ptr", "name": "objectTypes", "description": "Sorted, de-duplicated list of the object types placed in this room (numObjectTypes bytes). Accessor sub_0800271C has no caller in game/src: probably a graphics-preload manifest; the engine ignores it, but keep it consistent with the list (an editor should regenerate it).", "usage": "unused", "confidence": "confirmed",
+     "evidence": [{"loc": "game/src/code_080023A4.c:1422", "code": "u8 sub_0800271C(u16 roomId, u8 arg1)"}, {"data": "exactly the sorted set of ObjectTemplate.type values of the entry's list in 287/287 entries"}]},
+    {"field": "unk8", "offset": 8, "type": "ptr", "name": null, "description": "Second, always-empty array right after objectTypes (count unkD = 0). Accessor sub_08002774 has no caller.", "usage": "unused", "confidence": "unknown", "evidence": [{"loc": "game/src/code_080023A4.c:1432", "code": "u8 sub_08002774(u16 roomId, u8 arg1)"}, {"data": "unkD == 0 in 287/287"}]},
+    {"field": "unkC", "offset": 12, "type": "u8", "name": "numObjectTypes", "unit": "count", "description": "Length of objectTypes (0..13).", "usage": "unused", "confidence": "confirmed", "evidence": [{"loc": "game/src/code_080023A4.c:1419", "code": "return gLevelObjLists[gRoomProps[roomId].objectListIdx].obj->unkC;"}]},
+    {"field": "unkD", "offset": 13, "type": "u8", "name": null, "description": "Length of the unk8 array; 0 everywhere.", "usage": "unused", "confidence": "unknown", "evidence": [{"loc": "game/src/code_080023A4.c:1429", "code": "return gLevelObjLists[gRoomProps[roomId].objectListIdx].obj->unkD;"}]}
+  ]
+}

@@ -113,6 +113,7 @@ static void PortWebGlInit(void)
         return;
     }
     sGl = 1;
+    gPortShowDisplayRate = 1;   /* PortAwaitAnimationFrame paints every rAF */
     gPortUiStatus.platform = "web";
     gPortUiStatus.touch = PortWebCoarsePointer();
     gPortUiStatus.vsyncControl = 0;
@@ -140,6 +141,10 @@ void PortHostInit(int argc, char **argv)
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
+/* Pictures drawn and frames simulated per second (the menu's numbers), for
+ * a test harness checking that paints between frames are being drawn. */
+EMSCRIPTEN_KEEPALIVE double PortWebDrawRateJs(void) { return gPortUiStatus.drawFps; }
+EMSCRIPTEN_KEEPALIVE double PortWebSimRateJs(void) { return gPortUiStatus.simFps; }
 
 /* Everything the port says goes to two places: the browser console, and the
  * page's own log.
@@ -200,11 +205,17 @@ EM_JS(void, PortConsole, (const char *s, int isErr), {
  * frame, unpaced -- tests outrun the clock, and always have -- and none of
  * the timers above, because the rollback tests pause an instance by parking
  * its rAF registrations, and a guard timer firing from outside any
- * instance's execution window re-registers on the wrong ledger. */
-EM_ASYNC_JS(void, PortWebAwaitFrame, (void), {
+ * instance's execution window re-registers on the wrong ledger.
+ *
+ * Interpolation (`interp`): a paint that comes before the next frame is due
+ * returns 1 instead of being waited through, so the caller can draw the
+ * in-between picture for it (platform/ui/present.c) and call again; the
+ * call after that picks the wait up where it left off.  0: run the frame.
+ * Only visible-tab paints do this -- nothing is drawn for a hidden one. */
+EM_ASYNC_JS(int, PortWebAwaitFrame, (int interp), {
     if (typeof document === 'undefined') {
         await new Promise(function (resolve) { requestAnimationFrame(resolve); });
-        return;
+        return 0;
     }
     var PERIOD = 1000 / 59.7275;
     var due = Module.portFrameDue || 0;
@@ -232,29 +243,34 @@ EM_ASYNC_JS(void, PortWebAwaitFrame, (void), {
         s.t0 = t; s.sims = 0; s.waits = 0; s.catchups = 0; s.cpuMax = 0;
     });
     var now = performance.now();
-    if (st.lastExit && now - st.lastExit > st.cpuMax)
-        st.cpuMax = now - st.lastExit;
-    st.sims++;
+    var resumed = Module.portPaceWaiting;
+    Module.portPaceWaiting = 0;
+    /* A resumed wait (interpolation) is the same frame: no new counting. */
+    if (!resumed) {
+        if (st.lastExit && now - st.lastExit > st.cpuMax)
+            st.cpuMax = now - st.lastExit;
+        st.sims++;
 
-    /* The catch-up path: a full frame of real debt, not a stall's worth,
-     * and the last two frames were not themselves catch-ups.  The threshold
-     * matters: at `due - 2` this fired during ordinary vsync pacing
-     * whenever a frame's own work ran long enough, and at a 59.94 Hz-family
-     * refresh that meant a burst of skip/double oscillation each time the
-     * GBA clock's phase drifted across a vsync boundary -- the painted rate
-     * halved for a second or two every beat period (~5 s) while the game's
-     * speed stayed perfect, so nothing logged.  A throttled browser
-     * accumulates a frame of debt every frame and clears the bar
-     * immediately; vsync pacing never does. */
-    if (due > 0 && st.skips < 3 && now >= due + PERIOD && now <= due + 8 * PERIOD) {
-        st.skips++;
-        st.catchups++;
-        Module.portFrameDue = due + PERIOD;
-        report(st, now);
-        st.lastExit = performance.now();
-        return;
+        /* The catch-up path: a full frame of real debt, not a stall's worth,
+         * and the last two frames were not themselves catch-ups.  The threshold
+         * matters: at `due - 2` this fired during ordinary vsync pacing
+         * whenever a frame's own work ran long enough, and at a 59.94 Hz-family
+         * refresh that meant a burst of skip/double oscillation each time the
+         * GBA clock's phase drifted across a vsync boundary -- the painted rate
+         * halved for a second or two every beat period (~5 s) while the game's
+         * speed stayed perfect, so nothing logged.  A throttled browser
+         * accumulates a frame of debt every frame and clears the bar
+         * immediately; vsync pacing never does. */
+        if (due > 0 && st.skips < 3 && now >= due + PERIOD && now <= due + 8 * PERIOD) {
+            st.skips++;
+            st.catchups++;
+            Module.portFrameDue = due + PERIOD;
+            report(st, now);
+            st.lastExit = performance.now();
+            return 0;
+        }
+        st.skips = 0;
     }
-    st.skips = 0;
     for (;;) {
         if (document.hidden) {
             await new Promise(function (resolve) { setTimeout(resolve, 4); });
@@ -270,6 +286,10 @@ EM_ASYNC_JS(void, PortWebAwaitFrame, (void), {
             if (now < 0)
                 continue;
             st.waits++;
+            if (now < due - 2 && interp) {
+                Module.portPaceWaiting = 1;
+                return 1;
+            }
         }
         if (now >= due - 2)
             break;
@@ -279,6 +299,12 @@ EM_ASYNC_JS(void, PortWebAwaitFrame, (void), {
     Module.portFrameDue = (now > due + 8 * PERIOD) ? now + PERIOD : due + PERIOD;
     report(st, now);
     st.lastExit = performance.now();
+    return 0;
+});
+
+/* When the frame that just ran was due on that schedule. */
+EM_JS(double, PortWebFrameDueMs, (void), {
+    return (Module.portFrameDue || 0) - 1000 / 59.7275;
 });
 
 /* setTimeout(0), not requestAnimationFrame: a hidden tab throttles rAF to
@@ -319,6 +345,8 @@ static void Show(const u32 *pixels, int w, int h, int fresh)
 
     PortWebCanvasInfo(info);
     memcpy(&dpr, &info[2], sizeof(dpr));
+    if (fresh && PortWebFrameDueMs() > 0.0)
+        PortShowFrameDue(PortWebFrameDueMs());
     if (fresh)
         PortShowNewFrame(info[0], info[1], dpr, emscripten_get_now(), pixels, w, h);
     else
@@ -345,7 +373,10 @@ void PortAwaitAnimationFrame(void)
         Show(NULL, 0, 0, 0);
     }
     gPortUiStatus.netplay = PortRbActive();
-    PortWebAwaitFrame();
+    /* Paints between frames show the interpolated picture. */
+    while (PortWebAwaitFrame(sGl && gPortShowDisplayRate && gPortSettings.interp
+                             && PortShowUsingGpu()) == 1)
+        Show(NULL, 0, 0, 0);
 }
 
 /* The stall-loop pump (port/backend.h).  The page wires portNetIdle to the

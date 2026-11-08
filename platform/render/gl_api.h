@@ -143,6 +143,8 @@ typedef ptrdiff_t GLintptr;
     X(void, glUniform1iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform2iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform4iv, (GLint, GLsizei, const GLint *)) \
+    X(void, glUniform2f, (GLint, GLfloat, GLfloat)) \
+    X(void, glUniform4f, (GLint, GLfloat, GLfloat, GLfloat, GLfloat)) \
     X(void, glGenBuffers, (GLsizei, GLuint *)) \
     X(void, glBindBuffer, (GLenum, GLuint)) \
     X(void, glBufferData, (GLenum, GLsizeiptr, const void *, GLenum)) \

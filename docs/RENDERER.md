@@ -115,17 +115,63 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
 * **Parallax.** A picture drawn to fit the room (its 240-px window stays
   inside it over the camera range) is re-fitted: the wider window slides
   over the same range of the picture. One that runs off its own end at 240
-  tiles and wraps. One narrower than the view is mirrored. Vertical edges
-  repeat the edge row (visible as streaks only where a room is taller than
-  its sky, e.g. bottom of room 202 at 400x224).
-* **HUD**: four corner regions, BG1 and HUD sprites both.
+  tiles and wraps. One narrower than the view is mirrored. Past its top or
+  bottom (a view taller than the sky: rooms 202, 402, 554 at 0.5x zoom) it
+  is mirrored at the picture's edge; repeating the edge row drew vertical
+  streaks there.
+* **HUD**: four corner regions, BG1 and HUD sprites both; see below for
+  its size.
 
-### Object pop-in (game culling, not changed)
+### HUD layer
+
+The HUD lives in GBA screen space, 240x160, and the world view does not:
+zoomed in, the view is narrower and shorter than the HUD, so drawn in view
+pixels its regions overlap and the bottom strip leaves the picture; zoomed
+out, it shrinks with the world. So the HUD has a size of its own, tied to
+the window: **Auto** is the scale the world has at zoom 1 in this window
+(`PortLayoutHudScale`; the scripted path uses the scale a 240x160 picture
+would get), or the player's fixed 1x-8x; either way capped so the whole
+240x160 HUD fits inside the world picture (a portrait phone, Fill window).
+
+When that scale is the world's and the view is at least 240x160 -- zoom 1,
+Auto, any aspect -- the HUD stays in the composite exactly as before (the
+corner offsets are whole view pixels), which keeps the 240x160 picture
+identical to the PPU's. Otherwise (`GlrSetHudLayer`):
+
+* The sprite and composite passes leave the HUD out (the layer in
+  `RL_SPACE_HUD`, the sprites in it) and run again for the HUD alone into a
+  HUD atlas: one slot per region, at HUD coordinates with a 32-px gutter for
+  HUD sprites that hang over their region's edge (a sprite belongs to the
+  region holding its centre, as before, so nothing tears at x=160 or 120).
+  Same priority, window and per-line colour-effect rules, evaluated on the
+  HUD's own lines: a fade darkens or brightens the HUD exactly when it does
+  on the GBA. Where alpha blending has the world as its second target the
+  HUD pixel is written premultiplied (eva/16 of it, 1 - evb/16 of the world)
+  and blended at present -- the one place this is an approximation (no
+  5-bit rounding); a world layer the GBA would have drawn *over* the HUD by
+  priority is under it here.
+* `GlrPresentHud` draws each slot over the world picture, pinned to its
+  corner (or centred, original strip), nearest or -- with Smooth scaling and
+  a fractional scale -- sharp bilinear.
+
+Non-world frames (title, menus, pause) have no HUD regions and are the
+240x160 picture as always. Checked: forcing the layer at 1:1
+(`KATAM_HUD_LAYER=1`, window 240x160) gives the same window, pixel for
+pixel, as the in-composite HUD on every 15th frame of play_rooms and
+warp_sweep (956 frames, fades included). `--shot-at F:PREFIX` also writes
+`PREFIX-win.png`, the presented window, which is the picture that has the
+HUD layer in it (`PREFIX-gpu.png` is the composite only).
+
+### Object pop-in
 
 The game spawns objects 48 px (3 cells) past the 240x160 screen and destroys
-them past a 48-px margin; changing that changes the simulation and is a later
-decision. `KATAM_RL_POPSTAT=1` counts objects appearing/vanishing inside the
-view but outside 240x160 (room entries excluded):
+them past a 48-px margin. Those windows now follow the GPU view as a recorded
+simulation input (docs/VIEW.md, "Spawn margin"; the numbers below are from
+before that, with the stock windows). `KATAM_SPAWNSTAT=WxH` counts spawns and
+despawns inside a view, which is the measure that matters now (0 scroll-in
+spawns in view at 746x320, against 32 before). `KATAM_RL_POPSTAT=1` counts
+sprites appearing/vanishing inside the view but outside 240x160 (room entries
+excluded), animation and emitted effects included:
 
 | view | play_rooms | warp_sweep | attract |
 |---|---|---|---|
@@ -162,25 +208,115 @@ skipped. The GPU path does not use it (`gPortPpuCompose` instead).
 
 The window is resizable; the view (game pixels) is independent of it and is
 integer-scaled (nearest) into it, fractional only below 1x. With `--vsync`
-the GPU path presents at the display's rate, re-showing the latest sim frame
-until the next 59.73 Hz sim frame is due (`PaceFrame`).
+the GPU path presents at the display's rate (`PaceFrame`; on the web every
+`requestAnimationFrame` paint), between 59.73 Hz sim frames.
+
+## Smooth motion (interactive GPU path)
+
+Presentation only: nothing below reads anything the hooks did not already
+copy, and nothing is written back. The simulation clock is untouched -- the
+host paces sim frames exactly as before (`--turbo`, `--replay` included);
+only what each present draws changes. Settings **Smooth camera** and
+**Interpolation** (menu: Display; `smoothcam=`, `interp=`, both on).
+
+**Why it juddered.** The world was composed in game pixels and scaled up,
+so the camera moved in whole game pixels -- 2x zoom on a 1080p screen is
+13.5 screen pixels a step -- and the game's own camera advances unevenly
+in whole pixels (8.8 position, 1.06 px/frame walking: steps of 1,1,1,2...).
+On top of that a 60 Hz display shows a 59.73 Hz game with a repeated frame
+every 3.7 s, and a 120/144 Hz one repeats every frame unevenly.
+
+**Smooth camera** (`PortRlPresentFrame`, `RL_PRESENT_SUBPIXEL`).
+
+* The camera is placed at the game's 8.8 `viewportPosition`; each parallax
+  layer at its exact `altViewport` scroll (sub_080019F8 drops the fraction
+  when it writes the whole-pixel scroll); each fraction is only used if its
+  whole pixel is the one the Background record holds. The composite then
+  draws at k target pixels per game pixel (k = the whole part of the display
+  scale, under a pixel budget: 3840x2160 native, 2560x1440 web), and every
+  target pixel samples the texel under its centre at a 1/256-px position
+  (`GlrDrawScaled`) -- the texels stay sharp k-pixel squares, and the
+  remaining fraction of the scale is the present's stretch (nearest, or
+  sharp bilinear with Smooth scaling).
+* World sprites move with the tiles: they keep their whole-pixel world
+  positions, so nothing swims against the background. The exception is
+  Kirby (each player's three sprite structs, recognised by address and
+  checked against his position the way the game rounds it): while he moves
+  along an axis he is drawn at his own 8.8 position, so a camera following
+  him does not make him vibrate a pixel against the screen. At rest he is
+  where the GBA draws him -- the game parks him on x.996 as often as on x.0,
+  and drawing that as written would sink him into the floor; the switch
+  happens between two frames, and with interpolation on it is lerped.
+* Zoomed in, the view follows Kirby's 8.8 position (as of the committed
+  frame) instead of his whole pixel.
+* The HUD (in the composite or as its own layer) stays on its own pixel
+  grid, pinned; the 240x160 picture at zoom 1 with **Smooth camera** off is
+  the integer path, bit for bit.
+
+**Interpolation** (`RL_PRESENT_INTERP`). Each built frame keeps a motion
+record (camera, layer scrolls, Kirby, and every sprite group: one
+`PortRlEmitSprite` call, keyed by its `struct Sprite` and occurrence, with
+its anchor). A present at time t draws alpha = (t - due) / period between
+the previous sim frame and the last, `due` being when the host's schedule
+said the last frame was due (`PortShowFrameDue`; native `sNextFrame`, web
+`portFrameDue`), so presents evenly spaced in time show the world evenly
+spaced. Camera, layers and sprite anchors are lerped; a sprite's subframes
+follow its anchor, so animation frames changing under it do not stop the
+motion. Nothing is interpolated across a frame gap (rollback catch-up), a
+room change, a camera jump of 64+ px, a sprite jump of 32+ px, a sprite
+with no match, or a netplay world sync (`PortRlNoteCorrection`, a hook the
+netsim "state corrected" event calls; it snaps today, and is the place to
+blend corrections out instead). Tile content, palette and effects are the
+last frame's: only positions are blended.
+
+Only where the host presents between frames: native with VSync on (not
+`--turbo`, not a scripted run -- a scripted run's pictures depend on the
+frame alone; `KATAM_INTERP=1` overrides for measuring), and the web, where
+`PortWebAwaitFrame` hands back each paint that comes before the next frame
+is due so it can be drawn.
+
+**Latency.** Input is read at the start of a sim frame as before. Without
+interpolation a present shows the last frame as soon as it exists; with it,
+the picture shown at t is the state of t - one period, so it costs up to
+one sim frame (16.7 ms), on average a little over half of one against a
+display that would have shown that frame at its next refresh. Never more
+than +1 frame: alpha is clamped to [0, 1] and the last frame is reached
+the moment the next is due. The trade-off is the usual one; players who
+want the minimum turn Interpolation off (Smooth camera costs no latency).
+
+**Cost.** The composite runs per present at k x k the pixels -- on the GPU
+here (RTX 4090) the 1080p picture at 120 Hz is far under budget; a weak
+GPU can cap k with `KATAM_SMOOTH_KMAX=N`.
+
+**Measured** (`KATAM_CAMLOG`, play_rooms frames 1300-2400 in UI mode at
+2x zoom, 1920x1080, `KATAM_FAKE_HZ` standing in for a blocking vblank;
+per-present camera step in game pixels, jumps excluded):
+
+| | presents | step sd | step-to-step change (jerk) sd | presents with no motion | Kirby on-screen step sd |
+|---|---|---|---|---|---|
+| 60 Hz, before (integer) | 1105 | 0.635 | 0.814 | 159 | 0.550 |
+| 60 Hz, smooth camera | 1105 | 0.484 | 0.191 | 113 | 0.351 |
+| 60 Hz, + interpolation | 1105 | 0.479 | 0.128 | 110 | 0.350 |
+| 120 Hz, before | 2210 | 0.701 | 1.239 | 1264 | 0.391 |
+| 120 Hz, smooth camera | 2209 | 0.638 | 1.171 | 1217 | 0.252 |
+| 120 Hz, + interpolation | 2210 | 0.263 | 0.216 | 223 | 0.176 |
+
+(The remaining step sd is the camera really speeding up and slowing down;
+"no motion" at 60 Hz is the camera at rest.) On a steady walk (frames
+1420-1530) the jerk goes 0.772 -> 0.103 -> 0.081 at 60 Hz and 1.215 ->
+1.146 -> 0.250 at 120 Hz, and Kirby's on-screen step sd 0.437 -> 0.
 
 ## Next
 
-* **Interpolation** (S-M): keep the previous and current RlFrame; present
-  with alpha = time since the sim frame / period. Camera: interpolate the
-  view origin (needs layer sampling in sub-pixel/float and a slightly larger
-  composite, ~1 day). Sprites: match by owner (`struct Sprite` address, as
-  the pop-in census already does) and lerp positions; teleports and
-  animation-frame changes snap.
 * **Effects** (S each): OBJ mosaic; windows as world-space shapes instead of
   the 240-wide edge heuristic; HBlank tables beyond line 160 synthesised
-  rather than clamped; a parallax layer taller than its picture.
+  rather than clamped.
 * **Block-mapped layers** (`Background.unk2E & 0x40`, a table of tile
   blocks): today window-only in wide views; flatten on CPU into the atlas (S).
 * **Asset-by-id (M9, L)**: replace `map`/tile/palette references with
   resource ids; tiles as atlas textures, the composite unchanged in shape.
 * **Per-element HUD anchors** (S): regions from hud.c's own element list.
-* **Culling** (sim decision): a wider spawn/despawn window would remove the
-  pop-in above but changes the simulation and needs re-recorded goldens and
-  netplay agreement on the view.
+  The HUD layer's atlas takes any number of regions up to 8 unchanged.
+* **Culling**: done. The spawn/despawn windows follow the view, as a
+  recorded input (docs/VIEW.md, "Spawn margin"). Netplay holds them at
+  240x160 until v2 agrees on a session view.

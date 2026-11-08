@@ -136,7 +136,12 @@ to scroll, tap to press, and hold or slide sideways to move a slider.
   game's 48-px spawn margin the menu warns that objects visibly pop in -- the
   game's culling is deliberately not widened (that would change the game).
 - **Scaling**: integer, fit (sharp nearest) or smooth (sharp bilinear), and
-  the border colour. **HUD**: pinned to the corners or the original strip.
+  the border colour.
+- **HUD**: pinned to the corners or the original strip, and its **size**:
+  Auto (the size it has at zoom 1 in this window, whatever the zoom) or a
+  fixed 1x-8x window pixels per GBA pixel, capped so the whole HUD fits the
+  picture. Off zoom 1 the HUD is its own layer over the scaled world, so
+  zooming in no longer clips it and zooming out no longer shrinks it.
 - **Display**: FPS overlay, VSync (native). **Audio**: volume, mute.
   **Menu size**, controls help, reset to defaults, and the build label.
 

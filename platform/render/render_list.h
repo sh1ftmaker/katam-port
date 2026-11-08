@@ -58,7 +58,7 @@ typedef struct RlTileLayer {
     u8 space;                /* RL_SPACE_*                                   */
     u8 streamed;             /* WORLD: VRAM holds only a window of the map   */
     u8 wrapX;                /* outside the window: 1 repeat, 2 mirror      */
-    u8 clampY;               /* ... and its edge rows extend up and down    */
+    u8 mirrorY;              /* ... and mirrors at its top and bottom edge */
     u8 pad_[3];
     /* WORLD, not streamed: a picture smaller than its hardware screen block
      * (a 30x30 sky in a 32x32 block).  Nonzero: samples outside it are
@@ -69,6 +69,9 @@ typedef struct RlTileLayer {
      * parallax term for a view moved off the game camera,
      * (factor - 1) * viewShift.  Zero for the room layer and for SCREEN. */
     s32 shiftX, shiftY;
+    /* ... and a further fraction of a pixel, 1/256 units (0 except in a
+     * frame from PortRlPresentFrame: a sub-pixel or interpolated camera). */
+    s32 subX, subY;
     /* WORLD + streamed: the room's real tilemap (row-major u16 entries,
      * exactly what bg.c DMAs into the screen block), where it sits relative
      * to the screen, and the screen-space window inside which VRAM holds the
@@ -92,6 +95,7 @@ typedef struct RlSprite {
     u8 space;
     u8 anchor;               /* HUD: index into RlFrame.hud                  */
     s16 pa, pb, pc, pd;      /* affine matrix (identity when not affine)    */
+    s16 subX, subY;          /* added to x/y, 1/256 px (PortRlPresentFrame)  */
 } RlSprite;
 
 /* A HUD region: a rectangle of the 240x160 HUD and the edge it is pinned to.
@@ -134,6 +138,13 @@ typedef struct RlFrame {
      * SCREEN coordinates.  At 240x160 on the game camera this is (0,0). */
     s32 viewW, viewH;
     s32 viewX, viewY;
+    /* ... plus this fraction of a pixel, 1/256 units, 0..255: the view's
+     * top-left is at viewX + viewSubX / 256.  0 except in a frame from
+     * PortRlPresentFrame. */
+    s32 viewSubX, viewSubY;
+    /* World coordinates of SCREEN (0, 0) -- the room layer's scroll, the
+     * game's camera in whole pixels.  0 outside a world frame.  Diagnostics. */
+    s32 camX, camY;
     /* The camera shift the list applied (view centre minus game centre),
      * after clamping to the room; world items move by -shift. */
     s32 shiftX, shiftY;
@@ -186,6 +197,39 @@ const RlFrame *PortRlBuildFrame(void);
 void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
+
+/* The last frame built, for showing on a display finer than the game's pixel
+ * grid and faster than its 59.73 Hz.  Presentation only: the result is a
+ * copy, built from what the last two PortRlBuildFrame calls recorded, and
+ * nothing here reads or writes game state.
+ *
+ *   RL_PRESENT_SUBPIXEL  the camera at the game's own 8.8 position rather
+ *                        than its whole pixel (RlFrame.viewSubX/Y, layer
+ *                        subX/Y), parallax layers at their exact scroll, and
+ *                        Kirby at his own 8.8 position while he moves.  A
+ *                        zoomed-in view follows him by that position too.
+ *   RL_PRESENT_INTERP    camera, layers and sprites (matched by the struct
+ *                        Sprite they came from) lerped between the previous
+ *                        sim frame and the last one: `alpha` 0 is the
+ *                        previous, 1 the last.  Nothing is interpolated across
+ *                        a frame gap, a room change or a jump.
+ *
+ * flags 0 returns the frame as built (bit-identical: the gate path).  The
+ * pointer is valid until the next call. */
+#define RL_PRESENT_SUBPIXEL 1
+#define RL_PRESENT_INTERP   2
+const RlFrame *PortRlPresentFrame(int flags, float alpha);
+/* Netplay: the world was replaced by a sync at sim frame `frame` (the netsim
+ * "state corrected" event).  The next frame built does not interpolate from
+ * the one before -- the two are different timelines.  Hook only: a later
+ * cut can blend the correction out over a few frames instead of snapping
+ * (keep the pre-correction positions as the `prev` side and decay the
+ * offset), which is what this entry point is for.  Presentation only. */
+void PortRlNoteCorrection(u32 frame);
+/* After PortRlPresentFrame: the local Kirby's top-left in the view (1/256
+ * px) and the view's top-left in world coordinates (1/256 px); returns 0 if
+ * Kirby was not found.  Diagnostics (KATAM_CAMLOG). */
+int PortRlPresentDiag(s32 *kirbyViewX, s32 *kirbyViewY, s32 *viewWorldX, s32 *viewWorldY);
 
 /* --- game-side hooks: write-only, see the header comment ----------------
  * Attached by linker wraps of DisplaySprite, sub_081564D8 and

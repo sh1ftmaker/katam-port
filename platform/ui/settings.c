@@ -5,8 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "port/port.h"
 #include "ui/settings.h"
 #include "render/render_list.h"
+
+#define PORT_HUD_W 240
+#define PORT_HUD_H 160
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,11 +28,14 @@ void PortSettingsDefaults(PortSettings *s)
     s->scaling = PS_SCALE_FIT;
     s->letterbox = 0x0C0E11;
     s->hud = PS_HUD_CORNERS;
+    s->hudScale = 0;
     s->vsync = 1;
     s->showFps = 0;
     s->volume = 100;
     s->mute = 0;
     s->uiScale = 1.0f;
+    s->smoothCam = 1;
+    s->interp = 1;
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -47,11 +54,14 @@ void PortSettingsClamp(PortSettings *s)
     s->scaling = ClampI(s->scaling, 0, PS_SCALE_COUNT - 1);
     s->letterbox &= 0xFFFFFF;
     s->hud = ClampI(s->hud, 0, 1);
+    s->hudScale = ClampI(s->hudScale, 0, PS_HUD_SCALE_MAX);
     s->vsync = !!s->vsync;
     s->showFps = !!s->showFps;
     s->volume = ClampI(s->volume, 0, 100);
     s->mute = !!s->mute;
     s->uiScale = ClampF(s->uiScale, 0.6f, 2.0f);
+    s->smoothCam = !!s->smoothCam;
+    s->interp = !!s->interp;
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
@@ -82,11 +92,14 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("scaling", scaling)
                 else if (strcmp(key, "letterbox") == 0) s->letterbox = (unsigned)strtoul(val, NULL, 16);
                 INT_KEY("hud", hud)
+                INT_KEY("hudscale", hudScale)
                 INT_KEY("vsync", vsync)
                 INT_KEY("fps", showFps)
                 INT_KEY("volume", volume)
                 INT_KEY("mute", mute)
                 FLT_KEY("uiscale", uiScale)
+                INT_KEY("smoothcam", smoothCam)
+                INT_KEY("interp", interp)
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -100,11 +113,14 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
 {
     int n = snprintf(buf, (size_t)size,
         "renderer=%d\nzoom=%.3f\ndynzoom=%d\naspect=%d\nscaling=%d\n"
-        "letterbox=%06X\nhud=%d\nvsync=%d\nfps=%d\nvolume=%d\nmute=%d\n"
-        "uiscale=%.2f\n",
+        "letterbox=%06X\nhud=%d\nhudscale=%d\nvsync=%d\nfps=%d\nvolume=%d\n"
+        "mute=%d\nuiscale=%.2f\n",
         s->renderer, (double)s->zoom, s->dynZoom, s->aspect, s->scaling,
-        s->letterbox, s->hud, s->vsync, s->showFps, s->volume, s->mute,
-        (double)s->uiScale);
+        s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
+        s->mute, (double)s->uiScale);
+    if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam=%d\ninterp=%d\n",
+                      s->smoothCam, s->interp);
     return n < size ? n : size - 1;
 }
 
@@ -142,14 +158,37 @@ static void Centre(int fbW, int fbH, int w, int h, int dst[4])
     dst[3] = h;
 }
 
-void PortLayoutFit(const PortSettings *s, int fbW, int fbH, int srcW, int srcH,
-                   int dst[4])
+double PortLayoutScale(const PortSettings *s, int fbW, int fbH, int srcW, int srcH)
 {
     double k = fmin((double)fbW / srcW, (double)fbH / srcH);
 
     if (s->scaling == PS_SCALE_INTEGER && k >= 1.0)
         k = floor(k);
+    return k;
+}
+
+void PortLayoutFit(const PortSettings *s, int fbW, int fbH, int srcW, int srcH,
+                   int dst[4])
+{
+    double k = PortLayoutScale(s, fbW, fbH, srcW, srcH);
+
     Centre(fbW, fbH, (int)(srcW * k + 0.5), (int)(srcH * k + 0.5), dst);
+}
+
+double PortLayoutHudScale(const PortSettings *s, int fbW, int fbH, const int world[4])
+{
+    double k, fit;
+
+    if (s->hudScale > 0) {
+        k = s->hudScale;
+    } else {
+        PortLayout one;
+
+        PortLayoutCompute(s, fbW, fbH, 1, 1.0f, PORT_HUD_W, PORT_HUD_H, &one);
+        k = PortLayoutScale(s, fbW, fbH, one.viewW, one.viewH);
+    }
+    fit = fmin((double)world[2] / PORT_HUD_W, (double)world[3] / PORT_HUD_H);
+    return k < fit ? k : fit;
 }
 
 void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
@@ -181,9 +220,7 @@ void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
     out->viewH = ((int)(vh + 0.5)) & ~1;
     if (out->viewW < RL_MIN_VIEW_W) out->viewW = RL_MIN_VIEW_W;
     if (out->viewH < RL_MIN_VIEW_H) out->viewH = RL_MIN_VIEW_H;
-    k = fmin((double)fbW / out->viewW, (double)fbH / out->viewH);
-    if (s->scaling == PS_SCALE_INTEGER && k >= 1.0)
-        k = floor(k);
+    k = PortLayoutScale(s, fbW, fbH, out->viewW, out->viewH);
     Centre(fbW, fbH, (int)(out->viewW * k + 0.5), (int)(out->viewH * k + 0.5),
            out->dst);
     (void)srcW; (void)srcH;
@@ -191,6 +228,10 @@ void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
 
 int PortLayoutPastSpawnMargin(int viewW, int viewH)
 {
+    /* The spawn margin follows the view (platform/view.c) unless a session
+     * holds it at the original. */
+    if (PortSimViewCovers(viewW, viewH))
+        return 0;
     return viewW > 240 + 2 * PORT_SPAWN_MARGIN || viewH > 160 + 2 * PORT_SPAWN_MARGIN;
 }
 

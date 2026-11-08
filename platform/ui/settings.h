@@ -5,9 +5,11 @@
  * console state), the GPU view rectangle and its scaling, the HUD's anchoring,
  * and the output volume.  None of them is written to game memory, none is in a
  * recording, and `make regress` (which never loads them) is unaffected.  The
- * game's own culling is NOT widened by a big view -- that would change the
- * simulation -- so a view past the spawn margin shows pop-in (docs/RENDERER.md);
- * PortLayoutPastSpawnMargin says when.
+ * one exception is deliberate: the game's spawn/despawn windows follow the
+ * widest view the settings allow, which present.c hands the simulation as a
+ * recorded request (PortSimViewRequest, docs/VIEW.md "Spawn margin").  While
+ * a netplay session holds them at the original, a view past the spawn margin
+ * shows pop-in; PortLayoutPastSpawnMargin says when.
  *
  * The settings menu (ui_menu.cpp) is a view over this struct; a later HTML or
  * native UI can drive the same struct and call PortSettingsChanged().
@@ -27,6 +29,7 @@ enum { PS_ASPECT_AUTO = 0, PS_ASPECT_3_2, PS_ASPECT_4_3, PS_ASPECT_16_10,
        PS_ASPECT_16_9, PS_ASPECT_21_9, PS_ASPECT_FILL, PS_ASPECT_COUNT };
 enum { PS_SCALE_INTEGER = 0, PS_SCALE_FIT, PS_SCALE_SMOOTH, PS_SCALE_COUNT };
 enum { PS_HUD_CORNERS = 0, PS_HUD_STRIP };
+#define PS_HUD_SCALE_MAX 8
 
 typedef struct PortSettings {
     int renderer;       /* PS_RENDER_*                                      */
@@ -36,11 +39,15 @@ typedef struct PortSettings {
     int scaling;        /* PS_SCALE_*                                       */
     unsigned letterbox; /* 0xRRGGBB                                         */
     int hud;            /* PS_HUD_*                                         */
+    int hudScale;       /* 0 auto (the size at zoom 1), else N window pixels
+                         * per HUD pixel; PS_HUD_SCALE_MAX at most          */
     int vsync;          /* native: present on the display's refresh         */
     int showFps;
     int volume;         /* 0..100                                           */
     int mute;
     float uiScale;      /* menu size multiplier, 1.0 = automatic            */
+    int smoothCam;      /* GPU: the camera at the game's sub-pixel position */
+    int interp;         /* GPU: lerp between sim frames at display rate     */
 } PortSettings;
 
 extern PortSettings gPortSettings;
@@ -68,11 +75,21 @@ typedef struct PortLayout {
 
 void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
                        float zoom, int srcW, int srcH, PortLayout *out);
-/* Fit an srcW x srcH picture into the framebuffer per the scaling mode. */
+/* Fit an srcW x srcH picture into the framebuffer per the scaling mode;
+ * Scale is the factor Fit uses (framebuffer pixels per source pixel). */
 void PortLayoutFit(const PortSettings *s, int fbW, int fbH, int srcW, int srcH,
                    int dst[4]);
+double PortLayoutScale(const PortSettings *s, int fbW, int fbH, int srcW, int srcH);
+/* The HUD's own scale (framebuffer pixels per HUD pixel) for a world picture
+ * landing at world[4] = {x, y, w, h}: the setting, or with Auto the scale the
+ * world itself has at zoom 1 in this framebuffer -- so zooming changes the
+ * world, not the HUD -- and never more than lets the whole 240x160 HUD fit
+ * inside the world picture. */
+double PortLayoutHudScale(const PortSettings *s, int fbW, int fbH, const int world[4]);
 /* The game creates objects 48 px past the 240x160 screen and removes them
- * 48 px past it: a view wider/taller than this shows them popping in. */
+ * 48 px past it.  The windows widen with the view, except while a session
+ * holds them at the original; then a view wider/taller than this shows
+ * objects popping in. */
 #define PORT_SPAWN_MARGIN 48
 int PortLayoutPastSpawnMargin(int viewW, int viewH);
 
