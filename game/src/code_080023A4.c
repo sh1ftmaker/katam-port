@@ -5,9 +5,8 @@ extern "C" {
 
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
-extern s32 gPortCullHalfW, gPortCullHalfH;
-extern s32 gPortSpawnPadX, gPortSpawnPadY;
 extern s32 gPortCamPadX, gPortCamPadY;
+#include "port/spawn.h"
 #include "palette_effects.h"
 #include "data.h"
 #include "functions.h"
@@ -5899,6 +5898,10 @@ void CreateLevelObjects(u8 playerId)
 
     if (levelInfo->currentRoom != 0xFFFF) {
         const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
+        /* PORT-FORK: the window is sized for the session's view, per side
+         * (port/spawn.h); every pad is 0 at the stock 240x160. */
+        struct PortSpawnMargin mg[4];
+        u8 q;
 
         s16 stack0[4][2] = {
             {((gCurLevelInfo[0].viewportPosition.x  + gCurLevelInfo[0].unk1C) >> 0xC) - 2,
@@ -5911,6 +5914,9 @@ void CreateLevelObjects(u8 playerId)
              ((gCurLevelInfo[3].viewportPosition.y + gCurLevelInfo[3].unk20) >> 0xC) - 2}
         };
 
+        for (q = 0; q < 4; q++)
+            PortSpawnMarginNow(q, &mg[q]);
+
         for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
             if (sub_080027E8(obj->unk2, obj->unk3, levelInfo->unk65E) != 0)
                 continue;
@@ -5919,14 +5925,14 @@ void CreateLevelObjects(u8 playerId)
                 s32 unkX, unkY, unkXX, unkYY;
                 u8 p;
 
-                unkX = stack0[playerId][0] - 1 - gPortSpawnPadX;
+                unkX = stack0[playerId][0] - 1 - mg[playerId].padL;
 
-                if (unkX > (obj->x >> 4) || (obj->x >> 4) >= unkX + 0x16 + 2 * gPortSpawnPadX)
+                if (unkX > (obj->x >> 4) || (obj->x >> 4) >= unkX + 0x16 + mg[playerId].padL + mg[playerId].padR)
                     continue;
 
-                unkY = stack0[playerId][1] - 1 - gPortSpawnPadY;
+                unkY = stack0[playerId][1] - 1 - mg[playerId].padT;
 
-                if (unkY > (obj->y >> 4) || (obj->y >> 4) >= unkY + 0x11 + 2 * gPortSpawnPadY)
+                if (unkY > (obj->y >> 4) || (obj->y >> 4) >= unkY + 0x11 + mg[playerId].padT + mg[playerId].padB)
                     continue;
 
                 for (p = 0; p < gNumHumanPlayers; p++) {
@@ -5937,21 +5943,24 @@ void CreateLevelObjects(u8 playerId)
                     )
                         continue;
 
-                    unkXX = stack0[p][0] + 1;
+                    /* PORT-FORK: another player's view, widened with it. */
+                    unkXX = stack0[p][0] + 1 - mg[p].padL;
 
-                    if (unkXX > (obj->x >> 4) || (obj->x >> 4) >= unkXX + 0x11)
+                    if (unkXX > (obj->x >> 4) || (obj->x >> 4) >= unkXX + 0x11 + mg[p].padL + mg[p].padR)
                         continue;
 
-                    unkYY = stack0[p][1] + 1;
+                    unkYY = stack0[p][1] + 1 - mg[p].padT;
 
-                    if (unkYY > (obj->y >> 4) || (obj->y >> 4) >= unkYY + 0xC)
+                    if (unkYY > (obj->y >> 4) || (obj->y >> 4) >= unkYY + 0xC + mg[p].padT + mg[p].padB)
                         continue;
 
                     goto _0800A286;
                 }
             }
 
-            CreateObject(playerId, obj);
+            /* PORT-FORK: a widened window keeps the pools a reserve. */
+            if (PortSpawnHeadroom(playerId, obj->x, obj->y, 0))
+                CreateObject(playerId, obj);
         _0800A286:;
         }
     }
@@ -5961,13 +5970,17 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
+    struct PortSpawnMargin mg[4];
 
     u8 p;
+
+    for (p = 0; p < 4; p++)
+        PortSpawnMarginNow(p, &mg[p]);
 
     for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
         if (
             sub_080027E8(obj->unk2, obj->unk3, levelInfo->unk65E) != 0 ||
-            arg2[playerId][1] - gPortSpawnPadY > (obj->y >> 4) || (obj->y >> 4) >= arg2[playerId][1] + 0xE + 2 * gPortSpawnPadY
+            arg2[playerId][1] - mg[playerId].padT > (obj->y >> 4) || (obj->y >> 4) >= arg2[playerId][1] + 0xE + mg[playerId].padB
         )
             continue;
 
@@ -5988,15 +6001,17 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
             if (
                 p != playerId &&
                 gCurLevelInfo[p].currentRoom == levelInfo->currentRoom &&
-                arg2[p][0] + 1 <= (obj->x >> 4) && (obj->x >> 4) < arg2[p][0] + 0x12 &&
-                arg2[p][1] + 1 <= (obj->y >> 4) && (obj->y >> 4) < arg2[p][1] + 0xD
+                arg2[p][0] + 1 - mg[p].padL <= (obj->x >> 4) && (obj->x >> 4) < arg2[p][0] + 0x12 + mg[p].padR &&
+                arg2[p][1] + 1 - mg[p].padT <= (obj->y >> 4) && (obj->y >> 4) < arg2[p][1] + 0xD + mg[p].padB
             )
                 goto _0800A5EA;
 
         /* PORT-FORK: was a copy of CreateObject's body (slot, dispatch on
          * spawnTable, link the slot); one spawn dispatch now, so a spawn hook
-         * has one place to go (docs/design/MODDING.md §4.8). */
-        CreateObject(playerId, obj);
+         * has one place to go (docs/design/MODDING.md §4.8).  And a widened
+         * window keeps the pools a reserve (port/spawn.h). */
+        if (PortSpawnHeadroom(playerId, obj->x, obj->y, 1))
+            CreateObject(playerId, obj);
 
     _0800A5EA:;
     }
@@ -6006,13 +6021,17 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
+    struct PortSpawnMargin mg[4];
 
     u8 p;
+
+    for (p = 0; p < 4; p++)
+        PortSpawnMarginNow(p, &mg[p]);
 
     for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
         if (
             sub_080027E8(obj->unk2, obj->unk3, levelInfo->unk65E) != 0 ||
-            arg2[playerId][0] - gPortSpawnPadX > (obj->x >> 4) || (obj->x >> 4) >= arg2[playerId][0] + 0x13 + 2 * gPortSpawnPadX
+            arg2[playerId][0] - mg[playerId].padL > (obj->x >> 4) || (obj->x >> 4) >= arg2[playerId][0] + 0x13 + mg[playerId].padR
         )
             continue;
 
@@ -6033,15 +6052,17 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
             if (
                 p != playerId &&
                 gCurLevelInfo[p].currentRoom == levelInfo->currentRoom &&
-                arg2[p][0] + 1 <= (obj->x >> 4) && (obj->x >> 4) < arg2[p][0] + 0x12 &&
-                arg2[p][1] + 1 <= (obj->y >> 4) && (obj->y >> 4) < arg2[p][1] + 0xD
+                arg2[p][0] + 1 - mg[p].padL <= (obj->x >> 4) && (obj->x >> 4) < arg2[p][0] + 0x12 + mg[p].padR &&
+                arg2[p][1] + 1 - mg[p].padT <= (obj->y >> 4) && (obj->y >> 4) < arg2[p][1] + 0xD + mg[p].padB
             )
                 goto _0800A5EA;
 
         /* PORT-FORK: was a copy of CreateObject's body (slot, dispatch on
          * spawnTable, link the slot); one spawn dispatch now, so a spawn hook
-         * has one place to go (docs/design/MODDING.md §4.8). */
-        CreateObject(playerId, obj);
+         * has one place to go (docs/design/MODDING.md §4.8).  And a widened
+         * window keeps the pools a reserve (port/spawn.h). */
+        if (PortSpawnHeadroom(playerId, obj->x, obj->y, 1))
+            CreateObject(playerId, obj);
 
     _0800A5EA:;
     }
@@ -6054,15 +6075,54 @@ void sub_0800A60C(u8 playerId, s16 (*arg1)[2])
     s16 stack0[] = {levelInfo->viewportPosition.x  >> 0xC, levelInfo->viewportPosition.y >> 0xC};
     s16 stack4[] = {levelInfo->viewportPositionUnmodified.x >> 0xC, levelInfo->viewportPositionUnmodified.y >> 0xC};
 
-    if (stack4[0] < stack0[0])
-        sub_0800A2B4(playerId, arg1[playerId][0] + 0x13 + gPortSpawnPadX, arg1, 1 + gPortSpawnPadX);
-    else if (stack4[0] > stack0[0])
-        sub_0800A2B4(playerId, arg1[playerId][0] - gPortSpawnPadX, arg1, -1 - gPortSpawnPadX);
+    /* PORT-FORK: the scroll-in walks, at the edges of a window sized for
+     * the session's view (port/spawn.h).  The game scans the two cells at
+     * the leading edge when the camera crosses a cell; that is kept, at the
+     * edge where the widened window now is.  A window can also grow without
+     * the camera crossing a cell -- the view changed, or a room edge stopped
+     * pushing the view inwards -- so each side also scans the cells between
+     * where its edge was at the start of the frame and where it is now.
+     * Only the edges, never the whole margin: the interior is in view, and
+     * the game never re-creates an object the player can see.  At the stock
+     * view the pads are 0, the edges move only when the camera crosses a
+     * cell, and this is exactly the game's own four calls. */
+    struct PortSpawnMargin now, was;
+    s32 edge, prevEdge, lo, hi;
 
-    if (stack4[1] < stack0[1])
-        sub_0800A460(playerId, arg1[playerId][1] + 0xE + gPortSpawnPadY, arg1, 1 + gPortSpawnPadY);
-    else if (stack4[1] > stack0[1])
-        sub_0800A460(playerId, arg1[playerId][1] - gPortSpawnPadY, arg1, -1 - gPortSpawnPadY);
+    PortSpawnMarginNow(playerId, &now);
+    PortSpawnMarginPrev(playerId, &was);
+
+    edge = arg1[playerId][0] + 0x13 + now.padR;
+    prevEdge = stack4[0] - 2 + 0x13 + was.padR;
+    lo = (stack4[0] < stack0[0]) ? edge - 1 : edge + 1;
+    if (prevEdge + 1 < lo)
+        lo = prevEdge + 1;
+    if (lo <= edge)
+        sub_0800A2B4(playerId, edge, arg1, edge - lo);
+
+    edge = arg1[playerId][0] - now.padL;
+    prevEdge = stack4[0] - 2 - was.padL;
+    hi = (stack4[0] > stack0[0]) ? edge + 1 : edge - 1;
+    if (prevEdge - 1 > hi)
+        hi = prevEdge - 1;
+    if (hi >= edge)
+        sub_0800A2B4(playerId, edge, arg1, edge - hi);
+
+    edge = arg1[playerId][1] + 0xE + now.padB;
+    prevEdge = stack4[1] - 2 + 0xE + was.padB;
+    lo = (stack4[1] < stack0[1]) ? edge - 1 : edge + 1;
+    if (prevEdge + 1 < lo)
+        lo = prevEdge + 1;
+    if (lo <= edge)
+        sub_0800A460(playerId, edge, arg1, edge - lo);
+
+    edge = arg1[playerId][1] - now.padT;
+    prevEdge = stack4[1] - 2 - was.padT;
+    hi = (stack4[1] > stack0[1]) ? edge + 1 : edge - 1;
+    if (prevEdge - 1 > hi)
+        hi = prevEdge - 1;
+    if (hi >= edge)
+        sub_0800A460(playerId, edge, arg1, edge - hi);
 }
 
 void sub_0800A6E8(void)

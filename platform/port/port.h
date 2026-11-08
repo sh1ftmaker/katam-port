@@ -211,11 +211,31 @@ void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
 extern u32 gPortClipToStreamed, gPortSynthesiseColumns;
 
 /* The literals tools/legacy-sync/portify.py lifts out of the game's own sources.  Each
- * holds the constant it replaced until platform/view.c says otherwise. */
+ * holds the constant it replaced until platform/view.c says otherwise.  The
+ * spawn/despawn windows are per player now: port/spawn.h. */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
-extern s32 gPortCullHalfW, gPortCullHalfH;
-extern s32 gPortSpawnPadX, gPortSpawnPadY;
 extern s32 gPortCamPadX, gPortCamPadY;
+
+/* --- the simulation's view (platform/view.c, docs/VIEW.md "Spawn margin") --
+ * The world view the game's spawn and despawn windows are sized for.  A
+ * simulation input: the host asks, the input log records the change as a
+ * frame-stamped event, and the latch applies it.  Held at 240x160 while a
+ * link or rollback session is active or after PortSimViewPinNative. */
+/* Host: the widest world view it may show from now on (any zoom easing must
+ * only ever show less).  Rounded up to whole cells; a no-op when unchanged,
+ * while replaying, or while held. */
+void PortSimViewRequest(s32 w, s32 h);
+/* Netplay pages: hold the session view at 240x160 for the rest of the run. */
+void PortSimViewPinNative(void);
+int  PortSimViewLocked(void);
+/* Would a world view of w x h be covered by the margin a request gets? */
+int  PortSimViewCovers(s32 w, s32 h);
+/* The view in force this frame. */
+void PortSimViewGet(s32 *w, s32 *h);
+/* platform/inputlog.c's latch, once a frame. */
+void PortSimViewLatch(u32 frame);
+/* KATAM_SPAWNSTAT=1: margins, pool peaks and deferred spawns, at exit. */
+void PortSimViewReport(void);
 
 /* --- the randomizer (platform/rando.c) ------------------------------------
  *

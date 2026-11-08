@@ -5,9 +5,11 @@
  * console state), the GPU view rectangle and its scaling, the HUD's anchoring,
  * and the output volume.  None of them is written to game memory, none is in a
  * recording, and `make regress` (which never loads them) is unaffected.  The
- * game's own culling is NOT widened by a big view -- that would change the
- * simulation -- so a view past the spawn margin shows pop-in (docs/RENDERER.md);
- * PortLayoutPastSpawnMargin says when.
+ * one exception is deliberate: the game's spawn/despawn windows follow the
+ * widest view the settings allow, which present.c hands the simulation as a
+ * recorded request (PortSimViewRequest, docs/VIEW.md "Spawn margin").  While
+ * a netplay session holds them at the original, a view past the spawn margin
+ * shows pop-in; PortLayoutPastSpawnMargin says when.
  *
  * The settings menu (ui_menu.cpp) is a view over this struct; a later HTML or
  * native UI can drive the same struct and call PortSettingsChanged().
@@ -83,7 +85,9 @@ double PortLayoutScale(const PortSettings *s, int fbW, int fbH, int srcW, int sr
  * inside the world picture. */
 double PortLayoutHudScale(const PortSettings *s, int fbW, int fbH, const int world[4]);
 /* The game creates objects 48 px past the 240x160 screen and removes them
- * 48 px past it: a view wider/taller than this shows them popping in. */
+ * 48 px past it.  The windows widen with the view, except while a session
+ * holds them at the original; then a view wider/taller than this shows
+ * objects popping in. */
 #define PORT_SPAWN_MARGIN 48
 int PortLayoutPastSpawnMargin(int viewW, int viewH);
 

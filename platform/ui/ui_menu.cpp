@@ -351,12 +351,12 @@ static int MenuBody(void)
                      (double)st.zoomNow);
             Hint(line);
             if (st.world && PortLayoutPastSpawnMargin(st.viewW, st.viewH))
-                Warn("This view reaches past the game's spawn margin (48 px beyond 240x160): "
-                     "expect enemies and items to pop in and out near the edges. "
-                     "The game's culling is left as it shipped.");
+                Warn("This view reaches past the game's spawn margin (48 px beyond 240x160), "
+                     "which a netplay session keeps as it shipped: expect enemies and items "
+                     "to pop in and out near the edges.");
             else if (st.world && (st.viewW > 240 || st.viewH > 160))
-                Hint("Wider than the GBA: objects are created 48 px off the original screen, "
-                     "so some appear just inside the edges.");
+                Hint("Wider than the GBA: the game's spawn margin widens with this view, "
+                     "which changes the simulation (recordings capture it).");
         }
     }
 
