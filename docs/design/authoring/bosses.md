@@ -42,8 +42,14 @@ frames and counts are the knobs a designer — or a model — turns.
 
 ## Migration path
 
-1. **Tables** (`yes`): hp by player count, Dark Mind's per-encounter hp, music → manifest
-   kinds and the `hp` / `music` sections. Pure data, gated by the round trip + `regress-pack`.
+1. **Tables** (`yes`): hp by player count (`gUnk_08351530`, s16[27][4], types 0x38-0x52 —
+   `obj_desc.unk4` is ignored for these, so the object file's `hp` stat is not a boss's hp),
+   Dark Mind's per-encounter hp, music → manifest kinds and the `hp` / `music` sections. The
+   HUD bar scale `gUnk_08351458` (u16[27][4]) is **derived, never authored**: every vanilla
+   entry is `floor(0x4000 / hp)` for the same cell (semantics registry, `boss.hud_scale`), so the
+   compiler writes both tables from `hp` — an edited hp with a stale scale draws a wrong bar.
+   The round trip will prove the derivation on all 108 cells. Pure data, gated by the round trip +
+   `regress-pack`.
 2. **Attack parameters** (`partial` / `no`): per boss, lift the literals of its attack selection
    (odds, timers, counts, damage) into `gBossParams[boss]`, vanilla values = the old literals.
    One boss at a time, highest value first (the bosses players fight most: King Golem, Kracko,

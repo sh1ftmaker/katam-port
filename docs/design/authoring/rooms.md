@@ -107,8 +107,12 @@ the room's progress list keyed by `(to, arrive)`. Those two must agree or the ga
 progress list order is the per-room save-bit order (chests first, then doors), so append doors
 rather than reorder them in a room players have saves for. 15 chests + doors max per room.
 
-A door usually also needs a door collision value under its cells (vanilla uses 255, `door`) and
-a `door` object (or `area_door`, `door_to_hub`, …) at the cell for its graphics and the
+So of the three records a door needs at run time — door terrain under each cell (collision
+values 252-255, the `door` family), a tag-3 cell record per cell, and a tag-2 progress entry per
+logical door — the compiler makes the second and third from the `doors` entry, and the
+validator makes the first an error (`door-terrain`) for new rooms: every one of vanilla's 724
+door cells has door terrain, directly or through a patch that opens into it. A door also
+needs a `door` object (or `area_door`, `door_to_hub`, …) at the cell for its graphics and the
 enter-door behaviour.
 
 ### `objects` — what is placed

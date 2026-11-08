@@ -173,14 +173,15 @@ its `docs/design/semantics/README.md`). The authoring layer reads it through
    (requested of the registry; nothing renames today). Without aliases, a renamed field in a
    hand-written file is reported by `validate` with a "did you mean" hint.
 
-Measured against the semantics branch at `f66990a`: with its 11 registry files loaded, the round
+Measured with the registry's 11 files (semantics `f66990a`, merged into main): the round
 trip is still 286/286 rooms identical, and a decompiled room reads
 `"props": {"bgScrollX": 32, "roomFlags": {...}}`, collision legends `"air"`, `"solid"`,
 `"platform"`, objects `{"type": "cpu_kirby_trigger", "despawnBit": 1, "params": {"rectX": -24,
 …}}`, and `object:waddle_dee_1` has `"stats": {"score": 200, "hp": 2, …}`. Without a registry
-every one of those is `raw.<cField>` and every tool still works. **After merging `semantics`,
-run `node tools/katam/katam.mjs vocab` and commit the regenerated schemas** (they then carry the
-registry's names and descriptions; `vocab --check` enforces it).
+every one of those is `raw.<cField>` and every tool still works. The registry is merged (main
+da2165d) and the committed schemas are generated from it; whenever the registry changes, run
+`node tools/katam/katam.mjs vocab` and commit (`vocab --check` in `make authoring-check`
+enforces it).
 
 ## 6. Gates
 
@@ -188,7 +189,7 @@ registry's names and descriptions; `vocab --check` enforces it).
 |---|---|---|
 | ROM-free | `make authoring-check` | library self-test (compression, grids, tokens, colours, PNG, scaffold round trip), schemas current, the example mod validates |
 | round trip | `make authoring-roundtrip ROM=…` (`tests/authoring_roundtrip.sh`) | decompile → compile → compare, blob by blob, with the ROM: **286/286 rooms, 34/34 tilesets, 36/36 backgrounds, 42/42 palettes, 219/219 object types identical**; **928/928 LZ77/RL streams re-encode byte-identically** (the encoders reproduce Nintendo's, so even compressed bytes match); the compiled pack is **file-for-file identical to `--res-extract`** (1027 files) and **`--res-check` passes** (53,312 bytes) |
-| game unchanged | same script | `tests/regress.sh --mode sim`, all five recordings green with the game served from the **compiled** vanilla pack, and again from the pack **with the example rooms added** |
+| game unchanged | same script | `tests/regress.sh --mode sim`, all six recordings green with the game served from the **compiled** vanilla pack, and again from the pack **with the example rooms added** |
 
 What "blob by blob" covers per room: RoomProps (40 B), playfield header, tilemap (decompressed
 and compressed), collision map (both), every cell record (patches and door cells, keys, order,

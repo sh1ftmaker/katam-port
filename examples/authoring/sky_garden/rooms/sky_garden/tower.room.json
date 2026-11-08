@@ -2,7 +2,7 @@
   "format": "katam-room/1",
   "id": "room:sky_garden/tower",
   "name": "Sky Garden: tower",
-  "description": "Original example room (not derived from the game). A vertical climb on star-block ledges; the bottom door returns to the meadow, the top door leaves to the vanilla hub room 803 (room:other/803).",
+  "description": "Original example room (not derived from the game), written with semantic names from the registry (collision \"air\"/\"solid\"/..., despawnBit); the meadow uses the equivalent raw numbers. A vertical climb on star-block ledges; the bottom door returns to the meadow, the top door leaves to the vanilla hub room 803 (room:other/803).",
   "size": {"width": 16, "height": 20},
   "music": "mus_rainbow_route",
   "tileset": "tileset:vanilla/29",
@@ -40,7 +40,7 @@
     ]
   },
   "collision": {
-    "legend": {".": 0, "#": 13, "=": 15, "D": 255},
+    "legend": {".": "air", "#": "solid", "=": "platform", "D": "door"},
     "rows": [
       "################",
       "#..............#",
@@ -74,9 +74,9 @@
     }
   ],
   "objects": [
-    {"id": "door_to_meadow", "type": "door", "x": 56, "y": 280, "raw": {"unk3": 1}},
-    {"id": "door_to_hub", "type": "door", "x": 200, "y": 56, "raw": {"unk3": 2}},
-    {"id": "guard", "type": "sir_kibble", "x": 184, "y": 136, "raw": {"unk3": 3}},
-    {"id": "chest", "type": "small_chest", "x": 72, "y": 88, "raw": {"unk3": 4}}
+    {"id": "door_to_meadow", "type": "door", "x": 56, "y": 280, "despawnBit": 1},
+    {"id": "door_to_hub", "type": "door", "x": 200, "y": 56, "despawnBit": 2},
+    {"id": "guard", "type": "sir_kibble", "x": 184, "y": 136, "despawnBit": 3},
+    {"id": "chest", "type": "small_chest", "x": 72, "y": 88, "despawnBit": 4}
   ]
 }

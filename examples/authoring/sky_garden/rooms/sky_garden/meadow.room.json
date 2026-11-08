@@ -51,7 +51,7 @@
   "doors": [{"to": "room:sky_garden/tower", "arrive": {"x": 3, "y": 18}, "cells": [[27, 9]]}],
   "objects": [
     {"id": "door_to_tower", "type": "door", "x": 440, "y": 152, "raw": {"unk3": 1}},
-    {"id": "dee", "type": "waddle_dee_1", "x": 136, "y": 152, "raw": {"unk3": 2}},
+    {"id": "dee", "type": "waddle_dee_1", "x": 136, "y": 152, "params": {"movePattern": 2}, "raw": {"unk3": 2}},
     {"id": "burt", "type": "bronto_burt", "x": 296, "y": 72, "raw": {"unk3": 3}},
     {"id": "snack", "type": "tomato", "x": 344, "y": 88, "raw": {"unk3": 4}}
   ]
