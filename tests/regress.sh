@@ -21,9 +21,10 @@
 # (make regress-pack) -- the goldens must still hold.
 #
 # --wasm compares the node build against the same native goldens: keys, vid
-# and sram (and pix in pixels mode) must match.  Not sim -- a function pointer
-# is a code address natively and a table index in wasm, so the two spell the
-# same state differently (tools/state_diff.py classifies the difference).
+# and sram (and pix in pixels mode) must match.  Not sim -- function pointers
+# are code IDs and agree (platform/port/fnid.h), but pointers to the game's C
+# data are host addresses, spelled differently by the two (netplay-v2 R6;
+# tools/state_diff.py classifies the difference).
 #
 # Each run gets a fresh XDG_DATA_HOME/XDG_CONFIG_HOME (the native host loads
 # and writes a save there, and runs that share one diverge) and runs with ASLR

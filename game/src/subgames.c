@@ -18,7 +18,7 @@ static void sub_08128E8C(void);
 
 // apply a set of tilesets during animation (?)
 static struct Task *sub_08128D48(const struct Unk_08128D48_0 *a1) {
-    struct Task *t = TaskCreate(sub_08128DB0, sizeof(struct Unk_08128D48), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128DB0), sizeof(struct Unk_08128D48), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08128D48 *var = TaskGetStructPtr(t);
 
     var->frames = a1->frames;
@@ -49,7 +49,7 @@ static void sub_08128DB0(void) {
 
 // apply a set of palettes during animation (?)
 static struct Task *sub_08128E28(const struct Unk_08128E28_0 *a1) {
-    struct Task *t = TaskCreate(sub_08128E8C, sizeof(struct Unk_08128E28), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128E8C), sizeof(struct Unk_08128E28), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08128E28 *var = TaskGetStructPtr(t);
 
     var->data = a1->data;
@@ -2449,7 +2449,7 @@ static const s8 gUnk_08372620[] = { 10, 5, 10, 15, 20, 0, 0, 0 }; // TODO: paddi
 /* PORT: replaced by port/rom_data.h -- extern const u32 *const gCrackityHackObjTilesetTable[]; */
 
 static struct Task *sub_08128F44(const struct AnimInfo *a1, u8 a2, u8 a3, s16 a4, s16 a5, u8 a6) {
-    struct Task *t = TaskCreate(sub_0812A39C, sizeof(struct Unk_08128F44), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812A39C), sizeof(struct Unk_08128F44), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08128F44 *tmp = TaskGetStructPtr(t), *var = tmp;
 #ifndef NONMATCHING
     register struct Unk_08128F44_4 *var1, *var2;
@@ -2734,13 +2734,13 @@ static void sub_081295A0(void) {
             if (!(var->unk2AC & 0x80))
                 m4aSongNumStart(SE_MAIN_MENU_CURSOR);
             var->unk2AE = 0;
-            gCurTask->main = sub_08129F28;
+            gCurTask->main = FN(sub_08129F28);
         }
         else if (r2 & 0x80) {
             if (!(var->unk2AC & 0x80))
                 m4aSongNumStart(SE_MAIN_MENU_CURSOR);
             var->unk2AE = 0;
-            gCurTask->main = sub_08129C34;
+            gCurTask->main = FN(sub_08129C34);
         }
     }
     else {
@@ -2766,13 +2766,13 @@ static void sub_081295A0(void) {
             if (!(var->unk2AC & 0x80))
                 m4aSongNumStart(SE_MAIN_MENU_CURSOR);
             var->unk2AE = 0;
-            gCurTask->main = sub_081298B4;
+            gCurTask->main = FN(sub_081298B4);
         }
         else if (r2 & 0x80) {
             if (!(var->unk2AC & 0x80))
                 m4aSongNumStart(SE_MAIN_MENU_CURSOR);
             var->unk2AE = 0;
-            gCurTask->main = sub_08129A6C;
+            gCurTask->main = FN(sub_08129A6C);
         }
     }
     sub_081297F8(var);
@@ -2854,7 +2854,7 @@ static void sub_081298B4(void) {
         sub_081288DC(&var->unk4[2][0]);
     }
     if (++var->unk2AE > 9) {
-        gCurTask->main = sub_081295A0;
+        gCurTask->main = FN(sub_081295A0);
         var->unk2AC ^= 0x10;
         var->unk2AC ^= 0x20;
     }
@@ -2913,7 +2913,7 @@ static void sub_08129A6C(void) {
             var->unk4[3][0].unk0.unk14 &= ~0x7C0;
             var->unk4[3][0].unk0.unk14 |= 0x2C0;
         }
-        gCurTask->main = sub_081295A0;
+        gCurTask->main = FN(sub_081295A0);
         var->unk2AC ^= 0x10;
         var->unk2AC ^= 0x20;
     }
@@ -2960,7 +2960,7 @@ static void sub_08129C34(void) {
         sub_081288DC(&var->unk4[6][0]);
     }
     if (++var->unk2AE > 9) {
-        gCurTask->main = sub_081295A0;
+        gCurTask->main = FN(sub_081295A0);
         var->unk2AD = p[1];
     }
 }
@@ -3006,7 +3006,7 @@ static void sub_08129F28(void) {
         sub_081288DC(&var->unk4[6][0]);
     }
     if (++var->unk2AE > 9) {
-        gCurTask->main = sub_081295A0;
+        gCurTask->main = FN(sub_081295A0);
         var->unk2AD = p[2];
     }
 }
@@ -3095,7 +3095,7 @@ static s32 *sub_0812A388(struct Unk_08128F44_4 *a1) {
 static void sub_0812A39C(void) {
     struct Unk_08128F44 *var = TaskGetStructPtr(gCurTask);
 
-    gCurTask->main = sub_081295A0;
+    gCurTask->main = FN(sub_081295A0);
     if (!(var->unk2AC & 0x80))
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
 }
@@ -3231,7 +3231,7 @@ void sub_0812A77C(void) {
     gBgScrollRegs[1][1] = 0x58;
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
-    t = TaskCreate(sub_0812A8F0, sizeof(struct Unk_0812A77C), 0x100, TASK_USE_IWRAM, sub_0812E588);
+    t = TaskCreate(FN(sub_0812A8F0), sizeof(struct Unk_0812A77C), 0x100, TASK_USE_IWRAM, FN(sub_0812E588));
     var = TaskGetStructPtr(t);
     CpuFill16(0, var, sizeof(struct Unk_0812A77C));
     var->unk14[0] = sub_08128D48(&gUnk_083723C8);
@@ -3261,7 +3261,7 @@ static void sub_0812A8F0(void) {
 
     CreatePauseFade(-0x10, 1);
     var = TaskGetStructPtr(gCurTask);
-    gCurTask->main = sub_0812B204;
+    gCurTask->main = FN(sub_0812B204);
     var->unk0 = NULL;
     var->unk4 = NULL;
     var->unk8[0] = 0;
@@ -3433,7 +3433,7 @@ static void sub_0812B204(void) {
 
     if (var->unk5F2++ > 120) {
         var->unk5F2 = 0;
-        gCurTask->main = sub_0812B2F8;
+        gCurTask->main = FN(sub_0812B2F8);
         var->unk40[0].unk0[0].unk2C += 0x18;
         var->unk40[1].unk0[0].unk2C += 0x18;
         var->unk40[2].unk0[0].unk2C += 0x18;
@@ -3458,7 +3458,7 @@ static void sub_0812B2F8(void) {
 
     if (var->unk5F2++ > 60) {
         var->unk5F2 = 0;
-        gCurTask->main = sub_0812B418;
+        gCurTask->main = FN(sub_0812B418);
         var->unk0 = sub_0812D4F4();
         var->unk40[0].unk88 = sub_0812D1EC(&var->unk40[0], 0);
         var->unk40[1].unk88 = sub_0812D1EC(&var->unk40[1], 1);
@@ -3499,7 +3499,7 @@ static void sub_0812B418(void) {
         sub_0812E764(&var->unk40[1].unk0[0].unk0, 1);
         sub_0812E764(&var->unk40[2].unk0[0].unk0, 1);
         sub_0812E764(&var->unk40[3].unk0[0].unk0, 1);
-        gCurTask->main = sub_0812B63C;
+        gCurTask->main = FN(sub_0812B63C);
         TaskDestroy(var->unk40[0].unk88);
         TaskDestroy(var->unk40[1].unk88);
         TaskDestroy(var->unk40[2].unk88);
@@ -3668,7 +3668,7 @@ static void sub_0812B63C(void) {
             CpuFill32(0, (void *)0x600F000, 0x400);
             gDispCnt &= ~DISPCNT_WIN0_ON;
             gBgScrollRegs[2][1] = 0;
-            gCurTask->main = sub_0812BEE0;
+            gCurTask->main = FN(sub_0812BEE0);
             TaskDestroy(var->unk0);
             var->unk0 = NULL;
             CreatePauseFade(-0x10, 1);
@@ -3781,18 +3781,18 @@ static void sub_0812BEE0(void) {
                     gDispCnt &= ~DISPCNT_BG2_ON;
                     sub_0812C168(var);
                     if (gUnk_0203AD10 & 2) {
-                        gCurTask->main = sub_0812C29C;
+                        gCurTask->main = FN(sub_0812C29C);
                         sub_0812E194(10, 0x10, var->unk40[0].unk9C - 120);
                         sub_0812E194(70, 0x10, var->unk40[1].unk9C - 120);
                         sub_0812E194(130, 0x10, var->unk40[2].unk9C - 120);
                         sub_0812E194(190, 0x10, var->unk40[3].unk9C - 120);
                     }
                     else {
-                        gCurTask->main = sub_0812C29C;
+                        gCurTask->main = FN(sub_0812C29C);
                     }
                 }
                 else {
-                    gCurTask->main = sub_0812C29C;
+                    gCurTask->main = FN(sub_0812C29C);
                     sub_0812E194(10, 0x10, var->unk40[0].unk9C - 120);
                     sub_0812E194(70, 0x10, var->unk40[1].unk9C - 120);
                     sub_0812E194(130, 0x10, var->unk40[2].unk9C - 120);
@@ -3801,7 +3801,7 @@ static void sub_0812BEE0(void) {
             }
             else {
                 sub_0812C490(var);
-                gCurTask->main = sub_0812C63C;
+                gCurTask->main = FN(sub_0812C63C);
             }
         }
     }
@@ -3879,7 +3879,7 @@ static void sub_0812C29C(void) {
             gBgCntRegs[0] = BGCNT_PRIORITY(2) | BGCNT_TXT256x256 | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(0x1C);
             gBgCntRegs[1] = BGCNT_PRIORITY(2) | BGCNT_TXT256x256 | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(0x1D);
             sub_0812C490(var);
-            gCurTask->main = sub_0812C63C;
+            gCurTask->main = FN(sub_0812C63C);
         }
     }
     else {
@@ -4022,7 +4022,7 @@ static void sub_0812C63C(void) {
 
     if (!sub_0812A304()) {
         CreatePauseFade(-8, 1);
-        gCurTask->main = sub_0812C814;
+        gCurTask->main = FN(sub_0812C814);
         var->unk5F0 |= 2;
         var->unk40[0].unk8C = sub_0812EFFC(120, 4);
         var->unk40[1].unk8C = sub_0812EFFC(360, 4);
@@ -4085,9 +4085,9 @@ static void sub_0812C814(void) {
                 CreatePauseFade(4, 1);
                 var->unk5F4 = var2->unk2AD;
                 if (var2->unk2AC & 0x10)
-                    gCurTask->main = sub_0812CA84;
+                    gCurTask->main = FN(sub_0812CA84);
                 else
-                    gCurTask->main = sub_0812CBDC;
+                    gCurTask->main = FN(sub_0812CBDC);
             }
         }
     }
@@ -4118,7 +4118,7 @@ static void sub_0812CA84(void) {
 
     if (!sub_0812A304()) {
         m4aMPlayAllStop();
-        gCurTask->main = sub_0812A8F0;
+        gCurTask->main = FN(sub_0812A8F0);
         TaskDestroy(var->unk4);
         var->unk4 = NULL;
     }
@@ -4153,7 +4153,7 @@ static void sub_0812CBDC(void) {
         if (gUnk_0203AD10 & 2)
             gUnk_020382D0.unk4 &= ~2;
         var->unk5F6 = 0;
-        gCurTask->main = sub_0812E51C;
+        gCurTask->main = FN(sub_0812E51C);
     }
     sub_0812E194(10, 0x10, var->unk40[0].unk9C - 120);
     sub_0812E194(70, 0x10, var->unk40[1].unk9C - 120);
@@ -4309,7 +4309,7 @@ static void sub_0812D124(s16 a1, s16 a2, struct Unk_0812A77C_40 *a3) {
 }
 
 static struct Task *sub_0812D1EC(struct Unk_0812A77C_40 *a1, u8 a2) {
-    struct Task *t = TaskCreate(sub_0812D3AC, sizeof(struct Unk_0812D1EC), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812D3AC), sizeof(struct Unk_0812D1EC), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     var->unk0.unk0 = a1->unk0;
@@ -4410,7 +4410,7 @@ static void sub_0812D3AC(void) {
 }
 
 static struct Task *sub_0812D4F4(void) {
-    struct Task *t = TaskCreate(sub_0812D988, sizeof(struct Unk_0812D4F4), 0x100, TASK_USE_IWRAM, nullsub_31);
+    struct Task *t = TaskCreate(FN(sub_0812D988), sizeof(struct Unk_0812D4F4), 0x100, TASK_USE_IWRAM, FN(nullsub_31));
     struct Unk_0812D4F4 *var = TaskGetStructPtr(t);
 #ifndef NONMATCHING
     register struct Unk_08128F44_4 *r4, *r6; // probably the same issue as sub_08128F44
@@ -4609,7 +4609,7 @@ static void sub_0812D988(void) {
                     var->unk111 = 0;
                     var->unk112 = 0;
                     var->unk113 = 0xA;
-                    gCurTask->main = sub_0812DB2C;
+                    gCurTask->main = FN(sub_0812DB2C);
                 }
             }
         }
@@ -4648,7 +4648,7 @@ static void sub_0812DB2C(void) {
 }
 
 static struct Task *sub_0812DBB4(s16 a1, s16 a2, s16 a3, s16 a4, bool8 a5) {
-    struct Task *t = TaskCreate(sub_0812DC90, sizeof(struct Unk_0812DBB4), 0x100, TASK_USE_IWRAM, nullsub_32);
+    struct Task *t = TaskCreate(FN(sub_0812DC90), sizeof(struct Unk_0812DBB4), 0x100, TASK_USE_IWRAM, FN(nullsub_32));
     struct Unk_0812DBB4 *var = TaskGetStructPtr(t);
     s16 max = 0; // intialization for matching
 
@@ -4756,7 +4756,7 @@ static void sub_0812DC90(void) {
         var->unk0[3].unk2 += var->unk26;
     }
     gUnk_03000530 = var;
-    gUnk_03002470[gUnk_03006070++] = CrackityHackDrawCracks;
+    gUnk_03002470[gUnk_03006070++] = FN(CrackityHackDrawCracks);
     gMainFlags |= 0x10;
     sub_0812E194(10, 0x10, var->unk0[0].unk2);
     sub_0812E194(70, 0x10, var->unk0[1].unk2);
@@ -4764,7 +4764,7 @@ static void sub_0812DC90(void) {
     sub_0812E194(190, 0x10, var->unk0[3].unk2);
     if (var->unk24 & 1) return;
     if (var->unk24 & 0x20)
-        gCurTask->main = sub_0812DF14;
+        gCurTask->main = FN(sub_0812DF14);
 }
 
 static void sub_0812DF14(void) {
@@ -4775,7 +4775,7 @@ static void sub_0812DF14(void) {
     gBgScrollRegs[1][1] += var->unk26;
     sub_0812E6E4(var->unk26);
     gUnk_03000530 = var;
-    gUnk_03002470[gUnk_03006070++] = CrackityHackDrawCracks;
+    gUnk_03002470[gUnk_03006070++] = FN(CrackityHackDrawCracks);
     gMainFlags |= 0x10;
     sub_0812E194(10, 0x10, var->unk0[0].unk2);
     sub_0812E194(70, 0x10, var->unk0[1].unk2);
@@ -5095,7 +5095,7 @@ static void sub_0812E7A0(void) {
 
 static void sub_0812E818(struct Unk_0812A77C_40 *a1) {
     struct AnimInfo sp00;
-    struct Task *t = TaskCreate(sub_0812E9CC, sizeof(struct Unk_0812E818), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812E9CC), sizeof(struct Unk_0812E818), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812E818 *tmp = TaskGetStructPtr(t), *var = tmp;
 
     var->unk54 = 0;
@@ -5197,7 +5197,7 @@ static void sub_0812E9CC(void) {
 }
 
 static void sub_0812EA4C(s32 a1, s32 a2) {
-    struct Task *t = TaskCreate(sub_0812EC54, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812EC54), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     s32 r = Rand16() & 0xF;
 
@@ -5295,7 +5295,7 @@ static void sub_0812ECE0(void) {
 }
 
 static void sub_0812ED78(s32 a1) {
-    struct Task *t = TaskCreate(sub_0812EF3C, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812EF3C), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     s32 r = Rand16() & 3;
 
@@ -5369,7 +5369,7 @@ static void sub_0812EF3C(void) {
 }
 
 static struct Task *sub_0812EFB4(void) {
-    struct Task *t = TaskCreate(sub_0812F070, sizeof(struct Unk_0812EFB4), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812F070), sizeof(struct Unk_0812EFB4), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812EFB4 *var = TaskGetStructPtr(t);
 
     var->unk0 = 0;
@@ -5377,7 +5377,7 @@ static struct Task *sub_0812EFB4(void) {
 }
 
 static struct Task *sub_0812EFFC(u32 a1, u8 a2) {
-    struct Task *t = TaskCreate(sub_0812ECE0, sizeof(struct Unk_0812ECE0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0812ECE0), sizeof(struct Unk_0812ECE0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812ECE0 *var = TaskGetStructPtr(t);
 
     var->unk0 = Rand16() & 0x1F;
@@ -6918,7 +6918,7 @@ void sub_0812F91C(void) {
     gBgScrollRegs[1][1] = 0;
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
-    t = TaskCreate(sub_0812FA28, sizeof(struct Unk_0812F91C), 0x100, TASK_USE_IWRAM, sub_08133118);
+    t = TaskCreate(FN(sub_0812FA28), sizeof(struct Unk_0812F91C), 0x100, TASK_USE_IWRAM, FN(sub_08133118));
     var = TaskGetStructPtr(t);
     CpuFill16(0, var, sizeof(struct Unk_0812F91C));
     var->unk57C = gUnk_0203AD14;
@@ -6946,7 +6946,7 @@ static void sub_0812FA28(void) {
     CreatePauseFade(-0x10, 1);
     tmp = TaskGetStructPtr(gCurTask);
     var = tmp;
-    gCurTask->main = sub_08130534;
+    gCurTask->main = FN(sub_08130534);
     // This is completely pointless as every case is doing the same thing except for using different buffers
     switch (gLanguage) {
     case LANGUAGE_JAPANESE:
@@ -7206,7 +7206,7 @@ static void sub_08130534(void) {
         gBgScrollRegs[1][0] = -((var->unk8[0] >> 3) & 0xFF);
         gBgScrollRegs[1][1] = -(var->unk8[1] >> 2);
         gUnk_03000530 = var;
-        gUnk_03002470[gUnk_03006070++] = sub_08132AC8;
+        gUnk_03002470[gUnk_03006070++] = FN(sub_08132AC8);
         gMainFlags |= 0x10;
     }
     sub_08132888(var);
@@ -7230,7 +7230,7 @@ static void sub_08130534(void) {
         var->unk20[2].unk94 &= ~0x10;
         var->unk20[3].unk94 &= ~0x10;
         sub_081343EC();
-        gCurTask->main = sub_081309B0;
+        gCurTask->main = FN(sub_081309B0);
         m4aSongNumStart(MUS_WAVE_RIDE);
     }
 }
@@ -7388,7 +7388,7 @@ static void sub_081309B0(void) {
         gBgScrollRegs[1][1] = -(var->unk8[1] >> 2);
     }
     gUnk_03000530 = var;
-    gUnk_03002470[gUnk_03006070++] = sub_08132AC8;
+    gUnk_03002470[gUnk_03006070++] = FN(sub_08132AC8);
     gMainFlags |= 0x10;
     sub_08132650(var);
     sub_08133280(&var->unk20[0]);
@@ -7414,7 +7414,7 @@ static void sub_081309B0(void) {
         var->unk20[var->unk579].unk8C = NULL;
         var->unk20[var->unk579].unk90 = NULL;
         CreatePauseFade(0x10, 1);
-        gCurTask->main = sub_0813119C;
+        gCurTask->main = FN(sub_0813119C);
         m4aMPlayAllStop();
     }
     ++var->unk57A;
@@ -7428,7 +7428,7 @@ static void sub_0813119C(void) {
         gBgScrollRegs[1][0] = 0;
         gBgScrollRegs[1][1] = 0x50;
         CreatePauseFade(-0x10, 1);
-        gCurTask->main = sub_0813134C;
+        gCurTask->main = FN(sub_0813134C);
         var->unk20[0].unkD8 = gUnk_0837EA54[12];
         var->unk20[0].unkDC = gUnk_0837EA54[0];
         var->unk20[0].unkE0 = 0;
@@ -7445,10 +7445,10 @@ static void sub_0813119C(void) {
         var->unk574 = var->unk20[var->unk579].unkDC;
         var->unk578 = var->unk20[var->unk579].unkE0;
         gUnk_03000530 = var;
-        gUnk_03002470[gUnk_03006070++] = sub_08132AC8;
+        gUnk_03002470[gUnk_03006070++] = FN(sub_08132AC8);
         gMainFlags |= 0x10;
         sub_081326F8(var);
-        var->unk0 = TaskCreate(sub_08132B84, sizeof(struct Unk_0813119C), 0x100, TASK_USE_IWRAM, NULL);
+        var->unk0 = TaskCreate(FN(sub_08132B84), sizeof(struct Unk_0813119C), 0x100, TASK_USE_IWRAM, NULL);
         var2 = TaskGetStructPtr(var->unk0);
         var2->unk0 = var;
         if (!var->unk20[var->unk579].unkE5)
@@ -7492,9 +7492,9 @@ static void sub_0813134C(void) {
                 CreatePauseFade(0x10, 1);
                 var->unk57C = var2->unk2AD;
                 if (var2->unk2AC & 0x10)
-                    gCurTask->main = sub_081314C8;
+                    gCurTask->main = FN(sub_081314C8);
                 else
-                    gCurTask->main = sub_08131524;
+                    gCurTask->main = FN(sub_08131524);
             }
         }
     }
@@ -7505,7 +7505,7 @@ static void sub_081314C8(void) {
 
     if (!sub_0812A304()) {
         m4aMPlayAllStop();
-        gCurTask->main = sub_0812FA28;
+        gCurTask->main = FN(sub_0812FA28);
         TaskDestroy(var->unk0);
         var->unk0 = NULL;
         TaskDestroy(var->unk4);
@@ -7525,7 +7525,7 @@ static void sub_08131524(void) {
         if (gUnk_0203AD10 & 2)
             gUnk_020382D0.unk4 &= ~2;
         var->unk57E = 0;
-        gCurTask->main = sub_081330AC;
+        gCurTask->main = FN(sub_081330AC);
     }
 }
 
@@ -8249,7 +8249,7 @@ static void sub_08132B84(void) {
     struct Unk_0812F91C_20 *r10;
     u16 y;
 
-    gCurTask->main = sub_08132ED8;
+    gCurTask->main = FN(sub_08132ED8);
     r9 = var->unk0;
     r10 = r9->unk20;
     switch (gLanguage) { // same for every language
@@ -8563,7 +8563,7 @@ static u8 sub_081332FC(s32 a1, u32 a2, u8 *a3) {
 }
 
 static void sub_08133344(struct Unk_0812F91C_20 *a1) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo r4;
 
@@ -8648,7 +8648,7 @@ static void sub_08133344(struct Unk_0812F91C_20 *a1) {
 }
 
 static struct Task *sub_081334DC(struct Unk_0812F91C_20 *a1) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo r4;
 
@@ -8802,7 +8802,7 @@ static void sub_08133688(struct Task *t, bool8 a2) {
 }
 
 static void sub_08133804(struct Unk_0812F91C_20 *a1) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -8887,7 +8887,7 @@ static void sub_08133804(struct Unk_0812F91C_20 *a1) {
 }
 
 static void sub_0813399C(struct Unk_08128F44_4 *a1) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -8972,7 +8972,7 @@ static void sub_0813399C(struct Unk_08128F44_4 *a1) {
 }
 
 static void sub_08133B74(struct Unk_08128F44_4 *a1, s32 a2, s32 a3, s32 a4) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -9059,7 +9059,7 @@ static void sub_08133B74(struct Unk_08128F44_4 *a1, s32 a2, s32 a3, s32 a4) {
 }
 
 static struct Task *sub_08133D44(struct Unk_0812F91C_20 *a1) {
-    struct Task *t = TaskCreate(sub_08134884, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08134884), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -9145,7 +9145,7 @@ static struct Task *sub_08133D44(struct Unk_0812F91C_20 *a1) {
 }
 
 static void sub_08133EEC(struct Unk_0812F91C_20 *a1, u8 a2) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
 
     var->unk0 = &a1->unk0;
@@ -9235,7 +9235,7 @@ static void sub_08134178(void) {
 }
 
 static void sub_081341B0(struct Unk_0812F91C_20 *a1, s16 a2, s16 a3) {
-    struct Task *t = TaskCreate(sub_0813436C, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0813436C), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -9338,7 +9338,7 @@ static void sub_0813436C(void) {
 }
 
 static void sub_081343EC(void) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -9422,7 +9422,7 @@ static void sub_081343EC(void) {
 }
 
 static struct Task *sub_0813457C(void) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo st;
 
@@ -9519,7 +9519,7 @@ static void sub_08134754(struct Task *t) {
 }
 
 static struct Task *sub_08134788(struct Unk_0812F91C_20 *a1) {
-    struct Task *t = TaskCreate(sub_0813483C, sizeof(struct Unk_08134788), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0813483C), sizeof(struct Unk_08134788), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08134788 *var = TaskGetStructPtr(t);
 
     var->unk0 = &a1->unk0;
@@ -9529,7 +9529,7 @@ static struct Task *sub_08134788(struct Unk_0812F91C_20 *a1) {
 }
 
 static void sub_081347D8(struct Unk_0812F91C_20 *a1, u8 a2, u32 a3) {
-    struct Task *t = TaskCreate(sub_081348B4, sizeof(struct Unk_081347D8), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_081348B4), sizeof(struct Unk_081347D8), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_081347D8 *var = TaskGetStructPtr(t);
 
     var->unk0 = &a1->unk0;
@@ -10209,7 +10209,7 @@ void sub_08134D64(void) {
     gBgScrollRegs[1][1] = 8;
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
-    t = TaskCreate(sub_08134E54, sizeof(struct Unk_08134D64), 0x100, TASK_USE_IWRAM, nullsub_128);
+    t = TaskCreate(FN(sub_08134E54), sizeof(struct Unk_08134D64), 0x100, TASK_USE_IWRAM, FN(nullsub_128));
     var = TaskGetStructPtr(t);
     CpuFill16(0, var, sizeof(struct Unk_08134D64));
     var->unkC = sub_0813862C();
@@ -10226,7 +10226,7 @@ static void sub_08134E54(void) {
     struct Unk_08134D64 *tmp = TaskGetStructPtr(gCurTask), *var = tmp;
     u32 r7;
 
-    gCurTask->main = sub_081358EC;
+    gCurTask->main = FN(sub_081358EC);
     // This is completely pointless as every case is doing the same thing except for using different buffers
     switch (gLanguage) {
     case LANGUAGE_JAPANESE:
@@ -10395,7 +10395,7 @@ static void sub_081358EC(void) {
     if (var->unk40E) {
         if (var->unk40E > 0xB3) {
             var->unk40E = 0;
-            gCurTask->main = sub_081359EC;
+            gCurTask->main = FN(sub_081359EC);
         }
     }
     else {
@@ -10421,7 +10421,7 @@ static void sub_081359EC(void) {
     struct Unk_08134D64 *var = TaskGetStructPtr(gCurTask);
     u16 flags;
 
-    gCurTask->main = sub_08137420;
+    gCurTask->main = FN(sub_08137420);
     flags = var->unk418;
     var->unk4 = NULL;
     var->unk8 = NULL;
@@ -10507,12 +10507,12 @@ static void sub_08135B38(void) {
                 var->unk10[i].unkDF = gUnk_08D61B6C[var->unk40C][var->unk10[i].unkE2];
         }
         var->unk3C0.unk34 |= 0x1000;
-        gCurTask->main = sub_08135E9C;
+        gCurTask->main = FN(sub_08135E9C);
     }
     ++var->unk412;
     if (var->unk418 & 0x20 && var->unk412 >= var->unk410 + 600) {
         var->unk418 |= 0x80;
-        gCurTask->main = sub_081366B8;
+        gCurTask->main = FN(sub_081366B8);
         CreatePauseFade(0x10, 1);
     }
     if (var->unk10[0].unkD0 & 0x200
@@ -10520,7 +10520,7 @@ static void sub_08135B38(void) {
         && var->unk10[2].unkD0 & 0x200
         && var->unk10[3].unkD0 & 0x200) {
         var->unk418 |= 0x80;
-        gCurTask->main = sub_081366B8;
+        gCurTask->main = FN(sub_081366B8);
         CreatePauseFade(0x10, 1);
     }
     sub_081288DC(&var->unk3C0);
@@ -10568,7 +10568,7 @@ static void sub_08135E9C(void) {
         && var->unk10[1].unkDC & 0x40
         && var->unk10[2].unkDC & 0x40
         && var->unk10[3].unkDC & 0x40)
-        gCurTask->main = sub_08136078;
+        gCurTask->main = FN(sub_08136078);
     sub_081288DC(&var->unk3C0);
     sub_08137788(var);
 }
@@ -10596,7 +10596,7 @@ static void sub_08136078(void) {
         }
     }
     if (!var->unk10[0].unkDF && !var->unk10[1].unkDF && !var->unk10[2].unkDF && !var->unk10[3].unkDF) {
-        gCurTask->main = sub_081366B8;
+        gCurTask->main = FN(sub_081366B8);
         CreatePauseFade(0x10, 1);
     }
     sub_081288DC(&var->unk3C0);
@@ -10654,7 +10654,7 @@ static void sub_081361B4(void) {
             else
                 var->unk10[i].unkDC |= 0x40;
         }
-        fp = sub_08136518; // handles regswap
+        fp = FN(sub_08136518); // handles regswap
         for (i = 0; i < 4; ++i) {
             if (var->unk10[i].unkD0 & 0x100 && !(var->unk10[i].unkD0 & 0x200))
                 var->unk10[i].unkDF = gUnk_08D61B6C[var->unk40C][var->unk10[i].unkE2];
@@ -10665,7 +10665,7 @@ static void sub_081361B4(void) {
     ++var->unk412;
     if (var->unk418 & 0x20 && var->unk412 >= var->unk410 + 300) {
         var->unk418 |= 0x80;
-        gCurTask->main = sub_081366B8;
+        gCurTask->main = FN(sub_081366B8);
         CreatePauseFade(0x10, 1);
     }
     if (var->unk10[0].unkD0 & 0x200
@@ -10673,7 +10673,7 @@ static void sub_081361B4(void) {
         && var->unk10[2].unkD0 & 0x200
         && var->unk10[3].unkD0 & 0x200) {
         var->unk418 |= 0x80;
-        gCurTask->main = sub_081366B8;
+        gCurTask->main = FN(sub_081366B8);
         CreatePauseFade(0x10, 1);
     }
     sub_081288DC(&var->unk3C0);
@@ -10718,7 +10718,7 @@ static void sub_08136518(void) {
         && var->unk10[1].unkDC & 0x40
         && var->unk10[2].unkDC & 0x40
         && var->unk10[3].unkDC & 0x40)
-        gCurTask->main = sub_08137498;
+        gCurTask->main = FN(sub_08137498);
     sub_081288DC(&var->unk3C0);
     sub_08137788(var);
 }
@@ -10738,11 +10738,11 @@ static void sub_081366B8(void) {
             || var->unk10[1].unkDE >= 8
             || var->unk10[2].unkDE >= 8
             || var->unk10[3].unkDE >= 8) {
-            gCurTask->main = sub_0813683C;
+            gCurTask->main = FN(sub_0813683C);
         }
         else {
             if (++var->unk41A > 7) var->unk41A = 7;
-            gCurTask->main = sub_081358EC;
+            gCurTask->main = FN(sub_081358EC);
             for (i = 0; i < 4; ++i) {
                 struct Unk_08128F44_4 *ptr;
 
@@ -10817,7 +10817,7 @@ static void sub_0813683C(void) {
         }
         else
             m4aSongNumStart(MUS_SPEED_EATERS_CPU_WON);
-        gCurTask->main = sub_08136A40;
+        gCurTask->main = FN(sub_08136A40);
     }
     sub_081288DC(&var->unk3C0);
     sub_08137788(var);
@@ -10857,9 +10857,9 @@ static void sub_08136A40(void) {
                 CreatePauseFade(0x10, 1);
                 var->unk41C = var2->unk2AD;
                 if (var2->unk2AC & 0x10)
-                    gCurTask->main = sub_081374E8;
+                    gCurTask->main = FN(sub_081374E8);
                 else {
-                    gCurTask->main = sub_08136BE4;
+                    gCurTask->main = FN(sub_08136BE4);
                     RLUnCompVram(gUnk_0838518C, (void *)0x600F000);
                 }
             }
@@ -10880,7 +10880,7 @@ static void sub_08136BE4(void) {
         if (gUnk_0203AD10 & 2)
             gUnk_020382D0.unk4 &= ~2;
         var->unk41E = 0;
-        gCurTask->main = sub_0813754C;
+        gCurTask->main = FN(sub_0813754C);
     }
 }
 
@@ -10948,7 +10948,7 @@ static void sub_08136E3C(void) {
         var->unk0->unk0.unk0.unk1B = 0xFF;
         var->unk0->unk0.unk0.palId = 4;
         var->unk4 = 0;
-        gCurTask->main = sub_08136ED0;
+        gCurTask->main = FN(sub_08136ED0);
     }
 }
 
@@ -10965,7 +10965,7 @@ static void sub_08136ED0(void) {
 }
 
 static void sub_08136F3C(struct Unk_08134D64_10 *a1, u8 a2, bool8 a3) {
-    struct Task *t = TaskCreate(sub_08137190, sizeof(struct Unk_08136F3C), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08137190), sizeof(struct Unk_08136F3C), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08136F3C *tmp = TaskGetStructPtr(t), *var = tmp;
     u8 idx;
 
@@ -11109,9 +11109,9 @@ static void sub_08137420(void) {
 
     sub_081386A8(var->unkC);
     if (var->unk418 & 1)
-        gCurTask->main = sub_08135B38;
+        gCurTask->main = FN(sub_08135B38);
     else
-        gCurTask->main = sub_081361B4;
+        gCurTask->main = FN(sub_081361B4);
     sub_081288DC(&var->unk3C0);
     sub_08137788(var);
 }
@@ -11119,7 +11119,7 @@ static void sub_08137420(void) {
 static void sub_08137498(void) {
     struct Unk_08134D64 *var = TaskGetStructPtr(gCurTask);
 
-    gCurTask->main = sub_081366B8;
+    gCurTask->main = FN(sub_081366B8);
     CreatePauseFade(0x10, 1);
     sub_081288DC(&var->unk3C0);
     sub_08137788(var);
@@ -11130,7 +11130,7 @@ static void sub_081374E8(void) {
 
     if (!sub_0812A304()) {
         m4aMPlayAllStop();
-        gCurTask->main = sub_08134E54;
+        gCurTask->main = FN(sub_08134E54);
         TaskDestroy(var->unk0);
         var->unk0 = NULL;
     }
@@ -11171,12 +11171,12 @@ static void sub_08137610(struct Unk_08134D64_10 *a1, u8 a2, u16 a3) {
 }
 
 static void sub_08137668(void) {
-    struct Task *t = TaskCreate(sub_081376E4, sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_081376E4), sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_081377D4 *var = TaskGetStructPtr(t);
 
     var->unk0 = 0;
     gUnk_03000530 = var;
-    gUnk_03002470[gUnk_03006070++] = sub_081378BC;
+    gUnk_03002470[gUnk_03006070++] = FN(sub_081378BC);
     gMainFlags |= 0x10;
 }
 
@@ -11190,7 +11190,7 @@ static void sub_081376E4(void) {
 }
 
 static void sub_0813773C(struct Unk_08134D64_10 *a1) {
-    struct Task *t = TaskCreate(sub_08136E3C, sizeof(struct Unk_0813773C), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08136E3C), sizeof(struct Unk_0813773C), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0813773C *var = TaskGetStructPtr(t);
 
     var->unk0 = a1;
@@ -11212,7 +11212,7 @@ static void sub_08137788(struct Unk_08134D64 *a1) {
 }
 
 static void sub_081377D4(void) {
-    struct Task *t = TaskCreate(sub_0813781C, sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0813781C), sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_081377D4 *var = TaskGetStructPtr(t);
 
     var->unk0 = 0;
@@ -11224,13 +11224,13 @@ static void sub_0813781C(void) {
     if (var->unk0 > 0x3C) {
         var->unk0 = 0;
         m4aSongNumStart(SE_SUBGAME_SPEED_EATERS_BOMBS);
-        gCurTask->main = sub_08137304;
+        gCurTask->main = FN(sub_08137304);
     }
     ++var->unk0;
 }
 
 static void sub_08137874(void) {
-    struct Task *t = TaskCreate(sub_081373A8, sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_081373A8), sizeof(struct Unk_081377D4), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_081377D4 *var = TaskGetStructPtr(t);
 
     var->unk0 = 0;
@@ -11241,7 +11241,7 @@ static void sub_081378BC(void) {
 }
 
 static void sub_081378D4(struct Unk_08134D64_10 *a1) {
-    struct Task *t = TaskCreate(sub_08137A80, sizeof(struct Unk_0812E818), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08137A80), sizeof(struct Unk_0812E818), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812E818 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11344,7 +11344,7 @@ static void sub_08137A80(void) {
 }
 
 static void sub_08137AF8(struct Unk_08134D64_10 *a1) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11429,7 +11429,7 @@ static void sub_08137AF8(struct Unk_08134D64_10 *a1) {
 }
 
 static void sub_08137C98(void) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11513,7 +11513,7 @@ static void sub_08137C98(void) {
 }
 
 static void sub_08137E24(struct Unk_08134D64_10 *a1) {
-    struct Task *t = TaskCreate(sub_08137FC8, sizeof(struct Unk_08137FC8), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08137FC8), sizeof(struct Unk_08137FC8), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08137FC8 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11660,7 +11660,7 @@ static void sub_08137FC8(void) {
 }
 
 static struct Task *sub_081380C0(struct Unk_08134D64_10 *a1, s32 a2, s32 a3) {
-    struct Task *t = TaskCreate(sub_0813870C, sizeof(struct Unk_081380C0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0813870C), sizeof(struct Unk_081380C0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_081380C0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11751,7 +11751,7 @@ static struct Task *sub_081380C0(struct Unk_08134D64_10 *a1, s32 a2, s32 a3) {
 }
 
 static void sub_081382A0(s32 a1, s32 a2) {
-    struct Task *t = TaskCreate(sub_08128980, sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08128980), sizeof(struct Unk_0812D1EC_0), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0812D1EC_0 *tmp = TaskGetStructPtr(t), *var = tmp;
     struct AnimInfo local;
 
@@ -11862,7 +11862,7 @@ static void sub_08138438(void) {
 }
 
 static inline struct Unk_08138518 *sub_08138518_helper(void) {
-    struct Task *t = TaskCreate(sub_08138438, sizeof(struct Unk_08138518), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08138438), sizeof(struct Unk_08138518), 0x100, TASK_USE_IWRAM, NULL);
 
     return TaskGetStructPtr(t);
 }
@@ -11884,7 +11884,7 @@ static void sub_08138518(void) {
 }
 
 static void sub_081385DC(void) {
-    struct Task *t = TaskCreate(sub_08138438, sizeof(struct Unk_08138518), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08138438), sizeof(struct Unk_08138518), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_08138518 *var = TaskGetStructPtr(t);
 
     var->unk0 = 0;
@@ -11894,7 +11894,7 @@ static void sub_081385DC(void) {
 }
 
 static struct Task *sub_0813862C(void) {
-    struct Task *t = TaskCreate(sub_08138518, sizeof(struct Unk_0813862C), 0x100, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08138518), sizeof(struct Unk_0813862C), 0x100, TASK_USE_IWRAM, NULL);
     struct Unk_0813862C *var = TaskGetStructPtr(t);
 
     var->unk0 = 2;
@@ -11933,3 +11933,91 @@ static void sub_0813870C(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_subgames) {
+    PORT_FNID(sub_08128DB0),
+    PORT_FNID(sub_08128E8C),
+    PORT_FNID(sub_081295A0),
+    PORT_FNID(sub_081298B4),
+    PORT_FNID(sub_08129A6C),
+    PORT_FNID(sub_08129C34),
+    PORT_FNID(sub_08129F28),
+    PORT_FNID(sub_0812A39C),
+    PORT_FNID(sub_0812A8F0),
+    PORT_FNID(sub_0812B204),
+    PORT_FNID(sub_0812B2F8),
+    PORT_FNID(sub_0812B418),
+    PORT_FNID(sub_0812B63C),
+    PORT_FNID(sub_0812BEE0),
+    PORT_FNID(sub_0812C29C),
+    PORT_FNID(sub_0812C63C),
+    PORT_FNID(sub_0812C814),
+    PORT_FNID(sub_0812CA84),
+    PORT_FNID(sub_0812CBDC),
+    PORT_FNID(sub_0812D3AC),
+    PORT_FNID(sub_0812D988),
+    PORT_FNID(sub_0812DB2C),
+    PORT_FNID(sub_0812DC90),
+    PORT_FNID(sub_0812DF14),
+    PORT_FNID(CrackityHackDrawCracks),
+    PORT_FNID(sub_0812E51C),
+    PORT_FNID(sub_0812E588),
+    PORT_FNID(nullsub_31),
+    PORT_FNID(nullsub_32),
+    PORT_FNID(sub_0812E9CC),
+    PORT_FNID(sub_0812EC54),
+    PORT_FNID(sub_0812ECE0),
+    PORT_FNID(sub_0812EF3C),
+    PORT_FNID(sub_0812F070),
+    PORT_FNID(sub_0812FA28),
+    PORT_FNID(sub_08130534),
+    PORT_FNID(sub_081309B0),
+    PORT_FNID(sub_0813119C),
+    PORT_FNID(sub_0813134C),
+    PORT_FNID(sub_081314C8),
+    PORT_FNID(sub_08131524),
+    PORT_FNID(sub_08132AC8),
+    PORT_FNID(sub_08132B84),
+    PORT_FNID(sub_08132ED8),
+    PORT_FNID(sub_081330AC),
+    PORT_FNID(sub_08133118),
+    PORT_FNID(sub_0813436C),
+    PORT_FNID(sub_0813483C),
+    PORT_FNID(sub_08134884),
+    PORT_FNID(sub_081348B4),
+    PORT_FNID(sub_08134E54),
+    PORT_FNID(sub_081358EC),
+    PORT_FNID(sub_081359EC),
+    PORT_FNID(sub_08135B38),
+    PORT_FNID(sub_08135E9C),
+    PORT_FNID(sub_08136078),
+    PORT_FNID(sub_081361B4),
+    PORT_FNID(sub_08136518),
+    PORT_FNID(sub_081366B8),
+    PORT_FNID(sub_0813683C),
+    PORT_FNID(sub_08136A40),
+    PORT_FNID(sub_08136BE4),
+    PORT_FNID(sub_08136E3C),
+    PORT_FNID(sub_08136ED0),
+    PORT_FNID(sub_08137190),
+    PORT_FNID(sub_08137304),
+    PORT_FNID(sub_081373A8),
+    PORT_FNID(sub_08137420),
+    PORT_FNID(sub_08137498),
+    PORT_FNID(sub_081374E8),
+    PORT_FNID(sub_0813754C),
+    PORT_FNID(nullsub_128),
+    PORT_FNID(sub_081376E4),
+    PORT_FNID(sub_0813781C),
+    PORT_FNID(sub_081378BC),
+    PORT_FNID(sub_08137A80),
+    PORT_FNID(sub_08137FC8),
+    PORT_FNID(sub_08138438),
+    PORT_FNID(sub_08138518),
+    PORT_FNID(sub_0813870C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

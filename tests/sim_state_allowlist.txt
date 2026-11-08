@@ -1,0 +1,88 @@
+# Writable host objects in simulation translation units that are NOT
+# simulation state -- tools/check_sim_state.py (make lint-simstate).
+# Everything else a sim unit writes lives in the GBA map or the port sim block
+# (platform/port/simblock.h).  One line each:  UNIT SYMBOL CLASS REASON
+#
+# Classes:
+#   const-init   a constant table; C++ (LP64) initialises it at startup because
+#                its P32 members have no constexpr constructor, so it lands in
+#                .data/.bss.  Never written afterwards.
+#   boot-init    a pointer table filled once at boot from link-time constants
+#                (the *_init pattern in the fork), identical every run.
+#   const-write  written during play, but always with the same constant value.
+#   never-written declared writable, written by nothing.
+#   setting      a session setting; the recording/session carries it as input.
+#   diagnostic   counts or reports the run, never read by the game.
+#   host-state   simulation state that cannot be GBA bytes because it holds
+#                host pointers; the snapshot serialises it canonically.
+#   presentation audio/video output state (NETPLAY-V2 §3.1 class P).
+cabbage_cavern_1 gCabbageCavern1RoomTiledBG const-init room background descriptor (P32 members)
+cabbage_cavern_2 gCabbageCavern2RoomTiledBG const-init room background descriptor (P32 members)
+cabbage_cavern_3 gCabbageCavern3RoomTiledBG const-init room background descriptor (P32 members)
+candy_constellation_1 gCandyConstellation1RoomTiledBG const-init room background descriptor (P32 members)
+candy_constellation_2 gCandyConstellation2RoomTiledBG const-init room background descriptor (P32 members)
+candy_constellation_3 gCandyConstellation3RoomTiledBG const-init room background descriptor (P32 members)
+carrot_castle_1 gCarrotCastle1RoomTiledBG const-init room background descriptor (P32 members)
+carrot_castle_2 gCarrotCastle2RoomTiledBG const-init room background descriptor (P32 members)
+carrot_castle_3 gCarrotCastle3RoomTiledBG const-init room background descriptor (P32 members)
+carrot_castle_4 gCarrotCastle4RoomTiledBG const-init room background descriptor (P32 members)
+central_circle gCentralCircleRoomTiledBG const-init room background descriptor (P32 members)
+credits gCredits1RoomTiledBG const-init room background descriptor (P32 members)
+credits gCredits2RoomTiledBG const-init room background descriptor (P32 members)
+credits gCreditsEmptyRoomTiledBG const-init room background descriptor (P32 members)
+dimension_mirror_1 gDimensionMirror1RoomTiledBG const-init room background descriptor (P32 members)
+dimension_mirror_2 gDimensionMirror2RoomTiledBG const-init room background descriptor (P32 members)
+dimension_mirror_3 gDimensionMirror3RoomTiledBG const-init room background descriptor (P32 members)
+moonlight_mansion_1 gMoonlightMansion1RoomTiledBG const-init room background descriptor (P32 members)
+moonlight_mansion_2 gMoonlightMansion2RoomTiledBG const-init room background descriptor (P32 members)
+moonlight_mansion_3 gMoonlightMansion3RoomTiledBG const-init room background descriptor (P32 members)
+mustard_mountain_1 gMustardMountain1RoomTiledBG const-init room background descriptor (P32 members)
+mustard_mountain_2 gMustardMountain2RoomTiledBG const-init room background descriptor (P32 members)
+mustard_mountain_3 gMustardMountain3RoomTiledBG const-init room background descriptor (P32 members)
+olive_ocean_1 gOliveOcean1RoomTiledBG const-init room background descriptor (P32 members)
+olive_ocean_2 gOliveOcean2RoomTiledBG const-init room background descriptor (P32 members)
+olive_ocean_3 gOliveOcean3RoomTiledBG const-init room background descriptor (P32 members)
+peppermint_palace_1 gPeppermintPalace1RoomTiledBG const-init room background descriptor (P32 members)
+peppermint_palace_2 gPeppermintPalace2RoomTiledBG const-init room background descriptor (P32 members)
+peppermint_palace_3 gPeppermintPalace3RoomTiledBG const-init room background descriptor (P32 members)
+peppermint_palace_4 gPeppermintPalace4RoomTiledBG const-init room background descriptor (P32 members)
+radish_ruins_1 gRadishRuins1RoomTiledBG const-init room background descriptor (P32 members)
+radish_ruins_2 gRadishRuins2RoomTiledBG const-init room background descriptor (P32 members)
+radish_ruins_3 gRadishRuins3RoomTiledBG const-init room background descriptor (P32 members)
+rainbow_route_1 gRainbowRoute1RoomTiledBG const-init room background descriptor (P32 members)
+rainbow_route_2 gRainbowRoute2RoomTiledBG const-init room background descriptor (P32 members)
+unused_bg gUnusedBgRoomTiledBG const-init room background descriptor (P32 members)
+code_080023A4 gUnk_082D8D74 const-init PTR32 array of RoomTiledBG pointers
+save gSaveFileInfo const-init the save-section table (pointer, size) -- not the save data
+save gWorldProps const-init the save-section table (pointer, size) -- not the save data
+rom_fn_tables gUnk_08D6081C const-init sprite animation command table (function pointers)
+code_08026044 gUnk_082EB2AC const-write .unk4 = gUnk_08D60B0C, the same value every time
+hud sAbilityIconGraphics boot-init ROM pointers, *_init
+hud sAbilityIconPalettes boot-init ROM pointers, *_init
+hud sHudAnswerMessageGraphics boot-init ROM pointers, *_init
+hud sHudBorrowLifeChoiceGraphics boot-init ROM pointers, *_init
+hud sHudBorrowLifePromptGraphics boot-init ROM pointers, *_init
+hud sHudBorrowMessageGraphics boot-init ROM pointers, *_init
+hud sHudConnectingMessageGraphics boot-init ROM pointers, *_init
+hud sHudEnemyAndAreaNameGraphics boot-init ROM pointers, *_init
+hud sHudGameOverAndDemoGraphics boot-init ROM pointers, *_init
+hud sHudGiveMessageGraphics boot-init ROM pointers, *_init
+intro gUnk_08387348 const-init intro script table (function pointers)
+multi_08019F28 gUnk_082DE158 boot-init ROM pointers, *_init
+multi_08019F28 gUnk_082DE230 boot-init ROM pointers, *_init
+multi_08019F28 gUnk_082DE308 boot-init ROM pointers, *_init
+multi_08019F28 sMultiBootPrograms boot-init ROM pointers, *_init
+stubs gUnk_03003678 never-written palette hook; "never filled with real function pointer in katam" (palette.h)
+m4a SoundMainRAM_Buffer presentation the mixer's code buffer; audio is class P
+rando gPortRandoFlags setting recorded as `option rando`
+rando gPortRandoSeed setting recorded as `option rando`
+rando sReportedOverflow diagnostic log once
+rando sRoomsSeen diagnostic PortRandoReport
+rando sSwapsMade diagnostic PortRandoReport
+warp gPortWarpCount diagnostic warps delivered
+bios _ZZ10CpuRangeOkE9sReported diagnostic log once
+sram sRestored diagnostic host loaded a save file at boot
+dma sChannels host-state armed DMA channels; serialised canonically (PortDmaStateCanon)
+dma sBadByShape diagnostic transfer statistics
+dma sBadTransfers diagnostic transfer statistics
+dma sTransferCount diagnostic transfer statistics

@@ -276,7 +276,7 @@ void sub_0802B4A8(void) {
     gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0x10;
-    t = TaskCreate(sub_0802BA6C, sizeof(struct Unk_0802B4A8), 0x100, TASK_USE_IWRAM, sub_0802D360);
+    t = TaskCreate(FN(sub_0802BA6C), sizeof(struct Unk_0802B4A8), 0x100, TASK_USE_IWRAM, FN(sub_0802D360));
     tmp = TaskGetStructPtr(t);
     x = tmp;
     CpuFill16(0, x, sizeof(struct Unk_0802B4A8));
@@ -293,7 +293,7 @@ void sub_0802B4A8(void) {
     x->unk11C.tilesVram = VramMalloc(0x30);
     x->unk144.tilesVram = VramMalloc(0x10);
     gUnk_0300000C = FALSE;
-    x->unk0 = sub_0802BCEC;
+    x->unk0 = FN(sub_0802BCEC);
 }
 
 static void sub_0802B62C(struct Unk_0802B4A8 *x) {
@@ -399,7 +399,7 @@ static void sub_0802BA6C(void) {
     if (x->flags & 0x8000000 && gPressedKeys & (START_BUTTON | A_BUTTON | B_BUTTON))
         x->flags |= 0x40000000;
     if (!(x->flags & 0x40000000) || x->flags & 0x20000000) {
-        x->unk0(x);
+        CALL(x->unk0)(x);
         if (gUnk_0300000C)
             return;
         if (x->flags & 0x1000000) {
@@ -439,7 +439,7 @@ static void sub_0802BA6C(void) {
                 return;
             }
             x->flags = 0x14000000;
-            x->unk0 = sub_0802D480;
+            x->unk0 = FN(sub_0802D480);
             return;
         } else {
             gBldRegs.bldY = x->unk2BC;
@@ -531,7 +531,7 @@ static void sub_0802BCEC(struct Unk_0802B4A8 *x) {
     x->flags |= 0x1005B6D;
     x->flags |= 0x20000000;
     m4aSongNumStart(MUS_ENDING);
-    x->unk0 = sub_0802D3E0;
+    x->unk0 = FN(sub_0802D3E0);
 }
 
 static void sub_0802BF68(struct Unk_0802B4A8 *x) {
@@ -539,7 +539,7 @@ static void sub_0802BF68(struct Unk_0802B4A8 *x) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802D3F4;
+        x->unk0 = FN(sub_0802D3F4);
     } else {
         gBldRegs.bldY = 0x10 - x->unk2BC;
     }
@@ -561,7 +561,7 @@ static void sub_0802BFBC(struct Unk_0802B4A8 *x) {
         moving |= x->unk240[i][0];
     }
     if (!moving)
-        x->unk0 = sub_0802D408;
+        x->unk0 = FN(sub_0802D408);
 }
 
 static void sub_0802C064(struct Unk_0802B4A8 *x) {
@@ -603,7 +603,7 @@ static void sub_0802C064(struct Unk_0802B4A8 *x) {
         moving |= x->unk240[i][0] | x->unk240[i][1];
     }
     if (!moving && x->flags & 0x2000000)
-        x->unk0 = sub_0802D430;
+        x->unk0 = FN(sub_0802D430);
 }
 
 static void sub_0802C1D8(struct Unk_0802B4A8 *x) {
@@ -612,7 +612,7 @@ static void sub_0802C1D8(struct Unk_0802B4A8 *x) {
 
     x->unk240[x->unk2BE][0] = gSineTable[angle] >> 7;
     x->unk240[x->unk2BE][1] = gSineTable[angle + 0x100] >> 7;
-    x->unk0 = sub_0802C26C;
+    x->unk0 = FN(sub_0802C26C);
 }
 
 static void sub_0802C26C(struct Unk_0802B4A8 *x) {
@@ -620,7 +620,7 @@ static void sub_0802C26C(struct Unk_0802B4A8 *x) {
     s32 dy = (x->unk218[x->unk2BE][1] - x->unk274[0].y) >> 8;
 
     if (dx * dx + dy * dy < 0x90) {
-        x->unk0 = sub_0802D5D4;
+        x->unk0 = FN(sub_0802D5D4);
     } else {
         x->unk218[x->unk2BE][0] += x->unk240[x->unk2BE][0];
         x->unk218[x->unk2BE][1] += x->unk240[x->unk2BE][1];
@@ -632,7 +632,7 @@ static void sub_0802C308(struct Unk_0802B4A8 *x) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802D708;
+        x->unk0 = FN(sub_0802D708);
     } else {
         gBldRegs.bldY = 0x10 - (x->unk2BC >> 2);
     }
@@ -645,7 +645,7 @@ static void sub_0802C360(struct Unk_0802B4A8 *x) {
     if (x->unk218[4][0] < -0x2000) {
         x->flags &= ~0x7000;
         x->unk240[4][0] = 0;
-        x->unk0 = sub_0802D444;
+        x->unk0 = FN(sub_0802D444);
     }
     x->unk218[4][0] += x->unk240[4][0];
 }
@@ -676,7 +676,7 @@ static void sub_0802C3C8(struct Unk_0802B4A8 *x) {
     x->unk274[3].dy = 0;
     SpriteInitNoTilesVram(sprite2, 0x100, 0x395, 1, 0, 0xFF, 0x10, 6, x->unk274[3].x >> 8, x->unk274[3].y >> 8, 0x1400);
     x->flags |= 0xA0000;
-    x->unk0 = sub_0802C4BC;
+    x->unk0 = FN(sub_0802C4BC);
 }
 
 static void sub_0802C4BC(struct Unk_0802B4A8 *x) {
@@ -687,7 +687,7 @@ static void sub_0802C4BC(struct Unk_0802B4A8 *x) {
         x->unk274[2].dx = 0;
         x->unk274[2].dy = 0;
         x->flags &= ~0x80000;
-        x->unk0 = sub_0802D458;
+        x->unk0 = FN(sub_0802D458);
     }
     x->unk274[2].x += x->unk274[2].dx;
     x->unk274[2].y += x->unk274[2].dy;
@@ -715,7 +715,7 @@ static void sub_0802C550(struct Unk_0802B4A8 *x) {
     sub_08155128(sprite);
     x->flags &= ~0x100000;
     x->flags |= 0x80000;
-    x->unk0 = sub_0802D780;
+    x->unk0 = FN(sub_0802D780);
 }
 
 static void sub_0802C5E4(struct Unk_0802B4A8 *x) {
@@ -727,7 +727,7 @@ static void sub_0802C5E4(struct Unk_0802B4A8 *x) {
     BgInit(bg, (u32)BG_CHAR_ADDR(2), 0, (u32)BG_SCREEN_ADDR(31), 0, 0, 0x306, 0, 0, 0, 0, 0x1E, 0x14, 0, 0, 0, 8, 0, 0, 0x7FFF, 0x7FFF);
     LZ77UnCompVram(gUnk_082D7850[0x306]->tileset, (u16 *)bg->tilesVram);
     sub_08153060(bg);
-    x->unk0 = sub_0802C68C;
+    x->unk0 = FN(sub_0802C68C);
 }
 
 static void sub_0802C68C(struct Unk_0802B4A8 *x) {
@@ -755,7 +755,7 @@ static void sub_0802C68C(struct Unk_0802B4A8 *x) {
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
     }
     gDispCnt |= DISPCNT_BG0_ON | DISPCNT_BG1_ON;
-    x->unk0 = sub_0802D46C;
+    x->unk0 = FN(sub_0802D46C);
 }
 
 static void sub_0802C770(struct Unk_0802B4A8 *x) {
@@ -795,7 +795,7 @@ static void sub_0802C770(struct Unk_0802B4A8 *x) {
     LZ77UnCompVram(gUnk_082D7850[bg->unk1C]->tileset, (u16 *)bg->tilesVram);
     x->unk2BC = 0;
     x->flags &= ~0x80000;
-    x->unk0 = sub_0802D800;
+    x->unk0 = FN(sub_0802D800);
 }
 
 static void sub_0802C8E8(struct Unk_0802B4A8 *x) {
@@ -847,7 +847,7 @@ static void sub_0802C8E8(struct Unk_0802B4A8 *x) {
     sub_08155128(sprite2);
     x->flags &= 0xF0800000;
     x->flags |= 0xB6D;
-    x->unk0 = sub_0802CA78;
+    x->unk0 = FN(sub_0802CA78);
 }
 
 static void sub_0802CA78(struct Unk_0802B4A8 *x) {
@@ -871,7 +871,7 @@ static void sub_0802CA78(struct Unk_0802B4A8 *x) {
         x->unk218[i][1] += x->unk240[i][1];
     }
     if (done)
-        x->unk0 = sub_0802D4F4;
+        x->unk0 = FN(sub_0802D4F4);
 }
 
 static void sub_0802CB60(UNUSED struct Unk_0802B4A8 *x) {
@@ -889,7 +889,7 @@ static void sub_0802CB60(UNUSED struct Unk_0802B4A8 *x) {
         gAIKirbyState = AI_KIRBY_STATE_UNK1;
         if (!(gUnk_0203AD10 & 0x10)) {
             if (gUnk_0203AD10 & 2) {
-                if (gLocalPlayerId == gUnk_0203AD24)
+                if (PortSimSaveOwner())
                     UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
                 else
                     sub_08031CE4(8);
@@ -920,7 +920,7 @@ static void sub_0802CC7C(struct Unk_0802DB48 *var) {
     sub_08153060(bg);
     var->unk4A = 0;
     var->parent->flags |= 0x20000000;
-    var->unk0 = sub_0802CDA0;
+    var->unk0 = FN(sub_0802CDA0);
 }
 
 static void sub_0802CDA0(struct Unk_0802DB48 *var) {
@@ -928,7 +928,7 @@ static void sub_0802CDA0(struct Unk_0802DB48 *var) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
         var->parent->flags &= ~0x20000000;
-        var->unk0 = sub_0802D898;
+        var->unk0 = FN(sub_0802D898);
     } else {
         gBldRegs.bldAlpha = BLDALPHA_BLEND(var->unk4A, 0x10 - var->unk4A);
     }
@@ -940,14 +940,14 @@ static void sub_0802CDF8(struct Unk_0802DB48 *var) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldAlpha = BLDALPHA_BLEND(0, 0x10);
         var->parent->flags &= ~0x20000000;
-        var->unk0 = sub_0802D92C;
+        var->unk0 = FN(sub_0802D92C);
     } else {
         gBldRegs.bldAlpha = BLDALPHA_BLEND2(0x10 - var->unk4A, var->unk4A);
     }
 }
 
 static struct Unk_0802CE64 *sub_0802CE64(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy, u16 timer) {
-    struct Task *t = TaskCreate(sub_0802CF2C, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0802CF2C), sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
     struct Unk_0802CE64 *var = TaskGetStructPtr(t);
 
     var->parent = x;
@@ -972,14 +972,14 @@ static void sub_0802CF2C(void) {
     var->unk2C += var->unk34;
     var->unk30 += var->unk36;
     if (var->unk38 && !--var->unk38)
-        gCurTask->main = sub_0802D528;
+        gCurTask->main = FN(sub_0802D528);
     else if (sprite->x < -0x40 || sprite->x > 0x130 || sprite->y < -0x40 || sprite->y > 0xE0
         || var->parent->flags & 0x4000000)
-        gCurTask->main = sub_0802D528;
+        gCurTask->main = FN(sub_0802D528);
 }
 
 static struct Unk_0802CE64 *sub_0802CFF0(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy, u16 timer) {
-    struct Task *t = TaskCreate(sub_0802D0B8, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0802D0B8), sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
     struct Unk_0802CE64 *var = TaskGetStructPtr(t);
 
     var->parent = x;
@@ -1000,7 +1000,7 @@ static void sub_0802D0B8(void) {
     sprite->y = var->unk30 >> 8;
     if (!sub_08155128(sprite)) {
         if (var->unk38 && !--var->unk38)
-            gCurTask->main = sub_0802D53C;
+            gCurTask->main = FN(sub_0802D53C);
         else
             var->spr.unk1B = 0xFF;
     }
@@ -1008,13 +1008,13 @@ static void sub_0802D0B8(void) {
     var->unk2C += var->unk34;
     var->unk30 += var->unk36;
     if (sprite->x < -0x40 || sprite->x > 0x130 || sprite->y < -0x40 || sprite->y > 0xE0)
-        gCurTask->main = sub_0802D53C;
+        gCurTask->main = FN(sub_0802D53C);
     if (var->parent->flags & 0x4000000)
-        gCurTask->main = sub_0802D53C;
+        gCurTask->main = FN(sub_0802D53C);
 }
 
 static struct Unk_0802CE64 *sub_0802D198(struct Unk_0802B4A8 *x, u16 animId, u16 variant, u32 tilesVram, s32 posX, s32 posY, s16 dx, s16 dy) {
-    struct Task *t = TaskCreate(sub_0802D288, sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0802D288), sizeof(struct Unk_0802CE64), 0x101, TASK_USE_IWRAM, NULL);
     struct Unk_0802CE64 *var = TaskGetStructPtr(t);
 
     var->parent = x;
@@ -1041,9 +1041,9 @@ static void sub_0802D288(void) {
     var->unk38 += 8;
     var->unk38 &= 0x3FF;
     if (var->spr.x < -0x40 || var->spr.x > 0x130 || var->spr.y < -0x40 || var->spr.y > 0xE0)
-        gCurTask->main = sub_0802D550;
+        gCurTask->main = FN(sub_0802D550);
     if (var->parent->flags & 0x4000000)
-        gCurTask->main = sub_0802D550;
+        gCurTask->main = FN(sub_0802D550);
 }
 
 static void sub_0802D360(struct Task *t) {
@@ -1061,38 +1061,38 @@ static void sub_0802D360(struct Task *t) {
 
 static void sub_0802D3E0(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802BF68;
+    x->unk0 = FN(sub_0802BF68);
 }
 
 static void sub_0802D3F4(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D564;
+    x->unk0 = FN(sub_0802D564);
 }
 
 static void sub_0802D408(struct Unk_0802B4A8 *x) {
     x->flags |= 0x8000000;
     x->unk2BC = 0;
-    x->unk0 = sub_0802D588;
+    x->unk0 = FN(sub_0802D588);
 }
 
 static void sub_0802D430(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D5B0;
+    x->unk0 = FN(sub_0802D5B0);
 }
 
 static void sub_0802D444(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D738;
+    x->unk0 = FN(sub_0802D738);
 }
 
 static void sub_0802D458(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D75C;
+    x->unk0 = FN(sub_0802D75C);
 }
 
 static void sub_0802D46C(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D7DC;
+    x->unk0 = FN(sub_0802D7DC);
 }
 
 static void sub_0802D480(struct Unk_0802B4A8 *x) {
@@ -1103,12 +1103,12 @@ static void sub_0802D480(struct Unk_0802B4A8 *x) {
     gBldRegs.bldY = 0;
     x->flags &= ~0x4080000;
     x->flags |= 0x10800000;
-    x->unk0 = sub_0802D4E0;
+    x->unk0 = FN(sub_0802D4E0);
 }
 
 static void sub_0802D4E0(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802D824;
+    x->unk0 = FN(sub_0802D824);
 }
 
 static void sub_0802D4F4(struct Unk_0802B4A8 *x) {
@@ -1116,7 +1116,7 @@ static void sub_0802D4F4(struct Unk_0802B4A8 *x) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802D84C;
+    x->unk0 = FN(sub_0802D84C);
 }
 
 static void sub_0802D528(void) {
@@ -1133,17 +1133,17 @@ static void sub_0802D550(void) {
 
 static void sub_0802D564(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802D9B8;
+        x->unk0 = FN(sub_0802D9B8);
 }
 
 static void sub_0802D588(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 360)
-        x->unk0 = sub_0802D9F4;
+        x->unk0 = FN(sub_0802D9F4);
 }
 
 static void sub_0802D5B0(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DA54;
+        x->unk0 = FN(sub_0802DA54);
 }
 
 static void sub_0802D5D4(struct Unk_0802B4A8 *x) {
@@ -1152,14 +1152,14 @@ static void sub_0802D5D4(struct Unk_0802B4A8 *x) {
     gBldRegs.bldY = 0;
     m4aSongNumStart(SE_MIRROR_COMPLETE);
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802D618;
+    x->unk0 = FN(sub_0802D618);
 }
 
 static void sub_0802D618(struct Unk_0802B4A8 *x) {
     if (++x->unk2BC > 0xF) {
         gBldRegs.bldY = 0x10;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802D664;
+        x->unk0 = FN(sub_0802D664);
     } else {
         gBldRegs.bldY = x->unk2BC;
     }
@@ -1170,43 +1170,43 @@ static void sub_0802D664(struct Unk_0802B4A8 *x) {
     x->unk240[x->unk2BE][0] = 0;
     x->unk240[x->unk2BE][1] = 0;
     x->flags &= ~(7 << (x->unk2BE * 3));
-    x->unk0 = sub_0802D6B4;
+    x->unk0 = FN(sub_0802D6B4);
 }
 
 static void sub_0802D6B4(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802D6D8;
+        x->unk0 = FN(sub_0802D6D8);
 }
 
 static void sub_0802D6D8(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
     gBldRegs.bldY = 0x10;
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802C308;
+    x->unk0 = FN(sub_0802C308);
 }
 
 static void sub_0802D708(struct Unk_0802B4A8 *x) {
     if (++x->unk2BE < 4)
-        x->unk0 = sub_0802C1D8;
+        x->unk0 = FN(sub_0802C1D8);
     else
-        x->unk0 = sub_0802DAA0;
+        x->unk0 = FN(sub_0802DAA0);
 }
 
 static void sub_0802D738(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 120)
-        x->unk0 = sub_0802C3C8;
+        x->unk0 = FN(sub_0802C3C8);
 }
 
 static void sub_0802D75C(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802C550;
+        x->unk0 = FN(sub_0802C550);
 }
 
 static void sub_0802D780(struct Unk_0802B4A8 *x) {
     if (x->unk274[3].y > 0xC800) {
         x->unk274[2].dy = 0;
         x->flags &= ~0x80000;
-        x->unk0 = sub_0802DAB4;
+        x->unk0 = FN(sub_0802DAB4);
     }
     x->unk274[3].dy += 0x40;
     if (x->unk274[3].dy > 0x400)
@@ -1216,24 +1216,24 @@ static void sub_0802D780(struct Unk_0802B4A8 *x) {
 
 static void sub_0802D7DC(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DAC8;
+        x->unk0 = FN(sub_0802DAC8);
 }
 
 static void sub_0802D800(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DB00;
+        x->unk0 = FN(sub_0802DB00);
 }
 
 static void sub_0802D824(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 480)
-        x->unk0 = sub_0802C8E8;
+        x->unk0 = FN(sub_0802C8E8);
 }
 
 static void sub_0802D84C(struct Unk_0802B4A8 *x) {
     if (++x->unk2BC > 0xF) {
         gBldRegs.bldY = 0x10;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802DB34;
+        x->unk0 = FN(sub_0802DB34);
     } else {
         gBldRegs.bldY = x->unk2BC;
     }
@@ -1241,12 +1241,12 @@ static void sub_0802D84C(struct Unk_0802B4A8 *x) {
 
 static void sub_0802D898(struct Unk_0802DB48 *var) {
     var->unk4A = 0;
-    var->unk0 = sub_0802D8AC;
+    var->unk0 = FN(sub_0802D8AC);
 }
 
 static void sub_0802D8AC(struct Unk_0802DB48 *var) {
     if (gUnk_082EB640[gLanguage][var->unk4C][1] < var->unk4A++)
-        var->unk0 = sub_0802D8F4;
+        var->unk0 = FN(sub_0802D8F4);
 }
 
 static void sub_0802D8F4(struct Unk_0802DB48 *var) {
@@ -1254,25 +1254,25 @@ static void sub_0802D8F4(struct Unk_0802DB48 *var) {
     gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
     var->unk4A = 0;
     var->parent->flags |= 0x20000000;
-    var->unk0 = sub_0802CDF8;
+    var->unk0 = FN(sub_0802CDF8);
 }
 
 static void sub_0802D92C(struct Unk_0802DB48 *var) {
     var->unk4A = 0;
-    var->unk0 = sub_0802D940;
+    var->unk0 = FN(sub_0802D940);
 }
 
 static void sub_0802D940(struct Unk_0802DB48 *var) {
     if (var->unk4A++ > 30)
-        var->unk0 = sub_0802D964;
+        var->unk0 = FN(sub_0802D964);
 }
 
 static void sub_0802D964(struct Unk_0802DB48 *var) {
     if (++var->unk4C < ARRAY_COUNT(gUnk_082EB640[0])) {
-        var->unk0 = sub_0802CC7C;
+        var->unk0 = FN(sub_0802CC7C);
     } else {
         var->parent->flags |= 0x2000000;
-        var->unk0 = sub_0802D9A4;
+        var->unk0 = FN(sub_0802D9A4);
     }
 }
 
@@ -1286,7 +1286,7 @@ static void sub_0802D9B8(struct Unk_0802B4A8 *x) {
     for (i = 0; i < 4; ++i)
         x->unk240[i][0] = gUnk_082EB514[i][0];
     sub_0802DB48(x);
-    x->unk0 = sub_0802BFBC;
+    x->unk0 = FN(sub_0802BFBC);
 }
 
 static void sub_0802D9F4(struct Unk_0802B4A8 *x) {
@@ -1296,7 +1296,7 @@ static void sub_0802D9F4(struct Unk_0802B4A8 *x) {
         x->unk240[i][0] = gUnk_082EB564[i][0];
         x->unk240[i][1] = gUnk_082EB564[i][1];
     }
-    x->unk0 = sub_0802C064;
+    x->unk0 = FN(sub_0802C064);
 }
 
 static void sub_0802DA54(struct Unk_0802B4A8 *x) {
@@ -1305,24 +1305,24 @@ static void sub_0802DA54(struct Unk_0802B4A8 *x) {
     x->unk274[0].dx = 0;
     x->unk274[0].dy = -0x100;
     x->flags |= 0x8000;
-    x->unk0 = sub_0802DBC0;
+    x->unk0 = FN(sub_0802DBC0);
 }
 
 static void sub_0802DAA0(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DC10;
+    x->unk0 = FN(sub_0802DC10);
 }
 
 static void sub_0802DAB4(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DC34;
+    x->unk0 = FN(sub_0802DC34);
 }
 
 static void sub_0802DAC8(struct Unk_0802B4A8 *x) {
     x->unk274[3].y = -0x1000;
     x->flags |= 0x80000;
     x->unk144.unk1B = 0xFF;
-    x->unk0 = sub_0802DC58;
+    x->unk0 = FN(sub_0802DC58);
 }
 
 static void sub_0802DB00(struct Unk_0802B4A8 *x) {
@@ -1330,12 +1330,12 @@ static void sub_0802DB00(struct Unk_0802B4A8 *x) {
     gBldRegs.bldCnt = BLDCNT_TGT1_BG0 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BD | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0x10;
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802DCC4;
+    x->unk0 = FN(sub_0802DCC4);
 }
 
 static void sub_0802DB34(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DD18;
+    x->unk0 = FN(sub_0802DD18);
 }
 
 static struct Unk_0802DB48 *sub_0802DB48(struct Unk_0802B4A8 *x) {
@@ -1343,11 +1343,11 @@ static struct Unk_0802DB48 *sub_0802DB48(struct Unk_0802B4A8 *x) {
     struct Unk_0802DB48 *var;
 
     x->flags &= ~0x2000000;
-    t = TaskCreate(sub_0802DD3C, sizeof(struct Unk_0802DB48), 0x101, TASK_USE_IWRAM, NULL);
+    t = TaskCreate(FN(sub_0802DD3C), sizeof(struct Unk_0802DB48), 0x101, TASK_USE_IWRAM, NULL);
     var = TaskGetStructPtr(t);
     CpuFill16(0, var, sizeof(struct Unk_0802DB48));
     var->parent = x;
-    var->unk0 = sub_0802DD94;
+    var->unk0 = FN(sub_0802DD94);
     return var;
 }
 
@@ -1358,7 +1358,7 @@ static void sub_0802DBC0(struct Unk_0802B4A8 *x) {
             if (x->unk274[0].dy > 0)
                 x->unk274[0].dy = 0;
         } else {
-            x->unk0 = sub_0802DDA0;
+            x->unk0 = FN(sub_0802DDA0);
         }
     }
     x->unk274[0].y += x->unk274[0].dy;
@@ -1366,12 +1366,12 @@ static void sub_0802DBC0(struct Unk_0802B4A8 *x) {
 
 static void sub_0802DC10(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DDB4;
+        x->unk0 = FN(sub_0802DDB4);
 }
 
 static void sub_0802DC34(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DDC0;
+        x->unk0 = FN(sub_0802DDC0);
 }
 
 static void sub_0802DC58(struct Unk_0802B4A8 *x) {
@@ -1381,7 +1381,7 @@ static void sub_0802DC58(struct Unk_0802B4A8 *x) {
     if (x->unk274[3].y > 0x8000) {
         x->unk274[3].dy = 0;
         x->unk274[3].y = 0x8000;
-        x->unk0 = sub_0802DCA0;
+        x->unk0 = FN(sub_0802DCA0);
     }
     x->unk274[3].y += x->unk274[3].dy;
 }
@@ -1389,14 +1389,14 @@ static void sub_0802DC58(struct Unk_0802B4A8 *x) {
 static void sub_0802DCA0(struct Unk_0802B4A8 *x) {
     x->unk144.animId = 0x2C3;
     x->unk144.variant = 4;
-    x->unk0 = sub_0802DDEC;
+    x->unk0 = FN(sub_0802DDEC);
 }
 
 static void sub_0802DCC4(struct Unk_0802B4A8 *x) {
     if (++x->unk2BC > 0x3F) {
         gBldRegs.bldY = 0;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802DE00;
+        x->unk0 = FN(sub_0802DE00);
     } else {
         gBldRegs.bldY = 0x10 - (x->unk2BC >> 2);
     }
@@ -1404,14 +1404,14 @@ static void sub_0802DCC4(struct Unk_0802B4A8 *x) {
 
 static void sub_0802DD18(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802CB60;
+        x->unk0 = FN(sub_0802CB60);
 }
 
 static void sub_0802DD3C(void) {
     struct Unk_0802DB48 *var = TaskGetStructPtr(gCurTask);
 
     if (!(var->parent->flags & 0x80000000)) {
-        var->unk0(var);
+        CALL(var->unk0)(var);
         ++var->unk48;
     } else {
         sub_0802D9A4(var);
@@ -1419,37 +1419,37 @@ static void sub_0802DD3C(void) {
 }
 
 static void sub_0802DD94(struct Unk_0802DB48 *var) {
-    var->unk0 = sub_0802CC7C;
+    var->unk0 = FN(sub_0802CC7C);
 }
 
 static void sub_0802DDA0(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DE14;
+    x->unk0 = FN(sub_0802DE14);
 }
 
 static void sub_0802DDB4(struct Unk_0802B4A8 *x) {
-    x->unk0 = sub_0802DE38;
+    x->unk0 = FN(sub_0802DE38);
 }
 
 static void sub_0802DDC0(struct Unk_0802B4A8 *x) {
     gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
     x->flags &= ~0x5000000;
-    x->unk0 = sub_0802C5E4;
+    x->unk0 = FN(sub_0802C5E4);
 }
 
 static void sub_0802DDEC(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DE94;
+    x->unk0 = FN(sub_0802DE94);
 }
 
 static void sub_0802DE00(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802DEB8;
+    x->unk0 = FN(sub_0802DEB8);
 }
 
 static void sub_0802DE14(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802DEE0;
+        x->unk0 = FN(sub_0802DEE0);
 }
 
 static void sub_0802DE38(struct Unk_0802B4A8 *x) {
@@ -1459,19 +1459,19 @@ static void sub_0802DE38(struct Unk_0802B4A8 *x) {
     if (x->unk274[0].y < -0x3C00) {
         x->flags &= ~0x18000;
         x->unk274[0].dy = 0;
-        x->unk0 = sub_0802DF0C;
+        x->unk0 = FN(sub_0802DF0C);
     }
     x->unk274[0].y += x->unk274[0].dy;
 }
 
 static void sub_0802DE94(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 30)
-        x->unk0 = sub_0802DF30;
+        x->unk0 = FN(sub_0802DF30);
 }
 
 static void sub_0802DEB8(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 1020)
-        x->unk0 = sub_0802DFB4;
+        x->unk0 = FN(sub_0802DFB4);
 }
 
 static void sub_0802DEE0(struct Unk_0802B4A8 *x) {
@@ -1479,14 +1479,14 @@ static void sub_0802DEE0(struct Unk_0802B4A8 *x) {
     x->unk4[4].variant = 7;
     x->unk2BE = 0;
     x->unk2BC = 0;
-    x->unk0 = sub_0802E01C;
+    x->unk0 = FN(sub_0802E01C);
 }
 
 static void sub_0802DF0C(struct Unk_0802B4A8 *x) {
     x->unk4[4].animId = 0x2D;
     x->unk4[4].variant = 4;
     x->unk2BC = 0;
-    x->unk0 = sub_0802E040;
+    x->unk0 = FN(sub_0802E040);
 }
 
 static void sub_0802DF30(struct Unk_0802B4A8 *x) {
@@ -1494,12 +1494,12 @@ static void sub_0802DF30(struct Unk_0802B4A8 *x) {
     x->unk2B4 = 0;
     sub_0802CFF0(x, 0x28F, 3, x->unk16C.tilesVram, x->unk274[3].x, x->unk274[3].y, 0, 0, 1)->spr.unk1C >>= 1;
     m4aSongNumStart(SE_SHARD_OBTAINED);
-    x->unk0 = sub_0802DFA0;
+    x->unk0 = FN(sub_0802DFA0);
 }
 
 static void sub_0802DFA0(struct Unk_0802B4A8 *x) {
     x->unk2BC = 0;
-    x->unk0 = sub_0802E064;
+    x->unk0 = FN(sub_0802E064);
 }
 
 static void sub_0802DFB4(struct Unk_0802B4A8 *x) {
@@ -1511,29 +1511,29 @@ static void sub_0802DFB4(struct Unk_0802B4A8 *x) {
     m4aMPlayFadeOut(&gMPlayInfo_2, 8);
     m4aMPlayFadeOut(&gMPlayInfo_3, 8);
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802E088;
+    x->unk0 = FN(sub_0802E088);
 }
 
 static void sub_0802E01C(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 180)
-        x->unk0 = sub_0802C1D8;
+        x->unk0 = FN(sub_0802C1D8);
 }
 
 static void sub_0802E040(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 60)
-        x->unk0 = sub_0802E0D4;
+        x->unk0 = FN(sub_0802E0D4);
 }
 
 static void sub_0802E064(struct Unk_0802B4A8 *x) {
     if (x->unk2BC++ > 180)
-        x->unk0 = sub_0802E0E8;
+        x->unk0 = FN(sub_0802E0E8);
 }
 
 static void sub_0802E088(struct Unk_0802B4A8 *x) {
     if (++x->unk2BC > 0xF) {
         gBldRegs.bldY = 0x10;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802D480;
+        x->unk0 = FN(sub_0802D480);
     } else {
         gBldRegs.bldY = x->unk2BC;
     }
@@ -1541,7 +1541,7 @@ static void sub_0802E088(struct Unk_0802B4A8 *x) {
 
 static void sub_0802E0D4(struct Unk_0802B4A8 *x) {
     x->unk240[4][0] = 0;
-    x->unk0 = sub_0802C360;
+    x->unk0 = FN(sub_0802C360);
 }
 
 static void sub_0802E0E8(struct Unk_0802B4A8 *x) {
@@ -1549,14 +1549,14 @@ static void sub_0802E0E8(struct Unk_0802B4A8 *x) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0;
     x->flags |= 0x20000000;
-    x->unk0 = sub_0802E11C;
+    x->unk0 = FN(sub_0802E11C);
 }
 
 static void sub_0802E11C(struct Unk_0802B4A8 *x) {
     if (++x->unk2BC > 0x3F) {
         gBldRegs.bldY = 0x10;
         x->flags &= ~0x20000000;
-        x->unk0 = sub_0802C770;
+        x->unk0 = FN(sub_0802C770);
     } else {
         gBldRegs.bldY = x->unk2BC >> 2;
     }
@@ -1565,3 +1565,111 @@ static void sub_0802E11C(struct Unk_0802B4A8 *x) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0802B4A8) {
+    PORT_FNID(sub_0802B4A8),
+    PORT_FNID(sub_0802BA6C),
+    PORT_FNID(sub_0802BCEC),
+    PORT_FNID(sub_0802BF68),
+    PORT_FNID(sub_0802BFBC),
+    PORT_FNID(sub_0802C064),
+    PORT_FNID(sub_0802C1D8),
+    PORT_FNID(sub_0802C26C),
+    PORT_FNID(sub_0802C308),
+    PORT_FNID(sub_0802C360),
+    PORT_FNID(sub_0802C3C8),
+    PORT_FNID(sub_0802C4BC),
+    PORT_FNID(sub_0802C550),
+    PORT_FNID(sub_0802C5E4),
+    PORT_FNID(sub_0802C68C),
+    PORT_FNID(sub_0802C770),
+    PORT_FNID(sub_0802C8E8),
+    PORT_FNID(sub_0802CA78),
+    PORT_FNID(sub_0802CB60),
+    PORT_FNID(sub_0802CC7C),
+    PORT_FNID(sub_0802CDA0),
+    PORT_FNID(sub_0802CDF8),
+    PORT_FNID(sub_0802CF2C),
+    PORT_FNID(sub_0802D0B8),
+    PORT_FNID(sub_0802D288),
+    PORT_FNID(sub_0802D360),
+    PORT_FNID(sub_0802D3E0),
+    PORT_FNID(sub_0802D3F4),
+    PORT_FNID(sub_0802D408),
+    PORT_FNID(sub_0802D430),
+    PORT_FNID(sub_0802D444),
+    PORT_FNID(sub_0802D458),
+    PORT_FNID(sub_0802D46C),
+    PORT_FNID(sub_0802D480),
+    PORT_FNID(sub_0802D4E0),
+    PORT_FNID(sub_0802D4F4),
+    PORT_FNID(sub_0802D528),
+    PORT_FNID(sub_0802D53C),
+    PORT_FNID(sub_0802D550),
+    PORT_FNID(sub_0802D564),
+    PORT_FNID(sub_0802D588),
+    PORT_FNID(sub_0802D5B0),
+    PORT_FNID(sub_0802D5D4),
+    PORT_FNID(sub_0802D618),
+    PORT_FNID(sub_0802D664),
+    PORT_FNID(sub_0802D6B4),
+    PORT_FNID(sub_0802D6D8),
+    PORT_FNID(sub_0802D708),
+    PORT_FNID(sub_0802D738),
+    PORT_FNID(sub_0802D75C),
+    PORT_FNID(sub_0802D780),
+    PORT_FNID(sub_0802D7DC),
+    PORT_FNID(sub_0802D800),
+    PORT_FNID(sub_0802D824),
+    PORT_FNID(sub_0802D84C),
+    PORT_FNID(sub_0802D898),
+    PORT_FNID(sub_0802D8AC),
+    PORT_FNID(sub_0802D8F4),
+    PORT_FNID(sub_0802D92C),
+    PORT_FNID(sub_0802D940),
+    PORT_FNID(sub_0802D964),
+    PORT_FNID(sub_0802D9A4),
+    PORT_FNID(sub_0802D9B8),
+    PORT_FNID(sub_0802D9F4),
+    PORT_FNID(sub_0802DA54),
+    PORT_FNID(sub_0802DAA0),
+    PORT_FNID(sub_0802DAB4),
+    PORT_FNID(sub_0802DAC8),
+    PORT_FNID(sub_0802DB00),
+    PORT_FNID(sub_0802DB34),
+    PORT_FNID(sub_0802DBC0),
+    PORT_FNID(sub_0802DC10),
+    PORT_FNID(sub_0802DC34),
+    PORT_FNID(sub_0802DC58),
+    PORT_FNID(sub_0802DCA0),
+    PORT_FNID(sub_0802DCC4),
+    PORT_FNID(sub_0802DD18),
+    PORT_FNID(sub_0802DD3C),
+    PORT_FNID(sub_0802DD94),
+    PORT_FNID(sub_0802DDA0),
+    PORT_FNID(sub_0802DDB4),
+    PORT_FNID(sub_0802DDC0),
+    PORT_FNID(sub_0802DDEC),
+    PORT_FNID(sub_0802DE00),
+    PORT_FNID(sub_0802DE14),
+    PORT_FNID(sub_0802DE38),
+    PORT_FNID(sub_0802DE94),
+    PORT_FNID(sub_0802DEB8),
+    PORT_FNID(sub_0802DEE0),
+    PORT_FNID(sub_0802DF0C),
+    PORT_FNID(sub_0802DF30),
+    PORT_FNID(sub_0802DFA0),
+    PORT_FNID(sub_0802DFB4),
+    PORT_FNID(sub_0802E01C),
+    PORT_FNID(sub_0802E040),
+    PORT_FNID(sub_0802E064),
+    PORT_FNID(sub_0802E088),
+    PORT_FNID(sub_0802E0D4),
+    PORT_FNID(sub_0802E0E8),
+    PORT_FNID(sub_0802E11C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

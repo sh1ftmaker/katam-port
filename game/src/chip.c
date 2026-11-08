@@ -37,7 +37,7 @@ extern const struct AnimInfo gUnk_08353928[] = {
 
 void* CreateChip(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -50,25 +50,25 @@ void* CreateChip(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -5, 5, 6);
     ObjectSetBounds(&obj->base, -6, -6, 6, 8);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     switch (arg0->subtype1) {
     case 0:
     default:
         obj->unk9E = 0;
-        obj->unk7C = sub_080AAE80;
+        obj->unk7C = FN(sub_080AAE80);
         break;
     case 1:
         obj->unkA0 = 0;
         obj->unk9E = 0;
-        obj->unk7C = sub_080AB04C;
+        obj->unk7C = FN(sub_080AB04C);
         break;
     case 2:
         obj->unk9E = 0;
-        obj->unk7C = sub_080AAD14;
+        obj->unk7C = FN(sub_080AAD14);
         break;
     case 3:
         obj->unk9E = 0;
-        obj->unk7C = sub_080AABBC;
+        obj->unk7C = FN(sub_080AABBC);
         break;
     }
     return obj;
@@ -415,7 +415,7 @@ static void sub_080AB428(struct Object* arg0) {
             arg0->base.counter = 0;
         }
         if (arg0->base.counter > 4) {
-            ObjectSetFunc(arg0, 0, sub_080AB374);
+            ObjectSetFunc(arg0, 0, FN(sub_080AB374));
         }
     }
 }
@@ -435,7 +435,7 @@ static void sub_080AB4A4(struct Object* arg0) {
         }
     }
     if (arg0->base.counter > 8) {
-        ObjectSetFunc(arg0, 0, sub_080AB374);
+        ObjectSetFunc(arg0, 0, FN(sub_080AB374));
     }
 }
 
@@ -451,7 +451,7 @@ static void sub_080AB4F8(struct Object* arg0) {
             arg0->base.yspeed = 0x240;
         }
     }
-    ObjectSetFunc(arg0, 2, sub_080AB5F8);
+    ObjectSetFunc(arg0, 2, FN(sub_080AB5F8));
     if (arg0->base.yspeed == 0x480) {
         arg0->unk83 = 3;
     }
@@ -513,21 +513,21 @@ static void sub_080AB5F8(struct Object* arg0) {
     }
     if (arg0->base.unk62 & 4) {
         arg0->base.flags &= ~0x20;
-        ObjectSetFunc(arg0, 6, sub_080AB4A4);
+        ObjectSetFunc(arg0, 6, FN(sub_080AB4A4));
     }
 }
 
 void sub_080AB720(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080AB374);
+    ObjectSetFunc(arg0, 0, FN(sub_080AB374));
 }
 
 static void sub_080AB734(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080AB428);
+    ObjectSetFunc(arg0, 1, FN(sub_080AB428));
     arg0->base.flags &= ~0x20;
 }
 
 static void sub_080AB754(struct Object* arg0) {
-    ObjectSetFunc(arg0, 3, sub_080AB5F8);
+    ObjectSetFunc(arg0, 3, FN(sub_080AB5F8));
     if (arg0->base.unk62 & 4) {
         arg0->base.yspeed = 0x120;
     }
@@ -563,3 +563,21 @@ static u8 sub_080AB78C(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_chip) {
+    PORT_FNID(CreateChip),
+    PORT_FNID(sub_080AABBC),
+    PORT_FNID(sub_080AAD14),
+    PORT_FNID(sub_080AAE80),
+    PORT_FNID(sub_080AB04C),
+    PORT_FNID(sub_080AB374),
+    PORT_FNID(sub_080AB428),
+    PORT_FNID(sub_080AB4A4),
+    PORT_FNID(sub_080AB5F8),
+    PORT_FNID(sub_080AB720),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

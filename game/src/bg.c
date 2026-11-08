@@ -360,3 +360,12 @@ void sub_08153CB8(struct Background *ip) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bg) {
+    PORT_FNID(sub_08153184),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

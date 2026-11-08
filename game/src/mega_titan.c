@@ -227,17 +227,17 @@ extern const struct AnimInfo gUnk_08356FE0[] = {
 };
 
 static void (*const gUnk_08357018[])(struct Object *) = {
-    sub_080EF1A8,
-    sub_080F2170,
-    sub_080F1598,
-    sub_080F2D74,
+    FN(sub_080EF1A8),
+    FN(sub_080F2170),
+    FN(sub_080F1598),
+    FN(sub_080F2D74),
 };
 
 static void (*const gUnk_08357028[])(struct Object *) = {
-    sub_080EF6E4,
-    sub_080F26AC,
-    sub_080F1ABC,
-    sub_080F3294,
+    FN(sub_080EF6E4),
+    FN(sub_080F26AC),
+    FN(sub_080F1ABC),
+    FN(sub_080F3294),
 };
 
 static const s8 gUnk_08357038[] = { 4, -4, -2, 2 };
@@ -291,7 +291,7 @@ extern const struct AnimInfo gUnk_0835703C[] = {
 
 void *CreateMegaTitan(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct MegaTitan), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct MegaTitan), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct MegaTitan *tmp = TaskGetStructPtr(t), *mt = tmp;
 
     InitObject(&tmp->obj, template_, a2);
@@ -313,7 +313,7 @@ void *CreateMegaTitan(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(&mt->obj);
     mt->obj.base.sprite.unk14 = 0x740;
     mt->obj.unk9E = 0;
-    mt->obj.unk7C = sub_080F4190;
+    mt->obj.unk7C = FN(sub_080F4190);
     Macro_080E7D74(&mt->obj);
     sub_080F5640(mt);
     return mt;
@@ -351,7 +351,7 @@ void sub_080EDC94(struct MegaTitan *mt)
         sub_080EEC24(mt);
     else
     {
-        ObjectSetFunc(mt, 0, sub_080EDD0C);
+        ObjectSetFunc(mt, 0, FN(sub_080EDD0C));
         mt->obj.base.flags &= ~0x20;
         mt->obj.base.flags |= 0x40;
         mt->obj.base.flags &= ~0x4000000;
@@ -505,7 +505,7 @@ static void sub_080EE264(struct MegaTitan *mt)
 {
     u8 unk9F = mt->obj.unk9F;
 
-    ObjectSetFunc(mt, 4, sub_080EE358);
+    ObjectSetFunc(mt, 4, FN(sub_080EE358));
     mt->obj.base.xspeed = 0;
     mt->obj.base.yspeed = 0;
     mt->obj.unk98 = 0;
@@ -535,7 +535,7 @@ static void sub_080EE514(struct MegaTitan *mt)
 {
     u8 unk9F = mt->obj.unk9F;
 
-    ObjectSetFunc(mt, 4, sub_080EE588);
+    ObjectSetFunc(mt, 4, FN(sub_080EE588));
     if (mt->obj.base.x <= 0x2400)
         mt->obj.base.xspeed = 0x1F0;
     if (mt->obj.base.x >= 0xE000)
@@ -647,7 +647,7 @@ static void sub_080EEC24(struct MegaTitan *mt)
 
     mt->obj.unk9E = 0;
     mt->obj.unk7C = 0;
-    ObjectSetFunc(mt, 7, sub_080EED48);
+    ObjectSetFunc(mt, 7, FN(sub_080EED48));
     mt->obj.base.unk68 = 0;
     mt->obj.base.unk5C |= 0x80;
     mt->obj.base.flags |= 0x200;
@@ -727,7 +727,7 @@ static void sub_080EF010(struct MegaTitan *mt, u8 a2)
 
 void *CreateTitanArm1(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *arm = TaskGetStructPtr(t);
 
     InitObject(arm, template_, a2);
@@ -738,7 +738,7 @@ void *CreateTitanArm1(struct ObjectTemplate *template_, u8 a2)
     arm->base.unk5C |= 0x1080A0;
     arm->base.flags |= 0x10000;
     arm->unk9E = 0;
-    arm->unk7C = sub_080F5744;
+    arm->unk7C = FN(sub_080F5744);
     sub_0803E2B0(&arm->base, -4, -8, 8, 4);
     ObjectSetBounds(&arm->base, -4, -8, 8, -2);
     ObjectInitSprite(arm);
@@ -762,7 +762,7 @@ void sub_080EF1A8(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xE);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0xA, sub_080EF2A0);
+    ObjectSetFunc(arm, 0xA, FN(sub_080EF2A0));
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
@@ -1024,7 +1024,7 @@ static void sub_080EF6E4(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xC);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0, sub_080EF7D8);
+    ObjectSetFunc(arm, 0, FN(sub_080EF7D8));
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
@@ -1273,7 +1273,7 @@ static void sub_080EF7D8(struct Object *arm)
 
 #define Macro_080EFC18(arm) \
     ((((arm)->unk83 == 0 || (arm)->unk83 == 1 || ((arm)->unk83 == 0xA || (arm)->unk83 == 0xB)) && (arm)->base.counter <= 1) \
-        || (arm)->unk78 == sub_080F05CC)
+        || (arm)->unk78 == FN(sub_080F05CC))
 
 static void sub_080EFC18(struct Object *arm)
 {
@@ -1305,7 +1305,7 @@ static void sub_080EFC18(struct Object *arm)
 
 static void sub_080EFD4C(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080EFE9C);
+    ObjectSetFunc(arm, -1, FN(sub_080EFE9C));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     arm->unk85 = arm->unk83;
@@ -1509,9 +1509,9 @@ static void sub_080EFE9C(struct Object *arm)
             if (++arm->unk9F > 0x18)
             {
                 if (!(mt->obj.base.flags & 1))
-                    gUnk_08357018[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357018[arm->type - OBJ_TITAN_ARM_1])(arm);
                 else
-                    gUnk_08357028[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357028[arm->type - OBJ_TITAN_ARM_1])(arm);
             }
         }
     }
@@ -1519,7 +1519,7 @@ static void sub_080EFE9C(struct Object *arm)
 
 static void sub_080F0410(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F0474);
+    ObjectSetFunc(arm, -1, FN(sub_080F0474));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     arm->unk85 = arm->unk83;
@@ -1577,7 +1577,7 @@ static void sub_080F0554(struct Object *arm)
 {
     struct MegaTitan *mt = arm->base.parent;
 
-    ObjectSetFunc(arm, -1, sub_080F05CC);
+    ObjectSetFunc(arm, -1, FN(sub_080F05CC));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     arm->unk85 = arm->unk83;
@@ -1806,16 +1806,16 @@ static void sub_080F05CC(struct Object *arm)
         sub_080F097C(arm);
         arm->base.counter = 0x20;
     }
-    else if (mt->arms[0]->unk78 == sub_080F05CC
-        && mt->arms[1]->unk78 == sub_080F05CC
-        && mt->arms[2]->unk78 == sub_080F05CC
-        && mt->arms[3]->unk78 == sub_080F05CC)
+    else if (mt->arms[0]->unk78 == FN(sub_080F05CC)
+        && mt->arms[1]->unk78 == FN(sub_080F05CC)
+        && mt->arms[2]->unk78 == FN(sub_080F05CC)
+        && mt->arms[3]->unk78 == FN(sub_080F05CC))
         --arm->base.counter;
 }
 
 static void sub_080F097C(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F09E4);
+    ObjectSetFunc(arm, -1, FN(sub_080F09E4));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     if (arm->unk83 > 9)
@@ -1887,9 +1887,9 @@ static void sub_080F09E4(struct Object *arm)
             {
                 arm->unk83 = arm->unk85 + 2;
                 if (!(mt->obj.base.flags & 1))
-                    gUnk_08357018[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357018[arm->type - OBJ_TITAN_ARM_1])(arm);
                 else
-                    gUnk_08357028[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357028[arm->type - OBJ_TITAN_ARM_1])(arm);
             }
         }
     }
@@ -1897,7 +1897,7 @@ static void sub_080F09E4(struct Object *arm)
 
 static void sub_080F0CAC(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F0D10);
+    ObjectSetFunc(arm, -1, FN(sub_080F0D10));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     arm->unk85 = arm->unk83;
@@ -1979,7 +1979,7 @@ static void sub_080F0D10(struct Object *arm)
 
 static void sub_080F0E44(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F0EAC);
+    ObjectSetFunc(arm, -1, FN(sub_080F0EAC));
     arm->base.xspeed = 0;
     arm->base.yspeed = 0;
     if (arm->unk83 > 9)
@@ -2038,9 +2038,9 @@ static void sub_080F0EAC(struct Object *arm)
             {
                 arm->unk83 = arm->unk85 + 2;
                 if (!(mt->obj.base.flags & 1))
-                    gUnk_08357018[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357018[arm->type - OBJ_TITAN_ARM_1])(arm);
                 else
-                    gUnk_08357028[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357028[arm->type - OBJ_TITAN_ARM_1])(arm);
             }
         }
     }
@@ -2048,7 +2048,7 @@ static void sub_080F0EAC(struct Object *arm)
 
 static void sub_080F1134(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F118C);
+    ObjectSetFunc(arm, -1, FN(sub_080F118C));
     if (arm->unk83 <= 9)
     {
         arm->unk85 = arm->unk83;
@@ -2105,9 +2105,9 @@ static void sub_080F118C(struct Object *arm)
                     arm->unk83 = 2;
                 arm->unk85 = 0;
                 if (!(mt->obj.base.flags & 1))
-                    gUnk_08357018[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357018[arm->type - OBJ_TITAN_ARM_1])(arm);
                 else
-                    gUnk_08357028[arm->type - OBJ_TITAN_ARM_1](arm);
+                    CALL(gUnk_08357028[arm->type - OBJ_TITAN_ARM_1])(arm);
             }
         }
     }
@@ -2115,7 +2115,7 @@ static void sub_080F118C(struct Object *arm)
 
 static void sub_080F12A8(struct Object *arm)
 {
-    ObjectSetFunc(arm, -1, sub_080F12F8);
+    ObjectSetFunc(arm, -1, FN(sub_080F12F8));
     if (arm->unk83 <= 9)
         arm->unk83 = 9;
     else
@@ -2173,7 +2173,7 @@ static void sub_080F1400(struct MegaTitan *mt, u8 a2)
 
 void *CreateTitanArm3(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *arm = TaskGetStructPtr(t);
 
     InitObject(arm, template_, a2);
@@ -2184,7 +2184,7 @@ void *CreateTitanArm3(struct ObjectTemplate *template_, u8 a2)
     arm->base.unk5C |= 0x1080A0;
     arm->base.flags |= 0x10000;
     arm->unk9E = 0;
-    arm->unk7C = sub_080F5744;
+    arm->unk7C = FN(sub_080F5744);
     sub_0803E2B0(&arm->base, -4, -8, 8, 4);
     ObjectSetBounds(&arm->base, -4, -8, 8, -2);
     ObjectInitSprite(arm);
@@ -2208,7 +2208,7 @@ void sub_080F1598(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xC);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0xA, sub_080F1690);
+    ObjectSetFunc(arm, 0xA, FN(sub_080F1690));
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
@@ -2470,7 +2470,7 @@ static void sub_080F1ABC(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xE);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0, sub_080F1BB0);
+    ObjectSetFunc(arm, 0, FN(sub_080F1BB0));
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
@@ -2737,7 +2737,7 @@ static void sub_080F1FD8(struct MegaTitan *mt, u8 a2)
 
 void *CreateTitanArm2(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *arm = TaskGetStructPtr(t);
 
     InitObject(arm, template_, a2);
@@ -2748,7 +2748,7 @@ void *CreateTitanArm2(struct ObjectTemplate *template_, u8 a2)
     arm->base.unk5C |= 0x1080A0;
     arm->base.flags |= 0x10000;
     arm->unk9E = 0;
-    arm->unk7C = sub_080F5744;
+    arm->unk7C = FN(sub_080F5744);
     sub_0803E2B0(&arm->base, -4, -2, 8, 6);
     ObjectSetBounds(&arm->base, -4, -8, 8, 2);
     ObjectInitSprite(arm);
@@ -2772,7 +2772,7 @@ void sub_080F2170(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xF);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0xA, sub_080F2268);
+    ObjectSetFunc(arm, 0xA, FN(sub_080F2268));
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
@@ -3034,7 +3034,7 @@ static void sub_080F26AC(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xD);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0, sub_080F27A0);
+    ObjectSetFunc(arm, 0, FN(sub_080F27A0));
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
@@ -3301,7 +3301,7 @@ static void sub_080F2BDC(struct MegaTitan *mt, u8 a2)
 
 void *CreateTitanArm4(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *arm = TaskGetStructPtr(t);
 
     InitObject(arm, template_, a2);
@@ -3312,7 +3312,7 @@ void *CreateTitanArm4(struct ObjectTemplate *template_, u8 a2)
     arm->base.unk5C |= 0x1080A0;
     arm->base.flags |= 0x10000;
     arm->unk9E = 0;
-    arm->unk7C = sub_080F5744;
+    arm->unk7C = FN(sub_080F5744);
     sub_0803E2B0(&arm->base, -4, -2, 8, 6);
     ObjectSetBounds(&arm->base, -4, -8, 8, 2);
     ObjectInitSprite(arm);
@@ -3336,7 +3336,7 @@ void sub_080F2D74(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xD);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0xA, sub_080F2E6C);
+    ObjectSetFunc(arm, 0xA, FN(sub_080F2E6C));
     if (r4) arm->unk83 = 0xB;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x7C0;
@@ -3598,7 +3598,7 @@ static void sub_080F3294(struct Object *arm)
         sub_080F3974(arm, 6, 0x33C, 0xF);
         r4 = TRUE;
     }
-    ObjectSetFunc(arm, 0, sub_080F3388);
+    ObjectSetFunc(arm, 0, FN(sub_080F3388));
     if (r4) arm->unk83 = 1;
     if (unk83) arm->unk83 = unk83;
     arm->base.sprite.unk14 = 0x6C0;
@@ -3847,7 +3847,7 @@ static void sub_080F3388(struct Object *arm)
 
 static void sub_080F37B0(struct MegaTitan *mt)
 {
-    struct Task *t = TaskCreate(sub_080F388C, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080F388C), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -3892,7 +3892,7 @@ static void sub_080F388C(void)
 
 static void sub_080F3974(struct Object *obj, u32 a2, u16 a3, u8 a4)
 {
-    struct Task *t = TaskCreate(sub_080F3A98, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080F3A98), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
     u16 var;
 
@@ -3961,7 +3961,7 @@ static void sub_080F3A98(void)
 
 static void sub_080F3D28(struct MegaTitan *mt, u8 a2)
 {
-    struct Task *t = TaskCreate(sub_080F3E40, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080F3E40), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -4054,7 +4054,7 @@ static void sub_080F3E40(void)
 ({ \
     struct Object *_local = (arm); \
  \
-    if (_local->unk78 != sub_080EFE9C) \
+    if (_local->unk78 != FN(sub_080EFE9C)) \
     { \
         _local->unk85 = _local->unk83; \
         if (_local->unk83 <= 9) \
@@ -4078,25 +4078,25 @@ static void sub_080F4190(struct MegaTitan *mt)
     if (mt2->obj.unk98 || mt2->obj.unk9A)
     {
         if (mt->arms[0]->unk83 != 2 && mt->arms[0]->unk83 != 0xC
-            && (mt->arms[0]->unk78 == sub_080EF2A0 || mt->arms[0]->unk78 == sub_080EF6E4))
+            && (mt->arms[0]->unk78 == FN(sub_080EF2A0) || mt->arms[0]->unk78 == FN(sub_080EF6E4)))
         {
             mt->arms[0]->unk98 = mt2->obj.unk98;
             mt->arms[0]->unk9A = mt2->obj.unk9A;
         }
         if (mt->arms[1]->unk83 != 2 && mt->arms[1]->unk83 != 0xC
-            && (mt->arms[1]->unk78 == sub_080F2268 || mt->arms[1]->unk78 == sub_080F26AC))
+            && (mt->arms[1]->unk78 == FN(sub_080F2268) || mt->arms[1]->unk78 == FN(sub_080F26AC)))
         {
             mt->arms[1]->unk98 = mt2->obj.unk98;
             mt->arms[1]->unk9A = mt2->obj.unk9A;
         }
         if (mt->arms[2]->unk83 != 2 && mt->arms[2]->unk83 != 0xC
-            && (mt->arms[2]->unk78 == sub_080F1690 || mt->arms[2]->unk78 == sub_080F1ABC))
+            && (mt->arms[2]->unk78 == FN(sub_080F1690) || mt->arms[2]->unk78 == FN(sub_080F1ABC)))
         {
             mt->arms[2]->unk98 = mt2->obj.unk98;
             mt->arms[2]->unk98 = mt2->obj.unk98; // ?
         }
         if (mt->arms[3]->unk83 != 2 && mt->arms[3]->unk83 != 0xC
-            && (mt->arms[3]->unk78 == sub_080F2E6C || mt->arms[3]->unk78 == sub_080F3294))
+            && (mt->arms[3]->unk78 == FN(sub_080F2E6C) || mt->arms[3]->unk78 == FN(sub_080F3294)))
         {
             mt->arms[3]->unk98 = mt2->obj.unk98;
             mt->arms[3]->unk98 = mt2->obj.unk98; // ?
@@ -4110,16 +4110,16 @@ static void sub_080F4190(struct MegaTitan *mt)
         mt2->obj.base.y = 0;
     else if (mt2->obj.base.y > 0x10000)
         mt2->obj.base.y = 0x10000;
-    if (mt2->obj.unk78 != sub_080EE358 && mt2->obj.unk78 != sub_080EE588)
+    if (mt2->obj.unk78 != FN(sub_080EE358) && mt2->obj.unk78 != FN(sub_080EE588))
     {
         if (mt2->obj.unk83 == 4)
         {
-            if (mt2->obj.unk78 != sub_080EEA2C)
+            if (mt2->obj.unk78 != FN(sub_080EEA2C))
             {
                 u8 unk9F = mt2->obj.unk9F;
                 u8 unk9E = mt2->obj.unk9E;
 
-                ObjectSetFunc(mt2, 4, sub_080EEA2C);
+                ObjectSetFunc(mt2, 4, FN(sub_080EEA2C));
                 sub_080F3974_wrapper(&mt2->obj, 0x3C, 0x33C, 0x11);
                 mt2->obj.base.counter = 0x10;
                 mt2->obj.unk9F = unk9F;
@@ -4158,7 +4158,7 @@ static void sub_080F4484(struct MegaTitan *mt, u8 a2)
 
 void *CreateTitanHead(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct TitanHead), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct TitanHead), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct TitanHead *tmp = TaskGetStructPtr(t), *th = tmp;
 
     InitObject(&th->obj, template_, a2);
@@ -4188,7 +4188,7 @@ void *CreateTitanHead(struct ObjectTemplate *template_, u8 a2)
 
 static void sub_080F462C(struct TitanHead *th)
 {
-    ObjectSetFunc(th, 1, sub_080F5778);
+    ObjectSetFunc(th, 1, FN(sub_080F5778));
     th->obj.base.yspeed = 0x400;
     th->obj.unk85 = 0;
     PlaySfx(&th->obj.base, SE_MEGA_TITAN_FIST_ATTACK);
@@ -4196,7 +4196,7 @@ static void sub_080F462C(struct TitanHead *th)
 
 static void sub_080F46DC(struct TitanHead *th)
 {
-    ObjectSetFunc(th, 0, sub_080F4818);
+    ObjectSetFunc(th, 0, FN(sub_080F4818));
     th->obj.base.yspeed = -0x100;
     if (th->obj.base.x > th->obj.kirby3->base.x)
         th->obj.base.flags |= 1;
@@ -4229,7 +4229,7 @@ void sub_080F486C(struct TitanHead *th)
         sub_080F521C(th);
     else
     {
-        ObjectSetFunc(th, 0, sub_080F4924);
+        ObjectSetFunc(th, 0, FN(sub_080F4924));
         th->obj.base.flags &= ~0x20;
         th->obj.base.flags |= 0x40;
         th->obj.base.flags &= ~0x200;
@@ -4384,7 +4384,7 @@ static void sub_080F4CA8(struct TitanHead *th)
 
     if (!th->obj.unk9E)
         th->obj.unk83 = 1;
-    ObjectSetFunc(th, 2, sub_080F4DC4);
+    ObjectSetFunc(th, 2, FN(sub_080F4DC4));
     th->obj.base.flags &= ~0x20;
     th->obj.base.flags |= 0x40;
     th->obj.base.flags &= ~0x200;
@@ -4546,7 +4546,7 @@ static void sub_080F4DC4(struct TitanHead *th)
 
 static void sub_080F521C(struct TitanHead *th)
 {
-    ObjectSetFunc(th, 5, sub_080F5284);
+    ObjectSetFunc(th, 5, FN(sub_080F5284));
     th->obj.base.yspeed = 0;
     if (th->obj.base.xspeed > 0xA0)
         th->obj.base.xspeed = 0xA0;
@@ -4605,14 +4605,14 @@ static void sub_080F53A0(struct TitanHead *th, u8 a2)
 
 void *CreateTitanHeadMissile(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *missile = tmp;
 
     InitObject(missile, template_, a2);
     missile->base.flags |= 0x40;
     missile->base.unkC |= 2;
     missile->unk9E = 0;
-    missile->unk7C = sub_0809F840;
+    missile->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&missile->base, -5, -6, 5, 5);
     ObjectSetBounds(&missile->base, -6, -7, 6, 7);
     ObjectInitSprite(missile);
@@ -4623,7 +4623,7 @@ void *CreateTitanHeadMissile(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080F55A8(struct Object *missile)
 {
-    ObjectSetFunc(missile, 0, sub_080F57B4);
+    ObjectSetFunc(missile, 0, FN(sub_080F57B4));
     if (missile->objTemplate->subtype1)
         missile->base.flags |= 1;
     switch (missile->subtype)
@@ -4637,13 +4637,13 @@ void sub_080F55A8(struct Object *missile)
     }
     if (missile->base.flags & 1)
         missile->base.xspeed = -missile->base.xspeed;
-    sub_080706A0(&missile->base, 0, 0x2A1, 1, sub_08072B98, sub_08084AA0);
+    sub_080706A0(&missile->base, 0, 0x2A1, 1, FN(sub_08072B98), FN(sub_08084AA0));
     CreateEffectObject(&missile->base, 0, 0x2B4, 0);
 }
 
 static void sub_080F5640(struct MegaTitan *mt)
 {
-    ObjectSetFunc(mt, 0, sub_080EDAD0);
+    ObjectSetFunc(mt, 0, FN(sub_080EDAD0));
     mt->obj.base.xspeed = 0;
     mt->obj.base.yspeed = 0;
     mt->obj.base.flags |= 0x40;
@@ -4653,7 +4653,7 @@ static void sub_080F566C(struct MegaTitan *mt)
 {
     u8 unk9F = mt->obj.unk9F;
 
-    ObjectSetFunc(mt, 5, sub_080EE76C);
+    ObjectSetFunc(mt, 5, FN(sub_080EE76C));
     mt->obj.base.flags |= 0x20;
     mt->obj.base.flags &= ~0x40;
     mt->obj.base.flags &= ~0x8000;
@@ -4663,7 +4663,7 @@ static void sub_080F566C(struct MegaTitan *mt)
 
 static void sub_080F56A8(struct MegaTitan *mt)
 {
-    ObjectSetFunc(mt, 8, sub_080F56E8);
+    ObjectSetFunc(mt, 8, FN(sub_080F56E8));
     mt->obj.base.flags |= 0x100;
     mt->obj.base.flags |= 0x800;
     mt->obj.base.xspeed = 0;
@@ -4728,3 +4728,64 @@ static void sub_080F57B4(struct Object *missile)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_mega_titan) {
+    PORT_FNID(CreateMegaTitan),
+    PORT_FNID(sub_080EDAD0),
+    PORT_FNID(sub_080EDC94),
+    PORT_FNID(sub_080EDD0C),
+    PORT_FNID(sub_080EE358),
+    PORT_FNID(sub_080EE588),
+    PORT_FNID(sub_080EE76C),
+    PORT_FNID(sub_080EEA2C),
+    PORT_FNID(sub_080EED48),
+    PORT_FNID(CreateTitanArm1),
+    PORT_FNID(sub_080EF1A8),
+    PORT_FNID(sub_080EF2A0),
+    PORT_FNID(sub_080EF6E4),
+    PORT_FNID(sub_080EF7D8),
+    PORT_FNID(sub_080EFE9C),
+    PORT_FNID(sub_080F0474),
+    PORT_FNID(sub_080F05CC),
+    PORT_FNID(sub_080F09E4),
+    PORT_FNID(sub_080F0D10),
+    PORT_FNID(sub_080F0EAC),
+    PORT_FNID(sub_080F118C),
+    PORT_FNID(sub_080F12F8),
+    PORT_FNID(CreateTitanArm3),
+    PORT_FNID(sub_080F1598),
+    PORT_FNID(sub_080F1690),
+    PORT_FNID(sub_080F1ABC),
+    PORT_FNID(sub_080F1BB0),
+    PORT_FNID(CreateTitanArm2),
+    PORT_FNID(sub_080F2170),
+    PORT_FNID(sub_080F2268),
+    PORT_FNID(sub_080F26AC),
+    PORT_FNID(sub_080F27A0),
+    PORT_FNID(CreateTitanArm4),
+    PORT_FNID(sub_080F2D74),
+    PORT_FNID(sub_080F2E6C),
+    PORT_FNID(sub_080F3294),
+    PORT_FNID(sub_080F3388),
+    PORT_FNID(sub_080F388C),
+    PORT_FNID(sub_080F3A98),
+    PORT_FNID(sub_080F3E40),
+    PORT_FNID(sub_080F4190),
+    PORT_FNID(CreateTitanHead),
+    PORT_FNID(sub_080F4818),
+    PORT_FNID(sub_080F486C),
+    PORT_FNID(sub_080F4924),
+    PORT_FNID(sub_080F4DC4),
+    PORT_FNID(sub_080F5284),
+    PORT_FNID(CreateTitanHeadMissile),
+    PORT_FNID(sub_080F55A8),
+    PORT_FNID(sub_080F56E8),
+    PORT_FNID(sub_080F5744),
+    PORT_FNID(sub_080F5778),
+    PORT_FNID(sub_080F57B4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

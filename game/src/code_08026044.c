@@ -240,7 +240,7 @@ void CreateCutscene(void) {
     u16 i;
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0x10;
-    task = TaskCreate(sub_08026698, sizeof(struct Cutscene), 0x100, TASK_USE_IWRAM, sub_08026610);
+    task = TaskCreate(FN(sub_08026698), sizeof(struct Cutscene), 0x100, TASK_USE_IWRAM, FN(sub_08026610));
     cs2 = TaskGetStructPtr(task);
     cs = cs2;
     CpuFill16(0, cs, sizeof(struct Cutscene));
@@ -254,7 +254,7 @@ void CreateCutscene(void) {
     cs->unk11C.tilesVram = VramMalloc(0x2a);
     cs->unk144.tilesVram = VramMalloc(0x40);
     gUnk_03000008 = FALSE;
-    cs->unk0 = sub_08026940;
+    cs->unk0 = FN(sub_08026940);
 }
 
 static struct Unk_080299B4* sub_080299B4(struct Cutscene *arg0, u16 arg1, u16 arg2, s32 arg3, s32 arg4, s32 arg5, u16 arg6, u16 arg7, u16 arg8);
@@ -405,7 +405,7 @@ static void sub_08026698(void) {
 #ifndef NONMATCHING
         /* PORT: asm barrier removed */
 #endif
-        cs->unk0(cs);
+        CALL(cs->unk0)(cs);
         if (gUnk_03000008) {
             return;
         }
@@ -512,7 +512,7 @@ static void sub_08026940(struct Cutscene *arg0) {
     arg0->unk2DC = 0;
     arg0->unk2E0 = 0x20;
     arg0->flags |= 0x22000000;
-    arg0->unk0 = sub_08029CB8;
+    arg0->unk0 = FN(sub_08029CB8);
 
 }
 
@@ -523,7 +523,7 @@ static void sub_08026B78(struct Cutscene *arg0) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
         arg0->flags &= ~0x20000000;
-        arg0->unk0 = sub_08029CD0;
+        arg0->unk0 = FN(sub_08029CD0);
     }
     else {
         gBldRegs.bldY = 0x10 - arg0->unk35A;
@@ -544,7 +544,7 @@ static void sub_08026BD0(struct Cutscene *arg0) {
     arg0->flags |= 0x1000;
     arg0->unk35A = 0;
     arg0->flags |= 0x20000000;
-    arg0->unk0 = sub_08029F44;
+    arg0->unk0 = FN(sub_08029F44);
 }
 
 static void sub_08029F94(struct Cutscene *arg0);
@@ -576,7 +576,7 @@ static void sub_08026CC0(struct Cutscene *arg0) {
     }
     arg0->flags &= ~0x2000000;
     arg0->flags |= 0x1000000;
-    arg0->unk0 = sub_08029F94;
+    arg0->unk0 = FN(sub_08029F94);
 }
 
 static void sub_08026E1C(struct Cutscene *arg0);
@@ -585,7 +585,7 @@ static void sub_08026DC0(struct Cutscene *arg0) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
         arg0->flags &= ~0x20000000;
-        arg0->unk0 = sub_08026E1C;
+        arg0->unk0 = FN(sub_08026E1C);
     }
     else {
         gBldRegs.bldY = 0x10 - (arg0->unk35A >> 1);
@@ -602,7 +602,7 @@ static void sub_08026E1C(struct Cutscene *arg0) {
         SpriteInitNoTilesVram(sprite2, 0x300, 0x39D, 4, 0, 0xFF, 0x10, 4, arg0->unk328 >> 8, arg0->unk32C >> 8, 0x2020);
         arg0->flags &= ~0x2000;
         arg0->flags |= 0x5000;
-        arg0->unk0 = sub_08029CE8;
+        arg0->unk0 = FN(sub_08029CE8);
     }
 }
 
@@ -621,7 +621,7 @@ static void sub_08026EF0(struct Cutscene *arg0) {
     arg0->unk34C = 0;
     SpriteInitNoTilesVram(sprite1, 0x300, 0x39E, 1, 0, 0xFF, 0x10, 5, arg0->unk33C >> 8, arg0->unk340 >> 8, 0x2025);
     arg0->flags |= 0x68000;
-    arg0->unk0 = sub_08026FAC;
+    arg0->unk0 = FN(sub_08026FAC);
     arg0->unk35A = 0;
 }
 
@@ -649,7 +649,7 @@ static void sub_08026FAC(struct Cutscene *arg0) {
     }
     if (arg0->unk35A++ > 0x96) {
         if (arg0->flags & 0x8000000) {
-            arg0->unk0 = sub_08027108;
+            arg0->unk0 = FN(sub_08027108);
         }
         else {
             arg0->unk2D4->unk8 = 4;
@@ -678,7 +678,7 @@ static void sub_08027108(struct Cutscene *arg0) {
     BgInit(bg, 0x6000000, 0, 0x600F800, 0, 0, 0x2EC, 0, 0, 0, 0, 0x20, 0x20, 0, 0, 0, 9, 0, 0, 0x7fff, 0x7fff);
     LZ77UnCompVram(gUnk_082D7850[0x2EC]->tileset, (u16 *)bg->tilesVram);
     sub_08153060(bg);
-    arg0->unk0 = sub_08029D00;
+    arg0->unk0 = FN(sub_08029D00);
 }
 
 static void sub_080272F8(struct Cutscene *arg0);
@@ -694,7 +694,7 @@ static void sub_08027208(struct Cutscene *arg0) {
     arg0->flags &= ~0x100000;
     arg0->flags |= 0x280000;
     m4aSongNumStart(SE_INTRO_CUTSCENE_MK_FLY_IN);
-    arg0->unk0 = sub_080272F8;
+    arg0->unk0 = FN(sub_080272F8);
 }
 
 static void sub_08029D18(struct Cutscene *arg0);
@@ -708,7 +708,7 @@ static void sub_080272F8(struct Cutscene *arg0) {
     arg0->unkF4.y = arg0->unk340 >> 8;
     arg0->unk11C.y = arg0->unkF4.y;
     if (arg0->unk34A == 0) {
-        arg0->unk0 = sub_08029D18;
+        arg0->unk0 = FN(sub_08029D18);
     }
 }
 
@@ -722,7 +722,7 @@ static void sub_08027350(struct Cutscene *arg0) {
     arg0->unkF4.y = arg0->unk340 >> 8;
     arg0->unk11C.y = arg0->unkF4.y;
     if (arg0->unkF4.y < -0x20) {
-        arg0->unk0 = sub_08029D38;
+        arg0->unk0 = FN(sub_08029D38);
     }
 }
 
@@ -738,7 +738,7 @@ static void sub_080273B0(struct Cutscene *arg0) {
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
         arg0->flags &= ~0x2000000;
         arg0->flags &= ~0x20000000;
-        arg0->unk0 = sub_08029DAC;
+        arg0->unk0 = FN(sub_08029DAC);
     }
     else {
         gBldRegs.bldY = arg0->unk35A;
@@ -762,7 +762,7 @@ static void sub_08027444(struct Cutscene *arg0) {
     m4aSongNumStart(MUS_DARK_META_KNIGHT_APPEARS);
     arg0->unk35A = 0;
     arg0->flags |= 0x20000000;
-    arg0->unk0 = sub_08027538;
+    arg0->unk0 = FN(sub_08027538);
 }
 
 static void sub_08029DCC(struct Cutscene *arg0);
@@ -772,7 +772,7 @@ static void sub_08027538(struct Cutscene *arg0) {
         gBldRegs.bldCnt = 0;
         gBldRegs.bldY = 0;
         arg0->flags &= ~0x20000000;
-        arg0->unk0 = sub_08029DCC;
+        arg0->unk0 = FN(sub_08029DCC);
     }
     else {
         gBldRegs.bldY = 0x10 - arg0->unk35A;
@@ -788,7 +788,7 @@ static void sub_08027590(struct Cutscene *arg0) {
     SpriteInitNoTilesVram(spr, 0x300, 2, 0, 0, 0xff, 0x10, 0, arg0->unk2E4[0][0] >> 8, arg0->unk2E4[0][1] >> 8, 0x2000);
     arg0->flags |= 0x5;
     arg0->unk35A = 5;
-    arg0->unk0 = sub_08027614;
+    arg0->unk0 = FN(sub_08027614);
 }
 
 static void sub_08027670(struct Cutscene *arg0);
@@ -801,7 +801,7 @@ static void sub_08027614(struct Cutscene *arg0) {
         m4aSongNumStart(SE_INTRO_CUTSCENE_KIRBY_RUN);
     }
     if (arg0->unk2E4[0][0] > 0x5000) {
-        arg0->unk0 = sub_08027670;
+        arg0->unk0 = FN(sub_08027670);
     }
 }
 
@@ -824,8 +824,8 @@ static void sub_08027670(struct Cutscene *arg0) {
         m4aSongNumStart(SE_INTRO_CUTSCENE_KIRBY_RUN);
     }
     arg0->unk35C = 0;
-    arg0->unk0 = sub_08027814;
-    arg0->unk0(arg0);
+    arg0->unk0 = FN(sub_08027814);
+    CALL(arg0->unk0)(arg0);
 }
 
 static void sub_0802A110(struct Cutscene *arg0);
@@ -864,7 +864,7 @@ static void sub_08027814(struct Cutscene *arg0) {
         arg0->flags |= 0x80000;
         m4aSongNumStart(SE_INTRO_CUTSCENE_DMK_LANDING);
         arg0->unk35A = 0;
-        arg0->unk0 = sub_0802A110;
+        arg0->unk0 = FN(sub_0802A110);
     }
 }
 
@@ -878,7 +878,7 @@ static void sub_080279F4(struct Cutscene *arg0) {
     arg0->flags |= 0x80000;
     m4aSongNumStart(SE_INTRO_CUTSCENE_DMK_SLASH);
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A138;
+    arg0->unk0 = FN(sub_0802A138);
 }
 
 static void sub_08027BB8(struct Cutscene *arg0);
@@ -905,7 +905,7 @@ static void sub_08027AC0(struct Cutscene *arg0) {
         gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08027BB8;
+    arg0->unk0 = FN(sub_08027BB8);
 }
 
 static void sub_0802A160(struct Cutscene *arg0);
@@ -926,7 +926,7 @@ static void sub_08027BB8(struct Cutscene *arg0) {
             gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
         }
         CpuCopy32(arg0->unk214, gRgbMap, sizeof(gRgbMap));
-        arg0->unk0 = sub_0802A160;
+        arg0->unk0 = FN(sub_0802A160);
     }
 }
 
@@ -953,7 +953,7 @@ static void sub_08027C80(struct Cutscene *arg0) {
     m4aSongNumStart(SE_INTRO_CUTSCENE_KIRBY_SPIN);
     arg0->unk35A = 0;
     arg0->unk35C = 0;
-    arg0->unk0 = sub_08027DD0;
+    arg0->unk0 = FN(sub_08027DD0);
 }
 
 static void sub_08029DE4(struct Cutscene *arg0);
@@ -1001,7 +1001,7 @@ static void sub_08027DD0(struct Cutscene *arg0) {
         }
     }
     if (!arg0->unk304[3][0]) {
-        arg0->unk0 = sub_08029DE4;
+        arg0->unk0 = FN(sub_08029DE4);
     }
 }
 
@@ -1013,7 +1013,7 @@ static void sub_0802801C(struct Cutscene *arg0) {
     SpriteInitNoTilesVram(&arg0->unk11C, 0x300, 0x391, 0xa, 0, 0xff, 0x10, 0xf, arg0->unkF4.x, arg0->unkF4.y, 0x42000);
     arg0->flags &= ~0x300000;
     m4aSongNumStart(SE_INTRO_CUTSCENE_DMK_JUMP);
-    arg0->unk0 = sub_0802A1B4;
+    arg0->unk0 = FN(sub_0802A1B4);
 }
 
 static void sub_0802A1D8(struct Cutscene *arg0);
@@ -1023,7 +1023,7 @@ static void sub_080280DC(struct Cutscene *arg0) {
     arg0->flags &= ~0x30000;
     SpriteInitNoTilesVram(&arg0->unk11C, 0x300, 0x391, 0xb, 0, 0xff, 0x10, 0xf, arg0->unkF4.x, arg0->unkF4.y, 0x42000);
     arg0->flags &= ~0x300000;
-    arg0->unk0 = sub_0802A1D8;
+    arg0->unk0 = FN(sub_0802A1D8);
 }
 
 static void sub_08028224(struct Cutscene *arg0);
@@ -1035,7 +1035,7 @@ static void sub_08028194(struct Cutscene *arg0) {
         }
     }
     if (arg0->unk35A++ > 0x1e)
-        arg0->unk0 = sub_08028224;
+        arg0->unk0 = FN(sub_08028224);
 }
 
 static void sub_080282CC(struct Cutscene *arg0);
@@ -1050,7 +1050,7 @@ static void sub_08028224(struct Cutscene *arg0) {
         arg0->unk304[i][1] = (Rand16() & 0x3f) - 0x200;
     }
     m4aSongNumStart(SE_08D5FA50);
-    arg0->unk0 = sub_080282CC;
+    arg0->unk0 = FN(sub_080282CC);
 }
 
 static void sub_08029DFC(struct Cutscene *arg0);
@@ -1079,7 +1079,7 @@ static void sub_080282CC(struct Cutscene *arg0) {
         arg0->unk4[i].y = arg0->unk2E4[i][1] >> 8;
     }
     if ((arg0->flags & 0x924) == 0x924) {
-        arg0->unk0 = sub_08029DFC;
+        arg0->unk0 = FN(sub_08029DFC);
     }
 }
 
@@ -1093,7 +1093,7 @@ static void sub_080283F8(struct Cutscene *arg0) {
     SpriteInitNoTilesVramNoFunc(&arg0->unk4[3], 0x300, 0, 0, 0, 0xff, 0x10, 3, arg0->unk2E4[3][0] >> 8, arg0->unk2E4[3][1] >> 8, 0x42000);
     m4aSongNumStart(SE_08D5FA78);
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A25C;
+    arg0->unk0 = FN(sub_0802A25C);
 }
 
 static void sub_0802A284(struct Cutscene *arg0);
@@ -1109,7 +1109,7 @@ static void sub_08028528(struct Cutscene *arg0) {
     arg0->unk4[2].unk8 |= 0x400;
     arg0->unk4[3].unk8 &= ~0x400;
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A284;
+    arg0->unk0 = FN(sub_0802A284);
 }
 
 static void sub_0802A2AC(struct Cutscene *arg0);
@@ -1120,7 +1120,7 @@ static void sub_08028608(struct Cutscene *arg0) {
     arg0->flags &= ~0x80;
     m4aSongNumStart(SE_08D5FA78);
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A2AC;
+    arg0->unk0 = FN(sub_0802A2AC);
 }
 
 static void sub_08028758(struct Cutscene *arg0);
@@ -1130,7 +1130,7 @@ static void sub_080286C4(struct Cutscene *arg0) {
         SpriteInitNoTilesVramNoFunc(&arg0->unk4[i], 0x300, 0x49, 1, 0, 0xff, 0x10, i, arg0->unk2E4[i][0] >> 8, arg0->unk2E4[i][1] >> 8, 0x42000);
         arg0->flags &= ~(6 << i * 3);
     }
-    arg0->unk0 = sub_08028758;
+    arg0->unk0 = FN(sub_08028758);
 }
 
 static void sub_08028808(struct Cutscene *arg0);
@@ -1142,7 +1142,7 @@ static void sub_08028758(struct Cutscene *arg0) {
             arg0->flags &= ~(2 << i * 3);
             arg0->flags |= 4 << i * 3;
         }
-        arg0->unk0 = sub_08028808;
+        arg0->unk0 = FN(sub_08028808);
     }
 }
 
@@ -1160,7 +1160,7 @@ static void sub_08028808(struct Cutscene *arg0) {
     arg0->unk362 = 0;
     arg0->unk363 = 0;
     arg0->unk35A = 0;
-    arg0->unk0 = sub_080288D0;
+    arg0->unk0 = FN(sub_080288D0);
 }
 
 static void sub_08029E14(struct Cutscene *arg0);
@@ -1192,7 +1192,7 @@ static void sub_080288D0(struct Cutscene *arg0) {
             arg0->unk320[1] = 0;
             arg0->unk314[0] = (arg0->unk2E4[0][0] + arg0->unk2E4[1][0]) >> 1;
             arg0->unk314[1] = 0x6c00;
-            arg0->unk0 = sub_08029E14;
+            arg0->unk0 = FN(sub_08029E14);
         }
     }
 }
@@ -1205,7 +1205,7 @@ static void sub_08028A1C(struct Cutscene *arg0) {
         SpriteInitNoTilesVramNoFunc(spr, 0x300, 0x49, 2, 0, 0xff, 0x10, i, arg0->unk2E4[i][0] >> 8, arg0->unk2E4[i][1] >> 8, spr->unk8);
         arg0->flags &= ~(6 << i * 3);
     }
-    arg0->unk0 = sub_08028AA8;
+    arg0->unk0 = FN(sub_08028AA8);
 }
 
 static void sub_08029E2C(struct Cutscene *arg0);
@@ -1218,7 +1218,7 @@ static void sub_08028AA8(struct Cutscene *arg0) {
             arg0->flags &= ~(2 << i * 3);
             arg0->flags |= 4 << i * 3;
         }
-        arg0->unk0 = sub_08029E2C;
+        arg0->unk0 = FN(sub_08029E2C);
     }
 }
 
@@ -1257,7 +1257,7 @@ static void sub_08028B5C(struct Cutscene *arg0) {
         arg0->flags &= ~(0x10 << i * 3);
     }
     m4aSongNumStart(SE_08D5FAA4);
-    arg0->unk0 = sub_08028C94;
+    arg0->unk0 = FN(sub_08028C94);
 }
 
 static void sub_08028D40(struct Cutscene *arg0);
@@ -1276,7 +1276,7 @@ static void sub_08028C94(struct Cutscene *arg0) {
         arg0->unk4[i].y = arg0->unk2E4[i][1] >> 8;
     }
     if (a) {
-        arg0->unk0 = sub_08028D40;
+        arg0->unk0 = FN(sub_08028D40);
     }
 }
 
@@ -1295,7 +1295,7 @@ static void sub_08028D40(struct Cutscene *arg0) {
     arg0->flags |= 0x400000;
     m4aSongNumStart(SE_KIRBY_STAR_DESTROY);
     sub_08029B14(arg0, 0x292, 0, arg0->unk16C.tilesVram, arg0->unk314[0], arg0->unk314[1], 0, 0, 1);
-    arg0->unk0 = sub_08029E44;
+    arg0->unk0 = FN(sub_08029E44);
 }
 
 static void sub_08028F10(struct Cutscene* arg0);
@@ -1304,7 +1304,7 @@ static void sub_08028E78(struct Cutscene* arg0) {
     arg0->unk314[1] += 0x28;
     if (arg0->unk314[1] > 0x73ff) {
         m4aSongNumStart(SE_INTRO_CUTSCENE_WARP_STAR_EXIT);
-        arg0->unk0 = sub_08028F10;
+        arg0->unk0 = FN(sub_08028F10);
     }
     arg0->unk144.x = arg0->unk314[0] >> 8;
     arg0->unk144.y = arg0->unk314[1] >> 8;
@@ -1327,7 +1327,7 @@ static void sub_08028F10(struct Cutscene *arg0) {
     else {
         arg0->unk362 = 0;
         arg0->unk363 = 0;
-        arg0->unk0 = sub_08028FFC;
+        arg0->unk0 = FN(sub_08028FFC);
     }
     arg0->unk320[1] -= 3;
     arg0->unk144.x = arg0->unk314[0] >> 8;
@@ -1358,7 +1358,7 @@ static void sub_08028FFC(struct Cutscene *arg0) {
         if (++arg0->unk362 >= eight) {
             arg0->unk320[0] = 0;
             arg0->unk320[1] = 0;
-            arg0->unk0 = sub_08029E5C;
+            arg0->unk0 = FN(sub_08029E5C);
         }
     }
     for (i = 0; i < 4; ++i) {
@@ -1368,7 +1368,7 @@ static void sub_08028FFC(struct Cutscene *arg0) {
         arg0->unk4[i].y = arg0->unk2E4[i][1] >> 8;
     }
     if (arg0->unk314[1] < -0x2000) {
-        arg0->unk0 = sub_08029E5C;
+        arg0->unk0 = FN(sub_08029E5C);
     }
 }
 
@@ -1450,7 +1450,7 @@ static void sub_08029144(struct Cutscene *arg0) {
     m4aSongNumStart(SE_INTRO_CUTSCENE_AMBIENT_4);
     arg0->unk35A = 0;
     arg0->flags |= 0x1000000;
-    arg0->unk0 = sub_080294B0;
+    arg0->unk0 = FN(sub_080294B0);
 }
 
 static void sub_08029E74(struct Cutscene *arg0);
@@ -1510,7 +1510,7 @@ static void sub_080294B0(struct Cutscene *arg0) {
         m4aSongNumStart(SE_08D5FD28);
     }
     if (arg0->unk35A++ > 0x12C) {
-        arg0->unk0 = sub_08029E74;
+        arg0->unk0 = FN(sub_08029E74);
     }
 }
 
@@ -1554,7 +1554,7 @@ static void sub_080296EC(struct Unk_080296EC *arg0) {
         sub_08153060(bg);
         arg0->unk50 = 0;
         arg0->cs->flags |= 0x20000000;
-        arg0->unk0 = sub_08029804;
+        arg0->unk0 = FN(sub_08029804);
     }
 }
 
@@ -1564,7 +1564,7 @@ static void sub_08029804(struct Unk_080296EC *arg0) {
         gBldRegs.bldCnt = BLDCNT_EFFECT_NONE;
         gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
         arg0->cs->flags &= ~0x20000000;
-        arg0->unk0 = sub_0802A3D0;
+        arg0->unk0 = FN(sub_0802A3D0);
     }
     else {
         gBldRegs.bldAlpha = BLDALPHA_BLEND2(arg0->unk50, 0x10 - arg0->unk50);
@@ -1578,7 +1578,7 @@ static void sub_0802985C(struct Unk_080296EC *arg0) {
         gBldRegs.bldCnt = BLDCNT_EFFECT_NONE;
         gBldRegs.bldAlpha = BLDALPHA_BLEND(0, 0x10);
         arg0->cs->flags &= ~0x20000000;
-        arg0->unk0 = sub_0802A468;
+        arg0->unk0 = FN(sub_0802A468);
     }
     else {
         gBldRegs.bldAlpha = BLDALPHA_BLEND2(0x10 - arg0->unk50, arg0->unk50);
@@ -1598,7 +1598,7 @@ static void sub_080298C8(struct Unk_080298C8 *arg0) {
     arg0->cs->flags &= ~0x6000;
     m4aSongNumStart(SE_INTRO_CUTSCENE_AMBIENT_2);
     arg0->unkA = 0;
-    arg0->unk0 = sub_0802A4F0;
+    arg0->unk0 = FN(sub_0802A4F0);
 }
 
 
@@ -1607,7 +1607,7 @@ static struct Unk_080299B4* sub_080299B4(struct Cutscene *arg0, u16 arg1, u16 ar
     struct Task *task;
     struct Unk_080299B4 *unk;
 
-    task = TaskCreate(sub_08029A88, sizeof(struct Unk_080299B4), 0x101, TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(sub_08029A88), sizeof(struct Unk_080299B4), 0x101, TASK_USE_IWRAM, NULL);
     unk = TaskGetStructPtr(task);
 
     unk->cs = arg0;
@@ -1648,7 +1648,7 @@ static struct Unk_080299B4* sub_08029B14(struct Cutscene *arg0, u16 arg1, u16 ar
     struct Task *task;
     struct Unk_080299B4 *unk;
 
-    task = TaskCreate(sub_08029BE4, sizeof(struct Unk_080299B4), 0x101, TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(sub_08029BE4), sizeof(struct Unk_080299B4), 0x101, TASK_USE_IWRAM, NULL);
     unk = TaskGetStructPtr(task);
 
     unk->cs = arg0;
@@ -1674,7 +1674,7 @@ static void sub_08029BE4(void) {
     a = sub_08155128(spr);
     if (a == 0) {
         if (unk2->unk38 != 0 && --unk2->unk38 == 0) {
-            gCurTask->main = sub_08029EE0;
+            gCurTask->main = FN(sub_08029EE0);
         }
         else {
             unk2->spr.unk1B = 0xff;
@@ -1684,41 +1684,41 @@ static void sub_08029BE4(void) {
     unk2->unk2C += unk2->unk34;
     unk2->unk30 += unk2->unk36;
     if (spr->x < -0x40 || spr->x > 0x130 || spr->y < -0x40 || spr->y > 0xE0) {
-        gCurTask->main = sub_08029EE0;
+        gCurTask->main = FN(sub_08029EE0);
     }
     if (unk2->cs->flags & 0x10000000) {
-        gCurTask->main = sub_08029EE0;
+        gCurTask->main = FN(sub_08029EE0);
     }
 }
 
 static void sub_08029EF4(struct Cutscene *arg0);
 static void sub_08029CB8(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08029EF4;
+    arg0->unk0 = FN(sub_08029EF4);
 }
 
 static void sub_08029F1C(struct Cutscene *arg0);
 static void sub_08029CD0(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08029F1C;
+    arg0->unk0 = FN(sub_08029F1C);
 }
 
 static void sub_0802A008(struct Cutscene *arg0);
 static void sub_08029CE8(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A008;
+    arg0->unk0 = FN(sub_0802A008);
 }
 
 static void sub_0802A030(struct Cutscene *arg0);
 static void sub_08029D00(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A030;
+    arg0->unk0 = FN(sub_0802A030);
 }
 
 static void sub_0802A058(struct Cutscene *arg0);
 static void sub_08029D18(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A058;
+    arg0->unk0 = FN(sub_0802A058);
     sub_0802A058(arg0);
 }
 
@@ -1733,56 +1733,56 @@ static void sub_08029D38(struct Cutscene *arg0) {
     arg0->unk35A = 0;
     arg0->flags &= ~0x8000;
     arg0->flags |= 0x20000000;
-    arg0->unk0 = sub_080273B0;
+    arg0->unk0 = FN(sub_080273B0);
 }
 
 static void sub_0802A0A8(struct Cutscene *arg0);
 static void sub_08029DAC(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A0A8;
+    arg0->unk0 = FN(sub_0802A0A8);
     sub_0802A0A8(arg0);
 }
 
 static void sub_0802A0E8(struct Cutscene *arg0);
 static void sub_08029DCC(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A0E8;
+    arg0->unk0 = FN(sub_0802A0E8);
 }
 
 static void sub_0802A18C(struct Cutscene *arg0);
 static void sub_08029DE4(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A18C;
+    arg0->unk0 = FN(sub_0802A18C);
 }
 
 static void sub_0802A234(struct Cutscene *arg0);
 static void sub_08029DFC(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A234;
+    arg0->unk0 = FN(sub_0802A234);
 }
 
 static void sub_0802A2D4(struct Cutscene *arg0);
 static void sub_08029E14(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A2D4;
+    arg0->unk0 = FN(sub_0802A2D4);
 }
 
 static void sub_0802A2FC(struct Cutscene *arg0);
 static void sub_08029E2C(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A2FC;
+    arg0->unk0 = FN(sub_0802A2FC);
 }
 
 static void sub_0802A324(struct Cutscene *arg0);
 static void sub_08029E44(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A324;
+    arg0->unk0 = FN(sub_0802A324);
 }
 
 static void sub_0802A34C(struct Cutscene *arg0);
 static void sub_08029E5C(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A34C;
+    arg0->unk0 = FN(sub_0802A34C);
 }
 
 static void sub_0802A394(struct Cutscene *arg0);
@@ -1795,7 +1795,7 @@ static void sub_08029E74(struct Cutscene *arg0) {
     m4aMPlayFadeOut(&gMPlayInfo_3, 3);
     arg0->unk35A = 0;
     arg0->flags |= 0x20000000;
-    arg0->unk0 = sub_0802A394;
+    arg0->unk0 = FN(sub_0802A394);
 }
 
 static void sub_08029EE0(void) {
@@ -1805,14 +1805,14 @@ static void sub_08029EE0(void) {
 static void sub_0802A610(struct Cutscene *arg0);
 static void sub_08029EF4(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_0802A610;
+        arg0->unk0 = FN(sub_0802A610);
     }
 }
 
 static void sub_0802A634(struct Cutscene *arg0);
 static void sub_08029F1C(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x3c) {
-        arg0->unk0 = sub_0802A634;
+        arg0->unk0 = FN(sub_0802A634);
     }
 }
 
@@ -1820,7 +1820,7 @@ static void sub_08029F44(struct Cutscene *arg0) {
     if (++arg0->unk35A > 3) {
         gBldRegs.bldY = 0x10;
         arg0->flags &= ~0x20000000;
-        arg0->unk0 = sub_08026CC0;
+        arg0->unk0 = FN(sub_08026CC0);
     }
     else {
         gBldRegs.bldY = 4;
@@ -1831,13 +1831,13 @@ static void sub_08029F44(struct Cutscene *arg0) {
 static void sub_08029FAC(struct Cutscene *arg0);
 static void sub_08029F94(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08029FAC;
+    arg0->unk0 = FN(sub_08029FAC);
 }
 
 static void sub_08029FD4(struct Cutscene *arg0);
 static void sub_08029FAC(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 8) {
-        arg0->unk0 = sub_08029FD4;
+        arg0->unk0 = FN(sub_08029FD4);
     }
 }
 
@@ -1846,20 +1846,20 @@ static void sub_08029FD4(struct Cutscene *arg0) {
     gBldRegs.bldY = 0x10;
     arg0->unk35A = 0;
     arg0->flags |= 0x20000000;
-    arg0->unk0 = sub_08026DC0;
+    arg0->unk0 = FN(sub_08026DC0);
 }
 
 static void sub_0802A660(struct Cutscene *arg0);
 static void sub_0802A008(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 1) {
-        arg0->unk0 = sub_0802A660;
+        arg0->unk0 = FN(sub_0802A660);
     }
 }
 
 static void sub_0802A69C(struct Cutscene *arg0);
 static void sub_0802A030(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_0802A69C;
+        arg0->unk0 = FN(sub_0802A69C);
     }
 }
 
@@ -1867,7 +1867,7 @@ static void sub_0802A6D4(struct Cutscene *arg0);
 static void sub_0802A058(struct Cutscene *arg0) {
     arg0->unk11C.y = arg0->unkF4.y = arg0->unk340 >> 8;
     if (arg0->unk35A++ > 0x1e && arg0->flags & 0x4000000) {
-        arg0->unk0 = sub_0802A6D4;
+        arg0->unk0 = FN(sub_0802A6D4);
     }
 }
 
@@ -1875,25 +1875,25 @@ static void sub_0802A6E8(struct Cutscene *arg0);
 static void sub_0802A0A8(struct Cutscene *arg0) {
     arg0->unk11C.y = arg0->unkF4.y = arg0->unk340 >> 8;
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_0802A6E8;
+        arg0->unk0 = FN(sub_0802A6E8);
     }
 }
 
 static void sub_0802A0E8(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_08027590;
+        arg0->unk0 = FN(sub_08027590);
     }
 }
 
 static void sub_0802A110(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 5) {
-        arg0->unk0 = sub_080279F4;
+        arg0->unk0 = FN(sub_080279F4);
     }
 }
 
 static void sub_0802A138(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 4) {
-        arg0->unk0 = sub_08027AC0;
+        arg0->unk0 = FN(sub_08027AC0);
     }
 }
 
@@ -1901,18 +1901,18 @@ static void sub_0802A160(struct Cutscene *arg0) {
     arg0->flags &= ~0x110002;
     arg0->flags |= 4;
     ResetRgbMap();
-    arg0->unk0 = sub_08027C80;
+    arg0->unk0 = FN(sub_08027C80);
 }
 
 static void sub_0802A18C(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 10) {
-        arg0->unk0 = sub_0802801C;
+        arg0->unk0 = FN(sub_0802801C);
     }
 }
 
 static void sub_0802A1B4(struct Cutscene *arg0) {
     if (arg0->flags & 0x100000 && arg0->flags & 0x10000) {
-        arg0->unk0 = sub_080280DC;
+        arg0->unk0 = FN(sub_080280DC);
     }
 }
 
@@ -1922,51 +1922,51 @@ static void sub_0802A1D8(struct Cutscene *arg0) {
     if (arg0->unk340 < -0x2000) {
         arg0->flags &= ~0x38000;
         arg0->flags &= ~0x380000;
-        arg0->unk0 = sub_0802A714;
+        arg0->unk0 = FN(sub_0802A714);
     }
     arg0->unk11C.y = arg0->unkF4.y = arg0->unk340 >> 8;
 }
 
 static void sub_0802A234(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_080283F8;
+        arg0->unk0 = FN(sub_080283F8);
     }
 }
 
 static void sub_0802A25C(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_08028528;
+        arg0->unk0 = FN(sub_08028528);
     }
 }
 
 static void sub_0802A284(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 5) {
-        arg0->unk0 = sub_08028608;
+        arg0->unk0 = FN(sub_08028608);
     }
 }
 
 static void sub_0802A2AC(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x3c) {
-        arg0->unk0 = sub_080286C4;
+        arg0->unk0 = FN(sub_080286C4);
     }
 }
 
 static void sub_0802A2D4(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x14) {
-        arg0->unk0 = sub_08028A1C;
+        arg0->unk0 = FN(sub_08028A1C);
     }
 }
 
 static void sub_0802A2FC(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x3c) {
-        arg0->unk0 = sub_08028B5C;
+        arg0->unk0 = FN(sub_08028B5C);
     }
 }
 
 static void sub_0802A72C(struct Cutscene *arg0);
 static void sub_0802A324(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_0802A72C;
+        arg0->unk0 = FN(sub_0802A72C);
     }
 }
 
@@ -1974,7 +1974,7 @@ static void sub_0802A34C(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
         gDispCnt &= ~(DISPCNT_BG1_ON | DISPCNT_BG2_ON);
         arg0->flags |= 0x10000000;
-        arg0->unk0 = sub_08029144;
+        arg0->unk0 = FN(sub_08029144);
     }
 }
 
@@ -1983,7 +1983,7 @@ static void sub_0802A394(struct Cutscene *arg0) {
     ++arg0->unk35A;
     if (arg0->unk35A > 0xf) {
         gBldRegs.bldY = 0x10;
-        arg0->unk0 = sub_0802A74C;
+        arg0->unk0 = FN(sub_0802A74C);
         return;
     }
     gBldRegs.bldY = arg0->unk35A;
@@ -1992,13 +1992,13 @@ static void sub_0802A394(struct Cutscene *arg0) {
 static void sub_0802A3E4(struct Unk_080296EC *arg0);
 static void sub_0802A3D0(struct Unk_080296EC *arg0) {
     arg0->unk50 = 0;
-    arg0->unk0 = sub_0802A3E4;
+    arg0->unk0 = FN(sub_0802A3E4);
 }
 
 static void sub_0802A430(struct Unk_080296EC *arg0);
 static void sub_0802A3E4(struct Unk_080296EC *arg0) {
     if (arg0->unk48[arg0->unk52][1] < arg0->unk50++ && !(arg0->cs->flags & 0x20000000)) {
-        arg0->unk0 = sub_0802A430;
+        arg0->unk0 = FN(sub_0802A430);
         sub_0802A430(arg0);
     }
 }
@@ -2008,29 +2008,29 @@ static void sub_0802A430(struct Unk_080296EC *arg0) {
     gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0);
     arg0->unk50 = 0;
     arg0->cs->flags |= 0x20000000;
-    arg0->unk0 = sub_0802985C;
+    arg0->unk0 = FN(sub_0802985C);
 }
 
 static void sub_0802A47C(struct Unk_080296EC *arg0);
 static void sub_0802A468(struct Unk_080296EC *arg0) {
     arg0->unk50 = 0;
-    arg0->unk0 = sub_0802A47C;
+    arg0->unk0 = FN(sub_0802A47C);
 }
 
 static void sub_0802A49C(struct Unk_080296EC *arg0);
 static void sub_0802A47C(struct Unk_080296EC *arg0) {
     if (arg0->unk50++ > 0x1e) {
-        arg0->unk0 = sub_0802A49C;
+        arg0->unk0 = FN(sub_0802A49C);
     }
 }
 
 static void sub_0802A4CC(struct Unk_080296EC *arg0);
 static void sub_0802A49C(struct Unk_080296EC *arg0) {
     if (++arg0->unk52 < arg0->unk4C) {
-        arg0->unk0 = sub_080296EC;
+        arg0->unk0 = FN(sub_080296EC);
     }
     else {
-        arg0->unk0 = sub_0802A4CC;
+        arg0->unk0 = FN(sub_0802A4CC);
     }
 }
 
@@ -2043,7 +2043,7 @@ static void sub_0802A528(struct Unk_080298C8 *arg0);
 static void sub_0802A4F0(struct Unk_080298C8 *arg0) {
     if (++arg0->unkA > 3) {
         gBldRegs.bldY = 0x10;
-        arg0->unk0 = sub_0802A528;
+        arg0->unk0 = FN(sub_0802A528);
         return;
     }
     gBldRegs.bldY = 4;
@@ -2053,14 +2053,14 @@ static void sub_0802A4F0(struct Unk_080298C8 *arg0) {
 static void sub_0802A538(struct Unk_080298C8 *arg0);
 static void sub_0802A528(struct Unk_080298C8 *arg0) {
     arg0->unkA = 0;
-    arg0->unk0 = sub_0802A538;
+    arg0->unk0 = FN(sub_0802A538);
 }
 
 
 static void sub_0802A558(struct Unk_080298C8 *arg0);
 static void sub_0802A538(struct Unk_080298C8 *arg0) {
     if (arg0->unkA++ > 8) {
-        arg0->unk0 = sub_0802A558;
+        arg0->unk0 = FN(sub_0802A558);
     }
 }
 
@@ -2069,7 +2069,7 @@ static void sub_0802A558(struct Unk_080298C8 *arg0) {
     gBldRegs.bldCnt = BLDCNT_TGT1_BG1 | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG3 | BLDCNT_TGT1_BD | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0x10;
     arg0->unkA = 0;
-    arg0->unk0 = sub_0802A574;
+    arg0->unk0 = FN(sub_0802A574);
 }
 
 
@@ -2079,7 +2079,7 @@ static void sub_0802A574(struct Unk_080298C8 *arg0) {
         gBldRegs.bldCnt = BLDCNT_EFFECT_NONE;
         gBldRegs.bldY = 0;
         arg0->cs->flags &= ~0x20000000;
-        arg0->unk0 = sub_0802A5C4;
+        arg0->unk0 = FN(sub_0802A5C4);
         return;
     }
     gBldRegs.bldY = 0x10 - (arg0->unkA >> 1);
@@ -2089,10 +2089,10 @@ static void sub_0802A9E8(struct Unk_080298C8 *arg0);
 static void sub_0802A5EC(struct Unk_080298C8 *arg0);
 static void sub_0802A5C4(struct Unk_080298C8 *arg0) {
     if (++arg0->unk8 < 4) {
-        arg0->unk0 = sub_0802A9E8;
+        arg0->unk0 = FN(sub_0802A9E8);
     }
     else {
-        arg0->unk0 = sub_0802A5EC;
+        arg0->unk0 = FN(sub_0802A5EC);
     }
 }
 
@@ -2105,57 +2105,57 @@ static void sub_0802A610(struct Cutscene *arg0) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldY = 0x10;
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08026B78;
+    arg0->unk0 = FN(sub_08026B78);
 }
 
 static struct Unk_080296EC* sub_0802A764(struct Cutscene *arg0, const u16 (*arg1)[2], s16 arg2);
 static void sub_0802A864(struct Cutscene *arg0);
 static void sub_0802A634(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB2B8[gLanguage], 1);
-    arg0->unk0 = sub_0802A864;
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2B8, 0x082EB2B8)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
+    arg0->unk0 = FN(sub_0802A864);
 }
 
 static struct Unk_080298C8* sub_0802A7EC(struct Cutscene *arg0);
 static void sub_0802A888(struct Cutscene *arg0);
 static void sub_0802A660(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB2D0[gLanguage], 1);
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2D0, 0x082EB2D0)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     arg0->unk2D4 = sub_0802A7EC(arg0);
-    arg0->unk0 = sub_0802A888;
+    arg0->unk0 = FN(sub_0802A888);
 }
 
 static void sub_0802A8AC(struct Cutscene *arg0);
 static void sub_0802A69C(struct Cutscene *arg0) {
     m4aSongNumStart(SE_INTRO_CUTSCENE_AMBIENT_3);
-    sub_0802A764(arg0, &gUnk_082EB2E8[gLanguage], 1);
-    arg0->unk0 = sub_0802A8AC;
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB2E8, 0x082EB2E8)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
+    arg0->unk0 = FN(sub_0802A8AC);
 }
 
 static void sub_0802A6D4(struct Cutscene *arg0) {
-    arg0->unk0 = sub_08027350;
+    arg0->unk0 = FN(sub_08027350);
     sub_08027350(arg0);
 }
 
 static void sub_0802A8B8(struct Cutscene *arg0);
 static void sub_0802A6E8(struct Cutscene *arg0) {
-    sub_0802A764(arg0, &gUnk_082EB300[gLanguage], 1);
-    arg0->unk0 = sub_0802A8B8;
+    sub_0802A764(arg0, &PORT_ROM_TABLE(const u16 (*)[2], gUnk_082EB300, 0x082EB300)[gLanguage], 1); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
+    arg0->unk0 = FN(sub_0802A8B8);
 }
 
 static void sub_0802A8DC(struct Cutscene *arg0);
 static void sub_0802A714(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A8DC;
+    arg0->unk0 = FN(sub_0802A8DC);
 }
 
 static void sub_0802A72C(struct Cutscene *arg0) {
     arg0->unk320[1] = arg0->unk320[0] = 0;
-    arg0->unk0 = sub_08028E78;
+    arg0->unk0 = FN(sub_08028E78);
 }
 
 static void sub_0802A904(struct Cutscene *arg0);
 static void sub_0802A74C(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802A904;
+    arg0->unk0 = FN(sub_0802A904);
 }
 
 static void sub_0802A92C(void);
@@ -2164,14 +2164,14 @@ static struct Unk_080296EC* sub_0802A764(struct Cutscene *arg0, const u16 (*arg1
     struct Task *task;
     struct Unk_080296EC *unk;
     arg0->flags &= ~0x4000000;
-    task = TaskCreate(sub_0802A92C, sizeof(struct Unk_080296EC), 0x101, TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(sub_0802A92C), sizeof(struct Unk_080296EC), 0x101, TASK_USE_IWRAM, NULL);
     unk = TaskGetStructPtr(task);
 
     CpuFill16(0, unk, sizeof(struct Unk_080296EC));
     unk->cs = arg0;
     unk->unk48 = arg1;
     unk->unk4C = arg2;
-    unk->unk0 = sub_0802A984;
+    unk->unk0 = FN(sub_0802A984);
     return unk;
 }
 
@@ -2182,55 +2182,55 @@ static struct Unk_080298C8* sub_0802A7EC(struct Cutscene *arg0) {
     struct Unk_080298C8 *unk;
 
     arg0->flags &= ~0x4000000;
-    task = TaskCreate(sub_0802A990, sizeof(struct Unk_080298C8), 0x101, TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(sub_0802A990), sizeof(struct Unk_080298C8), 0x101, TASK_USE_IWRAM, NULL);
     unk = TaskGetStructPtr(task);
     CpuFill16(0, unk, sizeof(struct Unk_080298C8));
     unk->cs = arg0;
-    unk->unk0 = sub_0802A9DC;
+    unk->unk0 = FN(sub_0802A9DC);
     return unk;
 }
 
 static void sub_0802A864(struct Cutscene *arg0) {
     if (arg0->flags & 0x4000000) {
-        arg0->unk0 = sub_08026BD0;
+        arg0->unk0 = FN(sub_08026BD0);
     }
 }
 
 static void sub_0802A888(struct Cutscene *arg0) {
     if (arg0->flags & 0x4000000) {
-        arg0->unk0 = sub_08026EF0;
+        arg0->unk0 = FN(sub_08026EF0);
     }
 }
 
 static void sub_0802AA40(struct Cutscene *arg0);
 static void sub_0802A8AC(struct Cutscene *arg0) {
-    arg0->unk0 = sub_0802AA40;
+    arg0->unk0 = FN(sub_0802AA40);
 }
 
 static void sub_0802AA58(struct Cutscene *arg0);
 static void sub_0802A8B8(struct Cutscene *arg0) {
     if (arg0->flags & 0x4000000) {
-        arg0->unk0 = sub_0802AA58;
+        arg0->unk0 = FN(sub_0802AA58);
     }
 }
 
 static void sub_0802AA78(struct Cutscene *arg0);
 static void sub_0802A8DC(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x3c) {
-        arg0->unk0 = sub_0802AA78;
+        arg0->unk0 = FN(sub_0802AA78);
     }
 }
 
 static void sub_0802A904(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_08029618;
+        arg0->unk0 = FN(sub_08029618);
     }
 }
 
 static void sub_0802A92C(void) {
     struct Unk_080296EC *unk = TaskGetStructPtr(gCurTask);
     if (!(unk->cs->flags & 0x80000000)) {
-        unk->unk0(unk);
+        CALL(unk->unk0)(unk);
         ++unk->unk4E;
     }
     else {
@@ -2239,14 +2239,14 @@ static void sub_0802A92C(void) {
 }
 
 static void sub_0802A984(struct Unk_080296EC *arg0) {
-    arg0->unk0 = sub_080296EC;
+    arg0->unk0 = FN(sub_080296EC);
 }
 
 static void sub_0802A5EC(struct Unk_080298C8 *arg0);
 static void sub_0802A990(void) {
     struct Unk_080298C8 *unk = TaskGetStructPtr(gCurTask);
     if (!(unk->cs->flags & 0x80000000)) {
-        unk->unk0(unk);
+        CALL(unk->unk0)(unk);
     }
     else {
         sub_0802A5EC(unk);
@@ -2255,18 +2255,18 @@ static void sub_0802A990(void) {
 
 static void sub_0802A9E8(struct Unk_080298C8 *arg0);
 static void sub_0802A9DC(struct Unk_080298C8 *arg0) {
-    arg0->unk0 = sub_0802A9E8;
+    arg0->unk0 = FN(sub_0802A9E8);
 }
 
 static void sub_0802A9F8(struct Unk_080298C8 *arg0);
 static void sub_0802A9E8(struct Unk_080298C8 *arg0) {
     arg0->unkA = 0;
-    arg0->unk0 = sub_0802A9F8;
+    arg0->unk0 = FN(sub_0802A9F8);
 }
 
 static void sub_0802A9F8(struct Unk_080298C8 *arg0) {
     if (gUnk_082EB318[arg0->unk8] < arg0->unkA++ && !(arg0->cs->flags & 0x20000000)) {
-        arg0->unk0 = sub_080298C8;
+        arg0->unk0 = FN(sub_080298C8);
         sub_080298C8(arg0);
     }
 }
@@ -2274,34 +2274,179 @@ static void sub_0802A9F8(struct Unk_080298C8 *arg0) {
 static void sub_0802AA90(struct Cutscene *arg0);
 static void sub_0802AA40(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802AA90;
+    arg0->unk0 = FN(sub_0802AA90);
 }
 
 static void sub_0802AAB8(struct Cutscene *arg0);
 static void sub_0802AA58(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_0802AAB8;
+    arg0->unk0 = FN(sub_0802AAB8);
     sub_0802AAB8(arg0);
 }
 
 static void sub_0802AA78(struct Cutscene *arg0) {
     arg0->unk35A = 0;
-    arg0->unk0 = sub_08028194;
+    arg0->unk0 = FN(sub_08028194);
 }
 
 static void sub_0802AA90(struct Cutscene *arg0) {
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_08027208;
+        arg0->unk0 = FN(sub_08027208);
     }
 }
 
 static void sub_0802AAB8(struct Cutscene *arg0) {
     arg0->unk11C.y = arg0->unkF4.y = arg0->unk340 >> 8;
     if (arg0->unk35A++ > 0x1e) {
-        arg0->unk0 = sub_08027444;
+        arg0->unk0 = FN(sub_08027444);
     }
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_08026044) {
+    PORT_FNID(sub_08026610),
+    PORT_FNID(sub_08026698),
+    PORT_FNID(sub_08026940),
+    PORT_FNID(sub_08026B78),
+    PORT_FNID(sub_08026BD0),
+    PORT_FNID(sub_08026CC0),
+    PORT_FNID(sub_08026DC0),
+    PORT_FNID(sub_08026E1C),
+    PORT_FNID(sub_08026EF0),
+    PORT_FNID(sub_08026FAC),
+    PORT_FNID(sub_08027108),
+    PORT_FNID(sub_08027208),
+    PORT_FNID(sub_080272F8),
+    PORT_FNID(sub_08027350),
+    PORT_FNID(sub_080273B0),
+    PORT_FNID(sub_08027444),
+    PORT_FNID(sub_08027538),
+    PORT_FNID(sub_08027590),
+    PORT_FNID(sub_08027614),
+    PORT_FNID(sub_08027670),
+    PORT_FNID(sub_08027814),
+    PORT_FNID(sub_080279F4),
+    PORT_FNID(sub_08027AC0),
+    PORT_FNID(sub_08027BB8),
+    PORT_FNID(sub_08027C80),
+    PORT_FNID(sub_08027DD0),
+    PORT_FNID(sub_0802801C),
+    PORT_FNID(sub_080280DC),
+    PORT_FNID(sub_08028194),
+    PORT_FNID(sub_08028224),
+    PORT_FNID(sub_080282CC),
+    PORT_FNID(sub_080283F8),
+    PORT_FNID(sub_08028528),
+    PORT_FNID(sub_08028608),
+    PORT_FNID(sub_080286C4),
+    PORT_FNID(sub_08028758),
+    PORT_FNID(sub_08028808),
+    PORT_FNID(sub_080288D0),
+    PORT_FNID(sub_08028A1C),
+    PORT_FNID(sub_08028AA8),
+    PORT_FNID(sub_08028B5C),
+    PORT_FNID(sub_08028C94),
+    PORT_FNID(sub_08028D40),
+    PORT_FNID(sub_08028E78),
+    PORT_FNID(sub_08028F10),
+    PORT_FNID(sub_08028FFC),
+    PORT_FNID(sub_08029144),
+    PORT_FNID(sub_080294B0),
+    PORT_FNID(sub_08029618),
+    PORT_FNID(sub_080296EC),
+    PORT_FNID(sub_08029804),
+    PORT_FNID(sub_0802985C),
+    PORT_FNID(sub_080298C8),
+    PORT_FNID(sub_08029A88),
+    PORT_FNID(sub_08029BE4),
+    PORT_FNID(sub_08029CB8),
+    PORT_FNID(sub_08029CD0),
+    PORT_FNID(sub_08029CE8),
+    PORT_FNID(sub_08029D00),
+    PORT_FNID(sub_08029D18),
+    PORT_FNID(sub_08029D38),
+    PORT_FNID(sub_08029DAC),
+    PORT_FNID(sub_08029DCC),
+    PORT_FNID(sub_08029DE4),
+    PORT_FNID(sub_08029DFC),
+    PORT_FNID(sub_08029E14),
+    PORT_FNID(sub_08029E2C),
+    PORT_FNID(sub_08029E44),
+    PORT_FNID(sub_08029E5C),
+    PORT_FNID(sub_08029E74),
+    PORT_FNID(sub_08029EE0),
+    PORT_FNID(sub_08029EF4),
+    PORT_FNID(sub_08029F1C),
+    PORT_FNID(sub_08029F44),
+    PORT_FNID(sub_08029F94),
+    PORT_FNID(sub_08029FAC),
+    PORT_FNID(sub_08029FD4),
+    PORT_FNID(sub_0802A008),
+    PORT_FNID(sub_0802A030),
+    PORT_FNID(sub_0802A058),
+    PORT_FNID(sub_0802A0A8),
+    PORT_FNID(sub_0802A0E8),
+    PORT_FNID(sub_0802A110),
+    PORT_FNID(sub_0802A138),
+    PORT_FNID(sub_0802A160),
+    PORT_FNID(sub_0802A18C),
+    PORT_FNID(sub_0802A1B4),
+    PORT_FNID(sub_0802A1D8),
+    PORT_FNID(sub_0802A234),
+    PORT_FNID(sub_0802A25C),
+    PORT_FNID(sub_0802A284),
+    PORT_FNID(sub_0802A2AC),
+    PORT_FNID(sub_0802A2D4),
+    PORT_FNID(sub_0802A2FC),
+    PORT_FNID(sub_0802A324),
+    PORT_FNID(sub_0802A34C),
+    PORT_FNID(sub_0802A394),
+    PORT_FNID(sub_0802A3D0),
+    PORT_FNID(sub_0802A3E4),
+    PORT_FNID(sub_0802A430),
+    PORT_FNID(sub_0802A468),
+    PORT_FNID(sub_0802A47C),
+    PORT_FNID(sub_0802A49C),
+    PORT_FNID(sub_0802A4CC),
+    PORT_FNID(sub_0802A4F0),
+    PORT_FNID(sub_0802A528),
+    PORT_FNID(sub_0802A538),
+    PORT_FNID(sub_0802A558),
+    PORT_FNID(sub_0802A574),
+    PORT_FNID(sub_0802A5C4),
+    PORT_FNID(sub_0802A5EC),
+    PORT_FNID(sub_0802A610),
+    PORT_FNID(sub_0802A634),
+    PORT_FNID(sub_0802A660),
+    PORT_FNID(sub_0802A69C),
+    PORT_FNID(sub_0802A6D4),
+    PORT_FNID(sub_0802A6E8),
+    PORT_FNID(sub_0802A714),
+    PORT_FNID(sub_0802A72C),
+    PORT_FNID(sub_0802A74C),
+    PORT_FNID(sub_0802A864),
+    PORT_FNID(sub_0802A888),
+    PORT_FNID(sub_0802A8AC),
+    PORT_FNID(sub_0802A8B8),
+    PORT_FNID(sub_0802A8DC),
+    PORT_FNID(sub_0802A904),
+    PORT_FNID(sub_0802A92C),
+    PORT_FNID(sub_0802A984),
+    PORT_FNID(sub_0802A990),
+    PORT_FNID(sub_0802A9DC),
+    PORT_FNID(sub_0802A9E8),
+    PORT_FNID(sub_0802A9F8),
+    PORT_FNID(sub_0802AA40),
+    PORT_FNID(sub_0802AA58),
+    PORT_FNID(sub_0802AA78),
+    PORT_FNID(sub_0802AA90),
+    PORT_FNID(sub_0802AAB8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

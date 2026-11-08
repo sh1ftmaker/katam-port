@@ -31,7 +31,7 @@ void sub_08099B28(struct Task *);
 void sub_08098E54(struct Kirby *kirby, u8 a2, u8 a3, u16 a4, u16 a5) { PortMissingFunction("sub_08098E54"); }
 #else
 void sub_08098E54(struct Kirby *kirby, u8 a2, u8 a3, u16 a4, u16 a5) {
-    struct Task *t = TaskCreate(sub_08098F6C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08098F6C), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *obj4 = tmp;
 
     ClearEffectObject(tmp);
@@ -93,7 +93,7 @@ void sub_08098F6C(void) {
 }
 
 void sub_08099118(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0809924C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0809924C), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *obj4 = TaskGetStructPtr(t);
     u16 zero;
     u16 fl;
@@ -222,7 +222,7 @@ void sub_0809924C(void) {
 #endif
 
 void sub_080995AC(struct ThrowAbilityObject *obj3) {
-    struct Task *t = TaskCreate(sub_08099668, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08099668), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *obj4 = TaskGetStructPtr(t);
     u16 speed;
 
@@ -285,7 +285,7 @@ void sub_08099668(void) {
 }
 
 void sub_08099828(struct ThrowAbilityObject *obj3) {
-    struct Task *t = TaskCreate(sub_080998B8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080998B8), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *obj4 = TaskGetStructPtr(t);
 
     ClearEffectObject(obj4);
@@ -335,7 +335,7 @@ void sub_080998B8(void) {
 }
 
 void sub_08099A60(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08098400, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08098400), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
     struct EffectObject *obj4 = TaskGetStructPtr(t);
 
     ClearEffectObject(obj4);
@@ -347,7 +347,7 @@ void sub_08099A60(struct Kirby *kirby) {
 }
 
 void sub_08099AC4(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08098700, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08098700), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, NULL);
     struct EffectObject *obj4 = TaskGetStructPtr(t);
 
     ClearEffectObject(obj4);
@@ -373,3 +373,16 @@ void sub_08099B28(struct Task *t) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0806F734) {
+    PORT_FNID(sub_08098F6C),
+    PORT_FNID(sub_0809924C),
+    PORT_FNID(sub_08099668),
+    PORT_FNID(sub_080998B8),
+    PORT_FNID(sub_08099B28),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

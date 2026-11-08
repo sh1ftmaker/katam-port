@@ -96,6 +96,7 @@
 #include <stddef.h>
 
 #include "port/port.h"
+#include "port/simblock.h"
 #include "gba/gba.h"
 #include "data.h"
 #include "constants/object_types.h"
@@ -348,12 +349,17 @@ static u8 RollType(u8 type, int pool, u16 roomId, s32 index)
  * fit is passed through untouched and reported -- a room the randomizer
  * declines to touch is a room that plays as it shipped, which is a fine
  * failure. */
-#define PORT_RANDO_LIST_BYTES 2048
-#define PORT_RANDO_SLOTS      4      /* one per player */
-
-static u8 sListBuf[PORT_RANDO_SLOTS][2][PORT_RANDO_LIST_BYTES];
-static struct LevelInfo_1E4 sListHdr[PORT_RANDO_SLOTS][2];
-static u8 sListParity[PORT_RANDO_SLOTS];
+/* All three live in the port sim block (port/simblock.h): the game's
+ * objlistPtr points into the buffers, so they are simulation state, and the
+ * parity flips once per room load -- inside FillLevelInfo, so a rollback that
+ * re-simulates a room load flips it again.  Kept in host .bss, a restored
+ * snapshot kept the flipped parity and the second pass wrote the other buffer
+ * (NETPLAY-V2 R7: rando + rollback desynced).  PORT_RANDO_LIST_BYTES is in
+ * simblock.h. */
+#define PORT_RANDO_SLOTS PORT_MAX_SEATS
+#define sListBuf    (gPortSim->rando.list)
+#define sListHdr    (*(struct LevelInfo_1E4 (*)[PORT_MAX_SEATS][2])gPortSim->rando.hdr)
+#define sListParity (gPortSim->rando.parity)
 static u8 sReportedOverflow;
 
 /* Diagnostics.  Counted rather than logged per swap: a level load rewrites a

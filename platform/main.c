@@ -45,6 +45,8 @@
 #include "port/rollback.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
+#include "port/simblock.h"
+#include "port/netsim.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -67,20 +69,23 @@ extern "C" {
 #endif
 
 u32 gPortRomSize;
-static u16 sKeysDown;          /* 1 = pressed, in GBA button-bit order */
+/* Frame-boundary simulation state, in the port sim block (port/simblock.h) so
+ * every snapshot and hash covers it: sKeysDown (1 = pressed, GBA button-bit
+ * order), sFrameCount and sVBlankBudget. */
+#define sKeysDown     (gPortSim->frame.keysDown)
+#define sFrameCount   (gPortSim->frame.frameCount)
+#define sVBlankBudget (gPortSim->frame.vblankBudget)
 static u16 sHostKeys;          /* the physical buttons, and only those:
                                 * sKeysDown is game-visible state that the
                                 * rollback timeline overwrites every frame,
                                 * so anything that wants to know what the
                                 * *player* is holding must read this one */
 static int sRomReady;
-static u32 sFrameCount;
 
 /* Roughly what a real VBlank fits: 68 scanlines of DMA to VRAM.  Large enough
  * that the mandatory OAM and palette flush never eats the whole window, small
  * enough that a backed-up queue takes several frames to drain, as on hardware. */
 #define PORT_VBLANK_BUDGET_BYTES 24576
-static s32 sVBlankBudget;
 
 /* --- diagnostics --------------------------------------------------------- */
 
@@ -256,6 +261,7 @@ void PortMemInit(void)
     memset((void *)GBA_VRAM_BASE, 0, GBA_VRAM_SIZE);
     memset((void *)GBA_OAM_BASE, 0, GBA_OAM_SIZE);
     memset((void *)GBA_SRAM_BASE, 0, GBA_SRAM_SIZE);
+    PortSimBlockInit();
 
     /* No buttons held at power-on; KEYINPUT is active-low. */
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = 0x03FF;
@@ -266,6 +272,38 @@ void PortRomLoaded(u32 size)
     gPortRomSize = size;
     sRomReady = 1;
 }
+
+/* The port sim block (port/simblock.h).  Zeroed here, once, at power-on;
+ * the game's own resets (RegisterRamReset) clear EWRAM and IWRAM but not
+ * this, because the session state in it outlives a soft reset. */
+void PortSimBlockInit(void)
+{
+    memset((void *)(uintptr_t)PORT_SIM_BASE, 0, PORT_SIM_ALIGN4(PORT_SIM_CORE_BYTES));
+    gPortSim->hdr.magic = PORT_SIM_MAGIC;
+    gPortSim->hdr.version = PORT_SIM_VERSION;
+    gPortSim->hdr.seats = PORT_MAX_SEATS;
+    gPortSim->hdr.modStoreUsed = 0;
+    gPortSim->hdr.usedBytes = PortSimUsedBytes();
+    gPortSim->view.viewW = gPortSim->view.prevW = PORT_SCREEN_W;
+    gPortSim->view.viewH = gPortSim->view.prevH = PORT_SCREEN_H;
+    gPortSim->view.stock = 1;
+}
+
+/* Microseconds from an arbitrary origin, for statistics only (netsim.c).
+ * Host time must never reach the simulation (NETPLAY-V2 R14). */
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+u64 PortHostMicros(void) { return (u64)(emscripten_get_now() * 1000.0); }
+#else
+#include <time.h>
+u64 PortHostMicros(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (u64)ts.tv_sec * 1000000u + (u64)(ts.tv_nsec / 1000);
+}
+#endif
 
 /* --- input ---------------------------------------------------------------
  * The shell sends a mask of held buttons; KEYINPUT wants the complement. */
@@ -292,6 +330,8 @@ static void UpdateKeyInput(int frameLatch)
     u16 keys = sKeysDown;
 
     if (PortRbKeyOverride(&keys))
+        sKeysDown = keys;
+    if (PortNetKeyOverride(&keys))
         sKeysDown = keys;
     if (PortSeatKeyOverride(&keys))
         sKeysDown = keys;
@@ -331,18 +371,18 @@ static const struct { u32 flag; int index; } sIntrIndex[] = {
  * that a cartridge waitstate cannot delay a serial interrupt, and the game
  * then installs the *buffer* as the handler -- gIntrTableTemplate[0] is
  * literally `(void *)gMultiSioIntrFuncBuf`, and multi_08019F28.c and
- * multi_sio_08158934.c write it into gIntrTable[0] again by hand.
+ * multi_sio_util.c write it into gIntrTable[0] again by hand.
  *
- * Here that address is data, not code, and a wasm function pointer is a table
- * index rather than an address, so calling it goes out of bounds.  It is the
- * same problem agb_sram.c had at boot, with the same answer: recognise the
- * buffer and call the real function.  platform/multi_sio_intr.c is the real
- * function. */
+ * Here those sites install FN(MultiSioIntr) instead, and MultiSioIntr's code
+ * ID is that buffer's GBA address, 0x030068E0 (port/fnid.h): the value the
+ * console's table held, so CALL reaches platform/multi_sio_intr.c's
+ * MultiSioIntr like any other handler.  (It used to be recognised here by the
+ * buffer's host address, which put a host data pointer in IWRAM.) */
 static void CallIntr(int index)
 {
     IntrFunc handler = gIntrTable[index];
 
-    if ((const void *)handler == (const void *)gMultiSioIntrFuncBuf) {
+    if ((u32)(uintptr_t)handler == FNID_MultiSioIntr) {
         static int said;
 
         /* Said once, because "did the link driver's interrupt actually run"
@@ -354,11 +394,10 @@ static void CallIntr(int index)
                     "(the IWRAM copy of the link driver's interrupt); "
                     "calling MultiSioIntr");
         }
-        MultiSioIntr();
-        return;
     }
+    /* PORT-FNID: the table holds code IDs. */
     if (handler)
-        handler();
+        CALL(handler)();
 }
 
 void PortDispatchInterrupt(u32 flag)
@@ -859,6 +898,7 @@ void PortPresentFrame(void)
      * nothing the game will read again -- see platform/port/rollback.h.  Both
      * of these do nothing at all unless something armed them. */
     PortRbFrame();
+    PortNetFrameTop();
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 
@@ -871,14 +911,20 @@ void PortPresentFrame(void)
      * and the rectangle the page is about to be handed are the same one. */
     PortViewUpdate();
 
-    /* Draw the visible frame from whatever the game last wrote. */
-    if (render)
-        PortRenderFrame();
+    /* Draw the visible frame from whatever the game last wrote -- and run the
+     * scanline loop even when nothing will be drawn (a rollback or catch-up
+     * re-simulation, PORT_NO_RENDER): it carries VCOUNT, the HBlank DMAs, the
+     * HBlank/VCount interrupts and the affine latches, all of which the game
+     * reads back.  PortRenderFrame skips only the composition when rendering
+     * is off.  Skipping the call, as this once did, made a re-simulated frame
+     * a different frame from the one it replaced. */
+    (void)render;
+    PortRenderFrame();
 
     /* ...and the GPU renderer's list of the same frame, taken at the same
      * moment: after the scan, before the VBlank handler can touch anything.
      * Presentation only -- it reads, and the host draws it at the blit. */
-    if (gPortRlEnabled && !PortRbCatchingUp())
+    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp())
         PortRlBuildFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
@@ -917,7 +963,7 @@ void PortPresentFrame(void)
      * milliseconds of simulation.  The host's own per-frame work (input
      * polling, frame counting, MASH scripts) does not run for caught-up
      * frames, which is correct: their input comes from the timeline. */
-    if (PortRbCatchingUp()) {
+    if (PortRbCatchingUp() || PortNetCatchingUp()) {
         if ((sFrameCount & 0x3FF) == 0)
             PortAwaitYield();
     } else {

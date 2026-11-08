@@ -40,7 +40,7 @@ s32 sub_08153D78(struct Sprite *sprite) {
             // for whateverr command, cmdId is always the first field
             current.getTiles->cmdId < 0;
             current.words = &next.words[sprite->animCursor]) {
-            ret = gUnk_08D5FDE4[~current.getTiles->cmdId](current, sprite);
+            ret = CALL(gUnk_08D5FDE4[~current.getTiles->cmdId])(current, sprite);
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
@@ -83,7 +83,7 @@ s32 sub_08153E6C(struct Sprite *sprite, s32 r6) {
             cmds = gUnk_08D5FDE4;
             if (current.jumpBack->cmdId == -3)
                 sb = r3;
-            ret = cmds[~current.getTiles->cmdId](current, sprite);
+            ret = CALL(cmds[~current.getTiles->cmdId])(current, sprite);
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
@@ -786,7 +786,7 @@ s32 sub_08155128(struct Sprite *sprite) {
             // for whateverr command, cmdId is always the first field
             current.getTiles->cmdId < 0;
             current.words = &next.words[sprite->animCursor]) {
-            ret = gUnk_08D6081C[~current.getTiles->cmdId](current, sprite);
+            ret = CALL(gUnk_08D6081C[~current.getTiles->cmdId])(current, sprite);
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
@@ -830,7 +830,7 @@ s32 sub_0815521C(struct Sprite *sprite, u16 frames) {
             current.words = &next.words[sprite->animCursor]) {
             if (current.jumpBack->cmdId == -3)
                 sl = r3;
-            ret = gUnk_08D6081C[~current.getTiles->cmdId](current, sprite);
+            ret = CALL(gUnk_08D6081C[~current.getTiles->cmdId])(current, sprite);
             if (savedQueuePos != gUnk_030039A4) {
                 gUnk_030039A4 = savedQueuePos;
                 queueModified = TRUE;
@@ -1835,3 +1835,37 @@ s32 AnimCmd_12(union AnimCmd cursor, struct Sprite *sprite) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_sprite) {
+    PORT_FNID(AnimCmd_GetTiles_2),
+    PORT_FNID(AnimCmd_GetPalette_2),
+    PORT_FNID(AnimCmd_6_2),
+    PORT_FNID(sub_0815436C),
+    PORT_FNID(sub_08154B14),
+    PORT_FNID(sub_08154E18),
+    PORT_FNID(sub_08154E24),
+    PORT_FNID(sub_08154E34),
+    PORT_FNID(sub_08154E48),
+    PORT_FNID(sub_08154E64),
+    PORT_FNID(sub_08154E70),
+    PORT_FNID(sub_08154E88),
+    PORT_FNID(sub_08154E90),
+    PORT_FNID(sub_08154E9C),
+    PORT_FNID(sub_08155370),
+    PORT_FNID(sub_08155400),
+    PORT_FNID(sub_08155494),
+    PORT_FNID(AnimCmd_JumpBack),
+    PORT_FNID(AnimCmd_4),
+    PORT_FNID(AnimCmd_PlaySoundEffect),
+    PORT_FNID(AnimCmd_TranslateSprite),
+    PORT_FNID(AnimCmd_8),
+    PORT_FNID(AnimCmd_SetIdAndVariant),
+    PORT_FNID(AnimCmd_10),
+    PORT_FNID(AnimCmd_SetPriority),
+    PORT_FNID(AnimCmd_12),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

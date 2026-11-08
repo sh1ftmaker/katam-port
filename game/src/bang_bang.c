@@ -52,7 +52,7 @@ extern const struct AnimInfo gUnk_083556D0[] = {
 
 void* CreateBangBang(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -65,7 +65,7 @@ void* CreateBangBang(struct ObjectTemplate* arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -3, 5, 8);
     ObjectSetBounds(&obj->base, -6, -4, 6, 10);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
     obj->unk7C = NULL;
     return obj;
@@ -123,7 +123,7 @@ static void sub_080C68F8(struct Object* arg0) {
 }
 
 static void sub_080C69E4(struct Object* arg0) {
-    ObjectSetFunc(arg0, -1, sub_080C71C4);
+    ObjectSetFunc(arg0, -1, FN(sub_080C71C4));
     arg0->unk83 += 3;
     arg0->base.xspeed = 0;
     arg0->base.flags &= ~2;
@@ -131,7 +131,7 @@ static void sub_080C69E4(struct Object* arg0) {
 }
 
 static void sub_080C6AA0(struct Object* arg0) {
-    ObjectSetFunc(arg0, -1, sub_080C6B40);
+    ObjectSetFunc(arg0, -1, FN(sub_080C6B40));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~0x20;
     switch (arg0->unk83) {
@@ -487,7 +487,7 @@ static void sub_080C6FDC(struct Object* arg0) {
 }
 
 void sub_080C70D8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080C7118);
+    ObjectSetFunc(arg0, 0, FN(sub_080C7118));
     if (arg0->objTemplate->subtype1 == 0) {
         sub_080C713C(arg0);
     }
@@ -506,7 +506,7 @@ static void sub_080C7118(struct Object* arg0) {
 }
 
 static void sub_080C713C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 1, sub_080C6884);
+    ObjectSetFunc(arg0, 1, FN(sub_080C6884));
     arg0->base.xspeed = 0x40;
     if (arg0->base.flags & 1) {
         arg0->base.xspeed = -arg0->base.xspeed;
@@ -516,7 +516,7 @@ static void sub_080C713C(struct Object* arg0) {
 }
 
 static void sub_080C7174(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080C68F8);
+    ObjectSetFunc(arg0, 2, FN(sub_080C68F8));
     arg0->kirby3 = FindTargetKirby(&arg0->base);
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
@@ -538,3 +538,18 @@ static void sub_080C71C4(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bang_bang) {
+    PORT_FNID(CreateBangBang),
+    PORT_FNID(sub_080C6884),
+    PORT_FNID(sub_080C68F8),
+    PORT_FNID(sub_080C6B40),
+    PORT_FNID(sub_080C70D8),
+    PORT_FNID(sub_080C7118),
+    PORT_FNID(sub_080C71C4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

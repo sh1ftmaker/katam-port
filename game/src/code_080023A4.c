@@ -159,11 +159,11 @@ extern const s32 gUnk_082D8D40[][2] = {
 };
 
 void (*const gUnk_082D8D60[])(struct Unk_08002E48 *, struct LevelInfo *) = {
-    sub_08001C40,
-    sub_08002D60,
-    sub_08002DA0,
-    nullsub_10,
-    sub_08002DFC,
+    FN(sub_08001C40),
+    FN(sub_08002D60),
+    FN(sub_08002DA0),
+    FN(nullsub_10),
+    FN(sub_08002DFC),
 };
 
 extern PTR32(struct RoomTiledBG) const gUnk_082D8D74[] = {
@@ -182,262 +182,262 @@ extern PTR32(struct RoomTiledBG) const gUnk_082D8D74[] = {
 };
 
 u16 (*const gUnk_082D8DA4[])(struct Kirby *, struct Unk_3007DE0 *, u16) = {
-    sub_08006960,
-    sub_08009E20,
-    sub_08009E34,
-    sub_08009E5C,
-    sub_08009E48,
-    sub_08009E70,
-    sub_08009E84,
-    sub_08009EAC,
-    sub_08009E98,
-    sub_08009ED4,
-    sub_08009EC0,
-    sub_08009EE8,
-    sub_08009EFC,
-    sub_08009E0C,
-    sub_08006B90,
-    sub_08006CCC,
-    sub_080072BC,
-    sub_08007528,
-    sub_0800798C,
-    sub_08007720,
-    sub_08008038,
-    sub_08008298,
-    sub_080086E0,
-    sub_08008484,
-    sub_08006DF8,
-    sub_0800705C,
-    sub_08007B84,
-    sub_08007DE0,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006B90,
-    sub_08006960,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_08009ED4,
-    sub_08009ED4,
-    sub_08009EC0,
-    sub_08009EC0,
-    sub_08009EE8,
-    sub_08009EE8,
-    sub_08009EFC,
-    sub_08009EFC,
-    sub_08009E20,
-    sub_08009E34,
-    sub_08009E5C,
-    sub_08009E48,
-    sub_08009F10,
-    sub_08009F24,
-    sub_08009F4C,
-    sub_08009F38,
-    sub_08009ED4,
-    sub_08009EC0,
-    sub_08009F60,
-    sub_08009F74,
-    sub_080099C4,
-    sub_08009E0C,
-    sub_08009F88,
-    sub_08009F9C,
-    sub_08009FC4,
-    sub_08009FB0,
-    sub_08009FD8,
-    sub_08009FEC,
-    sub_0800A000,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_080088CC,
-    sub_08008C04,
-    sub_08006960,
-    sub_08009674,
-    sub_0800913C,
-    sub_08006960,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_080099C4,
-    sub_0800A014,
-    sub_0800A028,
-    sub_0800A03C,
-    sub_0800A050,
-    sub_0800A064,
-    sub_0800A078,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08006960,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E0C,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08009E08,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
-    sub_08006960,
+    FN(sub_08006960),
+    FN(sub_08009E20),
+    FN(sub_08009E34),
+    FN(sub_08009E5C),
+    FN(sub_08009E48),
+    FN(sub_08009E70),
+    FN(sub_08009E84),
+    FN(sub_08009EAC),
+    FN(sub_08009E98),
+    FN(sub_08009ED4),
+    FN(sub_08009EC0),
+    FN(sub_08009EE8),
+    FN(sub_08009EFC),
+    FN(sub_08009E0C),
+    FN(sub_08006B90),
+    FN(sub_08006CCC),
+    FN(sub_080072BC),
+    FN(sub_08007528),
+    FN(sub_0800798C),
+    FN(sub_08007720),
+    FN(sub_08008038),
+    FN(sub_08008298),
+    FN(sub_080086E0),
+    FN(sub_08008484),
+    FN(sub_08006DF8),
+    FN(sub_0800705C),
+    FN(sub_08007B84),
+    FN(sub_08007DE0),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006B90),
+    FN(sub_08006960),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_08009ED4),
+    FN(sub_08009ED4),
+    FN(sub_08009EC0),
+    FN(sub_08009EC0),
+    FN(sub_08009EE8),
+    FN(sub_08009EE8),
+    FN(sub_08009EFC),
+    FN(sub_08009EFC),
+    FN(sub_08009E20),
+    FN(sub_08009E34),
+    FN(sub_08009E5C),
+    FN(sub_08009E48),
+    FN(sub_08009F10),
+    FN(sub_08009F24),
+    FN(sub_08009F4C),
+    FN(sub_08009F38),
+    FN(sub_08009ED4),
+    FN(sub_08009EC0),
+    FN(sub_08009F60),
+    FN(sub_08009F74),
+    FN(sub_080099C4),
+    FN(sub_08009E0C),
+    FN(sub_08009F88),
+    FN(sub_08009F9C),
+    FN(sub_08009FC4),
+    FN(sub_08009FB0),
+    FN(sub_08009FD8),
+    FN(sub_08009FEC),
+    FN(sub_0800A000),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_080088CC),
+    FN(sub_08008C04),
+    FN(sub_08006960),
+    FN(sub_08009674),
+    FN(sub_0800913C),
+    FN(sub_08006960),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_080099C4),
+    FN(sub_0800A014),
+    FN(sub_0800A028),
+    FN(sub_0800A03C),
+    FN(sub_0800A050),
+    FN(sub_0800A064),
+    FN(sub_0800A078),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08006960),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E0C),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08009E08),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
+    FN(sub_08006960),
 };
 
 extern const s16 gUnk_082D91A4[4][3] = {
@@ -1132,7 +1132,7 @@ void sub_08001D18(u8 playerId)
         }
     }
 
-    gUnk_082D8D60[levelInfo->unk1EC](var1, levelInfo);
+    CALL(gUnk_082D8D60[levelInfo->unk1EC])(var1, levelInfo);
 
     levelInfo->viewportPositionUnmodified.x  = levelInfo->viewportPosition.x;
     levelInfo->viewportPositionUnmodified.y  = levelInfo->viewportPosition.y;
@@ -1176,7 +1176,7 @@ void sub_08002118(void)
         if (gCurLevelInfo[i].currentRoom != 0xFFFF)
             sub_08003108(i, i == var1->unk0);
 
-    gUnk_03002470[gUnk_03006070++] = sub_080021E4;
+    gUnk_03002470[gUnk_03006070++] = FN(sub_080021E4);
     gMainFlags |= 0x10;
 
     if (gCurLevelInfo[var1->unk0].currentRoom != 0xFFFF)
@@ -2181,7 +2181,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
             stack0.unk29 = ugh;
 
             if ((gCollisionAttributes[ugh] & 1) == 0)
-                var0 = gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x420);
+                var0 = CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x420);
         }
 
         stack0.unk1C = (stack0.unk8 + stack0.unk10) >> 0xD;
@@ -2191,9 +2191,9 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
         stack0.unk2A = ugh;
 
         if (arg1 != 1)
-            var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x50);
+            var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x50);
         else
-            var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x450);
+            var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x450);
     }
     else {
         u8 ugh;
@@ -2206,7 +2206,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
             stack0.unk2A = ugh;
 
             if ((gCollisionAttributes[ugh] & 1) == 0)
-                var0 = gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x450);
+                var0 = CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x450);
         }
 
         stack0.unk1C = (stack0.unk8 + stack0.unk10) >> 0xD;
@@ -2216,9 +2216,9 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
         stack0.unk29 = ugh;
 
         if (arg1 != 1)
-            var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x20);
+            var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x20);
         else
-            var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x420);
+            var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x420);
     }
 
     var1 = 0;
@@ -2287,7 +2287,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                     stack0.unk1E = stack0.unkC >> 0xC;
 
                     ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                    var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1);
+                    var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1);
                 }
             }
 
@@ -2298,7 +2298,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                 stack0.unk1E = stack0.unk14 >> 0xC;
 
                 ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x10);
+                CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x10);
             }
 
             break;
@@ -2323,7 +2323,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                     stack0.unk1E = stack0.unkC >> 0xC;
 
                     ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                    var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x30);
+                    var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x30);
                 }
             }
 
@@ -2334,7 +2334,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                 stack0.unk1E = stack0.unk14 >> 0xC;
 
                 ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x40);
+                CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x40);
             }
 
             break;
@@ -2361,7 +2361,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                     stack0.unk1E = stack0.unkC >> 0xC;
 
                     ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                    var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1);
+                    var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1);
                 }
             }
 
@@ -2372,7 +2372,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                 stack0.unk1E = stack0.unk14 >> 0xC;
 
                 ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x10);
+                var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x10);
             }
 
             if ((var0 & 4) != 0 && (arg0->base.unk62 & 3) == 0) {
@@ -2394,7 +2394,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
                     stack0.unk1E = stack0.unkC >> 0xC;
 
                     ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
-                    var0 &= gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x30);
+                    var0 &= CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x30);
                 }
             }
 
@@ -2406,7 +2406,7 @@ u32 sub_0800385C(struct Kirby *arg0, u16 arg1)
 
                 ugh = GetCollisionTile(arg0->base.unk56, stack0.unk1C, stack0.unk1E);
 
-                gUnk_082D8DA4[ugh](arg0, &stack0, arg1 | 0x40);
+                CALL(gUnk_082D8DA4[ugh])(arg0, &stack0, arg1 | 0x40);
             }
 
             break;
@@ -2612,7 +2612,7 @@ u16 sub_080042BC(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
             if ((uVar6 & 0xF0000000) != 0) {
                 arg1->unk1E--;
-                return gUnk_082D8DA4[ugh0](arg0, arg1, arg2 | 0x400);
+                return CALL(gUnk_082D8DA4[ugh0])(arg0, arg1, arg2 | 0x400);
             }
 
             if ((arg0->base.flags & 0x60) != 0) {
@@ -2637,7 +2637,7 @@ u16 sub_080042BC(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -2681,7 +2681,7 @@ u16 sub_080042BC(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -2742,7 +2742,7 @@ u16 sub_08004888(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
         if ((gCollisionAttributes[uVar1] & 0xF0000000) != 0) {
             arg1->unk1E--;
-            return gUnk_082D8DA4[uVar1](arg0, arg1, arg2 | 0x400);
+            return CALL(gUnk_082D8DA4[uVar1])(arg0, arg1, arg2 | 0x400);
         }
 
         return 0xF;
@@ -2785,7 +2785,7 @@ u16 sub_08004A44(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
         if ((gCollisionAttributes[uVar1] & 0xF0000000) != 0) {
             arg1->unk1E--;
-            return gUnk_082D8DA4[uVar1](arg0, arg1, arg2 | 0x400);
+            return CALL(gUnk_082D8DA4[uVar1])(arg0, arg1, arg2 | 0x400);
         }
 
         return 0xF;
@@ -3934,7 +3934,7 @@ u16 sub_08006598(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2, u8 arg3
 
             if ((var1 & 0xF0000000) != 0) {
                 arg1->unk1E--;
-                return gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+                return CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
             }
 
             if (Macro_AAAAAAAA_1(arg0, arg1, arg2)) {
@@ -3992,7 +3992,7 @@ static u16 sub_08006960(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                 var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                 if ((gCollisionAttributes[var0] & 1) == 0)
-                    retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+                    retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
             }
 
             if ((arg0->base.unk62 & 8) != 0)
@@ -4007,7 +4007,7 @@ static u16 sub_08006960(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
             var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
             if ((gCollisionAttributes[var0] & 1) == 0)
-                retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x600);
+                retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x600);
 
             return retval;
         }
@@ -4031,7 +4031,7 @@ static u16 sub_08006960(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                     var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                     if ((gCollisionAttributes[var0] & 1) == 0)
-                        retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+                        retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
                 }
 
                 if ((arg0->base.unk62 & 4) != 0)
@@ -4046,7 +4046,7 @@ static u16 sub_08006960(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                 var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                 if ((gCollisionAttributes[var0] & 1) == 0)
-                    retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x600);
+                    retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x600);
 
                 return retval;
             }
@@ -4082,7 +4082,7 @@ static u16 sub_08006B90(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
     if ((gCollisionAttributes[var0] & 0xF0000000) != 0) {
         arg1->unk1E--;
-        return gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+        return CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
     }
 
     var1 = arg1->unk1E * 0x1000;
@@ -4129,7 +4129,7 @@ static u16 sub_08006CCC(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
     if ((gCollisionAttributes[var0] & 0xF0000000) != 0) {
         arg1->unk1E--;
-        return gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+        return CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
     }
 
     var1 = arg1->unk1E * 0x1000;
@@ -5184,7 +5184,7 @@ static u16 sub_080088CC(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                 if ((gCollisionAttributes[var2] & 0x200) == 0) {
                     if ((gCollisionAttributes[var2] & 0xF0000000) != 0) {
                         arg1->unk1E--;
-                        return gUnk_082D8DA4[var2](arg0, arg1, arg2 | 0x400);
+                        return CALL(gUnk_082D8DA4[var2])(arg0, arg1, arg2 | 0x400);
                     }
 
                    if (
@@ -5276,7 +5276,7 @@ static u16 sub_08008C04(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
             if ((uVar6 & 0xF0000000) != 0) {
                 arg1->unk1E--;
-                return gUnk_082D8DA4[ugh0](arg0, arg1, arg2 | 0x400);
+                return CALL(gUnk_082D8DA4[ugh0])(arg0, arg1, arg2 | 0x400);
             }
 
             if ((arg0->base.flags & 0x60) != 0) {
@@ -5301,7 +5301,7 @@ static u16 sub_08008C04(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -5345,7 +5345,7 @@ static u16 sub_08008C04(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -5449,7 +5449,7 @@ static u16 sub_0800913C(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
             if ((uVar6 & 0xF0000000) != 0) {
                 arg1->unk1E--;
-                return gUnk_082D8DA4[ugh0](arg0, arg1, arg2 | 0x400);
+                return CALL(gUnk_082D8DA4[ugh0])(arg0, arg1, arg2 | 0x400);
             }
 
             if ((arg0->base.flags & 0x60) != 0) {
@@ -5474,7 +5474,7 @@ static u16 sub_0800913C(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -5518,7 +5518,7 @@ static u16 sub_0800913C(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
                         if ((gCollisionAttributes[ugh2] & 0xF0000000) != 0) {
                             arg1->unk1E--;
-                            return gUnk_082D8DA4[ugh2](arg0, arg1, arg2 | 0x400);
+                            return CALL(gUnk_082D8DA4[ugh2])(arg0, arg1, arg2 | 0x400);
                         }
 
                         uVar9 = arg1->unk1E * 0x1000;
@@ -5730,7 +5730,7 @@ static u16 sub_080099C4(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                 var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                 if ((gCollisionAttributes[var0] & 1) == 0)
-                    retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x400);
+                    retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x400);
             }
 
             if ((arg0->base.unk62 & 8) != 0)
@@ -5745,7 +5745,7 @@ static u16 sub_080099C4(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
             var0 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
             if ((gCollisionAttributes[var0] & 1) == 0)
-                retval &= gUnk_082D8DA4[var0](arg0, arg1, arg2 | 0x600);
+                retval &= CALL(gUnk_082D8DA4[var0])(arg0, arg1, arg2 | 0x600);
 
             return retval;
         }
@@ -5768,7 +5768,7 @@ static u16 sub_080099C4(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
 
                     if ((gCollisionAttributes[uVar2] & 0xF0000000) != 0) {
                         arg1->unk1E--;
-                        return gUnk_082D8DA4[uVar2](arg0, arg1, arg2 | 0x400);
+                        return CALL(gUnk_082D8DA4[uVar2])(arg0, arg1, arg2 | 0x400);
                     }
 
                     uVar4 = arg1->unk1E * 0x1000;
@@ -5798,7 +5798,7 @@ static u16 sub_080099C4(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                         uVar2 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                         if ((gCollisionAttributes[uVar2] & 1) == 0)
-                            gUnk_082D8DA4[uVar2](arg0, arg1, arg2 | 0x400);
+                            CALL(gUnk_082D8DA4[uVar2])(arg0, arg1, arg2 | 0x400);
                     }
 
                     if ((arg0->base.unk62 & 4) == 0) {
@@ -5809,7 +5809,7 @@ static u16 sub_080099C4(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2)
                             uVar2 = GetCollisionTile(arg0->base.unk56, arg1->unk1C, arg1->unk1E);
 
                             if ((gCollisionAttributes[uVar2] & 1) == 0)
-                                gUnk_082D8DA4[uVar2](arg0, arg1, arg2 | 0x600);
+                                CALL(gUnk_082D8DA4[uVar2])(arg0, arg1, arg2 | 0x600);
                         }
                     }
                 }
@@ -6152,7 +6152,7 @@ void sub_0800A6E8(void)
 
 void sub_0800A820(void)
 {
-    gUnk_03000004 = TaskCreate(sub_0800A6E8, 4, 0xF10, TASK_USE_IWRAM, sub_0800A8BC);
+    gUnk_03000004 = TaskCreate(FN(sub_0800A6E8), 4, 0xF10, TASK_USE_IWRAM, FN(sub_0800A8BC));
 }
 
 void sub_0800A84C(void)
@@ -6175,11 +6175,11 @@ void *CreateObject(u8 playerId, const struct ObjectTemplate *obj)
 
     switch (obj->spawnTable) {
     case 1:
-        var1 = gSpawnFuncTable1[obj->type](obj, playerId);
+        var1 = CALL(gSpawnFuncTable1[obj->type])(obj, playerId);
         var0->unk08 = &var1->base.unk56;
         break;
     case 2:
-        var1 = gSpawnFuncTable2[obj->type](obj, playerId);
+        var1 = CALL(gSpawnFuncTable2[obj->type])(obj, playerId);
         var0->unk08 = &var1->base.unk56;
         break;
     default:
@@ -6209,3 +6209,76 @@ void sub_0800A8F8(u8 arg0, u8 arg1, u8 arg2)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_080023A4) {
+    PORT_FNID(sub_08001C40),
+    PORT_FNID(sub_08001FF8),
+    PORT_FNID(sub_08002118),
+    PORT_FNID(sub_080021E4),
+    PORT_FNID(sub_08002D60),
+    PORT_FNID(sub_08002DA0),
+    PORT_FNID(nullsub_10),
+    PORT_FNID(sub_08002DFC),
+    PORT_FNID(sub_08002E3C),
+    PORT_FNID(sub_08002E48),
+    PORT_FNID(sub_08006960),
+    PORT_FNID(sub_08006B90),
+    PORT_FNID(sub_08006CCC),
+    PORT_FNID(sub_08006DF8),
+    PORT_FNID(sub_0800705C),
+    PORT_FNID(sub_080072BC),
+    PORT_FNID(sub_08007528),
+    PORT_FNID(sub_08007720),
+    PORT_FNID(sub_0800798C),
+    PORT_FNID(sub_08007B84),
+    PORT_FNID(sub_08007DE0),
+    PORT_FNID(sub_08008038),
+    PORT_FNID(sub_08008298),
+    PORT_FNID(sub_08008484),
+    PORT_FNID(sub_080086E0),
+    PORT_FNID(sub_080088CC),
+    PORT_FNID(sub_08008C04),
+    PORT_FNID(sub_0800913C),
+    PORT_FNID(sub_08009674),
+    PORT_FNID(sub_080099C4),
+    PORT_FNID(sub_08009E08),
+    PORT_FNID(sub_08009E0C),
+    PORT_FNID(sub_08009E20),
+    PORT_FNID(sub_08009E34),
+    PORT_FNID(sub_08009E48),
+    PORT_FNID(sub_08009E5C),
+    PORT_FNID(sub_08009E70),
+    PORT_FNID(sub_08009E84),
+    PORT_FNID(sub_08009E98),
+    PORT_FNID(sub_08009EAC),
+    PORT_FNID(sub_08009EC0),
+    PORT_FNID(sub_08009ED4),
+    PORT_FNID(sub_08009EE8),
+    PORT_FNID(sub_08009EFC),
+    PORT_FNID(sub_08009F10),
+    PORT_FNID(sub_08009F24),
+    PORT_FNID(sub_08009F38),
+    PORT_FNID(sub_08009F4C),
+    PORT_FNID(sub_08009F60),
+    PORT_FNID(sub_08009F74),
+    PORT_FNID(sub_08009F88),
+    PORT_FNID(sub_08009F9C),
+    PORT_FNID(sub_08009FB0),
+    PORT_FNID(sub_08009FC4),
+    PORT_FNID(sub_08009FD8),
+    PORT_FNID(sub_08009FEC),
+    PORT_FNID(sub_0800A000),
+    PORT_FNID(sub_0800A014),
+    PORT_FNID(sub_0800A028),
+    PORT_FNID(sub_0800A03C),
+    PORT_FNID(sub_0800A050),
+    PORT_FNID(sub_0800A064),
+    PORT_FNID(sub_0800A078),
+    PORT_FNID(sub_0800A6E8),
+    PORT_FNID(sub_0800A8BC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -139,7 +139,7 @@ LDLINT := -Wl,--fatal-warnings $(RENDER_LDFLAGS)
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_PortWebDrawRateJs,_PortWebSimRateJs,_PortResSetRoomBundle,_PortResReloadRooms,_PortPlaytestBoot,_PortPlaytestBooting,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_PortWebDrawRateJs,_PortWebSimRateJs,_PortResSetRoomBundle,_PortResReloadRooms,_PortPlaytestBoot,_PortPlaytestBooting,_PortNetSessionStart,_PortNetSessionStop,_PortNetActive,_PortNetSetHumans,_PortNetSetLocalInput,_PortNetSealFrame,_PortNetSnapBound,_PortNetSnapSave,_PortNetDeltaSave,_PortNetPagesSave,_PortNetApplyAt,_PortNetSnapLoad,_PortNetCatchingUp,_PortNetSnapInfo,_PortNetImageFrame,_PortNetStateHash,_PortNetRegionHashes,_PortNetPageCount,_PortNetPageHashes,_PortNetCheckpointHash,_PortNetLastCorrection,_PortNetGetStats,_PortNetImageSize,_PortNetTestArm,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -166,8 +166,11 @@ SRCS          := $(GAME_SRCS) $(PLATFORM_SRCS) $(GEN_SRCS)
 UI_CXX_SRCS   := third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp \
                  third_party/imgui/imgui_widgets.cpp third_party/imgui/imgui_tables.cpp \
                  $(wildcard platform/ui/*.cpp)
+# Zstandard (third_party/zstd, README there): the snapshot compressor.  Its
+# own flags, none of the game's, and linked last like the menu.
+ZSTD_OBJ      := $(OBJDIR)/third_party/zstd/zstd.o
 OBJS          := $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS)) \
-                 $(patsubst %.cpp,$(OBJDIR)/%.o,$(UI_CXX_SRCS))
+                 $(patsubst %.cpp,$(OBJDIR)/%.o,$(UI_CXX_SRCS)) $(ZSTD_OBJ)
 UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
                  -fno-threadsafe-statics -w -Iplatform -Ithird_party/imgui \
                  -I$(BUILD)/gen -MMD -MP
@@ -175,7 +178,7 @@ UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
 TARGET := $(OUT)/katam.html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test \
-        native native-run native-test native-clean \
+        lint-simstate native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
@@ -341,6 +344,10 @@ $(OBJDIR)/%.o: %.c
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) $(UI_CXXFLAGS) -c $< -o $@
+
+$(ZSTD_OBJ): third_party/zstd/zstd.c
+	@mkdir -p $(dir $@)
+	@$(CC) -O2 $(DBG_CFLAG) -w -c $< -o $@
 
 # The commit and date the menu and the page show (tools/gen_build_label.sh
 # rewrites it only when it changes).
@@ -571,6 +578,9 @@ netplay-link-test: $(BUILD)/katam-node.js
 # sequence point between them (tools/lint_determinism.py; needs libclang's
 # Python bindings, no ROM).  gcc, g++ and clang order those differently, and a
 # rollback peer that draws different numbers is a desync.  regress runs it first.
+# Also: no function that decays to a host pointer without FN() and no call
+# through a pointer without CALL() -- the game stores code IDs, not host
+# addresses (tools/codemod_fnid.py --check; platform/port/fnid.h).
 lint-determinism:
 	@python3 tools/lint_determinism.py
 	@python3 tools/lint_determinism.py tests/lint/determinism_selftest.c 2>/dev/null \
@@ -578,13 +588,25 @@ lint-determinism:
 	  grep -n '/\* flag' tests/lint/determinism_selftest.c | cut -d: -f1 \
 	    | diff - $(BUILD)/lint-selftest.got >/dev/null \
 	  || { echo "lint-determinism: self-test failed (tests/lint/)"; exit 1; }
+	@python3 tools/codemod_fnid.py --check
+	@python3 tools/codemod_fnid.py --check tests/lint/fnid_selftest.c 2>/dev/null \
+	    | sed -n 's/^[^:]*:\([0-9]*\):.*/\1/p' | sort -n | uniq > $(BUILD)/lint-fnid-selftest.got; \
+	  grep -n '/\* flag' tests/lint/fnid_selftest.c | cut -d: -f1 \
+	    | diff - $(BUILD)/lint-fnid-selftest.got >/dev/null \
+	  || { echo "lint-determinism: code-ID self-test failed (tests/lint/fnid_selftest.c)"; exit 1; }
 
 # Replays tests/recordings/*.txt and compares every frame's hashes against
 # tests/golden/.  Builds nothing: build the binary first (make native, or the
 # lp64 cmake build).  regress is the simulation check renderer work must pass;
 # regress-pixels shows where the picture changed; regress-wasm runs the same
 # recordings on the node build against the same goldens (cross-platform).
-regress: lint-determinism
+# No simulation state in host memory (NETPLAY-V2 R7): every writable object a
+# simulation unit defines is in the GBA map, the port sim block, or on
+# tests/sim_state_allowlist.txt with its reason.  Reads the LP64 objects.
+lint-simstate:
+	@python3 tools/check_sim_state.py build/lp64
+
+regress: lint-determinism lint-simstate
 	@ROM=$(ROM) bash tests/regress.sh --mode sim
 
 regress-pixels:

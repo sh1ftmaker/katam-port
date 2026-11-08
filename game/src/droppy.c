@@ -13,7 +13,7 @@ extern "C" {
 static void sub_080A09A4(struct Object *arg0);
 void* CreateDroppy(struct ObjectTemplate *arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -29,13 +29,13 @@ void* CreateDroppy(struct ObjectTemplate *arg0, u8 arg1) {
     ObjectSetBounds(&obj->base, -6, -8, 6, 6);
     sub_0803E2B0(&obj->base, -5, 0, 5, 8);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     if (obj->base.sprite.palId) {
         struct Sprite sprite;
         SpriteSomething(&sprite, 0x6000000, 0x2F7, 0, 0xFF, 0, 0, 0, 0, 0x10, obj->base.sprite.palId & 0xF, 0x80000);
     }
     obj->unk9E = 0;
-    obj->unk7C = sub_0809EF88;
+    obj->unk7C = FN(sub_0809EF88);
     if (obj->objTemplate->subtype1 != 2) {
         sub_080A09A4(obj);
     }
@@ -58,7 +58,7 @@ void sub_0809FE9C(struct Object *arg0) {
         sub_080A0C14(arg0);
     }
     else {
-        ObjectSetFunc(arg0, 0, sub_080A0BA4);
+        ObjectSetFunc(arg0, 0, FN(sub_080A0BA4));
         sub_0803E2B0(&arg0->base, -5, 0, 5, 8);
         arg0->base.xspeed = 0;
         arg0->base.yspeed = 0;
@@ -78,7 +78,7 @@ void sub_0809FE9C(struct Object *arg0) {
 
 static void sub_0809FF6C(struct Object *arg0);
 static void sub_0809FF20(struct Object *arg0) {
-    ObjectSetFunc(arg0, 1, sub_0809FF6C);
+    ObjectSetFunc(arg0, 1, FN(sub_0809FF6C));
     arg0->base.xspeed = 0xa0;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
@@ -137,7 +137,7 @@ static void sub_0809FF6C(struct Object *arg0) {
             sub_0809FE9C(arg0);
         }
         else {
-            ObjectSetFunc(arg0, 2, sub_080A0BDC);
+            ObjectSetFunc(arg0, 2, FN(sub_080A0BDC));
             sub_0803E2B0(&arg0->base, a, 4, 5, d);
             arg0->base.xspeed = 0;
             arg0->base.yspeed = 0;
@@ -218,7 +218,7 @@ static void sub_080A0304(struct Object *arg0) {
         if (arg0->base.unk62 & 1) {
             arg0->base.flags ^= 1;
         }
-        ObjectSetFunc(arg0, 0xd, sub_080A0D00);
+        ObjectSetFunc(arg0, 0xd, FN(sub_080A0D00));
         arg0->base.flags &= ~0x40;
     }
 }
@@ -269,7 +269,7 @@ bool32 sub_080A049C(struct Object *arg0, struct Kirby *kirby) {
         || kirby->ability == KIRBY_ABILITY_NORMAL)
         return FALSE;
 
-    ObjectSetFunc(arg0, 0xe, sub_080A05C8);
+    ObjectSetFunc(arg0, 0xe, FN(sub_080A05C8));
     arg0->base.flags &= ~2;
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
@@ -356,7 +356,7 @@ static void sub_080A05C8(struct Object *arg0) {
                 }
                 arg0->base.flags &= ~0xa00;
                 arg0->base.unkC |= 0x10;
-                ObjectSetFunc(arg0, 19, sub_080A03A4);
+                ObjectSetFunc(arg0, 19, FN(sub_080A03A4));
                 arg0->base.xspeed = 0x240;
                 if (arg0->base.flags & 1) {
                     arg0->base.xspeed = -arg0->base.xspeed;
@@ -450,7 +450,7 @@ static void sub_080A0864(struct Object *arg0) {
 
 static void sub_080A0A78(void);
 static void sub_080A09A4(struct Object *arg0) {
-    struct Task *task = TaskCreate(sub_080A0A78, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080A0A78), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *obj = TaskGetStructPtr(task);
     ClearObjectBase(obj);
     obj->header.kind = 2;
@@ -517,26 +517,26 @@ static void sub_080A0BDC(struct Object *arg0) {
 }
 
 static void sub_080A0C14(struct Object *arg0) {
-    ObjectSetFunc(arg0, 3, sub_080A0144);
+    ObjectSetFunc(arg0, 3, FN(sub_080A0144));
     arg0->base.xspeed = 0x120;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
 }
 
 static void sub_080A0C44(struct Object *arg0) {
-    ObjectSetFunc(arg0, 8, sub_080A02A4);
+    ObjectSetFunc(arg0, 8, FN(sub_080A02A4));
     arg0->base.yspeed = 0x240;
     arg0->base.flags |= 0x20;
 }
 
 static void sub_080A0C6C(struct Object *arg0) {
-    ObjectSetFunc(arg0, 8, sub_080A02A4);
+    ObjectSetFunc(arg0, 8, FN(sub_080A02A4));
     arg0->base.flags |= 0x20;
 }
 
 static void sub_080A0CAC(struct Object *arg0);
 static void sub_080A0C8C(struct Object *arg0) {
-    ObjectSetFunc(arg0, 13, sub_080A0CAC);
+    ObjectSetFunc(arg0, 13, FN(sub_080A0CAC));
     arg0->base.yspeed = 0x240;
 }
 
@@ -548,7 +548,7 @@ static void sub_080A0CAC(struct Object *arg0) {
 }
 
 static void sub_080A0CCC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 11, sub_080A0304);
+    ObjectSetFunc(arg0, 11, FN(sub_080A0304));
     arg0->base.xspeed = 0x80;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
@@ -557,14 +557,14 @@ static void sub_080A0CCC(struct Object* arg0) {
 
 static void sub_080A0D00(struct Object* arg0) {
     if (arg0->base.counter == 16) {
-        ObjectSetFunc(arg0, 8, sub_080A02A4);
+        ObjectSetFunc(arg0, 8, FN(sub_080A02A4));
         arg0->base.flags |= 0x20;
     }
     ++arg0->base.counter;
 }
 
 static void sub_080A0D30(struct Object* arg0) {
-    ObjectSetFunc(arg0, 19, sub_080A03A4);
+    ObjectSetFunc(arg0, 19, FN(sub_080A03A4));
     arg0->base.xspeed = 0x240;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
@@ -572,7 +572,7 @@ static void sub_080A0D30(struct Object* arg0) {
 
 static void sub_080A0D8C(struct Object *arg0);
 static void sub_080A0D60(struct Object *arg0) {
-    ObjectSetFunc(arg0, 1, sub_080A0D8C);
+    ObjectSetFunc(arg0, 1, FN(sub_080A0D8C));
     arg0->base.xspeed = 0xa0;
     if (arg0->base.flags & 1)
         arg0->base.xspeed = -arg0->base.xspeed;
@@ -589,3 +589,25 @@ static void sub_080A0D8C(struct Object *arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_droppy) {
+    PORT_FNID(CreateDroppy),
+    PORT_FNID(sub_0809FE9C),
+    PORT_FNID(sub_0809FF6C),
+    PORT_FNID(sub_080A0144),
+    PORT_FNID(sub_080A02A4),
+    PORT_FNID(sub_080A0304),
+    PORT_FNID(sub_080A03A4),
+    PORT_FNID(sub_080A05C8),
+    PORT_FNID(sub_080A0A78),
+    PORT_FNID(sub_080A0BA4),
+    PORT_FNID(sub_080A0BDC),
+    PORT_FNID(sub_080A0CAC),
+    PORT_FNID(sub_080A0D00),
+    PORT_FNID(sub_080A0D8C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

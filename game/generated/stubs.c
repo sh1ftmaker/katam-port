@@ -25,8 +25,7 @@ extern "C" {
 extern const u8 gAreaMapRoomsTilemaps[4] ALIGNED(4);
 const u8 gAreaMapRoomsTilemaps[4] ALIGNED(4) = { 0 };
 
-extern PTR32_TD(HBlankFunc) gHBlankIntrs[4];
-PTR32_TD(HBlankFunc) gHBlankIntrs[4] = { 0 };
+/* gHBlankIntrs: in the port sim block now (main.h). */
 
 extern void (*gUnk_03003678)(u16 *, u8, u16);
 void (*gUnk_03003678)(u16 *, u8, u16) = { 0 };

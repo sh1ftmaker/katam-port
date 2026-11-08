@@ -11,7 +11,7 @@ static void LargeStarStoneBlock7DFall(struct StarStoneBlock *);
 
 void *CreateLargeStarStoneBlock7D(struct ObjectTemplate *arg0, u8 arg1) {
     struct StarStoneBlock *block, *block2;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct StarStoneBlock), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct StarStoneBlock), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     block2 = TaskGetStructPtr(task);
     block = block2;
     InitObject(&block->obj, arg0, arg1);
@@ -32,7 +32,7 @@ void *CreateLargeStarStoneBlock7D(struct ObjectTemplate *arg0, u8 arg1) {
     ObjectSetBounds(&block->obj.base, -15, -16, 15, 16);
     sub_0803E2B0(&block->obj.base, -15, -16, 15, 16);
     ObjectInitSprite(&block->obj);
-    gUnk_08351648[block->obj.type].unk10(&block->obj);
+    CALL(gUnk_08351648[block->obj.type].unk10)(&block->obj);
     return block;
 }
 
@@ -41,7 +41,7 @@ void LargeStarStoneBlock7DSetFunc(struct StarStoneBlock *arg0) {
     block->obj.base.counter = 0;
     block->unkE2 = 0;
     block->unkE3 = 1;
-    block->obj.unk78 = LargeStarStoneBlock7DFall;
+    block->obj.unk78 = FN(LargeStarStoneBlock7DFall);
 }
 
 static void LargeStarStoneBlock7DFall(struct StarStoneBlock *block) {
@@ -55,3 +55,14 @@ static void LargeStarStoneBlock7DFall(struct StarStoneBlock *block) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_large_stone_block_7D) {
+    PORT_FNID(CreateLargeStarStoneBlock7D),
+    PORT_FNID(LargeStarStoneBlock7DSetFunc),
+    PORT_FNID(LargeStarStoneBlock7DFall),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

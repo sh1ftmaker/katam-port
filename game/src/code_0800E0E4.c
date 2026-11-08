@@ -15,7 +15,7 @@ static void sub_0800EC78(struct Task *);
 
 void sub_0800E0E4(struct Object *obj, s16 a2, s16 a3)
 {
-    struct Task *t = TaskCreate(sub_0800E27C, sizeof(struct Unk_0800E0E4), 0x3500, TASK_USE_IWRAM, sub_0800EC78);
+    struct Task *t = TaskCreate(FN(sub_0800E27C), sizeof(struct Unk_0800E0E4), 0x3500, TASK_USE_IWRAM, FN(sub_0800EC78));
     struct Unk_0800E0E4 *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->objBase);
@@ -250,3 +250,13 @@ static void sub_0800EC78(struct Task *t)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0800E0E4) {
+    PORT_FNID(sub_0800E27C),
+    PORT_FNID(sub_0800EC78),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

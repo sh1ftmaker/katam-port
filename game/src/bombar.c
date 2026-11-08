@@ -130,7 +130,7 @@ static const s8 gUnk_083563A0[] = {
 
 void *CreateBombar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *bombar = tmp;
 
     InitObject(bombar, template_, a2);
@@ -617,7 +617,7 @@ static void sub_080D8338(struct Object *bombar)
 
 static void sub_080D850C(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 4, sub_080D85BC);
+    ObjectSetFunc(bombar, 4, FN(sub_080D85BC));
     bombar->base.xspeed = 0;
     bombar->base.yspeed = 0;
     bombar->base.flags &= ~2;
@@ -664,7 +664,7 @@ static void sub_080D85BC(struct Object *bombar)
         --bombar->unk9E;
         if (!gUnk_083562D8[(u8)(bombar->unk9F+1)].unk8 && !bombar->unk9E)
         {
-            ObjectSetFunc(bombar, 0, sub_080D7D28);
+            ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
             if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
                 bombar->base.counter = 0x18;
             else
@@ -708,7 +708,7 @@ static void sub_080D85BC(struct Object *bombar)
         --bombar->unk9E;
         if (!gUnk_08356278[(u8)(bombar->unk9F+1)].unk8 && !bombar->unk9E)
         {
-            ObjectSetFunc(bombar, 0, sub_080D7D28);
+            ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
             if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
                 bombar->base.counter = 0x18;
             else
@@ -992,7 +992,7 @@ static void sub_080D8C98(struct Object *bombar)
 
 static void sub_080D8E6C(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D8F34);
+    ObjectSetFunc(bombar, 0, FN(sub_080D8F34));
     if (bombar->subtype)
         bombar->base.xspeed = 0x280;
     else
@@ -1026,7 +1026,7 @@ static void sub_080D8F34(struct Object *bombar)
             || (bombar->unk85 > 3 && bombar->unk9E)))
     {
         bombar->unk85 = 0;
-        ObjectSetFunc(bombar, 0, sub_080D7D28);
+        ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
         if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
             bombar->base.counter = 0x18;
         else
@@ -1096,7 +1096,7 @@ static void sub_080D8F34(struct Object *bombar)
 
 static void sub_080D923C(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 3, sub_080D92F8);
+    ObjectSetFunc(bombar, 3, FN(sub_080D92F8));
     bombar->base.flags &= ~2;
     bombar->base.xspeed = -0x100;
     if (bombar->base.flags & 1)
@@ -1185,7 +1185,7 @@ static void sub_080D9388(struct Object *bombar)
         }
         if (bombar->base.flags & 2)
         {
-            ObjectSetFunc(bombar, 0, sub_080D7D28);
+            ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
             if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
                 bombar->base.counter = 0x18;
             else
@@ -1221,13 +1221,13 @@ static void sub_080D95A4(struct Object *bombar)
 
 void *CreateBombarBomb(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *bomb = TaskGetStructPtr(t);
 
     InitObject(bomb, template_, a2);
     bomb->base.unkC |= 2;
     bomb->unk9E = 0;
-    bomb->unk7C = sub_0809F840;
+    bomb->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&bomb->base, -5, -3, 5, 8);
     ObjectSetBounds(&bomb->base, -6, -4, 6, 0xA);
     ObjectInitSprite(bomb);
@@ -1278,7 +1278,7 @@ static void sub_080D9764(struct Object *bombar, u8 a2)
 
 void *CreateBombarMissile(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *missile = TaskGetStructPtr(t);
 
     InitObject(missile, template_, a2);
@@ -1286,7 +1286,7 @@ void *CreateBombarMissile(struct ObjectTemplate *template_, u8 a2)
     missile->base.flags |= 0x40;
     missile->base.unkC |= 2;
     missile->unk9E = 0;
-    missile->unk7C = sub_0809F840;
+    missile->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&missile->base, -5, -3, 5, 8);
     ObjectSetBounds(&missile->base, -6, -4, 6, 0xA);
     ObjectInitSprite(missile);
@@ -1296,7 +1296,7 @@ void *CreateBombarMissile(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080D99A4(struct Object *missile)
 {
-    ObjectSetFunc(missile, 1, sub_080D9A04);
+    ObjectSetFunc(missile, 1, FN(sub_080D9A04));
     if (missile->objTemplate->subtype1)
         missile->base.flags |= 1;
     missile->base.xspeed = 0x180;
@@ -1523,7 +1523,7 @@ static void sub_080D9A04(struct Object *missile)
     if (!missile->base.counter)
     {
         if (abs(missile->base.xspeed) + abs(missile->base.yspeed) >= 0x180)
-            missile->unk78 = sub_080D9E34;
+            missile->unk78 = FN(sub_080D9E34);
     }
     else
         --missile->base.counter;
@@ -1545,7 +1545,7 @@ static void sub_080D9E34(struct Object *missile)
 
 void sub_080D9E94(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D7D28);
+    ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
     if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
         bombar->base.counter = 0x18;
     else
@@ -1554,7 +1554,7 @@ void sub_080D9E94(struct Object *bombar)
 
 void sub_080D9EE8(struct Object *bomb)
 {
-    ObjectSetFunc(bomb, 0, sub_080D9708);
+    ObjectSetFunc(bomb, 0, FN(sub_080D9708));
     if (bomb->objTemplate->subtype1)
         bomb->base.flags |= 1;
     bomb->unk9F = 0;
@@ -1566,7 +1566,7 @@ void sub_080D9EE8(struct Object *bomb)
 
 static void sub_080D9F54(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D7A6C);
+    ObjectSetFunc(bombar, 0, FN(sub_080D7A6C));
     bombar->base.xspeed = 0;
     bombar->base.yspeed = 0;
     bombar->base.flags |= 0x40;
@@ -1575,7 +1575,7 @@ static void sub_080D9F54(struct Object *bombar)
 
 static void sub_080D9F84(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D7DCC);
+    ObjectSetFunc(bombar, 0, FN(sub_080D7DCC));
     if (bombar->objTemplate->subtype1)
         bombar->unkA0 = bombar->objTemplate->x - 8;
     else
@@ -1585,7 +1585,7 @@ static void sub_080D9F84(struct Object *bombar)
 
 static void sub_080D9FC8(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D7DCC);
+    ObjectSetFunc(bombar, 0, FN(sub_080D7DCC));
     if (bombar->objTemplate->subtype1)
         bombar->unkA0 = bombar->objTemplate->x + 0x30;
     else
@@ -1595,7 +1595,7 @@ static void sub_080D9FC8(struct Object *bombar)
 
 static void sub_080DA00C(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D7FF0);
+    ObjectSetFunc(bombar, 0, FN(sub_080D7FF0));
     if (bombar->objTemplate->subtype1)
         bombar->unkA0 = bombar->objTemplate->x + 0x18;
     else
@@ -1605,26 +1605,26 @@ static void sub_080DA00C(struct Object *bombar)
 
 static void sub_080DA050(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 4, sub_080D8338);
+    ObjectSetFunc(bombar, 4, FN(sub_080D8338));
     bombar->base.flags &= ~2;
 }
 
 static void sub_080DA070(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 0, sub_080D8950);
+    ObjectSetFunc(bombar, 0, FN(sub_080D8950));
     bombar->unkA0 = bombar->objTemplate->x;
     bombar->unkA2 = bombar->objTemplate->y;
 }
 
 static void sub_080DA09C(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 4, sub_080D8C98);
+    ObjectSetFunc(bombar, 4, FN(sub_080D8C98));
     bombar->base.flags &= ~2;
 }
 
 static void sub_080DA0BC(struct Object *bombar)
 {
-    ObjectSetFunc(bombar, 5, sub_080D9388);
+    ObjectSetFunc(bombar, 5, FN(sub_080D9388));
     bombar->base.flags &= ~2;
     if (bombar->subtype)
         bombar->base.counter = 0xC;
@@ -1635,3 +1635,31 @@ static void sub_080DA0BC(struct Object *bombar)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_bombar) {
+    PORT_FNID(CreateBombar),
+    PORT_FNID(sub_080D7A6C),
+    PORT_FNID(sub_080D7D28),
+    PORT_FNID(sub_080D7DCC),
+    PORT_FNID(sub_080D7FF0),
+    PORT_FNID(sub_080D8338),
+    PORT_FNID(sub_080D85BC),
+    PORT_FNID(sub_080D8950),
+    PORT_FNID(sub_080D8C98),
+    PORT_FNID(sub_080D8F34),
+    PORT_FNID(sub_080D92F8),
+    PORT_FNID(sub_080D9388),
+    PORT_FNID(CreateBombarBomb),
+    PORT_FNID(sub_080D9708),
+    PORT_FNID(CreateBombarMissile),
+    PORT_FNID(sub_080D99A4),
+    PORT_FNID(sub_080D9A04),
+    PORT_FNID(sub_080D9E34),
+    PORT_FNID(sub_080D9E94),
+    PORT_FNID(sub_080D9EE8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

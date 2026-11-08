@@ -48,7 +48,8 @@ extern "C" {
  * snapshot whichever seat happened to be loaded.
  * ------------------------------------------------------------------------- */
 
-#define PORT_SEAT_MAX 4
+#include "port/simblock.h"
+#define PORT_SEAT_MAX PORT_MAX_SEATS
 
 /* Clone the current game state into `seats` seats and start multiplexing
  * from the next frame.  Call from inside the host's present callback (the

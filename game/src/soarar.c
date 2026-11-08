@@ -33,7 +33,7 @@ static void sub_080AC9A4(void);
 
 void *CreateSoarar(struct ObjectTemplate *arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -49,7 +49,7 @@ void *CreateSoarar(struct ObjectTemplate *arg0, u8 arg1) {
     sub_0803E2B0(&obj->base, -5, -3, 5, 8);
     ObjectSetBounds(&obj->base, -6, -4, 6, 0xA);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     return obj;
 }
 
@@ -137,7 +137,7 @@ static void sub_080ABA40(struct Object *obj) {
     s32 a, b;
     u16 dist;
 
-    ObjectSetFunc(obj, 0, sub_080ABB38);
+    ObjectSetFunc(obj, 0, FN(sub_080ABB38));
     switch (obj->subtype) {
     default:
         obj->unk85 = 0x30;
@@ -201,7 +201,7 @@ static void sub_080ABB38(struct Object *obj) {
 }
 
 static void sub_080ABBBC(struct Object *obj) {
-    ObjectSetFunc(obj, 0, sub_080ABC18);
+    ObjectSetFunc(obj, 0, FN(sub_080ABC18));
     if (obj->kirby3->base.y > obj->base.y) {
         obj->base.yspeed = -0x80;
         obj->unk83 = 5;
@@ -279,7 +279,7 @@ static void sub_080ABCE4(struct Object *obj) {
     if (obj->base.flags & 1) {
         if (obj->base.xspeed > 0) {
             sub_080ABEAC(obj);
-            ObjectSetFunc(obj, 0, sub_080ABC18);
+            ObjectSetFunc(obj, 0, FN(sub_080ABC18));
             if (obj->base.yspeed < 0) {
                 obj->unk83 = 4;
             }
@@ -293,7 +293,7 @@ static void sub_080ABCE4(struct Object *obj) {
     else {
         if (obj->base.xspeed < 0) {
             sub_080ABEAC(obj);
-            ObjectSetFunc(obj, 0, sub_080ABC18);
+            ObjectSetFunc(obj, 0, FN(sub_080ABC18));
             if (obj->base.yspeed < 0) {
                 obj->unk83 = 4;
             }
@@ -312,7 +312,7 @@ static void sub_080ABCE4(struct Object *obj) {
 }
 
 static void sub_080ABDE8(struct Object *obj) {
-    ObjectSetFunc(obj, 0, sub_080ABE40);
+    ObjectSetFunc(obj, 0, FN(sub_080ABE40));
     if (obj->kirby3->base.y > obj->base.y) {
         obj->unk83 = 5;
     }
@@ -351,7 +351,7 @@ static void sub_080ABE40(struct Object *obj) {
 
 static void sub_080ABEAC(struct Object *obj) {
     struct ObjectBase *p, *p2;
-    struct Task *task = TaskCreate(sub_080AC0A4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080AC0A4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     p2 = TaskGetStructPtr(task);
     p = p2;
     ClearObjectBase(p);
@@ -415,7 +415,7 @@ static void sub_080AC0A4(void) {
 }
 
 static void sub_080AC33C(struct Object *obj) {
-    ObjectSetFunc(obj, 9, sub_080ABCE4);
+    ObjectSetFunc(obj, 9, FN(sub_080ABCE4));
     obj->unk85--;
     if (obj->kirby3->base.y > obj->base.y) {
         obj->base.yspeed = -0x80;
@@ -449,7 +449,7 @@ void sub_080AC380(struct Object *obj) {
     if (obj->base.counter == 0) {
         obj->base.counter = 0x5A;
         if (Rand16() & 1) {
-            ObjectSetFunc(obj, 0, sub_080ACBEC);
+            ObjectSetFunc(obj, 0, FN(sub_080ACBEC));
             obj->base.xspeed = 0;
             obj->base.counter = 2;
             obj->base.flags &= ~0x2000000;
@@ -485,7 +485,7 @@ void sub_080AC45C(struct Object *obj) {
     obj->base.counter--;
     if (obj->base.counter == 0) {
         obj->type = OBJ_SNOOTER_1;
-        ObjectSetFunc(obj, 0, sub_080ACBEC);
+        ObjectSetFunc(obj, 0, FN(sub_080ACBEC));
         obj->base.xspeed = 0;
         obj->base.counter = 2;
         obj->base.flags &= ~0x2000000;
@@ -530,7 +530,7 @@ bool32 sub_080AC5E0(struct Object *obj, struct ObjectHeader *a2) {
             && !(kirby->base.flags & 0x03800B00)) {
             kirby->unk110 = gUnk_083539B4;
             obj->kirby3 = kirby;
-            ObjectSetFunc(obj, 2, sub_080AC71C);
+            ObjectSetFunc(obj, 2, FN(sub_080AC71C));
             obj->base.flags |= 0x2000000;
         }
         else {
@@ -544,7 +544,7 @@ bool32 sub_080AC5E0(struct Object *obj, struct ObjectHeader *a2) {
         if (!ObjType5ETo6C(other)) {
             return FALSE;
         }
-        ObjectSetFunc(obj, 2, sub_080AC824);
+        ObjectSetFunc(obj, 2, FN(sub_080AC824));
     }
     obj->base.xspeed = 0;
     obj->base.yspeed = 0;
@@ -578,14 +578,14 @@ static void sub_080AC71C(struct Object *obj) {
 }
 
 static void sub_080AC788(struct Object *obj) {
-    ObjectSetFunc(obj, 5, sub_080ACC60);
+    ObjectSetFunc(obj, 5, FN(sub_080ACC60));
     PlaySfx(&obj->base, SE_FROSTY_SPIT_KIRBY);
 }
 
 static void sub_080AC824(struct Object *obj) {
     if (obj->base.flags & 2) {
         if (obj->unk83 == 7) {
-            ObjectSetFunc(obj, 0, sub_080ACBEC);
+            ObjectSetFunc(obj, 0, FN(sub_080ACBEC));
             obj->base.xspeed = 0;
             obj->base.counter = 2;
             obj->base.flags &= ~0x2000000;
@@ -616,7 +616,7 @@ static void sub_080AC824(struct Object *obj) {
 
 void sub_080AC8CC(struct Object *obj) {
     struct ObjectBase *p;
-    struct Task *task = TaskCreate(sub_080AC9A4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080AC9A4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     p = TaskGetStructPtr(task);
     ClearObjectBase(p);
     p->header.kind = 2;
@@ -671,3 +671,23 @@ static void sub_080AC9A4(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_soarar) {
+    PORT_FNID(CreateSoarar),
+    PORT_FNID(sub_080AB8DC),
+    PORT_FNID(sub_080ABB38),
+    PORT_FNID(sub_080ABC18),
+    PORT_FNID(sub_080ABCE4),
+    PORT_FNID(sub_080ABE40),
+    PORT_FNID(sub_080AC0A4),
+    PORT_FNID(sub_080AC380),
+    PORT_FNID(sub_080AC45C),
+    PORT_FNID(sub_080AC71C),
+    PORT_FNID(sub_080AC824),
+    PORT_FNID(sub_080AC9A4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -142,7 +142,7 @@ static void HelpMenuToGame(void);
 static void PauseMenuMain(void);
 
 inline struct Task* CreatePauseMenuTask(void) {
-    return TaskCreate(PauseMenuMain, 4, 0x0f00, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    return TaskCreate(FN(PauseMenuMain), 4, 0x0f00, TASK_x0004 | TASK_USE_IWRAM, NULL);
     // This struct seems to never be used
 }
 
@@ -348,7 +348,7 @@ void CreateHelpMenu(void) {
     gBgCntRegs[1] = BGCNT_PRIORITY(0) | BGCNT_CHARBASE(1) | BGCNT_16COLOR | BGCNT_SCREENBASE(15) | BGCNT_TXT256x256;
     gBgCntRegs[2] = BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_16COLOR | BGCNT_SCREENBASE(23) | BGCNT_TXT256x256;
 
-    task = TaskCreate(HelpMenuMain, sizeof(struct HelpMenu), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(HelpMenuMain), sizeof(struct HelpMenu), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
     helpmenu = tmp = TaskGetStructPtr(task);
 
     if (gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE) {
@@ -443,7 +443,7 @@ static void HelpMenuMain(void) {
         gPauseMenus[2].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[3].flags & MENU_FLAG_BACK_TO_GAME) {
         m4aSongNumStart(SE_PAUSE_MENU_ACTIVATE);
         sub_08124EC8();
-        gCurTask->main = HelpMenuToGame;
+        gCurTask->main = FN(HelpMenuToGame);
         if (!(gUnk_0203AD10 & 4)) {
             sub_08155128(&helpmenu->buttonB);
             sub_08155128(&helpmenu->buttonSwitch);
@@ -464,7 +464,7 @@ static void HelpMenuMain(void) {
         if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
             (gPauseMenus[playerId].menuId == MENU_WORLDMAP || gPauseMenus[playerId].menuId == MENU_AREAMAP)) {
             helpmenu->nextMenuId = gPauseMenus[playerId].menuId;
-            gCurTask->main = HelpMenuToNextMenu;
+            gCurTask->main = FN(HelpMenuToNextMenu);
             CreatePauseFade(0x20, 1);
             return;
         }
@@ -657,3 +657,16 @@ void sub_08124EC8(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_pause_help) {
+    PORT_FNID(CreatePauseMenu),
+    PORT_FNID(HelpMenuMain),
+    PORT_FNID(HelpMenuToNextMenu),
+    PORT_FNID(HelpMenuToGame),
+    PORT_FNID(PauseMenuMain),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

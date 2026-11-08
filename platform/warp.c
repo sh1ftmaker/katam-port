@@ -58,6 +58,7 @@
 #include "data.h"
 #include "kirby.h"
 #include "port/port.h"
+#include "port/simblock.h"
 
 /* C linkage for the 64-bit builds.
  *
@@ -81,9 +82,13 @@ extern void sub_08055920(struct Kirby *);
 
 /* Set when a warp has been asked for but the game has not reached a state
  * where it can be delivered.  See PortWarpPoll. */
-static u16 sPendingRoom;
-static u8 sPendingX, sPendingY, sPendingPlayer;
-static bool8 sPending;
+/* In the port sim block (port/simblock.h), so a snapshot taken between the
+ * request and the delivery carries it. */
+#define sPendingRoom   (gPortSim->warp.room)
+#define sPendingX      (gPortSim->warp.cellX)
+#define sPendingY      (gPortSim->warp.cellY)
+#define sPendingPlayer (gPortSim->warp.player)
+#define sPending       (gPortSim->warp.pending)
 
 u32 gPortWarpCount;
 

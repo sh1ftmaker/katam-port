@@ -57,6 +57,10 @@
  * C language linkage. */
 #include "port/p32.h"
 
+/* FN(f) and CALL(p): function-pointer values in game memory are canonical
+ * code IDs, not host pointers (netplay-v2 R5). */
+#include "port/fnid.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call
@@ -150,5 +154,15 @@ void AgbMain(void);
 #define gMPlayInfo_3       (*(struct MusicPlayerInfo *)0x03001770)
 #define gNumMusicPlayers   ((char *)4)
 #define gMaxLines          ((char *)0)
+
+
+/* NETPLAY-V2 R6: a table the port defines in C *and* the ROM holds at its own
+ * address, byte for byte (checked against the ROM when each site was
+ * changed).  A pointer to it that the game stores in its memory is a host
+ * address of the C copy -- different natively and in wasm, and on every
+ * layout -- so the store sites use the ROM's copy instead, which is what the
+ * console stored.  `sym` is named so the C copy stays referenced and the
+ * use is visible: PORT_ROM_TABLE(PTRTYPE, sym, addr) is addr as a PTRTYPE. */
+#define PORT_ROM_TABLE(PT, sym, addr) ((void)(sym), (PT)(uintptr_t)(addr))
 
 #endif

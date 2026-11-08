@@ -30,7 +30,7 @@ extern const struct AnimInfo gUnk_0835544C[] = {
 };
 
 void *CreateNoddy(struct ObjectTemplate *r6, u8 r4) {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *r0 = TaskGetStructPtr(t), *r5 = r0;
 
     InitObject(r5, r6, r4);
@@ -43,7 +43,7 @@ void *CreateNoddy(struct ObjectTemplate *r6, u8 r4) {
     ObjectInitSprite(r5);
     switch (r6->subtype1) {
     case 0:
-        gUnk_08351648[r5->type].unk10(r5);
+        CALL(gUnk_08351648[r5->type].unk10)(r5);
         break;
     case 1:
         sub_080C2978(r5);
@@ -58,7 +58,7 @@ void sub_080C22E4(struct Object *r4) {
     if (r4->objTemplate->subtype1 == 1) {
         sub_080C2978(r4);
     } else {
-        ObjectSetFunc(r4, 0, sub_080C233C);
+        ObjectSetFunc(r4, 0, FN(sub_080C233C));
         r4->base.xspeed = 0x80;
         r4->base.xspeed <<= r4->subtype;
         if (r4->subtype) r4->unk83 = 1;
@@ -97,7 +97,7 @@ static void sub_080C23B0(struct Object *r4) {
 }
 
 static void sub_080C2438(struct Object *r6) {
-    struct Task *t = TaskCreate(sub_080C25CC, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080C25CC), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r0 = TaskGetStructPtr(t), *r4 = r0;
 
     ClearEffectObject(r4);
@@ -169,7 +169,7 @@ static void sub_080C25CC(void) {
 }
 
 static void sub_080C2900(struct Object *r0) {
-    ObjectSetFunc(r0, 2, sub_080C2914);
+    ObjectSetFunc(r0, 2, FN(sub_080C2914));
 }
 
 static void sub_080C2914(struct Object *r4) {
@@ -180,7 +180,7 @@ static void sub_080C2914(struct Object *r4) {
 }
 
 static void sub_080C293C(struct Object *r0) {
-    ObjectSetFunc(r0, 2, sub_080C2950);
+    ObjectSetFunc(r0, 2, FN(sub_080C2950));
 }
 
 static void sub_080C2950(struct Object *r4) {
@@ -191,7 +191,7 @@ static void sub_080C2950(struct Object *r4) {
 }
 
 static void sub_080C2978(struct Object *r4) {
-    ObjectSetFunc(r4, 3, sub_080C2994);
+    ObjectSetFunc(r4, 3, FN(sub_080C2994));
     r4->base.yspeed = 0;
 }
 
@@ -201,10 +201,26 @@ static void sub_080C2994(struct Object *r0) {
 }
 
 static void sub_080C29A4(struct Object *r4) {
-    ObjectSetFunc(r4, 3, sub_080C23B0);
+    ObjectSetFunc(r4, 3, FN(sub_080C23B0));
     r4->base.xspeed = 0;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_noddy) {
+    PORT_FNID(CreateNoddy),
+    PORT_FNID(sub_080C22E4),
+    PORT_FNID(sub_080C233C),
+    PORT_FNID(sub_080C23B0),
+    PORT_FNID(sub_080C25CC),
+    PORT_FNID(sub_080C2914),
+    PORT_FNID(sub_080C2950),
+    PORT_FNID(sub_080C2994),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -221,7 +221,7 @@ void ObjectMain(void) {
                 sub_0809A630(obj);
                 fp2 = obj->unk7C;
                 if (fp2 != NULL) {
-                    fp2(obj);
+                    CALL(fp2)(obj);
                 }
                 if (Macro_0810B1F4(&obj->base)
                     && !(obj->base.flags & 0x2000)) {
@@ -237,7 +237,7 @@ void ObjectMain(void) {
                     }
                 }
                 fp = obj->unk78;
-                fp(obj);
+                CALL(fp)(obj);
                 SetPointerSomething(&obj->base);
                 if (!(obj->base.flags & 0x04000800)) {
                     obj->base.xspeed += obj->unk98;
@@ -722,7 +722,7 @@ static void sub_0809AF38(struct Object *r4, struct ObjectBase *r5) {
         || r4->type == OBJ_DARK_MIND_MIRROR
         || (r4->base.unkC & 0x800))
         r7 = 1;
-    if (r4->unk80 <= 0 && r4->unk78 != sub_0809D1E0) {
+    if (r4->unk80 <= 0 && r4->unk78 != FN(sub_0809D1E0)) {
         r4->base.unk68 &= 7;
         r4->base.unk5C |= 0x80;
         if (!r7 && !(r4->objTemplate->unk22 & 4)) {
@@ -747,15 +747,15 @@ static void sub_0809AF38(struct Object *r4, struct ObjectBase *r5) {
                 || !(ObjType0To37(r4) || ObjType38To42(r4) || ObjType43To4D(r4))
                 || !(ObjType0To37(r4) || ObjType38To42(r4) || ObjType43To4D(r4) || r4->type == OBJ_DARK_META_KNIGHT || r4->type == OBJ_DARK_MIND_FORM_1)
                 || r4->type == OBJ_WIZ) {
-                gUnk_08351648[r4->type].unk10(r4);
+                CALL(gUnk_08351648[r4->type].unk10)(r4);
             } else {
                 r4->base.flags |= 0x200;
-                r4->unk78 = sub_0809F974;
+                r4->unk78 = FN(sub_0809F974);
             }
             if (!r7)
                 sub_08088528(r4);
         } else {
-            if (r4->unk78 != sub_0809D1E0) {
+            if (r4->unk78 != FN(sub_0809D1E0)) {
                 RequestScreenShake(3, &r4->base);
                 if (r4->base.unkC & 0x800) {
                     sub_0809DA30(r4);
@@ -936,7 +936,7 @@ void sub_0809B1E4(struct Object *r4) {
         r4->base.flags |= 0xB00;
         r4->base.counter = 0;
         r4->base.sprite.unk1C = 0;
-        r4->unk78 = sub_0809F88C;
+        r4->unk78 = FN(sub_0809F88C);
     } else {
         if (!(r4->base.flags & 0x4000000)) {
             r4->base.flags |= 0x820;
@@ -973,7 +973,7 @@ void sub_0809B1E4(struct Object *r4) {
         }
         if (gKirbys[gLocalPlayerId].base.roomId == r4->base.roomId)
             sub_080857A0(r4);
-        r4->unk78 = sub_0809B6A8;
+        r4->unk78 = FN(sub_0809B6A8);
     }
 }
 
@@ -1010,9 +1010,9 @@ static void sub_0809B6A8(struct Object *r3) {
             r3->base.flags |= 0x20;
         if (r3->unk88 & 8) {
             r3->base.flags &= ~0x100;
-            r3->unk78 = sub_0809BBB0;
+            r3->unk78 = FN(sub_0809BBB0);
         } else {
-            r3->unk78 = sub_0809B93C;
+            r3->unk78 = FN(sub_0809B93C);
         }
     }
     ++r3->base.counter;
@@ -1033,7 +1033,7 @@ static void sub_0809B93C(struct Object *r4) {
         if (r4->unk80 <= 0) {
             sub_0809DA30(r4);
             r4->base.flags |= 0x1000;
-            gUnk_08351648[r4->type].unk10(r4);
+            CALL(gUnk_08351648[r4->type].unk10)(r4);
             sub_0809F6BC(r4);
         } else {
             r4->base.unk68 |= 0x80;
@@ -1041,7 +1041,7 @@ static void sub_0809B93C(struct Object *r4) {
                 r4->base.unk5C &= ~0x80;
             r4->base.unkC &= ~0x4000;
             r4->base.flags &= ~0x1000000;
-            gUnk_08351648[r4->type].unk10(r4);
+            CALL(gUnk_08351648[r4->type].unk10)(r4);
         }
     } else {
         ++r4->base.counter;
@@ -1075,7 +1075,7 @@ static void sub_0809BBB0(struct Object *r4) {
         r4->base.xspeed = 0;
         r4->base.yspeed = 0;
         r4->base.counter = 0;
-        r4->unk78 = sub_0809C180;
+        r4->unk78 = FN(sub_0809C180);
         r4->base.flags &= ~0x8000;
         if (r4->type != OBJ_SHADOW_KIRBY && r4->type != OBJ_WADDLE_DEE_2)
             return;
@@ -1090,12 +1090,12 @@ static void sub_0809BBB0(struct Object *r4) {
             r4->base.unk5C &= ~0x80;
         r4->base.unkC &= ~0x4000;
         r4->base.flags &= ~0x200;
-        gUnk_08351648[r4->type].unk10(r4);
+        CALL(gUnk_08351648[r4->type].unk10)(r4);
     } else if (r4->base.unk62 & 4) {
         r4->base.flags |= 0x20;
         if (r4->unk88 & 8)
             r4->base.yspeed = 0x200;
-        r4->unk78 = sub_0809BEF8;
+        r4->unk78 = FN(sub_0809BEF8);
         RequestScreenShake(2, &r4->base);
         r4->base.flags &= ~0x1000000;
         r4->base.flags &= ~0x8000;
@@ -1112,7 +1112,7 @@ static void sub_0809BBB0(struct Object *r4) {
             r4->base.unk5C &= ~0x80;
         r4->base.unkC &= ~0x4000;
         r4->base.flags &= ~0x200;
-        gUnk_08351648[r4->type].unk10(r4);
+        CALL(gUnk_08351648[r4->type].unk10)(r4);
     } else {
         ++r4->base.counter;
     }
@@ -1149,7 +1149,7 @@ static void sub_0809BEF8(struct Object *r4) {
             r4->base.unk5C &= ~0x80;
         r4->base.unkC &= ~0x4000;
         r4->base.flags &= ~0x200;
-        gUnk_08351648[r4->type].unk10(r4);
+        CALL(gUnk_08351648[r4->type].unk10)(r4);
     } else {
         ++r4->base.counter;
     }
@@ -1168,7 +1168,7 @@ static void sub_0809C180(struct Object *r4) {
     if (r4->base.counter < 8)
         r4->base.objBase55 = gUnk_08352DD0[r4->base.counter];
     if (r4->base.counter > 10)
-        r4->unk78 = sub_0809BEF8;
+        r4->unk78 = FN(sub_0809BEF8);
     ++r4->base.counter;
 }
 
@@ -1198,7 +1198,7 @@ void sub_0809C380(struct Object *r3) {
     r3->base.unkC |= 1;
     r3->base.flags &= ~0x20;
     r3->unk86 = r4->base.unk56;
-    r3->unk78 = sub_0809C48C;
+    r3->unk78 = FN(sub_0809C48C);
     r3->base.unkC |= 0x400;
 }
 
@@ -1241,7 +1241,7 @@ static void sub_0809C48C(struct Object *r5) {
                         r1 = sub_0807A7E8(&r5->base.header);
                         if ((r5->type == OBJ_WADDLE_DEE_1 || r5->type == OBJ_WADDLE_DOO) && r5->kirbyAbility == KIRBY_ABILITY_PARASOL) {
                             r5->base.parent = r1;
-                            r5->unk78 = sub_0809F8BC;
+                            r5->unk78 = FN(sub_0809F8BC);
                             return;
                         }
                     } else {
@@ -1249,7 +1249,7 @@ static void sub_0809C48C(struct Object *r5) {
                             r5->base.xspeed = 0;
                             r5->base.yspeed = 0;
                             r5->base.flags &= ~(0x100 | 0x200);
-                            gUnk_08351648[r5->type].unk10(r5);
+                            CALL(gUnk_08351648[r5->type].unk10)(r5);
                             sub_080547C4(r6, 28);
                             return;
                         }
@@ -1328,7 +1328,7 @@ void sub_0809C6D0(struct Object *r4) {
         r4->base.flags &= ~0x20;
         r4->unk80 = 0;
         r4->unk86 = r7->unk56;
-        r4->unk78 = sub_0809C994;
+        r4->unk78 = FN(sub_0809C994);
         r4->base.unkC |= 0x400;
         r4->base.unk6C = r7->parent;
     }
@@ -1424,7 +1424,7 @@ static void sub_0809CDBC(struct Object *r12) {
     r12->unk80 = 0;
     r12->unk86 = r4->unk56;
     r12->unk88 = r4->unk68;
-    r12->unk78 = sub_0809CE80;
+    r12->unk78 = FN(sub_0809CE80);
     r12->base.unkC |= 0x400;
     r12->base.unk6C = r4->parent;
 }
@@ -1462,7 +1462,7 @@ void sub_0809CFC4(struct Object *r12) {
     r12->base.flags |= 0x2000000 | 0x40 | 0x100 | 0x200 | 0x400 | 0x800;
     r12->base.unkC |= 1;
     r12->base.flags &= ~0x20;
-    r12->unk78 = nullsub_123;
+    r12->unk78 = FN(nullsub_123);
     r12->base.unkC |= 0x400;
 }
 
@@ -1472,7 +1472,7 @@ static void sub_0809D060(struct Object *r4) {
     r4->unk9F = 0;
     r4->unk85 = 0;
     r4->unk83 = gUnk_08351648[r4->type].unk0;
-    r4->unk78 = sub_0809D1E0;
+    r4->unk78 = FN(sub_0809D1E0);
     r4->unk80 = 0;
     r4->base.flags &= ~0x8;
     r4->base.flags &= ~0x40;
@@ -1570,7 +1570,7 @@ static void sub_0809D1E0(struct Object *r5) {
 static void sub_0809D5D0(struct Object *ip) {
     ip->base.counter = 0;
     ip->unk83 = gUnk_08351648[ip->type].unk0;
-    ip->unk78 = sub_0809D654;
+    ip->unk78 = FN(sub_0809D654);
     ip->base.xspeed = 0;
     ip->base.yspeed = 0;
     ip->unk85 = 1;
@@ -1611,13 +1611,13 @@ static void sub_0809D654(struct Object *r4) {
 }
 
 static void sub_0809D710(struct Object *r3) {
-    if (r3->unk78 != sub_0809F988) {
+    if (r3->unk78 != FN(sub_0809F988)) {
         r3->base.counter = 0;
         if (Rand16() & 1)
             r3->unk83 = gUnk_08351648[r3->type].unk0;
         else
             r3->unk83 = gUnk_08351648[r3->type].unk1;
-        r3->unk78 = sub_0809F988;
+        r3->unk78 = FN(sub_0809F988);
         r3->base.flags &= ~(0x100 | 0x20);
         r3->base.flags |= 0x40;
         r3->base.flags &= ~(0x40000 | 0x10000000 | 0x20000000 | 0x40000000 | 0x80000000);
@@ -1772,7 +1772,7 @@ void sub_0809DA30(struct Object *r5) {
 }
 
 static void sub_0809E424(struct Object *sb) {
-    struct Task *task = TaskCreate(sub_0809E55C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_0809E55C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r7;
     u16 r1;
 
@@ -1841,7 +1841,7 @@ static void sub_0809E55C(void) {
 }
 
 void sub_0809E79C(struct Object *sb) {
-    struct Task *task = TaskCreate(sub_0809E8D4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_0809E8D4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r7;
     u16 r1;
 
@@ -1927,7 +1927,7 @@ static void sub_0809E8D4(void) {
 }
 
 static void sub_0809EB90(struct Object *sb) {
-    struct Task *task = TaskCreate(sub_0809ECD0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_0809ECD0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *r7;
     u16 r1;
 
@@ -2213,7 +2213,7 @@ void ObjectInitSprite(struct Object* arg0) {
 }
 
 void *CreateEmpty(struct ObjectTemplate *r6, u8 r7) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Object *r4 = TaskGetStructPtr(task);
 
     ClearObjectBase(&r4->base);
@@ -2225,7 +2225,7 @@ void *CreateEmpty(struct ObjectTemplate *r6, u8 r7) {
     r4->type = r6->type;
     r4->unk85 = 0;
     r4->unk80 = 0;
-    r4->unk78 = nullsub_124;
+    r4->unk78 = FN(nullsub_124);
     r4->unk7C = 0;
     r4->objTemplate = r6;
     r4->kirbyAbility = KIRBY_ABILITY_NORMAL;
@@ -2317,7 +2317,7 @@ static void sub_0809F938(struct Object *obj) {
     obj->base.parent = obj->base.unk6C;
     obj->base.counter = 0;
     unkC = obj->base.unkC | 1;
-    obj->unk78 = sub_0809F964;
+    obj->unk78 = FN(sub_0809F964);
     obj->base.unkC = unkC | 0x400;
 }
 
@@ -2350,3 +2350,36 @@ static void nullsub_124(struct Object *obj) {}
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_object) {
+    PORT_FNID(ObjectMain),
+    PORT_FNID(ObjectDestroy),
+    PORT_FNID(sub_0809B6A8),
+    PORT_FNID(sub_0809B93C),
+    PORT_FNID(sub_0809BBB0),
+    PORT_FNID(sub_0809BEF8),
+    PORT_FNID(sub_0809C180),
+    PORT_FNID(sub_0809C48C),
+    PORT_FNID(sub_0809C994),
+    PORT_FNID(sub_0809CE80),
+    PORT_FNID(sub_0809D1E0),
+    PORT_FNID(sub_0809D654),
+    PORT_FNID(sub_0809E55C),
+    PORT_FNID(sub_0809E8D4),
+    PORT_FNID(sub_0809ECD0),
+    PORT_FNID(sub_0809EF88),
+    PORT_FNID(CreateEmpty),
+    PORT_FNID(sub_0809F840),
+    PORT_FNID(sub_0809F88C),
+    PORT_FNID(sub_0809F8BC),
+    PORT_FNID(sub_0809F964),
+    PORT_FNID(nullsub_123),
+    PORT_FNID(sub_0809F974),
+    PORT_FNID(sub_0809F988),
+    PORT_FNID(nullsub_124),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

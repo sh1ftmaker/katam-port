@@ -62,7 +62,7 @@ extern const struct AnimInfo gUnk_082EB49C[] = {
 
 void *CreateDoorToHub(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct DoorToHub), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct DoorToHub), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct DoorToHub *tmp = TaskGetStructPtr(t), *door = tmp;
 
     InitObject(&door->obj, template_, a2);
@@ -78,7 +78,7 @@ void *CreateDoorToHub(struct ObjectTemplate *template_, u8 a2)
     if (template_->unk22 & 1)
     {
         door->obj.base.flags |= 0x400;
-        door->obj.unk78 = sub_0802B0DC;
+        door->obj.unk78 = FN(sub_0802B0DC);
     }
     else if (gCollisionAttributes[GetCollisionTile(a2, door->obj.base.x >> 12, (door->obj.base.y - 0x800) >> 12)] & 0x4000)
     {
@@ -88,12 +88,12 @@ void *CreateDoorToHub(struct ObjectTemplate *template_, u8 a2)
                                      gUnk_082EB444[0].variant, 0);
         door->effectObjects[0]->sprite.unk14 = 0x7C0;
         sub_0802AC5C(door);
-        door->obj.unk78 = sub_0802B0D0;
+        door->obj.unk78 = FN(sub_0802B0D0);
     }
     else
     {
         door->obj.base.flags |= 0x400;
-        door->obj.unk78 = sub_0802AD00;
+        door->obj.unk78 = FN(sub_0802AD00);
     }
     return door;
 }
@@ -137,7 +137,7 @@ static void sub_0802AD00(struct DoorToHub *door)
                                      gUnk_082EB444[0].variant, 0);
         door->effectObjects[0]->sprite.unk14 = 0x7C0;
         sub_0802AC5C(door);
-        door->obj.unk78 = sub_0802B0D0;
+        door->obj.unk78 = FN(sub_0802B0D0);
         sub_0802B0D0(door);
     }
 }
@@ -156,7 +156,7 @@ static void sub_0802ADAC(struct DoorToHub *door)
         door->effectObjects[1]->x = door->obj.base.x;
         door->effectObjects[1]->y = door->obj.base.y - 0x800;
         door->effectObjects[1]->sprite.unk14 = 0x780;
-        door->obj.unk78 = sub_0802B0FC;
+        door->obj.unk78 = FN(sub_0802B0FC);
     }
 }
 
@@ -167,7 +167,7 @@ static void sub_0802AE58(struct DoorToHub *door)
     door->effectObjects[0]->sprite.unk1B = 0xFF;
     door->effectObjects[0]->flags &= ~2;
     door->effectObjects[0]->unk4 = 1;
-    door->obj.unk78 = sub_0802B150;
+    door->obj.unk78 = FN(sub_0802B150);
 }
 
 // force generating the offset of currentRoom
@@ -180,7 +180,7 @@ static void sub_0802AE9C(struct DoorToHub *door)
     u16 i, j;
 
     if (!sub_0801BA18(&door->obj.base, FALSE))
-        door->obj.unk78 = sub_0802B088;
+        door->obj.unk78 = FN(sub_0802B088);
     else
     {
         struct LevelInfo *li = &gCurLevelInfo[door->obj.base.unk56];
@@ -240,7 +240,7 @@ static void sub_0802B088(struct DoorToHub *door)
     door->effectObjects[0]->sprite.unk1B = 0xFF;
     door->effectObjects[0]->flags &= ~2;
     door->effectObjects[0]->unk4 = 1;
-    door->obj.unk78 = sub_0802B170;
+    door->obj.unk78 = FN(sub_0802B170);
 }
 
 void nullsub_116(struct DoorToHub *door)
@@ -255,7 +255,7 @@ static void sub_0802B0DC(struct DoorToHub *door)
 {
     door->obj.base.flags |= 0x400;
     door->effectObjects[0]->flags |= 0x400;
-    door->obj.unk78 = sub_0802ADAC;
+    door->obj.unk78 = FN(sub_0802ADAC);
 }
 
 static void sub_0802B0FC(struct DoorToHub *door)
@@ -264,25 +264,25 @@ static void sub_0802B0FC(struct DoorToHub *door)
     door->effectObjects[0]->sprite.variant = gUnk_082EB444[1].variant;
     door->effectObjects[0]->sprite.unk1B = 0xFF;
     door->effectObjects[0]->unk4 = 0;
-    door->obj.unk78 = sub_0802B134;
+    door->obj.unk78 = FN(sub_0802B134);
 }
 
 static void sub_0802B134(struct DoorToHub *door)
 {
     if (sub_0801BA18(&door->obj.base, FALSE))
-        door->obj.unk78 = sub_0802AE58;
+        door->obj.unk78 = FN(sub_0802AE58);
 }
 
 static void sub_0802B150(struct DoorToHub *door)
 {
     if (door->effectObjects[0]->flags & 2)
-        door->obj.unk78 = sub_0802B190;
+        door->obj.unk78 = FN(sub_0802B190);
 }
 
 static void sub_0802B170(struct DoorToHub *door)
 {
     if (door->effectObjects[0]->flags & 2)
-        door->obj.unk78 = sub_0802B0FC;
+        door->obj.unk78 = FN(sub_0802B0FC);
 }
 
 static void sub_0802B190(struct DoorToHub *door)
@@ -291,12 +291,12 @@ static void sub_0802B190(struct DoorToHub *door)
     door->effectObjects[0]->sprite.variant = gUnk_082EB444[0].variant;
     door->effectObjects[0]->sprite.unk1B = 0xFF;
     door->effectObjects[0]->unk4 = 0;
-    door->obj.unk78 = sub_0802AE9C;
+    door->obj.unk78 = FN(sub_0802AE9C);
 }
 
 void *CreateAreaDoor(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct AreaDoor), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct AreaDoor), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct AreaDoor *tmp = TaskGetStructPtr(t), *door = tmp;
 
     InitObject(&door->obj, template_, a2);
@@ -309,17 +309,17 @@ void *CreateAreaDoor(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&door->obj.base, -8, -8, 8, 8);
     ObjectInitSprite(&door->obj);
     door->obj.base.sprite.unk14 = 0x7C0;
-    gUnk_08351648[door->obj.type].unk10(&door->obj);
+    CALL(gUnk_08351648[door->obj.type].unk10)(&door->obj);
     if (gCollisionAttributes[GetCollisionTile(a2, door->obj.base.x >> 12, (door->obj.base.y - 0x800) >> 12)] & 0x4000)
     {
         door->obj.base.flags &= ~0x400;
         sub_0802B2F4(door);
-        door->obj.unk78 = sub_0802B43C;
+        door->obj.unk78 = FN(sub_0802B43C);
     }
     else
     {
         door->obj.base.flags |= 0x400;
-        door->obj.unk78 = sub_0802B450;
+        door->obj.unk78 = FN(sub_0802B450);
     }
     return door;
 }
@@ -389,10 +389,36 @@ static void sub_0802B450(struct AreaDoor *door)
     {
         door->obj.base.flags &= ~0x400;
         sub_0802B2F4(door);
-        door->obj.unk78 = sub_0802B43C;
+        door->obj.unk78 = FN(sub_0802B43C);
     }
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_special_doors) {
+    PORT_FNID(CreateDoorToHub),
+    PORT_FNID(sub_0802AD00),
+    PORT_FNID(sub_0802ADAC),
+    PORT_FNID(sub_0802AE58),
+    PORT_FNID(sub_0802AE9C),
+    PORT_FNID(sub_0802B088),
+    PORT_FNID(nullsub_116),
+    PORT_FNID(sub_0802B0D0),
+    PORT_FNID(sub_0802B0DC),
+    PORT_FNID(sub_0802B0FC),
+    PORT_FNID(sub_0802B134),
+    PORT_FNID(sub_0802B150),
+    PORT_FNID(sub_0802B170),
+    PORT_FNID(sub_0802B190),
+    PORT_FNID(CreateAreaDoor),
+    PORT_FNID(nullsub_117),
+    PORT_FNID(sub_0802B43C),
+    PORT_FNID(sub_0802B450),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

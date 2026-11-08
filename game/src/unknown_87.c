@@ -96,7 +96,7 @@ static void sub_08120EE0(struct Unknown87 *u)
 
 void *CreateUnknown87(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Unknown87), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Unknown87), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Unknown87 *u = TaskGetStructPtr(t);
 
     InitObject(&u->obj, template_, a2);
@@ -104,13 +104,13 @@ void *CreateUnknown87(struct ObjectTemplate *template_, u8 a2)
     u->obj.base.unk68 &= ~7;
     u->obj.base.unk5C |= 0x20;
     u->obj.base.unkC |= 1;
-    gUnk_08351648[u->obj.type].unk10(&u->obj);
+    CALL(gUnk_08351648[u->obj.type].unk10)(&u->obj);
     return u;
 }
 
 void sub_0812102C(struct Unknown87 *u)
 {
-    u->obj.unk78 = sub_08121080;
+    u->obj.unk78 = FN(sub_08121080);
     *GetStateSlot(STATE_SLOT_ROOM, u->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[u->obj.base.unk56].unk65E)) = 0;
     u->unkB4 = 0;
     u->unkB6 = 0;
@@ -128,3 +128,14 @@ static void sub_08121080(struct Unknown87 *u)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_unknown_87) {
+    PORT_FNID(CreateUnknown87),
+    PORT_FNID(sub_0812102C),
+    PORT_FNID(sub_08121080),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

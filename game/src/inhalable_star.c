@@ -51,7 +51,7 @@ void sub_080A8D18(struct Object *obj, s16 a2, s16 a3, u8 a4, u8 a5)
 
 void *CreateInhalableStar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *star = TaskGetStructPtr(t);
 
     InitObject(star, template_, a2);
@@ -69,13 +69,13 @@ void *CreateInhalableStar(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&star->base, -6, -4, 6, 0xA);
     ObjectInitSprite(star);
     star->unk9E = 0;
-    star->unk7C = sub_0809F840;
+    star->unk7C = FN(sub_0809F840);
     return star;
 }
 
 void sub_080A8EF4(struct Object *star)
 {
-    ObjectSetFunc(star, 0, sub_080A8F64);
+    ObjectSetFunc(star, 0, FN(sub_080A8F64));
     star->base.xspeed = 0x200;
     star->base.yspeed = 0x180;
     star->base.sprite.unk14 = 0x540;
@@ -156,3 +156,14 @@ void sub_080A9038(struct Kirby *kirby, bool8 a2)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_inhalable_star) {
+    PORT_FNID(CreateInhalableStar),
+    PORT_FNID(sub_080A8EF4),
+    PORT_FNID(sub_080A8F64),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -227,45 +227,45 @@ static const u16 gUnk_083872F4[][2] = {
 };
 
 static void (*const gUnk_08387300[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_081471E8,
-    sub_08146CE4,
-    sub_081474C4,
+    FN(sub_08146CE4),
+    FN(sub_081471E8),
+    FN(sub_08146CE4),
+    FN(sub_081474C4),
 };
 
 static void (*const gUnk_08387310[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_081478FC,
+    FN(sub_08146CE4),
+    FN(sub_081478FC),
 };
 
 static void (*const gUnk_08387318[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_08147C28,
+    FN(sub_08146CE4),
+    FN(sub_08147C28),
 };
 
 static void (*const gUnk_08387320[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_08148064,
+    FN(sub_08146CE4),
+    FN(sub_08148064),
 };
 
 static void (*const gUnk_08387328[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_081482C4,
+    FN(sub_08146CE4),
+    FN(sub_081482C4),
 };
 
 static void (*const gUnk_08387330[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_081485B4,
+    FN(sub_08146CE4),
+    FN(sub_081485B4),
 };
 
 static void (*const gUnk_08387338[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_08148804,
+    FN(sub_08146CE4),
+    FN(sub_08148804),
 };
 
 static void (*const gUnk_08387340[])(struct Unk_08145B64_5EC *) = {
-    sub_08146CE4,
-    sub_08148AC4,
+    FN(sub_08146CE4),
+    FN(sub_08148AC4),
 };
 
 static const struct Unk_08387348 gUnk_08387348[] = {
@@ -284,7 +284,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08149874,
+        .unk8 = FN(sub_08149874),
         .unkC = NULL,
     },
     {
@@ -292,8 +292,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x20,
         .unk3 = 0x8,
-        .unk4 = sub_0814996C,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_0814996C),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -302,7 +302,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -310,8 +310,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x20,
         .unk3 = 0x8,
-        .unk4 = sub_08149980,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_08149980),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -320,7 +320,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0xA,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -328,7 +328,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x28,
         .unk3 = 0x8,
-        .unk4 = sub_08149864,
+        .unk4 = FN(sub_08149864),
         .unk8 = NULL,
         .unkC = gUnk_08387300,
     },
@@ -338,7 +338,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x7,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -347,7 +347,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -355,7 +355,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x20,
         .unk3 = 0x8,
-        .unk4 = sub_08149A94,
+        .unk4 = FN(sub_08149A94),
         .unk8 = NULL,
         .unkC = gUnk_08387310,
     },
@@ -365,7 +365,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -374,7 +374,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -383,7 +383,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x28,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -391,7 +391,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x28,
         .unk3 = 0xC,
-        .unk4 = sub_08149AC4,
+        .unk4 = FN(sub_08149AC4),
         .unk8 = NULL,
         .unkC = gUnk_08387318,
     },
@@ -400,7 +400,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x20,
         .unk3 = 0x8,
-        .unk4 = sub_08148570,
+        .unk4 = FN(sub_08148570),
         .unk8 = NULL,
         .unkC = gUnk_08387330,
     },
@@ -410,7 +410,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -419,7 +419,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x9,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -427,7 +427,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xA,
         .unk2 = 0x28,
         .unk3 = 0xA,
-        .unk4 = sub_08149864,
+        .unk4 = FN(sub_08149864),
         .unk8 = NULL,
         .unkC = gUnk_08387300,
     },
@@ -437,7 +437,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -446,7 +446,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -455,7 +455,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x28,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -464,7 +464,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -472,8 +472,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x10,
         .unk2 = 0x28,
         .unk3 = 0x10,
-        .unk4 = sub_08149A28,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_08149A28),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -481,8 +481,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xB,
         .unk2 = 0x20,
         .unk3 = 0xB,
-        .unk4 = sub_081499D4,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_081499D4),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -490,8 +490,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x30,
         .unk3 = 0x8,
-        .unk4 = sub_08149C34,
-        .unk8 = sub_08146CE4,
+        .unk4 = FN(sub_08149C34),
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -500,7 +500,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x9,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -509,7 +509,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0xA,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -518,7 +518,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x9,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -526,7 +526,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x7,
         .unk2 = 0x20,
         .unk3 = 0x9,
-        .unk4 = sub_08149AFC,
+        .unk4 = FN(sub_08149AFC),
         .unk8 = NULL,
         .unkC = gUnk_08387320,
     },
@@ -536,7 +536,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0xC,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -544,8 +544,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x7,
         .unk2 = 0x28,
         .unk3 = 0xA,
-        .unk4 = sub_08149A50,
-        .unk8 = sub_081472DC,
+        .unk4 = FN(sub_08149A50),
+        .unk8 = FN(sub_081472DC),
         .unkC = NULL,
     },
     {
@@ -554,7 +554,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x30,
         .unk3 = 0xA,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -562,8 +562,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xB,
         .unk2 = 0x20,
         .unk3 = 0xB,
-        .unk4 = sub_081499AC,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_081499AC),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -572,7 +572,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -581,7 +581,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -590,7 +590,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -599,7 +599,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x30,
         .unk3 = 0xF,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -607,8 +607,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xF,
         .unk2 = 0x40,
         .unk3 = 0xF,
-        .unk4 = sub_08149994,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_08149994),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -617,7 +617,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x30,
         .unk3 = 0x0,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -626,7 +626,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -634,7 +634,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x8,
         .unk2 = 0x20,
         .unk3 = 0x8,
-        .unk4 = sub_081487C0,
+        .unk4 = FN(sub_081487C0),
         .unk8 = NULL,
         .unkC = gUnk_08387338,
     },
@@ -644,7 +644,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -652,8 +652,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x7,
         .unk2 = 0x20,
         .unk3 = 0x7,
-        .unk4 = sub_081499C0,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_081499C0),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -662,7 +662,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x48,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -671,7 +671,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x5,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -680,7 +680,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -689,7 +689,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x38,
         .unk3 = 0xF,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -697,7 +697,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xB,
         .unk2 = 0x30,
         .unk3 = 0xB,
-        .unk4 = sub_08149B5C,
+        .unk4 = FN(sub_08149B5C),
         .unk8 = NULL,
         .unkC = gUnk_08387328,
     },
@@ -707,7 +707,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x28,
         .unk3 = 0xE,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -716,7 +716,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -725,7 +725,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -734,7 +734,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -743,7 +743,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0xB,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -752,7 +752,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -761,7 +761,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -770,7 +770,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x28,
         .unk3 = 0x7,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -779,7 +779,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x20,
         .unk3 = 0xA,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -788,7 +788,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -797,7 +797,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -806,7 +806,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -815,7 +815,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x18,
         .unk3 = 0x8,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -823,8 +823,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x14,
         .unk2 = 0x38,
         .unk3 = 0x14,
-        .unk4 = sub_08149A3C,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_08149A3C),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -832,8 +832,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0xB,
         .unk2 = 0x40,
         .unk3 = 0xB,
-        .unk4 = sub_081499FC,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_081499FC),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -842,7 +842,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x38,
         .unk3 = 0xF,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -850,8 +850,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x14,
         .unk2 = 0x68,
         .unk3 = 0x14,
-        .unk4 = sub_081499E8,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_081499E8),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -859,8 +859,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x14,
         .unk2 = 0x48,
         .unk3 = 0x14,
-        .unk4 = sub_08149A10,
-        .unk8 = sub_08146D80,
+        .unk4 = FN(sub_08149A10),
+        .unk8 = FN(sub_08146D80),
         .unkC = NULL,
     },
     {
@@ -868,8 +868,8 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x10,
         .unk2 = 0x60,
         .unk3 = 0x10,
-        .unk4 = sub_08149A5C,
-        .unk8 = sub_081474C4,
+        .unk4 = FN(sub_08149A5C),
+        .unk8 = FN(sub_081474C4),
         .unkC = NULL,
     },
     {
@@ -878,7 +878,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x48,
         .unk3 = 0x10,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
     {
@@ -886,7 +886,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk1 = 0x14,
         .unk2 = 0x50,
         .unk3 = 0x14,
-        .unk4 = sub_08148A80,
+        .unk4 = FN(sub_08148A80),
         .unk8 = NULL,
         .unkC = gUnk_08387340,
     },
@@ -896,7 +896,7 @@ static const struct Unk_08387348 gUnk_08387348[] = {
         .unk2 = 0x40,
         .unk3 = 0x10,
         .unk4 = NULL,
-        .unk8 = sub_08146CE4,
+        .unk8 = FN(sub_08146CE4),
         .unkC = NULL,
     },
 };
@@ -1013,19 +1013,19 @@ void sub_08145B64(u16 a1) {
     for (i = 0; i < 4; ++i)
         gBgScrollRegs[i][0] = gBgScrollRegs[i][1] = 0;
     gBgScrollRegs[2][0] = gBgScrollRegs[3][0] = 0x10;
-    t = TaskCreate(sub_08145D94, sizeof(struct Unk_08145B64), 0x1000, TASK_USE_IWRAM, sub_08145D1C);
+    t = TaskCreate(FN(sub_08145D94), sizeof(struct Unk_08145B64), 0x1000, TASK_USE_IWRAM, FN(sub_08145D1C));
     tmp = TaskGetStructPtr(t);
     var = tmp;
     CpuFill16(0, var, sizeof(struct Unk_08145B64));
-    var->unk13F8 = sub_08148CD8;
-    var->unk1408 = sub_08149758;
-    var->unk1410 = sub_0814963C;
+    var->unk13F8 = FN(sub_08148CD8);
+    var->unk1408 = FN(sub_08149758);
+    var->unk1410 = FN(sub_0814963C);
     var->unk140C = a1;
     var->unkC = 1;
     var->unk8 = 1;
     var->unk4 = 1;
     for (i = 0; i < 2; ++i)
-        var->unk3C[i] = sub_08149710;
+        var->unk3C[i] = FN(sub_08149710);
     for (i = 0; i < 0x20; ++i)
         var->unk548[i] = &var->unk48[i];
     for (i = 0; i < 0x40; ++i)
@@ -1064,20 +1064,20 @@ static void sub_08145D94(void) {
     sub_08149628(var);
     for (i = 0; i < 2; ++i)
         if (var->unk3C[i])
-            var->unk3C[i](var, i);
+            CALL(var->unk3C[i])(var, i);
     if (var->unk1408)
-        var->unk1408(var);
+        CALL(var->unk1408)(var);
     sub_081497B0(var);
     if (gPressedKeys & (START_BUTTON | A_BUTTON | B_BUTTON)
         && !(var->unk4 & 0x10038)) {
         var->unk4 |= 0x10000;
         var->unk8 |= 0x10000;
         var->unk1408 = NULL;
-        var->unk1400 = sub_081494E4;
+        var->unk1400 = FN(sub_081494E4);
     }
     if (var->unk1400)
-        var->unk1400(var);
-    if (!var->unk13F8(var))
+        CALL(var->unk1400)(var);
+    if (!CALL(var->unk13F8)(var))
         sub_081496C8(var);
 }
 
@@ -1094,7 +1094,7 @@ static void sub_08145E84(struct Unk_08145B64 *a1) {
         a1->unk1418 = (gUnk_083877EE[0xB] - gUnk_083877EE[0xA]) / 3;
         ++a1->unk1416;
         a1->unk1417 = 0;
-        a1->unk1410 = sub_08145F38;
+        a1->unk1410 = FN(sub_08145F38);
     }
 }
 
@@ -1110,13 +1110,13 @@ static void sub_08145F38(struct Unk_08145B64 *a1) {
     if (++a1->unk1417 >= a1->unk1418) {
         a1->unk1417 = 0;
         if (++a1->unk1416 > 3) {
-            a1->unk1410 = sub_08146018;
+            a1->unk1410 = FN(sub_08146018);
             return;
         }
     }
     if (unk0 >= gUnk_083877EE[0xB]) {
         ++a1->unk1416;
-        a1->unk1410 = sub_08146018;
+        a1->unk1410 = FN(sub_08146018);
     }
 }
 
@@ -1133,7 +1133,7 @@ static void sub_08146018(struct Unk_08145B64 *a1) {
         a1->unk1418 = (gUnk_083877EE[0xD] - gUnk_083877EE[0xC]) / 3;
         --a1->unk1416;
         a1->unk1417 = 0;
-        a1->unk1410 = sub_081460CC;
+        a1->unk1410 = FN(sub_081460CC);
     }
 }
 
@@ -1149,13 +1149,13 @@ static void sub_081460CC(struct Unk_08145B64 *a1) {
     if (++a1->unk1417 >= a1->unk1418) {
         a1->unk1417 = 0;
         if (--a1->unk1416 == 0) {
-            a1->unk1410 = sub_081461AC;
+            a1->unk1410 = FN(sub_081461AC);
             return;
         }
     }
     if (unk0 >= gUnk_083877EE[0xD]) {
         --a1->unk1416;
-        a1->unk1410 = sub_081461AC;
+        a1->unk1410 = FN(sub_081461AC);
     }
 }
 
@@ -1169,7 +1169,7 @@ static void sub_081461AC(struct Unk_08145B64 *a1) {
     if (unk0 & 1)
         a1->unk1415 = gUnk_083877A8[a1->unk1416][Rand32() & 7];
     if (unk0 >= gUnk_083877EE[0xE])
-        a1->unk1410 = nullsub_133;
+        a1->unk1410 = FN(nullsub_133);
 }
 
 static void sub_0814623C(struct Unk_08145B64 *a1) {
@@ -1188,7 +1188,7 @@ static void sub_0814623C(struct Unk_08145B64 *a1) {
     if (unk0 >= gUnk_083877EE[0xE]) {
         a1->unk1415 = 0;
         a1->unk1414 = 0;
-        a1->unk1410 = nullsub_133;
+        a1->unk1410 = FN(nullsub_133);
     }
 }
 
@@ -1203,7 +1203,7 @@ static void sub_08146308(struct Unk_08145B64 *a1, u8 a2) {
         gBgCntRegs[bg] = cnt[a2];
         gBgScrollRegs[bg][0] -= 0x100;
         a1->unk32[a2] -= 0x4000;
-        a1->unk3C[a2] = sub_08146398;
+        a1->unk3C[a2] = FN(sub_08146398);
     }
 }
 
@@ -1217,7 +1217,7 @@ static void sub_08146398(struct Unk_08145B64 *a1, u8 a2) {
         a1->unk32[a2] -= 0x4000;
     }
     if (a1->unk0 >= gUnk_083877EE[3 * a2 + 5])
-        a1->unk3C[a2] = sub_08146414;
+        a1->unk3C[a2] = FN(sub_08146414);
 }
 
 static void sub_08146414(struct Unk_08145B64 *a1, u8 a2) {
@@ -1236,7 +1236,7 @@ static void sub_08146414(struct Unk_08145B64 *a1, u8 a2) {
         gBgCntRegs[bg] = cnt[a2];
         gBgScrollRegs[bg][0] += 0x100;
         a1->unk32[a2] += 0x4000;
-        a1->unk3C[a2] = sub_081464D4;
+        a1->unk3C[a2] = FN(sub_081464D4);
     }
 }
 
@@ -1264,7 +1264,7 @@ static void sub_0814654C(struct Unk_08145B64 *a1) {
         gBldRegs.bldAlpha = BLDALPHA_BLEND(0x10, 0x10);
         gBldRegs.bldY = 0;
         a1->unk8 &= ~0x20;
-        a1->unk1408 = nullsub_134;
+        a1->unk1408 = FN(nullsub_134);
     }
 }
 
@@ -1325,12 +1325,12 @@ static void sub_0814669C(struct Unk_08145B64 *a1, const struct Unk_08387814 *a2)
         v4->unk1C = gUnk_08387348[a2->unk4].unk8 ? (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unk8 : (void (*)(struct Unk_08145B64_5EC *))gUnk_08387348[a2->unk4].unkC[a2->unkE];
         v4->unk1 = a2->unk5 - 1;
         v4->unk5 = 0x10 - a2->unk8;
-        if (v4->unk1C != sub_08146CE4) {
+        if (v4->unk1C != FN(sub_08146CE4)) {
             v4->unk2 = 0;
             v4->unk1 = 0xFF;
         }
         if (gUnk_08387348[v4->unk0].unk4)
-            gUnk_08387348[v4->unk0].unk4(v4, a2);
+            CALL(gUnk_08387348[v4->unk0].unk4)(v4, a2);
         if (v4->unk0 > 0 && v4->unk0 < 5)
             sub_081469D4(a1, v4);
         else
@@ -1529,7 +1529,7 @@ static void sub_08146E3C(struct Unk_08145B64_5EC *a1) {
 
         ++ptr->pat2.unk1;
         ptr->pat2.unkA = 0;
-        a1->unk1C = sub_08149880;
+        a1->unk1C = FN(sub_08149880);
         ptr->pat2.unk2 = a1->unkE;
         a1->unkE = a1->unkE >> 1;
         sprite = &a1->unk20->unk48[a1->unk3];
@@ -1593,7 +1593,7 @@ static void sub_08146EE8(struct Unk_08145B64_5EC *a1) {
             --unk20->unk11;
         }
         a1->unk3 = 0xFF;
-        a1->unk1C = sub_08146FB0;
+        a1->unk1C = FN(sub_08146FB0);
     }
 }
 
@@ -1610,7 +1610,7 @@ static void sub_08146FB0(struct Unk_08145B64_5EC *a1) {
         sub_08155128(sprite);
         ptr->pat2.unk7 = a1->unk3;
         ptr->pat2.unk6 = 1;
-        a1->unk1C = sub_08147014;
+        a1->unk1C = FN(sub_08147014);
     }
 }
 
@@ -1629,7 +1629,7 @@ static void sub_08147014(struct Unk_08145B64_5EC *a1) {
         ++ptr->pat2.unk1;
         a1->unk3 = ptr->pat2.unk7;
         ptr->pat2.unk6 = 1;
-        a1->unk1C = sub_081498B4;
+        a1->unk1C = FN(sub_081498B4);
     }
 }
 
@@ -1640,14 +1640,14 @@ static void sub_08147078(struct Unk_08145B64_5EC *a1) {
     if (++ptr->pat2.unkA > 0x18) {
         ptr->pat2.unkA = 0;
         if (++ptr->pat2.unk9 > 3)
-            a1->unk1C = sub_08149910;
+            a1->unk1C = FN(sub_08149910);
         m4aSongNumStart(SE_INTRO_KIRBY_LOOK);
     }
     if (!sub_08155128(sprite)) {
         sprite->animId = gUnk_08387208[0][0];
         sprite->variant = gUnk_08387208[0][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081470EC;
+        a1->unk1C = FN(sub_081470EC);
     }
 }
 
@@ -1665,7 +1665,7 @@ static void sub_081470EC(struct Unk_08145B64_5EC *a1) {
         sprite->variant = gUnk_08387208[2][1];
         sub_08155128(sprite);
         a1->unkE = 2 * ptr->pat2.unk2;
-        a1->unk1C = sub_08147154;
+        a1->unk1C = FN(sub_08147154);
     }
 }
 
@@ -1741,7 +1741,7 @@ static void sub_081472DC(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387220[1][0];
         sprite->variant = gUnk_08387220[1][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081473E0;
+        a1->unk1C = FN(sub_081473E0);
     } else {
         a1->unkA += a1->unkE;
         if (a1->unk0
@@ -1790,7 +1790,7 @@ static void sub_081473E0(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387220[0][0];
         sprite->variant = gUnk_08387220[0][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081472DC;
+        a1->unk1C = FN(sub_081472DC);
     } else {
         v5 = a1->unk20;
         unk3 = a1->unk3;
@@ -1830,7 +1830,7 @@ static void sub_081474C4(struct Unk_08145B64_5EC *a1) {
         sub_08155128(sprite);
         m4aSongNumStart(SE_INTRO_KIRBY_FLOAT);
         unk24->pat3.unk4 = 0;
-        a1->unk1C = sub_08147580;
+        a1->unk1C = FN(sub_08147580);
     }
 }
 
@@ -1858,14 +1858,14 @@ static void sub_08147580(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387230[5][0];
         sprite->variant = gUnk_08387230[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147858;
+        a1->unk1C = FN(sub_08147858);
     } else if (++unk24->pat3.unk4 >= unk24->pat3.unk5) {
         struct Sprite *sprite = &a1->unk20->unk48[a1->unk3];
 
         sprite->animId = gUnk_08387230[3][0];
         sprite->variant = gUnk_08387230[3][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081476A8;
+        a1->unk1C = FN(sub_081476A8);
     } else {
         struct Unk_08145B64 *v5 = a1->unk20;
         u8 unk3 = a1->unk3;
@@ -1900,12 +1900,12 @@ static void sub_081476A8(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387230[5][0];
         sprite->variant = gUnk_08387230[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147858;
+        a1->unk1C = FN(sub_08147858);
     } else if (!sub_08155128(sprite)) {
         sprite->animId = gUnk_08387230[4][0];
         sprite->variant = gUnk_08387230[4][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147774;
+        a1->unk1C = FN(sub_08147774);
     }
 }
 
@@ -1935,7 +1935,7 @@ static void sub_08147774(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387230[5][0];
         sprite->variant = gUnk_08387230[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147858;
+        a1->unk1C = FN(sub_08147858);
     } else {
         v5 = a1->unk20;
         unk3 = a1->unk3;
@@ -1970,7 +1970,7 @@ static void sub_08147858(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387230[1][0];
         sprite->variant = gUnk_08387230[1][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081474C4;
+        a1->unk1C = FN(sub_081474C4);
     }
 }
 
@@ -1995,7 +1995,7 @@ static void sub_081478FC(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387248[2][0];
         sprite->variant = gUnk_08387248[2][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081479E8;
+        a1->unk1C = FN(sub_081479E8);
     } else {
         struct Unk_08145B64 *v5 = a1->unk20;
         u8 unk3 = a1->unk3;
@@ -2034,7 +2034,7 @@ static void sub_081479E8(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387248[3][0];
         sprite->variant = gUnk_08387248[3][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147A98;
+        a1->unk1C = FN(sub_08147A98);
     }
 }
 
@@ -2064,7 +2064,7 @@ static void sub_08147A98(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387248[4][0];
         sprite->variant = gUnk_08387248[4][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147B7C;
+        a1->unk1C = FN(sub_08147B7C);
     } else {
         v5 = a1->unk20;
         unk3 = a1->unk3;
@@ -2101,7 +2101,7 @@ static void sub_08147B7C(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387248[1][0];
         sprite->variant = gUnk_08387248[1][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081478FC;
+        a1->unk1C = FN(sub_081478FC);
     }
 }
 
@@ -2132,7 +2132,7 @@ static void sub_08147C28(struct Unk_08145B64_5EC *a1) {
         sub_08155128(sprite);
         m4aSongNumStart(SE_INTRO_KIRBY_JUMP);
         unk24->pat3.unk4 = 0;
-        a1->unk1C = sub_08147CE8;
+        a1->unk1C = FN(sub_08147CE8);
     }
 }
 
@@ -2160,14 +2160,14 @@ static void sub_08147CE8(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_0838725C[5][0];
         sprite->variant = gUnk_0838725C[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147FC0;
+        a1->unk1C = FN(sub_08147FC0);
     } else if (++unk24->pat3.unk4 >= unk24->pat3.unk5) {
         struct Sprite *sprite = &a1->unk20->unk48[a1->unk3];
 
         sprite->animId = gUnk_0838725C[3][0];
         sprite->variant = gUnk_0838725C[3][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147E10;
+        a1->unk1C = FN(sub_08147E10);
     } else {
         struct Unk_08145B64 *v5 = a1->unk20;
         u8 unk3 = a1->unk3;
@@ -2202,12 +2202,12 @@ static void sub_08147E10(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_0838725C[5][0];
         sprite->variant = gUnk_0838725C[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147FC0;
+        a1->unk1C = FN(sub_08147FC0);
     } else if (!sub_08155128(sprite)) {
         sprite->animId = gUnk_0838725C[4][0];
         sprite->variant = gUnk_0838725C[4][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147EDC;
+        a1->unk1C = FN(sub_08147EDC);
     }
 }
 
@@ -2237,7 +2237,7 @@ static void sub_08147EDC(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_0838725C[5][0];
         sprite->variant = gUnk_0838725C[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147FC0;
+        a1->unk1C = FN(sub_08147FC0);
     } else {
         v5 = a1->unk20;
         unk3 = a1->unk3;
@@ -2273,7 +2273,7 @@ static void sub_08147FC0(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_0838725C[1][0];
         sprite->variant = gUnk_0838725C[1][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147C28;
+        a1->unk1C = FN(sub_08147C28);
     }
 }
 
@@ -2300,7 +2300,7 @@ static void sub_08148064(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387274[2][0];
         sprite->variant = gUnk_08387274[2][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_0814815C;
+        a1->unk1C = FN(sub_0814815C);
     } else {
         struct Unk_08145B64 *v5 = a1->unk20;
         u8 unk3 = a1->unk3;
@@ -2337,7 +2337,7 @@ static void sub_0814815C(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387274[3][0];
         sprite->variant = gUnk_08387274[3][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08149B30;
+        a1->unk1C = FN(sub_08149B30);
     }
 }
 
@@ -2352,7 +2352,7 @@ static void sub_08148200(struct Unk_08145B64_5EC *a1) {
         sprite->variant = gUnk_08387274[0][1];
         sub_08155128(sprite);
         sprite->unk16 = 0x100;
-        a1->unk1C = sub_0814825C;
+        a1->unk1C = FN(sub_0814825C);
     }
 }
 
@@ -2376,7 +2376,7 @@ static void sub_0814825C(struct Unk_08145B64_5EC *a1) {
     sprite->animId = gUnk_08387274[1][0];
     sprite->variant = gUnk_08387274[1][1];
     sub_08155128(sprite);
-    a1->unk1C = sub_08148064;
+    a1->unk1C = FN(sub_08148064);
 }
 
 static void sub_081482C4(struct Unk_08145B64_5EC *a1) {
@@ -2400,7 +2400,7 @@ static void sub_081482C4(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387284[1][0];
         sprite->variant = gUnk_08387284[1][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081483B0;
+        a1->unk1C = FN(sub_081483B0);
     } else {
         struct Unk_08145B64 *v5 = a1->unk20;
         u8 unk3 = a1->unk3;
@@ -2439,7 +2439,7 @@ static void sub_081483B0(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387284[2][0];
         sprite->variant = gUnk_08387284[2][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08148464;
+        a1->unk1C = FN(sub_08148464);
     }
 }
 
@@ -2466,7 +2466,7 @@ static void sub_08148464(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387284[3][0];
         sprite->variant = gUnk_08387284[3][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08149B90;
+        a1->unk1C = FN(sub_08149B90);
     }
 }
 
@@ -2490,7 +2490,7 @@ static void sub_08148508(struct Unk_08145B64_5EC *a1) {
     sprite->animId = gUnk_08387284[0][0];
     sprite->variant = gUnk_08387284[0][1];
     sub_08155128(sprite);
-    a1->unk1C = sub_081482C4;
+    a1->unk1C = FN(sub_081482C4);
 }
 
 static void sub_08148570(struct Unk_08145B64_5EC *a1, const struct Unk_08387814 *a2) {
@@ -2529,7 +2529,7 @@ static void sub_081485B4(struct Unk_08145B64_5EC *a1) {
     sprite->animId = gUnk_0838729C[unk24->pat4.unk9][0];
     sprite->variant = gUnk_0838729C[unk24->pat4.unk9][1];
     sub_08155128(sprite);
-    a1->unk1C = sub_0814861C;
+    a1->unk1C = FN(sub_0814861C);
 }
 
 static void sub_0814861C(struct Unk_08145B64_5EC *a1) {
@@ -2656,7 +2656,7 @@ static void sub_08148804(struct Unk_08145B64_5EC *a1) {
     sprite->animId = gUnk_083872C0[unk24->pat4.unk9][0];
     sprite->variant = gUnk_083872C0[unk24->pat4.unk9][1];
     sub_08155128(sprite);
-    a1->unk1C = sub_0814889C;
+    a1->unk1C = FN(sub_0814889C);
 }
 
 static void sub_0814889C(struct Unk_08145B64_5EC *a1) {
@@ -2784,7 +2784,7 @@ static void sub_08148AC4(struct Unk_08145B64_5EC *a1) {
     sprite->animId = gUnk_083872F4[unk24->pat4.unk9][0];
     sprite->variant = gUnk_083872F4[unk24->pat4.unk9][1];
     sub_08155128(sprite);
-    a1->unk1C = sub_08148B24;
+    a1->unk1C = FN(sub_08148B24);
 }
 
 static void sub_08148B24(struct Unk_08145B64_5EC *a1) {
@@ -2893,7 +2893,7 @@ static bool32 sub_08148CD8(struct Unk_08145B64 *a1) {
     a1->unk24.unk6 |= 0x40;
     a1->unk8 &= ~1;
     a1->unk8 |= 2;
-    a1->unk13F8 = sub_08148FF8;
+    a1->unk13F8 = FN(sub_08148FF8);
     return FALSE;
 }
 
@@ -2984,12 +2984,12 @@ static bool32 sub_08148FF8(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     if (a1->unk0 >= gUnk_083877EE[0]) {
         a1->unk46 = gUnk_083877EE[1] >> 2;
-        a1->unk13F8 = sub_0814908C;
+        a1->unk13F8 = FN(sub_0814908C);
         a1->unk8 &= ~2;
         a1->unk8 |= 4;
     }
@@ -3012,7 +3012,7 @@ static bool32 sub_0814908C(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     if (a1->unk46) {
@@ -3024,7 +3024,7 @@ static bool32 sub_0814908C(struct Unk_08145B64 *a1) {
         }
     }
     if (a1->unk0 >= gUnk_083877EE[2] && !(a1->unk4 & 0x10000)) {
-        a1->unk13F8 = sub_08149154;
+        a1->unk13F8 = FN(sub_08149154);
         a1->unk8 &= ~4;
         a1->unk8 |= 8;
     }
@@ -3048,7 +3048,7 @@ static bool32 sub_08149154(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     sub_08146C60(a1);
@@ -3079,7 +3079,7 @@ static bool32 sub_08149154(struct Unk_08145B64 *a1) {
     }
     m4aSongNumStart(SE_SHARD_OBTAINED);
 #ifdef NONMATCHING
-    a1->unk13F8 = sub_08149270;
+    a1->unk13F8 = FN(sub_08149270);
 #else
     {
         register u32 _13F8 = 0x13F8;
@@ -3107,7 +3107,7 @@ static bool32 sub_08149270(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     sub_08146C60(a1);
@@ -3119,7 +3119,7 @@ static bool32 sub_08149270(struct Unk_08145B64 *a1) {
         gBldRegs.bldAlpha = 0;
         gBldRegs.bldY = 0x10;
         a1->unk13FC = 0;
-        a1->unk13F8 = sub_0814932C;
+        a1->unk13F8 = FN(sub_0814932C);
     }
     return FALSE;
 }
@@ -3138,12 +3138,12 @@ static bool32 sub_0814932C(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     sub_08146C60(a1);
     if (++a1->unk13FC > 9)
-        a1->unk13F8 = sub_08149C68;
+        a1->unk13F8 = FN(sub_08149C68);
     return FALSE;
 }
 
@@ -3163,7 +3163,7 @@ static bool32 sub_081493AC(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     sub_08146C60(a1);
@@ -3172,7 +3172,7 @@ static bool32 sub_081493AC(struct Unk_08145B64 *a1) {
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
     a1->unk13FC = 0;
-    a1->unk13F8 = sub_08149450;
+    a1->unk13F8 = FN(sub_08149450);
     return FALSE;
 }
 
@@ -3190,14 +3190,14 @@ static bool32 sub_08149450(struct Unk_08145B64 *a1) {
 
         for (current = a1->unk13EC; current; current = current->unk18) {
             ++current->unk8;
-            current->unk1C(current);
+            CALL(current->unk1C)(current);
         }
     }
     sub_08146C60(a1);
     ++a1->unk13FC;
     gBldRegs.bldY = 0x10 * a1->unk13FC / 0x1E;
     if (a1->unk13FC > 0x1D)
-        a1->unk13F8 = sub_08149C68;
+        a1->unk13F8 = FN(sub_08149C68);
     return FALSE;
 }
 
@@ -3205,7 +3205,7 @@ static void sub_081494E4(struct Unk_08145B64 *a1) {
     gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
-    a1->unk1400 = sub_08149504;
+    a1->unk1400 = FN(sub_08149504);
 }
 
 static void sub_08149504(struct Unk_08145B64 *a1) {
@@ -3221,7 +3221,7 @@ static void sub_08149504(struct Unk_08145B64 *a1) {
             }
         }
         gDispCnt &= ~DISPCNT_BG0_ON;
-        a1->unk1400 = sub_08149568;
+        a1->unk1400 = FN(sub_08149568);
     }
 }
 
@@ -3229,7 +3229,7 @@ static void sub_08149568(struct Unk_08145B64 *a1) {
     gBgScrollRegs[0][0] = 0x100;
     sub_081495B4(0, gUnk_083871D8[gLanguage][3], 0x100);
     a1->unk1400 = NULL;
-    a1->unk13F8 = sub_08149C68;
+    a1->unk13F8 = FN(sub_08149C68);
 }
 
 static void sub_081495B4(u8 a1, u16 a2, u16 a3) {
@@ -3255,14 +3255,14 @@ static void sub_081495B4(u8 a1, u16 a2, u16 a3) {
 }
 
 static void sub_08149628(struct Unk_08145B64 *a1) {
-    a1->unk1410(a1);
+    CALL(a1->unk1410)(a1);
 }
 
 static void sub_0814963C(struct Unk_08145B64 *a1) {
     if (a1->unk0 >= gUnk_083877EE[9]) {
         a1->unk1419 = 0;
         m4aSongNumStart(SE_INTRO_AMBIENT_2);
-        a1->unk1410 = sub_08145E84;
+        a1->unk1410 = FN(sub_08145E84);
     }
 }
 
@@ -3289,7 +3289,7 @@ static void sub_081496C8(struct Unk_08145B64 *a1) {
 static void sub_08149710(struct Unk_08145B64 *a1, u8 a2) {
     if (a1->unk0 >= gUnk_083877EE[3 * a2 + 3]) {
         a1->unk36[a2] = gUnk_083877EE[3 * a2 + 4] >> 2;
-        a1->unk3C[a2] = sub_08146308;
+        a1->unk3C[a2] = FN(sub_08146308);
     }
 }
 
@@ -3300,7 +3300,7 @@ static void sub_08149758(struct Unk_08145B64 *a1) {
         gBldRegs.bldY = 0;
         a1->unk8 |= 0x20;
         a1->unk140E = 0;
-        a1->unk1408 = sub_0814654C;
+        a1->unk1408 = FN(sub_0814654C);
     }
 }
 
@@ -3350,7 +3350,7 @@ static void sub_08149864(struct Unk_08145B64_5EC *a1, const struct Unk_08387814 
 }
 
 static void sub_08149874(struct Unk_08145B64_5EC *a1) {
-    a1->unk1C = sub_08146E3C;
+    a1->unk1C = FN(sub_08146E3C);
 }
 
 static void sub_08149880(struct Unk_08145B64_5EC *a1) {
@@ -3359,7 +3359,7 @@ static void sub_08149880(struct Unk_08145B64_5EC *a1) {
     a1->unkA += a1->unkE;
     if (!sub_08155128(sprite)) {
         a1->unkE = 0;
-        a1->unk1C = sub_08146EE8;
+        a1->unk1C = FN(sub_08146EE8);
     }
 }
 
@@ -3375,7 +3375,7 @@ static void sub_081498B4(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387208[5][0];
         sprite->variant = gUnk_08387208[5][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08147078;
+        a1->unk1C = FN(sub_08147078);
     }
 }
 
@@ -3389,7 +3389,7 @@ static void sub_08149910(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387208[0][0];
         sprite->variant = gUnk_08387208[0][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_081470EC;
+        a1->unk1C = FN(sub_081470EC);
     }
 }
 
@@ -3526,7 +3526,7 @@ static void sub_08149B30(struct Unk_08145B64_5EC *a1) {
     if (++unk24->pat5.unk6 > 0xF) {
         unk24->pat5.unk6 = 0;
         a1->unk10 = 0x200;
-        a1->unk1C = sub_08148200;
+        a1->unk1C = FN(sub_08148200);
     }
 }
 
@@ -3548,7 +3548,7 @@ static void sub_08149B90(struct Unk_08145B64_5EC *a1) {
         sprite->animId = gUnk_08387284[4][0];
         sprite->variant = gUnk_08387284[4][1];
         sub_08155128(sprite);
-        a1->unk1C = sub_08149BD8;
+        a1->unk1C = FN(sub_08149BD8);
     }
 }
 
@@ -3563,7 +3563,7 @@ static void sub_08149BD8(struct Unk_08145B64_5EC *a1) {
         sprite->variant = gUnk_08387284[5][1];
         sub_08155128(sprite);
         m4aSongNumStart(SE_INTRO_GIANT_ROCKY_SLAM);
-        a1->unk1C = sub_08148508;
+        a1->unk1C = FN(sub_08148508);
     }
 }
 
@@ -3574,9 +3574,9 @@ static void sub_08149C34(struct Unk_08145B64_5EC *a1, const struct Unk_08387814 
         unk24->pat1[0] = 0x260;
         unk24->pat1[1] = 0xC8;
         unk24->pat1[2] = 0xC3;
-        a1->unk1C = sub_08148C1C;
+        a1->unk1C = FN(sub_08148C1C);
     } else {
-        a1->unk1C = sub_08146CE4;
+        a1->unk1C = FN(sub_08146CE4);
     }
 }
 
@@ -3608,3 +3608,109 @@ static void sub_08149C80(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_intro) {
+    PORT_FNID(sub_08145D1C),
+    PORT_FNID(sub_08145D94),
+    PORT_FNID(sub_08145E84),
+    PORT_FNID(sub_08145F38),
+    PORT_FNID(sub_08146018),
+    PORT_FNID(sub_081460CC),
+    PORT_FNID(sub_081461AC),
+    PORT_FNID(sub_08146308),
+    PORT_FNID(sub_08146398),
+    PORT_FNID(sub_08146414),
+    PORT_FNID(sub_081464D4),
+    PORT_FNID(sub_0814654C),
+    PORT_FNID(sub_08146CE4),
+    PORT_FNID(sub_08146D80),
+    PORT_FNID(sub_08146E3C),
+    PORT_FNID(sub_08146EE8),
+    PORT_FNID(sub_08146FB0),
+    PORT_FNID(sub_08147014),
+    PORT_FNID(sub_08147078),
+    PORT_FNID(sub_081470EC),
+    PORT_FNID(sub_08147154),
+    PORT_FNID(sub_081471E8),
+    PORT_FNID(sub_081472DC),
+    PORT_FNID(sub_081473E0),
+    PORT_FNID(sub_081474C4),
+    PORT_FNID(sub_08147580),
+    PORT_FNID(sub_081476A8),
+    PORT_FNID(sub_08147774),
+    PORT_FNID(sub_08147858),
+    PORT_FNID(sub_081478FC),
+    PORT_FNID(sub_081479E8),
+    PORT_FNID(sub_08147A98),
+    PORT_FNID(sub_08147B7C),
+    PORT_FNID(sub_08147C28),
+    PORT_FNID(sub_08147CE8),
+    PORT_FNID(sub_08147E10),
+    PORT_FNID(sub_08147EDC),
+    PORT_FNID(sub_08147FC0),
+    PORT_FNID(sub_08148064),
+    PORT_FNID(sub_0814815C),
+    PORT_FNID(sub_08148200),
+    PORT_FNID(sub_0814825C),
+    PORT_FNID(sub_081482C4),
+    PORT_FNID(sub_081483B0),
+    PORT_FNID(sub_08148464),
+    PORT_FNID(sub_08148508),
+    PORT_FNID(sub_08148570),
+    PORT_FNID(sub_081485B4),
+    PORT_FNID(sub_0814861C),
+    PORT_FNID(sub_081487C0),
+    PORT_FNID(sub_08148804),
+    PORT_FNID(sub_0814889C),
+    PORT_FNID(sub_08148A80),
+    PORT_FNID(sub_08148AC4),
+    PORT_FNID(sub_08148B24),
+    PORT_FNID(sub_08148C1C),
+    PORT_FNID(sub_08148CD8),
+    PORT_FNID(sub_08148FF8),
+    PORT_FNID(sub_0814908C),
+    PORT_FNID(sub_08149154),
+    PORT_FNID(sub_08149270),
+    PORT_FNID(sub_0814932C),
+    PORT_FNID(sub_08149450),
+    PORT_FNID(sub_081494E4),
+    PORT_FNID(sub_08149504),
+    PORT_FNID(sub_08149568),
+    PORT_FNID(sub_0814963C),
+    PORT_FNID(nullsub_133),
+    PORT_FNID(sub_08149710),
+    PORT_FNID(sub_08149758),
+    PORT_FNID(nullsub_134),
+    PORT_FNID(sub_08149864),
+    PORT_FNID(sub_08149874),
+    PORT_FNID(sub_08149880),
+    PORT_FNID(sub_081498B4),
+    PORT_FNID(sub_08149910),
+    PORT_FNID(sub_0814996C),
+    PORT_FNID(sub_08149980),
+    PORT_FNID(sub_08149994),
+    PORT_FNID(sub_081499AC),
+    PORT_FNID(sub_081499C0),
+    PORT_FNID(sub_081499D4),
+    PORT_FNID(sub_081499E8),
+    PORT_FNID(sub_081499FC),
+    PORT_FNID(sub_08149A10),
+    PORT_FNID(sub_08149A28),
+    PORT_FNID(sub_08149A3C),
+    PORT_FNID(sub_08149A50),
+    PORT_FNID(sub_08149A5C),
+    PORT_FNID(sub_08149A94),
+    PORT_FNID(sub_08149AC4),
+    PORT_FNID(sub_08149AFC),
+    PORT_FNID(sub_08149B30),
+    PORT_FNID(sub_08149B5C),
+    PORT_FNID(sub_08149B90),
+    PORT_FNID(sub_08149BD8),
+    PORT_FNID(sub_08149C34),
+    PORT_FNID(sub_08149C68),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

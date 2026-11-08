@@ -94,29 +94,29 @@ static const u8 sClockTable[] = {
  * Note entries 0 and 3 are the do-nothing ply_xxx,
  * which bounces through gMPlayJumpTable[0] -- normally ply_fine. */
 const XcmdFunc gPortXcmdTable[] = {
-    ply_xxx, ply_xwave, ply_xtype, ply_xxx,
-    ply_xatta, ply_xdeca, ply_xsust, ply_xrele,
-    ply_xiecv, ply_xiecl, ply_xleng, ply_xswee,
+    FN(ply_xxx), FN(ply_xwave), FN(ply_xtype), FN(ply_xxx),
+    FN(ply_xatta), FN(ply_xdeca), FN(ply_xsust), FN(ply_xrele),
+    FN(ply_xiecv), FN(ply_xiecl), FN(ply_xleng), FN(ply_xswee),
 };
 
 /* The command dispatch table, copied into gMPlayJumpTable by SoundInit.
  * MPlayExtender then overwrites eight of these with the extended versions --
  * that is the whole point of the copy, and why the template is separate. */
 static MPlayFunc const sJumpTableTemplate[36] = {
-    ply_fine,  ply_goto,  ply_patt,  ply_pend,
-    ply_rept,  ply_fine,  ply_fine,  ply_fine,
-    ply_fine,  ply_prio,  ply_tempo, ply_keysh,
-    ply_voice, ply_vol,   ply_pan,   ply_bend,
-    ply_bendr, ply_lfos,  ply_lfodl, ply_mod,
-    ply_modt,  ply_fine,  ply_fine,  ply_tune,
-    ply_fine,  ply_fine,  ply_fine,  ply_port,
-    ply_fine,  ply_endtie,
+    FN(ply_fine),  FN(ply_goto),  FN(ply_patt),  FN(ply_pend),
+    FN(ply_rept),  FN(ply_fine),  FN(ply_fine),  FN(ply_fine),
+    FN(ply_fine),  FN(ply_prio),  FN(ply_tempo), FN(ply_keysh),
+    FN(ply_voice), FN(ply_vol),   FN(ply_pan),   FN(ply_bend),
+    FN(ply_bendr), FN(ply_lfos),  FN(ply_lfodl), FN(ply_mod),
+    FN(ply_modt),  FN(ply_fine),  FN(ply_fine),  FN(ply_tune),
+    FN(ply_fine),  FN(ply_fine),  FN(ply_fine),  FN(ply_port),
+    FN(ply_fine),  FN(ply_endtie),
     /* 30..35 are never reached as commands -- command bytes only cover
      * 0xB1..0xCE, which is indices 0..29 -- but m4a.c and this file call some
      * of them through the table by index. */
-    (MPlayFunc)SampleFreqSet, (MPlayFunc)TrackStop,
-    (MPlayFunc)FadeOutBody,   (MPlayFunc)TrkVolPitSet,
-    (MPlayFunc)RealClearChain, (MPlayFunc)SoundMainBTM,
+    (MPlayFunc)FN(SampleFreqSet), (MPlayFunc)FN(TrackStop),
+    (MPlayFunc)FN(FadeOutBody),   (MPlayFunc)FN(TrkVolPitSet),
+    (MPlayFunc)FN(RealClearChain), (MPlayFunc)FN(SoundMainBTM),
 };
 
 /* Correctly-typed replacements for `(void (*)(u8))nullsub_141`, which is what
@@ -412,7 +412,7 @@ void TrackStop(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
         if (chan->status != 0) {
             u32 cgb = chan->type & 7;
             if (cgb != 0)
-                soundInfo->CgbOscOff(cgb);
+                CALL(soundInfo->CgbOscOff)(cgb);
             chan->status = 0;
         }
         chan->track = NULL;
@@ -606,7 +606,7 @@ allocate:
         if ((sweep & 0x80) || !(sweep & 0x70))
             sweep = 8;
         cgb->sw = sweep;
-        cgb->fr = soundInfo->MidiKeyToCgbFreq(cgbType, finalKey, track->pitM);
+        cgb->fr = CALL(soundInfo->MidiKeyToCgbFreq)(cgbType, finalKey, track->pitM);
     } else {
         chan->freq = MidiKeyToFreq(chan->wav, finalKey, track->pitM);
     }
@@ -633,7 +633,7 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
     /* The four players are a chain: MPlayOpen hands each new player the
      * previous head, so calling the head runs all of them. */
     if (mplayInfo->func != 0)
-        ((void (*)(struct MusicPlayerInfo *))mplayInfo->func)(
+        (CALL((void (*)(struct MusicPlayerInfo *))mplayInfo->func))(
             (struct MusicPlayerInfo *)mplayInfo->intp);
 
     if ((s32)mplayInfo->status < 0)     /* MUSICPLAYER_STATUS_PAUSE */
@@ -703,8 +703,8 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
                 }
 
                 if (cmd >= 0xCF) {
-                    ((void (*)(u32, struct MusicPlayerInfo *,
-                               struct MusicPlayerTrack *))soundInfo->plynote)(
+                    (CALL((void (*)(u32, struct MusicPlayerInfo *,
+                               struct MusicPlayerTrack *))soundInfo->plynote))(
                         cmd - 0xCF, mplayInfo, track);
                 } else if (cmd > 0xB0) {
                     u32 index = cmd - 0xB1;
@@ -716,8 +716,8 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
                         (PTR32_TD(MPlayFunc) *)soundInfo->MPlayJumpTable;
 
                     mplayInfo->cmd = index;
-                    ((void (*)(struct MusicPlayerInfo *,
-                               struct MusicPlayerTrack *))jt[index])(
+                    (CALL((void (*)(struct MusicPlayerInfo *,
+                               struct MusicPlayerTrack *))jt[index]))(
                         mplayInfo, track);
                     /* ply_fine zeroes flags: the track has ended and must not
                      * be asked for another command, or cmdPtr walks off. */
@@ -806,7 +806,7 @@ void MPlayMain(struct MusicPlayerInfo *mplayInfo)
                 if (cgbType != 0) {
                     struct CgbChannel *cgb = (struct CgbChannel *)chan;
 
-                    cgb->fr = SOUND_INFO_PTR->MidiKeyToCgbFreq(
+                    cgb->fr = CALL(SOUND_INFO_PTR->MidiKeyToCgbFreq)(
                         cgbType, key, track->pitM);
                     cgb->mo |= 2;
                 } else {
@@ -1158,9 +1158,9 @@ void SoundMain(void)
      * budget the assembly checks here never applies -- see the file header. */
 
     if (soundInfo->func != 0)
-        ((void (*)(struct MusicPlayerInfo *))soundInfo->func)(
+        (CALL((void (*)(struct MusicPlayerInfo *))soundInfo->func))(
             (struct MusicPlayerInfo *)soundInfo->intp);
-    soundInfo->CgbSound();
+    CALL(soundInfo->CgbSound)();
 
     PortMixerRender(soundInfo);
 
@@ -1170,3 +1170,38 @@ void SoundMain(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(platform_m4a_mixer) {
+    PORT_FNID(SoundMainBTM),
+    PORT_FNID(RealClearChain),
+    PORT_FNID(ply_fine),
+    PORT_FNID(ply_goto),
+    PORT_FNID(ply_patt),
+    PORT_FNID(ply_pend),
+    PORT_FNID(ply_rept),
+    PORT_FNID(ply_prio),
+    PORT_FNID(ply_tempo),
+    PORT_FNID(ply_keysh),
+    PORT_FNID(ply_voice),
+    PORT_FNID(ply_vol),
+    PORT_FNID(ply_pan),
+    PORT_FNID(ply_bend),
+    PORT_FNID(ply_bendr),
+    PORT_FNID(ply_lfodl),
+    PORT_FNID(ply_modt),
+    PORT_FNID(ply_tune),
+    PORT_FNID(ply_port),
+    PORT_FNID(MPlayMain),
+    PORT_FNID(TrackStop),
+    PORT_FNID(ply_note),
+    PORT_FNID(ply_endtie),
+    PORT_FNID(ply_lfos),
+    PORT_FNID(ply_mod),
+    PORT_FNID(PortNullCgbOscOff),
+    PORT_FNID(PortNullMidiKeyToCgbFreq),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

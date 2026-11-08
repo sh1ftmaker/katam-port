@@ -51,6 +51,7 @@
 #include <string.h>
 
 #include "native.h"
+#include "port/simblock.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
  * so SDL's headers stay outside the block. */
@@ -93,6 +94,10 @@ static const struct Region kMap[] = {
      * faulted.  Mapping it makes the native build read what wasm reads, which
      * is what cross-platform determinism needs.  docs/DETERMINISM.md. */
     { GBA_EWRAM_BASE + GBA_EWRAM_SIZE, 0x00080000u, "EWRAM overrun" },
+    /* The port sim block (port/simblock.h) is the first quarter of that span:
+     * listed by name so the check below writes and reads both of its ends.
+     * Coalesce() folds it into the overrun mapping. */
+    { PORT_SIM_BASE,  PORT_SIM_SPAN,  "port sim block" },
     { GBA_IWRAM_BASE, GBA_IWRAM_SIZE, "IWRAM"   },
     { GBA_IO_BASE,    GBA_IO_SIZE,    "I/O"     },
     { GBA_PLTT_BASE,  GBA_PLTT_SIZE,  "palette" },
@@ -158,6 +163,59 @@ static void Fatal(const char *fmt, ...)
     fflush(stderr);
     exit(2);
 }
+
+/* PORT_OVERRUN_TRAP=1: report every page past EWRAM the process touches,
+ * with the faulting instruction -- from the end of the sim block's used pages
+ * to 0x020C0000 (the used pages are the port's own, written every frame).  The pages are made
+ * inaccessible after the reservation and each fault opens its page and
+ * carries on, so a run lists the first access to every page and behaves
+ * normally otherwise.  Run over the whole span before the block existed, it is how
+ * "nothing in the game touches 0x02040000..0x020C0000" was established
+ * (port/simblock.h); run it again before growing the block or
+ * after a game change that indexes per-player arrays.  Linux x86-64 only. */
+#if defined(__linux__) && defined(__x86_64__)
+#include <signal.h>
+#include <sys/mman.h>
+#include <ucontext.h>
+#include <unistd.h>
+static uintptr_t TrapLo(void)
+{
+    return (PORT_SIM_BASE + PORT_SIM_ALIGN4(PORT_SIM_CORE_BYTES) + 0xFFFu) & ~(uintptr_t)0xFFF;
+}
+
+static void OverrunTrap(int sig, siginfo_t *si, void *ucv)
+{
+    uintptr_t a = (uintptr_t)si->si_addr;
+    ucontext_t *uc = (ucontext_t *)ucv;
+    char buf[96];
+    int n;
+
+    (void)sig;
+    if (a >= TrapLo() && a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u) {
+        n = snprintf(buf, sizeof buf, "[katam-port] overrun trap: %08lx from pc %p\n",
+                     (unsigned long)a, (void *)uc->uc_mcontext.gregs[REG_RIP]);
+        if (n > 0 && write(2, buf, (size_t)n) < 0) { /* nothing to do */ }
+        mprotect((void *)(a & ~(uintptr_t)0xFFF), 0x1000, PROT_READ | PROT_WRITE);
+        return;
+    }
+    signal(SIGSEGV, SIG_DFL);
+}
+
+static void ArmOverrunTrap(void)
+{
+    struct sigaction sa;
+
+    memset(&sa, 0, sizeof sa);
+    sa.sa_sigaction = OverrunTrap;
+    sa.sa_flags = SA_SIGINFO;
+    sigaction(SIGSEGV, &sa, NULL);
+    mprotect((void *)TrapLo(), GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u - TrapLo(),
+             PROT_NONE);
+    PortLog("[katam-port] overrun trap armed over 0x%08X..0x%08X",
+            (unsigned)TrapLo(),
+            (unsigned)(GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u));
+}
+#endif
 
 void PortNativeReserveMap(void)
 {
@@ -231,6 +289,11 @@ void PortNativeReserveMap(void)
                   "and normal under qemu-user, which places a PIE image low.",
                   (unsigned long)&PortNativeReserveMap,
                   (unsigned long)sWindowHi);
+
+#if defined(__linux__) && defined(__x86_64__)
+    if (getenv("PORT_OVERRUN_TRAP") != NULL && *getenv("PORT_OVERRUN_TRAP") == '1')
+        ArmOverrunTrap();
+#endif
 }
 
 /* --- the DMA range check -------------------------------------------------

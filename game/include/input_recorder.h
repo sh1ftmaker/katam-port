@@ -18,7 +18,9 @@ struct InputRecorder {
     u8 mode;
 };
 
-extern struct InputRecorder gInputRecorder;
+/* PORT-FORK: in the port sim block (port/simblock.h), not host .bss. */
+#include "port/simblock.h"
+#define gInputRecorder (*(struct InputRecorder *)(uintptr_t)(PORT_SIM_BASE + PORT_SIM_GAME_INPUTREC))
 
 void InputRecorderResetRecordHead(void);
 void InputRecorderResetPlaybackHead(void);

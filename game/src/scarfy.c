@@ -65,7 +65,7 @@ static const struct Unk_08353510 gUnk_08353624[] = {
 
 void* CreateScarfy(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -84,7 +84,7 @@ void* CreateScarfy(struct ObjectTemplate* arg0, u8 arg1) {
         sub_080A81A4(obj);
     }
     else {
-        gUnk_08351648[obj->type].unk10(obj);
+        CALL(gUnk_08351648[obj->type].unk10)(obj);
     }
     obj->unk9E = 0;
     obj->unk7C = 0;
@@ -469,7 +469,7 @@ static void sub_080A7D90(struct Object* arg0) {
 }
 
 static void sub_080A7F64(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A8048);
+    ObjectSetFunc(arg0, 0, FN(sub_080A8048));
     switch (arg0->objTemplate->subtype1) {
     default:
     case 1:
@@ -506,13 +506,13 @@ static void sub_080A7F64(struct Object* arg0) {
 static void sub_080A8048(struct Object* arg0) {
     if (abs(arg0->kirby3->base.y - arg0->base.y) < 0x400) {
         arg0->base.flags &= ~0x02000000;
-        ObjectSetFunc(arg0, 0, sub_080A75C4);
+        ObjectSetFunc(arg0, 0, FN(sub_080A75C4));
         return;
     }
     if (arg0->unk90 != 0) {
         arg0->base.flags &= ~0x02000000;
         arg0->kirby3 = FindTargetKirby(&arg0->base);
-        ObjectSetFunc(arg0, 1, sub_080A78E4);
+        ObjectSetFunc(arg0, 1, FN(sub_080A78E4));
         if (arg0->base.x > arg0->kirby3->base.x) {
             arg0->base.flags |= 1;
         }
@@ -524,12 +524,12 @@ static void sub_080A8048(struct Object* arg0) {
 }
 
 void sub_080A80EC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A75C4);
+    ObjectSetFunc(arg0, 0, FN(sub_080A75C4));
 }
 
 static void sub_080A8100(struct Object* arg0) {
     arg0->kirby3 = FindTargetKirby(&arg0->base);
-    ObjectSetFunc(arg0, 1, sub_080A78E4);
+    ObjectSetFunc(arg0, 1, FN(sub_080A78E4));
     if (arg0->base.x > arg0->kirby3->base.x) {
         arg0->base.flags |= 1;
     }
@@ -541,22 +541,22 @@ static void sub_080A8100(struct Object* arg0) {
 
 static void sub_080A8148(struct Object* arg0) {
     if (arg0->subtype != 0) {
-        ObjectSetFunc(arg0, 2, sub_080A7C0C);
+        ObjectSetFunc(arg0, 2, FN(sub_080A7C0C));
     }
     else {
-        ObjectSetFunc(arg0, 2, sub_080A7A88);
+        ObjectSetFunc(arg0, 2, FN(sub_080A7A88));
     }
     arg0->base.unkC |= 2;
 }
 
 static void sub_080A8180(struct Object* arg0) {
-    ObjectSetFunc(arg0, 2, sub_080A7D90);
+    ObjectSetFunc(arg0, 2, FN(sub_080A7D90));
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
 }
 
 static void sub_080A81A4(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A81C4);
+    ObjectSetFunc(arg0, 0, FN(sub_080A81C4));
     arg0->base.flags |= 0x600;
 }
 
@@ -573,3 +573,20 @@ static void sub_080A81C4(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_scarfy) {
+    PORT_FNID(CreateScarfy),
+    PORT_FNID(sub_080A75C4),
+    PORT_FNID(sub_080A78E4),
+    PORT_FNID(sub_080A7A88),
+    PORT_FNID(sub_080A7C0C),
+    PORT_FNID(sub_080A7D90),
+    PORT_FNID(sub_080A8048),
+    PORT_FNID(sub_080A80EC),
+    PORT_FNID(sub_080A81C4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -61,7 +61,7 @@ static const struct Unk_08353510 gUnk_08353CA0[] = {
 
 void *CreateSquishy(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *squishy = tmp;
 
     InitObject(squishy, template_, a2);
@@ -91,7 +91,7 @@ void *CreateSquishy(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080AF754(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 0, sub_080AF7D4);
+    ObjectSetFunc(squishy, 0, FN(sub_080AF7D4));
     squishy->unk85 = 0;
     if (squishy->base.x > squishy->kirby3->base.x)
         squishy->base.flags |= 1;
@@ -140,7 +140,7 @@ static void sub_080AF7D4(struct Object *squishy)
 
 static void sub_080AF878(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 3, sub_080AF958);
+    ObjectSetFunc(squishy, 3, FN(sub_080AF958));
     squishy->kirby3 = FindTargetKirby(&squishy->base);
     if (squishy->base.x > squishy->kirby3->base.x)
         squishy->base.flags |= 1;
@@ -155,7 +155,7 @@ static void sub_080AF878(struct Object *squishy)
 
 static void sub_080AF8DC(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 3, sub_080AF958);
+    ObjectSetFunc(squishy, 3, FN(sub_080AF958));
     squishy->kirby3 = FindTargetKirby(&squishy->base);
     if (squishy->base.x > squishy->kirby3->base.x)
         squishy->base.flags |= 1;
@@ -182,7 +182,7 @@ static void sub_080AF958(struct Object *squishy)
     }
     if (squishy->base.unk62 & 4)
     {
-        ObjectSetFunc(squishy, 4, sub_080B0024);
+        ObjectSetFunc(squishy, 4, FN(sub_080B0024));
         squishy->base.xspeed = 0;
         squishy->base.yspeed = 0;
         squishy->base.flags &= ~0x20;
@@ -242,7 +242,7 @@ static void sub_080AF9C4(struct Object *squishy)
 
 static void sub_080AFB70(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 2, sub_080B00A4);
+    ObjectSetFunc(squishy, 2, FN(sub_080B00A4));
     if (squishy->base.x > squishy->kirby3->base.x)
         squishy->base.flags |= 1;
     else
@@ -311,14 +311,14 @@ static void sub_080AFD80(struct Object *squishy)
     {
         if (squishy->base.unk62 & 4)
         {
-            ObjectSetFunc(squishy, 4, sub_080B0024);
+            ObjectSetFunc(squishy, 4, FN(sub_080B0024));
             squishy->base.xspeed = 0;
             squishy->base.yspeed = 0;
             squishy->base.flags &= ~0x20;
         }
         else if (squishy->base.unk58 & 2)
         {
-            ObjectSetFunc(squishy, 3, sub_080AF9C4);
+            ObjectSetFunc(squishy, 3, FN(sub_080AF9C4));
             squishy->base.xspeed = 0;
             squishy->base.flags |= 0x40;
             squishy->base.flags &= ~0x20;
@@ -328,7 +328,7 @@ static void sub_080AFD80(struct Object *squishy)
 
 static void sub_080AFE0C(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 3, sub_080AFEBC);
+    ObjectSetFunc(squishy, 3, FN(sub_080AFEBC));
     squishy->kirby3 = FindTargetKirby(&squishy->base);
     if (squishy->base.x > squishy->kirby3->base.x)
         squishy->base.flags |= 1;
@@ -353,7 +353,7 @@ static void sub_080AFEBC(struct Object *squishy)
 {
     if (!--squishy->unk85)
     {
-        ObjectSetFunc(squishy, 2, sub_080AFD80);
+        ObjectSetFunc(squishy, 2, FN(sub_080AFD80));
         squishy->base.xspeed = 0;
         squishy->base.yspeed = 0;
     }
@@ -371,14 +371,14 @@ static void sub_080AFEBC(struct Object *squishy)
             squishy->unk85 = 0x18;
         if (squishy->base.unk62 & 4)
         {
-            ObjectSetFunc(squishy, 4, sub_080B0024);
+            ObjectSetFunc(squishy, 4, FN(sub_080B0024));
             squishy->base.xspeed = 0;
             squishy->base.yspeed = 0;
             squishy->base.flags &= ~0x20;
         }
         else if (squishy->base.unk58 & 2)
         {
-            ObjectSetFunc(squishy, 3, sub_080AF9C4);
+            ObjectSetFunc(squishy, 3, FN(sub_080AF9C4));
             squishy->base.xspeed = 0;
             squishy->base.flags |= 0x40;
             squishy->base.flags &= ~0x20;
@@ -388,7 +388,7 @@ static void sub_080AFEBC(struct Object *squishy)
 
 static void sub_080AFF90(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 5, sub_080AFFAC);
+    ObjectSetFunc(squishy, 5, FN(sub_080AFFAC));
     squishy->unk85 = 0;
 }
 
@@ -407,7 +407,7 @@ static void sub_080AFFAC(struct Object *squishy)
 
 static void sub_080AFFF8(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 4, sub_080B0024);
+    ObjectSetFunc(squishy, 4, FN(sub_080B0024));
     squishy->base.xspeed = 0;
     squishy->base.yspeed = 0;
     squishy->base.flags &= ~0x20;
@@ -421,7 +421,7 @@ static void sub_080B0024(struct Object *squishy)
 
 static void sub_080B0040(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 2, sub_080B005C);
+    ObjectSetFunc(squishy, 2, FN(sub_080B005C));
     squishy->base.xspeed = 0;
 }
 
@@ -433,7 +433,7 @@ static void sub_080B005C(struct Object *squishy)
 
 static void sub_080B0078(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 3, sub_080AF9C4);
+    ObjectSetFunc(squishy, 3, FN(sub_080AF9C4));
     squishy->base.xspeed = 0;
     squishy->base.flags |= 0x40;
     squishy->base.flags &= ~0x20;
@@ -447,13 +447,13 @@ static void sub_080B00A4(struct Object *squishy)
 
 static void sub_080B00BC(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 3, sub_080AFBFC);
+    ObjectSetFunc(squishy, 3, FN(sub_080AFBFC));
     squishy->base.flags |= 0x40;
 }
 
 static void sub_080B00DC(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 2, sub_080B010C);
+    ObjectSetFunc(squishy, 2, FN(sub_080B010C));
     squishy->base.flags |= 0x100;
     squishy->base.flags |= 0x40;
     squishy->base.xspeed = 0;
@@ -473,7 +473,7 @@ static void sub_080B010C(struct Object *squishy)
 
 static void sub_080B0134(struct Object *squishy)
 {
-    ObjectSetFunc(squishy, 2, sub_080AFD80);
+    ObjectSetFunc(squishy, 2, FN(sub_080AFD80));
     squishy->base.xspeed = 0;
     squishy->base.yspeed = 0;
 }
@@ -481,3 +481,24 @@ static void sub_080B0134(struct Object *squishy)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_squishy) {
+    PORT_FNID(CreateSquishy),
+    PORT_FNID(sub_080AF754),
+    PORT_FNID(sub_080AF7D4),
+    PORT_FNID(sub_080AF958),
+    PORT_FNID(sub_080AF9C4),
+    PORT_FNID(sub_080AFBFC),
+    PORT_FNID(sub_080AFD80),
+    PORT_FNID(sub_080AFEBC),
+    PORT_FNID(sub_080AFFAC),
+    PORT_FNID(sub_080B0024),
+    PORT_FNID(sub_080B005C),
+    PORT_FNID(sub_080B00A4),
+    PORT_FNID(sub_080B010C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

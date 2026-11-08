@@ -149,7 +149,7 @@ void *CreateCrazyHand(struct ObjectTemplate *template_, u8 a2)
     priority = 0x1000;
     if (template_->type == OBJ_CRAZY_HAND_1)
         priority = 0x1010;
-    t = TaskCreate(ObjectMain, sizeof(struct CrazyHand), priority, TASK_USE_EWRAM, sub_080E3E30);
+    t = TaskCreate(FN(ObjectMain), sizeof(struct CrazyHand), priority, TASK_USE_EWRAM, FN(sub_080E3E30));
     tmp = TaskGetStructPtr(t);
     ch = tmp;
     ch->unkB4 = NULL;
@@ -205,7 +205,7 @@ static void sub_080DF4C0(struct CrazyHand *ch)
 
 static void sub_080DF5A4(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080E36C4);
+    ObjectSetFunc(ch, 0, FN(sub_080E36C4));
     if (ch->obj.type == OBJ_CRAZY_HAND_1)
     {
         struct GameplayHud *hud;
@@ -301,7 +301,7 @@ void sub_080DF894(struct CrazyHand *ch)
 {
     struct CrazyHand *chAlias = ch, *ch2 = ch->unkB4;
 
-    ObjectSetFunc(ch, 0, sub_080DF954);
+    ObjectSetFunc(ch, 0, FN(sub_080DF954));
     if (ch->obj.subtype)
         ch->obj.base.counter = (Rand16() & 0xF) + 0x2A;
     else
@@ -349,7 +349,7 @@ static void sub_080DF954(struct CrazyHand *ch)
 
 static void sub_080DF9D0(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 1, sub_080DFA24);
+    ObjectSetFunc(ch, 1, FN(sub_080DFA24));
     ch->obj.kirby3 = FindTargetKirby(&ch->obj.base);
     ch->obj.base.flags |= 0x100;
     ch->obj.unkA0 = ch->obj.kirby3->base.x >> 8;
@@ -632,7 +632,7 @@ static void sub_080DFE40(struct CrazyHand *ch)
 
 static void sub_080E003C(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080E0098);
+    ObjectSetFunc(ch, 0, FN(sub_080E0098));
     ch->obj.kirby3 = FindTargetKirby(&ch->obj.base);
     ch->obj.base.flags |= 0x100;
     ch->obj.unkA0 = ch->obj.kirby3->base.x >> 8;
@@ -918,7 +918,7 @@ static void sub_080E0318(struct CrazyHand *ch)
         else
             ch->obj.unk9F = 0x30;
         ch->obj.unk85 = 0;
-        ch->obj.unk78 = sub_080E0628;
+        ch->obj.unk78 = FN(sub_080E0628);
     }
 }
 
@@ -1053,7 +1053,7 @@ static void sub_080E0628(struct CrazyHand *ch)
 
 static void sub_080E08B0(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 6, sub_080E0920);
+    ObjectSetFunc(ch, 6, FN(sub_080E0920));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.unk9F = 0;
@@ -1098,7 +1098,7 @@ static void sub_080E0920(struct CrazyHand *ch)
                     ch->obj.unk9F = 0xC;
                 else
                     ch->obj.unk9F = 0x18;
-                ch->obj.unk78 = sub_080E0628;
+                ch->obj.unk78 = FN(sub_080E0628);
                 return;
             }
         }
@@ -1506,7 +1506,7 @@ static void sub_080E0FC4(struct CrazyHand *ch)
 
 static void sub_080E12C8(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0xA, sub_080E133C);
+    ObjectSetFunc(ch, 0xA, FN(sub_080E133C));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.unk9F = 0;
@@ -1563,7 +1563,7 @@ static void sub_080E133C(struct CrazyHand *ch)
                     x = ch->obj.base.x - 0x2000;
                     if (abs(ch2->obj.base.x - x) < 0x800)
                     {
-                        if (ch2->obj.unk78 != sub_080E133C)
+                        if (ch2->obj.unk78 != FN(sub_080E133C))
                             sub_080A8D18(&ch->obj, 0, -0x14, 2, 0);
                         RequestScreenShake(3, &ch->obj.base);
                         PlaySfx(&ch->obj.base, SE_BOSS_CLAP);
@@ -1587,7 +1587,7 @@ static void sub_080E133C(struct CrazyHand *ch)
                     x = ch->obj.base.x + 0x2000;
                     if (abs(ch2->obj.base.x - x) < 0x800)
                     {
-                        if (ch2->obj.unk78 != sub_080E133C)
+                        if (ch2->obj.unk78 != FN(sub_080E133C))
                             sub_080A8D18(&ch->obj, 0, -0x14, 2, 0);
                         RequestScreenShake(3, &ch->obj.base);
                         PlaySfx(&ch->obj.base, SE_BOSS_CLAP);
@@ -1709,7 +1709,7 @@ static void sub_080E1604(struct CrazyHand *ch)
 
 static void sub_080E1800(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0xC, sub_080E1868);
+    ObjectSetFunc(ch, 0xC, FN(sub_080E1868));
     ch->obj.kirby3 = FindTargetKirby(&ch->obj.base);
     ch->obj.base.flags |= 0x100;
     ch->obj.base.flags &= ~2;
@@ -1919,7 +1919,7 @@ bool32 sub_080E1B8C(struct CrazyHand *ch, struct Kirby *kirby)
         || kirby->unk110
         || kirby->base.flags & 0x3800B00)
         return FALSE;
-    ObjectSetFunc(ch, 0xE, sub_080E3AE0);
+    ObjectSetFunc(ch, 0xE, FN(sub_080E3AE0));
     sub_0803E2B0(&ch->obj.base, -0x10, -0xC, 8, 0xC);
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
@@ -2357,7 +2357,7 @@ static void sub_080E23B8(struct CrazyHand *ch)
 
 static void sub_080E25B4(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0x16, sub_080E261C);
+    ObjectSetFunc(ch, 0x16, FN(sub_080E261C));
     ch->obj.base.flags |= 0x100;
     ch->obj.base.flags &= ~2;
     ch->obj.base.xspeed = 0;
@@ -2667,7 +2667,7 @@ static void sub_080E2BE8(struct CrazyHand *ch)
 {
     struct CrazyHand *ch2 = ch->unkB4;
 
-    ObjectSetFunc(ch, 0x14, sub_080E2C78);
+    ObjectSetFunc(ch, 0x14, FN(sub_080E2C78));
     ch->obj.base.xspeed = -0x80;
     ch->obj.base.yspeed = 0;
     if (ch->obj.base.flags & 1)
@@ -2738,7 +2738,7 @@ static void sub_080E2D84(struct CrazyHand *ch)
 {
     struct CrazyHand *chAlias = ch;
 
-    ObjectSetFunc(ch, 0x14, sub_080E2E94);
+    ObjectSetFunc(ch, 0x14, FN(sub_080E2E94));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     if (ch->obj.subtype)
@@ -2761,7 +2761,7 @@ static void sub_080E2D84(struct CrazyHand *ch)
 ({ \
     struct CrazyHand *_r4 = (ch)->unkB4; \
  \
-    ObjectSetFunc(ch, 0x12, sub_080E28CC); \
+    ObjectSetFunc(ch, 0x12, FN(sub_080E28CC)); \
     (ch)->obj.kirby3 = FindTargetKirby(&(ch)->obj.base); \
     _r4->obj.kirby3 = (ch)->obj.kirby3; \
     (ch)->obj.base.flags |= 0x100; \
@@ -2913,7 +2913,7 @@ static void sub_080E31D4(struct CrazyHand *ch, u8 a2)
 
 void *CreateMasterHandBullet(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *bullet = TaskGetStructPtr(t);
 
     InitObject(bullet, template_, a2);
@@ -2926,7 +2926,7 @@ void *CreateMasterHandBullet(struct ObjectTemplate *template_, u8 a2)
     bullet->base.unk68 |= 0x100;
     bullet->base.unk5C |= 0x80000;
     bullet->unk9E = 0;
-    bullet->unk7C = sub_0809F840;
+    bullet->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&bullet->base, -4, -6, 8, 6);
     ObjectInitSprite(bullet);
     bullet->base.sprite.unk14 = 0x240;
@@ -2936,7 +2936,7 @@ void *CreateMasterHandBullet(struct ObjectTemplate *template_, u8 a2)
 
 void sub_080E3370(struct Object *bullet)
 {
-    ObjectSetFunc(bullet, 0, sub_080E3DE4);
+    ObjectSetFunc(bullet, 0, FN(sub_080E3DE4));
     if (bullet->objTemplate->subtype1)
         bullet->base.flags |= 1;
     switch (bullet->subtype)
@@ -2956,7 +2956,7 @@ void sub_080E3370(struct Object *bullet)
 
 static void sub_080E33E4(struct CrazyHand *ch)
 {
-    struct Task *t = TaskCreate(sub_080E34C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080E34C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase;
     u32 flags;
 
@@ -3057,7 +3057,7 @@ static void sub_080E36C4(struct CrazyHand *ch)
 
 static void sub_080E3734(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080E3758);
+    ObjectSetFunc(ch, 0, FN(sub_080E3758));
     ch->obj.unk85 = 0;
     ch->obj.base.counter = 0x1E;
 }
@@ -3084,7 +3084,7 @@ static void sub_080E3758(struct CrazyHand *ch)
 
 static void sub_080E37C4(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080DF4C0);
+    ObjectSetFunc(ch, 0, FN(sub_080DF4C0));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x40;
@@ -3092,7 +3092,7 @@ static void sub_080E37C4(struct CrazyHand *ch)
 
 static void sub_080E37F0(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 2, sub_080DFC3C);
+    ObjectSetFunc(ch, 2, FN(sub_080DFC3C));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3107,7 +3107,7 @@ static void sub_080E37F0(struct CrazyHand *ch)
 
 static void sub_080E3844(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 3, sub_080DFDE0);
+    ObjectSetFunc(ch, 3, FN(sub_080DFDE0));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3119,7 +3119,7 @@ static void sub_080E3844(struct CrazyHand *ch)
 
 static void sub_080E388C(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 4, sub_080DFE40);
+    ObjectSetFunc(ch, 4, FN(sub_080DFE40));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3131,7 +3131,7 @@ static void sub_080E388C(struct CrazyHand *ch)
 
 static void sub_080E38E0(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, -1, sub_080E0318);
+    ObjectSetFunc(ch, -1, FN(sub_080E0318));
     ch->obj.unk85 = 0;
     ch->obj.unk9F = 0;
     ch->obj.base.counter = 8;
@@ -3141,7 +3141,7 @@ static void sub_080E38E0(struct CrazyHand *ch)
 
 static void sub_080E3918(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 8, sub_080E0B44);
+    ObjectSetFunc(ch, 8, FN(sub_080E0B44));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3153,7 +3153,7 @@ static void sub_080E3918(struct CrazyHand *ch)
 
 static void sub_080E396C(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080E0D40);
+    ObjectSetFunc(ch, 0, FN(sub_080E0D40));
     ch->obj.kirby3 = FindTargetKirby(&ch->obj.base);
     ch->obj.base.flags |= 0x100;
     ch->obj.unkA0 = ch->obj.kirby3->base.x >> 8;
@@ -3165,7 +3165,7 @@ static void sub_080E396C(struct CrazyHand *ch)
 
 static void sub_080E39C4(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, -1, sub_080E0FC4);
+    ObjectSetFunc(ch, -1, FN(sub_080E0FC4));
     ch->obj.unk9F = 0;
     ch->obj.base.counter = 8;
     ch->obj.base.flags &= ~2;
@@ -3174,7 +3174,7 @@ static void sub_080E39C4(struct CrazyHand *ch)
 
 static void sub_080E39F8(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0xA, sub_080E3A4C);
+    ObjectSetFunc(ch, 0xA, FN(sub_080E3A4C));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.unk9F = 0;
@@ -3200,7 +3200,7 @@ static void sub_080E3A4C(struct CrazyHand *ch)
 
 static void sub_080E3A94(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0xB, sub_080E1604);
+    ObjectSetFunc(ch, 0xB, FN(sub_080E1604));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3229,7 +3229,7 @@ static void sub_080E3AE0(struct CrazyHand *ch)
 static void sub_080E3B2C(struct CrazyHand *ch)
 {
     ch->obj.kirby3->unk110 = gUnk_083569DC;
-    ObjectSetFunc(ch, 0xF, sub_080E1CCC);
+    ObjectSetFunc(ch, 0xF, FN(sub_080E1CCC));
     ch->obj.base.flags |= 0x100;
     ch->obj.base.flags &= ~2;
     ch->obj.unkA0 = (gCurLevelInfo[ch->obj.base.unk56].viewportPosition.x + 0x7800) >> 8;
@@ -3238,7 +3238,7 @@ static void sub_080E3B2C(struct CrazyHand *ch)
 
 static void sub_080E3B9C(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0x10, sub_080E1EC0);
+    ObjectSetFunc(ch, 0x10, FN(sub_080E1EC0));
     ch->obj.base.xspeed = 0;
     ch->obj.base.flags |= 0x100;
     ch->obj.base.counter = 8;
@@ -3247,7 +3247,7 @@ static void sub_080E3B9C(struct CrazyHand *ch)
 
 static void sub_080E3BD0(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0x10, sub_080E2024);
+    ObjectSetFunc(ch, 0x10, FN(sub_080E2024));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3259,7 +3259,7 @@ static void sub_080E3BD0(struct CrazyHand *ch)
 static void sub_080E3C0C(struct CrazyHand *ch)
 {
     ch->obj.kirby3->unk110 = gUnk_083569EC;
-    ObjectSetFunc(ch, 0x11, sub_080E20B4);
+    ObjectSetFunc(ch, 0x11, FN(sub_080E20B4));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3270,7 +3270,7 @@ static void sub_080E3C0C(struct CrazyHand *ch)
 
 static void sub_080E3C6C(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0xE, sub_080E22EC);
+    ObjectSetFunc(ch, 0xE, FN(sub_080E22EC));
     ch->obj.base.flags |= 0x100;
     ch->obj.base.flags &= ~2;
     ch->obj.unkA0 = ch->obj.objTemplate->x;
@@ -3280,7 +3280,7 @@ static void sub_080E3C6C(struct CrazyHand *ch)
 
 static void sub_080E3CC4(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0x11, sub_080E23B8);
+    ObjectSetFunc(ch, 0x11, FN(sub_080E23B8));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->obj.base.flags |= 0x100;
@@ -3291,7 +3291,7 @@ static void sub_080E3CC4(struct CrazyHand *ch)
 
 static void sub_080E3D10(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0, sub_080E2834);
+    ObjectSetFunc(ch, 0, FN(sub_080E2834));
     ch->unkB8 = 1;
     ch->unkBA = 0;
 }
@@ -3300,7 +3300,7 @@ static void sub_080E3D34(struct CrazyHand *ch)
 {
     struct CrazyHand *ch2 = ch->unkB4;
 
-    ObjectSetFunc(ch, 0x12, sub_080E28CC);
+    ObjectSetFunc(ch, 0x12, FN(sub_080E28CC));
     ch->obj.kirby3 = FindTargetKirby(&ch->obj.base);
     ch2->obj.kirby3 = ch->obj.kirby3;
     ch->obj.base.flags |= 0x100;
@@ -3311,7 +3311,7 @@ static void sub_080E3D34(struct CrazyHand *ch)
 
 static void sub_080E3D90(struct CrazyHand *ch)
 {
-    ObjectSetFunc(ch, 0x15, sub_080E2FF8);
+    ObjectSetFunc(ch, 0x15, FN(sub_080E2FF8));
     ch->obj.base.xspeed = 0;
     ch->obj.base.yspeed = 0;
     ch->unkB8 = 0;
@@ -3329,7 +3329,7 @@ static void sub_080E3DE4(struct Object *bullet)
 
 static void sub_080E3DF8(struct Object *bullet)
 {
-    ObjectSetFunc(bullet, 1, sub_080E3E24);
+    ObjectSetFunc(bullet, 1, FN(sub_080E3E24));
     bullet->base.flags &= ~0x800;
     bullet->base.flags &= ~0x200;
 }
@@ -3355,3 +3355,51 @@ static void sub_080E3E30(struct Task *t)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_crazy_hand) {
+    PORT_FNID(CreateCrazyHand),
+    PORT_FNID(sub_080DF4C0),
+    PORT_FNID(sub_080DF894),
+    PORT_FNID(sub_080DF954),
+    PORT_FNID(sub_080DFA24),
+    PORT_FNID(sub_080DFC3C),
+    PORT_FNID(sub_080DFDE0),
+    PORT_FNID(sub_080DFE40),
+    PORT_FNID(sub_080E0098),
+    PORT_FNID(sub_080E0318),
+    PORT_FNID(sub_080E0628),
+    PORT_FNID(sub_080E0920),
+    PORT_FNID(sub_080E0B44),
+    PORT_FNID(sub_080E0D40),
+    PORT_FNID(sub_080E0FC4),
+    PORT_FNID(sub_080E133C),
+    PORT_FNID(sub_080E1604),
+    PORT_FNID(sub_080E1868),
+    PORT_FNID(sub_080E1CCC),
+    PORT_FNID(sub_080E1EC0),
+    PORT_FNID(sub_080E2024),
+    PORT_FNID(sub_080E20B4),
+    PORT_FNID(sub_080E22EC),
+    PORT_FNID(sub_080E23B8),
+    PORT_FNID(sub_080E261C),
+    PORT_FNID(sub_080E2834),
+    PORT_FNID(sub_080E28CC),
+    PORT_FNID(sub_080E2C78),
+    PORT_FNID(sub_080E2E94),
+    PORT_FNID(sub_080E2FF8),
+    PORT_FNID(CreateMasterHandBullet),
+    PORT_FNID(sub_080E3370),
+    PORT_FNID(sub_080E34C4),
+    PORT_FNID(sub_080E36C4),
+    PORT_FNID(sub_080E3758),
+    PORT_FNID(sub_080E3A4C),
+    PORT_FNID(sub_080E3AE0),
+    PORT_FNID(sub_080E3DE4),
+    PORT_FNID(sub_080E3E24),
+    PORT_FNID(sub_080E3E30),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

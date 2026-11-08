@@ -36,7 +36,7 @@ static void sub_080B6960(struct Object *);
 /* PORT: replaced by port/rom_data.h -- extern const struct Kirby_110 gUnk_08354554[]; */
 
 void *CreateCookin(struct ObjectTemplate *template_, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *cookin = tmp;
 
     InitObject(cookin, template_, arg1);
@@ -47,7 +47,7 @@ void *CreateCookin(struct ObjectTemplate *template_, u8 arg1) {
     sub_0803E2B0(&cookin->base, -5, -7, 5, 4);
     ObjectSetBounds(&cookin->base, -6, -8, 6, 6);
     ObjectInitSprite(cookin);
-    gUnk_08351648[cookin->type].unk10(cookin);
+    CALL(gUnk_08351648[cookin->type].unk10)(cookin);
     cookin->unk9E = 0;
     cookin->unk7C = NULL;
     return cookin;
@@ -97,7 +97,7 @@ static void sub_080B5CA4(struct Object *cookin) {
 }
 
 static void sub_080B5D70(struct Object *cookin) {
-    ObjectSetFunc(cookin, 5, sub_080B5E1C);
+    ObjectSetFunc(cookin, 5, FN(sub_080B5E1C));
     cookin->base.flags &= ~2;
     cookin->type = OBJ_COOKIN;
     PlaySfx(&cookin->base, SE_COOKED_KIRBY);
@@ -105,9 +105,9 @@ static void sub_080B5D70(struct Object *cookin) {
 
 static inline void sub_080B681C_inline(struct Object *cookin) {
     if (cookin->unk80 > 0)
-        ObjectSetFunc(cookin, 0, sub_080B5BE8);
+        ObjectSetFunc(cookin, 0, FN(sub_080B5BE8));
     else
-        ObjectSetFunc(cookin, -1, sub_080B5BE8);
+        ObjectSetFunc(cookin, -1, FN(sub_080B5BE8));
     cookin->base.flags &= ~0x800;
     if (cookin->objTemplate->subtype1 == 1)
         sub_080B6894(cookin);
@@ -123,7 +123,7 @@ static void sub_080B5E1C(struct Object *cookin) {
 }
 
 void *CreateCookinPan(struct ObjectTemplate *template_, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *pan = tmp;
 
     InitObject(pan, template_, arg1);
@@ -143,8 +143,8 @@ void *CreateCookinPan(struct ObjectTemplate *template_, u8 arg1) {
     ObjectInitSprite(pan);
     pan->base.sprite.unk14 = 0x640;
     pan->unk9E = 0;
-    pan->unk7C = sub_0809F840;
-    gUnk_08351648[pan->type].unk10(pan);
+    pan->unk7C = FN(sub_0809F840);
+    CALL(gUnk_08351648[pan->type].unk10)(pan);
     if (pan->objTemplate->subtype1 == 0)
         sub_080B65D8(pan);
     PlaySfx(&pan->base, SE_COOKIN_THROW_PAN);
@@ -257,7 +257,7 @@ static void sub_080B645C(struct Object *cookin) {
 }
 
 static void sub_080B65D8(struct Object *pan) {
-    struct Task *task = TaskCreate(sub_080B66A8, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
+    struct Task *task = TaskCreate(FN(sub_080B66A8), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(task);
 
     ClearObjectBase(objBase);
@@ -317,9 +317,9 @@ static void sub_080B66A8(void) {
 
 void sub_080B681C(struct Object *cookin) {
     if (cookin->unk80 > 0)
-        ObjectSetFunc(cookin, 0, sub_080B5BE8);
+        ObjectSetFunc(cookin, 0, FN(sub_080B5BE8));
     else
-        ObjectSetFunc(cookin, -1, sub_080B5BE8);
+        ObjectSetFunc(cookin, -1, FN(sub_080B5BE8));
     cookin->base.flags &= ~0x800;
     if (cookin->objTemplate->subtype1 == 1)
         sub_080B6894(cookin);
@@ -328,18 +328,18 @@ void sub_080B681C(struct Object *cookin) {
 }
 
 void sub_080B6880(struct Object *pan) {
-    ObjectSetFunc(pan, 0, sub_080B60AC);
+    ObjectSetFunc(pan, 0, FN(sub_080B60AC));
 }
 
 static void sub_080B6894(struct Object *cookin) {
-    ObjectSetFunc(cookin, 1, sub_080B5CA4);
+    ObjectSetFunc(cookin, 1, FN(sub_080B5CA4));
     cookin->base.xspeed = 0x80;
     if (cookin->base.flags & 1)
         cookin->base.xspeed = -cookin->base.xspeed;
 }
 
 static void sub_080B68C0(struct Object *cookin) {
-    ObjectSetFunc(cookin, 2, sub_080B6910);
+    ObjectSetFunc(cookin, 2, FN(sub_080B6910));
     cookin->base.flags &= ~2;
     cookin->base.xspeed = 0;
     cookin->kirby3 = FindTargetKirby(&cookin->base);
@@ -355,7 +355,7 @@ static void sub_080B6910(struct Object *cookin) {
 }
 
 static void sub_080B6928(struct Object *cookin) {
-    ObjectSetFunc(cookin, 2, sub_080B6960);
+    ObjectSetFunc(cookin, 2, FN(sub_080B6960));
     cookin->base.flags &= ~4;
     sub_080B645C(cookin);
     cookin->base.flags |= 0x800;
@@ -369,3 +369,22 @@ static void sub_080B6960(struct Object *cookin) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_cookin) {
+    PORT_FNID(CreateCookin),
+    PORT_FNID(sub_080B5BE8),
+    PORT_FNID(sub_080B5CA4),
+    PORT_FNID(sub_080B5E1C),
+    PORT_FNID(CreateCookinPan),
+    PORT_FNID(sub_080B60AC),
+    PORT_FNID(sub_080B66A8),
+    PORT_FNID(sub_080B681C),
+    PORT_FNID(sub_080B6880),
+    PORT_FNID(sub_080B6910),
+    PORT_FNID(sub_080B6960),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

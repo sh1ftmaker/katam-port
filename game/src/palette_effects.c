@@ -106,7 +106,7 @@ static const u16 sDarkenBlueTable[64] = {
 };
 
 static void (*const sPaletteEffectCallbacks[5])(struct PaletteEffect *) = {
-    ApplyPaletteDarkening, ApplyPaletteBrightening, ApplyPaletteTableDarkening, ApplyPaletteRedTint, ApplyPaletteWhiteFill,
+    FN(ApplyPaletteDarkening), FN(ApplyPaletteBrightening), FN(ApplyPaletteTableDarkening), FN(ApplyPaletteRedTint), FN(ApplyPaletteWhiteFill),
 };
 
 static void QueuePaletteEffect(struct PaletteEffect *effect)
@@ -118,7 +118,7 @@ static void QueuePaletteEffect(struct PaletteEffect *effect)
     struct PaletteEffect *existing;
 
     if (task == NULL) {
-        gPaletteEffectsTask = TaskCreate(UpdatePaletteEffects, 0, 0xFFFE, TASK_x0004 | TASK_USE_IWRAM, PaletteEffectsTaskDestructor);
+        gPaletteEffectsTask = TaskCreate(FN(UpdatePaletteEffects), 0, 0xFFFE, TASK_x0004 | TASK_USE_IWRAM, FN(PaletteEffectsTaskDestructor));
         for (i = 0; i < ARRAY_COUNT(state->unk80); i++)
             state->unk80[i] = NULL;
     }
@@ -222,7 +222,7 @@ static void UpdatePaletteEffects(void)
         return;
     for (i = 0; i < ARRAY_COUNT(state->unk80); i++) {
         if (state->unk80[i] && (!(gMainFlags & 0x800) || !(flags & 0x100) || (state->unk80[i]->unk8 & 0x80))) {
-            sPaletteEffectCallbacks[state->unk80[i]->unk0](state->unk80[i]);
+            CALL(sPaletteEffectCallbacks[state->unk80[i]->unk0])(state->unk80[i]);
             if (!(state->unk80[i]->unk8 & 2)) {
                 if (state->unk80[i]->unk8 & 1)
                     state->unk80[i] = NULL;
@@ -1044,3 +1044,18 @@ static void InsertPaletteEffectByPriority(struct PaletteEffect *effect, u8 index
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_palette_effects) {
+    PORT_FNID(UpdatePaletteEffects),
+    PORT_FNID(ApplyPaletteDarkening),
+    PORT_FNID(ApplyPaletteBrightening),
+    PORT_FNID(ApplyPaletteTableDarkening),
+    PORT_FNID(ApplyPaletteRedTint),
+    PORT_FNID(ApplyPaletteWhiteFill),
+    PORT_FNID(PaletteEffectsTaskDestructor),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

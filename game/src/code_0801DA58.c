@@ -35,7 +35,7 @@ static const u8 gUnk_082DE69A[] = { 0x12, 0 };
 
 void sub_0801DA58(u16 a1)
 {
-    struct Task *t = TaskCreate(sub_0801DFF4, sizeof(struct Unk_0801DA58), 0x1000, TASK_USE_IWRAM | TASK_x0004, nullsub_28);
+    struct Task *t = TaskCreate(FN(sub_0801DFF4), sizeof(struct Unk_0801DA58), 0x1000, TASK_USE_IWRAM | TASK_x0004, FN(nullsub_28));
     struct Unk_0801DA58 *var;
     u16 color = RGB_WHITE;
     u32 tilesVram;
@@ -49,7 +49,7 @@ void sub_0801DA58(u16 a1)
     gDispCnt = DISPCNT_OBJ_ON | DISPCNT_BG0_ON | DISPCNT_BG3_ON;
     gDispCnt |= DISPCNT_OBJ_1D_MAP;
     var = TaskGetStructPtr(t);
-    var->unkD8 = sub_0801E030;
+    var->unkD8 = FN(sub_0801E030);
     var->unkDC = a1;
     var->unkE2 = 0;
     var->unkD0[0] = 0;
@@ -204,7 +204,7 @@ static void sub_0801DF30(struct Unk_0801DA58 *var)
     sub_08155128(sprite);
     m4aSongNumStart(SE_BLOCK_BREAK);
     var->unkDE = 0;
-    var->unkD8 = sub_0801E0D8;
+    var->unkD8 = FN(sub_0801E0D8);
     sub_0801DEC8(var);
 }
 
@@ -217,7 +217,7 @@ static void sub_0801DFF4(void)
 {
     struct Unk_0801DA58 *var = TaskGetStructPtr(gCurTask);
 
-    var->unkD8(var);
+    CALL(var->unkD8)(var);
 }
 
 static void nullsub_28(struct Task *t)
@@ -225,7 +225,7 @@ static void nullsub_28(struct Task *t)
 
 static void sub_0801E030(struct Unk_0801DA58 *var)
 {
-    var->unkD8 = sub_0801E03C;
+    var->unkD8 = FN(sub_0801E03C);
 }
 
 static void sub_0801E03C(struct Unk_0801DA58 *var)
@@ -238,13 +238,13 @@ static void sub_0801E03C(struct Unk_0801DA58 *var)
     LoadBgPaletteAndPaletteEffectSource(r6->palette, 0, 0x60);
     LoadBgPaletteAndPaletteEffectSource(bg->palette, bg->paletteOffset, bg->paletteSize);
     CreatePaletteFadeFromWhite(7)->unk8 |= 0x180;
-    var->unkD8 = sub_0801E0B0;
+    var->unkD8 = FN(sub_0801E0B0);
 }
 
 static void sub_0801E0B0(struct Unk_0801DA58 *var)
 {
     if (var->unkDE++ > 0x20)
-        var->unkD8 = sub_0801E1A0;
+        var->unkD8 = FN(sub_0801E1A0);
 }
 
 static void sub_0801E0D8(struct Unk_0801DA58 *var)
@@ -258,7 +258,7 @@ static void sub_0801E0D8(struct Unk_0801DA58 *var)
             (u16 *)var->unk0.tilemapVram + ({ 0x20 * var->unk0.unk24 + var->unk0.unk22; }),
             var->unkE0
         );
-        var->unkD8 = sub_0801E130;
+        var->unkD8 = FN(sub_0801E130);
     }
     sub_0801DEC8(var);
 }
@@ -266,7 +266,7 @@ static void sub_0801E0D8(struct Unk_0801DA58 *var)
 static void sub_0801E130(struct Unk_0801DA58 *var)
 {
     if (var->unkDE++ > 6)
-        var->unkD8 = sub_0801E15C;
+        var->unkD8 = FN(sub_0801E15C);
     sub_0801DEC8(var);
 }
 
@@ -274,42 +274,42 @@ static void sub_0801E15C(struct Unk_0801DA58 *var)
 {
     var->unkE2 ^= 1;
     if (++var->unkE0 != 5)
-        var->unkD8 = sub_0801DF30;
+        var->unkD8 = FN(sub_0801DF30);
     else
-        var->unkD8 = sub_0801E1B4;
+        var->unkD8 = FN(sub_0801E1B4);
     sub_0801DEC8(var);
 }
 
 static void sub_0801E1A0(struct Unk_0801DA58 *var)
 {
     var->unkDE = 0;
-    var->unkD8 = sub_0801E1D0;
+    var->unkD8 = FN(sub_0801E1D0);
 }
 
 static void sub_0801E1B4(struct Unk_0801DA58 *var)
 {
     var->unkDE = 0;
-    var->unkD8 = sub_0801E1F8;
+    var->unkD8 = FN(sub_0801E1F8);
     sub_0801DEC8(var);
 }
 
 static void sub_0801E1D0(struct Unk_0801DA58 *var)
 {
     if (var->unkDE++ > 0x3C)
-        var->unkD8 = sub_0801E224;
+        var->unkD8 = FN(sub_0801E224);
 }
 
 static void sub_0801E1F8(struct Unk_0801DA58 *var)
 {
     if (var->unkDE++ > 0x3C)
-        var->unkD8 = sub_0801E238;
+        var->unkD8 = FN(sub_0801E238);
     sub_0801DEC8(var);
 }
 
 static void sub_0801E224(struct Unk_0801DA58 *var)
 {
     var->unkE0 = 0;
-    var->unkD8 = sub_0801DF30;
+    var->unkD8 = FN(sub_0801DF30);
 }
 
 static void sub_0801E238(struct Unk_0801DA58 *var)
@@ -323,13 +323,13 @@ static void sub_0801E238(struct Unk_0801DA58 *var)
     unkStruct->unk4 = 0xFFFF;
     unkStruct->unk6 = 0xFFFF;
     LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
-    var->unkD8 = sub_0801E28C;
+    var->unkD8 = FN(sub_0801E28C);
 }
 
 static void sub_0801E28C(struct Unk_0801DA58 *var)
 {
     if (var->unkDE++ > 0x20)
-        var->unkD8 = sub_0801E2B4;
+        var->unkD8 = FN(sub_0801E2B4);
 }
 
 static void sub_0801E2B4(struct Unk_0801DA58 *var)
@@ -341,3 +341,29 @@ static void sub_0801E2B4(struct Unk_0801DA58 *var)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0801DA58) {
+    PORT_FNID(sub_0801DF30),
+    PORT_FNID(sub_0801DFE8),
+    PORT_FNID(sub_0801DFF4),
+    PORT_FNID(nullsub_28),
+    PORT_FNID(sub_0801E030),
+    PORT_FNID(sub_0801E03C),
+    PORT_FNID(sub_0801E0B0),
+    PORT_FNID(sub_0801E0D8),
+    PORT_FNID(sub_0801E130),
+    PORT_FNID(sub_0801E15C),
+    PORT_FNID(sub_0801E1A0),
+    PORT_FNID(sub_0801E1B4),
+    PORT_FNID(sub_0801E1D0),
+    PORT_FNID(sub_0801E1F8),
+    PORT_FNID(sub_0801E224),
+    PORT_FNID(sub_0801E238),
+    PORT_FNID(sub_0801E28C),
+    PORT_FNID(sub_0801E2B4),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

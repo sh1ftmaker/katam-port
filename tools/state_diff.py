@@ -3,25 +3,35 @@
 
 The per-frame hash log (docs/DETERMINISM.md) says *that* two runs differ and
 from which frame.  This says *where*, word by word, and classifies each
-difference -- above all whether it is a stored host function pointer, which
-is spelled differently by every build and by construction cannot match:
+difference.
+
+Function pointers are no longer one of the classes that differ: the game
+stores canonical code IDs (platform/port/fnid.h, netplay-v2 R5) -- the GBA ROM
+address, or a name-derived 0x0Exxxxxx -- which are the same bytes in every
+build, so a raw native dump and a wasm dump agree on them.  A word that is a
+code ID is labelled with its function's name (game/generated/fnid_ids.h).
+Dumps from before that change spelled a function as
 
   native   the code address of the function (this executable's symbol table)
   wasm     an index into the module's function table
 
-Give each dump the binary it came from and those words are translated back to
-function names before comparing, so a difference that survives is a real
-difference in game state.
+and giving each dump the binary it came from still translates those back to
+names.  What the binaries are still needed for: pointers into the port's own
+static data (the game's C-defined const tables; netplay-v2 R6), which differ
+natively vs wasm and between layouts.
 
     tools/state_diff.py A.bin B.bin [--a-bin build/lp64/katam]
                                     [--b-bin build/katam-node.wasm]
 
 Dump layout (platform/inputlog.c, DumpTo): EWRAM, IWRAM, IO (DMA address
 registers zeroed), DMA channels canonical, frame state, PLTT, VRAM, OAM, the
-PPU's affine latches, SRAM.
-Exit status 0 when nothing but function-pointer spelling differs.
+PPU's affine latches, SRAM, then the port sim block (platform/port/
+simblock.h) -- its used bytes, compared byte for byte when both dumps have it.
+Exit status 0 when nothing but pointer spelling differs.
 """
 import argparse
+import os
+import re
 import struct
 import subprocess
 import sys
@@ -164,6 +174,17 @@ def data_test(path):
     return lambda w: lo <= w < hi or w in toks
 
 
+def code_ids():
+    """{code ID: function name}, from the generated table."""
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     'game', 'generated', 'fnid_ids.h')
+    try:
+        t = open(p).read()
+    except OSError:
+        return {}
+    return {int(v, 16): n for n, v in re.findall(r'#define FNID_(\w+) 0x([0-9A-Fa-f]+)u', t)}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('a'); ap.add_argument('b')
@@ -172,6 +193,7 @@ def main():
     args = ap.parse_args()
     A = open(args.a, 'rb').read(); B = open(args.b, 'rb').read()
     na, nb = namer(args.a_bin), namer(args.b_bin)
+    ids = code_ids()
     da, db = data_test(args.a_bin), data_test(args.b_bin)
     off = 0
     fnptr = folded = dataptr = 0
@@ -198,6 +220,15 @@ def main():
                 continue
             real.append((name, base + i if base else i, x, y, fx, fy))
         off += size
+    ta, tb = A[off:], B[off:]
+    if ta and tb:
+        for i in range(0, min(len(ta), len(tb)) - 3, 4):
+            x = struct.unpack_from('<I', ta, i)[0]
+            y = struct.unpack_from('<I', tb, i)[0]
+            if x != y:
+                real.append(('simblk', 0x02040000 + i, x, y, None, None))
+        if len(ta) != len(tb):
+            print('sim block lengths differ: %d vs %d' % (len(ta), len(tb)))
     print('function pointers spelled differently (same function): %d' % fnptr)
     print('function pointers to identical-code-folded functions: %d' % folded)
     print("pointers into the port's own static data: %d" % dataptr)
@@ -208,8 +239,9 @@ def main():
     for k, v in by.items():
         print('  %-6s %d' % (k, v))
     for r in real[:args.show]:
-        print('  %-6s %08X  %08X %s   %08X %s' % (r[0], r[1], r[2], r[4] or '',
-                                                r[3], r[5] or ''))
+        print('  %-6s %08X  %08X %s   %08X %s' % (
+            r[0], r[1], r[2], r[4] or ('=' + ids[r[2]] if r[2] in ids else ''),
+            r[3], r[5] or ('=' + ids[r[3]] if r[3] in ids else '')))
     return 1 if real else 0
 
 

@@ -27,7 +27,7 @@ void *CreateMirrorDoor(struct ObjectTemplate *template_, u8 a2)
 {
     struct MirrorDoor *mdAlias;
     bool32 var = FALSE;
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct MirrorDoor), 0x1000, TASK_USE_IWRAM, sub_0811A6A0);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct MirrorDoor), 0x1000, TASK_USE_IWRAM, FN(sub_0811A6A0));
     struct MirrorDoor *tmp = TaskGetStructPtr(t), *md = tmp;
 
     mdAlias = md;
@@ -107,7 +107,7 @@ void *CreateMirrorDoor(struct ObjectTemplate *template_, u8 a2)
     md->obj.base.sprite.unk8 = 0xC2000;
     sub_08155128(&md->obj.base.sprite);
     md->obj.base.sprite.unk14 = 0x7C0;
-    gUnk_08351648[md->obj.type].unk10(&md->obj);
+    CALL(gUnk_08351648[md->obj.type].unk10)(&md->obj);
     return md;
 }
 
@@ -191,7 +191,7 @@ static void sub_0811A15C(struct MirrorDoor *md)
         if (md->unkB4[1])
             md->unkB4[1]->flags |= 0x400;
         CreateEffectObject(&md->obj.base, 0, 0x2B4, 0)->y -= 0x1000;
-        md->obj.unk78 = sub_0811A234;
+        md->obj.unk78 = FN(sub_0811A234);
     }
     md->obj.base.flags |= 4;
 }
@@ -224,7 +224,7 @@ static void sub_0811A234(struct MirrorDoor *md)
         if (mdAlias->unkB4[1])
             mdAlias->unkB4[1]->flags &= ~0x400;
         CreateEffectObject(&md->obj.base, 0, 0x2B4, 0)->y -= 0x1000;
-        md->obj.unk78 = sub_0811A15C;
+        md->obj.unk78 = FN(sub_0811A15C);
     }
     md->obj.base.flags |= 4;
 }
@@ -239,7 +239,7 @@ static void sub_0811A35C(struct MirrorDoor *md)
             md->unkB4[0]->flags |= 0x400;
         if (md->unkB4[1])
             md->unkB4[1]->flags |= 0x400;
-        md->obj.unk78 = sub_0811A3D8;
+        md->obj.unk78 = FN(sub_0811A3D8);
     }
     md->obj.base.flags |= 4;
 }
@@ -257,7 +257,7 @@ static void sub_0811A3D8(struct MirrorDoor *md)
             sub_08119F88(md);
         if (mdAlias->unkB4[1])
             mdAlias->unkB4[1]->flags &= ~0x400;
-        md->obj.unk78 = sub_0811A35C;
+        md->obj.unk78 = FN(sub_0811A35C);
     }
 }
 
@@ -279,7 +279,7 @@ static void sub_0811A45C(struct MirrorDoor *md)
         if (md->unkB4[1])
             md->unkB4[1]->flags |= 0x400;
         CreateEffectObject(&md->obj.base, 0, 0x2B4, 0)->y -= 0x1000;
-        md->obj.unk78 = sub_0811A548;
+        md->obj.unk78 = FN(sub_0811A548);
     }
     md->obj.base.flags |= 4;
 }
@@ -301,7 +301,7 @@ static void sub_0811A548(struct MirrorDoor *md)
         if (md->unkB4[1])
             md->unkB4[1]->flags &= ~0x400;
         CreateEffectObject(&md->obj.base, 0, 0x2B4, 0)->y -= 0x1000;
-        md->obj.unk78 = sub_0811A45C;
+        md->obj.unk78 = FN(sub_0811A45C);
     }
     md->obj.base.flags |= 4;
 }
@@ -313,21 +313,21 @@ void sub_0811A624(struct MirrorDoor *md)
     {
     case 0:
         if (md->obj.unk83 == 1)
-            md->obj.unk78 = sub_0811A234;
+            md->obj.unk78 = FN(sub_0811A234);
         else
-            md->obj.unk78 = sub_0811A15C;
+            md->obj.unk78 = FN(sub_0811A15C);
         break;
     case 1:
         if (md->obj.base.flags & 0x400)
-            md->obj.unk78 = sub_0811A3D8;
+            md->obj.unk78 = FN(sub_0811A3D8);
         else
-            md->obj.unk78 = sub_0811A35C;
+            md->obj.unk78 = FN(sub_0811A35C);
         break;
     case 2:
         if (md->obj.unk83 == 0)
-            md->obj.unk78 = sub_0811A45C;
+            md->obj.unk78 = FN(sub_0811A45C);
         else
-            md->obj.unk78 = sub_0811A548;
+            md->obj.unk78 = FN(sub_0811A548);
         break;
     }
 }
@@ -354,3 +354,20 @@ static bool32 sub_0811A708(struct MirrorDoor *md)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_mirror_door) {
+    PORT_FNID(CreateMirrorDoor),
+    PORT_FNID(sub_0811A15C),
+    PORT_FNID(sub_0811A234),
+    PORT_FNID(sub_0811A35C),
+    PORT_FNID(sub_0811A3D8),
+    PORT_FNID(sub_0811A45C),
+    PORT_FNID(sub_0811A548),
+    PORT_FNID(sub_0811A624),
+    PORT_FNID(sub_0811A6A0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

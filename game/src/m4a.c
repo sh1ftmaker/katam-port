@@ -262,19 +262,19 @@ void MPlayExtender(struct CgbChannel *cgbChans)
     if (ident != ID_NUMBER)
         return;
     ++soundInfo->ident;
-    gMPlayJumpTable[8] = ply_memacc;
-    gMPlayJumpTable[17] = ply_lfos;
-    gMPlayJumpTable[19] = ply_mod;
-    gMPlayJumpTable[28] = ply_xcmd;
-    gMPlayJumpTable[29] = ply_endtie;
-    gMPlayJumpTable[30] = SampleFreqSet;
-    gMPlayJumpTable[31] = TrackStop;
-    gMPlayJumpTable[32] = FadeOutBody;
-    gMPlayJumpTable[33] = TrkVolPitSet;
+    gMPlayJumpTable[8] = FN(ply_memacc);
+    gMPlayJumpTable[17] = FN(ply_lfos);
+    gMPlayJumpTable[19] = FN(ply_mod);
+    gMPlayJumpTable[28] = FN(ply_xcmd);
+    gMPlayJumpTable[29] = FN(ply_endtie);
+    gMPlayJumpTable[30] = FN(SampleFreqSet);
+    gMPlayJumpTable[31] = FN(TrackStop);
+    gMPlayJumpTable[32] = FN(FadeOutBody);
+    gMPlayJumpTable[33] = FN(TrkVolPitSet);
     soundInfo->cgbChans = cgbChans;
-    soundInfo->CgbSound = CgbSound;
-    soundInfo->CgbOscOff = CgbOscOff;
-    soundInfo->MidiKeyToCgbFreq = MidiKeyToCgbFreq;
+    soundInfo->CgbSound = FN(CgbSound);
+    soundInfo->CgbOscOff = FN(CgbOscOff);
+    soundInfo->MidiKeyToCgbFreq = FN(MidiKeyToCgbFreq);
     soundInfo->maxLines = MAX_LINES;
     CpuFill32(0, cgbChans, sizeof(struct CgbChannel) * 4);
     cgbChans[0].ty = 1;
@@ -296,13 +296,13 @@ void MusicPlayerJumpTableCopy(void)
 void ClearChain(void *x)
 {
     void (*func)(void *) = *(&gMPlayJumpTable[34]);
-    func(x);
+    CALL(func)(x);
 }
 
 void Clear64byte(void *x)
 {
     void (*func)(void *) = *(&gMPlayJumpTable[35]);
-    func(x);
+    CALL(func)(x);
 }
 
 void SoundInit(struct SoundInfo *soundInfo)
@@ -331,17 +331,17 @@ void SoundInit(struct SoundInfo *soundInfo)
     CpuFill32(0, soundInfo, sizeof(struct SoundInfo));
     soundInfo->maxChans = 8;
     soundInfo->masterVolume = 15;
-    soundInfo->plynote = ply_note;
-    soundInfo->CgbSound = nullsub_141;
+    soundInfo->plynote = FN(ply_note);
+    soundInfo->CgbSound = FN(nullsub_141);
     /* PORT: nullsub_141 is void(void).  Storing it as void(u8) and
      * u32(u8,u8,u8) is free on ARM -- the arguments sit unread in r0-r2 --
      * and traps in wasm, which checks the callee's type at every indirect
      * call.  MPlayExtender overwrites both a moment later and SoundClear
      * guards on cgbChans being non-null, so neither is reachable today; a
      * wasm trap is unrecoverable and this is one line. */
-    soundInfo->CgbOscOff = PortNullCgbOscOff;
-    soundInfo->MidiKeyToCgbFreq = PortNullMidiKeyToCgbFreq;
-    soundInfo->ExtVolPit = nullsub_141;
+    soundInfo->CgbOscOff = FN(PortNullCgbOscOff);
+    soundInfo->MidiKeyToCgbFreq = FN(PortNullMidiKeyToCgbFreq);
+    soundInfo->ExtVolPit = FN(nullsub_141);
     MPlayJumpTableCopy(gMPlayJumpTable);
     soundInfo->MPlayJumpTable = (u32)gMPlayJumpTable;
     SampleFreqSet(SOUND_MODE_FREQ_13379); // ???
@@ -430,7 +430,7 @@ void SoundClear(void)
         i = 1;
         while (i <= 4)
         {
-            soundInfo->CgbOscOff(i);
+            CALL(soundInfo->CgbOscOff)(i);
             ((struct CgbChannel *)chan)->sf = 0;
             ++i;
             chan = (void *)((s32)chan + sizeof(struct CgbChannel));
@@ -498,7 +498,7 @@ void MPlayOpen(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track
         soundInfo->func = 0;
     }
     soundInfo->intp = (u32)mplayInfo;
-    soundInfo->func = (u32)MPlayMain;
+    soundInfo->func = (u32)FN(MPlayMain);
     soundInfo->ident = ID_NUMBER;
     mplayInfo->ident = ID_NUMBER;
 }
@@ -1326,7 +1326,7 @@ void ply_memacc(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *trac
 cond_true:
     {
         void (*func)(struct MusicPlayerInfo *, struct MusicPlayerTrack *) = *(&gMPlayJumpTable[1]);
-        func(mplayInfo, track);
+        CALL(func)(mplayInfo, track);
         return;
     }
 cond_false:
@@ -1338,14 +1338,14 @@ void ply_xcmd(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track)
     u32 n = *track->cmdPtr;
 
     ++track->cmdPtr;
-    gXcmdTable[n](mplayInfo, track);
+    CALL(gXcmdTable[n])(mplayInfo, track);
 }
 
 void ply_xxx(struct MusicPlayerInfo *mplayInfo, struct MusicPlayerTrack *track)
 {
     void (*func)(struct MusicPlayerInfo *, struct MusicPlayerTrack *) = *(&gMPlayJumpTable[0]);
 
-    func(mplayInfo, track);
+    CALL(func)(mplayInfo, track);
 }
 
 #define READ_XCMD_BYTE(var, n)       \
@@ -1429,3 +1429,31 @@ void nullsub_141(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_m4a) {
+    PORT_FNID(SampleFreqSet),
+    PORT_FNID(FadeOutBody),
+    PORT_FNID(TrkVolPitSet),
+    PORT_FNID(MidiKeyToCgbFreq),
+    PORT_FNID(CgbOscOff),
+    PORT_FNID(CgbSound),
+    PORT_FNID(ply_memacc),
+    PORT_FNID(ply_xcmd),
+    PORT_FNID(ply_xxx),
+    PORT_FNID(ply_xwave),
+    PORT_FNID(ply_xtype),
+    PORT_FNID(ply_xatta),
+    PORT_FNID(ply_xdeca),
+    PORT_FNID(ply_xsust),
+    PORT_FNID(ply_xrele),
+    PORT_FNID(ply_xiecv),
+    PORT_FNID(ply_xiecl),
+    PORT_FNID(ply_xleng),
+    PORT_FNID(ply_xswee),
+    PORT_FNID(nullsub_141),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

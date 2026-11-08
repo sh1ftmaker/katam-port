@@ -66,7 +66,7 @@ static void sub_080BD524(struct Object*);
 
 void* CreateBatty(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -83,7 +83,7 @@ void* CreateBatty(struct ObjectTemplate* arg0, u8 arg1) {
         sub_080BD458(obj);
     }
     else {
-        gUnk_08351648[obj->type].unk10(obj);
+        CALL(gUnk_08351648[obj->type].unk10)(obj);
     }
     obj->unk9E = 0;
     obj->unk7C = NULL;
@@ -301,7 +301,7 @@ static void sub_080BD038(struct Object* arg0) {
                 sub_080BD418(arg0);
                 break;
             default:
-                ObjectSetFunc(arg0, 0, sub_080BCCB0);
+                ObjectSetFunc(arg0, 0, FN(sub_080BCCB0));
                 arg0->base.flags |= 0x40;
                 arg0->base.flags |= 0x100;
                 arg0->base.flags &= ~0x20;
@@ -335,7 +335,7 @@ static void sub_080BD2B4(struct Object* arg0) {
     }
     else {
         if (arg0->base.flags & 2) {
-            ObjectSetFunc(arg0, 0, sub_080BCF24);
+            ObjectSetFunc(arg0, 0, FN(sub_080BCF24));
             arg0->base.flags |= 0x40;
             arg0->base.flags |= 0x100;
             arg0->base.flags &= ~0x20;
@@ -359,7 +359,7 @@ void sub_080BD3CC(struct Object* arg0) {
         sub_080BD418(arg0);
         break;
     default:
-        ObjectSetFunc(arg0, 0, sub_080BCCB0);
+        ObjectSetFunc(arg0, 0, FN(sub_080BCCB0));
         arg0->base.flags |= 0x40;
         arg0->base.flags |= 0x100;
         arg0->base.flags &= ~0x20;
@@ -368,7 +368,7 @@ void sub_080BD3CC(struct Object* arg0) {
 }
 
 static void sub_080BD418(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BCF24);
+    ObjectSetFunc(arg0, 0, FN(sub_080BCF24));
     arg0->base.flags |= 0x40;
     arg0->base.flags |= 0x100;
     arg0->base.flags &= ~0x20;
@@ -384,7 +384,7 @@ static void sub_080BD418(struct Object* arg0) {
 static void sub_080BD458(struct Object* arg0) {
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
-    ObjectSetFunc(arg0, 2, sub_080BD2B4);
+    ObjectSetFunc(arg0, 2, FN(sub_080BD2B4));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~0x20;
     arg0->base.flags |= 0x100;
@@ -392,7 +392,7 @@ static void sub_080BD458(struct Object* arg0) {
 }
 
 static void sub_080BD48C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BD038);
+    ObjectSetFunc(arg0, 0, FN(sub_080BD038));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~0x20;
     arg0->base.flags |= 0x100;
@@ -404,7 +404,7 @@ static void sub_080BD48C(struct Object* arg0) {
 static void sub_080BD4D4(struct Object* arg0) {
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
-    ObjectSetFunc(arg0, 1, sub_080BD524);
+    ObjectSetFunc(arg0, 1, FN(sub_080BD524));
     arg0->base.x = arg0->unkA0 * 256;
     arg0->base.y = arg0->unkA2 * 256;
     arg0->base.flags |= 0x40;
@@ -422,3 +422,18 @@ static void sub_080BD524(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_batty) {
+    PORT_FNID(CreateBatty),
+    PORT_FNID(sub_080BCCB0),
+    PORT_FNID(sub_080BCF24),
+    PORT_FNID(sub_080BD038),
+    PORT_FNID(sub_080BD2B4),
+    PORT_FNID(sub_080BD3CC),
+    PORT_FNID(sub_080BD524),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

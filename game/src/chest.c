@@ -26,7 +26,7 @@ static void sub_0800BDE0(struct ChestItemPopup *);
 
 void *CreateChest(struct ObjectTemplate *arg0, u8 arg1) {
     struct Chest *chest2, *chest;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Chest), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Chest), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     void *ptr = TaskGetStructPtr(task);
     chest2 = ptr;
     chest = chest2;
@@ -67,7 +67,7 @@ void *CreateChest(struct ObjectTemplate *arg0, u8 arg1) {
     }
     ObjectInitSprite(&chest2->obj);
     chest2->obj.base.sprite.unk14 = 0x780;
-    gUnk_08351648[chest2->obj.type].unk10(&chest2->obj);
+    CALL(gUnk_08351648[chest2->obj.type].unk10)(&chest2->obj);
     return chest2;
 }
 
@@ -99,7 +99,7 @@ static void sub_0800AEB0(struct Chest *chest) {
              && pos.y <= kirby->base.y && pos.y + measure.y >= kirby->base.y
              && sub_0804B6FC(kirby)) {
                 chest->unkE4 = i;
-                obj->unk78 = sub_0800AFC8;
+                obj->unk78 = FN(sub_0800AFC8);
                 break;
             }
         }
@@ -142,7 +142,7 @@ static void sub_0800AFC8(struct Chest *chest) {
     }
     if (!(gUnk_0203AD10 & 0x10)) {
         if (gUnk_0203AD10 & 2) {
-            if (gLocalPlayerId == gUnk_0203AD24) {
+            if (PortSimSaveOwner()) {
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             }
             else {
@@ -154,7 +154,7 @@ static void sub_0800AFC8(struct Chest *chest) {
         }
     }
     sub_0800B414(chest2, chest2->obj.base.x >> 8, chest2->obj.base.y >> 8, chest2->unkE0);
-    chest->obj.unk78 = sub_0800BD9C;
+    chest->obj.unk78 = FN(sub_0800BD9C);
 }
 
 static void sub_0800B414(struct Chest *chest, s16 x, s16 y, u16 item) {
@@ -162,7 +162,7 @@ static void sub_0800B414(struct Chest *chest, s16 x, s16 y, u16 item) {
     u32 numTiles;
     u16 spriteId;
     u16 variant;
-    struct Task *task = TaskCreate(sub_0800B7A4, sizeof(struct ChestItemPopup), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_0800B7A4), sizeof(struct ChestItemPopup), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     void *ptr = TaskGetStructPtr(task);
     popup = ptr;
     popup2 = popup;
@@ -175,7 +175,7 @@ static void sub_0800B414(struct Chest *chest, s16 x, s16 y, u16 item) {
     popup->effectObject.x = x * 0x100;
     popup->effectObject.y = y * 0x100;
     popup->effectObject.unk4 = 0;
-    popup->unk48 = sub_0800BDB4;
+    popup->unk48 = FN(sub_0800BDB4);
     popup->unk4C = chest;
     popup->unk50 = item;
     if (Macro_0810B1F4(&chest->obj.base)) {
@@ -291,7 +291,7 @@ static void sub_0800B7A4(void) {
         KirbySomething(&popup->effectObject);
     }
     Macro_0809E55C(&popup->effectObject);
-    tmp->unk48(tmp);
+    CALL(tmp->unk48)(tmp);
     if (!(popup->effectObject.flags & 0x800)) {
         popup->effectObject.x += popup->effectObject.unk3C;
         popup->effectObject.y -= popup->effectObject.unk3E;
@@ -360,11 +360,11 @@ static void sub_0800B97C(struct ChestItemPopup *popup) {
 void sub_0800BD4C(struct Chest *arg0) {
     struct Chest *chest = arg0;
     if (HasChest(chest->unkE2)) {
-        chest->obj.unk78 = sub_0800BD9C;
+        chest->obj.unk78 = FN(sub_0800BD9C);
         sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[chest->obj.base.unk56].unk65E), 1);
     }
     else {
-        chest->obj.unk78 = sub_0800AEB0;
+        chest->obj.unk78 = FN(sub_0800AEB0);
     }
 }
 
@@ -379,7 +379,7 @@ static void sub_0800BDB4(struct ChestItemPopup *popup) {
     popup->effectObject.unk3E = 0x200;
     if (popup->effectObject.unk4++ > 0xA) {
         popup->effectObject.unk4 = 0;
-        popup->unk48 = sub_0800BDE0;
+        popup->unk48 = FN(sub_0800BDE0);
     }
 }
 
@@ -389,10 +389,27 @@ static void sub_0800BDE0(struct ChestItemPopup *popup) {
     if (popup->effectObject.unk4++ > 0xA) {
         popup->effectObject.unk4 = 0;
         popup->effectObject.unk3E = -0x20;
-        popup->unk48 = sub_0800B97C;
+        popup->unk48 = FN(sub_0800B97C);
     }
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_chest) {
+    PORT_FNID(CreateChest),
+    PORT_FNID(sub_0800AEB0),
+    PORT_FNID(sub_0800AFC8),
+    PORT_FNID(sub_0800B7A4),
+    PORT_FNID(sub_0800B97C),
+    PORT_FNID(sub_0800BD4C),
+    PORT_FNID(sub_0800BD9C),
+    PORT_FNID(sub_0800BDB4),
+    PORT_FNID(sub_0800BDE0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

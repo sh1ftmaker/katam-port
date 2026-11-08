@@ -81,7 +81,7 @@ void sub_08128980(void) {
 
 void CreatePauseFade(s8 arg0, u32 arg1) {
     struct Task* task =
-        TaskCreate(PauseFadeMain, sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
+        TaskCreate(FN(PauseFadeMain), sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
     struct PauseFadeStruct *fade, *fade2;
 
     fade = TaskGetStructPtr(task);
@@ -112,7 +112,7 @@ void CreatePauseFade(s8 arg0, u32 arg1) {
 
 void CreatePauseFadeSetBldCnt(s8 arg0, u32 arg1) {
     struct Task* task =
-        TaskCreate(PauseFadeMain, sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
+        TaskCreate(FN(PauseFadeMain), sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
     struct PauseFadeStruct *fade, *fade2;
 
     fade = TaskGetStructPtr(task);
@@ -166,7 +166,7 @@ static void PauseFadeMain(void) {
 }
 
 void sub_08128BEC(s8 a1, u32 a2, u16 a3) {
-    struct Task* t = TaskCreate(sub_08128C5C, sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
+    struct Task* t = TaskCreate(FN(sub_08128C5C), sizeof(struct PauseFadeStruct), 0x100, TASK_USE_IWRAM | TASK_x0004, NULL);
     struct PauseFadeStruct *tmp = TaskGetStructPtr(t), *pf = tmp;
 
     pf->unk0 = a3;
@@ -215,3 +215,14 @@ static void sub_08128C5C(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_pause_fade) {
+    PORT_FNID(sub_08128980),
+    PORT_FNID(PauseFadeMain),
+    PORT_FNID(sub_08128C5C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

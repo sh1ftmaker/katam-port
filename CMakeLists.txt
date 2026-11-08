@@ -330,6 +330,13 @@ target_compile_options(katam_ui PRIVATE -std=gnu++17 -O2 -fno-plt
   -fno-exceptions -fno-rtti -fno-threadsafe-statics -w)
 set_property(TARGET katam_ui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_link_libraries(katam PRIVATE katam_ui)
+# Zstandard (third_party/zstd, README there): the snapshot compressor.  C,
+# its own flags, linked after everything else.
+add_library(katam_zstd STATIC third_party/zstd/zstd.c)
+set_source_files_properties(third_party/zstd/zstd.c PROPERTIES LANGUAGE C)
+target_compile_options(katam_zstd PRIVATE -O2 -w)
+set_property(TARGET katam_zstd PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+target_link_libraries(katam PRIVATE katam_zstd)
 set_target_properties(katam PROPERTIES LINKER_LANGUAGE CXX)
 
 # ---------------------------------------------------------------------------

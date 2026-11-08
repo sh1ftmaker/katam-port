@@ -122,7 +122,7 @@ extern const struct AnimInfo gUnk_08356E18[] = {
 
 void *CreateMoley(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Moley), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Moley), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Moley *tmp = TaskGetStructPtr(t), *moley = tmp;
 
     InitObject(&moley->obj, template_, a2);
@@ -290,7 +290,7 @@ void sub_080EB848(struct Moley *moley)
         sub_080EC504(moley);
     else
     {
-        ObjectSetFunc(moley, 2, sub_080EB9AC);
+        ObjectSetFunc(moley, 2, FN(sub_080EB9AC));
         moley->obj.base.xspeed = 0;
         moley->obj.base.yspeed = 0;
         moley->obj.kirby3 = FindTargetKirby(&moley->obj.base);
@@ -378,7 +378,7 @@ static void sub_080EBBD0(struct Moley *moley)
 {
     struct Moley *moley2 = moley;
 
-    ObjectSetFunc(moley, 0, sub_080ED5FC);
+    ObjectSetFunc(moley, 0, FN(sub_080ED5FC));
     moley2->obj.base.xspeed = 0;
     moley2->obj.base.yspeed = 0;
     if (!(moley2->obj.base.flags & 0x400))
@@ -414,7 +414,7 @@ static void sub_080EBBD0(struct Moley *moley)
 
 static void sub_080EBCDC(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 5, sub_080EBD4C);
+    ObjectSetFunc(moley, 5, FN(sub_080EBD4C));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -489,7 +489,7 @@ static void sub_080EBD4C(struct Moley *moley)
 
 static void sub_080EBF34(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 0, sub_080ED67C);
+    ObjectSetFunc(moley, 0, FN(sub_080ED67C));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -544,7 +544,7 @@ static void sub_080EC040(struct Moley *moley)
             return;
         }
     }
-    ObjectSetFunc(moley, 7, sub_080ED6D0);
+    ObjectSetFunc(moley, 7, FN(sub_080ED6D0));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -559,7 +559,7 @@ static void sub_080EC1F4(struct Moley *moley)
 {
     struct Moley *moley2 = moley;
 
-    ObjectSetFunc(moley, 8, sub_080EC308);
+    ObjectSetFunc(moley, 8, FN(sub_080EC308));
     moley->obj.kirby3 = FindTargetKirby(&moley->obj.base);
     if (moley->obj.base.x > moley->obj.kirby3->base.x)
         moley->obj.base.flags |= 1;
@@ -627,7 +627,7 @@ static void sub_080EC3B8(struct Moley *moley)
 {
     struct Moley *moley2 = moley;
 
-    ObjectSetFunc(moley, 8, sub_080EC44C);
+    ObjectSetFunc(moley, 8, FN(sub_080EC44C));
     moley->obj.kirby3 = FindTargetKirby(&moley->obj.base);
     if (moley->obj.base.x > moley->obj.kirby3->base.x)
         moley->obj.base.flags |= 1;
@@ -687,7 +687,7 @@ static void sub_080EC44C(struct Moley *moley)
 
 static void sub_080EC504(struct Moley *moley)
 {
-    ObjectSetFunc(moley, -1, sub_080ED77C);
+    ObjectSetFunc(moley, -1, FN(sub_080ED77C));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags |= 0x200;
@@ -764,14 +764,14 @@ static void sub_080EC650(struct Moley *moley, u8 a2, u8 a3)
 
 void *CreateMoleyItem(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(t), *obj = tmp;
 
     InitObject(obj, template_, a2);
     obj->base.flags |= 0x40;
     obj->base.unkC |= 2;
     obj->unk9E = 0;
-    obj->unk7C = sub_0809F840;
+    obj->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&obj->base, -5, -6, 5, 5);
     ObjectSetBounds(&obj->base, -6, -7, 6, 7);
     switch (obj->type)
@@ -808,7 +808,7 @@ void sub_080EC8E8(struct Object *obj)
     struct Moley *moley = obj->base.parent;
     struct Kirby *kirby = moley->obj.kirby3;
 
-    ObjectSetFunc(obj, 0, sub_080ECDE0);
+    ObjectSetFunc(obj, 0, FN(sub_080ECDE0));
     obj->base.xspeed = 0;
     obj->base.yspeed = 0;
     if (obj->objTemplate->subtype1 != 1)
@@ -866,17 +866,17 @@ void sub_080EC8E8(struct Object *obj)
     {
     case OBJ_MOLEY_SCREW:
     case OBJ_MOLEY_TIRE:
-        obj->unk78 = sub_080ECCAC;
+        obj->unk78 = FN(sub_080ECCAC);
         break;
     case OBJ_MOLEY_BARREL:
         obj->base.counter = 0x91;
         obj->unk9E = 0;
-        obj->unk78 = sub_080ECBAC;
+        obj->unk78 = FN(sub_080ECBAC);
         break;
     case OBJ_MOLEY_BOMB:
         obj->base.counter = 0x5A;
         obj->unk9E = 0;
-        obj->unk78 = sub_080ECBAC;
+        obj->unk78 = FN(sub_080ECBAC);
         break;
     case OBJ_MOLEY_ROCK:
     case OBJ_MOLEY_BIG_ROCK:
@@ -1045,7 +1045,7 @@ static void sub_080ECDE0(struct Object *obj)
 
 static void sub_080ECEC0(struct Moley *moley)
 {
-    struct Task *t = TaskCreate(sub_080ECF6C, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080ECF6C), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -1104,7 +1104,7 @@ static void sub_080ECF6C(void)
 
 static void sub_080ED078(struct Moley *moley)
 {
-    struct Task *t = TaskCreate(sub_080ED270, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080ED270), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
     u16 r;
 
@@ -1204,7 +1204,7 @@ static void sub_080ED270(void)
 
 static void sub_080ED520(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 0, sub_080EB2C0);
+    ObjectSetFunc(moley, 0, FN(sub_080EB2C0));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags |= 0x40;
@@ -1212,7 +1212,7 @@ static void sub_080ED520(struct Moley *moley)
 
 static void sub_080ED54C(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 0, sub_080EB39C);
+    ObjectSetFunc(moley, 0, FN(sub_080EB39C));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.counter = 0xD2;
@@ -1221,7 +1221,7 @@ static void sub_080ED54C(struct Moley *moley)
 
 static void sub_080ED578(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 2, sub_080ED5AC);
+    ObjectSetFunc(moley, 2, FN(sub_080ED5AC));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -1236,7 +1236,7 @@ static void sub_080ED5AC(struct Moley *moley)
 
 static void sub_080ED5C4(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 3, sub_080EB4B8);
+    ObjectSetFunc(moley, 3, FN(sub_080EB4B8));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -1284,7 +1284,7 @@ static void sub_080ED6D0(struct Moley *moley)
 
 static void sub_080ED704(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 7, sub_080ED748);
+    ObjectSetFunc(moley, 7, FN(sub_080ED748));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -1330,7 +1330,7 @@ static void sub_080ED77C(struct Moley *moley)
 
 static void sub_080ED7D8(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 3, sub_080ED828);
+    ObjectSetFunc(moley, 3, FN(sub_080ED828));
     moley->obj.base.x = 0x2A000;
     moley->obj.base.y = 0xF800;
     moley->obj.base.xspeed = 0;
@@ -1365,7 +1365,7 @@ static void sub_080ED828(struct Moley *moley)
 
 static void sub_080ED87C(struct Moley *moley)
 {
-    ObjectSetFunc(moley, 0xB, sub_080ED8B8);
+    ObjectSetFunc(moley, 0xB, FN(sub_080ED8B8));
     moley->obj.base.xspeed = 0;
     moley->obj.base.yspeed = 0;
     moley->obj.base.flags &= ~0x400;
@@ -1381,7 +1381,7 @@ static void sub_080ED8B8(struct Moley *moley)
 
 static void sub_080ED8C4(struct Object *obj)
 {
-    ObjectSetFunc(obj, 1, sub_080ED8F0);
+    ObjectSetFunc(obj, 1, FN(sub_080ED8F0));
     obj->base.xspeed = 0;
     obj->base.yspeed = 0;
     obj->base.flags |= 0x200;
@@ -1409,3 +1409,36 @@ static void sub_080ED8F0(struct Object *obj)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_moley) {
+    PORT_FNID(CreateMoley),
+    PORT_FNID(sub_080EB2C0),
+    PORT_FNID(sub_080EB39C),
+    PORT_FNID(sub_080EB4B8),
+    PORT_FNID(sub_080EB848),
+    PORT_FNID(sub_080EB9AC),
+    PORT_FNID(sub_080EBD4C),
+    PORT_FNID(sub_080EC308),
+    PORT_FNID(sub_080EC44C),
+    PORT_FNID(CreateMoleyItem),
+    PORT_FNID(sub_080EC8E8),
+    PORT_FNID(sub_080ECBAC),
+    PORT_FNID(sub_080ECCAC),
+    PORT_FNID(sub_080ECDE0),
+    PORT_FNID(sub_080ECF6C),
+    PORT_FNID(sub_080ED270),
+    PORT_FNID(sub_080ED5AC),
+    PORT_FNID(sub_080ED5FC),
+    PORT_FNID(sub_080ED67C),
+    PORT_FNID(sub_080ED6D0),
+    PORT_FNID(sub_080ED748),
+    PORT_FNID(sub_080ED77C),
+    PORT_FNID(sub_080ED828),
+    PORT_FNID(sub_080ED8B8),
+    PORT_FNID(sub_080ED8F0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

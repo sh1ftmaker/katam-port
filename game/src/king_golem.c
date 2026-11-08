@@ -51,7 +51,7 @@ extern const struct AnimInfo gUnk_083563B0[] = {
 
 void *CreateKingGolem(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct KingGolem), 0x1001, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct KingGolem), 0x1001, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct KingGolem *tmp = TaskGetStructPtr(t);
     struct KingGolem *kg1 = tmp, *kg2 = tmp;
 
@@ -82,7 +82,7 @@ void *CreateKingGolem(struct ObjectTemplate *template_, u8 a2)
     ObjectInitSprite(&kg1->obj);
     kg1->obj.base.sprite.unk14 = 0x6C0;
     kg1->obj.unk9E = 0;
-    kg1->obj.unk7C = sub_080DB85C;
+    kg1->obj.unk7C = FN(sub_080DB85C);
     kg2->effectObject = sub_080DA68C(kg1);
     Macro_080E7D74(&kg1->obj);
     sub_080DB640(kg1);
@@ -99,7 +99,7 @@ static void sub_080DA2BC(struct KingGolem *kg)
     {
         Macro_081003EC(&kg->obj, &kg->obj.kirby3->base);
         sub_080DA4B0(kg);
-        kg->obj.unk78 = sub_080DB664;
+        kg->obj.unk78 = FN(sub_080DB664);
         kg->obj.base.flags &= ~0x200;
         Macro_08100F18(&kg->obj);
     }
@@ -117,11 +117,11 @@ void sub_080DA4B0(struct KingGolem *kg)
         kg->obj.base.counter = 0;
         kg->obj.base.flags |= 0x200;
         kg->obj.unk83 = 5;
-        kg->obj.unk78 = sub_080DB694;
+        kg->obj.unk78 = FN(sub_080DB694);
     }
     else
     {
-        kg->obj.unk78 = sub_080DA540;
+        kg->obj.unk78 = FN(sub_080DA540);
         if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
             kg->obj.base.counter = 0x10;
         else
@@ -168,7 +168,7 @@ static void sub_080DA540(struct KingGolem *kg1)
 
 static struct EffectObject *sub_080DA68C(struct KingGolem *kg)
 {
-    struct Task *t = TaskCreate(sub_080DA768, sizeof(struct EffectObject), 0x1000, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080DA768), sizeof(struct EffectObject), 0x1000, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -219,7 +219,7 @@ static void sub_080DA768(void)
         label:
             KirbySomething(effectObject);
         }
-        if (kg1->obj.unk78 == sub_080DB7DC)
+        if (kg1->obj.unk78 == FN(sub_080DB7DC))
         {
             kg2->unkBD = 0;
             kg2->unkBC = 0;
@@ -234,7 +234,7 @@ static void sub_080DA768(void)
             }
             effectObject->sprite.animId = 0x303;
             effectObject->sprite.variant = 8;
-            gCurTask->main = sub_080DAB00;
+            gCurTask->main = FN(sub_080DAB00);
         }
         EffectObjectPostUpdate(effectObject);
         if (kg1->obj.unk83 == 6)
@@ -319,7 +319,7 @@ static void sub_080DAB00(void)
             effectObject->unk4 = 0;
             effectObject->sprite.animId = 0x303;
             effectObject->sprite.variant = 7;
-            gCurTask->main = sub_080DA768;
+            gCurTask->main = FN(sub_080DA768);
         }
         if (effectObject->header.unk1 == 0x20 && kg2->unkBD < effectObject->unk8)
         {
@@ -336,7 +336,7 @@ static void sub_080DAB00(void)
 
 void *CreateKingGolemRockOrGordo(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *obj = TaskGetStructPtr(t);
 
     InitObject(obj, template_, a2);
@@ -353,9 +353,9 @@ void *CreateKingGolemRockOrGordo(struct ObjectTemplate *template_, u8 a2)
     sub_0803E2B0(&obj->base, -4, -4, 4, 4);
     ObjectSetBounds(&obj->base, -7, -5, 7, 7);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     obj->unk9E = 0;
-    obj->unk7C = sub_0809F840;
+    obj->unk7C = FN(sub_0809F840);
     return obj;
 }
 
@@ -457,12 +457,12 @@ void sub_080DB5E0(struct Object *obj)
     obj->base.flags |= 0x100;
     obj->base.flags |= 0x200;
     obj->unk85 = 0;
-    obj->unk78 = sub_080DB7FC;
+    obj->unk78 = FN(sub_080DB7FC);
 }
 
 static void sub_080DB640(struct KingGolem *kg)
 {
-    ObjectSetFunc(kg, 0, sub_080DA2BC);
+    ObjectSetFunc(kg, 0, FN(sub_080DA2BC));
     kg->obj.base.xspeed = 0;
     kg->obj.base.yspeed = 0;
 }
@@ -493,7 +493,7 @@ static void sub_080DB6BC(struct KingGolem *kg)
     kg->obj.base.counter = 0;
     kg->obj.unk83 = 1;
     kg->obj.base.flags |= 0x100;
-    kg->obj.unk78 = sub_080DB6DC;
+    kg->obj.unk78 = FN(sub_080DB6DC);
 }
 
 static void sub_080DB6DC(struct KingGolem *kg)
@@ -517,7 +517,7 @@ static void sub_080DB754(struct KingGolem *kg)
     kg->obj.base.counter = 0;
     kg->obj.unk83 = 2;
     kg->obj.base.flags |= 0x100;
-    kg->obj.unk78 = sub_080DB774;
+    kg->obj.unk78 = FN(sub_080DB774);
 }
 
 static void sub_080DB774(struct KingGolem *kg)
@@ -537,7 +537,7 @@ static void sub_080DB790(struct KingGolem *kg)
     kg->obj.base.counter = 0;
     kg->obj.unk83 = 3;
     kg->obj.base.flags |= 0x100;
-    kg->obj.unk78 = sub_080DB7DC;
+    kg->obj.unk78 = FN(sub_080DB7DC);
 }
 
 static void sub_080DB7DC(struct KingGolem *kg)
@@ -556,7 +556,7 @@ static void sub_080DB7FC(struct KingGolem *kg)
         kg->obj.base.counter = 0;
         kg->obj.base.flags &= ~0x400;
         kg->obj.base.flags &= ~0xA48;
-        kg->obj.unk78 = sub_080DB0FC;
+        kg->obj.unk78 = FN(sub_080DB0FC);
     }
 }
 
@@ -570,3 +570,27 @@ static void sub_080DB85C(struct KingGolem *kg)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_king_golem) {
+    PORT_FNID(CreateKingGolem),
+    PORT_FNID(sub_080DA2BC),
+    PORT_FNID(sub_080DA4B0),
+    PORT_FNID(sub_080DA540),
+    PORT_FNID(sub_080DA768),
+    PORT_FNID(sub_080DAB00),
+    PORT_FNID(CreateKingGolemRockOrGordo),
+    PORT_FNID(sub_080DB0FC),
+    PORT_FNID(sub_080DB5E0),
+    PORT_FNID(sub_080DB664),
+    PORT_FNID(sub_080DB694),
+    PORT_FNID(sub_080DB6DC),
+    PORT_FNID(sub_080DB774),
+    PORT_FNID(sub_080DB7DC),
+    PORT_FNID(sub_080DB7FC),
+    PORT_FNID(sub_080DB85C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

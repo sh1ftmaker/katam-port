@@ -339,26 +339,26 @@ extern const s8 gUnk_08350C20[][2] = {
 };
 
 void (*const gUnk_08350C38[])(struct ObjectBase *) = {
-    nullsub_122,
-    sub_08070BA8,
-    sub_08070C24,
-    sub_08070FA8,
-    sub_08071024,
-    sub_08070CA0,
-    sub_08070D20,
-    sub_08070EA0,
-    sub_08070F24,
-    sub_080710A4,
-    sub_08071124,
-    sub_08070DA0,
-    sub_08070E20,
-    sub_08070BA8,
-    sub_08070C24,
-    sub_08070D20,
-    sub_08070CA0,
-    sub_08070FA8,
-    sub_08071024,
-    sub_080711A0,
+    FN(nullsub_122),
+    FN(sub_08070BA8),
+    FN(sub_08070C24),
+    FN(sub_08070FA8),
+    FN(sub_08071024),
+    FN(sub_08070CA0),
+    FN(sub_08070D20),
+    FN(sub_08070EA0),
+    FN(sub_08070F24),
+    FN(sub_080710A4),
+    FN(sub_08071124),
+    FN(sub_08070DA0),
+    FN(sub_08070E20),
+    FN(sub_08070BA8),
+    FN(sub_08070C24),
+    FN(sub_08070D20),
+    FN(sub_08070CA0),
+    FN(sub_08070FA8),
+    FN(sub_08071024),
+    FN(sub_080711A0),
 };
 
 extern const s16 gUnk_08350C88[] = {
@@ -565,20 +565,20 @@ extern const struct Unk_08357260 gUnk_08350E34[] = {
 void (*const gUnk_08350E58[])(struct Object *) = {
     NULL,
     NULL,
-    sub_08087390,
-    sub_08086F98,
-    sub_0808747C,
-    sub_0808758C,
-    sub_080870B8,
-    sub_08087290,
+    FN(sub_08087390),
+    FN(sub_08086F98),
+    FN(sub_0808747C),
+    FN(sub_0808758C),
+    FN(sub_080870B8),
+    FN(sub_08087290),
     NULL,
-    sub_080871A4,
-    sub_0808747C,
-    sub_08087678,
-    sub_080885F8,
+    FN(sub_080871A4),
+    FN(sub_0808747C),
+    FN(sub_08087678),
+    FN(sub_080885F8),
     NULL,
     NULL,
-    sub_08087678,
+    FN(sub_08087678),
 };
 
 extern const u16 gUnk_08350E98[] = {
@@ -832,13 +832,13 @@ void sub_0806FC70(struct ObjectBase *a1) {
                         a1->unk4C = a1->y += 0x1000;
                     }
                 }
-                gUnk_08350C38[r4](a1);
+                CALL(gUnk_08350C38[r4])(a1);
             } else if (!(gCollisionAttributes[a1->unk57] & 0x200)) {
                 return;
             }
             a1->unk62 = 0xFF;
         } else if ((r4 = gCollisionAttributes[a1->unk57] >> 0x1C)) {
-            gUnk_08350C38[r4](a1);
+            CALL(gUnk_08350C38[r4])(a1);
         }
     }
 }
@@ -857,7 +857,7 @@ struct Unk_0806FDF4 {
 void sub_0806FDF4(void) {
     struct Unk_0806FDF4 *ptr;
 
-    gUnk_03000518 = TaskCreate(sub_08070404, sizeof(struct Unk_0806FDF4), 0xFFEF, TASK_USE_IWRAM, sub_08070B50);
+    gUnk_03000518 = TaskCreate(FN(sub_08070404), sizeof(struct Unk_0806FDF4), 0xFFEF, TASK_USE_IWRAM, FN(sub_08070B50));
     ptr = TaskGetStructPtr(gUnk_03000518);
     CpuFill16(0, ptr, sizeof(struct Unk_0806FDF4));
     ptr->unk0[0].roomId = 0xFFFE;
@@ -1128,10 +1128,10 @@ void sub_08070580(void) {
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(gCurTask), *var = tmp;
 
     if (var->unk84)
-        var->unk84(var);
+        CALL(var->unk84)(var);
     if (!ObjectPreUpdate(&var->base)
-        && (!var->unk78 || !var->unk78(var))
-        && ((!(var->base.flags & 0x40000) && !(var->base.flags & 0x80000)) || !var->unk7C || !var->unk7C(var))) {
+        && (!var->unk78 || !CALL(var->unk78)(var))
+        && ((!(var->base.flags & 0x40000) && !(var->base.flags & 0x80000)) || !var->unk7C || !CALL(var->unk7C)(var))) {
         if (!(var->base.flags & 0x800)) {
             var->base.unk48 = var->base.x;
             var->base.unk4C = var->base.y;
@@ -1145,14 +1145,14 @@ void sub_08070580(void) {
                 && var->base.y >= gCurLevelInfo[var->base.unk56].levelMinPosition.y)
                 sub_0806FC70(&var->base);
         }
-        if (!var->unk80 || !var->base.unk62 || !var->unk80(var))
+        if (!var->unk80 || !var->base.unk62 || !CALL(var->unk80)(var))
             sub_0806F8BC(&var->base);
     }
 }
 
 struct Object14 *sub_080706A0(struct ObjectBase *a1, u32 a2, u16 a3, u8 a4,
     bool8 (*a5)(struct Object14 *), void (*a6)(struct Object14 *)) {
-    struct Task *t = TaskCreate(sub_08070808, sizeof(struct Object14), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070808), sizeof(struct Object14), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct Object14 *tmp = TaskGetStructPtr(t), *obj14 = tmp;
 
     ClearEffectObject(&obj14->effectObject);
@@ -1169,7 +1169,7 @@ struct Object14 *sub_080706A0(struct ObjectBase *a1, u32 a2, u16 a3, u8 a4,
     obj14->func48 = a5;
     obj14->func4C = a6;
     obj14->effectObject.flags |= 2;
-    a5(obj14);
+    CALL(a5)(obj14);
     if (a2) {
         if (a2 > 0x200) {
             if (a2 != a1->unk56 * 0x800 + 0x6010600)
@@ -1193,10 +1193,10 @@ void sub_08070808(void) {
         TaskDestroy(gCurTask);
     else {
         if (obj14->func4C)
-            obj14->func4C(obj14);
+            CALL(obj14->func4C)(obj14);
         if (Macro_0810B1F4(parent) && !(obj14->effectObject.flags & 0x2000))
             EffectObjectDisplaySprite(&obj14->effectObject);
-        else if (obj14->func48(obj14))
+        else if (CALL(obj14->func48)(obj14))
             obj14->effectObject.flags |= 0x1000;
         else {
             obj14->effectObject.unk3C += obj14->effectObject.unk4;
@@ -1492,7 +1492,7 @@ void sub_080711A0(struct ObjectBase *a1) {
 }
 
 void sub_080711A8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080714A0, sizeof(struct ObjectBase), 0x2FFF, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080714A0), sizeof(struct ObjectBase), 0x2FFF, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1605,7 +1605,7 @@ void sub_080714A0(void) {
 }
 
 void sub_080716BC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080717AC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080717AC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -1667,7 +1667,7 @@ void sub_080717AC(void) {
 }
 
 void sub_08071994(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08071B0C, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08071B0C), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1737,7 +1737,7 @@ void sub_08071B0C(void) {
 }
 
 void sub_08071C9C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08071E34, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08071E34), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1799,7 +1799,7 @@ void sub_08071E34(void) {
 }
 
 void sub_08071FC0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080720F8, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084AC4);
+    struct Task *t = TaskCreate(FN(sub_080720F8), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084AC4));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1887,7 +1887,7 @@ void sub_080720F8(void) {
 }
 
 void sub_08072314(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080724C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084AC4);
+    struct Task *t = TaskCreate(FN(sub_080724C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084AC4));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1946,7 +1946,7 @@ void sub_080724C4(void) {
 }
 
 void sub_080725E0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080728B0, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080728B0), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -1978,12 +1978,12 @@ void sub_080725E0(struct Kirby *kirby) {
     if (kirby->transitioningAbility & KIRBY_ABILITY_CHANGE_UNKNOWN) {
         objBase->flags |= 0x4000;
         ObjectBaseInitSprite(objBase, &objBase->sprite, 0x6012000, 0x2A1, 0, 0xA);
-        sub_080706A0(objBase, 0, 0x2A1, 1, sub_08072B98, sub_08084AA0);
+        sub_080706A0(objBase, 0, 0x2A1, 1, FN(sub_08072B98), FN(sub_08084AA0));
         PlaySfx(&kirby->base, SE_KIRBY_STARSHOT_2);
     } else {
         objBase->flags |= 0x4000;
         ObjectBaseInitSprite(objBase, &objBase->sprite, 0x6012000, 0x295, 0, 0xA);
-        sub_080706A0(objBase, 0, 0x295, 2, sub_08072B98, sub_08084AA0);
+        sub_080706A0(objBase, 0, 0x295, 2, FN(sub_08072B98), FN(sub_08084AA0));
         PlaySfx(&kirby->base, SE_KIRBY_STARSHOT_1);
     }
 }
@@ -2108,7 +2108,7 @@ bool8 sub_08072C0C(struct Object14 *obj14) {
 }
 
 void sub_08072C5C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08072E40, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08072E40), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -2180,7 +2180,7 @@ void sub_08072E40(void) {
         if (objBase->flags & 0xC0000) {
             objBase->flags |= 0x200;
             objBase->sprite.variant = 2;
-            gCurTask->main = sub_08084B1C;
+            gCurTask->main = FN(sub_08084B1C);
         }
         if (objBase->x <= gCurLevelInfo[objBase->unk56].levelMaxPosition.x && objBase->x >= gCurLevelInfo[objBase->unk56].levelMinPosition.x
             && objBase->y <= gCurLevelInfo[objBase->unk56].levelMaxPosition.y && objBase->y >= gCurLevelInfo[objBase->unk56].levelMinPosition.y)
@@ -2189,7 +2189,7 @@ void sub_08072E40(void) {
             && (!(gCollisionAttributes[objBase->unk57] & 0x1000) || (gCollisionAttributes[objBase->unk57] & 0xF00000) > 0x100000)) {
             objBase->flags |= 0x200;
             objBase->sprite.variant = 2;
-            gCurTask->main = sub_08084B1C;
+            gCurTask->main = FN(sub_08084B1C);
         }
         sub_0806F8BC(objBase);
         ++objBase->counter;
@@ -2343,7 +2343,7 @@ bool8 sub_080733D8(struct Object14 *obj14) {
 }
 
 void sub_080734F8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080737D8, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D68);
+    struct Task *t = TaskCreate(FN(sub_080737D8), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D68));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
     struct Object14 *obj14;
 
@@ -2381,20 +2381,20 @@ void sub_080734F8(struct Kirby *kirby) {
     } else {
         objBase->x += 0x1800;
     }
-    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010600, 0x4E, 0, sub_080730E0, sub_08072FF0);
+    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010600, 0x4E, 0, FN(sub_080730E0), FN(sub_08072FF0));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x2C0;
-    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 2, sub_080731EC, sub_08072FF0);
+    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 2, FN(sub_080731EC), FN(sub_08072FF0));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 3, sub_080732E4, sub_08072FF0);
+    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 3, FN(sub_080732E4), FN(sub_08072FF0));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 4, sub_080733D8, sub_08072FF0);
+    obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 4, FN(sub_080733D8), FN(sub_08072FF0));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     sub_08073A74(kirby);
-    obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, sub_08073C98, NULL);
+    obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, FN(sub_08073C98), NULL);
     obj14->effectObject.sprite.palId = 0xF;
     obj14->effectObject.sprite.unk14 = 0x280;
     ObjectBaseInitSprite(objBase, &objBase->sprite, kirby->base.unk56 * 0x800 + 0x6010400, 0x4D, 0, 0xB);
@@ -2449,7 +2449,7 @@ void sub_080737D8(void) {
 }
 
 void sub_08073A74(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08073B64, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08073B64), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -2518,7 +2518,7 @@ bool8 sub_08073C98(struct Object14 *obj14) {
 }
 
 void sub_08073D2C(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_080745C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080745C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase2 = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase2);
@@ -2545,7 +2545,7 @@ void sub_08073D2C(struct ObjectBase *objBase) {
 }
 
 void sub_08073ECC(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_080745C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080745C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase2 = tmp;
 
     ClearObjectBase(objBase2);
@@ -2576,7 +2576,7 @@ void sub_08073ECC(struct ObjectBase *objBase) {
 }
 
 void sub_08074088(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08074744, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08074744), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -2606,7 +2606,7 @@ void sub_08074088(struct Kirby *kirby) {
 }
 
 void sub_08074240(struct ObjectBase *objBase, bool8 a2) {
-    struct Task *t = TaskCreate(sub_08074674, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08074674), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase2 = tmp;
     struct ObjectBase *objBase3;
 
@@ -2647,7 +2647,7 @@ void sub_08074240(struct ObjectBase *objBase, bool8 a2) {
 }
 
 void sub_08074420(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_080745C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080745C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase2 = tmp;
 
     ClearObjectBase(objBase2);
@@ -2759,7 +2759,7 @@ void sub_08074744(void) {
 }
 
 void sub_08074860(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08074950, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08074950), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase2 = tmp;
 
     ClearObjectBase(objBase2);
@@ -2804,7 +2804,7 @@ void sub_08074A18(struct Task *t) {
 }
 
 void sub_08074AB0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08074C1C, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08074A18);
+    struct Task *t = TaskCreate(FN(sub_08074C1C), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08074A18));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -2908,7 +2908,7 @@ void sub_08074C1C(void) {
 }
 
 void sub_0807529C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080753CC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080753CC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -3090,7 +3090,7 @@ void sub_080753CC(void) {
 }
 
 void sub_08075DB0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08075EDC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08075EDC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -3309,7 +3309,7 @@ void sub_08075EDC(void) {
 }
 
 void sub_08076A60(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08076B84, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08076B84), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -3464,7 +3464,7 @@ void sub_08076B84(void) {
 }
 
 void sub_08077454(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08077574, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08077574), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -3613,7 +3613,7 @@ void sub_08077574(void) {
 }
 
 void sub_08077CD0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08077D84, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08077D84), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -3701,7 +3701,7 @@ void sub_08077D84(void) {
 }
 
 void sub_08078260(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08078314, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08078314), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -3788,7 +3788,7 @@ void sub_08078314(void) {
 }
 
 void sub_080787F0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080788AC, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080788AC), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -3879,7 +3879,7 @@ void sub_080788AC(void) {
                     effectObject->unk8 = kirby->animationIndex;
                     if (kirby->animationIndex != 0x73 && kirby->animationIndex != 0x75 && kirby->animationIndex != 0x74) {
                         if (effectObject->unk4 > 0x190) {
-                            if (kirby->stateFn == sub_0806A03C || kirby->stateFn == sub_0806A308)
+                            if (kirby->stateFn == FN(sub_0806A03C) || kirby->stateFn == FN(sub_0806A308))
                                 kirby->unkD9 = 1;
                             kirby->base.unkC &= ~2;
                             sub_0806EB74(kirby);
@@ -3928,7 +3928,7 @@ void sub_080788AC(void) {
 }
 
 void sub_08078EFC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
     struct EffectObject *effectObject;
     struct ObjectBase *objBase;
@@ -3943,10 +3943,10 @@ void sub_08078EFC(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08079264;
-    var->unk7C = sub_08084B70;
-    var->unk80 = sub_080794A4;
-    var->unk84 = sub_08084DAC;
+    var->unk78 = FN(sub_08079264);
+    var->unk7C = FN(sub_08084B70);
+    var->unk80 = FN(sub_080794A4);
+    var->unk84 = FN(sub_08084DAC);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -4100,7 +4100,7 @@ bool8 sub_080794A4(struct Unk_080C4EDC *a1) {
         a1->base.xspeed = 0x155;
     else
         a1->base.xspeed = -0x155;
-    a1->unk78 = sub_08079504;
+    a1->unk78 = FN(sub_08079504);
     a1->unk80 = NULL;
     return FALSE;
 }
@@ -4122,7 +4122,7 @@ bool8 sub_08079504(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807958C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08079714, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084E00);
+    struct Task *t = TaskCreate(FN(sub_08079714), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084E00));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -4173,7 +4173,7 @@ void sub_08079714(void) {
 }
 
 void sub_0807988C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08079A9C, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_08079A9C), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -4238,7 +4238,7 @@ void sub_08079A9C(void) {
 }
 
 void sub_08079C28(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08079D64, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08079D64), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -4384,7 +4384,7 @@ void sub_08079D64(void) {
 }
 
 void sub_0807A10C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807A280, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_0807A280), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -4442,7 +4442,7 @@ void sub_0807A280(void) {
 }
 
 void sub_0807A3E4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807A4F4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084E44);
+    struct Task *t = TaskCreate(FN(sub_0807A4F4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084E44));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -4518,7 +4518,7 @@ void sub_0807A4F4(void) {
 struct ThrowAbilityObject *sub_0807A7E8(struct ObjectHeader *a1) {
     struct Object *obj = (struct Object *)a1;
     struct EffectObject *effectObject = (struct EffectObject *)a1;
-    struct Task *t = TaskCreate(sub_0807AAD4, sizeof(struct ThrowAbilityObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0807AAD4), sizeof(struct ThrowAbilityObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ThrowAbilityObject *tmp = TaskGetStructPtr(t), *throwObj = tmp;
     struct Kirby *kirby;
 
@@ -4638,7 +4638,7 @@ void sub_0807AAD4(void) {
         case 0x75:
             throwObj->base.counter = 0;
             sub_0807AEF4();
-            gCurTask->main = sub_0807AEF4;
+            gCurTask->main = FN(sub_0807AEF4);
             return;
         case 0x6F:
             if (kirby->base.header.unk1 == 1 && kirby->base.unk62 & 4) {
@@ -4809,7 +4809,7 @@ void sub_0807B200(struct ThrowAbilityObject *throwObj, u16 a2) {
     }
     if (throwObj->base.flags & 1)
         throwObj->base.xspeed = -throwObj->base.xspeed;
-    gCurTask->main = sub_0807B2A8;
+    gCurTask->main = FN(sub_0807B2A8);
 }
 
 void sub_0807B2A8(void) {
@@ -4887,7 +4887,7 @@ void sub_0807B5CC(struct ThrowAbilityObject *throwObj) {
         throwObj->base.xspeed = -(throwObj->base.xspeed >> 1);
         throwObj->base.yspeed = 0x200;
     }
-    gCurTask->main = sub_0807B6D4;
+    gCurTask->main = FN(sub_0807B6D4);
     PlaySfx(&throwObj->base, SE_ABILITY_THROW_COLLISION);
 }
 
@@ -4929,7 +4929,7 @@ void sub_0807B6D4(void) {
 }
 
 void sub_0807BAE0(struct ThrowAbilityObject *throwObj) {
-    struct Task *t = TaskCreate(sub_0807BBDC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0807BBDC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -4973,7 +4973,7 @@ void sub_0807BBDC(void) {
 }
 
 void sub_0807BCE0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -4986,10 +4986,10 @@ void sub_0807BCE0(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08084B94;
-    var->unk7C = sub_08084BD8;
-    var->unk80 = sub_0807C1A0;
-    var->unk84 = sub_08084E88;
+    var->unk78 = FN(sub_08084B94);
+    var->unk7C = FN(sub_08084BD8);
+    var->unk80 = FN(sub_0807C1A0);
+    var->unk84 = FN(sub_08084E88);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5018,7 +5018,7 @@ void sub_0807BCE0(struct Kirby *kirby) {
 }
 
 void sub_0807BF2C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -5031,10 +5031,10 @@ void sub_0807BF2C(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08084B94;
-    var->unk7C = sub_08084BD8;
-    var->unk80 = sub_0807C1A0;
-    var->unk84 = sub_08084EDC;
+    var->unk78 = FN(sub_08084B94);
+    var->unk7C = FN(sub_08084BD8);
+    var->unk80 = FN(sub_0807C1A0);
+    var->unk84 = FN(sub_08084EDC);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5179,7 +5179,7 @@ bool8 sub_0807C1A0(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807C48C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -5193,9 +5193,9 @@ void sub_0807C48C(struct Kirby *kirby) {
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
     var->unk78 = NULL;
-    var->unk7C = sub_08084BFC;
-    var->unk80 = sub_08084C20;
-    var->unk84 = sub_08084EDC;
+    var->unk7C = FN(sub_08084BFC);
+    var->unk80 = FN(sub_08084C20);
+    var->unk84 = FN(sub_08084EDC);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5223,7 +5223,7 @@ void sub_0807C48C(struct Kirby *kirby) {
 }
 
 void sub_0807C6C0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -5239,7 +5239,7 @@ void sub_0807C6C0(struct Kirby *kirby) {
     var->unk78 = NULL;
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_08084EDC;
+    var->unk84 = FN(sub_08084EDC);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5287,7 +5287,7 @@ void sub_0807C8F0(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807C954(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5300,10 +5300,10 @@ void sub_0807C954(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807CB4C;
+    var->unk78 = FN(sub_0807CB4C);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_0807C8F0;
+    var->unk84 = FN(sub_0807C8F0);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5354,7 +5354,7 @@ bool8 sub_0807CB4C(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807CC14(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5367,10 +5367,10 @@ void sub_0807CC14(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807CD3C;
+    var->unk78 = FN(sub_0807CD3C);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_0807C8F0;
+    var->unk84 = FN(sub_0807C8F0);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5413,7 +5413,7 @@ bool8 sub_0807CD3C(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807CDFC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5426,10 +5426,10 @@ void sub_0807CDFC(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807CF24;
+    var->unk78 = FN(sub_0807CF24);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_0807C8F0;
+    var->unk84 = FN(sub_0807C8F0);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5472,7 +5472,7 @@ bool8 sub_0807CF24(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807CFE4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5485,10 +5485,10 @@ void sub_0807CFE4(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807D208;
+    var->unk78 = FN(sub_0807D208);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_08084F30;
+    var->unk84 = FN(sub_08084F30);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5540,7 +5540,7 @@ bool8 sub_0807D208(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807D2D0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5553,10 +5553,10 @@ void sub_0807D2D0(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807D3F0;
+    var->unk78 = FN(sub_0807D3F0);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_08084F30;
+    var->unk84 = FN(sub_08084F30);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5598,7 +5598,7 @@ bool8 sub_0807D3F0(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807D4B0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *var = TaskGetStructPtr(t);
 
     ClearObjectBase(&var->base);
@@ -5611,10 +5611,10 @@ void sub_0807D4B0(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807D5D0;
+    var->unk78 = FN(sub_0807D5D0);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_08084F30;
+    var->unk84 = FN(sub_08084F30);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -5656,7 +5656,7 @@ bool8 sub_0807D5D0(struct Unk_080C4EDC *a1) {
 }
 
 void sub_0807D690(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080737D8, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084FA8);
+    struct Task *t = TaskCreate(FN(sub_080737D8), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084FA8));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
     struct Object14 *obj14;
 
@@ -5695,20 +5695,20 @@ void sub_0807D690(struct Kirby *kirby) {
     } else {
         objBase->x += 0x1800;
     }
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010600, 0xD8, 0, sub_080730E0, sub_08073068);
+    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010600, 0xD8, 0, FN(sub_080730E0), FN(sub_08073068));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x2C0;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 2, sub_0807D978, sub_08073068);
+    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 2, FN(sub_0807D978), FN(sub_08073068));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 3, sub_080732E4, sub_08073068);
+    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 3, FN(sub_080732E4), FN(sub_08073068));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 4, sub_080733D8, sub_08073068);
+    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 4, FN(sub_080733D8), FN(sub_08073068));
     obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     sub_08073A74(kirby);
-    obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, sub_08073C98, NULL);
+    obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, FN(sub_08073C98), NULL);
     obj14->effectObject.sprite.palId = 0xF;
     obj14->effectObject.sprite.unk14 = 0x280;
     ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD7, 0, 0xB);
@@ -5788,7 +5788,7 @@ bool8 sub_0807D978(struct Object14 *obj14) {
 }
 
 void sub_0807DBCC(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
     u32 ff = 0xFF;
 #ifdef NONMATCHING
@@ -5807,8 +5807,8 @@ void sub_0807DBCC(struct Object *obj) {
     var->base.unk56 = obj->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_0807DE28;
-    var->unk7C = sub_0807E098;
+    var->unk78 = FN(sub_0807DE28);
+    var->unk7C = FN(sub_0807E098);
     var->unk80 = NULL;
     var->unk84 = NULL;
     var->unk88 = 0;
@@ -5937,12 +5937,12 @@ bool8 sub_0807E098(struct Unk_080C4EDC *a1) {
         a1->base.parent = kirby->base.parent;
     }
     PlaySfx(&kirby->base, SE_ABILITY_ICE_BLOCK_PUSH);
-    a1->unk7C = sub_08084C34;
+    a1->unk7C = FN(sub_08084C34);
     return FALSE;
 }
 
 void sub_0807E190(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807E2FC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0807E2FC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6000,7 +6000,7 @@ void sub_0807E2FC(void) {
 }
 
 void sub_0807E430(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807E518, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0807E518), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6047,7 +6047,7 @@ void sub_0807E518(void) {
 }
 
 void sub_0807E66C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807E820, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0807E820), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6132,7 +6132,7 @@ void sub_0807E820(void) {
 }
 
 void sub_0807EA78(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807E820, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0807E820), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6160,7 +6160,7 @@ void sub_0807EA78(struct Kirby *kirby) {
 }
 
 void sub_0807EBAC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807E820, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084FEC);
+    struct Task *t = TaskCreate(FN(sub_0807E820), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084FEC));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6188,7 +6188,7 @@ void sub_0807EBAC(struct Kirby *kirby) {
 }
 
 void sub_0807ECE0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -6201,10 +6201,10 @@ void sub_0807ECE0(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08084CF8;
-    var->unk7C = sub_08084C8C;
-    var->unk80 = sub_08084CB0;
-    var->unk84 = sub_08085030;
+    var->unk78 = FN(sub_08084CF8);
+    var->unk7C = FN(sub_08084C8C);
+    var->unk80 = FN(sub_08084CB0);
+    var->unk84 = FN(sub_08085030);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -6231,7 +6231,7 @@ void sub_0807ECE0(struct Kirby *kirby) {
 }
 
 void sub_0807EF0C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -6244,10 +6244,10 @@ void sub_0807EF0C(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08084CF8;
+    var->unk78 = FN(sub_08084CF8);
     var->unk7C = NULL;
-    var->unk80 = sub_08084CC4;
-    var->unk84 = sub_08085030;
+    var->unk80 = FN(sub_08084CC4);
+    var->unk84 = FN(sub_08085030);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -6274,7 +6274,7 @@ void sub_0807EF0C(struct Kirby *kirby) {
 }
 
 void sub_0807F128(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08070580, sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08070580), sizeof(struct Unk_080C4EDC), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct Unk_080C4EDC *tmp = TaskGetStructPtr(t), *var = tmp;
 
     ClearObjectBase(&var->base);
@@ -6287,10 +6287,10 @@ void sub_0807F128(struct Kirby *kirby) {
     var->base.unk56 = kirby->base.unk56;
     if (Macro_0810B1F4(&var->base))
         var->base.flags |= 0x2000;
-    var->unk78 = sub_08084CF8;
+    var->unk78 = FN(sub_08084CF8);
     var->unk7C = NULL;
     var->unk80 = NULL;
-    var->unk84 = sub_08085030;
+    var->unk84 = FN(sub_08085030);
     var->unk88 = 0;
     var->unk89 = 0;
     var->unk8A = 0;
@@ -6317,7 +6317,7 @@ void sub_0807F128(struct Kirby *kirby) {
 }
 
 void sub_0807F344(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807F46C, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_0807F46C), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6410,7 +6410,7 @@ void sub_0807F46C(void) {
 }
 
 void sub_0807F720(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807F840, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_0807F840), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6472,7 +6472,7 @@ void sub_0807F840(void) {
 }
 
 void sub_0807F9EC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807FB80, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0807FB80), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6541,7 +6541,7 @@ void sub_0807FB80(void) {
 }
 
 void sub_0807FCD4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0807FDC8, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08085084);
+    struct Task *t = TaskCreate(FN(sub_0807FDC8), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08085084));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -6614,7 +6614,7 @@ void sub_0807FDC8(void) {
 }
 
 void sub_08080004(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08080130, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08080130), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -6686,7 +6686,7 @@ void sub_08080130(void) {
 void sub_080802CC(struct Kirby *kirby, u8 a2) {
     u16 animId = 0x283;
     bool8 v4 = FALSE;
-    struct Task *t = TaskCreate(sub_0808049C, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808049C), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -6790,7 +6790,7 @@ void sub_0808049C(void) {
 }
 
 void sub_080806FC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08080870, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08080870), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -6901,7 +6901,7 @@ void sub_08080870(void) {
 }
 
 void sub_08080E9C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08080FBC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08080FBC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -7017,7 +7017,7 @@ void sub_08080FBC(void) {
 }
 
 void sub_080815B0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08081724, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_08081724), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -7073,7 +7073,7 @@ void sub_08081724(void) {
 }
 
 void sub_08081864(struct Kirby *kirby, s16 a2, u8 a3) {
-    struct Task *t = TaskCreate(sub_08081EB0, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08081EB0), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
     s16 unk;
 
@@ -7246,7 +7246,7 @@ void sub_08081EB0(void) {
                         objBase->unk48 = v6->base.flags & 1;
                         objBase->unk4C = v6->base.unk3B;
                         objBase->sprite.variant += 0x10;
-                        gCurTask->main = sub_08081ABC;
+                        gCurTask->main = FN(sub_08081ABC);
                         sub_08081ABC();
                         return;
                     } else {
@@ -7293,7 +7293,7 @@ void sub_08081EB0(void) {
             objBase->unk58 = gCollisionAttributes[objBase->unk57];
             objBase->counter = 0;
             objBase->sprite.variant += 0x10;
-            gCurTask->main = sub_08081ABC;
+            gCurTask->main = FN(sub_08081ABC);
             sub_08081ABC();
             return;
         } else {
@@ -7385,7 +7385,7 @@ void sub_080822B4(struct ObjectBase *objBase) {
 }
 
 void sub_08082380(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08082748, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08082748), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
     u32 value;
     s32 param;
@@ -7453,7 +7453,7 @@ void sub_08082380(struct Kirby *kirby, u8 a2) {
             objBase->x += 0xC00;
         break;
     case 4:
-        t->main = sub_08082950;
+        t->main = FN(sub_08082950);
         objBase->counter = 0;
         objBase->yspeed = -0x180;
         objBase->xspeed = 8;
@@ -7464,7 +7464,7 @@ void sub_08082380(struct Kirby *kirby, u8 a2) {
         objBase->flags &= ~0x40000000;
         break;
     case 5:
-        t->main = sub_08082950;
+        t->main = FN(sub_08082950);
         objBase->counter = 0;
         objBase->yspeed = -0x180;
         objBase->xspeed = 8;
@@ -7534,7 +7534,7 @@ void sub_08082748(void) {
                 objBase->flags |= 0x200;
                 objBase->flags |= 0x100;
                 objBase->flags |= 0x800;
-                gCurTask->main = sub_0808269C;
+                gCurTask->main = FN(sub_0808269C);
                 sub_0806F8BC(objBase);
                 return;
             }
@@ -7597,7 +7597,7 @@ void sub_08082950(void) {
             objBase->flags |= 0x200;
             objBase->flags |= 0x100;
             objBase->flags |= 0x800;
-            gCurTask->main = sub_0808269C;
+            gCurTask->main = FN(sub_0808269C);
             sub_0806F8BC(objBase);
         } else {
             if (objBase->flags & 0x40000)
@@ -7637,7 +7637,7 @@ void sub_08082950(void) {
 }
 
 void sub_08082B5C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08082CCC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08082CCC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -7702,7 +7702,7 @@ void sub_08082CCC(void) {
 }
 
 void sub_08082DB4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08082EBC, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08082EBC), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -7772,7 +7772,7 @@ void sub_08082EBC(void) {
 }
 
 void sub_08083040(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08083150, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08083150), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -7833,7 +7833,7 @@ void sub_0808324C(struct Kirby *kirby, u16 a2) {
         struct ObjectBase *tmp, *objBase;
 
         kirby->base.unkC |= 0x40;
-        t = TaskCreate(sub_08083494, sizeof(struct ObjectBase), 0x38E8, TASK_USE_IWRAM | TASK_x0004 | TASK_x0008, sub_0808382C);
+        t = TaskCreate(FN(sub_08083494), sizeof(struct ObjectBase), 0x38E8, TASK_USE_IWRAM | TASK_x0004 | TASK_x0008, FN(sub_0808382C));
         tmp = TaskGetStructPtr(t);
         objBase = tmp;
         ClearObjectBase(objBase);
@@ -7984,7 +7984,7 @@ void sub_0808382C(struct Task *t) {
 }
 
 void sub_080838DC(struct Kirby *kirby, struct Kirby *kirby2) {
-    struct Task *t = TaskCreate(sub_08083B04, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08083B04), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *objBase = TaskGetStructPtr(t);
     s32 v8, v9;
 
@@ -8099,7 +8099,7 @@ void sub_08083B04(void) {
 }
 
 void sub_08083FC0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080840B8, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080840B8), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -8140,7 +8140,7 @@ void sub_080840B8(void) {
 }
 
 void sub_08084188(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08084280, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08084280), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -8187,7 +8187,7 @@ void sub_08084280(void) {
 }
 
 void sub_08084398(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08084524, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08084524), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, NULL);
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -8251,7 +8251,7 @@ void sub_08084524(void) {
 }
 
 void sub_0808466C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080848C4, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080848C4), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *tmp = TaskGetStructPtr(t), *objBase = tmp;
 
     ClearObjectBase(objBase);
@@ -8277,7 +8277,7 @@ void sub_0808466C(struct Kirby *kirby) {
     ObjectSetBounds(objBase, -2, -2, 2, 2);
     objBase->flags |= 0x4000;
     ObjectBaseInitSprite(objBase, &objBase->sprite, 0x6012000, 0x295, 0, 0xA);
-    sub_080706A0(objBase, 0, 0x295, 2, sub_08072C0C, 0);
+    sub_080706A0(objBase, 0, 0x295, 2, FN(sub_08072C0C), 0);
     PlaySfx(&kirby->base, SE_KIRBY_STARSHOT_1);
     SetPointerSomething(objBase);
 }
@@ -8304,7 +8304,7 @@ void sub_080848C4(void) {
 }
 
 void sub_08084968(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08084A20, sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, sub_08084D28);
+    struct Task *t = TaskCreate(FN(sub_08084A20), sizeof(struct ObjectBase), 0x3500, TASK_USE_IWRAM, FN(sub_08084D28));
     struct ObjectBase *objBase = TaskGetStructPtr(t);
 
     ClearObjectBase(objBase);
@@ -8629,7 +8629,7 @@ void sub_08085180(void) {
 
 void sub_0808520C(struct Object *obj, s16 a2) {
     if (!(obj->base.flags & 0x8000)) {
-        struct Task *t = TaskCreate(sub_080852A4, sizeof(struct Unk_080880AC), 0x356E, TASK_USE_IWRAM, sub_0808882C);
+        struct Task *t = TaskCreate(FN(sub_080852A4), sizeof(struct Unk_080880AC), 0x356E, TASK_USE_IWRAM, FN(sub_0808882C));
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = obj;
@@ -8660,7 +8660,7 @@ void sub_08085328(struct Kirby *kirby) {
         && (kirby->animationIndex != 0x27
             && kirby->hp > 0
             && ((kirby->animationIndex < 0x4A || kirby->animationIndex > 0x66) && kirby->animationIndex < 0x7B))) {
-        struct Task *t = TaskCreate(sub_08085468, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, sub_0808876C);
+        struct Task *t = TaskCreate(FN(sub_08085468), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, FN(sub_0808876C));
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = kirby;
@@ -8675,7 +8675,7 @@ void sub_080853C8(struct Kirby *kirby, u16 a2) {
         && (kirby->animationIndex != 0x27
             && kirby->hp > 0
             && ((kirby->animationIndex < 0x4A || kirby->animationIndex > 0x66) && kirby->animationIndex < 0x7B))) {
-        struct Task *t = TaskCreate(sub_08085468, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, sub_0808876C);
+        struct Task *t = TaskCreate(FN(sub_08085468), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, FN(sub_0808876C));
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = kirby;
@@ -8753,7 +8753,7 @@ void sub_080856F4(void) {
 }
 
 void sub_080857A0(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_08085834, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, sub_0808590C);
+    struct Task *t = TaskCreate(FN(sub_08085834), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, FN(sub_0808590C));
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = obj;
@@ -8916,7 +8916,7 @@ struct Unk_08085CE8 *sub_08085CE8(struct ObjectBase *objBase, const struct AnimI
     if ((gUnk_0300051C >> objBase->sprite.palId) & 1)
         return NULL;
     else {
-        struct Task *t = TaskCreate(sub_08085E60, sizeof(struct Unk_08085CE8), 0x3500, TASK_USE_IWRAM, sub_0808895C);
+        struct Task *t = TaskCreate(FN(sub_08085E60), sizeof(struct Unk_08085CE8), 0x3500, TASK_USE_IWRAM, FN(sub_0808895C));
         struct Unk_08085CE8 *unk = TaskGetStructPtr(t);
 
         unk->objBase = NULL;
@@ -9033,7 +9033,7 @@ struct Unk_080860A8 {
 }; /* size = 0x8 */
 
 void sub_080860A8(struct ObjectBase *objBase, const struct Unk_08357260 *a2) {
-    struct Task *t = TaskCreate(sub_08086194, sizeof(struct Unk_080860A8), 0x3500, TASK_USE_IWRAM, sub_08086304);
+    struct Task *t = TaskCreate(FN(sub_08086194), sizeof(struct Unk_080860A8), 0x3500, TASK_USE_IWRAM, FN(sub_08086304));
     struct Unk_080860A8 *unk = TaskGetStructPtr(t);
 
     unk->roomId = objBase->roomId;
@@ -9178,7 +9178,7 @@ void sub_0808668C(void) {
 }
 
 struct Object6 *sub_0808671C(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_080867E4, sizeof(struct Object6), 0x3500, TASK_USE_IWRAM, sub_080868D4);
+    struct Task *t = TaskCreate(FN(sub_080867E4), sizeof(struct Object6), 0x3500, TASK_USE_IWRAM, FN(sub_080868D4));
     struct Object6 *obj6 = TaskGetStructPtr(t);
     struct PaletteEffect *unk;
 
@@ -9252,7 +9252,7 @@ void sub_080868D4(struct Task *t) {
 }
 
 struct Object6 *sub_08086938(struct Object *obj, u8 a2) {
-    struct Task *t = TaskCreate(sub_08086AC0, sizeof(struct Object6), 0x3500, TASK_USE_IWRAM, sub_08086B40);
+    struct Task *t = TaskCreate(FN(sub_08086AC0), sizeof(struct Object6), 0x3500, TASK_USE_IWRAM, FN(sub_08086B40));
     struct Object6 *tmp = TaskGetStructPtr(t), *obj6 = tmp;
     struct PaletteEffect *unk;
     u8 ret;
@@ -9261,7 +9261,7 @@ struct Object6 *sub_08086938(struct Object *obj, u8 a2) {
     obj6->unk2 = 0x20;
     obj6->unk0 = 0;
     if (a2)
-        t->dtor = sub_08086BE0;
+        t->dtor = FN(sub_08086BE0);
     unk = CreateLowPriorityRoomPaletteEffect(6, obj->base.roomId);
     unk->unk4 = 0xFF00;
     unk->unk6 = 0x3FFF;
@@ -9381,7 +9381,7 @@ struct Unk_08086C48 {
 void sub_08086C48(struct Object *obj) {
     u32 v6, v7 = 0; // redundant initialization
     u8 i;
-    struct Task *t = TaskCreate(sub_08086DAC, sizeof(struct Unk_08086C48), 0x3500, TASK_USE_IWRAM | TASK_x0008 | TASK_x0004, NULL);
+    struct Task *t = TaskCreate(FN(sub_08086DAC), sizeof(struct Unk_08086C48), 0x3500, TASK_USE_IWRAM | TASK_x0008 | TASK_x0004, NULL);
     struct Unk_08086C48 *tmp = TaskGetStructPtr(t), *unk = tmp;
 
     unk->unk6 = 0x3C;
@@ -9433,7 +9433,7 @@ void sub_08086E50(void) {
         if (obj->type != OBJ_MEGA_TITAN)
             PlaySfx(&obj->base, SE_AUDIENCE_CHEER);
         if (gUnk_08350E58[obj->type - OBJ_EMPTY_43])
-            gUnk_08350E58[obj->type - OBJ_EMPTY_43](obj);
+            CALL(gUnk_08350E58[obj->type - OBJ_EMPTY_43])(obj);
         if (obj->type != OBJ_KING_GOLEM && obj->type != OBJ_MEGA_TITAN && obj->type != OBJ_TITAN_HEAD && obj->type != OBJ_GOBBLER
             && obj->type != OBJ_MOLEY && obj->type != OBJ_WIZ
             && (ObjType0To37(obj) || ObjType38To42(obj) || ObjType43To4D(obj)))
@@ -9689,7 +9689,7 @@ void sub_08087A78(void) {
     else if (unk->obj && unk->obj->base.flags & 0x1000) {
         sub_080027A8();
         unk->obj = 0;
-        gCurTask->main = sub_08087B58;
+        gCurTask->main = FN(sub_08087B58);
     }
 }
 
@@ -9726,7 +9726,7 @@ void sub_08087B58(void) {
             v8->unk4 = 0xFFFF;
             v8->unk6 = 0xFFFF;
             unk->unk4 = 0x28;
-            gCurTask->main = sub_08087CEC;
+            gCurTask->main = FN(sub_08087CEC);
         }
     }
 }
@@ -9828,7 +9828,7 @@ void sub_08087F98(void) {
 }
 
 void sub_08088060(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080854E8, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080854E8), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = kirby;
@@ -9837,7 +9837,7 @@ void sub_08088060(struct Kirby *kirby) {
 }
 
 void sub_080880AC(struct Kirby *kirby, u32 a2) {
-    struct Task *t = TaskCreate(sub_080850C8, sizeof(struct Unk_080880AC), a2 + 0x356E, TASK_USE_IWRAM, sub_080887A0);
+    struct Task *t = TaskCreate(FN(sub_080850C8), sizeof(struct Unk_080880AC), a2 + 0x356E, TASK_USE_IWRAM, FN(sub_080887A0));
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = kirby;
@@ -9848,7 +9848,7 @@ void sub_080880AC(struct Kirby *kirby, u32 a2) {
 }
 
 void sub_08088118(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080863C0, sizeof(struct Unk_08088118), 0x3564, TASK_USE_IWRAM, sub_080887EC);
+    struct Task *t = TaskCreate(FN(sub_080863C0), sizeof(struct Unk_08088118), 0x3564, TASK_USE_IWRAM, FN(sub_080887EC));
     struct Unk_08088118 *unk = TaskGetStructPtr(t);
 
     unk->kirby = kirby;
@@ -9857,7 +9857,7 @@ void sub_08088118(struct Kirby *kirby) {
 }
 
 void sub_08088178(struct Kirby *kirby, u32 a2) {
-    struct Task *t = TaskCreate(sub_08085180, sizeof(struct Unk_080880AC), 0x356E, TASK_USE_IWRAM, sub_080887A0);
+    struct Task *t = TaskCreate(FN(sub_08085180), sizeof(struct Unk_080880AC), 0x356E, TASK_USE_IWRAM, FN(sub_080887A0));
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = kirby;
@@ -9869,7 +9869,7 @@ void sub_08088178(struct Kirby *kirby, u32 a2) {
 
 // TODO: The function is never referenced so we don't know its arg type
 void sub_080881E0(struct ObjectBase *objBase, u32 a2) {
-    struct Task *t = TaskCreate(sub_080856F4, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, sub_08088884);
+    struct Task *t = TaskCreate(FN(sub_080856F4), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, FN(sub_08088884));
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = objBase;
@@ -9879,7 +9879,7 @@ void sub_080881E0(struct ObjectBase *objBase, u32 a2) {
 
 // TODO: The function is never referenced so we don't know its arg type
 void sub_08088234(struct ObjectBase *objBase, u8 a2, u16 a3) {
-    struct Task *t = TaskCreate(sub_080859B4, sizeof(struct Unk_08088234), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_080859B4), sizeof(struct Unk_08088234), 0x3500, TASK_USE_IWRAM, NULL);
     struct Unk_08088234 *unk = TaskGetStructPtr(t);
 
     unk->unk4 = objBase->unk56;
@@ -9889,7 +9889,7 @@ void sub_08088234(struct ObjectBase *objBase, u8 a2, u16 a3) {
 }
 
 void sub_080882B4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08085A54, sizeof(struct Unk_080882B4), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08085A54), sizeof(struct Unk_080882B4), 0x3500, TASK_USE_IWRAM, NULL);
     struct Unk_080882B4 *unk = TaskGetStructPtr(t);
 
     unk->unk8 = kirby;
@@ -9902,7 +9902,7 @@ void sub_080882B4(struct Kirby *kirby) {
 
 // TODO: The function is never referenced so we don't know its arg type
 void sub_08088324(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_080888B8, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, sub_0808891C);
+    struct Task *t = TaskCreate(FN(sub_080888B8), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, FN(sub_0808891C));
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = objBase;
@@ -9917,7 +9917,7 @@ void sub_0808838C(void) {
 }
 
 struct Object7 *sub_08088398(struct Object *obj, const struct AnimInfo *a2) {
-    struct Task *t = TaskCreate(sub_08085E60, sizeof(struct Object7), 0x3500, TASK_USE_IWRAM, sub_0808895C);
+    struct Task *t = TaskCreate(FN(sub_08085E60), sizeof(struct Object7), 0x3500, TASK_USE_IWRAM, FN(sub_0808895C));
     struct Object7 *obj7 = TaskGetStructPtr(t);
 
     obj7->unk8 = obj;
@@ -9935,7 +9935,7 @@ void sub_08088400(struct Object7 *obj7, const struct AnimInfo *a2) {
 }
 
 void sub_0808840C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080864E8, sizeof(struct Unk_08088118), 0x3500, TASK_USE_IWRAM, sub_080889C0);
+    struct Task *t = TaskCreate(FN(sub_080864E8), sizeof(struct Unk_08088118), 0x3500, TASK_USE_IWRAM, FN(sub_080889C0));
     struct Unk_08088118 *unk = TaskGetStructPtr(t);
 
     unk->kirby = kirby;
@@ -9945,7 +9945,7 @@ void sub_0808840C(struct Kirby *kirby) {
 
 void sub_0808845C(struct Object *obj, u16 a2) {
     if (!(obj->base.flags & 0x1000000)) {
-        struct Task *t = TaskCreate(sub_080865E8, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
+        struct Task *t = TaskCreate(FN(sub_080865E8), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = obj;
@@ -9957,7 +9957,7 @@ void sub_0808845C(struct Object *obj, u16 a2) {
 
 void sub_080884C4(struct Object *obj) {
     if (!(obj->base.unk5C & 0x10000)) {
-        struct Task *t = TaskCreate(sub_0808668C, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
+        struct Task *t = TaskCreate(FN(sub_0808668C), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = obj;
@@ -9968,7 +9968,7 @@ void sub_080884C4(struct Object *obj) {
 }
 
 void sub_08088528(struct Object *obj) {
-    struct Task *t = TaskCreate(sub_08086E50, sizeof(struct Unk_08086C48), 0x2F9C, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08086E50), sizeof(struct Unk_08086C48), 0x2F9C, TASK_USE_IWRAM, NULL);
     struct Unk_08086C48 *unk = TaskGetStructPtr(t);
 
     unk->unk6 = 0x1C;
@@ -9980,7 +9980,7 @@ void sub_08088528(struct Object *obj) {
 }
 
 void sub_0808859C(struct Object *obj, u16 a2, u16 a3) {
-    struct Task *t = TaskCreate(sub_0808781C, sizeof(struct Unk_0808859C), 0x3500, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_0808781C), sizeof(struct Unk_0808859C), 0x3500, TASK_USE_IWRAM, NULL);
     struct Unk_0808859C *unk = TaskGetStructPtr(t);
 
     unk->unk2 = a2;
@@ -10002,7 +10002,7 @@ void sub_080885F8(struct Object *obj) {
 
 void sub_08088640(struct Kirby *kirby, u8 a2, u16 a3) {
     if (gLocalPlayerId == kirby->base.unk56) {
-        struct Task *t = TaskCreate(sub_08087F98, sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
+        struct Task *t = TaskCreate(FN(sub_08087F98), sizeof(struct Unk_080880AC), 0x3500, TASK_USE_IWRAM, NULL);
         struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
         unk->unk4 = kirby;
@@ -10012,7 +10012,7 @@ void sub_08088640(struct Kirby *kirby, u8 a2, u16 a3) {
 }
 
 void sub_080886A8(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08087ECC, sizeof(struct Unk_080880AC), 0x3596, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08087ECC), sizeof(struct Unk_080880AC), 0x3596, TASK_USE_IWRAM, NULL);
     struct Unk_080880AC *unk = TaskGetStructPtr(t);
 
     unk->unk4 = NULL;
@@ -10021,7 +10021,7 @@ void sub_080886A8(struct ObjectBase *objBase) {
 }
 
 void sub_08088700(struct ObjectBase *objBase, u16 a2) {
-    struct Task *t = TaskCreate(sub_08087770, sizeof(struct Unk_08088700), 0x3500, TASK_USE_IWRAM, sub_08088A04);
+    struct Task *t = TaskCreate(FN(sub_08087770), sizeof(struct Unk_08088700), 0x3500, TASK_USE_IWRAM, FN(sub_08088A04));
     struct Unk_08088700 *unk = TaskGetStructPtr(t);
 
     unk->unk4 = NULL;
@@ -10114,7 +10114,7 @@ void sub_08088A04(struct Task *t) {
 }
 
 void sub_08088A38(struct Object *obj, s16 a2, s16 a3, u8 a4) {
-    struct Task *t = TaskCreate(sub_08087A78, sizeof(struct Unk_08086C48), 0x2F9C, TASK_USE_IWRAM, NULL);
+    struct Task *t = TaskCreate(FN(sub_08087A78), sizeof(struct Unk_08086C48), 0x2F9C, TASK_USE_IWRAM, NULL);
     struct Unk_08086C48 *unk = TaskGetStructPtr(t);
     struct Object *tomato;
 
@@ -10128,7 +10128,7 @@ void sub_08088A38(struct Object *obj, s16 a2, s16 a3, u8 a4) {
 }
 
 void sub_08088AC8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08088C0C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08088C0C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10220,7 +10220,7 @@ void sub_08088C0C(void) {
 }
 
 void sub_08088F84(struct Kirby *kirby, s16 a2, s16 a3) {
-    struct Task *t = TaskCreate(sub_08089050, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08089050), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -10302,7 +10302,7 @@ void sub_08089050(void) {
 }
 
 void sub_0808925C(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08089350, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08089350), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
     u16 v5;
 
@@ -10369,7 +10369,7 @@ void sub_08089350(void) {
 
 // TODO: The function is never referenced so we don't know its arg type
 void sub_08089538(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08089618, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08089618), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
     u16 v5;
 
@@ -10418,7 +10418,7 @@ void sub_08089618(void) {
 }
 
 void sub_080897A0(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_0808994C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808994C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10441,7 +10441,7 @@ void sub_080897A0(struct ObjectBase *objBase) {
 }
 
 void sub_08089864(struct ObjectBase *objBase, s8 a2, s8 a3, u32 a4) {
-    struct Task *t = TaskCreate(sub_0808994C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808994C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10507,7 +10507,7 @@ void sub_0808994C(void) {
 }
 
 void sub_08089B14(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08089BCC, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08089BCC), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10573,7 +10573,7 @@ void sub_08089BCC(void) {
 }
 
 void sub_08089D98(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08089E50, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08089E50), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10682,7 +10682,7 @@ void sub_08089E50(void) {
 }
 
 void sub_0808A0F8(struct EffectObject *effectObject2) {
-    struct Task *t = TaskCreate(sub_0808A208, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808A208), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10748,7 +10748,7 @@ void sub_0808A208(void) {
 }
 
 void sub_0808A3E0(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_0808A490, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808A490), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10826,7 +10826,7 @@ void sub_0808A490(void) {
 }
 
 void sub_0808A90C(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_0808A9C4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808A9C4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -10905,7 +10905,7 @@ void sub_0808A9C4(void) {
 }
 
 struct EffectObject *CreateEffectObject(struct ObjectBase *objBase, u32 a2, u16 a3, u8 a4) {
-    struct Task *t = TaskCreate(sub_0808AF48, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808AF48), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11003,7 +11003,7 @@ void sub_0808AF48(void) {
 }
 
 struct EffectObject *sub_0808B248(struct ObjectBase *objBase, u32 a2, u16 a3, u8 a4) {
-    struct Task *t = TaskCreate(sub_0808B360, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808B360), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11099,7 +11099,7 @@ void sub_0808B360(void) {
 }
 
 struct EffectObject *sub_0808B62C(struct ObjectBase *objBase, u32 a2, u16 a3, u8 a4, u16 a5) {
-    struct Task *t = TaskCreate(sub_0808B754, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808B754), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11204,7 +11204,7 @@ void sub_0808B754(void) {
 
 // a1 can be struct Object * or struct Kirby *
 struct EffectObject *sub_0808BA6C(struct ObjectBase *objBase, u32 a2, u16 a3, u8 a4) {
-    struct Task *t = TaskCreate(sub_0808BB98, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808BB98), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11303,7 +11303,7 @@ void sub_0808BB98(void) {
 }
 
 struct EffectObject *sub_0808BEA4(struct Kirby *kirby, u32 a2, u16 a3, u8 a4, u32 a5) {
-    struct Task *t = TaskCreate(sub_0808BF88, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808BF88), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11373,7 +11373,7 @@ void sub_0808BF88(void) {
 }
 
 void sub_0808C464(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_0808C538, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808C538), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11450,7 +11450,7 @@ void sub_0808C538(void) {
 }
 
 void sub_0808C6F4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808C828, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808C828), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11544,7 +11544,7 @@ void sub_0808C828(void) {
 }
 
 void sub_0808CBCC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808CC78, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808CC78), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -11651,7 +11651,7 @@ void sub_0808CC78(void) {
 }
 
 void sub_0808CFC0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808D100, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808D100), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -11839,7 +11839,7 @@ void sub_0808D100(void) {
 }
 
 void sub_0808D5E0(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808D728, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808D728), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -11905,7 +11905,7 @@ void sub_0808D728(void) {
 }
 
 void sub_0808D95C(struct Kirby *kirby, s8 a2, s8 a3) {
-    struct Task *t = TaskCreate(sub_0808DAC8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808DAC8), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -11970,7 +11970,7 @@ void sub_0808DAC8(void) {
 }
 
 void sub_0808DC80(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808DDD0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808DDD0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12045,7 +12045,7 @@ void sub_0808DDD0(void) {
 }
 
 void sub_0808E024(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808E11C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808E11C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12105,7 +12105,7 @@ void sub_0808E11C(void) {
 }
 
 void sub_0808E2EC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808E404, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808E404), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -12172,7 +12172,7 @@ void sub_0808E404(void) {
 }
 
 void sub_0808E66C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808E7A4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808E7A4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -12241,7 +12241,7 @@ void sub_0808E7A4(void) {
 }
 
 void sub_0808E9C8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808EB08, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808EB08), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -12335,7 +12335,7 @@ void sub_0808EB08(void) {
 }
 
 struct EffectObject *sub_0808EDB8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808EEF4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808EEF4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12393,7 +12393,7 @@ void sub_0808EEF4(void) {
 }
 
 struct EffectObject *sub_0808F0E8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808F1C8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808F1C8), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12482,7 +12482,7 @@ void sub_0808F1C8(void) {
 }
 
 void sub_0808F774(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808F8C0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808F8C0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12571,7 +12571,7 @@ void sub_0808F8C0(void) {
 }
 
 void sub_0808FB44(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808FC1C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808FC1C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12635,7 +12635,7 @@ void sub_0808FC1C(void) {
 }
 
 void sub_0808FE0C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0808FF8C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0808FF8C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12712,7 +12712,7 @@ void sub_0808FF8C(void) {
 }
 
 void sub_08090198(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0809030C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0809030C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12787,7 +12787,7 @@ void sub_0809030C(void) {
 }
 
 void sub_08090518(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08090698, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08090698), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12864,7 +12864,7 @@ void sub_08090698(void) {
 }
 
 void sub_080908A4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08090968, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08090968), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -12945,7 +12945,7 @@ void sub_08090968(void) {
 }
 
 void sub_08090BAC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08090CB8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08090CB8), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13042,7 +13042,7 @@ void sub_08090CB8(void) {
 }
 
 void sub_08090F68(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0809104C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0809104C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13113,7 +13113,7 @@ void sub_0809104C(void) {
 
 void sub_08091258(struct Kirby *kirby) {
     bool32 flags = 0;
-    struct Task *t = TaskCreate(sub_08091438, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08091438), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
     s16 x, y;
 
@@ -13188,7 +13188,7 @@ void sub_08091438(void) {
 }
 
 void sub_08091614(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08091714, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08091714), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13247,7 +13247,7 @@ void sub_08091714(void) {
 }
 
 void sub_080918CC(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08091990, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08091990), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13309,7 +13309,7 @@ void sub_08091990(void) {
 }
 
 void sub_08091B5C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08091C7C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08091C7C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13391,7 +13391,7 @@ void sub_08091C7C(void) {
 }
 
 void sub_08091F38(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080920A0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080920A0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13475,7 +13475,7 @@ void sub_080920A0(void) {
 }
 
 void sub_08092380(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08092748, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092748), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13492,7 +13492,7 @@ void sub_08092380(struct Kirby *kirby) {
 }
 
 void sub_08092474(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08092748, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092748), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13509,7 +13509,7 @@ void sub_08092474(struct Kirby *kirby) {
 }
 
 void sub_08092568(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08092748, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092748), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13526,7 +13526,7 @@ void sub_08092568(struct Kirby *kirby) {
 }
 
 void sub_08092654(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08092748, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092748), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13587,7 +13587,7 @@ void sub_08092748(void) {
 }
 
 struct EffectObject *sub_08092944(struct ObjectBase *objBase, u32 a2, u16 a3, u8 a4) {
-    struct Task *t = TaskCreate(sub_08092A54, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092A54), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
 
@@ -13643,7 +13643,7 @@ void sub_08092A54(void) {
 }
 
 void sub_08092C10(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08092D50, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08092D50), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13728,7 +13728,7 @@ void sub_08092D50(void) {
 }
 
 void sub_08092F44(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08093044, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093044), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13810,7 +13810,7 @@ void sub_08093044(void) {
 }
 
 void sub_08093264(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08093468, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093468), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13832,7 +13832,7 @@ void sub_08093264(struct Kirby *kirby) {
 }
 
 void sub_08093390(struct Kirby *kirby, s16 a2, s16 a3) {
-    struct Task *t = TaskCreate(sub_08093468, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093468), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13889,7 +13889,7 @@ void sub_08093468(void) {
 }
 
 void sub_0809361C(struct Kirby *kirby, u32 a2) {
-    struct Task *t = TaskCreate(sub_080936F4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080936F4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -13974,7 +13974,7 @@ void sub_080936F4(void) {
 }
 
 void sub_08093918(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08093A4C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093A4C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14057,7 +14057,7 @@ void sub_08093A4C(void) {
 }
 
 void sub_08093C74(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08093D10, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093D10), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14119,7 +14119,7 @@ void sub_08093D10(void) {
 }
 
 void sub_08093F00(struct EffectObject *effectObject2) {
-    struct Task *t = TaskCreate(sub_08093F90, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08093F90), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14164,7 +14164,7 @@ void sub_08093F90(void) {
 }
 
 void sub_08094124(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080941F0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080941F0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14241,7 +14241,7 @@ void sub_080941F0(void) {
 }
 
 void sub_0809447C(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08094540, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08094540), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14316,7 +14316,7 @@ void sub_08094540(void) {
 }
 
 void sub_08094930(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_080949C8, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080949C8), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
 
@@ -14376,7 +14376,7 @@ void sub_080949C8(void) {
 }
 
 void sub_08094C50(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08094D30, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08094D30), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
     u32 r;
@@ -14432,7 +14432,7 @@ void sub_08094D30(void) {
 }
 
 void sub_08094EDC(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08094F7C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08094F7C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
 
@@ -14487,7 +14487,7 @@ void sub_08094F7C(void) {
 }
 
 void sub_0809513C(struct ObjectBase *objBase, s8 a2, s8 a3) {
-    struct Task *t = TaskCreate(sub_080951E4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080951E4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
 
@@ -14548,7 +14548,7 @@ void sub_080951E4(void) {
 }
 
 void sub_080953D4(struct ObjectBase *objBase, s8 a2, s8 a3) {
-    struct Task *t = TaskCreate(sub_08095468, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08095468), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t);
     struct EffectObject *effectObject = tmp;
 
@@ -14602,7 +14602,7 @@ void sub_08095468(void) {
 }
 
 void sub_08095714(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_080957F4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080957F4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14665,7 +14665,7 @@ void sub_080957F4(void) {
 }
 
 void sub_080959F4(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08095AD4, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08095AD4), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14749,7 +14749,7 @@ void sub_08095AD4(void) {
 }
 
 void sub_08095F68(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_0809603C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, sub_08099B28);
+    struct Task *t = TaskCreate(FN(sub_0809603C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(sub_08099B28));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14825,7 +14825,7 @@ void sub_0809603C(void) {
 
 // TODO: the first argument can be ObjectBase * or Kirby *. Use a union?
 void sub_08096464(struct ObjectBase *objBase, s8 a2, s8 a3) {
-    struct Task *t = TaskCreate(sub_0809656C, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0809656C), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14906,7 +14906,7 @@ void sub_0809656C(void) {
 }
 
 void sub_080967B8(struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08096898, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08096898), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -14981,7 +14981,7 @@ void sub_08096898(void) {
 }
 
 void sub_08096AC4(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08096C28, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08096C28), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -15058,7 +15058,7 @@ void sub_08096E24(struct Kirby *kirby, u8 a2) {
 
     if (kirby->base.unk56 == gLocalPlayerId) // Why not use a ternary...
         v4 = 7;
-    t = TaskCreate(sub_08096F80, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    t = TaskCreate(FN(sub_08096F80), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     tmp = TaskGetStructPtr(t);
     effectObject = tmp;
     ClearEffectObject(effectObject);
@@ -15110,7 +15110,7 @@ void sub_08096F80(void) {
             effectObject->unk4 += effectObject->unk3C >> 4;
             effectObject->unk4 &= 0x3FF;
             if (kirby->unk11A & 3 || ++effectObject->unk3E > 0x64)
-                gCurTask->main = sub_0809729C;
+                gCurTask->main = FN(sub_0809729C);
         }
         for (v6 = effectObject->unk4, i = 0; i < 8; v6 += 0x80, v6 &= 0x3FF, ++i) {
             s32 a = ({ 3 * (gSineTable[v6 + 0x100] >> 6); });
@@ -15182,7 +15182,7 @@ void sub_0809729C(void) {
             if (effectObject->unk3C == 0x10 && v6 == 0x300) {
                 effectObject->unk4 = 0;
                 kirby->unkD9 = gUnk_0835100A[effectObject->unk8][i];
-                gCurTask->main = sub_08097668;
+                gCurTask->main = FN(sub_08097668);
                 PlaySfx(&kirby->base, SE_PAUSE_MENU_ACTIVATE);
             }
         }
@@ -15229,7 +15229,7 @@ void sub_08097668(void) {
 }
 
 void sub_08097864(struct ObjectBase *objBase, u8 a2) {
-    struct Task *t = TaskCreate(sub_080979E0, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_080979E0), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
     u32 r;
 
@@ -15296,7 +15296,7 @@ void sub_080979E0(void) {
 }
 
 void sub_08097B9C(struct Object *obj, struct Kirby *kirby) {
-    struct Task *t = TaskCreate(sub_08097C74, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08097C74), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -15364,7 +15364,7 @@ void sub_08097C74(void) {
 }
 
 void sub_08097E9C(struct ObjectBase *objBase, s8 a2, s8 a3) {
-    struct Task *t = TaskCreate(sub_08097F90, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08097F90), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -15613,7 +15613,7 @@ void sub_08098700(void) {
 }
 
 void sub_080988B0(struct ObjectBase *objBase) {
-    struct Task *t = TaskCreate(sub_08098938, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08098938), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -15646,7 +15646,7 @@ void sub_08098938(void) {
 }
 
 void sub_08098A78(struct Kirby *kirby, u8 a2) {
-    struct Task *t = TaskCreate(sub_08098B34, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_08098B34), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(t), *effectObject = tmp;
 
     ClearEffectObject(effectObject);
@@ -15714,3 +15714,261 @@ void sub_08098B34(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0806F780) {
+    PORT_FNID(sub_08070404),
+    PORT_FNID(sub_08070580),
+    PORT_FNID(sub_08070808),
+    PORT_FNID(sub_08070B50),
+    PORT_FNID(nullsub_122),
+    PORT_FNID(sub_08070BA8),
+    PORT_FNID(sub_08070C24),
+    PORT_FNID(sub_08070CA0),
+    PORT_FNID(sub_08070D20),
+    PORT_FNID(sub_08070DA0),
+    PORT_FNID(sub_08070E20),
+    PORT_FNID(sub_08070EA0),
+    PORT_FNID(sub_08070F24),
+    PORT_FNID(sub_08070FA8),
+    PORT_FNID(sub_08071024),
+    PORT_FNID(sub_080710A4),
+    PORT_FNID(sub_08071124),
+    PORT_FNID(sub_080711A0),
+    PORT_FNID(sub_080714A0),
+    PORT_FNID(sub_080717AC),
+    PORT_FNID(sub_08071B0C),
+    PORT_FNID(sub_08071E34),
+    PORT_FNID(sub_080720F8),
+    PORT_FNID(sub_080724C4),
+    PORT_FNID(sub_080728B0),
+    PORT_FNID(sub_08072B98),
+    PORT_FNID(sub_08072C0C),
+    PORT_FNID(sub_08072E40),
+    PORT_FNID(sub_08072FF0),
+    PORT_FNID(sub_08073068),
+    PORT_FNID(sub_080730E0),
+    PORT_FNID(sub_080731EC),
+    PORT_FNID(sub_080732E4),
+    PORT_FNID(sub_080733D8),
+    PORT_FNID(sub_080737D8),
+    PORT_FNID(sub_08073B64),
+    PORT_FNID(sub_08073C98),
+    PORT_FNID(sub_080745C4),
+    PORT_FNID(sub_08074674),
+    PORT_FNID(sub_08074744),
+    PORT_FNID(sub_08074950),
+    PORT_FNID(sub_08074A18),
+    PORT_FNID(sub_08074C1C),
+    PORT_FNID(sub_080753CC),
+    PORT_FNID(sub_08075EDC),
+    PORT_FNID(sub_08076B84),
+    PORT_FNID(sub_08077574),
+    PORT_FNID(sub_08077D84),
+    PORT_FNID(sub_08078314),
+    PORT_FNID(sub_080788AC),
+    PORT_FNID(sub_08079264),
+    PORT_FNID(sub_080794A4),
+    PORT_FNID(sub_08079504),
+    PORT_FNID(sub_08079714),
+    PORT_FNID(sub_08079A9C),
+    PORT_FNID(sub_08079D64),
+    PORT_FNID(sub_0807A280),
+    PORT_FNID(sub_0807A4F4),
+    PORT_FNID(sub_0807AAD4),
+    PORT_FNID(sub_0807AEF4),
+    PORT_FNID(sub_0807B2A8),
+    PORT_FNID(sub_0807B6D4),
+    PORT_FNID(sub_0807BBDC),
+    PORT_FNID(sub_0807C1A0),
+    PORT_FNID(sub_0807C8F0),
+    PORT_FNID(sub_0807CB4C),
+    PORT_FNID(sub_0807CD3C),
+    PORT_FNID(sub_0807CF24),
+    PORT_FNID(sub_0807D208),
+    PORT_FNID(sub_0807D3F0),
+    PORT_FNID(sub_0807D5D0),
+    PORT_FNID(sub_0807D978),
+    PORT_FNID(sub_0807DE28),
+    PORT_FNID(sub_0807E098),
+    PORT_FNID(sub_0807E2FC),
+    PORT_FNID(sub_0807E518),
+    PORT_FNID(sub_0807E820),
+    PORT_FNID(sub_0807F46C),
+    PORT_FNID(sub_0807F840),
+    PORT_FNID(sub_0807FB80),
+    PORT_FNID(sub_0807FDC8),
+    PORT_FNID(sub_08080130),
+    PORT_FNID(sub_0808049C),
+    PORT_FNID(sub_08080870),
+    PORT_FNID(sub_08080FBC),
+    PORT_FNID(sub_08081724),
+    PORT_FNID(sub_08081ABC),
+    PORT_FNID(sub_08081EB0),
+    PORT_FNID(sub_0808269C),
+    PORT_FNID(sub_08082748),
+    PORT_FNID(sub_08082950),
+    PORT_FNID(sub_08082CCC),
+    PORT_FNID(sub_08082EBC),
+    PORT_FNID(sub_08083150),
+    PORT_FNID(sub_08083494),
+    PORT_FNID(sub_0808382C),
+    PORT_FNID(sub_08083B04),
+    PORT_FNID(sub_080840B8),
+    PORT_FNID(sub_08084280),
+    PORT_FNID(sub_08084524),
+    PORT_FNID(sub_080848C4),
+    PORT_FNID(sub_08084A20),
+    PORT_FNID(sub_08084AA0),
+    PORT_FNID(sub_08084AC4),
+    PORT_FNID(sub_08084B1C),
+    PORT_FNID(sub_08084B70),
+    PORT_FNID(sub_08084B94),
+    PORT_FNID(sub_08084BD8),
+    PORT_FNID(sub_08084BFC),
+    PORT_FNID(sub_08084C20),
+    PORT_FNID(sub_08084C34),
+    PORT_FNID(sub_08084C8C),
+    PORT_FNID(sub_08084CB0),
+    PORT_FNID(sub_08084CC4),
+    PORT_FNID(sub_08084CF8),
+    PORT_FNID(sub_08084D28),
+    PORT_FNID(sub_08084D68),
+    PORT_FNID(sub_08084DAC),
+    PORT_FNID(sub_08084E00),
+    PORT_FNID(sub_08084E44),
+    PORT_FNID(sub_08084E88),
+    PORT_FNID(sub_08084EDC),
+    PORT_FNID(sub_08084F30),
+    PORT_FNID(sub_08084FA8),
+    PORT_FNID(sub_08084FEC),
+    PORT_FNID(sub_08085030),
+    PORT_FNID(sub_08085084),
+    PORT_FNID(sub_080850C8),
+    PORT_FNID(sub_08085180),
+    PORT_FNID(sub_080852A4),
+    PORT_FNID(sub_08085468),
+    PORT_FNID(sub_080854E8),
+    PORT_FNID(sub_080856F4),
+    PORT_FNID(sub_08085834),
+    PORT_FNID(sub_0808590C),
+    PORT_FNID(sub_080859B4),
+    PORT_FNID(sub_08085A54),
+    PORT_FNID(sub_08085E60),
+    PORT_FNID(sub_08086194),
+    PORT_FNID(sub_08086304),
+    PORT_FNID(sub_080863C0),
+    PORT_FNID(sub_080864E8),
+    PORT_FNID(sub_080865E8),
+    PORT_FNID(sub_0808668C),
+    PORT_FNID(sub_080867E4),
+    PORT_FNID(sub_080868D4),
+    PORT_FNID(sub_08086AC0),
+    PORT_FNID(sub_08086B40),
+    PORT_FNID(sub_08086BE0),
+    PORT_FNID(sub_08086DAC),
+    PORT_FNID(sub_08086E50),
+    PORT_FNID(sub_08086F98),
+    PORT_FNID(sub_080870B8),
+    PORT_FNID(sub_080871A4),
+    PORT_FNID(sub_08087290),
+    PORT_FNID(sub_08087390),
+    PORT_FNID(sub_0808747C),
+    PORT_FNID(sub_0808758C),
+    PORT_FNID(sub_08087678),
+    PORT_FNID(sub_08087770),
+    PORT_FNID(sub_0808781C),
+    PORT_FNID(sub_08087A78),
+    PORT_FNID(sub_08087B58),
+    PORT_FNID(sub_08087CEC),
+    PORT_FNID(sub_08087ECC),
+    PORT_FNID(sub_08087F98),
+    PORT_FNID(sub_080885F8),
+    PORT_FNID(sub_0808876C),
+    PORT_FNID(sub_080887A0),
+    PORT_FNID(sub_080887EC),
+    PORT_FNID(sub_0808882C),
+    PORT_FNID(sub_08088884),
+    PORT_FNID(sub_080888B8),
+    PORT_FNID(sub_0808891C),
+    PORT_FNID(sub_0808895C),
+    PORT_FNID(sub_080889C0),
+    PORT_FNID(sub_08088A04),
+    PORT_FNID(sub_08088C0C),
+    PORT_FNID(sub_08089050),
+    PORT_FNID(sub_08089350),
+    PORT_FNID(sub_08089618),
+    PORT_FNID(sub_0808994C),
+    PORT_FNID(sub_08089BCC),
+    PORT_FNID(sub_08089E50),
+    PORT_FNID(sub_0808A208),
+    PORT_FNID(sub_0808A490),
+    PORT_FNID(sub_0808A9C4),
+    PORT_FNID(sub_0808AF48),
+    PORT_FNID(sub_0808B360),
+    PORT_FNID(sub_0808B754),
+    PORT_FNID(sub_0808BB98),
+    PORT_FNID(sub_0808BF88),
+    PORT_FNID(sub_0808C538),
+    PORT_FNID(sub_0808C828),
+    PORT_FNID(sub_0808CC78),
+    PORT_FNID(sub_0808D100),
+    PORT_FNID(sub_0808D728),
+    PORT_FNID(sub_0808DAC8),
+    PORT_FNID(sub_0808DDD0),
+    PORT_FNID(sub_0808E11C),
+    PORT_FNID(sub_0808E404),
+    PORT_FNID(sub_0808E7A4),
+    PORT_FNID(sub_0808EB08),
+    PORT_FNID(sub_0808EEF4),
+    PORT_FNID(sub_0808F1C8),
+    PORT_FNID(sub_0808F8C0),
+    PORT_FNID(sub_0808FC1C),
+    PORT_FNID(sub_0808FF8C),
+    PORT_FNID(sub_0809030C),
+    PORT_FNID(sub_08090698),
+    PORT_FNID(sub_08090968),
+    PORT_FNID(sub_08090CB8),
+    PORT_FNID(sub_0809104C),
+    PORT_FNID(sub_08091438),
+    PORT_FNID(sub_08091714),
+    PORT_FNID(sub_08091990),
+    PORT_FNID(sub_08091C7C),
+    PORT_FNID(sub_080920A0),
+    PORT_FNID(sub_08092748),
+    PORT_FNID(sub_08092A54),
+    PORT_FNID(sub_08092D50),
+    PORT_FNID(sub_08093044),
+    PORT_FNID(sub_08093468),
+    PORT_FNID(sub_080936F4),
+    PORT_FNID(sub_08093A4C),
+    PORT_FNID(sub_08093D10),
+    PORT_FNID(sub_08093F90),
+    PORT_FNID(sub_080941F0),
+    PORT_FNID(sub_08094540),
+    PORT_FNID(sub_080949C8),
+    PORT_FNID(sub_08094D30),
+    PORT_FNID(sub_08094F7C),
+    PORT_FNID(sub_080951E4),
+    PORT_FNID(sub_08095468),
+    PORT_FNID(sub_080957F4),
+    PORT_FNID(sub_08095AD4),
+    PORT_FNID(sub_0809603C),
+    PORT_FNID(sub_0809656C),
+    PORT_FNID(sub_08096898),
+    PORT_FNID(sub_08096C28),
+    PORT_FNID(sub_08096F80),
+    PORT_FNID(sub_0809729C),
+    PORT_FNID(sub_08097668),
+    PORT_FNID(sub_080979E0),
+    PORT_FNID(sub_08097C74),
+    PORT_FNID(sub_08097F90),
+    PORT_FNID(sub_08098400),
+    PORT_FNID(sub_08098700),
+    PORT_FNID(sub_08098938),
+    PORT_FNID(sub_08098B34),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

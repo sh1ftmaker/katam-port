@@ -1,0 +1,15 @@
+Zstandard 1.5.6, the single-file library amalgamation, for the netplay
+snapshot serialiser (platform/netsim.c, docs/design/NETPLAY-V2.md "Model v2.1").
+
+  source   https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz
+  sha256   8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1
+  licence  BSD-3-Clause (LICENSE, from the tarball; zstd is dual BSD/GPLv2, BSD chosen)
+
+Made with the tarball's own build/single_file_libs/combine.sh:
+
+  combine.sh -r lib -x legacy/zstd_legacy.h -o zstd.c build/single_file_libs/zstd-in.c
+
+and one edit: ZSTD_MULTITHREAD is not defined (the amalgamation defines it
+off emscripten), so no target needs pthreads.  zstd.h is lib/zstd.h.
+Compiled as C with its own flags, outside the game's (CMakeLists.txt
+katam_zstd, Makefile ZSTD_OBJ).

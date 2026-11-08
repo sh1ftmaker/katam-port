@@ -33,7 +33,7 @@ static const u16 gUnk_082EB6D0[NUM_LANGUAGES] = {
 };
 
 void sub_0802E16C(void) {
-    struct Task *t = TaskCreate(sub_0802E390, sizeof(struct Unk_0802E16C), 0x1000, TASK_USE_IWRAM | TASK_x0004, nullsub_11);
+    struct Task *t = TaskCreate(FN(sub_0802E390), sizeof(struct Unk_0802E16C), 0x1000, TASK_USE_IWRAM | TASK_x0004, FN(nullsub_11));
     struct Unk_0802E16C *var;
     u16 color = RGB_WHITE;
     u16 bgId;
@@ -42,7 +42,7 @@ void sub_0802E16C(void) {
     gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_ON | DISPCNT_BG3_ON;
     gDispCnt |= DISPCNT_OBJ_1D_MAP;
     var = TaskGetStructPtr(t);
-    var->unk40 = sub_0802E3C8;
+    var->unk40 = FN(sub_0802E3C8);
     var->unk44 = 0;
     bgId = gUnk_082EB6D0[gLanguage];
     gBgScrollRegs[3][0] = 0;
@@ -64,7 +64,7 @@ static void sub_0802E270(struct Unk_0802E16C *var UNUSED) {
         gAIKirbyState = AI_KIRBY_STATE_CUTSCENE;
         if (!(gUnk_0203AD10 & 0x10)) {
             if (gUnk_0203AD10 & 2) {
-                if (gLocalPlayerId == gUnk_0203AD24)
+                if (PortSimSaveOwner())
                     UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
                 else
                     sub_08031CE4(8);
@@ -85,14 +85,14 @@ static void sub_0802E270(struct Unk_0802E16C *var UNUSED) {
 static void sub_0802E390(void) {
     struct Unk_0802E16C *var = TaskGetStructPtr(gCurTask);
 
-    var->unk40(var);
+    CALL(var->unk40)(var);
 }
 
 static void nullsub_11(struct Task *t UNUSED) {
 }
 
 static void sub_0802E3C8(struct Unk_0802E16C *var) {
-    var->unk40 = sub_0802E3D4;
+    var->unk40 = FN(sub_0802E3D4);
 }
 
 static void sub_0802E3D4(struct Unk_0802E16C *var) {
@@ -107,17 +107,17 @@ static void sub_0802E3D4(struct Unk_0802E16C *var) {
     effect->unk6 = 0xFFFF;
     LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
     var->unk44 = 0;
-    var->unk40 = sub_0802E450;
+    var->unk40 = FN(sub_0802E450);
 }
 
 static void sub_0802E450(struct Unk_0802E16C *var) {
     if (var->unk44++ > 0x20)
-        var->unk40 = sub_0802E470;
+        var->unk40 = FN(sub_0802E470);
 }
 
 static void sub_0802E470(struct Unk_0802E16C *var) {
     var->unk44 = 0;
-    var->unk40 = sub_0802E484;
+    var->unk40 = FN(sub_0802E484);
 }
 
 static void sub_0802E484(struct Unk_0802E16C *var) {
@@ -136,7 +136,7 @@ static void sub_0802E484(struct Unk_0802E16C *var) {
         pressed = TRUE;
     }
     if (pressed)
-        var->unk40 = sub_0802E500;
+        var->unk40 = FN(sub_0802E500);
 }
 
 static void sub_0802E500(struct Unk_0802E16C *var) {
@@ -150,14 +150,33 @@ static void sub_0802E500(struct Unk_0802E16C *var) {
     effect->unk6 = 0xFFFF;
     LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
     m4aMPlayFadeOut(&gMPlayInfo_0, 2);
-    var->unk40 = sub_0802E55C;
+    var->unk40 = FN(sub_0802E55C);
 }
 
 static void sub_0802E55C(struct Unk_0802E16C *var) {
     if (var->unk44++ > 0x20)
-        var->unk40 = sub_0802E270;
+        var->unk40 = FN(sub_0802E270);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0802E16C) {
+    PORT_FNID(sub_0802E16C),
+    PORT_FNID(sub_0802E270),
+    PORT_FNID(sub_0802E390),
+    PORT_FNID(nullsub_11),
+    PORT_FNID(sub_0802E3C8),
+    PORT_FNID(sub_0802E3D4),
+    PORT_FNID(sub_0802E450),
+    PORT_FNID(sub_0802E470),
+    PORT_FNID(sub_0802E484),
+    PORT_FNID(sub_0802E500),
+    PORT_FNID(sub_0802E55C),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

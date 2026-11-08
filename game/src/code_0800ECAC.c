@@ -18,7 +18,7 @@ void nullsub_105(struct Unk_02038590 *);
 
 void sub_0800ECAC(u8 a1, u16 a2, u16 a3) {
     struct Unk_02038590 *r5 = &gUnk_02038590[a1];
-    struct Task *t = TaskCreate(sub_0800EF60, sizeof(struct Unk_0800ECAC), a1 | 0x2100, TASK_USE_IWRAM, nullsub_103);
+    struct Task *t = TaskCreate(FN(sub_0800EF60), sizeof(struct Unk_0800ECAC), a1 | 0x2100, TASK_USE_IWRAM, FN(nullsub_103));
     struct Unk_0800ECAC *var = TaskGetStructPtr(t);
     const struct RoomProps *rp;
 
@@ -31,10 +31,10 @@ void sub_0800ECAC(u8 a1, u16 a2, u16 a3) {
     r5->unkA8 = 0;
     r5->unkAE = a2;
     rp = &gRoomProps[a2];
-    r5->unk0[0] = sub_08013804;
-    r5->unk0[1] = nullsub_104;
-    r5->unk0[2] = nullsub_105;
-    r5->unk0[3] = sub_0801519C;
+    r5->unk0[0] = FN(sub_08013804);
+    r5->unk0[1] = FN(nullsub_104);
+    r5->unk0[2] = FN(nullsub_105);
+    r5->unk0[3] = FN(sub_0801519C);
     r5->flags = 0;
     r5->unk1A = 0xFF;
     r5->unk1B = 0xFF;
@@ -57,10 +57,10 @@ void sub_0800EE04(u8 a1, u32 a2 __attribute__((unused))) {
     const struct RoomProps *rp;
 
     rp = &gRoomProps[s->unk14->currentRoom];
-    s->unk0[0] = sub_08013804;
-    s->unk0[1] = nullsub_104;
-    s->unk0[2] = nullsub_105;
-    s->unk0[3] = sub_0801519C;
+    s->unk0[0] = FN(sub_08013804);
+    s->unk0[1] = FN(nullsub_104);
+    s->unk0[2] = FN(nullsub_105);
+    s->unk0[3] = FN(sub_0801519C);
     s->flags = 0;
     s->unk1A = 0xFF;
     s->unk1B = 0xFF;
@@ -108,10 +108,10 @@ void sub_0800EF60(void) {
             && s->unk14->currentRoom != 0xFFFF
             && !(kirby->base.flags & 0x1000000)
             && kirby->animationIndex != 0x5A) {
-            s->unk0[0](s);
-            s->unk0[1](s);
-            s->unk0[2](s);
-            s->unk0[3](s);
+            CALL(s->unk0[0])(s);
+            CALL(s->unk0[1])(s);
+            CALL(s->unk0[2])(s);
+            CALL(s->unk0[3])(s);
         }
     }
 }
@@ -571,3 +571,12 @@ void sub_0800F044(struct Unk_02038590 *a1) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_code_0800ECAC) {
+    PORT_FNID(sub_0800EF60),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

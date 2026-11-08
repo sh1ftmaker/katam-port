@@ -7,6 +7,8 @@
 #include "port/rollback.h"
 #include "port/seats.h"
 #include "port/game_addrs.h"
+#include "port/census.h"
+#include "port/inputlog.h"
 
 static int sActive;
 static int sSeats;
@@ -23,10 +25,67 @@ extern "C"
 void PortRbApplyKeys(u16 keys);
 
 static u16 sPending[PORT_SEAT_MAX]; /* set by the host for the next round    */
-static u8  sPendingDriven[PORT_SEAT_MAX] = { 1, 1, 1, 1 };
+static u8  sPendingUndriven[PORT_SEAT_MAX];   /* inverted (0 = driven), so the
+                                             * default is "everyone driven"
+                                             * at any PORT_SEAT_MAX)          */
 static u16 sRound[PORT_SEAT_MAX];   /* latched when seat 0 begins a round    */
 static u8  sRoundDriven[PORT_SEAT_MAX];
 static u8  sPlayerCount = PORT_SEAT_MAX;
+
+/* Census mode (platform/census.c): the seats differ only in gLocalPlayerId
+ * and the display task's player.  No input words, no player count: the
+ * replayed recording drives the game exactly as it does without seats. */
+static int sCensus;
+static int sCensusArm;
+/* Session mode, from frame sCensusF0 on: the shape of a NETPLAY-V2 session.
+ * All four slots exist; the game's network-input path (gUnk_0203AD10 bit 1)
+ * with the player count at four; slot 0 driven by the recording's keys, the
+ * other slots by the game's own AI, written where the game reads them -- what
+ * platform/rollback.c's ApplySlotInputs does for a session with one human.
+ * Before F0 every seat keeps focus 0, so the world is created identically
+ * and the seats differ from F0 by exactly what a joiner's re-pin does. */
+static s32 sCensusF0 = -1;
+
+void PortSeatCensusArm(int seats, s32 sessionFrom)
+{
+    sCensusArm = seats;
+    sCensusF0 = sessionFrom;
+}
+
+/* Seat i is local player (i + PORT_CENSUS_FOCUS) % 4: with one seat, a single
+ * instance of any focus, for chasing one divergence under a debugger. */
+static int CensusFocus(void)
+{
+    const char *e = getenv("PORT_CENSUS_FOCUS");
+
+    return (sCur + (e ? atoi(e) : 0)) % 4;
+}
+
+static void CensusBeginFrame(void)
+{
+    u32 frame = PortFrameNumber();
+    int slot;
+
+    if (sCensusF0 < 0) {
+        GAME_REPIN_FOCUS(CensusFocus());
+        return;
+    }
+    if (frame < (u32)sCensusF0)
+        return;
+    GAME_MODE_FLAGS |= 2;
+    gPortSim->hdr.flags |= PORT_SIM_F_SESSION;
+    GAME_REPIN_FOCUS(CensusFocus());
+    GAME_PLAYER_COUNT = 4;
+    for (slot = 0; slot < 4; slot++) {
+        u16 prev = GAME_HELD(slot);
+        u16 now = slot == 0 ? (u16)(PortInputLogKeysAt(frame) & 0x3FF)
+                            : (u16)GAME_AI_INPUT(slot);
+
+        GAME_HELD(slot) = now;
+        GAME_PRESSED(slot) = (u16)(now & ~prev);
+        GAME_RELEASED(slot) = (u16)(prev & ~now);
+    }
+}
 
 /* What each seat's KEYINPUT must latch at the end of its PortPresentFrame:
  * the keys applied at its top.  Per seat, because the switch happens between
@@ -72,7 +131,7 @@ int PortSeatInit(int seats)
      * on the host sets the *next* round's. */
     for (i = 0; i < PORT_SEAT_MAX; i++) {
         sRound[i] = sPending[i];
-        sRoundDriven[i] = sPendingDriven[i];
+        sRoundDriven[i] = !sPendingUndriven[i];
         sSeatKeys[i] = sRoundDriven[i] ? sRound[i] : 0;
         sStarted[i] = 0;
     }
@@ -109,7 +168,7 @@ void PortSeatSetInput(int slot, u16 keys)
 void PortSeatSetDriven(int slot, int driven)
 {
     if (slot >= 0 && slot < PORT_SEAT_MAX)
-        sPendingDriven[slot] = (u8)(driven != 0);
+        sPendingUndriven[slot] = (u8)(driven == 0);
 }
 
 void PortSeatSetPlayerCount(int count)
@@ -128,9 +187,17 @@ void PortSeatBeginFrame(void)
     if (!sActive)
         return;
 
+    if (sCensus) {
+        CensusBeginFrame();
+        return;
+    }
+
     if (sCur == 0) {
         memcpy(sRound, sPending, sizeof sRound);
-        memcpy(sRoundDriven, sPendingDriven, sizeof sRoundDriven);
+        int i;
+
+        for (i = 0; i < PORT_SEAT_MAX; i++)
+            sRoundDriven[i] = !sPendingUndriven[i];
     }
 
     GAME_REPIN_FOCUS(sCur);
@@ -157,9 +224,26 @@ void PortSeatBeginFrame(void)
  * frame boundary, so put it away and bring the next one out. */
 void PortSeatEndFrame(void)
 {
+    /* A census starts here, at the switch point, so the clones resume exactly
+     * where they were taken (PortSeatInit's contract). */
+    if (sCensusArm > 0 && !sActive) {
+        int n = sCensusArm;
+
+        sCensusArm = 0;
+        if (PortSeatInit(n))
+            sCensus = 1;
+    }
     if (!sActive)
         return;
     PortRbSnapshotSave(StateOf(sCur));
+    if (sCensus && sCur == sSeats - 1) {
+        const u8 *st[PORT_SEAT_MAX];
+        int i;
+
+        for (i = 0; i < sSeats; i++)
+            st[i] = StateOf(i);
+        PortCensusRound(st, sSeats);
+    }
     sCur = (sCur + 1) % sSeats;
     PortRbSnapshotLoad(StateOf(sCur));
     /* Its camera is its own from the first instruction it runs, not from
@@ -173,13 +257,14 @@ void PortSeatEndFrame(void)
      * does it -- doing it here as well cost 30-85 differing frames. */
     if (!sStarted[sCur]) {
         sStarted[sCur] = 1;
-        GAME_FOCUS = (u8)sCur;
+        if (!(sCensus && sCensusF0 >= 0))
+            GAME_FOCUS = (u8)(sCensus ? CensusFocus() : sCur);
     }
 }
 
 int PortSeatKeyOverride(u16 *keys)
 {
-    if (!sActive)
+    if (!sActive || sCensus)
         return 0;
     *keys = sSeatKeys[sCur];
     return 1;

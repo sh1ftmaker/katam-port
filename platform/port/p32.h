@@ -49,7 +49,11 @@
 #include <type_traits>
 
 #ifdef PORT_CHECK_POINTERS
-void PortP32Truncated(const void *p);
+extern "C" void PortP32Truncated(const void *p);
+/* port/fnid.h: is v 0 or a registered code ID?  A function stored through a
+ * P32 must be one -- a host address here means a site bypassed FN(). */
+extern "C" int PortFnIdKnown(uint32_t v);
+extern "C" void PortP32HostFunction(uint32_t v);
 #endif
 
 template <class T>
@@ -171,7 +175,8 @@ struct P32 {
 
     /* `obj->unk78 == SomeFunction` -- the same GNU-ism as the constructor
      * above, in a comparison rather than an assignment.  C compares the
-     * addresses; so does this. */
+     * values; so does this -- and both sides are code IDs (port/fnid.h), the
+     * member's and FN(SomeFunction)'s, so it compares IDs. */
     template <class R, class... A>
     bool operator==(R (*f)(A...)) const
     { return v == static_cast<u32>(reinterpret_cast<uintptr_t>(f)); }
@@ -224,6 +229,8 @@ struct P32 {
 #ifdef PORT_CHECK_POINTERS
         if (reinterpret_cast<uintptr_t>(f) >> 32)
             PortP32Truncated(reinterpret_cast<const void *>(f));
+        if (!PortFnIdKnown(v))
+            PortP32HostFunction(v);
 #endif
     }
 
@@ -245,6 +252,21 @@ struct P32 {
     template <class U, class TT = T,
               typename std::enable_if<std::is_void<TT>::value, int>::type = 0>
     operator U *() const { return reinterpret_cast<U *>(static_cast<uintptr_t>(v)); }
+
+    /* A call through a code-pointer member without CALL.  The member holds a
+     * canonical code ID (port/fnid.h), not a host address, so `obj->cb(x)`
+     * has to be `CALL(obj->cb)(x)`; this used to compile as a surrogate call
+     * through the conversion to T* above and would now jump to the ID.  A
+     * member operator() beats every surrogate candidate (its object argument
+     * needs no conversion), so this is what overload resolution picks, and it
+     * refuses to instantiate.  The C builds have no such check; the lint
+     * (tools/codemod_fnid.py --check, `make lint-determinism`) covers them. */
+    template <class... X>
+    void operator()(X &&...) const
+    {
+        static_assert(sizeof...(X) != sizeof...(X),
+                      "call through a code ID: write CALL(p)(args) (port/fnid.h)");
+    }
 
     /* Deliberately absent: operator bool.  With operator T* already present it
      * would make `if (p)` ambiguous rather than convenient, and the pointer
@@ -290,6 +312,8 @@ struct P32<void> {
 #ifdef PORT_CHECK_POINTERS
         if (reinterpret_cast<uintptr_t>(f) >> 32)
             PortP32Truncated(reinterpret_cast<const void *>(f));
+        if (!PortFnIdKnown(v))
+            PortP32HostFunction(v);
 #endif
     }
 
@@ -328,7 +352,8 @@ struct P32<void> {
 
     /* `obj->unk78 == SomeFunction` -- the same GNU-ism as the constructor
      * above, in a comparison rather than an assignment.  C compares the
-     * addresses; so does this. */
+     * values; so does this -- and both sides are code IDs (port/fnid.h), the
+     * member's and FN(SomeFunction)'s, so it compares IDs. */
     template <class R, class... A>
     bool operator==(R (*f)(A...)) const
     { return v == static_cast<u32>(reinterpret_cast<uintptr_t>(f)); }
@@ -336,6 +361,14 @@ struct P32<void> {
     template <class R, class... A>
     bool operator!=(R (*f)(A...)) const
     { return v != static_cast<u32>(reinterpret_cast<uintptr_t>(f)); }
+
+    /* As in the primary template: a code ID is not callable. */
+    template <class... X>
+    void operator()(X &&...) const
+    {
+        static_assert(sizeof...(X) != sizeof...(X),
+                      "call through a code ID: write CALL(p)(args) (port/fnid.h)");
+    }
 };
 
 /* `n + p` as well as `p + n`.  A member operator only covers the order with

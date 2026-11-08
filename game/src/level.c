@@ -23,8 +23,8 @@ void InitLevelTasks(void)
     u8 i;
 
     gDispCnt = DISPCNT_MODE_0 | DISPCNT_OBJ_1D_MAP | DISPCNT_BG0_ON | DISPCNT_BG3_ON;
-    gUnk_02023350 = TaskCreate(sub_08001FF8, 0, 1, TASK_USE_IWRAM, sub_08002E3C);
-    gUnk_02023354 = TaskCreate(sub_08002118, sizeof(struct Unk_08002E48), 0x7FFF, TASK_USE_IWRAM, sub_08002E48);
+    gUnk_02023350 = TaskCreate(FN(sub_08001FF8), 0, 1, TASK_USE_IWRAM, FN(sub_08002E3C));
+    gUnk_02023354 = TaskCreate(FN(sub_08002118), sizeof(struct Unk_08002E48), 0x7FFF, TASK_USE_IWRAM, FN(sub_08002E48));
     var = TaskGetStructPtr(gUnk_02023354);
     gBgCntRegs[0] = BGCNT_PRIORITY(3) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(31);
     gBgCntRegs[3] = BGCNT_PRIORITY(2) | BGCNT_CHARBASE(2) | BGCNT_SCREENBASE(30);
@@ -36,7 +36,7 @@ void InitLevelTasks(void)
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
     var->unk24 = gUnk_03002E60;
-    gUnk_03002E60 = (const union Unk_03002E60 *)gUnk_082D8D74;
+    gUnk_03002E60 = PORT_ROM_TABLE(const union Unk_03002E60 *, gUnk_082D8D74, 0x082D8D74); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     CpuFill32(0, gUnk_02028EE0, sizeof(gUnk_02028EE0));
     CpuFill32(0, gUnk_02024ED0, sizeof(gUnk_02024ED0));
     CpuFill32(0, gUnk_02026D60, sizeof(gUnk_02026D60));
@@ -85,7 +85,7 @@ void RestoreDisplayState(void)
     struct Unk_08002E48 *var0 = TaskGetStructPtr(gUnk_02023354), *var1 = var0;
     u16 i;
 
-    gUnk_03002E60 = (const union Unk_03002E60 *)gUnk_082D8D74;
+    gUnk_03002E60 = PORT_ROM_TABLE(const union Unk_03002E60 *, gUnk_082D8D74, 0x082D8D74); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
     gDispCnt = var1->unk2;
 
     for (i = 0; i < 4; i++) {

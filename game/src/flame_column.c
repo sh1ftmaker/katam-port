@@ -27,7 +27,7 @@ extern const struct AnimInfo gUnk_08357CD8[] = {
 
 void *CreateFlameColumn(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct FlameColumn), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct FlameColumn), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct FlameColumn *tmp = TaskGetStructPtr(t), *fc = tmp;
 
     InitObject(&fc->obj, template_, a2);
@@ -48,7 +48,7 @@ void *CreateFlameColumn(struct ObjectTemplate *template_, u8 a2)
     }
     ObjectInitSprite(&fc->obj);
     sub_0803E2B0(&fc->obj.base, -4, -4, 4, 4);
-    gUnk_08351648[fc->obj.type].unk10(&fc->obj);
+    CALL(gUnk_08351648[fc->obj.type].unk10)(&fc->obj);
     return fc;
 }
 
@@ -72,7 +72,7 @@ void sub_0811FDF0(struct FlameColumn *fc)
     }
     fc2->unkBA = fc->obj.base.x >> 0xC;
     fc2->unkBA = fc->obj.base.y >> 0xC; // unkBC?
-    fc->obj.unk78 = sub_0811FE74;
+    fc->obj.unk78 = FN(sub_0811FE74);
 }
 
 static void sub_0811FE74(struct FlameColumn *fc)
@@ -160,3 +160,14 @@ static void sub_0811FE74(struct FlameColumn *fc)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_flame_column) {
+    PORT_FNID(CreateFlameColumn),
+    PORT_FNID(sub_0811FDF0),
+    PORT_FNID(sub_0811FE74),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

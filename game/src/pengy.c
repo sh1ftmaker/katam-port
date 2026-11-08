@@ -103,7 +103,7 @@ static void sub_080BBCD8(struct Object*);
 static void sub_080BBD14(struct Object*);
 
 void* CreatePengy(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     if (obj->base.x > obj->kirby3->base.x) {
@@ -231,7 +231,7 @@ static void sub_080BAE04(struct Object* arg0) {
         arg0->base.yspeed += gUnk_08354808[arg0->unk9F].unk6;
         arg0->unk9E--;
         if (gUnk_08354808[(u8)(arg0->unk9F + 1)].unk8 == 0 && arg0->unk9E == 0) {
-            ObjectSetFunc(arg0, 0, sub_080BAC64);
+            ObjectSetFunc(arg0, 0, FN(sub_080BAC64));
             arg0->kirby3 = FindTargetKirby(&arg0->base);
             arg0->base.xspeed = 0;
             if (arg0->base.x > arg0->kirby3->base.x) {
@@ -261,7 +261,7 @@ static void sub_080BAFBC(struct Object* arg0) {
     }
     if (arg0->base.counter > 9) {
         arg0->unk85 = 0xf0;
-        ObjectSetFunc(arg0, 0, sub_080BAC64);
+        ObjectSetFunc(arg0, 0, FN(sub_080BAC64));
         arg0->kirby3 = FindTargetKirby(&arg0->base);
         arg0->base.xspeed = 0;
         if (arg0->base.x > arg0->kirby3->base.x) {
@@ -273,12 +273,12 @@ static void sub_080BAFBC(struct Object* arg0) {
     }
     if (!(arg0->base.unk62 & 4)) {
         arg0->unk85 = 0xf0;
-        ObjectSetFunc(arg0, 4, sub_080BBC68);
+        ObjectSetFunc(arg0, 4, FN(sub_080BBC68));
     }
 }
 
 void sub_080BB080(struct Object* arg0, u8 arg1) {
-    struct Task *task = TaskCreate(sub_080BB290, sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080BB290), sizeof(struct ObjectBase), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct ObjectBase *objBase = TaskGetStructPtr(task), *obj = objBase;
     ClearObjectBase(obj);
     obj->header.kind = 2;
@@ -350,7 +350,7 @@ static void sub_080BB290(void) {
 }
 
 void sub_080BB470(struct Object* arg0) {
-    struct Task *task = TaskCreate(sub_080BB568, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080BB568), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(task), *obj = tmp;
     ClearEffectObject(obj);
     obj->header.kind = 3;
@@ -429,7 +429,7 @@ static void sub_080BB568(void) {
 }
 
 void sub_080BB804(struct Object* arg0, u8 arg1) {
-    struct Task *task = TaskCreate(sub_080BB8FC, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080BB8FC), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *tmp = TaskGetStructPtr(task), *obj = tmp;
     ClearEffectObject(obj);
     obj->header.kind = 3;
@@ -520,7 +520,7 @@ static void sub_080BB8FC(void) {
 }
 
 void sub_080BBBF8(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BAC64);
+    ObjectSetFunc(arg0, 0, FN(sub_080BAC64));
     arg0->kirby3 = FindTargetKirby(&arg0->base);
     arg0->base.xspeed = 0;
     if (arg0->base.x > arg0->kirby3->base.x) {
@@ -532,11 +532,11 @@ void sub_080BBBF8(struct Object* arg0) {
 }
 
 static void sub_080BBC40(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080BAE04);
+    ObjectSetFunc(arg0, 0, FN(sub_080BAE04));
 }
 
 static void sub_080BBC54(struct Object* arg0) {
-    ObjectSetFunc(arg0, 4, sub_080BBC68);
+    ObjectSetFunc(arg0, 4, FN(sub_080BBC68));
 }
 
 static void sub_080BBC68(struct Object* arg0) {
@@ -545,7 +545,7 @@ static void sub_080BBC68(struct Object* arg0) {
         arg0->base.xspeed = -arg0->base.xspeed;
     }
     if (arg0->base.unk62 & 4) {
-        ObjectSetFunc(arg0, 0, sub_080BAE04);
+        ObjectSetFunc(arg0, 0, FN(sub_080BAE04));
     }
     else {
         if (arg0->unk85 != 0) arg0->unk85--;
@@ -553,7 +553,7 @@ static void sub_080BBC68(struct Object* arg0) {
 }
 
 static void sub_080BBCBC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 5, sub_080BBCD8);
+    ObjectSetFunc(arg0, 5, FN(sub_080BBCD8));
     arg0->base.xspeed = 0;
 }
 
@@ -562,12 +562,12 @@ static void sub_080BBCD8(struct Object* arg0) {
         sub_080BBD14(arg0);
     }
     if (!(arg0->base.unk62 & 4)) {
-        ObjectSetFunc(arg0, 4, sub_080BBC68);
+        ObjectSetFunc(arg0, 4, FN(sub_080BBC68));
     }
 }
 
 static void sub_080BBD14(struct Object* arg0) {
-    ObjectSetFunc(arg0, 6, sub_080BAFBC);
+    ObjectSetFunc(arg0, 6, FN(sub_080BAFBC));
     arg0->unk85 = 0;
     arg0->base.xspeed = 0;
 }
@@ -575,3 +575,21 @@ static void sub_080BBD14(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_pengy) {
+    PORT_FNID(CreatePengy),
+    PORT_FNID(sub_080BAC64),
+    PORT_FNID(sub_080BAE04),
+    PORT_FNID(sub_080BAFBC),
+    PORT_FNID(sub_080BB290),
+    PORT_FNID(sub_080BB568),
+    PORT_FNID(sub_080BB8FC),
+    PORT_FNID(sub_080BBBF8),
+    PORT_FNID(sub_080BBC68),
+    PORT_FNID(sub_080BBCD8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

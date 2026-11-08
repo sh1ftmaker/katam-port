@@ -938,7 +938,7 @@ static void sub_081251F8(void) {
 }
 
 static void CreateWorldMapReachedDoor(enum WorldMapDoor unlockedDoorId) {
-    struct Task* task = TaskCreate(WorldMapReachedDoorMain, sizeof(struct Sprite), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    struct Task* task = TaskCreate(FN(WorldMapReachedDoorMain), sizeof(struct Sprite), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
     struct Sprite *tmp = TaskGetStructPtr(task), *reachedDoor = tmp;
 
     enum WorldMapDoorAnimInfosIndex destAnimInfo = REACHED_DOOR;
@@ -952,7 +952,7 @@ static void CreateWorldMapReachedDoor(enum WorldMapDoor unlockedDoorId) {
 }
 
 static struct Task* CreateWorldMapLine(enum WorldMapDoor unlockedDoorId) {
-    struct Task* task = TaskCreate(WorldMapLineInit, sizeof(struct WorldMapLine), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    struct Task* task = TaskCreate(FN(WorldMapLineInit), sizeof(struct WorldMapLine), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
     struct WorldMapLine *tmp = TaskGetStructPtr(task), *worldMapLine = tmp;
 
     enum WorldMapDoorAnimInfosIndex destAnimInfo = BLINKING_DOOR;
@@ -1011,7 +1011,7 @@ static void WorldMapLineDrawing(void) {
         }
         CreateWorldMapReachedDoor(worldMapLine->unlockedDoorId);
         m4aSongNumStart(SE_PAUSE_WORLD_MAP_HUB_MIRROR);
-        gCurTask->main = WorldMapLineDrawn;
+        gCurTask->main = FN(WorldMapLineDrawn);
         worldMapLine->flags |= LINE_FLAG_LINE_DRAW_COMPLETED;
     }
 
@@ -1128,7 +1128,7 @@ void CreateWorldMap(enum WorldMapDoor unlockedDoorId) {
     gBgScrollRegs[2][0] = 0x8;
     gBgScrollRegs[2][1] = 0x8;
 
-    task = TaskCreate(WorldMapPauseInit, sizeof(struct WorldMap), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
+    task = TaskCreate(FN(WorldMapPauseInit), sizeof(struct WorldMap), 0x1000, TASK_x0004 | TASK_USE_IWRAM, NULL);
     worldmap = tmp = TaskGetStructPtr(task);
     worldmap->unlockedDoorId = WORLDMAP_NO_UNLOCK;
 
@@ -1136,7 +1136,7 @@ void CreateWorldMap(enum WorldMapDoor unlockedDoorId) {
         worldmap->unk208 = 1;
         worldmap->unlockedDoorId = unlockedDoorId;
         CpuFill32(0, (void*)BG_VRAM, BG_VRAM_SIZE);
-        task->main = WorldMapUnlockInitBg;
+        task->main = FN(WorldMapUnlockInitBg);
     }
     else {
         WorldMapPauseEnableUI();
@@ -1154,7 +1154,7 @@ static void WorldMapPauseInit(void) {
     struct WorldMap *tmp = TaskGetStructPtr(gCurTask), *worldmap = tmp;
 
     WorldMapLoadPalettes();
-    gCurTask->main = WorldMapPauseMain;
+    gCurTask->main = FN(WorldMapPauseMain);
     SaveObjPaletteColors(0x80, 0x7f);
     SaveBgPaletteColors(0x00, 0xff);
 
@@ -1205,7 +1205,7 @@ static void WorldMapPauseMain(void) {
         gPauseMenus[2].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[3].flags & MENU_FLAG_BACK_TO_GAME) {
         m4aSongNumStart(SE_PAUSE_MENU_ACTIVATE);
         sub_08124EC8();
-        gCurTask->main = WorldMapToGame;
+        gCurTask->main = FN(WorldMapToGame);
         WorldMapDrawKirbys(worldmap);
     }
     else {
@@ -1216,7 +1216,7 @@ static void WorldMapPauseMain(void) {
                 (gPauseMenus[playerId].menuId == MENU_HELP || gPauseMenus[playerId].menuId == MENU_AREAMAP)) {
                 worldmap->nextMenuId = gPauseMenus[playerId].menuId;
                 CreatePauseFade(0x20, 1);
-                gCurTask->main = WorldMapToNextMenu;
+                gCurTask->main = FN(WorldMapToNextMenu);
                 return;
             }
         }
@@ -1229,7 +1229,7 @@ static void WorldMapUnlockInitBg(void) {
 
     if (worldmap->unlockCounter++ <= 10) return;
     worldmap->unlockCounter = 0;
-    gCurTask->main = WorldMapUnlockInitKirbyAndDoors;
+    gCurTask->main = FN(WorldMapUnlockInitKirbyAndDoors);
     WorldMapLoadPalettes();
 
     CpuFill32(0, BG_CHAR_ADDR(1), BG_CHAR_SIZE / 2);
@@ -1266,7 +1266,7 @@ static void WorldMapUnlockInitKirbyAndDoors(void) {
     enum WorldMapDoor doorId;
     struct WorldMap *tmp = TaskGetStructPtr(gCurTask), *worldmap = tmp;
 
-    gCurTask->main = WorldMapUnlockWaitLineFinish;
+    gCurTask->main = FN(WorldMapUnlockWaitLineFinish);
     worldmap->worldmapLineTask = CreateWorldMapLine(worldmap->unlockedDoorId);
 
     WorldMapSetKirbySprites(worldmap->worldmapKirbys + 0, 0);
@@ -1296,7 +1296,7 @@ static void WorldMapUnlockWaitLineFinish(void) {
     worldMapLine = TaskGetStructPtr(worldmap->worldmapLineTask);
     if (worldMapLine->flags & LINE_FLAG_LINE_DRAW_COMPLETED) {
         worldmap->unlockCounter = 0;
-        gCurTask->main = WorldMapUnlockMain;
+        gCurTask->main = FN(WorldMapUnlockMain);
     }
 }
 
@@ -1323,7 +1323,7 @@ static void WorldMapUnlockSave(s8 unlockedDoorId) {
 
     if (!(gUnk_0203AD10 & 0x10)) {
         if (gUnk_0203AD10 & 0x2) {
-            if (gLocalPlayerId == gUnk_0203AD24) {
+            if (PortSimSaveOwner()) {
                 UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
             }
             else {
@@ -1365,7 +1365,7 @@ static void WorldMapUnlockMain(void) {
 
             if (!(gUnk_0203AD10 & 0x10)) {
                 if (gUnk_0203AD10 & 0x2) {
-                    if (gLocalPlayerId == gUnk_0203AD24) {
+                    if (PortSimSaveOwner()) {
                         UpdateSaveBufferByOffset(SAVE_BUFFER_TYPE_WORLD_PROPS, gSaveID > 2 ? 0 : gSaveID);
                     }
                     else {
@@ -1453,7 +1453,7 @@ static void WorldMapReachedDoorMain(void) {
 static void WorldMapLineInit(void) {
     struct WorldMapLine* worldmapLine = TaskGetStructPtr(gCurTask);
 
-    gCurTask->main = WorldMapLineDrawing;
+    gCurTask->main = FN(WorldMapLineDrawing);
     sub_08155128(&worldmapLine->unlockedDoor);
     sub_08155128(&worldmapLine->dest);
     sub_081564D8(&worldmapLine->unlockedDoor);
@@ -1568,3 +1568,38 @@ static void WorldMapToGame(void) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_pause_world_map) {
+    PORT_FNID(WorldMapLineDrawing),
+    PORT_FNID(WorldMapLineDrawn),
+    PORT_FNID(WorldMapPauseInit),
+    PORT_FNID(WorldMapPauseMain),
+    PORT_FNID(WorldMapUnlockInitBg),
+    PORT_FNID(WorldMapUnlockInitKirbyAndDoors),
+    PORT_FNID(WorldMapUnlockWaitLineFinish),
+    PORT_FNID(WorldMapUnlockMain),
+    PORT_FNID(WorldMapUnlockMoonlightMansion),
+    PORT_FNID(WorldMapUnlockRainbowRouteEast),
+    PORT_FNID(WorldMapUnlockRainbowRouteSouth),
+    PORT_FNID(WorldMapUnlockCabbageCavernCenter),
+    PORT_FNID(WorldMapUnlockRainbowRouteWest),
+    PORT_FNID(WorldMapUnlockCarrotCastle),
+    PORT_FNID(WorldMapUnlockRainbowRouteNorth),
+    PORT_FNID(WorldMapUnlockMustardMountain),
+    PORT_FNID(WorldMapUnlockCabbageCavernWest),
+    PORT_FNID(WorldMapUnlockRadishRuins),
+    PORT_FNID(WorldMapUnlockPeppermintPalaceEast),
+    PORT_FNID(WorldMapUnlockPeppermintPalaceWest),
+    PORT_FNID(WorldMapUnlockCabbageCavernEast),
+    PORT_FNID(WorldMapUnlockOliveOcean),
+    PORT_FNID(WorldMapUnlockCandyConstellation),
+    PORT_FNID(WorldMapReachedDoorMain),
+    PORT_FNID(WorldMapLineInit),
+    PORT_FNID(WorldMapToNextMenu),
+    PORT_FNID(WorldMapToGame),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -152,7 +152,7 @@ static void sub_080A3B5C(struct Object* arg0);
 static void sub_080A3B94(struct Object* arg0);
 
 void* CreateCupie(struct ObjectTemplate* arg0, u8 arg1) {
-    struct Task* task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task* task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     sub_0803E2B0(&obj->base, -5, -3, 5, 8);
@@ -165,7 +165,7 @@ void* CreateCupie(struct ObjectTemplate* arg0, u8 arg1) {
         obj->base.flags &= ~1;
     }
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     if (obj->objTemplate->subtype1 == 0) {
         obj->unk9F = 0xff;
     }
@@ -188,7 +188,7 @@ void sub_080A2AF0(struct Object* arg0) {
         break;
     default:
         arg0->unk83 = 0;
-        arg0->unk78 = sub_080A2B6C;
+        arg0->unk78 = FN(sub_080A2B6C);
         arg0->base.flags &= ~0x800;
         if (arg0->subtype != 0) {
             arg0->base.counter = 0x10e;
@@ -325,7 +325,7 @@ static void sub_080A2E38(struct Object* arg0) {
         arg0->base.counter = 0x3c;
         if (Rand16() & 1) {
             arg0->unk83 = 1;
-            arg0->unk78 = sub_080A3A9C;
+            arg0->unk78 = FN(sub_080A3A9C);
             arg0->base.flags &= ~2;
             arg0->base.flags |= 0x140;
             arg0->base.flags |= 0x800;
@@ -372,7 +372,7 @@ static void sub_080A3008(struct Object* arg0) {
         arg0->base.counter = 0x3c;
         if (Rand16() & 1) {
             arg0->unk83 = 1;
-            arg0->unk78 = sub_080A3A9C;
+            arg0->unk78 = FN(sub_080A3A9C);
             arg0->base.flags &= ~2;
             arg0->base.flags |= 0x140;
             arg0->base.flags |= 0x800;
@@ -473,7 +473,7 @@ static void sub_080A31D8(struct Object* arg0) {
                 if ((arg0->base.y & 0xfffff000) == ((arg0->kirby3->base.y - 0x4000) & 0xfffff000)) {
                     arg0->unk85++;
                     arg0->unk83 = 1;
-                    arg0->unk78 = sub_080A3A9C;
+                    arg0->unk78 = FN(sub_080A3A9C);
                     arg0->base.flags &= ~2;
                     arg0->base.flags |= 0x140;
                     arg0->base.flags |= 0x800;
@@ -578,7 +578,7 @@ static void sub_080A31D8(struct Object* arg0) {
                 if ((arg0->base.y & 0xfffff000) == ((arg0->kirby3->base.y - 0x4000) & 0xfffff000)) {
                     arg0->unk85++;
                     arg0->unk83 = 1;
-                    arg0->unk78 = sub_080A3A9C;
+                    arg0->unk78 = FN(sub_080A3A9C);
                     arg0->base.flags &= ~2;
                     arg0->base.flags |= 0x140;
                     arg0->base.flags |= 0x800;
@@ -620,7 +620,7 @@ static void sub_080A35C8(struct Object* arg0) {
 
 void* CreateCupieArrow(struct ObjectTemplate* arg0, u8 arg1) {
     struct Object *obj, *tmp;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     InitObject(obj, arg0, arg1);
@@ -635,16 +635,16 @@ void* CreateCupieArrow(struct ObjectTemplate* arg0, u8 arg1) {
     obj->base.unk68 = 0x20000043;
     obj->base.unk5C |= 0x20;
     obj->unk9E = 0;
-    obj->unk7C = sub_0809F840;
+    obj->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&obj->base, -2, -2, 2, 2);
     ObjectSetBounds(&obj->base, 2, 2, 2, 2);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     return obj;
 }
 
 void sub_080A37F4(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A389C);
+    ObjectSetFunc(arg0, 0, FN(sub_080A389C));
     arg0->base.flags |= 0x40;
     arg0->base.flags &= ~0x20;
     PlaySfx(&arg0->base, SE_CUPIE_ARROW_ATTACK);
@@ -730,7 +730,7 @@ static void sub_080A389C(struct Object* arg0) {
 
 static void sub_080A3A24(struct Object* arg0) {
     arg0->unk83 = 0;
-    arg0->unk78 = sub_080A2E38;
+    arg0->unk78 = FN(sub_080A2E38);
     arg0->base.flags |= 0x140;
     arg0->base.flags &= ~0x800;
     arg0->base.counter = 0x5a;
@@ -738,7 +738,7 @@ static void sub_080A3A24(struct Object* arg0) {
 
 static void sub_080A3A4C(struct Object* arg0) {
     arg0->unk83 = 0;
-    arg0->unk78 = sub_080A3008;
+    arg0->unk78 = FN(sub_080A3008);
     arg0->base.flags |= 0x140;
     arg0->base.flags &= ~0x800;
     arg0->base.counter = 0x5a;
@@ -746,7 +746,7 @@ static void sub_080A3A4C(struct Object* arg0) {
 
 static void sub_080A3A74(struct Object* arg0) {
     arg0->unk83 = 1;
-    arg0->unk78 = sub_080A3A9C;
+    arg0->unk78 = FN(sub_080A3A9C);
     arg0->base.flags &= ~2;
     arg0->base.flags |= 0x140;
     arg0->base.flags |= 0x800;
@@ -776,7 +776,7 @@ static void sub_080A3A9C(struct Object* arg0) {
 }
 
 static void sub_080A3AFC(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0, sub_080A31D8);
+    ObjectSetFunc(arg0, 0, FN(sub_080A31D8));
     if (arg0->objTemplate->subtype1 == 4) {
         arg0->base.counter = 0xc;
         if (arg0->unk85 <= 0xf) {
@@ -800,7 +800,7 @@ static void sub_080A3AFC(struct Object* arg0) {
 }
 
 static void sub_080A3B5C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 0,sub_080A3B94);
+    ObjectSetFunc(arg0, 0,FN(sub_080A3B94));
     arg0->base.flags ^= 1;
     arg0->base.yspeed = 0;
     arg0->base.flags |= 0x140;
@@ -821,3 +821,22 @@ static void sub_080A3B94(struct Object* arg0) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_cupie) {
+    PORT_FNID(CreateCupie),
+    PORT_FNID(sub_080A2AF0),
+    PORT_FNID(sub_080A2B6C),
+    PORT_FNID(sub_080A2E38),
+    PORT_FNID(sub_080A3008),
+    PORT_FNID(sub_080A31D8),
+    PORT_FNID(CreateCupieArrow),
+    PORT_FNID(sub_080A37F4),
+    PORT_FNID(sub_080A389C),
+    PORT_FNID(sub_080A3A9C),
+    PORT_FNID(sub_080A3B94),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

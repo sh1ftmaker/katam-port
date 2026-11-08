@@ -130,7 +130,7 @@ static const u8 gUnk_0835390F[] = {
 static const u8 gUnk_08353922[] = { 0x00, 0x08, 0x0f, 0x10, 0x00, 0x00, };
 
 void *CreateAbilityStar(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, sub_080AAA14);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(sub_080AAA14));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x4000;
@@ -239,7 +239,7 @@ static void sub_080A9258(struct Object* arg0) {
             arg0->base.xspeed = -gUnk_083536EC[arg0->unk9E];
         }
         if (arg0->base.unk58 & 2) {
-            arg0->unk78 = sub_080A98F4;
+            arg0->unk78 = FN(sub_080A98F4);
         }
         if (arg0->kirbyAbility != KIRBY_ABILITY_MASTER) {
             if ((sp4->ability == KIRBY_ABILITY_NORMAL || sp4->ability == KIRBY_ABILITY_MASTER)) {
@@ -296,7 +296,7 @@ static void sub_080A98F4(struct Object* arg0) {
 }
 
 void *CreateUnknown83(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x40;
@@ -328,7 +328,7 @@ static void sub_080A9BB4(struct Object* arg0) {
 }
 
 void *CreateDustCloud(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x40;
@@ -456,7 +456,7 @@ static void sub_080A9CEC(struct Object* arg0) {
 static void sub_080A9FBC(struct Object* arg0, s16 arg1, s16 arg2) {
     s16 r2;
     struct EffectObject *obj, *tmp;
-    struct Task *task = TaskCreate(sub_080AA108, sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, ObjectBaseDestroy);
+    struct Task *task = TaskCreate(FN(sub_080AA108), sizeof(struct EffectObject), 0x3500, TASK_USE_EWRAM, FN(ObjectBaseDestroy));
     tmp = TaskGetStructPtr(task);
     obj = tmp;
     ClearEffectObject(obj);
@@ -576,7 +576,7 @@ static void sub_080AA108(void) {
 }
 
 void *CreateAbilityStatue(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.unk68 &= ~7;
@@ -606,7 +606,7 @@ void *CreateAbilityStatue(struct ObjectTemplate *arg0, u8 arg1) {
 }
 
 void sub_080AA4EC(struct Object* arg0) {
-    ObjectSetFunc(arg0, arg0->objTemplate->subtype1, sub_080AA588);
+    ObjectSetFunc(arg0, arg0->objTemplate->subtype1, FN(sub_080AA588));
     switch (arg0->type) {
     default:
         arg0->kirbyAbility = gUnk_083538FC[arg0->objTemplate->subtype1];
@@ -623,8 +623,8 @@ void sub_080AA4EC(struct Object* arg0) {
     case OBJ_MASTER_SWORD_STAND:
         arg0->kirbyAbility = KIRBY_ABILITY_MASTER;
         arg0->unk83 = 0;
-        arg0->unk78 = sub_080AA618;
-        arg0->unk7C = sub_080AAA64;
+        arg0->unk78 = FN(sub_080AA618);
+        arg0->unk7C = FN(sub_080AAA64);
         break;
     }
     arg0->unk85 = 0;
@@ -710,25 +710,25 @@ static void sub_080AA6F8(struct Object* arg0) {
 }
 
 void sub_080AA91C(struct Object* arg0) {
-    ObjectSetFunc(arg0, 3, sub_080A9258);
+    ObjectSetFunc(arg0, 3, FN(sub_080A9258));
     arg0->kirbyAbility = arg0->objTemplate->subtype1;
     arg0->unk85 = 0;
     arg0->unk9E = 0;
 }
 
 void sub_080AA94C(struct Object* arg0) {
-    ObjectSetFunc(arg0, -1, sub_080A9BB4);
+    ObjectSetFunc(arg0, -1, FN(sub_080A9BB4));
 }
 
 void sub_080AA960(struct Object* arg0) {
-    ObjectSetFunc(arg0, -1, sub_080A9CEC);
+    ObjectSetFunc(arg0, -1, FN(sub_080A9CEC));
     arg0->base.counter = 0x1d;
     arg0->unk9E = 0x25;
     arg0->unk9F = 0x39;
 }
 
 void *CreateAbilityStatueRandom(struct ObjectTemplate *arg0, u8 arg1) {
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *tmp = TaskGetStructPtr(task), *obj = tmp;
     InitObject(obj, arg0, arg1);
     obj->base.flags |= 0x400;
@@ -759,9 +759,36 @@ void sub_080AAA64(struct Object* arg0) {
 }
 
 void sub_080AAA94(struct Object* arg0) {
-    arg0->unk78 = sub_080AA6F8;
+    arg0->unk78 = FN(sub_080AA6F8);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_ability_objects) {
+    PORT_FNID(CreateAbilityStar),
+    PORT_FNID(sub_080A9258),
+    PORT_FNID(sub_080A98F4),
+    PORT_FNID(CreateUnknown83),
+    PORT_FNID(sub_080A9BB4),
+    PORT_FNID(CreateDustCloud),
+    PORT_FNID(sub_080A9CEC),
+    PORT_FNID(sub_080AA108),
+    PORT_FNID(CreateAbilityStatue),
+    PORT_FNID(sub_080AA4EC),
+    PORT_FNID(sub_080AA588),
+    PORT_FNID(sub_080AA618),
+    PORT_FNID(sub_080AA6F8),
+    PORT_FNID(sub_080AA91C),
+    PORT_FNID(sub_080AA94C),
+    PORT_FNID(sub_080AA960),
+    PORT_FNID(CreateAbilityStatueRandom),
+    PORT_FNID(sub_080AAA14),
+    PORT_FNID(sub_080AAA64),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

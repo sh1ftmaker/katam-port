@@ -66,6 +66,7 @@
 #include "port/mp.h"
 #include "port/rollback.h"
 #include "port/spawn.h"
+#include "port/simblock.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "data.h"
@@ -598,11 +599,12 @@ void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
  * from the event list and the frame number, so it needs no snapshot of its
  * own; the netsim work's sim block (platform/port/simblock.h) can hold it
  * as-is if it moves there. */
-static struct PortSimView {
-    s32 viewW, viewH;           /* this frame's session view              */
-    s32 prevW, prevH;           /* the previous frame's                   */
-    s32 stock;                  /* both 240x160 and no --cull none        */
-} sSim = { PORT_SCREEN_W, PORT_SCREEN_H, PORT_SCREEN_W, PORT_SCREEN_H, 1 };
+/* It lives in the port sim block (port/simblock.h, struct PortSimView): the
+ * game reads it every frame, and between latches -- a snapshot taken at the
+ * frame boundary and restored elsewhere -- it is simulation state like any
+ * other.  PortSimBlockInit (platform/main.c) sets the power-on value,
+ * 240x160 and stock. */
+#define sSim (gPortSim->view)
 static int sSimPinned;
 static int sSimSession;     /* netplay v2: the session's VIEW events decide */
 static s32 sReqW = PORT_SCREEN_W, sReqH = PORT_SCREEN_H;

@@ -237,3 +237,12 @@ static u32 UNUSED sub_08158F10(void)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_gbplayer) {
+    PORT_FNID(Sio32TimeoutIntr),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

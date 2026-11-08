@@ -702,13 +702,13 @@ static const u8 gUnk_083871B8[0x10][2] = {
 };
 
 void sub_081434F8(void) {
-    struct Task *t = TaskCreate(sub_08145620, sizeof(struct Unk_081434F8), 0x1000, TASK_USE_IWRAM, sub_08143664);
+    struct Task *t = TaskCreate(FN(sub_08145620), sizeof(struct Unk_081434F8), 0x1000, TASK_USE_IWRAM, FN(sub_08143664));
     struct Unk_081434F8 *tmp = TaskGetStructPtr(t), *var = tmp;
     u16 i;
     u8 j;
 
     DmaFill16(3, 0, var, sizeof(struct Unk_081434F8));
-    var->unk38 = sub_08143DA8;
+    var->unk38 = FN(sub_08143DA8);
     var->unk2D = TRUE;
     var->unk30 = -1;
     var->unk1 = gUnk_0203ADE0;
@@ -958,7 +958,7 @@ static void sub_08143DA8(struct Unk_081434F8 *a1) {
     gDispCnt = DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP | DISPCNT_BG0_ON | DISPCNT_BG1_ON;
     for (i = 0; i < 2; ++i)
         gBgCntRegs[i] = gUnk_0838665C[i] | ((0x1F - i) << 8) | (i << 2);
-    a1->unk38 = sub_0814565C;
+    a1->unk38 = FN(sub_0814565C);
 }
 
 static void sub_08143E6C(struct Unk_081434F8 *a1) { // see sub_0813FF6C
@@ -988,7 +988,7 @@ static void sub_08143E6C(struct Unk_081434F8 *a1) { // see sub_0813FF6C
     LZ77UnCompVram(tileset, dst);
     for (i = 0; i < height; ++i)
         DmaCopy16(3, tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
-    a1->unk38 = sub_08143EF4;
+    a1->unk38 = FN(sub_08143EF4);
 }
 
 static void sub_08143EF4(struct Unk_081434F8 *a1) {
@@ -1011,7 +1011,7 @@ static void sub_08143EF4(struct Unk_081434F8 *a1) {
     LZ77UnCompVram(tileset, (u16 *)0x6004000);
     for (i = 0; i < height; ++i)
         DmaCopy16(3, tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
-    a1->unk38 = sub_08145718;
+    a1->unk38 = FN(sub_08145718);
 }
 
 static inline struct Sprite *GetSpriteFromArray(struct Unk_081434F8 *a1, u8 idx) {
@@ -1034,7 +1034,7 @@ static void sub_08143F88(struct Unk_081434F8 *a1) {
     sprite->palId = gUnk_08386A12[1];
     sub_08155128(sprite);
     sub_08144438(a1);
-    a1->unk38 = sub_0814405C;
+    a1->unk38 = FN(sub_0814405C);
     for (j = 0; j < NUM_PUBLIC_TREASURES; ++j) {
         if (a1->unk2[j])
             DisplaySprite(&a1->unk40[j]);
@@ -1050,7 +1050,7 @@ static void sub_0814405C(struct Unk_081434F8 *a1) {
     if (!sub_081447E0(a1)) {
         if (gPressedKeys & B_BUTTON) {
             m4aSongNumStart(SE_MAIN_MENU_BACK);
-            a1->unk38 = sub_08145848;
+            a1->unk38 = FN(sub_08145848);
         }
         else
         {
@@ -1084,7 +1084,7 @@ static void sub_081440F8(struct Unk_081434F8 *a1) {
     sub_08144510(a1);
     sub_081459EC(a1);
     a1->unk3C = 0;
-    a1->unk38 = sub_081441A8;
+    a1->unk38 = FN(sub_081441A8);
     a1->unk40[0x2C].unk1B = 0xFF;
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
@@ -1099,7 +1099,7 @@ static void sub_081441A8(struct Unk_081434F8 *a1) {
 
     if (++a1->unk3C > 0x1D) {
         gUnk_0203ADE0 = a1->unk1;
-        a1->unk38 = sub_08143F88;
+        a1->unk38 = FN(sub_08143F88);
     }
     sub_08144718(a1);
     sub_081459FC(a1);
@@ -1329,7 +1329,7 @@ static bool32 sub_081447E0(struct Unk_081434F8 *a1) {
         if ((s8)unk0 - 1 == a1->unk1) {
             return FALSE;
         } else {
-            a1->unk38 = sub_081440F8;
+            a1->unk38 = FN(sub_081440F8);
             m4aSongNumStart(SE_APPLY_SPRAY_PAINT);
             return TRUE;
         }
@@ -1337,7 +1337,7 @@ static bool32 sub_081447E0(struct Unk_081434F8 *a1) {
         if (!a1->unk37) {
             return FALSE;
         } else {
-            a1->unk38 = sub_08144864;
+            a1->unk38 = FN(sub_08144864);
             m4aSongNumStart(SE_MAIN_MENU_SELECT);
             return TRUE;
         }
@@ -1393,9 +1393,9 @@ static void sub_08144864(struct Unk_081434F8 *a1) {
     if (!(a1->unk37 & 1))
         a1->unk36 = 1;
     if (a1->unk36 == 0)
-        a1->unk38 = sub_08145A50;
+        a1->unk38 = FN(sub_08145A50);
     else if (a1->unk36 == 1)
-        a1->unk38 = sub_08145AA8;
+        a1->unk38 = FN(sub_08145AA8);
     for (j = 0; j < NUM_PUBLIC_TREASURES; ++j) {
         if (a1->unk2[j])
             DisplaySprite(&a1->unk40[j]);
@@ -1411,11 +1411,11 @@ static void sub_08144A0C(struct Unk_081434F8 *a1) {
         sub_0814514C(a1);
     sub_08145490(a1);
     if (gPressedKeys & B_BUTTON)
-        a1->unk38 = sub_08144B38;
+        a1->unk38 = FN(sub_08144B38);
     if (gPressedKeys & DPAD_RIGHT && a1->unk37 & 2)
     {
         a1->unk36 = 1;
-        a1->unk38 = sub_08145AA8;
+        a1->unk38 = FN(sub_08145AA8);
     }
     for (j = 0; j < NUM_PUBLIC_TREASURES; ++j) {
         if (a1->unk2[j])
@@ -1432,11 +1432,11 @@ static void sub_08144AA4(struct Unk_081434F8 *a1) {
         sub_0814514C(a1);
     sub_08145574(a1);
     if (gPressedKeys & B_BUTTON)
-        a1->unk38 = sub_08144B38;
+        a1->unk38 = FN(sub_08144B38);
     if (gPressedKeys & DPAD_LEFT && a1->unk37 & 1)
     {
         a1->unk36 = 0;
-        a1->unk38 = sub_08145A50;
+        a1->unk38 = FN(sub_08145A50);
     }
     for (j = 0; j < NUM_PUBLIC_TREASURES; ++j) {
         if (a1->unk2[j])
@@ -1475,7 +1475,7 @@ static void sub_08144B38(struct Unk_081434F8 *a1) {
     }
     for (i = 0; i < 0xA; ++i)
         gKeysContinuedRepeatIntervals[i] = 5;
-    a1->unk38 = sub_08143F88;
+    a1->unk38 = FN(sub_08143F88);
     for (j = 0; j < NUM_PUBLIC_TREASURES; ++j) {
         if (a1->unk2[j])
             DisplaySprite(&a1->unk40[j]);
@@ -1782,7 +1782,7 @@ static void sub_08145620(void) {
     struct Unk_081434F8 *var = TaskGetStructPtr(gCurTask);
 
     sub_081436D8(var);
-    var->unk38(var);
+    CALL(var->unk38)(var);
 }
 
 static void sub_0814565C(struct Unk_081434F8 *a1) {
@@ -1792,7 +1792,7 @@ static void sub_0814565C(struct Unk_081434F8 *a1) {
         sub_08145B00(i);
     for (i = 0; i < 8; ++i)
         sub_08145B2C(i);
-    a1->unk38 = sub_08145694;
+    a1->unk38 = FN(sub_08145694);
 }
 
 static inline void LoadBgPaletteWithTransformation2(const u16 *src, u8 offset, u16 size) {
@@ -1808,7 +1808,7 @@ static void sub_08145694(struct Unk_081434F8 *a1) {
         DmaCopy16(3, gUnk_082D7850[idx]->palette, gBgPalette, 0x200);
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
     }
-    a1->unk38 = sub_08143E6C;
+    a1->unk38 = FN(sub_08143E6C);
 }
 
 static void sub_08145718(struct Unk_081434F8 *a1) {
@@ -1816,7 +1816,7 @@ static void sub_08145718(struct Unk_081434F8 *a1) {
 
     for (i = 0; i < 0x1F; ++i)
         sub_0814389C(a1, i);
-    a1->unk38 = sub_08145740;
+    a1->unk38 = FN(sub_08145740);
 }
 
 static void sub_08145740(struct Unk_081434F8 *a1) {
@@ -1826,12 +1826,12 @@ static void sub_08145740(struct Unk_081434F8 *a1) {
         sub_0814389C(a1, i);
     sub_08143AF8(a1);
     sub_081439D8(a1);
-    a1->unk38 = sub_08145774;
+    a1->unk38 = FN(sub_08145774);
 }
 
 static void sub_08145774(struct Unk_081434F8 *a1) {
     a1->unk3C = 0;
-    a1->unk38 = sub_08145784;
+    a1->unk38 = FN(sub_08145784);
 }
 
 static void sub_08145784(struct Unk_081434F8 *a1) {
@@ -1840,7 +1840,7 @@ static void sub_08145784(struct Unk_081434F8 *a1) {
     ++a1->unk3C;
     gBldRegs.bldY = 0x10 - 0x10 * a1->unk3C / 0xA;
     if (a1->unk3C > 9)
-        a1->unk38 = sub_081457F4;
+        a1->unk38 = FN(sub_081457F4);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1855,7 +1855,7 @@ static void sub_081457F4(struct Unk_081434F8 *a1) {
     gBldRegs.bldCnt = 0;
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
-    a1->unk38 = sub_08143F88;
+    a1->unk38 = FN(sub_08143F88);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1871,7 +1871,7 @@ static void sub_08145848(struct Unk_081434F8 *a1) {
     gBldRegs.bldAlpha = 0;
     gBldRegs.bldY = 0;
     a1->unk3C = 0;
-    a1->unk38 = sub_081458A0;
+    a1->unk38 = FN(sub_081458A0);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1886,7 +1886,7 @@ static void sub_081458A0(struct Unk_081434F8 *a1) {
     ++a1->unk3C;
     gBldRegs.bldY = 0x10 * a1->unk3C / 5;
     if (a1->unk3C > 4)
-        a1->unk38 = sub_0814590C;
+        a1->unk38 = FN(sub_0814590C);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1940,7 +1940,7 @@ static void sub_08145A50(struct Unk_081434F8 *a1) {
 
     a1->unk40[0x2D].x = 0x60;
     a1->unk40[0x2E].x = 0x60;
-    a1->unk38 = sub_08144A0C;
+    a1->unk38 = FN(sub_08144A0C);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1954,7 +1954,7 @@ static void sub_08145AA8(struct Unk_081434F8 *a1) {
 
     a1->unk40[0x2D].x = 0x90;
     a1->unk40[0x2E].x = 0x90;
-    a1->unk38 = sub_08144AA4;
+    a1->unk38 = FN(sub_08144AA4);
     for (i = 0; i < NUM_PUBLIC_TREASURES; ++i) {
         if (a1->unk2[i])
             DisplaySprite(&a1->unk40[i]);
@@ -1974,3 +1974,36 @@ static void sub_08145B2C(u8 a1) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_collection_room) {
+    PORT_FNID(sub_08143664),
+    PORT_FNID(sub_08143DA8),
+    PORT_FNID(sub_08143E6C),
+    PORT_FNID(sub_08143EF4),
+    PORT_FNID(sub_08143F88),
+    PORT_FNID(sub_0814405C),
+    PORT_FNID(sub_081440F8),
+    PORT_FNID(sub_081441A8),
+    PORT_FNID(sub_08144864),
+    PORT_FNID(sub_08144A0C),
+    PORT_FNID(sub_08144AA4),
+    PORT_FNID(sub_08144B38),
+    PORT_FNID(sub_08145620),
+    PORT_FNID(sub_0814565C),
+    PORT_FNID(sub_08145694),
+    PORT_FNID(sub_08145718),
+    PORT_FNID(sub_08145740),
+    PORT_FNID(sub_08145774),
+    PORT_FNID(sub_08145784),
+    PORT_FNID(sub_081457F4),
+    PORT_FNID(sub_08145848),
+    PORT_FNID(sub_081458A0),
+    PORT_FNID(sub_0814590C),
+    PORT_FNID(sub_08145A50),
+    PORT_FNID(sub_08145AA8),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

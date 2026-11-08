@@ -82,7 +82,10 @@ check "vanilla save untouched: gVisitedDoors + save memory byte-identical before
 import sys
 a, b = (open(p, 'rb').read() for p in sys.argv[1:3])
 vd = slice(0x28CA0, 0x28CA0 + 0x240)
-sram = slice(len(a) - 0x10000, len(a))
+# DumpTo (platform/inputlog.c): EWRAM, IWRAM, IO, DMA (4*7 words), 12, PLTT,
+# VRAM, OAM, 64, then SRAM -- and the port sim block after it.
+s0 = 0x40000 + 0x8000 + 0x400 + 4 * 7 * 4 + 12 + 0x400 + 0x18000 + 0x400 + 64
+sram = slice(s0, s0 + 0x10000)
 sys.exit(0 if len(a) == len(b) and a[vd] == b[vd] and a[sram] == b[sram] else 1)
 EOF"
 

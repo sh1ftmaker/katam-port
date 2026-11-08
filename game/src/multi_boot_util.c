@@ -28,8 +28,8 @@ void sub_0803024C(void)
     REG_SIOMLT_SEND = 0;
     gTimer3IntrBkp = gIntrTable[7];
     gMultiSioIntrBkp = gIntrTable[0];
-    gIntrTable[0] = sub_08030898;
-    gIntrTable[7] = sub_08030898;
+    gIntrTable[0] = FN(sub_08030898);
+    gIntrTable[7] = FN(sub_08030898);
     REG_IE |= INTR_FLAG_SERIAL;
     REG_IME = 1;
 }
@@ -449,3 +449,12 @@ void sub_08030C40(u16 r3)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_multi_boot_util) {
+    PORT_FNID(sub_08030898),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

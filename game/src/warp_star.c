@@ -1723,7 +1723,7 @@ static const u16 gUnk_082DDE7C[] = { 0x12C, 0x258, 0x384, 0 };
 
 void *CreateWarpStar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct WarpStar), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct WarpStar), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct WarpStar *ws = TaskGetStructPtr(t);
 
     InitObject(&ws->unk0.obj, template_, a2);
@@ -1744,13 +1744,13 @@ void *CreateWarpStar(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&ws->unk0.obj.base, -0x10, -0x10, 0x10, 0x10);
     ws->unk0.obj.unk83 = 0;
     ObjectInitSprite(&ws->unk0.obj);
-    ws->unk0.obj.unk78 = sub_0800DC5C;
+    ws->unk0.obj.unk78 = FN(sub_0800DC5C);
     return ws;
 }
 
 void *CreateGoalStar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct GoalStar), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct GoalStar), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct GoalStar *gs = TaskGetStructPtr(t);
 
     InitObject(&gs->unk0.obj, template_, a2);
@@ -1768,7 +1768,7 @@ void *CreateGoalStar(struct ObjectTemplate *template_, u8 a2)
     ObjectSetBounds(&gs->unk0.obj.base, -0x10, -0x10, 0x10, 0x10);
     gs->unk0.obj.unk83 = 0;
     ObjectInitSprite(&gs->unk0.obj);
-    gs->unk0.obj.unk78 = sub_0800DC8C;
+    gs->unk0.obj.unk78 = FN(sub_0800DC8C);
     return gs;
 }
 
@@ -1817,7 +1817,7 @@ static void sub_0800C124(struct WarpStar *ws)
     {
         ws->unk0.obj.base.flags |= 0x400;
         CreateEffectObject(&ws->unk0.obj.base, 0, 0x292, 0);
-        ws->unk0.obj.unk78 = sub_0800DC78;
+        ws->unk0.obj.unk78 = FN(sub_0800DC78);
     }
     else
     {
@@ -1862,7 +1862,7 @@ static void sub_0800C1C4(struct WarpStar *ws)
     wsAlias->unk0.obj.base.yspeed = -wsAlias->unk0.obj.base.yspeed;
     if (!wsAlias->unk0.obj.base.xspeed && !wsAlias->unk0.obj.base.yspeed)
     {
-        wsAlias->unk0.obj.unk78 = sub_0800C270;
+        wsAlias->unk0.obj.unk78 = FN(sub_0800C270);
         ws->unk0.unkBA = 0;
         ws->unkBC = 0;
     }
@@ -1914,7 +1914,7 @@ static void sub_0800C270(struct WarpStar *ws)
         else
             ws->unk0.obj.unk78 = sub_0800DCC0;
 #else
-        ws->unk0.obj.unk78 = sub_0800DCC0;
+        ws->unk0.obj.unk78 = FN(sub_0800DCC0);
 #endif
     }
 }
@@ -2015,7 +2015,7 @@ static void sub_0800C558(struct GoalStar *gs)
     if (i)
     {
         sub_0800C42C(gsAlias);
-        gs->unk0.obj.unk78 = sub_0800DCAC;
+        gs->unk0.obj.unk78 = FN(sub_0800DCAC);
     }
     else
     {
@@ -2055,7 +2055,7 @@ static void sub_0800C660(struct GoalStar *gs)
     gsAlias->unk0.obj.base.yspeed = -gsAlias->unk0.obj.base.yspeed;
     if (!gsAlias->unk0.obj.base.xspeed && !gsAlias->unk0.obj.base.yspeed)
     {
-        gsAlias->unk0.obj.unk78 = sub_0800C6E8;
+        gsAlias->unk0.obj.unk78 = FN(sub_0800C6E8);
         gs->unk0.unkBA = 0;
         gs->unkBC = 0;
     }
@@ -2077,13 +2077,13 @@ static void sub_0800C6E8(struct GoalStar *gs)
     if (gsAlias->unkC2 == 1)
     {
         PlaySfx(&gs->unk0.obj.base, SE_08D5B2A8);
-        gs->unk0.obj.unk78 = sub_0800DD40;
+        gs->unk0.obj.unk78 = FN(sub_0800DD40);
     }
     else
     {
         CreateEffectObject(&gs->unk0.obj.base, 0, 0x292, 0);
         PlaySfx(&gs->unk0.obj.base, SE_08D5C258);
-        gs->unk0.obj.unk78 = sub_0800C89C;
+        gs->unk0.obj.unk78 = FN(sub_0800C89C);
     }
 }
 
@@ -2113,7 +2113,7 @@ static void sub_0800C89C(struct GoalStar *gs)
         }
     }
     if (var)
-        gs->unk0.obj.unk78 = sub_0800DD40;
+        gs->unk0.obj.unk78 = FN(sub_0800DD40);
 }
 
 static void sub_0800C918(struct GoalStar *gs)
@@ -2140,7 +2140,7 @@ static void sub_0800C918(struct GoalStar *gs)
             sub_0800D6C0(gs, kirby->base.x, kirby->base.y + 0x1000);
             kirby->base.yspeed = 0x400;
         }
-        gs->unk0.obj.unk78 = sub_0800CA84;
+        gs->unk0.obj.unk78 = FN(sub_0800CA84);
     }
 }
 
@@ -2163,7 +2163,7 @@ static void sub_0800CA84(struct GoalStar *gs)
         if ((gsAlias->unk0.unkB5 >> gLocalPlayerId) & 1)
             CreatePaletteFadeToWhite(gLocalPlayerId);
         gsAlias->unkCC = 0;
-        gs->unk0.obj.unk78 = sub_0800CB54;
+        gs->unk0.obj.unk78 = FN(sub_0800CB54);
     }
 }
 
@@ -2182,7 +2182,7 @@ static void sub_0800CB54(struct GoalStar *gs)
             : -0x800);
     }
     if (gsAlias->unkCC++ > 0x1E)
-        gs->unk0.obj.unk78 = sub_0800CBF0;
+        gs->unk0.obj.unk78 = FN(sub_0800CBF0);
 }
 
 static void sub_0800CBF0(struct GoalStar *gs)
@@ -2224,7 +2224,7 @@ static void sub_0800CBF0(struct GoalStar *gs)
     gsAlias->unkE4 = gUnk_082DDE7C[gsAlias->unk0.unkB4] / (gForegroundPalettes[gRoomProps[gs->unk0.obj.base.roomId].paletteDataIdx]->unk4[0]->unk4[0] - 1);
     if ((gsAlias->unk0.unkB5 >> gLocalPlayerId) & 1)
         CreatePaletteFadeFromWhite(gLocalPlayerId);
-    gs->unk0.obj.unk78 = sub_0800DDAC;
+    gs->unk0.obj.unk78 = FN(sub_0800DDAC);
 }
 
 static void sub_0800CDE8(struct GoalStar *gs)
@@ -2287,7 +2287,7 @@ static void sub_0800CDE8(struct GoalStar *gs)
     }
     ++gsAlias->unkDA;
     if (gUnk_082DDE7C[gsAlias->unk0.unkB4] < gsAlias->unkDA)
-        gs->unk0.obj.unk78 = sub_0800DDB8;
+        gs->unk0.obj.unk78 = FN(sub_0800DDB8);
 }
 
 static void sub_0800D0EC(struct GoalStar *gs)
@@ -2308,7 +2308,7 @@ static void sub_0800D0EC(struct GoalStar *gs)
             li->unk98 = li->unkA8 = li->unk_S32Vec2_74.x;
             li->unk9C = li->unkAC = li->unk_S32Vec2_74.y;
         }
-        gs->unk0.obj.unk78 = sub_0800D194;
+        gs->unk0.obj.unk78 = FN(sub_0800D194);
     }
 }
 
@@ -2335,7 +2335,7 @@ static void sub_0800D194(struct GoalStar *gs)
         }
     }
     if (gCurLevelInfo[gsAlias->unkBE[0]].viewportPosition.y <= 0x5800)
-        gs->unk0.obj.unk78 = sub_0800D264;
+        gs->unk0.obj.unk78 = FN(sub_0800D264);
 }
 
 static void sub_0800D264(struct GoalStar *gs)
@@ -2359,7 +2359,7 @@ static void sub_0800D264(struct GoalStar *gs)
     if (var == gsAlias->unkC2)
     {
         gsAlias->unkCE = 0;
-        gs->unk0.obj.unk78 = sub_0800D2E0;
+        gs->unk0.obj.unk78 = FN(sub_0800D2E0);
     }
 }
 
@@ -2383,7 +2383,7 @@ static void sub_0800D2E0(struct GoalStar *gs)
         }
         gsAlias->unkCE = 0;
         gsAlias->unkD0 = 0;
-        gs->unk0.obj.unk78 = sub_0800DE20;
+        gs->unk0.obj.unk78 = FN(sub_0800DE20);
     }
 }
 
@@ -2410,7 +2410,7 @@ static void sub_0800D3B0(struct GoalStar *gs)
     if (gs->unk0.obj.base.x == a[0] && gs->unk0.obj.base.y == a[1])
     {
         gs->unk0.obj.base.yspeed = 0;
-        gs->unk0.obj.unk78 = sub_0800DC8C;
+        gs->unk0.obj.unk78 = FN(sub_0800DC8C);
     }
     gs->unk0.obj.base.flags |= 4;
 }
@@ -2454,7 +2454,7 @@ static void sub_0800D450(void)
 
 static void sub_0800D5D8(struct StarShared *ss, s32 a2, s32 a3)
 {
-    struct Task *t = TaskCreate(sub_0800D450, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0800D450), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -2475,7 +2475,7 @@ static void sub_0800D5D8(struct StarShared *ss, s32 a2, s32 a3)
 
 static void sub_0800D6C0(struct GoalStar *gs, s32 a2, s32 a3)
 {
-    struct Task *t = TaskCreate(sub_0800D450, sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, ObjectBaseDestroy);
+    struct Task *t = TaskCreate(FN(sub_0800D450), sizeof(struct EffectObject), 0x3500, TASK_USE_IWRAM, FN(ObjectBaseDestroy));
     struct EffectObject *effectObject = TaskGetStructPtr(t);
 
     ClearEffectObject(effectObject);
@@ -2530,7 +2530,7 @@ static void sub_0800D7A8(struct Unk_0800D9E8 *a1, s16 a2)
 
 static void sub_0800D9E8(struct GoalStar *gs, s16 a2, s16 a3)
 {
-    struct Task *t = TaskCreate(sub_0800DAD8, sizeof(struct Unk_0800D9E8), 0x3500, TASK_USE_IWRAM, sub_0800DE9C);
+    struct Task *t = TaskCreate(FN(sub_0800DAD8), sizeof(struct Unk_0800D9E8), 0x3500, TASK_USE_IWRAM, FN(sub_0800DE9C));
     struct Unk_0800D9E8 *tmp = TaskGetStructPtr(t), *var = tmp;
     u16 i;
 
@@ -2543,7 +2543,7 @@ static void sub_0800D9E8(struct GoalStar *gs, s16 a2, s16 a3)
     var->effectObject.flags |= 0x400;
     var->effectObject.x = a2 * 0x100;
     var->effectObject.y = a3 * 0x100;
-    var->unkC0 = sub_0800DEE8;
+    var->unkC0 = FN(sub_0800DEE8);
     var->unkC4 = gs;
     if (Macro_0810B1F4(&gs->unk0.obj.base))
         var->effectObject.flags |= 0x2000;
@@ -2582,7 +2582,7 @@ static void sub_0800DAD8(void)
             KirbySomething(&var->effectObject);
         }
         Macro_0809E55C(&var->effectObject);
-        var->unkC0(var);
+        CALL(var->unkC0)(var);
     }
 }
 
@@ -2596,12 +2596,12 @@ static void sub_0800DC5C(struct WarpStar *ws)
 {
     ws->unk0.unkBA = 0;
     ws->unk0.unkB5 = 0;
-    ws->unk0.obj.unk78 = sub_0800C124;
+    ws->unk0.obj.unk78 = FN(sub_0800C124);
 }
 
 static void sub_0800DC78(struct WarpStar *ws)
 {
-    ws->unk0.obj.unk78 = sub_0800C1C4;
+    ws->unk0.obj.unk78 = FN(sub_0800C1C4);
     sub_0800C1C4(ws);
 }
 
@@ -2611,12 +2611,12 @@ static void sub_0800DC8C(struct GoalStar *gs)
     gs->unk0.unkB8 = 0;
     gs->unk0.unkBA = 0;
     gs->unk0.unkB5 = 0;
-    gs->unk0.obj.unk78 = sub_0800C558;
+    gs->unk0.obj.unk78 = FN(sub_0800C558);
 }
 
 static void sub_0800DCAC(struct GoalStar *gs)
 {
-    gs->unk0.obj.unk78 = sub_0800C660;
+    gs->unk0.obj.unk78 = FN(sub_0800C660);
     sub_0800C660(gs);
 }
 
@@ -2633,7 +2633,7 @@ static void sub_0800DCC0(struct WarpStar *ws)
             sub_080531B4(&gKirbys[i], gUnk_08D60A84[wsAlias->unk0.unkB4]);
         }
     }
-    ws->unk0.obj.unk78 = sub_0800DFC8;
+    ws->unk0.obj.unk78 = FN(sub_0800DFC8);
 }
 
 static void sub_0800DD40(struct GoalStar *gs)
@@ -2648,12 +2648,12 @@ static void sub_0800DD40(struct GoalStar *gs)
         kirby->base.xspeed = 0;
         kirby->base.yspeed = -0x180;
     }
-    gs->unk0.obj.unk78 = sub_0800C918;
+    gs->unk0.obj.unk78 = FN(sub_0800C918);
 }
 
 static void sub_0800DDAC(struct GoalStar *gs)
 {
-    gs->unk0.obj.unk78 = sub_0800CDE8;
+    gs->unk0.obj.unk78 = FN(sub_0800CDE8);
 }
 
 static void sub_0800DDB8(struct GoalStar *gs)
@@ -2670,7 +2670,7 @@ static void sub_0800DDB8(struct GoalStar *gs)
         kirby->base.xspeed = 0;
         kirby->base.yspeed = 0;
     }
-    gs->unk0.obj.unk78 = sub_0800D0EC;
+    gs->unk0.obj.unk78 = FN(sub_0800D0EC);
 }
 
 static void sub_0800DE20(struct GoalStar *gs)
@@ -2688,7 +2688,7 @@ static void sub_0800DE20(struct GoalStar *gs)
     if (i == gsAlias->unkC2)
     {
         sub_080027A8();
-        gs->unk0.obj.unk78 = sub_0800DFD4;
+        gs->unk0.obj.unk78 = FN(sub_0800DFD4);
     }
 }
 
@@ -2713,20 +2713,20 @@ static void sub_0800DEE8(struct Unk_0800D9E8 *a1)
         b = TRUE;
     }
     sub_0800D7A8(a1, var);
-    if (b) a1->unkC0 = sub_0800DF3C;
+    if (b) a1->unkC0 = FN(sub_0800DF3C);
 }
 
 static void sub_0800DF3C(struct Unk_0800D9E8 *a1)
 {
     a1->unkC8 = 0;
-    a1->unkC0 = sub_0800DF5C;
+    a1->unkC0 = FN(sub_0800DF5C);
     sub_0800DF5C(a1);
 }
 
 static void sub_0800DF5C(struct Unk_0800D9E8 *a1)
 {
     if (a1->unkC8++ > 0x1E)
-        a1->unkC0 = sub_0800DF88;
+        a1->unkC0 = FN(sub_0800DF88);
     sub_0800D7A8(a1, 0);
 }
 
@@ -2734,7 +2734,7 @@ static void sub_0800DF88(struct Unk_0800D9E8 *a1)
 {
     a1->effectObject.y += 0x100;
     if (a1->effectObject.y > 0xB000)
-        a1->unkC0 = sub_0800DFB8;
+        a1->unkC0 = FN(sub_0800DFB8);
     sub_0800D7A8(a1, 0);
 }
 
@@ -2745,7 +2745,7 @@ static void sub_0800DFB8(struct Unk_0800D9E8 *a1)
 
 static void sub_0800DFC8(struct WarpStar *ws)
 {
-    ws->unk0.obj.unk78 = sub_0800E02C;
+    ws->unk0.obj.unk78 = FN(sub_0800E02C);
 }
 
 static void sub_0800DFD4(struct GoalStar *gs)
@@ -2757,7 +2757,7 @@ static void sub_0800DFD4(struct GoalStar *gs)
     gs->unk0.obj.base.xspeed = -0x1F0;
     gs->unk0.obj.base.yspeed = -0x200;
     gs->unk0.obj.base.flags &= ~0x400;
-    gs->unk0.obj.unk78 = sub_0800D3B0;
+    gs->unk0.obj.unk78 = FN(sub_0800D3B0);
 }
 
 static void sub_0800E02C(struct WarpStar *ws)
@@ -2775,12 +2775,12 @@ static void sub_0800E02C(struct WarpStar *ws)
             break;
         }
     }
-    if (b) ws->unk0.obj.unk78 = sub_0800E0A0;
+    if (b) ws->unk0.obj.unk78 = FN(sub_0800E0A0);
 }
 
 static void sub_0800E0A0(struct WarpStar *ws)
 {
-    ws->unk0.obj.unk78 = sub_0800E0AC;
+    ws->unk0.obj.unk78 = FN(sub_0800E0AC);
 }
 
 static void sub_0800E0AC(struct WarpStar *ws)
@@ -2789,9 +2789,60 @@ static void sub_0800E0AC(struct WarpStar *ws)
     ws->unk0.obj.base.flags &= ~0x400;
     ws->unk0.obj.base.xspeed = 0;
     ws->unk0.obj.base.yspeed = 0;
-    ws->unk0.obj.unk78 = sub_0800DC5C;
+    ws->unk0.obj.unk78 = FN(sub_0800DC5C);
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_warp_star) {
+    PORT_FNID(CreateWarpStar),
+    PORT_FNID(CreateGoalStar),
+    PORT_FNID(sub_0800C124),
+    PORT_FNID(sub_0800C1C4),
+    PORT_FNID(sub_0800C270),
+    PORT_FNID(sub_0800C558),
+    PORT_FNID(sub_0800C660),
+    PORT_FNID(sub_0800C6E8),
+    PORT_FNID(sub_0800C89C),
+    PORT_FNID(sub_0800C918),
+    PORT_FNID(sub_0800CA84),
+    PORT_FNID(sub_0800CB54),
+    PORT_FNID(sub_0800CBF0),
+    PORT_FNID(sub_0800CDE8),
+    PORT_FNID(sub_0800D0EC),
+    PORT_FNID(sub_0800D194),
+    PORT_FNID(sub_0800D264),
+    PORT_FNID(sub_0800D2E0),
+    PORT_FNID(sub_0800D3B0),
+    PORT_FNID(sub_0800D450),
+    PORT_FNID(sub_0800DAD8),
+    PORT_FNID(nullsub_101),
+    PORT_FNID(nullsub_102),
+    PORT_FNID(sub_0800DC5C),
+    PORT_FNID(sub_0800DC78),
+    PORT_FNID(sub_0800DC8C),
+    PORT_FNID(sub_0800DCAC),
+    PORT_FNID(sub_0800DCC0),
+    PORT_FNID(sub_0800DD40),
+    PORT_FNID(sub_0800DDAC),
+    PORT_FNID(sub_0800DDB8),
+    PORT_FNID(sub_0800DE20),
+    PORT_FNID(sub_0800DE9C),
+    PORT_FNID(sub_0800DEE8),
+    PORT_FNID(sub_0800DF3C),
+    PORT_FNID(sub_0800DF5C),
+    PORT_FNID(sub_0800DF88),
+    PORT_FNID(sub_0800DFB8),
+    PORT_FNID(sub_0800DFC8),
+    PORT_FNID(sub_0800DFD4),
+    PORT_FNID(sub_0800E02C),
+    PORT_FNID(sub_0800E0A0),
+    PORT_FNID(sub_0800E0AC),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

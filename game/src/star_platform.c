@@ -18,7 +18,7 @@ static void sub_0811FC88(struct Task *);
 void *CreateStarPlatform(struct ObjectTemplate *arg0, u8 arg1) {
     struct StarPlatform *plat;
     struct Object *obj;
-    struct Task *task = TaskCreate(ObjectMain, sizeof(struct StarPlatform), 0x1000, TASK_USE_IWRAM, sub_0811FC88);
+    struct Task *task = TaskCreate(FN(ObjectMain), sizeof(struct StarPlatform), 0x1000, TASK_USE_IWRAM, FN(sub_0811FC88));
     plat = TaskGetStructPtr(task);
     obj = &plat->obj;
     InitObject(obj, arg0, arg1);
@@ -34,7 +34,7 @@ void *CreateStarPlatform(struct ObjectTemplate *arg0, u8 arg1) {
     plat->unkBA = plat->unkB6 + obj->objTemplate->unk20;
     sub_0803E2B0(&obj->base, plat->unkB4, plat->unkB6, plat->unkB8, plat->unkBA);
     ObjectInitSprite(obj);
-    gUnk_08351648[obj->type].unk10(obj);
+    CALL(gUnk_08351648[obj->type].unk10)(obj);
     return obj;
 }
 
@@ -72,7 +72,7 @@ static void sub_0811FB54(struct StarPlatform *plat) {
             plat->obj.base.flags &= ~0x800;
             plat->obj.base.flags |= 0x200;
             sub_0811FA90(plat);
-            plat->obj.unk78 = sub_0811FC4C;
+            plat->obj.unk78 = FN(sub_0811FC4C);
             offset = (((struct ObjectBase *)plat->obj.base.unk6C)->y - plat->obj.base.y) >> 8;
             sub_08089864(&plat->obj.base, 0, offset, 0);
             sub_08089864(&plat->obj.base, 0, offset, 1);
@@ -83,7 +83,7 @@ static void sub_0811FB54(struct StarPlatform *plat) {
 
 void sub_0811FC3C(struct Object *arg0) {
     arg0->base.counter = 0;
-    arg0->unk78 = sub_0811FB54;
+    arg0->unk78 = FN(sub_0811FB54);
 }
 
 static void sub_0811FC4C(struct StarPlatform *plat) {
@@ -108,3 +108,16 @@ static void sub_0811FC88(struct Task *task) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_star_platform) {
+    PORT_FNID(CreateStarPlatform),
+    PORT_FNID(sub_0811FB54),
+    PORT_FNID(sub_0811FC3C),
+    PORT_FNID(sub_0811FC4C),
+    PORT_FNID(sub_0811FC88),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

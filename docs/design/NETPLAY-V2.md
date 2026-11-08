@@ -328,6 +328,59 @@ per 64-byte block. Then map each differing block to a symbol through
 - Audio on vs off: this must not change S.
 - wasm vs lp64 vs aarch64: this must not change S once R1-R7 are fixed.
 
+### 3.4.1 The census as built (M1, branch netsim)
+
+**Measured.** `--census 4:450:OUT` over the six recordings (attract in
+focus-only mode, the others in session mode from frame 450), masks
+`tests/census/masks.txt`, `tools/census.py` to name blocks.
+
+The tool: `platform/census.c` driven by seats in census mode
+(`platform/seats.c`). The seats differ only by focus. In session mode (F0)
+they also run the game's network-input path with four slots: slot 0 takes
+the recording's keys, slots 1-3 the AI. Masks are byte-precise; the sprite
+screen fields and the display task's player byte are masked per round,
+because they move with the heap. `PORT_CENSUS_DUMP=F` dumps every seat's
+state at frame F, and `PORT_CENSUS_FOCUS=k` with one seat runs a single
+instance under gdb.
+
+**Real divergences found and fixed (class b):**
+
+- **The save owner.** `gLocalPlayerId == gUnk_0203AD24` is tested at 13
+  sites in 11 files. Only the link-play parent writes progress to SRAM; the
+  children count the write (`sub_08031CE4`). The Dark Mind ending advances
+  `gAIKirbyState` on the parent only (`code_0814EBE4.c`). Found at
+  boot_to_level frame 581 (`cutscene_trigger.c:835`).
+  - The fix is `PortSimSaveOwner()` (`platform/port/simblock.h`): every
+    peer is the owner when the sim block's `PORT_SIM_F_SESSION` flag is
+    set.
+
+**Masks so far:**
+
+| class | what |
+|---|---|
+| P | `gLocalPlayerId` |
+| P | the sound engine: `gMPlayTrack_*`, `gSoundInfo`..`gMPlayInfo_3` |
+| S* | `gCurLevelInfo[k]`: BG layers (`unkC0`..`unk1E0`) and alternate viewports |
+| S* | the display: shadow registers, upload queues, OAM and its draw order, palettes, I/O, PLTT/VRAM/OAM |
+| S* | sprite `tilesVram`, `x`/`y` and `unk1C..palId` |
+| H | the host's own key poll (`keysDown`, last seat only) |
+
+**Not converged.** Unmasked blocks remain: 38 in boot_to_level, 106-191 in
+the others; the first is at frame 653 (666 in wide_view, 5164 in attract).
+Each is still to be classified as a mask or a fix. The candidates:
+
+- the HUD task (`UpdateGameplayHud`, P);
+- `Kirby.base+45` (the sprite OAM slot);
+- the tasks `sub_08089BCC`, `sub_0808A208` and `sub_08088C0C`;
+- the AI task `sub_0800EF60` (2 bytes at frame 823: possibly real);
+- `gSourcePalettes` and `gPaletteEffectManager` (palette fades of the
+  local view, probably S*);
+- heap objects whose fields beyond the sprite differ.
+
+**So the M1 exit criterion (equal masked hashes over the corpus) is not met
+yet.** The method and tools are in place, and each remaining block is one
+`PORT_CENSUS_DUMP` plus a gdb watch away from classification.
+
 ---
 
 ## 4. Drop-in and drop-out
@@ -506,7 +559,7 @@ Risks are listed in priority order.
 | **R2** | **Different compilers and language modes per target:** wasm is clang C (gnu99); lp64 native is GCC C++17 `-fpermissive` (CMake `flags.make`); i686 is GCC C; Windows is MinGW GCC i686. | Unspecified evaluation order (R1), different UB exploitation, C vs C++17 sequencing rules, x87 on i686. | **One toolchain for sim code:** clang everywhere (llvm-mingw for Windows, Apple clang, emcc), the same `-O2`, and **one language mode** (compile the game as C++ with `PTR32` on all targets, wasm included). Drop the i686 x87 builds or force `-msse2 -mfpmath=sse`. CI cross-check (§9.3). |
 | **R3** | **libm in sim:** `ArcTan2` calls `atan2` on doubles (`main:platform/bios.c:71-76`) and is used by enemy aim and branching (`bang_bang.c:100`, `shotzo.c:307`, `kracko.c:1205`, `code_0806F780.c:15416`). libm `atan2` is not correctly rounded and differs between glibc, musl/emscripten, macOS and msvcrt; truncation magnifies a one-ulp difference near a boundary. | `ObjAffineSet`/`BgAffineSet` use `sin`/`cos` (`bios.c:229-262`; no callers in game source). `palette.c:87-150` has the float/`powf` functions `sub_081584E8`/`sub_08158654`, also with no callers. `trig.c`'s `Q_2_14(…)` values are compile-time constants and fine. | Reimplement the BIOS `ArcTan2` in integers, using the documented BIOS polynomial (GBATEK). This is exact and also restores fidelity. Delete the dead float functions and use `gSineTable` for affine. Lint: no FP instructions or libm imports in sim objects. |
 | **R4** | **Uninitialised reads** | `scroll_lock.c:312,375` (`i` is uninitialised on the else path, so `gKirbys[garbage]`), `star_stone_block.c:274-280` (`unk65E`), `cutscene_trigger.c:119` (`size`/`dtor`), `m4a.c:1363`, and the padding of stack structs copied into the map. | `-ftrivial-auto-var-init=zero` on all sim translation units (clang 16+, gcc 12+). Fix the listed sites. Run a valgrind memcheck soak on native. |
-| **R5** | **Host function pointers stored in sim memory** | `Task::main`, `Object2::unk78` (measured in DEBUG-TOOLING §7: 0x41A in wasm vs 0x1011D350 natively at 0x02020F58), the AI's `unk0[4]` (`code_0800ECAC.c:33-36`), `gIntrTable`. That is 52 typed members across 31 types plus untyped `void*` sites (SIXTYFOUR.md §2). Deterministic within one build, but it makes snapshots and hashes non-portable. | **Canonical code IDs.** The sim stores each function's *original GBA ROM address* (from `katam.map`, as `gen_rom_data.py` already resolves), and calls go through a generated perfect-hash table from address to host function. Codemod every store site (`x = FN(sub_…)`) and call site (`CALL(x)(…)`). A debug assertion catches unknown values. ROM function tables then stop being patched. Equality compares keep working. |
+| **R5** | **Host function pointers stored in sim memory** | `Task::main`, `Object2::unk78` (measured in DEBUG-TOOLING §7: 0x41A in wasm vs 0x1011D350 natively at 0x02020F58), the AI's `unk0[4]` (`code_0800ECAC.c:33-36`), `gIntrTable`. That is 52 typed members across 31 types plus untyped `void*` sites (SIXTYFOUR.md §2). Deterministic within one build, but it makes snapshots and hashes non-portable. | **Canonical code IDs.** The sim stores each function's *original GBA ROM address* (from `katam.map`, as `gen_rom_data.py` already resolves), and calls go through a generated perfect-hash table from address to host function. Codemod every store site (`x = FN(sub_…)`) and call site (`CALL(x)(…)`). A debug assertion catches unknown values. ROM function tables then stop being patched. Equality compares keep working. **Done** (`netsim-fnid`): `FN`/`CALL`, `platform/port/fnid.h`, `tools/codemod_fnid.py`, DETERMINISM.md "Code IDs"; raw EWRAM+IWRAM native vs wasm now differ only in R6 data pointers. |
 | **R6** | **Host data addresses stored in sim memory** | `levelInfo->objlistPtr` points at `gLevelObjLists` (host .bss, `rom_copies.c`) or at rando buffers (`level.c:230`, `rando.c:354-356`). DMA mirrors receive `(u32)src`, including `DmaFill`'s stack `&tmp` (`main:platform/dma.c:310`): different on every run because of ASLR (cited, MULTIPLAYER.md §11). | Move port-owned sim data into the port block at a fixed address. Write the GBA-equivalent value, or 0, into the DMA mirrors. |
 | **R7** | **Sim state outside the snapshot** | `gSaveFileInfo`, `gWorldProps`, `gInputRecorder`/`sTapeBuffer`, rollback's slot map and story floor, and rando's `sListParity ^= 1` (`rando.c:439`). That last one runs inside `FillLevelInfo`, so every re-simulation flips it again: **rando plus rollback desyncs today.** | Relocate it all to the port block. CI rule: `nm` of sim objects must show no writable symbol outside the map, apart from an allowlist. |
 | **R8** | **This peer's local input leaks into the sim** | `gHeldKeys` latches `REG_KEYINPUT` ← `sKeysDown` ← this peer's own column (`rollback.c:858` → `main.c:510`, `port-src/main.c:546`). There are 78 read sites outside `main.c` (menus, subgames, pause). Soft reset reads `REG_KEYINPUT` directly (`port-src/main.c:491-504`). Sleep (`WaitForInput`, `:578`) and warp (`main:platform/main.c:952`) are local too. | In a session, the global latch takes the **menu owner's** column (the DO-designated owner, by default the lowest human slot). The fork migrates sim reads to an explicit `SlotInput(slot)` or `MenuInput()`. Soft reset, sleep and warp become session events or are disabled. |
@@ -886,22 +939,134 @@ positions) extends the same event when its engine lands.
 
 ### 12.6 The engine seam
 
-Today (`platform/rollback.c`, same-build only):
+**Implemented (branch netsim):** `platform/port/netsim.h` and
+`platform/netsim.c`. There is no rollback in the engine; that is v2.1's
+choice. The netlobby stopgaps in `rollback.c` (`PortRbSnapshotAt`,
+`PortRbApplySnapshotAt`, `PortRbSetStallGate`) still work, same-build only.
+`web/net_game.js` should move to the calls below; the protocol is
+unchanged.
 
-| call | what |
+| stopgap | replacement |
 |---|---|
-| `PortRbSealInput(seat, f, keys)` | one sealed value; overwrite wins, rolls back inside the ring |
-| `PortRbSnapshotAt(f, dest)` | the ring's state at the start of a past frame (0 if gone or still subject to a rollback) |
-| `PortRbApplySnapshotAt(f, src)` | load at f at the next frame boundary, re-run to the present |
-| `PortRbSetStallGate(0)` | never stall |
-| `PortSimViewUseSession()`, `PortSimViewRequested()` | the session view (§2.2a) |
+| `PortRbSealInput` | `PortNetSealFrame(frame, keys, seats)` |
+| `PortRbSnapshotAt(C, dest)` | `PortNetSnapSave` / `PortNetPagesSave` of the frame-top image (`PortNetImageFrame()`) |
+| `PortRbApplySnapshotAt(f, src)` | `PortNetApplyAt(blob, len)` (the frame is in the blob) |
+| `PortRbSetStallGate(0)` | not needed: `PortNetSessionStart` never stalls |
 
-netsim's draft API (`platform/port/netsim.h`) maps one to one and replaces
-these when it lands: `PortNetSealFrame(frame, keys, seats)` takes the room's
-canonical record `u32 frame; u16 keys[seats]` that the FRAMES message
-decompresses to; `PortNetPageHashes` / `PortNetPagesSave` are the page diff;
-`PortNetApplyAt(snap, len, nowFrame)` is the apply. The protocol does not
-change.
+**Session and inputs.** `PortNetSessionStart(seats, localSeat,
+humanMask)` puts the game on its network-input path with four slots and
+sets the sim-block session flag. It also starts a 1024-frame input ring:
+`PortNetSetLocalInput(frame, keys)`, `PortNetSealFrame`, and
+`PortNetSetHumans(frame, mask)` (applied at that frame). A missing input
+is "repeat last", the same rule the room seals with. The global KEYINPUT
+latch carries the **menu owner's** column, the lowest human seat, on every
+peer (R8).
+
+**The image** (`PortNetImageCapture/Apply`) is canonical and
+pointer-free, 478,652 bytes at 4 seats. In order:
+
+- EWRAM;
+- IWRAM;
+- the sim block's used bytes;
+- I/O, with the DMA address mirrors zeroed;
+- the DMA channels, canonical;
+- the PPU latches;
+- PLTT, VRAM, OAM;
+- SRAM.
+
+It is captured at the top of every session frame (6-8 µs). Saves read that
+capture, and loads are queued to the next frame top, so any call is legal
+at any time.
+
+**Blob** (40-byte header, then one zstd frame):
+
+```
+u32 'KSNP'  u8 ver=1 u8 0 u8 kind (0 full, 1 delta, 2 pages) u8 0
+u32 frame   u32 baseFrame   u32 rawSize   u32 payloadSize
+u8 simVersion[8]   u8 stateHash[8]
+```
+
+- **full**: zstd level 1 of the image.
+- **delta**: the image XOR a base both sides hold. The base is a blob
+  this peer saved or loaded; the last 4 are kept.
+- **pages**: u32 count, then (u32 index, 4 KiB) for each page whose hash
+  differs from the peer's `PortNetPageHashes`.
+
+The page hashes are **64-bit** (8 bytes each), not the u32-per-page of the
+§12.4 draft. That is 117 pages, 936 B. Use the engine's hashes, so the donor
+and the target compute the same thing.
+
+The receiver rebuilds the image and checks `stateHash` before applying.
+The error codes are in `netsim.h`. `simVersion` hashes the image layout,
+`PORT_MAX_SEATS` and `KATAM_SIM_VERSION`; it does **not** include the
+binary or the wasm id. Native and wasm builds of one commit agree, so the
+room's `sim` gate can drop the wasm id.
+
+**Hashes.**
+
+- `PortNetStateHash`: 64-bit, over the whole image.
+- `PortNetRegionHashes`: the 16 regions of §5.1. Region 7 is folded into 0
+  for now, 11 is I/O+DMA+PPU, 12 is VRAM, 13 is PLTT+OAM.
+- `PortNetPageHashes`.
+- `PortNetCheckpointHash(frame)`: every 30 frames, the last 64 kept.
+
+The referee should use these instead of RNG plus Kirby positions. The
+census masks (§3.4.1) still have to be applied before a hash means "same
+world" across *different* local players: the image today includes
+per-peer S*. That is the next step for the referee.
+
+**Apply at frame.** `PortNetApplyAt` loads frame F at the next frame top,
+then re-runs this peer's ring from F to the frame it was at, with the
+picture off. `PortNetSnapLoad` loads without the catch-up.
+
+The scanline loop now always runs, so a re-simulated frame is the same
+frame. Before this, `PORT_NO_RENDER` changed the sim column on 7297 of the
+7299 frames of play_rooms (the "HBlank skip" issue).
+
+**The correction event.** `PortNetLastCorrection` returns {frame,
+fromFrame, kirbyMask, per-Kirby old/new x/y/room, seq} and calls smooth's
+`PortRlNoteCorrection(frame)`, which snaps the next present.
+
+**Measured** (native LP64 / node 22 wasm, play_rooms, session from 1250,
+zstd level 1):
+
+| | native | wasm |
+|---|---|---|
+| full blob | 56.8-67.0 KB (of 478.7 KB raw; VRAM and SRAM included) | same bytes |
+| compress full | 240-300 µs | 325-395 µs |
+| delta, 1 s apart | 0.9-4.7 KB, 135-210 µs | same sizes, 230-310 µs |
+| delta, 5 s apart | 1.0-6.2 KB within a room; 30-62 KB across a room change | same |
+| decompress + apply | 150-200 µs + 140-170 µs | 490 µs + 84 µs |
+| catch-up, 121 frames headless | 1.1-1.6 ms | 3.3 ms |
+
+**Tests.**
+
+- `--net-test session:F,rewind:F:N` (`NET_TEST=` under node) saves frame
+  F, applies it at F+N, catches up, and requires the state hash to equal the
+  first pass. It PASSED on five recordings, natively and in wasm. The wasm
+  and native hashes at that frame are equal (`98CFFA336C7D1D5A` both).
+- **`tests/netsim_xplat.sh`**:
+  - native and node each save frame 3000, and the two images are
+    byte-identical for all six recordings (`tools/netsnap_diff.py`);
+  - each platform then loads the other's blob at frame 200 and plays on;
+  - every frame after that matches the platform's own unbroken run on
+    keys/sim/vid/sram/pix, and the native run on keys/vid/sram/pix;
+  - the one exception is attract's first frame after the load, whose sim
+    hash differs while vid/pix and every later frame match. Probably a DMA
+    channel armed with a port-memory source, which a canonical image
+    cannot carry and disarms.
+
+**What made it portable:**
+
+- R5, canonical code IDs (branch netsim-fnid, merged).
+- R6, five store sites now use the ROM's own copy of a table the port also
+  defines in C (`PORT_ROM_TABLE`, checked byte for byte against the ROM):
+  `gUnk_082D8D74`, `gUnk_082EB7F8`, `gUnk_082EB2B8/2D0/2E8/300`,
+  `gUnk_08355578`.
+- R7, the sim block.
+
+Other R6 store sites may exist outside the corpus. The xplat test is the
+detector.
 
 ### 12.7 Native client: plan (`--net CODE`, `--net-create`)
 
@@ -1009,6 +1174,139 @@ be moved between streams; the sync relay keyed by transfer id, not by seat;
 `signal` relay as the seam for WebRTC (M6) and for relay-tier peers; and a
 room id that is not the code, so a directory can map one code to many
 shards.
+
+## 14. Simulation past 4 players (the sim side)
+
+§13 covers the protocol, which is sized by parameters. This section is the
+simulation's half. Citations are at `main` 568985c. "Measured" means a
+1edaa0f binary or a scratch instrumented copy that is layout-neutral
+against it, on a Ryzen 9 9950X with node 22.
+
+### 14.1 Where the game assumes four
+
+Counted by grep and a loop classifier:
+
+- **56** `for` loops with a literal 4 that index a per-player array. 22 are
+  in `cutscene_trigger.c` and 13 in `pause_help.c`.
+- **96** unrolled `gKirbys[0..3]`, mostly in `kirby_cannon.c`,
+  `eight_dir_cannon.c`, `code_0806F780.c` and `scroll_lock.c`, plus **33**
+  unrolled `gCurLevelInfo[0..3]`.
+- **74** `[gNumHumanPlayers - 1]` indexes into 4-column ROM tables
+  (difficulty, e.g. `bombar.c:668`).
+- 513 `gLocalPlayerId` reads.
+- 425 uses of the owner bit test `Macro_0810B1F4`.
+- 220 `FindTargetKirby` calls.
+- Loops bounded by `gNumKirbys` (99 of them) are correct once the arrays
+  are wider.
+
+| item | today | to lift | class |
+|---|---|---|---|
+| `gKirbys` | 0x02020EE0, 424 B × 4 | relocate (sim block), +424 B/player | layout |
+| `gCurLevelInfo` | 0x02023530, 1640 B × 4, including a 64-node object pool | relocate, +1640 B/player | layout |
+| AI `gUnk_02038590` | 244 B × 4; created for `arg0..3` (`code_080332BC.c:64`) | relocate | layout |
+| input block `gUnk_020382D0` | `unk8[3][4]` etc. (`include/main.h:27`) | widen every inner `[4]` | layout |
+| per-Kirby animation table and demo buffer | `gUnk_02021590`, `gUnk_02038990` | relocate | layout |
+| **room slots** | ≈19.8 KB per slot (tilemap, collision, lists), indexed by `LevelInfo.unk65E`; one per *occupied room*, a u8 mask over 4 (`level.c:345-360`) | widen the mask; slots ≥ distinct occupied rooms; split the slot/player loop at `object_collision.c:586` | layout |
+| owner/visibility mask `gUnk_03000510` | bits 0-3 are per Kirby, 0x10 is a flag (`object.h:46-62,226`) | u32, move the flag high | layout |
+| enemy targeting | `FindTargetKirby` scans the room (`kirby.c:5352`); `sub_0803D46C` has a local `u8 array[4]` (`:5390`, overflows past 4) | widen; O(enemies × N) | cost |
+| difficulty | 74 `[gNumHumanPlayers-1]` into 4-column ROM tables | policy: clamp at 4 | design |
+| phone/helpers, HUD | 4-entry ROM tables (`hud.c:1487`) | disable / new HUD | design |
+| OBJ palettes | Kirby *i* uses palettes *i* and *i*+4 (`kirby.c:6145-6168`) | 8 Kirbys use all 16; beyond that, palettes per viewer (M8) | hardware |
+| OBJ VRAM | 2 KiB per Kirby at 0x06010000 + (i << 11) | 16 Kirbys use all 32 KiB; beyond that, per viewer (M8) | hardware |
+| task pool | 128 (`task.h:16`); full means objects silently do not spawn; peak 58 measured | 100 players need about 200 for the Kirbys alone; move to EWRAM | layout |
+| SIO identity | 2 bits (`code_080332BC.c:44`) | retired in v2 | n/a |
+| port | `PORT_MP_PLAYERS 4` → `PORT_RB_PLAYERS`; `warp.c:162`; the sim block is already sized by `PORT_MAX_SEATS` | widen | layout |
+
+`FillLevelInfo` already hands a leaving Kirby's spawned objects to the Kirby
+that stays (`level.c:308-325`): a per-room ownership hand-off, which is the
+primitive sharding needs.
+
+### 14.2 Cost today
+
+**Measured**, per frame, with the scanline loop running and composition off:
+
+| | native | wasm (node) |
+|---|---|---|
+| sim (logic + VBlank handler) | mean 2.7 µs, p99 6.5 µs | mean 7.5 µs, p50 5.3 µs |
+| scanline loop | 0.64 µs | 1.31 µs |
+| composition | 715 µs | 1198 µs |
+
+Where the time goes:
+
+- 112-114 ns per Kirby task, 64-68 ns per AI, 109-145 ns per object.
+- **Objects drive the cost, not rooms.** All 4 Kirbys in one room costs
+  2.2-3.4 µs, spread over 4 rooms 2.9-3.2 µs.
+- Per Kirby, from N = 1..4: `1.96 + 0.25·N` µs in one room, `1.80 + 0.21·N`
+  spread.
+- Entering a room nobody else is in costs 11-19 µs once (decompress into
+  the slot). For the local Kirby it is 80-135 µs, mostly VRAM.
+
+### 14.3 Estimates at 8, 16 and 100
+
+The model is `T(N) ≈ 1.9 + 0.23·N + 0.63 µs + Q`, where Q is the
+O(enemies × N) targeting term: 25-50 µs at 100 players, 50 rooms and 250
+enemies. It is extrapolated from N ≤ 4. A mid-range phone is taken as ×3
+wasm (Geekbench ratio, cited).
+
+| N | native | wasm | phone mid | rollback / catch-up of 10 frames, phone |
+|---|---|---|---|---|
+| 4 | 3.3 µs | 6.6 µs | 20 µs | 0.28 ms |
+| 8 | 4.4 | 10 | 30 | 0.40 |
+| 16 | 6.2 | 14 | 43 | 0.64 |
+| 100 | 50-75 | 115-175 | 350-520 µs | 4.7-7.2 ms |
+
+Under v2.1 (no rollback; catch-up only after a sync), CPU fits even at 100.
+
+### 14.4 Snapshot size
+
+**Measured.** EWRAM+IWRAM is 288 KiB raw and 8.9-18 KB at zstd-3. That is
+about 1.5-2.2 KB per occupied room and 0.35-0.45 KB per Kirby. The engine's
+full image (§12.6) adds VRAM and SRAM, giving 57-67 KB at zstd-1.
+
+**Estimated**, with as many room slots as players:
+
+| N | rooms | raw | zstd |
+|---|---|---|---|
+| 8 | 8 | 395 KB | 23-29 KB |
+| 16 | 16 | 596 KB | 38-49 KB |
+| 100 | 50-100 | 2.7 MB | 125-270 KB |
+
+A 1 s delta is 1-5 KB today and grows with activity, not with N.
+
+### 14.5 Recommendation
+
+- **8: reachable by widening and relocating** the arrays above into the
+  sim block, behind a build flag (`PORT_MAX_SEATS=8` already sizes the
+  block). Two decisions are needed: palettes (all 16 used by Kirbys) and
+  four new Kirby colours.
+- **16: also needs the M8 presentation split.** OBJ VRAM and palettes must
+  be assigned per viewer, to the Kirbys on that viewer's screen. The task
+  pool must move to EWRAM.
+- **100: room sharding, not one world.**
+  - A shard is a set of game rooms, simulated only by the peers whose
+    players are in it, with its own sealed stream and donor (§13).
+  - **Handoff:** the old shard seals the Kirby at an agreed frame. Its
+    record (5.3 KB raw, about 0.45 KB compressed) moves to the destination,
+    which loads the room slot (11-19 µs).
+  - **Global state** (doors, chests, treasures, boss flags, `gWorldProps`)
+    becomes server events, not lockstep.
+  - **Drift repair** is a per-shard donor sync of 10-20 KB.
+  - **Design work:** "everyone in the room" gates (`scroll_lock.c:277`,
+    cutscene triggers) become per-shard quorums; difficulty is clamped;
+    phone helpers are disabled.
+  - **Cap per shard:** about 8 Kirbys, the palette limit. The collision
+    lists hold 32 per kind and slot, with no bounds check
+    (`code_0806F780.c:760-764`).
+- **A `KATAM_MAX_KIRBYS=8` flag** would have to change:
+  - `ram_symbols.h` relocations for every per-player and per-slot array;
+  - the inner `[4]`s of `Unk_020382D0`;
+  - `Unk_03000510`;
+  - `level.c:345-360`, `code_080332BC.c:59,64`, `object.h:46-62,226`,
+    `kirby.c:5390` and `kirby.c:6137-6168`, `object_collision.c:586`;
+  - the 56 + 129 literal and unrolled sites;
+  - the port's `PORT_MP_PLAYERS`.
+
+  Not prototyped here.
 
 ---
 

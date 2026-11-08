@@ -177,7 +177,11 @@ union MultiSioData {
 
 /* PORT: replaced by port/ram_symbols.h -- extern u8 gUnk_03003A00; */
 /* PORT: replaced by port/ram_symbols.h -- extern u8 gUnk_03003A04; */
-extern PTR32_TD(HBlankFunc) gHBlankIntrs[4];
+/* PORT-FORK: in the port sim block, not host .bss (crt0 had it in IWRAM):
+ * the VBlank handler copies the callbacks here and HBlank calls them, so it is
+ * simulation state.  port/simblock.h, NETPLAY-V2 R7. */
+#include "port/simblock.h"
+#define gHBlankIntrs (*(PTR32_TD(HBlankFunc) (*)[4])(uintptr_t)(PORT_SIM_BASE + PORT_SIM_GAME_HBLANK))
 /* PORT: replaced by port/ram_symbols.h -- extern u8 gUnk_03006070; */
 /* PORT: replaced by port/ram_symbols.h -- extern u16 gUnk_03006074; */
 /* PORT: replaced by port/ram_symbols.h -- extern u8 gUnk_03006078; */

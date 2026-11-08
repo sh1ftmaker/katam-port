@@ -22,7 +22,7 @@ void sub_0811C29C(struct Object *unknown75)
     u32 a, b;
 
     unknown75->base.counter = 0;
-    unknown75->unk78 = sub_0811C328;
+    unknown75->unk78 = FN(sub_0811C328);
     unknown75->unk8C = p = EwramMalloc(sizeof(struct Unk_0888562C_4));
     roomId = unknown75->base.roomId;
     a = (0x10u * unknown75->base.x) >> 0x10;
@@ -64,17 +64,28 @@ static void sub_0811C328(struct Object *unknown75)
 
 void *CreateUnknown75(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_IWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_IWRAM, FN(ObjectDestroy));
     struct Object *unknown75 = TaskGetStructPtr(t);
 
     InitObject(unknown75, template_, a2);
     unknown75->base.flags |= 0x2018F40;
     unknown75->base.unk5C |= 0x20;
     unknown75->base.unkC |= 1;
-    gUnk_08351648[unknown75->type].unk10(unknown75);
+    CALL(gUnk_08351648[unknown75->type].unk10)(unknown75);
     return unknown75;
 }
 
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_unknown_75) {
+    PORT_FNID(sub_0811C29C),
+    PORT_FNID(sub_0811C328),
+    PORT_FNID(CreateUnknown75),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

@@ -12,6 +12,7 @@
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/rollback.h"
+#include "port/simblock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,18 +48,24 @@ static const struct { uintptr_t base; u32 size; const char *name; } kRegions[] =
 };
 #define NUM_REGIONS (sizeof kRegions / sizeof kRegions[0])
 
+/* ...and the port sim block (port/simblock.h), which now holds the frame
+ * state this used to save separately, along with the rest of the port's
+ * simulation state.  What is left outside the map is the DMA channel table,
+ * whose pointers are host pointers, and the PPU's affine latches, which are
+ * dead at the frame boundary (port/simblock.h) and saved only so a restore is
+ * byte-exact. */
 static u32 MapBytes(void)
 {
     u32 n = 0, i;
 
     for (i = 0; i < NUM_REGIONS; i++)
         n += kRegions[i].size;
-    return n;
+    return n + PortSimUsedBytes();
 }
 
 static u32 HostBytes(void)
 {
-    return PortDmaStateSize() + PortFrameStateSize() + PortPpuStateSize();
+    return PortDmaStateSize() + PortPpuStateSize();
 }
 
 static void SaveTo(u8 *dest)
@@ -69,8 +76,9 @@ static void SaveTo(u8 *dest)
         memcpy(dest + off, (const void *)kRegions[i].base, kRegions[i].size);
         off += kRegions[i].size;
     }
+    memcpy(dest + off, (const void *)(uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
+    off += PortSimUsedBytes();
     PortDmaStateSave(dest + off);   off += PortDmaStateSize();
-    PortFrameStateSave(dest + off); off += PortFrameStateSize();
     PortPpuStateSave(dest + off);
 }
 
@@ -131,15 +139,16 @@ static void LoadFrom(const u8 *src)
             memcpy((void *)kRegions[i].base, src + off, kRegions[i].size);
         off += kRegions[i].size;
     }
-    /* The frame state is restored either way, even under PORT_RB_BREAK.  It
+    /* The sim block is restored either way, even under PORT_RB_BREAK.  It
      * holds sFrameCount, and without it a restored run never arrives back at
      * the frame the test is waiting for -- the control would break the
      * *harness* rather than demonstrate anything.  That it does so is itself
      * worth knowing: the frame counter is not optional. */
+    memcpy((void *)(uintptr_t)PORT_SIM_BASE, src + off, PortSimUsedBytes());
+    off += PortSimUsedBytes();
     if (!BreakHostState())
         PortDmaStateLoad(src + off);
     off += PortDmaStateSize();
-    PortFrameStateLoad(src + off); off += PortFrameStateSize();
     if (!BreakHostState())
         PortPpuStateLoad(src + off);
 }
@@ -162,6 +171,45 @@ void PortRbSnapshotLoad(const void *src)
     LoadFrom((const u8 *)src);
 }
 
+/* The snapshot's layout, part by part, for tools that compare two of them
+ * (platform/census.c).  `base` is the GBA address the part starts at, or 0
+ * for host state. */
+int PortRbSnapshotPart(int i, struct PortRbPart *out)
+{
+    u32 off = 0, k;
+
+    if (i < 0)
+        return 0;
+    for (k = 0; k < NUM_REGIONS; k++) {
+        if ((int)k == i) {
+            out->name = kRegions[k].name;
+            out->base = (u32)kRegions[k].base;
+            out->offset = off;
+            out->size = kRegions[k].size;
+            return 1;
+        }
+        off += kRegions[k].size;
+    }
+    i -= (int)NUM_REGIONS;
+    if (i == 0) {
+        out->name = "simblk"; out->base = PORT_SIM_BASE;
+        out->offset = off; out->size = PortSimUsedBytes();
+        return 1;
+    }
+    off += PortSimUsedBytes();
+    if (i == 1) {
+        out->name = "dma"; out->base = 0; out->offset = off;
+        out->size = PortDmaStateSize();
+        return 1;
+    }
+    off += PortDmaStateSize();
+    if (i == 2) {
+        out->name = "ppu"; out->base = 0; out->offset = off;
+        out->size = PortPpuStateSize();
+        return 1;
+    }
+    return 0;
+}
 
 /* --- the input timeline ---------------------------------------------------
  *
@@ -256,13 +304,19 @@ static int sNumEvents;
 
 /* slot -> peer, or -1 for "the AI is driving this Kirby".  Timeline state:
  * changed only by an event, so a replay reproduces it. */
-static s8 sSlotPeer[PORT_RB_PLAYERS];
-static u8 sSlotsInPlay = PORT_RB_PLAYERS;
+/* In the port sim block (port/simblock.h), so a snapshot restore puts it back
+ * as it was at that frame and the events after it re-apply -- the snapshot is
+ * taken before the frame's events.  Outside the snapshot, a restore past a
+ * seat change kept the later map (NETPLAY-V2 R7). */
+#define sSlotPeer    (gPortSim->session.slotPeer)
+#define sSlotsInPlay (gPortSim->session.slotsInPlay)
 
 /* Story floor, in hundreds of gAIKirbyState -- 0 is "leave the game alone".
  * Set by PORT_RB_EV_STORY and never unset, so a replay that re-applies the
  * event reproduces it and a rollback cannot lower it. */
-static u8 sStoryFloor;
+#define sStoryFloor  (gPortSim->session.storyFloor)
+
+PORT_SIM_ASSERT(PORT_RB_PLAYERS <= PORT_MAX_SEATS, "the slot map is sized by PORT_MAX_SEATS");
 
 /* Called by the game itself (portify.py's STORY_HOOK) at the top of the
  * new-game path, after the empty-file confirm has cleared the save buffer
@@ -1340,6 +1394,8 @@ static u32 StateHash(void)
         h ^= Fnv((const void *)kRegions[i].base, kRegions[i].size);
         h *= 16777619u;
     }
+    h ^= Fnv((const void *)(uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
+    h *= 16777619u;
     return h;
 }
 
@@ -1424,6 +1480,9 @@ static void LogRoundTrip(const u16 *keys, u32 frames)
     long back;
     int savedPlayers = sPlayers, ok = 0;
     u32 f, p;
+    /* PortRbInit below rewrites the slot map, which is simulation state in the
+     * sim block; this test is an aside and must leave the game as it was. */
+    struct PortSimSession savedSession = gPortSim->session;
 
     if (!PortRbInit(4, PORT_RB_PLAYERS))
         return;
@@ -1491,6 +1550,7 @@ done:
     free(b);
     sPlayers = savedPlayers;
     PortRbShutdown();
+    gPortSim->session = savedSession;
 }
 
 /* --- demonstrating that per-slot injection reaches a Kirby ----------------
@@ -1541,6 +1601,7 @@ int PortRbNetPlay(int selfSlot)
     if (!sActive || selfSlot < 0 || selfSlot >= PORT_RB_PLAYERS)
         return 0;
     GAME_MODE_FLAGS |= 2;
+    gPortSim->hdr.flags |= PORT_SIM_F_SESSION;
     GAME_FOCUS = (u8)selfSlot;
     sFocusSlot = (s8)selfSlot;      /* survives snapshot restores            */
     PortLog("[katam-port] rollback: net play on, this instance is slot %d",

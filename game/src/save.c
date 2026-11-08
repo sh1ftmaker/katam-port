@@ -33,7 +33,7 @@ extern const struct SaveBuffer gWorldProps[] = {
 };
 
 void (*const sbClearFunctions[])(void) = {
-    sbSaveFileInfoClear, sbWorldPropsClear
+    FN(sbSaveFileInfoClear), FN(sbWorldPropsClear)
 };
 
 static void nullsub_4(void) {}
@@ -205,7 +205,7 @@ void ClearSaveBuffer(enum SaveBufferType sbufferType) {
         CpuFill16(0, destSb->dataPtr, destSb->dataSize);
         ++destSb;
     }
-    sbClearFunctions[sbufferType]();
+    CALL(sbClearFunctions[sbufferType])();
 }
 
 void InitSaveBuffers(void) {
@@ -218,7 +218,7 @@ void InitSaveBuffers(void) {
             CpuFill16(0, sbType->dataPtr, sbType->dataSize);
             ++sbType;
         }
-        sbClearFunctions[i]();
+        CALL(sbClearFunctions[i])();
     }
 }
 
@@ -266,3 +266,13 @@ static const struct SaveBuffer *GetSaveBuffer(enum SaveBufferType sbufferType) {
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_save) {
+    PORT_FNID(sbSaveFileInfoClear),
+    PORT_FNID(sbWorldPropsClear),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

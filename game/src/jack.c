@@ -40,7 +40,7 @@ extern const struct AnimInfo gUnk_08353668[] = {
 
 void *CreateJack(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0xFFF, TASK_USE_EWRAM, sub_080A8BC0);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0xFFF, TASK_USE_EWRAM, FN(sub_080A8BC0));
     struct Object *tmp = TaskGetStructPtr(t), *jack = tmp;
 
     InitObject(jack, template_, a2);
@@ -53,7 +53,7 @@ void *CreateJack(struct ObjectTemplate *template_, u8 a2)
     jack->base.unk48 = jack->base.x += 0x500;
     ObjectInitSprite(jack);
     jack->base.sprite.unk14 = 0x740;
-    gUnk_08351648[jack->type].unk10(jack);
+    CALL(gUnk_08351648[jack->type].unk10)(jack);
     jack->unk9E = 0;
     jack->unk7C = 0;
     if (jack->objTemplate->unk14)
@@ -158,7 +158,7 @@ static void sub_080A85B4(struct Object *jack)
 
 void *CreateJackStar(struct ObjectTemplate *template_, u8 a2)
 {
-    struct Task *t = TaskCreate(ObjectMain, sizeof(struct Object), 0x1000, TASK_USE_EWRAM, ObjectDestroy);
+    struct Task *t = TaskCreate(FN(ObjectMain), sizeof(struct Object), 0x1000, TASK_USE_EWRAM, FN(ObjectDestroy));
     struct Object *js = TaskGetStructPtr(t);
 
     InitObject(js, template_, a2);
@@ -173,17 +173,17 @@ void *CreateJackStar(struct ObjectTemplate *template_, u8 a2)
     js->base.unk68 = 0x20000043;
     js->base.unk5C |= 0x20;
     js->unk9E = 0;
-    js->unk7C = sub_0809F840;
+    js->unk7C = FN(sub_0809F840);
     sub_0803E2B0(&js->base, -2, -2, 2, 2);
     ObjectSetBounds(&js->base, 2, 2, 2, 2);
     ObjectInitSprite(js);
-    gUnk_08351648[js->type].unk10(js);
+    CALL(gUnk_08351648[js->type].unk10)(js);
     return js;
 }
 
 void sub_080A8788(struct Object *js)
 {
-    ObjectSetFunc(js, 0, sub_080A8834);
+    ObjectSetFunc(js, 0, FN(sub_080A8834));
     js->base.flags |= 0x40;
     js->base.flags &= ~0x20;
     PlaySfx(&js->base, SE_JACK_ATTACK);
@@ -226,7 +226,7 @@ static void sub_080A8834(struct Object *js)
 
 void sub_080A8904(struct Object *jack)
 {
-    ObjectSetFunc(jack, 0, sub_080A8338);
+    ObjectSetFunc(jack, 0, FN(sub_080A8338));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0;
     jack->base.flags |= 0x200;
@@ -235,7 +235,7 @@ void sub_080A8904(struct Object *jack)
 
 static void sub_080A8938(struct Object *jack)
 {
-    ObjectSetFunc(jack, 1, sub_080A8964);
+    ObjectSetFunc(jack, 1, FN(sub_080A8964));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0;
     jack->base.flags &= ~2;
@@ -251,7 +251,7 @@ static void sub_080A8964(struct Object *jack)
 
 static void sub_080A89B8(struct Object *jack)
 {
-    ObjectSetFunc(jack, 2, sub_080A8458);
+    ObjectSetFunc(jack, 2, FN(sub_080A8458));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0;
     jack->base.flags &= ~0x200;
@@ -259,7 +259,7 @@ static void sub_080A89B8(struct Object *jack)
 
 static void sub_080A89E8(struct Object *jack)
 {
-    ObjectSetFunc(jack, 3, sub_080A8A3C);
+    ObjectSetFunc(jack, 3, FN(sub_080A8A3C));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0;
     jack->base.counter = (Rand16() & 1) + 1;
@@ -274,7 +274,7 @@ static void sub_080A8A3C(struct Object *jack)
         sub_080A8B68(jack);
     else if (jack->base.flags & 2)
     {
-        ObjectSetFunc(jack, 0, sub_080A8338);
+        ObjectSetFunc(jack, 0, FN(sub_080A8338));
         jack->base.xspeed = 0;
         jack->base.yspeed = 0;
         jack->base.flags |= 0x200;
@@ -284,7 +284,7 @@ static void sub_080A8A3C(struct Object *jack)
 
 static void sub_080A8ABC(struct Object *jack)
 {
-    ObjectSetFunc(jack, 4, sub_080A8AE8);
+    ObjectSetFunc(jack, 4, FN(sub_080A8AE8));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0;
     jack->base.flags &= ~2;
@@ -300,7 +300,7 @@ static void sub_080A8AE8(struct Object *jack)
             sub_080A85B4(jack);
         if (jack->base.flags & 2)
         {
-            ObjectSetFunc(jack, 0, sub_080A8338);
+            ObjectSetFunc(jack, 0, FN(sub_080A8338));
             jack->base.xspeed = 0;
             jack->base.yspeed = 0;
             jack->base.flags |= 0x200;
@@ -311,7 +311,7 @@ static void sub_080A8AE8(struct Object *jack)
 
 static void sub_080A8B68(struct Object *jack)
 {
-    ObjectSetFunc(jack, 5, sub_080A8BB4);
+    ObjectSetFunc(jack, 5, FN(sub_080A8BB4));
     jack->base.xspeed = 0;
     jack->base.yspeed = 0x280;
     jack->base.flags |= 0x200;
@@ -338,3 +338,23 @@ static void sub_080A8BC0(struct Task *t)
 #ifdef __cplusplus
 }
 #endif
+
+/* PORT-FNID begin: this file's functions the game stores as code
+ * IDs, so the lookup can name statics (tools/codemod_fnid.py
+ * --gen rewrites this block). */
+PORT_FNID_TABLE(game_src_jack) {
+    PORT_FNID(CreateJack),
+    PORT_FNID(sub_080A8338),
+    PORT_FNID(sub_080A8458),
+    PORT_FNID(CreateJackStar),
+    PORT_FNID(sub_080A8788),
+    PORT_FNID(sub_080A8834),
+    PORT_FNID(sub_080A8904),
+    PORT_FNID(sub_080A8964),
+    PORT_FNID(sub_080A8A3C),
+    PORT_FNID(sub_080A8AE8),
+    PORT_FNID(sub_080A8BB4),
+    PORT_FNID(sub_080A8BC0),
+    PORT_FNID_END
+};
+/* PORT-FNID end */

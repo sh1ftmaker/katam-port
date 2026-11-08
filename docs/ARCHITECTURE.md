@@ -143,6 +143,15 @@ correct signature, so a call reports itself instead of trapping.
 This needs `katam.map` and a ROM at build time. Without them the tables are
 still generated, entirely stubbed, and the game will not get far.
 
+Since code IDs (docs/DETERMINISM.md, "Code IDs") the values in those tables
+are `FN(name)`, the function's ROM address with the Thumb bit -- the ROM's own
+bytes, checked entry for entry -- and a call goes through `CALL`, which maps
+the ID to the host function.  So a function pointer the game reads straight
+out of ROM data works without being rebuilt, and `PortPatchRomFunctionPointers`
+only writes the two ROM struct fields that hold NULL (a reporting stub);
+the five that hold the ARM-only 0x08106509 keep it, a stub answering to that
+ID.
+
 ## Keeping up with a moving decompilation
 
 The decompilation is being worked on continuously; functions gain C bodies while
