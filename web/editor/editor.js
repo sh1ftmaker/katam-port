@@ -548,7 +548,11 @@ function dict(tsId) {
   const list = [...map.values()].sort((a, b) => b.n - a.n);
   const air = list.find((e) => e.cls === 'air');
   const empty = air ? air.tok : '000.0 000.0 000.0 000.0';
-  const model = A.learn(rooms, empty);
+  // a piece with no see-through pixel is a wall, not an edge: the brush must not strew it in the air
+  const look = [...S.vanilla.docs.values()].map((d) => d.doc).find((d) => d.tileset === tsId) || (S.room && S.room.doc);
+  const g = look ? gfxFor(look) : null;
+  const opaque = (t) => { if (!g) return false; const im = metaImage(t, g).data; for (let i = 3; i < im.length; i += 4) if (im[i] < 255) return false; return true; };
+  const model = A.learn(rooms, empty, { opaque });
   const styles = Object.values(model.kinds).flatMap((K) => K.styles);
   D = { map, list, rooms: rooms.length, empty, model, styles };
   S.dicts.set(tsId, D);
@@ -610,8 +614,10 @@ function pill(c, text, x, y, fg = '#2a1f5c', bg = '#fff') {
 const typeName = (o) => (typeof o.type === 'number' ? S.vocab.objectTypeName[o.type] || String(o.type) : o.type);
 /** An object's box on the room, in room pixels. */
 function objBox(o) {
-  const sp = sprite(typeName(o));
+  const name = typeName(o), sp = sprite(name);
   if (!sp) return [o.x - 7, o.y - 7, 14, 14];
+  // doors and chests stand on the floor of their tile in play, whatever their sprite's origin says
+  if (isDoorType(name) || /chest/.test(name) || (S.objInfo.get(name) || {}).category === 'door') return [o.x - sp.ox, (Math.floor(o.y / 16) + 1) * 16 - sp.h, sp.w, sp.h];
   return [o.x - sp.ox, o.y - sp.oy, sp.w, sp.h];
 }
 
@@ -1477,7 +1483,17 @@ function newProject() {
   });
 }
 function loadProjectFiles(files) {
-  flush(); S.room = null; S.lastRoom = null;
+  flush();
+  const before = S.io.list('/project').map((p) => [p, S.io.readText(p)]), was = S.room && S.room.id;
+  try { loadProjectFiles2(files); } catch (e) {
+    // never leave the editor half-loaded: put back what was open and say what went wrong
+    console.error('[editor] opening the project failed:', e);
+    putFiles(before); S.room = null; rebind(); openRoom(roomIds().includes(was) ? was : roomIds()[0]);
+    modal('That project could not be opened', h('p', null, `${e.message}. Your previous project is back. If this file came from the editor, please send it along with this message.`), [{ label: 'OK', primary: true }]);
+  }
+}
+function loadProjectFiles2(files) {
+  S.room = null; S.lastRoom = null; S.sel = null; S.undo = []; S.redo = [];
   if (!files) putExample();
   else {
     clearProject();
@@ -1685,4 +1701,7 @@ function buildUi() {
 }
 
 S.api = { openRoom, createRoom, adoptOriginal, placeObject, linkDoor, validateNow, play, stopPlay, looks, dict, setZoom, setTab, setTool, roomIds, P };
+// nothing fails silently: an error anywhere says so on the page as well as in the console
+window.addEventListener('error', (e) => { toast('Something went wrong: ' + (e.message || e.error), 8000); });
+window.addEventListener('unhandledrejection', (e) => { toast('Something went wrong: ' + ((e.reason && e.reason.message) || e.reason), 8000); });
 boot().catch((e) => { console.error(e); curtain('The editor could not start: ' + e.message, { err: true }); });
