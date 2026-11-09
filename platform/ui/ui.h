@@ -90,6 +90,23 @@ void PortHostSetVolume(float gain);         /* 0..1, output only          */
 void PortHostSetVsync(int on);
 void PortHostUiOpenChanged(int open);       /* release game input, etc.   */
 
+/* The things the menu shows that the host owns, not the settings: on the web
+ * page the ROM and save files, fullscreen, the touch pads, the randomizer and
+ * the log (web/shell.html, Module.portUiAction/portUiQuery).
+ *
+ *   PortHostUiAction  do `name` (with `arg` where it takes one); nonzero if
+ *                     the host knows it.  Called from inside the menu's
+ *                     frame, which a browser still counts as part of the
+ *                     click that pressed the button -- what lets one open a
+ *                     file picker or go fullscreen.
+ *   PortHostUiQuery   a readout, as text, into buf (always NUL-terminated);
+ *                     returns its length, 0 when the host has none.
+ *
+ * The native build answers neither (ui_menu.cpp), and the menu only shows
+ * those pages where gPortUiStatus.platform is "web". */
+int PortHostUiAction(const char *name, int arg);
+int PortHostUiQuery(const char *key, char *buf, int size);
+
 #ifdef __cplusplus
 }
 #endif

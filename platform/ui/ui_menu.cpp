@@ -1,4 +1,7 @@
-/* The settings menu: a Dear ImGui view over gPortSettings (settings.h).
+/* The game's menu: a Dear ImGui view over gPortSettings (settings.h), and
+ * on the web page everything else the page can do (the ROM and save files,
+ * fullscreen, touch pads, the randomizer, the log), driven
+ * through the host's action/readout hooks (ui.h, web/shell.html).
  *
  * Drawn into the game's own GL context after the picture (present.c), in
  * framebuffer pixels.  Built for a thumb first: everything scales with the
@@ -289,12 +292,161 @@ static bool Section(const char *label)
     return ImGui::CollapsingHeader(label, ImGuiTreeNodeFlags_DefaultOpen);
 }
 
-static int MenuBody(void)
+/* --- what the host owns: actions and readouts (ui.h) ----------------------- */
+
+#ifndef __EMSCRIPTEN__
+/* Native: the ROM is chosen at start-up and the save is a file next to it;
+ * nothing here is the menu's to drive (platform/native/host_sdl.c). */
+extern "C" int PortHostUiAction(const char *name, int arg) { (void)name; (void)arg; return 0; }
+extern "C" int PortHostUiQuery(const char *key, char *buf, int size)
+{
+    (void)key;
+    if (size > 0) buf[0] = '\0';
+    return 0;
+}
+#endif
+
+static bool Web(void)
+{
+    return gPortUiStatus.platform && strcmp(gPortUiStatus.platform, "web") == 0;
+}
+
+/* A readout from the host.  A small ring of buffers, so a few can be in use
+ * at once within one line of the menu. */
+static const char *Q(const char *key)
+{
+    static char ring[8][512];
+    static int at;
+    char *b = ring[at++ & 7];
+    b[0] = '\0';
+    PortHostUiQuery(key, b, (int)sizeof(ring[0]));
+    return b;
+}
+
+static bool QOn(const char *key) { return Q(key)[0] == '1'; }
+
+static bool Act(const char *name, int arg = 0) { return PortHostUiAction(name, arg) != 0; }
+
+/* An action that hands the screen to the page sets this: the menu closes
+ * after this frame rather than in the middle of drawing it. */
+static int sCloseAfter;
+
+static float ButtonW(const char *label)
+{
+    return ImGui::CalcTextSize(label, NULL, true).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+static void SameLineIfFitsButton(const char *next)
+{
+    float x = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x;
+    float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+    if (x + ButtonW(next) <= right)
+        ImGui::SameLine();
+}
+
+/* A button that asks once more before doing something that cannot be
+ * undone: the first press turns it into "<label>?  Yes" for a few seconds. */
+static bool ConfirmButton(const char *label, const char *id)
+{
+    static char armed[32];
+    static double armedAt;
+    bool fire = false;
+
+    if (armed[0] && sNow - armedAt > 4000.0)
+        armed[0] = '\0';
+    ImGui::PushID(id);
+    if (strcmp(armed, id) == 0) {
+        char yes[96];
+        snprintf(yes, sizeof(yes), "Really %s?##yes", label);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.20f, 0.18f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.68f, 0.26f, 0.22f, 1.0f));
+        if (ImGui::Button(yes)) {
+            fire = true;
+            armed[0] = '\0';
+        }
+        ImGui::PopStyleColor(2);
+    } else if (ImGui::Button(label)) {
+        snprintf(armed, sizeof(armed), "%s", id);
+        armedAt = sNow;
+    }
+    ImGui::PopID();
+    return fire;
+}
+
+static void Heading(const char *label)
+{
+    ImGui::Spacing();
+    ImGui::SeparatorText(label);
+}
+
+/* --- pages ------------------------------------------------------------------ */
+
+enum { PG_GAME, PG_DISPLAY, PG_AUDIO, PG_CONTROLS, PG_RANDO, PG_ADVANCED, PG_COUNT };
+static const char *const kPageNames[PG_COUNT] = {
+    "Game", "Display", "Audio", "Controls", "Randomizer", "Advanced",
+};
+static int sPage = -1;
+
+static bool PageShown(int p)
+{
+    if (Web())
+        return true;
+    /* Native: the ROM, the save and the randomizer are the
+     * command line's (--rom, --rando, ...), not the menu's. */
+    return p == PG_DISPLAY || p == PG_AUDIO || p == PG_CONTROLS || p == PG_ADVANCED;
+}
+
+static void PageGame(void)
+{
+    Heading("ROM");
+    Hint(Q("rom.info"));
+    if (ImGui::Button("Load a different ROM..."))
+        Act("rom.load");
+    SameLineIfFitsButton("Forget stored ROM");
+    ImGui::BeginDisabled(!QOn("rom.stored"));
+    if (ConfirmButton("Forget stored ROM", "romforget"))
+        Act("rom.forget");
+    ImGui::EndDisabled();
+    Hint("A different ROM restarts the page with it. The ROM is kept only in this "
+         "browser, on this device; Forget erases that copy (you pick the file again next visit).");
+
+    Heading("Save data");
+    Hint(Q("save.info"));
+    bool haveRom = QOn("save.rom");
+    ImGui::BeginDisabled(!haveRom);
+    if (ImGui::Button("Export save..."))
+        Act("save.export");
+    SameLineIfFitsButton("Import save...");
+    if (ImGui::Button("Import save..."))
+        Act("save.import");
+    ImGui::EndDisabled();
+    SameLineIfFitsButton("Delete stored save");
+    ImGui::BeginDisabled(!QOn("save.stored"));
+    if (ConfirmButton("Delete stored save", "savedelete"))
+        Act("save.delete");
+    ImGui::EndDisabled();
+    Hint("A plain 64 KiB SRAM image (.sav), the same file an emulator reads. "
+         "Export one now and then: it is your backup.");
+
+    Heading("Session");
+    if (ConfirmButton("Reset game", "reset"))
+        Act("reset");
+    Hint("Restarts from power-on (reloads the page). Your save is kept.");
+}
+
+static int PageDisplay(void)
 {
     PortSettings &s = gPortSettings;
     const PortUiStatus &st = gPortUiStatus;
     int changed = 0;
-    float bw = ImGui::GetFontSize() * 4.2f;
+
+    if (Web()) {
+        bool fs = QOn("fullscreen");
+        if (ImGui::Button(fs ? "Exit fullscreen" : "Fullscreen"))
+            Act("fullscreen");
+        ImGui::SameLine();
+        Hint(fs ? "Esc also leaves it." : "F11 works too.");
+    }
 
     if (Section("Renderer")) {
         ImGui::BeginDisabled(!st.gpuAvailable);
@@ -413,7 +565,7 @@ static int MenuBody(void)
              "Corners vs strip only differs when the picture is wider than the HUD.");
     }
 
-    if (Section("Display")) {
+    if (Section("Frames")) {
         bool fps = s.showFps != 0;
         if (ImGui::Checkbox("Show FPS", &fps)) { s.showFps = fps; changed = 1; }
         if (st.vsyncControl) {
@@ -433,15 +585,6 @@ static int MenuBody(void)
              "frame of extra delay).");
     }
 
-    if (Section("Audio")) {
-        ImGui::PushItemWidth(-bw * 1.4f);
-        changed |= ImGui::SliderInt("##vol", &s.volume, 0, 100, "Volume %d%%");
-        ImGui::PopItemWidth();
-        ImGui::SameLine();
-        bool m = s.mute != 0;
-        if (ImGui::Checkbox("Mute", &m)) { s.mute = m; changed = 1; }
-    }
-
     if (Section("Menu size")) {
         /* Applied on release: resizing the panel under the finger that is
          * dragging the slider would move the slider away from it. */
@@ -455,29 +598,180 @@ static int MenuBody(void)
         }
         ImGui::PopItemWidth();
     }
+    return changed;
+}
 
-    if (Section("Controls")) {
-        ImGui::TextWrapped("Menu: F1 or Tab (Esc closes), or the gear button.");
-        ImGui::TextWrapped("D-pad: arrows / WASD. A: J / Z. B: K / X.");
-        ImGui::TextWrapped("L: Q. R: E. Start: Enter. Select: Backspace / R-Shift.");
-        if (strcmp(st.platform ? st.platform : "", "native") == 0)
-            ImGui::TextWrapped("F11 fullscreen, F12 screenshot, 1-6 window scale.");
-        else
-            Hint("Phones: on-screen pads (turn them on in the page menu). Fullscreen from the page menu.");
-        Hint("The game pauses while this menu is open.");
+static int PageAudio(void)
+{
+    PortSettings &s = gPortSettings;
+    int changed = 0;
+    float bw = ImGui::GetFontSize() * 4.2f;
+
+    Heading("Output");
+    ImGui::PushItemWidth(-bw * 1.4f);
+    changed |= ImGui::SliderInt("##vol", &s.volume, 0, 100, "Volume %d%%");
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    bool m = s.mute != 0;
+    if (ImGui::Checkbox("Mute", &m)) { s.mute = m; changed = 1; }
+    if (Web())
+        Hint("A browser starts sound on the first key press or tap.");
+    return changed;
+}
+
+static void PageControls(void)
+{
+    const PortUiStatus &st = gPortUiStatus;
+
+    Heading("Keyboard");
+    ImGui::TextWrapped("D-pad: arrows / WASD. A: J / Z. B: K / X.");
+    ImGui::TextWrapped("L: Q. R: E. Start: Enter. Select: Backspace / R-Shift.");
+    ImGui::TextWrapped("This menu: F1 or Tab (Esc closes), or the gear button.");
+    if (!Web())
+        ImGui::TextWrapped("F11 fullscreen, F12 screenshot, 1-6 window scale.");
+    else
+        ImGui::TextWrapped("F11: fullscreen (your browser's own).");
+
+    if (Web()) {
+        Heading("Touch");
+        bool on = QOn("touch");
+        if (ImGui::Checkbox("On-screen touch pads", &on))
+            Act("touch");
+        Hint("On by default on a phone or tablet. On iPhone, Share > Add to Home Screen "
+             "and launch it from there: Safari will not let a page go fullscreen, but a "
+             "home-screen launch drops the browser bars, which is the same thing.");
+    }
+    (void)st;
+    Hint("The game pauses while this menu is open.");
+}
+
+static void PageRando(void)
+{
+    unsigned v[4] = { 0, 1, 1, 1 };
+    const char *r = Q("rando");
+    int pools;
+
+    sscanf(r, "%u,%u,%u,%u", &v[0], &v[1], &v[2], &v[3]);
+    pools = (int)v[0];
+    Heading("Enemies");
+    if (Radio("As it shipped", &pools, 0)) Act("rando.pools", 0);
+    SameLineIfFits("Shuffled");
+    if (Radio("Shuffled", &pools, 1)) Act("rando.pools", 1);
+    SameLineIfFits("Shuffled, bosses too");
+    if (Radio("Shuffled, bosses too", &pools, 7)) Act("rando.pools", 7);
+
+    if (pools != 0) {
+        Heading("Seed");
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Seed %u", v[3]);
+        ImGui::SameLine();
+        if (ImGui::Button("Reroll"))
+            Act("rando.reroll");
+        SameLineIfFitsButton("Enter a seed...");
+        if (ImGui::Button("Enter a seed..."))
+            Act("rando.seed");
+        Heading("Rules");
+        bool size = v[1] != 0, abil = v[2] != 0;
+        if (ImGui::Checkbox("Match enemy sizes", &size)) Act("rando.size");
+        if (ImGui::Checkbox("Keep abilities where they were", &abil)) Act("rando.ability");
+    }
+    Hint("Every enemy is one byte in the room's level data, so this swaps the byte as the "
+         "room loads and the game builds a different enemy in the same spot from its own code. "
+         "A seed is the whole run: the same number gives the same game every time. "
+         "Takes effect at the next door. Match enemy sizes keeps a room's video-memory demand "
+         "near what it was built for -- turning it off can overflow the tile heap. "
+         "Bosses are the risky pool. Remembered between visits.");
+}
+
+static int PageAdvanced(void)
+{
+    const PortUiStatus &st = gPortUiStatus;
+    int changed = 0;
+
+    if (Web()) {
+        Heading("Diagnostics");
+        bool d = QOn("diag");
+        if (ImGui::Checkbox("Diagnostics readout over the picture", &d))
+            Act("diag");
+        Heading("Log");
+        if (ImGui::Button("Copy log"))
+            Act("log.copy");
+        ImGui::SameLine();
+        Hint("for a bug report");
+        static char logBuf[16384];
+        logBuf[0] = '\0';
+        PortHostUiQuery("log", logBuf, (int)sizeof(logBuf));
+        float h = ImGui::GetTextLineHeightWithSpacing() * 12.0f;
+        ImGui::BeginChild("log", ImVec2(0, h), ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.74f, 0.80f, 1.0f));
+        ImGui::TextUnformatted(logBuf);
+        ImGui::PopStyleColor();
+        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 2.0f)
+            ImGui::SetScrollHereY(1.0f);
+        ImGui::EndChild();
     }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    if (ImGui::Button("Reset all to defaults")) {
-        PortSettingsDefaults(&s);
+    if (Web()) {
+        Heading("Developer flags");
+        Hint("Page-address flags, for development: ?renderer=gpu|ppu|2d, ?rom=<link>. "
+             "Online play is parked (it desyncs) and has no menu entry: ?online=1 opens "
+             "its lobby, ?room=CODE joins a game, ?world= / ?room=<name> are the older "
+             "relay sessions (docs/design/NETPLAY-V2.md).");
+    }
+
+    Heading("Settings");
+    if (ConfirmButton("Reset display and audio settings", "defaults")) {
+        PortSettingsDefaults(&gPortSettings);
         changed = 1;
     }
-    ImGui::Spacing();
+    Hint("Settings change only how the game is shown and heard, never the game itself.");
+
+    Heading("Build");
     ImGui::Text("Build %s  (%s)", KATAM_BUILD_LABEL, st.platform ? st.platform : "?");
     if (st.gpuDesc && st.gpuDesc[0])
         Hint(st.gpuDesc);
-    Hint("Settings change only how the game is shown and heard, never the game itself.");
+    return changed;
+}
+
+static void PageTabs(void)
+{
+    ImGuiStyle &style = ImGui::GetStyle();
+    bool first = true;
+
+    if (sPage < 0 || !PageShown(sPage))
+        sPage = Web() ? PG_GAME : PG_DISPLAY;
+    for (int p = 0; p < PG_COUNT; p++) {
+        if (!PageShown(p))
+            continue;
+        if (!first)
+            SameLineIfFitsButton(kPageNames[p]);
+        first = false;
+        bool on = p == sPage;
+        if (on) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.30f, 0.44f, 0.66f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.34f, 0.50f, 0.74f, 1.0f));
+        }
+        if (ImGui::Button(kPageNames[p]))
+            sPage = p;
+        if (on)
+            ImGui::PopStyleColor(2);
+    }
+    (void)style;
+}
+
+static int MenuBody(void)
+{
+    int changed = 0;
+
+    switch (sPage) {
+    case PG_GAME:     PageGame(); break;
+    case PG_DISPLAY:  changed = PageDisplay(); break;
+    case PG_AUDIO:    changed = PageAudio(); break;
+    case PG_CONTROLS: PageControls(); break;
+    case PG_RANDO:    PageRando(); break;
+    case PG_ADVANCED: changed = PageAdvanced(); break;
+    }
+    ImGui::Spacing();
     return changed;
 }
 
@@ -485,7 +779,7 @@ static void DrawMenu(int fbW, int fbH)
 {
     ImGuiStyle &style = ImGui::GetStyle();
     float m = ImGui::GetFontSize() * 0.6f;
-    float w = ImGui::GetFontSize() * 36.0f;
+    float w = ImGui::GetFontSize() * 40.0f;
     int changed;
 
     if (w > fbW - 2 * m) w = fbW - 2 * m;
@@ -493,12 +787,12 @@ static void DrawMenu(int fbW, int fbH)
                                                   IM_COL32(0, 0, 0, 110));
     ImGui::SetNextWindowPos(ImVec2((fbW - w) * 0.5f, m));
     ImGui::SetNextWindowSize(ImVec2(w, fbH - 2 * m));
-    ImGui::Begin("KATAM settings", NULL,
+    ImGui::Begin("KATAM menu", NULL,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                  ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Settings");
+    ImGui::TextUnformatted("Kirby & The Amazing Mirror");
     {
         const char *lbl = "Resume";
         float bwid = ImGui::CalcTextSize(lbl).x + style.FramePadding.x * 4;
@@ -506,11 +800,20 @@ static void DrawMenu(int fbW, int fbH)
         if (ImGui::Button(lbl, ImVec2(bwid, 0)))
             PortUiSetOpen(0);
     }
+    PageTabs();
     ImGui::Separator();
     ImGui::BeginChild("body", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_None);
     if (sScrollPx != 0.0f) {
         ImGui::SetScrollY(ImGui::GetScrollY() - sScrollPx);
         sScrollPx = 0.0f;
+    }
+    {
+        /* A page opens at its top. */
+        static int lastPage = -1;
+        if (lastPage != sPage) {
+            ImGui::SetScrollY(0.0f);
+            lastPage = sPage;
+        }
     }
     changed = MenuBody();
     ImGui::EndChild();
@@ -526,7 +829,6 @@ static void DrawMenu(int fbW, int fbH)
         PortSettingsChanged();
     }
 }
-
 static void DrawGear(int fbW)
 {
     float fs = ImGui::GetFontSize();
@@ -579,4 +881,8 @@ extern "C" void PortUiDraw(int fbW, int fbH, float dpr, double nowMs)
     }
     ImGui::Render();
     UiGlRender(ImGui::GetDrawData(), fbW, fbH);
+    if (sCloseAfter) {
+        sCloseAfter = 0;
+        PortUiSetOpen(0);
+    }
 }

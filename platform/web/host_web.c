@@ -34,6 +34,7 @@ EM_JS_DEPS(katam_host_web, "$UTF8ToString");
 #include "ui/settings.h"
 #include "ui/ui.h"
 #include "port/rollback.h"
+#include "port/netsim.h"
 
 static int sGl;
 
@@ -139,6 +140,24 @@ void PortHostInit(int argc, char **argv)
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
 }
+
+/* The menu's Game / Online / Randomizer / Advanced pages: the page owns
+ * all of it (web/shell.html, Module.portUiAction and Module.portUiQuery).
+ * Called from inside the menu's frame -- the frame that handled the click,
+ * which is what lets an action open a file picker or go fullscreen. */
+EM_JS(int, PortHostUiAction, (const char *name, int arg), {
+    var f = Module.portUiAction;
+    if (!f) return 0;
+    try { return f(UTF8ToString(name), arg) ? 1 : 0; }
+    catch (e) { console.error('[katam-port] menu action', e); return 0; }
+});
+
+EM_JS(int, PortHostUiQuery, (const char *key, char *buf, int size), {
+    var f = Module.portUiQuery, v = '';
+    if (f) { try { v = f(UTF8ToString(key)); } catch (e) { v = ''; } }
+    if (v === undefined || v === null) v = '';
+    return stringToUTF8(String(v), buf, size);
+});
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
@@ -380,14 +399,16 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 
 /* The menu pause: a host-level frame skip -- the game is not asked for its
  * next frame while the menu is open, and the last picture is re-presented
- * under it.  Not in netplay, where a peer would stall. */
+ * under it.  Not online (either session driver), where a peer would stall. */
 void PortAwaitAnimationFrame(void)
 {
-    while (sGl && PortUiIsOpen() && !PortRbActive()) {
+    int online = PortRbActive() || PortNetActive();
+
+    while (sGl && PortUiIsOpen() && !online) {
         PortWebAwaitPaint();
         Show(NULL, 0, 0, 0);
     }
-    gPortUiStatus.netplay = PortRbActive();
+    gPortUiStatus.netplay = online;
     /* Paints between frames show the interpolated picture. */
     while (PortWebAwaitFrame(sGl && gPortShowDisplayRate && gPortSettings.interp
                              && PortShowUsingGpu()) == 1)
