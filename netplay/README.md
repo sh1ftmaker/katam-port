@@ -1,5 +1,10 @@
 # netplay/
 
+> **Protocol v2 online rooms: shelved 2026-11-08, hidden behind `?online=1`.**
+> They are still deployed and tested. How it is set up, how to run it, and
+> why it desyncs and rubberbands: [docs/NETPLAY-HANDOFF.md](../docs/NETPLAY-HANDOFF.md).
+> The v1 link-cable / Path B rooms in this directory are unaffected.
+
 The rooms that katam-port instances meet in, in two wearable forms over
 shared, socket-free logic:
 
