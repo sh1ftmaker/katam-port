@@ -9,7 +9,13 @@
  *                                 wrangler dev)
  *   ?room=BCDF&watch=1            join as a spectator
  *
- * Create/Join from the menu reload the page into ?room=CODE: a session
+ *   ?online=1                     open the lobby (create / join)
+ *
+ * Parked: online play desyncs, so the page has no button for it -- only
+ * these developer flags reach it.  Without one of them this file only
+ * defines window.KatamLobby and adds nothing to the page.
+ *
+ * Create/Join reload the page into ?room=CODE: a session
  * starts from power-on with blank save memory, so the game has to be held
  * at frame 0 -- which only a fresh page can promise.
  *
@@ -27,6 +33,7 @@
 
     /* The v1 hookup in shell.html asks this before it claims ?room=. */
     window.KatamLobby = { claims: !!CODE || q.has('online'), code: CODE, base: BASE };
+    if (!window.KatamLobby.claims) return;
 
     /* --- styles ------------------------------------------------------------- */
     var css = [
@@ -60,11 +67,13 @@
         '#netlobby .nl-tag{font-size:11px;padding:1px 6px;border-radius:6px;background:var(--panel-2,#232730);color:var(--dim,#838b98)}',
         '#netlobby .nl-tag.k0{color:#ff9bd2}#netlobby .nl-tag.k1{color:#ffe46b}#netlobby .nl-tag.k2{color:#ff7b72}#netlobby .nl-tag.k3{color:#7ee787}',
         '#netlobby .nl-tag.rdy{color:#7ee787}',
-        '#netchip{position:fixed;z-index:55;left:calc(10px + env(safe-area-inset-left));top:calc(52px + env(safe-area-inset-top));',
+        '#netchip{position:fixed;z-index:55;left:calc(10px + env(safe-area-inset-left));top:calc(10px + env(safe-area-inset-top));',
         ' display:none;gap:6px;align-items:center;background:rgba(20,22,26,.86);border:1px solid var(--edge,#2b3038);border-radius:999px;',
         ' padding:4px 10px;font:12px var(--mono,monospace);color:var(--text,#d5d9e0);cursor:pointer}',
         '#netchip.show{display:flex}',
         '#netlobby .nl-close{float:right;min-height:30px;padding:2px 10px}',
+        '#netlobby label.nl-rom{display:inline-flex;align-items:center;border-radius:8px;padding:9px 14px;min-height:42px;cursor:pointer;',
+        ' background:var(--accent,#6fb2ff);color:#08121f;font-weight:700}',
     ].join('\n');
     var style = document.createElement('style');
     style.textContent = css;
@@ -83,25 +92,6 @@
     function mount() {
         document.body.appendChild(root);
         document.body.appendChild(chip);
-        var bar = document.querySelector('#chrome .bar');
-        if (bar) {
-            var b = document.createElement('button');
-            b.type = 'button';
-            b.id = 'netonline';
-            b.textContent = 'Play online…';
-            b.onclick = function () { open(); };
-            bar.insertBefore(b, bar.children[1] || null);
-        }
-        var top = document.getElementById('topbar');
-        if (top) {
-            var t = document.createElement('button');
-            t.type = 'button';
-            t.id = 'netonline2';
-            t.textContent = 'Online';
-            t.onclick = function () { open(); };
-            var h1 = top.querySelector('h1');
-            top.insertBefore(t, h1 ? h1.nextSibling : null);
-        }
         render();
         if (CODE || q.has('online')) open();
     }
@@ -109,6 +99,7 @@
     root.addEventListener('click', function (e) { if (e.target === root && S.dismissable()) close(); });
 
     function open() { root.classList.add('open'); render(); }
+    window.KatamLobby.open = function () { open(); };
     function close() { root.classList.remove('open'); render(); }
 
     function esc(s) {
@@ -256,7 +247,7 @@
 
     function connLine() {
         var n = S.net;
-        if (S.romWait) return 'Load your ROM to join ' + CODE + ' (Menu → Load ROM…). It stays on this device.';
+        if (S.romWait) return 'Load your ROM to join ' + CODE + ' (the button below, or drop the .gba on the page). It stays on this device.';
         if (!n) return 'Preparing…';
         if (n.state === 'connecting') return n.reconnects ? 'Reconnecting…' : 'Connecting…';
         if (n.state === 'lost') return 'Connection lost — reconnecting…';
@@ -282,6 +273,8 @@
              '<span class="nl-hint">or tell them the code</span></div>';
         if (S.info) h += '<div class="nl-hint" style="text-align:center;word-break:break-all">' + esc(S.info) + '</div>';
         h += '<div class="nl-hint" id="nl-conn">' + esc(connLine()) + '</div>';
+        if (S.romWait && document.getElementById('romfile'))
+            h += '<div class="nl-row"><label class="nl-rom" for="romfile">Load ROM…</label></div>';
         if (n && n.lastError) {
             h += '<div class="nl-err">' + esc(Net.explainError(n.lastError)) + '</div>';
             h += '<div class="nl-row"><button type="button" data-a="reload">Reload page</button><button type="button" data-a="leave">Leave</button></div>';
