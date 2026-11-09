@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="katam-build" content="c203a5eb5 2026-11-09 wasm ec2569ecd4e2">
+<meta name="katam-build" content="1242fef20 2026-11-09 wasm c0d4ce66e3d9">
 <meta name="robots" content="noindex">
 <title>KATAM Level Editor</title>
-<link rel="stylesheet" href="editor.css?v=184fc6023a7e">
+<link rel="stylesheet" href="editor.css?v=8115f4b7eff9">
 </head>
 <body>
 <div id="app" class="loading">
@@ -23,6 +23,7 @@
     <span class="grow"></span>
     <button class="btn icon" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
     <button class="btn icon" id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+    <button class="btn" id="roomset" title="Room settings: name, size, music, look">⚙ <span class="lbl">Room</span></button>
     <button class="btn" id="validate"><span class="dot ok" id="vdot">✓</span><span class="lbl">Validate</span></button>
     <button class="btn primary" id="play">▶ <span class="lbl">Play here</span></button>
     <button class="btn" id="save" title="Download the project as a .zip">⬇ <span class="lbl">Save</span></button>
@@ -31,6 +32,7 @@
   <nav id="tools" aria-label="Tools"></nav>
 
   <main id="stage">
+    <div class="robar" id="robar" hidden></div>
     <div class="bar">
       <select id="roomsel" aria-label="Room"></select>
       <label class="chk"><input type="checkbox" id="sh-collision" checked><span>Show collision</span></label>
@@ -44,6 +46,7 @@
     <div class="legend" id="legend"></div>
   </main>
 
+  <div class="gut gv" id="g-side" title="Drag to resize. Double-click to reset."></div>
   <aside id="side">
     <div class="tabs" role="tablist">
       <button class="tab on" data-tab="tiles">Tiles</button>
@@ -52,12 +55,16 @@
       <button class="tab" data-tab="rooms">Rooms</button>
     </div>
     <div class="panel" id="tabbody"></div>
+    <div class="gut gh" id="g-insp"></div>
     <div class="panel" id="inspector"></div>
   </aside>
 
+  <div class="gut gh" id="g-bottom" title="Drag to resize. Double-click to reset."></div>
   <footer id="bottom">
     <section class="card" id="areamap"><h3>Area Map</h3><div class="body"></div></section>
+    <div class="gut gv" id="g-b1"></div>
     <section class="card" id="thumbs"><h3>Room Thumbnails</h3><div class="body"></div></section>
+    <div class="gut gv" id="g-b2"></div>
     <section class="card" id="issues"><h3>Validation</h3><div class="body"></div></section>
   </footer>
 
@@ -78,13 +85,14 @@
 </div>
 
 <div id="playview" hidden>
-  <div class="playbar"><button class="btn primary" id="play-back">◀ Back to editor</button><button class="btn" id="play-restart">↻ Restart</button><span id="play-msg"></span></div>
+  <div id="play-cover"><div class="spin"></div><p id="play-cover-msg">Loading the room…</p></div>
+  <div class="playbar"><button class="btn primary" id="play-back">◀ Back to editor</button><button class="btn" id="play-restart">↻ Restart</button></div>
 </div>
 <div id="menu" hidden></div>
 <div id="modal" hidden></div>
 <div id="toast" hidden></div>
 
-<script>window.KATAM_ED = { lib: "katam-902658d36ac9/lib/", data: "data.json?v=d8de1dda60df", play: "play/", build: "c203a5eb5 2026-11-09 wasm ec2569ecd4e2" };</script>
-<script type="module" src="editor.js?v=361e6a44dba1"></script>
+<script>window.KATAM_ED = { lib: "katam-ae8cb1f89009/lib/", data: "data.json?v=d8de1dda60df", play: "play/", build: "1242fef20 2026-11-09 wasm c0d4ce66e3d9" };</script>
+<script type="module" src="editor.js?v=52d877a43147"></script>
 </body>
 </html>
