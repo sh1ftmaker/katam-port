@@ -1039,11 +1039,14 @@ and the sprite decoder), then the Advanced view (about 1–2 weeks).
 dist-editor`, `PAGES_PAGE=editor scripts/publish-pages.sh`); `/next/` and `/next/playtest/` are
 gone from the site. Its layout is the full tool on the user's mock-up, with resizable panels.
 
-- **Terrain brushes** (`tools/katam/lib/autotile.mjs`): per tile set, learned from the vanilla
-  rooms: which piece the original uses for each neighbour shape, which pieces sit next to which,
-  and families of pieces used together ("styles"). Painting picks edges, corners and a seeded
-  random fill, and tends the scenery above and below (grass blades). Single pieces remain, in a
-  tree by kind, each with the collision it usually has; the collision brush overrides.
+- **Terrain brushes** (`tools/katam/lib/autotile.mjs`): by example, not by lookup. The tile sets
+  were not drawn for auto-tiling (hundreds of pieces, floors several rows deep, patterned fills,
+  several materials per set), so each painted cell copies the piece of a vanilla cell whose
+  surroundings have the same shape (two cells out, plus depth from the surface), whose
+  neighbours' pieces match the ones already placed, and, where possible, which sits beside the
+  cell the neighbour was copied from ("image analogies"). A style is a material: label
+  propagation over the "sits next to" graph, then smoothed over cells so the grass on a cliff
+  belongs to the cliff. Single pieces remain, in a tree by kind; the collision brush overrides.
 - **Sprites** (`tools/katam/lib/sprites.mjs`): one picture per object type and Kirby, decoded
   from the player's ROM at run time (176 of 219 types; the rest have no sprite of their own).
 - **Doors are objects.** Placing a `door` writes the link, the door collision and the object,

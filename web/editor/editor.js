@@ -365,7 +365,7 @@ function snapshot() {
 }
 function restore(s) {
   const R = S.room, resized = R.W !== s.W || R.H !== s.H;
-  R.W = s.W; R.H = s.H; R.art = s.art.slice(); R.col = s.col.slice();
+  R.W = s.W; R.H = s.H; R.art = s.art.slice(); R.col = s.col.slice(); R.src = null;
   R.doc.objects = JSON.parse(s.objects); R.doc.doors = JSON.parse(s.doors);
   if (S.sel && !selected()) S.sel = null;
   if (resized) sizeCanvas();
@@ -554,7 +554,7 @@ function dict(tsId) {
   S.dicts.set(tsId, D);
   return D;
 }
-const styleLabel = (st) => `${S.L.autotile.BRUSH_KINDS[st.kind].label} ${st.index + 1}`;
+const styleLabel = (st) => st.name;
 
 /** The (tileset, palette, background) combinations the original game uses. */
 function looks() {
@@ -729,9 +729,10 @@ function retile(cells, want) {
   const R = S.room, D = dict(R.doc.tileset), set = new Set();
   for (const i of cells) {
     const x = i % R.W, y = (i / R.W) | 0;
-    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) if (inRoom(x + a, y + b)) set.add(idx(x + a, y + b));
+    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) if (inRoom(x + a, y + b)) set.add(idx(x + a, y + b));   // a piece depends on the shape two cells out
   }
-  const changed = S.L.autotile.retile(D.model, { W: R.W, H: R.H, art: R.art, cls: R.col.map((v) => S.colClass[v]) }, [...set], want || new Map(), S.salt);
+  if (!R.src || R.src.length !== R.W * R.H) R.src = new Int32Array(R.W * R.H).fill(-1);   // which cell of the original each cell was copied from
+  const changed = S.L.autotile.retile(D.model, { W: R.W, H: R.H, art: R.art, cls: R.col.map((v) => S.colClass[v]), src: R.src }, [...set], want || new Map(), S.salt);
   for (const i of changed) drawCell(i);
 }
 const kindValue = (kind) => (S.colRep[kind] !== undefined ? S.colRep[kind] : 13);
@@ -1161,7 +1162,7 @@ function tree(key, label, count, build, swatch) {
   return d;
 }
 function styleSwatch(D, st) {
-  const A = S.L.autotile, sm = A.sample(D.model, st, 4, 2);
+  const A = S.L.autotile, sm = A.sample(D.model, st, 5, 3);
   const cv = h('canvas', { width: sm.W * 16, height: sm.H * 16 }), c = cv.getContext('2d');
   sm.art.forEach((t, i) => c.drawImage(metaCanvas(t), (i % sm.W) * 16, ((i / sm.W) | 0) * 16));
   return h('button', { class: 'style' + (S.paint && S.paint.style === st ? ' on' : ''), title: `${styleLabel(st)}: paint, and the edges, corners and fill come by themselves`, onclick: () => { S.paint = { style: st }; if (!['brush', 'rect', 'fill'].includes(S.tool)) setTool('brush'); refreshTab(); } }, cv, styleLabel(st));
@@ -1190,7 +1191,7 @@ function refreshTab() {
     if (S.paint && S.paint.style) {
       const st = S.paint.style;
       info = h('div', { class: 'tileinfo' }, styleSwatch(D, st).firstChild, h('b', null, `Terrain brush · ${styleLabel(st)}`),
-        h('span', { class: 'dim' }, `Edges, corners and fill are chosen for you, from ${st.tokens.size} pieces the original rooms use together.`),
+        h('span', { class: 'dim' }, `Edges, corners and fill are copied from how the original rooms build this material (${st.tokens.size} pieces).`),
         h('div', { class: 'row', style: 'display:flex;gap:6px' }, h('button', { class: 'btn tiny', title: 'Pick a different random fill for the whole room', onclick: shuffleFill }, '🎲 Shuffle the fill')));
     } else {
       const tok = S.paint.tile, e = D.map.get(tok);
