@@ -1,0 +1,33 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/15",
+  "note": "Rainbow Route jungle cave (504-555; Cabbage Cavern). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "04b.1 0a3.1 06b.1 066.1",
+      "name": "Mossy stones"
+    },
+    {
+      "kind": "solid",
+      "piece": "2da.5 2db.5 2fa.5 2fb.5",
+      "name": "Stone block"
+    },
+    {
+      "kind": "platform",
+      "piece": "00a.2 24b.2 0cd.1 000.0",
+      "name": "Grassy ledge"
+    },
+    {
+      "kind": "water",
+      "piece": "26c.3 26d.3 28c.3 28d.3",
+      "name": "Water"
+    },
+    {
+      "kind": "water",
+      "piece": "227.3 227.3 227.3 227.3",
+      "name": "Deep water"
+    }
+  ]
+}

@@ -46,6 +46,7 @@ const dataText = JSON.stringify({
   vocab: JSON.parse(fs.readFileSync(R('assets/schema/authoring/vocab.json'), 'utf8')),
   schemas: Object.fromEntries(Object.entries(dirJson(R('assets/schema/authoring'))).filter(([f]) => f.endsWith('.schema.json'))),
   semantics: dirJson(R('assets/schema/semantics')),
+  autotile: fs.existsSync(R('assets/schema/authoring/autotile')) ? dirJson(R('assets/schema/authoring/autotile')) : {},
   manifest: JSON.parse(fs.readFileSync(R('assets/manifest.json'), 'utf8')),
   romTables: fs.readFileSync(R('game/generated/port/rom_tables.h'), 'utf8'),
   examples,

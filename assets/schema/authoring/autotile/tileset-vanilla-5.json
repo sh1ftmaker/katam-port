@@ -1,0 +1,13 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/5",
+  "note": "Rainbow Route sand cave (126-137, 194). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "025.0 004.0 007.0 025.0",
+      "name": "Sand"
+    }
+  ]
+}

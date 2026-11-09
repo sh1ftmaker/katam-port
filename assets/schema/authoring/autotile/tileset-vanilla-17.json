@@ -1,0 +1,28 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/17",
+  "note": "Rainbow Route pink cave (503, 556, 557; Cabbage Cavern, Olive Ocean). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "01e.0 01f.0 020.0 021.0",
+      "name": "Pink moss"
+    },
+    {
+      "kind": "solid",
+      "piece": "2da.5 2db.5 2fa.5 2fb.5",
+      "name": "Stone block"
+    },
+    {
+      "kind": "platform",
+      "piece": "2c2.0 2c3.0 000.0 000.0",
+      "name": "Pink ledge"
+    },
+    {
+      "kind": "platform",
+      "piece": "28b.3 28c.3 051.2 052.2",
+      "name": "Earth ledge"
+    }
+  ]
+}

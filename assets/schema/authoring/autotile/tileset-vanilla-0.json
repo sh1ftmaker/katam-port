@@ -1,0 +1,23 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/0",
+  "note": "Rainbow Route forest (rooms 101-107, 140-143, 190). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "0f0.0 036.0 0e3.0 056.0",
+      "name": "Grassy cobbles"
+    },
+    {
+      "kind": "solid",
+      "piece": "0ac.0 0ad.0 011.0 0cd.0",
+      "name": "Grassy cliff"
+    },
+    {
+      "kind": "solid",
+      "piece": "295.0 296.0 2b5.0 2b6.0",
+      "name": "Grassy hill"
+    }
+  ]
+}

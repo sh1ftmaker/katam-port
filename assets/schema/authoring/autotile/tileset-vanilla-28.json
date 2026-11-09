@@ -1,0 +1,18 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/28",
+  "note": "Rainbow Route cloud room (801). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "142.4 142.4 142.4 142.4",
+      "name": "Clouds"
+    },
+    {
+      "kind": "platform",
+      "piece": "121.4 122.4 15b.5 15c.5",
+      "name": "Crystal ledge"
+    }
+  ]
+}

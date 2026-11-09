@@ -1,0 +1,23 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/18",
+  "note": "Rainbow Route snowy mountain (532-571, 590; Mustard Mountain). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "0a4.0 0a5.0 0c4.0 0c5.0",
+      "name": "Snowy rock"
+    },
+    {
+      "kind": "platform",
+      "piece": "177.5 178.5 000h0 000.0",
+      "name": "Stone slab"
+    },
+    {
+      "kind": "platform",
+      "piece": "177.5 178.5 238.3 25b.3",
+      "name": "Stone slab, dark"
+    }
+  ]
+}

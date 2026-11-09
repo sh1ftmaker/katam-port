@@ -1,0 +1,28 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/3",
+  "note": "Rainbow Route lumber yard (115-119, 138-139, 171-178). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "14c.2 14d.2 16c.2 16d.2",
+      "name": "Grassy soil"
+    },
+    {
+      "kind": "solid",
+      "piece": "024.1 025.1 044.1 045.1",
+      "name": "Log frame"
+    },
+    {
+      "kind": "solid",
+      "piece": "140.1 145.1 160.1 165.1",
+      "name": "Log ends"
+    },
+    {
+      "kind": "platform",
+      "piece": "124.1 125.1 108.1 108h1",
+      "name": "Plank bridge"
+    }
+  ]
+}

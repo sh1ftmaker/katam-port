@@ -1,0 +1,23 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/2",
+  "note": "Rainbow Route night forest (104, 108, 110; Moonlight Mansion). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "only": true,
+  "styles": [
+    {
+      "kind": "solid",
+      "piece": "256.3 133.3 272.3 26f.3",
+      "name": "Grassy earth"
+    },
+    {
+      "kind": "water",
+      "piece": "0e4.3 0e4.3 0e4.3 0e4.3",
+      "name": "Water"
+    },
+    {
+      "kind": "water",
+      "piece": "0f8h2 0f8h2 137h2 119h2",
+      "name": "Waterfall"
+    }
+  ]
+}
