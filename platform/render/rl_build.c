@@ -43,6 +43,8 @@ extern "C" {
 
 int gPortRlEnabled;
 
+#define RL_MAX_SHAKE 16          /* px; see sScreen.shakeX                     */
+
 /* --- the committed screen (see PortRlCommitScreen) ----------------------- */
 
 typedef struct {
@@ -70,6 +72,12 @@ static struct {
      * struct whether its anchor is that position's whole pixel. */
     s32 recFp[3][2];
     s32 camVpX, camVpY;          /* viewportPosition, 8.8                     */
+    /* A camera shake (RequestScreenShake -> viewportModX/Y_44/46, added to the
+     * room's scroll only by sub_080019F8): the room scroll minus the camera's
+     * whole pixel.  Sprites and the parallax layers do not shake on the GBA.
+     * Larger offsets than a shake are not one (the vertical auto-scroll wrap
+     * reuses viewportModY_46) and read as 0. */
+    s32 shakeX, shakeY;
     s32 kirbyFp[4][2];
     /* Per sprite struct (base.sprite, sprites[0], sprites[1]): whether its
      * anchor is that position's pixel, rounded either way the game does it
@@ -543,12 +551,20 @@ void PortRlCommitScreen(void)
         }
         hx = (u16)(fx >> 8);
         hy = (u16)(fy >> 8);
+        if (i == 1) {
+            s32 dx = (s16)(u16)(s->scrollX - hx), dy = (s16)(u16)(s->scrollY - hy);
+
+            sScreen.shakeX = (dx >= -RL_MAX_SHAKE && dx <= RL_MAX_SHAKE) ? dx : 0;
+            sScreen.shakeY = (dy >= -RL_MAX_SHAKE && dy <= RL_MAX_SHAKE) ? dy : 0;
+            hx = (u16)(hx + sScreen.shakeX);
+            hy = (u16)(hy + sScreen.shakeY);
+        }
         sScreen.recFp[i][0] = wx * 256 + (hx == s->scrollX ? (fx & 0xFF) : 0);
         sScreen.recFp[i][1] = wy * 256 + (hy == s->scrollY ? (fy & 0xFF) : 0);
     }
     {
-        s32 ci = sScreen.bg[1].offX * 8 + sScreen.bg[1].scrollX;
-        s32 cj = sScreen.bg[1].offY * 8 + sScreen.bg[1].scrollY;
+        s32 ci = sScreen.bg[1].offX * 8 + sScreen.bg[1].scrollX - sScreen.shakeX;
+        s32 cj = sScreen.bg[1].offY * 8 + sScreen.bg[1].scrollY - sScreen.shakeY;
         s32 vx = li->viewportPosition.x >> 8, vy = li->viewportPosition.y >> 8;
 
         s32 fx = li->viewportPosition.x & 0xFF, fy = li->viewportPosition.y & 0xFF;
@@ -704,6 +720,8 @@ typedef struct {
     u8 layOk[4];             /* hardware BG n is a WORLD layer of a record   */
     u8 kirbyFocus;           /* local Kirby inside the 240x160 screen        */
     u8 corrected;            /* netplay replaced the world before this frame */
+    u8 shakeHw;              /* hardware BG + 1 of the room layer, 0 if none */
+    s32 shakeD[2];           /* its shake rescaled to the zoom, 1/256 px     */
     s32 kirbyFp[4][2];
     s32 nGroups;
     MotGroup g[RL_MAX_SPRITES];
@@ -1137,8 +1155,11 @@ const RlFrame *PortRlBuildFrame(void)
         }
     } else {
         const BgSnap *fg = &sScreen.bg[1];
-        s32 camX = fg->offX * 8 + fg->scrollX;   /* world x of screen x 0 */
-        s32 camY = fg->offY * 8 + fg->scrollY;
+        /* World x of screen x 0: the camera, without a shake -- the view,
+         * the clamps and every sprite follow it; only the room layer shakes
+         * (below, scaled to the zoom). */
+        s32 camX = fg->offX * 8 + fg->scrollX - sScreen.shakeX;
+        s32 camY = fg->offY * 8 + fg->scrollY - sScreen.shakeY;
         s32 rl, rr, rt, rb, vx0, vy0, vx, vy;
 
         f->world = 1;
@@ -1210,8 +1231,13 @@ const RlFrame *PortRlBuildFrame(void)
         m->room = sScreen.room;
         m->ciX = camX;
         m->ciY = camY;
-        m->camFp[0] = sScreen.recFp[1][0];
-        m->camFp[1] = sScreen.recFp[1][1];
+        m->camFp[0] = sScreen.recFp[1][0] - sScreen.shakeX * 256;
+        m->camFp[1] = sScreen.recFp[1][1] - sScreen.shakeY * 256;
+        /* The room's shake at this zoom: the same size on screen as at 1x
+         * (the view is 160 / zoom tall), in 1/256 px, as a change to what
+         * the hardware scroll already holds. */
+        m->shakeD[0] = (s32)(((s64)sScreen.shakeX * 256 * H) / PORT_SCREEN_H) - sScreen.shakeX * 256;
+        m->shakeD[1] = (s32)(((s64)sScreen.shakeY * 256 * H) / PORT_SCREEN_H) - sScreen.shakeY * 256;
         {
             /* PortRlFocus's test, on the committed frame. */
             const s32 *k = sScreen.kirbyFp[gLocalPlayerId & 3];
@@ -1243,6 +1269,11 @@ const RlFrame *PortRlBuildFrame(void)
              * game camera; see RlTileLayer.shiftX. */
             L->shiftX = ((L->factorX - 256) * f->shiftX) / 256;
             L->shiftY = ((L->factorY - 256) * f->shiftY) / 256;
+            if (i == 1) {
+                L->shiftX += (m->shakeD[0] + (m->shakeD[0] >= 0 ? 128 : -128)) / 256;
+                L->shiftY += (m->shakeD[1] + (m->shakeD[1] >= 0 ? 128 : -128)) / 256;
+                m->shakeHw = (u8)(hw + 1);
+            }
             if (!(s->flags & 0x20)) {
                 /* Loaded whole into its screen block, and the hardware wraps
                  * it at the block's size.  When the picture is smaller than
@@ -1585,6 +1616,10 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
             if (sFit[i][1].on)
                 shy = FitAxisFp(sy, sFit[i][1].f, py, sFit[i][1].camMin, sFit[i][1].camMax,
                                 sFit[i][1].img, o->viewH, vy, sFit[i][1].S);
+            if (c->shakeHw == i + 1) {
+                shx += c->shakeD[0];
+                shy += c->shakeD[1];
+            }
             L->shiftX = shx >> 8;
             L->shiftY = shy >> 8;
             L->subX = shx & 255;

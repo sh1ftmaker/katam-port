@@ -121,6 +121,14 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   streaks there.
 * **HUD**: four corner regions, BG1 and HUD sprites both; see below for
   its size.
+* **Screen shake** (`RequestScreenShake` -> `viewportModX/Y_44/46`, added
+  to the room layer's scroll only): the view, its clamps, the letterbox and
+  every sprite follow the unshaken camera, and the room layer's shake is
+  rescaled by viewH / 160 so it is the same size on screen at every zoom
+  (smaller in game pixels zoomed in, larger zoomed out).  At 240x160 the
+  scale is 1 and the picture is the PPU's.  Offsets over 16 px are not a
+  shake (the vertical auto-scroll wrap reuses viewportModY_46) and pass
+  through unchanged.
 
 ### HUD layer
 
