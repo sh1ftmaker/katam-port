@@ -34,7 +34,9 @@ void PortSettingsDefaults(PortSettings *s)
     s->volume = 100;
     s->mute = 0;
     s->uiScale = 1.0f;
-    s->smoothCam = 1;
+    /* Off by default: on phones in landscape it drags the frame rate
+     * down after a minute or so of play (2026-11-09). */
+    s->smoothCam = 0;
     s->interp = 1;
 }
 
@@ -98,7 +100,10 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("volume", volume)
                 INT_KEY("mute", mute)
                 FLT_KEY("uiscale", uiScale)
-                INT_KEY("smoothcam", smoothCam)
+                /* "smoothcam2": the default changed to off, and the old key
+                 * was saved as 1 by anyone who touched any setting, so it is
+                 * ignored -- everyone starts from the new default once. */
+                INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
 #undef INT_KEY
 #undef FLT_KEY
@@ -119,7 +124,7 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
-        n += snprintf(buf + n, (size_t)(size - n), "smoothcam=%d\ninterp=%d\n",
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\n",
                       s->smoothCam, s->interp);
     return n < size ? n : size - 1;
 }

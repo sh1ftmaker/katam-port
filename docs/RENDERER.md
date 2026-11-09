@@ -290,7 +290,9 @@ Presentation only: nothing below reads anything the hooks did not already
 copy, and nothing is written back. The simulation clock is untouched -- the
 host paces sim frames exactly as before (`--turbo`, `--replay` included);
 only what each present draws changes. Settings **Smooth camera** and
-**Interpolation** (menu: Display; `smoothcam=`, `interp=`, both on).
+**Interpolation** (menu: Display; `smoothcam2=`, `interp=`). Smooth camera is **off** by
+default since 2026-11-09: on phones in landscape it dragged the frame rate
+down after about a minute of play. Interpolation stays on.
 
 **Why it juddered.** The world was composed in game pixels and scaled up,
 so the camera moved in whole game pixels -- 2x zoom on a 1080p screen is
