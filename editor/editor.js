@@ -533,7 +533,7 @@ function dict(tsId) {
     const W = doc.size.width, H = doc.size.height;
     let art, col;
     try { art = G.decodeGrid(doc.art, W, H).map((s) => T.metaToken(T.metaValues(s))); col = G.decodeGrid(doc.collision, W, H).map((v) => S.ctx.collisionValue(v)); } catch (e) { continue; }
-    rooms.push({ W, H, art, cls: col.map((v) => S.colClass[v]) });
+    rooms.push({ W, H, art, cls: col.map((v) => S.colClass[v]), col });
     for (let i = 0; i < art.length; i++) {
       let e = map.get(art[i]);
       if (!e) map.set(art[i], e = { tok: art[i], n: 0, cols: new Map() });
@@ -552,7 +552,9 @@ function dict(tsId) {
   const look = [...S.vanilla.docs.values()].map((d) => d.doc).find((d) => d.tileset === tsId) || (S.room && S.room.doc);
   const g = look ? gfxFor(look) : null;
   const opaque = (t) => { if (!g) return false; const im = metaImage(t, g).data; for (let i = 3; i < im.length; i += 4) if (im[i] < 255) return false; return true; };
-  const model = A.learn(rooms, empty, { opaque });
+  const pixels = (t) => (g ? metaImage(t, g).data : new Uint8ClampedArray(1024));
+  const rules = Object.values(S.data.autotile || {}).find((r) => r && r.tileset === tsId) || null;   // hand-checked presets (assets/schema/authoring/autotile)
+  const model = A.learn(rooms, empty, { opaque, pixels, rules });
   const styles = Object.values(model.kinds).flatMap((K) => K.styles);
   D = { map, list, rooms: rooms.length, empty, model, styles };
   S.dicts.set(tsId, D);
@@ -738,7 +740,7 @@ function retile(cells, want) {
     for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) if (inRoom(x + a, y + b)) set.add(idx(x + a, y + b));   // a piece depends on the shape two cells out
   }
   if (!R.src || R.src.length !== R.W * R.H) R.src = new Int32Array(R.W * R.H).fill(-1);   // which cell of the original each cell was copied from
-  const changed = S.L.autotile.retile(D.model, { W: R.W, H: R.H, art: R.art, cls: R.col.map((v) => S.colClass[v]), src: R.src }, [...set], want || new Map(), S.salt);
+  const changed = S.L.autotile.retile(D.model, { W: R.W, H: R.H, art: R.art, cls: R.col.map((v) => S.colClass[v]), col: R.col, src: R.src }, [...set], want || new Map(), S.salt);
   for (const i of changed) drawCell(i);
 }
 const kindValue = (kind) => (S.colRep[kind] !== undefined ? S.colRep[kind] : 13);
@@ -750,7 +752,7 @@ function paintCells(list) {
     const i = idx(x, y);
     if (S.tool === 'collision') { R.col[i] = S.colBrush; continue; }
     if (S.tool === 'eraser') { if (R.art[i] !== D.empty || R.col[i] !== 0) { setCell(x, y, D.empty, 0); touched.push(i); } continue; }
-    if (S.paint.style) { R.col[i] = kindValue(S.paint.style.kind); want.set(i, S.paint.style); touched.push(i); }
+    if (S.paint.style) { R.col[i] = S.paint.slope !== undefined && S.paint.style.kind === 'solid' ? S.paint.slope : kindValue(S.paint.style.kind); want.set(i, S.paint.style); touched.push(i); }
     else setCell(x, y, S.paint.tile, S.followCol ? S.tileCol : null);
   }
   if (touched.length) retile(touched, want);
@@ -1050,7 +1052,7 @@ function createRoom(name, W, H, lk) {
   const art = new Array(W * H).fill(D.empty), col = new Array(W * H).fill(0), cells = [], want = new Map();
   const st = D.styles.find((x) => x.kind === 'solid');
   for (let y = H - 4; y < H; y++) for (let x = 0; x < W; x++) { col[y * W + x] = 13; cells.push(y * W + x); if (st) want.set(y * W + x, st); }
-  if (st) A.retile(D.model, { W, H, art, cls: col.map((v) => S.colClass[v]) }, cells.concat(cells.map((i) => i - W)), want, S.salt);
+  if (st) A.retile(D.model, { W, H, art, cls: col.map((v) => S.colClass[v]), col }, cells.concat(cells.map((i) => i - W)), want, S.salt);
   else { const f = D.list.find((e) => e.cls === 'solid'); if (f) for (const i of cells) art[i] = f.tok; }
   const doc = {
     format: 'katam-room/1', id, name, size: { width: W, height: H }, music: lk.music, tileset: lk.tileset, palette: lk.palette, background: lk.background,
@@ -1198,6 +1200,8 @@ function refreshTab() {
       const st = S.paint.style;
       info = h('div', { class: 'tileinfo' }, styleSwatch(D, st).firstChild, h('b', null, `Terrain brush · ${styleLabel(st)}`),
         h('span', { class: 'dim' }, `Edges, corners and fill are copied from how the original rooms build this material (${st.tokens.size} pieces).`),
+        st.kind === 'solid' ? h('div', { class: 'row', style: 'display:flex;gap:4px;flex-wrap:wrap' }, [{ value: undefined, label: 'Flat' }].concat(S.L.autotile.SLOPES).map((sl) =>
+          h('button', { class: 'btn tiny' + (S.paint.slope === sl.value ? ' on' : ''), title: sl.value === undefined ? 'Paint solid ground' : `Paint ground with this slope (${sl.label})`, onclick: () => { S.paint = { style: st, slope: sl.value }; refreshTab(); } }, sl.label))) : null,
         h('div', { class: 'row', style: 'display:flex;gap:6px' }, h('button', { class: 'btn tiny', title: 'Pick a different random fill for the whole room', onclick: shuffleFill }, '🎲 Shuffle the fill')));
     } else {
       const tok = S.paint.tile, e = D.map.get(tok);
