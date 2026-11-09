@@ -123,10 +123,10 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   its size.
 * **Screen shake** (`RequestScreenShake` -> `viewportModX/Y_44/46`, added
   to the room layer's scroll only): the view, its clamps, the letterbox and
-  every sprite follow the unshaken camera, and the room layer's shake is
-  rescaled by viewH / 160 so it is the same size on screen at every zoom
-  (smaller in game pixels zoomed in, larger zoomed out).  At 240x160 the
-  scale is 1 and the picture is the PPU's.  Offsets over 16 px are not a
+  every sprite follow the unshaken camera.  Zoomed in, the room layer's
+  shake is rescaled by viewH / 160 so it is no bigger on screen than at 1x;
+  zoomed out it keeps its game-pixel size, so on screen it shrinks with the
+  zoom.  At 240x160 the scale is 1 and the picture is the PPU's.  Offsets over 16 px are not a
   shake (the vertical auto-scroll wrap reuses viewportModY_46) and pass
   through unchanged.
 

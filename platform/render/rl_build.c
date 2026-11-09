@@ -1233,11 +1233,17 @@ const RlFrame *PortRlBuildFrame(void)
         m->ciY = camY;
         m->camFp[0] = sScreen.recFp[1][0] - sScreen.shakeX * 256;
         m->camFp[1] = sScreen.recFp[1][1] - sScreen.shakeY * 256;
-        /* The room's shake at this zoom: the same size on screen as at 1x
-         * (the view is 160 / zoom tall), in 1/256 px, as a change to what
-         * the hardware scroll already holds. */
-        m->shakeD[0] = (s32)(((s64)sScreen.shakeX * 256 * H) / PORT_SCREEN_H) - sScreen.shakeX * 256;
-        m->shakeD[1] = (s32)(((s64)sScreen.shakeY * 256 * H) / PORT_SCREEN_H) - sScreen.shakeY * 256;
+        /* The room's shake at this zoom (the view is 160 / zoom tall), in
+         * 1/256 px, as a change to what the hardware scroll already holds.
+         * Zoomed in it is shrunk to its 1x size on screen; zoomed out it
+         * keeps its game-pixel size, so on screen it shrinks with the zoom
+         * -- never larger than at 1x either way. */
+        {
+            s32 hs = H < PORT_SCREEN_H ? H : PORT_SCREEN_H;
+
+            m->shakeD[0] = (s32)(((s64)sScreen.shakeX * 256 * hs) / PORT_SCREEN_H) - sScreen.shakeX * 256;
+            m->shakeD[1] = (s32)(((s64)sScreen.shakeY * 256 * hs) / PORT_SCREEN_H) - sScreen.shakeY * 256;
+        }
         {
             /* PortRlFocus's test, on the committed frame. */
             const s32 *k = sScreen.kirbyFp[gLocalPlayerId & 3];
