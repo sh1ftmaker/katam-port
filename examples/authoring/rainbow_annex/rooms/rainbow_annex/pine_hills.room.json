@@ -1,0 +1,242 @@
+{
+  "format": "katam-room/1",
+  "id": "room:rainbow_annex/pine_hills",
+  "name": "Rainbow Annex: pine hills",
+  "description": "Original room in the Rainbow Route lumber-yard look (tileset/palette 3, background 28). Out of the forest onto rolling grassy hills between tall pines, with loose logs floating overhead (a pop soda on one, a Sir Kibble on another) and a lashed log staircase at the end. The left door returns to the cliffside; the right door is a one-way exit onto the left door of Rainbow Route 115.",
+  "size": {
+    "width": 56,
+    "height": 13
+  },
+  "music": "mus_rainbow_route",
+  "tileset": "tileset:vanilla/3",
+  "palette": "palette:vanilla/3",
+  "background": "background:vanilla/28",
+  "art": {
+    "legend": {
+      "..": "000.0 000.0 000.0 000.0",
+      "aa": "204.0 1e5.0 224.0 225.0",
+      "ab": "2ae.0 2ad.0 2ce.0 2cd.0",
+      "ac": "2ae.0 2ceh0 2ce.0 2adh0",
+      "ad": "2ceh0 2cdh0 2adh0 2aeh0",
+      "ae": "1e5h0 204h0 225h0 224h0",
+      "af": "166.0 2ad.0 1e5.0 2ae.0",
+      "ag": "2ae.0 2ac.0 2ce.0 2cc.0",
+      "ah": "2ad.0 2cdh0 2cd.0 2afh0",
+      "ai": "2cdh0 2ceh0 2aeh0 2b1.0",
+      "aj": "2adh0 166h0 2aeh0 1e5h0",
+      "ak": "000h0 000.0 204h0 000.0",
+      "al": "000h0 224.0 000h0 244.0",
+      "am": "2ad.0 2ae.0 2cd.0 2ce.0",
+      "an": "2af.0 2b0.0 2cf.0 2d0.0",
+      "ao": "2b1.0 2aeh0 2d1.0 2ceh0",
+      "ap": "2adh0 225h0 2cdh0 245h0",
+      "aq": "224h0 000.0 244h0 000.0",
+      "ar": "000h0 204.0 000h0 224.0",
+      "as": "226.0 227.0 246.0 247.0",
+      "at": "28f.0 2a5.0 2c4.0 2c5.0",
+      "au": "286.0 207h0 286.0 227h0",
+      "av": "206h0 1e5h0 226h0 225h0",
+      "aw": "204h0 000.0 224h0 000.0",
+      "ax": "000h0 244.0 000h0 000h0",
+      "ay": "265.0 266.0 000.0 000.0",
+      "az": "2c4.0 2a5.0 284.0 2a5.0",
+      "aA": "2a6.0 247h0 2a6.0 267h0",
+      "aB": "246h0 245h0 266h0 265h0",
+      "aC": "244h0 000.0 000.0 000.0",
+      "aE": "140.1 141.1 165h1 164h1",
+      "aF": "0e2.1 023.1 102.1 043.1",
+      "aG": "024.1 025.1 044.1 045.1",
+      "aI": "144.1 145.1 164.1 165.1",
+      "aJ": "000h0 000h0 288h0 287h0",
+      "aK": "2a4.0 2a5.0 2c4.0 2c5.0",
+      "aL": "2a6.0 000.0 2a6.0 000.0",
+      "aM": "027h1 026h1 047h1 046h1",
+      "aN": "025h1 024h1 045h1 044h1",
+      "aO": "023h1 0e2h1 043h1 102h1",
+      "aP": "026.1 027.1 046.1 047.1",
+      "aQ": "2a8h0 2a7h0 000h0 000h0",
+      "aR": "284.0 2a5.0 2a4.0 2a5.0",
+      "aS": "286.0 288.0 2a6.0 2a8.0",
+      "aT": "000.0 000.0 2a9.0 000.0",
+      "aU": "000.2 000.2 0eb.2 0eb.2",
+      "aV": "000.2 000.2 000.2 0eb.2",
+      "aW": "1ca.2 1cb.2 1ea.2 1eb.2",
+      "aX": "067h1 066h1 087h1 086h1",
+      "aY": "0a3h1 0a2h1 0c3h1 0c2h1",
+      "aZ": "0a5h1 0a4h1 0c5h1 0c4h1",
+      "a0": "061h1 060h1 081h1 080h1",
+      "a1": "2a6.0 000.0 2c6.0 000.0",
+      "a2": "000.2 000.2 014.2 015.2",
+      "a3": "016.2 017.2 036.2 037.2",
+      "a4": "018.2 019.2 038.2 039.2",
+      "a5": "10a.2 10d.2 12c.2 12d.2",
+      "a6": "019h2 018h2 039h2 038h2",
+      "a7": "017h2 016h2 037h2 036h2",
+      "a8": "000.0 000.0 015h2 014h2",
+      "a9": "060.1 061.1 080.1 081.1",
+      "ba": "10c.2 10b.2 12a.2 12b.2",
+      "bb": "2c4.0 2a5.0 2c7.0 2c8.0",
+      "bc": "2c6.0 000h0 2c9.0 0eb.2",
+      "bd": "10c.2 10d.2 12e.2 12f.2",
+      "be": "056.2 057.2 076.2 077.2",
+      "bf": "058.2 059.2 078.2 079.2",
+      "bg": "14a.2 14b.2 16a.2 16b.2",
+      "bh": "14c.2 14d.2 16c.2 16d.2",
+      "bi": "059h2 058h2 079h2 078h2",
+      "bj": "057h2 056h2 077h2 076h2",
+      "bk": "0a3h1 0a2h1 147h1 146h1",
+      "bl": "0a5h1 0a4h1 147h1 146h1",
+      "bm": "0a7h1 0a6h1 0c7h1 0c6h1",
+      "bn": "0a1h1 0a0h1 0c1h1 0c0h1",
+      "bo": "14a.2 150h2 16a.2 170h2",
+      "bp": "10e.2 10f.2 12c.2 12d.2",
+      "bq": "10c.2 0ec.2 12e.2 12f.2",
+      "br": "14e.2 14f.2 16a.2 16b.2",
+      "bs": "18a.2 18b.2 1aa.2 1ab.2",
+      "bt": "18c.2 18d.2 1ac.2 1ad.2",
+      "bu": "10dh2 10ah2 12dh2 12ch2",
+      "bv": "10bh2 10ch2 12bh2 12ah2",
+      "bw": "0ech2 10ah2 12dh2 12ch2",
+      "bx": "0ech2 10ch2 12fh2 12eh2",
+      "by": "18e.2 18f.2 1ae.2 1af.2",
+      "bz": "190.2 191.2 1b0.2 1b1.2",
+      "bA": "14dh2 14ch2 16dh2 16ch2",
+      "bB": "14bh2 14ah2 16bh2 16ah2",
+      "bC": "14fh2 14eh2 16bh2 16ah2"
+    },
+    "rows": [
+      "......................................aaabacadae......................aaabacadae................................",
+      "......................................afagahaiajak....................afagahaiajak..............................",
+      "......................................alamanaoapaq....................alamanaoapaq..............................",
+      "......................................arasatauavaw....................arasatauavaw..............................",
+      "......................................axayazaAaBaC........aEaFaGaI....axayazaAaBaC..............................",
+      "......................aEaFaI............aJaKaL..........................aJaKaL..................aMaNaOaP........",
+      "........................................aQaRaSaT..........aUaVaWaU......aQaRaSaT..........aMaNaOaXaYaZa0........",
+      "....................aUaUaWaU..............aKa1......aUa2a3a4a5a5a6a7a8....aKa1......aMaNaOaXaYaZa9aYaZa0........",
+      "........aWaVaUaUa2a3a4baa5a6a7a8aUaUaU..aVbbbcaWaUa2a3bdbebfbgbhbibja6a7aVbbbcaWaUaOaXbkblbmbkblbmbkblbn......aV",
+      "baa5baa5baa5a5a5bdbebfbobobibjbpa5bqbaa5a5a5a5a5a5bdbebrbhbsbsbtbsbhbobja6baa5bubvbwbxbubvbubvbubvbwbxbua5a5a5a5",
+      "bgbhbgbhbgbhbgbsbrbhbsbsbtbsbtbsbtbsbhbgbhbgbgbhbsbrbhbsbtbybybzbybzbybsbtbsbhbAbBbAbCbAbBbAbBbAbBbAbCbAbhbsbhbg",
+      "bsbtbsbtbsbtbsbtbzbybybybzbybzbybzbsbtbsbtbsbsbtbsbzbybybzbybybzbybzbybybzbsbtbsbhbsbhbgbhbrbhbgbhbgbhbgbtbsbtbs",
+      "bybzbybzbybzbybzbzbybybybzbybzbybzbybzbybzbybybzbybzbybybzbybybzbybzbybybzbybzbsbhbsbtbsbtbsbtbsbtbsbtbsbzbybzby"
+    ]
+  },
+  "collision": {
+    "legend": {
+      ".": "air",
+      "#": "solid",
+      "a": "floor_1_2_riseR_low",
+      "b": "floor_1_2_riseR_high",
+      "c": "floor_1_2_riseL_high",
+      "d": "floor_1_2_riseL_low",
+      "D": "door"
+    },
+    "rows": [
+      "........................................................",
+      "........................................................",
+      "........................................................",
+      "........................................................",
+      ".............................####.......................",
+      "...........###..................................####....",
+      ".............................................#######....",
+      "...........................ab####cd.......##########....",
+      "..D.....ab####cd.........ab########cd..#############..D.",
+      "########################################################",
+      "########################################################",
+      "########################################################",
+      "########################################################"
+    ]
+  },
+  "doors": [
+    {
+      "to": "room:rainbow_annex/cliffside",
+      "arrive": {
+        "x": 14,
+        "y": 7
+      },
+      "cells": [
+        [
+          2,
+          8
+        ]
+      ]
+    },
+    {
+      "to": "room:rainbow_route/115",
+      "arrive": {
+        "x": 4,
+        "y": 8
+      },
+      "cells": [
+        [
+          54,
+          8
+        ]
+      ],
+      "note": "one-way exit into the lumber yard (Rainbow Route 115), onto its left door"
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_to_cliffside",
+      "type": "door",
+      "x": 40,
+      "y": 136,
+      "despawnBit": 1
+    },
+    {
+      "id": "door_to_lumber_yard",
+      "type": "door",
+      "x": 872,
+      "y": 136,
+      "despawnBit": 2
+    },
+    {
+      "id": "dee_hill",
+      "type": "waddle_dee_1",
+      "x": 200,
+      "y": 120,
+      "despawnBit": 3,
+      "params": {
+        "movePattern": 1
+      }
+    },
+    {
+      "id": "soda_on_log",
+      "type": "pop_soda",
+      "x": 200,
+      "y": 72,
+      "despawnBit": 4
+    },
+    {
+      "id": "burt",
+      "type": "bronto_burt",
+      "x": 424,
+      "y": 56,
+      "despawnBit": 5
+    },
+    {
+      "id": "kibble_on_log",
+      "type": "sir_kibble",
+      "x": 488,
+      "y": 56,
+      "despawnBit": 6,
+      "params": {
+        "throwRate": 1
+      }
+    },
+    {
+      "id": "doo_steps",
+      "type": "waddle_doo",
+      "x": 696,
+      "y": 104,
+      "despawnBit": 7
+    },
+    {
+      "id": "food_top",
+      "type": "small_food",
+      "x": 808,
+      "y": 72,
+      "despawnBit": 8
+    }
+  ]
+}

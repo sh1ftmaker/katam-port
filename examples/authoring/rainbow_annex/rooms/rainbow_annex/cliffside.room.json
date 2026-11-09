@@ -1,0 +1,253 @@
+{
+  "format": "katam-room/1",
+  "id": "room:rainbow_annex/cliffside",
+  "name": "Rainbow Annex: cliffside",
+  "description": "Original vertical room in the Rainbow Route forest look. A climb up a sheer cliff: ladder from the floor to the first ledge, floating grass ledges and brick platforms zig-zagging up. The bottom door returns to the trailhead, a side door on the left ledge leads into the hollow (reward), the top door leads out to the pine hills.",
+  "size": {
+    "width": 16,
+    "height": 33
+  },
+  "music": "mus_rainbow_route",
+  "tileset": "tileset:vanilla/0",
+  "palette": "palette:vanilla/0",
+  "background": "background:vanilla/1",
+  "art": {
+    "legend": {
+      ".": "000.0 000.0 000.0 000.0",
+      "a": "000.0 000.0 101.0 002.0",
+      "b": "000.0 000.0 001.0 002.0",
+      "c": "021.0 022.0 04c.0 04d.0",
+      "d": "02e.0 026.0 04e.0 010.0",
+      "e": "021.0 022.0 019.0 01a.0",
+      "f": "025.0 026.0 04e.0 086.0",
+      "g": "06c.0 06d.0 08c.0 08d.0",
+      "h": "06e.0 0a6.0 08e.0 08f.0",
+      "i": "0ac.0 0ad.0 011.0 0cd.0",
+      "j": "196.0 197.0 000.0 000.0",
+      "k": "063.0 064.0 000.0 000.0",
+      "l": "031.0 0ed.0 051.0 10d.0",
+      "m": "132.0 133.0 18e.0 153.0",
+      "n": "000.0 1fe.0 000.0 020h0",
+      "o": "12c.0 12d.0 110.0 111.0",
+      "p": "12e.0 12f.0 112.0 113.0",
+      "q": "211.1 212.1 000.0 000.0",
+      "r": "0ae.0 0af.0 0ce.0 0cf.0",
+      "s": "0ee.0 068.0 10e.0 10f.0",
+      "t": "000.0 000.0 005.0 006.0",
+      "u": "000.0 0dd.0 000.0 0fd.0",
+      "v": "132.0 133.0 152.0 153.0",
+      "w": "025.0 026.0 01b.0 184.0",
+      "x": "000.0 1be.0 000.0 1de.0",
+      "y": "0ee.0 17a.0 178.0 179.0",
+      "z": "03b.0 1a4.0 0ce.0 05c.0",
+      "A": "170.0 133.0 190.0 153.0",
+      "B": "000.0 000.0 094.0 040.0",
+      "C": "000.0 000.0 005.0 164.0",
+      "E": "10c.0 10d.0 12c.0 12d.0",
+      "F": "0ee.0 16b.0 178.0 179.0",
+      "G": "0b0.0 0b1.0 0d0.0 016.0",
+      "I": "0b2.0 0b3.0 0d2.0 0d3.0",
+      "J": "20f.2 210.2 0de.3 0deh3",
+      "K": "031.0 0ed.0 176.0 177.0",
+      "L": "0fe.3 0feh3 0fe.3 0feh3",
+      "M": "065.0 066.0 000.0 000.0",
+      "N": "000.0 000.0 094.0 095.0",
+      "O": "000.0 000.0 091.0 092.0",
+      "P": "09fh1 09eh1 0bfh1 0beh1",
+      "Q": "000.0 000.0 003.0 004.0",
+      "R": "0fe.3 0feh3 16f.3 16fh3",
+      "S": "03ah1 039h1 05ah1 059h1",
+      "T": "000.0 000.0 092.0 091.0",
+      "U": "0f0.0 036.0 0e3.0 056.0",
+      "V": "108.0 136.0 128.0 156.0",
+      "W": "148.0 149.0 1a2.0 1a3.0",
+      "X": "1eb.0 1b5.0 1a0.0 1a1.0",
+      "Y": "0c3.0 0f5.0 0e3.0 115.0",
+      "Z": "0f6.0 0f7.0 116.0 117.0",
+      "0": "0a0.0 0a1.0 0c0.0 0c1.0",
+      "1": "0a2.0 0a5.0 0c2.0 0c5.0"
+    },
+    "rows": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      ".........abbb.b.",
+      ".........ccccdef",
+      ".........gghghih",
+      ".........jjkk.lm",
+      ".............nop",
+      ".......qqqq...ir",
+      "..............ls",
+      "..............op",
+      ".b.bbt.......uiv",
+      "dewccd.......xly",
+      "hizggh........iz",
+      ".kjk..........ls",
+      ".....qqqq....xop",
+      "...........ab.ir",
+      "...........ccdlA",
+      "B.bCbbt....gghEF",
+      "GIewccdJ...jjxii",
+      "KzizgghL.....nol",
+      ".MjMjj.L......ir",
+      ".......L......ls",
+      ".......L......op",
+      ".......L.....uiv",
+      "NON.PQ.RbOStT.ly",
+      "GIGGIGGIGGIGIGop",
+      "UVUUVUUVUUVUVUUV",
+      "WXWXWXXWXXWXWXXW",
+      "VUVUVUVYZ01UVUUV"
+    ]
+  },
+  "collision": {
+    "legend": {
+      ".": "air",
+      "#": "solid",
+      "=": "platform",
+      "H": "ladder",
+      "T": "ladder_top",
+      "D": "door"
+    },
+    "rows": [
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      "................",
+      ".............D..",
+      ".........#######",
+      ".........#######",
+      "..............##",
+      "..............##",
+      ".......====...##",
+      "..............##",
+      "..............##",
+      "..D...........##",
+      "######........##",
+      "######........##",
+      "..............##",
+      ".....====.....##",
+      "..............##",
+      "...........#####",
+      "...........#####",
+      "#######T......##",
+      "#######H......##",
+      ".......H......##",
+      ".......H......##",
+      ".......H......##",
+      ".......H......##",
+      "...D...H......##",
+      "################",
+      "################",
+      "################",
+      "################"
+    ]
+  },
+  "doors": [
+    {
+      "to": "room:rainbow_annex/trailhead",
+      "arrive": {
+        "x": 48,
+        "y": 9
+      },
+      "cells": [
+        [
+          3,
+          28
+        ]
+      ]
+    },
+    {
+      "to": "room:rainbow_annex/hollow",
+      "arrive": {
+        "x": 19,
+        "y": 9
+      },
+      "cells": [
+        [
+          2,
+          14
+        ]
+      ]
+    },
+    {
+      "to": "room:rainbow_annex/pine_hills",
+      "arrive": {
+        "x": 3,
+        "y": 9
+      },
+      "cells": [
+        [
+          13,
+          6
+        ]
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_to_trailhead",
+      "type": "door",
+      "x": 56,
+      "y": 456,
+      "despawnBit": 1
+    },
+    {
+      "id": "door_to_hollow",
+      "type": "door",
+      "x": 40,
+      "y": 232,
+      "despawnBit": 2
+    },
+    {
+      "id": "door_to_pine_hills",
+      "type": "door",
+      "x": 216,
+      "y": 104,
+      "despawnBit": 3
+    },
+    {
+      "id": "dee_ledge",
+      "type": "waddle_dee_1",
+      "x": 56,
+      "y": 344,
+      "despawnBit": 4,
+      "params": {
+        "movePattern": 1
+      }
+    },
+    {
+      "id": "burt",
+      "type": "bronto_burt",
+      "x": 152,
+      "y": 248,
+      "despawnBit": 5
+    },
+    {
+      "id": "doo_ledge",
+      "type": "waddle_doo",
+      "x": 216,
+      "y": 312,
+      "despawnBit": 6
+    },
+    {
+      "id": "scarfy",
+      "type": "scarfy",
+      "x": 184,
+      "y": 152,
+      "despawnBit": 7
+    },
+    {
+      "id": "food_bricks",
+      "type": "small_food",
+      "x": 136,
+      "y": 168,
+      "despawnBit": 8
+    }
+  ]
+}

@@ -55,7 +55,7 @@ export function parseScript(text) {
     if (!l || l.startsWith('#') || l.startsWith('katam-input') || l.startsWith('frames')) continue;
     let m;
     if ((m = /^k\s+(-?\d+)\s+([0-9a-fA-F]+)$/.exec(l))) out.push([Number(m[1]), parseInt(m[2], 16)]);
-    else if ((m = /^hold\s+([0-9a-fA-Fx]+)\s+(-?\d+)\s+(-?\d+)$/.exec(l))) { out.push([Number(m[2]), Number(m[1])]); out.push([Number(m[3]), 0]); }
+    else if ((m = /^hold\s+([0-9a-fA-Fx]+)\s+(-?\d+)\s+(-?\d+)$/.exec(l))) { out.push([Number(m[2]), parseInt(m[1].replace(/^0x/i, ''), 16)]); out.push([Number(m[3]), 0]); }   // MASK is hex, like k's
     else throw new Error(`input script: cannot read "${l}" (k FRAME HEXMASK, or hold MASK FROM TO; frames count from arrival)`);
   }
   return out.sort((a, b) => a[0] - b[0]);

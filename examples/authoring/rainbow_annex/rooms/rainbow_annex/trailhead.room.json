@@ -1,0 +1,204 @@
+{
+  "format": "katam-room/1",
+  "id": "room:rainbow_annex/trailhead",
+  "name": "Rainbow Annex: trailhead",
+  "description": "Original room in the Rainbow Route forest look (tileset/palette 0, background 1). The way in: flat cobbled ground, a low mound, a grassy 1:1 hill whose top runs on as a ledge over a short tunnel (two paths: under it past a Waddle Doo, or over it past a Sparky, with bricks and food above), a step, and the door into the cliffside. The left door returns to Rainbow Route 101 (one-way: 101 has no door here unless a mod adds one).",
+  "size": {
+    "width": 50,
+    "height": 13
+  },
+  "music": "mus_rainbow_route",
+  "tileset": "tileset:vanilla/0",
+  "palette": "palette:vanilla/0",
+  "background": "background:vanilla/1",
+  "art": {
+    "legend": {
+      "..": "000.0 000.0 000.0 000.0",
+      "aa": "211.1 212.1 000.0 000.0",
+      "ab": "000.0 000.0 000.0 00d.0",
+      "ac": "000.0 000.0 092.0 091.0",
+      "ad": "000.0 000.0 003.0 004.0",
+      "ae": "000.0 000.0 001.0 002.0",
+      "af": "000.0 000.0 005.0 164.0",
+      "ag": "000.0 000.0 005.0 006.0",
+      "ah": "000h0 000h0 000h0 226h0",
+      "ai": "02c.0 02d.0 04c.0 04d.0",
+      "aj": "122.0 123.0 142.0 143.0",
+      "ak": "124.0 125.0 144.0 145.0",
+      "al": "0b2.0 0b3.0 0d2.0 285.0",
+      "am": "021.0 022.0 019.0 01a.0",
+      "an": "025.0 026.0 01b.0 184.0",
+      "ao": "021.0 022.0 04c.0 04d.0",
+      "ap": "02e.0 026.0 04e.0 010.0",
+      "aq": "0b2.0 0b3.0 0d2.0 0d3.0",
+      "ar": "295.0 296.0 2b5.0 2b6.0",
+      "as": "2b3.0 2a5.0 2d3.0 2c5.0",
+      "at": "0ac.0 0ad.0 011.0 0cd.0",
+      "au": "03b.0 1a4.0 0ce.0 05c.0",
+      "av": "06c.0 06d.0 08c.0 08d.0",
+      "aw": "06e.0 0a6.0 08e.0 08f.0",
+      "ax": "000.0 000.0 101.0 002.0",
+      "ay": "000.0 000.0 0c6.0 0c7.0",
+      "az": "000.0 000.0 092.0 094.0",
+      "aA": "000.0 000.0 060.0 13d.0",
+      "aB": "000.0 000.0 202.0 000.0",
+      "aC": "2d5.0 2d6.0 2f5.0 2f6.0",
+      "aE": "05e.0 213.0 000.0 000.0",
+      "aF": "196.0 197.0 000.0 000.0",
+      "aG": "065.0 066.0 000.0 000.0",
+      "aI": "000.0 009.0 000.0 0dd.0",
+      "aJ": "02e.0 02f.0 04e.0 04f.0",
+      "aK": "027.0 000.0 000.0 000.0",
+      "aL": "000.0 000.0 094.0 040.0",
+      "aM": "000.0 000.0 13e.0 094.0",
+      "aN": "000.0 000.0 094.0 04b.0",
+      "aO": "000.0 0e5.0 104.0 105.0",
+      "aP": "0e6.0 0e7.0 106.0 107.0",
+      "aQ": "0b0.0 0b1.0 0d0.0 016.0",
+      "aR": "222.0 223.0 242.0 243.0",
+      "aS": "224.0 000.0 244.0 245.0",
+      "aT": "000.0 000.0 091.0 092.0",
+      "aU": "000.0 000.0 094.0 095.0",
+      "aV": "000.0 078.0 094.0 098.0",
+      "aW": "070.0 000.0 090.0 091.0",
+      "aX": "0b4.0 0b1.0 0a3.0 0d5.0",
+      "aY": "0b2.0 024.0 0d6.0 0d7.0",
+      "aZ": "0f0.0 036.0 0e3.0 056.0",
+      "a0": "108.0 136.0 128.0 156.0",
+      "a1": "1c5.0 1c6.0 05d.0 01a.0",
+      "a2": "023.0 024.0 043.0 044.0",
+      "a3": "031.0 0ed.0 051.0 10d.0",
+      "a4": "132.0 133.0 18e.0 153.0",
+      "a5": "0f6.0 0f7.0 116.0 117.0",
+      "a6": "0a0.0 0a1.0 0c0.0 0c1.0",
+      "a7": "1eb.0 1b5.0 1a0.0 1a1.0",
+      "a8": "148.0 149.0 1a2.0 1a3.0",
+      "a9": "0e0.0 0e1.0 1e1.0 1e2.0",
+      "ba": "0a2.0 0a5.0 0c2.0 0c5.0",
+      "bb": "0c3.0 0f5.0 0e3.0 115.0"
+    },
+    "rows": [
+      "....................................................................................................",
+      "....................................................................................................",
+      "......................................................aaaaaaaa......................................",
+      "....................................................................................................",
+      "........................................................abacadacaeaeaeafaeaeag......................",
+      "......................................................ahaiajakalamamamanaoaoap......................",
+      "....................................................ahaiakaqarasatatatauavavaw......axag............",
+      "........................ayaeagazaAaB..............ahaiakaraCaCas..aEaFaGaFaFaE....aIamaJaK..........",
+      "aL..aM..agazaLazazadaNaOaPaoaQaqaqaRaSaLaMaTaLaAadaiakaraCararas..agaUazaUaTazaL..aVatawaWaTaL..azaM",
+      "aQaqaQaqaQaqaQaqaQaqaXaYavavaZa0aZa1amaQaQaqaQaqa2akaraCaCaraCasaQaqaQaqaQaQaqaQaqaQa3a4aQaqaQaqaqaQ",
+      "aZa0aZa0aZa0aZa0aZa0aZa5a6aZa0aZaZaZaZaZaZa0aZa0aZaraCaCaCararasaZa0aZa0aZaZa0aZa0aZa0a6aZa0aZa0aZaZ",
+      "a7a8a7a8a7a8a7a8a7a8a7a7a8a7a8a7a7a8a7a7a7a8a7a8a7a7a8a7a8a7a7a8a7a8a7a8a7a7a8a7a8a7a8a9a7a8a7a8a7a7",
+      "aZa0aZa0baaZaZa0bba5bbaZa0baaZa0aZa0baaZa0baaZa0aZaZa0aZa0aZa0baaZa0aZa0baaZa0aZa0baaZa0a0bbaZa0aZa0"
+    ]
+  },
+  "collision": {
+    "legend": {
+      ".": "air",
+      "#": "solid",
+      "=": "platform",
+      "/": "floor_1_1_riseR",
+      "a": "floor_1_2_riseR_low",
+      "b": "floor_1_2_riseR_high",
+      "c": "floor_1_2_riseL_high",
+      "d": "floor_1_2_riseL_low",
+      "D": "door"
+    },
+    "rows": [
+      "..................................................",
+      "..................................................",
+      "...........................====...................",
+      "..................................................",
+      "..................................................",
+      "............................/##########...........",
+      ".........................../###########...........",
+      "........................../#####..........##......",
+      "...D.......ab####cd....../######..........##...D..",
+      "##################################################",
+      "##################################################",
+      "##################################################",
+      "##################################################"
+    ]
+  },
+  "doors": [
+    {
+      "to": "room:rainbow_route/101",
+      "arrive": {
+        "x": 6,
+        "y": 9
+      },
+      "cells": [
+        [
+          3,
+          8
+        ]
+      ],
+      "note": "back to Rainbow Route 101"
+    },
+    {
+      "to": "room:rainbow_annex/cliffside",
+      "arrive": {
+        "x": 4,
+        "y": 29
+      },
+      "cells": [
+        [
+          47,
+          8
+        ]
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_to_101",
+      "type": "door",
+      "x": 56,
+      "y": 136,
+      "despawnBit": 1
+    },
+    {
+      "id": "door_to_cliffside",
+      "type": "door",
+      "x": 760,
+      "y": 136,
+      "despawnBit": 2
+    },
+    {
+      "id": "dee",
+      "type": "waddle_dee_1",
+      "x": 328,
+      "y": 136,
+      "despawnBit": 3
+    },
+    {
+      "id": "doo_tunnel",
+      "type": "waddle_doo",
+      "x": 584,
+      "y": 136,
+      "despawnBit": 4
+    },
+    {
+      "id": "burt",
+      "type": "bronto_burt",
+      "x": 568,
+      "y": 40,
+      "despawnBit": 5
+    },
+    {
+      "id": "food_bricks",
+      "type": "small_food",
+      "x": 472,
+      "y": 24,
+      "despawnBit": 6
+    },
+    {
+      "id": "sparky",
+      "type": "sparky",
+      "x": 584,
+      "y": 72,
+      "despawnBit": 7
+    }
+  ]
+}

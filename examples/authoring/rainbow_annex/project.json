@@ -1,0 +1,11 @@
+{
+  "format": "katam-project/1",
+  "id": "examples.rainbow_annex",
+  "name": "Rainbow Annex (example)",
+  "description": "Four original rooms on top of the vanilla game in the style of Rainbow Route, hand-composed from its own pieces (CC0): trailhead (forest) -> cliffside (vertical climb) -> hollow (side room with a chest) and pine hills (lumber-yard look) -> one-way exit onto the left door of Rainbow Route 115. Entering: the trailhead's left door leads back to Rainbow Route 101; a natural entrance is a door added to 101 on its flat starting ground (around cell 5,8, before the first hill), arriving at the trailhead's left door: arrive {x: 4, y: 9}. Not included here, because that means copying room 101's tilemap into the project.",
+  "base": "vanilla",
+  "authors": [
+    "katam-port"
+  ],
+  "license": "CC0-1.0"
+}

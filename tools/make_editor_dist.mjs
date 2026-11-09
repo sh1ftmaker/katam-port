@@ -40,7 +40,7 @@ const dirJson = (d) => Object.fromEntries(fs.readdirSync(d).filter((f) => f.ends
 const examples = {};
 const ex = R('examples/authoring');
 const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = `${d}/${e.name}`; if (e.isDirectory()) walk(p); else if (p.endsWith('.json')) examples[path.relative(ex, p)] = fs.readFileSync(p, 'utf8'); } };
-walk(`${ex}/sky_garden`);
+for (const e of fs.readdirSync(ex, { withFileTypes: true })) if (e.isDirectory()) walk(`${ex}/${e.name}`);   // every example project, keyed <project>/<path>
 const dataText = JSON.stringify({
   format: 'katam-editor-data/1',
   vocab: JSON.parse(fs.readFileSync(R('assets/schema/authoring/vocab.json'), 'utf8')),

@@ -1,0 +1,157 @@
+{
+  "format": "katam-room/1",
+  "id": "room:rainbow_annex/hollow",
+  "name": "Rainbow Annex: hollow",
+  "description": "Original side room in the Rainbow Route forest look: a hollow inside a giant tree (vine-wrapped log ceiling, trunk walls). A mossy mound with a chest (Maxim Tomato) guarded by a Sir Kibble, and a pop soda on a brick shelf. One door, back to the cliffside.",
+  "size": {
+    "width": 22,
+    "height": 13
+  },
+  "music": "mus_rainbow_route",
+  "tileset": "tileset:vanilla/0",
+  "palette": "palette:vanilla/0",
+  "background": "background:vanilla/1",
+  "art": {
+    "legend": {
+      ".": "000.0 000.0 000.0 000.0",
+      "a": "12e.0 0bc.0 112.0 0dc.0",
+      "b": "06e.0 0a6.0 08e.0 08f.0",
+      "c": "15c.2 15d.2 17c.2 17d.2",
+      "d": "15e.2 15f.2 17e.2 17f.2",
+      "e": "031.0 0ed.0 051.0 10d.0",
+      "f": "03b.0 1a4.0 0ce.0 05c.0",
+      "g": "0fb.0 0fc.0 11b.0 11c.0",
+      "h": "0ce.0 0cf.0 0ee.0 1bc.0",
+      "i": "19c.2 19d.2 000.0 000.0",
+      "j": "19e.2 19f.2 000.0 000.0",
+      "k": "000.0 1be.0 000.0 1de.0",
+      "l": "0ee.0 068.0 10e.0 10f.0",
+      "m": "0ae.0 0af.0 0ce.0 0cf.0",
+      "n": "10e.0 1dc.0 12e.0 1fc.0",
+      "o": "0c4.0 000.0 0e4.0 000.0",
+      "p": "000.0 1fe.0 000.0 020h0",
+      "q": "12c.0 12d.0 110.0 111.0",
+      "r": "12e.0 12f.0 112.0 113.0",
+      "s": "0ee.0 07c.0 10e.0 09c.0",
+      "t": "0ac.0 0ad.0 011.0 0cd.0",
+      "u": "132.0 2dc.0 18e.0 2fc.0",
+      "v": "067.0 000.0 087.0 000.0",
+      "w": "211.1 212.1 000.0 000.0",
+      "x": "108.0 136.0 128.0 156.0",
+      "y": "0ee.0 2dd.0 178.0 2fd.0",
+      "z": "087v0 000.0 067v0 000.0",
+      "A": "148.0 149.0 1a2.0 1a3.0",
+      "B": "2da.0 2db.0 08e.0 2fb.0",
+      "C": "070.0 000.0 090.0 091.0",
+      "E": "000.0 000.0 003.0 004.0",
+      "F": "000.0 000.0 005.0 006.0",
+      "G": "000.0 000.0 092.0 094.0",
+      "I": "000.0 000.0 13e.0 094.0",
+      "J": "000.0 000.0 060.0 13d.0",
+      "K": "000.0 0dd.0 000.0 0fd.0",
+      "L": "132.0 133.0 152.0 153.0",
+      "M": "132.0 133.0 18e.0 153.0",
+      "N": "0b0.0 0b1.0 0d0.0 016.0",
+      "O": "0b2.0 0b3.0 0d2.0 0d3.0",
+      "P": "205.0 000.0 225.0 226.0",
+      "Q": "0ee.0 17a.0 178.0 179.0",
+      "R": "0f0.0 036.0 0e3.0 056.0",
+      "S": "023.0 024.0 080.0 081.0",
+      "T": "000.0 000.0 094.0 040.0",
+      "U": "000.0 000.0 091.0 092.0",
+      "V": "000.0 1fe.0 094.0 040.0",
+      "W": "1eb.0 1b5.0 1a0.0 1a1.0",
+      "X": "0e0.0 0e1.0 1e1.0 1e2.0",
+      "Y": "0a0.0 0a1.0 0c0.0 0c1.0",
+      "Z": "0a2.0 0a5.0 0c2.0 0c5.0"
+    },
+    "rows": [
+      "abcdcdcdcdcdcdcdccdcef",
+      "ghijijijijijijijiijkel",
+      "mno................pqr",
+      "sbo.................tm",
+      "auv.......wwww......el",
+      "xyz.................qr",
+      "ABCEFGIJ...........KtL",
+      "xMNONONOP..........keQ",
+      "RxRxRxRxSPTUTGTGTG.Vtf",
+      "WAWAWAWAXSNONONONOONel",
+      "RxRxRxYRxYRxRxRxRxRRxY",
+      "WAWAWAXWAXWAWAWAWAWWAX",
+      "RxRxZRxRxxRxRxRxRxZRRx"
+    ]
+  },
+  "collision": {
+    "legend": {
+      ".": "air",
+      "#": "solid",
+      "=": "platform",
+      "~": "floor_1_1_riseL",
+      "D": "door"
+    },
+    "rows": [
+      "######################",
+      "##..................##",
+      "##..................##",
+      "##..................##",
+      "##........====......##",
+      "##..................##",
+      "##..................##",
+      "########~...........##",
+      "#########~........D.##",
+      "######################",
+      "######################",
+      "######################",
+      "######################"
+    ]
+  },
+  "doors": [
+    {
+      "to": "room:rainbow_annex/cliffside",
+      "arrive": {
+        "x": 3,
+        "y": 15
+      },
+      "cells": [
+        [
+          18,
+          8
+        ]
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "door_to_cliffside",
+      "type": "door",
+      "x": 296,
+      "y": 136,
+      "despawnBit": 1
+    },
+    {
+      "id": "chest",
+      "type": "small_chest",
+      "x": 56,
+      "y": 104,
+      "despawnBit": 2,
+      "params": {
+        "contents": 2,
+        "chestId": 2
+      }
+    },
+    {
+      "id": "kibble",
+      "type": "sir_kibble",
+      "x": 104,
+      "y": 104,
+      "despawnBit": 3
+    },
+    {
+      "id": "soda",
+      "type": "pop_soda",
+      "x": 184,
+      "y": 56,
+      "despawnBit": 4
+    }
+  ]
+}
