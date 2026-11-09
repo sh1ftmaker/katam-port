@@ -36,6 +36,12 @@ The scenarios:
                   despawn windows, platform/view.c) at 0.5x zoom 21:9
                   (746x320) from frame 1, narrowed to 400x224 and then to the
                   original 240x160 mid-run, and widened back.
+  tutorial_walk   boot a fresh save into the tutorial room (803), then float
+                  right across it and back left, with the session view at
+                  0.5x zoom 21:9 (744x320) from frame 1: the camera crosses
+                  the room both ways and stops at both ends, which is where
+                  the zoomed-out parallax used to flicker (docs/RENDERER.md,
+                  "Parallax at any zoom").
 """
 import argparse
 from pathlib import Path
@@ -63,6 +69,16 @@ def play(keys, start, end):
             m |= A
         if (f - start) % 200 in range(150, 156):
             m = B
+        keys[f] = m
+
+
+def walk(keys, start, end, turn):
+    """Walk right, floating over the clouds, and from `turn` back left."""
+    for f in range(start, end):
+        p = (f - start) % 120
+        m = RIGHT if f < turn else LEFT
+        if p < 70 and p % 10 < 5:
+            m |= A
         keys[f] = m
 
 
@@ -151,6 +167,12 @@ def main():
     write(out / 'wide_view.txt', f, keys, warps, views=views,
           comment='play_rooms with the spawn window sized for a wide view, '
                   'changed mid-run')
+
+    keys = {}
+    boot(keys, 420)
+    walk(keys, 420, 1900, 1150)
+    write(out / 'tutorial_walk.txt', 1900, keys, views=[(1, 744, 320)],
+          comment='boot into the tutorial room, float right across it and back')
 
 
 # A spread of rooms over every area: every eighth room that has an arrival

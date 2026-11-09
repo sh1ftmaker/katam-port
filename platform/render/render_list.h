@@ -65,9 +65,11 @@ typedef struct RlTileLayer {
      * mirrored back in at its own edges rather than wrapping at the block's,
      * which would show the block's unused columns and rows. */
     s32 picW, picH;          /* pixels                                      */
-    /* Added to the screen coordinate of every pixel before sampling: the
-     * parallax term for a view moved off the game camera,
-     * (factor - 1) * viewShift.  Zero for the room layer and for SCREEN. */
+    /* Added to the screen coordinate of every pixel before sampling: for a
+     * parallax layer, what puts the view at its own place in the picture
+     * (rl_build.c, ParallaxAxis: the layer moves at its factor times the
+     * view's motion).  Zero at 240x160, for the room layer (bar a shake)
+     * and for SCREEN. */
     s32 shiftX, shiftY;
     /* ... and a further fraction of a pixel, 1/256 units (0 except in a
      * frame from PortRlPresentFrame: a sub-pixel or interpolated camera). */
@@ -145,8 +147,8 @@ typedef struct RlFrame {
     /* World coordinates of SCREEN (0, 0) -- the room layer's scroll, the
      * game's camera in whole pixels.  0 outside a world frame.  Diagnostics. */
     s32 camX, camY;
-    /* The camera shift the list applied (view centre minus game centre),
-     * after clamping to the room; world items move by -shift. */
+    /* The view's centre minus the game screen's centre, after clamping to
+     * the room.  Diagnostics. */
     s32 shiftX, shiftY;
     /* Outside this rectangle (SCREEN coords) the view has no content: the
      * backend fills it with black. */

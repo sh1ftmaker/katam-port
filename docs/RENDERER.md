@@ -112,13 +112,14 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   showing the backdrop (the old purple void) or the map's far end (the
   wrap): it never shows content the game did not author for that spot.
 * **Streamed windows** end where the map ends (bg.c reads two rows past it).
-* **Parallax.** A picture drawn to fit the room (its 240-px window stays
-  inside it over the camera range) is re-fitted: the wider window slides
-  over the same range of the picture. One that runs off its own end at 240
-  tiles and wraps. One narrower than the view is mirrored. Past its top or
-  bottom (a view taller than the sky: rooms 202, 402, 554 at 0.5x zoom) it
-  is mirrored at the picture's edge; repeating the edge row drew vertical
-  streaks there.
+* **Parallax.** Every parallax layer moves at its factor times the
+  *view's* motion, at any zoom, and is framed so the view's centre shows
+  what the game shows at the screen's; where it can, the framing keeps the
+  view inside the picture over the whole room. Past the picture's left or
+  right end it repeats if the game itself wraps it, and is mirrored
+  otherwise. Past its top or bottom (a view taller than the sky: rooms 202,
+  402, 554 at 0.5x zoom) it is mirrored at the picture's edge; repeating the
+  edge row drew vertical streaks there. See "Parallax at any zoom" below.
 * **HUD**: four corner regions, BG1 and HUD sprites both; see below for
   its size.
 * **Screen shake** (`RequestScreenShake` -> `viewportModX/Y_44/46`, added
@@ -129,6 +130,70 @@ pause, transitions without a room) is drawn at 240x160 and integer-scaled.
   zoom.  At 240x160 the scale is 1 and the picture is the PPU's.  Offsets over 16 px are not a
   shake (the vertical auto-scroll wrap reuses viewportModY_46) and pass
   through unchanged.
+
+### Parallax at any zoom
+
+sub_080019F8 scrolls a parallax record to `A + f * camera` per axis (A the
+room's offset, f from LevelInfo `unkB8/unkBA` or `unk_S16Vec2_B4`). A view of
+another size at world position V samples the layer from
+
+    o(V) = A + f * V + K
+
+(`ParallaxAxis` / `ParallaxOrigin`, rl_build.c), in 1/256 px, in the
+integer build path (from the record's exact scroll, then floored) and in the
+presented path (from the lerped scroll and the presented view) alike. K is
+the framing: `(1 - f) * (240 - W) / 2` puts the view's centre on what the
+game shows at the screen's centre (0 at 240x160: the PPU's picture). When
+the picture is wide enough that the view, moving at rate f over every
+position the view can take in this room (`ViewAt` at the camera rectangle's
+ends), stays inside it, K is moved the least that keeps it there; a
+factor-0 background is then a fixed picture. Otherwise the picture repeats
+past its ends if the game wraps it at 240 (its window runs off the picture
+over the camera range, or the room auto-scrolls it), and is mirrored if not.
+Which of these applies depends on the room, so it is decided once per room
+and layer (re-decided only if the map, rate, camera range or offset change)
+rather than every frame.
+
+Three bugs this replaced:
+
+* **Zoomed-out flicker.** The old `FitAxis` decided repeat / mirror / re-fit
+  every frame from whole-pixel scrolls. For a picture made to fit the room
+  (the tutorial's 360-px sky, f = 32/256; rooms 101, 104, 106, 502) the
+  "does it run off its end" test sits exactly on the boundary, and
+  truncation flipped it between repeat and mirror from one frame to the
+  next, so the whole layer outside the 360-px picture changed every few
+  frames (271 flips in play_rooms at 744x320, 256 in tutorial_walk; 72
+  frames of 300 with more than 2% of the window changing at once, in the
+  presented path too). Mirrored, the columns inside the VRAM window past
+  the picture's end were bg.c's wrapped copy, so the seam also moved with
+  the window; the composite now treats a mirrored layer's samples past the
+  picture as outside the window.
+* **Zoomed-in parallax going the wrong way.** The parallax term was
+  `(f - 1) * (view - wanted view)`, and zoomed in the wanted view is the one
+  that follows Kirby, so the term was 0 and the layer moved with the view
+  (rate 1) whenever Kirby moved inside the 240x160 screen: on screen the
+  background stood still or ran with Kirby while the camera caught up. At
+  120x80 the layer's rate per pixel of view motion measured 2-4 times its
+  factor (room 101: 47/256 for 16; the tutorial: 71/256 for 32), with 48
+  frames in play_rooms where it moved against the view. Now the view's world position is
+  what the rate applies to.
+* **Rate.** The game multiplies `(pos >> 4) * (factor >> 4)`, so the real
+  rate is the factor rounded down to a multiple of 16 (room 101's 27 is 16);
+  the parallax term used the unrounded factor and drifted against the game's
+  own scroll when the view stopped at a room edge.
+
+Measured (`KATAM_RL_LAYERLOG=FILE`: per built frame, per layer mode and
+shift; `KATAM_RL_PRESLOG=FILE`: per present, BG0's origin and the view's
+world position): mode flips 271 -> 0 (play_rooms, 744x320 and 960x400) and
+256 -> 0 (tutorial_walk); the measured rate is now the effective factor in
+every room at 744x320, 960x400, 186x80 and 120x80 (rooms with under ~40 px
+of motion within +-1 px), with no frame moving against the view; in the
+presented path (UI mode, 0.5x and 2x zoom, interpolation at a fake 120 Hz)
+the origin moves at exactly f x the view's motion per present (error under
+0.01 px), where zoomed in it measured 61/256 for f = 32/256. 240x160 stays
+the PPU's (`--compare-log`, play_rooms, warp_sweep, aim, tutorial_walk).
+`tests/recordings/tutorial_walk.txt` (fresh save, the tutorial room, right
+across it and back at 744x320) keeps it under regression.
 
 ### HUD layer
 

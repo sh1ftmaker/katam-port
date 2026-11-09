@@ -22,6 +22,7 @@
  * window, which is what the old widescreen path did.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -740,9 +741,8 @@ void PortRlNoteCorrection(u32 frame)
 static s32 sOutGroup[RL_MAX_SPRITES + 128], sOutWinGroup[RL_MAX_SPRITES + 128];
 
 /* The view rectangle's limits as PortRlBuildFrame worked them out (SCREEN
- * coords), and the parallax layers it re-fitted, to redo both in 1/256 px. */
+ * coords), to redo the view in 1/256 px. */
 static struct { s32 rl, rr, rt, rb; } sViewLim;
-static struct { u8 on; s32 S, f, camMin, camMax, img, native; } sFit[4][2];
 
 static u32 MotHash(const void *owner)
 {
@@ -969,94 +969,119 @@ static s32 Clamp(s32 v, s32 lo, s32 hi)
     return v < lo ? lo : v > hi ? hi : v;
 }
 
-/* A parallax picture is drawn to be seen through a 240-pixel window that
- * slides across it as the camera crosses the room: at the room's left edge
- * the window is at (or near) the picture's left edge, at the right edge near
- * its right.  A wider window, slid by the same rule, runs off both ends --
- * the picture does not tile, and wrapping it shows its right edge abutting
- * its left.  So when the picture was made to fit the room (its 240-pixel
- * window stays inside it over the whole camera range), the wider window is
- * slid over the same range of the picture instead: the parallax rate is
- * re-fitted to the view.  At 240 wide this is the identity.  A picture that
- * does run off its own end at 240 is one that tiles (bg.c's refill wraps it),
- * and keeps wrapping. */
-static int FitAxis(s32 S, s32 f, s32 cam, s32 camMin, s32 camMax, s32 img,
-                   s32 native, s32 view, s32 viewOrg, s32 *shift, u8 *wrap)
-{
-    s32 s0 = S + (f * (camMin - cam)) / 256;     /* layer scroll at camMin */
-    s32 s1 = S + (f * (camMax - cam)) / 256;
-    s32 lo, want;
+/* --- parallax at any view size ---------------------------------------------
+ *
+ * The game scrolls a parallax record to A + f * camera (sub_080019F8: A is
+ * the room's constant offset, f the rate, both per axis).  A view of another
+ * size, at world position V, samples it from
+ *
+ *     o(V) = A + f * V + K
+ *
+ * so the layer moves at f times the *view's* motion -- zoomed in, where the
+ * view follows Kirby inside the 240x160 screen, as much as zoomed out, where
+ * it stops at the room's edges while the game's camera goes on.  K is the
+ * framing: K0 = (1 - f) * (native - view) / 2 puts the view's centre where
+ * the game shows the screen's (0 at 240x160: the PPU's picture).  When the
+ * picture is wide enough that the view, moving at rate f over the whole range
+ * the view can take in this room, never leaves it, K is moved the least that
+ * keeps it inside (a picture made to fit the room keeps fitting at 2x); a
+ * factor-0 background is then a fixed picture.  Otherwise the view runs off
+ * the picture: a picture that the game itself wraps (it runs off its own end
+ * at 240) keeps wrapping, any other is mirrored at its edges.
+ *
+ * Which of the three a layer is depends on the room alone, so it is decided
+ * once (sPar) and not re-tested every frame: the test sits exactly on the
+ * boundary for a picture made to fit, and whole-pixel rounding flipped it
+ * between repeat and mirror from one frame to the next (the zoomed-out
+ * flicker). */
+typedef struct {
+    u8 on;                    /* this axis is a parallax axis this frame     */
+    u8 latched;
+    u8 tiles;                 /* the game wraps it: repeat, never fit       */
+    u16 room;
+    uintptr_t map;
+    s32 img, f, camMin, camMax;
+    s64 A;                    /* 1/256 px, as latched                       */
+    s32 f8;                   /* rate, 8.8                                   */
+    s64 K;                    /* 1/256 px                                    */
+} ParAxis;
+static ParAxis sPar[4][2];
 
-    if (view <= native)
-        return 0;
-    if (s0 > s1) { s32 t = s0; s0 = s1; s1 = t; }
-    if (s0 < 0 || s1 + native > img)
-        return 0;                                /* tiles: keep the wrap */
-    if (img < view) {
-        /* Narrower than the view: it cannot be fitted, and wrapping it puts
-         * its two edges side by side.  Mirror it instead -- the parallax
-         * keeps its motion and the joins are continuous. */
-        *wrap = 2;
-        return 0;
-    }
-    lo = 0;
-    if (s1 > s0)
-        want = lo + (s32)((long long)(S - s0) * (img - view) / (s1 - s0));
-    else
-        want = Clamp(S + viewOrg, 0, img - view);
-    /* The sample point for view pixel 0 is S + viewOrg + shift. */
-    *shift = want - (S + viewOrg);
-    *wrap = 0;
-    return 1;
+/* The rate sub_080019F8 really scrolls at: (pos >> 4) * (factor >> 4). */
+static s32 EffFactor(s32 f)
+{
+    return (f >> 4) * 16;
 }
 
-/* FitAxis in 1/256 px, for PortRlPresentFrame: the layer's exact scroll Sfp
- * and the camera camFp (both 1/256), the view's origin viewOrg (1/256,
- * SCREEN coords), the record's whole-pixel scroll S.  Returns the shift. */
-static s32 FitAxisFp(s64 Sfp, s32 f, s64 camFp, s32 camMin, s32 camMax, s32 img,
-                     s32 view, s64 viewOrg, s32 S)
+/* Where the view goes for a camera at `cam` (world), by PortRlBuildFrame's
+ * rules: `pref` the wanted offset from the camera, the world range [wl, wr)
+ * it may show, never off the native screen (wider) or out of it (narrower). */
+static s32 ViewAt(s32 cam, s32 pref, s32 view, s32 native, s32 wl, s32 wr)
 {
-    s64 s0 = Sfp + ((s64)f * ((s64)camMin * 256 - camFp)) / 256;
-    s64 s1 = Sfp + ((s64)f * ((s64)camMax * 256 - camFp)) / 256;
-    s64 want, hi = (s64)(img - view) * 256;
+    s32 v = (wr - wl >= view) ? Clamp(pref, wl - cam, wr - cam - view) : (wl + wr - view) / 2 - cam;
 
-    if (s0 > s1) { s64 t = s0; s0 = s1; s1 = t; }
-    if (s1 > s0)
-        want = (Sfp - s0) * (img - view) * 256 / (s1 - s0);
-    else
-        want = Sfp + viewOrg;
-    if (want < 0) want = 0;
-    if (want > hi) want = hi;
-    return (s32)(want - (s64)S * 256 - viewOrg);
+    v = Clamp(v, native - view < 0 ? native - view : 0, native - view > 0 ? native - view : 0);
+    return cam + v;
 }
 
-static void FitParallax(RlTileLayer *L, const RlFrame *f, const BgSnap *s,
-                        s32 camX, s32 camY, int hw)
+/* Decide one axis of a parallax layer for this frame: Afp the game's offset
+ * (1/256), f8 its rate, img the picture (px; 0 unknown), camMin/camMax the
+ * game camera's range, cam the camera now, [wl, wr) the view's world range.
+ * Returns the mode past the picture: 1 repeat, 2 mirror. */
+static int ParallaxAxis(ParAxis *a, uintptr_t map, s32 img, s32 f8,
+                        int autoScroll, s64 Afp, s32 cam, s32 camMin, s32 camMax,
+                        s32 view, s32 native, s32 wl, s32 wr)
 {
-    u8 dummy;
-    s32 camMinX = sScreen.rectL, camMaxX = sScreen.rectR - PORT_SCREEN_W;
-    s32 camMinY = sScreen.rectT, camMaxY = sScreen.rectB - PORT_SCREEN_H;
+    s64 K0 = (s64)(256 - f8) * (native - view) / 2;     /* (1-f)(native-view)/2 px */
+    s32 vmin, vmax;
+    s64 omin, omax, lo, hi;
 
-    if (camMaxX < camMinX || camMaxY < camMinY)
-        return;
-    if (FitAxis(s->offX * 8 + s->scrollX, L->factorX, camX, camMinX, camMaxX,
-                s->w * 8, PORT_SCREEN_W, f->viewW, f->viewX, &L->shiftX, &L->wrapX)) {
-        sFit[hw][0].on = 1;
-        sFit[hw][0].S = s->offX * 8 + s->scrollX;
-        sFit[hw][0].f = L->factorX;
-        sFit[hw][0].camMin = camMinX;
-        sFit[hw][0].camMax = camMaxX;
-        sFit[hw][0].img = s->w * 8;
+    a->on = 1;
+    a->f8 = f8;
+    a->K = K0;
+    if (camMax < camMin)
+        camMin = camMax = cam;
+    if (!a->latched || a->room != sScreen.room || a->map != map || a->img != img
+        || a->f != f8 || a->camMin != camMin || a->camMax != camMax
+        || Afp - a->A > 2 * 256 || a->A - Afp > 2 * 256) {
+        /* Does the game's own 240-wide window run off the picture over the
+         * camera's range?  1 px of slack: a picture made to fit sits on it. */
+        s64 s0 = Afp + (s64)f8 * camMin, s1 = Afp + (s64)f8 * camMax;
+
+        if (s0 > s1) { s64 t = s0; s0 = s1; s1 = t; }
+        a->latched = 1;
+        a->room = sScreen.room;
+        a->map = map;
+        a->img = img;
+        a->f = f8;
+        a->camMin = camMin;
+        a->camMax = camMax;
+        a->A = Afp;
+        a->tiles = autoScroll || img <= 0 || s0 < -256
+                   || s1 + (s64)native * 256 > (s64)img * 256 + 256;
     }
-    if (FitAxis(s->offY * 8 + s->scrollY, L->factorY, camY, camMinY, camMaxY,
-                s->h * 8, PORT_SCREEN_H, f->viewH, f->viewY, &L->shiftY, &dummy)) {
-        sFit[hw][1].on = 1;
-        sFit[hw][1].S = s->offY * 8 + s->scrollY;
-        sFit[hw][1].f = L->factorY;
-        sFit[hw][1].camMin = camMinY;
-        sFit[hw][1].camMax = camMaxY;
-        sFit[hw][1].img = s->h * 8;
-    }
+    if (view == native)
+        return 1;
+    if (a->tiles)
+        return 1;
+    vmin = ViewAt(camMin, view < native ? -0x100000 : (native - view) / 2, view, native, wl, wr);
+    vmax = ViewAt(camMax, view < native ? 0x100000 : (native - view) / 2, view, native, wl, wr);
+    omin = (s64)f8 * vmin;
+    omax = (s64)f8 * vmax;
+    if (omin > omax) { s64 t = omin; omin = omax; omax = t; }
+    lo = -Afp - omin;
+    hi = (s64)(img - view) * 256 - Afp - omax;
+    if (lo <= hi)
+        a->K = K0 < lo ? lo : K0 > hi ? hi : K0;
+    return 2;
+}
+
+/* Where view pixel 0 samples the layer, 1/256 px of the layer: Sfp the
+ * layer's scroll and camFp the camera (both 1/256), vfp the view's offset
+ * from the camera (1/256, SCREEN coords). */
+static s64 ParallaxOrigin(const ParAxis *a, s64 Sfp, s64 vfp)
+{
+    return Sfp + ((s64)a->f8 * vfp) / 256 + a->K;
 }
 
 /* The groups' world positions.  A group drawn from one of Kirby's sprite
@@ -1115,7 +1140,8 @@ const RlFrame *PortRlBuildFrame(void)
     mp = &sMot[sMotCur ^ 1];
     memset(m, 0, offsetof(Motion, g));
     memset(m->hash, 0xFF, sizeof(m->hash));
-    memset(sFit, 0, sizeof(sFit));
+    for (i = 0; i < 8; i++)
+        sPar[i >> 1][i & 1].on = 0;
     m->commit = sCommitSerial;
     m->corrected = sCorrectionPending;
     sCorrectionPending = 0;
@@ -1217,8 +1243,8 @@ const RlFrame *PortRlBuildFrame(void)
                    PORT_SCREEN_H - H > 0 ? PORT_SCREEN_H - H : 0);
         f->viewX = vx;
         f->viewY = vy;
-        f->shiftX = vx - vx0;
-        f->shiftY = vy - vy0;
+        f->shiftX = vx - (PORT_SCREEN_W - W) / 2;
+        f->shiftY = vy - (PORT_SCREEN_H - H) / 2;
         f->contentL = rl < 0 ? rl : 0;
         f->contentR = rr > PORT_SCREEN_W ? rr : PORT_SCREEN_W;
         f->contentT = rt < 0 ? rt : 0;
@@ -1271,11 +1297,37 @@ const RlFrame *PortRlBuildFrame(void)
             m->layInt[hw][1] = s->offY * 8 + s->scrollY;
             L->factorX = sScreen.factor[i][0];
             L->factorY = sScreen.factor[i][1];
-            /* (factor - 1) * shift, the parallax of a view moved off the
-             * game camera; see RlTileLayer.shiftX. */
-            L->shiftX = ((L->factorX - 256) * f->shiftX) / 256;
-            L->shiftY = ((L->factorY - 256) * f->shiftY) / 256;
-            if (i == 1) {
+            if (i != 1) {
+                /* A parallax record: where the view samples it, and what
+                 * lies past the picture (ParallaxAxis). */
+                const s32 cam[2] = { camX, camY };
+                const s32 cmin[2] = { sScreen.rectL, sScreen.rectT };
+                const s32 cmax[2] = { sScreen.rectR - PORT_SCREEN_W, sScreen.rectB - PORT_SCREEN_H };
+                const s32 view[2] = { W, H }, nat[2] = { PORT_SCREEN_W, PORT_SCREEN_H };
+                const s32 vo[2] = { f->viewX, f->viewY };
+                const s32 wl[2] = { rl + camX, rt + camY }, wr[2] = { rr + camX, rb + camY };
+                const s32 img[2] = { s->w * 8, s->h * 8 };
+                const s32 fr[2] = { L->factorX, L->factorY };
+                int as = (sScreen.roomFlags & (i == 2 ? 4 : 2)) != 0, ax;
+
+                for (ax = 0; ax < 2; ax++) {
+                    ParAxis *a = &sPar[hw][ax];
+                    s32 fe = EffFactor(fr[ax]);
+                    s64 Sfp = m->layFp[hw][ax];
+                    s64 Afp = Sfp - ((s64)fe * m->camFp[ax]) / 256;
+                    int mode = ParallaxAxis(a, s->map, img[ax], fe, as, Afp, cam[ax],
+                                            cmin[ax], cmax[ax], view[ax], nat[ax], wl[ax], wr[ax]);
+                    s32 sh = (s32)(ParallaxOrigin(a, Sfp, (s64)vo[ax] * 256) >> 8)
+                             - (m->layInt[hw][ax] + vo[ax]);
+
+                    if (ax == 0) {
+                        L->shiftX = sh;
+                        L->wrapX = (u8)mode;
+                    } else {
+                        L->shiftY = sh;
+                    }
+                }
+            } else {
                 L->shiftX += (m->shakeD[0] + (m->shakeD[0] >= 0 ? 128 : -128)) / 256;
                 L->shiftY += (m->shakeD[1] + (m->shakeD[1] >= 0 ? 128 : -128)) / 256;
                 m->shakeHw = (u8)(hw + 1);
@@ -1288,7 +1340,7 @@ const RlFrame *PortRlBuildFrame(void)
                  * view does, and the wrap shows the block's unused columns as
                  * a striped seam every 256 pixels.  Mirror at the picture's
                  * own edges instead -- continuous, like a narrow streamed
-                 * picture (FitAxis).  Not at 240x160, which stays the PPU's. */
+                 * picture (ParallaxAxis).  Not at 240x160, which stays the PPU's. */
                 u32 cnt = (u32)line0[RL_LINE_BGCNT + hw];
                 s32 bw = (cnt & 0x4000) ? 64 : 32, bh = (cnt & 0x8000) ? 64 : 32;
 
@@ -1328,18 +1380,17 @@ const RlFrame *PortRlBuildFrame(void)
             L->mapOffY = s->offY;
             /* The room itself stops at its edges -- the view is kept inside
              * them and anything else is letterbox.  A parallax layer is a
-             * picture behind the room: bg.c's refill wraps it horizontally
-             * (the overflow copy from column 0), so it repeats.  Past its top
+             * picture behind the room: past its left or right end it repeats
+             * or is mirrored as ParallaxAxis decided (above).  Past its top
              * or bottom (a view taller than the sky, zoomed out) it is
              * mirrored at the edge: continuous, where repeating the edge row
              * drew vertical streaks the height of the overhang and wrapping
-             * would put the ground under the clouds.  FitParallax has already
-             * re-fitted a picture tall enough to cover the view. */
-            if (i != 1) {
-                L->wrapX = 1;
+             * would put the ground under the clouds.  ParallaxAxis (above) has
+             * already framed a picture tall enough to cover the view. */
+            if (i != 1)
                 L->mirrorY = 1;
-                FitParallax(L, f, s, camX, camY, hw);
-            }
+            else
+                L->wrapX = 0;
             if (L->map != sMapPtr[hw] || L->mapW != sMapW[hw] || L->mapH != sMapH[hw]) {
                 sMapPtr[hw] = L->map;
                 sMapW[hw] = L->mapW;
@@ -1380,6 +1431,40 @@ const RlFrame *PortRlBuildFrame(void)
                 h->dy = (s16)(h->anchorV == RL_ANCHOR_BOTTOM ? H - PORT_SCREEN_H : 0);
             }
             f->numHud = 4;
+        }
+    }
+
+    {
+        /* KATAM_RL_LAYERLOG=file: one line per built world frame, per layer
+         * mode and shift, for measuring parallax (docs/RENDERER.md). */
+        static FILE *lf;
+        static int lfInit;
+        if (!lfInit) {
+            const char *e = getenv("KATAM_RL_LAYERLOG");
+            lfInit = 1;
+            lf = e ? fopen(e, "w") : NULL;
+        }
+        if (lf && f->world) {
+            fprintf(lf, "%u room %u cam %d %d view %d %d sh %d %d kirby %d %d",
+                    (unsigned)f->serial, (unsigned)sScreen.room, (int)f->camX, (int)f->camY,
+                    (int)f->viewX, (int)f->viewY, (int)f->shiftX, (int)f->shiftY,
+                    (int)(sScreen.kirbyFp[gLocalPlayerId & 3][0] >> 8),
+                    (int)(sScreen.kirbyFp[gLocalPlayerId & 3][1] >> 8));
+            for (i = 0; i < 3; i++) {
+                const BgSnap *s = &sScreen.bg[i];
+                int hw = s->flags & 3;
+                const RlTileLayer *L = &f->layers[hw];
+                if (L->space != RL_SPACE_WORLD)
+                    continue;
+                fprintf(lf, " | r%d hw%d f %d %d S %d %d img %d %d fl %x st %d fit %d%d wr %d my %d pic %d %d shift %d %d val %d %d",
+                        i, hw, (int)L->factorX, (int)L->factorY,
+                        s->offX * 8 + s->scrollX, s->offY * 8 + s->scrollY, s->w * 8, s->h * 8,
+                        s->flags, L->streamed, sPar[hw][0].on, sPar[hw][0].tiles, L->wrapX, L->mirrorY,
+                        (int)L->picW, (int)L->picH, (int)L->shiftX, (int)L->shiftY,
+                        (int)L->validL, (int)L->validR);
+            }
+            fputc('\n', lf);
+            fflush(lf);
         }
     }
 
@@ -1503,7 +1588,7 @@ static s32 ClampFp(s32 v, s32 lo, s32 hi)
  * presented camera instead of the game's whole pixel.  `g` is that camera
  * relative to the game's (SCREEN coords), `kx/ky` Kirby in SCREEN coords. */
 static void PresentView(RlFrame *o, s32 gx, s32 gy, int focus, s32 kx, s32 ky,
-                        s32 *vx, s32 *vy, s32 *ex, s32 *ey)
+                        s32 *vx, s32 *vy)
 {
     s32 W = o->viewW, H = o->viewH, vx0, vy0, x, y;
 
@@ -1535,9 +1620,11 @@ static void PresentView(RlFrame *o, s32 gx, s32 gy, int focus, s32 kx, s32 ky,
                      (PORT_SCREEN_H - H > 0 ? PORT_SCREEN_H - H : 0) * 256);
     *vx = x;
     *vy = y;
-    *ex = x - gx - vx0;
-    *ey = y - gy - vy0;
 }
+
+/* KATAM_RL_PRESLOG=file: per present, BG0's sample origin against the
+ * view's world position (1/256 px), for measuring the presented parallax. */
+static FILE *sPresLog;
 
 const RlFrame *PortRlPresentFrame(int flags, float alpha)
 {
@@ -1547,6 +1634,14 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
     const void *kirby = &gKirbys[gLocalPlayerId & 3].base.sprite;
     int lerp;
 
+    {
+        static int init;
+        if (!init) {
+            const char *e = getenv("KATAM_RL_PRESLOG");
+            init = 1;
+            sPresLog = e ? fopen(e, "w") : NULL;
+        }
+    }
     sDiagOk = 0;
     if (!flags || !sFrame.serial || !c->valid) {
         /* As built; the diagnostics in whole pixels. */
@@ -1581,7 +1676,7 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
 
     if (c->world) {
         const s32 *kc = c->kirbyFp[gLocalPlayerId & 3], *kp = p->kirbyFp[gLocalPlayerId & 3];
-        s32 kx = kc[0], ky = kc[1], ex, ey;
+        s32 kx = kc[0], ky = kc[1];
 
         px = lerp ? Lerp(p->camFp[0], c->camFp[0], t) : c->camFp[0];
         py = lerp ? Lerp(p->camFp[1], c->camFp[1], t) : c->camFp[1];
@@ -1592,13 +1687,13 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
             ky = Lerp(kp[1], kc[1], t);
         }
         PresentView(o, gx, gy, c->kirbyFocus, kx - c->ciX * 256, ky - c->ciY * 256,
-                    &vx, &vy, &ex, &ey);
+                    &vx, &vy);
         o->viewX = vx >> 8;
         o->viewY = vy >> 8;
         o->viewSubX = vx & 255;
         o->viewSubY = vy & 255;
-        o->shiftX = ex >> 8;
-        o->shiftY = ey >> 8;
+        o->shiftX = (vx - gx - (PORT_SCREEN_W - o->viewW) * 128) >> 8;
+        o->shiftY = (vy - gy - (PORT_SCREEN_H - o->viewH) * 128) >> 8;
         for (i = 0; i < 4; i++) {
             RlTileLayer *L = &o->layers[i];
             s32 sx, sy, shx, shy;
@@ -1611,17 +1706,20 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
                 sx = Lerp(p->layFp[i][0], sx, t);
                 sy = Lerp(p->layFp[i][1], sy, t);
             }
-            /* The layer's own fraction, the presented camera's offset from
-             * the game's undone (the composite adds it to every layer), and
-             * the parallax of the view's own displacement. */
-            shx = sx - c->layInt[i][0] * 256 - gx + (s32)(((s64)(L->factorX - 256) * ex) >> 8);
-            shy = sy - c->layInt[i][1] * 256 - gy + (s32)(((s64)(L->factorY - 256) * ey) >> 8);
-            if (sFit[i][0].on)
-                shx = FitAxisFp(sx, sFit[i][0].f, px, sFit[i][0].camMin, sFit[i][0].camMax,
-                                sFit[i][0].img, o->viewW, vx, sFit[i][0].S);
-            if (sFit[i][1].on)
-                shy = FitAxisFp(sy, sFit[i][1].f, py, sFit[i][1].camMin, sFit[i][1].camMax,
-                                sFit[i][1].img, o->viewH, vy, sFit[i][1].S);
+            /* The room layer: its own fraction, and the presented camera's
+             * offset from the game's undone (the composite adds it to every
+             * layer).  A parallax layer: o(V) at the presented view's world
+             * position (ParallaxAxis), from the lerped layer scroll. */
+            shx = sx - c->layInt[i][0] * 256 - gx;
+            shy = sy - c->layInt[i][1] * 256 - gy;
+            if (sPar[i][0].on)
+                shx = (s32)(ParallaxOrigin(&sPar[i][0], sx, (s64)vx - gx) - (s64)c->layInt[i][0] * 256 - vx);
+            if (sPar[i][1].on)
+                shy = (s32)(ParallaxOrigin(&sPar[i][1], sy, (s64)vy - gy) - (s64)c->layInt[i][1] * 256 - vy);
+            if (sPresLog && i == 0)
+                fprintf(sPresLog, "%u %d %d %d %lld\n", (unsigned)sFrame.serial, t,
+                        (int)(c->ciX * 256 + vx), (int)sPar[i][0].f8,
+                        (long long)shx + (s64)c->layInt[i][0] * 256 + vx);
             if (c->shakeHw == i + 1) {
                 shx += c->shakeD[0];
                 shy += c->shakeD[1];

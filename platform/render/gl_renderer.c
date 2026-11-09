@@ -269,6 +269,11 @@ static const char *kCompFs =
     "  }\n"
     "  if (st != 0)\n"
     "    outside = x < uValid[bg].x || x >= uValid[bg].y || y < uValid[bg].z || y >= uValid[bg].w;\n"
+    /* mirrored: VRAM's columns past the picture's end are bg.c's wrapped copy */
+    "  if ((st & 17) == 17 && !outside) {\n"
+    "    int lx0 = uMapScroll[bg].z * 8 + uMapScroll[bg].x + x;\n"
+    "    outside = lx0 < 0 || lx0 >= uMapGeom[bg].x * 8;\n"
+    "  }\n"
     "  int px = sx & 7, py = sy & 7;\n"
     "  if (outside) {\n"
     "    if ((st & 1) == 0) return -1;\n"
