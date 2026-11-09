@@ -1,5 +1,12 @@
 # Netplay v2: deterministic simulation, input-only sync
 
+> **Shelved 2026-11-08, hidden behind `?online=1`.** The room-based online
+> mode (§12, protocol v2) desyncs and rubberbands on ordinary links. The
+> hand-off, with how it is set up, how to run it, measurements, the
+> diagnosis and the recommended next architecture, is
+> [docs/NETPLAY-HANDOFF.md](../NETPLAY-HANDOFF.md). Read it before changing
+> anything here.
+
 Design, 2026-11-08. Revised the same day: §12 (model v2.1: no lockstep,
 deadline-sealed inputs, periodic world sync) and §13 (scaling past 4
 players) supersede the waiting parts of §2, §4.4 and §5, and §8's room
@@ -816,6 +823,11 @@ events (M8).
 ---
 
 ## 12. Model v2.1: no lockstep, deadline-sealed inputs, periodic world sync
+
+> Shelved (2026-11-08): see [NETPLAY-HANDOFF.md](../NETPLAY-HANDOFF.md) §6
+> for why this model desyncs and rubberbands. The main cause is that the
+> 32-frame rollback ring is shorter than the lead §12.2's time sync gives a
+> far client, so late sealed inputs are dropped.
 
 Revision, 2026-11-08, at the user's direction, implemented as protocol v2 on
 branch `netlobby` (`netplay/session.mjs`, `web/net_session.js`,

@@ -11,7 +11,7 @@ Three tracks, detailed in their own documents:
 | Track | Document | First milestone |
 |---|---|---|
 | Renderer: a GPU renderer driven by a world-space render list, replacing the emulated PPU | RENDERER.md (../RENDERER.md) | world-space BG + sprites, switchable against the PPU |
-| Online co-op: deterministic rollback, input-only sync, snapshot joins | NETPLAY-V2.md | M0 determinism hardening |
+| Online co-op: deterministic rollback, input-only sync, snapshot joins | NETPLAY-V2.md | **Shelved 2026-11-08, hidden behind `?online=1`**: room mode desyncs and rubberbands. Hand-off and next steps: ../NETPLAY-HANDOFF.md |
 | Modding + level editor: resource layer, vanilla pack, Lua, web editor | MODDING.md | M0 resource seam R0 |
 
 ## Settled between the two design documents
