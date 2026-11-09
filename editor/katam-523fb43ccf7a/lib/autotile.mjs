@@ -93,13 +93,14 @@ const depthDiff = (a, b) => Math.abs((a & 15) - (b & 15)) + Math.abs(((a >> 4) &
 
 /**
  * Learn a tileset's terrain from rooms: [{ W, H, art: [token], cls: [kind] }].
- * `empty` is the tileset's blank piece.
+ * `empty` is the tileset's blank piece; `opaque(token)` says a piece has no
+ * see-through pixel (the caller has the pixels; this module does not).
  */
-export function learn(rooms, empty) {
+export function learn(rooms, empty, { opaque = () => false } = {}) {
   // the blank and flat-black pieces the original leaves where the camera never looks
   const hidden = (t) => t === empty || /^(...[.hvx]f ?){4}$/.test(t);
-  const model = { empty, rooms: [], kinds: {}, above: new Map(), below: new Map(), styleOf: new Map(), rim: new Set() };
-  const kindCount = new Map(), graph = new Map();
+  const model = { empty, rooms: [], kinds: {}, styleOf: new Map(), rim: new Set() };
+  const kindCount = new Map(), graph = new Map(), airUse = new Map();
   for (const kind of Object.keys(BRUSH_KINDS)) model.kinds[kind] = { styles: [] };
 
   for (const R of rooms) {
@@ -117,8 +118,14 @@ export function learn(rooms, empty) {
       bump(sub(kindCount, t), cls[i]);
       // "sits next to": right and below, among cells of the same terrain
       for (const j of [x + 1 < w ? i + 1 : -1, y + 1 < h ? i + w : -1]) if (j >= 0 && K.same(cls[j]) && !hidden(art[j])) { bump(sub(graph, t), art[j]); bump(sub(graph, art[j]), t); }   // a piece next to itself votes for staying what it is
-      if (y > 0 && cls[i - w] === 'air') bump(sub(model.above, t), art[i - w]);
-      if (y + 1 < h && cls[i + w] === 'air') bump(sub(model.below, t), art[i + w]);
+    }
+    // air pieces and how often they sit against terrain: the art a ground needs beside it
+    for (let i = 0; i < w * h; i++) {
+      if (cls[i] !== 'air' || art[i] === empty) continue;
+      const x = i % w, y = (i / w) | 0;
+      let near = 0;
+      for (const [dx, dy] of NEAR) { const a = x + dx, b = y + dy; if (a >= 0 && b >= 0 && a < w && b < h && BRUSH_KINDS[cls[b * w + a]]) { near = 1; break; } }
+      const e = airUse.get(art[i]) || [0, 0]; e[0]++; e[1] += near; airUse.set(art[i], e);
     }
     model.rooms.push({ W: w, H: h, art, cls, shape, depth, ok, style: new Array(w * h).fill(null) });
   }
@@ -211,8 +218,11 @@ export function learn(rooms, empty) {
     if (st && st.id) bump(sub(uses, R.art[i]), st); else { R.style[i] = null; if (st) R.ok[i] = R.ok[i] && 0; }
   }
   for (const [t, m] of uses) { let best = null, bn = 0; for (const [st, n] of m) if (n > bn) { best = st; bn = n; } model.styleOf.set(t, best); }
-  // the scenery the original puts over / under terrain pieces (never the blank piece)
-  for (const rel of [model.above, model.below]) for (const m of rel.values()) for (const t of m.keys()) if (t !== empty && !mainKind.has(t)) model.rim.add(t);
+  // EDGE ART: the pieces the original draws in the air cells against terrain (grass
+  // blades over a floor, the lip of a ledge, the underside of a ceiling), as opposed to
+  // scenery that merely stands near it.  The brush owns these and nothing else in the air.
+  // A piece that is mostly terrain itself, or a full opaque square (a back wall), is not an edge.
+  for (const [t, [all, near]] of airUse) if (near >= 2 && near >= 0.7 * all && (count.get(t) || 0) < near && !opaque(t)) model.rim.add(t);
   return model;
 }
 
@@ -301,18 +311,43 @@ export function retile(model, grid, cells, want = new Map(), salt = 0) {
     if (!moved) break;
   }
 
-  // scenery over and under: only blank cells and cells that hold such scenery already
+  // The air around the terrain.  The original's ground does not stop at its
+  // collision: its art runs on into the air cells beside it.  Each air cell
+  // next to terrain takes what the original has in the same place relative to
+  // the cells the terrain was copied from (what is under an air cell counting
+  // most).  Only blank cells and cells that already hold edge art are touched:
+  // scenery placed by hand stays.
   const air = new Set();
-  for (const i of region) for (const j of [i - w, i + w, i]) if (j >= 0 && j < w * h && cls[j] === 'air') air.add(j);
-  const top = (m) => { let b = null, bn = 0, all = 0; if (m) for (const [t, n] of m) { all += n; if (n > bn) { b = t; bn = n; } } return b && bn >= 0.5 * all ? b : null; };
+  for (const i of todo.length ? region : []) {
+    const x = i % w, y = (i / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const a = x + dx, b = y + dy; if (a >= 0 && b >= 0 && a < w && b < h && cls[b * w + a] === 'air') air.add(b * w + a); }
+  }
+  for (const i of region) if (cls[i] === 'air') air.add(i);
   for (const j of air) {
     src[j] = -1;
     if (art[j] !== model.empty && !model.rim.has(art[j])) continue;
-    const dn = j + w < w * h && BRUSH_KINDS[cls[j + w]] ? j + w : -1, up = j - w >= 0 && BRUSH_KINDS[cls[j - w]] ? j - w : -1;
-    let t = null;
-    if (dn >= 0) t = top(model.above.get(art[dn]));
-    if (!t && up >= 0) t = top(model.below.get(art[up]));
-    set(j, t || model.empty);
+    const x = j % w, y = (j / w) | 0, votes = new Map();
+    const around = (W_, H_, cl, px, py) => { let m = 0; for (let k = 0; k < 8; k++) { const a = px + NEAR[k][0], b = py + NEAR[k][1]; if (a >= 0 && b >= 0 && a < W_ && b < H_ && BRUSH_KINDS[cl[b * W_ + a]]) m |= 1 << k; } return m; };
+    const here = around(w, h, cls, x, y);
+    let terrain = 0, known = 0;
+    for (let k = 0; k < 8; k++) {
+      const a = x + NEAR[k][0], b = y + NEAR[k][1];
+      if (a < 0 || b < 0 || a >= w || b >= h || !BRUSH_KINDS[cls[b * w + a]]) continue;
+      terrain++;
+      const s = src[b * w + a];
+      if (s < 0) continue;
+      known++;
+      const R = model.rooms[s >> SRC_SHIFT], si = s & SRC_MASK, sx = si % R.W - NEAR[k][0], sy = ((si / R.W) | 0) - NEAR[k][1];
+      if (sx < 0 || sy < 0 || sx >= R.W || sy >= R.H || R.cls[sy * R.W + sx] !== 'air') continue;
+      if (around(R.W, R.H, R.cls, sx, sy) !== here) continue;      // the original's cell sits against other terrain too: its art is about that
+      const t = R.art[sy * R.W + sx];
+      bump(votes, model.rim.has(t) ? t : model.empty, !SIDE[k] ? 1 : NEAR[k][1] === 1 ? 4 : 3);
+    }
+    if (!terrain) { set(j, model.empty); continue; }
+    if (!known || !votes.size) continue;        // terrain the brush did not place: leave its edges alone
+    let best = model.empty, bn = 0;
+    for (const [t, n] of votes) if (n > bn) { best = t; bn = n; }
+    set(j, best);
   }
   return [...changed];
 }
