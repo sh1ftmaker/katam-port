@@ -326,40 +326,50 @@ async function main() {
   ok('the ROM picker opens', fileChooserEvents > 0, 'fileChooserOpened=' + fileChooserEvents);
 
   //------------------------------------------------------------------
-  console.log('the sheet, whose labels point at inputs that no longer live in it');
+  console.log('the page around the picture');
   //------------------------------------------------------------------
-  const before = fileChooserEvents;
-  // Older deployed revisions have no sheet at all; --url can land on one.
-  const hasMenu = await bro.eval(`(function () {
-    var b = document.getElementById('menubtn');
-    if (!b) return false;
-    var r = b.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
+  // The picture has the window: no panel beside or under it, and the
+  // controls that used to be in one are in the game menu (or, without
+  // WebGL2, a sheet that starts closed).
+  const frame = await bro.eval(`(function () {
+    var w = document.getElementById('screen-wrap').getBoundingClientRect();
+    var c = document.getElementById('chrome');
+    return { w: Math.round(w.width), h: Math.round(w.height),
+             vw: innerWidth, vh: innerHeight,
+             topbar: !!document.getElementById('topbar'),
+             sheet: c ? getComputedStyle(c).visibility : 'none' };
   })()`);
-  if (!hasMenu) {
-    console.log('       no #menubtn on this page -- skipping the sheet');
-  } else {
-  await tap(bro, '#menubtn');
-  await sleep(500);
-  const sheetOpen = await bro.eval("document.body.classList.contains('sheet-open')");
-  ok('the menu button opens the sheet', sheetOpen === true);
+  console.log('       ' + JSON.stringify(frame));
+  ok('the stage spans the window', frame.w === frame.vw && frame.h >= frame.vh * 0.6, JSON.stringify(frame));
+  ok('there is no top bar', frame.topbar === false);
+  ok('the fallback sheet starts hidden', frame.sheet !== 'visible', frame.sheet);
 
-  if (sheetOpen) {
-    await tap(bro, '#chrome label[for="romfile"]');
-    await sleep(400);
-    ok('"Load ROM…" still opens the picker', fileChooserEvents > before,
-       'fileChooserOpened went ' + before + ' -> ' + fileChooserEvents);
+  //------------------------------------------------------------------
+  console.log('the menu\'s file pickers, opened from inside a tap');
+  //------------------------------------------------------------------
+  // The game menu's "Load a different ROM…" / "Import save…" call
+  // Module.portUiAction from the frame that handled the press. The same
+  // thing here, from the tap's own handler: the picker has to open.
+  const mid = fileChooserEvents;
+  await bro.eval(`(function () {
+    var h = function () {
+      document.removeEventListener('touchend', h, true);
+      Module.portUiAction('rom.load', 0);
+    };
+    document.addEventListener('touchend', h, true);
+  })()`);
+  await tap(bro, '#curtain .drop');
+  await sleep(400);
+  ok('a menu action opens the ROM picker', fileChooserEvents > mid,
+     'fileChooserOpened went ' + mid + ' -> ' + fileChooserEvents);
 
-    const mid = fileChooserEvents;
-    await tap(bro, '#chrome label[for="savefile"]');
-    await sleep(400);
-    ok('"Import save…" still opens the picker', fileChooserEvents > mid,
-       'fileChooserOpened went ' + mid + ' -> ' + fileChooserEvents);
-
-    await tap(bro, '#sheetclose');
-    await sleep(500);
-  }
-  }
+  // Import save before a ROM refuses, out loud, rather than opening a
+  // picker for a file that has nothing to belong to.
+  const before = fileChooserEvents;
+  await bro.eval("Module.portUiAction('save.import', 0)");
+  await sleep(300);
+  const toast = await bro.eval("document.getElementById('toast').textContent");
+  ok('Import save with no ROM says why', /Load a ROM first/.test(toast) && fileChooserEvents === before, toast);
 
   //------------------------------------------------------------------
   console.log('the crash panel');

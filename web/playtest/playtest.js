@@ -83,14 +83,26 @@
     '<a href="https://github.com/sh1ftmaker/katam-port/blob/main/docs/design/authoring/rooms.md">rooms.md</a>.</p></details>';
 
   function $(id) { return document.getElementById(id); }
+  // A drawer of its own over the left of the picture: the game page has no
+  // panel to sit in (the picture has the window; the game's own menu has
+  // the rest).  Collapses to a tab, so the room can be played full size.
+  var tab = document.createElement('button');
+  tab.id = 'pt-tab';
+  tab.type = 'button';
+  function setOpen(open) {
+    document.body.classList.toggle('pt-closed', !open);
+    tab.textContent = open ? '\u25c0 Hide' : 'Playtest \u25b6';
+    tab.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  tab.addEventListener('click', function () { setOpen(document.body.classList.contains('pt-closed')); });
+
   function mount() {
-    var chrome = document.getElementById('chrome');
-    if (chrome) chrome.insertBefore(panel, chrome.firstChild);
-    else document.body.appendChild(panel);
+    document.body.appendChild(panel);
+    document.body.appendChild(tab);
+    setOpen(true);
     var bl = document.getElementById('buildlabel');
     if (bl) $('pt-build').textContent = bl.textContent;
-    var h1 = document.querySelector('#topbar h1');
-    if (h1) h1.textContent = 'KATAM room playtest';
+    document.title = 'KATAM room playtest';
     var cur = document.querySelector('#curtain h2');
     if (cur) cur.insertAdjacentHTML('afterend', '<p><b>Room playtest:</b> after your ROM loads, the game boots straight into the room picked below.</p>');
     wire();

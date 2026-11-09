@@ -56,26 +56,17 @@
   /*====================================================================
     The page frame
     --------------
-    One grid, three rows: the top bar, the stage (the picture), and the
-    chrome (bar, legend, log — everything else). Two arrangements:
+    The picture has the window. There is no panel beside or under it:
+    everything the page can do lives in the game's own menu (platform/ui,
+    Dear ImGui -- the gear, F1 or Tab), which draws over the picture and
+    calls back into this page for the things only a page can do (the file
+    pickers, fullscreen). Without WebGL2 there is no such
+    menu, and the gear opens #chrome instead: the same controls as plain
+    HTML, in a sheet that is closed until asked for.
 
-      docked      desktop. All three rows are real and the chrome sits
-                  under the picture, the way it always has.
-      immersive   phones, and anywhere the touch pads are up. The top bar
-                  and the chrome are lifted out of the grid — the chrome
-                  into a sheet that stays closed until it is asked for —
-                  so the stage gets the window to itself.
-
-    `body.immersive` is set from JS (see syncMode) rather than by a media
-    query alone, so turning the touch pads on forces it even on a desktop.
-
-    Why a grid and not the flex column this used to be: the stage was one
-    flex item among six, so its height was whatever the other five left
-    over. On a phone the bar wraps to five rows and #log is a fixed 132px
-    that refuses to shrink, so the stage was squeezed to nearly nothing —
-    and being a *centred* box, a picture too big for it overflowed equally
-    in both directions and the top half went off the screen. Here the
-    stage is minmax(0, 1fr): it is told what it gets, never the remainder.
+    One grid: the stage, and in portrait with the touch pads up a second
+    row the pads sit in, so the picture is never under a thumb. The stage
+    is minmax(0, 1fr): it is told what it gets, never the remainder.
   ====================================================================*/
 
   html { height: 100%; }
@@ -95,9 +86,9 @@
 
     display: grid;
     grid-template-columns: 100%;
-    grid-template-rows: auto minmax(0, 1fr) minmax(0, auto);
+    grid-template-rows: minmax(0, 1fr);
 
-    background: var(--bg);
+    background: var(--void);
     color: var(--text);
     font: 13px/1.5 var(--mono);
 
@@ -156,60 +147,11 @@
   }
 
   /*====================================================================
-    Top bar
-  ====================================================================*/
-
-  #topbar {
-    grid-row: 1;
-    display: flex;
-    align-items: center;
-    gap: 10px 14px;
-    min-width: 0;
-    padding: 10px 14px;
-    padding-top:   calc(10px + var(--safe-t));
-    padding-left:  calc(14px + var(--safe-l));
-    padding-right: calc(14px + var(--safe-r));
-  }
-
-  #topbar h1 {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: .04em;
-    color: var(--dim);
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  #rominfo {
-    flex: 0 1 auto;
-    min-width: 0;
-    color: var(--dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  /* Never allowed to shrink: "59.…" is worse than no reading at all, and it
-     is only ever eight characters wide. */
-  #fps {
-    flex: 0 0 auto;
-    color: var(--dim);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  #menubtn { display: none; }        /* immersive only */
-
-  /*====================================================================
     Stage — the picture and everything drawn over it
   ====================================================================*/
 
   #screen-wrap {
-    grid-row: 2;
+    grid-row: 1;
     position: relative;
     min-width: 0;
     min-height: 0;
@@ -217,16 +159,13 @@
     place-items: center;
     /* The canvas can be a frame behind the layout (a rotation, the soft
        keyboard, the URL bar). Clipping here means the worst case is a
-       moment of cropped picture rather than a picture spilling over the
-       chrome — and it can never escape upwards off the window. */
+       moment of cropped picture, and it can never escape off the window. */
     overflow: hidden;
-    background:
-      radial-gradient(130% 100% at 50% 0%, #191d24 0%, var(--void) 72%);
-    /* Horizontal notch clearance always; the vertical insets are only ours
-       to pay in immersive mode, where nothing else is between the stage and
-       the edge of the screen. fitScreen() measures the content box, so this
-       padding really does keep the picture out from under the notch. */
-    padding: 0 var(--safe-r) 0 var(--safe-l);
+    background: var(--void);
+    /* The notch and the home indicator. fitScreen() measures the content
+       box, so this padding really does keep the picture out from under
+       them. */
+    padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
     /* pan-y, not none, because the ROM curtain and the crash report live
        inside this box and touch-action is intersected down the tree: `none`
        here would make both of them unscrollable on a phone, and they are
@@ -241,16 +180,16 @@
      that matters and it has to be readable. Must follow the rule above:
      same specificity, later wins. */
   body.crashed #screen-wrap { touch-action: pan-y; }
+  /* A mouse left still over the game hides itself, with the gear. */
+  body.idle.rom-ready:not(.ui-open):not(.crashed) #screen-wrap { cursor: none; }
 
-  body.immersive #screen-wrap {
-    padding-top: var(--safe-t);
-    padding-bottom: var(--safe-b);
-  }
+  /* Portrait with the pads up: the pads have their own row under the
+     stage, which pays the bottom inset. While the menu is open the pads
+     are hidden and the menu gets the whole screen. */
   @media (orientation: portrait) {
-    /* The top bar is a real row here and has already paid the top inset. */
-    body.immersive #screen-wrap { padding-top: 0; }
-    /* And the reserved pad band pays the bottom one. */
-    body.immersive.touch-on #screen-wrap { padding-bottom: 0; }
+    body.touch-on.rom-ready { grid-template-rows: minmax(0, 1fr) var(--band); }
+    body.touch-on.rom-ready.ui-open { grid-template-rows: minmax(0, 1fr) 0; }
+    body.touch-on.rom-ready:not(.ui-open) #screen-wrap { padding-bottom: 0; }
   }
 
   #screen, #gpu-screen {
@@ -259,71 +198,136 @@
     background: #000;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    /* A ring drawn *outside* the box rather than a border: `border` plus
-       border-box sizing would eat 2px of the width fitScreen() just
-       computed and quietly put the picture on a fractional scale. */
-    box-shadow: 0 0 0 1px var(--edge), 0 24px 60px -28px rgba(0, 0, 0, .95);
     touch-action: none;
   }
+  body.gl #gpu-screen { background: var(--void); }
 
-  /* The settings button: WebGL builds only, once a game is running. */
+  /* The menu button: once a game is running. Fades away with the mouse
+     pointer when it is left idle (desktop), and is always there, quietly,
+     for a finger. Top right, out of the way of the HUD's own corners; in
+     landscape with the pads up the R pad has that corner, so top centre. */
   #uigear {
     display: none;
-    position: absolute;
-    top: calc(8px + var(--safe-t));
-    right: calc(8px + var(--safe-r));
-    z-index: 6;
-    width: 44px;
-    height: 44px;
+    position: fixed;
+    top: calc(10px + var(--safe-t));
+    right: calc(10px + var(--safe-r));
+    z-index: 12;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border-radius: 12px;
-    font-size: 24px;
+    font-size: 22px;
     line-height: 1;
-    opacity: .72;
+    color: #e6eaf0;
+    background: rgba(20, 23, 28, .55);
+    border-color: rgba(255, 255, 255, .14);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: .78;
+    transition: opacity .35s, border-color .12s;
     touch-action: manipulation;
   }
-  body.gl.rom-ready:not(.crashed) #uigear { display: block; }
-  body.gl #gpu-screen { box-shadow: none; background: #0c0e11; }
-  body.ui-open #uigear { display: none !important; }
-  #uigear2 { display: none; font-size: 20px; padding: 4px 12px; }
+  #uigear:hover { opacity: 1; }
+  body.rom-ready:not(.crashed):not(.ui-open):not(.sheet-open) #uigear { display: block; }
+  body.idle #uigear { opacity: 0; pointer-events: none; }
   @media (orientation: landscape) {
-    body.immersive.gl.rom-ready:not(.crashed) #uigear { display: none; }
-    body.immersive.gl.rom-ready:not(.crashed):not(.ui-open) #uigear2 { display: inline-block; opacity: .8; }
-    body.immersive.ui-open #topbar { visibility: hidden; }
-  }   /* Resume / Esc / tap outside close it */
-  @media (orientation: portrait) {
-    body.immersive #uigear { top: 8px; }
+    body.touch-on #uigear { right: auto; left: 50%; translate: -50% 0; }
   }
   /* The menu has the screen while it is open. */
   body.ui-open #touch { display: none !important; }
   #buildinfo { color: var(--dim); padding: 4px 0; font-size: 12px; }
   /* The old view experiment (docs/VIEW.md) changes the game's culling; the
-     settings menu replaces it wherever the menu exists. */
+     menu's Display page replaces it wherever the menu exists. */
   body.gl #viewbox { display: none; }
 
-  /* Covers the picture until a ROM is supplied. */
+  /* Messages from the menu's buttons ("save exported", "copied"), which
+     otherwise only reach the log nobody is looking at. */
+  #toast {
+    position: fixed;
+    bottom: calc(16px + var(--safe-b));
+    left: 50%;
+    translate: -50% 0;
+    z-index: 70;
+    max-width: min(560px, calc(100vw - 32px));
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(22, 25, 31, .94);
+    border: 1px solid var(--edge);
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .9);
+    color: var(--text);
+    font-size: 13px;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  #toast.show { opacity: 1; }
+  #toast.ok   { border-color: rgba(111, 178, 255, .6); }
+  #toast.warn { border-color: var(--warn); }
+  #toast.err  { border-color: var(--err); color: #ffd9d6; }
+
+  /* Covers the picture until a ROM is supplied: one card, centred. */
   #curtain {
     position: absolute;
     inset: 0;
     z-index: 4;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    text-align: center;
-    padding: 20px calc(20px + var(--safe-r)) calc(20px + var(--safe-b)) calc(20px + var(--safe-l));
+    padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r))
+             calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
     overflow-y: auto;
-    touch-action: pan-y;       /* the copy is long on a small screen */
+    touch-action: pan-y;       /* the card can be taller than a small screen */
     overscroll-behavior: contain;
-    background: rgba(14, 16, 20, .94);
-    pointer-events: none;      /* re-enabled on the inner box only */
+    background: radial-gradient(120% 90% at 50% 20%, #1a1e26 0%, var(--void) 75%);
   }
   #curtain.hidden { display: none; }
-  #curtain > * { pointer-events: auto; }
 
-  #curtain h2 { font-size: 14px; margin: 0; }
-  #curtain p  { margin: 0; max-width: 46ch; color: var(--dim); }
+  #curtain .card {
+    width: min(460px, 100%);
+    margin: auto;              /* centred, and still scrollable when taller */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+    padding: 26px 22px 20px;
+    background: rgba(28, 31, 37, .92);
+    border: 1px solid var(--edge);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .95);
+  }
+  body.dragging #curtain .card { border-color: var(--accent); }
+  #curtain h2 {
+    margin: 0;
+    font-size: 16px;
+    letter-spacing: .02em;
+    color: #fff;
+  }
+  #curtain p  { margin: 0; max-width: 42ch; color: var(--dim); }
+  #curtain .filebtn.big {
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 26px;
+    border-radius: 10px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #08121f;
+  }
+  #curtain .filebtn.big:hover { color: #000; filter: brightness(1.08); }
+  #curtain .drop {
+    width: 100%;
+    padding: 12px;
+    border: 1px dashed var(--edge);
+    border-radius: 10px;
+    color: var(--dim);
+  }
+  #curtain details { width: 100%; text-align: left; color: var(--dim); }
+  #curtain summary { cursor: pointer; text-align: center; padding: 4px; }
+  #curtain details[open] summary { margin-bottom: 8px; }
+  #curtain .fine { font-size: 11px; line-height: 1.5; }
+  #rominfo { min-height: 1.5em; font-size: 12px; color: var(--dim); }
+  #rominfo:empty { display: none; }
 
   /*====================================================================
     Buttons and fields
@@ -387,26 +391,16 @@
     Chrome — the bar, the legend and the log
   ====================================================================*/
 
+  /* Only without WebGL2 (no game menu): the page's own controls, as a
+     sheet the gear opens. */
   #chrome {
-    grid-row: 3;
-    width: min(100%, 940px);
-    margin: 0 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 0 calc(14px + var(--safe-l)) calc(14px + var(--safe-b)) calc(14px + var(--safe-r));
-    /* Bounded so a short window cannot squeeze the stage to nothing; the
-       chrome scrolls inside itself instead. Kept tight on purpose: at 1x
-       the picture only ever grows in whole steps, so 40px of chrome here
-       can be the difference between a 2x and a 3x picture. */
-    max-height: min(42vh, 400px);
     overflow-y: auto;
     touch-action: pan-y;
     overscroll-behavior: contain;
   }
-
-  #sheethead { display: none; }      /* immersive only */
 
   .bar {
     display: flex;
@@ -562,24 +556,19 @@
   #log .warn { color: var(--warn); }
   #log .ok   { color: var(--accent); }
 
-  /* Advice about a phone, so it is only shown to one. */
-  #tips { display: none; margin: 0; color: var(--dim); }
-  body.immersive #tips { display: block; }
+  #tips { margin: 0; color: var(--dim); }
   #tips b { color: var(--text); font-weight: 600; }
-
-  #scrim { display: none; }
 
   /*====================================================================
     Diagnostics readout
-    Over the picture rather than in the bar: in immersive mode the bar is
-    behind a sheet, and this is the one readout that has to survive every
-    layout.
+    Over the picture, top left (the gear has the top right): the one
+    readout that has to survive every layout.
   ====================================================================*/
 
   #diag {
     position: absolute;
-    top: calc(4px + var(--safe-t));
-    right: calc(4px + var(--safe-r));
+    top: calc(56px + var(--safe-t));
+    left: calc(10px + var(--safe-l));
     z-index: 7;                /* over the touch overlay */
     display: none;
     pointer-events: none;      /* never in the way of a thumb */
@@ -597,9 +586,8 @@
 
   /*====================================================================
     Crash panel
-    Its own element rather than a log line, because in immersive mode the
-    log is behind a sheet and this must never be the message the player
-    cannot see.
+    Its own element rather than a log line: the log is in the menu, and
+    this must never be the message the player cannot see.
   ====================================================================*/
 
   #crash {
@@ -644,22 +632,19 @@
   #crashnote { color: var(--dim); }
 
   /*====================================================================
-    Immersive mode
+    The fallback sheet (no WebGL2)
   ====================================================================*/
 
-  /* The chrome leaves the grid and becomes a sheet. Closed, it is both
-     translated off-screen *and* visibility:hidden — the second is what
-     guarantees nothing inside it is focusable or hit-testable while the
-     pads are up, which is half of the fix for taps passing through the
-     controls into the page's own buttons. */
-  body.immersive #chrome {
+  /* Closed, it is both translated off-screen *and* visibility:hidden — the
+     second is what guarantees nothing inside it is focusable or
+     hit-testable while the pads are up. */
+  #chrome {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 30;
     width: 100%;
-    max-width: none;
     max-height: 86vh;
     padding: 8px calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
     gap: 12px;
@@ -675,16 +660,16 @@
                 visibility 0s linear .26s;
   }
   @supports (max-height: 86dvh) {
-    body.immersive #chrome { max-height: 86dvh; }
+    #chrome { max-height: 86dvh; }
   }
-  body.immersive.sheet-open #chrome {
+  body.sheet-open #chrome {
     transform: none;
     visibility: visible;
     transition: transform .26s cubic-bezier(.22, .7, .3, 1), visibility 0s;
   }
 
   /* Grab handle. Decoration, so it is a pseudo-element and never a target. */
-  body.immersive #chrome::before {
+  #chrome::before {
     content: "";
     flex: 0 0 auto;
     width: 42px;
@@ -694,7 +679,7 @@
     background: var(--edge);
   }
 
-  body.immersive #sheethead {
+  #sheethead {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -711,7 +696,7 @@
     text-overflow: ellipsis;
   }
 
-  body.immersive #scrim {
+  #scrim {
     display: block;
     position: fixed;
     inset: 0;
@@ -721,65 +706,18 @@
     pointer-events: none;
     transition: opacity .26s;
   }
-  body.immersive.sheet-open #scrim { opacity: 1; pointer-events: auto; }
+  body.sheet-open #scrim { opacity: 1; pointer-events: auto; }
 
-  /* The title moves into the sheet header; the top bar is too narrow for it
-     on a phone and the ROM name is the useful thing to keep there. */
-  body.immersive #topbar h1 { display: none; }
-  body.immersive #rominfo { flex: 1 1 auto; }
-
-  body.immersive #menubtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    flex: 0 0 auto;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgba(30, 34, 41, .82);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-color: var(--hair);
-  }
-  #menubtn .glyph { font-size: 14px; line-height: 1; }
-
-  /* Portrait: the top bar stays a real grid row, so the picture is never
-     under it, and the pads get a reserved band as the third row. */
-  @media (orientation: portrait) {
-    body.immersive.touch-on {
-      grid-template-rows: auto minmax(0, 1fr) var(--band);
-    }
-  }
-
-  /* Landscape: there is no vertical space to give away, so the top bar
-     floats over the picture as a single button and the pads overlay the
-     letterbox at the two edges. */
+  /* Landscape: smaller pads, overlaying the letterbox at the two edges. */
   @media (orientation: landscape) {
     body {
       --gut:   max(12px, 1.6vw);
       --dpad:  min(40vh, 178px);
       --face:  min(17vh, 74px);
     }
-    body.immersive #topbar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 12;
-      justify-content: center;
-      padding-top: calc(6px + var(--safe-t));
-      pointer-events: none;        /* only the button inside it is live */
-    }
-    body.immersive #topbar > * { pointer-events: auto; }
-    /* Only the menu button survives here. The frame rate is unreadable over
-       gameplay — Kirby's title screen is white — and the diagnostics readout
-       already reports it against a backing when it is actually wanted. */
-    body.immersive #topbar h1,
-    body.immersive #topbar #rominfo,
-    body.immersive #topbar #fps { display: none; }
-    body.immersive #menubtn { opacity: .8; }
   }
 
-  /*====================================================================
+    /*====================================================================
     On-screen touch controls
 
     The overlay is fixed and inert; only the pads inside it take pointer
@@ -991,62 +929,51 @@
 
 <!-- The two file pickers, at the top level of the document on purpose.
      They used to sit beside their labels in the sheet, which is the tidy
-     place for them and the wrong one: in immersive mode the closed sheet is
-     `visibility: hidden`, and an input inside a hidden subtree is not
-     rendered, so the picker will not open for it. That is invisible on a
-     desktop, where the sheet is not a sheet — and it is exactly the state the
-     page is in on a phone the moment a first-time visitor taps "Choose ROM
-     file…" on the curtain, which is the one control they have.
+     place for them and the wrong one: the closed sheet is `visibility:
+     hidden`, and an input inside a hidden subtree is not rendered, so the
+     picker will not open for it. The game's menu opens them too (its "Load a
+     different ROM…" and "Import save…" call .click() from the frame that
+     handled the press), and that needs a rendered input just the same.
 
-     Both labels reference by `for=`, which does not care about nesting. -->
+     Labels reference them by `for=`, which does not care about nesting. -->
 <input id="romfile"  type="file" accept=".gba,.bin,application/octet-stream">
 <input id="savefile" type="file" accept=".sav,.srm,.dat,application/octet-stream">
-
-<header id="topbar">
-  <!-- Immersive only. Everything the page can do that is not "play the
-       game" lives behind this one button, which is the point: with the
-       chrome in a sheet there is nothing left underneath the pads for a
-       tap to fall through onto. -->
-  <button id="menubtn" type="button" aria-expanded="false" aria-controls="chrome">
-    <span class="glyph" aria-hidden="true">&#9776;</span><span>Menu</span>
-  </button>
-  <!-- Landscape phones: the stage's own settings button would sit under the
-       R pad, so it lives up here beside Menu instead. -->
-  <button id="uigear2" class="uigear" type="button" aria-label="Settings">&#9881;</button>
-  <h1>Kirby &amp; The Amazing Mirror — decompilation port</h1>
-  <span id="rominfo">no ROM loaded</span>
-  <span id="fps">-- fps</span>
-</header>
 
 <div id="screen-wrap">
   <canvas id="screen" width="240" height="160"></canvas>
   <div id="curtain">
-    <h2>Supply your own ROM</h2>
-    <p>
-      This port ships no game data. To play, load your own legally obtained
-      <b>Kirby &amp; The Amazing Mirror</b> (GBA) ROM file. It is read locally in
-      your browser and never uploaded anywhere.
-    </p>
-    <label class="filebtn" for="romfile">Choose ROM file…</label>
-    <p>…or drag and drop the <code>.gba</code> file anywhere on this page.</p>
-    <p>
-      You only have to do this once: the file is kept in this browser's own
-      storage for this site (IndexedDB), on this device. It is not uploaded
-      anywhere, and the <b>Forget stored ROM</b> button erases it.
-    </p>
-    <p>
-      You can also paste a direct link to a <code>.gba</code> file you have the
-      right to use into the URL box: your browser downloads it straight from
-      that address — it is not uploaded to, or routed through, this page.
-    </p>
+    <div class="card">
+      <h2>Kirby &amp; The Amazing Mirror</h2>
+      <p>
+        This port ships no game data. Load your own legally obtained&nbsp;<b>Kirby
+        &amp; The Amazing Mirror</b>&nbsp;(GBA) ROM to play. It is read here
+        in your browser and never uploaded anywhere.
+      </p>
+      <label class="filebtn big" for="romfile">Load ROM…</label>
+      <div class="drop">…or drop the&nbsp;<code>.gba</code>&nbsp;file anywhere on this page</div>
+      <p id="rominfo"></p>
+      <details>
+        <summary>Load from a link instead</summary>
+        <span class="urlbox">
+          <input id="romurl" type="url" spellcheck="false" autocomplete="off"
+                 placeholder="direct link to a .gba you have the right to use">
+          <button id="romurlgo" type="button">Load</button>
+        </span>
+        <p class="fine">
+          Your browser downloads it straight from that address — it is not
+          uploaded to, or routed through, this page.
+        </p>
+      </details>
+      <p class="fine">
+        You only do this once: the file is kept in this browser's own storage
+        (IndexedDB), on this device. The menu (&#9881;&#xFE0E;, F1 or Tab) has&nbsp;<b>Forget
+        stored ROM</b>&nbsp;to erase it, and your save, settings and the
+        randomizer.
+      </p>
+    </div>
   </div>
 
   <div id="diag" aria-hidden="true"></div>
-
-  <!-- The settings menu (zoom, aspect, scaling, HUD, renderer, audio).
-       Also F1 or Tab. Drawn by the game itself over the picture. -->
-  <button id="uigear" type="button" aria-label="Settings" aria-pressed="false"
-          title="Settings (F1)">&#9881;</button>
 
   <div id="crash" role="alertdialog" aria-labelledby="crashtitle" aria-hidden="true">
     <h2 id="crashtitle">The emulator stopped.</h2>
@@ -1060,9 +987,21 @@
   </div>
 </div>
 
+<!-- The menu. The game draws it over the picture (platform/ui, Dear ImGui)
+     whenever there is WebGL2; this opens it, as do F1 and Tab. Without
+     WebGL2 it opens the sheet below instead. -->
+<button id="uigear" type="button" aria-label="Menu" aria-pressed="false"
+        title="Menu (F1 / Tab)">&#9881;&#xFE0E;</button>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
 <!-- Dims the game and takes the stray taps while the sheet is open. -->
 <div id="scrim"></div>
 
+<!-- The page's own controls, as HTML: only ever shown without WebGL2, where
+     there is no game menu to hold them. Everything here is also in the
+     game menu's Game / Controls / Randomizer / Advanced pages, which
+     drive the same code (Module.portUiAction, at the end of this file). -->
 <section id="chrome" aria-label="ROM, controls and diagnostics">
   <div id="sheethead">
     <span id="sheettitle">Kirby &amp; The Amazing Mirror — decompilation port</span>
@@ -1075,11 +1014,6 @@
     <button id="touchtoggle" type="button" aria-pressed="false">Touch controls: off</button>
     <button id="diagtoggle" type="button" aria-pressed="false">Diagnostics: off</button>
     <button id="fullscreen" type="button">Fullscreen</button>
-    <span class="urlbox">
-      <input id="romurl" type="url" spellcheck="false" autocomplete="off"
-             placeholder="direct link to a .gba file you have the right to use">
-      <button id="romurlgo" type="button">Load</button>
-    </span>
   </div>
 
   <!-- The view experiment. Everything here is off by default: the picture
@@ -1252,6 +1186,17 @@ var Module = (function () {
 
   function logText() { return logRing.join('\n'); }
 
+  var toastEl = document.getElementById('toast');
+  var toastTimer = 0;
+  function toast(text, cls) {
+    if (!toastEl) return;
+    toastEl.textContent = text;
+    toastEl.className = 'show' + (cls ? ' ' + cls : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = ''; },
+                            Math.min(9000, 2200 + text.length * 45));
+  }
+
   // ---- ROM handshake ------------------------------------------------
   // The C entry point does `await Module.portRomReady` before touching any
   // cartridge data, so this promise must exist *now*, before the wasm
@@ -1320,7 +1265,6 @@ var Module = (function () {
   // 60 Hz is pure garbage-collector pressure.
   var frame = new ImageData(new Uint8ClampedArray(GBA_W * GBA_H * 4), GBA_W, GBA_H);
 
-  var fpsEl = document.getElementById('fps');
   var fpsCount = 0, fpsSince = 0;
 
   // How far the game got. Written here, read by the diagnostics block below
@@ -1375,7 +1319,6 @@ var Module = (function () {
     if (!fpsSince) fpsSince = now;
     if (now - fpsSince >= 500) {
       stats.fps = fpsCount * 1000 / (now - fpsSince);
-      fpsEl.textContent = stats.fps.toFixed(1) + ' fps';
       fpsCount = 0; fpsSince = now;
     }
   }
@@ -1536,6 +1479,10 @@ var Module = (function () {
     // the global scope).
     _shell: {
       log: log,
+      // log() plus a moment on screen: for the outcome of something the
+      // player just asked for from the menu, which otherwise lands only in a
+      // log they are not looking at.
+      note: function (text, cls) { log(text, cls); toast(text, cls); },
       logTail: logTail,
       logText: logText,
       stats: stats,
@@ -1975,6 +1922,18 @@ var Module = (function () {
 
   diagBtn.addEventListener('click', function () { setDiag(!diagOn, true); });
 
+  // For the game menu's Advanced page.
+  shell.diag = {
+    on: function () { return diagOn; },
+    toggle: function () { setDiag(!diagOn, true); }
+  };
+  shell.copyLog = function () {
+    copyText(shell.logText(), function (ok) {
+      shell.note(ok ? 'Log copied.' : 'Copy failed: the browser refused the clipboard.', ok ? 'ok' : 'err');
+    });
+  };
+  shell.copyText = copyText;
+
   // Off unless it was asked for: it is a debugging aid, not furniture.
   setDiag(lsGet(LS_DIAG_KEY) === '1', false);
 })();
@@ -2159,6 +2118,21 @@ var Module = (function () {
     apply();
   });
 
+  // The game menu's Randomizer page: the same state, the same apply().
+  Module._shell.rando = {
+    get: function () { return [pools, matchSize, keepAbility, seed].join(','); },
+    setPools: function (n) { pools = (n | 0) & 0x07; apply(); },
+    toggleSize: function () { matchSize ^= 1; apply(); },
+    toggleAbility: function () { keepAbility ^= 1; apply(); },
+    reroll: function () { reroll.click(); },
+    setSeed: function (n) {
+      n = parseInt(n, 10);
+      if (!isFinite(n) || n < 0) return false;
+      seed = n >>> 0; apply();
+      return true;
+    }
+  };
+
   apply();
 })();
 </script>
@@ -2186,6 +2160,8 @@ var Module = (function () {
   var infoEl     = document.getElementById('rominfo');
   var curtain    = document.getElementById('curtain');
 
+  var note = shell.note;
+
   function romInfoText() {
     if (!romLoaded) return 'no ROM loaded';
     return loadedName + ' — ' + mib(loadedSize) + (stored ? ' · remembered in this browser' : '');
@@ -2194,7 +2170,7 @@ var Module = (function () {
   // `fromStore` marks bytes that came out of IndexedDB, so they are not
   // written straight back into it.
   function loadRom(bytes, name, fromStore) {
-    if (romClaimed) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
+    if (romClaimed) { replaceRom(bytes, name); return; }
     romClaimed = true;
 
     if (bytes.length !== EXPECTED_SIZE) {
@@ -2260,16 +2236,43 @@ var Module = (function () {
     });
   }
 
+  // A ROM picked or dropped while one is already running. The game cannot
+  // be swapped under itself -- it was started from the old cart's bytes,
+  // and they are mapped where its pointers expect them -- so the new one
+  // takes the stored ROM's place and the page restarts with it, the way a
+  // returning visit would. Its save is its own (keyed by the ROM); the one
+  // just played is written out first.
+  function replaceRom(bytes, name) {
+    if (bytes.length !== EXPECTED_SIZE) {
+      note('"' + name + '" is ' + bytes.length + ' bytes, not 16 MiB: it may not be the right ROM. ' +
+           'Restarting with it anyway.', 'warn');
+    }
+    idbPut({ bytes: bytes, name: name, saved: Date.now() }).then(function () {
+      note('Restarting with ' + name + '…', 'ok');
+      if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block */ } }
+      // Without rom=, which would fetch the old link again over the new file.
+      var u = new URL(location.href);
+      u.searchParams.delete('rom');
+      u.hash = u.hash.replace(/(^#|&)rom=[^&]*/, '');
+      setTimeout(function () { location.replace(u.toString()); }, 600);
+    }, function (e) {
+      note('could not keep ' + name + ' for the restart (' + reason(e) + '). Reload the page ' +
+           'and pick it again on the start screen.', 'err');
+    });
+  }
+
   function readFile(file) {
     if (!file) return;
     if (/\.(zip|7z|rar)$/i.test(file.name)) {
-      log('"' + file.name + '" is an archive; extract the .gba file first.', 'err');
+      note('"' + file.name + '" is an archive; extract the .gba file first.', 'err');
       return;
     }
+    // A save dropped on the page is meant as a save.
+    if (/\.(sav|srm)$/i.test(file.name) && shell.save) { shell.save.importFile(file); return; }
     log('reading ' + file.name + '…');
     file.arrayBuffer()
       .then(function (buf) { loadRom(new Uint8Array(buf), file.name); })
-      .catch(function (e) { log('could not read file: ' + e, 'err'); });
+      .catch(function (e) { note('could not read file: ' + e, 'err'); });
   }
 
   document.getElementById('romfile').addEventListener('change', function (e) {
@@ -2411,17 +2414,27 @@ var Module = (function () {
     });
   }
 
-  forgetBtn.addEventListener('click', function () {
+  function forgetRom() {
     forgetBtn.disabled = true;
     idbDelete().then(function () {
       setStored(false);
       if (romLoaded) infoEl.textContent = romInfoText();
-      log('stored ROM deleted — you will need to choose your ROM file again next visit.', 'ok');
+      note('Stored ROM deleted — you will need to choose your ROM file again next visit.', 'ok');
     }, function (e) {
       setStored(true);
-      log('could not delete the stored ROM: ' + reason(e), 'err');
+      note('could not delete the stored ROM: ' + reason(e), 'err');
     });
-  });
+  }
+  forgetBtn.addEventListener('click', forgetRom);
+
+  // For the game menu's Game page.
+  shell.romApi = {
+    info:   function () { return romInfoText(); },
+    stored: function () { return stored; },
+    loaded: function () { return romLoaded; },
+    pick:   function () { document.getElementById('romfile').click(); },
+    forget: forgetRom
+  };
 
   // The curtain ships visible in the markup so a first-time visitor sees the
   // prompt with no scripting delay. While we look for a stored ROM it is
@@ -2557,22 +2570,22 @@ var Module = (function () {
   }
 
   function fetchRom(rawUrl) {
-    if (romClaimed) { log('a ROM is already loaded; reload the page to change it.', 'warn'); return; }
-    if (fetching)  { log('a download is already in progress.', 'warn'); return; }
+    if (romClaimed) { note('a ROM is already loaded; use Load ROM… in the menu to change it.', 'warn'); return; }
+    if (fetching)  { note('a download is already in progress.', 'warn'); return; }
 
     var url = (rawUrl || '').trim();
-    if (!url) { log('enter a direct link to a .gba file first.', 'err'); return; }
+    if (!url) { note('enter a direct link to a .gba file first.', 'err'); return; }
 
     var parsed = null;
     try { parsed = new URL(url, location.href); } catch (e) { /* reported below */ }
     if (!parsed || !/^https?:$/.test(parsed.protocol)) {
-      log('"' + url + '" is not an http(s) URL.', 'err');
+      note('"' + url + '" is not an http(s) URL.', 'err');
       return;
     }
 
     var name = nameFromUrl(parsed);
     if (/\.(zip|7z|rar)$/i.test(name)) {
-      log('"' + name + '" is an archive; link the extracted .gba file instead.', 'err');
+      note('"' + name + '" is an archive; link the extracted .gba file instead.', 'err');
       return;
     }
 
@@ -2605,8 +2618,9 @@ var Module = (function () {
       infoEl.textContent = name + ' — ' + mib(bytes.length);
       loadRom(bytes, name);
     }).catch(function (e) {
-      infoEl.textContent = 'no ROM loaded';
-      if (e && e.diagnosed) { log('download failed: ' + e.message, 'err'); return; }
+      infoEl.textContent = 'Download failed: ' + ((e && e.message) || e) +
+                           (e && e.diagnosed ? '' : ' (more in the log)');
+      if (e && e.diagnosed) { note('download failed: ' + e.message, 'err'); return; }
 
       // A rejected fetch is deliberately opaque: no status, no body, and the
       // same TypeError whether the request was blocked by CORS, failed DNS or
@@ -2682,7 +2696,7 @@ var Module = (function () {
     var last = lsGet(LS_URL_KEY);
     if (last) {
       urlInput.value = last;
-      log('previous URL restored in the box above — press Load to fetch it.');
+      log('previous URL restored in the "Load from a link" box — press Load to fetch it.');
     }
 
     restoreStoredRom();
@@ -2797,7 +2811,6 @@ var Module = (function () {
   var dpadEl     = document.getElementById('dpad');
   var toggleBtn  = document.getElementById('touchtoggle');
   var fsBtn      = document.getElementById('fullscreen');
-  var menuBtn    = document.getElementById('menubtn');
   var sheetClose = document.getElementById('sheetclose');
   var scrimEl    = document.getElementById('scrim');
   var body       = document.body;
@@ -3026,9 +3039,10 @@ var Module = (function () {
   };
 
   //--------------------------------------------------------------------
-  // The settings menu: the gear opens it, and while it is open every
-  // pointer on the picture goes to it (in canvas pixels) and the pads are
-  // hidden, so a thumb cannot be on a pad and a slider at once.
+  // The game menu: the gear opens it, and while it is open every pointer
+  // on the picture goes to it (in canvas pixels) and the pads are hidden,
+  // so a thumb cannot be on a pad and a slider at once. Without WebGL2
+  // there is no game menu and the gear opens the HTML sheet instead.
   //--------------------------------------------------------------------
   var gearBtn = document.getElementById('uigear');
 
@@ -3059,14 +3073,28 @@ var Module = (function () {
       if (now - gearAt < 400) return;
       gearAt = now;
       if (shell.uiAvailable()) Module._PortUiToggle();
+      else if (body.classList.contains('rom-ready')) setSheet(!sheetOpen());
     };
-    [gearBtn, document.getElementById('uigear2')].forEach(function (b) {
-      if (!b) return;
-      b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-      b.addEventListener('pointerup', gearToggle);
-      b.addEventListener('click', gearToggle);
-    });
+    gearBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    gearBtn.addEventListener('pointerup', gearToggle);
+    gearBtn.addEventListener('click', gearToggle);
   }
+
+  // A mouse left still over the game takes the gear (and itself) away
+  // after a moment; any movement brings them back. Fingers have no hover,
+  // so on a touch screen the gear simply stays.
+  var idleTimer = 0;
+  function wake(e) {
+    if (e && e.pointerType && e.pointerType !== 'mouse') return;
+    body.classList.remove('idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+      if (!gearBtn.matches(':hover')) body.classList.add('idle');
+    }, 2500);
+  }
+  window.addEventListener('pointermove', wake, { passive: true });
+  window.addEventListener('pointerdown', wake, { passive: true });
+  if (!window.matchMedia || !matchMedia('(hover: none)').matches) wake();
 
   function uiCanvas() { return Module.portGlCanvas || null; }
 
@@ -3347,29 +3375,25 @@ var Module = (function () {
   }, { passive: false });
 
   //--------------------------------------------------------------------
-  // Showing and hiding the pads, and the two page layouts
+  // Showing and hiding the pads, and the sheet
   //--------------------------------------------------------------------
 
   var LS_TOUCH_KEY = 'katam.touchControls';
   var touchOn = false;
 
-  // Immersive: the picture takes the window and the page's own controls go
-  // into a sheet that is closed until asked for.
+  // The picture always has the window, and the page's own controls are in
+  // the game menu (or, without one, a sheet closed until asked for).
   //
-  // This is the structural half of the fix for taps falling through the pads
-  // onto the page. It used to be that in landscape the bar — the file picker
-  // label, five buttons and a URL field — sat directly underneath the pads,
-  // live and hit-testable, because the overlay is pointer-events:none
-  // everywhere except on a pad. Every tap that missed a pad by a few pixels
-  // landed on a button instead, and the worst of them opened the OS file
-  // chooser, which takes the page away mid-press and is exactly how a
-  // direction ends up held forever. Now there is simply nothing under there.
-  var mqCompact = window.matchMedia('(pointer: coarse), (max-width: 900px)');
-
+  // This is also the structural half of the fix for taps falling through
+  // the pads onto the page. It used to be that in landscape the bar — the
+  // file picker label, five buttons and a URL field — sat directly
+  // underneath the pads, live and hit-testable, because the overlay is
+  // pointer-events:none everywhere except on a pad. Every tap that missed a
+  // pad by a few pixels landed on a button instead, and the worst of them
+  // opened the OS file chooser, which takes the page away mid-press and is
+  // exactly how a direction ends up held forever. Now there is simply
+  // nothing under there.
   function syncMode() {
-    var immersive = touchOn || mqCompact.matches;
-    body.classList.toggle('immersive', immersive);
-    if (!immersive) setSheet(false);           // the sheet is a small-screen idea
     shell.refit();
   }
 
@@ -3379,7 +3403,6 @@ var Module = (function () {
     open = !!open;
     if (open === sheetOpen()) return;
     body.classList.toggle('sheet-open', open);
-    menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     // The pads are hidden while the sheet is up; a finger on one at that
     // moment must not take its button with it.
     if (open) releaseAllTouch();
@@ -3388,7 +3411,6 @@ var Module = (function () {
     setTimeout(measurePads, 300);
   }
 
-  menuBtn.addEventListener('click', function () { setSheet(!sheetOpen()); });
   sheetClose.addEventListener('click', function () { setSheet(false); });
   scrimEl.addEventListener('click', function () { setSheet(false); });
   window.addEventListener('keydown', function (e) {
@@ -3417,8 +3439,10 @@ var Module = (function () {
 
   toggleBtn.addEventListener('click', function () { setTouch(!touchOn, true); });
 
-  if (mqCompact.addEventListener) mqCompact.addEventListener('change', syncMode);
-  else if (mqCompact.addListener) mqCompact.addListener(syncMode);
+  shell.touch = {
+    on: function () { return touchOn; },
+    toggle: function () { setTouch(!touchOn, true); }
+  };
 
   //--------------------------------------------------------------------
   // Fullscreen
@@ -3439,7 +3463,7 @@ var Module = (function () {
     shell.refit();
   }
 
-  fsBtn.addEventListener('click', function () {
+  function toggleFullscreen() {
     setSheet(false);                           // nobody wants the menu over a fullscreen game
     if (fsActive()) {
       var exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -3451,13 +3475,15 @@ var Module = (function () {
     // and point at the one thing that does work there.
     var req = fsRoot.requestFullscreen || fsRoot.webkitRequestFullscreen;
     if (!req) {
-      log('this browser will not let the page go fullscreen. On iPhone, use ' +
-          'Share → Add to Home Screen and launch it from there instead.', 'warn');
+      note('This browser will not let the page go fullscreen. On iPhone, use ' +
+           'Share → Add to Home Screen and launch it from there instead.', 'warn');
       return;
     }
     var r = req.call(fsRoot);
-    if (r && r['catch']) r['catch'](function (e) { log('fullscreen refused: ' + reason(e), 'warn'); });
-  });
+    if (r && r['catch']) r['catch'](function (e) { note('fullscreen refused: ' + reason(e), 'warn'); });
+  }
+  fsBtn.addEventListener('click', toggleFullscreen);
+  shell.fullscreen = { active: fsActive, toggle: toggleFullscreen };
 
   document.addEventListener('fullscreenchange', syncFs);
   document.addEventListener('webkitfullscreenchange', syncFs);
@@ -3638,15 +3664,18 @@ var Module = (function () {
     return Math.round(s / 86400) + ' d ago';
   }
 
-  function syncUi() {
-    exportBtn.disabled = !romKey;
-    deleteBtn.disabled = !stored;
-    infoEl.textContent =
-      !romKey ? 'no ROM loaded'
+  function infoText() {
+    return !romKey ? 'no ROM loaded'
       : broken  ? 'not kept — this browser has no storage for it'
       : stopped ? 'deleted — nothing more is written until you reload'
       : stored  ? 'kept in this browser' + (savedAt ? ' · ' + ago(savedAt) : '')
       : 'nothing saved yet';
+  }
+
+  function syncUi() {
+    exportBtn.disabled = !romKey;
+    deleteBtn.disabled = !stored;
+    infoEl.textContent = infoText();
   }
 
   //--------------------------------------------------------------------
@@ -3789,19 +3818,20 @@ var Module = (function () {
     setTimeout(function () { URL.revokeObjectURL(url); }, 20000);
   }
 
-  exportBtn.addEventListener('click', function () {
+  function exportSave() {
     // Live memory once the game has touched save memory, because that is the
     // truth; the stored record before then, because that is all there is.
     var bytes = armed ? snapshot() : pending;
     if (!bytes) {
-      log('there is no save to export yet — the game has not written one and ' +
-          'none is stored for this ROM.', 'warn');
+      shell.note('There is no save to export yet — the game has not written one and ' +
+                 'none is stored for this ROM.', 'warn');
       return;
     }
     download(bytes, baseName + '.sav');
-    log('exported ' + bytes.length + ' bytes to ' + baseName + '.sav — a plain SRAM ' +
-        'image, the same format an emulator reads.', 'ok');
-  });
+    shell.note('Exported ' + baseName + '.sav (' + bytes.length + ' bytes) — a plain SRAM ' +
+               'image, the same format an emulator reads.', 'ok');
+  }
+  exportBtn.addEventListener('click', exportSave);
 
   function applyImport(bytes, name) {
     stopped = false;
@@ -3812,32 +3842,37 @@ var Module = (function () {
       // game has already built from the old contents are not rebuilt until it
       // goes back and reads again, so say what to do.
       heap().set(bytes, SRAM_BASE);
-      log('save imported from ' + name + '. Reload the page — or return to the ' +
-          'file-select screen — for the game to read it.', 'ok');
+      shell.note('Save imported from ' + name + '. Reset the game (menu → Game) — or return ' +
+                 'to the file-select screen — for the game to read it.', 'ok');
       // Through flush() rather than storing directly, so an in-flight write
       // from a save the game made a moment ago cannot land on top of this one.
       flush();
     } else {
       // Nothing is armed, so no flush can be racing us.
       pending = bytes;
-      log('save imported from ' + name + ' — the game will read it when it starts.', 'ok');
+      shell.note('Save imported from ' + name + ' — the game will read it when it starts.', 'ok');
       storeSave(bytes, 0);
     }
+  }
+
+  function needRom() {
+    if (romKey) return false;
+    shell.note('Load a ROM first: a save file belongs to a particular game, and ' +
+               'until there is one there is nothing to attach it to.', 'err');
+    return true;
   }
 
   importEl.addEventListener('change', function (e) {
     var file = e.target.files[0];
     e.target.value = '';                       // allow re-picking the same file
-    if (!file) return;
-    if (!romKey) {
-      log('load a ROM first: a save file belongs to a particular game, and ' +
-          'until there is one there is nothing to attach it to.', 'err');
-      return;
-    }
+    importFile(file);
+  });
 
+  function importFile(file) {
+    if (!file || needRom()) return;
     file.arrayBuffer().then(function (buf) {
       var src = new Uint8Array(buf);
-      if (!src.length) { log(file.name + ' is empty.', 'err'); return; }
+      if (!src.length) { shell.note(file.name + ' is empty.', 'err'); return; }
       if (src.length > SRAM_SIZE) {
         log(file.name + ' is ' + src.length + ' bytes; save memory is ' + SRAM_SIZE +
             '. Using the first ' + SRAM_SIZE + ' bytes.', 'warn');
@@ -3851,11 +3886,11 @@ var Module = (function () {
       bytes.set(src.subarray(0, Math.min(src.length, SRAM_SIZE)));
       applyImport(bytes, file.name);
     }, function (err) {
-      log('could not read ' + file.name + ': ' + reason(err), 'err');
+      shell.note('could not read ' + file.name + ': ' + reason(err), 'err');
     });
-  });
+  }
 
-  deleteBtn.addEventListener('click', function () {
+  function deleteSave() {
     if (!romKey) return;
     deleteBtn.disabled = true;
     shell.idb.del(shell.idb.saveStore, romKey).then(function () {
@@ -3867,12 +3902,24 @@ var Module = (function () {
       stopped = true;
       if (timer) { clearTimeout(timer); timer = 0; }
       syncUi();
-      log('stored save deleted. Nothing more is written until you reload the page.', 'ok');
+      shell.note('Stored save deleted. Nothing more is written until you reload the page.', 'ok');
     }, function (e) {
       syncUi();
-      log('could not delete the stored save: ' + reason(e), 'err');
+      shell.note('could not delete the stored save: ' + reason(e), 'err');
     });
-  });
+  }
+  deleteBtn.addEventListener('click', deleteSave);
+
+  // For the game menu's Game page (and a .sav dropped on the page).
+  shell.save = {
+    info:   infoText,
+    rom:    function () { return !!romKey; },
+    stored: function () { return stored; },
+    exportNow: exportSave,
+    pick:   function () { if (!needRom()) importEl.click(); },
+    importFile: importFile,
+    del:    deleteSave
+  };
 
   //--------------------------------------------------------------------
   // Called by the ROM loader, once the bytes are mapped and before the game
@@ -4027,7 +4074,8 @@ var Module = (function () {
 <script src="rb_net.js"></script>
 <script src="rb_boot.js"></script>
 <!-- Netplay v2: the online lobby (?room=CODE, 4 letters) over protocol v2.
-     Self-contained; see web/lobby.js. -->
+     Self-contained; see web/lobby.js. Parked: it desyncs, so nothing on the
+     page leads to it -- only the developer flags ?online=1 and ?room=CODE. -->
 <script src="net_session.js"></script>
 <script src="net_game.js"></script>
 <script src="lobby.js"></script>
@@ -4140,6 +4188,7 @@ var Module = (function () {
         Module: Module, driver: driver, log: say, onStatus: say,
       });
       window.katamNetplay.world = session;
+      window.katamNetplay.label = 'World "' + world + '": up to four players drop in and out.';
       say('[netplay] world session "' + world + '" -- syncing');
       return session.begin();
     });
@@ -4172,6 +4221,8 @@ var Module = (function () {
     var net = createKatamNetTransport({ Module: Module, url: url, log: say });
     if (net.attach(players)) {
       window.katamNetplay.net = net;
+      window.katamNetplay.label = 'Room "' + room + '" is this game\'s link cable (up to ' +
+          players + '). Go to START GAME > MULTIPLAYER on every machine.';
       /* The link takeover: the game's own lobby runs over the word relay,
        * and the moment the game commits to the session the cable goes
        * local -- MultiSio runs against synthetic units speaking the real
@@ -4189,6 +4240,99 @@ var Module = (function () {
       say('[netplay] transport refused to attach');
     }
   }, 250);
+})();
+</script>
+
+<script>
+//======================================================================
+// The game menu's half of the page.
+//
+// The menu (platform/ui/ui_menu.cpp) is drawn by the game, over the
+// picture; its Game, Controls, Randomizer and Advanced pages are
+// about things only the page has -- the ROM and save files, fullscreen, the
+// touch pads, the randomizer's state, the log. It reads
+// them through Module.portUiQuery(key) and acts through
+// Module.portUiAction(name, arg) (both via host_web.c), and both are only
+// thin calls into the blocks above, so the HTML fallback sheet and the menu
+// can never disagree about what a button does.
+//
+// An action runs inside the menu's frame, the one that handled the click,
+// which a browser still counts as part of that click -- which is what lets a
+// menu button open a file picker, go fullscreen or write the clipboard.
+// Those three run straight away; everything that calls back into the wasm
+// is deferred a turn, so the menu's own frame is never re-entered.
+//======================================================================
+(function () {
+  'use strict';
+  var shell = Module._shell;
+
+  // The menu's font is ASCII. Readouts written for the page are not.
+  function ascii(t) {
+    return String(t)
+      .replace(/[—–]/g, '-').replace(/…/g, '...')
+      .replace(/·/g, '|').replace(/[→]/g, '>').replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"').replace(/[^\x09\x0a\x20-\x7e]/g, '?');
+  }
+  function bit(v) { return v ? '1' : '0'; }
+  var Q = {
+    'rom.info':    function () { return shell.romApi ? shell.romApi.info() : ''; },
+    'rom.stored':  function () { return bit(shell.romApi && shell.romApi.stored()); },
+    'save.info':   function () { return shell.save ? shell.save.info() : ''; },
+    'save.rom':    function () { return bit(shell.save && shell.save.rom()); },
+    'save.stored': function () { return bit(shell.save && shell.save.stored()); },
+    'fullscreen':  function () { return bit(shell.fullscreen && shell.fullscreen.active()); },
+    'touch':       function () { return bit(shell.touch && shell.touch.on()); },
+    'diag':        function () { return bit(shell.diag && shell.diag.on()); },
+    'rando':       function () { return shell.rando ? shell.rando.get() : '0,1,1,1'; },
+    'log':         function () { return shell.logTail(80).join('\n').slice(-15000); }
+  };
+
+  Module.portUiQuery = function (key) {
+    var f = Q[key];
+    return f ? ascii(f()) : '';
+  };
+
+  function later(fn) { setTimeout(fn, 0); }
+
+  var A = {
+    // Need the click: run now.
+    'rom.load':    function () { shell.romApi.pick(); },
+    'save.import': function () { shell.save.pick(); },
+    'fullscreen':  function () { shell.fullscreen.toggle(); },
+    'log.copy':    function () { shell.copyLog(); },
+    'save.export': function () { shell.save.exportNow(); },
+    // Do not: a turn later.
+    'rom.forget':  function () { later(shell.romApi.forget); },
+    'save.delete': function () { later(shell.save.del); },
+    'reset':       function () {
+      shell.note('Restarting…', 'ok');
+      if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block */ } }
+      setTimeout(function () { location.reload(); }, 400);
+    },
+    'touch':       function () { later(shell.touch.toggle); },
+    'diag':        function () { later(shell.diag.toggle); },
+    'rando.pools': function (n) { later(function () { shell.rando.setPools(n); }); },
+    'rando.size':  function () { later(shell.rando.toggleSize); },
+    'rando.ability': function () { later(shell.rando.toggleAbility); },
+    'rando.reroll':  function () { later(shell.rando.reroll); },
+    'rando.seed':  function () {
+      // prompt() blocks; never from inside the menu's frame.
+      later(function () {
+        var cur = (shell.rando.get().split(',')[3]) || '';
+        var v = window.prompt('Randomizer seed (a whole number, 0 to 4294967295):', cur);
+        if (v === null) return;
+        if (!shell.rando.setSeed(String(v).trim()))
+          shell.note('"' + v + '" is not a seed: use a whole number.', 'err');
+      });
+    }
+  };
+
+  Module.portUiAction = function (name, arg) {
+    var f = A[name];
+    if (!f) return false;
+    f(arg);
+    return true;
+  };
 })();
 </script>
 
