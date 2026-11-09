@@ -187,6 +187,11 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--gold2); }
 #modal .box { width: min(480px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border: 2px solid var(--edge2); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 #modal h2 { margin: 0; font-size: 18px; }
 #modal .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.excards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.excard { display: flex; flex-direction: column; gap: 4px; padding: 8px; text-align: left; background: var(--panel2); border: 2px solid var(--edge); border-radius: 12px; cursor: pointer; font-size: 12px; }
+.excard:hover { border-color: var(--gold); }
+.excard canvas { width: 100%; height: 90px; object-fit: cover; object-position: left bottom; image-rendering: pixelated; border-radius: 8px; background: #6fb6ff; }
+.excard b { font-size: 15px; }
 #toast { position: fixed; z-index: 90; left: 50%; bottom: 54px; transform: translateX(-50%); max-width: 90vw; padding: 8px 14px; background: #1b1440; border: 2px solid var(--gold); border-radius: 12px; font-weight: 600; }
 
 /* ---- resizing: every gap between panels is a handle */

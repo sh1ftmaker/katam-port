@@ -459,10 +459,16 @@ function drawCell(i) { S.artCv.getContext('2d').putImageData(metaImage(S.room.ar
 function roomPicture(id) {
   let W, H, art, g;
   if (S.room && S.room.id === id) ({ W, H, art } = S.room), g = S.gfx;
-  else {
-    const d = roomDoc(id); W = d.size.width; H = d.size.height; g = gfxFor(d);
-    try { art = S.L.grid.decodeGrid(d.art, W, H); } catch (e) { art = []; }
-  }
+  else return docPicture(roomDoc(id));
+  return artPicture(W, H, art, g);
+}
+function docPicture(d) {
+  const W = d.size.width, H = d.size.height;
+  let art;
+  try { art = S.L.grid.decodeGrid(d.art, W, H); } catch (e) { art = []; }
+  return artPicture(W, H, art, gfxFor(d));
+}
+function artPicture(W, H, art, g) {
   const cv = h('canvas', { width: W * 16, height: H * 16 }), c = cv.getContext('2d');
   paintBackground(c, g, W * 16, H * 16);
   const t = h('canvas', { width: W * 16, height: H * 16 }), tc = t.getContext('2d');
@@ -1247,6 +1253,7 @@ function refreshTab() {
     setKids(body, h('div', { class: 'scrolly' },
       h('div', { class: 'sec' }, 'My rooms', h('button', { class: 'btn tiny', onclick: newRoomDialog }, '+ New room')),
       roomIds().map((id) => h('div', { class: 'roomrow' + (id === R.id ? ' on' : ''), onclick: () => openRoom(id) }, h('b', null, 'Room ' + roomLabel(id)), h('span', { class: 'dim' }, (() => { const d = roomDoc(id); return `${d.size.width} × ${d.size.height}`; })()))),
+      h('button', { class: 'btn', style: 'margin-top:6px', onclick: examplesDialog }, 'Example projects…'),
       h('div', { class: 'sec', style: 'margin-top:10px' }, 'The original game'),
       h('p', { class: 'dim', style: 'margin:0 0 6px' }, 'Look around for ideas, copy a room to start from, or edit one to put a door to your rooms in it: the game starts in the original rooms.'),
       h('div', { class: 'form', style: 'margin-bottom:6px' }, h('label', null, 'Area'), asel), grid));
@@ -1450,7 +1457,7 @@ function openMenu(anchor, which) {
   const m = $('#menu'), item = (label, run, dis) => h('button', { disabled: dis, onclick: () => { m.hidden = true; run(); } }, label);
   const tog = (label, key) => item((S.show[key] ? '☑ ' : '☐ ') + label, () => { S.show[key] = !S.show[key]; syncShow(); });
   const items = {
-    file: () => [item('New project…', newProject), item('Open a project (.zip or .json)…', () => $('#openfile').click()), item('Open an example: Rainbow Annex (4 rooms)', () => { S.example = 'rainbow_annex'; loadProjectFiles(null); }), item('Open an example: Sky Garden (2 rooms)', () => { S.example = 'sky_garden'; loadProjectFiles(null); }), h('hr'),
+    file: () => [item('New project…', newProject), item('Open a project (.zip or .json)…', () => $('#openfile').click()), item('Example projects…', examplesDialog), h('hr'),
       item('New room…', newRoomDialog), item('Look at the original game’s rooms', () => setTab('rooms')), h('hr'), item('Save: download the project (.zip)', saveZip), item('Open the game page', () => window.open('../', '_blank'))],
     edit: () => [item('Undo', undo, !S.undo.length), item('Redo', redo, !S.redo.length), h('hr'), item('Delete the selected object', deleteSelected, !S.sel), item('Shuffle the terrain fill', shuffleFill), item('Clear this room…', clearRoom), item('Room settings…', roomSettingsDialog)],
     view: () => [tog('Collision', 'collision'), tog('Objects', 'objects'), tog('Camera (240 × 160)', 'camera'), tog('Grid', 'grid'), h('hr'), item('Zoom to fit', zoomFit), item('Zoom 100%', () => setZoom(1)), item('Zoom 300%', () => setZoom(3)), h('hr'), item('Reset the panel sizes', resetLayout)],
@@ -1478,6 +1485,20 @@ function clearRoom() {
     R.art.fill(D.empty); R.col.fill(0); R.doc.objects = []; R.doc.doors = []; S.sel = null;
     redrawArt(); touch(); refreshInspector(); refreshMap();
   });
+}
+/** The example projects that ship with the editor, as cards to pick from. */
+function examplesDialog() {
+  const names = [...new Set(Object.keys(S.data.examples).map((p) => p.split('/')[0]))];
+  const cards = names.map((name) => {
+    const files = Object.entries(S.data.examples).filter(([p]) => p.startsWith(name + '/'));
+    const proj = JSON.parse((files.find(([p]) => p === name + '/project.json') || [0, '{}'])[1]);
+    const rooms = files.filter(([p]) => p.endsWith('.room.json')).map(([, t]) => JSON.parse(t));
+    let pic = h('canvas', { width: 8, height: 8 });
+    try { pic = docPicture(rooms[0]); } catch (e) { /* no picture */ }
+    return h('button', { class: 'excard', onclick: () => { close(); S.example = name; loadProjectFiles(null); toast(`Opened “${proj.name || name}”. Press Play here to try it.`, 4000); } },
+      pic, h('b', null, proj.name || nice(name)), h('span', { class: 'dim' }, `${rooms.length} room${rooms.length === 1 ? '' : 's'}`), h('span', null, (proj.description || '').length > 150 ? proj.description.slice(0, 150).replace(/\s+\S*$/, '') + '…' : proj.description || ''));
+  });
+  const close = modal('Example projects', h('div', null, h('p', { class: 'dim', style: 'margin:0 0 8px' }, 'Opening one replaces the project in this browser. Save yours first if you want to keep it.'), h('div', { class: 'excards' }, cards)), [{ label: 'Cancel' }]);
 }
 function newProject() {
   confirmBox('Start a new project?', 'The project in this browser is replaced by one empty room. Save it first if you want to keep it.', 'New project', () => {
