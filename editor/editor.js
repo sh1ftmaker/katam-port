@@ -257,9 +257,9 @@ async function boot() {
 const projPath = (id) => '/project/' + S.L.project.pathOf(id);
 function clearProject() { for (const p of S.io.list('/project')) S.io.files.delete(p); }
 function putFiles(files) { clearProject(); for (const [p, t] of files) S.io.writeText(p, t); }
-function putExample() {
+function putExample(name = S.example || 'sky_garden') {
   clearProject();
-  for (const [p, t] of Object.entries(S.data.examples)) S.io.writeText('/project/' + p.replace(/^[^/]+\//, ''), t);
+  for (const [p, t] of Object.entries(S.data.examples)) if (p.startsWith(name + '/')) S.io.writeText('/project/' + p.slice(name.length + 1), t);
 }
 function ensureProjectFile() {
   if (!S.io.exists('/project/project.json')) S.io.writeText('/project/project.json', S.L.json.writeJson({ format: 'katam-project/1', id: 'my_levels', name: 'My levels', base: 'vanilla' }));
@@ -1450,7 +1450,7 @@ function openMenu(anchor, which) {
   const m = $('#menu'), item = (label, run, dis) => h('button', { disabled: dis, onclick: () => { m.hidden = true; run(); } }, label);
   const tog = (label, key) => item((S.show[key] ? '☑ ' : '☐ ') + label, () => { S.show[key] = !S.show[key]; syncShow(); });
   const items = {
-    file: () => [item('New project…', newProject), item('Open a project (.zip or .json)…', () => $('#openfile').click()), item('Open the example project', () => loadProjectFiles(null)), h('hr'),
+    file: () => [item('New project…', newProject), item('Open a project (.zip or .json)…', () => $('#openfile').click()), item('Open an example: Rainbow Annex (4 rooms)', () => { S.example = 'rainbow_annex'; loadProjectFiles(null); }), item('Open an example: Sky Garden (2 rooms)', () => { S.example = 'sky_garden'; loadProjectFiles(null); }), h('hr'),
       item('New room…', newRoomDialog), item('Look at the original game’s rooms', () => setTab('rooms')), h('hr'), item('Save: download the project (.zip)', saveZip), item('Open the game page', () => window.open('../', '_blank'))],
     edit: () => [item('Undo', undo, !S.undo.length), item('Redo', redo, !S.redo.length), h('hr'), item('Delete the selected object', deleteSelected, !S.sel), item('Shuffle the terrain fill', shuffleFill), item('Clear this room…', clearRoom), item('Room settings…', roomSettingsDialog)],
     view: () => [tog('Collision', 'collision'), tog('Objects', 'objects'), tog('Camera (240 × 160)', 'camera'), tog('Grid', 'grid'), h('hr'), item('Zoom to fit', zoomFit), item('Zoom 100%', () => setZoom(1)), item('Zoom 300%', () => setZoom(3)), h('hr'), item('Reset the panel sizes', resetLayout)],
@@ -1606,12 +1606,14 @@ function compileProject() {
 
 // The game runs in a frame that is started quietly in the background, so
 // Play is a warp into the room, behind a cover until the room is on screen.
-const P = { frame: null, ready: false, pending: null, visible: false };
+const P = { frame: null, ready: false, pending: null, visible: false, last: null, rooms: null, retried: false, watch: 0 };
 function playMessage(hidden) {
   let bundle;
   try { bundle = S.L.pipeline.bundleOf(S.compiled); } catch (e) { if (!hidden) toast('Could not build the rooms: ' + e.message, 6000); return null; }
   const [sx, sy] = startCell(), a = arriveOn(sx, sy);
-  return { katamEd: 1, type: 'play', hidden, bundle: bundle.bytes, room: S.room.num, x: a.x, y: a.y };
+  return { katamEd: 1, type: 'play', hidden, bundle: bundle.bytes, room: S.room.num, x: a.x, y: a.y,
+    // each room's number and outline: what the running game can and cannot have swapped under it
+    rooms: Object.fromEntries(roomIds().map((id) => { const d = roomDoc(id); return [numOf(id), `${d.size.width}x${d.size.height}|${d.tileset}|${d.palette}|${d.background}`]; })) };
 }
 function ensureFrame() {
   if (P.frame) return;
@@ -1631,29 +1633,52 @@ function play() {
   if (res.errors.length) { document.body.classList.add('bottom-open'); toast('Fix the errors in the Validation list first.', 4000); return; }
   const m = playMessage(false);
   if (!m) return;
-  P.pending = m; P.visible = true;
+  P.retried = false;
+  // The running game may be standing in any room it was given.  Re-linking is
+  // safe for edits inside a room; a room that is gone, or has another size or
+  // tile set (another project was opened, a room resized), cannot be swapped
+  // under the game's feet -- it stops or hangs.  Then start a fresh game.
+  if (P.frame && P.rooms && Object.entries(P.rooms).some(([n, sig]) => m.rooms[n] !== sig)) dropFrame();
+  showPlay(m);
+}
+function showPlay(m) {
+  P.pending = m; P.last = m; P.visible = true;
   $('#play-cover').hidden = false; $('#play-cover-msg').textContent = 'Loading the room…';
   $('#playview').hidden = false;
   ensureFrame(); sendPlay();
   P.frame.focus();
+  clearTimeout(P.watch);
+  P.watch = setTimeout(() => playFailed('the game did not answer'), 25000);
+}
+function dropFrame() { if (P.frame) P.frame.remove(); P.frame = null; P.ready = false; P.rooms = null; }
+/** The game stopped or never showed the room: one fresh start, then say so. */
+function playFailed(why) {
+  clearTimeout(P.watch);
+  const visible = P.visible, again = visible && !P.retried && P.last;
+  console.warn('[editor] play frame:', why);
+  dropFrame();
+  if (again) { P.retried = true; showPlay(Object.assign({}, P.last, { hidden: false })); return; }
+  if (visible) { $('#play-cover').hidden = false; $('#play-cover-msg').textContent = `The game could not run this room (${why}). Press “Back to editor”; if it keeps happening, save the project and send it along.`; }
 }
 function sendPlay() {
   if (!P.frame || !P.ready || !P.pending) return;
   P.frame.contentWindow.postMessage(P.pending, location.origin);
+  P.rooms = Object.assign({}, P.rooms, P.pending.rooms);   // every room the running game may be standing in
   P.pending = null;
 }
 function stopPlay(destroy) {
   $('#playview').hidden = true; P.visible = false;
-  P.pending = null;
+  P.pending = null; clearTimeout(P.watch);
   if (!P.frame) return;
-  if (destroy || !P.ready) { P.frame.remove(); P.frame = null; P.ready = false; }
+  if (destroy || !P.ready) dropFrame();
   else P.frame.contentWindow.postMessage({ katamEd: 1, type: 'pause' }, location.origin);   // kept: the next play is a warp
 }
 window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || !e.data || e.data.katamPlay !== 1) return;
   const m = e.data;
   if (m.type === 'ready') { P.ready = true; sendPlay(); }
-  else if (m.type === 'playing') { if (P.visible) { $('#play-cover').hidden = true; P.frame.focus(); } }
+  else if (m.type === 'playing') { clearTimeout(P.watch); if (P.visible) { $('#play-cover').hidden = true; P.frame.focus(); } }
+  else if (m.type === 'crashed') playFailed(m.text);
   else if (m.type === 'status') { $('#play-cover-msg').textContent = m.text || ''; }
 });
 

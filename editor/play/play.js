@@ -7,6 +7,7 @@
 //                     { katamEd: 1, type: 'pause' }              (hidden: stand still)
 //   frame  -> editor  { katamPlay: 1, type: 'ready' }            (can take a play)
 //                     { katamPlay: 1, type: 'playing' }          (the room is on screen)
+//                     { katamPlay: 1, type: 'crashed', text }    (the game stopped: start a new frame)
 //                     { katamPlay: 1, type: 'status', text, done }
 //
 // The first play boots the game into the room (PortResSetRoomBundle +
@@ -88,6 +89,11 @@
     Module.portSramDirty = function () {};
     return firstPlay.then(function (m) { boot(first || m); });
   }).catch(function (e) { console.error(e); say('The playtest could not start: ' + e.message); });
+  // The game stopping (a trap in the wasm surfaces as a rejected promise) must not
+  // leave the editor waiting behind its cover: say so, and let it start a fresh frame.
+  function crashed(e) { var r = e && (e.reason || e.error || e.message); tell({ type: 'crashed', text: String((r && r.message) || r || 'the game stopped') }); }
+  window.addEventListener('unhandledrejection', crashed);
+  window.addEventListener('error', crashed);
   function ready() { document.title = 'KATAM playtest'; tell({ type: 'ready' }); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 })();
