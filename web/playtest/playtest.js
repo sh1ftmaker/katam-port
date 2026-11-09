@@ -1,4 +1,4 @@
-// The room playtest page (/next/playtest/): the game page (web/shell.html,
+// The room playtest page (no longer published: /editor/ replaces it): the game page (web/shell.html,
 // unchanged) plus this script, which `make dist-playtest` inserts right
 // before the game's loader.
 //

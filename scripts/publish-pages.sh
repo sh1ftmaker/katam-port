@@ -13,10 +13,14 @@
 # Usage: scripts/publish-pages.sh [--dry-run]
 #
 #   PAGES_REMOTE=github       push to this remote (default origin)
-#   PAGES_SUBDIR=next         publish into /next/ and leave the rest alone
-#   PAGES_SUBDIR=next/playtest  nested subdirectories are fine
+#   PAGES_SUBDIR=preview      publish into /preview/ and leave the rest alone
+#                             (nested subdirectories are fine: a/b)
+#   PAGES_PAGE=editor         publish the level editor (make dist-editor,
+#                             web/editor/) into /editor/ instead of the game
 #   PAGES_PAGE=playtest       publish the room playtest page (make
 #                             dist-playtest, web/playtest/) instead of the game
+#
+# The site: the game at the root, the level editor at /editor/.
 #
 # The staged tree starts from the remote's own gh-pages tip, in a detached
 # worktree, and the push is a plain fast-forward -- never forced -- so a
@@ -35,7 +39,8 @@ DIST_TARGET=dist
 case "${PAGES_PAGE:-game}" in
     game) ;;
     playtest) DIST=build/dist-playtest; DIST_TARGET=dist-playtest ;;
-    *) echo "PAGES_PAGE is game or playtest" >&2; exit 1 ;;
+    editor) DIST=build/dist-editor; DIST_TARGET=dist-editor; PAGES_SUBDIR=${PAGES_SUBDIR:-editor} ;;
+    *) echo "PAGES_PAGE is game, editor or playtest" >&2; exit 1 ;;
 esac
 WORKTREE=build/gh-pages
 
@@ -78,10 +83,10 @@ fi
 # Only that subdirectory is cleared; the root publish likewise clears only
 # the root's own files, never another page's directory (see below).
 if [ -n "${PAGES_SUBDIR:-}" ]; then
-    # One or more plain segments: next, next/playtest.  No dots, no empty
+    # One or more plain segments: editor, a/b.  No dots, no empty
     # segments, nothing that could climb out of the worktree.
     if ! printf '%s' "$PAGES_SUBDIR" | grep -Eq '^[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*$'; then
-        echo "PAGES_SUBDIR must be plain directory names joined by / (e.g. next/playtest)" >&2; exit 1
+        echo "PAGES_SUBDIR must be plain directory names joined by / (e.g. editor)" >&2; exit 1
     fi
     TARGET="$WORKTREE/$PAGES_SUBDIR"
     echo "    publishing into /$PAGES_SUBDIR/ (site root left alone)"
@@ -90,8 +95,7 @@ else
     echo "    publishing the site root (pages in subdirectories left alone)"
 fi
 # Clear what this publish owns, but keep nested publishes: a child directory
-# with its own index.html (next/ under the root, next/playtest/ under next/,
-# the old mp/ page) is another page, and publishing the parent must not take
+# with its own index.html (editor/ under the root, the old mp/ page) is another page, and publishing the parent must not take
 # it down.  Child directories without a page are this publish's to clear.
 mkdir -p "$TARGET"
 find "$TARGET" -mindepth 1 -maxdepth 1 \( -type f -o -type l \) ! -name .git -exec rm -f {} +
@@ -101,14 +105,15 @@ for d in "$TARGET"/*/; do
     rm -rf "$d"
 done
 
-if [ "$DIST_TARGET" = dist-playtest ]; then
+if [ "$DIST_TARGET" != dist ]; then
     # The whole directory: the page, the game, the compiler library, data.json.
     cp -r "$DIST"/. "$TARGET"/
+else
+    cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
+    cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
+    cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
+    cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 fi
-cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
-cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 # Pages runs Jekyll by default, which ignores files it does not understand.
 touch "$WORKTREE/.nojekyll"
 

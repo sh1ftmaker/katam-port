@@ -999,6 +999,52 @@ V2 §11).
 
 ## 5. Level editor
 
+### 5.0 Direction (2026-11-08): simple mode first, advanced mode kept
+
+The user chose a Mario-Maker-style **simple mode** as the editor's front door, so that making a
+level is easy enough to draw people in. The full tool described in §5.1–5.3 stays as an
+**Advanced** toggle over the same data and files. Nothing either mode writes is lost to the other.
+
+What simple mode means:
+
+- **Place things, not tiles.** You paint *terrain* (grass ground, platform, slope, ladder, spikes,
+  water…) and the editor picks the edge, corner and fill metatiles automatically (auto-tiling).
+  **There is no separate collision brush.** Collision follows from the terrain piece: ground is
+  solid, a platform is one-way, spikes hurt. The collision overlay and brush live only in
+  Advanced mode.
+- **Auto-tiling rules are learned, not hand-drawn.** For each tileset, the rules come from the
+  vanilla rooms: the neighbour statistics of the metatile dictionary (§5.1) show which piece is a
+  top edge, a corner, a slope or fill. Tilesets with one-off art are only partly covered. Those
+  pieces stay available as stamps.
+- **Stamps** are decorations and set pieces (trees, arches, ruins) cut automatically from vanilla
+  rooms and placed in one tap.
+- **A picture palette with no forms.** One row of large icons (terrain, enemies, items, star
+  blocks, doors, stamps), with sprites decoded from the player's ROM at runtime. Common properties
+  are changed by direct manipulation, not by typing into fields. The inspector is Advanced only.
+- **One-tap Play from the cursor, and back.** This uses §5.3: the game stays loaded, the room is
+  recompiled and warped into. After a run, Kirby's path is drawn over the level as a trail.
+- **Hard to break.** Simple mode prevents invalid states (camera floor, budget, unlinked doors)
+  where it can, instead of listing them. The validation panel is Advanced only.
+- **Doors:** place a door, then tap its target room on a small area map. This is the Kirby-specific
+  part, since rooms are joined by doors and a level is not one long course.
+- **The canvas fills the screen**, with thin edge strips. The layout is phone-friendly.
+- **Branding:** borrow the ideas, not Mario Maker's art, icons, mascots or sounds. No Nintendo
+  assets ship on the page: Kirby sprites come from the player's ROM, with original placeholder icons
+  until it is loaded.
+
+Order: build the editor core and simple mode first (about 4–5 weeks, including auto-tiling, stamps
+and the sprite decoder), then the Advanced view (about 1–2 weeks).
+
+*Status (2026-11-09, branch `editor`):* a first editor is at `/editor/` (`web/editor/`, `make
+dist-editor`, `PAGES_PAGE=editor scripts/publish-pages.sh`). Its layout is the full tool (tool
+column, canvas, palette and inspector, area map, thumbnails, validation), on the user's mock-up.
+From this section it has: the piece palette learned from the vanilla rooms, with **collision
+painted with the piece** (the collision brush overrides it); door placement that writes the
+collision cell and the door object together; Play from a start flag, in a frame that is kept and
+paused between plays; projects kept in IndexedDB and saved as a zip. Not yet: auto-tiled edges
+and corners, stamps, sprite pictures (objects are coloured badges), the trail, Stop-to-snapshot.
+`/next/` and `/next/playtest/` are gone from the site.
+
 ### 5.1 What it edits
 
 *Implementation note:* the editor's file formats, validation, rendering and compilation now

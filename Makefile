@@ -182,7 +182,7 @@ TARGET := $(OUT)/katam.html
         arm64 arm64-clean \
         windows windows-package windows-clean \
         layout layout-check regress regress-pixels regress-wasm \
-        res-extract res-roundtrip regress-pack manifest-check authoring-check authoring-roundtrip playtest-test dist-playtest \
+        res-extract res-roundtrip regress-pack manifest-check authoring-check authoring-roundtrip playtest-test dist-playtest dist-editor \
         lint-determinism
 
 all: $(TARGET)
@@ -796,13 +796,21 @@ dist: all
 	@printf 'User-agent: *\nDisallow: /\n' > $(DIST)/robots.txt
 	@echo "  DIST    $(DIST) ($$(du -sh $(DIST) | cut -f1))"
 
-# The room playtest page (/next/playtest/, web/playtest/): the stamped game
+# The room playtest page (web/playtest/; superseded on the site by /editor/): the stamped game
 # page plus the playtest script, the authoring compiler and its committed
 # data.  Same no-game-data check as dist.
 PLAYTEST_DIST ?= $(BUILD)/dist-playtest
 dist-playtest: dist
 	@node tools/make_playtest_dist.mjs $(DIST) $(PLAYTEST_DIST)
 	@$(MAKE) --no-print-directory check-dist DIST=$(PLAYTEST_DIST)
+
+# The level editor (/editor/, web/editor/): the editor page, the authoring
+# compiler and its committed data, and the game page as its play frame
+# (play/).  Same no-game-data check as dist.
+EDITOR_DIST ?= $(BUILD)/dist-editor
+dist-editor: dist
+	@node tools/make_editor_dist.mjs $(DIST) $(EDITOR_DIST)
+	@$(MAKE) --no-print-directory check-dist DIST=$(EDITOR_DIST)
 
 # The last thing between a ROM and the internet.  dist rebuilds the directory
 # from three named files so this should never fire -- which is the point: it

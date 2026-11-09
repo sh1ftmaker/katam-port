@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// make_playtest_dist.mjs DIST OUT -- the room playtest page (/next/playtest/)
+// make_playtest_dist.mjs DIST OUT -- the room playtest page (web/playtest/)
 // from the stamped game page in DIST (make dist).
 //
 //   OUT/index.html        DIST/index.html + web/playtest/playtest.{js,css}
