@@ -6,11 +6,14 @@
 //   editor -> frame   { katamEd: 1, type: 'play', bundle: Uint8Array, room, x, y }
 //                     { katamEd: 1, type: 'pause' }              (hidden: stand still)
 //   frame  -> editor  { katamPlay: 1, type: 'ready' }            (can take a play)
+//                     { katamPlay: 1, type: 'playing' }          (the room is on screen)
 //                     { katamPlay: 1, type: 'status', text, done }
 //
 // The first play boots the game into the room (PortResSetRoomBundle +
 // PortPlaytestBoot: the regression boot, fast-forwarded, then a warp); later
-// ones re-link the rooms in the running game and warp back in.  A playtest
+// ones re-link the rooms in the running game and warp back in.  The editor
+// sends the first one with hidden: true as soon as it has loaded, so the boot
+// happens out of sight and the frame then waits, paused, for a real play.  A playtest
 // never reads or writes the player's saved game.
 (function () {
   'use strict';
@@ -41,29 +44,34 @@
   }
 
   function writeHeap(bytes) { var p = Module._malloc(bytes.length); Module.HEAPU8.set(bytes, p); return p; }
-  function settle(room) {
-    var poll = setInterval(function () {
-      if (Module._PortFrameNumber() >= WARP_FRAME + SETTLE) { clearInterval(poll); say('Playing room ' + room + '.', true); }
-    }, 200);
-  }
+  var settled = false, wantHidden = false;
+  // The intro is fast-forwarded behind the editor's cover; keep it silent too.
+  function hush() { var ctx = Module.portAudio && Module.portAudio.ctx; try { if (ctx && ctx.state === 'running') ctx.suspend(); } catch (e) { /* no audio yet */ } }
+  function unhush() { var ctx = Module.portAudio && Module.portAudio.ctx; try { if (ctx && !paused) ctx.resume(); } catch (e) { /* no audio yet */ } }
   function boot(m) {
     var p = writeHeap(m.bundle);
     Module._PortResSetRoomBundle(p, m.bundle.length);
     Module._free(p);
     Module._PortPlaytestBoot(m.room, m.x, m.y);
     Module.portTurbo = function () { return Module._PortFrameNumber() < WARP_FRAME + SETTLE; };
-    booted = true;
-    say('Skipping the intro…');
-    settle(m.room);
+    booted = true; wantHidden = !!m.hidden;
+    var poll = setInterval(function () {
+      if (Module._PortFrameNumber() < WARP_FRAME + SETTLE) { hush(); return; }
+      clearInterval(poll);
+      settled = true;
+      if (wantHidden) setPaused(true); else { unhush(); tell({ type: 'playing' }); }
+    }, 100);
   }
   function reload(m) {
-    if (Module._PortFrameNumber() < WARP_FRAME + SETTLE) { sto(function () { reload(m); }, 200); return; }
+    if (!settled) { wantHidden = wantHidden && !!m.hidden; sto(function () { reload(m); }, 150); return; }
     var p = writeHeap(m.bundle);
     var rc = Module._PortResReloadRooms(p, m.bundle.length);
     Module._free(p);
     if (rc !== 0) { say('The game could not take the changed rooms: press Restart.'); return; }
     Module._PortWarp(0, m.room, m.x, m.y);
-    say('Playing room ' + m.room + '.', true);
+    // the warp fades the old room out and the new one in: show it when it is there
+    var from = Module._PortFrameNumber();
+    var poll = setInterval(function () { if (Module._PortFrameNumber() >= from + 75) { clearInterval(poll); tell({ type: 'playing' }); } }, 50);
   }
 
   window.addEventListener('message', function (e) {

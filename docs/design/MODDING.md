@@ -1035,15 +1035,25 @@ What simple mode means:
 Order: build the editor core and simple mode first (about 4–5 weeks, including auto-tiling, stamps
 and the sprite decoder), then the Advanced view (about 1–2 weeks).
 
-*Status (2026-11-09, branch `editor`):* a first editor is at `/editor/` (`web/editor/`, `make
-dist-editor`, `PAGES_PAGE=editor scripts/publish-pages.sh`). Its layout is the full tool (tool
-column, canvas, palette and inspector, area map, thumbnails, validation), on the user's mock-up.
-From this section it has: the piece palette learned from the vanilla rooms, with **collision
-painted with the piece** (the collision brush overrides it); door placement that writes the
-collision cell and the door object together; Play from a start flag, in a frame that is kept and
-paused between plays; projects kept in IndexedDB and saved as a zip. Not yet: auto-tiled edges
-and corners, stamps, sprite pictures (objects are coloured badges), the trail, Stop-to-snapshot.
-`/next/` and `/next/playtest/` are gone from the site.
+*Status (2026-11-09, branch `editor`):* the editor is at `/editor/` (`web/editor/`, `make
+dist-editor`, `PAGES_PAGE=editor scripts/publish-pages.sh`); `/next/` and `/next/playtest/` are
+gone from the site. Its layout is the full tool on the user's mock-up, with resizable panels.
+
+- **Terrain brushes** (`tools/katam/lib/autotile.mjs`): per tile set, learned from the vanilla
+  rooms: which piece the original uses for each neighbour shape, which pieces sit next to which,
+  and families of pieces used together ("styles"). Painting picks edges, corners and a seeded
+  random fill, and tends the scenery above and below (grass blades). Single pieces remain, in a
+  tree by kind, each with the collision it usually has; the collision brush overrides.
+- **Sprites** (`tools/katam/lib/sprites.mjs`): one picture per object type and Kirby, decoded
+  from the player's ROM at run time (176 of 219 types; the rest have no sprite of their own).
+- **Doors are objects.** Placing a `door` writes the link, the door collision and the object,
+  and adds a door back in the target room; the link is edited in the door's inspector. The
+  editor's `arrive` puts Kirby on the named tile (`arriveOn`: x + 1, y + 1).
+- **The original rooms** can be browsed read-only, copied as new rooms, or edited in place (the
+  project's version replaces the room: this is how a door to new rooms gets into the game).
+- **Play** runs in a frame that boots hidden when the editor loads and stays paused; Play is a
+  warp behind a cover, about a second.
+- Not yet: slopes in the terrain brushes, stamps, the trail, Stop-to-snapshot.
 
 ### 5.1 What it edits
 
