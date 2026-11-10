@@ -22,6 +22,7 @@ void PortLog(const char *fmt, ...);
 void PortError(const char *fmt, ...);
 #include "ui/settings.h"
 #include "ui/ui.h"
+extern int gPortLighting;   /* render/render_list.h: the effective switch */
 }
 #include "ui/ui_internal.h"
 
@@ -583,6 +584,51 @@ static int PageDisplay(void)
         Hint("The game always runs at the GBA's 59.73 Hz. Smooth camera scrolls by fractions of a "
              "game pixel; Interpolation draws in-between frames on a faster display (up to one "
              "frame of extra delay).");
+    }
+
+    if (Section("Lighting")) {
+        /* render/light.c.  Map parameters (mode, softness, angle) rebuild
+         * the shadow map, at most 5 times a second while a slider moves. */
+        bool on = gPortLighting > 0;
+        ImGui::BeginDisabled(s.renderer != PS_RENDER_GPU);
+        if (ImGui::Checkbox("Sunlight and shadows (Rainbow Route)", &on)) {
+            s.lightOn = on ? 1 : 0;
+            changed = 1;
+        }
+        ImGui::BeginDisabled(!on);
+        changed |= Radio("Sun from the upper left", &s.lightMode, 0);
+        SameLineIfFits("Point lights");
+        changed |= Radio("Point lights", &s.lightMode, 1);
+        ImGui::PushItemWidth(-1);
+        changed |= ImGui::SliderFloat("##lk", &s.lightStrength, 0.0f, 3.0f, "Strength %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##ls", &s.lightShadow, 0.0f, 0.8f, "Shadow darkness %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lf", &s.lightSoft, 0.0f, 1.0f, "Shadow softness %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightMode != 0);
+        changed |= ImGui::SliderFloat("##la", &s.lightAngle, 0.0f, 75.0f, "Sun angle %.0f deg from overhead", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        changed |= ImGui::SliderFloat("##lw", &s.lightWarm, 0.0f, 1.0f, "Warmth of lit areas %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lc", &s.lightCool, 0.0f, 1.0f, "Coolness of shade %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightMode != 1);
+        changed |= ImGui::SliderFloat("##lg", &s.lightGlow, 0.0f, 2.0f, "Glow (point lights) %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        ImGui::PopItemWidth();
+        ImGui::EndDisabled();
+        if (ImGui::Button("Reset lighting")) {
+            PortSettings d;
+            PortSettingsDefaults(&d);
+            s.lightMode = d.lightMode;
+            s.lightStrength = d.lightStrength;
+            s.lightShadow = d.lightShadow;
+            s.lightSoft = d.lightSoft;
+            s.lightAngle = d.lightAngle;
+            s.lightWarm = d.lightWarm;
+            s.lightCool = d.lightCool;
+            s.lightGlow = d.lightGlow;
+            changed = 1;
+        }
+        ImGui::EndDisabled();
+        Hint("Proof of concept: GPU renderer, Rainbow Route rooms only. Shadows are cast by the "
+             "level's solid tiles.");
     }
 
     if (Section("Menu size")) {

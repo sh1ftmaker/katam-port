@@ -123,7 +123,7 @@ static GLint uObjView, uObjWinPass, uObjK;
 static GLint uCSub;
 static GLint uCView, uCContent, uCLayer, uCValid, uCMapGeom, uCMapScroll,
              uCNumHud, uCHudRect, uCHudD;
-static GLint uCLight, uCLightGeom, uCLightK, uCLights, uCNumLights;
+static GLint uCLight, uCLightGeom, uCLightK, uCLights, uCNumLights, uCLightP, uCLightMode;
 static GLuint sTexLight;
 static int sLightW, sLightH;
 static u32 sLightGen;
@@ -243,6 +243,8 @@ static const char *kCompFs =
     "uniform float uLightK;\n"      /* strength                            */
     "uniform vec2 uLights[4];\n"    /* the lights, world px (their halo)  */
     "uniform int uNumLights;\n"
+    "uniform vec4 uLightP;\n"       /* shadow darkness, warmth, cool, glow */
+    "uniform int uLightMode;\n"     /* 0 sun, 1 point lights              */
     "out vec4 oColor;\n"
     "int L(int line, int w) {\n"
     "  ivec4 t = texelFetch(uLines, ivec2(w >> 2, line), 0);\n"
@@ -473,9 +475,9 @@ static const char *kCompFs =
     "    else if (effect == 2 && t1) result = bright(topC, evy, true);\n"
     "    else if (effect == 3 && t1) result = bright(topC, evy, false);\n"
     "  }\n"
-    /* Sunlight (light.c): a warm point light in the room; the room layer
-     * and the world sprites take its light or its shadow, every world layer
-     * its halo; never the HUD. */
+    /* Sunlight (light.c): the sun from the upper left, or point lights in
+     * the room.  Every world layer and world sprite takes the shadow map's
+     * shade and warmth (and the point lights' halo); never the HUD. */
     "  if (uLight != 0 && !hudPass && !letterbox) {\n"
     "    vec2 wp = vec2(b) / 256.0 + vec2(uLightGeom.xy);\n"
     "    float K = uLightK;\n"
@@ -483,15 +485,30 @@ static const char *kCompFs =
     "    bool hud = top == 4 ? (o.b & 16u) != 0u : (top >= 0 && uLayer[top].x == 2);\n"
     "    if (!hud) {\n"
     "      vec2 sl = texture(uShadow, wp / 8.0 / vec2(uLightGeom.zw)).rg;\n"
-    "      col *= vec3(1.0) - K * sl.r * vec3(0.30, 0.26, 0.10);\n"
-    "      col *= vec3(1.0) + K * sl.g * vec3(0.16, 0.09, -0.02);\n"
-    "      float halo = 0.0;\n"
-    "      for (int i = 0; i < 4; i++) {\n"
-    "        if (i >= uNumLights) break;\n"
-    "        float d = length(wp - uLights[i]);\n"
-    "        halo += 0.7 * exp(-d / 14.0) + 0.10 * exp(-d / 64.0);\n"
+    "      float lum = dot(col, vec3(0.30, 0.59, 0.11));\n"
+    /* Shade: darker by uLightP.x, bluer by uLightP.z, at full shadow x K. */
+    "      vec3 shadeC = (1.0 - uLightP.x) * mix(vec3(1.0), vec3(0.90, 0.95, 1.20), uLightP.z);\n"
+    /* The playfield (the room layer, sprites) takes the full shade; the
+     * parallax art behind it, far off, 55% of it. */
+    "      float plane = (top == 4 || (top >= 0 && ((uLight >> top) & 1) != 0)) ? 1.0 : 0.55;\n"
+    "      col *= max(mix(vec3(1.0), shadeC, K * sl.r * plane), vec3(0.1));\n"
+    /* Warmth where the light arrives.  Sun: fading from the upper left of
+     * the view, and less on pale pixels so a white sky is not washed out. */
+    "      float wl = K * sl.g * uLightP.y;\n"
+    "      if (uLightMode == 0) {\n"
+    "        vec2 sp = clamp(vec2(b) / 256.0 / vec2(240.0, 160.0), 0.0, 1.0);\n"
+    "        wl *= (0.35 + 0.65 * (1.0 - 0.5 * (sp.x + sp.y))) * (1.0 - 0.6 * lum);\n"
     "      }\n"
-    "      col += K * halo * vec3(0.55, 0.42, 0.20);\n"
+    "      col *= vec3(1.0) + wl * vec3(0.45, 0.25, -0.08);\n"
+    "      if (uLightMode == 1) {\n"
+    "        float halo = 0.0;\n"
+    "        for (int i = 0; i < 4; i++) {\n"
+    "          if (i >= uNumLights) break;\n"
+    "          float d = length(wp - uLights[i]);\n"
+    "          halo += 0.7 * exp(-d / 14.0) + 0.10 * exp(-d / 64.0);\n"
+    "        }\n"
+    "        col += K * uLightP.w * halo * vec3(0.55, 0.42, 0.20);\n"
+    "      }\n"
     "    }\n"
     "    oColor = vec4(min(col, vec3(1.0)), 1.0);\n"
     "    return;\n"
@@ -653,6 +670,8 @@ int GlrInit(void *(*getProc)(const char *), int es)
     uCLightK = G(glGetUniformLocation)(sProgComp, "uLightK");
     uCLights = G(glGetUniformLocation)(sProgComp, "uLights");
     uCNumLights = G(glGetUniformLocation)(sProgComp, "uNumLights");
+    uCLightP = G(glGetUniformLocation)(sProgComp, "uLightP");
+    uCLightMode = G(glGetUniformLocation)(sProgComp, "uLightMode");
     {
         GLint loc = G(glGetUniformLocation)(sProgComp, "uShadow");
         if (loc >= 0)
@@ -956,6 +975,8 @@ static void UploadLight(const RlFrame *f)
     G(glUniform1f)(uCLightK, f->lightK);
     G(glUniform2fv)(uCLights, RL_MAX_LIGHTS, &f->lights[0][0]);
     G(glUniform1i)(uCNumLights, f->numLights);
+    G(glUniform4f)(uCLightP, f->lightShadow, f->lightWarm, f->lightCool, f->lightGlow);
+    G(glUniform1i)(uCLightMode, f->lightMode);
 }
 
 void GlrDraw(const RlFrame *f)

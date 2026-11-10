@@ -189,12 +189,26 @@ void PortSettingsApplyEarly(void)
 {
     PortSettingsClamp(&gPortSettings);
     gPortRlHudStrip = gPortSettings.hud == PS_HUD_STRIP;
+    {
+        const PortSettings *s = &gPortSettings;
+        PortLightParams *L = &gPortLightParams;
+        L->mode = s->lightMode;
+        L->strength = s->lightStrength;
+        L->shadow = s->lightShadow;
+        L->soft = s->lightSoft;
+        L->angle = s->lightAngle;
+        L->warmth = s->lightWarm;
+        L->cool = s->lightCool;
+        L->glow = s->lightGlow;
+        gPortLightingUser = s->lightOn;
+        PortLightResolve();
+    }
     PortHostSetVolume(gPortSettings.mute ? 0.0f : gPortSettings.volume / 100.0f);
 }
 
 void PortSettingsChanged(void)
 {
-    char buf[512];
+    char buf[1024];
 
     PortSettingsApplyEarly();
     PortHostSetVsync(gPortSettings.vsync);

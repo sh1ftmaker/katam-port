@@ -4,19 +4,22 @@
  * /lighting/ path or ?lighting=1 (host_web.c sets gPortLighting).  With it
  * off nothing here runs and the render list is what it always was.
  *
- * Warm point lights hang in the room's sky (one per 640 px of room width,
- * placed from the collision grid, fixed per room).  Per room, from the
- * room's own collision grid (gUnk_02024ED0[slot], one byte per 16x16 cell,
- * an index into gCollisionAttributes), a map of one RG texel per 8x8 world
- * pixels is worked out by marching five rays from each texel to points
- * across each light's disc: R = light blocked (shadow, fanning out radially
- * with a penumbra that widens with distance), G = light arriving (falling
- * off with distance), then a small blur.  It is recomputed only when the
- * room changes or a byte of its grid does (a block broken), so a frame
- * costs a hash of at most 1950 bytes.  The GL composite samples it
- * bilinearly in world coordinates (stable while the camera moves) and
- * darkens/cools the shadow, warms the light and adds each light's halo, on
- * every world layer and world sprite; never on the HUD.  Outside the world
+ * Two modes (gPortLightParams, the settings menu's Lighting section):
+ * the sun (default) -- parallel rays from the upper left, beyond the top of
+ * the room, at gPortLightParams.angle degrees from overhead -- or warm point
+ * lights hanging in the room's sky (one per 640 px of room width).  Per
+ * room, from the room's own collision grid (gUnk_02024ED0[slot], one byte
+ * per 16x16 cell, an index into gCollisionAttributes), a map of one RG
+ * texel per 8x8 world pixels is worked out by marching five rays from each
+ * texel across the sun's angular disc or each light's disc: R = light
+ * blocked (shadow, with a penumbra that widens with distance), G = light
+ * arriving, then a small blur.  It is recomputed when the room changes, a
+ * byte of its grid does (a block broken), or a map parameter does (at most
+ * 5 times a second while a slider moves), so a frame costs a hash of at
+ * most 1950 bytes.  The GL composite samples it bilinearly in world
+ * coordinates (stable while the camera moves): shade darker and cooler,
+ * lit areas warmer, the point lights' halo; the playfield fully, the
+ * parallax art behind it at 55%; never the HUD.  Outside the world
  * framing, or outside Rainbow Route, the frame carries no light map and the
  * composite is the old one.  The PPU (software) path is not touched.
  *
@@ -48,8 +51,20 @@ static double NowMs(void)
 }
 #endif
 
-int gPortLighting = -1;          /* -1: not decided yet (reads the env)        */
+int gPortLighting = -1;          /* effective; -1 not decided yet             */
+int gPortLightingDefault = -1;   /* page / env default; -1 read KATAM_LIGHTING */
+int gPortLightingUser = -1;      /* the settings menu; -1 follow the default  */
+PortLightParams gPortLightParams = PORT_LIGHT_PARAMS_DEFAULT;
 double gPortLightBuildMs;        /* the last light-map build, for the report  */
+
+void PortLightResolve(void)
+{
+    if (gPortLightingDefault < 0) {
+        const char *e = getenv("KATAM_LIGHTING");
+        gPortLightingDefault = (e && e[0] == '1') ? 1 : 0;
+    }
+    gPortLighting = gPortLightingUser >= 0 ? gPortLightingUser : gPortLightingDefault;
+}
 
 /* Rainbow Route's rooms: the AREA_RAINBOW_ROUTE entries of the game's own
  * area-map table (game/src/pause_area_map.c, sAreaMapRoomInfos, static there,
@@ -76,12 +91,11 @@ static int IsRainbowRoute(u16 room)
 #define LIGHT_MAX_H (1648 / LIGHT_CELL + 2)
 #define GRID_MAX 1950
 
-/* Strength of the whole effect: 0 none, 1 the default (moderate), 2 strong.
- * KATAM_LIGHTING_STRENGTH overrides it (native/node). */
-#define LIGHT_STRENGTH 1.0f
+/* The tunables are gPortLightParams (the settings menu's Lighting section;
+ * natively KATAM_LIGHTING_STRENGTH / _MODE override strength and mode). */
 #define LIGHT_RANGE 560.0f                   /* px a light reaches          */
 #define LIGHT_SPACING 640                    /* px between a room's lights  */
-#define LIGHT_RADIUS 20.0f                   /* a light's disc: penumbra    */
+#define SUN_REACH 320.0f                     /* px a sun ray is followed    */
 #define LIGHT_RAYS 5
 #define LIGHT_STEP 6.0f                      /* march step, px              */
 
@@ -93,7 +107,10 @@ static u32 sGen;
 static u16 sRoom = 0xFFFF;
 static u32 sGridHash;
 static int sHave;
-static float sStrength = -1.0f;
+static int sEnvDone;
+static int sBuiltMode = -1;
+static float sBuiltSoft = -1.0f, sBuiltAngle = -1.0f;
+static double sLastBuild;
 static float sLights[RL_MAX_LIGHTS][2];
 static int sNumLights;
 
@@ -163,7 +180,8 @@ static float Visible(float px0, float py0, float lx0, float ly0, float d0,
      * it: the penumbra widens with distance from the occluder, as an area
      * light's does. */
     for (r = 0; r < LIGHT_RAYS; r++) {
-        float o = LIGHT_RADIUS * ((float)r / (LIGHT_RAYS - 1) * 2.0f - 1.0f);
+        float o = (4.0f + 56.0f * gPortLightParams.soft)
+                  * ((float)r / (LIGHT_RAYS - 1) * 2.0f - 1.0f);
         float lx = lx0 + nx * o, ly = ly0 + ny * o;
         float dx = lx - px0, dy = ly - py0, d = sqrtf(dx * dx + dy * dy);
         int n = (int)(d / LIGHT_STEP), s, start = 0, blocked = 0;
@@ -190,22 +208,59 @@ static float Visible(float px0, float py0, float lx0, float ly0, float d0,
     return lit / LIGHT_RAYS;
 }
 
-static void Build(const u8 *grid, s32 cw, s32 ch)
+/* The sun: parallel rays from the upper left, beyond the top of the room.
+ * Per texel, five rays spread over the sun's disc (soft: 1..17 degrees
+ * across) are followed towards it for up to SUN_REACH px; a blocked ray
+ * counts less the further away its occluder is (sky fill), so a shadow is
+ * strongest at the foot of what casts it and its edge widens with distance.
+ * R = shadow, G = sunlit (1 - shadow), for the shader's warm lift. */
+static void BuildSun(s32 cw, s32 ch, s32 mw, s32 mh)
 {
-    s32 mw = (cw * 16) / LIGHT_CELL, mh = (ch * 16) / LIGHT_CELL;
-    s32 tx, ty, i;
+    float dx[LIGHT_RAYS], dy[LIGHT_RAYS];
+    float a0 = gPortLightParams.angle * 3.14159265f / 180.0f;
+    float spread = (1.0f + 16.0f * gPortLightParams.soft) * 3.14159265f / 180.0f;
+    int steps = (int)(SUN_REACH / LIGHT_STEP), r;
+    s32 tx, ty;
 
-    for (i = 0; i < cw * ch; i++) {
-        u32 a = gCollisionAttributes[grid[i]];
-        if (a & 0x200)
-            sOcc[i] = 1;
-        else if ((a >> 28) != 0 && !(a & 1))
-            sOcc[i] = 1;                     /* a slope: count it solid     */
-        else if (a & 0x4)
-            sOcc[i] = 2;                     /* jump-through platform       */
-        else
-            sOcc[i] = 0;
+    for (r = 0; r < LIGHT_RAYS; r++) {
+        float a = a0 + spread * ((float)r / (LIGHT_RAYS - 1) - 0.5f);
+        dx[r] = -sinf(a) * LIGHT_STEP;       /* towards the sun: up, left  */
+        dy[r] = -cosf(a) * LIGHT_STEP;
     }
+    for (ty = 0; ty < mh; ty++) {
+        for (tx = 0; tx < mw; tx++) {
+            float px0 = tx * LIGHT_CELL + LIGHT_CELL * 0.5f;
+            float py0 = ty * LIGHT_CELL + LIGHT_CELL * 0.5f;
+            float sh = 0.0f;
+
+            for (r = 0; r < LIGHT_RAYS; r++) {
+                int s, start = 0;
+                /* Inside the ground: start where the ray leaves it. */
+                while (start < 6 && Occ((s32)(px0 + dx[r] * start),
+                                        (s32)(py0 + dy[r] * start), cw, ch))
+                    start++;
+                for (s = start + 1; s < steps; s++) {
+                    float x = px0 + dx[r] * s, y = py0 + dy[r] * s;
+                    if (y < 0.0f || x < 0.0f)
+                        break;                   /* out of the room: sky    */
+                    if (Occ((s32)x, (s32)y, cw, ch)) {
+                        sh += 1.0f - 0.9f * (float)(s - start) / (float)steps;
+                        break;
+                    }
+                }
+            }
+            sh /= LIGHT_RAYS;
+            sTmp[(ty * mw + tx) * 2] = sh;
+            sTmp[(ty * mw + tx) * 2 + 1] = 1.0f - sh;
+        }
+    }
+    sNumLights = 0;
+}
+
+static void BuildPoints(s32 cw, s32 ch, s32 mw, s32 mh)
+{
+    s32 tx, ty;
+
     PlaceLights(cw, ch);
 
     /* Per texel: shadow = how much light is blocked (fading out towards
@@ -235,6 +290,31 @@ static void Build(const u8 *grid, s32 cw, s32 ch)
             sTmp[(ty * mw + tx) * 2 + 1] = li > 1.0f ? 1.0f : li;
         }
     }
+}
+
+static void Build(const u8 *grid, s32 cw, s32 ch)
+{
+    s32 mw = (cw * 16) / LIGHT_CELL, mh = (ch * 16) / LIGHT_CELL;
+    s32 tx, ty, i;
+
+    for (i = 0; i < cw * ch; i++) {
+        u32 a = gCollisionAttributes[grid[i]];
+        if (a & 0x200)
+            sOcc[i] = 1;
+        else if ((a >> 28) != 0 && !(a & 1))
+            sOcc[i] = 1;                     /* a slope: count it solid     */
+        else if (a & 0x4)
+            sOcc[i] = 2;                     /* jump-through platform       */
+        else
+            sOcc[i] = 0;
+    }
+    if (gPortLightParams.mode == RL_LIGHT_POINT)
+        BuildPoints(cw, ch, mw, mh);
+    else
+        BuildSun(cw, ch, mw, mh);
+    sBuiltMode = gPortLightParams.mode;
+    sBuiltSoft = gPortLightParams.soft;
+    sBuiltAngle = gPortLightParams.angle;
 
     /* 3x3 box blur, once. */
     for (ty = 0; ty < mh; ty++) {
@@ -294,15 +374,18 @@ static void Attach(RlFrame *f, int roomBg)
     u32 h = 2166136261u;
 
     f->light = NULL;
-    if (gPortLighting < 0) {
-        const char *e = getenv("KATAM_LIGHTING");
-        gPortLighting = (e && e[0] == '1') ? 1 : 0;
-    }
+    if (gPortLighting < 0)
+        PortLightResolve();
     if (!gPortLighting || !f->world || roomBg < 0 || roomBg > 3)
         return;
-    if (sStrength < 0.0f) {
+    if (!sEnvDone) {
         const char *e = getenv("KATAM_LIGHTING_STRENGTH");
-        sStrength = e ? (float)atof(e) : LIGHT_STRENGTH;
+        if (e)
+            gPortLightParams.strength = (float)atof(e);
+        e = getenv("KATAM_LIGHTING_MODE");
+        if (e)
+            gPortLightParams.mode = (e[0] == 'p') ? RL_LIGHT_POINT : RL_LIGHT_SUN;
+        sEnvDone = 1;
     }
     li = &gCurLevelInfo[gLocalPlayerId];
     if (li->currentRoom == 0xFFFF || !IsRainbowRoute(li->currentRoom) || li->unk65E > 3)
@@ -317,14 +400,36 @@ static void Attach(RlFrame *f, int roomBg)
     for (i = 0; i < n; i++)
         h = (h ^ grid[i]) * 16777619u;
     h ^= (u32)cw << 16;
+    {
+        /* A changed map parameter (a menu slider): rebuild at most 5 times a
+         * second while it moves, and once more when it settles. */
+        const PortLightParams *P = &gPortLightParams;
+        int stale = P->mode != sBuiltMode || P->soft != sBuiltSoft
+                    || (P->mode == RL_LIGHT_SUN && P->angle != sBuiltAngle);
+        if (stale && NowMs() - sLastBuild >= 200.0)
+            sHave = 0;
+    }
     if (!sHave || li->currentRoom != sRoom || h != sGridHash) {
         double t0 = NowMs();
+        sLastBuild = t0;
         Build(grid, cw, ch);
         gPortLightBuildMs = NowMs() - t0;
         if (getenv("KATAM_LIGHTING_LOG"))
-            fprintf(stderr, "[katam-port] light: room %u %dx%d cells -> %dx%d map, %d lights, in %.2f ms; first at %.0f,%.0f\n",
+            fprintf(stderr, "[katam-port] light: room %u %dx%d cells -> %dx%d map, %s, %d lights, in %.2f ms\n",
                     (unsigned)li->currentRoom, (int)cw, (int)ch, (int)sMaskW,
-                    (int)sMaskH, sNumLights, gPortLightBuildMs, sLights[0][0], sLights[0][1]);
+                    (int)sMaskH, sBuiltMode == RL_LIGHT_POINT ? "point" : "sun",
+                    sNumLights, gPortLightBuildMs);
+        {   /* KATAM_LIGHTING_DUMP=file.pgm: the shadow channel, for looking at */
+            const char *d = getenv("KATAM_LIGHTING_DUMP");
+            FILE *fp = d ? fopen(d, "wb") : NULL;
+            if (fp) {
+                s32 k;
+                fprintf(fp, "P5\n%d %d\n255\n", (int)sMaskW, (int)sMaskH);
+                for (k = 0; k < sMaskW * sMaskH; k++)
+                    fputc(255 - sMask[k * 2], fp);
+                fclose(fp);
+            }
+        }
         sRoom = li->currentRoom;
         sGridHash = h;
         sHave = 1;
@@ -334,7 +439,12 @@ static void Attach(RlFrame *f, int roomBg)
     f->lightH = sMaskH;
     f->lightGen = sGen;
     f->lightLayers = (u8)(1u << roomBg);
-    f->lightK = sStrength;
+    f->lightK = gPortLightParams.strength;
+    f->lightMode = (u8)sBuiltMode;
+    f->lightShadow = gPortLightParams.shadow;
+    f->lightWarm = gPortLightParams.warmth;
+    f->lightCool = gPortLightParams.cool;
+    f->lightGlow = gPortLightParams.glow;
     f->numLights = (u8)sNumLights;
     for (i = 0; i < sNumLights; i++) {
         f->lights[i][0] = sLights[i][0];

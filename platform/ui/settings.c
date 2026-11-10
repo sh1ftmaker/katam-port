@@ -38,6 +38,18 @@ void PortSettingsDefaults(PortSettings *s)
      * down after a minute or so of play (2026-11-09). */
     s->smoothCam = 0;
     s->interp = 1;
+    {
+        static const PortLightParams kL = PORT_LIGHT_PARAMS_DEFAULT;
+        s->lightOn = -1;
+        s->lightMode = kL.mode;
+        s->lightStrength = kL.strength;
+        s->lightShadow = kL.shadow;
+        s->lightSoft = kL.soft;
+        s->lightAngle = kL.angle;
+        s->lightWarm = kL.warmth;
+        s->lightCool = kL.cool;
+        s->lightGlow = kL.glow;
+    }
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -64,6 +76,15 @@ void PortSettingsClamp(PortSettings *s)
     s->uiScale = ClampF(s->uiScale, 0.6f, 2.0f);
     s->smoothCam = !!s->smoothCam;
     s->interp = !!s->interp;
+    s->lightOn = ClampI(s->lightOn, -1, 1);
+    s->lightMode = ClampI(s->lightMode, 0, 1);
+    s->lightStrength = ClampF(s->lightStrength, 0.0f, 3.0f);
+    s->lightShadow = ClampF(s->lightShadow, 0.0f, 0.8f);
+    s->lightSoft = ClampF(s->lightSoft, 0.0f, 1.0f);
+    s->lightAngle = ClampF(s->lightAngle, 0.0f, 75.0f);
+    s->lightWarm = ClampF(s->lightWarm, 0.0f, 1.0f);
+    s->lightCool = ClampF(s->lightCool, 0.0f, 1.0f);
+    s->lightGlow = ClampF(s->lightGlow, 0.0f, 2.0f);
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
@@ -105,6 +126,15 @@ void PortSettingsParse(PortSettings *s, const char *text)
                  * ignored -- everyone starts from the new default once. */
                 INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
+                INT_KEY("light", lightOn)
+                INT_KEY("lightmode", lightMode)
+                FLT_KEY("lightk", lightStrength)
+                FLT_KEY("lightshadow", lightShadow)
+                FLT_KEY("lightsoft", lightSoft)
+                FLT_KEY("lightangle", lightAngle)
+                FLT_KEY("lightwarm", lightWarm)
+                FLT_KEY("lightcool", lightCool)
+                FLT_KEY("lightglow", lightGlow)
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -126,6 +156,15 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\n",
                       s->smoothCam, s->interp);
+    if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n),
+                      "light=%d\nlightmode=%d\nlightk=%.3f\nlightshadow=%.3f\n"
+                      "lightsoft=%.3f\nlightangle=%.1f\nlightwarm=%.3f\n"
+                      "lightcool=%.3f\nlightglow=%.3f\n",
+                      s->lightOn, s->lightMode, (double)s->lightStrength,
+                      (double)s->lightShadow, (double)s->lightSoft,
+                      (double)s->lightAngle, (double)s->lightWarm,
+                      (double)s->lightCool, (double)s->lightGlow);
     return n < size ? n : size - 1;
 }
 

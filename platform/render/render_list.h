@@ -186,6 +186,8 @@ typedef struct RlFrame {
     u8 lightLayers, numLights;
     float lightK;
     float lights[RL_MAX_LIGHTS][2];
+    u8 lightMode;            /* RL_LIGHT_SUN / RL_LIGHT_POINT                 */
+    float lightShadow, lightWarm, lightCool, lightGlow;  /* PortLightParams  */
 } RlFrame;
 
 /* --- the renderer's switches (platform/render/rl_build.c) --------------- */
@@ -215,11 +217,30 @@ void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
 
-/* Sunlight, proof of concept (light.c).  gPortLighting: -1 undecided (reads
- * KATAM_LIGHTING on first use), 0 off, 1 on.  PortLightAttach sets
- * f->light for a Rainbow Route world frame, NULL otherwise. */
-extern int gPortLighting;
+/* Sunlight, proof of concept (light.c).
+ *
+ * gPortLighting is the effective switch: -1 undecided, 0 off, 1 on.  It is
+ * gPortLightingUser (the settings menu: -1 follow the default, 0, 1) if set,
+ * else gPortLightingDefault (the web page's /lighting/ path or ?lighting=1;
+ * natively KATAM_LIGHTING=1; -1 = read the env).  PortLightResolve works it
+ * out again after either changes.  PortLightAttach sets f->light for a
+ * Rainbow Route world frame, NULL otherwise. */
+enum { RL_LIGHT_SUN = 0, RL_LIGHT_POINT = 1 };
+typedef struct PortLightParams {
+    int mode;           /* RL_LIGHT_*                                       */
+    float strength;     /* the whole effect, 0..3                           */
+    float shadow;       /* how dark full shade is, 0..0.8                   */
+    float soft;         /* sun disc / light size: the penumbra, 0..1        */
+    float angle;        /* sun: degrees left of straight up, 0..75          */
+    float warmth;       /* lift of lit areas, 0..1                          */
+    float cool;         /* blue of the shade, 0..1                          */
+    float glow;         /* point lights' halo, 0..2                         */
+} PortLightParams;
+#define PORT_LIGHT_PARAMS_DEFAULT { RL_LIGHT_SUN, 1.0f, 0.30f, 0.35f, 35.0f, 0.35f, 0.5f, 1.0f }
+extern PortLightParams gPortLightParams;
+extern int gPortLighting, gPortLightingDefault, gPortLightingUser;
 extern double gPortLightBuildMs;
+void PortLightResolve(void);
 void PortLightAttach(RlFrame *f, int roomBg);
 
 /* The last frame built, for showing on a display finer than the game's pixel

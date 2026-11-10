@@ -151,9 +151,10 @@ void PortHostInit(int argc, char **argv)
     if (r >= 0)
         gPortSettings.renderer = r;
     PortSettingsApplyEarly();
-    gPortLighting = PortWebLightingParam();
+    gPortLightingDefault = PortWebLightingParam();
+    PortLightResolve();
     if (gPortLighting)
-        PortLog("[katam-port] lighting: on (Rainbow Route sunlight, proof of concept)");
+        PortLog("[katam-port] lighting: on (Rainbow Route sunlight, proof of concept; Settings > Display > Lighting)");
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
 }
