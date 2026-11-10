@@ -77,6 +77,9 @@
      *         onStatus?: (text) => {} } */
     function createKatamWorldSession(opts) {
         var Module = opts.Module;
+        /* Same spawn window on every peer: the original (platform/view.c). */
+        if (Module._PortSimViewPinNative)
+            Module._PortSimViewPinNative();
         var driver = opts.driver;
         var log = opts.log || function (t) { console.log(t); };
         var status = opts.onStatus || log;
@@ -197,5 +200,8 @@
     }
 
     createKatamWorldSession.WORLD_VERSION = WORLD_VERSION;
+    /* The boot, for web/net_game.js (protocol v2 runs the same one). */
+    createKatamWorldSession.bootMask = bootMask;
+    createKatamWorldSession.F0 = F0;
     return createKatamWorldSession;
 }));
