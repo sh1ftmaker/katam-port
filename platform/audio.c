@@ -103,15 +103,64 @@ int PortAudioBlockSamples(void)
  * that ends in a gap or a growing delay.  So the block is nudged by up to ~3%
  * either way to hold the queue at its target depth.
  *
- * Two frames of queue is the target: one is the block currently playing, one is
- * headroom for a main thread that just spent 20 ms decompressing a tileset.
+ * Two and a half frames of queue is the target: one is the block currently
+ * playing, the rest is headroom for a main thread that just spent 20 ms
+ * decompressing a tileset and for a device that takes its samples 512 at a
+ * time rather than 128.
+ *
+ * In the browser that is a starting point rather than a constant.  A phone
+ * whose paints arrive in uneven pairs, or whose frames run long, needs more
+ * than a desktop does, and nothing says which this is except the ring running
+ * dry.  So each time it does the target grows by half a frame, up to six, and
+ * every thirty seconds without one it gives an eighth of a frame back: latency
+ * is spent only where it buys silence-free sound.
  */
+static int sTarget;          /* queue depth to hold, in samples */
+static int sSeenUnderruns;
+static int sQuietFrames;
+static int sQueueAvg;        /* running average of the depth, x16 */
+
+static void TendTarget(void)
+{
+    if (sTarget == 0)
+        sTarget = sNominal * 5 / 2;
+#ifdef __EMSCRIPTEN__
+    {
+        int u = PortAudioUnderruns();
+
+        if (u != sSeenUnderruns) {
+            sSeenUnderruns = u;
+            sQuietFrames = 0;
+            sTarget += sNominal / 2;
+            if (sTarget > sNominal * 6)
+                sTarget = sNominal * 6;
+        } else if (++sQuietFrames >= 1800) {
+            sQuietFrames = 0;
+            sTarget -= sNominal / 8;
+            if (sTarget < sNominal * 5 / 2)
+                sTarget = sNominal * 5 / 2;
+        }
+    }
+#endif
+}
+
 static void ChooseBlockSize(void)
 {
-    int queued = PortAudioQueuedFrames();
-    int err = sNominal * 2 - queued;
-    int adj = err / 8;
+    int queued, err, adj;
     int limit = sNominal / 32;
+
+    TendTarget();
+    /* The depth is only known to within one device callback -- 128 samples in
+     * a desktop browser, 512 or more on a phone -- and it beats against the
+     * frame rate, so the raw reading swings by that much from one frame to the
+     * next.  Steering on it directly slams the block between its two limits.
+     * A short running average sees the trend instead. */
+    queued = PortAudioQueuedFrames();
+    if (sQueueAvg == 0)
+        sQueueAvg = queued << 4;
+    sQueueAvg += queued - (sQueueAvg >> 4);
+    err = sTarget - (sQueueAvg >> 4);
+    adj = err / 8;
 
     if (adj > limit) adj = limit;
     if (adj < -limit) adj = -limit;
@@ -121,6 +170,20 @@ static void ChooseBlockSize(void)
         sBlock = 16;
     if (sBlock > PORT_AUDIO_MAX_BLOCK)
         sBlock = PORT_AUDIO_MAX_BLOCK;
+}
+
+/* Is the queue a block and a half short of where it should be?
+ *
+ * That is not something block-length nudging can fix: it means the game did
+ * not deliver a frame in the time the device played one.  The web host uses
+ * this to run the sound driver again on its own (platform/web/host_web.c), so
+ * a game that drops to 40 frames a second still plays its music at full speed
+ * instead of in 40 pieces. */
+int PortAudioStarving(void)
+{
+    if (sRate == 0 || sTarget == 0)
+        return 0;
+    return PortAudioQueuedFrames() < sTarget - sNominal - sNominal / 2;
 }
 
 /* A square wave, in place of everything the mixer would have produced.

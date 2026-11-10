@@ -883,10 +883,17 @@ void PortMixerInit(int sampleRate, int blockSamples)
     memset(sRingL, 0, sizeof(sRingL));
 }
 
+/* The block may be a little longer than nominal as well as shorter: that is
+ * how the producer catches up with a device that runs faster than the game
+ * (every 60 Hz-family device does, against a 59.7275 Hz game).  The ring only
+ * needs the two reverb taps, one block apart, not to lap each other.  This
+ * used to demand `blockSamples * PORT_REVERB_BLOCKS <= sRingLen`, and since
+ * the ring is sized from the nominal block that refused every longer one --
+ * so the queue could be drained but never refilled, and ran dry. */
 void PortMixerSetBlock(int blockSamples)
 {
     if (blockSamples > 0 && blockSamples <= PORT_AUDIO_MAX_BLOCK
-     && blockSamples * PORT_REVERB_BLOCKS <= sRingLen)
+     && blockSamples * 2 <= sRingLen)
         sBlockLen = blockSamples;
 }
 
@@ -920,6 +927,8 @@ static void MixChannel(struct SoundInfo *soundInfo, struct SoundChannel *chan,
     s32 remain;
     u32 fw, step;
     s32 er, el;
+    s32 erFrom, elFrom, erQ, elQ, erStep, elStep;
+    int fresh;
     int i;
 
     if (!(status & 0xC7))
@@ -995,6 +1004,12 @@ echo:
     status |= 4;
 
 setvol:
+    /* Where the volume was during the last block.  A note that starts in this
+     * one has no "last block", so it starts at its own level: an instant
+     * attack stays instant. */
+    fresh = (chan->status & 0x80) != 0;
+    erFrom = (s32)chan->er;
+    elFrom = (s32)chan->el;
     chan->status = status;
     chan->ev = ev;
     vol = (ev * (u32)(soundInfo->masterVolume + 1)) >> 4;
@@ -1014,6 +1029,22 @@ setvol:
     el = chan->el;
     step = (chan->type & TONEDATA_TYPE_FIX) ? sFixedStep : StepFor(chan->freq);
 
+    /* The envelope moves once a frame, and on the console the volume jumps
+     * with it: every channel that is fading takes a small step at each block
+     * edge, sixty times a second.  Through an 8-bit DAC at 15.7 kHz that is
+     * part of the sound; through a 16-bit one at 48 kHz it is a faint buzz
+     * under anything that decays.  So the volume slides from the last block's
+     * level to this one's across the block instead.  16.16 fixed point; the
+     * product below keeps eight of the fraction bits. */
+    if (fresh) {
+        erFrom = er;
+        elFrom = el;
+    }
+    erQ = erFrom << 16;
+    elQ = elFrom << 16;
+    erStep = ((er - erFrom) * 65536) / frames;
+    elStep = ((el - elFrom) * 65536) / frames;
+
     /* Scaling: on hardware each channel contributes (er * sample) >> 8 as a
      * signed byte, and that byte is the full range of the DAC.  So one unit of
      * that byte is 256 units of an s16, and `er * sample` is already the
@@ -1024,8 +1055,10 @@ setvol:
         s32 s = cur + ((((s32)p[1] - cur) * (s32)fw) >> 23);
         u32 adv;
 
-        sAccR[i] += er * s;
-        sAccL[i] += el * s;
+        sAccR[i] += ((erQ >> 8) * s) >> 8;
+        sAccL[i] += ((elQ >> 8) * s) >> 8;
+        erQ += erStep;
+        elQ += elStep;
 
         fw += step;
         adv = fw >> 23;

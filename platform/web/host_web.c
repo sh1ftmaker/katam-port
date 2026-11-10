@@ -12,6 +12,7 @@
 #include "port/port.h"
 #include "port/res.h"
 #include "port/backend.h"
+#include "port/audio.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 
@@ -397,6 +398,39 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
     PortWebPresent(pixels, w, h);
 }
 
+extern void m4aSoundMain(void);
+extern void m4aSoundVSync(void);
+
+/* Sound that keeps time when the game does not.
+ *
+ * The game makes one block of sound per frame, so a frame that arrives late
+ * leaves the speakers with nothing -- and a device that only manages 40 frames
+ * a second leaves them with nothing twenty times a second.  When the queue is
+ * a whole block behind, the sound driver alone is run again to make up the
+ * difference: it is a few percent of a frame's work, and the music and any
+ * effect already playing carry on at their proper speed while the picture
+ * catches up.  The game itself is not stepped, so nothing it decides changes;
+ * a song simply reaches its end a little sooner in game frames than it would
+ * have.  Only with a live device (never headless, where runs must repeat
+ * exactly), never online, and at most twice per frame. */
+EM_JS(int, PortAudioLive, (void), {
+    var pa = Module.portAudio;
+    return (pa && pa.queued && pa.rep && pa.ctx && pa.ctx.state === 'running'
+            && !(Module.portTurbo && Module.portTurbo())) ? 1 : 0;
+});
+
+static void AudioTopUp(void)
+{
+    int n;
+
+    if (!PortAudioLive())
+        return;
+    for (n = 0; n < 2 && PortAudioStarving(); n++) {
+        m4aSoundMain();
+        m4aSoundVSync();
+    }
+}
+
 /* The menu pause: a host-level frame skip -- the game is not asked for its
  * next frame while the menu is open, and the last picture is re-presented
  * under it.  Not online (either session driver), where a peer would stall. */
@@ -409,6 +443,8 @@ void PortAwaitAnimationFrame(void)
         Show(NULL, 0, 0, 0);
     }
     gPortUiStatus.netplay = online;
+    if (!online)
+        AudioTopUp();
     /* Paints between frames show the interpolated picture. */
     while (PortWebAwaitFrame(sGl && gPortShowDisplayRate && gPortSettings.interp
                              && PortShowUsingGpu()) == 1)
