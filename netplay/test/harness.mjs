@@ -1,6 +1,6 @@
 // A SessionCore with a manual clock and fake connections, for unit tests.
 import { SessionCore, PROTO_VERSION } from '../session.mjs';
-import { FrameDecoder, encodeInput, decodeChunk, T_CHUNK } from '../wire.mjs';
+import { FrameDecoder, encodeInput, decodeChunk, T_CHUNK, T_POSE_DOWN, decodePoseDown } from '../wire.mjs';
 import { seededRng } from '../codes.mjs';
 
 export class Clock {
@@ -58,6 +58,7 @@ export class FakeClient {
             return;
         }
         this.bin.push(data);
+        if (data[0] === T_POSE_DOWN) { (this.poses = this.poses || []).push(decodePoseDown(data)); return; }
         if (data[0] === T_CHUNK) { this.chunks = (this.chunks || []).concat([decodeChunk(data)]); return; }
         const r = this.dec.decode(data);
         if (!r) throw new Error('undecodable frames');
@@ -68,6 +69,7 @@ export class FakeClient {
     all(t) { return this.json.filter((m) => m.t === t); }
     sendJson(o) { this.room.core.message(this.id, JSON.stringify(o)); }
     input(first, keys) { this.room.core.message(this.id, encodeInput(first, keys)); }
+    bytes(b) { this.room.core.message(this.id, b); }
     disconnect() { this.open = false; this.room.conns.delete(this.id); this.room.core.closed(this.id); }
     get mid() { return this.welcome && this.welcome.mid; }
     get me() { return this.roster && this.roster.members.find((m) => m.mid === this.mid); }

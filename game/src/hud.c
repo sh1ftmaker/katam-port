@@ -17,6 +17,7 @@ u16 PortRoomTilesetIndex(u16 roomId);
 #include "constants/kirby.h"
 #include "constants/languages.h"
 #include "constants/songs.h"
+#include "port/coop.h"
 
 #include "hud.h"
 #include "palette_effects.h"
@@ -452,6 +453,10 @@ static void DrawHudOtherKirbys(struct GameplayHud *hud)
         if (i == gLocalPlayerId)
             continue;
         otherKirbyNumber++;
+        /* PORT-COOP: a puppet with no remote player behind it shows no
+         * arrow and no icon. */
+        if (PORT_COOP_IS_PUPPET(i) && PortCoopPuppetAbsent(i))
+            continue;
         kirby = &gKirbys[i];
         body = &hud->unk20[0][i];
         ability = &hud->unk20[1][i];

@@ -6,6 +6,7 @@ extern "C" {
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 #include "port/spawn.h"
+#include "port/coop.h"
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "hud.h"
 #include "in_game_interlude.h"
@@ -5358,6 +5359,7 @@ struct Kirby *FindTargetKirby(struct ObjectBase *r6)
 
     for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r7 == INT_MAX); ++i)
     {
+        if (PORT_COOP_IS_PUPPET(i)) continue; /* PORT-COOP: never a target */
         if (r6->roomId == gKirbys[i].base.roomId)
         {
             s32 r3 = abs(r6->x - gKirbys[i].base.x);
@@ -5391,7 +5393,8 @@ struct Kirby *sub_0803D46C(struct ObjectBase *sb)
 
     for (k = 0; k < gNumKirbys; ++k)
     {
-        if (sb->roomId == gKirbys[k].base.roomId && gKirbys[k].hp > 0)
+        if (sb->roomId == gKirbys[k].base.roomId && gKirbys[k].hp > 0
+            && !PORT_COOP_IS_PUPPET(k)) /* PORT-COOP */
         {
             array[k] = j;
             ++j;
@@ -5411,7 +5414,8 @@ struct Kirby *sub_0803D46C(struct ObjectBase *sb)
         r4 = 0; // redundant
         for (k = 0; k < gNumKirbys; ++k)
         {
-            if (sb->roomId == gKirbys[k].base.roomId)
+            if (sb->roomId == gKirbys[k].base.roomId
+                && !PORT_COOP_IS_PUPPET(k)) /* PORT-COOP */
             {
                 array[k] = j;
                 ++j;
@@ -5425,6 +5429,32 @@ struct Kirby *sub_0803D46C(struct ObjectBase *sb)
         }
     }
     r4 = i;
+    /* PORT-COOP: the original returns the i-th *Kirby*, not the i-th
+     * candidate, which is the same thing only while the candidates are
+     * slots 0..j-1.  With puppets about, map the pick to the i-th
+     * non-puppet candidate (alive ones if there were any), else me. */
+    if (gPortCoopPuppets)
+    {
+        bool32 alive = FALSE;
+        u8 n = 0;
+
+        for (k = 0; k < gNumKirbys; ++k)
+            if (sb->roomId == gKirbys[k].base.roomId && gKirbys[k].hp > 0
+                && !PORT_COOP_IS_PUPPET(k))
+                alive = TRUE;
+        r4 = gLocalPlayerId;
+        for (k = 0; k < gNumKirbys; ++k)
+        {
+            if (sb->roomId != gKirbys[k].base.roomId || PORT_COOP_IS_PUPPET(k)
+                || (alive && gKirbys[k].hp <= 0))
+                continue;
+            if (n++ == i)
+            {
+                r4 = k;
+                break;
+            }
+        }
+    }
     return &gKirbys[r4];
 }
 
@@ -5437,6 +5467,7 @@ struct Kirby *sub_0803D5CC(struct ObjectBase *r5)
 
     for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r6 == INT_MAX); ++i)
     {
+        if (PORT_COOP_IS_PUPPET(i)) continue; /* PORT-COOP: never a target */
         if (r5->roomId == gKirbys[i].base.roomId)
         {
             s32 r2 = abs(r5->x - gKirbys[i].base.x);
@@ -5872,7 +5903,8 @@ bool8 sub_0803E324(struct ObjectBase *r4)
 
     for (i = 0; i < gNumKirbys; ++i)
     {
-        if (r4->roomId == gKirbys[i].base.roomId)
+        if (r4->roomId == gKirbys[i].base.roomId
+            && !PORT_COOP_IS_PUPPET(i)) /* PORT-COOP: never an owner */
         {
             r4->unk56 = gKirbys[i].base.unk56;
             return FALSE;
@@ -6296,6 +6328,13 @@ void sub_0803EE18(void)
     s32 r0;
     u16 *fake;
 
+    /* PORT-COOP: a puppet slot (platform/coop.c) only draws the pose it was
+     * given.  gPortCoopPuppets is 0 unless online co-op took the slot. */
+    if (PORT_COOP_IS_PUPPET(kirbyIdxStruct->idx))
+    {
+        PortCoopPuppetStep(kirby);
+        return;
+    }
     kirby->base.unkC &= ~0x201494;
     if (kirby->unkE8 && kirby->unkE8->base.flags & 0x1000)
     {

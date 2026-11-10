@@ -107,7 +107,7 @@ if [ "$DIST_TARGET" = dist-playtest ]; then
 fi
 cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
 cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
+cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$DIST"/coop.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 # Pages runs Jekyll by default, which ignores files it does not understand.
 touch "$WORKTREE/.nojekyll"

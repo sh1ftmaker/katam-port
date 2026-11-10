@@ -10,6 +10,21 @@
  *                                hello: {...}, log });
  *   net.on('roster', fn) ... net.sit(), net.start(), net.sendInput(f, keys)
  *
+ * Co-op (web/coop.js) uses the same connection with sim 'coop/1':
+ * net.sendPose(bytes) sends a POSE_UP -- binary when the room's welcome
+ * lists the 'pose' feature, else wrapped in `signal` messages to each other
+ * member (the deployed worker closes the socket on an unknown binary type,
+ * so a binary pose must never reach it) -- and 'pose' (fromMid, body)
+ * fires for each pose received either way.  The co-op extras below are
+ * opt-in so the lockstep lobby behaves as it always did:
+ *   opts.liveness   ms: nothing received that long (pongs come every 2 s),
+ *                   or the send buffer backed up, means the socket is dead
+ *                   -- drop it and reconnect.  0/absent: off.
+ *   opts.backoff    fn(attempt) -> ms before reconnect attempt n (1-based).
+ *   net.reconnectNow()   e.g. on window 'online'
+ *   net.setPaused(on)    tab hidden: liveness is not judged while paused,
+ *                        and is checked (ping, maybe reconnect) on resume.
+ *
  * Wire formats are netplay/wire.mjs; the FRAMES decoder below must stay in
  * step with it (netplay/test/client.test.mjs runs both).
  */
@@ -24,6 +39,7 @@
 
     var PROTO_VERSION = 2;
     var T_INPUT = 0x20, T_FRAMES = 0x21, T_ARCHIVE = 0x22, T_CHUNK = 0x30;
+    var T_POSE_UP = 0x40, T_POSE_DOWN = 0x41;
     var CHUNK_BYTES = 16 * 1024;
 
     /* The deployed v2 server.  ?relay= overrides (web/lobby.js). */
@@ -38,7 +54,7 @@
     function normalizeCode(input) {
         if (typeof input !== 'string') return null;
         var s = input.trim();
-        var m = /[?&#]room=([^&#\s]+)/i.exec(s);
+        var m = /[?&#](?:room|coop)=([^&#\s]+)/i.exec(s);
         if (m) s = decodeURIComponent(m[1]);
         s = s.toUpperCase().replace(/[\s\-_.]/g, '');
         var out = '';
@@ -123,6 +139,24 @@
         return buf;
     }
 
+    function b64(bytes) {
+        var s = '';
+        for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+        return btoa(s);
+    }
+    function unb64(s) {
+        var t = atob(s), b = new Uint8Array(t.length);
+        for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+        return b;
+    }
+
+    /* 1, 2, 4, 8, then every 15 s, +-25% (soh-web's Network.cpp): players
+     * who dropped together do not all come back in the same instant. */
+    function jitteredBackoff(n) {
+        var d = [500, 1000, 2000, 4000, 8000, 15000][Math.min(n, 6) - 1];
+        return Math.round(d * (0.75 + 0.5 * Math.random()));
+    }
+
     function randomHex(n) {
         var b = new Uint8Array(n);
         (globalThis.crypto || require('crypto').webcrypto).getRandomValues(b);
@@ -156,6 +190,14 @@
     function explainError(e) {
         if (!e) return '';
         if (e.code === 'version') {
+            var coopRoom = /^coop\//.test(String(e.room)), coopMe = /^coop\//.test(String(e.yours));
+            if (e.field === 'sim' && coopRoom && !coopMe)
+                return 'That code is a co-op room. Open it with ?coop=CODE instead.';
+            if (e.field === 'sim' && coopMe && !coopRoom)
+                return 'That code is an online (lockstep) game, not a co-op room. Open it with ?room=CODE.';
+            if (e.field === 'sim' && coopMe)
+                return 'This co-op room was made by a different version of the port (room ' +
+                    String(e.room) + ', you ' + String(e.yours) + '). Reload to get the newest build.';
             if (e.field === 'sim' || e.field === 'proto')
                 return 'This game is running a different build of the port (room ' +
                     String(e.room).slice(0, 12) + ', you ' + String(e.yours).slice(0, 12) +
@@ -197,6 +239,12 @@
         var fatal = null;
         var pingTimer = null;
         var transfers = {};          /* id -> {count, got, parts, meta} */
+        var retryTimer = null;
+        var liveTimer = null;
+        var lastRx = 0;              /* Date.now() of the last message received */
+        var paused = false;
+        var LIVENESS = opts.liveness || 0;
+        var BUFFER_LIMIT = 64 * 1024;
         var self = {
             code: opts.code,
             identity: opts.identity || randomHex(16),
@@ -204,6 +252,7 @@
             mid: -1, role: null, seat: -1, phase: null, params: null, host: -1,
             roster: null, rtt: null, frontier: 0, watermark: 0, stats: null,
             bytesUp: 0, bytesDown: 0, reconnects: 0, lastError: null,
+            features: [], deadSockets: 0,
         };
 
         function emit(name) {
@@ -229,11 +278,14 @@
         function json(o) { return tx(JSON.stringify(o)); }
 
         function open() {
+            retryTimer = null;
             self.state = 'connecting';
             emit('state', self.state);
             sock = new WS(url());
             sock.binaryType = 'arraybuffer';
+            lastRx = Date.now();
             sock.onopen = function () {
+                lastRx = Date.now();
                 var h = {};
                 for (var k in opts.hello) h[k] = opts.hello[k];
                 h.t = 'hello';
@@ -245,27 +297,54 @@
                 ping();
             };
             sock.onmessage = onMessage;
-            sock.onclose = function (ev) {
-                clearInterval(pingTimer);
-                if (closed || fatal) {
-                    self.state = 'closed';
-                    emit('state', self.state, fatal);
-                    return;
-                }
-                self.state = 'lost';
-                emit('state', self.state);
-                var delay = Math.min(5000, 300 << Math.min(attempts, 4));
-                attempts++;
-                self.reconnects++;
-                log('[net] connection lost (' + (ev && ev.code) + ') -- retrying in ' + delay + ' ms');
-                setTimeout(function () { if (!closed) open(); }, delay);
-            };
+            sock.onclose = lost;
             sock.onerror = function () { /* onclose follows */ };
         }
+
+        function lost(ev) {
+            clearInterval(pingTimer);
+            if (closed || fatal) {
+                self.state = 'closed';
+                emit('state', self.state, fatal);
+                return;
+            }
+            self.state = 'lost';
+            emit('state', self.state);
+            var delay = opts.backoff ? opts.backoff(attempts + 1) : Math.min(5000, 300 << Math.min(attempts, 4));
+            attempts++;
+            self.reconnects++;
+            log('[net] connection lost (' + (ev && ev.code) + ') -- retrying in ' + delay + ' ms');
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(function () { if (!closed) open(); }, delay);
+        }
+
+        /* Drop the current socket without waiting for its close event (a
+         * dead link may never deliver one), and go through `lost`. */
+        function dropSocket(why) {
+            var s = sock;
+            if (!s) return;
+            sock = null;
+            s.onopen = s.onmessage = s.onclose = s.onerror = null;
+            try { s.close(4000, why); } catch (e) { /* gone */ }
+            self.deadSockets++;
+            log('[net] ' + why + ' -- dropping the socket');
+            lost({ code: why });
+        }
+
+        function checkLive() {
+            if (!LIVENESS || paused || closed || fatal || !sock) return;
+            var quiet = Date.now() - lastRx;
+            if (quiet > LIVENESS)
+                dropSocket('nothing received for ' + quiet + ' ms');
+            else if (sock.readyState === 1 && sock.bufferedAmount > BUFFER_LIMIT)
+                dropSocket(sock.bufferedAmount + ' bytes unsent');
+        }
+        if (LIVENESS) liveTimer = setInterval(checkLive, Math.min(1000, LIVENESS / 4));
 
         function ping() { json({ t: 'ping', c: Date.now(), rtt: self.rtt }); }
 
         function onMessage(e) {
+            lastRx = Date.now();
             if (typeof e.data === 'string') {
                 self.bytesDown += e.data.length;
                 var m;
@@ -276,6 +355,7 @@
                     self.mid = m.mid; self.role = m.role; self.seat = m.seat;
                     self.phase = m.phase; self.params = m.params; self.host = m.host;
                     self.frontier = m.frontier;
+                    self.features = m.features || [];
                     attempts = 0;
                     self.state = 'open';
                     dec = new FrameDecoder();
@@ -328,13 +408,27 @@
                     delete transfers[m.id];
                     emit('sync_cancel', m);
                     break;
+                case 'signal':
+                    /* the pose fallback on rooms without the 'pose' feature */
+                    if (m.data && typeof m.data.pose === 'string') {
+                        var pb;
+                        try { pb = unb64(m.data.pose); } catch (err) { return; }
+                        emit('pose', m.from, pb);
+                        return;
+                    }
+                    emit('signal', m);
+                    break;
                 default:
-                    emit(m.t, m);     /* notice, desync, join_req, sync_req, snap_req, signal */
+                    emit(m.t, m);     /* notice, desync, join_req, sync_req, snap_req */
                 }
                 return;
             }
             var b = new Uint8Array(e.data);
             self.bytesDown += b.length;
+            if (b[0] === T_POSE_DOWN) {
+                if (b.length >= 3) emit('pose', b[1] | (b[2] << 8), b.subarray(3));
+                return;
+            }
             if (b[0] === T_CHUNK) {
                 var dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
                 var id = dv.getUint32(1, true), idx = dv.getUint16(5, true);
@@ -387,14 +481,51 @@
             for (var i = 0; i < count; i++)
                 tx(encodeChunk(id, i, count, payload.subarray(i * CHUNK_BYTES, (i + 1) * CHUNK_BYTES)));
         };
+        self.hasFeature = function (f) { return self.features.indexOf(f) >= 0; };
+        /* up: a POSE_UP (netplay/wire.mjs).  Binary only to a room that
+         * relays it; otherwise one `signal` per other connected member. */
+        self.sendPose = function (up) {
+            if (self.state !== 'open' || up[0] !== T_POSE_UP) return false;
+            if (self.hasFeature('pose')) return tx(up);
+            var ms = (self.roster && self.roster.members) || [];
+            var data = { pose: b64(up.subarray(1)) }, any = false;
+            for (var i = 0; i < ms.length; i++)
+                if (ms[i].mid !== self.mid && ms[i].connected && ms[i].role !== 'pending')
+                    any = json({ t: 'signal', to: ms[i].mid, data: data }) || any;
+            return any;
+        };
+        self.reconnectNow = function () {
+            if (closed || fatal) return;
+            if (retryTimer) {
+                clearTimeout(retryTimer);
+                open();
+            } else if (sock && sock.readyState === 1) {
+                ping();
+            }
+        };
+        self.setPaused = function (on) {
+            on = !!on;
+            if (on === paused) return;
+            paused = on;
+            if (!on) {
+                /* Back: timers may have been throttled for minutes.  A socket
+                 * that has heard nothing since gets one ping's grace. */
+                if (LIVENESS && Date.now() - lastRx > LIVENESS) lastRx = Date.now() - LIVENESS + 3000;
+                self.reconnectNow();
+            }
+        };
         self.leave = function () {
             closed = true;
+            clearInterval(liveTimer);
+            clearTimeout(retryTimer);
             json({ t: 'leave' });
             try { sock.close(); } catch (e) { /* gone */ }
         };
         self.close = function () {
             closed = true;
             clearInterval(pingTimer);
+            clearInterval(liveTimer);
+            clearTimeout(retryTimer);
             try { sock.close(); } catch (e) { /* gone */ }
         };
         return self;
@@ -405,6 +536,7 @@
         normalizeCode: normalizeCode, explainCode: explainCode, explainError: explainError,
         createRoom: createRoom, lookupRoom: lookupRoom, resumeRoom: resumeRoom,
         connect: connect, FrameDecoder: FrameDecoder, encodeInput: encodeInput,
-        randomHex: randomHex,
+        randomHex: randomHex, jitteredBackoff: jitteredBackoff,
+        T_POSE_UP: T_POSE_UP, T_POSE_DOWN: T_POSE_DOWN,
     };
 }));

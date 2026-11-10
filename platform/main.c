@@ -47,6 +47,7 @@
 #include "port/inputlog.h"
 #include "port/simblock.h"
 #include "port/netsim.h"
+#include "port/coop.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -345,6 +346,9 @@ static void UpdateKeyInput(int frameLatch)
      * pressed in every build, and recording it would make frame 0 latch twice. */
     if (frameLatch) {
         PortInputLogLatch(sFrameCount, &keys);
+        /* PORT_COOP_SELFTEST's pause presses (platform/coop.c); nothing
+         * otherwise. */
+        PortCoopTestKeys(sFrameCount, &keys);
         sKeysDown = keys;
     }
     *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
@@ -901,6 +905,9 @@ void PortPresentFrame(void)
     PortNetFrameTop();
     PortRbSelfTestStep();
     PortSeatBeginFrame();
+    /* Online co-op (platform/coop.c): puppet slots taken over or given back
+     * here, between frames.  Returns at once unless co-op was switched on. */
+    PortCoopFrameTop();
 
     render = PortRenderEnabled();
     PortStateTrace();

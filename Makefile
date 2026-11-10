@@ -139,7 +139,7 @@ LDLINT := -Wl,--fatal-warnings $(RENDER_LDFLAGS)
 # flow.  _malloc and _free are part of that surface, not a convenience -- the
 # join/describe calls traffic in log blobs and out-param structs, and JS needs
 # heap it owns to put them in.
-PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_PortWebDrawRateJs,_PortWebSimRateJs,_PortResSetRoomBundle,_PortResReloadRooms,_PortPlaytestBoot,_PortPlaytestBooting,_PortNetSessionStart,_PortNetSessionStop,_PortNetActive,_PortNetSetHumans,_PortNetSetLocalInput,_PortNetSealFrame,_PortNetSnapBound,_PortNetSnapSave,_PortNetDeltaSave,_PortNetPagesSave,_PortNetApplyAt,_PortNetSnapLoad,_PortNetCatchingUp,_PortNetSnapInfo,_PortNetImageFrame,_PortNetStateHash,_PortNetRegionHashes,_PortNetPageCount,_PortNetPageHashes,_PortNetCheckpointHash,_PortNetLastCorrection,_PortNetGetStats,_PortNetImageSize,_PortNetTestArm,_malloc,_free
+PORT_EXPORTS := _main,_PortSetKeys,_PortRomLoaded,_PortSetLayerMask,_PortSetWatch,_PortAudioTestTone,_PortSetViewMode,_PortMpUseLoopback,_PortMpUseJs,_PortMpDetach,_PortMpUsePayloadLink,_PortMpFeedPayload,_PortMpSetPeerPresent,_PortMpLoopbackSelfId,_PortMpSelfTest,_PortMpReport,_PortMpSetTrace,_PortSetRando,_PortRandoReport,_PortWarp,_PortWarpReport,_PortSetStateTrace,_PortSetStateDetailFrame,_PortSetStateDump,_PortSetDmaTrace,_PortSetDmaStack,_PortSetStateWindow,_PortSetRenderEnabled,_PortRbSelfTest,_PortRbInit,_PortRbShutdown,_PortRbReport,_PortRbActive,_PortRbSetLocalInput,_PortRbSetSelf,_PortRbNetPlay,_PortRbConfirmInput,_PortRbSealInput,_PortRbShouldStall,_PortRbInputAt,_PortRbScheduleEvent,_PortRbSuggestEventFrame,_PortRbAssignSlot,_PortRbSlotPeer,_PortRbPeerSlot,_PortRbCatchingUp,_PortRbEncodeLog,_PortRbDecodeLog,_PortRbReplayTo,_PortRbDescribeSession,_PortRbVacantSlot,_PortRbJoin,_PortRbGetStats,_PortRbSnapshotBytes,_PortRbSnapshotAt,_PortRbApplySnapshotAt,_PortRbSetStallGate,_PortFrameNumber,_PortCurrentKeys,_PortSeatInit,_PortSeatShutdown,_PortSeatActive,_PortSeatCount,_PortSeatCurrent,_PortSeatIsLast,_PortSeatSetInput,_PortSeatSetDriven,_PortSeatSetPlayerCount,_PortInputLogLoad,_PortInputLogFrames,_PortInputLogRecordStart,_PortInputLogSerialize,_PortInputLogScheduleWarp,_PortInputLogScheduleView,_PortSimViewRequest,_PortSimViewPinNative,_PortSimViewUseSession,_PortSimViewRequested,_PortSetFrameStateLog,_PortSetStateDumpAt,_PortUiPointer,_PortUiWheel,_PortUiKey,_PortUiToggle,_PortUiSetOpen,_PortUiIsOpenJs,_PortWebDrawRateJs,_PortWebSimRateJs,_PortResSetRoomBundle,_PortResReloadRooms,_PortPlaytestBoot,_PortPlaytestBooting,_PortNetSessionStart,_PortNetSessionStop,_PortNetActive,_PortNetSetHumans,_PortNetSetLocalInput,_PortNetSealFrame,_PortNetSnapBound,_PortNetSnapSave,_PortNetDeltaSave,_PortNetPagesSave,_PortNetApplyAt,_PortNetSnapLoad,_PortNetCatchingUp,_PortNetSnapInfo,_PortNetImageFrame,_PortNetStateHash,_PortNetRegionHashes,_PortNetPageCount,_PortNetPageHashes,_PortNetCheckpointHash,_PortNetLastCorrection,_PortNetGetStats,_PortNetImageSize,_PortNetTestArm,_PortCoopPoseSize,_PortCoopEnable,_PortCoopReady,_PortCoopSetPuppet,_PortCoopSetPose,_PortCoopSetAbsent,_PortCoopLocalPose,_PortCoopPoseBuffer,_PortCoopSelfTest,_malloc,_free
 
 LDFLAGS := -O2 --profiling-funcs $(LDLINT) \
     -sASYNCIFY \
@@ -533,6 +533,15 @@ netplay-test: $(BUILD)/katam-node.js
 	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
 	node tools/netplay_test.mjs $(BUILD)/katam-node.js $(ROM) 2200
 
+# Co-op stage 1 (puppets): two real instances in one co-op room on the dev
+# relay, one-way latency on B; B's puppet must follow A, and survive a 5 s
+# freeze either way, a clean reconnect and a silent drop.  Needs the
+# PortCoop* engine exports and netplay/node_modules.
+coop-test: $(BUILD)/katam-node.js
+	@test -f $(ROM) || { echo "no ROM at $(ROM) -- set ROM=/path/to/your.gba"; exit 1; }
+	@test -d netplay/node_modules || { echo "run: cd netplay && npm install"; exit 1; }
+	node tools/coop_test.mjs $(BUILD)/katam-node.js $(ROM)
+
 # Path B: three instances over the rollback timeline -- two founders in
 # sync, one drop-out to the AI, one drop-in from the room's input history.
 # PASS is bit-equality of the game's own desync quantity across instances.
@@ -782,7 +791,7 @@ dist: all
 	@cp $(OUT)/katam.html $(DIST)/index.html
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
-	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
+	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(OUT)/coop.js $(DIST)/
 	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h
 	@python3 tools/stamp_build.py --dir $(DIST) \
 	    --sim-src $(PORT_SRC)/src --sim-src platform --sim-flags '$(CFLAGS)' \

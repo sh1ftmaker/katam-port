@@ -40,11 +40,42 @@
 //
 // Seat indices are u16 in the header and implied by bit position in the
 // mask, so nothing here caps a session at 4, or at 255.
+//
+// Co-op puppets (sim 'coop/1', web/coop.js).  Every player runs their
+// own game; the room only relays each player's own Kirby pose to the
+// others.  The room checks sizes and nothing else -- the pose bytes are the
+// engine's (PortCoopPoseSize, PortCoopLocalPose) and opaque here.
+//
+//   POSE_UP    client -> room
+//       u8  0x40
+//       u8  flags                 bit0 PAUSED (tab hidden), bit1 KEY (first
+//                                 after connect: receiver resets its buffer)
+//       u8  n                     1..4 poses, oldest first
+//       u8  size                  bytes per pose, 8..64 (36 today)
+//       n x { u16 seq             sender's clock, in 59.7275 Hz frames, mod 2^16
+//             size bytes pose }   i32 x, i32 y, u16 room, u8 flags (bit0
+//                                 hidden), ... (platform/, opaque)
+//
+//   POSE_DOWN  room -> every other connected, non-pending member
+//       u8  0x41
+//       u16 fromMid
+//       ... the POSE_UP bytes from offset 1 (flags, n, size, poses), verbatim
+//
+// A POSE_UP of any other length is dropped (not fatal); so is one over the
+// per-member rate cap.
 
 export const T_INPUT = 0x20;
 export const T_FRAMES = 0x21;
 export const T_ARCHIVE = 0x22;
 export const T_CHUNK = 0x30;
+export const T_POSE_UP = 0x40;
+export const T_POSE_DOWN = 0x41;
+
+export const POSE_PAUSED = 1;
+export const POSE_KEY = 2;
+export const POSE_MAX_N = 4;
+export const POSE_MIN_SIZE = 8;
+export const POSE_MAX_SIZE = 64;
 
 export const F_KEY = 1;
 
@@ -195,4 +226,66 @@ export function splitChunks(id, payload) {
         out.push(encodeChunk(id, i, count,
             payload.subarray(i * CHUNK_BYTES, (i + 1) * CHUNK_BYTES)));
     return out;
+}
+
+// --- co-op poses ------------------------------------------------------------
+
+// A well-formed POSE_UP?  Sizes only; the room never looks inside a pose.
+export function poseUpOk(bytes) {
+    if (bytes.length < 4 || bytes[0] !== T_POSE_UP)
+        return false;
+    const n = bytes[2], size = bytes[3];
+    return n >= 1 && n <= POSE_MAX_N && size >= POSE_MIN_SIZE && size <= POSE_MAX_SIZE
+        && bytes.length === 4 + n * (2 + size);
+}
+
+// poses: [{seq, bytes: Uint8Array(size)}], all the same size.
+export function encodePoseUp(flags, poses) {
+    const size = poses[0].bytes.length;
+    const buf = new Uint8Array(4 + poses.length * (2 + size));
+    const dv = new DataView(buf.buffer);
+    buf[0] = T_POSE_UP;
+    buf[1] = flags;
+    buf[2] = poses.length;
+    buf[3] = size;
+    let o = 4;
+    for (const p of poses) {
+        dv.setUint16(o, p.seq & 0xFFFF, true);
+        buf.set(p.bytes, o + 2);
+        o += 2 + size;
+    }
+    return buf;
+}
+
+// The room's relay: the sender's mid in front of its bytes.
+export function poseDown(fromMid, up) {
+    const buf = new Uint8Array(up.length + 2);
+    buf[0] = T_POSE_DOWN;
+    buf[1] = fromMid & 0xFF;
+    buf[2] = (fromMid >> 8) & 0xFF;
+    buf.set(up.subarray(1), 3);
+    return buf;
+}
+
+// body: the bytes after the type (POSE_UP) or after type+mid (POSE_DOWN).
+// -> {flags, size, poses: [{seq, bytes}]} or null.
+export function decodePoseBody(body) {
+    if (body.length < 3)
+        return null;
+    const n = body[1], size = body[2];
+    if (n < 1 || n > POSE_MAX_N || size < POSE_MIN_SIZE || size > POSE_MAX_SIZE
+        || body.length !== 3 + n * (2 + size))
+        return null;
+    const poses = [];
+    for (let i = 0, o = 3; i < n; i++, o += 2 + size)
+        poses.push({ seq: body[o] | (body[o + 1] << 8), bytes: body.slice(o + 2, o + 2 + size) });
+    return { flags: body[0], size, poses };
+}
+
+export function decodePoseDown(bytes) {
+    if (bytes.length < 3 || bytes[0] !== T_POSE_DOWN)
+        return null;
+    const r = decodePoseBody(bytes.subarray(3));
+    if (r) r.from = bytes[1] | (bytes[2] << 8);
+    return r;
 }

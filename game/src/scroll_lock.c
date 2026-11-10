@@ -5,6 +5,7 @@ extern "C" {
 
 #include "malloc_ewram.h"
 #include "scroll_lock.h"
+#include "port/coop.h"
 #include "object.h"
 #include "kirby.h"
 #include "functions.h"
@@ -455,7 +456,8 @@ static void sub_0811D508(struct Object *scrollLock)
 
     for (i = 0; i < gNumKirbys; ++i)
     {
-        if (gKirbys[i].base.roomId == roomId)
+        if (gKirbys[i].base.roomId == roomId
+            && !PORT_COOP_IS_PUPPET(i)) /* PORT-COOP: puppets trigger nothing */
         {
             if (ObjectOriginOverlapsRectAtObject(&gKirbys[i].base, scrollLock))
             {
@@ -507,7 +509,8 @@ static void sub_0811D68C(struct Object *scrollLock)
     {
         for (i = 0; i < gNumKirbys; ++i)
         {
-            if (gKirbys[i].base.roomId == roomId)
+            if (gKirbys[i].base.roomId == roomId
+                && !PORT_COOP_IS_PUPPET(i)) /* PORT-COOP: puppets trigger nothing */
             {
                 if (ObjectOriginOverlapsRectAtObject(&gKirbys[i].base, scrollLock))
                 {

@@ -6,6 +6,7 @@ extern "C" {
 #include "in_game_interlude.h"
 #include "palette_effects.h"
 #include "pause_area_map.h"
+#include "port/coop.h"
 #include "bg.h"
 #include "constants/languages.h"
 #include "functions.h"
@@ -2727,6 +2728,16 @@ static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
     for (playerId = 0; playerId < gNumKirbys; playerId++) {
         const struct AreaMapRoomInfo* roomInfo;
         u16 roomId = gCurLevelInfo[playerId].currentRoom;
+        /* PORT-COOP: a puppet's LevelInfo is inactive (0xFFFF) and would be
+         * read out of bounds; its room is the pose's, or none at all. */
+        if (PORT_COOP_IS_PUPPET(playerId)) {
+            roomId = PortCoopMapRoom(playerId);
+            if (roomId == 0xFFFF) {
+                areamap->roomInfos[playerId] = NULL;
+                areamap->kirbySprites[playerId].areaId = 0xff;
+                continue;
+            }
+        }
         if (gUnk_08D6CD0C[roomId]->unk46 == 9 || gUnk_08D6CD0C[roomId]->unk46 == 10) {
             roomInfo = NULL;
         }

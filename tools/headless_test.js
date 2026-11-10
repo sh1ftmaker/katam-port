@@ -458,6 +458,13 @@ const Module = {
             const [at, span] = process.env.PORT_RB_SELFTEST.split(':').map(Number);
             Module._PortRbSelfTest(at, span);
         }
+        // PORT_COOP_SELFTEST=start:mode[:leave[:pause]] -- the co-op puppet
+        // self-test (platform/coop.c, tests/coop_selftest.sh).
+        if (process.env.PORT_COOP_SELFTEST && Module._PortCoopSelfTest) {
+            const [cs, cm, cl, cp] = process.env.PORT_COOP_SELFTEST.split(':');
+            Module._PortCoopSelfTest(Number(cs), cm === 'absent' ? 0 : 1,
+                                     Number(cl ?? -1), Number(cp ?? -1));
+        }
         if (process.env.PORT_WINDOW) {
             const [wa, wl] = process.env.PORT_WINDOW.split(':');
             Module._PortSetStateWindow(parseInt(wa, 16), Number(wl));

@@ -26,7 +26,7 @@
 
 import {
     T_INPUT, T_FRAMES, T_ARCHIVE, T_CHUNK, decodeInput, encodeFrames,
-    decodeChunk, KEYS_MASK, CHUNK_BYTES,
+    decodeChunk, KEYS_MASK, CHUNK_BYTES, T_POSE_UP, poseUpOk, poseDown,
 } from './wire.mjs';
 import { RateLimiter, randomToken, cryptoRng } from './codes.mjs';
 
@@ -38,6 +38,18 @@ export const PROTO_VERSION = 2;
 export const MAX_SEATS = 1024;
 
 export const FRAME_MS = 1000 / 59.7275;   // the GBA's frame period
+
+// What this room does beyond the base protocol, in `welcome.features`.  A
+// client must not send a feature's messages to a room that does not list
+// it: an older room closes the socket on an unknown binary type.
+export const FEATURES = Object.freeze(['pose']);
+
+// Co-op rooms (hello.sim 'coop/...'): every player runs their own game and
+// the room relays poses; such a room never starts (no START, no sequencer).
+export const isCoopSim = (sim) => typeof sim === 'string' && sim.startsWith('coop/');
+
+// POSE_UP rate cap, per member: a client sends ~30/s.
+export const POSE_RATE = 40, POSE_BURST = 20;
 
 export const DEFAULT_PARAMS = Object.freeze({
     seats: 4,               // input columns (netsim: `seats`, u8 today)
@@ -139,11 +151,12 @@ export class SessionCore {
         this.banned = new Set();
         this.nextMid = 1;
         this.helloLimit = new RateLimiter({ capacity: 20, refillPerSec: 0.5, now: this.now });
+        this.poseLimit = new RateLimiter({ capacity: POSE_BURST, refillPerSec: POSE_RATE, now: this.now });
         this._resetSequencer();
         this.stats = {
             sealed: 0, fills: 0, lateInputs: 0, framesMsgs: 0, bytesDown: 0, bytesUp: 0,
             desyncs: 0, syncs: 0, syncBytes: 0, syncFails: 0, sealLatencyMs: 0,
-            sealLatencyMax: 0, deadlineSeals: 0,
+            sealLatencyMax: 0, deadlineSeals: 0, poses: 0, poseDrops: 0,
         };
         this.nextStatsAt = 0;
         this.nextSyncId = 1;
@@ -250,6 +263,8 @@ export class SessionCore {
                 return this._fatal(connId, 'malformed', 'bad CHUNK');
             return this._chunk(m, ch, bytes);
         }
+        if (bytes[0] === T_POSE_UP)
+            return this._pose(m, bytes);
         return this._fatal(connId, 'malformed', 'unknown binary type');
     }
 
@@ -309,6 +324,7 @@ export class SessionCore {
 
     _forget(m) {
         this.members.delete(m.mid);
+        this.poseLimit.buckets.delete(m.mid);
         if (this.byIdentity.get(m.identity) === m.mid)
             this.byIdentity.delete(m.identity);
     }
@@ -443,7 +459,23 @@ export class SessionCore {
             t: 'welcome', mid: m.mid, role: m.role, seat: m.seat, code: this.code,
             phase: this.phase, host: this.hostMid, params: this.params,
             version: this.version, frontier: this.frontier, proto: PROTO_VERSION,
+            features: FEATURES,
         });
+    }
+
+    // Co-op: relay a pose to everyone else, unparsed.  Malformed or over
+    // the rate cap: dropped, never fatal (poses are a stream; the next one
+    // supersedes it).
+    _pose(m, bytes) {
+        if (m.role === 'pending' || !poseUpOk(bytes) || !this.poseLimit.take(m.mid)) {
+            this.stats.poseDrops++;
+            return;
+        }
+        this.stats.poses++;
+        const down = poseDown(m.mid, bytes);
+        for (const o of this.members.values())
+            if (o !== m && o.connId && o.role !== 'pending')
+                this._tx(o, down);
     }
 
     // --- control messages -----------------------------------------------------
@@ -506,7 +538,7 @@ export class SessionCore {
             }
             return;
         case 'start':
-            if (isHost) this._start();
+            if (isHost && !(this.version && isCoopSim(this.version.sim))) this._start();
             break;
         case 'lock':
             if (isHost) { this.locked = !!msg.on; this.dirty = true; }

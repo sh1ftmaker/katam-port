@@ -86,3 +86,10 @@ dma sChannels host-state armed DMA channels; serialised canonically (PortDmaStat
 dma sBadByShape diagnostic transfer statistics
 dma sBadTransfers diagnostic transfer statistics
 dma sTransferCount diagnostic transfer statistics
+coop gPortCoopPuppets setting online co-op puppet mask: external input (remote players), refused under rollback/net/seats (platform/coop.c)
+coop sCoop setting online co-op slots and received poses: external input, refused under rollback/net/seats (platform/coop.c)
+coop sPoseBuffer setting scratch buffer the page passes poses through; external input
+coop sTest diagnostic PORT_COOP_SELFTEST harness (tests/coop_selftest.sh)
+coop sNotReadyFrames diagnostic co-op self-test counter
+coop sNotReadyDrops diagnostic co-op self-test counter
+coop sPuppetSteps diagnostic co-op self-test counter (puppet task runs)
