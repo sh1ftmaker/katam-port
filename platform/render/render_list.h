@@ -132,6 +132,8 @@ typedef struct RlHudRegion {
 #define RL_LINE_BGCNT   27   /* 4 words */
 #define RL_LINE_AFFB    32   /* pb2 pd2 pb3 pd3 */
 
+#define RL_MAX_LIGHTS 4
+
 typedef struct RlFrame {
     u32 serial;              /* bumps every built frame                      */
     u8 world;                /* 1: gameplay framing (view != 240x160 allowed) */
@@ -171,6 +173,19 @@ typedef struct RlFrame {
     /* Diagnostics: where the list came from. */
     u32 spritesFromHooks, spritesFromOam, spritesOffscreen, spritesOverflow;
     u8 hookSpritesUsed;      /* 0: OAM did not match the hooks this frame    */
+
+    /* Sunlight (platform/render/light.c): NULL when off.  Two u8 per 8x8
+     * world pixels from the room's top-left: shadow (light blocked) and
+     * light (light arriving), 0..255.  World x = camX + SCREEN x.  lights:
+     * the room's point lights (world px), for their halo; lightK the
+     * strength (0 none, 1 default).  lightLayers: the room BG (unused by
+     * the shader at present -- every non-HUD layer is lit). */
+    const u8 *light;
+    s32 lightW, lightH;
+    u32 lightGen;
+    u8 lightLayers, numLights;
+    float lightK;
+    float lights[RL_MAX_LIGHTS][2];
 } RlFrame;
 
 /* --- the renderer's switches (platform/render/rl_build.c) --------------- */
@@ -199,6 +214,13 @@ const RlFrame *PortRlBuildFrame(void);
 void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
+
+/* Sunlight, proof of concept (light.c).  gPortLighting: -1 undecided (reads
+ * KATAM_LIGHTING on first use), 0 off, 1 on.  PortLightAttach sets
+ * f->light for a Rainbow Route world frame, NULL otherwise. */
+extern int gPortLighting;
+extern double gPortLightBuildMs;
+void PortLightAttach(RlFrame *f, int roomBg);
 
 /* The last frame built, for showing on a display finer than the game's pixel
  * grid and faster than its 59.73 Hz.  Presentation only: the result is a

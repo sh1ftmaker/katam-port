@@ -123,6 +123,11 @@ static GLint uObjView, uObjWinPass, uObjK;
 static GLint uCSub;
 static GLint uCView, uCContent, uCLayer, uCValid, uCMapGeom, uCMapScroll,
              uCNumHud, uCHudRect, uCHudD;
+static GLint uCLight, uCLightGeom, uCLightK, uCLights, uCNumLights;
+static GLuint sTexLight;
+static int sLightW, sLightH;
+static u32 sLightGen;
+static const u8 *sLightPtr;
 
 /* --- shaders ------------------------------------------------------------- */
 
@@ -232,6 +237,12 @@ static const char *kCompFs =
     "uniform int uHudPass;\n"        /* 0 HUD in the view, 1 world only, 2 HUD only */
     "uniform int uHudSel;\n"         /* HUD pass: the region                */
     "uniform ivec2 uHudOrg;\n"       /* HUD pass: atlas = HUD coords + this */
+    "uniform int uLight;\n"          /* sunlight: BG mask it tints, 0 off   */
+    "uniform ivec4 uLightGeom;\n"    /* camX camY mapW mapH (texels)       */
+    "uniform sampler2D uShadow;\n"
+    "uniform float uLightK;\n"      /* strength                            */
+    "uniform vec2 uLights[4];\n"    /* the lights, world px (their halo)  */
+    "uniform int uNumLights;\n"
     "out vec4 oColor;\n"
     "int L(int line, int w) {\n"
     "  ivec4 t = texelFetch(uLines, ivec2(w >> 2, line), 0);\n"
@@ -462,6 +473,29 @@ static const char *kCompFs =
     "    else if (effect == 2 && t1) result = bright(topC, evy, true);\n"
     "    else if (effect == 3 && t1) result = bright(topC, evy, false);\n"
     "  }\n"
+    /* Sunlight (light.c): a warm point light in the room; the room layer
+     * and the world sprites take its light or its shadow, every world layer
+     * its halo; never the HUD. */
+    "  if (uLight != 0 && !hudPass && !letterbox) {\n"
+    "    vec2 wp = vec2(b) / 256.0 + vec2(uLightGeom.xy);\n"
+    "    float K = uLightK;\n"
+    "    vec3 col = toRgba(result).rgb;\n"
+    "    bool hud = top == 4 ? (o.b & 16u) != 0u : (top >= 0 && uLayer[top].x == 2);\n"
+    "    if (!hud) {\n"
+    "      vec2 sl = texture(uShadow, wp / 8.0 / vec2(uLightGeom.zw)).rg;\n"
+    "      col *= vec3(1.0) - K * sl.r * vec3(0.30, 0.26, 0.10);\n"
+    "      col *= vec3(1.0) + K * sl.g * vec3(0.16, 0.09, -0.02);\n"
+    "      float halo = 0.0;\n"
+    "      for (int i = 0; i < 4; i++) {\n"
+    "        if (i >= uNumLights) break;\n"
+    "        float d = length(wp - uLights[i]);\n"
+    "        halo += 0.7 * exp(-d / 14.0) + 0.10 * exp(-d / 64.0);\n"
+    "      }\n"
+    "      col += K * halo * vec3(0.55, 0.42, 0.20);\n"
+    "    }\n"
+    "    oColor = vec4(min(col, vec3(1.0)), 1.0);\n"
+    "    return;\n"
+    "  }\n"
     "  oColor = toRgba(result);\n"
     "}\n";
 
@@ -614,6 +648,16 @@ int GlrInit(void *(*getProc)(const char *), int es)
     uHPass = G(glGetUniformLocation)(sProgComp, "uHudPass");
     uHSel = G(glGetUniformLocation)(sProgComp, "uHudSel");
     uHOrg = G(glGetUniformLocation)(sProgComp, "uHudOrg");
+    uCLight = G(glGetUniformLocation)(sProgComp, "uLight");
+    uCLightGeom = G(glGetUniformLocation)(sProgComp, "uLightGeom");
+    uCLightK = G(glGetUniformLocation)(sProgComp, "uLightK");
+    uCLights = G(glGetUniformLocation)(sProgComp, "uLights");
+    uCNumLights = G(glGetUniformLocation)(sProgComp, "uNumLights");
+    {
+        GLint loc = G(glGetUniformLocation)(sProgComp, "uShadow");
+        if (loc >= 0)
+            G(glUniform1i)(loc, 6);
+    }
     G(glUseProgram)(sProgHud);
     G(glUniform1i)(G(glGetUniformLocation)(sProgHud, "uHud"), 0);
     uBDst = G(glGetUniformLocation)(sProgHud, "uDst");
@@ -879,6 +923,41 @@ int GlrHudActive(void)
     return sReady && sHudActive && !sSrcPic;
 }
 
+/* The sunlight map (light.c): an RG8 texture, bilinear, uploaded when it
+ * changes.  Off (f->light NULL): uLight 0 and the composite is the old one. */
+static void UploadLight(const RlFrame *f)
+{
+    if (!f->light || f->lightW <= 0 || f->lightH <= 0
+        || f->lightW > sMaxTex || f->lightH > sMaxTex) {
+        G(glUniform1i)(uCLight, 0);
+        return;
+    }
+    G(glActiveTexture)(GL_TEXTURE0 + 6);
+    if (!sTexLight || f->lightW != sLightW || f->lightH != sLightH) {
+        if (sTexLight)
+            G(glDeleteTextures)(1, &sTexLight);
+        sTexLight = MakeTex(GL_RG8, GL_RG, GL_UNSIGNED_BYTE, f->lightW, f->lightH);
+        G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        sLightW = f->lightW;
+        sLightH = f->lightH;
+        sLightPtr = NULL;
+    }
+    G(glBindTexture)(GL_TEXTURE_2D, sTexLight);
+    if (f->light != sLightPtr || f->lightGen != sLightGen) {
+        G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, f->lightW, f->lightH,
+                           GL_RG, GL_UNSIGNED_BYTE, f->light);
+        sLightPtr = f->light;
+        sLightGen = f->lightGen;
+    }
+    G(glActiveTexture)(GL_TEXTURE0 + 0);
+    G(glUniform1i)(uCLight, f->lightLayers);
+    G(glUniform4i)(uCLightGeom, f->camX, f->camY, f->lightW, f->lightH);
+    G(glUniform1f)(uCLightK, f->lightK);
+    G(glUniform2fv)(uCLights, RL_MAX_LIGHTS, &f->lights[0][0]);
+    G(glUniform1i)(uCNumLights, f->numLights);
+}
+
 void GlrDraw(const RlFrame *f)
 {
     GlrDrawScaled(f, 1);
@@ -990,6 +1069,7 @@ void GlrDrawScaled(const RlFrame *f, int k)
     G(glUniform4iv)(uCHudRect, 8, hudRect);
     G(glUniform2iv)(uCHudD, 8, hudD);
     G(glUniform1i)(uHPass, hudSep ? 1 : 0);
+    UploadLight(f);
     G(glBindVertexArray)(sVaoEmpty);
     G(glDrawArrays)(GL_TRIANGLES, 0, 3);
 

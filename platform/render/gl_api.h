@@ -90,6 +90,8 @@ typedef ptrdiff_t GLintptr;
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #define GL_BACK 0x0405
 #define GL_LINEAR 0x2601
+#define GL_RG8 0x822B
+#define GL_RG 0x8227
 #define GL_ONE 1
 #define GL_SRC_ALPHA 0x0302
 #define GL_ONE_MINUS_SRC_ALPHA 0x0303
@@ -143,7 +145,9 @@ typedef ptrdiff_t GLintptr;
     X(void, glUniform1iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform2iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform4iv, (GLint, GLsizei, const GLint *)) \
+    X(void, glUniform1f, (GLint, GLfloat)) \
     X(void, glUniform2f, (GLint, GLfloat, GLfloat)) \
+    X(void, glUniform2fv, (GLint, GLsizei, const GLfloat *)) \
     X(void, glUniform4f, (GLint, GLfloat, GLfloat, GLfloat, GLfloat)) \
     X(void, glGenBuffers, (GLsizei, GLuint *)) \
     X(void, glBindBuffer, (GLenum, GLuint)) \

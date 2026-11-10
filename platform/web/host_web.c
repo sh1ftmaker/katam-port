@@ -49,6 +49,19 @@ EM_JS(int, PortWebRendererParam, (void), {
     return r === 'gpu' ? 0 : r === 'ppu' ? 1 : -1;
 });
 
+/* Sunlight proof of concept (render/light.c): a page served from .../lighting/
+ * or with ?lighting=1.  1 on, 0 off. */
+EM_JS(int, PortWebLightingParam, (void), {
+    try {
+        var q = new URLSearchParams(location.search);
+        if (q.get('lighting') === '1') return 1;
+        var p = location.pathname, i = p.lastIndexOf('/');
+        p = p.substring(0, i);
+        if (p.substring(p.lastIndexOf('/') + 1) === 'lighting') return 1;
+    } catch (e) {}
+    return 0;
+});
+
 EM_JS(void, PortWebLoadSettings, (char *buf, int size), {
     var t = '';
     try { t = localStorage.getItem('katam.settings') || ''; } catch (e) { t = ''; }
@@ -138,6 +151,9 @@ void PortHostInit(int argc, char **argv)
     if (r >= 0)
         gPortSettings.renderer = r;
     PortSettingsApplyEarly();
+    gPortLighting = PortWebLightingParam();
+    if (gPortLighting)
+        PortLog("[katam-port] lighting: on (Rainbow Route sunlight, proof of concept)");
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
 }
