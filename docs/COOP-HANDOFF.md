@@ -1,0 +1,209 @@
+# Online co-op: checkpoint
+
+**Status: stage 1 is live at `/mp/`, paused 2026-11-10 at `c69cacf` (branch
+`coop`).** The owner asked for a checkpoint so the work can be picked up
+later. Nothing here is merged into `main` or `editor`.
+
+Read this file first, then `platform/port/coop.h` (the pose layout and the C
+API) and the header comments of `web/coop.js`.
+
+Conventions: **Run** means I ran it for this checkpoint's work and saw the
+result. **Reported** means a subagent reported it and I did not repeat it.
+**Read** means taken from the code without running it.
+
+---
+
+## 1. What this is, and what it replaces
+
+Every player runs their own complete game. Nothing is shared except small
+messages: in stage 1, each player's own Kirby pose. Other players are drawn
+as *puppets* in the three CPU Kirby slots. There is no shared input
+timeline, no rollback and no world snapshot, so a player's own Kirby is
+never corrected by the network.
+
+The model is copied from Ship of Harkinian's Anchor co-op as implemented in
+the web fork at `/bigdata/agent-tom/projects/soh-web` (see its README
+"Multiplayer", `soh/soh/Network/Anchor/ActorSync.{h,cpp}`,
+`WorldSync.h`). The owner pointed at that project as the model.
+
+It replaces the lockstep/rollback route described in
+`docs/NETPLAY-HANDOFF.md`, which was shelved for desyncs and rubberbanding.
+That code (`platform/rollback.c`, `platform/netsim.c`, `web/net_game.js`,
+`web/lobby.js`, `?room=` / `?online=1` / `?world=`) is untouched and unused
+by co-op. Co-op refuses to start while rollback, netplay or seats are
+active.
+
+## 2. Where things are
+
+| | |
+|---|---|
+| Branch | `coop`, pushed to remote `github` (sh1ftmaker/katam-port), one commit on top of `main` 1249ebf |
+| Working copy | `/bigdata/agent-tom/projects/katamport/coop-wt` (a git worktree of `port/`) |
+| Live page | https://sh1ftmaker.github.io/katam-port/mp/ — build label `c69cacf` |
+| Publish | from the worktree: `source ~/emsdk/emsdk_env.sh; PAGES_REMOTE=github PAGES_SUBDIR=mp scripts/publish-pages.sh` (fast-forward only) |
+| Server | the existing `katam-netplay` Cloudflare worker (`netplay/`). **Not redeployed**: the live worker has no pose relay, so live clients use the fallback path (§4) |
+
+How a player uses it: open `/mp/` (a plain visit creates a room and the
+address becomes `/mp/?coop=CODE`), send that address to a friend. Each
+player loads their own ROM and keeps their own save. On any other page of
+the build, `?coop=1` creates and `?coop=CODE` joins.
+
+## 3. The pieces
+
+### Engine (C)
+
+- `platform/coop.c`, `platform/port/coop.h`: the puppet layer.
+- `game/src/kirby.c`: one early branch at the top of the Kirby task
+  (`sub_0803EE18`). A puppet slot copies in its pose and runs only the draw
+  half (`sub_0803F46C`); input, state machine, physics, tile collision and
+  door checks are skipped. With co-op off the branch tests a byte that is
+  always 0.
+- Taking a slot: its LevelInfo is made inactive
+  (`FillLevelInfo(slot, 0xFFFF, …)`), which idles its AI and stops its room
+  being simulated; its ability is held at NORMAL for 4 frames so the CPU's
+  ability helper objects destroy themselves.
+- Giving a slot back: the CPU Kirby respawns beside the local player through
+  the respawn route (`sub_08055920`). `PortWarp` cannot be used for this.
+- Side effects removed (Reported): puppets carry flags
+  `0x200|0x100|0x800|0x2000000` (no damage, pickups, doors); enemy targeting
+  skips them (`FindTargetKirby`, `sub_0803D46C`, `sub_0803D5CC`,
+  `sub_0803E324`); scroll-lock triggers skip them
+  (`game/src/scroll_lock.c`); the pause area map and HUD handle a slot with
+  no room (`pause_area_map.c`, `hud.c`). A puppet's roomId is never 0xFFFF.
+- Frame hook: `platform/main.c` (`PortCoopFrameTop` beside
+  `PortNetFrameTop`).
+
+API (all in `PORT_EXPORTS`): `PortCoopPoseSize`, `PortCoopEnable`,
+`PortCoopReady`, `PortCoopSetPuppet(slot,on)`, `PortCoopSetPose(slot,ptr)`,
+`PortCoopSetAbsent(slot)`, `PortCoopLocalPose(out)`, `PortCoopPoseBuffer`,
+and the test-only `PortCoopSelfTest`.
+
+Pose: 36 bytes, little-endian, no pointers. `i32 x` @0, `i32 y` @4,
+`u16 room` @8, `u8 flags` @10 (bit0 hidden), then version, the resolved
+sprite ids and variants for body, hat and overlay, animation index, ability,
+colour (carried, not applied), animation speed and frame, hp, lives. The
+authoritative layout is in `coop.h`. JavaScript treats everything after
+offset 10 as opaque.
+
+### Server (`netplay/`)
+
+- `wire.mjs`, `session.mjs`: `POSE_UP` (0x40) from a member is relayed as
+  `POSE_DOWN` (0x41, prefixed with the sender's member id) to every other
+  connected member. The room checks sizes only. Wrong sizes and anything
+  over 40 messages/s per member are dropped, not fatal.
+- `welcome.features` contains `'pose'`.
+- A room whose sim id starts with `coop/` ignores `start`, so it stays in
+  the lobby phase; the existing version check keeps co-op and lockstep
+  clients out of each other's rooms. Room codes, the directory, resume and
+  host handover are unchanged.
+
+Wire format: `u8 0x40, u8 flags (bit0 PAUSED, bit1 KEY), u8 n (1..4),
+u8 size, then n × {u16 seq, pose}`. `seq` is the sender's clock in
+59.7275 Hz frames, wrapping.
+
+### Client (`web/`)
+
+- `net_session.js`: `sendPose()`, a `'pose'` event, an opt-in quiet-socket
+  check (8 s) and jittered backoff, `reconnectNow()`, `setPaused()`. The
+  lockstep lobby keeps its old behaviour.
+- `coop.js`: the top half is logic (`window.KatamCoop`, also loadable from
+  node), the bottom half is page glue.
+  - Sends: one pose sampled per presented frame, sent every second frame
+    with two poses (about 30 messages/s), 4/s when standing still, nothing
+    when alone.
+  - Receives: a jitter buffer per remote player. Playback delay 3–12 frames,
+    x/y interpolated within a room, snap on room change or a 48 px jump, up
+    to 6 frames of extrapolation, absent after 1.5 s without data, jump to
+    newest on resume.
+  - Slots: other players take puppet slots 1–3 in seat order. More than
+    three others are not drawn; the chip says how many.
+  - A hidden tab sends one PAUSED message and then nothing. Web Locks give a
+    duplicated tab its own identity.
+  - A status chip (top left): room code, players, invite link.
+
+## 4. The fallback path, and the worker redeploy
+
+The deployed worker closes a connection on any binary type it does not
+know. So the client sends binary poses only when `welcome.features` lists
+`'pose'`; otherwise it sends each pose as an existing JSON
+`signal {to, data:{pose: base64}}`, one per other member. That is what the
+live page does today (**Run**: two headless windows on the live page, each
+in its own browser profile, `features: []`, each drew the other's puppet).
+
+To switch the live site to the binary relay: `cd netplay && npx wrangler
+deploy` from this branch. The worker is live and shared with the old
+lockstep rooms; it is the owner's to deploy. The change is additive (the
+30 older netplay tests pass), but it has not been run on Cloudflare.
+
+## 5. Tests and what they showed
+
+| test | how | result |
+|---|---|---|
+| Engine self-test, no network | `tests/coop_selftest.sh` (native, or `--wasm <katam-node.js>`) | **Reported**: 0 failures over about 5,576 checks and 7,300 frames on both builds; the local player's per-frame trajectory and state hash are identical with and without a puppet |
+| Two instances, real engine | `make BUILD=build/eng coop-test` (needs `netplay/node_modules` and the ROM) | **Run**: 12/12, six runs in a row. At 120 ms + 40 ms jitter the puppet trails by about 12 frames, p95 error under 1 px; survives a 5 s freeze each way, a clean reconnect (about 0.8 s) and a silent drop (about 9 s) |
+| Server and client units | `cd netplay && npm test` | **Run**: 51/51 (30 older + 21 new) |
+| Same timeline, fake engine | `node tools/coop_test.mjs --fake-engine` | **Reported**: 12/12 |
+| Browser, local relay | two headless Chromium windows | **Run**: both showed 2 players, puppet drawn and moved, no exceptions |
+| Browser, live page | as above against `/mp/` | **Run**: same, over the fallback path |
+| Regression gates with co-op off | `make regress`, `make regress-wasm`, layout-neutral gate | **Reported**: wasm 7/7 OK; native shows sim-column differences in `aim`, `play_rooms`, `warp_sweep`, `wide_view`, all explained as layout, and unmodified `main` built in this worktree shows the same kind of difference. Goldens were not regenerated |
+
+Harness notes that cost time:
+
+- Give each browser window its own profile (`Target.createBrowserContext`).
+  In one profile the second window finds the ROM in IndexedDB and boots
+  before a test can call `PortPlaytestBoot`.
+- Open each tab in its own window (`newWindow: true`), or the background
+  tab is hidden and reports itself as away.
+- The playtest warp is queued at frame 1300 but lands later. Wait for the
+  `warp: player 0` log line before measuring.
+
+## 6. Known gaps in stage 1
+
+- Not tried by a person, and not on a phone.
+- Colours differ between views: everyone is pink in their own game, and a
+  remote player takes the colour of the slot they land in. The pose carries
+  the sender's colour but it is not applied.
+- At most three other players are drawn.
+- Animation is not re-seeked to the sender's frame; it restarts in step
+  when the sprite changes.
+- Remote ability hats were only tested with NORMAL-state sprite ids.
+- Bosses that write into every Kirby (Dark Meta Knight, Mega Titan) still
+  write into puppets; this affects only how the puppet looks. Cutscenes,
+  sub-games, the warp star and the phone call with all three slots taken
+  were not traced.
+- `PortCoopReady` is already 1 during the opening sequence, so puppets are
+  taken before the first room.
+- A reconnect in the lobby phase can land on a different seat. Puppet slots
+  are keyed by member id, so only the seat number changes.
+- Clients with different room sets (mods, editor rooms) only get "that room
+  does not exist here, show as absent".
+- The four native goldens above need re-checking in `port/` on merge.
+
+## 7. What comes next
+
+Agreed in outline with the owner; none of it is started.
+
+1. **Stage 2, shared progress.** Mirror shards, switches, chests, the map,
+   opened doors, sent as events. Reference: soh-web `WorldSync.h` (progress
+   is shared, consumables stay per player; an item carries the flag that
+   produced it so two players opening one chest at once do not duplicate
+   it). Needs a reliable event message beside the pose stream; the pose
+   relay drops under load by design.
+2. **Stage 3, enemies.** Zelda uses one owner per room. KATAM spawns
+   enemies as the camera approaches and drops them off-screen, so a room
+   owner would not have the enemies near a distant player loaded: ownership
+   should be per enemy, by whoever is nearest or spawned it, with damage and
+   kills sent as events. Enemies would be matched by room and spawn-table
+   index (`CreateObjTemplateAndObj`, `spawnTable` in
+   `game/include/object.h`); that this gives a stable index is **not
+   confirmed**.
+3. **Stage 4, bosses**, one at a time, as state-machine field tables
+   (soh-web `ActorSync.cpp`, "State-synced actors").
+
+Smaller items that would improve stage 1: apply the sender's colour,
+sender-frame animation seek, a name field in the chip, and the worker
+redeploy.
+
+Decisions still open: whether CPU Kirbys in unused slots stay (they do
+today), and what to do beyond four players (extra puppets would have to be
+drawn outside `gKirbys`).
