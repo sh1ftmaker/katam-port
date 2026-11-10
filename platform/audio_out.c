@@ -41,11 +41,12 @@
 extern "C" {
 #endif
 
-/* How much the host should be willing to hold, in game frames.  Four is ~67 ms:
- * long enough that a single slow frame (a room transition decompressing
- * tilesets, say) does not become an audible hole, short enough that input still
- * feels attached to its sound effect. */
-#define PORT_AUDIO_RING_FRAMES 4
+/* How much the host should be willing to hold, in game frames.  The producer
+ * aims for two and may raise that to six on a device that keeps running dry
+ * (ChooseBlockSize in audio.c); the ring has to be comfortably deeper than
+ * that, or a burst of catch-up frames overflows it and the newest block is
+ * dropped -- which is a click of its own. */
+#define PORT_AUDIO_RING_FRAMES 12
 
 /* One frame of stereo float, staged here rather than on the stack: the block
  * is up to ~1600 samples and on the web the mixer already runs deep under

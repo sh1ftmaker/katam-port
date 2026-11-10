@@ -48,6 +48,8 @@ int  PortAudioUnderruns(void);
 /* Samples this frame's block should contain, nudged around the nominal
  * hostRate/60 to keep the output queue at its target depth. */
 int  PortAudioBlockSamples(void);
+/* 1 when the queue is more than a block short of its target. */
+int  PortAudioStarving(void);
 
 /* The mixer proper (platform/m4a_mixer.c).  SoundMain renders a block; the
  * VBlank handler takes it out one frame later, which is the same one-block

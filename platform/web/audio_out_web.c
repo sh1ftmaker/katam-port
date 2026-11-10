@@ -79,7 +79,7 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
 
     var pa = {
         ctx: null, node: null, ready: false, headless: false,
-        rate: 0, depth: 0, pushed: 0, underruns: 0,
+        rate: 0, depth: 0, pushed: 0, underruns: 0, sent: 0, rep: null, queued: null,
         pending: [],            /* blocks produced before the node exists */
         push: null,
     };
@@ -138,15 +138,21 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
                 var cap = options.processorOptions.cap;
                 this.buf = new Float32Array(cap * 2);
                 this.cap = cap;
+                this.resume = options.processorOptions.resume;
                 this.rd = 0;
                 this.wr = 0;
                 this.have = 0;
+                this.recv = 0;
+                this.playing = false;
                 this.underruns = 0;
                 this.tick = 0;
                 this.port.onmessage = (e) => this.take(e.data);
             }
             take(block) {
                 var n = block.length >> 1;
+                /* Counted before the overflow cut: this is what lets the
+                 * producer tell "posted but still in flight" from "arrived". */
+                this.recv += n;
                 /* Overflow means the producer is ahead of the device.  Drop
                  * the incoming block rather than the queued one: what is
                  * already in the ring is what plays next, and cutting into it
@@ -164,22 +170,50 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
                 var out = outputs[0];
                 var L = out[0], R = out.length > 1 ? out[1] : out[0];
                 var n = L.length;
-                var take = n < this.have ? n : this.have;
-                for (var i = 0; i < take; i++) {
-                    var r = ((this.rd + i) % this.cap) * 2;
-                    L[i] = this.buf[r];
-                    R[i] = this.buf[r + 1];
+                var i, r, g;
+                /* Running dry is handled as a fade, a wait and a fade, never
+                 * as a cut.  A ring that plays to its last sample and then
+                 * restarts on the first block to arrive clicks twice per gap
+                 * and, with a producer that is only just behind, does it
+                 * several times a second: that is the crackle.  So the last
+                 * full quantum is faded out while there is still one to fade,
+                 * and playback waits for `resume` frames before fading in. */
+                var mode = 0;                       /* 0 silent, 1 steady, 2 in, 3 out */
+                if (this.playing) {
+                    if (this.have < 2 * n) {
+                        mode = this.have >= n ? 3 : 0;
+                        this.playing = false;
+                        this.underruns++;
+                    } else {
+                        mode = 1;
+                    }
+                } else if (this.have >= this.resume && this.have >= 2 * n) {
+                    this.playing = true;
+                    mode = 2;
                 }
-                for (var j = take; j < n; j++) { L[j] = 0; R[j] = 0; }
-                this.rd = (this.rd + take) % this.cap;
-                this.have -= take;
-                if (take < n) this.underruns++;
-                /* Report the depth back a few times a second.  The producer
-                 * only needs it to decide whether this frame should be a
-                 * couple of samples longer or shorter, so a stale-by-50ms
-                 * number is fine and 375 messages a second is not. */
-                if ((++this.tick & 31) === 0)
-                    this.port.postMessage({ d: this.have, u: this.underruns });
+                if (mode === 0) {
+                    for (i = 0; i < n; i++) { L[i] = 0; R[i] = 0; }
+                } else {
+                    for (i = 0; i < n; i++) {
+                        r = ((this.rd + i) % this.cap) * 2;
+                        g = mode === 1 ? 1 : mode === 2 ? (i + 1) / n : (n - 1 - i) / n;
+                        L[i] = this.buf[r] * g;
+                        R[i] = this.buf[r + 1] * g;
+                    }
+                    this.rd = (this.rd + n) % this.cap;
+                    this.have -= n;
+                }
+                /* The depth, with the two numbers that make it usable from the
+                 * other thread: how much had arrived when it was taken, and
+                 * the audio clock at that moment.  The producer adds what it
+                 * has posted since and subtracts what has played since; with
+                 * the depth alone it could do neither, and read the queue as
+                 * up to five frames fuller than it was. */
+                if ((++this.tick & 7) === 0)
+                    this.port.postMessage({
+                        d: this.have, r: this.recv, u: this.underruns,
+                        p: this.playing ? 1 : 0,
+                        t: currentTime + n / sampleRate });
                 return true;
             }
         }
@@ -195,17 +229,30 @@ EM_JS(void, PortAudioOpen, (int ringFrames), {
                 numberOfInputs: 0,
                 numberOfOutputs: 1,
                 outputChannelCount: [2],
-                processorOptions: { cap: ringCap },
+                processorOptions: { cap: ringCap, resume: Math.ceil(pa.rate / 40) },
             });
             pa.node.port.onmessage = function (e) {
+                pa.rep = e.data;
                 pa.depth = e.data.d;
                 pa.underruns = e.data.u;
-                pa.pushed = 0;
             };
             pa.node.connect(pa.out);
             pa.push = function (f32) {
+                pa.sent += f32.length >> 1;
                 pa.node.port.postMessage(f32, [f32.buffer]);
-                pa.pushed += f32.length >> 1;
+            };
+            /* Frames queued right now, not at the last report: the report,
+             * plus what has been posted since it, minus what the device has
+             * played since it (nothing, while the ring is refilling). */
+            pa.queued = function () {
+                var rp = pa.rep;
+                if (!rp) return pa.sent < ringCap ? pa.sent : ringCap;
+                var q = rp.d + (pa.sent - rp.r);
+                if (rp.p) {
+                    var dt = pa.ctx.currentTime - rp.t;
+                    if (dt > 0) q -= dt * pa.rate;
+                }
+                return q < 0 ? 0 : q > ringCap ? ringCap : q;
             };
             pa.ready = true;
             /* Anything the game produced while addModule was in flight. */
@@ -274,6 +321,7 @@ EM_JS(int, PortAudioRate, (void), {
 EM_JS(int, PortAudioQueued, (void), {
     var pa = Module.portAudio;
     if (!pa) return 0;
+    if (pa.queued) return pa.queued() | 0;
     return (pa.depth + (pa.pushed | 0)) | 0;
 });
 
