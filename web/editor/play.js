@@ -4,6 +4,7 @@
 // frame and posts it the compiled rooms:
 //
 //   editor -> frame   { katamEd: 1, type: 'play', bundle: Uint8Array, room, x, y }
+//                     { katamEd: 1, type: 'music', song }        (listen to a song, out of sight; -1 stops)
 //                     { katamEd: 1, type: 'pause' }              (hidden: stand still)
 //   frame  -> editor  { katamPlay: 1, type: 'ready' }            (can take a play)
 //                     { katamPlay: 1, type: 'playing' }          (the room is on screen)
@@ -31,7 +32,14 @@
   // setTimeout guard (platform/web/host_web.c), so both are held here.
   var paused = false, held = [];
   var raf = window.requestAnimationFrame.bind(window), sto = window.setTimeout.bind(window);
-  window.requestAnimationFrame = function (cb) { if (paused) { held.push(function () { raf(cb); }); return 0; } return raf(cb); };
+  // A song being listened to plays with the frame out of sight, where the
+  // browser gives no animation frames: the game's pacer is fed from a timer.
+  var musicOn = false, wantSong = null, songPoll = 0;
+  window.requestAnimationFrame = function (cb) {
+    if (paused) { held.push(function () { window.requestAnimationFrame(cb); }); return 0; }
+    if (musicOn) return sto(function () { cb(performance.now()); }, 4);
+    return raf(cb);
+  };
   window.setTimeout = function (cb, ms) {
     if (paused && typeof cb === 'function') { var a = Array.prototype.slice.call(arguments, 2); held.push(function () { sto.apply(null, [cb, ms].concat(a)); }); return 0; }
     return sto.apply(null, arguments);
@@ -75,10 +83,25 @@
     var poll = setInterval(function () { if (Module._PortFrameNumber() >= from + 75) { clearInterval(poll); tell({ type: 'playing' }); } }, 50);
   }
 
+  // Only the sound driver runs while a song is listened to (PortMusicPreview,
+  // platform/web/host_web.c): the game stands still behind it.
+  function music(n) {
+    wantSong = n;
+    if (!booted || !settled) {
+      if (!songPoll) songPoll = setInterval(function () { if (booted && settled) { clearInterval(songPoll); songPoll = 0; music(wantSong); } }, 150);
+      return;
+    }
+    if (n >= 0) { Module._PortMusicPreview(n); musicOn = true; setPaused(false); tell({ type: 'music', song: n }); }
+    else if (musicOn) { Module._PortMusicPreview(-1); musicOn = false; setPaused(true); }
+  }
+
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || !e.data || e.data.katamEd !== 1) return;
     if (e.data.type === 'pause') { setPaused(true); return; }
+    if (e.data.type === 'music') { music(e.data.song | 0); return; }
     if (e.data.type !== 'play') return;
+    wantSong = -1;
+    if (musicOn) { Module._PortMusicPreview(-1); musicOn = false; }
     setPaused(false);
     if (booted) reload(e.data); else if (takeFirst) { takeFirst(e.data); takeFirst = null; } else first = e.data;
   });

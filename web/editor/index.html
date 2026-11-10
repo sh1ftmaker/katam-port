@@ -23,7 +23,7 @@
     <span class="grow"></span>
     <button class="btn icon" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
     <button class="btn icon" id="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
-    <button class="btn" id="roomset" title="Room settings: name, size, music, look">⚙ <span class="lbl">Room</span></button>
+    <button class="btn" id="roomset" title="This room: name, size, look and music">⚙ <span class="lbl">Room</span></button>
     <button class="btn" id="validate"><span class="dot ok" id="vdot">✓</span><span class="lbl">Validate</span></button>
     <button class="btn primary" id="play">▶ <span class="lbl">Play here</span></button>
     <button class="btn" id="save" title="Download the project as a .zip">⬇ <span class="lbl">Save</span></button>
@@ -33,6 +33,7 @@
 
   <main id="stage">
     <div class="robar" id="robar" hidden></div>
+    <div class="robar pv" id="pvbar" hidden></div>
     <div class="bar">
       <select id="roomsel" aria-label="Room"></select>
       <label class="chk"><input type="checkbox" id="sh-collision" checked><span>Show collision</span></label>
@@ -51,8 +52,8 @@
     <div class="tabs" role="tablist">
       <button class="tab on" data-tab="tiles">Tiles</button>
       <button class="tab" data-tab="objects">Objects</button>
-      <button class="tab" data-tab="enemies">Enemies</button>
-      <button class="tab" data-tab="rooms">Rooms</button>
+      <button class="tab" data-tab="room">Room</button>
+      <button class="tab" data-tab="rooms">All rooms</button>
     </div>
     <div class="panel" id="tabbody"></div>
     <div class="gut gh" id="g-insp"></div>

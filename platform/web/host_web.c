@@ -397,6 +397,43 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
     PortWebPresent(pixels, w, h);
 }
 
+/* The level editor's music preview (web/editor/play.js): while a song is
+ * being auditioned the game is not asked for frames at all -- only the sound
+ * driver runs, at the game's frame rate -- so nothing happens to Kirby in the
+ * room behind it.  -1 ends it: everything is stopped, and the room's own song
+ * starts again with the warp the next play begins with. */
+extern void m4aSoundMain(void);
+extern void m4aSoundVSync(void);
+extern void m4aSongNumStart(u16 n);
+extern void m4aMPlayAllStop(void);
+#define MUSIC_NONE (-2)
+static int sMusicWant = MUSIC_NONE;
+static int sMusicOn;
+EMSCRIPTEN_KEEPALIVE void PortMusicPreview(int song) { sMusicWant = song; }
+EMSCRIPTEN_KEEPALIVE int PortMusicPreviewing(void) { return sMusicOn; }
+
+static void MusicPreviewLoop(void)
+{
+    while (sMusicOn || sMusicWant != MUSIC_NONE) {
+        int want = sMusicWant;
+
+        sMusicWant = MUSIC_NONE;
+        if (want >= 0) {
+            m4aMPlayAllStop();
+            m4aSongNumStart((u16)want);
+            sMusicOn = 1;
+        } else if (want == -1) {
+            m4aMPlayAllStop();
+            sMusicOn = 0;
+            break;
+        }
+        m4aSoundMain();
+        m4aSoundVSync();
+        while (PortWebAwaitFrame(0) == 1)
+            ;
+    }
+}
+
 /* The menu pause: a host-level frame skip -- the game is not asked for its
  * next frame while the menu is open, and the last picture is re-presented
  * under it.  Not online (either session driver), where a peer would stall. */
@@ -413,6 +450,8 @@ void PortAwaitAnimationFrame(void)
     while (PortWebAwaitFrame(sGl && gPortShowDisplayRate && gPortSettings.interp
                              && PortShowUsingGpu()) == 1)
         Show(NULL, 0, 0, 0);
+    if (!online)
+        MusicPreviewLoop();
 }
 
 /* The stall-loop pump (port/backend.h).  The page wires portNetIdle to the
