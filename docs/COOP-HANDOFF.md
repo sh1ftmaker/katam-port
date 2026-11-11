@@ -7,7 +7,7 @@ Kirbys) is sh1ftmaker's; stages 2-4 and the stage-1 follow-ups are new and
 described in §8 below; the Kirby colour picker and name tags in §9; shared CPU
 Kirbys, spawned objects (attacks, shots, particles) and the phone in §10;
 enemies after any player, shots that hurt everyone and other games' sounds
-in §11.  §1-§7 are the stage-1 checkpoint as it was written,
+in §11; broken blocks, buttons, dropped ability stars and minibosses in §12.  §1-§7 are the stage-1 checkpoint as it was written,
 kept for its detail; where §8 contradicts them, §8 is current.
 
 Read this file first, then `platform/port/coop.h` (the pose layout and the C
@@ -673,4 +673,91 @@ so the check keeps proving that a puppet pushes, blocks and triggers nothing;
   remote inhale can cut short a local sound of the same player, as two local
   sounds would.
 - Grabs (Droppy, Prank, Mr. Frosty's, Phan Phan's) only grab the owner.
+
+## 12. The live room: blocks, buttons, ability stars; minibosses (2026-11-11)
+
+What was left of a room that played differently in each game: blocks broken
+in one game stood whole in the others (a player walked through walls), a
+button held down by one player opened nothing for the others, a friend's
+dropped ability star could not be taken, and every miniboss was a separate
+fight.
+
+### Blocks (`platform/coop_room.c`, hooks in `object_collision.c`, `code_0800E0E4.c`)
+
+Star blocks and their kin are tiles: an attack, an inhale or a chain
+reaction rewrites the room's tile map (`sub_08001408` with the replacement
+`sub_080025AC` finds).  Every break is reported (`PortCoopTileBroken`: room,
+tile, with dust or not) and every other game in that room makes the same
+break **if the tile is still breakable there** (attribute 0x1000, or 0x40 for
+a chain link) -- the game's own condition, and the one that guarantees
+`sub_080025AC` finds an entry (it searches without an end otherwise).  A game
+keeps the breaks of the room it is in; when another player's pose arrives in
+that room, the page sends them (`PortCoopTilesSnapshot`, `{ts}` to that
+player), and their game applies them once it is in the room
+(`PortCoopTilesSetSnapshot`): a player walking in finds the room as the
+others have it.  Tiles an object manages (crumbling rock, pushed stone
+blocks) are not touched -- the object would rewrite them from a state that is
+no longer there.  Deltas travel as `{tb}` signals to everyone.
+
+### Buttons (`big_small_switch.c`)
+
+A button is held by a Kirby standing on it, and puppets stand on nothing (out
+of the solid-object lists).  `PortCoopPuppetOn` lets a puppet standing on a
+button (its hitbox on the button's, 3 px of reach down) hold it in this game
+too, so whatever it opens opens here while the player is on it.  Big
+switches (world progress) are pressed the same way and the game's own
+interlude runs.
+
+### Ability stars (`coop_room.c`, hooks in `inhalable_star.c`, `object.c`)
+
+A star dropped by the local Kirby or a CPU Kirby this game runs is reported
+(`PortCoopStarDropped`: room, position, facing, its bounce, the ability, the
+sender's slot); the page sends `{sp}`; every other game in that room makes a
+star of its own with the game's own call (`PortCoopStarSpawn`), next to the
+puppet of whoever dropped it, so it bounces the same way and can be inhaled.
+Swallowing one (`PortCoopStarSwallowed`, where `object.c` hands the ability
+over) sends `{tk: [owner, id]}`, and every other copy, the original included,
+is removed (`PortCoopStarTaken`).  Each copy expires on its own timer, as the
+original does.  Ability stars are no longer captured as ghosts.  Anything
+made for another game is made with `gCurTask` cleared, so it is not tagged
+as the local Kirby's spawn and sent back.
+
+### Minibosses (`platform/coop_enemy.c`)
+
+A miniboss (Mr. Frosty .. Bombar, 0x38..0x3F) is one object animated through
+`unk83` like a regular enemy, so once its fight has begun it is shared the
+same way: the room's owner streams it, the others' copies are puppets, it
+goes after the nearest player, and its shots are ghosts and hazards.  *Begun*
+is the game's own signal -- every miniboss is made not solid (flag 0x200) and
+made solid once, when a Kirby walks into its arena -- and is sticky per room.
+Each game therefore plays the intro, the music and the health bar itself
+before following the owner's.  A hit on a puppeted miniboss goes to the
+owner as a boss hit (the owner's copy reacts through the game's own
+`PortCoopObjectDamage`); a puppet's hp is only ever the owner's, from the
+stream (a boss hit applied to it as well came straight back as a hit of its
+own -- fixed); the owner's kill reaches every copy as `BOSS_KILL`, which ends
+the puppeting and runs the game's own death.
+
+### Tests
+
+| test | result |
+|---|---|
+| `make coop-test` (new phase `room`: both in room 106; A inhales a block and B's game breaks it; B leaves and comes back and gets A's break; A takes Beam and lets it go and B's game makes the star with A's ability; B swallowing its copy removes A's; in room 310 A stands on the small button and it is down in B's game.  `bosses` adds: B's Mr. Frosty is a puppet within 2 px of A's recent positions -- 0.1 px measured -- and A's goes after B when B is nearer) | 65/65 (the 55 before, 10 new) |
+| `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures; local trajectory identical |
+| `cd netplay && npm test` | 51/51 |
+| `make regress-wasm` | 7/7 OK |
+| `make lint-simstate` (now also `coop_room`) | 0 unlisted, 0 stale |
+
+### Gaps
+
+- **Bosses** (Kracko, King Golem, Gobbler, Wiz, Moley, Mega Titan, the
+  hands, Dark Meta Knight, Dark Mind) are still each game's own fight with
+  one health pool: they are many objects and long scripted sequences, and
+  sharing them means doing it boss by boss.
+- Pushed and falling stone blocks (`large_star_stone_block*.c`) and other
+  objects that manage tiles are each game's own.
+- A star dropped while a player is in another room is not made for them when
+  they arrive.
+- A button pressed by hitting it (rather than standing on it) is pressed only
+  in the hitter's game.
 

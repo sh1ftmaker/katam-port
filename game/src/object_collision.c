@@ -467,6 +467,8 @@ static void ProcessAttackTileCollisions(struct ObjectBase *attack)
                     attributes = gCollisionAttributes[GetCollisionTile(attack->unk56, tileX, tileY)];
                     if ((attributes & 0x1000) && !(attributes & 0xF00000)) {
                         sub_08001408(attack->unk56, sub_080025AC(attack->unk56, tileX, tileY), NULL, NULL);
+                        if (gPortCoopRoomOn) /* PORT-COOP: the others' copies of the room */
+                            PortCoopTileBroken(attack->unk56, tileX, tileY, 1);
                         sub_08088F84(attack->parent, tileX, tileY);
                         attack->flags |= 0x80000;
                         return;
@@ -543,12 +545,16 @@ static void ProcessAttackTileCollisions(struct ObjectBase *attack)
                 }
                 if (attributes & 0x20) {
                     sub_08001408(attack->unk56, sub_080025AC(attack->unk56, column + tileX, row + tileY), NULL, NULL);
+                    if (gPortCoopRoomOn) /* PORT-COOP */
+                        PortCoopTileBroken(attack->unk56, column + tileX, row + tileY, 1);
                     sub_0800E0E4((struct Object *)attack, column + tileX, row + tileY);
                     PlaySfx(attack, SE_BLOCK_BREAK);
                     attack->flags |= 0x80000;
                     continue;
                 }
                 sub_08001408(attack->unk56, sub_080025AC(attack->unk56, column + tileX, row + tileY), NULL, NULL);
+                if (gPortCoopRoomOn) /* PORT-COOP */
+                    PortCoopTileBroken(attack->unk56, column + tileX, row + tileY, 0);
                 effect = CreateEffectObject(attack, 0, 0x28D, 0);
                 effect->x = ((column + tileX) * 0x1000) + 0x800;
                 effect->y = ((row + tileY) * 0x1000) + 0x800;

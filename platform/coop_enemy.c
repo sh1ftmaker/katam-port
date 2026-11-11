@@ -135,6 +135,58 @@ static int IsBoss(const struct Object *o)
     return o->type >= 0x38 && o->type <= 0x52;
 }
 
+/* --- minibosses as puppets ------------------------------------------------
+ *
+ * A miniboss (Mr. Frosty .. Bombar, 0x38..0x3F) is one object animated like
+ * a regular enemy, so once its fight has begun it is shared the same way:
+ * the room's owner streams it and the others' copies become puppets.  Not
+ * before: each game plays the intro itself (the miniboss waits, not solid --
+ * flag 0x200 -- until a Kirby walks into its arena, then jumps in, starts the
+ * music and the health bar), and only then follows the owner's.  Begun is
+ * sticky per room, since a few of them go untouchable for a moment
+ * mid-fight.  Hits on a puppeted miniboss go to the owner as boss hits (the
+ * owner's copy flinches through the game's own reaction), and its death is
+ * the game's own everywhere (stage 4, below). */
+#define BEGUN_MAX 8
+static struct { u16 room, idx; } sBegun[BEGUN_MAX];
+static int sBegunN;
+static u16 sBegunRoom = 0xFFFF;
+
+static int IsMiniboss(const struct Object *o)
+{
+    return o->type >= 0x38 && o->type <= 0x3F;
+}
+
+static int Begun(const struct Object *o)
+{
+    int i, idx = PortCoopObjectIndex(o);
+
+    if (idx < 0)
+        return 0;
+    for (i = 0; i < sBegunN; i++)
+        if (sBegun[i].room == o->base.roomId && sBegun[i].idx == (u16)idx)
+            return 1;
+    if (o->base.flags & 0x200)
+        return 0;
+    if (sBegunN < BEGUN_MAX) {
+        sBegun[sBegunN].room = o->base.roomId;
+        sBegun[sBegunN].idx = (u16)idx;
+        sBegunN++;
+    }
+    return 1;
+}
+
+/* Shared as a puppet: a regular enemy, or a miniboss whose fight has begun. */
+static int Shared(const struct Object *o)
+{
+    return IsEnemy(o) || (IsMiniboss(o) && Begun(o));
+}
+
+int PortCoopEnemyShared(const struct Object *o)
+{
+    return o != NULL && o->base.header.kind == 1 && Shared(o);
+}
+
 static int Alive(const struct Object *o)
 {
     return o->unk80 > 0 && !(o->base.flags & 0x1000) && !(o->base.unkC & 0x2000);
@@ -212,7 +264,7 @@ int PortCoopEnemyStep(struct Object *obj)
     int idx;
     u32 now = Now();
 
-    if (!sShare || !IsEnemy(obj) || obj->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
+    if (!sShare || !Shared(obj) || obj->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
         return 0;
     idx = PortCoopObjectIndex(obj);
     if (idx < 0 || (e = Find(obj->base.roomId, (u32)idx)) == NULL)
@@ -224,7 +276,13 @@ int PortCoopEnemyStep(struct Object *obj)
     /* A hit landed on the puppet since last frame (the collision task runs
      * after the objects): tell the owner, and let this copy play the
      * knockback the hit set up before it is put back on the owner's pose. */
-    if (e->puppet && obj->unk80 < e->hpSeen) {
+    if (e->puppet && obj->unk80 < e->hpSeen && IsMiniboss(obj)) {
+        /* the owner's copy takes it through the game's reaction; this one
+         * stays on the owner's pose and shows that reaction when it comes */
+        Event(PORT_COOP_EV_BOSS_HIT, e->room, e->idx, e->hpSeen - obj->unk80, 0);
+        sStats[6]++;
+        e->hpSeen = obj->unk80;
+    } else if (e->puppet && obj->unk80 < e->hpSeen) {
         Event(PORT_COOP_EV_HIT, e->room, e->idx, e->hpSeen - obj->unk80, 0);
         sStats[1]++;
         e->holdUntil = now + EN_HIT_HOLD;
@@ -264,7 +322,7 @@ int PortCoopEnemyIsPuppet(const struct Object *obj)
     struct EnemyPuppet *e;
     int idx;
 
-    if (!sShare || !IsEnemy(obj))
+    if (!sShare || !Shared(obj))
         return 0;
     idx = PortCoopObjectIndex(obj);
     return idx >= 0 && (e = Find(obj->base.roomId, (u32)idx)) != NULL && e->puppet
@@ -354,6 +412,13 @@ static int ScanBoss(struct Object *o, void *arg)
         t->dead = o->unk80 <= 0;
     }
     t->seen = *now;
+    if (PortCoopEnemyIsPuppet(o)) {
+        /* its hp follows the owner's stream, and hits on it are sent by
+         * PortCoopEnemyStep: nothing to report from here */
+        t->lastHp = o->unk80;
+        t->touched = 1;
+        return 0;
+    }
     if (o->unk80 < t->lastHp) {
         Event(PORT_COOP_EV_BOSS_HIT, t->room, t->key, t->lastHp - o->unk80, 0);
         sStats[6]++;
@@ -417,6 +482,8 @@ static void BossEvent(int kind, u32 room, u32 key, s32 val)
     }
     if (kind == PORT_COOP_EV_BOSS_KILL)
         val = m.obj->unk80;
+    else if (PortCoopEnemyIsPuppet(m.obj))
+        return;     /* a puppet's hp is the owner's, from the stream */
     PortCoopObjectDamage(m.obj, val);
     sStats[7]++;
     if (t != NULL) {
@@ -436,6 +503,10 @@ void PortCoopEnemyFrame(void)
         gPortCoopEnemyOn = 0;
         sDeadCount = 0;
         return;
+    }
+    if (gKirbys[gLocalPlayerId].base.roomId != sBegunRoom) {
+        sBegunRoom = gKirbys[gLocalPlayerId].base.roomId;
+        sBegunN = 0;
     }
     BossFrame(now);
     memset(sDeadNext, 0, sizeof(sDeadNext));
@@ -478,7 +549,7 @@ static int CollectOne(struct Object *o, void *arg)
 
     if (c->n >= c->max)
         return 1;
-    if (!IsEnemy(o) || !Alive(o) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
+    if (!Shared(o) || !Alive(o) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
         return 0;
     idx = PortCoopObjectIndex(o);
     if (idx < 0)
@@ -641,7 +712,7 @@ static int ListOne(struct Object *o, void *arg)
     if (!(IsEnemy(o) || IsBoss(o)) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
         return 0;
     idx = PortCoopObjectIndex(o);
-    e = idx >= 0 && IsEnemy(o) ? Find(o->base.roomId, (u32)idx) : NULL;
+    e = idx >= 0 && (IsEnemy(o) || IsMiniboss(o)) ? Find(o->base.roomId, (u32)idx) : NULL;
     if (e != NULL && e->puppet)  f |= 0x80;
     if (!Alive(o))               f |= 0x40;
     if (o->base.flags & 1)       f |= PORT_COOP_EN_LEFT;

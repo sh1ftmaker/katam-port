@@ -161,3 +161,23 @@ coop_fx sDemand diagnostic co-op ghost upload demand (PortCoopFxStat)
 coop_fx sDemandN diagnostic co-op ghost upload demand (PortCoopFxStat)
 coop_fx sDemandMax diagnostic co-op ghost upload demand (PortCoopFxStat)
 coop_fx sDemandMaxN diagnostic co-op ghost upload demand (PortCoopFxStat)
+coop_enemy sBegun setting co-op: minibosses whose fight has begun in this room (they are shared only after); reset with the room
+coop_enemy sBegunN setting co-op: minibosses whose fight has begun in this room
+coop_enemy sBegunRoom setting co-op: the room sBegun is for
+coop_room gPortCoopRoomOn setting co-op live-room sharing switch from the page; external input, refused under rollback/net/seats (platform/coop_room.c)
+coop_room sShare setting co-op live-room sharing switch from the page
+coop_room sApplying setting co-op: set only while another game's break or star is being made, between frames
+coop_room sTileQ setting co-op: tiles broken here, for the page (external output)
+coop_room sTileQN setting co-op: tiles broken here, for the page
+coop_room sTileSet setting co-op: the breaks of the local room, sent to a player who walks in (external output)
+coop_room sTileSetN setting co-op: the breaks of the local room
+coop_room sTileRoom setting co-op: the room sTileSet is for
+coop_room sSnap setting co-op: another player's breaks of a room, waiting for the local player to be in it (external input)
+coop_room sSnapLen setting co-op: another player's breaks of a room, waiting
+coop_room sSnapAt setting co-op: when that snapshot arrived (it expires)
+coop_room sTileBase setting co-op: the parent the break dust of another game's break is made with, gone at once
+coop_room sStar setting co-op: ability stars shared with the other games (own and their copies)
+coop_room sStarId setting co-op: the id of the last star dropped here
+coop_room sStarQ setting co-op: stars dropped and swallowed here, for the page (external output)
+coop_room sStarQN setting co-op: stars dropped and swallowed here, for the page
+coop_room sStat diagnostic co-op live-room counters (PortCoopRoomStat)

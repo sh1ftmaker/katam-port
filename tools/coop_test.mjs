@@ -43,9 +43,12 @@
 //              an enemy killed on A dies on B within 1.5 s; a hit on one of
 //              B's puppets takes the same hp off A's copy.
 //   bosses     stage 4, shared boss health.  Both warp next to a miniboss
-//              (--boss-room 230 --boss-cell 24:13, type 0x38).  Damage on A's
-//              copy comes off B's (through B's own hit reaction), damage on
-//              B's comes off A's, and lethal damage on A kills B's copy.
+//              (--boss-room 230 --boss-cell 24:13, type 0x38).  Its fight has
+//              begun in both games, so B's copy is a puppet of A's, where
+//              A's was a moment ago, and A's goes after the nearer player.
+//              Damage on A's copy comes off B's, damage on B's comes off A's
+//              (through A's own hit reaction), and lethal damage on A kills
+//              B's copy.
 //   helpers    CPU Kirbys.  A (lowest member id, in a level, past its
 //              tutorial) runs them: B's free slots show A's CPU Kirbys,
 //              each within 2 px of where A had it in the last 40 frames
@@ -58,6 +61,12 @@
 //              ability's attack); what A's attack spawns is captured on A
 //              and drawn on B as ghosts (engine counters on both sides).
 //              A's sounds play on B, and the inhale's stop stops B's copy.
+//   room       the live room.  Both in room 106 next to its star blocks: A
+//              inhales them, and the blocks A breaks break in B's game;
+//              B leaves and comes back, and gets the room as A has it.  A
+//              takes Beam and lets it go: B's game makes the star too, with
+//              A's ability; B swallowing its copy removes A's.  In room 310
+//              A stands on the small button: it is down in B's game too.
 //   shots      enemies after any player, and their shots hurt everyone.
 //              Both in a room with Shotzos (--shot-room 113), B near one,
 //              A further off; A owns the room.  A's game aims that Shotzo
@@ -100,12 +109,18 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors,helpers,fx,shots').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors,helpers,fx,shots,room').split(',');
 const BOSS_ROOM = +flag('boss-room', 230);
 const [BOSS_CX, BOSS_CY] = flag('boss-cell', '24:13').split(':').map(Number);
 const SHOT_ROOM = +flag('shot-room', 113);
 const [SHOT_AX, SHOT_AY] = flag('shot-a', '3:5').split(':').map(Number);
 const [SHOT_BX, SHOT_BY] = flag('shot-b', '13:5').split(':').map(Number);
+const TILE_ROOM = +flag('tile-room', 106);
+const [TILE_AX, TILE_AY] = flag('tile-a', '43:9').split(':').map(Number);
+const [TILE_BX, TILE_BY] = flag('tile-b', '38:9').split(':').map(Number);
+const BTN_ROOM = +flag('button-room', 310);
+const [BTN_AX, BTN_AY] = flag('button-a', '20:9').split(':').map(Number);
+const [BTN_BX, BTN_BY] = flag('button-b', '8:9').split(':').map(Number);
 const EN_ROOM = +flag('enemy-room', 104);
 const [EN_CX, EN_CY] = flag('enemy-cell', '2:9').split(':').map(Number);
 const PERIOD = 1000 / 59.7275;
@@ -669,7 +684,8 @@ async function bosses() {
         return;
     }
     A.script = B.script = () => 0;
-    for (const i of [A, B]) i.Module._PortWarp(0, BOSS_ROOM, BOSS_CX, BOSS_CY);
+    A.Module._PortWarp(0, BOSS_ROOM, BOSS_CX, BOSS_CY);
+    B.Module._PortWarp(0, BOSS_ROOM, BOSS_CX + 2, BOSS_CY);     /* B a little nearer to it */
     const there = await until(() => roomOf(A) === BOSS_ROOM && roomOf(B) === BOSS_ROOM, 8000);
     check('bosses', `both warped into room ${BOSS_ROOM}`, there, `A ${roomOf(A)} B ${roomOf(B)}`);
     if (!there) return;
@@ -680,6 +696,30 @@ async function bosses() {
     if (!both) return;
     await sleep(500);
     let a = boss(A), b = boss(B);
+    const flagsOf = (i, x) => new DataView(i.Module.HEAPU8.buffer).getUint32(x.addr + 8, true);
+    say(`bosses: A's ${JSON.stringify(a)} flags ${flagsOf(A, a).toString(16)}; B's ${JSON.stringify(b)} flags ${flagsOf(B, b).toString(16)}`);
+    /* a miniboss whose fight has begun is shared like an enemy: B's copy is
+     * a puppet of A's, where A's was a moment ago */
+    const pup = await until(() => boss(B) && boss(B).puppet, 3000);
+    const hist = [];
+    for (const te = performance.now() + 1500; performance.now() < te;) {
+        const x = boss(A);
+        if (x) hist.push({ x: x.x, y: x.y });
+        await sleep(8);
+    }
+    b = boss(B);
+    const err = b ? Math.min(...hist.map((h) => Math.hypot(h.x - b.x, h.y - b.y) / PX)) : Infinity;
+    const moved = hist.length ? Math.hypot(hist[0].x - hist.at(-1).x, hist[0].y - hist.at(-1).y) / PX : 0;
+    check('bosses', 'the miniboss is shared: B\'s copy is a puppet of A\'s, where A\'s was a moment ago (<= 2 px)', pup && err <= 2,
+          `puppet ${pup}, error ${err.toFixed(1)} px, A's moved ${moved.toFixed(0)} px in 1.5 s`);
+    a = boss(A);
+    const ka = kirbyPos(A.Module, 0), kb = kirbyPos(B.Module, 0);
+    const bSlot = A.coop.cpuState().slots.indexOf(B.net.mid);
+    const nearer = Math.abs(kb.x - a.x) + Math.abs(kb.y - a.y) < Math.abs(ka.x - a.x) + Math.abs(ka.y - a.y) ? bSlot : 0;
+    const pick = A.Module._PortCoopTestTarget(a.addr);
+    check('bosses', 'A\'s miniboss goes after whichever player is nearer', pick === nearer,
+          `picks slot ${pick}, nearer is slot ${nearer} (B is slot ${bSlot})`);
+    a = boss(A); b = boss(B);
     const hb = b.hp;
     setHp(A, a.addr, a.hp - 2);
     let ok = await until(() => { const x = boss(B); return x && x.hp === hb - 2; }, 2000);
@@ -920,7 +960,100 @@ async function shots() {
     A.script = walker;
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors, helpers, fx, shots };
+/* --- the live room: blocks, stars, buttons ------------------------------------------ */
+function tilesOf(i) {
+    const M = i.Module, buf = M._malloc(1600), n = M._PortCoopTestTiles(buf, 800), out = new Set();
+    for (let k = 0; k < n; k++) out.add(M.HEAPU8[buf + 2 * k] + ',' + M.HEAPU8[buf + 2 * k + 1]);
+    M._free(buf);
+    return out;
+}
+function objectsOf(i, type) {
+    const M = i.Module, buf = M._malloc(16 * 32), n = M._PortCoopTestObjects(type, buf, 32), out = [];
+    const dv = new DataView(M.HEAPU8.buffer);
+    for (let k = 0; k < n; k++) {
+        const o = buf + 16 * k;
+        out.push({ addr: dv.getUint32(o, true), x: dv.getInt16(o + 4, true), y: dv.getInt16(o + 6, true),
+                   anim: M.HEAPU8[o + 8], ability: M.HEAPU8[o + 9], idx: M.HEAPU8[o + 10] });
+    }
+    M._free(buf);
+    return out;
+}
+async function room() {
+    if (FAKE || typeof A.Module._PortCoopTestTiles !== 'function') {
+        say('room: build has no PortCoopTestTiles -- skipped');
+        return;
+    }
+    const B_BTN = 0x02, SELECT = 0x04;
+    A.script = B.script = () => 0;
+    A.Module._PortWarp(0, TILE_ROOM, TILE_AX, TILE_AY);
+    B.Module._PortWarp(0, TILE_ROOM, TILE_BX, TILE_BY);
+    let ok = await until(() => roomOf(A) === TILE_ROOM && roomOf(B) === TILE_ROOM, 8000);
+    check('room', `both warped into room ${TILE_ROOM}`, ok, `A ${roomOf(A)} B ${roomOf(B)}`);
+    if (!ok) return;
+    await sleep(1500);
+    const a0 = tilesOf(A), b0 = tilesOf(B);
+    say(`room: blocks ${[...a0].join(' ')}; A at ${kirbyPos(A.Module, 0).x >> 12},${kirbyPos(A.Module, 0).y >> 12}`);
+    check('room', 'both games have the room\'s blocks', a0.size > 0 && a0.size === b0.size && [...a0].every((k) => b0.has(k)),
+          `A ${a0.size}, B ${b0.size}`);
+    /* A faces the blocks and inhales */
+    const f0 = A.Module._PortFrameNumber();
+    A.script = (f) => (f - f0 < 8 ? 0x10 : B_BTN);
+    ok = await until(() => tilesOf(A).size < a0.size, 6000);
+    await sleep(300);
+    A.script = () => 0;
+    const a1 = tilesOf(A), broken = [...a0].filter((k) => !a1.has(k));
+    check('room', 'A breaks blocks in its own game (inhaling them)', ok && broken.length > 0, `broken ${broken.join(' ')}`);
+    if (!broken.length) return;
+    ok = await until(() => broken.every((k) => !tilesOf(B).has(k)), 3000);
+    check('room', 'the blocks A breaks break in B\'s game too', ok,
+          `B still has ${broken.filter((k) => tilesOf(B).has(k)).join(' ') || 'none'}; ${JSON.stringify(B.coop.roomStats())}`);
+    /* B leaves: its copy of the room is gone; back in, it loads whole and gets A's breaks */
+    B.Module._PortWarp(0, EN_ROOM, EN_CX, EN_CY);
+    await until(() => roomOf(B) === EN_ROOM, 8000);
+    await sleep(1000);
+    B.Module._PortWarp(0, TILE_ROOM, TILE_BX, TILE_BY);
+    await until(() => roomOf(B) === TILE_ROOM, 8000);
+    ok = await until(() => broken.every((k) => !tilesOf(B).has(k)), 5000);
+    check('room', 'B walking back in gets the room as A has it (A\'s breaks sent to it)', ok,
+          `B has ${tilesOf(B).size} blocks; A snapshots sent ${A.coop.roomStats().page.snapsSent}, B got ${B.coop.roomStats().page.snapsRecv}`);
+    /* A spits out the block it inhaled, takes Beam and lets it go */
+    const s0 = A.Module._PortFrameNumber();
+    A.script = (f) => (f - s0 > 10 && f - s0 < 18 ? B_BTN : 0);
+    await sleep(1000);
+    A.script = () => 0;
+    const gave = A.Module._PortCoopTestAbility(7);
+    await sleep(2000);
+    const abil = () => A.Module.HEAPU8[KIRBY + 0x103];
+    say(`room: A took Beam: ${gave}, ability now ${abil()}`);
+    const g0 = A.Module._PortFrameNumber();
+    A.script = (f) => (f - g0 < 10 ? SELECT : 0);
+    const starsA = () => objectsOf(A, 0xA3), starsB = () => objectsOf(B, 0xA3);
+    ok = await until(() => starsA().length > 0 && starsB().length > 0, 3000);
+    A.script = () => 0;
+    const sa = starsA(), sb = starsB();
+    check('room', 'A lets its ability go: B\'s game makes the star too, with A\'s ability', ok && sb.length > 0 && sb[0].ability === 7,
+          `A ${JSON.stringify(sa)} B ${JSON.stringify(sb)}; A ability ${abil()}; A ${JSON.stringify(A.coop.roomStats())} B ${JSON.stringify(B.coop.roomStats())}`);
+    if (sb.length) {
+        B.Module._PortCoopTestSwallow(sb[0].addr);
+        ok = await until(() => starsA().length === 0, 3000);
+        check('room', 'B swallows its copy: A\'s star is removed', ok, `A ${JSON.stringify(starsA())}; ${JSON.stringify(A.coop.roomStats())}`);
+    }
+    /* the button */
+    A.Module._PortWarp(0, BTN_ROOM, BTN_AX, BTN_AY);
+    B.Module._PortWarp(0, BTN_ROOM, BTN_BX, BTN_BY);
+    ok = await until(() => roomOf(A) === BTN_ROOM && roomOf(B) === BTN_ROOM, 8000);
+    await sleep(1500);
+    const btnA = objectsOf(A, 0x6D), btnB = objectsOf(B, 0x6D);
+    say(`room: A at ${kirbyPos(A.Module, 0).x >> 8},${kirbyPos(A.Module, 0).y >> 8}, B at ${kirbyPos(B.Module, 0).x >> 8},${kirbyPos(B.Module, 0).y >> 8}; ` +
+        `buttons on A ${JSON.stringify(btnA)} on B ${JSON.stringify(btnB)}`);
+    const down = (l) => l.some((o) => o.anim === 1);
+    ok = await until(() => down(objectsOf(B, 0x6D)), 3000);
+    check('room', 'A stands on the button: it is down in B\'s game too', ok && down(objectsOf(A, 0x6D)),
+          `A ${JSON.stringify(objectsOf(A, 0x6D))} B ${JSON.stringify(objectsOf(B, 0x6D))}; B held by puppets ${B.Module._PortCoopRoomStat(5)}`);
+    A.script = walker;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors, helpers, fx, shots, room };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

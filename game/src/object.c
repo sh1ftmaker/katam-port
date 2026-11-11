@@ -1295,8 +1295,11 @@ static void sub_0809C48C(struct Object *r5) {
                             sub_080547C4(r6, 28);
                             return;
                         }
-                        if (r5->type == OBJ_ABILITY_STAR_1 || r5->type == OBJ_ABILITY_STAR_2)
+                        if (r5->type == OBJ_ABILITY_STAR_1 || r5->type == OBJ_ABILITY_STAR_2) {
+                            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies go */
+                                PortCoopStarSwallowed(r5);
                             sub_080547C4(r6, r5->kirbyAbility | KIRBY_ABILITY_CHANGE_IS_ABILITY_STAR);
+                        }
                         else
                             sub_080547C4(r6, r5->kirbyAbility);
                         r5->kirbyAbility = KIRBY_ABILITY_NORMAL;

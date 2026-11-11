@@ -14,6 +14,7 @@ extern "C" {
 #include "task.h"
 #include "constants/object_types.h"
 #include "constants/songs.h"
+#include "port/coop.h"
 
 static void sub_08119980(struct Switch *);
 static void sub_08119A20(struct Switch *);
@@ -163,6 +164,10 @@ static bool32 sub_081194DC(struct Switch *sw)
                 return TRUE;
         }
     }
+    /* PORT-COOP: another player standing on it holds it down here too */
+    if (!(sw->obj.objTemplate->unk22 & 2) && gPortCoopRoomOn
+        && PortCoopPuppetOn(sw->obj.base.roomId, rect[0], rect[1], rect[2], rect[3]))
+        return TRUE;
     if (!(sw->obj.objTemplate->unk22 & 2)) {
         if (sw->unkB6 & 0x400) {
             if (!(sw->obj.base.flags & 0x40000)) {

@@ -9,6 +9,7 @@ extern "C" {
 #include "kirby.h"
 #include "object.h"
 #include "code_0806F780.h"
+#include "port/coop.h"
 
 static void sub_0800E27C(void);
 static void sub_0800EC78(struct Task *);
@@ -110,6 +111,8 @@ static void sub_0800E27C(void)
                             sub_08001408(var->objBase.unk56,
                                 sub_080025AC(var->objBase.unk56, r5, r6),
                                 0, 0);
+                            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies of the room */
+                                PortCoopTileBroken(var->objBase.unk56, r5, r6, 1);
                             PlaySfx(&var->objBase, SE_BLOCK_BREAK);
                             sl->unk0[sl->unk40][0] = r5;
                             sl->unk0[sl->unk40][1] = r6;
@@ -123,6 +126,8 @@ static void sub_0800E27C(void)
                             sub_08001408(var->objBase.unk56,
                                 sub_080025AC(var->objBase.unk56, r5, r6),
                                 0, 0);
+                            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies of the room */
+                                PortCoopTileBroken(var->objBase.unk56, r5, r6, 1);
                             PlaySfx(&var->objBase, SE_BLOCK_BREAK);
                             sl->unk0[sl->unk40][0] = r5;
                             sl->unk0[sl->unk40][1] = r6;
@@ -136,6 +141,8 @@ static void sub_0800E27C(void)
                             sub_08001408(var->objBase.unk56,
                                 sub_080025AC(var->objBase.unk56, r5, r6),
                                 0, 0);
+                            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies of the room */
+                                PortCoopTileBroken(var->objBase.unk56, r5, r6, 1);
                             PlaySfx(&var->objBase, SE_BLOCK_BREAK);
                             sl->unk0[sl->unk40][0] = r5;
                             sl->unk0[sl->unk40][1] = r6;
@@ -149,6 +156,8 @@ static void sub_0800E27C(void)
                             sub_08001408(var->objBase.unk56,
                                 sub_080025AC(var->objBase.unk56, r5, r6),
                                 0, 0);
+                            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies of the room */
+                                PortCoopTileBroken(var->objBase.unk56, r5, r6, 1);
                             PlaySfx(&var->objBase, SE_BLOCK_BREAK);
                             sl->unk0[sl->unk40][0] = r5;
                             sl->unk0[sl->unk40][1] = r6;

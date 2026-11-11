@@ -465,13 +465,14 @@ u16 PortCoopMapRoom(u32 slot)
  *
  * The game's targeting (FindTargetKirby, sub_0803D5CC, kirby.c) only ever
  * reads the Kirby it picks: where it is, which way it faces, its state.  So a
- * regular enemy -- the kind every game in the room shares (coop_enemy.c) --
- * may pick a puppet: in the game that runs it, it then goes after whichever
- * player is nearest, and every other game sees it do that through the shared
- * pose.  Contact damage and shots are the victim's own game's to apply
- * (puppeted enemies stay solid; coop_fx.c turns the runner's shots into
- * hazards).  Bosses keep fighting the local player only: each game fights
- * its own copy.
+ * regular enemy or a miniboss -- the kinds the games in a room share
+ * (coop_enemy.c) -- may pick a puppet: in the game that runs it, it then goes
+ * after whichever player is nearest, and every other game sees it do that
+ * through the shared pose.  Contact damage and shots are the victim's own
+ * game's to apply (puppeted enemies stay solid; coop_fx.c turns the owner's
+ * shots into hazards).  Bosses keep fighting the local player only: each
+ * game fights its own copy.  (The boss hands are the only targets written
+ * through, and they are bosses.)
  *
  * The game's rule is kept: players before CPU Kirbys (its loop runs over
  * gNumHumanPlayers first and takes a CPU Kirby only when no player is in
@@ -496,7 +497,9 @@ static int Targetable(u32 i, u32 room)
 
 int PortCoopTargetsPuppets(const struct ObjectBase *o)
 {
-    return o != NULL && o->header.kind == 1 && ((const struct Object *)o)->type <= 0x37;
+    /* regular enemies and minibosses (0x38..0x3F, shared once their fight
+     * has begun, coop_enemy.c); a boss fights each game's own player */
+    return o != NULL && o->header.kind == 1 && ((const struct Object *)o)->type <= 0x3F;
 }
 
 struct Kirby *PortCoopFindTarget(const struct ObjectBase *o, int xOnly)
@@ -842,6 +845,8 @@ void PortCoopFrameTop(void)
     }
     if (ready)
         AnswerFrame();
+    /* Blocks, buttons and stars of the room (platform/coop_room.c). */
+    PortCoopRoomFrame();
     /* What spawned objects drew (platform/coop_fx.c): this frame's capture
      * out to the page, the ghosts the page set drawn. */
     PortCoopFxFrame();

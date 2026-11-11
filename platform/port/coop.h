@@ -257,7 +257,43 @@ int            PortCoopHazardTouch(struct ObjectBase *attack);
 void           PortCoopFxSound(u32 kind, u32 who, u32 room, const void *obj, u32 num, u32 alt);
 void           PortCoopFxSoundStop(u32 num);
 int            PortCoopEnemyIsPuppet(const struct Object *obj);  /* coop_enemy.c */
+int            PortCoopEnemyShared(const struct Object *obj);    /* enemy, or miniboss in its fight */
 int            PortCoopEnemyPuppetAt(u32 room, u32 idx);
+
+/* --- the live room: blocks, buttons, ability stars (platform/coop_room.c) ---
+ *
+ * Blocks: every tile a game breaks (an attack, an inhale, a chain) is
+ * reported -- PortCoopTilesTake: n records of 5 bytes, u16 room, u8 x, u8 y,
+ * u8 kind (0 with dust, 1 the sound only) -- and the page hands them to every
+ * other game (PortCoopTilesApply), which breaks the same tile if it is in
+ * that room and the tile is still breakable there.  A game keeps the breaks
+ * of the room it is in (PortCoopTilesSnapshot: u16 room, u16 n, n x {u8 x,
+ * u8 y}); the page sends them to a player who walks in, whose game applies
+ * them once it is in that room (PortCoopTilesSetSnapshot).
+ * Buttons: a puppet standing on one holds it down (PortCoopPuppetOn, from
+ * big_small_switch.c).
+ * Ability stars: a star a game drops is reported (PortCoopStarTake, 12-byte
+ * records, layout in coop_room.c); every other game in the room makes one of
+ * its own (PortCoopStarSpawn), and the one swallowed anywhere is removed
+ * everywhere (PortCoopStarTaken). */
+extern u8 gPortCoopRoomOn;
+struct Kirby;
+struct Object;
+void PortCoopRoomShare(int on);
+void PortCoopRoomFrame(void);                                  /* PortCoopFrameTop */
+void PortCoopTileBroken(u32 playerId, u32 x, u32 y, u32 kind); /* game hooks */
+int  PortCoopTilesTake(unsigned char *out, int max);
+int  PortCoopTilesApply(const unsigned char *buf, int len);
+int  PortCoopTilesSnapshot(unsigned char *out, int max);
+void PortCoopTilesSetSnapshot(const unsigned char *buf, int len);
+int  PortCoopPuppetOn(u32 room, s32 l, s32 t, s32 r, s32 b);
+void PortCoopStarDropped(struct Kirby *kirby, struct Object *star); /* inhalable_star.c */
+void PortCoopStarSwallowed(struct Object *star);                    /* object.c */
+int  PortCoopStarTake(unsigned char *out, int max);
+int  PortCoopStarSpawn(int src, int id, int room, int x, int y, int ability, int type, int flags, int slot);
+void PortCoopStarTaken(int src, int id);
+void PortCoopRoomForget(int src);
+int  PortCoopRoomStat(int i);
 
 /* --- CPU Kirbys (coop.c) ---------------------------------------------------
  * One game runs the CPU Kirbys for everyone (the page picks it: the lowest

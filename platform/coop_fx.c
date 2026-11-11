@@ -219,8 +219,7 @@ void PortCoopFxTaskCreated(struct Task *task)
         const struct Object *o = (const struct Object *)TaskGetStructPtr((struct Task *)cur);
         int idx;
 
-        if (o->base.header.kind == 1 && o->type <= 0x37
-            && (idx = PortCoopObjectIndex(o)) >= 0) {
+        if (PortCoopEnemyShared(o) && (idx = PortCoopObjectIndex(o)) >= 0) {
             /* a shared enemy: its children are reported only while this copy
              * runs its own state; a puppet's copy spawns nothing worth it */
             if (!PortCoopEnemyIsPuppet(o)) {
@@ -279,6 +278,13 @@ void PortCoopFxCapture(struct Sprite *s)
     }
     if (s->unk4 == (u32)-1 || s->animId == 0)
         return;
+    /* an ability star: every game in the room has one of its own (coop_room.c) */
+    if (gPortCoopRoomOn && TaskMainId(cur) == FNID_ObjectMain && cur->structOffset != 0) {
+        const struct Object *ob = (const struct Object *)TaskGetStructPtr((struct Task *)cur);
+
+        if (ob->base.header.kind == 1 && (ob->type == 0xA3 || ob->type == 0xA4))
+            return;
+    }
     if (sCapN >= PORT_COOP_FX_MAX || sCapPer[ti] >= 8) {
         sStat[1]++;
         return;
@@ -1005,8 +1011,7 @@ static int SourceOfTask(int ti)
         const struct Object *ob = (const struct Object *)TaskGetStructPtr((struct Task *)t);
         int idx;
 
-        if (ob->base.header.kind == 1 && ob->type <= 0x37
-            && (idx = PortCoopObjectIndex(ob)) >= 0 && !PortCoopEnemyIsPuppet(ob))
+        if (PortCoopEnemyShared(ob) && (idx = PortCoopObjectIndex(ob)) >= 0 && !PortCoopEnemyIsPuppet(ob))
             return 1 | (idx << 2);
     }
     return -1;
@@ -1028,7 +1033,7 @@ void PortCoopFxSound(u32 kind, u32 who, u32 room, const void *obj, u32 num, u32 
         if (who != gLocalPlayerId)
             return;
         src = (int)(who << 2);
-    } else if (kind == 1 && ((const struct Object *)obj)->type <= 0x37) {
+    } else if (kind == 1 && PortCoopEnemyShared((const struct Object *)obj)) {
         const struct Object *ob = (const struct Object *)obj;
         int idx = PortCoopObjectIndex(ob);
 

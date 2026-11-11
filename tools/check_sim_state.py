@@ -33,7 +33,7 @@ ALLOW = os.path.join(ROOT, 'tests', 'sim_state_allowlist.txt')
 # part of a simulated frame.  main.c is not here: it holds the host's own
 # diagnostics, and its frame state moved into the sim block.
 SIM_PLATFORM = ['rando', 'warp', 'bios', 'sram', 'dma', 'coop', 'coop_world', 'coop_enemy',
-                'coop_objects', 'kirby_color', 'coop_fx']
+                'coop_objects', 'kirby_color', 'coop_fx', 'coop_room']
 
 SEC = re.compile(r'\s(\.data|\.bss|\.tbss|\.tdata)(\.[^\s]*)?\s')
 

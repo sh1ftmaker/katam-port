@@ -11,6 +11,7 @@ extern "C" {
 #include "code_0806F780.h"
 #include "constants/object_types.h"
 #include "constants/kirby.h"
+#include "port/coop.h"
 
 static void sub_080A8F64(struct Object *);
 
@@ -151,6 +152,8 @@ void sub_080A9038(struct Kirby *kirby, bool8 a2)
     if (kirby->base.flags & 1)
         star->base.flags |= 1;
     CreateEffectObject(&kirby->base, 0, 0x2A9, 0);
+    if (gPortCoopRoomOn) /* PORT-COOP: the other games make one of their own */
+        PortCoopStarDropped(kirby, star);
 }
 
 #ifdef __cplusplus
