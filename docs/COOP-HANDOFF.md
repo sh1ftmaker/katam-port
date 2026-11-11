@@ -747,7 +747,7 @@ the puppeting and runs the game's own death.
 |---|---|
 | `make coop-test` (new phase `room`: both in room 106; A inhales a block and B's game breaks it; B leaves and comes back and gets A's break; A takes Beam and lets it go and B's game makes the star with A's ability; B swallowing its copy removes A's; in room 310 A stands on the small button and it is down in B's game; A
 steps off, the button comes up, and a hit on it in A's game presses it in
-B's.  `bosses` adds: B's Mr. Frosty is a puppet within 2 px of A's recent positions -- 0.1 px measured -- and A's goes after B when B is nearer) | see below |
+B's.  `bosses` adds: B's Mr. Frosty is a puppet within 2 px of A's recent positions -- 0.1 px measured -- and A's goes after B when B is nearer) | 66/66 (the 55 before, 11 new) |
 | `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures; local trajectory identical |
 | `cd netplay && npm test` | 51/51 |
 | `make regress-wasm` | 7/7 OK |
