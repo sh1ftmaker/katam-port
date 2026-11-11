@@ -1,8 +1,11 @@
 # Online co-op: checkpoint
 
-**Status: stage 1 is live at `/mp/`, paused 2026-11-10 at `c69cacf` (branch
-`coop`).** The owner asked for a checkpoint so the work can be picked up
-later. Nothing here is merged into `main` or `editor`.
+**Status (2026-11-10): stages 1-4 are implemented on branch `coop` of the
+zalo/katam-port fork (on top of sh1ftmaker's stage-1 checkpoint `1fdaa04`),
+published at https://zalo.github.io/katam-port/mp/.**  Stage 1 (puppet
+Kirbys) is sh1ftmaker's; stages 2-4 and the stage-1 follow-ups are new and
+described in §8 below.  §1-§7 are the stage-1 checkpoint as it was written,
+kept for its detail; where §8 contradicts them, §8 is current.
 
 Read this file first, then `platform/port/coop.h` (the pose layout and the C
 API) and the header comments of `web/coop.js`.
@@ -207,3 +210,130 @@ redeploy.
 Decisions still open: whether CPU Kirbys in unused slots stay (they do
 today), and what to do beyond four players (extra puppets would have to be
 drawn outside `gKirbys`).
+
+---
+
+## 8. Stages 2-4 and the stage-1 follow-ups (2026-11-10)
+
+Everything below travels over the room's existing JSON `signal` relay
+(`net.sendSignal`, `web/net_session.js`): reliable, in order, and present on
+the deployed worker, so **no worker redeploy is needed** for any of it.  The
+room's sim id is now `coop/2`, so these pages never share a room with
+stage-1 pages.  All engine halves are 0 / one branch when co-op is off
+(`make regress-wasm` 7/7 on this branch).
+
+### Stage 2: shared progress (`platform/coop_world.c`)
+
+What is shared is exactly the game's own world save, `gWorldProps`
+(`game/src/save.c`): the save-scope despawn bits, the world state slots (big
+switches, special doors, hub mirrors), `gVisitedDoors` (the area map's doors
+and chests), `gTreasures` (chests, shards, spray paints, sound player, area
+maps, vitality), the shadow Kirby and Mirra encounter bits, and the story
+stage.  Consumables, lives and abilities stay per player (soh-web's rule).
+
+- Merge rules: every flag by OR (every writer in `game/src` only sets bits or
+  stores 1, so merging is idempotent and order-free); the vitality count by
+  the chest that produced it (a delta record carries the chest bit and the
+  increment, and the increment applies only if the bit is new here; a full
+  record counts the vitality chests found in the ROM's object lists -- 4:
+  treasure indices 46, 63, 69, 83); the story stage by maximum, only once
+  both sides are past the tutorial (>= 300).
+- The engine keeps a shadow of the image; `PortCoopWorldTake` returns a
+  DELTA record of new bits each frame, or a FULL record when tracking
+  (re)starts (a file loaded, back from the title) -- the page sends that to
+  everyone, and sends a full record to anyone who joins or reconnects.
+  `PortCoopWorldApply` merges, writes the save (`UpdateSaveBufferByOffset`,
+  as opening a chest does), opens any chest already on screen, and updates
+  max HP for a new heart; records that arrive on the title screen, in the
+  tutorial or during a load are queued (32) and applied at the next ready
+  frame.  Record format: `platform/port/coop.h`.
+- The page shows a notice ("Zed found a Mirror Shard (3/8)") and has a
+  **Share progress** switch (localStorage `katamCoopShare`).
+
+### Stage 3: shared enemies (`platform/coop_enemy.c`, hook in `object.c`)
+
+- One owner per room: the lowest member id among the players the page sees
+  in the room (from the played-back poses).  Two pages that briefly
+  disagree both run their own enemies -- what happens without co-op.
+- The owner streams `PortCoopEnemyCollect` (room's live regular enemies,
+  types 0x00-0x37: index, x, y, hp, animation index `unk83`, facing) about
+  30 times a second to the others in the room; they play it back a few
+  frames behind with interpolation (`EnemyBuffer`, `web/coop.js`) into
+  `PortCoopEnemySetPoses`.  Their copy of each enemy becomes a puppet while
+  the stream is fresh (4 frames): `ObjectMain` skips state, gravity,
+  movement and terrain, places it and draws it (sprite from `unk83` through
+  the normal draw), and still registers it for collisions -- it can be hit
+  and it hurts on contact.
+- Events (8-byte records, `PortCoopEnemyTake` -> everyone ->
+  `PortCoopEnemyEvent`): a kill anywhere kills the same enemy everywhere as
+  if defeated (`unk80 = 0; unkC |= 0x2000`, dark_mind.c's way: poof, no
+  item, score credited to the remote slot); a hit on a puppet goes to the
+  owner, who takes the hp off its copy; the hitter's copy plays its own
+  knockback for 24 frames before going back on the owner's pose.
+- Matching is by room and the index of the object's record in the room's
+  object list (`platform/coop_objects.c`: the ROM's list, not rando's copy).
+  Run-time objects (spawner children, projectiles) and enemies outside the
+  owner's camera stay local.
+
+### Stage 4: minibosses and bosses (same file, `PortCoopObjectDamage` in `object.c`)
+
+Not state-synced: each player fights their own copy, and the copies share
+one health pool.  hp a copy loses is sent as a boss hit; every other copy
+takes it through the game's own reaction -- `sub_0809AF38` is split after
+the damage into `sub_0809AF38_React`, so a remote hit gets the flash, the
+shake and, at 0 hp, the game's own death (explosion, shard, music).  A kill
+is sent too.  Every touched boss's hp is broadcast once a second and taken
+by a copy nobody here has touched (a player who walks in late).  Matching:
+room + object-list index, or room + type for bosses spawned at run time.
+
+### Stage-1 follow-ups
+
+- **Colours**: a puppet wears the sender's colour (pose byte 24), and the
+  local Kirby takes its seat colour (pink, yellow, red, green, then the
+  spray paint colours) unless the player chose a spray paint, so everyone is
+  the same colour in every game; the HUD palette follows
+  (`PortHudReloadKirbyPalette`).  `PortCoopSetLocalColor(-1)` restores.
+- **Animation seek**: a puppet's new animation starts at the sender's frame
+  (`sub_0815521C`, the seek hud.c uses).
+- **Tutorial**: puppet slots are taken only past the tutorial
+  (`gAIKirbyState >= 300`): the opening and tutorial script the CPU Kirbys.
+  The self-test arms itself regardless.
+- **Chip**: a name field (renames at once), Share progress and Share
+  enemies and bosses switches, notices under the chip.
+
+### Tests (all run for this checkpoint)
+
+| test | result |
+|---|---|
+| `make coop-test` (two real instances, dev relay; phases follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress; the progress phase adds a third instance) | 35/35 |
+| `tests/coop_selftest.sh --wasm build/katam-node.js` | 0 failures in all three runs; local trajectory identical with and without a puppet |
+| `cd netplay && npm test` | 51/51 |
+| `make regress-wasm` | 7/7 OK |
+| `make lint-simstate` (LP64 build in `build/lp64`) | 0 unlisted |
+| Browser: two headless windows in separate profiles on the dev relay (`?coop=1&coopRelay=...`) | colours match across views, enemies in the same places, a rename and a found shard reach the other window |
+
+The harness moves both playtest files past the tutorial (writes
+`gAIKirbyState = 300`) right after the warp; progress and boss tests write
+the game's memory as the game's own code would (a shard bit, an enemy's hp)
+rather than playing the game.  Not tried by two people, and not on a phone.
+
+### Known gaps
+
+- Enemy projectiles and spawner children are local: a puppeted enemy does not
+  shoot in a non-owner's game.  Enemies the owner has not spawned are run
+  locally by whoever has them.
+- Minibosses and bosses act independently in each game; only their health
+  and death are shared.  Bosses that write into every Kirby still write into
+  puppets (looks only).
+- At most three other players are drawn.  CPU Kirbys stay in unused slots.
+- Chests opened by someone else open on screen; big switches and doors show
+  their new state on the next room load.
+- A player in the tutorial sees no puppets and merges progress only once
+  past it.
+
+### Next
+
+Projectile sync for puppeted enemies; extra puppets drawn outside `gKirbys`
+for more than four players; state-synced bosses where a shared health pool
+is not enough (Dark Mind's mirror phases, Mega Titan's arms); a real
+two-person and phone test.

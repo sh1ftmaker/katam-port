@@ -1,4 +1,6 @@
-/* Co-op stage 1: other players as puppet Kirbys.  Two parts in one file
+/* Co-op: other players as puppet Kirbys (stage 1), shared progress (stage
+ * 2), shared enemies (stage 3) and shared boss health (stage 4); see
+ * docs/COOP-HANDOFF.md.  Two parts in one file
  * (one script tag): the logic, KatamCoop (UMD, no DOM; node loads it with
  * require), then the page glue below it, which only runs in a browser.
  *
