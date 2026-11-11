@@ -77,6 +77,9 @@ extern void sub_0803ED28(struct Kirby *);
 extern void sub_0806E4EC(struct Kirby *);
 extern void sub_0806EFF8(struct Kirby *);
 extern void sub_08055920(struct Kirby *);
+extern s32  sub_0815521C(struct Sprite *, u16);   /* sprite.c: seek to a frame */
+
+#define COOP_COLORS 14       /* variants of the Kirby palette, anim 0x15 */
 
 #define SETTLE_FRAMES 4
 
@@ -98,8 +101,10 @@ static struct {
     u8  enabled;
     u16 seq;
     u16 lastRoom;      /* the local player's last valid room, for poses     */
+    s8  seatColor;     /* PortCoopSetLocalColor: -1 = the game's own choice  */
+    u8  colorApplied;  /* gUnk_0203AD1C[0] was changed by us                 */
     struct CoopSlot slot[PORT_COOP_MAX_SLOTS];
-} sCoop = { 0, 0, 0xFFFF };
+} sCoop = { 0, 0, 0xFFFF, -1, 0 };
 
 static u8 sPoseBuffer[PORT_COOP_BUFFER_POSES * PORT_COOP_POSE_SIZE];
 
@@ -415,6 +420,15 @@ void PortCoopPuppetStep(struct Kirby *k)
     k->hp = (s8)p[28] > 0 ? (s8)p[28] : 1;
     k->lives = p[29];
 
+    /* The sender's colour (their spray paint, or the seat colour their page
+     * gave them -- PortCoopSetLocalColor), so a player looks the same in
+     * every game.  The palette reload is the one the flash below uses. */
+    if (p[24] < COOP_COLORS && k->color != p[24]) {
+        k->color = p[24];
+        if (!(f & PORT_COOP_F_FLASH))
+            sub_0803E558(slot);
+    }
+
     /* The resolved sprites, and the restart sub_0803F790 does when they
      * change (kirby.c, end of sub_0803F790). */
     body->animId = (u16)Get16(p + 12);
@@ -423,14 +437,27 @@ void PortCoopPuppetStep(struct Kirby *k)
     hat->animId = (u16)Get16(p + 16);
     ovl->animId = (u16)Get16(p + 18);
     ovl->variant = p[20];
+    body->unk1C = p[25];
     if (!(k->base.flags & 8)
      && (body->unk1B != body->variant || body->unk18 != body->animId)) {
+        /* A new animation starts at the frame the sender is at, not at 0:
+         * the pose is a snapshot of a running animation (hud.c mirrors a
+         * Kirby into a sprite with the same seek).  An animation that ends
+         * before that frame simply holds its last one. */
+        u8 fr = p[26];
+
         k->base.header.unk1 = 0;
         k->base.header.unk2 = 0;
         body->unk1B = 0xFF;
         hat->unk1B = 0xFF;
+        if (fr != 0 && body->animId != 0 && body->unk1C != 0) {
+            sub_0815521C(body, fr);
+            if (hat->animId != 0)
+                sub_0815521C(hat, fr);
+            k->base.header.unk1 = fr;
+            k->base.header.unk2 = (u16)(fr << 4);
+        }
     }
-    body->unk1C = p[25];
     if (k->base.flags & 1) {
         body->unk8 |= 0x400;
         hat->unk8 |= 0x400;
@@ -496,6 +523,45 @@ static void GiveBack(u8 slot)
     PortLog("[katam-port] coop: slot %u given back to the CPU", (unsigned)slot);
 }
 
+/* The local Kirby's colour while co-op is on: the player's spray paint if
+ * they chose one (gUnk_0203ADE0, the collection room), else the seat colour
+ * the page asked for -- player 2 yellow, 3 red, 4 green, as in the game's own
+ * link play -- so every game shows every player in the same colour.  The
+ * game reads gUnk_0203AD1C[0] whenever it rebuilds the Kirby (kirby.c, the
+ * Kirby init); the live Kirby is recoloured with the palette reload the
+ * game's flash uses. */
+static void LocalColor(int on)
+{
+    struct Kirby *me = &gKirbys[gLocalPlayerId];
+    u8 chosen = gUnk_0203ADE0, want;
+
+    if (on && sCoop.seatColor >= 0 && (chosen == 0xFF || chosen >= COOP_COLORS))
+        want = (u8)sCoop.seatColor;
+    else if (sCoop.colorApplied)
+        want = chosen;              /* give the game's own value back */
+    else
+        return;
+    if (gUnk_0203AD1C[gLocalPlayerId] != want) {
+        gUnk_0203AD1C[gLocalPlayerId] = want;
+        sCoop.colorApplied = on && want != chosen;
+    }
+    {
+        u8 c = want != 0xFF && want < COOP_COLORS ? want : (u8)gLocalPlayerId;
+
+        if (me->color != c) {
+            me->color = c;
+            sub_0803E558(gLocalPlayerId);
+        }
+    }
+    if (!on)
+        sCoop.colorApplied = 0;
+}
+
+COOP_EXPORT void PortCoopSetLocalColor(int color)
+{
+    sCoop.seatColor = (s8)(color >= 0 && color < COOP_COLORS ? color : -1);
+}
+
 static void SelfTestFrame(void);
 
 void PortCoopFrameTop(void)
@@ -503,8 +569,12 @@ void PortCoopFrameTop(void)
     int ready, i;
 
     SelfTestFrame();
-    if (!sCoop.enabled && !gPortCoopPuppets)
+    PortCoopWorldFrame();
+    if (!sCoop.enabled && !gPortCoopPuppets) {
+        if (sCoop.colorApplied && GameReady())
+            LocalColor(0);
         return;
+    }
     sCoop.seq++;
     if (gPortCoopPuppets && (Blocked() || !InAdventure())) {
         /* The level is being torn down (title, game over, a sub-game), or a
@@ -525,6 +595,8 @@ void PortCoopFrameTop(void)
     ready = GameReady();
     if (!ready)
         sNotReadyFrames++;
+    else
+        LocalColor(sCoop.enabled && sCoop.seatColor >= 0);
     for (i = 1; i < PORT_COOP_MAX_SLOTS; i++) {
         struct CoopSlot *s = &sCoop.slot[i];
         u32 bit = 1u << i;

@@ -29,8 +29,7 @@
  *    21  u8   animIndex  animationIndex (gates the hat and overlay draw)
  *    22  u8   ability    ability (hat palette, HUD icon)
  *    23  u8   unkE0      the "hat without ability" field (sub_0803F46C gate)
- *    24  u8   color      the sender's colour; carried, not applied (a puppet
- *                        keeps its slot's colour, like a CPU helper)
+ *    24  u8   color      the sender's colour (0..13), applied to the puppet
  *    25  u8   animSpeed  base.sprite.unk1C (0x10 = normal speed)
  *    26  u8   frame      base.header.unk1 (frames into the animation)
  *    27  u8   flags2     PORT_COOP_F2_*
@@ -90,12 +89,77 @@ void           PortCoopSetPose(int slot, const unsigned char *pose);
 void           PortCoopSetAbsent(int slot);
 int            PortCoopLocalPose(unsigned char *out);  /* 1 when valid */
 unsigned char *PortCoopPoseBuffer(void);     /* 8 * PortCoopPoseSize() bytes */
+/* The local Kirby's colour while co-op is on, 0..13 (0 pink, 1 yellow, 2 red,
+ * 3 green, ...), unless the player chose a spray paint; -1 gives the game
+ * its own colour back.  Carried in the pose, applied to puppets. */
+void           PortCoopSetLocalColor(int color);
+
+/* --- stage 2: shared progress (platform/coop_world.c) ----------------------
+ *
+ * The world progress the game saves (gWorldProps, game/src/save.c) is merged
+ * between players: flags by OR, the vitality count by the chest that gave
+ * it, the story stage by maximum once past the tutorial.  The page moves
+ * opaque *records*; this is their layout, little-endian:
+ *
+ *   off size field
+ *     0  u8   magic      0x50
+ *     1  u8   version    1
+ *     2  u8   kind       PORT_COOP_REC_DELTA (what just happened) or
+ *                        PORT_COOP_REC_FULL (the whole image, for a joiner)
+ *     3  u8   reserved   0
+ *     4  u16  vitality   DELTA: increment; FULL: the count
+ *     6  u16  story      gAIKirbyState
+ *     8  u16  nruns
+ *    10  runs: u16 offset into the image, u8 len (1..255), len bytes (bits)
+ *
+ * The image (PORT_COOP_WORLD_BYTES): gUnk_02028BF0 @0 (32), gUnk_02028C10
+ * @32 (128), gVisitedDoors[0..286] @160 (574), gTreasures chest bits @734
+ * (16), shards @750, spray paints @754, sound player/sheets @758, big
+ * chests @762, shadow Kirby encounters @766, Mirra encounters @770 (4 each).
+ *
+ * Call PortCoopWorldShare(1) once; then, every frame, send whatever
+ * PortCoopWorldTake returns to everyone, and hand every record received to
+ * PortCoopWorldApply.  When someone joins, send them PortCoopWorldTake(buf,
+ * 1).  Records that arrive while the game cannot take them are queued. */
+#define PORT_COOP_WORLD_BYTES 774
+#define PORT_COOP_RECORD_MAX  1024
+enum { PORT_COOP_REC_DELTA = 0, PORT_COOP_REC_FULL = 1 };
+enum {                                /* PortCoopWorldApply / News bits     */
+    PORT_COOP_NEWS_SHARD     = 1 << 0,
+    PORT_COOP_NEWS_BIGCHEST  = 1 << 1,   /* an area map                      */
+    PORT_COOP_NEWS_SPRAY     = 1 << 2,
+    PORT_COOP_NEWS_MUSIC     = 1 << 3,
+    PORT_COOP_NEWS_VITALITY  = 1 << 4,
+    PORT_COOP_NEWS_SWITCH    = 1 << 5,   /* a big switch / world state slot  */
+    PORT_COOP_NEWS_CHEST     = 1 << 6,   /* any chest (also set with 1..4)   */
+    PORT_COOP_NEWS_MAP       = 1 << 7,   /* doors and rooms on the area map  */
+    PORT_COOP_NEWS_ENCOUNTER = 1 << 8,   /* shadow Kirby / Mirra             */
+    PORT_COOP_NEWS_STORY     = 1 << 9,
+    PORT_COOP_NEWS_OTHER     = 1 << 10,
+};
+int            PortCoopWorldBytes(void);
+unsigned char *PortCoopRecordBuffer(void);   /* PORT_COOP_RECORD_MAX bytes */
+void           PortCoopWorldShare(int on);
+int            PortCoopWorldTracking(void);
+int            PortCoopWorldTake(unsigned char *out, int full);
+int            PortCoopWorldApply(const unsigned char *rec, int len);
+int            PortCoopWorldNews(void);
+int            PortCoopWorldCount(int kind);
+int            PortCoopWorldVitalityIds(unsigned char *out, int max);
+void           PortCoopWorldFrame(void);     /* from PortCoopFrameTop */
 
 /* --- game-side hooks ------------------------------------------------------
  * gPortCoopPuppets: bit n set while Kirby slot n is a puppet.  0 whenever
  * co-op is off, so every hook in game/src is one load and a branch. */
 extern u8 gPortCoopPuppets;
 #define PORT_COOP_IS_PUPPET(i) (gPortCoopPuppets & (1u << (i)))
+
+/* platform/coop_objects.c: room object records and live objects. */
+struct Object;
+struct ObjectTemplate;
+const struct ObjectTemplate *PortCoopRoomObjects(u32 room, u32 *count);
+int  PortCoopObjectIndex(const struct Object *obj);   /* -1: not from the list */
+int  PortCoopForEachObject(int (*fn)(struct Object *, void *), void *arg);
 
 struct Kirby;
 void PortCoopPuppetStep(struct Kirby *kirby);  /* replaces sub_0803EE18's body */

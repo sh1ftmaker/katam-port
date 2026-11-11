@@ -64,6 +64,42 @@
     var REQUIRED = ['_PortCoopPoseSize', '_PortCoopEnable', '_PortCoopReady', '_PortCoopSetPuppet',
                     '_PortCoopSetPose', '_PortCoopSetAbsent', '_PortCoopLocalPose', '_PortCoopPoseBuffer'];
 
+    /* Stage 2, shared progress (platform/coop_world.c).  Optional: a build
+     * without them still shows puppets. */
+    var WORLD = ['_PortCoopWorldShare', '_PortCoopWorldTake', '_PortCoopWorldApply', '_PortCoopWorldNews',
+                 '_PortCoopRecordBuffer', '_PortCoopWorldCount', '_PortCoopWorldTracking'];
+    var NEWS = { SHARD: 1, BIGCHEST: 2, SPRAY: 4, MUSIC: 8, VITALITY: 16, SWITCH: 32, CHEST: 64,
+                 MAP: 128, ENCOUNTER: 256, STORY: 512, OTHER: 1024 };
+    var REC_FULL = 1, RECORD_MAX = 1024;
+
+    function b64(bytes) {
+        var s = '';
+        for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+        return btoa(s);
+    }
+    function unb64(str) {
+        var t = atob(str), b = new Uint8Array(t.length);
+        for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+        return b;
+    }
+
+    /* One line for what a progress record brought, or null when it is only
+     * map squares and the like.  counts(kind) -> how many the local file has. */
+    function describeNews(news, full, counts) {
+        var bits = [];
+        if (news & NEWS.SHARD) bits.push('a Mirror Shard (' + counts(NEWS.SHARD) + '/8)');
+        if (news & NEWS.BIGCHEST) bits.push('an area map');
+        if (news & NEWS.VITALITY) bits.push('a Vitality heart');
+        if (news & NEWS.SPRAY) bits.push('a spray paint');
+        if (news & NEWS.MUSIC) bits.push('music for the sound player');
+        if (news & NEWS.SWITCH) bits.push('a big switch');
+        if (!(news & (NEWS.SHARD | NEWS.BIGCHEST | NEWS.VITALITY | NEWS.SPRAY | NEWS.MUSIC)) && (news & NEWS.CHEST))
+            bits.push('a treasure chest');
+        if (news & NEWS.STORY) bits.push('story progress');
+        if (!bits.length) return null;
+        return (full ? 'shared progress: ' : 'found ') + bits.join(', ');
+    }
+
     function nowMs() { return (typeof performance !== 'undefined' ? performance : Date).now(); }
 
     /* --- pose header ------------------------------------------------------- */
@@ -252,6 +288,10 @@
         var stats = { sent: 0, sentPoses: 0, recv: 0, sizeMismatch: 0, mismatchFrom: null, frames: 0 };
         var applied = [null, null, null, null];  /* the bytes last given to SetPose, per slot */
         var hiddenOthers = 0;
+        /* shared progress */
+        var worldOk = !missing.length && WORLD.every(function (n) { return typeof M[n] === 'function'; });
+        var world = { share: opts.share !== false, shareSet: null, inbox: [], fullTo: {},
+                      stats: { sent: 0, sentFull: 0, recv: 0, applied: 0, queued: 0, bad: 0, news: 0 } };
 
         if (missing.length) log('[coop] this build has no co-op engine exports (' + missing.join(', ') + ') -- puppets off');
         else if (size < 11 || size > 64) { log('[coop] pose size ' + size + ' is unusable'); missing = ['_PortCoopPoseSize']; }
@@ -291,6 +331,7 @@
             });
             for (var s = 1; s <= SLOTS; s++) if (slots[s] !== null && !here[slots[s]]) freeSlot(s);
             for (var mid in remotes) if (!here[mid]) delete remotes[mid];
+            for (var fm in world.fullTo) if (!here[fm]) delete world.fullTo[fm];
             os.sort(function (a, b) { return ((a.seat < 0 ? 1e9 : a.seat) - (b.seat < 0 ? 1e9 : b.seat)) || a.mid - b.mid; });
             var shown = 0;
             os.forEach(function (m) {
@@ -303,11 +344,46 @@
             hiddenOthers = os.length - shown;
         }
 
+        /* Our own colour: the seat's (pink, yellow, red, green, then the
+         * spray paints), so everyone sees everyone in the same colour; the
+         * engine keeps a chosen spray paint instead (PortCoopSetLocalColor). */
+        var myColor = null;
+        function seatColor() {
+            var ms = ((net.roster && net.roster.members) || []).slice();
+            var me = null;
+            for (var i = 0; i < ms.length; i++) if (ms[i].mid === net.mid) me = ms[i];
+            if (!me) return null;
+            var n = me.seat;
+            if (!(n >= 0)) {
+                ms.sort(function (a, b) { return a.mid - b.mid; });
+                n = ms.indexOf(me);
+            }
+            return n < 4 ? n : 4 + (n - 4) % 10;
+        }
+        function colorTick() {
+            if (typeof M._PortCoopSetLocalColor !== 'function') return;
+            var c = seatColor();
+            if (c === null || c === myColor) return;
+            myColor = c;
+            M._PortCoopSetLocalColor(c);
+        }
+
         net.on('roster', assign);
         net.on('welcome', function () {
             /* (re)connected: start every stream over */
             for (var mid in remotes) remotes[mid].jb.reset();
             tx.key = true;
+            world.fullTo = {};      /* deltas sent while we were away were lost */
+        });
+        net.on('signal', function (m) {
+            var d = m && m.data;
+            if (!d || typeof d.prog !== 'string' || !worldOk || !world.share) return;
+            var b;
+            try { b = unb64(d.prog); } catch (e) { world.stats.bad++; return; }
+            if (b.length < 10 || b.length > RECORD_MAX) { world.stats.bad++; return; }
+            world.stats.recv++;
+            world.inbox.push({ from: m.from, bytes: b });
+            if (world.inbox.length > 256) world.inbox.shift();
         });
         net.on('pose', function (from, body) {
             var p = decodePoseBody(body);
@@ -390,7 +466,77 @@
             }
         }
 
+        function nameOf(mid) {
+            var ms = (net.roster && net.roster.members) || [];
+            for (var i = 0; i < ms.length; i++)
+                if (ms[i].mid === mid) return ms[i].name === 'Player' && ms[i].seat >= 0 ? 'Player ' + (ms[i].seat + 1) : ms[i].name;
+            return 'Someone';
+        }
+
+        function notice(mid, news, full) {
+            world.stats.news++;
+            var line = describeNews(news, full, function (k) { return M._PortCoopWorldCount(k); });
+            if (!line) return;
+            var who = mid === null ? 'The room' : nameOf(mid);
+            log('[coop] ' + who + ' ' + line);
+            if (self.onNotice) {
+                try { self.onNotice({ who: who, mid: mid, text: line, news: news, full: full }); } catch (e) { /* page */ }
+            }
+        }
+
+        /* Every frame: merge what came in, send what is new here.  Records are
+         * opaque; the engine says what they meant. */
+        function worldTick() {
+            if (!worldOk) return;
+            if (world.shareSet !== world.share) {
+                M._PortCoopWorldShare(world.share ? 1 : 0);
+                world.shareSet = world.share;
+            }
+            if (!world.share) { world.inbox = []; return; }
+            var buf = M._PortCoopRecordBuffer();
+            while (world.inbox.length) {
+                var r = world.inbox.shift();
+                heap().set(r.bytes, buf);
+                var res = M._PortCoopWorldApply(buf, r.bytes.length);
+                if (res === -1) world.stats.queued++;
+                else if (res < 0) world.stats.bad++;
+                else {
+                    world.stats.applied++;
+                    if (res) notice(r.from, res, r.bytes[2] === REC_FULL);
+                }
+            }
+            var late = M._PortCoopWorldNews();
+            if (late) notice(null, late, true);
+
+            var os = net.state === 'open' ? others() : [];
+            var len = M._PortCoopWorldTake(buf, 0);       /* always: keeps the shadow current */
+            if (len > 0 && os.length) {
+                var rec = heap().slice(buf, buf + len);
+                if (net.sendSignal(null, { prog: b64(rec) })) {
+                    world.stats.sent++;
+                    if (rec[2] === REC_FULL) {
+                        world.stats.sentFull++;
+                        os.forEach(function (m) { world.fullTo[m.mid] = true; });
+                    }
+                }
+            }
+            if (!os.length || !M._PortCoopWorldTracking()) return;
+            var need = os.filter(function (m) { return !world.fullTo[m.mid]; });
+            if (!need.length) return;
+            var l2 = M._PortCoopWorldTake(buf, 1);
+            if (l2 <= 0) return;
+            var data = { prog: b64(heap().slice(buf, buf + l2)) };
+            need.forEach(function (m) {
+                if (net.sendSignal(m.mid, data)) { world.fullTo[m.mid] = true; world.stats.sent++; world.stats.sentFull++; }
+            });
+        }
+
         var self = {
+            onNotice: null,
+            worldStats: world.stats,
+            worldOk: worldOk,
+            setShare: function (on) { world.share = !!on; },
+            sharing: function () { return worldOk && world.share; },
             size: size,
             missing: missing,
             stats: stats,
@@ -400,8 +546,10 @@
                 if (!enabled) { M._PortCoopEnable(1); enabled = true; }
                 var t = now();
                 stats.frames++;
+                colorTick();
                 send(t);
                 apply(t);
+                worldTick();
             },
             /* the tab is hidden (coop.js): tell the others once, then send
              * nothing; on return start every remote stream over (latest only) */
@@ -419,6 +567,10 @@
                 if (missing.length) return;
                 for (var s = 1; s <= SLOTS; s++) if (slots[s] !== null) freeSlot(s);
                 if (enabled) M._PortCoopEnable(0);
+                if (worldOk && world.shareSet) M._PortCoopWorldShare(0);
+                if (typeof M._PortCoopSetLocalColor === 'function') M._PortCoopSetLocalColor(-1);
+                myColor = null;
+                world.shareSet = null;
                 enabled = false;
             },
             slotOf: function (mid) { return remotes[mid] ? remotes[mid].slot : 0; },
@@ -495,6 +647,7 @@
         create: create, JitterBuffer: JitterBuffer, encodePoseUp: encodePoseUp,
         decodePoseBody: decodePoseBody, poseX: poseX, poseY: poseY, poseRoom: poseRoom,
         poseHidden: poseHidden, lerpPose: lerpPose,
+        WORLD: WORLD, NEWS: NEWS, describeNews: describeNews, b64: b64, unb64: unb64,
     };
 }));
 
@@ -564,6 +717,12 @@
         ' border:1px solid var(--edge,#2b3038);border-radius:7px;padding:4px 6px}',
         '#coopchip button.cc-b{font:inherit;color:inherit;background:var(--panel-2,#232730);border:1px solid var(--edge,#2b3038);',
         ' border-radius:7px;padding:4px 9px;cursor:pointer}',
+        '#coopchip label.cc-opt{display:flex;gap:6px;align-items:center;margin-top:6px;cursor:pointer}',
+        '#coopnotes{position:fixed;z-index:55;left:calc(10px + env(safe-area-inset-left));top:calc(48px + env(safe-area-inset-top));',
+        ' display:flex;flex-direction:column;gap:4px;pointer-events:none;max-width:min(340px,calc(100vw - 20px))}',
+        '#coopnotes div{background:rgba(20,22,26,.9);border:1px solid var(--edge,#2b3038);border-radius:10px;padding:4px 10px;',
+        ' font:12px/1.4 var(--mono,monospace);color:var(--text,#d5d9e0);transition:opacity .5s}',
+        '#coopnotes div.out{opacity:0}',
     ].join('\n');
     var chip = document.createElement('div');
     chip.id = 'coopchip';
@@ -578,12 +737,36 @@
         else if (a === 'new') newRoom();
         else if (a === 'rejoin') rejoin();
     });
+    body.addEventListener('change', function (e) {
+        if (e.target && e.target.getAttribute && e.target.getAttribute('data-a') === 'share') {
+            try { localStorage.katamCoopShare = e.target.checked ? '1' : '0'; } catch (err) { /* private mode */ }
+            if (S.coop) S.coop.setShare(e.target.checked);
+            lastBody = null;
+            render();
+        }
+    });
+    var notes = document.createElement('div');
+    notes.id = 'coopnotes';
+    notes.setAttribute('aria-live', 'polite');
     function mount() {
         var st = document.createElement('style');
         st.textContent = css;
         document.head.appendChild(st);
         document.body.appendChild(chip);
+        document.body.appendChild(notes);
         render();
+    }
+    /* a line under the chip for a few seconds: what other players found */
+    function note(text) {
+        var d = document.createElement('div');
+        d.textContent = text;
+        notes.appendChild(d);
+        while (notes.childNodes.length > 4) notes.removeChild(notes.firstChild);
+        setTimeout(function () { d.className = 'out'; }, 5000);
+        setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 5600);
+    }
+    function shareWanted() {
+        try { return localStorage.katamCoopShare !== '0'; } catch (e) { return true; }
     }
 
     function esc(s) {
@@ -655,6 +838,9 @@
                 h += '<div class="cc-dim">Up to 3 other players are shown; ' + st.hidden +
                     (st.hidden === 1 ? ' more is' : ' more are') + ' in the room but not drawn.</div>';
         }
+        if (st && S.coop && S.coop.worldOk)
+            h += '<label class="cc-opt"><input type="checkbox" data-a="share"' + (S.coop.sharing() ? ' checked' : '') +
+                '> Share progress (shards, chests, switches, map)</label>';
         if (S.code)
             h += '<div class="cc-row"><input readonly value="' + esc(link(S.code)) + '" aria-label="Invite link">' +
                 '<button type="button" class="cc-b" data-a="copy">' + (Date.now() - S.copied < 2000 ? 'Copied' : 'Copy link') + '</button></div>';
@@ -721,7 +907,8 @@
                 },
             });
             S.net = net;
-            S.coop = Coop.create({ Module: M, net: net, log: log });
+            S.coop = Coop.create({ Module: M, net: net, log: log, share: shareWanted() });
+            S.coop.onNotice = function (n) { note(n.who + ' ' + n.text); };
             window.katamCoop = { net: net, coop: S.coop };
             ['state', 'roster', 'welcome'].forEach(function (ev) { net.on(ev, render); });
             net.on('error', function (e) {

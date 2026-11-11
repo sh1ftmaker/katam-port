@@ -35,6 +35,16 @@
 //   drop       B's link turns into a black hole both ways (no close).  The
 //              liveness check (8 s) reconnects B: same mid, puppet back within
 //              12 s.
+//   progress   stage 2, shared progress.  Both files are moved past the
+//              tutorial (gAIKirbyState 300) and progress is written straight
+//              into memory, as the game's own collectors do: a shard and a
+//              chest on A reach B, a big switch on B reaches A, a vitality
+//              chest on A gives B one heart (max HP follows), the same
+//              vitality chest opened on both at once gives each one heart,
+//              not two, and a third player C joining with progress of their
+//              own ends with everyone holding the union (C gets both hearts
+//              from the full record).  Skipped when the build has no
+//              PortCoopWorld* exports.
 // Missing PortCoop* exports in the build: says which, exits 2 (not a crash).
 
 import { createRequire } from 'module';
@@ -62,7 +72,7 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,progress').split(',');
 const PERIOD = 1000 / 59.7275;
 const N = Math.ceil(LINK_B / PERIOD) + 2 + 6;     // one way + batching + buffer (D at this jitter)
 const BOOT_DONE = 1300 + 90;                    // PORT_PLAYTEST_WARP_FRAME + settle
@@ -448,7 +458,92 @@ async function drop() {
           `${dt.toFixed(2)} s, mid ${mid} -> ${B.net.mid}`);
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop };
+// --- stage 2: shared progress ----------------------------------------------------
+const W = { story: 0x0203AD2C, treasures: 0x02038960, slots: 0x02028C10 };
+const u8at = (i, a) => i.Module.HEAPU8[a];
+const u16at = (i, a) => i.Module.HEAPU8[a] | (i.Module.HEAPU8[a + 1] << 8);
+const set16 = (i, a, v) => { i.Module.HEAPU8[a] = v & 255; i.Module.HEAPU8[a + 1] = (v >> 8) & 255; };
+const orAt = (i, a, bits) => { i.Module.HEAPU8[a] |= bits; };
+const chestAddr = (id) => W.treasures + (id >> 3);
+const hasChest = (i, id) => !!(u8at(i, chestAddr(id)) & (1 << (id & 7)));
+const shardOf = (i) => u8at(i, W.treasures + 0x10);
+const vitOf = (i) => u16at(i, W.treasures + 0x20);
+const maxHpOf = (i) => { const v = i.Module.HEAPU8[KIRBY + 0x101]; return v > 127 ? v - 256 : v; };
+function giveVitality(i, id) { orAt(i, chestAddr(id), 1 << (id & 7)); set16(i, W.treasures + 0x20, vitOf(i) + 1); }
+const noticed = (i, re) => i.logs.some((l) => re.test(l));
+
+async function progress() {
+    if (FAKE || Coop.WORLD.some((n) => typeof A.Module[n] !== 'function')) {
+        say('progress: build has no PortCoopWorld* exports -- skipped');
+        return;
+    }
+    const ids = new Uint8Array(16), buf = A.Module._malloc(16);
+    const nv = A.Module._PortCoopWorldVitalityIds(buf, 16);
+    ids.set(A.Module.HEAPU8.slice(buf, buf + 16));
+    A.Module._free(buf);
+    check('progress', 'the ROM has vitality chests', nv >= 2, `${nv}: ${[...ids.slice(0, Math.min(nv, 16))].join(' ')}`);
+    if (nv < 2) return;
+    const [v0, v1] = ids;
+    for (const i of [A, B]) set16(i, W.story, 300);
+    const tracking = await until(() => A.Module._PortCoopWorldTracking() && B.Module._PortCoopWorldTracking(), 3000);
+    check('progress', 'both files tracked once past the tutorial', tracking);
+    await until(() => A.coop.worldStats.sentFull > 0 && B.coop.worldStats.sentFull > 0, 3000);
+    await sleep(500);
+
+    // A finds a shard and a chest
+    orAt(A, W.treasures + 0x10, 1 << 2);
+    orAt(A, chestAddr(5), 1 << 5);
+    let ok = await until(() => (shardOf(B) & 4) && hasChest(B, 5), 2000);
+    check('progress', 'A\'s shard and chest reach B', !!ok, `B shards ${shardOf(B).toString(2)}`);
+    check('progress', 'B is told about the shard', await until(() => noticed(B, /found a Mirror Shard/), 1000));
+
+    // B presses a big switch (world state slot 3)
+    orAt(B, W.slots + 3 * 4, 1);
+    ok = await until(() => u8at(A, W.slots + 12) === 1, 2000);
+    check('progress', 'B\'s big switch reaches A', !!ok);
+
+    // a vitality chest on A
+    const va = vitOf(A), vb = vitOf(B);
+    giveVitality(A, v0);
+    ok = await until(() => vitOf(B) === vb + 1 && hasChest(B, v0), 2000);
+    await sleep(200);
+    check('progress', 'A\'s vitality chest gives B one heart', !!ok && vitOf(B) === vb + 1, `B ${vb} -> ${vitOf(B)}, A ${va} -> ${vitOf(A)}`);
+    check('progress', 'B\'s max HP follows', maxHpOf(B) === vitOf(B) + 6, `maxHp ${maxHpOf(B)}`);
+
+    // the same vitality chest opened on both at once
+    const va2 = vitOf(A), vb2 = vitOf(B);
+    giveVitality(A, v1);
+    giveVitality(B, v1);
+    await sleep(1500);
+    check('progress', 'one chest opened on both at once: one heart each', vitOf(A) === va2 + 1 && vitOf(B) === vb2 + 1,
+          `A ${va2} -> ${vitOf(A)}, B ${vb2} -> ${vitOf(B)}`);
+
+    // C joins with progress of its own
+    const C = await makeInstance('C', { code, script: () => 0 });
+    if (!await until(() => C.net.state === 'open' && booted(C) && C.logs.some((l) => l.includes('warp: player 0')), 90000)) {
+        check('progress', 'C joins and reaches gameplay', false);
+        C.net.close();
+        return;
+    }
+    await sleep(1000);
+    const vc = vitOf(C);
+    set16(C, W.story, 300);
+    orAt(C, W.treasures + 0x10, 1 << 6);
+    orAt(C, chestAddr(70), 1 << (70 & 7));
+    ok = await until(() => [A, B, C].every((i) => (shardOf(i) & 0x44) === 0x44 && hasChest(i, 70) && hasChest(i, 5)
+                                                && hasChest(i, v0) && hasChest(i, v1) && u8at(i, W.slots + 12) === 1), 5000);
+    check('progress', 'after C joins, all three hold the union', !!ok,
+          [A, B, C].map((i) => `${i.name}: shards ${shardOf(i).toString(2)} vit ${vitOf(i)}`).join('; '));
+    check('progress', 'C gets both hearts from the full record, once', vitOf(C) === vc + 2, `C ${vc} -> ${vitOf(C)}`);
+    await sleep(1000);
+    check('progress', 'and keeps them (a second full record adds nothing)', vitOf(C) === vc + 2 && vitOf(A) === va2 + 1,
+          `C ${vitOf(C)}, A ${vitOf(A)}`);
+    say(`progress stats: A ${JSON.stringify(A.coop.worldStats)}; C ${JSON.stringify(C.coop.worldStats)}`);
+    C.net.close();
+    instances.splice(instances.indexOf(C), 1);
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, progress };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);
