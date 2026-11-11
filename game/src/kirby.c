@@ -7,6 +7,7 @@ extern "C" {
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 #include "port/spawn.h"
 #include "port/coop.h"
+#include "port/kirby_color.h"
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "hud.h"
 #include "in_game_interlude.h"
@@ -6039,6 +6040,7 @@ void sub_0803E558(u8 r8)
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r8].color;
         sub_08155128(&sprite);
+        PortKirbyColorFixup(r8); /* PORT: a custom colour (platform/kirby_color.c) */
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
         return;
     }
@@ -6047,6 +6049,7 @@ void sub_0803E558(u8 r8)
     sprite.animId = 0x15;
     sprite.variant = gKirbys[r8].color;
     sub_08155128(&sprite);
+    PortKirbyColorFixup(r8); /* PORT: a custom colour (platform/kirby_color.c) */
     CpuCopy16(colors, &gObjPalette[0x10 * r8 + 0xC], sizeof(colors));
     SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     gKirbys[r8].base.unkC &= ~0x200;
@@ -6071,6 +6074,7 @@ void sub_0803E6B8(u8 r6, u16 r1, u8 r2)
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r6].color;
         sub_08155128(&sprite);
+        PortKirbyColorFixup(r6); /* PORT: a custom colour (platform/kirby_color.c) */
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     }
     else
@@ -6082,6 +6086,7 @@ void sub_0803E6B8(u8 r6, u16 r1, u8 r2)
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r6].color;
         sub_08155128(&sprite);
+        PortKirbyColorFixup(r6); /* PORT: a custom colour (platform/kirby_color.c) */
         CpuCopy16(colors, &gObjPalette[0x10 * r6 + 0xC], sizeof(colors));
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     }
@@ -6107,6 +6112,7 @@ void sub_0803E778(u8 r8, u16 r1, u8 r2)
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r8].color;
         sub_08155128(&sprite);
+        PortKirbyColorFixup(r8); /* PORT: a custom colour (platform/kirby_color.c) */
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     }
     else
@@ -6119,6 +6125,7 @@ void sub_0803E778(u8 r8, u16 r1, u8 r2)
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r8].color;
         sub_08155128(&sprite);
+        PortKirbyColorFixup(r8); /* PORT: a custom colour (platform/kirby_color.c) */
         CpuCopy16(colors, &gObjPalette[0x10 * r8 + 0xA], sizeof(colors));
         CpuCopy16(&colorBuf, &gObjPalette[0x10 * r8 + 0x1], sizeof(colorBuf));
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
@@ -6269,6 +6276,7 @@ void sub_0803EA90(struct Kirby *kirby, u16 sl, const s32 *r2, bool32 r3)
         kirby->color = gUnk_0203AD1C[kirby->base.unk56];
     else
         kirby->color = kirby->base.unk56;
+    kirby->color = PortKirbyColorInit(kirby->base.unk56, kirby->color); /* PORT: the player's colour */
     kirby->roomId = sl;
     kirby->spawnLocation.x = 4;
     kirby->spawnLocation.y = 4;

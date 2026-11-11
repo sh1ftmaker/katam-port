@@ -93,3 +93,24 @@ coop sTest diagnostic PORT_COOP_SELFTEST harness (tests/coop_selftest.sh)
 coop sNotReadyFrames diagnostic co-op self-test counter
 coop sNotReadyDrops diagnostic co-op self-test counter
 coop sPuppetSteps diagnostic co-op self-test counter (puppet task runs)
+coop_world sW setting co-op shared progress: shadow image and switch, external input (other players' records), refused under rollback/net/seats (platform/coop_world.c)
+coop_world sPend setting co-op progress records queued until the game can take them; external input
+coop_world sPendCount setting co-op progress record queue
+coop_world sPendHead setting co-op progress record queue
+coop_world sScratch setting scratch buffer the page passes progress records through; external input
+coop_world sVitMask boot-init vitality chests scanned once from the ROM's object lists, identical every run
+coop_world sVitScanned boot-init the scan above was done
+coop_enemy gPortCoopEnemyOn setting co-op shared enemies switch from the page; external input, refused under rollback/net/seats (platform/coop_enemy.c)
+coop_enemy sShare setting co-op shared enemies switch from the page
+coop_enemy sEn setting co-op enemy puppets and the received snapshots; external input
+coop_enemy sBoss setting co-op shared boss health; external input
+coop_enemy sDead setting co-op kills seen, reported to the page (external output)
+coop_enemy sDeadCount setting co-op kills seen, reported to the page
+coop_enemy sDeadNext setting co-op kills seen, reported to the page
+coop_enemy sEv setting co-op hit/kill events queued for the page (external output)
+coop_enemy sEvCount setting co-op hit/kill events queued for the page
+coop_enemy sStats diagnostic co-op enemy counters (PortCoopEnemyStat)
+kirby_color sKc setting the player's Kirby colour (settings) and the co-op seat colour; refused under rollback/net/seats (platform/kirby_color.c)
+kirby_color sSlot setting per-Kirby custom palettes: the player's colour setting and co-op poses; refused under rollback/net/seats
+kirby_color sModel boot-init the colour model, fitted once from the ROM's own palettes, identical every run
+kirby_color sPreviewTiles presentation the menu preview's tile scratch; never read by the game

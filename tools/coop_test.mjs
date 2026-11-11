@@ -83,7 +83,7 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors').split(',');
 const BOSS_ROOM = +flag('boss-room', 230);
 const [BOSS_CX, BOSS_CY] = flag('boss-cell', '24:13').split(':').map(Number);
 const EN_ROOM = +flag('enemy-room', 104);
@@ -676,7 +676,62 @@ async function bosses() {
     A.script = walker;
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress };
+/* colors: the player's own Kirby colour (platform/kirby_color.c) and the
+ * name tags (platform/ui/coop_tags.c).  A picks a custom colour: A's Kirby
+ * wears it (OBJ palette 0 in A's palette RAM), and B draws A's puppet in
+ * exactly the same palette (B's OBJ palette 1); then one of the game's
+ * fourteen, then back to the seat colour.  B's tag for A is there, on the
+ * picture, named A, in A's colour. */
+const PLTT_OBJ = 0x05000200;
+const pal16 = (i, slot) => Array.from(new Uint16Array(i.Module.HEAPU8.buffer, PLTT_OBJ + 32 * slot, 16));
+const sameBody = (a, b) => a.slice(2, 12).every((v, k) => (v & 0x7FFF) === (b[2 + k] & 0x7FFF));
+async function colors() {
+    if (FAKE || typeof A.Module._PortKirbyColorChoose !== 'function') {
+        say('colors: build has no PortKirbyColor* exports -- skipped');
+        return;
+    }
+    A.script = B.script = () => 0;
+    const MA = A.Module;
+    /* entry 3 is the body fill, the colour picked; a hurt flash (left over
+     * from an earlier phase) swaps the whole palette for a few frames, so
+     * every check waits for the exact colours rather than for equality */
+    const body = (i, slot) => pal16(i, slot)[3] & 0x7FFF;
+    const fmt = (i, slot) => pal16(i, slot).slice(2, 12).map((v) => v.toString(16)).join(' ');
+    /* the game's own colours as the engine reads them from the ROM (none
+     * are written down here): the body fill as BGR555, and as '#rrggbb' */
+    const sw = (v) => MA._PortKirbyColorSwatch(v, 0);
+    const fill = (rgb) => Math.round(((rgb >> 16) & 255) * 31 / 255) | (Math.round(((rgb >> 8) & 255) * 31 / 255) << 5)
+        | (Math.round((rgb & 255) * 31 / 255) << 10);
+    const css = (rgb) => '#' + ('00000' + rgb.toString(16)).slice(-6);
+    const shows = (fill, css) => body(A, 0) === fill && body(B, 1) === fill && sameBody(pal16(B, 1), pal16(A, 0))
+        && B.coop.colorOf(A.net.mid) === css;
+    MA._PortKirbyColorChoose(14, 0x3070ff, 0xffd000);
+    let ok = await until(() => body(A, 0) === 0x7DC6, 2000);
+    check('colors', 'A\'s Kirby wears A\'s custom colour', ok, fmt(A, 0));
+    ok = await until(() => shows(0x7DC6, '#3173ff'), 4000);
+    check('colors', 'B draws A\'s puppet in the same palette, and B\'s page knows the colour', ok,
+          `A ${fmt(A, 0)} | B ${fmt(B, 1)} | ${B.coop.colorOf(A.net.mid)}`);
+    let tg = null, mine = null;
+    ok = await until(() => {
+        tg = B.coop.tags();
+        mine = tg && tg.list.find((g) => g.mid === A.net.mid);
+        return !!mine && mine.color === '#3173ff';
+    }, 2000);
+    check('colors', 'B has a name tag for A, on the picture, in A\'s colour',
+          ok && mine.name === 'A' && !mine.off && mine.x >= 0 && mine.x <= 1 && mine.y >= 0 && mine.y <= 1,
+          JSON.stringify(tg));
+    MA._PortKirbyColorChoose(1, 0, 0);
+    ok = await until(() => MA._PortKirbyColorLocal(0, 0) === 1 && shows(fill(sw(1)), css(sw(1))), 4000);
+    check('colors', 'one of the game\'s fourteen (yellow) reaches B too', ok,
+          `A index ${MA._PortKirbyColorLocal(0, 0)}, A ${fmt(A, 0)} | B ${fmt(B, 1)} | ${B.coop.colorOf(A.net.mid)}`);
+    MA._PortKirbyColorChoose(-1, 0, 0);
+    ok = await until(() => MA._PortKirbyColorLocal(0, 0) === 0 && shows(fill(sw(0)), css(sw(0))), 4000);
+    check('colors', 'back to the game\'s: A is the seat colour (pink) again, on both', ok,
+          `A index ${MA._PortKirbyColorLocal(0, 0)}, A ${fmt(A, 0)} | B ${fmt(B, 1)}`);
+    A.script = walker;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

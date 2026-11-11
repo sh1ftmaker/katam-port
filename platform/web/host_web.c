@@ -162,6 +162,7 @@ EM_JS(int, PortHostUiQuery, (const char *key, char *buf, int size), {
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
+EMSCRIPTEN_KEEPALIVE int PortUiOpenPageJs(int page) { return PortUiOpenPage(page); }
 
 /* The playtest page (web/playtest/): a room bundle compiled in the browser.
  * Set before the ROM handshake releases main(), so the session build links

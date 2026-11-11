@@ -33,6 +33,10 @@ void PortSettingsChanged(void);
 void PortSettingsApplyEarly(void);
 /* Which renderer is drawing right now (the setting, unless unavailable). */
 int PortShowUsingGpu(void);
+/* Where the last picture landed in the framebuffer (dst: x, y, w, h, top-left
+ * origin), the framebuffer's size, and whether it was the GPU's world view
+ * (else a 240x160 picture).  0 before the first. */
+int PortShowPicture(int dst[4], int *fbW, int *fbH, int *world);
 /* The host sets this when it calls PortShowAgain at the display's rate
  * between sim frames (vsync; not turbo, not a scripted run): the condition
  * for interpolating. */
@@ -51,6 +55,10 @@ void PortUiDraw(int fbW, int fbH, float dpr, double nowMs);
 int PortUiIsOpen(void);
 void PortUiSetOpen(int open);
 void PortUiToggle(void);
+/* Open the menu at a page (the page's own buttons: the co-op chip's colour
+ * button).  Returns 0 when there is no menu (no WebGL2). */
+#define PORT_UI_PAGE_KIRBY 1
+int PortUiOpenPage(int page);
 
 #define PORT_UI_MOVE   0
 #define PORT_UI_DOWN   1

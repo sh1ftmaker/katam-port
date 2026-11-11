@@ -58,6 +58,7 @@
 #include "port/netsim.h"
 #include "port/seats.h"
 #include "port/coop.h"
+#include "port/kirby_color.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -103,9 +104,8 @@ static struct {
     u16 seq;
     u16 lastRoom;      /* the local player's last valid room, for poses     */
     s8  seatColor;     /* PortCoopSetLocalColor: -1 = the game's own choice  */
-    u8  colorApplied;  /* gUnk_0203AD1C[0] was changed by us                 */
     struct CoopSlot slot[PORT_COOP_MAX_SLOTS];
-} sCoop = { 0, 0, 0xFFFF, -1, 0 };
+} sCoop = { 0, 0, 0xFFFF, -1 };
 
 static u8 sPoseBuffer[PORT_COOP_BUFFER_POSES * PORT_COOP_POSE_SIZE];
 
@@ -276,6 +276,18 @@ COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
     out[28] = (u8)k->hp;
     out[29] = k->lives;
     Put16(out + 30, sCoop.seq);
+    {
+        /* A colour of the player's own (platform/kirby_color.c): byte 24
+         * holds the nearest of the game's fourteen, for builds that do not
+         * read these. */
+        u16 body, feet;
+
+        PortKirbyColorLocal(&body, &feet);
+        if (body | feet) {
+            Put16(out + 32, body | PORT_KIRBY_COLOR_POSE_CUSTOM);
+            Put16(out + 34, feet);
+        }
+    }
     return ready;
 }
 
@@ -333,6 +345,7 @@ static void TakeOver(struct Kirby *k, struct CoopSlot *s)
     if (k->hp <= 0)
         k->hp = 1;
     k->color = gUnk_0203AD1C[slot] != 0xFF ? gUnk_0203AD1C[slot] : slot;
+    PortKirbyColorSetSlot(slot, 0, 0, 0);
     sub_0806E4EC(k);
     sub_0806EFF8(k);
     s->ability = KIRBY_ABILITY_NORMAL;
@@ -424,10 +437,16 @@ void PortCoopPuppetStep(struct Kirby *k)
     /* The sender's colour (their spray paint, or the seat colour their page
      * gave them -- PortCoopSetLocalColor), so a player looks the same in
      * every game.  The palette reload is the one the flash below uses. */
-    if (p[24] < COOP_COLORS && k->color != p[24]) {
-        k->color = p[24];
-        if (!(f & PORT_COOP_F_FLASH))
-            sub_0803E558(slot);
+    {
+        u16 body = (u16)Get16(p + 32), feet = (u16)Get16(p + 34);
+        int custom = (body & PORT_KIRBY_COLOR_POSE_CUSTOM) != 0;
+        int changed = PortKirbyColorSetSlot(slot, custom, body, feet);
+
+        if (p[24] < COOP_COLORS && (k->color != p[24] || changed)) {
+            k->color = p[24];
+            if (!(f & PORT_COOP_F_FLASH))
+                sub_0803E558(slot);
+        }
     }
 
     /* The resolved sprites, and the restart sub_0803F790 does when they
@@ -506,6 +525,7 @@ static void GiveBack(u8 slot)
     if (s->entered) {
         sub_0803ED28(k);
         k->color = gUnk_0203AD1C[slot] != 0xFF ? gUnk_0203AD1C[slot] : slot;
+        PortKirbyColorSetSlot(slot, 0, 0, 0);
         k->hp = k->maxHp > 0 ? k->maxHp : 1;
         k->base.roomId = me->base.roomId;
         k->base.x = me->base.x;
@@ -524,41 +544,11 @@ static void GiveBack(u8 slot)
     PortLog("[katam-port] coop: slot %u given back to the CPU", (unsigned)slot);
 }
 
-/* The local Kirby's colour while co-op is on: the player's spray paint if
- * they chose one (gUnk_0203ADE0, the collection room), else the seat colour
- * the page asked for -- player 2 yellow, 3 red, 4 green, as in the game's own
- * link play -- so every game shows every player in the same colour.  The
- * game reads gUnk_0203AD1C[0] whenever it rebuilds the Kirby (kirby.c, the
- * Kirby init); the live Kirby is recoloured with the palette reload the
- * game's flash uses. */
-static void LocalColor(int on)
-{
-    struct Kirby *me = &gKirbys[gLocalPlayerId];
-    u8 chosen = gUnk_0203ADE0, want;
-
-    if (on && sCoop.seatColor >= 0 && (chosen == 0xFF || chosen >= COOP_COLORS))
-        want = (u8)sCoop.seatColor;
-    else if (sCoop.colorApplied)
-        want = chosen;              /* give the game's own value back */
-    else
-        return;
-    if (gUnk_0203AD1C[gLocalPlayerId] != want) {
-        gUnk_0203AD1C[gLocalPlayerId] = want;
-        sCoop.colorApplied = on && want != chosen;
-    }
-    {
-        u8 c = want != 0xFF && want < COOP_COLORS ? want : (u8)gLocalPlayerId;
-
-        if (me->color != c) {
-            me->color = c;
-            sub_0803E558(gLocalPlayerId);
-            PortHudReloadKirbyPalette();
-        }
-    }
-    if (!on)
-        sCoop.colorApplied = 0;
-}
-
+/* The local Kirby's colour while co-op is on: unless the player chose one
+ * (the setting or the collection room's spray paint), the seat colour the
+ * page asked for -- player 2 yellow, 3 red, 4 green, as in the game's own
+ * link play -- so every game shows every player in the same colour.
+ * platform/kirby_color.c decides and applies it. */
 COOP_EXPORT void PortCoopSetLocalColor(int color)
 {
     sCoop.seatColor = (s8)(color >= 0 && color < COOP_COLORS ? color : -1);
@@ -574,11 +564,9 @@ void PortCoopFrameTop(void)
     SelfTestFrame();
     PortCoopWorldFrame();
     PortCoopEnemyFrame();
-    if (!sCoop.enabled && !gPortCoopPuppets) {
-        if (sCoop.colorApplied && GameReady())
-            LocalColor(0);
+    PortKirbyColorSetSeat(sCoop.enabled ? sCoop.seatColor : -1);
+    if (!sCoop.enabled && !gPortCoopPuppets)
         return;
-    }
     sCoop.seq++;
     if (gPortCoopPuppets && (Blocked() || !InAdventure())) {
         /* The level is being torn down (title, game over, a sub-game), or a
@@ -587,8 +575,10 @@ void PortCoopFrameTop(void)
          * about to be rebuilt by the game.  Slots still wanted are taken
          * over again once the adventure is back. */
         gPortCoopPuppets = 0;
-        for (i = 1; i < PORT_COOP_MAX_SLOTS; i++)
+        for (i = 1; i < PORT_COOP_MAX_SLOTS; i++) {
             sCoop.slot[i].entered = 0;
+            PortKirbyColorSetSlot(i, 0, 0, 0);
+        }
         sNotReadyDrops++;
     }
     if (Blocked()) {
@@ -599,8 +589,6 @@ void PortCoopFrameTop(void)
     ready = GameReady();
     if (!ready)
         sNotReadyFrames++;
-    else
-        LocalColor(sCoop.enabled && sCoop.seatColor >= 0);
     /* Slots are taken only past the tutorial: the opening and the tutorial
      * script the three CPU Kirbys (the split, "they follow your every move",
      * the phone), and a cutscene waiting on a helper that is now a puppet

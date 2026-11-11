@@ -197,6 +197,15 @@ void PortRlCaptureLine(int line, s32 aff2x, s32 aff2y, s32 aff3x, s32 aff3y);
 const RlFrame *PortRlBuildFrame(void);
 /* KATAM_RL_POPSTAT=1: objects appearing/vanishing in the widened margin. */
 void PortRlReportPopIn(void);
+/* Where the last presented frame drew the struct Sprite `owner` (its first
+ * drawing this frame): its anchor, and the top of the bounding box of its
+ * subsprites and those of `also` (a hat; may be NULL), in view pixels, 1/256
+ * units -- interpolation and the sub-pixel camera included.  Returns 0 when
+ * that frame did not draw it, or was not a world frame.  Read-only: the
+ * co-op name tags (platform/ui/coop_tags.c). */
+int PortRlPresentedSprite(const void *owner, const void *also, s32 *ax, s32 *ay, s32 *top);
+/* The view size of that frame; 0 when it was not a world frame. */
+int PortRlShownView(s32 *w, s32 *h);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
 

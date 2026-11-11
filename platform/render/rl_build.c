@@ -1561,6 +1561,8 @@ const RlFrame *PortRlCurrentFrame(void)
 /* --- presentation: sub-pixel camera and interpolation --------------------- */
 
 static RlFrame sPres;
+/* What PortRlPresentFrame last returned (sFrame or sPres). */
+static const RlFrame *sShownFrame;
 static RlSprite sPresSpr[RL_MAX_SPRITES + 128];
 static s32 sDiag[4];
 static int sDiagOk;
@@ -1658,7 +1660,8 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
         }
         sDiag[2] = (sFrame.camX + sFrame.viewX) * 256;
         sDiag[3] = (sFrame.camY + sFrame.viewY) * 256;
-        return sFrame.serial ? &sFrame : NULL;
+        sShownFrame = sFrame.serial ? &sFrame : NULL;
+        return sShownFrame;
     }
     t = (flags & RL_PRESENT_INTERP) ? (s32)(alpha * 256.0f + 0.5f) : 256;
     if (t < 0) t = 0;
@@ -1755,7 +1758,52 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
     }
     sDiag[2] = (o->camX + o->viewX) * 256 + o->viewSubX;
     sDiag[3] = (o->camY + o->viewY) * 256 + o->viewSubY;
+    sShownFrame = o;
     return o;
+}
+
+int PortRlShownView(s32 *w, s32 *h)
+{
+    if (sShownFrame == NULL || !sShownFrame->world)
+        return 0;
+    *w = sShownFrame->viewW;
+    *h = sShownFrame->viewH;
+    return 1;
+}
+
+int PortRlPresentedSprite(const void *owner, const void *also, s32 *ax, s32 *ay, s32 *top)
+{
+    const Motion *c = &sMot[sMotCur];
+    const RlFrame *o = sShownFrame;
+    s32 n, i, t = 0;
+    int found = 0, any = 0;
+
+    if (o == NULL || !c->valid || !o->world)
+        return 0;
+    n = (s32)(o->numSprites + o->numObjWin);
+    for (i = 0; i < n; i++) {
+        s32 gi = sOutGroup[i], sy, y;
+        const MotGroup *g;
+
+        if (gi < 0 || gi >= c->nGroups)
+            continue;
+        g = &c->g[gi];
+        if (g->occ != 0 || (g->owner != owner && (also == NULL || g->owner != also)))
+            continue;
+        sy = o->sprites[i].subY;
+        if (g->owner == owner && !found) {
+            *ax = (g->ax - o->viewX) * 256 + o->sprites[i].subX - o->viewSubX;
+            *ay = (g->ay - o->viewY) * 256 + sy - o->viewSubY;
+            found = 1;
+        }
+        y = (o->sprites[i].y - o->viewY) * 256 + sy - o->viewSubY;
+        if (!any || y < t)
+            t = y;
+        any = 1;
+    }
+    if (found && top)
+        *top = t;
+    return found;
 }
 
 int PortRlPresentDiag(s32 *kirbyViewX, s32 *kirbyViewY, s32 *viewWorldX, s32 *viewWorldY)

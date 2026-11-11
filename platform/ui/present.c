@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/kirby_color.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "ui/settings.h"
@@ -158,7 +159,7 @@ void PortShowNoteSwap(double nowMs)
 }
 
 static int sReady, sGpuAvail, sUsingGpu = -1, sUi;
-static int sDst[4], sSrc[4];
+static int sDst[4], sSrc[4], sFb[2];
 static int sWorldViewW = 240, sWorldViewH = 160;
 
 /* Dynamic zoom (docs/VIEW.md): ease in while the camera rests, out fast when
@@ -190,6 +191,8 @@ void PortSettingsApplyEarly(void)
     PortSettingsClamp(&gPortSettings);
     gPortRlHudStrip = gPortSettings.hud == PS_HUD_STRIP;
     PortHostSetVolume(gPortSettings.mute ? 0.0f : gPortSettings.volume / 100.0f);
+    PortKirbyColorChoose(gPortSettings.kirbyColor, gPortSettings.kirbyBody,
+                         gPortSettings.kirbyFeet);
 }
 
 void PortSettingsChanged(void)
@@ -225,6 +228,17 @@ int PortShowReady(void)
 int PortShowUsingGpu(void)
 {
     return sUsingGpu == 1;
+}
+
+int PortShowPicture(int dst[4], int *fbW, int *fbH, int *world)
+{
+    if (!sReady || sFb[0] <= 0 || sDst[2] <= 0)
+        return 0;
+    memcpy(dst, sDst, sizeof(sDst));
+    *fbW = sFb[0];
+    *fbH = sFb[1];
+    *world = sLastWorld && sUsingGpu == 1;
+    return 1;
 }
 
 static void UpdateDynZoom(void)
@@ -287,6 +301,8 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
     bg[0] = ((gPortSettings.letterbox >> 16) & 255) / 255.0f;
     bg[1] = ((gPortSettings.letterbox >> 8) & 255) / 255.0f;
     bg[2] = (gPortSettings.letterbox & 255) / 255.0f;
+    sFb[0] = fbW;
+    sFb[1] = fbH;
     if (GlrSourceSize(&w, &h)) {
         sSrc[0] = 0; sSrc[1] = 0; sSrc[2] = w; sSrc[3] = h;
         PortLayoutFit(&gPortSettings, fbW, fbH, w, h, sDst);

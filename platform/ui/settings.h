@@ -48,6 +48,13 @@ typedef struct PortSettings {
     float uiScale;      /* menu size multiplier, 1.0 = automatic            */
     int smoothCam;      /* GPU: the camera at the game's sub-pixel position */
     int interp;         /* GPU: lerp between sim frames at display rate     */
+    /* Kirby's colour (platform/kirby_color.c, port/kirby_color.h): -1 the
+     * game's, 0..13 one of its fourteen, 14 custom.  The one setting that
+     * reaches game memory: it is the player's look, applied only in the
+     * one-player adventure and never under rollback, netplay or seats. */
+    int kirbyColor;
+    unsigned kirbyBody; /* custom body colour, 0xRRGGBB                     */
+    unsigned kirbyFeet; /* custom feet colour, 0xRRGGBB                     */
 } PortSettings;
 
 extern PortSettings gPortSettings;

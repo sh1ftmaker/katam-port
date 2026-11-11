@@ -6,6 +6,7 @@ extern "C" {
 
 u16 PortRoomTilesetIndex(u16 roomId);
 #include "global.h"
+#include "port/kirby_color.h"
 
 #include "data.h"
 #include "kirby.h"
@@ -77,13 +78,23 @@ static inline void LoadGameplayHudGraphicsInline(void)
     u8 color = gKirbys[gLocalPlayerId].color;
     void *tiles = BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x185);
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
     CpuCopy16(gUnk_082EC7A0, tiles, TILE_SIZE_4BPP * 0x38);
     tiles += TILE_OFFSET_4BPP(0x38);
     CpuCopy16(sHudEnemyAndAreaNameGraphics[gLanguage], tiles, TILE_SIZE_4BPP * 8);
 }
 
-/* PORT-COOP: the HUD's Kirby palette again, after platform/coop.c gave the
- * local Kirby its seat colour mid-level (the HUD loads it once, here). */
+/* PORT: one of the HUD's Kirby palettes, for platform/kirby_color.c's model
+ * of how the game shades a colour (NULL past the table). */
+const u16 *PortHudPalette(u8 color)
+{
+    if (color >= ARRAY_COUNT(sHudPalettes))
+        return NULL;
+    return sHudPalettes[color];
+}
+
+/* PORT: the HUD's Kirby palette again, after platform/kirby_color.c changed
+ * the local Kirby's colour mid-level (the HUD loads it once, here). */
 void PortHudReloadKirbyPalette(void)
 {
     u8 color = gKirbys[gLocalPlayerId].color;
@@ -91,6 +102,12 @@ void PortHudReloadKirbyPalette(void)
     if (color >= ARRAY_COUNT(sHudPalettes))
         return;
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
+    /* The game loads this palette only on the way into a level, where a sync
+     * follows anyway; mid-level it has to ask for one (not during a fade,
+     * which reads the effect source just written). */
+    if (!(gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE))
+        gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
 }
 
 static inline void DrawHudLivesLabelInline(void)
@@ -131,6 +148,7 @@ static inline void DrawDemoHudInline(void)
     u16 *tiles = BG_SCREEN_ADDR(28) + 0x198;
     u8 i;
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
     CpuCopy16(sHudGameOverAndDemoGraphics[gLanguage], BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x185), TILE_SIZE_4BPP * 0x40);
     for (i = 0; i < 6; i++)
         *tiles++ = (i + 0x1B5) | 0xF000;
@@ -1119,6 +1137,7 @@ void RefreshGameplayHud(struct Kirby *kirby)
         return;
     }
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
     if (gGameplayHudTask->main == FN(UpdateGameOverHudIndicators)) {
         DrawGameOverMessageInline();
         return;
@@ -1258,6 +1277,7 @@ static void LoadGameplayHudGraphics(void)
     u8 color = gKirbys[gLocalPlayerId].color;
     void *tiles = BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x185);
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
     CpuCopy16(gUnk_082EC7A0, tiles, TILE_SIZE_4BPP * 0x38);
     tiles += TILE_OFFSET_4BPP(0x38);
     CpuCopy16(sHudEnemyAndAreaNameGraphics[gLanguage], tiles, TILE_SIZE_4BPP * 8);
@@ -1301,6 +1321,7 @@ static void DrawDemoHud(void)
     u16 *tiles = BG_SCREEN_ADDR(28) + 0x198;
     u8 i;
     LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+    PortKirbyHudFixup(); /* PORT: a custom colour (platform/kirby_color.c) */
     CpuCopy16(sHudGameOverAndDemoGraphics[gLanguage], BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x185), TILE_SIZE_4BPP * 0x40);
     for (i = 0; i < 6; i++)
         *tiles++ = (i + 0x1B5) | 0xF000;

@@ -4,7 +4,7 @@
 zalo/katam-port fork (on top of sh1ftmaker's stage-1 checkpoint `1fdaa04`),
 published at https://zalo.github.io/katam-port/mp/.**  Stage 1 (puppet
 Kirbys) is sh1ftmaker's; stages 2-4 and the stage-1 follow-ups are new and
-described in §8 below.  §1-§7 are the stage-1 checkpoint as it was written,
+described in §8 below; the Kirby colour picker and name tags in §9.  §1-§7 are the stage-1 checkpoint as it was written,
 kept for its detail; where §8 contradicts them, §8 is current.
 
 Read this file first, then `platform/port/coop.h` (the pose layout and the C
@@ -337,3 +337,95 @@ Projectile sync for puppeted enemies; extra puppets drawn outside `gKirbys`
 for more than four players; state-synced bosses where a shared health pool
 is not enough (Dark Mind's mirror phases, Mega Titan's arms); a real
 two-person and phone test.
+
+---
+
+## 9. Kirby colour picker and name tags (2026-11-11)
+
+### Colour picker (single player and co-op): `platform/kirby_color.c`
+
+- **Setting**: `gPortSettings.kirbyColor` (-1 the game's, 0..13 one of the
+  game's fourteen, 14 custom) with `kirbyBody` / `kirbyFeet` (0xRRGGBB);
+  keys `kirbycolor`, `kirbybody`, `kirbyfeet`.  The one setting that reaches
+  game memory, so it is applied only in the one-player adventure and never
+  under rollback, netplay or seats (those hash the game's memory).
+- **Menu**: a new **Kirby** page (`platform/ui/ui_menu.cpp`, on the web and
+  native) with a live preview of the standing Kirby (decoded from the sprite
+  tables and drawn pixel by pixel, because the menu pauses the game), the
+  fourteen as two-tone swatches (found in the game or not), and Custom: a
+  hue wheel for the body and one for the feet and cheeks.  The co-op chip
+  has a Colour button that opens this page (`PortUiOpenPageJs(1)`).
+- **Whose colour wins**: the setting; else the spray paint picked in the
+  game; else (co-op) the seat colour; else pink.  It lives in
+  `gUnk_0203AD1C[local]` (read by every Kirby rebuild) and `kirby->color`;
+  Kirby init asks `PortKirbyColorInit` so a new level does not flash the
+  old colour.  Nothing is written to the save.  Co-op's old `LocalColor`
+  moved here; co-op only says what the seat colour is
+  (`PortKirbyColorSetSeat`).
+- **Custom colours** are built from a model fitted at load time to the
+  game's own fourteen palettes (OKLab; per entry L = a + b * L_base,
+  C = c * C_base, h = h_base + d; base = entry 3, the body fill, and entry
+  9, the most-drawn feet shade).  Rebuilding each of the fourteen from its
+  two base colours alone: mean OKLab error about 0.04 (a plain hue shift of
+  pink: 0.047).  The HUD's palette (BG 15) is fitted the same way.  No ROM
+  data is in the source: the coefficients are fitted from the ROM in hand.
+- A custom Kirby's colour index stays the **nearest** of the fourteen (body
+  distance + 0.1 x feet), so every table indexed by colour (UFO palette,
+  link-up screen) stays in range.  Only the Kirby's own palette and the
+  HUD's are replaced: `PortKirbyColorFixup` after each of the six anim-0x15
+  loads in `kirby.c`, `PortKirbyHudFixup` after the six HUD loads in
+  `hud.c`.  `PortHudReloadKirbyPalette` now asks for a BG palette sync (the
+  game only loads that palette on the way into a level).
+- **On the wire**: the pose's reserved word.  Bytes 32..33 = body BGR555 |
+  0x8000, 34..35 = feet; byte 24 keeps the nearest built-in, so an older
+  build shows something close.  No new message; a puppet's palette is built
+  by the receiver from the same model (`PortKirbyColorSetSlot`).
+
+### Name tags: `platform/ui/coop_tags.c`, `web/coop.js`
+
+- The page draws them as HTML over the canvas (sharp at any size, any
+  script); `PortCoopTags(out, max)` says where: for each remote Kirby drawn
+  in the local room, the top of its sprites as a fraction of the canvas,
+  taken from the frame actually presented (`PortRlPresentedSprite`, so the
+  widened view, zoom, sub-pixel camera and interpolation are included), plus
+  the picture's rectangle.  A remote Kirby in the room but off the view gets
+  a position worked out from the local Kirby's and is pinned to the edge
+  with an arrow.  Nothing over the pause screens or the menu.
+- A tag is the player's name with a bar in their Kirby's colour; overlapping
+  tags are lifted apart.  The chip lists everyone with a colour dot and has
+  a **Show names** switch (`localStorage.katamCoopNames`).
+
+### Room for more than four players
+
+Both pieces are keyed so that players drawn outside `gKirbys` can join in
+without changing the interfaces:
+
+- Tags use **draw ids**, not slots: ids 1..3 are the puppet slots; ids from
+  `PORT_COOP_TAG_EXTRA` (16) are reserved for extra players.  coop.js maps an
+  id to a member in `midOfDrawId` / `bytesOfDrawId`.
+- `PortKirbyColorBuild(choice, body, feet, out16)` builds a full palette for
+  any colour without a Kirby slot, for extra players drawn by the renderer
+  into palette banks of their own.
+- `PortRlPresentedSprite(owner, also, ...)` finds any struct Sprite in the
+  presented frame, so a renderer-drawn extra player gets an exact tag the
+  same way.
+
+### Tests
+
+| test | result |
+|---|---|
+| `make coop-test` (new phase `colors`: A's custom colour on A, B draws A's puppet in exactly the same palette, B's page knows the colour, B's tag for A is on the picture in A's colour; then a built-in colour; then back to the seat colour) | 40/40 (the 35 before, 5 new) |
+| `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures in all three runs on both; local trajectory identical |
+| `cd netplay && npm test` | 51/51 |
+| `make regress-wasm` | 7/7 OK (the game unchanged while nothing is chosen) |
+| `make lint-simstate` | 0 unlisted -- now also covering `coop_world`, `coop_enemy`, `coop_objects` and `kirby_color`, which were missing from `SIM_PLATFORM` |
+| Browser, two windows on the dev relay | the menu's Kirby page, a custom colour on one player shown on the other's puppet, name tags following the puppets, the chip's colour dots and Colour button |
+| Browser, single player | a swatch recolours Kirby and the HUD; the choice is saved |
+
+### Gaps
+
+- The model is fitted to the fourteen; colours far from all of them (very
+  dark bodies) shade plausibly but were only checked by eye.
+- The UFO ability and the link-up screen use the nearest built-in colour.
+- Tags in the PPU renderer use an estimated head height (20 px) and no
+  interpolation.

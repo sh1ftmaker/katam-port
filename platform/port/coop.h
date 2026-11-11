@@ -29,14 +29,18 @@
  *    21  u8   animIndex  animationIndex (gates the hat and overlay draw)
  *    22  u8   ability    ability (hat palette, HUD icon)
  *    23  u8   unkE0      the "hat without ability" field (sub_0803F46C gate)
- *    24  u8   color      the sender's colour (0..13), applied to the puppet
+ *    24  u8   color      the sender's colour (0..13), applied to the puppet;
+ *                        with a custom colour, the nearest of the fourteen
  *    25  u8   animSpeed  base.sprite.unk1C (0x10 = normal speed)
  *    26  u8   frame      base.header.unk1 (frames into the animation)
  *    27  u8   flags2     PORT_COOP_F2_*
  *    28  s8   hp         display only
  *    29  u8   lives      display only
  *    30  u16  seq        sender's pose counter (wraps)
- *    32  u32  reserved   0
+ *    32  u16  custom     0, or a colour of the sender's own
+ *                        (platform/kirby_color.c): body BGR555 |
+ *                        PORT_KIRBY_COLOR_POSE_CUSTOM (0x8000)
+ *    34  u16  customFeet the feet, BGR555 (0 unless custom)
  *
  * Shake/squash offsets (objBase54/55) are not carried: the game clears them
  * inside the draw before a pose can be read.

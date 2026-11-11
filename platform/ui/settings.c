@@ -38,6 +38,9 @@ void PortSettingsDefaults(PortSettings *s)
      * down after a minute or so of play (2026-11-09). */
     s->smoothCam = 0;
     s->interp = 1;
+    s->kirbyColor = -1;
+    s->kirbyBody = 0xFFA0D0;            /* a pink and a red, until picked */
+    s->kirbyFeet = 0xD02050;
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -64,6 +67,9 @@ void PortSettingsClamp(PortSettings *s)
     s->uiScale = ClampF(s->uiScale, 0.6f, 2.0f);
     s->smoothCam = !!s->smoothCam;
     s->interp = !!s->interp;
+    s->kirbyColor = ClampI(s->kirbyColor, -1, 14);
+    s->kirbyBody &= 0xFFFFFF;
+    s->kirbyFeet &= 0xFFFFFF;
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
@@ -105,6 +111,9 @@ void PortSettingsParse(PortSettings *s, const char *text)
                  * ignored -- everyone starts from the new default once. */
                 INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
+                INT_KEY("kirbycolor", kirbyColor)
+                else if (strcmp(key, "kirbybody") == 0) s->kirbyBody = (unsigned)strtoul(val, NULL, 16);
+                else if (strcmp(key, "kirbyfeet") == 0) s->kirbyFeet = (unsigned)strtoul(val, NULL, 16);
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -126,6 +135,9 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\n",
                       s->smoothCam, s->interp);
+    if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n), "kirbycolor=%d\nkirbybody=%06X\nkirbyfeet=%06X\n",
+                      s->kirbyColor, s->kirbyBody, s->kirbyFeet);
     return n < size ? n : size - 1;
 }
 

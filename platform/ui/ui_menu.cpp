@@ -22,6 +22,7 @@ void PortLog(const char *fmt, ...);
 void PortError(const char *fmt, ...);
 #include "ui/settings.h"
 #include "ui/ui.h"
+#include "port/kirby_color.h"
 }
 #include "ui/ui_internal.h"
 
@@ -381,9 +382,9 @@ static void Heading(const char *label)
 
 /* --- pages ------------------------------------------------------------------ */
 
-enum { PG_GAME, PG_DISPLAY, PG_AUDIO, PG_CONTROLS, PG_RANDO, PG_ADVANCED, PG_COUNT };
+enum { PG_GAME, PG_KIRBY, PG_DISPLAY, PG_AUDIO, PG_CONTROLS, PG_RANDO, PG_ADVANCED, PG_COUNT };
 static const char *const kPageNames[PG_COUNT] = {
-    "Game", "Display", "Audio", "Controls", "Randomizer", "Advanced",
+    "Game", "Kirby", "Display", "Audio", "Controls", "Randomizer", "Advanced",
 };
 static int sPage = -1;
 
@@ -393,7 +394,18 @@ static bool PageShown(int p)
         return true;
     /* Native: the ROM, the save and the randomizer are the
      * command line's (--rom, --rando, ...), not the menu's. */
-    return p == PG_DISPLAY || p == PG_AUDIO || p == PG_CONTROLS || p == PG_ADVANCED;
+    return p == PG_KIRBY || p == PG_DISPLAY || p == PG_AUDIO || p == PG_CONTROLS
+        || p == PG_ADVANCED;
+}
+
+extern "C" int PortUiOpenPage(int page)
+{
+    if (!sReady)
+        return 0;
+    if (page == PORT_UI_PAGE_KIRBY)
+        sPage = PG_KIRBY;
+    PortUiSetOpen(1);
+    return 1;
 }
 
 static void PageGame(void)
@@ -619,6 +631,169 @@ static int PageAudio(void)
     return changed;
 }
 
+/* --- Kirby: the colour (platform/kirby_color.c) ------------------------------ */
+
+/* Plain names for the game's fourteen, for the tooltips. */
+static const char *const kColorNames[PORT_KIRBY_COLORS] = {
+    "Pink", "Yellow", "Red", "Green", "White", "Charcoal", "Sky", "Blue",
+    "Lavender", "Mint", "Orange", "Brown", "Pink and green", "Silver",
+};
+
+static ImU32 Rgb32(unsigned rgb)
+{
+    return IM_COL32((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, 255);
+}
+
+static ImU32 Col555(unsigned short c)
+{
+    unsigned r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31;
+
+    return IM_COL32((r << 3) | (r >> 2), (g << 3) | (g >> 2), (b << 3) | (b >> 2), 255);
+}
+
+/* A two-tone button: the body colour, the feet colour along the bottom. */
+static bool KirbySwatch(const char *id, unsigned body, unsigned feet, bool on, const char *tip)
+{
+    float sz = ImGui::GetFrameHeight() * 1.5f;
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    float r = sz * 0.22f;
+    bool hit = ImGui::InvisibleButton(id, ImVec2(sz, sz));
+
+    dl->AddRectFilled(p, ImVec2(p.x + sz, p.y + sz), Rgb32(body), r);
+    dl->AddRectFilled(ImVec2(p.x, p.y + sz * 0.68f), ImVec2(p.x + sz, p.y + sz), Rgb32(feet), r,
+                      ImDrawFlags_RoundCornersBottom);
+    if (on)
+        dl->AddRect(ImVec2(p.x - 2, p.y - 2), ImVec2(p.x + sz + 2, p.y + sz + 2),
+                    IM_COL32(255, 255, 255, 255), r + 2, 0, 2.5f);
+    else if (ImGui::IsItemHovered())
+        dl->AddRect(p, ImVec2(p.x + sz, p.y + sz), IM_COL32(255, 255, 255, 140), r, 0, 1.5f);
+    if (tip && ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", tip);
+    return hit;
+}
+
+/* The standing Kirby in a palette, drawn pixel by pixel (the game is
+ * paused under the menu, so the picture behind it cannot show a change). */
+static void KirbyPreview(const unsigned short pal[16], float scale)
+{
+    static unsigned char px[64 * 64];
+    static int w, h, tried;
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+
+    if (!tried)
+        tried = PortKirbyColorPreview(px, 64, 64, &w, &h) ? 1 : -1;
+    if (tried < 0) {
+        tried = 0;              /* the sprite tables may not be loaded yet */
+        return;
+    }
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            int c = px[y * w + x];
+            if (c)
+                dl->AddRectFilled(ImVec2(p.x + x * scale, p.y + y * scale),
+                                  ImVec2(p.x + (x + 1) * scale, p.y + (y + 1) * scale), Col555(pal[c]));
+        }
+    }
+    ImGui::Dummy(ImVec2(w * scale, h * scale));
+}
+
+static void ToFloat3(unsigned rgb, float f[3])
+{
+    f[0] = ((rgb >> 16) & 255) / 255.0f;
+    f[1] = ((rgb >> 8) & 255) / 255.0f;
+    f[2] = (rgb & 255) / 255.0f;
+}
+
+static unsigned FromFloat3(const float f[3])
+{
+    unsigned r = (unsigned)(f[0] * 255.0f + 0.5f), g = (unsigned)(f[1] * 255.0f + 0.5f),
+             b = (unsigned)(f[2] * 255.0f + 0.5f);
+
+    return (r << 16) | (g << 8) | b;
+}
+
+static int PageKirby(void)
+{
+    PortSettings &s = gPortSettings;
+    int changed = 0;
+    static int editFeet;
+
+    Heading("Colour");
+    if (!PortKirbyColorAvailable()) {
+        Hint("The colours come from the game: they show up here once a ROM is loaded.");
+        return 0;
+    }
+    {
+        unsigned short pal[16];
+        int show = s.kirbyColor;
+        float scale = floorf(ImGui::GetFontSize() / 4.0f) + 1.0f;   /* 4x at 13 px */
+
+        if (show == PORT_KIRBY_COLOR_GAME) {
+            unsigned short b, f;
+            show = PortKirbyColorLocal(&b, &f);
+            if (show < 0 || show >= PORT_KIRBY_COLORS)
+                show = 0;
+        }
+        PortKirbyColorBuild(show, s.kirbyBody, s.kirbyFeet, pal);
+        KirbyPreview(pal, scale < 3.0f ? 3.0f : scale);
+    }
+    Hint("Your Kirby's colour, in single player and in co-op (other players see it too). "
+         "The menu pauses the game: the new colour shows when you resume.");
+
+    if (Radio("The game's", &s.kirbyColor, PORT_KIRBY_COLOR_GAME))
+        changed = 1;
+    SameLineIfFits("Custom");
+    if (Radio("Custom", &s.kirbyColor, PORT_KIRBY_COLOR_CUSTOM))
+        changed = 1;
+    Hint(s.kirbyColor == PORT_KIRBY_COLOR_GAME
+         ? "The game's: the spray paint picked in the game, if any; in co-op, the "
+           "colour of your seat (player 2 yellow, 3 red, 4 green); else pink."
+         : "Or pick one of the game's colours, found in the game or not:");
+    for (int v = 0; v < PORT_KIRBY_COLORS; v++) {
+        char id[16];
+        if (v) {
+            float next = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x
+                       + ImGui::GetFrameHeight() * 1.5f;
+            if (next <= ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x)
+                ImGui::SameLine();
+        }
+        snprintf(id, sizeof(id), "##sw%d", v);
+        if (KirbySwatch(id, (unsigned)PortKirbyColorSwatch(v, 0), (unsigned)PortKirbyColorSwatch(v, 1),
+                        s.kirbyColor == v, kColorNames[v])) {
+            s.kirbyColor = v;
+            changed = 1;
+        }
+    }
+
+    if (s.kirbyColor == PORT_KIRBY_COLOR_CUSTOM) {
+        float col[3];
+        unsigned *which;
+
+        Heading("Custom colour");
+        Radio("Body", &editFeet, 0);
+        ImGui::SameLine();
+        Radio("Feet and cheeks", &editFeet, 1);
+        which = editFeet ? &s.kirbyFeet : &s.kirbyBody;
+        ToFloat3(*which, col);
+        ImGui::SetNextItemWidth(fminf(ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * 16.0f));
+        if (ImGui::ColorPicker3("##kirbypick", col,
+                                ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview
+                                | ImGuiColorEditFlags_NoSmallPreview | ImGuiColorEditFlags_DisplayHex)) {
+            *which = FromFloat3(col);
+            changed = 1;
+        }
+        Hint("The game shades the colour you pick into Kirby's light and dark tones the "
+             "way its own spray paints are shaded.");
+    } else if (changed && s.kirbyColor >= 0) {
+        /* A custom colour starts from the last colour picked. */
+        s.kirbyBody = (unsigned)PortKirbyColorSwatch(s.kirbyColor, 0);
+        s.kirbyFeet = (unsigned)PortKirbyColorSwatch(s.kirbyColor, 1);
+    }
+    return changed;
+}
+
 static void PageControls(void)
 {
     const PortUiStatus &st = gPortUiStatus;
@@ -765,6 +940,7 @@ static int MenuBody(void)
 
     switch (sPage) {
     case PG_GAME:     PageGame(); break;
+    case PG_KIRBY:    changed = PageKirby(); break;
     case PG_DISPLAY:  changed = PageDisplay(); break;
     case PG_AUDIO:    changed = PageAudio(); break;
     case PG_CONTROLS: PageControls(); break;

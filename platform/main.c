@@ -48,6 +48,7 @@
 #include "port/simblock.h"
 #include "port/netsim.h"
 #include "port/coop.h"
+#include "port/kirby_color.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -908,6 +909,10 @@ void PortPresentFrame(void)
     /* Online co-op (platform/coop.c): puppet slots taken over or given back
      * here, between frames.  Returns at once unless co-op was switched on. */
     PortCoopFrameTop();
+    /* The player's Kirby colour (platform/kirby_color.c), after co-op has
+     * said what the seat's colour is.  Returns at once while nothing is
+     * chosen, and outside the one-player adventure. */
+    PortKirbyColorFrame();
 
     render = PortRenderEnabled();
     PortStateTrace();
