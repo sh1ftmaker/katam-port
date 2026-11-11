@@ -98,10 +98,10 @@
      * stars.  Optional.  Signals: {tb} tile breaks to everyone, {ts} the
      * breaks of my room to a player who walks in, {sp: [id, room, x, y,
      * ability, type, flags]} a star I dropped, {tk: [ownerMid, id]} a star
-     * swallowed. */
+     * swallowed, {bh} buttons hit. */
     var ROOM = ['_PortCoopRoomShare', '_PortCoopTilesTake', '_PortCoopTilesApply', '_PortCoopTilesSnapshot',
                 '_PortCoopTilesSetSnapshot', '_PortCoopStarTake', '_PortCoopStarSpawn', '_PortCoopStarTaken',
-                '_PortCoopRoomForget'];
+                '_PortCoopRoomForget', '_PortCoopButtonsTake', '_PortCoopButtonsApply'];
 
     /* Stage 3, shared enemies (platform/coop_enemy.c).  Optional too. */
     var ENEMY = ['_PortCoopEnemyShare', '_PortCoopEnemyCollect', '_PortCoopEnemySetPoses', '_PortCoopEnemyTake',
@@ -610,7 +610,8 @@
         net.on('signal', function (m) {
             var d = m && m.data;
             if (d && typeof d.x === 'string') { extras(m.from, d.x); return; }
-            if (d && (typeof d.tb === 'string' || typeof d.ts === 'string' || Array.isArray(d.sp) || Array.isArray(d.tk))) {
+            if (d && (typeof d.tb === 'string' || typeof d.ts === 'string' || typeof d.bh === 'string'
+                      || Array.isArray(d.sp) || Array.isArray(d.tk))) {
                 roomSignal(m.from, d);
                 return;
             }
@@ -709,6 +710,8 @@
                 net.sendSignal(null, { tb: b64(heap().slice(p, p + n)) });
                 room.stats.tilesSent += n / 5;
             }
+            n = M._PortCoopButtonsTake(p, 32);
+            if (n > 0) net.sendSignal(null, { bh: b64(heap().slice(p, p + n)) });
             n = M._PortCoopStarTake(p, 16);
             for (i = 0; i < n; i++) {
                 b = heap().slice(p + i * 12, p + i * 12 + 12);
@@ -746,6 +749,11 @@
                     heap().set(b, p);
                     room.stats.tilesRecv += b.length / 5;
                     room.stats.tilesApplied += M._PortCoopTilesApply(p, b.length);
+                } else if (typeof d.bh === 'string') {
+                    b = unb64(d.bh);
+                    if (b.length % 4 || b.length > 32) return;
+                    heap().set(b, p);
+                    M._PortCoopButtonsApply(p, b.length);
                 } else if (typeof d.ts === 'string') {
                     b = unb64(d.ts);
                     if (b.length < 4 || b.length > 516) return;

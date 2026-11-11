@@ -66,7 +66,8 @@
 //              B leaves and comes back, and gets the room as A has it.  A
 //              takes Beam and lets it go: B's game makes the star too, with
 //              A's ability; B swallowing its copy removes A's.  In room 310
-//              A stands on the small button: it is down in B's game too.
+//              A stands on the small button: it is down in B's game too;
+//              a hit on it in A's game presses it in B's.
 //   shots      enemies after any player, and their shots hurt everyone.
 //              Both in a room with Shotzos (--shot-room 113), B near one,
 //              A further off; A owns the room.  A's game aims that Shotzo
@@ -1050,6 +1051,19 @@ async function room() {
     ok = await until(() => down(objectsOf(B, 0x6D)), 3000);
     check('room', 'A stands on the button: it is down in B\'s game too', ok && down(objectsOf(A, 0x6D)),
           `A ${JSON.stringify(objectsOf(A, 0x6D))} B ${JSON.stringify(objectsOf(B, 0x6D))}; B held by puppets ${B.Module._PortCoopRoomStat(5)}`);
+    /* A steps off; once it is up again, A hits it (an attack's flag 0x40000,
+     * set as the collision code would): B's goes down too */
+    A.Module._PortWarp(0, BTN_ROOM, BTN_BX + 2, BTN_BY);
+    const up = await until(() => !down(objectsOf(A, 0x6D)) && !down(objectsOf(B, 0x6D)), 6000);
+    if (!up) {
+        check('room', 'a button hit in A\'s game is pressed in B\'s (this button latches: not tested)', true);
+    } else {
+        const btn = objectsOf(A, 0x6D)[0], dv = new DataView(A.Module.HEAPU8.buffer);
+        dv.setUint32(btn.addr + 8, dv.getUint32(btn.addr + 8, true) | 0x40000, true);
+        ok = await until(() => down(objectsOf(B, 0x6D)), 2000);
+        check('room', 'a button hit in A\'s game is pressed in B\'s too', ok,
+              `A sent ${A.Module._PortCoopRoomStat(10)}, B held ${B.Module._PortCoopRoomStat(11)}`);
+    }
     A.script = walker;
 }
 

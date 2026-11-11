@@ -181,3 +181,7 @@ coop_room sStarId setting co-op: the id of the last star dropped here
 coop_room sStarQ setting co-op: stars dropped and swallowed here, for the page (external output)
 coop_room sStarQN setting co-op: stars dropped and swallowed here, for the page
 coop_room sStat diagnostic co-op live-room counters (PortCoopRoomStat)
+coop_room sBtnQ setting co-op: buttons hit here, for the page (external output)
+coop_room sBtnQN setting co-op: buttons hit here, for the page
+coop_room sBtnSent setting co-op: when each button hit was last sent (once per half second)
+coop_room sBtnHeld setting co-op: buttons another game hit, held down here for a few frames (external input)

@@ -704,9 +704,12 @@ no longer there.  Deltas travel as `{tb}` signals to everyone.
 A button is held by a Kirby standing on it, and puppets stand on nothing (out
 of the solid-object lists).  `PortCoopPuppetOn` lets a puppet standing on a
 button (its hitbox on the button's, 3 px of reach down) hold it in this game
-too, so whatever it opens opens here while the player is on it.  Big
-switches (world progress) are pressed the same way and the game's own
-interlude runs.
+too, so whatever it opens opens here while the player is on it.  A button
+hit by an attack (its flag 0x40000) is reported (`PortCoopButtonHit`, at most
+twice a second per button, `{bh}` to everyone) and held down for 4 frames in
+the other games of the room (`PortCoopButtonHeld`) -- long enough for the
+button's own timer to take over, as a hit there would have.  Big switches
+(world progress) are pressed the same way and the game's own interlude runs.
 
 ### Ability stars (`coop_room.c`, hooks in `inhalable_star.c`, `object.c`)
 
@@ -742,7 +745,9 @@ the puppeting and runs the game's own death.
 
 | test | result |
 |---|---|
-| `make coop-test` (new phase `room`: both in room 106; A inhales a block and B's game breaks it; B leaves and comes back and gets A's break; A takes Beam and lets it go and B's game makes the star with A's ability; B swallowing its copy removes A's; in room 310 A stands on the small button and it is down in B's game.  `bosses` adds: B's Mr. Frosty is a puppet within 2 px of A's recent positions -- 0.1 px measured -- and A's goes after B when B is nearer) | 65/65 (the 55 before, 10 new) |
+| `make coop-test` (new phase `room`: both in room 106; A inhales a block and B's game breaks it; B leaves and comes back and gets A's break; A takes Beam and lets it go and B's game makes the star with A's ability; B swallowing its copy removes A's; in room 310 A stands on the small button and it is down in B's game; A
+steps off, the button comes up, and a hit on it in A's game presses it in
+B's.  `bosses` adds: B's Mr. Frosty is a puppet within 2 px of A's recent positions -- 0.1 px measured -- and A's goes after B when B is nearer) | see below |
 | `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures; local trajectory identical |
 | `cd netplay && npm test` | 51/51 |
 | `make regress-wasm` | 7/7 OK |
@@ -758,6 +763,4 @@ the puppeting and runs the game's own death.
   objects that manage tiles are each game's own.
 - A star dropped while a player is in another room is not made for them when
   they arrive.
-- A button pressed by hitting it (rather than standing on it) is pressed only
-  in the hitter's game.
 

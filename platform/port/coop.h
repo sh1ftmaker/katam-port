@@ -271,7 +271,8 @@ int            PortCoopEnemyPuppetAt(u32 room, u32 idx);
  * u8 y}); the page sends them to a player who walks in, whose game applies
  * them once it is in that room (PortCoopTilesSetSnapshot).
  * Buttons: a puppet standing on one holds it down (PortCoopPuppetOn, from
- * big_small_switch.c).
+ * big_small_switch.c); a button hit in one game is held for a few frames in
+ * the others (PortCoopButtonsTake -> PortCoopButtonsApply).
  * Ability stars: a star a game drops is reported (PortCoopStarTake, 12-byte
  * records, layout in coop_room.c); every other game in the room makes one of
  * its own (PortCoopStarSpawn), and the one swallowed anywhere is removed
@@ -287,6 +288,10 @@ int  PortCoopTilesApply(const unsigned char *buf, int len);
 int  PortCoopTilesSnapshot(unsigned char *out, int max);
 void PortCoopTilesSetSnapshot(const unsigned char *buf, int len);
 int  PortCoopPuppetOn(u32 room, s32 l, s32 t, s32 r, s32 b);
+void PortCoopButtonHit(const struct Object *sw);         /* big_small_switch.c */
+int  PortCoopButtonHeld(const struct Object *sw);
+int  PortCoopButtonsTake(unsigned char *out, int max);   /* 4 bytes: u16 room, u16 index */
+void PortCoopButtonsApply(const unsigned char *buf, int len);
 void PortCoopStarDropped(struct Kirby *kirby, struct Object *star); /* inhalable_star.c */
 void PortCoopStarSwallowed(struct Object *star);                    /* object.c */
 int  PortCoopStarTake(unsigned char *out, int max);

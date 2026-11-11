@@ -97,7 +97,8 @@ static int sStarQN;
 
 /* tiles: broken here, sent, applied, refused (not breakable here), queued
  * snapshot breaks applied; buttons held by puppets; stars: dropped here,
- * made for others, swallowed (sent), removed (taken elsewhere) */
+ * made for others, swallowed (sent), removed (taken elsewhere); buttons hit
+ * here (sent), held for another game's hit */
 static u32 sStat[12];
 
 static void Put16(u8 *p, u32 v) { p[0] = (u8)v; p[1] = (u8)(v >> 8); }
@@ -302,6 +303,106 @@ int PortCoopPuppetOn(u32 room, s32 l, s32 t, s32 r, s32 b)
         }
     }
     return 0;
+}
+
+/* A button can also be pressed by hitting it (an attack sets its 0x40000):
+ * the hit is reported (PortCoopButtonHit, once per half second per button)
+ * and every other game in the room holds the same button down for a few
+ * frames (PortCoopButtonHeld) -- long enough for its own timer to take over,
+ * as a hit there would have. */
+#define BTN_MAX   8
+#define BTN_HOLD  4
+#define BTN_AGAIN 30
+static struct { u16 room, idx; } sBtnQ[BTN_MAX];
+static int sBtnQN;
+static struct { u16 room, idx; u32 at; u8 used; } sBtnSent[BTN_MAX], sBtnHeld[BTN_MAX];
+
+void PortCoopButtonHit(const struct Object *sw)
+{
+    int idx, i, free = -1;
+    u32 now = PortFrameNumber();
+
+    if (!sShare || sApplying || (idx = PortCoopObjectIndex(sw)) < 0)
+        return;
+    for (i = 0; i < BTN_MAX; i++) {
+        if (sBtnSent[i].used && sBtnSent[i].room == sw->base.roomId && sBtnSent[i].idx == (u16)idx) {
+            if (now - sBtnSent[i].at < BTN_AGAIN)
+                return;
+            free = i;
+            break;
+        }
+        if (free < 0 && (!sBtnSent[i].used || now - sBtnSent[i].at >= BTN_AGAIN))
+            free = i;
+    }
+    if (free < 0 || sBtnQN >= BTN_MAX)
+        return;
+    sBtnSent[free].used = 1;
+    sBtnSent[free].room = sw->base.roomId;
+    sBtnSent[free].idx = (u16)idx;
+    sBtnSent[free].at = now;
+    sBtnQ[sBtnQN].room = sw->base.roomId;
+    sBtnQ[sBtnQN].idx = (u16)idx;
+    sBtnQN++;
+    sStat[10]++;
+}
+
+int PortCoopButtonHeld(const struct Object *sw)
+{
+    int idx, i;
+    u32 now = PortFrameNumber();
+
+    if (!sShare || (idx = PortCoopObjectIndex(sw)) < 0)
+        return 0;
+    for (i = 0; i < BTN_MAX; i++)
+        if (sBtnHeld[i].used && sBtnHeld[i].room == sw->base.roomId && sBtnHeld[i].idx == (u16)idx) {
+            if (now - sBtnHeld[i].at <= BTN_HOLD)
+                return 1;
+            sBtnHeld[i].used = 0;
+        }
+    return 0;
+}
+
+/* Buttons hit here: n records of 4 bytes (u16 room, u16 index). */
+COOP_EXPORT int PortCoopButtonsTake(unsigned char *out, int max)
+{
+    int i, n = sBtnQN < max / 4 ? sBtnQN : max / 4;
+
+    if (out == NULL)
+        return 0;
+    for (i = 0; i < n; i++) {
+        Put16(out + i * 4, sBtnQ[i].room);
+        Put16(out + i * 4 + 2, sBtnQ[i].idx);
+    }
+    sBtnQN = 0;
+    return n * 4;
+}
+
+COOP_EXPORT void PortCoopButtonsApply(const unsigned char *buf, int len)
+{
+    int i, k, slot;
+
+    if (buf == NULL || !Ready())
+        return;
+    for (i = 0; i + 4 <= len; i += 4) {
+        if (Get16(buf + i) != LocalRoom())
+            continue;
+        slot = -1;
+        for (k = 0; k < BTN_MAX; k++) {
+            if (sBtnHeld[k].used && sBtnHeld[k].room == Get16(buf + i) && sBtnHeld[k].idx == Get16(buf + i + 2)) {
+                slot = k;
+                break;
+            }
+            if (slot < 0 && !sBtnHeld[k].used)
+                slot = k;
+        }
+        if (slot < 0)
+            continue;
+        sBtnHeld[slot].used = 1;
+        sBtnHeld[slot].room = (u16)Get16(buf + i);
+        sBtnHeld[slot].idx = (u16)Get16(buf + i + 2);
+        sBtnHeld[slot].at = PortFrameNumber();
+        sStat[11]++;
+    }
 }
 
 /* --- ability stars --------------------------------------------------------------- */
@@ -520,6 +621,8 @@ COOP_EXPORT void PortCoopRoomShare(int on)
     if (!sShare) {
         sTileQN = 0;
         sStarQN = 0;
+        sBtnQN = 0;
+        memset(sBtnHeld, 0, sizeof(sBtnHeld));
         sSnapLen = 0;
         memset(sStar, 0, sizeof(sStar));
     }

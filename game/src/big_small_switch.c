@@ -164,9 +164,12 @@ static bool32 sub_081194DC(struct Switch *sw)
                 return TRUE;
         }
     }
-    /* PORT-COOP: another player standing on it holds it down here too */
-    if (!(sw->obj.objTemplate->unk22 & 2) && gPortCoopRoomOn
-        && PortCoopPuppetOn(sw->obj.base.roomId, rect[0], rect[1], rect[2], rect[3]))
+    /* PORT-COOP: another player standing on it, or another game's hit on
+     * it, holds it down here too (platform/coop_room.c) */
+    if (gPortCoopRoomOn
+        && ((!(sw->obj.objTemplate->unk22 & 2)
+             && PortCoopPuppetOn(sw->obj.base.roomId, rect[0], rect[1], rect[2], rect[3]))
+            || PortCoopButtonHeld(&sw->obj)))
         return TRUE;
     if (!(sw->obj.objTemplate->unk22 & 2)) {
         if (sw->unkB6 & 0x400) {
@@ -195,8 +198,11 @@ static bool32 sub_081194DC(struct Switch *sw)
     if (sw->obj.base.flags & 0x40000) {
         struct Kirby *kirby;
 
-        if (!sw->unkB8)
+        if (!sw->unkB8) {
+            if (gPortCoopRoomOn) /* PORT-COOP: the others' copies are hit too */
+                PortCoopButtonHit(&sw->obj);
             return TRUE;
+        }
         kirby = sw->obj.base.unk6C;
         if (kirby->base.unk56 < gNumHumanPlayers) {
             if (!(sw->unkB6 & 0x2000))
