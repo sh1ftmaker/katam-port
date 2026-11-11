@@ -72,6 +72,61 @@
                  MAP: 128, ENCOUNTER: 256, STORY: 512, OTHER: 1024 };
     var REC_FULL = 1, RECORD_MAX = 1024;
 
+    /* Stage 3, shared enemies (platform/coop_enemy.c).  Optional too. */
+    var ENEMY = ['_PortCoopEnemyShare', '_PortCoopEnemyCollect', '_PortCoopEnemySetPoses', '_PortCoopEnemyTake',
+                 '_PortCoopEnemyEvent'];
+    var EN_REC = 14, EN_SEND_MS = 31, EN_DELAY = 4;
+
+    /* The room owner's enemy snapshots, played back EN_DELAY frames behind the
+     * newest with x/y interpolated per enemy (records are matched by index).
+     * Snapshot bytes: u16 room, u16 n, n x {u16 idx, i32 x, i32 y, s16 hp,
+     * u8 anim, u8 flags}. */
+    function EnemyBuffer() { this.reset(); }
+    EnemyBuffer.prototype.reset = function () { this.snaps = []; this.from = null; this.lastSeq = null; this.t = 0; this.min = null; };
+    EnemyBuffer.prototype.push = function (from, seq, bytes, nowF) {
+        if (from !== this.from) { this.reset(); this.from = from; }
+        if (this.lastSeq === null) { this.lastSeq = seq; this.t = seq; }
+        var d = ((seq - this.lastSeq + 32768) & 0xFFFF) - 32768;
+        if (d <= 0) return;
+        this.lastSeq = seq;
+        this.t += d;
+        this.snaps.push({ t: this.t, b: bytes, at: nowF });
+        if (this.snaps.length > 12) this.snaps.shift();
+        var off = nowF - this.t;
+        /* the fastest a snapshot has come through lately; creeps up slowly so
+         * a link that got slower is followed */
+        this.min = this.min === null ? off : Math.min(off, this.min + 0.02);
+    };
+    function enRecs(b) {
+        var n = b[2] | (b[3] << 8), m = {};
+        for (var i = 0; i < n && 4 + (i + 1) * EN_REC <= b.length; i++) {
+            var o = 4 + i * EN_REC;
+            m[b[o] | (b[o + 1] << 8)] = o;
+        }
+        return m;
+    }
+    /* -> bytes for PortCoopEnemySetPoses, or null (nothing fresh) */
+    EnemyBuffer.prototype.sample = function (nowF) {
+        var s = this.snaps;
+        if (!s.length || nowF - s[s.length - 1].at > 30) return null;
+        var c = nowF - this.min - EN_DELAY;
+        var k = 0;
+        while (k + 1 < s.length && s[k + 1].t <= c) k++;
+        var a = s[k], b = s[k + 1];
+        if (!b || c <= a.t) return a.b;
+        if ((a.b[0] | (a.b[1] << 8)) !== (b.b[0] | (b.b[1] << 8))) return b.b;
+        var f = (c - a.t) / (b.t - a.t), out = b.b.slice(), ra = enRecs(a.b), rb = enRecs(out);
+        for (var idx in rb) {
+            if (ra[idx] === undefined) continue;
+            var oa = ra[idx], ob = rb[idx];
+            for (var q = 2; q <= 6; q += 4) {
+                var va = i32(a.b, oa + q), vb = i32(out, ob + q);
+                if (Math.abs(vb - va) <= 48 * 256) setI32(out, ob + q, Math.round(va + (vb - va) * f));
+            }
+        }
+        return out;
+    };
+
     function b64(bytes) {
         var s = '';
         for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
@@ -288,6 +343,10 @@
         var stats = { sent: 0, sentPoses: 0, recv: 0, sizeMismatch: 0, mismatchFrom: null, frames: 0 };
         var applied = [null, null, null, null];  /* the bytes last given to SetPose, per slot */
         var hiddenOthers = 0;
+        /* shared enemies */
+        var enemyOk = !missing.length && ENEMY.every(function (n) { return typeof M[n] === 'function'; });
+        var enemy = { share: opts.enemies !== false, shareSet: null, buf: new EnemyBuffer(), inbox: [], lastSent: -Infinity,
+                      owner: null, stats: { snapsSent: 0, snapsRecv: 0, snapsUsed: 0, evSent: 0, evRecv: 0 } };
         /* shared progress */
         var worldOk = !missing.length && WORLD.every(function (n) { return typeof M[n] === 'function'; });
         var world = { share: opts.share !== false, shareSet: null, inbox: [], fullTo: {},
@@ -377,6 +436,20 @@
         });
         net.on('signal', function (m) {
             var d = m && m.data;
+            if (d && enemyOk && enemy.share && (typeof d.en === 'string' || typeof d.ev === 'string')) {
+                var eb;
+                try { eb = unb64(typeof d.en === 'string' ? d.en : d.ev); } catch (e) { return; }
+                if (typeof d.en === 'string') {
+                    if (eb.length < 4 || eb.length > RECORD_MAX) return;
+                    enemy.stats.snapsRecv++;
+                    enemy.inbox.push({ from: m.from, seq: d.s | 0, bytes: eb, nowF: now() / FRAME_MS });
+                } else if (eb.length % 8 === 0 && eb.length <= 8 * 64) {
+                    enemy.stats.evRecv++;
+                    enemy.inbox.push({ from: m.from, ev: eb });
+                }
+                if (enemy.inbox.length > 128) enemy.inbox.shift();
+                return;
+            }
             if (!d || typeof d.prog !== 'string' || !worldOk || !world.share) return;
             var b;
             try { b = unb64(d.prog); } catch (e) { world.stats.bad++; return; }
@@ -484,6 +557,75 @@
             }
         }
 
+        /* Which room the local player is in (null: not in one). */
+        function myRoom() {
+            return tx.last && !poseHidden(tx.last) ? poseRoom(tx.last) : null;
+        }
+        /* The players in a room as this page sees them: itself, and every
+         * shown remote whose played-back pose is there.  The owner is the
+         * lowest member id; two pages that briefly disagree both run their
+         * own enemies, which is what happens without co-op at all. */
+        function roomMembers(room) {
+            var list = [];
+            if (room === null) return list;
+            if (myRoom() === room) list.push(net.mid);
+            for (var mid in remotes) {
+                var r = remotes[mid];
+                if (r.slot && r.out && r.out.state === 'pose' && !r.out.away && !poseHidden(r.out.bytes)
+                    && poseRoom(r.out.bytes) === room) list.push(+mid);
+            }
+            return list;
+        }
+
+        function enemyTick(t) {
+            if (!enemyOk) return;
+            if (enemy.shareSet !== enemy.share) {
+                M._PortCoopEnemyShare(enemy.share ? 1 : 0);
+                enemy.shareSet = enemy.share;
+            }
+            if (!enemy.share) { enemy.inbox = []; return; }
+            var buf = M._PortCoopRecordBuffer(), nowF = t / FRAME_MS;
+            var room = myRoom(), members = roomMembers(room);
+            var owner = members.length ? Math.min.apply(null, members) : null;
+            if (owner !== enemy.owner) { enemy.owner = owner; enemy.buf.reset(); }
+            var slotOf = function (mid) { return remotes[mid] ? remotes[mid].slot : 0; };
+            /* incoming: events always, snapshots only from this room's owner */
+            while (enemy.inbox.length) {
+                var e = enemy.inbox.shift();
+                if (e.ev) {
+                    for (var i = 0; i + 8 <= e.ev.length; i += 8) {
+                        var dmg = e.ev[i + 6] | (e.ev[i + 7] << 8);
+                        if (dmg & 0x8000) dmg -= 0x10000;
+                        M._PortCoopEnemyEvent(e.ev[i], e.ev[i + 2] | (e.ev[i + 3] << 8), e.ev[i + 4] | (e.ev[i + 5] << 8),
+                                              dmg, slotOf(e.from));
+                    }
+                } else if (owner !== null && e.from === owner && owner !== net.mid
+                           && (e.bytes[0] | (e.bytes[1] << 8)) === room) {
+                    enemy.buf.push(e.from, e.seq, e.bytes, e.nowF);
+                }
+            }
+            if (owner !== null && owner !== net.mid) {
+                var snap = enemy.buf.sample(nowF);
+                if (snap) {
+                    heap().set(snap, buf);
+                    M._PortCoopEnemySetPoses(buf, snap.length);
+                    enemy.stats.snapsUsed++;
+                }
+            }
+            /* outgoing events */
+            var os = net.state === 'open' ? others() : [];
+            var n = M._PortCoopEnemyTake(buf, 64);
+            if (n > 0 && os.length && net.sendSignal(null, { ev: b64(heap().slice(buf, buf + n * 8)) })) enemy.stats.evSent++;
+            /* the owner streams the room's enemies to the others in it */
+            if (owner !== net.mid || members.length < 2 || t - enemy.lastSent < EN_SEND_MS) return;
+            var len = M._PortCoopEnemyCollect(buf, RECORD_MAX);
+            if (len < 4) return;
+            enemy.lastSent = t;
+            var data = { en: b64(heap().slice(buf, buf + len)), s: Math.round(t / FRAME_MS) & 0xFFFF };
+            members.forEach(function (mid) { if (mid !== net.mid) net.sendSignal(mid, data); });
+            enemy.stats.snapsSent++;
+        }
+
         /* Every frame: merge what came in, send what is new here.  Records are
          * opaque; the engine says what they meant. */
         function worldTick() {
@@ -533,6 +675,11 @@
 
         var self = {
             onNotice: null,
+            enemyStats: enemy.stats,
+            enemyOk: enemyOk,
+            setEnemies: function (on) { enemy.share = !!on; },
+            enemies: function () { return enemyOk && enemy.share; },
+            enemyOwner: function () { return enemy.owner; },
             worldStats: world.stats,
             worldOk: worldOk,
             setShare: function (on) { world.share = !!on; },
@@ -549,6 +696,7 @@
                 colorTick();
                 send(t);
                 apply(t);
+                enemyTick(t);
                 worldTick();
             },
             /* the tab is hidden (coop.js): tell the others once, then send
@@ -568,6 +716,8 @@
                 for (var s = 1; s <= SLOTS; s++) if (slots[s] !== null) freeSlot(s);
                 if (enabled) M._PortCoopEnable(0);
                 if (worldOk && world.shareSet) M._PortCoopWorldShare(0);
+                if (enemyOk && enemy.shareSet) M._PortCoopEnemyShare(0);
+                enemy.shareSet = null;
                 if (typeof M._PortCoopSetLocalColor === 'function') M._PortCoopSetLocalColor(-1);
                 myColor = null;
                 world.shareSet = null;
@@ -647,7 +797,7 @@
         create: create, JitterBuffer: JitterBuffer, encodePoseUp: encodePoseUp,
         decodePoseBody: decodePoseBody, poseX: poseX, poseY: poseY, poseRoom: poseRoom,
         poseHidden: poseHidden, lerpPose: lerpPose,
-        WORLD: WORLD, NEWS: NEWS, describeNews: describeNews, b64: b64, unb64: unb64,
+        WORLD: WORLD, NEWS: NEWS, ENEMY: ENEMY, EnemyBuffer: EnemyBuffer, describeNews: describeNews, b64: b64, unb64: unb64,
     };
 }));
 

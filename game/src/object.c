@@ -16,6 +16,7 @@ extern "C" {
 #include "random.h"
 #include "shadow_kirby.h"
 #include "constants/kirby.h"
+#include "port/coop.h"
 
 static void sub_0809A630(struct Object *);
 static void sub_0809A7A4(void);
@@ -227,6 +228,20 @@ void ObjectMain(void) {
                     && !(obj->base.flags & 0x2000)) {
                     SetPointerSomething(&obj->base);
                     sub_0809D7C8(obj);
+                    return;
+                }
+                /* PORT-COOP: an enemy another player's game owns
+                 * (platform/coop_enemy.c) is put where that game has it and
+                 * only drawn: no state, gravity, movement or terrain.  It
+                 * still registers for collisions.  0 with co-op off. */
+                if (gPortCoopEnemyOn && PortCoopEnemyStep(obj)) {
+                    SetPointerSomething(&obj->base);
+                    if (obj->base.sprite.unk20[0].unk0 == 0 && obj->base.sprite.unk16 == 0)
+                        obj->base.sprite.unk20[0].unk0 = -1;
+                    sub_0809A7A4();
+                    obj->base.unkC &= ~0x20;
+                    obj->base.flags &= ~0x40000;
+                    obj->unk90 = 0;
                     return;
                 }
                 if (!(obj->base.flags & 0x40)) {

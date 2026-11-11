@@ -570,6 +570,7 @@ void PortCoopFrameTop(void)
 
     SelfTestFrame();
     PortCoopWorldFrame();
+    PortCoopEnemyFrame();
     if (!sCoop.enabled && !gPortCoopPuppets) {
         if (sCoop.colorApplied && GameReady())
             LocalColor(0);

@@ -35,6 +35,13 @@
 //   drop       B's link turns into a black hole both ways (no close).  The
 //              liveness check (8 s) reconnects B: same mid, puppet back within
 //              12 s.
+//   enemies    stage 3, shared enemies.  Both warp into a room with
+//              enemies (--enemy-room 104 --enemy-cell 2:9) and stand still.
+//              A (lowest member id) owns the room: B's copies of A's enemies
+//              become puppets within 2 s and sit where A had them within the
+//              last second (<= 2 px: they are played back late, like Kirbys);
+//              an enemy killed on A dies on B within 1.5 s; a hit on one of
+//              B's puppets takes the same hp off A's copy.
 //   progress   stage 2, shared progress.  Both files are moved past the
 //              tutorial (gAIKirbyState 300) and progress is written straight
 //              into memory, as the game's own collectors do: a shard and a
@@ -72,7 +79,9 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,progress').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,progress').split(',');
+const EN_ROOM = +flag('enemy-room', 104);
+const [EN_CX, EN_CY] = flag('enemy-cell', '2:9').split(':').map(Number);
 const PERIOD = 1000 / 59.7275;
 const N = Math.ceil(LINK_B / PERIOD) + 2 + 6;     // one way + batching + buffer (D at this jitter)
 const BOOT_DONE = 1300 + 90;                    // PORT_PLAYTEST_WARP_FRAME + settle
@@ -221,7 +230,7 @@ function fakeEngine(inst) {
 const ROMHASH = rom ? crypto.createHash('sha1').update(rom).digest('hex') : 'fake-rom';
 
 async function makeInstance(name, { code, linkMs = 0, jitter = 0, script = null }) {
-    const inst = { name, raf: null, frozen: false, logs: [], track: [], link: { sock: null, blackhole: false } };
+    const inst = { name, raf: null, frozen: false, logs: [], track: [], link: { sock: null, blackhole: false }, script };
     const log = (t) => { inst.logs.push(`[${secs()}] [${name}] ${t}`); if (inst.logs.length > 3000) inst.logs.shift(); };
     let Module;
     if (FAKE) {
@@ -246,7 +255,7 @@ async function makeInstance(name, { code, linkMs = 0, jitter = 0, script = null 
     Module.portPresent = function () {
         current = inst;
         const f = Module._PortFrameNumber();
-        if (script) Module._PortSetKeys(script(f));
+        if (inst.script) Module._PortSetKeys(inst.script(f));
         if (inst.coop) {
             inst.coop.tick();
             const t = performance.now();
@@ -543,7 +552,88 @@ async function progress() {
     instances.splice(instances.indexOf(C), 1);
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, progress };
+// --- stage 3: shared enemies --------------------------------------------------------
+function enemyList(i) {
+    const M = i.Module, buf = M._malloc(20 * 64);
+    const n = M._PortCoopEnemyList(buf, 64);
+    const b = M.HEAPU8.slice(buf, buf + n * 20);
+    M._free(buf);
+    const dv = new DataView(b.buffer), out = [];
+    for (let k = 0; k < n; k++) {
+        const o = k * 20;
+        out.push({ idx: dv.getUint16(o, true), x: dv.getInt32(o + 2, true), y: dv.getInt32(o + 6, true),
+                   hp: dv.getInt16(o + 10, true), anim: b[o + 12], flags: b[o + 13], puppet: !!(b[o + 13] & 0x80),
+                   dying: !!(b[o + 13] & 0x40), addr: dv.getUint32(o + 14, true), type: dv.getUint16(o + 18, true) });
+    }
+    return out;
+}
+const roomOf = (i) => kirbyPos(i.Module, 0).room;
+function setHp(i, addr, hp) { const dv = new DataView(i.Module.HEAPU8.buffer); dv.setInt16(addr + 0x80, hp, true); }
+function killObj(i, addr) {
+    const dv = new DataView(i.Module.HEAPU8.buffer);
+    dv.setInt16(addr + 0x80, 0, true);
+    dv.setUint32(addr + 0x0C, dv.getUint32(addr + 0x0C, true) | 0x2000, true);
+}
+
+async function enemies() {
+    if (FAKE || Coop.ENEMY.some((n) => typeof A.Module[n] !== 'function')) {
+        say('enemies: build has no PortCoopEnemy* exports -- skipped');
+        return;
+    }
+    A.script = B.script = () => 0;
+    for (const i of [A, B]) i.Module._PortWarp(0, EN_ROOM, EN_CX, EN_CY);
+    const there = await until(() => roomOf(A) === EN_ROOM && roomOf(B) === EN_ROOM, 8000);
+    check('enemies', `both warped into room ${EN_ROOM}`, there, `A ${roomOf(A)} B ${roomOf(B)}`);
+    if (!there) return;
+    const live = (l) => l.filter((e) => e.idx !== 0xFFFF && !e.dying);
+    const have = await until(() => live(enemyList(A)).length > 0 && live(enemyList(B)).length > 0, 6000);
+    say(`A's enemies: ${JSON.stringify(enemyList(A).map((e) => [e.idx, e.type, e.x >> 8, e.y >> 8, e.hp]))}`);
+    check('enemies', 'both games have the room\'s enemies', have);
+    if (!have) return;
+    const owners = await until(() => A.coop.enemyOwner() === A.net.mid && B.coop.enemyOwner() === A.net.mid, 4000);
+    check('enemies', 'both agree A owns the room', owners, `A says ${A.coop.enemyOwner()}, B says ${B.coop.enemyOwner()}, A is ${A.net.mid}`);
+    const pup = await until(() => live(enemyList(B)).some((e) => e.puppet), 3000);
+    /* B plays A's enemies back a link's latency plus a few frames late, so a
+     * puppet is compared with where A's copy was during the last second */
+    const hist = [];
+    for (const te = performance.now() + 1000; performance.now() < te;) {
+        hist.push({ t: performance.now(), l: live(enemyList(A)) });
+        await sleep(8);
+    }
+    const la = live(enemyList(A)), lb = live(enemyList(B));
+    const pairs = lb.filter((e) => e.puppet).map((e) => ({ b: e, a: la.find((x) => x.idx === e.idx) })).filter((p) => p.a);
+    const errs = pairs.map((p) => Math.min(...hist.map((h) => {
+        const a = h.l.find((x) => x.idx === p.b.idx);
+        return a ? Math.hypot(a.x - p.b.x, a.y - p.b.y) / PX : Infinity;
+    })));
+    check('enemies', 'B\'s copies of A\'s enemies are puppets', pup && pairs.length > 0,
+          `${pairs.length} of ${lb.length} on B, ${la.length} on A; stats ${JSON.stringify(B.coop.enemyStats)}`);
+    check('enemies', 'and sit where A had them a moment ago (<= 2 px)', errs.length > 0 && Math.max(...errs) <= 2,
+          errs.map((e) => e.toFixed(1)).join(' ') + ' px');
+    if (!pairs.length) return;
+
+    // a hit on one of B's puppets reaches A's copy
+    const hp0 = live(enemyList(A)).find((e) => e.idx === pairs[0].a.idx);
+    const target = pairs.find((p) => p.a.hp >= 2) || pairs[0];
+    const before = la.find((e) => e.idx === target.a.idx).hp;
+    setHp(B, target.b.addr, target.b.hp - 1);
+    const hit = await until(() => { const e = enemyList(A).find((x) => x.idx === target.a.idx); return e && e.hp === before - 1; }, 2000);
+    check('enemies', 'a hit on B\'s puppet takes the hp off A\'s copy', hit,
+          `A hp ${before} -> ${(enemyList(A).find((x) => x.idx === target.a.idx) || {}).hp}; B stats ${JSON.stringify(B.coop.enemyStats)}`);
+    void hp0;
+
+    // a kill on A kills B's copy
+    const victim = live(enemyList(A)).find((e) => live(enemyList(B)).some((x) => x.idx === e.idx));
+    if (!victim) { check('enemies', 'an enemy both games have, to kill', false); return; }
+    killObj(A, victim.addr);
+    const died = await until(() => !live(enemyList(B)).some((x) => x.idx === victim.idx), 1500);
+    check('enemies', 'an enemy killed on A dies on B within 1.5 s', died,
+          `idx ${victim.idx}; A stats ${JSON.stringify(A.coop.enemyStats)}; B kills in ${B.Module._PortCoopEnemyStat(3)}`);
+    A.script = walker;
+    B.script = () => 0;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, progress };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

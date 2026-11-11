@@ -148,6 +148,34 @@ int            PortCoopWorldCount(int kind);
 int            PortCoopWorldVitalityIds(unsigned char *out, int max);
 void           PortCoopWorldFrame(void);     /* from PortCoopFrameTop */
 
+/* --- stage 3: shared enemies (platform/coop_enemy.c) -----------------------
+ *
+ * The page picks one owner per room (the lowest member id among the players
+ * in it).  The owner sends PortCoopEnemyCollect's snapshot to the others in
+ * the room a few dozen times a second; they hand it to PortCoopEnemySetPoses
+ * and their copies of those enemies follow it.  Events (PortCoopEnemyTake ->
+ * everyone -> PortCoopEnemyEvent): a kill kills the enemy everywhere, a hit
+ * on a puppet takes hp off the owner's copy.
+ *
+ * Snapshot: u16 room, u16 n, then n records of PORT_COOP_EN_REC bytes:
+ *   u16 idx (record in the room's object list), i32 x, i32 y (Q8), s16 hp,
+ *   u8 anim (Object.unk83), u8 flags (PORT_COOP_EN_*). */
+struct Object;
+#define PORT_COOP_EN_REC 14
+enum { PORT_COOP_EN_LEFT = 1 << 0, PORT_COOP_EN_HIDDEN = 1 << 1 };
+enum { PORT_COOP_EV_KILL = 1, PORT_COOP_EV_HIT = 2 };
+void PortCoopEnemyShare(int on);
+int  PortCoopEnemyCollect(unsigned char *out, int maxBytes);
+void PortCoopEnemySetPoses(const unsigned char *buf, int len);
+int  PortCoopEnemyTake(unsigned char *out, int max);      /* 8-byte events */
+void PortCoopEnemyEvent(int kind, int room, int idx, int dmg, int from);
+int  PortCoopEnemyStat(int i);
+int  PortCoopEnemyList(unsigned char *out, int max);     /* 20-byte records */
+void PortCoopEnemyFrame(void);                            /* from PortCoopFrameTop */
+/* ObjectMain's hook: gPortCoopEnemyOn is 0 unless an enemy puppet is live. */
+extern u8 gPortCoopEnemyOn;
+int  PortCoopEnemyStep(struct Object *obj);
+
 /* --- game-side hooks ------------------------------------------------------
  * gPortCoopPuppets: bit n set while Kirby slot n is a puppet.  0 whenever
  * co-op is off, so every hook in game/src is one load and a branch. */
