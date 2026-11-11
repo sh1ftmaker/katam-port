@@ -255,6 +255,31 @@ int PortCoopEnemyStep(struct Object *obj)
     return 1;
 }
 
+/* coop_fx.c: is this copy of a shared enemy a puppet (its children are then
+ * the owner's to report), and is the copy at (room, idx) one here (a ghost
+ * of the owner's children is drawn only over a puppet, never beside a copy
+ * that spawns its own)? */
+int PortCoopEnemyIsPuppet(const struct Object *obj)
+{
+    struct EnemyPuppet *e;
+    int idx;
+
+    if (!sShare || !IsEnemy(obj))
+        return 0;
+    idx = PortCoopObjectIndex(obj);
+    return idx >= 0 && (e = Find(obj->base.roomId, (u32)idx)) != NULL && e->puppet
+        && Now() - e->frame <= EN_FRESH;
+}
+
+int PortCoopEnemyPuppetAt(u32 room, u32 idx)
+{
+    struct EnemyPuppet *e;
+
+    if (!sShare || (e = Find(room, idx)) == NULL)
+        return 0;
+    return e->puppet && Now() - e->frame <= EN_FRESH;
+}
+
 /* --- per frame, from PortCoopFrameTop ---------------------------------------
  * Kills: any regular enemy, puppet or not, whose hp went to 0 here since the
  * last frame (a hit, an inhale) and that was not killed by an event. */

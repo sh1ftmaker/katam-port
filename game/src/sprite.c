@@ -17,6 +17,7 @@ extern s32 gPortCamPadX, gPortCamPadY;
 #include "palette.h"
 #include "task.h"
 #include <string.h>
+#include "port/coop.h"
 
 s32 sub_08153D78(struct Sprite *sprite) {
     if (sprite->unk1B != sprite->variant || sprite->unk18 != sprite->animId) {
@@ -1293,6 +1294,10 @@ void DisplaySprite(struct Sprite *sprite) {
     u32 x1, y1;
     u32 r0, r1;
 
+    /* PORT: online co-op reports what spawned objects draw (platform/coop_fx.c) */
+    if (gPortCoopFxOn)
+        PortCoopFxCapture(sprite);
+
     if (sprite->unk4 != -1) {
         if (!(sprite->unk4 >> 28))
             spriteAttrs.sub = &gSpriteTables->attrs[sprite->animId].sub[sprite->unk4];
@@ -1437,6 +1442,10 @@ void sub_081564D8(struct Sprite *sprite) {
     s32 x1, y1;
     s32 r7, ip;
     u32 r0, r1;
+
+    /* PORT: online co-op, as in DisplaySprite (platform/coop_fx.c) */
+    if (gPortCoopFxOn)
+        PortCoopFxCapture(sprite);
 
     if (sprite->unk4 != -1) {
         if (!(sprite->unk4 >> 28))

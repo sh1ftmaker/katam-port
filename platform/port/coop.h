@@ -70,6 +70,9 @@ enum {
 enum {
     PORT_COOP_F2_LOOP    = 1 << 0,  /* base.flags & 4                          */
     PORT_COOP_F2_INLEVEL = 1 << 1,  /* sender was PortCoopReady()             */
+    PORT_COOP_F2_TUTORIAL = 1 << 2, /* sender's file is still in its tutorial
+                                     * (it runs no puppets, so it cannot run
+                                     * the CPU Kirbys for the others)        */
 };
 
 /* --- exported to the page (PORT_EXPORTS) and callable natively -----------
@@ -183,6 +186,64 @@ void PortCoopEnemyFrame(void);                            /* from PortCoopFrameT
 /* ObjectMain's hook: gPortCoopEnemyOn is 0 unless an enemy puppet is live. */
 extern u8 gPortCoopEnemyOn;
 int  PortCoopEnemyStep(struct Object *obj);
+
+/* --- spawned objects: projectiles, effects, particles (platform/coop_fx.c) --
+ *
+ * A puppet only draws, so nothing it would have spawned exists in another
+ * game.  The game that runs a spawner reports what its spawned objects draw
+ * each frame; the others draw copies ("ghosts") through the game's own sprite
+ * code, with no collision.  Reported: whatever the local Kirby, a CPU Kirby
+ * this game runs, or a shared enemy running its own state spawned.
+ *
+ * Frame (PortCoopFxTake / PortCoopFxSet): u16 room, u8 n, u8 0, then n
+ * records of PORT_COOP_FX_REC bytes:
+ *    0 u16 animId    2 u8 variant    3 u8 id (stable while the object lives)
+ *    4 s16 x, 6 s16 y  world pixels of the sprite's anchor
+ *    8 u16 animCursor (the script position after the frame shown)
+ *   10 u8  pal: 0..3 Kirby slot k's palette, 4..7 its hat's (the page remaps
+ *          the sender's slots to the puppets showing them; 0xFF = none),
+ *          0x0E/0x0F the fixed ones, 0x10 the registry palette in palKey
+ *   11 u8  OAM layer (Sprite.unk14 >> 6)
+ *   12 u16 Sprite.unk8 >> 7 (flip, priority, blend)
+ *   14 u16 palKey: animation (12 bits) | variant << 12, for pal 0x10
+ *   16 u16 src: bits 0-1 kind (0 a Kirby: bits 2-3 its slot on the sender;
+ *          1 a shared enemy: bits 2-15 its object-list index) */
+#define PORT_COOP_FX_REC     18
+#define PORT_COOP_FX_MAX     32
+#define PORT_COOP_FX_BYTES   (4 + PORT_COOP_FX_MAX * PORT_COOP_FX_REC)
+#define PORT_COOP_FX_SOURCES 8
+extern u8 gPortCoopFxOn;
+struct Task;
+struct Sprite;
+void           PortCoopFxShare(int on);
+unsigned char *PortCoopFxBuffer(void);        /* PORT_COOP_FX_BYTES scratch */
+int            PortCoopFxTake(unsigned char *out, int max);
+void           PortCoopFxSet(int src, const unsigned char *buf, int len);
+int            PortCoopFxStat(int i);
+void           PortCoopFxFrame(void);         /* from PortCoopFrameTop */
+void           PortCoopFxCapture(struct Sprite *sprite);   /* DisplaySprite */
+void           PortCoopFxTaskCreated(struct Task *task);   /* TaskCreate    */
+void           PortCoopFxPalette(u32 slot, u32 key, u32 variant); /* sub_0803DFAC */
+int            PortCoopEnemyIsPuppet(const struct Object *obj);  /* coop_enemy.c */
+int            PortCoopEnemyPuppetAt(u32 room, u32 idx);
+
+/* --- CPU Kirbys (coop.c) ---------------------------------------------------
+ * One game runs the CPU Kirbys for everyone (the page picks it: the lowest
+ * member id among the players in a level); it sends their poses with its
+ * own, and every other game shows them in puppet slots like any remote
+ * player.  PortCoopSlotPose is PortCoopLocalPose for slot 1..3: 0 when the
+ * slot is a puppet or the game is not ready. */
+int            PortCoopSlotPose(int slot, unsigned char *out);
+/* The phone.  A player whose game does not run the CPU Kirbys calls them
+ * like anyone: their game reports the call (PortCoopTakeCall: 1 once per
+ * call, room and Q8 position in out[0..2]), the page sends it to the game
+ * that runs them, and that game brings each of its CPU Kirbys not already
+ * there into the caller's room next to them (PortCoopAnswerCall) -- where
+ * the caller's game sees them arrive as puppets and ends the call as it
+ * would have. */
+void           PortCoopPhoneCall(struct Kirby *kirby);   /* kirby.c, sub_080572A0 */
+int            PortCoopTakeCall(int *out);
+int            PortCoopAnswerCall(int room, int x, int y);
 
 /* --- game-side hooks ------------------------------------------------------
  * gPortCoopPuppets: bit n set while Kirby slot n is a puppet.  0 whenever

@@ -5840,6 +5840,7 @@ u8 sub_0803DFAC(u16 r2, u8 r6)
     r4 = gUnk_02022EA0 + 7;
     SpriteSomething(&sprite, 0x6000000, r2 & 0xFFF, r6, 0xFF, 0, 0, 0, 0, 0x10, r4 & 0xF, 0x80000);
     SaveObjPaletteColors(0x10 * r4, 0x10);
+    PortCoopFxPalette(r4, r2, r6);   /* PORT: which variant, for co-op ghosts */
     return r4;
 }
 
@@ -13317,6 +13318,7 @@ void sub_080572A0(struct Kirby *kirby)
     {
         gUnk_0203AD20 &= ~2;
         gUnk_02021580 = kirby->base.unk56;
+        PortCoopPhoneCall(kirby);   /* PORT: co-op forwards it to the helpers' game */
         if (!(kirby->base.unkC & 0x10000))
         {
             --kirby->battery;

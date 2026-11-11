@@ -11,6 +11,7 @@ void PortCallDtor(struct Task *);
 #include "malloc_ewram.h"
 #include "gba/m4a.h"
 #include "palette.h"
+#include "port/coop.h"
 
 static void TaskMainDummy(void);
 static void TaskMainDummy2(void);
@@ -113,6 +114,9 @@ struct Task* TaskCreate(TaskMain taskMain, u16 structSize, u16 priority, u16 fla
     }
 
     task->parent = (uintptr_t)gCurTask;
+    /* PORT: online co-op tags who spawned what (platform/coop_fx.c) */
+    if (gPortCoopFxOn)
+        PortCoopFxTaskCreated(task);
 
     // insert the task
     slow = gTaskPtrs[0];

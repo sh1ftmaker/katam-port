@@ -46,6 +46,17 @@
 //              (--boss-room 230 --boss-cell 24:13, type 0x38).  Damage on A's
 //              copy comes off B's (through B's own hit reaction), damage on
 //              B's comes off A's, and lethal damage on A kills B's copy.
+//   helpers    CPU Kirbys.  A (lowest member id, in a level, past its
+//              tutorial) runs them: B's free slots show A's CPU Kirbys,
+//              each within 2 px of where A had it in the last 40 frames
+//              and in the same room, and B runs no CPU Kirby of its own.
+//              A back in its tutorial hands them to B (B's slots go back to
+//              its own CPUs); A past it again takes them back; a warp does
+//              not move them.  B in another room presses R (the phone): A's
+//              game sends its CPU Kirbys there, and B sees them arrive.
+//   fx         spawned objects.  A attacks (B held: inhale, then a copied
+//              ability's attack); what A's attack spawns is captured on A
+//              and drawn on B as ghosts (engine counters on both sides).
 //   progress   stage 2, shared progress.  Both files are moved past the
 //              tutorial (gAIKirbyState 300) and progress is written straight
 //              into memory, as the game's own collectors do: a shard and a
@@ -83,7 +94,7 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors,helpers,fx').split(',');
 const BOSS_ROOM = +flag('boss-room', 230);
 const [BOSS_CX, BOSS_CY] = flag('boss-cell', '24:13').split(':').map(Number);
 const EN_ROOM = +flag('enemy-room', 104);
@@ -272,7 +283,8 @@ async function makeInstance(name, { code, linkMs = 0, jitter = 0, script = null 
                 if (Module._PortCoopLocalPose(p)) mine = hdr(Module.HEAPU8.slice(p, p + inst.coop.size));
             }
             inst.track.push({ t, f, mine, applied: hdr(inst.coop.applied(1)), engine: inst.enginePuppet ? inst.enginePuppet(1) : null,
-                              ready: !!Module._PortCoopReady() });
+                              ready: !!Module._PortCoopReady(),
+                              k: FAKE ? null : [1, 2, 3].map((s) => kirbyPos(Module, s)) });
             if (inst.track.length > 60 * 120) inst.track.splice(0, 60 * 30);
         }
     };
@@ -731,7 +743,132 @@ async function colors() {
     A.script = walker;
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors };
+// --- CPU Kirbys and spawned objects -----------------------------------------------
+const aiState = (i, v) => { i.Module.HEAPU8[0x0203AD2C] = v & 255; i.Module.HEAPU8[0x0203AD2D] = v >> 8; };
+function cpuSlots(i, owner) {
+    const st = i.coop.cpuState(), out = [];
+    st.slots.forEach((k, s) => {
+        const m = typeof k === 'string' && k.match(/^c(\d+):(\d)$/);
+        if (m && +m[1] === owner) out.push({ slot: s, id: +m[2] });
+    });
+    return out;
+}
+async function helpers() {
+    if (FAKE || Coop.FX.some((n) => typeof A.Module[n] !== 'function')) {
+        say('helpers: build has no PortCoopFx*/SlotPose exports -- skipped');
+        return;
+    }
+    A.script = B.script = () => 0;
+    for (const i of [A, B]) i.Module._PortWarp(0, ROOM, CELL_X, CELL_Y);
+    await until(() => roomOf(A) === ROOM && roomOf(B) === ROOM, 8000);
+    let ok = await until(() => B.coop.cpuState().auth === A.net.mid && A.coop.cpuState().auth === A.net.mid
+                              && cpuSlots(B, A.net.mid).length === 2, 6000);
+    check('helpers', 'A runs the CPU Kirbys; B shows A\'s two in its free slots', ok,
+          `A ${JSON.stringify(A.coop.cpuState())} B ${JSON.stringify(B.coop.cpuState())}`);
+    if (!ok) return;
+    /* A walks so its helpers move; B's copy of each must sit where A had it a
+     * little earlier (it is played back late, like a player) */
+    A.script = walker;
+    await sleep(2500);
+    const t1 = performance.now() + 3000, errs = [];
+    let rooms = 0, samples = 0;
+    while (performance.now() < t1) {
+        await sleep(100);
+        const bt = B.track.at(-1);
+        for (const h of cpuSlots(B, A.net.mid)) {
+            const bp = bt.k[h.slot - 1];
+            let best = Infinity, sameRoom = false;
+            for (const e of A.track.slice(-40)) {
+                const ap = e.k[h.id - 1];
+                if (ap.room !== bp.room) continue;
+                sameRoom = true;
+                best = Math.min(best, Math.hypot((ap.x - bp.x) / PX, (ap.y - bp.y) / PX));
+            }
+            samples++;
+            if (sameRoom) rooms++;
+            errs.push(best);
+        }
+    }
+    errs.sort((a, b) => a - b);
+    const p95 = errs[Math.floor(errs.length * 0.95)];
+    check('helpers', 'B\'s copies follow A\'s CPU Kirbys (same room, p95 <= 2 px of a recent A position)',
+          samples > 20 && rooms === samples && p95 <= 2, `samples ${samples}, same room ${rooms}, p95 ${p95?.toFixed(2)} px`);
+    const st = B.coop.cpuState();
+    check('helpers', 'B runs no CPU Kirby of its own (every slot shows someone or nobody)',
+          st.slots.slice(1).every((k) => k !== null), JSON.stringify(st.slots));
+    /* A goes back into its tutorial: it can no longer run them, B takes over */
+    aiState(A, 299);
+    ok = await until(() => B.coop.cpuState().auth === B.net.mid && B.coop.cpuState().slots.slice(2).every((k) => k === null), 8000);
+    check('helpers', 'A back in its tutorial: B runs the CPU Kirbys itself', ok, JSON.stringify(B.coop.cpuState()));
+    aiState(A, 300);
+    ok = await until(() => B.coop.cpuState().auth === A.net.mid && cpuSlots(B, A.net.mid).length === 2, 5000);
+    /* a warp hides A's Kirby and reloads the room: the helpers must stay A's */
+    let flips = 0;
+    const watch = setInterval(() => { if (B.coop.cpuState().auth !== A.net.mid || A.coop.cpuState().auth !== A.net.mid) flips++; }, 50);
+    for (const i of [A, B]) i.Module._PortWarp(0, ROOM, CELL_X + 2, CELL_Y);
+    await sleep(3000);
+    clearInterval(watch);
+    check('helpers', 'a warp does not move the CPU Kirbys to the other game', flips === 0 && cpuSlots(B, A.net.mid).length === 2,
+          `flips ${flips}, B ${JSON.stringify(B.coop.cpuState())}`);
+    check('helpers', 'A past its tutorial again: A runs them, B shows A\'s again', ok, JSON.stringify(B.coop.cpuState()));
+    /* the phone: B, in another room, calls; A's game sends its CPU Kirbys,
+     * and B sees them arrive in its room */
+    A.script = () => 0;
+    B.Module._PortWarp(0, EN_ROOM, EN_CX, EN_CY);
+    await until(() => roomOf(B) === EN_ROOM, 8000);
+    await sleep(1500);
+    const R_BTN = 0x100;
+    B.script = (f) => (f % 60) < 20 ? R_BTN : 0;
+    const helpersIn = (i, slots) => slots.every((s) => kirbyPos(i.Module, s).room === EN_ROOM);
+    ok = await until(() => helpersIn(A, [2, 3]), 6000);
+    B.script = () => 0;
+    check('helpers', 'the phone: B calls from another room, A\'s game sends its CPU Kirbys to B\'s room', ok,
+          `A's helpers in ${[2, 3].map((s) => kirbyPos(A.Module, s).room)}, B in ${roomOf(B)}`);
+    ok = await until(() => cpuSlots(B, A.net.mid).every((h) => kirbyPos(B.Module, h.slot).room === EN_ROOM), 4000);
+    check('helpers', 'and B sees them arrive (its puppets of them are in its room)', ok,
+          JSON.stringify(cpuSlots(B, A.net.mid).map((h) => kirbyPos(B.Module, h.slot))));
+    A.script = walker;
+}
+
+async function fx() {
+    if (FAKE || Coop.FX.some((n) => typeof A.Module[n] !== 'function')) {
+        say('fx: build has no PortCoopFx* exports -- skipped');
+        return;
+    }
+    const B_BTN = 0x02, A_BTN = 0x01;
+    A.script = B.script = () => 0;
+    for (const i of [A, B]) i.Module._PortWarp(0, EN_ROOM, EN_CX, EN_CY);
+    await until(() => roomOf(A) === EN_ROOM && roomOf(B) === EN_ROOM, 8000);
+    await sleep(1000);
+    const snap = (i) => { const x = i.coop.fxStats(); return { page: { ...x.page, unmapped: undefined }, engine: x.engine.slice() }; };
+    const a0 = snap(A), b0 = snap(B);
+    for (const i of [A, B]) { const u = i.coop.fxStats().page.unmapped; for (const k in u) delete u[k]; }
+    /* inhale for a while, facing the room, then let go and tap B: whatever
+     * A's Kirby spawns (the inhale, a spat star, dust) */
+    A.script = (f) => ((f % 240) < 150 ? B_BTN : ((f % 240) < 170 ? 0 : ((f % 20) < 4 ? B_BTN : 0))) | ((f % 480) < 240 ? 0x10 : 0x20) * ((f % 240) >= 200 ? 1 : 0);
+    await sleep(4000);
+    const a = snap(A), b = snap(B);
+    const capA = a.engine[0] - a0.engine[0], drawnB = b.engine[3] - b0.engine[3];
+    const ok = capA > 100 && drawnB >= capA * 0.5;
+    const fails = (i) => { const M = i.Module, r = []; for (let k = 0; k < 15; k++) r.push(M._PortCoopFxStat(32 + k));
+                           const log = []; for (let j = 0; j < 8; j++) log.push([0, 1, 2, 3].map((q) => M._PortCoopFxStat(48 + 4 * j + q)));
+                           const pl = []; for (let j = 0; j < 8; j++) pl.push([0, 1, 2, 3].map((q) => M._PortCoopFxStat(80 + 4 * j + q)));
+                           return `reasons ${r} last ${JSON.stringify(log)} pal ${JSON.stringify(pl)}`; };
+    say(`fx A ${JSON.stringify(a)} ${fails(A)}\nfx B ${JSON.stringify(b)} ${fails(B)}`);
+    const dec = (u) => { if (!u) return 'none'; const r = []; for (let k = 0; k < u[2]; k++) { const o = 4 + k * 18;
+        r.push([u[o] | (u[o + 1] << 8), u[o + 2], u[o + 3], (u[o + 4] | (u[o + 5] << 8)) << 16 >> 16, (u[o + 6] | (u[o + 7] << 8)) << 16 >> 16,
+                u[o + 8] | (u[o + 9] << 8), u[o + 10], u[o + 16] | (u[o + 17] << 8)]); } return JSON.stringify(r); };
+    say(`A last fx frame [anim,var,id,x,y,cursor,pal,src]: ${dec(A.coop.fxStats().lastOut)}`);
+    say(`unmapped on B ${JSON.stringify(B.coop.fxStats().page.unmapped)} B ${JSON.stringify(B.coop.cpuState())}; on A ${JSON.stringify(A.coop.fxStats().page.unmapped)}`);
+    check('fx', 'A\'s spawned objects are captured on A and drawn on B (4 s of A attacking; B draws >= half as many)', ok,
+          `A captured ${a.engine[0] - a0.engine[0]}, sent ${a.page.framesSent - a0.page.framesSent}; ` +
+          `B got ${b.page.framesRecv - b0.page.framesRecv}, set ${b.page.framesSet - b0.page.framesSet}, drawn ${b.engine[3] - b0.engine[3]}, ` +
+          `skipped pal ${b.engine[4] - b0.engine[4]} frame ${b.engine[5] - b0.engine[5]} vram ${b.engine[6] - b0.engine[6]} ` +
+          `queue ${b.engine[7] - b0.engine[7]} room ${b.engine[8] - b0.engine[8]}`);
+    A.script = walker;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors, helpers, fx };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

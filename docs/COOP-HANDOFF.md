@@ -4,7 +4,8 @@
 zalo/katam-port fork (on top of sh1ftmaker's stage-1 checkpoint `1fdaa04`),
 published at https://zalo.github.io/katam-port/mp/.**  Stage 1 (puppet
 Kirbys) is sh1ftmaker's; stages 2-4 and the stage-1 follow-ups are new and
-described in §8 below; the Kirby colour picker and name tags in §9.  §1-§7 are the stage-1 checkpoint as it was written,
+described in §8 below; the Kirby colour picker and name tags in §9; shared CPU
+Kirbys, spawned objects (attacks, shots, particles) and the phone in §10.  §1-§7 are the stage-1 checkpoint as it was written,
 kept for its detail; where §8 contradicts them, §8 is current.
 
 Read this file first, then `platform/port/coop.h` (the pose layout and the C
@@ -429,3 +430,140 @@ without changing the interfaces:
 - The UFO ability and the link-up screen use the nearest built-in colour.
 - Tags in the PPU renderer use an estimated head height (20 px) and no
   interpolation.
+
+---
+
+## 10. CPU Kirbys, spawned objects and the phone (2026-11-11)
+
+The two things players noticed most: every game ran CPU Kirbys of its own
+(each player saw different helpers), and nothing a puppet or a puppeted
+enemy would have spawned existed in anyone else's game -- no beam, fire,
+cutter, star spit, dust or enemy shot.
+
+### CPU Kirbys: one game runs them (`platform/coop.c`, `web/coop.js`)
+
+- **The runner** is the lowest member id among the players in a level and
+  past their tutorial (pose byte 27: `PORT_COOP_F2_INLEVEL`, new
+  `PORT_COOP_F2_TUTORIAL`).  A player stays eligible for `AUTH_GRACE`
+  (5 s) after they last were, so a door, a warp or a level load does not
+  move the helpers (each move respawns them); leaving the room, the title
+  screen or the tutorial does.
+- On the runner, the slots no player takes stay the game's own CPU Kirbys;
+  their poses (`PortCoopSlotPose(slot)`, the pose of any non-puppet slot)
+  ride with the runner's own pose as *extras* (below).
+- Everyone else shows them like remote players: slot keys in coop.js are a
+  member id (a player), `'c<mid>:<slot>'` (a CPU Kirby that member runs) or
+  `'x<slot>'` (nobody).  Players get slots first; a CPU Kirby gives its slot
+  up to a player.  A page that does not run the helpers fills every slot it
+  has left with nobody, so it has no helpers of its own that the others
+  cannot see.  CPU Kirbys get no name tag.
+- The CPU AI only follows and reacts to "human" slots, which in co-op is the
+  runner's own Kirby: the helpers follow the runner.
+
+### The phone
+
+A player whose game does not run the helpers calls them as usual: their game
+reports the call (`PortCoopPhoneCall`, a hook where `sub_080572A0` starts it;
+`PortCoopTakeCall`), the page sends `{call: [room, x, y]}` to the runner, and
+the runner's game brings each of its CPU Kirbys that is not already in that
+room to the caller's cell (`PortCoopAnswerCall`: the respawn route `PortWarp`
+takes, which keeps the ability; one that is between rooms is sent as soon as
+it can be, for up to 2 s; one that is down stays put).  The caller's game
+sees them arrive as puppets and ends its call as the game would.  The
+runner's own phone is the game's own.
+
+### Spawned objects: ghosts (`platform/coop_fx.c`)
+
+Visual replication at the sprite level: the game that runs a spawner reports
+what its spawned objects *draw*; every other game draws copies ("ghosts")
+through the game's own sprite code.  Nothing is simulated, so nothing can
+diverge; a ghost has no collision and is gone the frame its source stops
+reporting it.  Hits stay where they were: a player's attacks land in their
+own game, so the others only need to see them.
+
+- **Who spawned what**: `TaskCreate` (task.c) tags each new task with the
+  origin of the task creating it -- a Kirby slot's task is that Kirby; a
+  regular enemy from the room's object list running its own state (not a
+  puppet) is that enemy; anything else passes its own origin on.  Bosses,
+  spawner children and items start none (they exist in every game already).
+- **What it drew**: `DisplaySprite` / `sub_081564D8` (sprite.c) hand every
+  sprite of a tagged task to `PortCoopFxCapture`, except the Kirbys' own
+  (puppets draw those): animation, variant, script cursor, world position,
+  palette, flags, OAM layer -- 18 bytes (`PORT_COOP_FX_REC`, layout in
+  `coop.h`), at most 32 a frame.
+- **Drawing** happens at the top of the next frame (`PortCoopFxFrame` from
+  `PortCoopFrameTop`), after every task: the script is walked to the cursor
+  for the frame and its tiles; the tiles go into OBJ VRAM that is free *this
+  frame* (allocated and freed again at once, so the game's own objects always
+  get it first; the queue drains in order after the picture is composed) and
+  join the game's own upload queue; `DisplaySprite` does the rest, so both
+  renderers see an ordinary sprite.  Ghosts go in last and get what is left
+  of the OAM.
+- **Shared tiles**: many effects draw from one sheet loaded once per room
+  into a block shared by every object of the kind (`sub_0803DE54`), from
+  whichever variant the first object had.  A ghost of such a frame points at
+  this game's own copy of the block when it holds one (`GameBlock`), else
+  uploads only the tiles the frame's OAM reaches, starting the sprite before
+  its upload when the first one is far in.  Ghosts showing the same tiles in
+  one frame share one upload.  Budget: 8 KB of ghost uploads a frame, 12
+  queue entries always left to the game.
+- **Palettes**: 0..3 / 4..7 are a Kirby slot's body / hat -- the page remaps
+  the sender's slot (its own Kirby, or a CPU Kirby it runs) to the puppet
+  slot showing that Kirby; 8..14 are the game's per-room palette registry
+  (`gUnk_02022E60`), sent as the animation and variant it holds (the variant
+  is recorded by a hook in `sub_0803DFAC`) and looked up here, loaded only
+  while fewer than 5 are in use; 14 / 15 are fixed.  Anything else is
+  skipped rather than drawn in the wrong colours.
+- **Enemies**: a ghost of a shared enemy's child is drawn only over this
+  game's puppet of that enemy, never beside a copy that spawns its own.
+- **Timing**: each frame's records ride with that frame's pose and are
+  played back with it -- the effects line up with the puppet exactly.
+
+### Extras: how both travel
+
+Per pose message, an optional blob (`encodeExtras` in coop.js): `u8 1, u8 n`,
+then per pose `u16 seq, u8 nCpu, nCpu x {u8 slot, pose}, u16 fxLen, fx`.  On
+a room without the binary pose relay (the deployed worker) it goes inside the
+pose's own `signal` (no extra messages); with the binary relay it is one
+`signal` to everyone right after the pose, only when there is something to
+send.  An idle player with no extras still drops to 4 messages a second.
+The room's sim id is now `coop/3`: a `coop/2` page would run helpers of its
+own that the others cannot see.
+
+### Fixed on the way
+
+- A file that went back into its tutorial gave its puppet slots back to the
+  CPU and forgot they were wanted, so they were not taken over again until a
+  level load; `GiveBack` now keeps `wanted`.
+
+### Tests
+
+| test | result |
+|---|---|
+| `make coop-test` (new phases `helpers`: A runs the CPU Kirbys and B shows A's two within 2 px of A's recent positions, in the same room, with no helpers of its own; A back in its tutorial hands them to B and takes them back after; a warp does not move them; B calls from another room and A's helpers arrive in both games -- and `fx`: 4 s of A attacking, B draws at least half as many ghosts as A captures: measured 1011 of 1054, nothing skipped) | 49/49 (the 40 before, 9 new) |
+| `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures in all three runs on both; local trajectory identical |
+| `cd netplay && npm test` | 51/51 |
+| `make regress-wasm` | 7/7 OK (the game unchanged with co-op off) |
+| `make lint-simstate` (now also `coop_fx`) | 0 unlisted, 0 stale |
+| Browser, two windows on the dev relay | A's Beam whip and a sword knight's slash (A's enemy) drawn on B in the right place and colours; B phoned from another room and A's Sword and Fire CPU Kirbys appeared next to B in both games |
+
+`PortCoopTestAbility(ability)` gives the local Kirby an ability the way
+swallowing does (tests and the browser harness only).  `PortCoopFxStat(i)`
+holds counters (captured, drawn, skipped by reason) and the last few lookup
+and palette failures (see the end of `coop_fx.c`).
+
+### Gaps
+
+- **Enemy shots do not hurt a player who is not the room's owner.**  A ghost
+  has no collision, and the owner's copy of the shot passes through puppets.
+  The next step: ghosts of a shared enemy's children registered as hazards in
+  the receiving game (the hitbox and attack data of the owner's object, the
+  game's own collision doing the rest).
+- What the runner's CPU Kirbys spawn in a room the runner is not in is not
+  seen by anyone (the game only draws objects in the local player's room).
+- Rotated and scaled sprites are drawn unrotated; a ghost whose palette
+  cannot be resolved here is skipped.
+- The helpers follow the runner, not the player who called them, once their
+  AI picks a new room (a minute or more).
+- `coop/2` pages cannot join `coop/3` rooms.
+- Not tried by two people, and not on a phone.

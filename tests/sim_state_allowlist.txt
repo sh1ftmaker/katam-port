@@ -93,6 +93,8 @@ coop sTest diagnostic PORT_COOP_SELFTEST harness (tests/coop_selftest.sh)
 coop sNotReadyFrames diagnostic co-op self-test counter
 coop sNotReadyDrops diagnostic co-op self-test counter
 coop sPuppetSteps diagnostic co-op self-test counter (puppet task runs)
+coop sCall setting co-op: the local player's phone call, reported to the page (external output); refused under rollback/net/seats (platform/coop.c)
+coop sAnswer setting co-op: another player's phone call being answered by this game's CPU Kirbys (external input)
 coop_world sW setting co-op shared progress: shadow image and switch, external input (other players' records), refused under rollback/net/seats (platform/coop_world.c)
 coop_world sPend setting co-op progress records queued until the game can take them; external input
 coop_world sPendCount setting co-op progress record queue
@@ -114,3 +116,40 @@ kirby_color sKc setting the player's Kirby colour (settings) and the co-op seat 
 kirby_color sSlot setting per-Kirby custom palettes: the player's colour setting and co-op poses; refused under rollback/net/seats
 kirby_color sModel boot-init the colour model, fitted once from the ROM's own palettes, identical every run
 kirby_color sPreviewTiles presentation the menu preview's tile scratch; never read by the game
+coop_fx gPortCoopFxOn setting co-op spawned-object sharing switch from the page; external input, refused under rollback/net/seats (platform/coop_fx.c)
+coop_fx sShare setting co-op spawned-object sharing switch from the page
+coop_fx sDrawing presentation set only while co-op ghosts are being drawn, between frames
+coop_fx sOrigin setting co-op: which Kirby or shared enemy spawned each task; read only to report sprites to the page (external output)
+coop_fx sOriginIdx setting co-op: the shared enemy that spawned each task; read only to report sprites to the page
+coop_fx sPalVariant setting co-op: the variant each registry palette was loaded with; read only to report sprites to the page
+coop_fx sCap setting co-op: sprites captured this frame for the page (external output)
+coop_fx sCapN setting co-op: sprites captured this frame for the page
+coop_fx sCapPer setting co-op: sprites captured per task this frame (a cap)
+coop_fx sOut setting co-op: the last frame's capture, handed to the page (external output)
+coop_fx sOutLen setting co-op: the last frame's capture, handed to the page
+coop_fx sSrc setting co-op: the ghost frames the page set (external input)
+coop_fx sGhost presentation co-op ghost sprites, drawn between frames from the page's input
+coop_fx sScratch setting co-op: the page's scratch buffer (PortCoopFxBuffer)
+coop_fx sAlloc presentation co-op ghost VRAM, allocated and freed again within one call
+coop_fx sAllocN presentation co-op ghost VRAM, allocated and freed again within one call
+coop_fx sBytes presentation co-op ghost tile uploads this frame (a budget)
+coop_fx sUp presentation co-op ghost uploads this frame, shared between ghosts
+coop_fx sUpN presentation co-op ghost uploads this frame, shared between ghosts
+coop_fx sAnimCount boot-init the number of animations in the ROM's sprite table, counted once
+coop_fx sSharedVariant boot-init per animation: the variant that loads its shared tiles, read from the ROM once
+coop_fx sSharedKnown boot-init per animation: whether sSharedVariant has been read
+coop_fx sStat diagnostic co-op spawned-object counters (PortCoopFxStat)
+coop_fx sFail diagnostic co-op ghost lookup failures (PortCoopFxStat)
+coop_fx sFailLog diagnostic co-op ghost lookup failures (PortCoopFxStat)
+coop_fx sFailAt diagnostic co-op ghost lookup failures (PortCoopFxStat)
+coop_fx sPalFail diagnostic co-op ghost palette failures (PortCoopFxStat)
+coop_fx sPalFailAt diagnostic co-op ghost palette failures (PortCoopFxStat)
+coop_fx sRingLow diagnostic co-op ghost tile-queue low-water mark (PortCoopFxStat)
+coop_fx sBigBytes diagnostic co-op largest ghost upload (PortCoopFxStat)
+coop_fx sBigAnim diagnostic co-op largest ghost upload (PortCoopFxStat)
+coop_fx sBigVar diagnostic co-op largest ghost upload (PortCoopFxStat)
+coop_fx sBigFull diagnostic co-op largest ghost upload (PortCoopFxStat)
+coop_fx sDemand diagnostic co-op ghost upload demand (PortCoopFxStat)
+coop_fx sDemandN diagnostic co-op ghost upload demand (PortCoopFxStat)
+coop_fx sDemandMax diagnostic co-op ghost upload demand (PortCoopFxStat)
+coop_fx sDemandMaxN diagnostic co-op ghost upload demand (PortCoopFxStat)

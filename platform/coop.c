@@ -226,21 +226,11 @@ COOP_EXPORT unsigned char *PortCoopPoseBuffer(void)
     return sPoseBuffer;
 }
 
-/* The local Kirby, as it is about to be drawn.  Meaningful between frames:
- * the page calls this from its frame callback, after the tasks have run. */
-COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
+/* A Kirby's pose: the local one (PortCoopLocalPose) or a CPU Kirby this
+ * game runs for everyone (PortCoopSlotPose). */
+static int PoseOf(const struct Kirby *k, unsigned char *out, int ready, u32 room, int local)
 {
-    const struct Kirby *k = &gKirbys[gLocalPlayerId];
-    int ready = PortCoopReady();
-    u32 room = k->base.roomId;
     u8 f = 0, f2 = 0;
-
-    if (out == NULL)
-        return 0;
-    if (ready)
-        sCoop.lastRoom = (u16)room;
-    else
-        room = sCoop.lastRoom;
 
     if (!ready || (k->base.flags & 0x400) || (k->base.sprite.unk8 & 0x80000))
         f |= PORT_COOP_F_HIDDEN;
@@ -253,6 +243,7 @@ COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
     if (k->base.flags & 8)                 f |= PORT_COOP_F_FREEZE;
     if (k->base.flags & 4)                 f2 |= PORT_COOP_F2_LOOP;
     if (ready)                             f2 |= PORT_COOP_F2_INLEVEL;
+    if (gAIKirbyState < AI_KIRBY_STATE_NORMAL) f2 |= PORT_COOP_F2_TUTORIAL;
 
     memset(out, 0, PORT_COOP_POSE_SIZE);
     Put32(out + 0, (u32)k->base.x);
@@ -276,7 +267,7 @@ COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
     out[28] = (u8)k->hp;
     out[29] = k->lives;
     Put16(out + 30, sCoop.seq);
-    {
+    if (local) {
         /* A colour of the player's own (platform/kirby_color.c): byte 24
          * holds the nearest of the game's fourteen, for builds that do not
          * read these. */
@@ -289,6 +280,134 @@ COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
         }
     }
     return ready;
+}
+
+/* The local Kirby, as it is about to be drawn.  Meaningful between frames:
+ * the page calls this from its frame callback, after the tasks have run. */
+COOP_EXPORT int PortCoopLocalPose(unsigned char *out)
+{
+    const struct Kirby *k = &gKirbys[gLocalPlayerId];
+    int ready = PortCoopReady();
+    u32 room = k->base.roomId;
+
+    if (out == NULL)
+        return 0;
+    if (ready)
+        sCoop.lastRoom = (u16)room;
+    else
+        room = sCoop.lastRoom;
+    return PoseOf(k, out, ready, room, 1);
+}
+
+/* A CPU Kirby this game runs (a slot that is not a puppet), for the others
+ * to show as a puppet.  0 when there is no such Kirby: the slot is a puppet
+ * or the game is not ready.  A CPU Kirby in no room this client knows (or
+ * between rooms) is sent hidden rather than not at all, so it vanishes at
+ * once on the other side instead of after the stall timeout. */
+COOP_EXPORT int PortCoopSlotPose(int slot, unsigned char *out)
+{
+    const struct Kirby *k;
+
+    if (out == NULL || slot < 1 || slot >= PORT_COOP_MAX_SLOTS || PORT_COOP_IS_PUPPET(slot)
+        || !PortCoopReady())
+        return 0;
+    k = &gKirbys[slot];
+    PoseOf(k, out, RoomValid(k->base.roomId) && gCurLevelInfo[slot].currentRoom != 0xFFFF,
+           k->base.roomId, 0);
+    return 1;
+}
+
+/* --- test hook ----------------------------------------------------------- */
+
+/* Tests and the browser harness: give the local Kirby an ability the way
+ * swallowing an enemy does (sub_0805BD4C: the transform state, the hat and
+ * the HUD follow), so a run can show what that ability spawns.  0 when the
+ * game would not take it now. */
+extern bool8 sub_0805BD4C(struct Kirby *kirby, u8 ability);
+COOP_EXPORT int PortCoopTestAbility(int ability)
+{
+    if (!GameReady() || ability <= 0 || ability >= KIRBY_ABILITY_COUNT)
+        return 0;
+    return sub_0805BD4C(&gKirbys[gLocalPlayerId], (u8)ability) ? 1 : 0;
+}
+
+/* --- the phone ------------------------------------------------------------ */
+
+static struct { u8 pending; u16 room; s32 x, y; } sCall;
+extern void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY);   /* warp.c */
+
+void PortCoopPhoneCall(struct Kirby *kirby)
+{
+    if (!sCoop.enabled || kirby->base.unk56 != gLocalPlayerId)
+        return;
+    sCall.pending = 1;
+    sCall.room = kirby->base.roomId;
+    sCall.x = kirby->base.x;
+    sCall.y = kirby->base.y;
+}
+
+COOP_EXPORT int PortCoopTakeCall(int *out)
+{
+    if (!sCall.pending || out == NULL)
+        return 0;
+    sCall.pending = 0;
+    out[0] = sCall.room;
+    out[1] = sCall.x;
+    out[2] = sCall.y;
+    return 1;
+}
+
+/* A remote player called: every CPU Kirby this game runs that is not in the
+ * caller's room comes to them -- the respawn route a warp takes (warp.c),
+ * which keeps its ability, to the caller's cell.  One that is between rooms
+ * just now is sent as soon as it can be, for up to CALL_WAIT frames; one
+ * that is down stays where it is (the caller's call times out, as it would
+ * have for a helper that cannot come).  Returns how many were asked. */
+#define CALL_WAIT 120
+static struct { u16 room; u8 cx, cy; u32 until; } sAnswer[PORT_COOP_MAX_SLOTS];
+
+static void AnswerFrame(void)
+{
+    u32 now = PortFrameNumber();
+    int s;
+
+    for (s = 1; s < PORT_COOP_MAX_SLOTS; s++) {
+        struct Kirby *k = &gKirbys[s];
+
+        if (!sAnswer[s].until)
+            continue;
+        if ((s32)(now - sAnswer[s].until) > 0 || PORT_COOP_IS_PUPPET(s) || k->hp <= 0
+            || k->base.roomId == sAnswer[s].room) {
+            sAnswer[s].until = 0;
+            continue;
+        }
+        if (k->base.roomId == 0xFFFF || gCurLevelInfo[s].currentRoom == 0xFFFF || (k->base.flags & 0x100))
+            continue;
+        PortWarp((u8)s, sAnswer[s].room, sAnswer[s].cx, sAnswer[s].cy);
+        sAnswer[s].until = 0;
+    }
+}
+
+COOP_EXPORT int PortCoopAnswerCall(int room, int x, int y)
+{
+    int s, n = 0;
+
+    if (!PortCoopReady() || !RoomValid((u32)room))
+        return 0;
+    for (s = 1; s < PORT_COOP_MAX_SLOTS; s++) {
+        const struct Kirby *k = &gKirbys[s];
+
+        if (PORT_COOP_IS_PUPPET(s) || k->hp <= 0 || k->base.roomId == (u16)room)
+            continue;
+        sAnswer[s].room = (u16)room;
+        sAnswer[s].cx = (u8)((x + 0x800) >> 12);
+        sAnswer[s].cy = (u8)((y + 0x701) >> 12);
+        sAnswer[s].until = PortFrameNumber() + CALL_WAIT;
+        n++;
+    }
+    AnswerFrame();
+    PortLog("[katam-port] coop: a call from another game: %d helper(s) to room %d", n, room);
+    return n;
 }
 
 /* --- the puppet ---------------------------------------------------------- */
@@ -540,7 +659,14 @@ static void GiveBack(u8 slot)
         k->spawnLocation.y = (s16)((me->base.y + 0x701) >> 12);
         k->flyTimer = 0;
     }
-    memset(s, 0, sizeof(*s));
+    {
+        /* still wanted (given back because the file went into its
+         * tutorial): taken over again once it is past it */
+        u8 wanted = s->wanted;
+
+        memset(s, 0, sizeof(*s));
+        s->wanted = wanted;
+    }
     PortLog("[katam-port] coop: slot %u given back to the CPU", (unsigned)slot);
 }
 
@@ -616,6 +742,11 @@ void PortCoopFrameTop(void)
                 s->absent = 1;
         }
     }
+    if (ready)
+        AnswerFrame();
+    /* What spawned objects drew (platform/coop_fx.c): this frame's capture
+     * out to the page, the ghosts the page set drawn. */
+    PortCoopFxFrame();
 }
 
 /* --- self-test: PORT_COOP_SELFTEST=START[:MODE[:LEAVE[:PAUSE]]] -----------
