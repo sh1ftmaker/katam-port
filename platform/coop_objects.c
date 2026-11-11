@@ -109,6 +109,40 @@ int PortCoopForEachObject(int (*fn)(struct Object *, void *), void *arg)
     return 0;
 }
 
+/* Tests and diagnostics: the object records of types lo..hi in every room,
+ * as (u16 room, u16 index, u8 type, u8 subtype1, s16 x, s16 y) -- 10 bytes
+ * each.  Returns how many there are (writes up to max). */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+EMSCRIPTEN_KEEPALIVE
+#endif
+int PortCoopFindObjects(int lo, int hi, unsigned char *out, int max)
+{
+    u32 room, rooms = Res_Count(RES_ROOM_PROPS), n, i;
+    int found = 0;
+
+    for (room = 0; room < rooms; room++) {
+        const struct ObjectTemplate *t = PortCoopRoomObjects(room, &n);
+
+        for (i = 0; t != NULL && i < n; i++) {
+            u8 *p;
+
+            if (t[i].type < lo || t[i].type > hi)
+                continue;
+            if (out != NULL && found < max) {
+                p = out + found * 10;
+                p[0] = (u8)room; p[1] = (u8)(room >> 8);
+                p[2] = (u8)i; p[3] = (u8)(i >> 8);
+                p[4] = t[i].type; p[5] = t[i].subtype1;
+                p[6] = (u8)t[i].x; p[7] = (u8)((u16)t[i].x >> 8);
+                p[8] = (u8)t[i].y; p[9] = (u8)((u16)t[i].y >> 8);
+            }
+            found++;
+        }
+    }
+    return found;
+}
+
 #ifdef __cplusplus
 }
 #endif

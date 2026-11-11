@@ -42,6 +42,10 @@
 //              last second (<= 2 px: they are played back late, like Kirbys);
 //              an enemy killed on A dies on B within 1.5 s; a hit on one of
 //              B's puppets takes the same hp off A's copy.
+//   bosses     stage 4, shared boss health.  Both warp next to a miniboss
+//              (--boss-room 230 --boss-cell 24:13, type 0x38).  Damage on A's
+//              copy comes off B's (through B's own hit reaction), damage on
+//              B's comes off A's, and lethal damage on A kills B's copy.
 //   progress   stage 2, shared progress.  Both files are moved past the
 //              tutorial (gAIKirbyState 300) and progress is written straight
 //              into memory, as the game's own collectors do: a shard and a
@@ -79,7 +83,9 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,progress').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress').split(',');
+const BOSS_ROOM = +flag('boss-room', 230);
+const [BOSS_CX, BOSS_CY] = flag('boss-cell', '24:13').split(':').map(Number);
 const EN_ROOM = +flag('enemy-room', 104);
 const [EN_CX, EN_CY] = flag('enemy-cell', '2:9').split(':').map(Number);
 const PERIOD = 1000 / 59.7275;
@@ -633,7 +639,41 @@ async function enemies() {
     B.script = () => 0;
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, progress };
+async function bosses() {
+    if (FAKE || Coop.ENEMY.some((n) => typeof A.Module[n] !== 'function')) {
+        say('bosses: build has no PortCoopEnemy* exports -- skipped');
+        return;
+    }
+    A.script = B.script = () => 0;
+    for (const i of [A, B]) i.Module._PortWarp(0, BOSS_ROOM, BOSS_CX, BOSS_CY);
+    const there = await until(() => roomOf(A) === BOSS_ROOM && roomOf(B) === BOSS_ROOM, 8000);
+    check('bosses', `both warped into room ${BOSS_ROOM}`, there, `A ${roomOf(A)} B ${roomOf(B)}`);
+    if (!there) return;
+    const boss = (i) => enemyList(i).find((e) => e.type >= 0x38 && e.type <= 0x52 && e.hp > 0);
+    const both = await until(() => boss(A) && boss(B), 8000);
+    check('bosses', 'both games have the miniboss', !!both,
+          `A ${JSON.stringify(enemyList(A).map((e) => [e.idx, e.type, e.hp]))} B ${JSON.stringify(enemyList(B).map((e) => [e.idx, e.type, e.hp]))}`);
+    if (!both) return;
+    await sleep(500);
+    let a = boss(A), b = boss(B);
+    const hb = b.hp;
+    setHp(A, a.addr, a.hp - 2);
+    let ok = await until(() => { const x = boss(B); return x && x.hp === hb - 2; }, 2000);
+    check('bosses', 'damage on A\'s copy comes off B\'s', ok, `B ${hb} -> ${(boss(B) || {}).hp}`);
+    a = boss(A); b = boss(B);
+    const ha = a.hp;
+    setHp(B, b.addr, b.hp - 1);
+    ok = await until(() => { const x = boss(A); return x && x.hp === ha - 1; }, 2000);
+    check('bosses', 'damage on B\'s copy comes off A\'s', ok, `A ${ha} -> ${(boss(A) || {}).hp}`);
+    a = boss(A);
+    setHp(A, a.addr, 0);
+    ok = await until(() => !boss(B), 3000);
+    check('bosses', 'lethal damage on A kills B\'s copy', ok,
+          `B ${JSON.stringify(enemyList(B).map((e) => [e.idx, e.type, e.hp, e.flags]))}; B boss hits in ${B.Module._PortCoopEnemyStat(7)}`);
+    A.script = walker;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

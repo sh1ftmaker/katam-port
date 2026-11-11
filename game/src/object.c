@@ -728,10 +728,37 @@ static void sub_0809AA10(struct Object *r10, struct ObjectBase *sp00) {
         sub_080884C4(r10);
 }
 
+/* PORT-COOP: sub_0809AF38 split after the damage, so a hit from another
+ * player's game (PortCoopObjectDamage, below) runs the same reaction --
+ * flash, shake, and the boss or miniboss death -- with its own damage.  The
+ * order of everything sub_0809AF38 does is unchanged. */
+static void sub_0809AF38_React(struct Object *r4, struct ObjectBase *r5);
+
 static void sub_0809AF38(struct Object *r4, struct ObjectBase *r5) {
+    sub_0809AA10(r4, r5);
+    sub_0809AF38_React(r4, r5);
+}
+
+/* A hit worth dmg hp that landed in another player's game (platform/
+ * coop_enemy.c, shared boss and miniboss health).  The attacker stands in
+ * front of the object, for the knockback direction; no score, no ability. */
+void PortCoopObjectDamage(struct Object *obj, s32 dmg)
+{
+    struct ObjectBase src;
+
+    if (dmg <= 0 || obj->unk80 <= 0 || (obj->base.flags & 0x1000) || (obj->base.unkC & 0x2000))
+        return;
+    memset(&src, 0, sizeof(src));
+    src.x = obj->base.x + ((obj->base.flags & 1) ? -0x1000 : 0x1000);
+    src.y = obj->base.y;
+    PlaySfx(&obj->base, 361);
+    obj->unk80 -= (s16)(dmg > 0x7FFF ? 0x7FFF : dmg);
+    sub_0809AF38_React(obj, &src);
+}
+
+static void sub_0809AF38_React(struct Object *r4, struct ObjectBase *r5) {
     s32 r7 = 0;
 
-    sub_0809AA10(r4, r5);
     if (r4->type == OBJ_MEGA_TITAN
         || ObjIsTitanArm(r4)
         || r4->type == OBJ_DARK_MIND_MIRROR

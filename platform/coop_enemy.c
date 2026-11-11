@@ -31,8 +31,21 @@
  * Enemies are matched by room and the index of their record in the room's
  * object list (coop_objects.c), the same on every client.  Objects made at
  * run time (spawner children, projectiles) have no index and stay local.
- * Only the regular enemies (types 0x00..0x37) are puppeted; minibosses and
- * bosses get their hp shared instead (coop_boss.c).
+ * Only the regular enemies (types 0x00..0x37) are puppeted.
+ *
+ * --- stage 4: minibosses and bosses ----------------------------------------
+ *
+ * A boss is many objects and a long state machine; drawing one game's boss
+ * in another is not attempted.  Instead every player fights their own copy
+ * and the copies share one health pool: any hp a copy loses here is sent as
+ * a hit, and every other copy takes the same damage through the game's own
+ * reaction (PortCoopObjectDamage, object.c: flash, shake, and on 0 hp the
+ * game's own death -- explosion, shard, music).  A boss that dies anywhere
+ * dies everywhere.  A player who walks in late finds the boss as hurt as the
+ * others have made it (the hp is broadcast once a second and taken by a copy
+ * nobody has touched yet).  Bosses are matched by room and object-list
+ * index, or by room and type when the game spawned them at run time (one
+ * boss of a type per room -- the forms of Dark Mind, the Titan head).
  *
  * gPortCoopEnemyOn is 0 unless a puppet table entry is live, so with co-op
  * off the ObjectMain hook is one load and a branch.  Not simulation state:
@@ -89,7 +102,20 @@ static int sEvCount;
 static const struct Object *sDead[DEAD_MAX], *sDeadNext[DEAD_MAX];
 static int sDeadCount;
 static u8 sShare;
-static u32 sStats[6];   /* puppet steps, hits out, kills out, kills in, hits in, dropped */
+static u32 sStats[8];   /* puppet steps, hits out, kills out, kills in, hits in, dropped,
+                         * boss hits out, boss hits in */
+
+#define BOSS_MAX 16
+struct BossTrack {
+    const struct Object *obj;
+    u16 room, key;
+    s16 lastHp, initHp;
+    u32 seen;
+    u8  used, dead, touched;
+};
+static struct BossTrack sBoss[BOSS_MAX];
+
+extern void PortCoopObjectDamage(struct Object *obj, s32 dmg);   /* object.c */
 
 static u32 Now(void) { return PortFrameNumber(); }
 
@@ -102,6 +128,11 @@ static u32  Get32(const u8 *p)  { return Get16(p) | (Get16(p + 2) << 16); }
 static int IsEnemy(const struct Object *o)
 {
     return o->type <= 0x37;
+}
+
+static int IsBoss(const struct Object *o)
+{
+    return o->type >= 0x38 && o->type <= 0x52;
 }
 
 static int Alive(const struct Object *o)
@@ -254,6 +285,123 @@ static int ScanKills(struct Object *o, void *arg)
     return 0;
 }
 
+/* --- minibosses and bosses ----------------------------------------------- */
+
+static u32 BossKey(const struct Object *o)
+{
+    int idx = PortCoopObjectIndex(o);
+
+    return idx >= 0 ? (u32)idx : 0x8000u | o->type;
+}
+
+static struct BossTrack *BossFind(const struct Object *o, u32 key)
+{
+    int i;
+
+    for (i = 0; i < BOSS_MAX; i++)
+        if (sBoss[i].used && sBoss[i].obj == o && sBoss[i].key == key)
+            return &sBoss[i];
+    return NULL;
+}
+
+static int ScanBoss(struct Object *o, void *arg)
+{
+    struct BossTrack *t;
+    u32 key, *now = (u32 *)arg;
+    int i;
+
+    if (!IsBoss(o) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId || (o->base.flags & 0x1000))
+        return 0;
+    key = BossKey(o);
+    t = BossFind(o, key);
+    if (t == NULL) {
+        for (i = 0; i < BOSS_MAX && sBoss[i].used; i++)
+            ;
+        if (i == BOSS_MAX)
+            return 0;
+        t = &sBoss[i];
+        memset(t, 0, sizeof(*t));
+        t->used = 1;
+        t->obj = o;
+        t->room = o->base.roomId;
+        t->key = (u16)key;
+        t->lastHp = t->initHp = o->unk80;
+        t->dead = o->unk80 <= 0;
+    }
+    t->seen = *now;
+    if (o->unk80 < t->lastHp) {
+        Event(PORT_COOP_EV_BOSS_HIT, t->room, t->key, t->lastHp - o->unk80, 0);
+        sStats[6]++;
+        t->touched = 1;
+    }
+    t->lastHp = o->unk80;
+    if (o->unk80 <= 0 && !t->dead) {
+        Event(PORT_COOP_EV_BOSS_KILL, t->room, t->key, 0, 0);
+        t->dead = 1;
+    }
+    /* once a second: the hp, for a player who walks in late */
+    if (!t->dead && t->touched && *now % 60 == t->key % 60)
+        Event(PORT_COOP_EV_BOSS_HP, t->room, t->key, o->unk80, 0);
+    return 0;
+}
+
+static void BossFrame(u32 now)
+{
+    int i;
+
+    PortCoopForEachObject(ScanBoss, &now);
+    for (i = 0; i < BOSS_MAX; i++)
+        if (sBoss[i].used && now - sBoss[i].seen > 2)
+            sBoss[i].used = 0;
+}
+
+struct BossMatch { u32 room, key; struct Object *obj; };
+
+static int MatchBoss(struct Object *o, void *arg)
+{
+    struct BossMatch *m = (struct BossMatch *)arg;
+
+    if (!IsBoss(o) || o->base.roomId != m->room || o->unk80 <= 0 || (o->base.flags & 0x1000))
+        return 0;
+    if (BossKey(o) != m->key)
+        return 0;
+    m->obj = o;
+    return 1;
+}
+
+static void BossEvent(int kind, u32 room, u32 key, s32 val)
+{
+    struct BossMatch m;
+    struct BossTrack *t;
+
+    m.room = room;
+    m.key = key;
+    m.obj = NULL;
+    PortCoopForEachObject(MatchBoss, &m);
+    if (m.obj == NULL)
+        return;
+    t = BossFind(m.obj, key);
+    if (kind == PORT_COOP_EV_BOSS_HP) {
+        /* only a copy nobody here has touched: a late arrival */
+        if (t != NULL && !t->touched && val > 0 && val < m.obj->unk80 && m.obj->unk80 == t->initHp) {
+            m.obj->unk80 = (s16)val;
+            t->lastHp = (s16)val;
+            t->touched = 1;
+        }
+        return;
+    }
+    if (kind == PORT_COOP_EV_BOSS_KILL)
+        val = m.obj->unk80;
+    PortCoopObjectDamage(m.obj, val);
+    sStats[7]++;
+    if (t != NULL) {
+        t->lastHp = m.obj->unk80;
+        t->touched = 1;
+        if (m.obj->unk80 <= 0)
+            t->dead = 1;        /* died of someone else's hit: theirs to tell */
+    }
+}
+
 void PortCoopEnemyFrame(void)
 {
     int i, any = 0;
@@ -264,6 +412,7 @@ void PortCoopEnemyFrame(void)
         sDeadCount = 0;
         return;
     }
+    BossFrame(now);
     memset(sDeadNext, 0, sizeof(sDeadNext));
     PortCoopForEachObject(ScanKills, NULL);
     for (sDeadCount = 0; sDeadCount < DEAD_MAX && sDeadNext[sDeadCount] != NULL; sDeadCount++)
@@ -414,6 +563,10 @@ COOP_EXPORT void PortCoopEnemyEvent(int kind, int room, int idx, int dmg, int fr
 
     if (!sShare || !PortCoopReady())
         return;
+    if (kind == PORT_COOP_EV_BOSS_HIT || kind == PORT_COOP_EV_BOSS_KILL || kind == PORT_COOP_EV_BOSS_HP) {
+        BossEvent(kind, (u32)room, (u32)idx, dmg);
+        return;
+    }
     m.room = (u32)room;
     m.idx = (u32)idx;
     m.obj = NULL;
@@ -445,7 +598,8 @@ COOP_EXPORT void PortCoopEnemyEvent(int kind, int room, int idx, int dmg, int fr
 }
 
 /* Diagnostics and tests: every regular enemy in the local room, puppets
- * included: n records of 20 bytes (u16 idx (0xFFFF: none), i32 x, i32 y,
+ * included, and minibosses and bosses: n records of 20 bytes (u16 idx
+ * (0xFFFF: none), i32 x, i32 y,
  * s16 hp, u8 anim, u8 flags (bit 7: a puppet this frame, bit 6: dying),
  * u32 address of the struct Object, u16 type).  Returns n. */
 struct List { u8 *out; int max, n; };
@@ -459,10 +613,10 @@ static int ListOne(struct Object *o, void *arg)
 
     if (l->n >= l->max)
         return 1;
-    if (!IsEnemy(o) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
+    if (!(IsEnemy(o) || IsBoss(o)) || o->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
         return 0;
     idx = PortCoopObjectIndex(o);
-    e = idx >= 0 ? Find(o->base.roomId, (u32)idx) : NULL;
+    e = idx >= 0 && IsEnemy(o) ? Find(o->base.roomId, (u32)idx) : NULL;
     if (e != NULL && e->puppet)  f |= 0x80;
     if (!Alive(o))               f |= 0x40;
     if (o->base.flags & 1)       f |= PORT_COOP_EN_LEFT;
@@ -496,7 +650,7 @@ COOP_EXPORT int PortCoopEnemyList(unsigned char *out, int max)
  * received, events dropped. */
 COOP_EXPORT int PortCoopEnemyStat(int i)
 {
-    return i >= 0 && i < 6 ? (int)sStats[i] : 0;
+    return i >= 0 && i < 8 ? (int)sStats[i] : 0;
 }
 
 #ifdef __cplusplus

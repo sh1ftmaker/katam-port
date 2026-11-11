@@ -163,7 +163,11 @@ void           PortCoopWorldFrame(void);     /* from PortCoopFrameTop */
 struct Object;
 #define PORT_COOP_EN_REC 14
 enum { PORT_COOP_EN_LEFT = 1 << 0, PORT_COOP_EN_HIDDEN = 1 << 1 };
-enum { PORT_COOP_EV_KILL = 1, PORT_COOP_EV_HIT = 2 };
+enum {
+    PORT_COOP_EV_KILL = 1, PORT_COOP_EV_HIT = 2,          /* idx: object-list index */
+    PORT_COOP_EV_BOSS_HIT = 3, PORT_COOP_EV_BOSS_KILL = 4, /* idx: index, or 0x8000|type */
+    PORT_COOP_EV_BOSS_HP = 5,                              /* dmg field: the hp        */
+};
 void PortCoopEnemyShare(int on);
 int  PortCoopEnemyCollect(unsigned char *out, int maxBytes);
 void PortCoopEnemySetPoses(const unsigned char *buf, int len);
