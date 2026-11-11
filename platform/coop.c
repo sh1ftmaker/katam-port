@@ -78,6 +78,7 @@ extern void sub_0806E4EC(struct Kirby *);
 extern void sub_0806EFF8(struct Kirby *);
 extern void sub_08055920(struct Kirby *);
 extern s32  sub_0815521C(struct Sprite *, u16);   /* sprite.c: seek to a frame */
+extern void PortHudReloadKirbyPalette(void);      /* hud.c */
 
 #define COOP_COLORS 14       /* variants of the Kirby palette, anim 0x15 */
 
@@ -551,6 +552,7 @@ static void LocalColor(int on)
         if (me->color != c) {
             me->color = c;
             sub_0803E558(gLocalPlayerId);
+            PortHudReloadKirbyPalette();
         }
     }
     if (!on)
@@ -563,10 +565,11 @@ COOP_EXPORT void PortCoopSetLocalColor(int color)
 }
 
 static void SelfTestFrame(void);
+static int  SelfTestArmed(void);
 
 void PortCoopFrameTop(void)
 {
-    int ready, i;
+    int ready, takeOk, i;
 
     SelfTestFrame();
     PortCoopWorldFrame();
@@ -598,6 +601,12 @@ void PortCoopFrameTop(void)
         sNotReadyFrames++;
     else
         LocalColor(sCoop.enabled && sCoop.seatColor >= 0);
+    /* Slots are taken only past the tutorial: the opening and the tutorial
+     * script the three CPU Kirbys (the split, "they follow your every move",
+     * the phone), and a cutscene waiting on a helper that is now a puppet
+     * would never end.  Already-taken slots are given back if a file still
+     * in its tutorial is loaded.  (The self-test arms itself regardless.) */
+    takeOk = ready && (gAIKirbyState >= AI_KIRBY_STATE_NORMAL || SelfTestArmed());
     for (i = 1; i < PORT_COOP_MAX_SLOTS; i++) {
         struct CoopSlot *s = &sCoop.slot[i];
         u32 bit = 1u << i;
@@ -605,12 +614,12 @@ void PortCoopFrameTop(void)
         if (s->wanted && sCoop.enabled && !(gPortCoopPuppets & bit)) {
             /* Taken over only from normal gameplay: TakeOver and
              * FillLevelInfo need a level to exist. */
-            if (ready) {
+            if (takeOk) {
                 s->entered = 0;
                 s->settle = 0;
                 gPortCoopPuppets |= bit;
             }
-        } else if ((!s->wanted || !sCoop.enabled) && (gPortCoopPuppets & bit)) {
+        } else if ((!s->wanted || !sCoop.enabled || (ready && !takeOk)) && (gPortCoopPuppets & bit)) {
             /* The game needs a live local room to take the Kirby back into;
              * until then it stays a puppet, shown nowhere. */
             if (ready)
@@ -650,6 +659,11 @@ static struct {
     long fails, checks;
     u32 lastSteps;
 } sTest = { -1, 0, -1, -1, 0, 0, 0, {0}, 0, 0, 0, 0 };
+
+static int SelfTestArmed(void)
+{
+    return sTest.armed > 0;
+}
 
 static u32 Fnv(u32 h, const void *data, u32 n)
 {

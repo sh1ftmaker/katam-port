@@ -40,7 +40,11 @@
 }(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
 
-    var SIM = 'coop/1';
+    /* coop/2: shared progress, enemies and bosses ride on the signal relay.
+     * The pose is unchanged, but a room should not mix pages that share
+     * progress with pages that do not; the room's version check keeps them
+     * apart. */
+    var SIM = 'coop/2';
     var FRAME_MS = 1000 / 59.7275;
     var T_POSE_UP = 0x40;
     var F_PAUSED = 1, F_KEY = 2;          /* message flags */
@@ -867,7 +871,8 @@
         ' border:1px solid var(--edge,#2b3038);border-radius:7px;padding:4px 6px}',
         '#coopchip button.cc-b{font:inherit;color:inherit;background:var(--panel-2,#232730);border:1px solid var(--edge,#2b3038);',
         ' border-radius:7px;padding:4px 9px;cursor:pointer}',
-        '#coopchip label.cc-opt{display:flex;gap:6px;align-items:center;margin-top:6px;cursor:pointer}',
+        '#coopchip label.cc-opt{display:flex;gap:6px;align-items:center;justify-content:flex-start;margin-top:6px;cursor:pointer}',
+        '#coopchip label.cc-opt input{flex:0 0 auto;width:auto;margin:0}',
         '#coopnotes{position:fixed;z-index:55;left:calc(10px + env(safe-area-inset-left));top:calc(48px + env(safe-area-inset-top));',
         ' display:flex;flex-direction:column;gap:4px;pointer-events:none;max-width:min(340px,calc(100vw - 20px))}',
         '#coopnotes div{background:rgba(20,22,26,.9);border:1px solid var(--edge,#2b3038);border-radius:10px;padding:4px 10px;',
@@ -880,7 +885,7 @@
     chip.innerHTML = '<button type="button" class="cc-head"><span class="cc-dot"></span><span class="cc-t"></span></button>' +
         '<div class="cc-body"></div>';
     var head = chip.firstChild, body = chip.lastChild;
-    head.onclick = function () { S.open = !S.open; render(); };
+    head.onclick = function () { S.open = !S.open; render(); placeNotes(); };
     body.addEventListener('click', function (e) {
         var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');
         if (a === 'copy') copyLink();
@@ -888,13 +893,28 @@
         else if (a === 'rejoin') rejoin();
     });
     body.addEventListener('change', function (e) {
-        if (e.target && e.target.getAttribute && e.target.getAttribute('data-a') === 'share') {
+        var a = e.target && e.target.getAttribute && e.target.getAttribute('data-a');
+        if (a === 'share') {
             try { localStorage.katamCoopShare = e.target.checked ? '1' : '0'; } catch (err) { /* private mode */ }
             if (S.coop) S.coop.setShare(e.target.checked);
-            lastBody = null;
-            render();
-        }
+        } else if (a === 'enemies') {
+            try { localStorage.katamCoopEnemies = e.target.checked ? '1' : '0'; } catch (err) { /* private mode */ }
+            if (S.coop) S.coop.setEnemies(e.target.checked);
+        } else if (a === 'name') {
+            var n = String(e.target.value || '').replace(/\s+/g, ' ').trim().slice(0, 24);
+            try { localStorage.katamNetName = n; } catch (err) { /* private mode */ }
+            if (S.net && n) S.net.rename(n);
+        } else return;
+        lastBody = null;
+        render();
     });
+    /* typing in the name field must not drive Kirby */
+    body.addEventListener('keydown', function (e) {
+        if (e.target && e.target.getAttribute && e.target.getAttribute('data-a') === 'name') {
+            e.stopPropagation();
+            if (e.key === 'Enter') e.target.blur();
+        }
+    }, true);
     var notes = document.createElement('div');
     notes.id = 'coopnotes';
     notes.setAttribute('aria-live', 'polite');
@@ -907,7 +927,12 @@
         render();
     }
     /* a line under the chip for a few seconds: what other players found */
+    function placeNotes() {
+        var r = chip.getBoundingClientRect();
+        notes.style.top = Math.round(r.bottom + 6) + 'px';
+    }
     function note(text) {
+        placeNotes();
         var d = document.createElement('div');
         d.textContent = text;
         notes.appendChild(d);
@@ -917,6 +942,9 @@
     }
     function shareWanted() {
         try { return localStorage.katamCoopShare !== '0'; } catch (e) { return true; }
+    }
+    function enemiesWanted() {
+        try { return localStorage.katamCoopEnemies !== '0'; } catch (e) { return true; }
     }
 
     function esc(s) {
@@ -988,9 +1016,15 @@
                 h += '<div class="cc-dim">Up to 3 other players are shown; ' + st.hidden +
                     (st.hidden === 1 ? ' more is' : ' more are') + ' in the room but not drawn.</div>';
         }
+        if (st)
+            h += '<div class="cc-row"><input data-a="name" maxlength="24" placeholder="Your name" aria-label="Your name" value="' +
+                esc(storedName()) + '"></div>';
         if (st && S.coop && S.coop.worldOk)
-            h += '<label class="cc-opt"><input type="checkbox" data-a="share"' + (S.coop.sharing() ? ' checked' : '') +
-                '> Share progress (shards, chests, switches, map)</label>';
+            h += '<label class="cc-opt" title="Chests, shards, spray paints, big switches and the map are shared with everyone here">' +
+                '<input type="checkbox" data-a="share"' + (S.coop.sharing() ? ' checked' : '') + '>Share progress</label>';
+        if (st && S.coop && S.coop.enemyOk)
+            h += '<label class="cc-opt" title="Enemies in your room move and die together; minibosses and bosses share their health">' +
+                '<input type="checkbox" data-a="enemies"' + (S.coop.enemies() ? ' checked' : '') + '>Share enemies and bosses</label>';
         if (S.code)
             h += '<div class="cc-row"><input readonly value="' + esc(link(S.code)) + '" aria-label="Invite link">' +
                 '<button type="button" class="cc-b" data-a="copy">' + (Date.now() - S.copied < 2000 ? 'Copied' : 'Copy link') + '</button></div>';
@@ -999,7 +1033,11 @@
                 (net && net.lastError && net.lastError.code === 'replaced'
                     ? '<button type="button" class="cc-b" data-a="rejoin">Rejoin here</button>' : '') +
                 '<button type="button" class="cc-b" data-a="new">Start a new room</button></div>';
+        /* not while the name is being typed: that would drop the focus */
+        var ae = document.activeElement;
+        if (ae && body.contains(ae) && ae.getAttribute('data-a') === 'name') return;
         if (h !== lastBody) { body.innerHTML = h; lastBody = h; }
+        if (notes.childNodes.length) placeNotes();
     }
     var lastBody = null;
 
@@ -1057,7 +1095,7 @@
                 },
             });
             S.net = net;
-            S.coop = Coop.create({ Module: M, net: net, log: log, share: shareWanted() });
+            S.coop = Coop.create({ Module: M, net: net, log: log, share: shareWanted(), enemies: enemiesWanted() });
             S.coop.onNotice = function (n) { note(n.who + ' ' + n.text); };
             window.katamCoop = { net: net, coop: S.coop };
             ['state', 'roster', 'welcome'].forEach(function (ev) { net.on(ev, render); });

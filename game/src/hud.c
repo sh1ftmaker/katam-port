@@ -82,6 +82,17 @@ static inline void LoadGameplayHudGraphicsInline(void)
     CpuCopy16(sHudEnemyAndAreaNameGraphics[gLanguage], tiles, TILE_SIZE_4BPP * 8);
 }
 
+/* PORT-COOP: the HUD's Kirby palette again, after platform/coop.c gave the
+ * local Kirby its seat colour mid-level (the HUD loads it once, here). */
+void PortHudReloadKirbyPalette(void)
+{
+    u8 color = gKirbys[gLocalPlayerId].color;
+
+    if (color >= ARRAY_COUNT(sHudPalettes))
+        return;
+    LoadBgPaletteAndPaletteEffectSource(sHudPalettes[color], 0xF0, ARRAY_COUNT(sHudPalettes[color]));
+}
+
 static inline void DrawHudLivesLabelInline(void)
 {
     u16 *tiles = BG_SCREEN_ADDR(28) + 0x48E;

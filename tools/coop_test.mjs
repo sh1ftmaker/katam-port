@@ -327,6 +327,9 @@ if (!await until(() => both() && booted(A) && booted(B), 90000)) {
 if (!FAKE) {
     const warped = (i) => i.logs.some((l) => l.includes('warp: player 0'));
     if (!await until(() => warped(A) && warped(B), 30000)) say('warning: no warp seen on both instances');
+    /* The playtest boot is a new file, still in its tutorial; puppets and
+     * shared progress start once a file is past it (gAIKirbyState 300). */
+    for (const i of [A, B]) { i.Module.HEAPU8[0x0203AD2C] = 300 & 255; i.Module.HEAPU8[0x0203AD2D] = 300 >> 8; }
     await sleep(1500);
 }
 say(`both in gameplay; A mid ${A.net.mid}, B mid ${B.net.mid}, features ${JSON.stringify(A.net.features)}`);
