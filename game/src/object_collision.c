@@ -29,6 +29,7 @@ extern "C" {
 #include "constants/object_types.h"
 #include "prank.h"
 #include "soarar.h"
+#include "port/coop.h"
 
 static bool8 KirbyCanContactOther(struct Kirby *, struct Kirby *);
 static void UpdateObjectCollisions(void);
@@ -67,7 +68,13 @@ void CreateObjectCollisionManager(void)
 
 static void UpdateObjectCollisions(void)
 {
+    /* PORT-COOP: shared enemies' shots, out to the other games and in from
+     * them (platform/coop_fx.c) */
+    if (gPortCoopFxOn)
+        PortCoopFxHazardScan();
     ProcessObjectCollisionLists();
+    if (gPortCoopFxOn)
+        PortCoopFxHazardHits();
     ProcessKirbyContacts();
     sub_0808838C();
     ClearCollisionCounts();
@@ -1326,6 +1333,54 @@ static bool8 KirbyCanContactOther(struct Kirby *first, struct Kirby *second)
         }
     }
     return FALSE;
+}
+
+/* PORT-COOP: a shot from another player's game (platform/coop_fx.c builds
+ * `attack` from what that game reported) against the Kirbys this game runs:
+ * the overlap test of the attack-against-Kirby loop above, and the game's own
+ * reaction, HandleKirbyCollision, when the touch would hurt -- a touch that
+ * would not is left alone, so the Kirby's unk6C (also a door's or a warp's
+ * hand-off) only ever names a stand-in that hurt it.  Returns 1 on a hit. */
+int PortCoopHazardTouch(struct ObjectBase *attack)
+{
+    u8 k;
+    int hit = 0;
+    s32 ax, ay, bx, by;
+
+    if (attack->flags & 1)
+        ax = (attack->x >> 8) + (-attack->unk38 - attack->unk3A * 2);
+    else
+        ax = (attack->x >> 8) + attack->unk38;
+    ay = (attack->y >> 8) + attack->unk39;
+    for (k = 0; k < gNumKirbys; ++k) {
+        struct ObjectBase *other = &gKirbys[k].base;
+        u32 defense, vulnerableTypes, attackFlags = attack->unk68;
+
+        if (PORT_COOP_IS_PUPPET(k) || other->roomId != attack->roomId || (other->flags & 0x200))
+            continue;
+        if (other->flags & 1)
+            bx = (other->x >> 8) + (-other->unk38 - other->unk3A * 2);
+        else
+            bx = (other->x >> 8) + other->unk38;
+        by = (other->y >> 8) + other->unk39;
+        if (!((attack->unk3A != 0 && attack->unk3B != 0
+                && COLLISION_AXIS_OVERLAP(ax, attack->unk3A * 2, bx, other->unk3A * 2)
+                && COLLISION_AXIS_OVERLAP(ay, attack->unk3B * 2, by, other->unk3B * 2))
+            || (attack->sprite.unk20[0].unk0 == 0
+                && COLLISION_AXIS_OVERLAP((attack->x >> 8) + attack->sprite.unk20[0].unk4,
+                    attack->sprite.unk20[0].unk6 - attack->sprite.unk20[0].unk4, bx, other->unk3A * 2)
+                && COLLISION_AXIS_OVERLAP((attack->y >> 8) + attack->sprite.unk20[0].unk5,
+                    attack->sprite.unk20[0].unk7 - attack->sprite.unk20[0].unk5, by, other->unk3B * 2))))
+            continue;
+        defense = other->unk5C;
+        vulnerableTypes = 0x3FFFF8 & ~(defense & ~7);
+        if (!(vulnerableTypes & attackFlags) || (attackFlags & 7) < (defense & 7)
+            || (other->flags & 0x8000) || (attackFlags & (0x20 | 0x800000)) || (other->unk62 & 0x10))
+            continue;
+        HandleKirbyCollision(attack, other);
+        hit = 1;
+    }
+    return hit;
 }
 
 bool8 ObjectHitboxesOverlap(struct ObjectBase *first, struct ObjectBase *second)

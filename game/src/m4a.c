@@ -4,6 +4,7 @@ extern "C" {
 #endif
 
 #include "gba/m4a.h"
+#include "port/coop.h"
 
 /* PORT: gSoundInfo, gMPlayJumpTable, gCgbChans, gMPlayInfo_0..3 and
  * gMPlayMemAccArea are defined as fixed GBA addresses in
@@ -142,6 +143,10 @@ void m4aSongNumStartOrContinue(u16 n)
 
 void m4aSongNumStop(u16 n)
 {
+    /* PORT-COOP: the stop of a sound other players heard (platform/coop_fx.c) */
+    if (gPortCoopFxOn)
+        PortCoopFxSoundStop(n);
+    {
     const struct MusicPlayer *mplayTable = gMPlayTable;
     const struct Song *songTable = gSongTable;
     const struct Song *song = &songTable[n];
@@ -149,6 +154,7 @@ void m4aSongNumStop(u16 n)
 
     if (mplay->info->songHeader == song->header)
         MPlayStop(mplay->info);
+    }
 }
 
 void m4aSongNumContinue(u16 n)

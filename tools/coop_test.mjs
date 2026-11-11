@@ -57,6 +57,12 @@
 //   fx         spawned objects.  A attacks (B held: inhale, then a copied
 //              ability's attack); what A's attack spawns is captured on A
 //              and drawn on B as ghosts (engine counters on both sides).
+//              A's sounds play on B, and the inhale's stop stops B's copy.
+//   shots      enemies after any player, and their shots hurt everyone.
+//              Both in a room with Shotzos (--shot-room 113), B near one,
+//              A further off; A owns the room.  A's game aims that Shotzo
+//              at B's puppet, and a bullet of A's hurts B in B's own game
+//              (B's Shotzos are puppets: B fired none of its own).
 //   progress   stage 2, shared progress.  Both files are moved past the
 //              tutorial (gAIKirbyState 300) and progress is written straight
 //              into memory, as the game's own collectors do: a shard and a
@@ -94,9 +100,12 @@ const LINK_B = +flag('link-b', 120);
 const JITTER = +flag('jitter', 40);
 const ROOM = +flag('room', 225);
 const [CELL_X, CELL_Y] = flag('cell', '13:7').split(':').map(Number);
-const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors,helpers,fx').split(',');
+const ONLY = flag('only', 'follow,freezeA,freezeB,reconnect,drop,enemies,bosses,progress,colors,helpers,fx,shots').split(',');
 const BOSS_ROOM = +flag('boss-room', 230);
 const [BOSS_CX, BOSS_CY] = flag('boss-cell', '24:13').split(':').map(Number);
+const SHOT_ROOM = +flag('shot-room', 113);
+const [SHOT_AX, SHOT_AY] = flag('shot-a', '3:5').split(':').map(Number);
+const [SHOT_BX, SHOT_BY] = flag('shot-b', '13:5').split(':').map(Number);
 const EN_ROOM = +flag('enemy-room', 104);
 const [EN_CX, EN_CY] = flag('enemy-cell', '2:9').split(':').map(Number);
 const PERIOD = 1000 / 59.7275;
@@ -865,10 +874,53 @@ async function fx() {
           `B got ${b.page.framesRecv - b0.page.framesRecv}, set ${b.page.framesSet - b0.page.framesSet}, drawn ${b.engine[3] - b0.engine[3]}, ` +
           `skipped pal ${b.engine[4] - b0.engine[4]} frame ${b.engine[5] - b0.engine[5]} vram ${b.engine[6] - b0.engine[6]} ` +
           `queue ${b.engine[7] - b0.engine[7]} room ${b.engine[8] - b0.engine[8]}`);
+    const sndA = a.engine[15] - a0.engine[15], playB = b.engine[16] - b0.engine[16], stopB = b.engine[17] - b0.engine[17];
+    check('fx', 'A\'s sounds play on B (A reported some, B played some)', sndA > 0 && playB > 0,
+          `A reported ${sndA}; B played ${playB}, skipped ${b.engine[18] - b0.engine[18]}`);
+    check('fx', 'A letting go of the inhale stops B\'s copy of it', stopB > 0,
+          `B stopped ${stopB}, safety-net stops ${b.engine[19] - b0.engine[19]}`);
     A.script = walker;
 }
 
-const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors, helpers, fx };
+/* --- enemies after any player, and their shots ---------------------------------- */
+const hpOf = (i, k = 0) => (i.Module.HEAPU8[KIRBY + KSIZE * k + 0x100] << 24) >> 24;
+async function shots() {
+    if (FAKE || typeof A.Module._PortCoopTestTarget !== 'function') {
+        say('shots: build has no PortCoopTestTarget -- skipped');
+        return;
+    }
+    A.script = B.script = () => 0;
+    A.Module._PortWarp(0, SHOT_ROOM, SHOT_AX, SHOT_AY);
+    B.Module._PortWarp(0, SHOT_ROOM, SHOT_BX, SHOT_BY);
+    const there = await until(() => roomOf(A) === SHOT_ROOM && roomOf(B) === SHOT_ROOM, 8000);
+    check('shots', `both warped into room ${SHOT_ROOM}`, there, `A ${roomOf(A)} B ${roomOf(B)}`);
+    if (!there) return;
+    await sleep(1500);
+    const shotzos = (i) => enemyList(i).filter((e) => e.type === 0x35 && !e.dying && e.idx !== 0xFFFF);
+    const kp = (i) => kirbyPos(i.Module, 0);
+    const bk = kp(B), ak = kp(A);
+    say(`shots: A at ${ak.x >> 8},${ak.y >> 8}, B at ${bk.x >> 8},${bk.y >> 8}; ` +
+        `A's Shotzos ${JSON.stringify(shotzos(A).map((e) => [e.idx, e.x >> 8, e.y >> 8, e.puppet]))}; ` +
+        `B's ${JSON.stringify(shotzos(B).map((e) => [e.idx, e.x >> 8, e.y >> 8, e.puppet]))}`);
+    const near = shotzos(A).sort((p, q) => Math.abs(p.x - bk.x) - Math.abs(q.x - bk.x))[0];
+    const bSlot = A.coop.cpuState().slots.indexOf(B.net.mid);
+    const mine = near ? A.Module._PortCoopTestTarget(near.addr) : -2;
+    check('shots', 'A\'s Shotzo nearest B goes after B (A\'s game picks B\'s puppet)',
+          !!near && bSlot > 0 && mine === bSlot && Math.abs(near.x - bk.x) < Math.abs(near.x - ak.x),
+          `Shotzo ${near ? near.idx : 'none'}; picks slot ${mine}, B is slot ${bSlot}`);
+    const pup = await until(() => shotzos(B).length > 0 && shotzos(B).every((e) => e.puppet), 3000);
+    check('shots', 'B\'s Shotzos are puppets of A\'s', pup, JSON.stringify(shotzos(B).map((e) => [e.idx, e.puppet])));
+    const e0 = B.coop.fxStats().engine.slice(), a0 = A.coop.fxStats().engine.slice();
+    const hp0 = hpOf(B);
+    const hit = await until(() => hpOf(B) < hp0, 15000);
+    const e1 = B.coop.fxStats().engine, a1 = A.coop.fxStats().engine;
+    check('shots', 'a bullet of A\'s Shotzo hurts B in B\'s own game', hit && e1[13] > e0[13],
+          `B hp ${hp0} -> ${hpOf(B)}; A reported ${a1[11] - a0[11]} hazards; B tested ${e1[12] - e0[12]}, ` +
+          `hit ${e1[13] - e0[13]}, skipped ${e1[14] - e0[14]}`);
+    A.script = walker;
+}
+
+const phases = { follow, freezeA, freezeB, reconnect, drop, enemies, bosses, progress, colors, helpers, fx, shots };
 for (const p of ONLY) {
     if (!phases[p]) { console.error('unknown phase ' + p); process.exit(2); }
     say(`--- ${p}`);

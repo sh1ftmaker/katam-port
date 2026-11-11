@@ -5,7 +5,9 @@ zalo/katam-port fork (on top of sh1ftmaker's stage-1 checkpoint `1fdaa04`),
 published at https://zalo.github.io/katam-port/mp/.**  Stage 1 (puppet
 Kirbys) is sh1ftmaker's; stages 2-4 and the stage-1 follow-ups are new and
 described in §8 below; the Kirby colour picker and name tags in §9; shared CPU
-Kirbys, spawned objects (attacks, shots, particles) and the phone in §10.  §1-§7 are the stage-1 checkpoint as it was written,
+Kirbys, spawned objects (attacks, shots, particles) and the phone in §10;
+enemies after any player, shots that hurt everyone and other games' sounds
+in §11.  §1-§7 are the stage-1 checkpoint as it was written,
 kept for its detail; where §8 contradicts them, §8 is current.
 
 Read this file first, then `platform/port/coop.h` (the pose layout and the C
@@ -554,11 +556,8 @@ and palette failures (see the end of `coop_fx.c`).
 
 ### Gaps
 
-- **Enemy shots do not hurt a player who is not the room's owner.**  A ghost
-  has no collision, and the owner's copy of the shot passes through puppets.
-  The next step: ghosts of a shared enemy's children registered as hazards in
-  the receiving game (the hitbox and attack data of the owner's object, the
-  game's own collision doing the rest).
+- ~~Enemy shots do not hurt a player who is not the room's owner.~~ Fixed in
+  §11.
 - What the runner's CPU Kirbys spawn in a room the runner is not in is not
   seen by anyone (the game only draws objects in the local player's room).
 - Rotated and scaled sprites are drawn unrotated; a ghost whose palette
@@ -567,3 +566,111 @@ and palette failures (see the end of `coop_fx.c`).
   AI picks a new room (a minute or more).
 - `coop/2` pages cannot join `coop/3` rooms.
 - Not tried by two people, and not on a phone.
+
+## 11. Enemies after any player, shots that hurt everyone, sounds (2026-11-11)
+
+The three gaps that showed most in play: a room's enemies only ever went
+after the player whose game runs them (the room's owner), their shots could
+not hurt anyone else, and everything another game did was silent.
+
+### Enemies go after any player (`platform/coop.c`, hooks in `kirby.c`)
+
+The game's targeting (`FindTargetKirby`, and `sub_0803D5CC` by x only) only
+*reads* the Kirby it picks -- position, facing, state; the only writes
+through a target are two boss hands.  So for a regular enemy (types
+0x00..0x37, the kind the games share) it now picks among the local Kirby and
+the puppets standing in the enemy's room (`PortCoopFindTarget`): in the game
+that runs the enemy it goes after the nearest player, and every other game
+sees that through the shared pose.  The game's own rule is kept: players
+first (its loop covers `gNumHumanPlayers` and takes a CPU Kirby only when no
+player is in the room), then CPU Kirbys, a Kirby flagged `unkC & 0x8000` only
+as a last resort.  A puppet counts while its pose is drawn in that room and
+its hp is above 0; the page tells the engine which puppets are CPU Kirbys
+(`PortCoopSetPuppetCpu`).  Bosses and minibosses keep going after the local
+player only: every game fights its own copy.
+
+Contact damage needed nothing new: a puppeted enemy is solid in the victim's
+own game and stands where the owner has it.
+
+### Shots hurt everyone (`platform/coop_fx.c`, hooks in `object_collision.c`)
+
+- **Reported**: at the top of the collision task, the game that runs an
+  enemy reports what that enemy spawned and put in this frame's collision
+  lists to hit Kirbys (`PortCoopFxHazardScan`: flag 0x10000000, not 0x200,
+  in the local room's group, origin `OR_ENEMY` via the task's tag): world
+  position, both hitboxes (`unk38..3B` and the sprite's `unk20[0]`), facing,
+  attack flags `unk68`, damage `unk63`, knockback `unk64/66` -- 24 bytes
+  each, at most 10 a frame, after the sprite records in the same frame
+  (`PORT_COOP_FX_HAZ_REC`, layout in `coop.h`).  Grabs (attack flag 0x20)
+  hand the Kirby to the enemy's state, which does not run elsewhere, and are
+  left out; so are enemy and boss bodies.
+- **Applied**: right after the game's own collisions, each other game builds
+  a stand-in `ObjectBase` per hazard (`sProxy`) and `PortCoopHazardTouch`
+  (object_collision.c) tests it against the Kirbys that game runs with the
+  attack-against-Kirby loop's own overlap test.  A touch that would hurt
+  goes through the game's own reaction, `HandleKirbyCollision`: damage,
+  knockback away from the shot, losing the ability, and the invincible
+  frames that keep one shot from hitting twice.  A touch that would not hurt
+  is left alone, so a Kirby's `unk6C` (also how doors and warps hand a Kirby
+  its destination) only ever names a stand-in that hurt it.
+- As with ghosts, a hazard applies only over this game's puppet of its enemy
+  -- a copy that runs its own state fires its own shots.
+- The shot is played back with the frame it belongs to, so it hurts where
+  its ghost is drawn; in the owner's game the shot still passes through the
+  puppet.
+
+### Sounds (`platform/coop_fx.c`, hooks in `data.h` and `m4a.c`)
+
+The game plays a sound for the local Kirby and for objects in the local room
+(`PlaySfx`).  A puppet runs no state and a ghost is no object, so another
+player's jumps, inhale and attacks, a helper's attacks and everything a
+shared enemy does in its owner's game were silent everywhere else.
+
+- **Reported** (`PortCoopFxSound`, from `PlaySfx`/`PlaySfxAlt`): the local
+  Kirby's own sounds (a CPU Kirby is silent in the game itself), what its or
+  a CPU Kirby's spawning plays, and what a shared enemy running its own state
+  plays; and (`PortCoopFxSoundStop`, from `m4aSongNumStop`) the stops of the
+  looping ones -- inhale, fire breath, the slide.  Songs on the music player
+  are never sent (the invincibility tune is the sender's own).
+- **Repeated**: each frame sent carries the sounds of the last 8 frames with
+  the frame they were made in (8 bytes each, at most 16, after the hazards);
+  the receiver plays each stamp once, so a frame the page skips or shows
+  twice loses or doubles nothing.
+- **Played** when the receiver is in that room and, for an enemy's, shows
+  that enemy as a puppet, through the game's own `PlaySfx` test.  A sound
+  started here is stopped again by its stop, when its source goes quiet for
+  half a second, when the local player leaves the room, or after 10 s still
+  playing (a lost stop).
+
+The room's sim id is now `coop/4`: a `coop/3` page drops frames longer than
+its limit.
+
+### Tests
+
+| test | result |
+|---|---|
+| `make coop-test` (new phase `shots`: both in room 113 with two Shotzos, B near one, A further off; A's game aims that Shotzo at B's puppet (`PortCoopTestTarget`), B's Shotzos are puppets, and a bullet of A's takes 1 hp off B in B's own game through the hazard path; `fx` adds: A's sounds play on B -- 151 reported, 141 played -- and A letting go of the inhale stops B's copy) | 55/55 (the 49 before, 6 new) |
+| `tests/coop_selftest.sh` (wasm and native LP64) | 0 failures in all three runs on both; local trajectory identical |
+| `cd netplay && npm test` | 51/51 |
+| `make regress-wasm` | 7/7 OK (the game unchanged with co-op off) |
+| `make lint-simstate` | 0 unlisted, 0 stale |
+
+The self-test's "trajectory identical with or without a puppet" check is the
+one place this work *wants* a difference: with puppets targetable, room 310's
+enemies went after the puppet at frame 4882 and the local Kirby's path
+changed.  Puppets are therefore not targetable while the self-test is armed,
+so the check keeps proving that a puppet pushes, blocks and triggers nothing;
+`shots` covers the targeting.
+
+### Gaps
+
+- Hits are decided where the shot is drawn, a link's latency after the
+  owner fired it; a player can be hurt by a shot that, in the owner's game,
+  has already gone past (and the other way round).
+- Shots from minibosses and bosses, and from enemies a game runs only for
+  itself (outside the owner's camera), are still each game's own.
+- A forwarded sound shares the game's music players with local ones: a
+  remote inhale can cut short a local sound of the same player, as two local
+  sounds would.
+- Grabs (Droppy, Prank, Mr. Frosty's, Phan Phan's) only grab the owner.
+

@@ -19,7 +19,17 @@ extern "C" {
         m4aSongNumStart(num); \
 })
 
+/* PORT-COOP: the sounds other players' games cannot make themselves are
+ * reported to them (platform/coop_fx.c); one load and a branch when off. */
+extern u8 gPortCoopFxOn;
+void PortCoopFxSound(u32 kind, u32 who, u32 room, const void *obj, u32 num, u32 alt);
+#define PORT_COOP_SFX(objBase, num, alt) ({ \
+    if (gPortCoopFxOn) \
+        PortCoopFxSound((objBase)->header.kind, (objBase)->unk56, (objBase)->roomId, (objBase), (num), (alt)); \
+})
+
 #define PlaySfx(objBase, num) ({ \
+    PORT_COOP_SFX(objBase, num, 0); \
     if (gKirbys[gLocalPlayerId].base.roomId == (objBase)->roomId) \
         PlaySfxInternal(objBase, num); \
 })
@@ -31,6 +41,7 @@ extern "C" {
 })
 
 #define PlaySfxAlt(objBase, num) ({ \
+    PORT_COOP_SFX(objBase, num, 1); \
     if (gKirbys[gLocalPlayerId].base.roomId == (objBase)->roomId) \
         PlaySfxAltInternal(objBase, num); \
 })

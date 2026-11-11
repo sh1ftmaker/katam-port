@@ -41,6 +41,7 @@
  * and the poses are external input, like keys.  tests/sim_state_allowlist.txt.
  */
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -96,7 +97,7 @@ struct CoopSlot {
     u8  settle;        /* frames left with ability held at NORMAL           */
     u8  flashing;      /* the flash palette was applied last frame          */
     u8  ability;       /* what the palette was last loaded for              */
-    u8  pad;
+    u8  cpu;           /* PortCoopSetPuppetCpu: shows another game's CPU Kirby */
 };
 
 static struct {
@@ -221,6 +222,15 @@ COOP_EXPORT void PortCoopSetAbsent(int slot)
     sCoop.slot[slot].absent = 1;
 }
 
+/* Whether a puppet shows a player (0) or another game's CPU Kirby (1):
+ * enemies go after players first (PortCoopFindTarget). */
+COOP_EXPORT void PortCoopSetPuppetCpu(int slot, int cpu)
+{
+    if (slot < 1 || slot >= PORT_COOP_MAX_SLOTS)
+        return;
+    sCoop.slot[slot].cpu = cpu ? 1 : 0;
+}
+
 COOP_EXPORT unsigned char *PortCoopPoseBuffer(void)
 {
     return sPoseBuffer;
@@ -331,6 +341,17 @@ COOP_EXPORT int PortCoopTestAbility(int ability)
     return sub_0805BD4C(&gKirbys[gLocalPlayerId], (u8)ability) ? 1 : 0;
 }
 
+/* Tests: the Kirby slot the game's targeting (FindTargetKirby) picks for
+ * the object at `addr` (an address from PortCoopEnemyList); -1 when the game
+ * is not ready. */
+extern struct Kirby *FindTargetKirby(struct ObjectBase *);
+COOP_EXPORT int PortCoopTestTarget(unsigned int addr)
+{
+    if (!GameReady() || addr == 0)
+        return -1;
+    return (int)(FindTargetKirby((struct ObjectBase *)(uintptr_t)addr) - gKirbys);
+}
+
 /* --- the phone ------------------------------------------------------------ */
 
 static struct { u8 pending; u16 room; s32 x, y; } sCall;
@@ -438,6 +459,82 @@ u16 PortCoopMapRoom(u32 slot)
         return 0xFFFF;
     room = Get16(sCoop.slot[slot].pose + 8);
     return RoomValid(room) ? (u16)room : 0xFFFF;
+}
+
+/* --- enemy targeting ----------------------------------------------------------
+ *
+ * The game's targeting (FindTargetKirby, sub_0803D5CC, kirby.c) only ever
+ * reads the Kirby it picks: where it is, which way it faces, its state.  So a
+ * regular enemy -- the kind every game in the room shares (coop_enemy.c) --
+ * may pick a puppet: in the game that runs it, it then goes after whichever
+ * player is nearest, and every other game sees it do that through the shared
+ * pose.  Contact damage and shots are the victim's own game's to apply
+ * (puppeted enemies stay solid; coop_fx.c turns the runner's shots into
+ * hazards).  Bosses keep fighting the local player only: each game fights
+ * its own copy.
+ *
+ * The game's rule is kept: players before CPU Kirbys (its loop runs over
+ * gNumHumanPlayers first and takes a CPU Kirby only when no player is in
+ * the room), the nearest of them, and a Kirby flagged unkC 0x8000 only as
+ * a last resort. */
+static int SelfTestArmed(void);
+
+static int Targetable(u32 i, u32 room)
+{
+    const struct CoopSlot *s = &sCoop.slot[i];
+    const u8 *p = UsablePose(s);
+
+    /* The self-test proves a puppet changes nothing in the local game; being
+     * chased is the one thing a puppet is meant to change, and coop-test's
+     * `shots` phase covers it. */
+    if (SelfTestArmed())
+        return 0;
+    if (!s->entered || p == NULL || Get16(p + 8) != room || !RoomValid(room))
+        return 0;
+    return !(p[10] & PORT_COOP_F_HIDDEN) && (s8)p[28] > 0;
+}
+
+int PortCoopTargetsPuppets(const struct ObjectBase *o)
+{
+    return o != NULL && o->header.kind == 1 && ((const struct Object *)o)->type <= 0x37;
+}
+
+struct Kirby *PortCoopFindTarget(const struct ObjectBase *o, int xOnly)
+{
+    s32 best = INT_MAX;
+    int pick = -1, fallback = 0, pass;
+    u32 i;
+
+    for (pass = 0; pass < 2 && pick < 0; pass++) {
+        for (i = 0; i < gNumKirbys; i++) {
+            const struct Kirby *k = &gKirbys[i];
+            int human;
+            s32 d;
+
+            if (k->base.roomId != o->roomId)
+                continue;
+            if (PORT_COOP_IS_PUPPET(i)) {
+                if (!Targetable(i, o->roomId))
+                    continue;
+                human = !sCoop.slot[i].cpu;
+            } else {
+                human = i < gNumHumanPlayers;
+            }
+            if (human != (pass == 0))
+                continue;
+            d = abs(o->x - k->base.x) + (xOnly ? 0 : abs(o->y - k->base.y));
+            if (d >= best)
+                continue;
+            if (k->base.unkC & 0x8000) {
+                if (k->hp > 0)
+                    fallback = (int)i;
+                continue;
+            }
+            best = d;
+            pick = (int)i;
+        }
+    }
+    return &gKirbys[pick >= 0 ? pick : fallback];
 }
 
 /* The first step a slot is a puppet: what was a CPU Kirby stops being one. */
@@ -662,10 +759,11 @@ static void GiveBack(u8 slot)
     {
         /* still wanted (given back because the file went into its
          * tutorial): taken over again once it is past it */
-        u8 wanted = s->wanted;
+        u8 wanted = s->wanted, cpu = s->cpu;
 
         memset(s, 0, sizeof(*s));
         s->wanted = wanted;
+        s->cpu = cpu;
     }
     PortLog("[katam-port] coop: slot %u given back to the CPU", (unsigned)slot);
 }

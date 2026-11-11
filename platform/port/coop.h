@@ -192,11 +192,14 @@ int  PortCoopEnemyStep(struct Object *obj);
  * A puppet only draws, so nothing it would have spawned exists in another
  * game.  The game that runs a spawner reports what its spawned objects draw
  * each frame; the others draw copies ("ghosts") through the game's own sprite
- * code, with no collision.  Reported: whatever the local Kirby, a CPU Kirby
- * this game runs, or a shared enemy running its own state spawned.
+ * code.  Reported: whatever the local Kirby, a CPU Kirby this game runs, or a
+ * shared enemy running its own state spawned.  With the sprites go the
+ * shared enemies' shots as hazards (they hurt the players of the other
+ * games) and the sounds those games cannot make themselves.
  *
- * Frame (PortCoopFxTake / PortCoopFxSet): u16 room, u8 n, u8 0, then n
- * records of PORT_COOP_FX_REC bytes:
+ * Frame (PortCoopFxTake / PortCoopFxSet): u16 room, u8 n, u8 nh, then n
+ * sprite records, nh hazard records, and (when the frame is long enough for
+ * it) u8 ns and ns sound records.  A sprite, PORT_COOP_FX_REC bytes:
  *    0 u16 animId    2 u8 variant    3 u8 id (stable while the object lives)
  *    4 s16 x, 6 s16 y  world pixels of the sprite's anchor
  *    8 u16 animCursor (the script position after the frame shown)
@@ -207,14 +210,34 @@ int  PortCoopEnemyStep(struct Object *obj);
  *   12 u16 Sprite.unk8 >> 7 (flip, priority, blend)
  *   14 u16 palKey: animation (12 bits) | variant << 12, for pal 0x10
  *   16 u16 src: bits 0-1 kind (0 a Kirby: bits 2-3 its slot on the sender;
- *          1 a shared enemy: bits 2-15 its object-list index) */
+ *          1 a shared enemy: bits 2-15 its object-list index)
+ * A hazard, PORT_COOP_FX_HAZ_REC bytes (an object in the sender's collision
+ * lists that hits Kirbys, spawned by a shared enemy; ObjectBase fields):
+ *    0 s16 x, 2 s16 y  world pixels (x >> 8, y >> 8)
+ *    4 s8  unk38, unk39, unk3A, unk3B   the hitbox
+ *    8 s8  sprite.unk20[0].unk4..unk7   the sprite's hitbox (flags bit 1)
+ *   12 u8  flags: bit 0 facing left, bit 1 sprite hitbox valid
+ *   13 s8  unk63 (damage)   14 s16 unk64   16 s16 unk66 (knockback)
+ *   18 u32 unk68 (attack flags)   22 u16 the enemy's object-list index
+ * A sound, PORT_COOP_FX_SND_REC bytes, repeated in the frames of the next
+ * PORT_COOP_FX_SND_KEEP frames so a frame the receiver skips loses none:
+ *    0 u16 song number | 0x4000 (PlaySfxAlt) | 0x8000 (a stop)
+ *    2 u16 room   4 u16 src (as a sprite's)   6 u16 sender frame stamp */
 #define PORT_COOP_FX_REC     18
 #define PORT_COOP_FX_MAX     32
-#define PORT_COOP_FX_BYTES   (4 + PORT_COOP_FX_MAX * PORT_COOP_FX_REC)
+#define PORT_COOP_FX_HAZ_REC 24
+#define PORT_COOP_FX_HAZ_MAX 10
+#define PORT_COOP_FX_SND_REC 8
+#define PORT_COOP_FX_SND_MAX 16
+#define PORT_COOP_FX_SND_KEEP 8
+#define PORT_COOP_FX_BYTES   (4 + PORT_COOP_FX_MAX * PORT_COOP_FX_REC \
+                              + PORT_COOP_FX_HAZ_MAX * PORT_COOP_FX_HAZ_REC \
+                              + 1 + PORT_COOP_FX_SND_MAX * PORT_COOP_FX_SND_REC)
 #define PORT_COOP_FX_SOURCES 8
 extern u8 gPortCoopFxOn;
 struct Task;
 struct Sprite;
+struct ObjectBase;
 void           PortCoopFxShare(int on);
 unsigned char *PortCoopFxBuffer(void);        /* PORT_COOP_FX_BYTES scratch */
 int            PortCoopFxTake(unsigned char *out, int max);
@@ -224,6 +247,15 @@ void           PortCoopFxFrame(void);         /* from PortCoopFrameTop */
 void           PortCoopFxCapture(struct Sprite *sprite);   /* DisplaySprite */
 void           PortCoopFxTaskCreated(struct Task *task);   /* TaskCreate    */
 void           PortCoopFxPalette(u32 slot, u32 key, u32 variant); /* sub_0803DFAC */
+/* Hazards (object_collision.c): the scan at the top of the collision task,
+ * the hits after the game's own; PortCoopHazardTouch is the game's reaction
+ * to a projectile, for a Kirby here that the hazard overlaps. */
+void           PortCoopFxHazardScan(void);
+void           PortCoopFxHazardHits(void);
+int            PortCoopHazardTouch(struct ObjectBase *attack);
+/* Sounds: PlaySfx/PlaySfxAlt (data.h) and m4aSongNumStop (m4a.c). */
+void           PortCoopFxSound(u32 kind, u32 who, u32 room, const void *obj, u32 num, u32 alt);
+void           PortCoopFxSoundStop(u32 num);
 int            PortCoopEnemyIsPuppet(const struct Object *obj);  /* coop_enemy.c */
 int            PortCoopEnemyPuppetAt(u32 room, u32 idx);
 
@@ -259,7 +291,13 @@ int  PortCoopObjectIndex(const struct Object *obj);   /* -1: not from the list *
 int  PortCoopForEachObject(int (*fn)(struct Object *, void *), void *arg);
 
 struct Kirby;
+struct ObjectBase;
 void PortCoopPuppetStep(struct Kirby *kirby);  /* replaces sub_0803EE18's body */
+/* Enemy targeting (kirby.c): a regular enemy picks among the local Kirby and
+ * the puppets standing in its room -- players first, then CPU Kirbys. */
+int  PortCoopTargetsPuppets(const struct ObjectBase *o);
+struct Kirby *PortCoopFindTarget(const struct ObjectBase *o, int xOnly);
+void PortCoopSetPuppetCpu(int slot, int cpu);  /* exported: 1 = a CPU Kirby */
 int  PortCoopPuppetAbsent(u32 slot);           /* HUD/map: show nothing at all */
 u16  PortCoopMapRoom(u32 slot);                /* pause map room, 0xFFFF = none */
 void PortCoopFrameTop(void);                   /* from PortPresentFrame */

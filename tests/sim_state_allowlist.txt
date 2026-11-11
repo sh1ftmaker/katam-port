@@ -130,6 +130,14 @@ coop_fx sOutLen setting co-op: the last frame's capture, handed to the page
 coop_fx sSrc setting co-op: the ghost frames the page set (external input)
 coop_fx sGhost presentation co-op ghost sprites, drawn between frames from the page's input
 coop_fx sScratch setting co-op: the page's scratch buffer (PortCoopFxBuffer)
+coop_fx sHaz setting co-op: shared enemies' shots found this frame, for the page (external output)
+coop_fx sHazN setting co-op: shared enemies' shots found this frame, for the page
+coop_fx sProxy setting co-op: stand-ins for other games' shots, rebuilt from the page's input every frame; a Kirby they hit keeps one in unk6C, as it would a real shot
+coop_fx sSnd setting co-op: the last frames' sounds, for the page (external output)
+coop_fx sSndAt setting co-op: the last frames' sounds, for the page
+coop_fx sSndN setting co-op: the last frames' sounds, for the page
+coop_fx sPlaying setting co-op: set only while other games' sounds are played, between frames
+coop_fx sSndRoom setting co-op: the room other games' sounds were last played in
 coop_fx sAlloc presentation co-op ghost VRAM, allocated and freed again within one call
 coop_fx sAllocN presentation co-op ghost VRAM, allocated and freed again within one call
 coop_fx sBytes presentation co-op ghost tile uploads this frame (a budget)

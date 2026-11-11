@@ -5358,6 +5358,9 @@ struct Kirby *FindTargetKirby(struct ObjectBase *r6)
     bool32 sp04 = TRUE;
     s32 r7 = INT_MAX;
 
+    /* PORT-COOP: a regular enemy goes after any player in its room */
+    if (gPortCoopPuppets && PortCoopTargetsPuppets(r6))
+        return PortCoopFindTarget(r6, FALSE);
     for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r7 == INT_MAX); ++i)
     {
         if (PORT_COOP_IS_PUPPET(i)) continue; /* PORT-COOP: never a target */
@@ -5466,6 +5469,9 @@ struct Kirby *sub_0803D5CC(struct ObjectBase *r5)
     bool32 sb = TRUE;
     s32 r6 = INT_MAX;
 
+    /* PORT-COOP: a regular enemy goes after any player in its room */
+    if (gPortCoopPuppets && PortCoopTargetsPuppets(r5))
+        return PortCoopFindTarget(r5, TRUE);
     for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r6 == INT_MAX); ++i)
     {
         if (PORT_COOP_IS_PUPPET(i)) continue; /* PORT-COOP: never a target */

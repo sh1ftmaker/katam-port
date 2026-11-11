@@ -67,9 +67,11 @@
 #include "malloc_vram.h"
 #include "kirby.h"
 #include "object.h"
+#include "gba/m4a.h"
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/coop.h"
+#include "port/res.h"
 #include "fnid_ids.h"
 
 #ifdef __EMSCRIPTEN__
@@ -113,15 +115,33 @@ struct FxSource {
     u32 frame;                       /* PortFrameNumber() at the set         */
     u8  ids[PORT_COOP_FX_MAX];       /* ghost slot -> id it showed last      */
     u8  used[PORT_COOP_FX_MAX];
+    u16 sndLast;                     /* newest sender stamp whose sounds ran */
+    u8  sndInit;
+    u8  loopN;                       /* sounds started here from this source */
+    struct { u16 num; u32 at; } loop[8];
 };
 static struct FxSource sSrc[PORT_COOP_FX_SOURCES];
 static struct Sprite sGhost[PORT_COOP_FX_SOURCES][PORT_COOP_FX_MAX];
 static u8 sScratch[PORT_COOP_FX_BYTES];
 
+/* hazards found by this frame's scan, and the stand-ins hits are made with */
+static u8  sHaz[PORT_COOP_FX_HAZ_MAX * PORT_COOP_FX_HAZ_REC];
+static int sHazN;
+static struct ObjectBase sProxy[PORT_COOP_FX_SOURCES][PORT_COOP_FX_HAZ_MAX];
+
+/* sounds: the last few frames' worth, repeated in every frame sent */
+static struct { u16 num, room, src, stamp; } sSnd[32];
+static int sSndAt, sSndN;
+static u8  sPlaying;                 /* the receiver is playing: not captured */
+static u32 sSndRoom = 0xFFFF;        /* the local room sounds were last played in */
+
 /* captured, capture dropped (full), frames handed out, ghosts drawn,
  * skipped: palette, frame lookup, VRAM, queue/budget, wrong room, enemy not
- * a puppet here, registry palettes loaded */
-static u32 sStat[11];
+ * a puppet here, registry palettes loaded; then hazards: 11 reported,
+ * 12 tested here, 13 hit a Kirby here, 14 skipped (the enemy is not a puppet
+ * here); sounds: 15 reported, 16 played here, 17 stopped here, 18 skipped
+ * (room, enemy, bad number), 19 forwarded loops stopped by the safety net */
+static u32 sStat[20];
 /* FrameAt failures, by reason, and the last few (anim, variant, cursor,
  * reason) -- PortCoopFxStat(32 + reason), PortCoopFxStat(48 + 4 * i + k) */
 static u32 sFail[8];
@@ -771,6 +791,402 @@ static void DrawSource(int si, u32 room)
     }
 }
 
+/* --- hazards --------------------------------------------------------------------
+ *
+ * A ghost cannot touch anyone, so a shared enemy's shots could never hurt a
+ * player whose game shows that enemy as a puppet -- only the player whose
+ * game runs it.  The game that runs the enemy therefore also reports what its
+ * spawning has in the collision lists to hit Kirbys this frame: hitbox,
+ * facing, attack flags, damage, knockback.  Every other game in the room
+ * tests those against its own Kirbys right after its own collisions, with the
+ * game's overlap test, and a touch goes through the game's own reaction to a
+ * projectile (PortCoopHazardTouch, object_collision.c): damage, knockback,
+ * losing the ability, the invincible frames that keep one shot from hitting
+ * twice.  Left out: grabs (attack flag 0x20 hands the Kirby to the enemy's
+ * state, which does not run here) and the enemies' own bodies (puppets,
+ * solid already).  A hazard is applied only over a puppet of its enemy, as
+ * a ghost is drawn: a copy that runs its own state shoots its own shots. */
+
+static int TaskOfStruct(const void *p)
+{
+    const struct Task *cur = gCurTask;
+    int i = TaskIndex(cur);
+
+    if (i >= 0 && cur->prev != 0 && cur->structOffset != 0
+        && TaskGetStructPtr((struct Task *)cur) == p)
+        return i;
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        struct Task *t = &gTasks[i];
+
+        if (t->prev == 0 || t->structOffset == 0)
+            continue;
+        if (TaskGetStructPtr(t) == p)
+            return i;
+    }
+    return -1;
+}
+
+void PortCoopFxHazardScan(void)
+{
+    u32 g, kind, j, n, room;
+
+    sHazN = 0;
+    if (!sShare || !PortCoopReady())
+        return;
+    g = gCurLevelInfo[gLocalPlayerId].unk65E;
+    if (g >= 4)
+        return;
+    room = gKirbys[gLocalPlayerId].base.roomId;
+    for (kind = 0; kind < 2; kind++) {
+        n = gUnk_02022EB0[g][kind];
+        for (j = 0; j < n && j < 0x1F && sHazN < PORT_COOP_FX_HAZ_MAX; j++) {
+            struct ObjectBase *e = gUnk_02022F50[g * 0x40 + kind * 0x20 + j];
+            u8 *r;
+            int ti;
+            u32 f = 0;
+
+            if (e == NULL || e->roomId != room || (e->flags & 0x200) || !(e->flags & 0x10000000))
+                continue;
+            if (e->unk68 & (0x20 | 0x800000))
+                continue;                   /* a grab, or harmless to Kirbys */
+            if (e->header.kind == 1 && ((struct Object *)e)->type <= 0x52)
+                continue;                   /* an enemy or a boss itself     */
+            if ((ti = TaskOfStruct(e)) < 0 || sOrigin[ti] != OR_ENEMY)
+                continue;
+            if (e->flags & 1)
+                f |= 1;
+            if (e->sprite.unk20[0].unk0 == 0)
+                f |= 2;
+            r = sHaz + sHazN * PORT_COOP_FX_HAZ_REC;
+            Put16(r + 0, (u32)(u16)(s16)(e->x >> 8));
+            Put16(r + 2, (u32)(u16)(s16)(e->y >> 8));
+            r[4] = (u8)e->unk38;
+            r[5] = (u8)e->unk39;
+            r[6] = (u8)e->unk3A;
+            r[7] = (u8)e->unk3B;
+            r[8] = (u8)e->sprite.unk20[0].unk4;
+            r[9] = (u8)e->sprite.unk20[0].unk5;
+            r[10] = (u8)e->sprite.unk20[0].unk6;
+            r[11] = (u8)e->sprite.unk20[0].unk7;
+            r[12] = (u8)f;
+            r[13] = (u8)e->unk63;
+            Put16(r + 14, (u32)(u16)e->unk64);
+            Put16(r + 16, (u32)(u16)e->unk66);
+            Put16(r + 18, (u32)e->unk68 & 0xFFFF);
+            Put16(r + 20, (u32)e->unk68 >> 16);
+            Put16(r + 22, sOriginIdx[ti]);
+            sHazN++;
+            sStat[11]++;
+        }
+    }
+}
+
+void PortCoopFxHazardHits(void)
+{
+    u32 now = PortFrameNumber(), room;
+    int si, i;
+
+    if (!sShare || !PortCoopReady())
+        return;
+    room = gKirbys[gLocalPlayerId].base.roomId;
+    for (si = 0; si < PORT_COOP_FX_SOURCES; si++) {
+        struct FxSource *s = &sSrc[si];
+        const u8 *b = s->buf;
+        int n, nh, off;
+
+        if (s->len < 4 || now - s->frame > FX_STALE || Get16(b) != room)
+            continue;
+        n = b[2];
+        nh = b[3];
+        off = 4 + n * PORT_COOP_FX_REC;
+        if (nh > PORT_COOP_FX_HAZ_MAX)
+            nh = PORT_COOP_FX_HAZ_MAX;
+        if (off + nh * PORT_COOP_FX_HAZ_REC > s->len)
+            nh = off < s->len ? (s->len - off) / PORT_COOP_FX_HAZ_REC : 0;
+        for (i = 0; i < nh; i++) {
+            const u8 *r = b + off + i * PORT_COOP_FX_HAZ_REC;
+            struct ObjectBase *a = &sProxy[si][i];
+
+            if (!PortCoopEnemyPuppetAt(room, Get16(r + 22))) {
+                sStat[14]++;
+                continue;
+            }
+            memset(a, 0, sizeof(*a));
+            a->header.kind = 2;
+            a->flags = 0x10000000 | (r[12] & 1);
+            a->x = (s32)(s16)Get16(r + 0) << 8;
+            a->y = (s32)(s16)Get16(r + 2) << 8;
+            a->unk38 = (s8)r[4];
+            a->unk39 = (s8)r[5];
+            a->unk3A = (s8)r[6];
+            a->unk3B = (s8)r[7];
+            a->sprite.unk20[0].unk0 = (r[12] & 2) ? 0 : -1;
+            a->sprite.unk20[0].unk4 = (s8)r[8];
+            a->sprite.unk20[0].unk5 = (s8)r[9];
+            a->sprite.unk20[0].unk6 = (s8)r[10];
+            a->sprite.unk20[0].unk7 = (s8)r[11];
+            a->unk56 = (u8)gLocalPlayerId;
+            a->roomId = (u16)room;
+            a->unk63 = (s8)r[13];
+            a->unk64 = (s16)Get16(r + 14);
+            a->unk66 = (s16)Get16(r + 16);
+            a->unk68 = (s32)(Get16(r + 18) | (Get16(r + 20) << 16));
+            sStat[12]++;
+            if (PortCoopHazardTouch(a))
+                sStat[13]++;
+        }
+    }
+}
+
+/* --- sounds -----------------------------------------------------------------------
+ *
+ * The game plays a sound for the local Kirby and for objects in the local
+ * room (PlaySfx, data.h).  A puppet runs no state and a ghost is not an
+ * object, so another player's jumps, inhale and attacks, and everything a
+ * shared enemy does in the game that runs it, were silent everywhere else.
+ * The game that makes such a sound reports it (the local Kirby's own, what
+ * its spawning or a CPU Kirby's spawning plays -- a CPU Kirby itself is
+ * silent in the game too -- and a shared enemy's), with the stops of the
+ * looping ones (inhale, fire breath, the slide); the others play it when
+ * they are in that room and, for an enemy's, show that enemy as a puppet.
+ * Songs on the music player (0) are never sent: the invincibility tune is
+ * the sender's own business.
+ *
+ * Each frame sent repeats the sounds of the last PORT_COOP_FX_SND_KEEP
+ * frames with the frame they were made in, and the receiver plays each stamp
+ * once, so a frame the page skips or shows twice loses or doubles nothing.
+ * A sound started here from a source is stopped again if that source goes
+ * quiet, leaves, or has not sent its stop within ten seconds. */
+
+#define SND_LATE   12     /* frames: an older sound is not worth playing late */
+#define SND_LOOP   600    /* frames a sound started here may run unstopped     */
+#define SND_QUIET  30     /* frames without a set before a source's are stopped */
+#define SND_LOOPS  8      /* sounds started here per source, tracked for stops */
+
+static void SndPush(u32 num, u32 room, u32 src)
+{
+    int i = (sSndAt + sSndN) & 31;
+
+    if (sSndN == 32) {
+        sSndAt = (sSndAt + 1) & 31;
+        sSndN--;
+        i = (sSndAt + sSndN) & 31;
+    }
+    sSnd[i].num = (u16)num;
+    sSnd[i].room = (u16)room;
+    sSnd[i].src = (u16)src;
+    sSnd[i].stamp = (u16)PortFrameNumber();
+    sSndN++;
+    sStat[15]++;
+}
+
+/* src for the object a sound or a stop belongs to: a Kirby slot's (k << 2)
+ * or a shared enemy's (1 | idx << 2); -1 when no one else needs it. */
+static int SourceOfTask(int ti)
+{
+    int o, k;
+    const struct Task *t;
+
+    if (ti < 0)
+        return -1;
+    t = &gTasks[ti];
+    o = sOrigin[ti];
+    if (o == OR_NONE && (k = KirbyOfTask(t)) >= 0)
+        o = OR_KIRBY + k;
+    if (o >= OR_KIRBY && o < OR_KIRBY + 4) {
+        k = o - OR_KIRBY;
+        if (k != gLocalPlayerId && PORT_COOP_IS_PUPPET(k))
+            return -1;
+        return k << 2;
+    }
+    if (o == OR_ENEMY)
+        return 1 | (sOriginIdx[ti] << 2);
+    if (TaskMainId(t) == FNID_ObjectMain && t->structOffset != 0) {
+        const struct Object *ob = (const struct Object *)TaskGetStructPtr((struct Task *)t);
+        int idx;
+
+        if (ob->base.header.kind == 1 && ob->type <= 0x37
+            && (idx = PortCoopObjectIndex(ob)) >= 0 && !PortCoopEnemyIsPuppet(ob))
+            return 1 | (idx << 2);
+    }
+    return -1;
+}
+
+static int Forwardable(u32 num)
+{
+    return num < Res_Count(RES_SONG_TABLE) && gSongTable[num].ms != 0;
+}
+
+void PortCoopFxSound(u32 kind, u32 who, u32 room, const void *obj, u32 num, u32 alt)
+{
+    int src;
+
+    if (sPlaying || !sShare || !Forwardable(num) || !PortCoopReady())
+        return;
+    if (kind == 0) {
+        /* a Kirby: the local one only (a CPU Kirby is silent in the game) */
+        if (who != gLocalPlayerId)
+            return;
+        src = (int)(who << 2);
+    } else if (kind == 1 && ((const struct Object *)obj)->type <= 0x37) {
+        const struct Object *ob = (const struct Object *)obj;
+        int idx = PortCoopObjectIndex(ob);
+
+        if (idx < 0 || PortCoopEnemyIsPuppet(ob))
+            return;
+        src = 1 | (idx << 2);
+    } else if ((src = SourceOfTask(TaskOfStruct(obj))) < 0) {
+        return;
+    }
+    SndPush(num | (alt ? 0x4000 : 0), room, (u32)src);
+}
+
+void PortCoopFxSoundStop(u32 num)
+{
+    int src;
+
+    if (sPlaying || !sShare || !Forwardable(num) || !PortCoopReady())
+        return;
+    if ((src = SourceOfTask(TaskIndex(gCurTask))) < 0)
+        return;
+    SndPush(num | 0x8000, gKirbys[gLocalPlayerId].base.roomId, (u32)src);
+}
+
+/* A sound as the game plays it for an object in the local room. */
+static void SndPlay(u32 num, u32 alt, u32 room)
+{
+    struct ObjectBase o;
+
+    memset(&o, 0, sizeof(o));
+    o.header.kind = 2;
+    o.roomId = (u16)room;
+    if (alt)
+        PlaySfxAlt(&o, num);
+    else
+        PlaySfx(&o, num);
+}
+
+/* The song is what its player is playing right now. */
+static int SongPlaying(u32 num)
+{
+    const struct Song *song = &gSongTable[num];
+    const struct MusicPlayerInfo *mp = gMPlayTable[song->ms].info;
+
+    return mp->songHeader == song->header && (mp->status & MUSICPLAYER_STATUS_TRACK) != 0;
+}
+
+/* Forget what has finished; stop what still plays and is due: everything
+ * (all), or what has run SND_LOOP frames without its stop. */
+static void SndStopLoops(struct FxSource *s, u32 now, int all)
+{
+    int i;
+
+    sPlaying = 1;
+    for (i = 0; i < s->loopN; ) {
+        u32 num = s->loop[i].num;
+
+        if (!SongPlaying(num)) {
+            s->loop[i] = s->loop[--s->loopN];
+        } else if (all || now - s->loop[i].at > SND_LOOP) {
+            m4aSongNumStop((u16)num);
+            if (!all)
+                sStat[19]++;
+            s->loop[i] = s->loop[--s->loopN];
+        } else {
+            i++;
+        }
+    }
+    sPlaying = 0;
+}
+
+static void SndFrame(int si, u32 room, u32 now)
+{
+    struct FxSource *s = &sSrc[si];
+    const u8 *b = s->buf, *r;
+    int n, nh, off, ns, i;
+    u16 newest = 0;
+
+    if (s->len < 4)
+        return;
+    n = b[2];
+    nh = b[3];
+    off = 4 + n * PORT_COOP_FX_REC + nh * PORT_COOP_FX_HAZ_REC;
+    if (off >= s->len)
+        return;
+    ns = b[off++];
+    if (ns > PORT_COOP_FX_SND_MAX || off + ns * PORT_COOP_FX_SND_REC > s->len)
+        ns = (s->len - off) / PORT_COOP_FX_SND_REC;
+    if (ns <= 0)
+        return;
+    newest = (u16)Get16(b + off + (ns - 1) * PORT_COOP_FX_SND_REC + 6);
+    for (i = 0; i < ns; i++) {
+        u16 st = (u16)Get16(b + off + i * PORT_COOP_FX_SND_REC + 6);
+
+        if ((s16)(st - newest) > 0)
+            newest = st;
+    }
+    /* first contact, or a stamp far from the last one (another sender in
+     * this source, a long freeze): only what is new from now on */
+    if (!s->sndInit || (s16)(newest - s->sndLast) > 600 || (s16)(newest - s->sndLast) < -600) {
+        s->sndInit = 1;
+        s->sndLast = (u16)(newest - 3);
+    }
+    sPlaying = 1;
+    for (i = 0; i < ns; i++) {
+        u32 num, flags, rroom, src;
+        u16 st;
+        int k;
+
+        r = b + off + i * PORT_COOP_FX_SND_REC;
+        st = (u16)Get16(r + 6);
+        if ((s16)(st - s->sndLast) <= 0)
+            continue;
+        num = Get16(r) & 0x3FFF;
+        flags = Get16(r) & 0xC000;
+        rroom = Get16(r + 2);
+        src = Get16(r + 4);
+        if (!Forwardable(num)) {
+            sStat[18]++;
+            continue;
+        }
+        if (flags & 0x8000) {
+            for (k = 0; k < s->loopN; k++)
+                if (s->loop[k].num == num) {
+                    m4aSongNumStop((u16)num);
+                    s->loop[k] = s->loop[--s->loopN];
+                    sStat[17]++;
+                    break;
+                }
+            continue;
+        }
+        if ((s16)(newest - st) > SND_LATE || rroom != room
+            || ((src & 3) == 1 && !PortCoopEnemyPuppetAt(room, src >> 2))) {
+            sStat[18]++;
+            continue;
+        }
+        SndPlay(num, flags & 0x4000, room);
+        sStat[16]++;
+        if (!SongPlaying(num))
+            continue;               /* refused (a busier sound), or a blip */
+        for (k = 0; k < s->loopN && s->loop[k].num != num; k++)
+            ;
+        if (k == s->loopN) {
+            if (s->loopN == SND_LOOPS) {
+                sPlaying = 0;
+                SndStopLoops(s, now, 0);    /* drops the finished ones */
+                sPlaying = 1;
+                if (s->loopN == SND_LOOPS)
+                    continue;
+            }
+            k = s->loopN++;
+        }
+        s->loop[k].num = (u16)num;
+        s->loop[k].at = now;
+    }
+    sPlaying = 0;
+    s->sndLast = newest;
+}
+
 /* From PortCoopFrameTop, between frames: hand this frame's capture to the
  * page and draw the ghosts the page set. */
 void PortCoopFxFrame(void)
@@ -778,23 +1194,59 @@ void PortCoopFxFrame(void)
     u32 now = PortFrameNumber(), room;
     int i;
 
-    /* the capture of the frame that just ran */
-    if (sCapN > 0) {
-        Put16(sCap, gKirbys[gLocalPlayerId].base.roomId);
-        sCap[2] = (u8)sCapN;
-        sCap[3] = 0;
-        sOutLen = 4 + sCapN * PORT_COOP_FX_REC;
-        memcpy(sOut, sCap, (size_t)sOutLen);
-    } else {
-        sOutLen = 0;
+    /* the capture of the frame that just ran: its sprites, its hazards, and
+     * the sounds of the last few frames */
+    {
+        int ns = 0, len, k;
+
+        while (sSndN > 0 && (u16)(now - sSnd[sSndAt].stamp) >= PORT_COOP_FX_SND_KEEP) {
+            sSndAt = (sSndAt + 1) & 31;
+            sSndN--;
+        }
+        ns = sSndN < PORT_COOP_FX_SND_MAX ? sSndN : PORT_COOP_FX_SND_MAX;
+        if (sCapN > 0 || sHazN > 0 || ns > 0) {
+            Put16(sCap, gKirbys[gLocalPlayerId].base.roomId);
+            sCap[2] = (u8)sCapN;
+            sCap[3] = (u8)sHazN;
+            len = 4 + sCapN * PORT_COOP_FX_REC;
+            memcpy(sOut, sCap, (size_t)len);
+            memcpy(sOut + len, sHaz, (size_t)(sHazN * PORT_COOP_FX_HAZ_REC));
+            len += sHazN * PORT_COOP_FX_HAZ_REC;
+            if (ns > 0) {
+                sOut[len++] = (u8)ns;
+                for (k = sSndN - ns; k < sSndN; k++) {
+                    int i = (sSndAt + k) & 31;
+
+                    Put16(sOut + len + 0, sSnd[i].num);
+                    Put16(sOut + len + 2, sSnd[i].room);
+                    Put16(sOut + len + 4, sSnd[i].src);
+                    Put16(sOut + len + 6, sSnd[i].stamp);
+                    len += PORT_COOP_FX_SND_REC;
+                }
+            }
+            sOutLen = len;
+        } else {
+            sOutLen = 0;
+        }
     }
     sCapN = 0;
+    sHazN = 0;
     memset(sCapPer, 0, sizeof(sCapPer));
     gPortCoopFxOn = sShare;
 
     if (!PortCoopReady())
         return;
     room = gKirbys[gLocalPlayerId].base.roomId;
+    /* sounds first: they do not depend on drawing anything */
+    for (i = 0; i < PORT_COOP_FX_SOURCES; i++) {
+        struct FxSource *src = &sSrc[i];
+
+        if (src->len >= 4 && now - src->frame <= FX_STALE)
+            SndFrame(i, room, now);
+        if (src->loopN)
+            SndStopLoops(src, now, now - src->frame > SND_QUIET || room != sSndRoom);
+    }
+    sSndRoom = room;
     sDrawing = 1;
     sAllocN = 0;
     sBytes = 0;
@@ -820,11 +1272,21 @@ void PortCoopFxFrame(void)
 
 COOP_EXPORT void PortCoopFxShare(int on)
 {
+    int i;
+
     sShare = on ? 1 : 0;
     if (!sShare) {
         gPortCoopFxOn = 0;
         sCapN = 0;
+        sHazN = 0;
+        sSndN = 0;
         sOutLen = 0;
+        /* nobody left to send a stop: end what they started here */
+        for (i = 0; i < PORT_COOP_FX_SOURCES; i++) {
+            if (sSrc[i].loopN)
+                SndStopLoops(&sSrc[i], PortFrameNumber(), 1);
+            sSrc[i].sndInit = 0;
+        }
     }
 }
 
@@ -856,6 +1318,8 @@ COOP_EXPORT void PortCoopFxSet(int src, const unsigned char *buf, int len)
         s->len = 0;
         return;
     }
+    if (PortFrameNumber() - s->frame > SND_QUIET)
+        s->sndInit = 0;             /* a new stream: none of its backlog */
     memcpy(s->buf, buf, (size_t)len);
     s->len = len;
     s->frame = PortFrameNumber();

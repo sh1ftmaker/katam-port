@@ -8,7 +8,9 @@
 #   1. the puppet sat where it was told, never moved on its own, never had
 #      roomId 0xFFFF or a live LevelInfo ("[coop-test] FAIL" lines: none);
 #   2. the local player's trajectory and state hash are identical on every
-#      frame of the two runs (a puppet affects nothing it touches);
+#      frame of the two runs (a puppet affects nothing it touches; enemies
+#      going after puppets, the one intended effect, is off while the
+#      self-test runs and covered by tools/coop_test.mjs's `shots`);
 #   3. both runs reached the last frame (no crash), across the recording's
 #      room changes and a visit to the pause screen's area map.
 #
