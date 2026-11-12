@@ -190,6 +190,12 @@ static void sub_0814343C(u8);
 static void sub_08143464(u8);
 static bool32 sub_08143498(s8);
 static void sub_081434AC(void);
+static void PortPocSettingsEnter(struct Unk_08138D64 *);
+static void PortPocSettingsSlideIn(struct Unk_08138D64 *);
+static void PortPocSettingsInput(struct Unk_08138D64 *);
+static void PortPocSettingsSlideOut(struct Unk_08138D64 *);
+static s16 PortPocStarY(u8);
+static void PortPocSpreadRows(struct Unk_08138D64 *, s32);
 
 static const u16 gUnk_08385BF8[] = {
     0x14, 0x14,
@@ -2320,13 +2326,13 @@ static void sub_0813CDE4(struct Unk_08138D64 *a1) {
         a1->unk9CC = FN(sub_081421B8);
         break;
     case 3:
-        a1->unk28C.y = gUnk_0838650A[a1->unk3A4];
+        a1->unk28C.y = PortPocStarY(a1->unk3A4);
         sub_08155128(&a1->unk28C);
         a1->unk9CC = FN(sub_081421B8);
         break;
     case 4:
         a1->unkBEC = sub_0802E57C();
-        a1->unk28C.y = gUnk_0838650A[a1->unk3A4];
+        a1->unk28C.y = PortPocStarY(a1->unk3A4);
         sub_08155128(&a1->unk28C);
         a1->unk9CC = FN(sub_0813D364);
         break;
@@ -2350,7 +2356,16 @@ static void sub_0813CDE4(struct Unk_08138D64 *a1) {
             for (i = 0; i < height; ++i)
                 CpuCopy16(tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
         }
-        a1->unk28C.y = gUnk_0838650A[a1->unk3A4];
+        a1->unk28C.y = PortPocStarY(a1->unk3A4);
+        sub_08155128(&a1->unk28C);
+        a1->unk9CC = FN(sub_081421B8);
+        break;
+    case PORT_MENU_POC_SCREEN:
+        /* PORT: KATAM_MENU_POC -- back from the settings screen, as from
+         * Erase (case 3), with the walking Kirbys it removed put back. */
+        a1->unkBEC = sub_0802E57C();
+        PortMenuPocBlankBanner();
+        a1->unk28C.y = PortPocStarY(a1->unk3A4);
         sub_08155128(&a1->unk28C);
         a1->unk9CC = FN(sub_081421B8);
         break;
@@ -2401,6 +2416,8 @@ static void sub_0813D234(struct Unk_08138D64 *a1) {
     a1->unk2DC[1].y = 0xD * a1->unk9D8 / 5 + 0x23;
     a1->unk2DC[2].y = 0x1A * a1->unk9D8 / 5 + 0x2B;
     a1->unk2DC[3].y = 0x27 * a1->unk9D8 / 5 + 0x33;
+    if (PortMenuPoc())
+        PortPocSpreadRows(a1, a1->unk9D8);
     a1->unk28C.x = 0x30 * a1->unk9D8 / 5 - 0x20;
     if (a1->unk0 == 1 || a1->unk0 == 7)
         gBgScrollRegs[0][1] = 0x18 * a1->unk9D8 / 5;
@@ -2448,6 +2465,8 @@ static void sub_0813D364(struct Unk_08138D64 *a1) {
     a1->unk2DC[1].y = 0x30;
     a1->unk2DC[2].y = 0x45;
     a1->unk2DC[3].y = 0x5A;
+    if (PortMenuPoc())
+        PortPocSpreadRows(a1, 5);
     a1->unk37C.y = 0x15 * a1->unk3A4 + 0x25;
     a1->unk28C.unk1B = 0xFF;
     sub_08155128(&a1->unk28C);
@@ -2509,6 +2528,10 @@ static void sub_0813D550(struct Unk_08138D64 *a1) {
     a1->unk2DC[3].y = 0x5A;
     a1->unk28C.x = 0x10;
     a1->unk28C.y = 0x3A;
+    if (PortMenuPoc()) {
+        PortPocSpreadRows(a1, 5);
+        a1->unk28C.y = PortPocStarY(2);
+    }
     a1->unk9D8 = 0;
     a1->unk9CC = FN(sub_0813D674);
 }
@@ -2560,11 +2583,110 @@ static inline struct Sprite *GetUnk2DCSub(struct Unk_08138D64 *a1, u32 idx) {
     return &a1->unk2DC[idx];
 }
 
-/* PORT: KATAM_MENU_POC (port/menu_poc.h).  sub_0813D784's input step with two
- * edits: Start Game skips the One Player / Multiplayer pop-up
- * (sub_0813DA34/sub_0813DB74) and goes where its One Player answer goes,
- * sub_0814238C; and a fifth entry, PORT_MENU_POC_SETTINGS, whose label and
- * description platform/menu_poc.c draws, opens the port's settings menu. */
+/* PORT: KATAM_MENU_POC (port/menu_poc.h) from here to PortPocGameSelectInput.
+ *
+ * Game Select's rows with five of them: the game spaces four at 0x15 from
+ * y 0x1B (gUnk_0838650A puts the star 11 px above a row); at that pitch a
+ * fifth lands on the walking Kirbys, so all five go at
+ * PORT_MENU_POC_ROW_PITCH.  Off, the game's own table. */
+static s16 PortPocStarY(u8 i) {
+    if (!PortMenuPoc())
+        return gUnk_0838650A[i];
+    return 0x10 + PORT_MENU_POC_ROW_PITCH * i;
+}
+
+/* The rows t/5 of the way from stacked (8 px apart, sub_0813CDE4) to spread,
+ * as sub_0813D234 does for the game's pitch. */
+static void PortPocSpreadRows(struct Unk_08138D64 *a1, s32 t) {
+    u8 i;
+
+    for (i = 0; i < 4; ++i)
+        a1->unk2DC[i].y = 0x1B + 8 * i + (PORT_MENU_POC_ROW_PITCH - 8) * i * t / 5;
+}
+
+/* The settings screen (pictures and model: platform/menu_poc.c).  Entered
+ * from Game Select's SETTINGS once its rows have slid out (sub_0814273C ->
+ * sub_0813DFCC -> sub_081427BC -> unk9D0); the walking Kirbys are taken off
+ * for it, as the link lobby does (sub_0813ECBC), and put back on the way
+ * out.  Leaves through sub_0813CDE4 like Erase, so Game Select slides back
+ * in with the cursor still on SETTINGS. */
+static void PortPocSettingsEnter(struct Unk_08138D64 *a1) {
+    a1->unk0 = a1->unk1;
+    a1->unk1 = PORT_MENU_POC_SCREEN;
+    if (a1->unkBEC) {
+        sub_0802FBE0(a1->unkBEC);
+        a1->unkBEC = NULL;
+    }
+    PortMenuPocSettingsOpen(a1);
+    a1->unk28C.x = -0x20;
+    a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+    a1->unk9D8 = 0;
+    a1->unk9CC = FN(PortPocSettingsSlideIn);
+    CALL(a1->unkBDC)(a1);
+}
+
+static void PortPocSettingsSlideIn(struct Unk_08138D64 *a1) {
+    ++a1->unk9D8;
+    a1->unk28C.x = 0x28 * a1->unk9D8 / 5 - 0x20;    /* to x 8, left of the rows */
+    PortMenuPocSettingsDraw(a1, 0xD0 * (5 - a1->unk9D8) / 5);
+    if (a1->unk9D8 > 4) {
+        a1->unkBF0 = 0;
+        a1->unk9CC = FN(PortPocSettingsInput);
+    }
+    if (!sub_08155128(&a1->unk28C))
+        a1->unk28C.unk1B = 0xFF;
+    DisplaySprite(&a1->unk28C);
+    CALL(a1->unkBDC)(a1);
+}
+
+static void PortPocSettingsInput(struct Unk_08138D64 *a1) {
+    u8 key;
+
+    sub_0813B4F0(a1);
+    key = sub_0813B484();
+    if (key == 2) {
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
+        a1->unk9D8 = 0;
+        a1->unk9CC = FN(PortPocSettingsSlideOut);
+    } else {
+        switch (PortMenuPocSettingsInput(a1, key)) {
+        case 1:
+            m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+            a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+            sub_08155128(&a1->unk28C);
+            break;
+        case 2:
+            m4aSongNumStart(key == 1 ? SE_MAIN_MENU_SELECT : SE_MAIN_MENU_CURSOR);
+            break;
+        }
+    }
+    PortMenuPocSettingsDraw(a1, 0);
+    if (!sub_08155128(&a1->unk28C))
+        a1->unk28C.unk1B = 0xFF;
+    DisplaySprite(&a1->unk28C);
+    CALL(a1->unkBDC)(a1);
+}
+
+static void PortPocSettingsSlideOut(struct Unk_08138D64 *a1) {
+    ++a1->unk9D8;
+    a1->unk28C.x = 8 - 0x28 * a1->unk9D8 / 5;
+    if (a1->unk9D8 > 4) {
+        PortMenuPocSettingsClose(a1);
+        a1->unk9CC = FN(sub_0813CDE4);
+    } else {
+        PortMenuPocSettingsDraw(a1, 0xD0 * a1->unk9D8 / 5);
+        if (!sub_08155128(&a1->unk28C))
+            a1->unk28C.unk1B = 0xFF;
+        DisplaySprite(&a1->unk28C);
+    }
+    CALL(a1->unkBDC)(a1);
+}
+
+/* sub_0813D784's input step with two edits: Start Game skips the One Player
+ * / Multiplayer pop-up (sub_0813DA34/sub_0813DB74) and goes where its One
+ * Player answer goes, sub_0814238C; and a fifth entry,
+ * PORT_MENU_POC_SETTINGS, whose label and description platform/menu_poc.c
+ * draws, opens the settings screen above. */
 static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
     struct Sprite *sprite;
     const u8 last = PORT_MENU_POC_SETTINGS;
@@ -2601,7 +2723,10 @@ static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
             a1->unk9D0 = FN(sub_0813E210);
             break;
         case PORT_MENU_POC_SETTINGS:
-            PortMenuPocOpenSettings();
+            /* the rows slide out as for Sub-Games / Erase, then ours */
+            a1->unk2 = PORT_MENU_POC_SCREEN;
+            a1->unk9CC = FN(sub_0814273C);
+            a1->unk9D0 = FN(PortPocSettingsEnter);
             break;
         }
         break;
@@ -2632,11 +2757,10 @@ static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
             sprite = &a1->unk2DC[a1->unk3A4];
             sprite->palId = 2;
             sub_08155128(sprite);
-            a1->unk28C.y = gUnk_0838650A[a1->unk3A4];
         } else {
             PortMenuPocBlankBanner();
-            a1->unk28C.y = gUnk_0838650A[3] + (gUnk_0838650A[3] - gUnk_0838650A[2]);
         }
+        a1->unk28C.y = PortPocStarY(a1->unk3A4);
         if (a1->unk3A5 < 4) {
             sprite = &a1->unk2DC[a1->unk3A5];
             sprite->palId = 3;
@@ -5760,6 +5884,10 @@ PORT_FNID_TABLE(game_src_code_08138D64) {
     PORT_FNID(sub_081433FC),
     PORT_FNID(sub_08143410),
     PORT_FNID(sub_08143424),
+    PORT_FNID(PortPocSettingsSlideIn),
+    PORT_FNID(PortPocSettingsSlideOut),
+    PORT_FNID(PortPocSettingsInput),
+    PORT_FNID(PortPocSettingsEnter),
     PORT_FNID_END
 };
 /* PORT-FNID end */
