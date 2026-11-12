@@ -20,6 +20,7 @@ extern "C" {
 #include "title_screen.h"
 #include "constants/languages.h"
 #include "treasures.h"
+#include "port/menu_poc.h"   /* PORT: KATAM_MENU_POC, off by default */
 
 struct Unk_08385CD4 {
     u16 animId;
@@ -931,6 +932,8 @@ static void sub_081397FC(struct Unk_08138D64 *a1) {
     sprite = &a1->unk37C;
     SpriteInitNoPointer2(sprite, VramMalloc(gUnk_08385CD4[gLanguage][0x17].numTiles), 0x200, gUnk_08385CD4[gLanguage][0x17].animId,
         gUnk_08385CD4[gLanguage][0x17].variant, 0, 0xFF, 0x10, 5, 0x80, -0x40, 0);
+    if (PortMenuPoc())
+        PortMenuPocAlloc(a1);
 }
 
 static void sub_08139A3C(struct Unk_08138D64 *a1) {
@@ -1225,6 +1228,8 @@ static void sub_0813A908(struct Unk_08138D64 *a1) {
 }
 
 static void sub_0813A9DC(struct Unk_08138D64 *a1) {
+    if (PortMenuPoc())
+        PortMenuPocFree(a1);
     if (a1->unk2DC[0].tilesVram) {
         VramFree(a1->unk2DC[0].tilesVram);
         a1->unk2DC[0].tilesVram = 0;
@@ -2555,12 +2560,100 @@ static inline struct Sprite *GetUnk2DCSub(struct Unk_08138D64 *a1, u32 idx) {
     return &a1->unk2DC[idx];
 }
 
+/* PORT: KATAM_MENU_POC (port/menu_poc.h).  sub_0813D784's input step with two
+ * edits: Start Game skips the One Player / Multiplayer pop-up
+ * (sub_0813DA34/sub_0813DB74) and goes where its One Player answer goes,
+ * sub_0814238C; and a fifth entry, PORT_MENU_POC_SETTINGS, whose label and
+ * description platform/menu_poc.c draws, opens the port's settings menu. */
+static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
+    struct Sprite *sprite;
+    const u8 last = PORT_MENU_POC_SETTINGS;
+
+    a1->unk3A5 = a1->unk3A4;
+    switch (sub_0813B484()) {
+    case 0:
+        break;
+    case 1:
+        m4aSongNumStart(SE_MAIN_MENU_SELECT);
+        switch (a1->unk3A4) {
+        case 0:
+            /* what sub_0813DA34 does to the chosen label, then One Player */
+            sprite = &a1->unk2DC[0];
+            sprite->palId = 4;
+            sprite->unk8 = 0;
+            sub_08155128(sprite);
+            a1->unk28C.unk1B = 0xFF;
+            sub_08155128(&a1->unk28C);
+            a1->unk9CC = FN(sub_0814238C);
+            break;
+        case 1:
+            a1->unk2 = 7;
+            a1->unk9CC = FN(sub_0814273C);
+            a1->unk9D0 = FN(sub_08140A1C);
+            break;
+        case 2:
+            a1->unk9CC = FN(sub_0813E0F8);
+            a1->unk2 = 0xA;
+            break;
+        case 3:
+            a1->unk2 = 3;
+            a1->unk9CC = FN(sub_0814273C);
+            a1->unk9D0 = FN(sub_0813E210);
+            break;
+        case PORT_MENU_POC_SETTINGS:
+            PortMenuPocOpenSettings();
+            break;
+        }
+        break;
+    case 2:
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
+        a1->unk2 = 1;
+        a1->unk9CC = FN(sub_0814273C);
+        a1->unk9D0 = FN(sub_0813C414);
+        break;
+    case 3:
+        m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        a1->unk3A4 = a1->unk3A4 == 0 ? last : a1->unk3A4 - 1;
+        break;
+    case 4:
+        m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        a1->unk3A4 = a1->unk3A4 == last ? 0 : a1->unk3A4 + 1;
+        break;
+    }
+    if (a1->unk3A4 != a1->unk3A5) {
+        if (a1->unk3A4 < 4) {
+            const struct TiledBg_082D7850 *ptr = gUnk_082D7850[gUnk_08385C14[gLanguage][a1->unk3A4 + 1]];
+            u16 *vram = (u16 *)0x600FD40;
+            u16 i;
+
+            LZ77UnCompVram(ptr->tileset, (u16 *)0x6000000);
+            for (i = 0; i < ptr->height; ++i)
+                CpuCopy16(ptr->tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
+            sprite = &a1->unk2DC[a1->unk3A4];
+            sprite->palId = 2;
+            sub_08155128(sprite);
+            a1->unk28C.y = gUnk_0838650A[a1->unk3A4];
+        } else {
+            PortMenuPocBlankBanner();
+            a1->unk28C.y = gUnk_0838650A[3] + (gUnk_0838650A[3] - gUnk_0838650A[2]);
+        }
+        if (a1->unk3A5 < 4) {
+            sprite = &a1->unk2DC[a1->unk3A5];
+            sprite->palId = 3;
+            sub_08155128(sprite);
+        }
+        sub_08155128(&a1->unk28C);
+    }
+}
+
 static void sub_0813D784(struct Unk_08138D64 *a1) {
     struct Sprite *sprite = NULL;
     u8 j;
 
     sub_0813B4F0(a1);
-    do {
+    if (PortMenuPoc())
+        PortPocGameSelectInput(a1);
+    else do {
         a1->unk3A5 = a1->unk3A4;
         switch (sub_0813B484()) {
         case 0:
@@ -4372,6 +4465,20 @@ static void sub_08141300(struct Unk_08138D64 *a1) {
             break;
         case 1:
             m4aSongNumStart(SE_MAIN_MENU_SELECT);
+            if (PortMenuPoc()) {
+                /* PORT: KATAM_MENU_POC -- no One Player / Multiplayer pop-up
+                 * (sub_0814155C/sub_081416DC): straight to its One Player
+                 * answer, as sub_081416DC would hand it off. */
+                sprite = GetUnk2DCSub(a1, a1->unk9CA);
+                sprite->palId = 4;
+                sprite->unk8 = 0;
+                sub_08155128(sprite);
+                a1->unk28C.unk1B = 0xFF;
+                sub_08155128(&a1->unk28C);
+                a1->unk2 = 8;
+                a1->unk9CC = FN(sub_081431F0);
+                break;
+            }
             a1->unk9CC = FN(sub_0814155C);
             break;
         case 2:
@@ -4741,6 +4848,8 @@ static void sub_08141E74(void) {
 
     ++var->unk9D4;
     CALL(var->unk9CC)(var);
+    if (PortMenuPoc())
+        PortMenuPocDraw(var);
 }
 
 static void sub_08141EC0(struct Unk_08138D64 *a1) {
