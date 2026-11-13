@@ -141,14 +141,13 @@ static u8 sRowBanner[PIC_H * ROW_COLS * 32];   /* cleared, widened banner */
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-/* On the web: a page served from .../menus/ or with ?menus=1. */
+/* On the web: on in a browser unless the page has ?menus=0.  Off under node
+ * (the regression harness), where there is no location. */
 EM_JS(int, PortWebMenuPocParam, (void), {
     try {
+        if (typeof location === 'undefined') return 0;
         var q = new URLSearchParams(location.search);
-        if (q.get('menus') === '1') return 1;
-        var p = location.pathname, i = p.lastIndexOf('/');
-        p = p.substring(0, i);
-        if (p.substring(p.lastIndexOf('/') + 1) === 'menus') return 1;
+        return q.get('menus') === '0' ? 0 : 1;
     } catch (e) {}
     return 0;
 });
