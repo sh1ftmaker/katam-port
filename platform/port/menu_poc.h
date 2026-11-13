@@ -60,8 +60,9 @@ void PortMenuPocSettingsDraw(struct Unk_08138D64 *a1, int slide);
 /* One pad event (sub_0813B484's 0..6, B excluded): 0 nothing happened,
  * 1 the cursor moved, 2 a value changed (applied and saved). */
 int PortMenuPocSettingsInput(struct Unk_08138D64 *a1, unsigned key);
-/* The star cursor's y for the current row. */
+/* The star cursor's place for the current row. */
 int PortMenuPocSettingsCursorY(struct Unk_08138D64 *a1);
+int PortMenuPocSettingsCursorX(void);
 void PortMenuPocSettingsClose(struct Unk_08138D64 *a1);
 
 #ifdef __cplusplus

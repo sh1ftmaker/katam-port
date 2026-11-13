@@ -2627,7 +2627,7 @@ static void PortPocSettingsEnter(struct Unk_08138D64 *a1) {
 
 static void PortPocSettingsSlideIn(struct Unk_08138D64 *a1) {
     ++a1->unk9D8;
-    a1->unk28C.x = 0x28 * a1->unk9D8 / 5 - 0x20;    /* to x 8, left of the rows */
+    a1->unk28C.x = (PortMenuPocSettingsCursorX() + 0x20) * a1->unk9D8 / 5 - 0x20;
     PortMenuPocSettingsDraw(a1, 0xD0 * (5 - a1->unk9D8) / 5);
     if (a1->unk9D8 > 4) {
         a1->unkBF0 = 0;
@@ -2669,7 +2669,7 @@ static void PortPocSettingsInput(struct Unk_08138D64 *a1) {
 
 static void PortPocSettingsSlideOut(struct Unk_08138D64 *a1) {
     ++a1->unk9D8;
-    a1->unk28C.x = 8 - 0x28 * a1->unk9D8 / 5;
+    a1->unk28C.x = PortMenuPocSettingsCursorX() - (PortMenuPocSettingsCursorX() + 0x20) * a1->unk9D8 / 5;
     if (a1->unk9D8 > 4) {
         PortMenuPocSettingsClose(a1);
         a1->unk9CC = FN(sub_0813CDE4);
