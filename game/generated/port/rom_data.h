@@ -387,6 +387,10 @@
 #define RomHeaderMagic (*(const u8 *)RES_BASE(RomHeaderMagic))
 #define SoundMainRAM ((char *)RES_BASE(SoundMainRAM))
 #define gAreaMapRoomsTilemapOffsets (*(const u32 (*)[NUM_AREA_IDS])RES_BASE(gAreaMapRoomsTilemapOffsets))
+/* PORT-FORK: the base gAreaMapRoomsTilemapOffsets[] is relative to: eleven RL-compressed
+ * 128x128 affine tilemaps, 8688 bytes in all.  Was a 4-byte zero stub in stubs.c, so the
+ * pause area map RL-decompressed host memory into VRAM (garbled map, OBJ tiles overwritten). */
+#define gAreaMapRoomsTilemaps ((const u8 *)RES_BASE(gAreaMapRoomsTilemaps))
 #define gScaleTable ((const u8 *)RES_BASE(gScaleTable))
 #define gFreqTable ((const u32 *)RES_BASE(gFreqTable))
 #define gPcmSamplesPerVBlankTable ((const u16 *)RES_BASE(gPcmSamplesPerVBlankTable))

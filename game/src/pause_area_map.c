@@ -170,7 +170,7 @@ extern const u16 gAreaMapRoomsPalette[2][0x40];
  * holds entries for paths and rooms as if all were unvisited.
  * These entries are then later overriden in AreaMapRoomsOverwriteTilemap().
  */
-extern const u8 gAreaMapRoomsTilemaps[] ALIGNED(4);
+/* PORT-FORK: replaced by port/rom_data.h -- extern const u8 gAreaMapRoomsTilemaps[] ALIGNED(4); */
 
 static const u16 sAreaMapPalettePulseOffsets[] = {
     offsetof(struct AreaMapPalettePulseStates, roomHeader) / sizeof(u16),

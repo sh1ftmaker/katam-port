@@ -21,9 +21,7 @@ extern "C" {
 
 /* ---- data that lives in assembly --------------------------------------- */
 
-/* PORT: size unknown, 4-element placeholder. */
-extern const u8 gAreaMapRoomsTilemaps[4] ALIGNED(4);
-const u8 gAreaMapRoomsTilemaps[4] ALIGNED(4) = { 0 };
+/* gAreaMapRoomsTilemaps: read from the ROM now (port/rom_data.h). */
 
 /* gHBlankIntrs: in the port sim block now (main.h). */
 
