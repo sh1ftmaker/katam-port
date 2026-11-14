@@ -6,6 +6,7 @@ extern "C" {
 #include "in_game_interlude.h"
 #include "palette_effects.h"
 #include "pause_world_map.h"
+#include "pause_settings.h"
 #include "code_0801DA58.h"
 #include "constants/languages.h"
 #include "functions.h"
@@ -1213,7 +1214,8 @@ static void WorldMapPauseMain(void) {
 
         for (playerId = 0; playerId < 4; playerId++) {
             if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
-                (gPauseMenus[playerId].menuId == MENU_HELP || gPauseMenus[playerId].menuId == MENU_AREAMAP)) {
+                (gPauseMenus[playerId].menuId == MENU_HELP || gPauseMenus[playerId].menuId == MENU_AREAMAP
+                 || gPauseMenus[playerId].menuId == MENU_PORT_SETTINGS)) {
                 worldmap->nextMenuId = gPauseMenus[playerId].menuId;
                 CreatePauseFade(0x20, 1);
                 gCurTask->main = FN(WorldMapToNextMenu);
@@ -1468,6 +1470,9 @@ static void WorldMapToNextMenu(void) {
         }
         else if (worldmap->nextMenuId == MENU_AREAMAP) {
             CreateAreaMap();
+        }
+        else if (worldmap->nextMenuId == MENU_PORT_SETTINGS) {
+            CreatePauseSettings();  /* PORT: KATAM_MENU_POC */
         }
         CreatePauseFade(-0x20, 1);
         TaskDestroy(gCurTask);

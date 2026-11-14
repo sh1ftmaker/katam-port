@@ -15,6 +15,8 @@ extern "C" {
 #include "palette.h"
 #include "pause_area_map.h"
 #include "pause_fade.h"
+#include "pause_settings.h"
+#include "port/menu_poc.h"   /* PORT: the settings page, KATAM_MENU_POC */
 #include "pause_world_map.h"
 #include "sprite.h"
 #include "subgames.h"
@@ -306,6 +308,9 @@ void CreatePauseMenu(void) {
     else if (gPauseMenus[gLocalPlayerId].menuId == MENU_WORLDMAP) {
         CreateWorldMap(WORLDMAP_NO_UNLOCK);
     }
+    else if (gPauseMenus[gLocalPlayerId].menuId == MENU_PORT_SETTINGS && PortMenuPoc()) {
+        CreatePauseSettings();  /* PORT: left on the settings page last time */
+    }
     else {
         CreateHelpMenu();
     }
@@ -396,8 +401,9 @@ void CreateHelpMenu(void) {
 
     playerRoomFlags = GetPlayerRoomFlags();
 
-    if ((playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) ||
-        ((playerRoomFlags & (1 << KIRBY_IN_TUTORIAL_ROOM)) && !HasBigChest(AREA_TUTORIAL))) {
+    /* PORT: with the settings page Select always has somewhere to go. */
+    if (!PortMenuPoc() && ((playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) ||
+        ((playerRoomFlags & (1 << KIRBY_IN_TUTORIAL_ROOM)) && !HasBigChest(AREA_TUTORIAL)))) {
         SpriteInitNoFunc(&helpmenu->buttonSwitch, (u32)OBJ_VRAM0 + 0x3000, 0x480, sHelpMenuButtonAnimInfos[language][4].animId,
                          sHelpMenuButtonAnimInfos[language][4].variant, 0, 0xff, 0x10, 8, 0x22, 0x88, 0x80000);
         HelpMenuButtonLoadTiles(HELPMENU_BUTTON_SELECT_OMITTED);
@@ -412,8 +418,8 @@ void CreateHelpMenu(void) {
 
     if (gUnk_0203AD10 & 4) return;
 
-    if ((playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) ||
-        ((playerRoomFlags & (1 << KIRBY_IN_TUTORIAL_ROOM)) && !HasBigChest(AREA_TUTORIAL))) {
+    if (!PortMenuPoc() && ((playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) ||
+        ((playerRoomFlags & (1 << KIRBY_IN_TUTORIAL_ROOM)) && !HasBigChest(AREA_TUTORIAL)))) {
         helpmenu->buttonB.animId = sHelpMenuButtonAnimInfos[language][0].animId;
         helpmenu->buttonB.variant = sHelpMenuButtonAnimInfos[language][0].variant;
         helpmenu->buttonSwitch.animId = sHelpMenuButtonAnimInfos[language][4].animId;
@@ -462,7 +468,8 @@ static void HelpMenuMain(void) {
 
     for (playerId = 0; playerId < 4; playerId++) {
         if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
-            (gPauseMenus[playerId].menuId == MENU_WORLDMAP || gPauseMenus[playerId].menuId == MENU_AREAMAP)) {
+            (gPauseMenus[playerId].menuId == MENU_WORLDMAP || gPauseMenus[playerId].menuId == MENU_AREAMAP
+             || gPauseMenus[playerId].menuId == MENU_PORT_SETTINGS)) {
             helpmenu->nextMenuId = gPauseMenus[playerId].menuId;
             gCurTask->main = FN(HelpMenuToNextMenu);
             CreatePauseFade(0x20, 1);
@@ -481,6 +488,9 @@ static void HelpMenuToNextMenu(void) {
         }
         else if (helpmenu->nextMenuId == MENU_AREAMAP) {
             CreateAreaMap();
+        }
+        else if (helpmenu->nextMenuId == MENU_PORT_SETTINGS) {
+            CreatePauseSettings();
         }
         CreatePauseFade(-0x20, 1);
         TaskDestroy(gCurTask);
@@ -565,11 +575,21 @@ static void PauseMenuMain(void) {
     if (allPressedKeys & SELECT_BUTTON) {
         enum PauseMenuId menuId = gPauseMenus[gLocalPlayerId].menuId;
 
+        /* PORT: with KATAM_MENU_POC the settings page comes after the world
+         * map (or after the help page where there is no map to show) and is
+         * followed by the help page: help -> area map -> world map ->
+         * settings -> help, help -> world map -> settings -> help in the
+         * tutorial once its big chest is open, help -> settings -> help in
+         * the Dimension Mirror, the tutorial before that and rooms the area
+         * map does not cover. */
         if (gPauseMenus[gLocalPlayerId].menuId == MENU_WORLDMAP) {
-            menuId = MENU_HELP;
+            menuId = PortMenuPoc() ? MENU_PORT_SETTINGS : MENU_HELP;
         }
         else if (gPauseMenus[gLocalPlayerId].menuId == MENU_AREAMAP) {
             menuId = MENU_WORLDMAP;
+        }
+        else if (gPauseMenus[gLocalPlayerId].menuId == MENU_PORT_SETTINGS) {
+            menuId = MENU_HELP;
         }
         else {
             u32 playerRoomFlags = GetPlayerRoomFlags();
@@ -585,6 +605,9 @@ static void PauseMenuMain(void) {
                         menuId = MENU_AREAMAP;
                     }
                 }
+            }
+            if (menuId == gPauseMenus[gLocalPlayerId].menuId && PortMenuPoc()) {
+                menuId = MENU_PORT_SETTINGS;
             }
         }
 

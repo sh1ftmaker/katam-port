@@ -46,6 +46,11 @@
  *
  * --- the settings screen -------------------------------------------------------
  *
+ * Shown in two places from the same functions (PortPocScreen*): the front
+ * end's settings screen, and the pause menu's settings page
+ * (game/src/pause_settings.c), which supplies its own sprite memory and
+ * palette lines and draws the same rows, header, description and cursor.
+ *
  * Six rows over gPortSettings (platform/ui/settings.h), the ones a first-time
  * player has a reason to touch.  A change is clamped, applied with
  * PortSettingsChanged() and saved by it -- exactly what the ImGui menu
@@ -126,6 +131,9 @@
 #define ROW_VALUE_X1    192         /* values end here                      */
 #define HEAD_COLS       5
 #define SET_TILES       ((ROWS * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES)
+typedef char SetTilesMatchHeader[SET_TILES == PORT_POC_SCREEN_TILES ? 1 : -1];
+typedef char PauseObjFits[PORT_POC_PAUSE_CURSOR_VRAM + 0x10 * 32
+                          <= PORT_POC_PAUSE_OBJ_VRAM + PORT_POC_PAUSE_OBJ_BYTES ? 1 : -1];
 
 static int sOn = -1;
 /* KATAM_MENU_POC=2: as 1, but never cut letters from the game's pictures --
@@ -882,30 +890,39 @@ static void RowStep(int row, int dir)
     PortSettingsChanged();
 }
 
-static u32 RowVram(struct Unk_08138D64 *a1, int row)
+/* --- the screen itself, shared by the front end and the pause page ----------
+ *
+ * Everything below draws from `tiles` (SET_TILES of OBJ VRAM, wherever the
+ * caller found them) and a row cursor the caller keeps in its own (game)
+ * memory; the banner and header are decoded from the sprite variants the
+ * caller names.  The two callers are the front end's settings screen (tiles
+ * from VramMalloc, row in a1->unk3A6) and the pause menu's settings page
+ * (game/src/pause_settings.c: fixed tiles, saved and put back around it). */
+
+static u32 RowVram(u32 tiles, int row)
 {
-    return a1->unk3A8.tilesVram + row * ROW_COLS * COL_TILES * 32;
+    return tiles + row * ROW_COLS * COL_TILES * 32;
 }
 
-static u32 HeadVram(struct Unk_08138D64 *a1)
+static u32 HeadVram(u32 tiles)
 {
-    return RowVram(a1, ROWS);
+    return RowVram(tiles, ROWS);
 }
 
-static u32 SetDescVram(struct Unk_08138D64 *a1)
+static u32 SetDescVram(u32 tiles)
 {
-    return HeadVram(a1) + HEAD_COLS * COL_TILES * 32;
+    return HeadVram(tiles) + HEAD_COLS * COL_TILES * 32;
 }
 
 /* The game's banner, widened from 176 to ROW_W by repeating one plain
  * column (the stripes run across, so a repeated column is invisible). */
-static int BuildRowBanner(struct Unk_08138D64 *a1)
+static int BuildRowBanner(u16 lblAnim, u8 lblVariant)
 {
     static u8 src[PIC_H * GS_LABEL_COLS * 32];
     int sw = GS_LABEL_COLS * 32, w = ROW_COLS * 32, extra = ROW_W - LBL_W, x, y;
 
     memset(sRowBanner, 0, sizeof(sRowBanner));
-    if (!ClearedBanner(a1->unk2DC[3].animId, a1->unk2DC[3].variant, src, sw))
+    if (!ClearedBanner(lblAnim, lblVariant, src, sw))
         return 0;
     for (y = 0; y < PIC_H; y++)
         for (x = 0; x < ROW_W; x++) {
@@ -916,12 +933,11 @@ static int BuildRowBanner(struct Unk_08138D64 *a1)
     return 1;
 }
 
-static void DrawRowTiles(struct Unk_08138D64 *a1, int row)
+static void DrawRowTiles(u32 tiles, int row, int selected)
 {
     static u8 px[PIC_H * ROW_COLS * 32];
     int w = ROW_COLS * 32;
     char val[24], shown[32];
-    int selected = a1->unk3A6 == row;
 
     memcpy(px, sRowBanner, sizeof(px));
     CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, kRowName[row], LBL_FILL, LBL_EDGE);
@@ -932,20 +948,17 @@ static void DrawRowTiles(struct Unk_08138D64 *a1, int row)
         snprintf(shown, sizeof(shown), "%s", val);
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
              LBL_FILL, LBL_EDGE);
-    PackPic(px, ROW_COLS, RowVram(a1, row));
+    PackPic(px, ROW_COLS, RowVram(tiles, row));
 }
 
 /* The SUB-GAMES header (its S icon suits SETTINGS) with "SETTINGS" in the
  * headers' own lettering. */
-static void DrawHeadTiles(struct Unk_08138D64 *a1)
+static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
 {
     static u8 px[PIC_H * HEAD_COLS * 32];
     int w = HEAD_COLS * 32, fw, h, x, y;
 
-    /* unkC is Game Select's header; Sub-Games' is the next variant in every
-     * language (gUnk_08385CD4 [1], [2]). */
-    fw = DecodeSpriteFrame(a1->unkC.animId, a1->unkC.variant + 1, px, w, PIC_H, &h,
-                           &sHdrOffX, &sHdrOffY);
+    fw = DecodeSpriteFrame(hdrAnim, hdrVariant, px, w, PIC_H, &h, &sHdrOffX, &sHdrOffY);
     if (fw != HDR_W || h != HDR_H) {
         memset(px, 0, sizeof(px));
     } else {
@@ -953,19 +966,94 @@ static void DrawHeadTiles(struct Unk_08138D64 *a1)
             for (x = HDR_TEXT_X0; x < HDR_TEXT_X1; x++)
                 if (px[y * w + x] == HDR_TEXT)
                     px[y * w + x] = HDR_BG;
-        if (sHeaderCutsOk && a1->unkC.animId == EN_HEADER_ANIM)
+        if (sHeaderCutsOk && hdrAnim == EN_HEADER_ANIM)
             PasteCut(px, w, HDR_TEXT_LEFT, kHeaderCuts, ARRAY_COUNT(kHeaderCuts), "SETTINGS",
                      HDR_ROW0, HDR_ROW1, 0, HDR_TEXT, 0, 2, 6);
         else
             CellText(px, w, PIC_H, HDR_TEXT_LEFT, HDR_ROW0, "SETTINGS", HDR_TEXT, 0);
     }
-    PackPic(px, HEAD_COLS, HeadVram(a1));
+    PackPic(px, HEAD_COLS, HeadVram(tiles));
 }
+
+void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+{
+    int r;
+
+    LoadSources();
+    if (!BuildRowBanner(lblAnim, lblVariant))
+        PortLog("[menu-poc] the ERASE A FILE label is not the expected shape; rows without banners");
+    for (r = 0; r < ROWS; r++)
+        DrawRowTiles(tiles, r, r == row);
+    DrawHeadTiles(tiles, hdrAnim, hdrVariant);
+    BuildDesc(kRowDesc[row], SetDescVram(tiles));
+}
+
+static s32 RowFrameY(int row)
+{
+    return ROW_Y0 + ROW_PITCH * row;
+}
+
+int PortPocScreenCursorY(int row)
+{
+    /* Game Select draws the star 11 px above a label sprite's y
+     * (gUnk_0838650A), and a label's frame is drawn sLblOffY above that. */
+    return RowFrameY(row) + sLblOffY - 11;
+}
+
+int PortPocScreenCursorX(void)
+{
+    /* ... and 16 px left of its x: our frames sit 16 px further left. */
+    return ROW_FRAME_X + sLblOffX - 16;
+}
+
+void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
+{
+    int r;
+
+    /* the header slides in from the left as the game's (unkC) do */
+    DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(tiles), HEAD_COLS,
+            PIC_H, PAL_HEADER);
+    for (r = 0; r < ROWS; r++)
+        DrawPic(layer, ROW_FRAME_X + slide, RowFrameY(r), RowVram(tiles, r), ROW_COLS, PIC_H,
+                row == r ? PAL_LIT : PAL_DIM);
+    SyncDescPalette();
+    DrawPic(layer, 0, DESC_Y, SetDescVram(tiles), GS_DESC_COLS, 16, PAL_DESC);
+}
+
+int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
+{
+    int was = *row;
+
+    switch (key) {
+    case 3:     /* up */
+        *row = was == 0 ? ROWS - 1 : was - 1;
+        break;
+    case 4:     /* down */
+        *row = was == ROWS - 1 ? 0 : was + 1;
+        break;
+    case 1:     /* A: next value */
+    case 6:     /* right */
+        RowStep(was, 1);
+        DrawRowTiles(tiles, was, 1);
+        return 2;
+    case 5:     /* left */
+        RowStep(was, -1);
+        DrawRowTiles(tiles, was, 1);
+        return 2;
+    default:
+        return 0;
+    }
+    DrawRowTiles(tiles, was, 0);
+    DrawRowTiles(tiles, *row, 1);
+    BuildDesc(kRowDesc[*row], SetDescVram(tiles));
+    return 1;
+}
+
+/* --- the front end's settings screen ------------------------------------------ */
 
 void PortMenuPocSettingsOpen(struct Unk_08138D64 *a1)
 {
     u32 v;
-    int r;
 
     PortMenuPocFree(a1);
     a1->unk3A6 = 0;
@@ -976,13 +1064,11 @@ void PortMenuPocSettingsOpen(struct Unk_08138D64 *a1)
     }
     a1->unk3A8.tilesVram = v;
     sOwner = a1;
-    LoadSources();
-    if (!BuildRowBanner(a1))
-        PortLog("[menu-poc] the ERASE A FILE label is not the expected shape; rows without banners");
-    for (r = 0; r < ROWS; r++)
-        DrawRowTiles(a1, r);
-    DrawHeadTiles(a1);
-    BuildDesc(kRowDesc[0], SetDescVram(a1));
+    /* the ERASE A FILE label's banner; unkC is Game Select's header and
+     * Sub-Games' is the next variant in every language (gUnk_08385CD4 [1],
+     * [2]) */
+    PortPocScreenBuild(v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+                       a1->unkC.animId, a1->unkC.variant + 1, 0);
     PortMenuPocBlankBanner();
 }
 
@@ -991,68 +1077,56 @@ void PortMenuPocSettingsClose(struct Unk_08138D64 *a1)
     PortMenuPocFree(a1);
 }
 
-static s32 RowFrameY(int row)
-{
-    return ROW_Y0 + ROW_PITCH * row;
-}
-
 int PortMenuPocSettingsCursorY(struct Unk_08138D64 *a1)
 {
-    /* Game Select draws the star 11 px above a label sprite's y
-     * (gUnk_0838650A), and a label's frame is drawn sLblOffY above that. */
-    return RowFrameY(a1->unk3A6) + sLblOffY - 11;
+    return PortPocScreenCursorY(a1->unk3A6);
 }
 
 int PortMenuPocSettingsCursorX(void)
 {
-    /* ... and 16 px left of its x: our frames sit 16 px further left. */
-    return ROW_FRAME_X + sLblOffX - 16;
+    return PortPocScreenCursorX();
 }
 
 void PortMenuPocSettingsDraw(struct Unk_08138D64 *a1, int slide)
 {
-    int r;
-    u8 layer = 0x10;    /* the layer Game Select's rows use */
-
     if (sOwner != a1 || !a1->unk3A8.tilesVram)
         return;
-    /* the header slides in from the left as the game's (unkC) do */
-    DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(a1), HEAD_COLS,
-            PIC_H, PAL_HEADER);
-    for (r = 0; r < ROWS; r++)
-        DrawPic(layer, ROW_FRAME_X + slide, RowFrameY(r), RowVram(a1, r), ROW_COLS, PIC_H,
-                a1->unk3A6 == r ? PAL_LIT : PAL_DIM);
-    SyncDescPalette();
-    DrawPic(layer, 0, DESC_Y, SetDescVram(a1), GS_DESC_COLS, 16, PAL_DESC);
+    PortPocScreenDraw(a1->unk3A8.tilesVram, a1->unk3A6, slide, 0x10);  /* Game Select's rows' layer */
 }
 
 int PortMenuPocSettingsInput(struct Unk_08138D64 *a1, unsigned key)
 {
-    int was = a1->unk3A6;
+    u8 row = a1->unk3A6;
+    int ret;
 
     if (!a1->unk3A8.tilesVram)
         return 0;
-    switch (key) {
-    case 3:     /* up */
-        a1->unk3A6 = was == 0 ? ROWS - 1 : was - 1;
-        break;
-    case 4:     /* down */
-        a1->unk3A6 = was == ROWS - 1 ? 0 : was + 1;
-        break;
-    case 1:     /* A: next value */
-    case 6:     /* right */
-        RowStep(was, 1);
-        DrawRowTiles(a1, was);
-        return 2;
-    case 5:     /* left */
-        RowStep(was, -1);
-        DrawRowTiles(a1, was);
-        return 2;
-    default:
-        return 0;
-    }
-    DrawRowTiles(a1, was);
-    DrawRowTiles(a1, a1->unk3A6);
-    BuildDesc(kRowDesc[a1->unk3A6], SetDescVram(a1));
-    return 1;
+    ret = PortPocScreenInput(a1->unk3A8.tilesVram, &row, key);
+    a1->unk3A6 = row;
+    return ret;
+}
+
+/* --- the pause page's sprite memory -------------------------------------------
+ *
+ * The pause page draws from fixed OBJ VRAM (the pause screens' heap is the
+ * game's, mid-level), so it keeps a copy of what it covers and puts it back
+ * as it goes: whatever the gameplay sprites or the page before left there
+ * is there again afterwards, byte for byte.  Host memory, like the decoded
+ * pictures above: it only ever holds bytes the game wrote, and only while
+ * the page is up. */
+static u8 sObjSave[PORT_POC_PAUSE_OBJ_BYTES];
+static int sObjSaved;
+
+void PortPocPauseObjSave(void)
+{
+    memcpy(sObjSave, (const void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sizeof(sObjSave));
+    sObjSaved = 1;
+}
+
+void PortPocPauseObjRestore(void)
+{
+    if (!sObjSaved)
+        return;
+    memcpy((void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sObjSave, sizeof(sObjSave));
+    sObjSaved = 0;
 }

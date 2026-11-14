@@ -21,6 +21,7 @@ extern "C" {
 #include "constants/languages.h"
 #include "treasures.h"
 #include "port/menu_poc.h"   /* PORT: KATAM_MENU_POC, off by default */
+#include "pause_settings.h"   /* PORT: the same screen as a pause page */
 
 struct Unk_08385CD4 {
     u16 animId;
@@ -2680,6 +2681,56 @@ static void PortPocSettingsSlideOut(struct Unk_08138D64 *a1) {
         DisplaySprite(&a1->unk28C);
     }
     CALL(a1->unkBDC)(a1);
+}
+
+/* The pause menu's settings page (game/src/pause_settings.c) is this
+ * screen again, mid-level; what it needs from here, as Game Select has it.
+ *
+ * The art: the ERASE A FILE label (the rows' banner) and the SUB-GAMES
+ * header, in the game's language -- the variants PortMenuPocSettingsOpen
+ * reads off the live sprites. */
+void PortPocPauseMenuArt(u16 *lblAnim, u8 *lblVariant, u16 *hdrAnim, u8 *hdrVariant) {
+    *lblAnim = gUnk_08385CD4[gLanguage][0x16].animId;
+    *lblVariant = gUnk_08385CD4[gLanguage][0x16].variant;
+    *hdrAnim = gUnk_08385CD4[gLanguage][2].animId;
+    *hdrVariant = gUnk_08385CD4[gLanguage][2].variant;
+}
+
+/* The colours: OBJ palette lines as sub_081397FC and sub_081392A0 leave
+ * them -- 3, 4, 6 from the gUnk_08386568 sprites, 2 a selected label's, 0 the
+ * header's (line 1, the star's, comes with the star) -- loaded the way the
+ * pause maps load theirs (sub_08126C48): a sprite that runs its palette
+ * command and copies no tiles.  And the description banner on BG0 as Game
+ * Select shows it when its cursor moves (sub_0813D784), in the menu's
+ * daytime colours (sub_08141EC0: gUnk_082D7850[0xE3]), only its banner line. */
+void PortPocPauseLoadMenuColours(u32 scratchVram) {
+    struct Sprite sprite;
+    const struct TiledBg_082D7850 *ptr = gUnk_082D7850[gUnk_08385C14[gLanguage][1]];
+    u16 *vram = (u16 *)0x600FD40;
+    u16 i, line;
+    u16 blank;
+
+    for (i = 0; i < 3; ++i)
+        SpriteInitNoPointer2(&sprite, scratchVram, 0x3FC0, gUnk_08386568[i].animId, gUnk_08386568[i].variant,
+            0, 0xFF, 0x10, gUnk_08386580[i], 0, 0, 0x80000);
+    SpriteInitNoPointer2(&sprite, scratchVram, 0x400, gUnk_08385CD4[gLanguage][0x16].animId,
+        gUnk_08385CD4[gLanguage][0x16].variant, 0, 0xFF, 0x10, 2, 0, 0, 0x80000);
+    SpriteInitNoPointer2(&sprite, scratchVram, 0x780, gUnk_08385CD4[gLanguage][2].animId,
+        gUnk_08385CD4[gLanguage][2].variant, 0, 0xFF, 0x10, 0, 0, 0, 0x80000);
+    LZ77UnCompVram(ptr->tileset, (u16 *)0x6000000);
+    /* the rest of the layer: the first tile past the picture's, still clear
+     * (the page cleared BG VRAM) -- tile 0 is the banner's own colour */
+    blank = ((((const u32 *)(const void *)ptr->tileset)[0] >> 8) + 31) / 32;
+    CpuFill16(blank, (u16 *)0x600F800, 0x800);
+    for (i = 0; i < ptr->height; ++i)
+        CpuCopy16(ptr->tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
+    line = ptr->tilemap[0] >> 12;
+    if (gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE)
+        LoadBgPaletteWithTransformation(gUnk_082D7850[0xE3]->palette + line * 0x10, line * 0x10, 0x10);
+    else {
+        DmaCopy16(3, gUnk_082D7850[0xE3]->palette + line * 0x10, gBgPalette + line * 0x10, 0x10 * sizeof(u16));
+        gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
+    }
 }
 
 /* sub_0813D784's input step with two edits: Start Game skips the One Player

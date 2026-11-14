@@ -120,6 +120,7 @@ extern const struct PortFnIdEntry gPortFnIds_game_src_parasol[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_pause_area_map[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_pause_fade[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_pause_help[];
+extern const struct PortFnIdEntry gPortFnIds_game_src_pause_settings[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_pause_world_map[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_pengy[];
 extern const struct PortFnIdEntry gPortFnIds_game_src_phan_phan[];
@@ -278,6 +279,7 @@ const struct PortFnIdEntry *const gPortFnIdTables[] = {
     gPortFnIds_game_src_pause_area_map,
     gPortFnIds_game_src_pause_fade,
     gPortFnIds_game_src_pause_help,
+    gPortFnIds_game_src_pause_settings,
     gPortFnIds_game_src_pause_world_map,
     gPortFnIds_game_src_pengy,
     gPortFnIds_game_src_phan_phan,

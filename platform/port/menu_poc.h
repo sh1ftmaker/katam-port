@@ -12,6 +12,10 @@
  *     tiles drawn by the port from a font in platform/menu_poc.c -- no ROM
  *     data is involved.
  *
+ *   - the pause menu gains a fourth page after the world map, the same
+ *     settings screen (game/src/pause_settings.c; Select cycles to it from
+ *     the help page where there is no map).
+ *
  * With the switch off every function here is a no-op and the game runs
  * exactly as before.  The switch is a host setting and is not recorded in
  * input recordings: replay a POC recording with the same environment.
@@ -22,6 +26,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "gba/types.h"
 
 struct Unk_08138D64;
 
@@ -64,6 +70,35 @@ int PortMenuPocSettingsInput(struct Unk_08138D64 *a1, unsigned key);
 int PortMenuPocSettingsCursorY(struct Unk_08138D64 *a1);
 int PortMenuPocSettingsCursorX(void);
 void PortMenuPocSettingsClose(struct Unk_08138D64 *a1);
+
+/* --- the screen, shared by the front end and the pause page ------------------
+ *
+ * The same six rows, header and description line from one set of functions;
+ * a caller supplies PORT_POC_SCREEN_TILES of OBJ VRAM, keeps the row cursor
+ * in its own memory, and names the label (ERASE A FILE) and header
+ * (SUB-GAMES) sprite variants of the game's language to build them from.
+ * The description line's colours are copied each frame from the BG palette
+ * line of the banner at 0x0600FD40 (BG0, screen block 31, rows 21-22). */
+#define PORT_POC_SCREEN_TILES 660
+void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row);
+/* Into OAM; everything shifted right by slide pixels (0 = in place). */
+void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer);
+/* key as sub_0813B484 (1 A, 3 up, 4 down, 5 left, 6 right): 0 nothing,
+ * 1 the cursor moved, 2 a value changed (applied and saved). */
+int PortPocScreenInput(u32 tiles, u8 *row, unsigned key);
+int PortPocScreenCursorY(int row);
+int PortPocScreenCursorX(void);
+
+/* --- the pause menu's settings page (game/src/pause_settings.c) -------------- */
+
+/* Its sprite memory: the screen's tiles, then the star cursor's 16; the
+ * whole range is copied away when the page opens and put back when it
+ * closes, so neither gameplay's sprite tiles nor another page's are lost. */
+#define PORT_POC_PAUSE_OBJ_VRAM    0x06010000u
+#define PORT_POC_PAUSE_CURSOR_VRAM (PORT_POC_PAUSE_OBJ_VRAM + PORT_POC_SCREEN_TILES * 32)
+#define PORT_POC_PAUSE_OBJ_BYTES   0x5600u
+void PortPocPauseObjSave(void);
+void PortPocPauseObjRestore(void);
 
 #ifdef __cplusplus
 }
