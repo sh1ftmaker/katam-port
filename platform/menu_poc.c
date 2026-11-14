@@ -74,6 +74,8 @@
 #include "code_08138D64.h"
 #include "port/port.h"
 #include "port/menu_poc.h"
+#include "port/localmp.h"
+#include "port/simblock.h"
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 
@@ -173,8 +175,8 @@ int PortMenuPoc(void)
             sOn = PortWebMenuPocParam();
 #endif
         if (sOn)
-            PortLog("[menu-poc] on: no One Player/Multiplayer pop-up; "
-                    "Game Select has a SETTINGS entry");
+            PortLog("[menu-poc] on: Game Select has a SETTINGS entry; "
+                    "Start Game > MULTIPLAYER is LOCAL / ONLINE");
     }
     return sOn;
 }
@@ -522,6 +524,7 @@ static const struct CellGlyph kCell[] = {
     { '!', { "#", "#", "#", " ", "#" } },
     { '/', { "  #", "  #", " # ", "#  ", "#  " } },
     { '%', { "# #", "  #", " # ", "#  ", "# #" } },
+    { '+', { "   ", " # ", "###", " # ", "   " } },
     { '<', { "  ", " #", "##", " #", "  " } },   /* triangles, like the */
     { '>', { "  ", "# ", "##", "# ", "  " } },   /* labels' bullet      */
 };
@@ -710,6 +713,9 @@ static int VramOk(u32 v)
 
 static const char kLabel[] = "SETTINGS";
 static const char kDesc[] = "CHANGE PICTURE AND SOUND";
+/* The Start Game pop-up's MULTIPLAYER line (the game's own says MULTI-PAK). */
+static const char kPopupMpDesc[] = "LOCAL OR ONLINE PLAY";
+static const char *sGsDescWant, *sGsDescShown;
 
 static void BuildLabel(struct Unk_08138D64 *a1, u32 vram)
 {
@@ -748,6 +754,13 @@ void PortMenuPocAlloc(struct Unk_08138D64 *a1)
     LoadSources();
     BuildLabel(a1, v);
     BuildDesc(kDesc, v + GS_LABEL_COLS * COL_TILES * 32);
+    sGsDescShown = kDesc;
+    sGsDescWant = NULL;
+}
+
+void PortMenuPocPopupDesc(int multiplayer)
+{
+    sGsDescWant = multiplayer ? kPopupMpDesc : NULL;
 }
 
 void PortMenuPocFree(struct Unk_08138D64 *a1)
@@ -781,6 +794,15 @@ void PortMenuPocDraw(struct Unk_08138D64 *a1)
     selected = a1->unk3A4 == PORT_MENU_POC_SETTINGS;
     DrawPic(layer, x, y, a1->unk3A8.tilesVram, GS_LABEL_COLS, PIC_H,
             selected ? PAL_LIT : PAL_DIM);
+    {
+        const char *want = selected ? kDesc : sGsDescWant;
+
+        if (want != NULL && want != sGsDescShown) {
+            BuildDesc(want, a1->unk3A8.tilesVram + GS_LABEL_COLS * COL_TILES * 32);
+            sGsDescShown = want;
+        }
+        selected = want != NULL;
+    }
     if (selected) {
         SyncDescPalette();
         DrawPic(layer, 0, DESC_Y, a1->unk3A8.tilesVram + GS_LABEL_COLS * COL_TILES * 32,
@@ -890,6 +912,59 @@ static void RowStep(int row, int dir)
     PortSettingsChanged();
 }
 
+/* --- what a list screen shows ----------------------------------------------------
+ *
+ * The screen below draws a model: its rows' names and values, a header, a
+ * description per row, and what Left/Right/A do.  Two models: the settings
+ * (front end and pause page) and the front end's MULTIPLAYER choice. */
+struct PocModel {
+    int rows;
+    const char *header;
+    const char *(*name)(int row);
+    void (*value)(int row, char *buf, int size);
+    const char *(*desc)(int row);
+    /* dir -1 / +1 (Left / Right, or A as +1): 1 if a value changed */
+    int (*step)(int row, int dir);
+    /* a row shown but not available: always dimmed */
+    int (*unavailable)(int row);
+};
+
+static const char *SetName(int row) { return kRowName[row]; }
+static const char *SetDesc(int row) { return kRowDesc[row]; }
+static int SetStep(int row, int dir) { RowStep(row, dir); return 1; }
+static int SetUnavailable(int row) { (void)row; return 0; }
+
+static const struct PocModel kSettingsModel = {
+    ROWS, "SETTINGS", SetName, RowValue, SetDesc, SetStep, SetUnavailable,
+};
+
+/* MULTIPLAYER: LOCAL (two players on this screen, platform/localmp.c) and
+ * ONLINE (not built yet: shown, dimmed, does nothing). */
+static const char *MpName(int row) { return row == 0 ? "LOCAL" : "ONLINE"; }
+static void MpValue(int row, char *buf, int size)
+{
+    snprintf(buf, size, "%s", row == 0 ? "2 PLAYERS" : "SOON");
+}
+static const char *MpDesc(int row)
+{
+    if (row != 0)
+        return "COMING LATER";
+    if (!PortLmpP2InputAvailable())
+        return "NEEDS KEYS OR A GAMEPAD";
+    /* alternate, about every two seconds: what it is, and player 2's keys */
+    return (gPortSim->frame.frameCount / 120) & 1 ? "P2: ARROW KEYS + NUMPAD"
+                                                  : "TWO PLAYERS ON ONE SCREEN";
+}
+static int MpStep(int row, int dir) { (void)row; (void)dir; return 0; }
+static int MpUnavailable(int row) { return row != 0 || !PortLmpP2InputAvailable(); }
+
+static const struct PocModel kMpModel = {
+    2, "MULTIPLAYER", MpName, MpValue, MpDesc, MpStep, MpUnavailable,
+};
+
+static const struct PocModel *sModel = &kSettingsModel;
+static const char *sDescShown;      /* what the screen's description holds */
+
 /* --- the screen itself, shared by the front end and the pause page ----------
  *
  * Everything below draws from `tiles` (SET_TILES of OBJ VRAM, wherever the
@@ -904,9 +979,12 @@ static u32 RowVram(u32 tiles, int row)
     return tiles + row * ROW_COLS * COL_TILES * 32;
 }
 
+/* The header and description follow the rows the screen up now has (the
+ * MULTIPLAYER screen takes only the tiles its two rows need: a second visit
+ * to it can find the VRAM heap too fragmented for the settings' 660). */
 static u32 HeadVram(u32 tiles)
 {
-    return RowVram(tiles, ROWS);
+    return RowVram(tiles, sModel->rows);
 }
 
 static u32 SetDescVram(u32 tiles)
@@ -940,11 +1018,13 @@ static void DrawRowTiles(u32 tiles, int row, int selected)
     char val[24], shown[32];
 
     memcpy(px, sRowBanner, sizeof(px));
-    CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, kRowName[row], LBL_FILL, LBL_EDGE);
-    RowValue(row, val, sizeof(val));
-    /* the selected row's value between arrows, where they fit */
+    CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, sModel->name(row), LBL_FILL, LBL_EDGE);
+    sModel->value(row, val, sizeof(val));
+    /* the selected row's value between arrows, where they fit (and where
+     * Left/Right change it) */
     snprintf(shown, sizeof(shown), "<%s>", val);
-    if (!selected || LBL_TEXT_LEFT + CellWidth(kRowName[row]) + 8 + CellWidth(shown) > ROW_VALUE_X1)
+    if (!selected || sModel != &kSettingsModel
+        || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > ROW_VALUE_X1)
         snprintf(shown, sizeof(shown), "%s", val);
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
              LBL_FILL, LBL_EDGE);
@@ -955,6 +1035,7 @@ static void DrawRowTiles(u32 tiles, int row, int selected)
  * headers' own lettering. */
 static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
 {
+    const char *text = sModel->header;
     static u8 px[PIC_H * HEAD_COLS * 32];
     int w = HEAD_COLS * 32, fw, h, x, y;
 
@@ -966,26 +1047,35 @@ static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
             for (x = HDR_TEXT_X0; x < HDR_TEXT_X1; x++)
                 if (px[y * w + x] == HDR_TEXT)
                     px[y * w + x] = HDR_BG;
-        if (sHeaderCutsOk && hdrAnim == EN_HEADER_ANIM)
-            PasteCut(px, w, HDR_TEXT_LEFT, kHeaderCuts, ARRAY_COUNT(kHeaderCuts), "SETTINGS",
+        if (sHeaderCutsOk && hdrAnim == EN_HEADER_ANIM
+            && CanCut(kHeaderCuts, ARRAY_COUNT(kHeaderCuts), text))
+            PasteCut(px, w, HDR_TEXT_LEFT, kHeaderCuts, ARRAY_COUNT(kHeaderCuts), text,
                      HDR_ROW0, HDR_ROW1, 0, HDR_TEXT, 0, 2, 6);
         else
-            CellText(px, w, PIC_H, HDR_TEXT_LEFT, HDR_ROW0, "SETTINGS", HDR_TEXT, 0);
+            CellText(px, w, PIC_H, HDR_TEXT_LEFT, HDR_ROW0, text, HDR_TEXT, 0);
     }
     PackPic(px, HEAD_COLS, HeadVram(tiles));
 }
 
-void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblVariant,
+                       u16 hdrAnim, u8 hdrVariant, int row)
 {
     int r;
 
+    sModel = m;
     LoadSources();
     if (!BuildRowBanner(lblAnim, lblVariant))
         PortLog("[menu-poc] the ERASE A FILE label is not the expected shape; rows without banners");
-    for (r = 0; r < ROWS; r++)
+    for (r = 0; r < m->rows; r++)
         DrawRowTiles(tiles, r, r == row);
     DrawHeadTiles(tiles, hdrAnim, hdrVariant);
-    BuildDesc(kRowDesc[row], SetDescVram(tiles));
+    sDescShown = m->desc(row);
+    BuildDesc(sDescShown, SetDescVram(tiles));
+}
+
+void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+{
+    ModelBuild(&kSettingsModel, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
 }
 
 static s32 RowFrameY(int row)
@@ -1013,31 +1103,38 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     /* the header slides in from the left as the game's (unkC) do */
     DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(tiles), HEAD_COLS,
             PIC_H, PAL_HEADER);
-    for (r = 0; r < ROWS; r++)
+    for (r = 0; r < sModel->rows; r++)
         DrawPic(layer, ROW_FRAME_X + slide, RowFrameY(r), RowVram(tiles, r), ROW_COLS, PIC_H,
-                row == r ? PAL_LIT : PAL_DIM);
+                row == r && !sModel->unavailable(r) ? PAL_LIT : PAL_DIM);
+    /* a description that changes by itself (MULTIPLAYER's LOCAL row) */
+    if (sModel->desc(row) != sDescShown) {
+        sDescShown = sModel->desc(row);
+        BuildDesc(sDescShown, SetDescVram(tiles));
+    }
     SyncDescPalette();
     DrawPic(layer, 0, DESC_Y, SetDescVram(tiles), GS_DESC_COLS, 16, PAL_DESC);
 }
 
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
 {
-    int was = *row;
+    int was = *row, n = sModel->rows;
 
     switch (key) {
     case 3:     /* up */
-        *row = was == 0 ? ROWS - 1 : was - 1;
+        *row = was == 0 ? n - 1 : was - 1;
         break;
     case 4:     /* down */
-        *row = was == ROWS - 1 ? 0 : was + 1;
+        *row = was == n - 1 ? 0 : was + 1;
         break;
     case 1:     /* A: next value */
     case 6:     /* right */
-        RowStep(was, 1);
+        if (!sModel->step(was, 1))
+            return 0;
         DrawRowTiles(tiles, was, 1);
         return 2;
     case 5:     /* left */
-        RowStep(was, -1);
+        if (!sModel->step(was, -1))
+            return 0;
         DrawRowTiles(tiles, was, 1);
         return 2;
     default:
@@ -1045,23 +1142,22 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
     }
     DrawRowTiles(tiles, was, 0);
     DrawRowTiles(tiles, *row, 1);
-    BuildDesc(kRowDesc[*row], SetDescVram(tiles));
+    sDescShown = sModel->desc(*row);
+    BuildDesc(sDescShown, SetDescVram(tiles));
     return 1;
 }
 
 /* --- the front end's settings screen ------------------------------------------ */
 
-void PortMenuPocSettingsOpen(struct Unk_08138D64 *a1)
+int PortMenuPocSettingsOpen(struct Unk_08138D64 *a1)
 {
     u32 v;
 
     PortMenuPocFree(a1);
     a1->unk3A6 = 0;
     v = VramMalloc(SET_TILES);
-    if (!VramOk(v)) {
-        PortLog("[menu-poc] no sprite memory for the settings screen");
-        return;
-    }
+    if (!VramOk(v))
+        return 0;
     a1->unk3A8.tilesVram = v;
     sOwner = a1;
     /* the ERASE A FILE label's banner; unkC is Game Select's header and
@@ -1070,6 +1166,49 @@ void PortMenuPocSettingsOpen(struct Unk_08138D64 *a1)
     PortPocScreenBuild(v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
                        a1->unkC.animId, a1->unkC.variant + 1, 0);
     PortMenuPocBlankBanner();
+    return 1;
+}
+
+/* The screen's sprite memory, wanted as the screen comes in.  Not at once:
+ * the walking Kirbys the screen takes off (sub_0802FBE0) only free theirs
+ * when their task next runs, and on a second visit they sit where the
+ * screen's block went the first time -- the settings screen came up blank
+ * then ("no sprite memory").  So the slide-in asks every frame until it
+ * fits; 1 once the screen is built. */
+int PortMenuPocScreenReady(struct Unk_08138D64 *a1, int multiplayer, int frames)
+{
+    int ok;
+
+    if (sOwner == a1 && a1->unk3A8.tilesVram)
+        return 1;
+    ok = multiplayer ? PortMenuPocMpOpen(a1) : PortMenuPocSettingsOpen(a1);
+    if (!ok && frames == 30)
+        PortLog("[menu-poc] no sprite memory for the %s screen", multiplayer ? "multiplayer" : "settings");
+    return ok;
+}
+
+/* The MULTIPLAYER screen: the same screen with kMpModel, same memory. */
+int PortMenuPocMpOpen(struct Unk_08138D64 *a1)
+{
+    u32 v;
+
+    PortMenuPocFree(a1);
+    a1->unk3A6 = 0;
+    v = VramMalloc((kMpModel.rows * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES);
+    if (!VramOk(v))
+        return 0;
+    a1->unk3A8.tilesVram = v;
+    sOwner = a1;
+    ModelBuild(&kMpModel, v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+               a1->unkC.animId, a1->unkC.variant + 1, 0);
+    PortMenuPocBlankBanner();
+    return 1;
+}
+
+/* Is row `row` of the screen up now available (A does something)? */
+int PortMenuPocRowAvailable(int row)
+{
+    return !sModel->unavailable(row);
 }
 
 void PortMenuPocSettingsClose(struct Unk_08138D64 *a1)

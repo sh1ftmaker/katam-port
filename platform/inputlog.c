@@ -15,6 +15,7 @@
 #include "port/backend.h"
 #include "port/inputlog.h"
 #include "port/simblock.h"
+#include "port/localmp.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py. */
 #ifdef __cplusplus
@@ -44,6 +45,32 @@ static struct ViewEv *sViews;
 static u32 sNumViews, sViewsCap;
 static u32 sLastLatched;        /* the newest frame the latch has run for     */
 static int sLatchedAny;
+
+/* Local multiplayer (platform/localmp.c): the other humans' pads, per frame,
+ * like sKeys; index 1..3 is player 2..4.  `kp PLAYER FRAME MASK` in the file,
+ * and `option localmp N` for the switch itself. */
+static u16 *sKeysP[4];
+static u32 sKeysPCap[4], sKeysPLen[4];
+static int sHaveLocalMp;
+static u32 sLocalMp;
+
+static int GrowKeysP(int p, u32 want)
+{
+    u32 cap = sKeysPCap[p] ? sKeysPCap[p] : 4096;
+    u16 *k;
+
+    if (want <= sKeysPCap[p])
+        return 1;
+    while (cap < want)
+        cap *= 2;
+    k = (u16 *)realloc(sKeysP[p], cap * sizeof *k);
+    if (k == NULL)
+        return 0;
+    memset(k + sKeysPCap[p], 0, (cap - sKeysPCap[p]) * sizeof *k);
+    sKeysP[p] = k;
+    sKeysPCap[p] = cap;
+    return 1;
+}
 
 static int sReplaying, sRecording;
 static u32 sRunFrames;          /* what the host ran, if it says              */
@@ -160,9 +187,13 @@ long PortInputLogLoad(const char *text, u32 len)
     const char *p = text, *end = text + len;
     u32 frames = 0, last = 0;
     u16 mask = 0;
-    int sawHeader = 0;
+    u32 lastP[4] = { 0, 0, 0, 0 };
+    u16 maskP[4] = { 0, 0, 0, 0 };
+    int sawHeader = 0, pl;
 
     sKeysLen = 0;
+    for (pl = 0; pl < 4; pl++)
+        sKeysPLen[pl] = 0;
     sNumWarps = 0;
     sNumViews = 0;
 
@@ -189,6 +220,16 @@ long PortInputLogLoad(const char *text, u32 len)
             sawHeader = 1;
         } else if (sscanf(line, "frames %u", &a) == 1) {
             frames = a;
+        } else if (sscanf(line, "kp %u %u %x", &a, &b, &c) == 3) {
+            if (a < 1 || a > 3 || !GrowKeysP((int)a, b + 1))
+                return -1;
+            while (lastP[a] < b)
+                sKeysP[a][lastP[a]++] = maskP[a];
+            maskP[a] = (u16)(c & 0x03FF);
+            sKeysP[a][lastP[a]++] = maskP[a];
+        } else if (sscanf(line, "option localmp %u", &a) == 1) {
+            sHaveLocalMp = 1;
+            sLocalMp = a;
         } else if (sscanf(line, "k %u %x", &a, &b) == 2) {
             if (!GrowKeys(a + 1))
                 return -1;
@@ -230,7 +271,18 @@ long PortInputLogLoad(const char *text, u32 len)
     while (last < frames)
         sKeys[last++] = mask;
     sKeysLen = frames;
+    for (pl = 1; pl < 4; pl++) {
+        if (sKeysP[pl] == NULL && lastP[pl] == 0)
+            continue;
+        if (!GrowKeysP(pl, frames + 1))
+            return -1;
+        while (lastP[pl] < frames)
+            sKeysP[pl][lastP[pl]++] = maskP[pl];
+        sKeysPLen[pl] = frames;
+    }
     sReplaying = 1;
+    if (sHaveLocalMp)
+        PortLmpSetHumans((int)sLocalMp);
 
     if (sHaveRando)
         PortSetRando(sRandoFlags, sRandoSeed);
@@ -294,6 +346,8 @@ char *PortInputLogSerialize(u32 *outLen)
     EMIT("frames %u\n", (unsigned)(sRunFrames > sKeysLen ? sRunFrames : sKeysLen));
     if (sHaveRando)
         EMIT("option rando %u 0x%X\n", (unsigned)sRandoSeed, (unsigned)sRandoFlags);
+    if (sHaveLocalMp || PortLmpSettingFromHost() >= 2)
+        EMIT("option localmp %u\n", (unsigned)(sHaveLocalMp ? sLocalMp : (u32)PortLmpSettingFromHost()));
     if (sHaveView)
         EMIT("option view %u %d %d %u %u %u\n", (unsigned)sViewMode,
              (int)sViewPadX, (int)sViewPadY, (unsigned)sViewCull,
@@ -323,6 +377,24 @@ char *PortInputLogSerialize(u32 *outLen)
             EMIT("k %u %03X\n", (unsigned)f, (unsigned)sKeys[f]);
             prev = sKeys[f];
             have = 1;
+        }
+        {
+            int q;
+
+            for (q = 1; q < 4; q++) {
+                if (f >= sKeysPLen[q] || (f > 0 && sKeysP[q][f] == sKeysP[q][f - 1]))
+                    continue;
+                if (f == 0 && sKeysP[q][0] == 0)
+                    continue;
+                if (cap - len < 32) {
+                    char *t;
+                    cap *= 2;
+                    t = (char *)realloc(s, cap);
+                    if (t == NULL) { free(s); return NULL; }
+                    s = t;
+                }
+                EMIT("kp %d %u %03X\n", q, (unsigned)f, (unsigned)sKeysP[q][f]);
+            }
         }
     }
     while (w < sNumWarps) {
@@ -623,6 +695,25 @@ void PortInputLogLatch(u32 frame, u16 *keys)
         sKeys[frame] = *keys;
         if (frame + 1 > sKeysLen)
             sKeysLen = frame + 1;
+    }
+
+    /* The other local humans' pads (platform/localmp.c), the same way. */
+    if (PortLmpSetting() >= 2) {
+        u16 kp[4] = { 0, 0, 0, 0 };
+        int q;
+
+        for (q = 1; q < 4; q++) {
+            if (sReplaying)
+                kp[q] = frame < sKeysPLen[q] ? sKeysP[q][frame] : 0;
+            else
+                kp[q] = PortLmpHostKeys(q);
+            if (sRecording && GrowKeysP(q, frame + 1)) {
+                sKeysP[q][frame] = kp[q];
+                if (frame + 1 > sKeysPLen[q])
+                    sKeysPLen[q] = frame + 1;
+            }
+        }
+        PortLmpLatch(kp);
     }
 
     /* Warps, from the recording or from the host -- either way they are in

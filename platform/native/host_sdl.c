@@ -32,6 +32,7 @@
 #include "port/census.h"
 #include "port/netsim.h"
 #include "port/seats.h"
+#include "port/localmp.h"
 #include "port/res.h"
 #include "port/audio.h"
 #include "port/mp.h"
@@ -830,6 +831,33 @@ static const struct { SDL_GameControllerButton pad; u16 bit; } kPadButtons[] = {
     { SDL_CONTROLLER_BUTTON_DPAD_RIGHT,    DPAD_RIGHT    },
 };
 
+/* Local multiplayer (platform/localmp.c): while a local game is being
+ * played -- and only then -- these keys are player 2's.  The arrows are
+ * their d-pad (player 1 keeps WASD); the numpad their buttons (Numpad Enter
+ * leaves player 1, who keeps Enter); and for a keyboard without a numpad a
+ * few keys right of the letters.  Gamepad 2 drives player 2 then too. */
+static const struct { SDL_Scancode key; u16 bit; } kKeysP2[] = {
+    { SDL_SCANCODE_RIGHT,     DPAD_RIGHT }, { SDL_SCANCODE_LEFT,      DPAD_LEFT     },
+    { SDL_SCANCODE_UP,        DPAD_UP    }, { SDL_SCANCODE_DOWN,      DPAD_DOWN     },
+    { SDL_SCANCODE_KP_0,      A_BUTTON   }, { SDL_SCANCODE_KP_2,      A_BUTTON      },
+    { SDL_SCANCODE_KP_1,      B_BUTTON   }, { SDL_SCANCODE_KP_PERIOD, B_BUTTON      },
+    { SDL_SCANCODE_KP_4,      L_BUTTON   }, { SDL_SCANCODE_KP_5,      R_BUTTON      },
+    { SDL_SCANCODE_KP_ENTER,  START_BUTTON }, { SDL_SCANCODE_KP_PLUS, SELECT_BUTTON },
+    { SDL_SCANCODE_PERIOD,    A_BUTTON   }, { SDL_SCANCODE_COMMA,     B_BUTTON      },
+    { SDL_SCANCODE_M,         L_BUTTON   }, { SDL_SCANCODE_SLASH,     R_BUTTON      },
+    { SDL_SCANCODE_SEMICOLON, START_BUTTON }, { SDL_SCANCODE_APOSTROPHE, SELECT_BUTTON },
+};
+
+static int IsP2Key(SDL_Scancode k)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof(kKeysP2) / sizeof(kKeysP2[0]); i++)
+        if (kKeysP2[i].key == k)
+            return 1;
+    return 0;
+}
+
 /* Half of full deflection.  A GBA d-pad is a switch; anything less than a
  * decided push should not read as one, and the diagonal has to be reachable. */
 #define STICK_DEADZONE 16384
@@ -837,23 +865,30 @@ static const struct { SDL_GameControllerButton pad; u16 bit; } kPadButtons[] = {
 static u16 ReadInput(void)
 {
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
-    u16 down = 0;
+    u16 down = 0, other[4] = { 0, 0, 0, 0 };
     size_t i;
-    int p;
+    int p, lmp = PortLmpInPlay();
 
     /* The menu has the keyboard and the pads while it is open. */
     if (sUiMode && PortUiIsOpen())
         goto scripted;
     for (i = 0; i < sizeof(kKeys) / sizeof(kKeys[0]); i++)
-        if (keys[kKeys[i].key])
+        if (keys[kKeys[i].key] && !(lmp && IsP2Key(kKeys[i].key)))
             down |= kKeys[i].bit;
+    if (lmp)
+        for (i = 0; i < sizeof(kKeysP2) / sizeof(kKeysP2[0]); i++)
+            if (keys[kKeysP2[i].key])
+                other[1] |= kKeysP2[i].bit;
 
     for (p = 0; p < 4; p++) {
         SDL_GameController *c = sPads[p];
         Sint16 ax, ay;
+        u16 save = down;
 
         if (c == NULL || !SDL_GameControllerGetAttached(c))
             continue;
+        if (lmp && p > 0)
+            down = 0;
         for (i = 0; i < sizeof(kPadButtons) / sizeof(kPadButtons[0]); i++)
             if (SDL_GameControllerGetButton(c, kPadButtons[i].pad))
                 down |= kPadButtons[i].bit;
@@ -869,7 +904,13 @@ static u16 ReadInput(void)
             down |= L_BUTTON;
         if (SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16384)
             down |= R_BUTTON;
+        if (lmp && p > 0) {
+            other[p] |= down;
+            down = save;
+        }
     }
+    for (p = 1; p < 4; p++)
+        PortLmpSetHostKeys(p, lmp ? other[p] : 0);
 
 scripted:
     down |= (u16)sHoldMask;
@@ -1888,6 +1929,16 @@ void PortAwaitAnimationFrame(void)
 
 void PortHostInit(int argc, char **argv)
 {
+    /* KATAM_LOCAL_MP=N: N humans on this screen (platform/localmp.c). */
+    {
+        const char *e = getenv("KATAM_LOCAL_MP");
+
+        if (e != NULL && atoi(e) >= 2) {
+            PortLmpSetHumans(atoi(e));
+            PortLog("[katam-port] localmp: %d players on one screen (from the next game started)",
+                    PortLmpSetting());
+        }
+    }
     ParseArgs(argc, argv);
     sScripted = IsScriptedRun(argc, argv);
     sUiMode = sUiForce || (!sScripted && !sRendererGiven);

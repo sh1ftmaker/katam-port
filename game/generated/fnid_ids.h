@@ -9,7 +9,7 @@
 #ifndef GUARD_FNID_IDS_H
 #define GUARD_FNID_IDS_H
 
-#define PORT_FNID_COUNT 3627u
+#define PORT_FNID_COUNT 3631u
 
 #define FNID_MultiSioIntr 0x030068E0u
 #define FNID_sub_08001C40 0x08001C41u
@@ -3629,13 +3629,17 @@
 #define FNID_PauseSettingsToNextMenu 0x0E56F1BBu  /* name */
 #define FNID_PortNullCgbOscOff 0x0E620E05u  /* name */
 #define FNID_PortRomStructFn_083524C8 0x0E7177CBu  /* name */
+#define FNID_PortPocMpEnter 0x0E7933E9u  /* name */
 #define FNID_PortPocSettingsSlideIn 0x0E7EA2CDu  /* name */
 #define FNID_PortRomStructFn_08352468 0x0E8E5BC7u  /* name */
+#define FNID_PortPocMpFadeOut 0x0EA43421u  /* name */
+#define FNID_PortPocPopupReopen 0x0EA6E1A7u  /* name */
 #define FNID_PortPocSettingsSlideOut 0x0EACA237u  /* name */
 #define FNID_PortNullMidiKeyToCgbFreq 0x0EB932B7u  /* name */
 #define FNID_PauseSettingsToGame 0x0EBA5013u  /* name */
 #define FNID_PauseSettingsDestructor 0x0EC717FFu  /* name */
 #define FNID_PauseSettingsMain 0x0EC81F1Du  /* name */
+#define FNID_PortPocMpInput 0x0ECAE94Fu  /* name */
 #define FNID_PortPocSettingsInput 0x0EE38AD7u  /* name */
 #define FNID_PortPocSettingsEnter 0x0EFA2A61u  /* name */
 

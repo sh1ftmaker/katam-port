@@ -61,16 +61,24 @@ struct PortSimFrame {           /* 0x20 */
     u32 frameCount;             /* frames since power-on                     */
     s32 vblankBudget;           /* VBlank DMA bytes left (PortVBlankConsume) */
     u16 keysDown;               /* what the next latch writes to KEYINPUT    */
-    u16 pad;
-    u32 reserved;
+    u16 lmpPressed[3];          /* local multiplayer (localmp.c): players 2-4's
+                                 * newly pressed buttons this frame; was spare */
 };                              /* 0x10 */
 
-/* Spare.  Not the PPU's affine reference latches: platform/ppu.c re-latches
- * them from the I/O registers at the top of every scan, so at the frame
- * boundary they are dead, and their value there depends on the view's height
- * (presentation).  They stay in the rollback ring as host bytes. */
-struct PortSimSpare {           /* 0x30 */
-    u32 reserved[4];
+/* (This slot was spare.  Not the PPU's affine reference latches:
+ * platform/ppu.c re-latches them from the I/O registers at the top of every
+ * scan, so at the frame boundary they are dead, and their value there depends
+ * on the view's height (presentation).  They stay in the rollback ring as
+ * host bytes.) */
+/* Local multiplayer (platform/localmp.c): several humans in
+ * this one game.  Was the spare 16 bytes; all zero while the switch is off,
+ * so the hash of a run without it is the hash it always was. */
+struct PortSimLocalMp {         /* 0x30 */
+    u8  humans;                 /* human Kirby slots, 0 = off                 */
+    u8  flags;
+    u16 groupRoom;              /* the room everyone is in or is being taken to */
+    u16 keys[4];                /* this frame's held keys per slot (1..3 used) */
+    u8  stray[4];               /* frames each slot has been out of the frame  */
 };                              /* 0x10 */
 
 /* A warp asked for but not yet delivered (platform/warp.c). */
@@ -131,7 +139,7 @@ struct PortSimRando {
 struct PortSimBlock {
     struct PortSimHeader  hdr;
     struct PortSimFrame   frame;
-    struct PortSimSpare   spare;
+    struct PortSimLocalMp lmp;
     struct PortSimWarp    warp;
     struct PortSimView    view;
     struct PortSimGame    game;
@@ -139,7 +147,7 @@ struct PortSimBlock {
     struct PortSimRando   rando;
     /* New port-owned sim state goes here, after `rando` (the room-bundle
      * loader, branch roomload, is expected to add its struct here), and
-     * bumps PORT_SIM_VERSION.  `spare` above and the header's reserved
+     * bumps PORT_SIM_VERSION.  The header's reserved
      * words are free too.  The mod store follows, at PortSimModStore(). */
 };
 
@@ -182,6 +190,7 @@ PORT_SIM_ASSERT(sizeof(struct PortSimHeader) == 0x20, "sim block header");
 PORT_SIM_ASSERT(sizeof(struct PortSimFrame) == 0x10, "sim block frame");
 PORT_SIM_ASSERT(sizeof(struct PortSimGame) == 0x40, "sim block game");
 PORT_SIM_ASSERT(sizeof(struct PortSimView) == 0x20, "sim block view");
+PORT_SIM_ASSERT(sizeof(struct PortSimLocalMp) == 0x10, "sim block local mp");
 PORT_SIM_ASSERT(sizeof(struct PortSimRandoHdr) == 16, "rando header must be a LevelInfo_1E4");
 PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, frame) == PORT_SIM_OFF_FRAME, "sim block layout");
 PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, game) == PORT_SIM_OFF_GAME, "sim block layout");

@@ -14,6 +14,7 @@ extern "C" {
 #include "demo.h"
 #include "code_08026044.h"
 #include "constants/languages.h"
+#include "port/localmp.h"
 
 static void TitleScreenMain(void);
 static void TitleScreenClearMap(u8);
@@ -60,6 +61,10 @@ void CreateTitleScreen(void) {
     u8 i;
     struct Task* task;
     struct TitleStruct* title;
+
+    /* PORT: local multiplayer ends at the title (platform/localmp.c); a
+     * test of one zero byte when it was never on. */
+    PortLmpEnd();
     gDispCnt = DISPCNT_OBJ_ON | DISPCNT_BG2_ON | DISPCNT_BG1_ON | DISPCNT_OBJ_1D_MAP;
     gBgCntRegs[0] = BGCNT_TXT512x256 | BGCNT_SCREENBASE(0x1e) | BGCNT_PRIORITY(1);
     gBgCntRegs[1] = BGCNT_SCREENBASE(0x1d) | BGCNT_CHARBASE(1) | BGCNT_PRIORITY(2);

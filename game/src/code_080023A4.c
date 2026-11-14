@@ -7,6 +7,7 @@ extern "C" {
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "port/spawn.h"
+#include "port/localmp.h"
 #include "palette_effects.h"
 #include "data.h"
 #include "functions.h"
@@ -918,9 +919,13 @@ static void sub_08001C40(struct Unk_08002E48 *arg0, struct LevelInfo *levelInfo)
 {
     bool32 var0 = FALSE, var1 = FALSE;
     struct Kirby *kirby = gKirbys + levelInfo->unk660;
+    /* PORT: local multiplayer -- the camera frames the group, not one Kirby
+     * (platform/localmp.c).  With it off, the target is Kirby. */
+    s32 tx = kirby->base.x, ty = kirby->base.y;
 
-    levelInfo->unk1C = kirby->base.x - 0x7800 - levelInfo->viewportPosition.x;
-    levelInfo->unk20 = kirby->base.y - 0x5000 - levelInfo->viewportPosition.y;
+    PortLmpCamTarget(levelInfo->unk660, &tx, &ty);
+    levelInfo->unk1C = tx - 0x7800 - levelInfo->viewportPosition.x;
+    levelInfo->unk20 = ty - 0x5000 - levelInfo->viewportPosition.y;
 
     levelInfo->unk1C = levelInfo->unk1C < -levelInfo->unk662 ? -levelInfo->unk662 :
                        levelInfo->unk1C >  levelInfo->unk662 ?  levelInfo->unk662 :
@@ -1712,9 +1717,12 @@ void sub_08002D40(u16 arg0, u8 *arg1, u8 *arg2)
 static void sub_08002D60(struct Unk_08002E48 *arg0, struct LevelInfo *levelInfo)
 {
     struct ObjectBase *var0 = &gKirbys[levelInfo->unk660].base;
+    /* PORT: local multiplayer -- see sub_08001C40. */
+    s32 tx = var0->x, ty = var0->y;
 
-    levelInfo->unk1C = -(levelInfo->viewportPosition.x  + 0x7800) + var0->x;
-    levelInfo->unk20 = -(levelInfo->viewportPosition.y + 0x5000) + var0->y;
+    PortLmpCamTarget(levelInfo->unk660, &tx, &ty);
+    levelInfo->unk1C = -(levelInfo->viewportPosition.x  + 0x7800) + tx;
+    levelInfo->unk20 = -(levelInfo->viewportPosition.y + 0x5000) + ty;
 
     sub_08002DA0(arg0, levelInfo);
 }

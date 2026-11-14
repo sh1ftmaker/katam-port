@@ -12,6 +12,7 @@ void PortRbStoryApply(void);
 #include "global.h"
 #include "malloc_vram.h"
 #include "sprite.h"
+#include "port/localmp.h"
 
 struct Unk_08123950_84 {
     /* 0x00 */ struct Sprite unk0;
@@ -188,7 +189,8 @@ static void sub_08123EA8(void) {
 
     if (IsPaletteEffectFinished(0)) {
         DestroyPaletteEffectsTask(0);
-        sub_080332BC(1, 0, sp4, sp1C[0], spC);
+        /* PORT: local multiplayer starts with more humans (platform/localmp.c). */
+        sub_080332BC(PortLmpStartHumans(1), 0, sp4, sp1C[0], spC);
         TaskDestroy(gCurTask);
     }
 }
@@ -241,7 +243,8 @@ void sub_08123FD4(void) {
     gUnk_0203AD1C[2] = 0xff;
     gUnk_0203AD1C[1] = 0xff;
     gUnk_0203AD10 = 0;
-    sub_080332BC(1, 0, sp0, sp1C[0], spC);
+    /* PORT: local multiplayer starts with more humans (platform/localmp.c). */
+    sub_080332BC(PortLmpStartHumans(1), 0, sp0, sp1C[0], spC);
 }
 
 

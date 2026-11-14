@@ -6,6 +6,7 @@ extern "C" {
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 #include "port/spawn.h"
+#include "port/localmp.h"
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "hud.h"
 #include "in_game_interlude.h"
@@ -6501,6 +6502,10 @@ void sub_0803F324(struct Kirby *kirby)
         r5 = TRUE;
         if (!kirby->base.unk56)
             r3 = gHeldKeys;
+        /* PORT: local multiplayer -- another person's pad, where the CPU's
+         * output would be.  Never true with it off.  platform/localmp.c. */
+        else if (PortLmpHumanSlot(kirby->base.unk56) && kirby->base.unk56 < gNumHumanPlayers)
+            r3 = PortLmpKeys(kirby->base.unk56);
         else
             r3 = gUnk_02038590[kirby->base.unk56].unk9E;
     }
@@ -12996,6 +13001,8 @@ _080564F8:
     if (gLocalPlayerId == kirby->base.unk56)
         LoadLevelPaletteEffectSourcePalettes(&a, &b);
     kirby->base.flags &= ~0x1000000;
+    /* PORT: local multiplayer -- the group follows (platform/localmp.c). */
+    PortLmpArrived(kirby);
 }
 
 void sub_08056618(struct Kirby *kirby)

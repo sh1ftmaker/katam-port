@@ -21,6 +21,7 @@ u16 PortRoomTilesetIndex(u16 roomId);
 #include "hud.h"
 #include "palette_effects.h"
 #include "functions.h"
+#include "port/localmp.h"
 
 /* PORT: replaced by port/ram_symbols.h -- extern struct Task *gGameplayHudTask; */
 extern const u16 sHudPalettes[18][16];
@@ -457,7 +458,9 @@ static void DrawHudOtherKirbys(struct GameplayHud *hud)
         ability = &hud->unk20[1][i];
         effect = &hud->unk20[2][i];
         if (gKirbys[gLocalPlayerId].base.roomId == kirby->base.roomId) {
-            if (sub_0803D938(&kirby->base)) {
+            /* PORT: local multiplayer -- in the zoomed-out picture is not
+             * off-screen (platform/localmp.c); never true with it off. */
+            if (sub_0803D938(&kirby->base) && !PortLmpInFrame(&kirby->base)) {
                 struct LevelInfo *level = &gCurLevelInfo[gLocalPlayerId];
                 body->animId = 0x2DC;
                 body->variant = 0;

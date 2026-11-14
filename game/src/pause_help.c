@@ -13,6 +13,7 @@ extern "C" {
 #include "kirby.h"
 #include "main.h"
 #include "palette.h"
+#include "port/localmp.h"
 #include "pause_area_map.h"
 #include "pause_fade.h"
 #include "pause_settings.h"
@@ -164,6 +165,14 @@ static void PauseMenuFetchInputs(struct PauseMenu* pauseMenu) {
     else if (gUnk_0203AD10 & 2) {
         pauseMenu->pressedKeys = gUnk_020382D0.unk8[1][pauseMenu->playerId];
         pauseMenu->heldKeys = gUnk_020382D0.unk8[0][pauseMenu->playerId];
+    }
+    /* PORT: local multiplayer -- the menus read the pad of whoever paused,
+     * including the one on screen (platform/localmp.c).  Never true with it
+     * off: PortLmpHumanSlot is 0 unless the switch is on. */
+    else if (PortLmpHumanSlot(gUnk_0203AD50) && gUnk_0203AD50 < gNumHumanPlayers
+             && (pauseMenu->playerId == gLocalPlayerId || pauseMenu->playerId == gUnk_0203AD50)) {
+        pauseMenu->pressedKeys = PortLmpPressed(gUnk_0203AD50);
+        pauseMenu->heldKeys = PortLmpKeys(gUnk_0203AD50);
     }
     else {
         pauseMenu->pressedKeys = gPressedKeys;
@@ -385,14 +394,16 @@ void CreateHelpMenu(void) {
     else {
         HelpMenuBGInit(&helpmenu->frame, sHelpMenuUnkTiledBGsIndices[language][0], 0, 7);
     }
-    HelpMenuBGInit(&helpmenu->abilityText, sHelpMenuUnkTiledBGsIndices[language][2 + gKirbys[gLocalPlayerId].ability], 1, 15);
+    /* PORT: local multiplayer -- the paused player's ability, their B
+     * button (PortLmpViewer() is gLocalPlayerId with it off). */
+    HelpMenuBGInit(&helpmenu->abilityText, sHelpMenuUnkTiledBGsIndices[language][2 + gKirbys[PortLmpViewer()].ability], 1, 15);
     LoadAbilityIconGraphicsAndPalette(BG_CHAR_ADDR(2), 1, helpmenu->abilityText.unk1C - sHelpMenuUnkTiledBGsIndices[language][2]);
     HelpMenuAbilityImageInit();
 
     SpriteInitNoFunc(&helpmenu->buttonB, (u32)OBJ_VRAM0 + 0x2000, 0x480, sHelpMenuButtonAnimInfos[language][1].animId,
                      sHelpMenuButtonAnimInfos[language][1].variant, 0, 0xff, 0x10, 8, 0x22, 0x76, 0x80000);
 
-    if (gLocalPlayerId == gUnk_0203AD50) {
+    if (PortLmpViewer() == gUnk_0203AD50) {
         HelpMenuButtonLoadTiles(HELPMENU_BUTTON_B);
     }
     else {

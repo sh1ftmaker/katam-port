@@ -1471,6 +1471,16 @@ var Module = (function () {
       // instantiated, and they throw until it is; "does the function exist"
       // is not "can it be called".  This flag is.
       Module.portRuntimeUp = true;
+      // ?localmp=2..4: a developer shortcut -- that many players on this
+      // screen from the next game started, menus or not (platform/localmp.c;
+      // the normal way in is Start Game > MULTIPLAYER > LOCAL).  Before
+      // main(), so the first game counts.
+      var lmpN = parseInt(new URLSearchParams(location.search).get('localmp'), 10);
+      if (lmpN >= 2 && Module._PortLmpSetHumans) {
+        Module._PortLmpSetHumans(lmpN);
+        log('local multiplayer: ' + lmpN + ' players (P2: arrows + numpad)', 'ok');
+      }
+      if (Module._portLmpSyncP2) Module._portLmpSyncP2();
       log('wasm runtime initialised.', 'ok');
       resolveRuntime();
     },
@@ -2727,6 +2737,22 @@ var Module = (function () {
     Backspace: SELECT, ShiftRight: SELECT
   };
 
+  // Local multiplayer (Start Game > MULTIPLAYER > LOCAL; platform/localmp.c).
+  // While such a game is being played -- and only then -- these keys are
+  // player 2's: the arrows are their d-pad (player 1 keeps WASD), the
+  // numpad their buttons (Numpad Enter leaves player 1, who keeps Enter),
+  // and a few keys right of the letters for a keyboard without a numpad.
+  // Everything else, and everything outside a local game, is as before.
+  var KEYMAP_P2 = {
+    ArrowUp: UP, ArrowDown: DOWN, ArrowLeft: LEFT, ArrowRight: RIGHT,
+    Numpad0: A, Numpad2: A, Numpad1: B, NumpadDecimal: B,
+    Numpad4: BTN_L, Numpad5: BTN_R, NumpadEnter: START, NumpadAdd: SELECT,
+    Period: A, Comma: B, KeyM: BTN_L, Slash: BTN_R, Semicolon: START, Quote: SELECT
+  };
+  function lmpInPlay() {
+    return !!(Module.portRuntimeUp && Module._PortLmpInPlay && Module._PortLmpInPlay());
+  }
+
   // Track held *codes*, not the mask, so releasing one of two keys bound to
   // the same button doesn't clear it while the other is still down.
   var held = Object.create(null);
@@ -2744,10 +2770,66 @@ var Module = (function () {
   // game sees no buttons, and is paused by the C side anyway.
   var uiOpen = false;
 
+  // Gamepads (navigator.getGamepads, the "standard" layout): pad 1 adds to
+  // player 1's keys; pad 2 is player 2's in a local game and adds to
+  // player 1's otherwise.  Face buttons as natively (bottom/right A,
+  // left/top B), shoulders and triggers L/R, the left stick as the d-pad.
+  var padMask = [0, 0], lastMask2 = -1;
+  function readPad(gp) {
+    var m = 0, b = gp.buttons, ax = gp.axes;
+    function on(i) { return b[i] && (b[i].pressed || b[i].value > 0.5); }
+    if (on(0) || on(1)) m |= A;
+    if (on(2) || on(3)) m |= B;
+    if (on(4) || on(6)) m |= BTN_L;
+    if (on(5) || on(7)) m |= BTN_R;
+    if (on(8)) m |= SELECT;
+    if (on(9)) m |= START;
+    if (on(12) || (ax[1] !== undefined && ax[1] < -0.5)) m |= UP;
+    if (on(13) || (ax[1] !== undefined && ax[1] > 0.5)) m |= DOWN;
+    if (on(14) || (ax[0] !== undefined && ax[0] < -0.5)) m |= LEFT;
+    if (on(15) || (ax[0] !== undefined && ax[0] > 0.5)) m |= RIGHT;
+    return m;
+  }
+  var padsSeen = 0, p2Synced = false;
+  function pollPads() {
+    var list = navigator.getGamepads ? navigator.getGamepads() : [], n = 0, i;
+    padMask[0] = padMask[1] = 0;
+    for (i = 0; list && i < list.length && n < 2; i++) {
+      if (!list[i] || !list[i].connected) continue;
+      padMask[n++] = readPad(list[i]);
+    }
+    if (n !== padsSeen || (!p2Synced && Module.portRuntimeUp)) { padsSeen = n; p2Synced = true; syncP2(); }
+    pushMask();
+    requestAnimationFrame(pollPads);
+  }
+  requestAnimationFrame(pollPads);
+
+  // Can player 2 press anything?  Not on a touch-only device (the pads are
+  // player 1's), until a key is pressed or a gamepad shows up: then the
+  // MULTIPLAYER > LOCAL row says so and does nothing, rather than starting
+  // a game with a second Kirby nobody can move.
+  var sawKey = false;
+  function syncP2() {
+    var touchOnly = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches
+                       && !window.matchMedia('(any-pointer: fine)').matches);
+    var ok = sawKey || padsSeen > 0 || !touchOnly;
+    if (Module.portRuntimeUp && Module._PortLmpSetP2Input) Module._PortLmpSetP2Input(ok ? 1 : 0);
+  }
+  Module._portLmpSyncP2 = syncP2;
+
   function pushMask() {
-    var mask = touchMask;
-    for (var code in held) mask |= KEYMAP[code];
-    if (uiOpen) mask = 0;
+    var mask = touchMask | padMask[0], mask2 = 0, two = lmpInPlay();
+    for (var code in held) {
+      if (two && KEYMAP_P2[code] !== undefined) mask2 |= KEYMAP_P2[code];
+      else if (KEYMAP[code] !== undefined) mask |= KEYMAP[code];
+    }
+    if (two) mask2 |= padMask[1];
+    else mask |= padMask[1];
+    if (uiOpen) mask = mask2 = 0;
+    if (mask2 !== lastMask2 && Module.portRuntimeUp && Module._PortLmpSetHostKeys) {
+      lastMask2 = mask2;
+      Module._PortLmpSetHostKeys(1, mask2);
+    }
     if (mask === lastMask) return;
     lastMask = mask;
     // Guard: keys can be pressed before the wasm exports exist.
@@ -2785,9 +2867,10 @@ var Module = (function () {
 
   window.addEventListener('keydown', function (e) {
     if (typingInAField(e)) return;
+    if (!sawKey) { sawKey = true; syncP2(); }
     if (uiKeys(e, true)) return;
     var bit = KEYMAP[e.code];
-    if (bit === undefined) return;
+    if (bit === undefined && !(KEYMAP_P2[e.code] !== undefined && lmpInPlay())) return;
     e.preventDefault();                        // arrows/space must not scroll,
                                                // Backspace must not navigate back
     if (e.repeat) return;
@@ -2797,7 +2880,7 @@ var Module = (function () {
 
   window.addEventListener('keyup', function (e) {
     if (uiKeys(e, false)) return;
-    if (KEYMAP[e.code] === undefined) return;
+    if (KEYMAP[e.code] === undefined && !held[e.code]) return;
     e.preventDefault();
     delete held[e.code];
     pushMask();

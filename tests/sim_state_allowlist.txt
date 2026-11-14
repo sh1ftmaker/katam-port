@@ -80,6 +80,12 @@ rando sReportedOverflow diagnostic log once
 rando sRoomsSeen diagnostic PortRandoReport
 rando sSwapsMade diagnostic PortRandoReport
 warp gPortWarpCount diagnostic warps delivered
+localmp sSetting setting local multiplayer switch; recorded as `option localmp`, reaches the game at its start
+localmp sFromHost setting whether the local multiplayer switch came from the host (env/URL/recording option), so only that is written into a recording as `option localmp`
+localmp sP2Input setting whether player 2 has any input on this device (the web page: not on touch-only); only gates the menu's LOCAL row, which is chosen by recorded keys
+localmp sHostKeys setting the host's pads for players 2-4; latched into the sim block and recorded as `kp` lines
+localmp sTrace diagnostic KATAM_LOCAL_MP_TRACE, a log interval
+localmp sMinZoom presentation the shared camera's zoom floor (KATAM_LOCAL_MP_MINZOOM), read only by platform/ui/present.c
 bios _ZZ10CpuRangeOkE9sReported diagnostic log once
 sram sRestored diagnostic host loaded a save file at boot
 dma sChannels host-state armed DMA channels; serialised canonically (PortDmaStateCanon)

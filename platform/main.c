@@ -47,6 +47,7 @@
 #include "port/inputlog.h"
 #include "port/simblock.h"
 #include "port/netsim.h"
+#include "port/localmp.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -1017,6 +1018,9 @@ void PortPresentFrame(void)
      * for, because a scripted run counts frames and cannot know which frame
      * the level appears on.  Returns immediately unless one is queued. */
     PortWarpPoll();
+    /* Local multiplayer: everyone into one room, stragglers to player 1
+     * (platform/localmp.c).  Returns at once unless it is on. */
+    PortLmpFrame();
 
     /* Return with VBlank still in progress.  GameLoop does its screen flush
      * and queue draining now, and PortVBlankConsume ends VBlank once those

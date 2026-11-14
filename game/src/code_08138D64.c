@@ -22,6 +22,7 @@ extern "C" {
 #include "treasures.h"
 #include "port/menu_poc.h"   /* PORT: KATAM_MENU_POC, off by default */
 #include "pause_settings.h"   /* PORT: the same screen as a pause page */
+#include "port/localmp.h"     /* PORT: MULTIPLAYER > LOCAL */
 
 struct Unk_08385CD4 {
     u16 animId;
@@ -195,6 +196,11 @@ static void PortPocSettingsEnter(struct Unk_08138D64 *);
 static void PortPocSettingsSlideIn(struct Unk_08138D64 *);
 static void PortPocSettingsInput(struct Unk_08138D64 *);
 static void PortPocSettingsSlideOut(struct Unk_08138D64 *);
+static void PortPocPopupInput(struct Unk_08138D64 *);
+static void PortPocPopupReopen(struct Unk_08138D64 *);
+static void PortPocMpEnter(struct Unk_08138D64 *);
+static void PortPocMpInput(struct Unk_08138D64 *);
+static void PortPocMpFadeOut(struct Unk_08138D64 *);
 static s16 PortPocStarY(u8);
 static void PortPocSpreadRows(struct Unk_08138D64 *, s32);
 
@@ -2362,8 +2368,11 @@ static void sub_0813CDE4(struct Unk_08138D64 *a1) {
         a1->unk9CC = FN(sub_081421B8);
         break;
     case PORT_MENU_POC_SCREEN:
-        /* PORT: KATAM_MENU_POC -- back from the settings screen, as from
-         * Erase (case 3), with the walking Kirbys it removed put back. */
+    case PORT_MENU_POC_MP_SCREEN:
+        /* PORT: KATAM_MENU_POC -- back from the settings (or multiplayer)
+         * screen, as from Erase (case 3), with the walking Kirbys it removed
+         * put back.  From multiplayer, the spread below ends in the Start
+         * Game pop-up again (PortPocPopupReopen). */
         a1->unkBEC = sub_0802E57C();
         PortMenuPocBlankBanner();
         a1->unk28C.y = PortPocStarY(a1->unk3A4);
@@ -2425,6 +2434,9 @@ static void sub_0813D234(struct Unk_08138D64 *a1) {
     if (a1->unk9D8 > 4) {
         a1->unkBF0 = 0;
         a1->unk9CC = FN(sub_0813D784);
+        /* PORT: back from MULTIPLAYER: into the pop-up it came from */
+        if (PortMenuPoc() && a1->unk0 == PORT_MENU_POC_MP_SCREEN)
+            a1->unk9CC = FN(PortPocPopupReopen);
     }
     if (!sub_08155128(&a1->unk28C))
         a1->unk28C.unk1B = 0xFF;
@@ -2618,21 +2630,34 @@ static void PortPocSettingsEnter(struct Unk_08138D64 *a1) {
         sub_0802FBE0(a1->unkBEC);
         a1->unkBEC = NULL;
     }
-    PortMenuPocSettingsOpen(a1);
+    /* the screen is built by the slide-in, once there is room for it */
+    PortMenuPocFree(a1);
     a1->unk28C.x = -0x20;
-    a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
     a1->unk9D8 = 0;
+    a1->unk3A6 = 0;     /* frames waited for the screen's sprite memory */
     a1->unk9CC = FN(PortPocSettingsSlideIn);
     CALL(a1->unkBDC)(a1);
 }
 
 static void PortPocSettingsSlideIn(struct Unk_08138D64 *a1) {
+    if (a1->unk9D8 == 0) {
+        /* (unk3A6 counts the frames waited; building the screen zeroes it:
+         * it is the screen's row cursor from then on) */
+        if (!PortMenuPocScreenReady(a1, a1->unk1 == PORT_MENU_POC_MP_SCREEN, ++a1->unk3A6)) {
+            CALL(a1->unkBDC)(a1);
+            return;
+        }
+        a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+    }
     ++a1->unk9D8;
     a1->unk28C.x = (PortMenuPocSettingsCursorX() + 0x20) * a1->unk9D8 / 5 - 0x20;
     PortMenuPocSettingsDraw(a1, 0xD0 * (5 - a1->unk9D8) / 5);
     if (a1->unk9D8 > 4) {
         a1->unkBF0 = 0;
-        a1->unk9CC = FN(PortPocSettingsInput);
+        if (a1->unk1 == PORT_MENU_POC_MP_SCREEN)
+            a1->unk9CC = FN(PortPocMpInput);
+        else
+            a1->unk9CC = FN(PortPocSettingsInput);
     }
     if (!sub_08155128(&a1->unk28C))
         a1->unk28C.unk1B = 0xFF;
@@ -2681,6 +2706,147 @@ static void PortPocSettingsSlideOut(struct Unk_08138D64 *a1) {
         DisplaySprite(&a1->unk28C);
     }
     CALL(a1->unkBDC)(a1);
+}
+
+/* The Start Game pop-up again, with local multiplayer behind MULTIPLAYER:
+ * sub_0813DB74 with three edits.  ONE PLAYER is a one-player game, whatever
+ * came before (PortLmpChoose(0)); MULTIPLAYER opens the MULTIPLAYER screen
+ * (LOCAL / ONLINE) the way SETTINGS opens its screen, instead of the
+ * link-cable lobby; and while MULTIPLAYER is lit, the description line is
+ * ours (the game's says MULTI-PAK, which is the cable). */
+static void PortPocPopupLight(struct Unk_08138D64 *a1, u8 row) {
+    const struct TiledBg_082D7850 *ptr = gUnk_082D7850[gUnk_08385C14[gLanguage][5 + row]];
+    u16 *vram = (u16 *)0x600FD40;
+    u16 i;
+
+    a1->unk3A6 = row;
+    a1->unk37C.palId = 5 + row;
+    sub_08155128(&a1->unk37C);
+    LZ77UnCompVram(ptr->tileset, (u16 *)0x6000000);
+    for (i = 0; i < ptr->height; ++i)
+        CpuCopy16(ptr->tilemap + i * 0x1E, vram + i * 0x20, 0x20 * sizeof(u16));
+    if (row == 1)
+        PortMenuPocBlankBanner();
+    PortMenuPocPopupDesc(row == 1);
+}
+
+static void PortPocPopupInput(struct Unk_08138D64 *a1) {
+    u8 i;
+
+    sub_0813B4F0(a1);
+    switch (sub_0813B484()) {
+    case 0:
+        break;
+    case 1:
+        m4aSongNumStart(SE_MAIN_MENU_SELECT);
+        a1->unkBE5 = 0;
+        PortMenuPocPopupDesc(0);
+        if (a1->unk3A6 == 0) {
+            PortLmpChoose(0);
+            a1->unk9CC = FN(sub_0814238C);
+        } else {
+            a1->unk2 = PORT_MENU_POC_MP_SCREEN;
+            a1->unk9CC = FN(sub_0814273C);
+            a1->unk9D0 = FN(PortPocMpEnter);
+        }
+        break;
+    case 2:
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
+        a1->unkBE5 = 0;
+        PortMenuPocPopupDesc(0);
+        a1->unk9CC = FN(sub_0813DDA8);
+        break;
+    case 3:
+        if (a1->unk3A6 != 0)
+            m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        PortPocPopupLight(a1, 0);
+        break;
+    case 4:
+        if (a1->unk3A6 != 1)
+            m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        PortPocPopupLight(a1, 1);
+        break;
+    }
+    DisplaySprite(&a1->unkC);
+    DisplaySprite(&a1->unk28C);
+    for (i = 0; i < 4; ++i)
+        DisplaySprite(&a1->unk2DC[i]);
+    DisplaySprite(&a1->unk37C);
+}
+
+/* Back from MULTIPLAYER: the pop-up as sub_0813DA34 opens it, MULTIPLAYER lit. */
+static void PortPocPopupReopen(struct Unk_08138D64 *a1) {
+    sub_0813DA34(a1);
+    PortPocPopupLight(a1, 1);
+}
+
+/* The MULTIPLAYER screen: the settings screen's machinery with two rows,
+ * LOCAL and ONLINE (platform/menu_poc.c kMpModel).  In as SETTINGS comes in
+ * (Game Select's rows slid out first), out through PortPocSettingsSlideOut
+ * and sub_0813CDE4 (case PORT_MENU_POC_MP_SCREEN) back to the pop-up. */
+static void PortPocMpEnter(struct Unk_08138D64 *a1) {
+    a1->unk0 = a1->unk1;
+    a1->unk1 = PORT_MENU_POC_MP_SCREEN;
+    if (a1->unkBEC) {
+        sub_0802FBE0(a1->unkBEC);
+        a1->unkBEC = NULL;
+    }
+    PortMenuPocFree(a1);
+    a1->unk28C.x = -0x20;
+    a1->unk9D8 = 0;
+    a1->unk3A6 = 0;     /* frames waited for the screen's sprite memory */
+    a1->unk9CC = FN(PortPocSettingsSlideIn);
+    CALL(a1->unkBDC)(a1);
+}
+
+static void PortPocMpInput(struct Unk_08138D64 *a1) {
+    u8 key;
+
+    sub_0813B4F0(a1);
+    key = sub_0813B484();
+    if (key == 2) {
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
+        a1->unk9D8 = 0;
+        a1->unk9CC = FN(PortPocSettingsSlideOut);
+    } else if (key == 1) {
+        if (a1->unk3A6 == PORT_MENU_POC_MP_LOCAL && PortMenuPocRowAvailable(a1->unk3A6)) {
+            /* LOCAL: the one-player start (sub_0814238C onwards) with two
+             * humans; the walking Kirbys the start's transition gathers
+             * come back first (this screen took them off). */
+            m4aSongNumStart(SE_MAIN_MENU_SELECT);
+            PortLmpChoose(2);
+            if (!a1->unkBEC)
+                a1->unkBEC = sub_0802E57C();
+            gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
+            gBldRegs.bldAlpha = 0;
+            gBldRegs.bldY = 0;
+            a1->unk9D8 = 0;
+            a1->unk9CC = FN(PortPocMpFadeOut);
+        } else {
+            /* not available (ONLINE, or LOCAL without a second pad) */
+            m4aSongNumStart(SE_MAIN_MENU_BACK);
+        }
+    } else if (PortMenuPocSettingsInput(a1, key) == 1) {
+        m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+        sub_08155128(&a1->unk28C);
+    }
+    PortMenuPocSettingsDraw(a1, 0);
+    if (!sub_08155128(&a1->unk28C))
+        a1->unk28C.unk1B = 0xFF;
+    DisplaySprite(&a1->unk28C);
+    CALL(a1->unkBDC)(a1);
+}
+
+/* sub_0813DE7C's fade to white over this screen, then the one-player start
+ * from sub_081423F0 on (which frees the screen's sprites with the rest). */
+static void PortPocMpFadeOut(struct Unk_08138D64 *a1) {
+    ++a1->unk9D8;
+    gBldRegs.bldY = 0x10 * a1->unk9D8 / 0xF;
+    if (a1->unk9D8 > 0xE)
+        a1->unk9CC = FN(sub_081423F0);
+    PortMenuPocSettingsDraw(a1, 0);
+    DisplaySprite(&a1->unk28C);
 }
 
 /* The pause menu's settings page (game/src/pause_settings.c) is this
@@ -2733,9 +2899,10 @@ void PortPocPauseLoadMenuColours(u32 scratchVram) {
     }
 }
 
-/* sub_0813D784's input step with two edits: Start Game skips the One Player
- * / Multiplayer pop-up (sub_0813DA34/sub_0813DB74) and goes where its One
- * Player answer goes, sub_0814238C; and a fifth entry,
+/* sub_0813D784's input step with two edits: Start Game opens the game's One
+ * Player / Multiplayer pop-up (sub_0813DA34), whose answers PortPocPopupInput
+ * takes (MULTIPLAYER: LOCAL / ONLINE, not the link-cable lobby); and a fifth
+ * entry,
  * PORT_MENU_POC_SETTINGS, whose label and description platform/menu_poc.c
  * draws, opens the settings screen above. */
 static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
@@ -2750,14 +2917,9 @@ static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
         m4aSongNumStart(SE_MAIN_MENU_SELECT);
         switch (a1->unk3A4) {
         case 0:
-            /* what sub_0813DA34 does to the chosen label, then One Player */
-            sprite = &a1->unk2DC[0];
-            sprite->palId = 4;
-            sprite->unk8 = 0;
-            sub_08155128(sprite);
-            a1->unk28C.unk1B = 0xFF;
-            sub_08155128(&a1->unk28C);
-            a1->unk9CC = FN(sub_0814238C);
+            /* the game's own ONE PLAYER / MULTIPLAYER pop-up (MULTIPLAYER
+             * now leads to LOCAL / ONLINE: PortPocPopupInput) */
+            a1->unk9CC = FN(sub_0813DA34);
             break;
         case 1:
             a1->unk2 = 7;
@@ -2960,6 +3122,10 @@ static void sub_0813DB74(struct Unk_08138D64 *a1) {
     const u16 array[] = { gUnk_08385C14[gLanguage][5], gUnk_08385C14[gLanguage][6] };
     u8 i;
 
+    if (PortMenuPoc()) {
+        PortPocPopupInput(a1);
+        return;
+    }
     sub_0813B4F0(a1);
     switch (sub_0813B484()) {
     case 0:
@@ -5935,8 +6101,12 @@ PORT_FNID_TABLE(game_src_code_08138D64) {
     PORT_FNID(sub_081433FC),
     PORT_FNID(sub_08143410),
     PORT_FNID(sub_08143424),
+    PORT_FNID(PortPocMpEnter),
     PORT_FNID(PortPocSettingsSlideIn),
+    PORT_FNID(PortPocMpFadeOut),
+    PORT_FNID(PortPocPopupReopen),
     PORT_FNID(PortPocSettingsSlideOut),
+    PORT_FNID(PortPocMpInput),
     PORT_FNID(PortPocSettingsInput),
     PORT_FNID(PortPocSettingsEnter),
     PORT_FNID_END

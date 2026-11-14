@@ -7,6 +7,7 @@ extern "C" {
 #include "palette_effects.h"
 #include "pause_area_map.h"
 #include "bg.h"
+#include "port/localmp.h"
 #include "constants/languages.h"
 #include "functions.h"
 #include "kirby.h"
@@ -2840,7 +2841,8 @@ static void AreaMapChooseUI(s32 areaId, enum AreaMapVisibility visibility) {
         MapDisableUIElements(DISABLE_AREAMAP_A);
     }
 
-    if (gUnk_0203AD50 != gLocalPlayerId) {
+    /* PORT: local multiplayer -- the paused player's B (platform/localmp.c) */
+    if (gUnk_0203AD50 != PortLmpViewer()) {
         MapDisableUIElements(DISABLE_AREAMAP_B);
     }
 
@@ -2866,7 +2868,7 @@ void WorldMapPauseEnableUI(void) {
     LZ77UnCompVram(sMapUITileset, BG_CHAR_ADDR(2) + 0x1000);
     LZ77UnCompVram(sWorldMapUITilemap, BG_SCREEN_ADDR(23));
 
-    if (gUnk_0203AD50 != gLocalPlayerId) {
+    if (gUnk_0203AD50 != PortLmpViewer()) {
         MapDisableUIElements(DISABLE_WORLDMAP_B);
     }
 }

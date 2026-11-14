@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/localmp.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "ui/settings.h"
@@ -263,6 +264,38 @@ static void UpdateDynZoom(void)
     }
 }
 
+/* Local multiplayer (platform/localmp.c): zoom out to keep everyone in the
+ * picture, down to PortLmpMinZoom; out quickly, back in slowly.  Replaces
+ * the dynamic zoom while it is on.  Presentation: the sim only ever sees the
+ * widest view (the request below). */
+static float sLmpZoom = 1.0f;
+
+static float UpdateLmpZoom(int fbW, int fbH)
+{
+    float target = 1.0f, zmin = PortLmpMinZoom();
+    s32 nw, nh;
+
+    if (sUsingGpu == 1 && PortLmpViewNeed(&nw, &nh)) {
+        PortLayout one;
+        float zx, zy;
+
+        PortLayoutCompute(&gPortSettings, fbW, fbH, 1, gPortSettings.zoom, 240, 160, &one);
+        zx = nw > 0 ? (float)one.viewW / (float)nw : 1.0f;
+        zy = nh > 0 ? (float)one.viewH / (float)nh : 1.0f;
+        target = zx < zy ? zx : zy;
+        if (target > 1.0f) target = 1.0f;
+        if (target < zmin) target = zmin;
+    }
+    if (target < sLmpZoom) {
+        sLmpZoom -= 0.03f;
+        if (sLmpZoom < target) sLmpZoom = target;
+    } else if (target > sLmpZoom) {
+        sLmpZoom += 0.008f;
+        if (sLmpZoom > target) sLmpZoom = target;
+    }
+    return sLmpZoom;
+}
+
 static void CountRates(double nowMs, int sim)
 {
     if (sRateT0 == 0)
@@ -312,8 +345,13 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
 
     if (!sReady)
         return;
-    UpdateDynZoom();
-    zoom = gPortSettings.zoom * sDynZoom;
+    if (PortLmpInPlay())
+        zoom = gPortSettings.zoom * UpdateLmpZoom(fbW, fbH);
+    else {
+        sLmpZoom = 1.0f;
+        UpdateDynZoom();
+        zoom = gPortSettings.zoom * sDynZoom;
+    }
     /* The world view for the next frame built (applies to gameplay frames;
      * menus are always 240x160). */
     PortLayoutCompute(&gPortSettings, fbW, fbH, 1, zoom, 240, 160, &lay);
@@ -326,7 +364,8 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
     {
         PortLayout wide;
 
-        PortLayoutCompute(&gPortSettings, fbW, fbH, 1, gPortSettings.zoom,
+        PortLayoutCompute(&gPortSettings, fbW, fbH, 1, gPortSettings.zoom
+                          * (PortLmpInPlay() ? PortLmpMinZoom() : 1.0f),
                           240, 160, &wide);
         if (sUsingGpu == 1)
             PortSimViewRequest(wide.viewW, wide.viewH);

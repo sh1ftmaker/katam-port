@@ -2,8 +2,11 @@
  * page under .../menus/ or with ?menus=1; off by default).
  *
  * Shows that the game's own menus can be edited in place:
- *   - the One Player / Multiplayer pop-up is skipped (Start Game and the
- *     sub-games go straight to one player), so the link-cable entry is gone;
+ *   - Start Game's own One Player / Multiplayer pop-up is kept, but
+ *     MULTIPLAYER no longer leads to the link-cable lobby: it opens a
+ *     MULTIPLAYER screen (LOCAL: two players on this screen,
+ *     platform/localmp.c; ONLINE: shown, not available yet).  The sub-games'
+ *     copy of the pop-up is still skipped (they go straight to one player);
  *   - Game Select gets a fifth entry, SETTINGS (the five rows are re-spaced
  *     so they clear the walking Kirbys), which opens a settings screen drawn
  *     in the game picture and driven by the pad: a few player-facing fields
@@ -54,13 +57,34 @@ void PortMenuPocBlankBanner(void);
 /* Game Select's row pitch with five rows (the game's is 0x15 for four). */
 #define PORT_MENU_POC_ROW_PITCH 17
 
+/* The Start Game pop-up (restored with local multiplayer): while its
+ * MULTIPLAYER row is lit, our own description line instead of the game's
+ * MULTI-PAK one (the banner is blanked by the caller); 0 = none. */
+void PortMenuPocPopupDesc(int multiplayer);
+
+/* --- the MULTIPLAYER screen (LOCAL / ONLINE) ---------------------------------
+ * The settings screen's functions draw it (PortMenuPocSettingsDraw, ...Input,
+ * ...CursorY/X, ...Close); this opens it instead of the settings. */
+int  PortMenuPocMpOpen(struct Unk_08138D64 *a1);
+/* Build the settings (multiplayer = 0) or MULTIPLAYER screen if it is not
+ * up yet; 0 while the sprite memory is not free yet (ask again next frame;
+ * `frames` asked so far, for a log line if it never comes). */
+int  PortMenuPocScreenReady(struct Unk_08138D64 *a1, int multiplayer, int frames);
+/* Does A on this row of the screen up now do anything? */
+int PortMenuPocRowAvailable(int row);
+/* a1->unk1 while the MULTIPLAYER screen is up. */
+#define PORT_MENU_POC_MP_SCREEN 0x11
+#define PORT_MENU_POC_MP_LOCAL  0
+#define PORT_MENU_POC_MP_ONLINE 1
+
 /* --- the settings screen ---------------------------------------------------- */
 
 /* a1->unk1 while the settings screen is up (the game uses 1..10). */
 #define PORT_MENU_POC_SCREEN 0x10
 
-/* Allocate and draw the screen (row cursor a1->unk3A6 = 0). */
-void PortMenuPocSettingsOpen(struct Unk_08138D64 *a1);
+/* Allocate and draw the screen (row cursor a1->unk3A6 = 0); 0 if there is
+ * no sprite memory for it (yet). */
+int  PortMenuPocSettingsOpen(struct Unk_08138D64 *a1);
 /* Put it into OAM, everything shifted right by slide pixels (0 = in place). */
 void PortMenuPocSettingsDraw(struct Unk_08138D64 *a1, int slide);
 /* One pad event (sub_0813B484's 0..6, B excluded): 0 nothing happened,
