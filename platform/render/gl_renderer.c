@@ -1104,7 +1104,7 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * texture per slot, re-uploaded only when the caller says the pixels
  * changed, drawn with the HUD program (premultiplied, nearest or sharp
  * bilinear). */
-#define GLR_OVERLAYS 4
+#define GLR_OVERLAYS 8
 static struct { GLuint tex; int w, h; } sOvl[GLR_OVERLAYS];
 
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,

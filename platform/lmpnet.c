@@ -2226,6 +2226,8 @@ static u32 sHomeSnap, sHomeExtras;
 static int sHomeLmp, sHomeLoad, sHomeTried;
 static u8 *sOwnSram;                /* a guest's own save, from its start   */
 static u32 sHomeLoads;
+static u32 sHomeExpressAt;          /* frame of the last home load, +1      */
+static u32 sHomeExpressed;
 
 void PortSramEnsureRestored(void);
 void PortSramPersistUnblock(void);
@@ -2279,6 +2281,7 @@ static void HomeLoad(void)
     if (v)
         PortInputLogScheduleView(PortFrameNumber() + 1, (s32)(v >> 16), (s32)(v & 0xFFFF));
     sHomeLoads++;
+    sHomeExpressAt = PortFrameNumber() + 1;     /* the logos go straight to the title */
     PortLog("[katam-port] lmpnet: left the session -- back to power-on (frame %u)",
             (unsigned)PortFrameNumber());
 }
@@ -2305,6 +2308,28 @@ int PortLnGoHome(void)
 
 int PortLnHomeReady(void) { return sHome != NULL; }
 u32 PortLnHomeLoads(void) { return sHomeLoads; }
+
+/* game/src/logo.c, every logo frame: 1 once, on the first logo frame after a
+ * home load -- the logo then ends at once and goes to the title (the game's
+ * own Logo -> title branch, LogoStruct.unk4 bit 0) instead of the intro, so a
+ * player leaving a session is not shown the boot logos again.  Device state:
+ * only ever set by leaving a session, never in a replay or a session; the
+ * window is a few frames so a later power-on (a soft reset) is untouched. */
+int PortLnHomeExpress(void)
+{
+    u32 f = PortFrameNumber();
+
+    if (sHomeExpressAt == 0)
+        return 0;
+    if (gPortLnOn || PortInputLogReplaying() || f > sHomeExpressAt + 2) {
+        sHomeExpressAt = 0;
+        return 0;
+    }
+    sHomeExpressAt = 0;
+    sHomeExpressed++;
+    return 1;
+}
+u32 PortLnHomeExpressed(void) { return sHomeExpressed; }
 
 /* Host state outside the GBA map and the sim block that the simulation reads
  * back, carried with every keyframe and image and hashed as region "host"

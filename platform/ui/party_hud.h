@@ -13,6 +13,11 @@ extern "C" {
 /* Once per simulated frame, at the blit (present.c): read the party from the
  * frame just shown. */
 void PortPartyHudSample(void);
+/* Before each sample: how world pixels map onto the picture -- view pixel =
+ * world - (camX, camY) - (viewX, viewY), the picture being viewW x viewH of
+ * them (the GPU renderer's frame; the game camera and 240x160 for the
+ * Classic one).  ok = 0: no world picture (no name tags). */
+void PortPartyHudSetView(int ok, int camX, int camY, int viewX, int viewY, int viewW, int viewH);
 /* Draw it over the presented frame.  `world` = {x, y, w, h} is the picture
  * the game's HUD is pinned to (framebuffer pixels, top-left origin), `scale`
  * framebuffer pixels per HUD pixel, `strip` the HUD's "original strip"
@@ -28,6 +33,9 @@ void PortPartyHudKeepOut(int slot, int x, int y, int w, int h);
 /* For the tests and the menu: how many cards the last sample showed, and
  * whether the "1P" tag on the game's own bar was up. */
 int PortPartyHudCards(void);
+/* ... how many of them are open (the whole card), and the name tags up. */
+int PortPartyHudFullCards(void);
+int PortPartyHudNameTags(void);
 
 #ifdef __cplusplus
 }

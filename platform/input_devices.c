@@ -18,19 +18,28 @@
  * device whose player dropped out, so a pad put down does not move player 1);
  * OFF is ignored altogether.
  *
- * Drop in: Start pressed on a FOLLOW gamepad that is not the device player 1
- * is using (the last FOLLOW device to press anything), or keyboard set B's
- * Start, or Start on a PARKED device, makes that device a new player on the
- * next free slot -- the slot it last had if free, else the lowest.  The press
- * is swallowed (it neither pauses player 1's game nor the joiner's) until the
- * button is let go.  The first device anybody touches is player 1's, so the
- * pad that starts the game from the title never "joins".
+ * Drop in, during play only (the sink's inStory: on the title and the menus
+ * every Start is player 1's): Start on a FOLLOW gamepad or keyboard set B
+ * that player 1 has not used in the last PORT_DEV_JOIN_QUIET frames, or
+ * Start on a PARKED device, makes that device a new player on the next free
+ * slot -- the slot it last had if free, else a person with no controller,
+ * else the lowest CPU the story is not holding.  The press is swallowed (it
+ * neither pauses player 1's game nor the joiner's) until the button is let
+ * go.  So a keyboard-and-pad player's Start on either pauses.
  *
- * Drop out: PortDevDropOut (the menu), or a device unplugged: when a player's
- * last device has been gone PORT_DEV_GRACE_FRAMES, the CPU takes the Kirby
- * and the device is remembered as PARKED; plugged back in, Start rejoins (the
- * same slot if it is still free).  Back within the grace period, it simply
- * carries on.
+ * Once a second person is playing, the pad player 1 was using is claimed by
+ * player 1 (unplugged and back, still theirs) and every other unclaimed pad
+ * waits: it drives nobody, and its Start joins, or -- four people already --
+ * does nothing at all (a fifth pad never pauses player 1's game).
+ *
+ * Drop out: PortDevDropOut (the menu), Select held PORT_DEV_HOLD_LEAVE_FRAMES
+ * on a joined device, or a device unplugged: when a player's last device has
+ * been gone PORT_DEV_GRACE_FRAMES, the CPU takes the Kirby and the device is
+ * remembered as PARKED; plugged back in, Start rejoins (the same slot if it
+ * is still free).  Back within the grace period, it simply carries on.
+ *
+ * These are web/input_devices.js's rules (its header lists why each changed
+ * from the first version); tests/input_devices_native_test.c checks them.
  *
  * --- what crosses into the game ----------------------------------------------
  *
@@ -52,18 +61,32 @@
 
 #include "port/port.h"
 #include "port/input_devices.h"
+#ifdef PORT_DEV_NO_GAME
+/* tests/input_devices_native_test.c: the game's side without the game's
+ * headers (it gives the core a fake sink) */
+int  PortLmpSlotIsHuman(int slot);
+u32  PortLmpRequestHuman(int slot, int on);
+int  PortLmpCanRequest(void);
+void PortLmpSetHostKeys(int player, u16 mask);
+int  PortLmpSlotJoinable(int slot);
+int  PortLmpInStory(void);
+#else
 #include "port/localmp.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define START 0x0008
+#define START  0x0008
+#define SELECT 0x0004
 
 struct Dev {
     int  used, id, kind, player, present;
     int  lastSlot;          /* the player slot it last drove, -1 none          */
     int  swallow;           /* Start is held from a join press: not passed on  */
+    int  hold;              /* frames Select has been held (a joined device)   */
+    long lastUse;           /* tick player 1 last used it (FOLLOW)             */
     u16  keys, prev;
     char key[64];
     char name[PORT_DEV_NAME_MAX];
@@ -77,10 +100,13 @@ static int sPend[4], sPendOn[4];         /* a request in flight                 
 static int sBound[4];                    /* has had a device since it became human */
 static u16 sOut[4];
 static int sVerbose = 1;
+static long sTick;                       /* PortDevFrame calls                   */
+static int sWasMulti;
 
 static u32 GameRequest(int slot, int on) { return PortLmpRequestHuman(slot, on); }
 static const struct PortDevSink kGame = {
-    PortLmpSlotIsHuman, GameRequest, PortLmpCanRequest, PortLmpSetHostKeys, PortLmpSlotJoinable
+    PortLmpSlotIsHuman, GameRequest, PortLmpCanRequest, PortLmpSetHostKeys, PortLmpSlotJoinable,
+    PortLmpInStory
 };
 static const struct PortDevSink *sSink = &kGame;
 
@@ -106,8 +132,11 @@ void PortDevReset(void)
     memset(sPend, 0, sizeof sPend);
     memset(sBound, 0, sizeof sBound);
     memset(sOut, 0, sizeof sOut);
+    memset(sPendOn, 0, sizeof sPendOn);
     sP1Dev = 0;
     sNextId = 1;
+    sTick = 0;
+    sWasMulti = 0;
 }
 
 static void Copy(char *dst, size_t n, const char *src)
@@ -127,6 +156,7 @@ int PortDevAdd(int kind, const char *key, const char *name)
             if (d->used && !d->present && d->kind == kind && strcmp(d->key, key) == 0) {
                 d->present = 1;
                 d->keys = d->prev = 0;
+                d->hold = 0;
                 Copy(d->name, sizeof d->name, name);
                 if (d->player >= 1)
                     sGrace[d->player] = 0;
@@ -153,6 +183,7 @@ int PortDevAdd(int kind, const char *key, const char *name)
     d->player = PORT_DEV_FOLLOW;
     d->present = 1;
     d->lastSlot = -1;
+    d->lastUse = -1000000000L;
     Copy(d->key, sizeof d->key, key);
     Copy(d->name, sizeof d->name, name);
     LOG("[katam-port] devices: %s connected (device %d)", d->name, d->id);
@@ -179,6 +210,7 @@ void PortDevRemove(int id)
     d->present = 0;
     d->keys = d->prev = 0;
     d->swallow = 0;
+    d->hold = 0;
     if (sP1Dev == id)
         sP1Dev = 0;
     if (d->player >= 1 && !HasDevice(d->player, 0)) {
@@ -236,6 +268,7 @@ static int FreeSlot(const struct Dev *d)
 static void Claim(struct Dev *d, int s)
 {
     d->player = s;
+    d->hold = 0;
     if (s >= 1) {
         d->lastSlot = s;
         sBound[s] = 1;
@@ -243,6 +276,22 @@ static void Claim(struct Dev *d, int s)
     }
     if (sP1Dev == d->id)
         sP1Dev = 0;
+}
+
+/* Anyone besides player 1 playing, or asked for? */
+static int Multi(void)
+{
+    int s;
+
+    for (s = 1; s < 4; s++)
+        if (sSink->slotIsHuman(s) || (sPend[s] && sPendOn[s]) || HasDevice(s, 1))
+            return 1;
+    return 0;
+}
+
+static int InStory(void)
+{
+    return sSink->inStory == NULL || sSink->inStory();
 }
 
 int PortDevJoin(int id)
@@ -275,8 +324,10 @@ int PortDevDropOut(int player)
     if (player < 1 || player > 3)
         return 0;
     for (i = 0; i < PORT_DEV_MAX; i++)
-        if (sDev[i].used && sDev[i].player == player)
+        if (sDev[i].used && sDev[i].player == player) {
             sDev[i].player = PORT_DEV_PARKED;
+            sDev[i].hold = 0;
+        }
     sGrace[player] = 0;
     sBound[player] = 0;
     if (sSink->slotIsHuman(player))
@@ -288,10 +339,15 @@ int PortDevDropOut(int player)
 int PortDevAssign(int id, int player)
 {
     struct Dev *d = Find(id);
+    int from;
 
     if (d == NULL || player < PORT_DEV_OFF || player > 3)
         return 0;
-    if (player >= 1 && !sSink->slotIsHuman(player) && !Ask(player, 1))
+    from = d->player;
+    if (from == player)
+        return 1;
+    if (player >= 1 && !sSink->slotIsHuman(player) && !(sPend[player] && sPendOn[player])
+        && !Ask(player, 1))
         return 0;
     if (player >= 0)
         Claim(d, player);
@@ -299,6 +355,14 @@ int PortDevAssign(int id, int player)
         d->player = player;
         if (sP1Dev == id && player != PORT_DEV_FOLLOW)
             sP1Dev = 0;
+    }
+    /* A player who loses their only controller leaves (the PLAYERS page's
+     * "give PAD 2 to player 3"). */
+    if (from >= 1 && !HasDevice(from, 1)) {
+        sBound[from] = 0;
+        if (sSink->slotIsHuman(from))
+            Ask(from, 0);
+        LOG("[katam-port] devices: player %d has no controller left; the CPU takes the Kirby", from + 1);
     }
     LOG("[katam-port] devices: %s -> %s", d->name,
         player >= 0 ? (player == 0 ? "player 1" : player == 1 ? "player 2"
@@ -313,24 +377,34 @@ int PortDevPlayer1Device(void)
     return sP1Dev;
 }
 
+/* Is this press of Start a join?  (d's Start went down this frame.) */
 static int JoinPress(const struct Dev *d, u16 pressed)
 {
     if (!(pressed & START))
         return 0;
+    if (d->kind == PORT_DEV_TOUCH)
+        return 0;
     if (d->player == PORT_DEV_PARKED)
-        return d->kind == PORT_DEV_PAD || d->kind == PORT_DEV_KEYS_B || d->kind == PORT_DEV_KEYS_A;
+        return 1;
     if (d->player != PORT_DEV_FOLLOW)
         return 0;
-    if (d->kind == PORT_DEV_KEYS_B)
-        return 1;
-    return d->kind == PORT_DEV_PAD && sP1Dev != 0 && sP1Dev != d->id;
+    if (d->kind != PORT_DEV_PAD && d->kind != PORT_DEV_KEYS_B)
+        return 0;
+    if (!InStory())
+        return 0;           /* the title and the menus: player 1's Start */
+    if (Multi())
+        return 1;           /* every unclaimed pad is waiting to join */
+    if (sP1Dev == 0 || sP1Dev == d->id)
+        return 0;
+    return sTick - d->lastUse > PORT_DEV_JOIN_QUIET;
 }
 
 u16 PortDevFrame(void)
 {
-    int i, s;
+    int i, s, multi, leaveNow[PORT_DEV_MAX], nLeave = 0;
     u16 out[4] = { 0, 0, 0, 0 };
 
+    sTick++;
     /* Joins first, against the device player 1 was using until now. */
     for (i = 0; i < PORT_DEV_MAX; i++) {
         struct Dev *d = &sDev[i];
@@ -339,15 +413,38 @@ u16 PortDevFrame(void)
         if (!d->used || !d->present)
             continue;
         pressed = (u16)(d->keys & ~d->prev);
-        if (JoinPress(d, pressed) && PortDevJoin(d->id))
+        if (!JoinPress(d, pressed))
+            continue;
+        if (PortDevJoin(d->id))
             d->swallow = 1;
+        else if (d->player == PORT_DEV_FOLLOW && Multi())
+            d->swallow = 1;     /* a waiting pad's Start pauses nobody */
     }
-    /* Player 1's device: the last unclaimed one to press anything. */
+    multi = Multi();
+    /* Player 1's device: the last unclaimed one to press anything (with
+     * somebody else playing, only a keyboard or the touch buttons, or the
+     * pad that is player 1's). */
     for (i = 0; i < PORT_DEV_MAX; i++) {
         struct Dev *d = &sDev[i];
 
-        if (d->used && d->present && d->player == PORT_DEV_FOLLOW && (d->keys & ~d->prev))
-            sP1Dev = d->id;
+        if (!d->used || !d->present || d->player != PORT_DEV_FOLLOW || !(d->keys & ~d->prev) || d->swallow)
+            continue;
+        if (multi && d->kind == PORT_DEV_PAD && d->id != sP1Dev)
+            continue;
+        sP1Dev = d->id;
+    }
+    if (multi != sWasMulti) {
+        sWasMulti = multi;
+        /* The first other person: the pad player 1 was playing with is theirs
+         * for good (unplugged and back, it is still player 1's). */
+        if (multi && sP1Dev) {
+            struct Dev *d = Find(sP1Dev);
+
+            if (d != NULL && d->player == PORT_DEV_FOLLOW && d->kind == PORT_DEV_PAD) {
+                Claim(d, 0);
+                sP1Dev = d->id;
+            }
+        }
     }
 
     /* Players whose devices are gone. */
@@ -418,11 +515,26 @@ u16 PortDevFrame(void)
             k &= (u16)~START;
         }
         d->prev = d->keys;
-        if (d->player == PORT_DEV_FOLLOW)
+        /* Select held on a joined device: leave (the game has no use for
+         * Select in play) */
+        if (d->player >= 1 && (k & SELECT)) {
+            if (++d->hold == PORT_DEV_HOLD_LEAVE_FRAMES)
+                leaveNow[nLeave++] = d->player;
+        } else {
+            d->hold = 0;
+        }
+        if (d->player == PORT_DEV_FOLLOW) {
+            if (multi && d->kind == PORT_DEV_PAD && d->id != sP1Dev)
+                continue;       /* waiting */
             out[0] |= k;
-        else if (d->player >= 0 && d->player <= 3)
+            if (k)
+                d->lastUse = sTick;
+        } else if (d->player >= 0 && d->player <= 3) {
             out[d->player] |= k;
+        }
     }
+    for (i = 0; i < nLeave; i++)
+        PortDevDropOut(leaveNow[i]);
     for (s = 0; s < 4; s++)
         sOut[s] = out[s];
     for (s = 1; s < 4; s++)

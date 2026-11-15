@@ -589,8 +589,13 @@ static int PageDisplay(void)
         changed |= Radio("Players", &s.partyHud, PS_PARTY_PLAYERS);
         SameLineIfFits("Players + helpers");
         changed |= Radio("Players + helpers", &s.partyHud, PS_PARTY_HELPERS);
-        Hint("Party: the other players' health, ability and lives in the top right corner "
-             "(and the CPU helpers' while they are with you); the game's own bar is player 1's. "
+        {
+            bool nt = s.nameTags != 0;
+            if (ImGui::Checkbox("Name tags over the players' Kirbys", &nt)) { s.nameTags = nt; changed = 1; }
+        }
+        Hint("Party: the other players' health in the top right corner, opening up for a few "
+             "seconds to show ability and lives when they change (and the CPU helpers' while "
+             "they are with you); the game's own bar is player 1's. "
              "Playing alone with nobody along, nothing changes.");
         Hint("Auto keeps the HUD the size it has at zoom 1, whatever the zoom; "
              "a fixed size is capped so the whole HUD fits the picture. "

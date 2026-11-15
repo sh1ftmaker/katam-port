@@ -463,13 +463,25 @@
             S.owners[s] = o;
             S.stats.slotChanges++;
             var mine = o >= 0 && (o >> 2) === self;
+            /* one notice per change: the page's device notices may have said
+             * it already (a controller here leaving), and a controller here
+             * joining is said here, in their style, with its label */
+            var kn = window.katamNotices;
             if (o >= 0 && was < 0) {
-                banner(mine ? ((o & 3) ? 'Your player ' + ((o & 3) + 1) + ' is ' + slotName(s) : 'You are ' + slotName(s))
-                       : slotName(s) + ' joined', 3000);
                 log('slot ' + s + ': device ' + (o >> 2) + ' seat ' + (o & 3) + ' joins');
+                if (kn && kn.once && !kn.once('join:' + s)) continue;
+                if (mine && (o & 3) && kn && kn.show) {
+                    var kd = window.katamDevices, pl = kd && kd.listPlayers ? kd.listPlayers()[o & 3] : null;
+                    var lab = pl && pl.labels && pl.labels.length ? pl.labels[0] : '';
+                    kn.show(slotName(s) + ' joined', s, (lab ? lab + ' - ' : '') + 'hold Select to leave');
+                } else {
+                    banner(mine ? ((o & 3) ? 'Your player ' + ((o & 3) + 1) + ' is ' + slotName(s) : 'You are ' + slotName(s))
+                           : slotName(s) + ' joined', 3000);
+                }
             } else if (o < 0) {
-                banner(slotName(s) + ' left - the CPU has that Kirby', 3500);
                 log('slot ' + s + ': to the CPU');
+                if (kn && kn.once && !kn.once('leave:' + s)) continue;
+                banner(slotName(s) + ' left - the CPU has that Kirby', 3500);
             } else {
                 banner(slotName(s) + ' changed hands', 2500);
             }

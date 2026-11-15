@@ -2879,27 +2879,30 @@ var Module = (function () {
     return true;
   }
 
-  // The player card's NAME row takes letters from a keyboard: while it is
-  // selected, a letter, digit, space, - . ! is a letter of the name and
-  // Backspace removes one (platform/player_card.c PortCardWantsText).  The
-  // arrows still move, so the d-pad keys WASD type letters there instead.
+  // The player card's NAME row takes letters from a keyboard only in its
+  // typing state (platform/player_card.c PortCardTyping): A on the row starts
+  // it, Enter or Escape (or Start, Up/Down) ends it.  While it is on, a
+  // letter, digit, space, - . ! is a letter of the name and Backspace removes
+  // one; the arrows are still the game's (Left/Right pick a letter, Up/Down
+  // leave).  Off, every key is the game's, on the NAME row too.
   function cardWantsText() {
     try { return !!(Module._PortCardWantsText && Module._PortCardWantsText()); }
     catch (err) { return false; }
   }
+  function cardTyping() {
+    try { return !!(Module._PortCardTyping && Module._PortCardTyping()); }
+    catch (err) { return false; }
+  }
   function cardKeys(e) {
-    if (e.ctrlKey || e.metaKey || e.altKey || !cardWantsText()) return false;
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      Module._PortCardTypeChar(8);
-      return true;
-    }
-    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .!-]/.test(e.key)) {
-      e.preventDefault();
-      Module._PortCardTypeChar(e.key.toUpperCase().charCodeAt(0));
-      return true;
-    }
-    return false;
+    if (e.ctrlKey || e.metaKey || e.altKey || !cardTyping()) return false;
+    var printable = e.key && e.key.length === 1 && /[A-Za-z0-9 .!-]/.test(e.key);
+    if (!printable && e.key !== 'Enter' && e.key !== 'Escape' && e.key !== 'Backspace') return false;
+    e.preventDefault();
+    if (e.repeat) return true;               // a held key types once, and never reaches the game
+    if (e.key === 'Enter' || e.key === 'Escape') Module._PortCardTypingEnd();
+    else if (e.key === 'Backspace') Module._PortCardTypeChar(8);
+    else Module._PortCardTypeChar(e.key.toUpperCase().charCodeAt(0));
+    return true;
   }
 
   // ... and on a phone, a button over the picture brings up the device's
@@ -2950,12 +2953,14 @@ var Module = (function () {
       'max-width:min(92vw,520px)';
     var hint = document.createElement('div');
     hint.id = 'pjoinhint';
-    hint.style.cssText = 'position:fixed;right:max(10px,env(safe-area-inset-right));top:max(52px,calc(env(safe-area-inset-top) + 52px));' +
-      'z-index:65;pointer-events:none;padding:6px 10px;border-radius:10px;background:rgba(24,16,64,.78);' +
+    // (under the notices, top centre: the top right corner is the party
+    // HUD's, platform/ui/party_hud.c, and the hint used to cover its cards)
+    hint.style.cssText = 'order:9;' +
+      'pointer-events:none;padding:6px 10px;border-radius:10px;background:rgba(24,16,64,.78);' +
       'border:2px solid #f8d850;color:#fff;font:bold 12px/1.3 ui-monospace,Menlo,Consolas,monospace;' +
       'letter-spacing:.06em;text-transform:uppercase;opacity:0;transition:opacity .4s';
     function attach() {
-      if (!box.parentNode && document.body) { document.body.appendChild(box); document.body.appendChild(hint); }
+      if (!box.parentNode && document.body) { document.body.appendChild(box); box.appendChild(hint); }
     }
     function show(text, player, sub, ms) {
       attach();
@@ -2972,12 +2977,22 @@ var Module = (function () {
         s.textContent = sub;
         el.appendChild(s);
       }
-      box.appendChild(el);
-      while (box.children.length > 3) box.removeChild(box.firstChild);
+      box.insertBefore(el, hint.parentNode === box ? hint : null);
+      while (box.querySelectorAll('.pnotice').length > 3) box.removeChild(box.querySelector('.pnotice'));
       setTimeout(function () { el.style.opacity = '0'; }, ms || 2600);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, (ms || 2600) + 600);
     }
     var lastFull = 0;
+    // One notice per event: in a session a Kirby changing hands is also seen
+    // by web/online.js (from the sealed frames); whichever speaks first marks
+    // it, and the other stays quiet (katamNotices.once).
+    var recent = {};
+    function once(key, ms) {
+      var now = performance.now();
+      if (recent[key] && now - recent[key] < (ms || 3000)) return false;
+      recent[key] = now;
+      return true;
+    }
     // In a session the device module's players are this device's seats: the
     // Kirby a seat plays is the host's choice (Module._PortLnSeatSlot), and
     // web/online.js says "Your player 2 is Player 4" when it lands.
@@ -2991,7 +3006,10 @@ var Module = (function () {
       var who = ev.player >= 0 ? 'Player ' + (ev.player + 1) : '';
       if (devs.seatMode && ev.player >= 1) {
         var sl = seatSlot(ev.player);
-        if (ev.type === 'join' && sl < 0) { show('A player is joining', -1, ev.label + ' - hold Select to leave'); return; }
+        // the host has not answered yet: web/online.js says which Kirby when
+        // it lands (with this controller and "hold Select to leave")
+        if (ev.type === 'join' && sl < 0) return;
+        if ((ev.type === 'join' || ev.type === 'leave') && sl >= 0 && !once(ev.type + ':' + sl)) return;
         if (ev.type === 'leave' && ev.why === 'full') { show('No Kirby free', -1, 'the game has four players', 3000); return; }
         who = sl >= 0 ? 'Player ' + (sl + 1) : 'Your player ' + (ev.player + 1);
         ev = Object.assign({}, ev, { player: sl >= 0 ? sl : -1 });
@@ -3036,8 +3054,9 @@ var Module = (function () {
       var op = on ? '1' : '0';
       if (hint.style.opacity !== op) hint.style.opacity = op;
     }
-    return { event: event, frame: frame, show: show };
+    return { event: event, frame: frame, show: show, once: once };
   })();
+  window.katamNotices = notices;
 
   //====================================================================
   // On-screen touch controls

@@ -419,6 +419,15 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
         gPortUiStatus.viewH = ppuH;
         gPortUiStatus.world = 0;
     }
+    /* where world pixels land, for the name tags over the Kirbys */
+    if (f != NULL && f->world) {
+        PortPartyHudSetView(1, f->camX, f->camY, f->viewX, f->viewY, f->viewW, f->viewH);
+    } else {
+        s32 kx, ky, cx, cy;
+
+        PortRlFocus(&kx, &ky, &cx, &cy);
+        PortPartyHudSetView(f == NULL && ppuW == 240 && ppuH == 160, cx >> 8, cy >> 8, 0, 0, 240, 160);
+    }
     PortPartyHudSample();
     gPortUiStatus.gpu = sUsingGpu == 1;
     gPortUiStatus.zoomNow = zoom;

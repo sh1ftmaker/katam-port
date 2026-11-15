@@ -60,12 +60,28 @@ const u16 *PortPaintPaletteSlow(const struct Sprite *s, const u16 *rom, u16 *buf
 #define PortPaintPalette(s, rom, buf, num, off) \
     (gPortSim->game.paintOn ? PortPaintPaletteSlow((s), (rom), (buf), (num), (off)) : (rom))
 
+/* hud.c (the bottom bar's palette, BG line 15): sHudPalettes[color], or for a
+ * custom colour on the screen's Kirby that row shaded like the Kirby, into
+ * buf.  PortPaintHudTick: once a frame from the bar's update, reloads the
+ * palette after the screen's Kirby changed colour (paintDirty bit 4). */
+#define PORT_PAINT_DIRTY_HUD    0x10
+const u16 *PortPaintHudPaletteSlow(u8 color, u16 *buf);
+#define PortPaintHudPalette(color, buf) \
+    (gPortSim->game.paintOn ? PortPaintHudPaletteSlow((color), (buf)) : sHudPalettes[color])
+void PortPaintHudTickSlow(void);
+#define PortPaintHudTick() \
+    do { if (gPortSim->game.paintDirty & PORT_PAINT_DIRTY_HUD) PortPaintHudTickSlow(); } while (0)
+
 /* --- the derivation, for the card's preview and the presentation layer -----
  * (pure functions of the paint and the loaded ROM; no state). */
 /* The Kirby's full body palette (anim 0x15, 16 BGR555 entries) for paint v;
  * 0 if the ROM has no such palettes.  PORT_PAINT_NONE gives `fallback`'s
  * spray colour (0..13). */
 int  PortPaintBodyPalette(u32 v, int fallback, u16 out[16]);
+/* The HUD's palette row (sHudPalettes) for paint v on a Kirby whose colour
+ * index is `color` (used when v is none): a custom colour's row is shaded
+ * like the Kirby.  For the party HUD's icons.  0 if out of range. */
+int  PortPaintHudPaletteOf(u32 v, int color, u16 out[16]);
 /* The game's colour index a paint stands for: the spray itself, or for a
  * custom colour the nearest spray it is shaded from (tables indexed by
  * colour -- the HUD's palette, the link-up screen -- show that one). */

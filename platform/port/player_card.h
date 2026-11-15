@@ -55,13 +55,15 @@ const char *PortPlayerName(int slot);
 /* The colour to draw slot s's name in (0xRRGGBB): the Kirby's body fill. */
 u32  PortPlayerColor(int slot);
 /* Where a name tag over slot s's Kirby goes: the top of its head in world
- * pixels (*x, *y) and its room; 0 when it should not be tagged (no name, not
- * alive, between rooms, not in the local player's room, tags off).  Read
+ * pixels (*x, *y) and its room; 0 when it should not be tagged (a CPU, not
+ * alive, between rooms, not in the local player's room, tags off).  The tag
+ * reads PortPlayerName, or "nP" for a person without a name.  Read
  * from game memory, never written: the renderer projects it. */
 int  PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room);
 /* Online: slot s is `name` on this device (NULL / "" clears it). */
 void PortCardSetSlotName(int slot, const char *name);
-/* Name tags over the Kirbys (web page / renderer): off by default. */
+/* Name tags over the Kirbys (drawn by ui/party_hud.c): the device setting
+ * gPortSettings.nameTags, off by default (SETTINGS > NAME TAGS). */
 int  PortCardTagsOn(void);
 void PortCardSetTagsOn(int on);
 
@@ -134,6 +136,7 @@ const char *PortCardRowDesc(int sub, int row);
 #define PORT_CARD_K_BACK   4
 #define PORT_CARD_K_CLOSE  5        /* B on the CARD screen: it is closed     */
 int  PortCardKey(int *row, unsigned key);
+#define PORT_CARD_KEY_START 7   /* Start without A (PortCardKey works it out) */
 /* The edited card's body palette (16 BGR555), for a preview. */
 int  PortCardPreviewPalette(u16 out[16]);
 /* A picker row's bar: 13 BGR555 colours across its range at the current
@@ -144,7 +147,11 @@ int  PortCardBar(int row, u16 out[13]);
 int  PortCardWantsText(void);
 /* The screen's row cursor, as the screen's code moved it (for the above). */
 void PortCardNoteRow(int row);
-void PortCardTypeChar(int c);           /* a letter; 8 = backspace          */
+/* The NAME row's typing state (A on the row starts it; Start, Enter,
+ * Escape, Up/Down end it): only then does the page send letters. */
+int  PortCardTyping(void);
+void PortCardTypingEnd(void);
+void PortCardTypeChar(int c);           /* a letter; 8 = backspace (typing only) */
 void PortCardSetNameJs(const char *name);
 const char *PortCardNameJs(void);
 

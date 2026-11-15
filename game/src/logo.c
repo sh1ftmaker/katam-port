@@ -11,6 +11,7 @@ extern "C" {
 #include "palette.h"
 #include "intro.h"
 #include "title_screen.h"
+#include "port/lmpnet.h"
 
 static void LogoCopyGraphics(u8, u16, u16);
 static void LogoCopyPalette(u16, u8, u8, u16);
@@ -49,6 +50,14 @@ static void LogoMain(void) {
     struct LogoStruct* r2;
 
     r2 = TaskGetStructPtr(gCurTask);
+    /* PORT: leaving an online game boots the device's own game again
+     * (platform/lmpnet.c PortLnGoHome); it goes to the title by the game's
+     * own Logo -> title branch instead of showing the logos and the intro.
+     * One test of a zero word otherwise. */
+    if (PortLnHomeExpress()) {
+        r2->unk4 |= 1;
+        r2->unk8 = FN(LogoEnd);
+    }
     if (r2->unk4 & 2) {
         r2->unk0++;
     }

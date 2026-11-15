@@ -29,6 +29,10 @@
 //             the pad's Start pauses, nobody joins.
 //   touch     a phone-shaped viewport, touch only: touch drives player 1,
 //             its Start never joins.
+//   hudplaces where the party HUD's cards go: in the bar beside a 3:2
+//             picture on a wide window (opaque), over the picture on a
+//             phone in landscape whose touch pads fill those bars (the
+//             keep-outs), name tags on.
 import fs from 'fs';
 import path from 'path';
 
@@ -38,7 +42,7 @@ const CDP_PORT = +flag('cdp', 9363);
 const BASE = flag('base', 'http://127.0.0.1:8963/dist/');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8963/rom.gba');
 const SHOTS = flag('shots', '');
-const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch').split(',');
+const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,hudplaces').split(',');
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -212,13 +216,15 @@ async function startPlay(p) {
 }
 
 /* Game Select's SETTINGS (the fifth row) and its PLAYERS row (the seventh:
- * Up from the first wraps to PARTY HUD, the eighth, and Up again is PLAYERS) */
+ * Up from the first wraps to NAME TAGS, the ninth, then PARTY HUD, then
+ * PLAYERS) */
 async function toSettingsPlayers(p) {
     for (let i = 0; i < 4; i++) { await press(p, 'DOWN'); await waitFrames(p, 8); }
     await press(p, 'A');
     await until(() => screenLive(p), 10000);
     await waitFrames(p, 30);
-    await press(p, 'UP'); await waitFrames(p, 10);         // wraps to PARTY HUD
+    await press(p, 'UP'); await waitFrames(p, 10);         // wraps to NAME TAGS
+    await press(p, 'UP'); await waitFrames(p, 10);         // PARTY HUD
     await press(p, 'UP'); await waitFrames(p, 10);         // PLAYERS
 }
 
@@ -282,7 +288,14 @@ async function caseFrontend() {
     await press(p, 'A'); await waitFrames(p, 20);          // nothing chosen: P2's card
     ok('nothing chosen, nothing joined', (await human(p, 1)) === 0);
     ok('A on P2 with nothing chosen opens player 2\'s card', (await pagesModel(p)) === 6);
-    // the NAME row takes typed letters (web/shell.html cardKeys)
+    // the NAME row is a row like the others until A starts typing: D (Right)
+    // types nothing, it is the game's (web/shell.html cardKeys)
+    await press(p, 'RIGHT'); await waitFrames(p, 10);
+    ok('NAME row, not typing: D is the game\'s Right, not a letter',
+       (await p.ev('Module.ccall("PortCardSeatProfiles","string",[],[])')).split('\n')[1].split('\t')[0] === ''
+       && (await p.ev('Module._PortCardTyping()')) === 0);
+    await press(p, 'A'); await waitFrames(p, 10);          // Z: A on NAME starts typing
+    ok('A on the NAME row starts typing', (await p.ev('Module._PortCardTyping()')) === 1);
     for (const ch of 'ANNA') {
         await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Key' + ch, key: ch.toLowerCase(), text: ch.toLowerCase(), windowsVirtualKeyCode: ch.charCodeAt(0) });
         await p.s('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Key' + ch, key: ch.toLowerCase(), windowsVirtualKeyCode: ch.charCodeAt(0) });
@@ -292,9 +305,12 @@ async function caseFrontend() {
     await shot(p, 'front-03a-p2-card-name.png');
     const prof = await p.ev('Module.ccall("PortCardSeatProfiles","string",[],[])');
     ok('typed letters name player 2\'s card', prof.split('\n')[1].split('\t')[0] === 'ANNA', JSON.stringify(prof));
-    await press(p, 'ARROWDOWN'); await waitFrames(p, 10);  // COLOR (X would type an X on NAME)
-    await press(p, 'B'); await waitFrames(p, 20);
-    ok('B on the card: back to PLAYERS', (await pagesModel(p)) === 5);
+    await press(p, 'START'); await waitFrames(p, 10);      // Enter: done typing
+    ok('Enter ends typing, the name kept', (await p.ev('Module._PortCardTyping()')) === 0
+       && (await p.ev('Module.ccall("PortCardSeatProfiles","string",[],[])')).split('\n')[1].split('\t')[0] === 'ANNA');
+    await shot(p, 'front-03b-p2-card-name-done.png');
+    await press(p, 'B'); await waitFrames(p, 20);          // X: the game's B again
+    ok('B (X) on the card after typing: back to PLAYERS', (await pagesModel(p)) === 5);
     await press(p, 'B'); await waitFrames(p, 20);
     ok('B goes back to SETTINGS', (await pagesModel(p)) === 0 && await p.ev('Module._PortPuiActive()') === 0);
     await press(p, 'B'); await waitFrames(p, 40);
@@ -411,8 +427,18 @@ async function caseLocal() {
 
     // the pause menu's SETTINGS > PLAYERS
     ok('the pause SETTINGS page is up', await toPauseSettings(p));
-    // PARTY HUD (the last row): OFF / PLAYERS / ALL, Right steps it
-    await press(p, 'UP'); await waitFrames(p, 10);          // wraps to PARTY HUD
+    // NAME TAGS (the last row): OFF / ON, Right turns them on
+    await press(p, 'UP'); await waitFrames(p, 10);          // wraps to NAME TAGS
+    {
+        const was = await p.ev('Module._PortCardTagsOn()');
+        await press(p, 'RIGHT'); await waitFrames(p, 10);
+        ok('pause SETTINGS > NAME TAGS: Right turns them on', was === 0 && (await p.ev('Module._PortCardTagsOn()')) === 1);
+        await shot(p, 'local-08b-pause-name-tags-row.png');
+        await press(p, 'LEFT'); await waitFrames(p, 10);
+        ok('... and Left off again', (await p.ev('Module._PortCardTagsOn()')) === 0);
+    }
+    // PARTY HUD: OFF / PLAYERS / ALL, Right steps it
+    await press(p, 'UP'); await waitFrames(p, 10);          // PARTY HUD
     {
         const was = await p.ev('Module._PortPartyHudSettingJs()');
         await press(p, 'RIGHT'); await waitFrames(p, 10);
@@ -473,6 +499,25 @@ async function caseLocal() {
     ok('party HUD names: P2 ANNA, P4 DOT.', (await p.ev('Module.ccall("PortPlayerName","string",["number"],[1])')) === 'ANNA'
        && (await p.ev('Module.ccall("PortPlayerName","string",["number"],[3])')) === 'DOT.');
     await shot(p, 'local-13-party-hud-names.png');
+    // compact cards: a few seconds after the last change, tag + health only
+    {
+        const t0 = await frame(p);
+        const full0 = await p.ev('Module._PortPartyHudFullJs()');
+        await until(async () => (await p.ev('Module._PortPartyHudFullJs()')) === 0, 15000);
+        const full1 = await p.ev('Module._PortPartyHudFullJs()');
+        ok('party HUD: the cards close to tag + health when nothing changes', full1 === 0,
+           `${full0} open, then ${full1} after ${(await frame(p)) - t0} frames`);
+        await shot(p, 'local-14-party-hud-compact.png');
+    }
+    // name tags over the Kirbys (SETTINGS > NAME TAGS; the same switch)
+    await p.ev('Module._PortCardSetTagsOn(1)');
+    await waitFrames(p, 20);
+    ok('name tags: one over each person\'s Kirby in the room', (await p.ev('Module._PortPartyHudTagsJs()')) >= 2,
+       String(await p.ev('Module._PortPartyHudTagsJs()')));
+    await shot(p, 'local-15-name-tags.png');
+    await p.ev('Module._PortCardSetTagsOn(0)');
+    await waitFrames(p, 5);
+    ok('name tags off: none', (await p.ev('Module._PortPartyHudTagsJs()')) === 0);
     await p.close();
 }
 
@@ -610,6 +655,54 @@ async function caseReplay() {
     }
 }
 
+// Where the cards go: two windows, three pads joined in each.
+async function caseHudPlaces() {
+    for (const v of [{ tag: 'wide', w: 1440, h: 640, settings: 'aspect=1\nnametags=1\n' },
+                     { tag: 'phone', w: 844, h: 390, mobile: true, touch: true, settings: 'nametags=1\n' }]) {
+        say(`hudplaces: ${v.tag} ${v.w}x${v.h}`);
+        const early = `try{localStorage.setItem('katam.settings',${JSON.stringify(v.settings)})}catch(e){}`;
+        const p = await openPage('hud-' + v.tag, { w: v.w, h: v.h, mobile: !!v.mobile, touch: !!v.touch, early });
+        await toGameSelect(p);
+        await startPlay(p);
+        // player 2 wears a custom brown (no spray is): the party HUD's little
+        // Kirby must be that brown too, not the nearest spray
+        await p.ev(`(function(){var v='2,0,25,75,55,BRUNO',b=Module._malloc(64);for(var i=0;i<v.length;i++)Module.HEAPU8[b+i]=v.charCodeAt(i);Module.HEAPU8[b+v.length]=0;Module._PortCardSetJs(1,b);Module._free(b);})()`);
+        await p.ev(`__padPlug(0, ${JSON.stringify(XBOX)}); __padPlug(1, ${JSON.stringify(XONE)}); __padPlug(2, ${JSON.stringify(DS)})`);
+        await waitFrames(p, 10);
+        if (!v.touch) await press(p, 'RIGHT', 200);
+        for (let i = 0; i < 3; i++) { await padPress(p, i, 'START'); await waitFrames(p, 10); }
+        await p.ev('__padSet(0, [15]); __padSet(1, [14])');
+        await waitFrames(p, 40);
+        await p.ev('__padSet(0, []); __padSet(1, [])');
+        await waitFrames(p, 30);
+        const at = await p.ev('[0,1,2,3,4,5].map(function(i){return Module._PortPartyHudAtJs(i)})');
+        await shot(p, `hud-${v.tag}-open.png`);
+        ok(`${v.tag}: player 2 wears the card's custom colour`, ((await p.ev('Module._PortCardSlotPaintJs(1) >>> 0')) >>> 24) === 2,
+           (await p.ev('Module._PortCardSlotPaintJs(1) >>> 0')).toString(16));
+        if (v.tag === 'wide') {
+            ok('wide window, 3:2 picture: the cards sit in the bar beside it', at[4] === 1, JSON.stringify(at));
+        } else {
+            // the touch pads take the bars: the cards stay over the picture,
+            // pushed clear of every keep-out
+            const keep = await p.ev(`(function(){var c=Module.portGlCanvas,cr=c.getBoundingClientRect(),sx=c.width/cr.width,sy=c.height/cr.height,o=[];
+              ['dpad','tb-a','tb-b','tb-l','tb-r','tb-select','tb-start','uigear'].forEach(function(id){var e=document.getElementById(id);if(!e)return;var r=e.getBoundingClientRect();
+              if(r.width>0&&r.height>0)o.push([(r.left-cr.left)*sx,(r.top-cr.top)*sy,r.width*sx,r.height*sy])});return o})()`);
+            const hit = keep.some((k) => at[0] < k[0] + k[2] && k[0] < at[0] + at[2] && at[1] < k[1] + k[3] && k[1] < at[1] + at[3]);
+            ok('phone: the cards are clear of the touch controls', at[2] > 0 && !hit, JSON.stringify(at) + ' vs ' + keep.length + ' controls');
+        }
+        ok(`${v.tag}: name tags over the players' Kirbys`, (await p.ev('Module._PortPartyHudTagsJs()')) >= 2);
+        await until(async () => (await p.ev('Module._PortPartyHudFullJs()')) === 0, 15000);
+        await waitFrames(p, 5);
+        await shot(p, `hud-${v.tag}-quiet.png`);
+        const drawn = await p.ev('Module._PortPartyHudAtJs(5)');
+        if (v.tag === 'wide')
+            ok('wide: in the bar the cards stay whole (they cost the picture nothing)', drawn === 3, String(drawn));
+        else
+            ok('phone: over the picture they close to tag + health after a few quiet seconds', drawn === 0, String(drawn));
+        await p.close();
+    }
+}
+
 for (const c of CASES) {
     try {
         if (c === 'gl') await caseGl();
@@ -619,6 +712,7 @@ for (const c of CASES) {
         else if (c === 'local') await caseLocal();
         else if (c === 'solo') await caseSolo();
         else if (c === 'touch') await caseTouch();
+        else if (c === 'hudplaces') await caseHudPlaces();
     } catch (e) {
         ok(`case ${c} ran to the end`, false, e.message);
     }

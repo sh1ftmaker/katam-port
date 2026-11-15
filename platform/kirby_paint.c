@@ -75,6 +75,8 @@
 #include "port/port.h"
 #include "port/simblock.h"
 #include "port/kirby_paint.h"
+#include "palette_effects.h"
+#include "main.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -296,22 +298,19 @@ s32 PortPaintSprayRgb(int i)
     return (s32)((r << 16) | (g << 8) | b);
 }
 
-/* A family's palette (anim, variants base..base+13) for template t, its first
- * num entries (what the palette command copies), shaded to rgb, into out.
- * 0 if the ROM disagrees. */
-static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
+/* A family of fourteen palettes (one per spray), template t's first num
+ * entries shaded to rgb, into out: every entry that differs between the
+ * templates moves the way the template's body fill must move.  0 if the ROM
+ * disagrees. */
+static int DeriveFam(const u16 *const fam[PORT_PAINT_COLORS], int t, u32 rgb, u16 *out, u32 num)
 {
-    const u16 *fam[PORT_PAINT_COLORS];
     const u16 *body = VariantPalette(BODY_ANIM, (u16)t);
     int r = (int)(rgb >> 16) & 255, g = (int)(rgb >> 8) & 255, b = (int)rgb & 255;
     u32 i;
     int k;
 
-    if (body == NULL || num > 16)
+    if (body == NULL || num > 16 || t < 0 || t >= PORT_PAINT_COLORS)
         return 0;
-    for (k = 0; k < PORT_PAINT_COLORS; k++)
-        if ((fam[k] = VariantPalette(anim, (u16)(base + k))) == NULL)
-            return 0;
     for (i = 0; i < num; i++) {
         u16 e = fam[t][i];
         int varies = 0;
@@ -322,6 +321,45 @@ static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
         out[i] = (i == 0 || !varies) ? e : Shade(e, body[FILL], r, g, b);
     }
     return 1;
+}
+
+/* A family's palette (anim, variants base..base+13) for template t, its first
+ * num entries (what the palette command copies), shaded to rgb, into out.
+ * 0 if the ROM disagrees. */
+static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
+{
+    const u16 *fam[PORT_PAINT_COLORS];
+    int k;
+
+    for (k = 0; k < PORT_PAINT_COLORS; k++)
+        if ((fam[k] = VariantPalette(anim, (u16)(base + k))) == NULL)
+            return 0;
+    return DeriveFam(fam, t, rgb, out, num);
+}
+
+/* --- the HUD's palette ---------------------------------------------------------
+ *
+ * The bottom bar (lives icon, health bar, the ability label's frame) is BG
+ * palette line 15 from hud.c's sHudPalettes[colour], one row per spray: the
+ * same family shape as the Kirby's, so a colour shades it the same way. */
+extern const u16 sHudPalettes[18][16];      /* game/src/hud.c */
+
+int PortPaintHudPaletteOf(u32 v, int color, u16 out[16])
+{
+    const u16 *fam[PORT_PAINT_COLORS];
+    int k, t;
+
+    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM) {
+        t = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_SPRAY ? PortPaintTemplate(v) : color;
+        if (t < 0 || t >= 18)
+            return 0;
+        memcpy(out, sHudPalettes[t], 16 * sizeof(u16));
+        return 1;
+    }
+    t = Nearest(v & 0xFFFFFFu);
+    for (k = 0; k < PORT_PAINT_COLORS; k++)
+        fam[k] = sHudPalettes[k];
+    return t >= 0 && DeriveFam(fam, t, v & 0xFFFFFFu, out, 16);
 }
 
 int PortPaintBodyPalette(u32 v, int fallback, u16 out[16])
@@ -404,6 +442,44 @@ void PortPaintTickSlow(struct Kirby *k)
     t = PortPaintTemplate(P.paint[s]);
     k->color = t >= 0 ? (u8)t : GameColor(s);
     sub_0803E558(s);
+    if (s == gLocalPlayerId)
+        P.paintDirty |= PORT_PAINT_DIRTY_HUD;   /* the bar's palette too (hud.c) */
+}
+
+/* hud.c: the bar's palette for the screen's Kirby (gLocalPlayerId), whose
+ * colour index is `color`: the row of sHudPalettes, or for a custom colour
+ * that row shaded like the Kirby. */
+const u16 *PortPaintHudPaletteSlow(u8 color, u16 *buf)
+{
+    u8 s = gLocalPlayerId;
+    u32 v;
+
+    if (s >= 4 || !Paintable() || color >= PORT_PAINT_COLORS)
+        return sHudPalettes[color];
+    v = P.paint[s];
+    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM || gKirbys[s].color != color)
+        return sHudPalettes[color];
+    if (!PortPaintHudPaletteOf(v, color, buf))
+        return sHudPalettes[color];
+    return buf;
+}
+
+/* hud.c UpdateGameplayHud, once a frame while the bar is up: the screen's
+ * Kirby changed colour (PortPaintTickSlow), so the bar's palette is loaded
+ * again now rather than at the next room. */
+void PortPaintHudTickSlow(void)
+{
+    u16 buf[16];
+    u8 color;
+
+    P.paintDirty &= (u8)~PORT_PAINT_DIRTY_HUD;
+    if (gLocalPlayerId >= 4 || !Paintable())
+        return;
+    color = gKirbys[gLocalPlayerId].color;
+    if (color >= 18)
+        return;
+    LoadBgPaletteAndPaletteEffectSource(PortPaintHudPaletteSlow(color, buf), 0xF0, 16);
+    gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
 }
 
 const u16 *PortPaintPaletteSlow(const struct Sprite *sp, const u16 *rom, u16 *buf, u32 num, u32 off)

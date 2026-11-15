@@ -51,6 +51,7 @@ typedef struct PortSettings {
     int interp;         /* GPU: lerp between sim frames at display rate     */
     int partyHud;       /* PS_PARTY_*: the party HUD (party_hud.c) -- other
                          * players' cards, and the CPU helpers' with them  */
+    int nameTags;       /* small name tags over the players' Kirbys (party_hud.c) */
 } PortSettings;
 
 extern PortSettings gPortSettings;

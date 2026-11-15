@@ -246,7 +246,10 @@ async function toGameSelect(p) {
     await press(p, 'A'); await waitFrames(p, 100);         // FILE 1 -> Game Select
 }
 /* a screen's fingerprint: the first BG palette lines and DISPCNT */
-const fsPrint = (p) => p.ev('Array.from(Module.HEAPU8.subarray(0x05000000, 0x05000040)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x04000000, 0x04000010)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x05000200, 0x05000240)).join(",")');
+// (DISPCNT and BG0-2CNT: BG3CNT is off on FILE SELECT and keeps whatever the
+// screen before set -- the intro's on the way in, nothing after leaving an
+// online game, which goes from the logo straight to the title)
+const fsPrint = (p) => p.ev('Array.from(Module.HEAPU8.subarray(0x05000000, 0x05000040)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x04000000, 0x0400000E)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x05000200, 0x05000240)).join(",")');
 
 /* Game Select > Start Game > MULTIPLAYER > ONLINE */
 async function toOnline(p) {
@@ -786,8 +789,18 @@ if (CASES.includes('three')) {
     await ga.ev('__padSet(0, [9])'); await sleep(150); await ga.ev('__padSet(0, [])');
     const gj = await until(async () => { const sl = await slotsOf(host); return sl.some((x) => x && x.dev === aDev && x.seat === 1) ? sl : null; }, 15000);
     ok('three: a pad on guest A joins by Start and gets the free Kirby', !!gj, gj ? slotsStr(gj) : '');
+    // (said when the host's answer lands: once, by the device notices)
+    await until(() => ga.ev('document.querySelectorAll("#pnotices .pnotice").length > 0'), 5000);
     const gaNotes = await ga.ev('Array.from(document.querySelectorAll("#pnotices .pnotice")).map(function(e){return e.textContent}).join(" | ")');
     ok('three: guest A is told (notice)', /joining|joined/i.test(gaNotes) || /Your player/i.test((await stats(ga)).banner || ''), gaNotes + ' / ' + (await stats(ga)).banner);
+    {
+        await sleep(400);
+        const notes = await ga.ev('Array.from(document.querySelectorAll("#pnotices .pnotice")).map(function(e){return e.textContent})');
+        const ban = (await stats(ga)).banner || '';
+        const n = notes.filter((t) => /joining|joined/i.test(t)).length + (/joined|Your player/i.test(ban) ? 1 : 0);
+        ok('three: one notice for that join, not two', n === 1, JSON.stringify(notes) + ' / banner: ' + ban);
+        await shot(ga, 't-08c-guestA-one-notice.png');
+    }
     await ga.ev('__padSet(0, [15])'); await waitFrames(ga, 6);
     ok('three: the pad drives guest A\'s seat 1 (its host keys)', (await ga.ev('Module._PortLmpHostKeys(1)')) === 16);
     await ga.ev('__padSet(0, [])');
@@ -813,6 +826,15 @@ if (CASES.includes('three')) {
         else { await press(host, 'SELECT'); await waitFrames(host, 70); }
     }
     ok('session: the pause SETTINGS page is up', pageUp);
+    await press(host, 'UP'); await waitFrames(host, 10);          // NAME TAGS (the ninth row)
+    await press(host, 'RIGHT'); await waitFrames(host, 30);       // the session copy: ON
+    await sleep(800);
+    await shot(host, 't-09b-host-pause-name-tags.png'); await shot(ga, 't-09b-guestA-pause-name-tags.png');
+    ok('session: NAME TAGS on the pause page goes to the host\'s own setting', (await host.ev('Module._PortCardTagsOn()')) === 1
+       && (await ga.ev('Module._PortCardTagsOn()')) === 0, `host ${await host.ev('Module._PortCardTagsOn()')}, guest A ${await ga.ev('Module._PortCardTagsOn()')}`);
+    await press(host, 'LEFT'); await waitFrames(host, 30);
+    await sleep(800);
+    ok('session: ... and off again', (await host.ev('Module._PortCardTagsOn()')) === 0);
     await press(host, 'UP'); await waitFrames(host, 10);          // PARTY HUD
     await shot(host, 't-09c-host-pause-party-hud.png');
     await press(host, 'UP'); await waitFrames(host, 10);          // PLAYERS
@@ -850,6 +872,12 @@ if (CASES.includes('three')) {
     ok('leave: guest B leaves from its menu (no session, no role)', !!bOut);
     const homed = await until(() => gb2.ev('Module._PortLnHomeLoads()'), 5000);
     ok('leave: guest B\'s game went back to power-on', homed === 1, String(homed));
+    // ... and straight to the title, not through the boot logos again
+    const bf0 = await frame(gb2);
+    await until(async () => (await frame(gb2)) >= bf0 + 45, 20000, 20);
+    await shot(gb2, 't-10a-guestB-left-title.png');
+    ok('leave: guest B is at the title at once (no boot logos)', (await gb2.ev('Module._PortLnHomeExpressed()')) === 1,
+       String(await gb2.ev('Module._PortLnHomeExpressed()')));
     const bCpu = await until(async () => { const sl = await slotsOf(host); return bSlotL > 0 && !sl[bSlotL] ? sl : null; }, 15000);
     ok('leave: the host hands guest B\'s Kirby to the CPU', !!bCpu, bCpu ? slotsStr(bCpu) : slotsStr(await slotsOf(host)));
     await waitFrames(gb2, 420);
@@ -870,22 +898,25 @@ if (CASES.includes('three')) {
     const hOut = await until(async () => { const s = await stats(host); return s && !s.session && (await host.ev('Module._PortLnHomeLoads()')) === 1 ? s : null; }, 10000);
     ok('leave: the host ends the game (back to power-on)', !!hOut);
     const hf0 = await frame(host);
+    ok('leave: the host goes straight to the title (no boot logos)',
+       !!(await until(async () => (await host.ev('Module._PortLnHomeExpressed()')) === 1, 5000)));
     const aLeft = await until(async () => { const s = await stats(ga); return s && s.phase === 'hostleft' ? s : null; }, 15000);
     ok('leave: guest A is told the host left', !!aLeft, aLeft ? aLeft.banner : '');
     await sleep(300);
     await shot(ga, 't-11-guestA-host-left.png');
     const btn = await ga.ev('(function(){var b=document.getElementById("lnleave");return !!(b && b.style.display!=="none")})()');
     ok('leave: guest A gets a "Back to the title" button', btn);
-    // the host's game boots again: through the game's own menus from power-on
-    // (its intro is as long as the save makes it: Start until FILE SELECT)
-    await until(async () => (await frame(host)) >= hf0 + 300, 60000, 30);
+    // the host's game is at the title (no logos, no intro): Start until
+    // FILE SELECT, watched frame by frame (its picture is compared with the
+    // one taken on the way in, mid-fade, so every frame is looked at)
+    await until(async () => (await frame(host)) >= hf0 + 120, 60000, 30);
     await shot(host, 't2-00-host-boots-again.png');
     let atFs = false;
-    for (let i = 0; i < 6 && !atFs; i++) {
-        await press(host, 'START'); await waitFrames(host, 100);
-        atFs = (await fsPrint(host)) === host.fsPrint;
+    for (let i = 0; i < 4 && !atFs; i++) {
+        await press(host, 'START');
+        atFs = !!(await until(async () => (await fsPrint(host)) === host.fsPrint, 3000, 2));
     }
-    ok('again: the host\'s game is back at FILE SELECT, through its own intro and title', atFs);
+    ok('again: the host\'s game is back at FILE SELECT, from the title', atFs);
     await waitFrames(host, 150);                               // (it takes input once it has faded in)
     await press(host, 'A'); await waitFrames(host, 200);       // FILE 1 -> Game Select
     await toOnline(host);
@@ -899,6 +930,12 @@ if (CASES.includes('three')) {
     await ga.ev('document.getElementById("lnleave").click()');
     const aOut = await until(async () => { const s = await stats(ga); return s && !s.session && !s.role && (await ga.ev('Module._PortLnHomeLoads()')) === 1 ? s : null; }, 10000);
     ok('leave: the button takes guest A back to the title', !!aOut);
+    {
+        const af0 = await frame(ga);
+        await until(async () => (await frame(ga)) >= af0 + 45, 20000, 20);
+        await shot(ga, 't-11a-guestA-title-at-once.png');
+        ok('leave: guest A is at the title at once (no boot logos)', (await ga.ev('Module._PortLnHomeExpressed()')) === 1);
+    }
     await until(async () => { const s = await stats(gb2); return s && s.phase === 'hostleft'; }, 15000);
     await gb2.ev('katamOnline.leave()');
     await waitFrames(ga, 420);

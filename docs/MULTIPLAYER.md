@@ -1354,8 +1354,9 @@ Names: the browser's id without vendor/product noise; the PLAYERS page
 labels them `PAD 1`, `PAD 2`, … (the lowest number free when first seen,
 kept across unplugging).
 
-**Decisions reviewed when wiring** (the native core keeps the original rules
-until it is brought in line; see the header of `web/input_devices.js`):
+**Decisions reviewed when wiring** (the native core, `platform/input_devices.c`,
+follows them too since the polish round; `tests/input_devices_native_test.c`,
+run by `make input-devices-test`, checks it):
 
 - *Kept:* Numpad Enter and `;` are keyboard set B's Start and join; a device
   that joined stays that player in the next game; unplug grace 180 frames;
@@ -1380,10 +1381,20 @@ until it is brought in line; see the header of `web/input_devices.js`):
 Notices (`#pnotices`, top centre, no pointer events, gone in about three
 seconds): PLAYER n JOINED (with the device and "hold Select to leave"),
 PLAYER n LEFT, PLAYER n: CONTROLLER UNPLUGGED, PLAYER n RECONNECTED,
-4 PLAYERS ALREADY. The hint (`#pjoinhint`, top right): "PAD 2: PRESS START
-TO JOIN" for six seconds whenever the set of free pads changes — a pad that
-pressed something and whose Start would join now; for one person, only a
-pad player 1 has never used.
+4 PLAYERS ALREADY. The hint (`#pjoinhint`, under the notices — the top right
+is the party HUD's): "PAD 2: PRESS START TO JOIN" for six seconds whenever
+the set of free pads changes — a pad that pressed something and whose Start
+would join now; for one person, only a pad player 1 has never used; never
+while the game's HUD is down (paused, a cutscene, between rooms: the sink's
+`hudUp`, `PortGameHudUpJs`).
+
+One notice per event: in a session a Kirby changing hands is seen both by
+the device module (a controller here joining or leaving) and by
+`web/online.js` (the sealed frames). Whichever speaks first marks it
+(`katamNotices.once('join:'+slot)`), the other stays quiet; a controller
+here joining is announced when the host's answer lands, as "PLAYER n
+JOINED" with its label, not first as "a player is joining" and then again
+as a banner.
 
 MULTIPLAYER > LOCAL still starts two players (the device module gives
 player 2 a pad player 1 is not using, else keyboard set B — checked by the
@@ -1411,7 +1422,9 @@ read-only page instead (§14, "The in-game screens in a session"): what the
 controller page shows is host state.
 
 The eighth row, PARTY HUD (OFF / PLAYERS / ALL), is `gPortSettings.partyHud`
-(§14).
+(§14); the ninth, NAME TAGS (OFF / ON), is `gPortSettings.nameTags`. More
+rows than fit: a small triangle in the margin past the banner's tip (inside
+the banner it read as part of the value, "AUTO▴").
 
 The page reads a snapshot the host pushes while it is up
 (`PortPuiBegin/AddDevice/SetPlayer/End`, names through `PortPuiNameBuf`)
@@ -1621,16 +1634,33 @@ roam, where a paint is in both the guest's own game and its canonical one).
 
 `platform/ui/party_hud.c` puts a person's name (`PortPlayerName`) after the
 2P..4P tag, in the Kirby's light shade, when the card has one; the tag and
-the per-device lit "you" tag stay. Name tags over the Kirbys
-(`PortPlayerTagAnchor`, `PortCardSetTagsOn`) are off by default and nothing
-draws them yet.
+the per-device lit "you" tag stay.
+
+What the cards cost the picture: over the play field a card is compact —
+its tag and health bar, one 8-pixel row (three cards about 15% x 18% of the
+240x160 view instead of 27% x 32%) — and opens to the whole card for three
+seconds when it appears and when that Kirby's health, ability, lives or
+state change; it is drawn at alpha 200/255 there. When the window has a bar
+beside (or above) the picture wide enough and free of the page's controls,
+the whole cards go there instead, opaque, at the HUD's size or a step or
+two smaller. The touch-pad keep-outs still push the cards clear.
+
+Name tags over the Kirbys: SETTINGS > NAME TAGS (off by default; a device
+setting, `nametags=` in the settings text). While two or more people play,
+each person's Kirby in the screen's room gets its name (or "2P") just above
+its head, this device's own players' on a plate of their colour; tags of
+Kirbys side by side stack. Presentation only (`PortPlayerTagAnchor` reads
+the Kirbys, `PortPartyHudSetView` the view present.c drew). On the pause
+page in a session the row shows and edits the session copy like PARTY HUD
+(`PORT_SIM_LNSET[11]` bit 4).
 
 ### The in-game screens in a session
 
 Drawn into game memory, so only what is the same on every device:
 
-- PARTY HUD on the SETTINGS screens: the pause page's session copy carries
-  it (`PORT_SIM_LNSET[11]`); a change goes to the device of the player who
+- PARTY HUD and NAME TAGS on the SETTINGS screens: the pause page's session
+  copy carries them (`PORT_SIM_LNSET[11]`: the party HUD in the low four
+  bits, the tags in bit 4); a change goes to the device of the player who
   made it, as the other rows.
 - PLAYERS: a read-only page, P1..P4 = HOST / GUEST n (a `+` for a second
   person on that device) / CPU, from the session's slot table
@@ -1654,8 +1684,12 @@ state) is put back. The game boots again to the title as at power-on, with
 this device's own save memory (the host keeps what it has, its world; a
 guest gets back the save it had before the host's image, and storing it
 resumes), its own view, local multiplayer and the randomizer as they were,
-and the frame counter running on. The ONLINE screens can then host or join
-again. Tested by `tools/online_browser_test.mjs --cases three` (a guest
+and the frame counter running on. It does not show the boot logos and the
+intro again: on the first logo frame after the picture is put back
+(`PortLnHomeExpress`, `game/src/logo.c`) the logo takes the game's own
+Logo → title branch (`LogoStruct.unk4` bit 0, `LogoEnd` → `CreateTitleScreen`),
+so the title is up about a frame later. The ONLINE screens can then host or
+join again. Tested by `tools/online_browser_test.mjs --cases three` (a guest
 leaves and joins again, the host ends, the host hosts again and a guest
 joins it, all identical).
 
@@ -1666,12 +1700,30 @@ joins it, all identical).
 Start Game > MULTIPLAYER > **PLAYER CARD** (`platform/player_card.c`, drawn by
 `platform/menu_poc.c` like the ONLINE screens): PLAYER (P1..P4: this device's
 own card and the cards of whoever plays players 2..4 on this screen), NAME (up
-to 8 of A-Z 0-9 space - . !: Left/Right pick a letter, A the next; a keyboard
-types into it on the web, and on a phone a "Type name" button brings up the
-device keyboard), COLOR (GAME = the game's own, the fourteen spray paints,
-CUSTOM; A opens HUE / VIVID / BRIGHT bars).  A standing Kirby below shows the
+to 8 of A-Z 0-9 space - . !), COLOR (GAME = the game's own, the fourteen spray
+paints, CUSTOM; A opens HUE / VIVID / BRIGHT bars).
+
+NAME takes letters only in a typing state (`PortCardTyping`): A on the row
+starts it; Start (Enter on a keyboard), Escape, Up/Down, B at the first
+letter, or A past the last end it. While typing, Left/Right pick a letter and
+A goes to the next (a pad), a keyboard types into it on the web (its letter
+keys are then not the game's keys, and only then), and on a phone a "Type
+name" button brings up the device keyboard. Not typing, the row is like the
+others and every key is the game's: keyboard set A's X is B again, WASD move.
+(The alternative considered: letters type whenever the row is selected but
+WASD/J/K/X stay game keys — rejected, it makes some letters untypeable.)  A standing Kirby below shows the
 exact palette the game will load.  Cards are `card0..card3` lines in the
 settings text (settings.ini / localStorage) and never game memory.
+
+A custom colour also shades what is drawn from the Kirby's colour index
+besides the Kirby: the bottom bar's palette (`hud.c` `sHudPalettes[color]`:
+the lives icon, the health bar) through `PortPaintHudPalette` — simulation
+state, the same bytes on every device — reloaded as soon as the Kirby's
+colour changes (`paintDirty` bit 4, `PortPaintHudTick` from the bar's
+update), not at the next room; and the party HUD's little Kirby
+(`PortPaintHudPaletteOf`, presentation). The pause maps and the other
+Kirbys' HUD icons draw with the Kirby's own palette line and so already
+followed it.
 
 **Colour in the simulation** (`platform/kirby_paint.c`, `port/kirby_paint.h`):
 a per-slot paint in the sim block (`gPortSim->game.paint[4]`, spare bytes, all

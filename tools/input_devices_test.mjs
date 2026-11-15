@@ -17,9 +17,10 @@ const BT = KID.BUTTONS;
 function fakeGame() {
   const g = {
     slots: 1, queue: [], frame: 0, requests: [], keys: [0, 0, 0, 0], canRequest: true,
-    joinable: [1, 1, 1, 1], story: true,
+    joinable: [1, 1, 1, 1], story: true, hud: true,
     sink: {
       inStory: () => g.story,
+      hudUp: () => g.hud,
       slotIsHuman: (s) => (s === 0 ? 1 : (g.slots >> s) & 1),
       request: (s, on) => { g.requests.push([g.frame + 1, s, on]); g.queue.push([s, on]); return g.frame + 1; },
       canRequest: () => g.canRequest,
@@ -260,6 +261,19 @@ test('Select held two seconds leaves; the pad is parked and Start rejoins', () =
   assert.deepEqual(core.waitingPads(), [byName(core, 'Pad').id], 'the hint shows the parked pad');
   press(pads[0], START); step(); press(pads[0]); step();
   assert.equal(g.slots & 2, 2);
+});
+
+test('no join hint while the game is paused (its HUD is not up)', () => {
+  const { pads, core, step, g } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'), pad(1, 'Pad B'));
+  step(); press(pads[0], START); step(); press(pads[0]); step();
+  press(pads[1], A_BTN); step(); press(pads[1]); step();
+  assert.deepEqual(core.waitingPads(), [byName(core, 'Pad B').id], 'in play: the hint');
+  g.hud = false;
+  assert.deepEqual(core.waitingPads(), [], 'paused: no hint');
+  g.hud = true;
+  assert.equal(core.waitingPads().length, 1, 'back in play: the hint again');
 });
 
 test('the PLAYERS page: moving a pad from player 2 to player 3 is a leave and a join', () => {

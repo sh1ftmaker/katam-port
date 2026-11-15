@@ -2,8 +2,9 @@
  * drop-out local multiplayer, the page's half.
  *
  * The same rules as the native core, platform/input_devices.c (read its
- * header comment), with the changes listed under "Since the native core"
- * below:
+ * header comment); the changes listed under "Since the native core" below
+ * were made here first and the native core now follows them too
+ * (tests/input_devices_native_test.c):
  *
  *   - A device is keyboard set A, keyboard set B, the touch buttons, or a
  *     gamepad (the Gamepad API: the "standard" mapping, which is what XInput
@@ -156,7 +157,7 @@
 
   /* opts.sink: { slotIsHuman(slot), request(slot, on) -> frame|0,
    *              canRequest(), hostKeys(player, mask), slotJoinable(slot)?,
-   *              inStory()? }
+   *              inStory()?, hudUp()? (the game's HUD is up: not paused) }
    * opts.getGamepads: () -> array (default navigator.getGamepads)
    * opts.log: (text) -> void
    * opts.onEvent: ({type, player, device, name, label, ...}) -> void */
@@ -622,6 +623,8 @@
   P.waitingPads = function () {
     var outList = [], i, d;
     if (this.online || !this.sink.canRequest() || (this.sink.inStory && !this.sink.inStory())) return outList;
+    /* not while the game is paused (or between rooms): the game's HUD is up */
+    if (this.sink.hudUp && !this.sink.hudUp()) return outList;
     if (this.humans() >= 4) return outList;
     var multi = this.multi();
     for (i = 0; i < this.devs.length; i++) {
@@ -697,7 +700,8 @@
       canRequest: function () { return up() && Module._PortLmpCanRequest ? Module._PortLmpCanRequest() : 0; },
       hostKeys: function (p, m) { if (up() && Module._PortLmpSetHostKeys) Module._PortLmpSetHostKeys(p, m); },
       slotJoinable: function (s) { return up() && Module._PortLmpSlotJoinable ? Module._PortLmpSlotJoinable(s) : 1; },
-      inStory: function () { return up() && Module._PortLmpInStory ? Module._PortLmpInStory() : 1; }
+      inStory: function () { return up() && Module._PortLmpInStory ? Module._PortLmpInStory() : 1; },
+      hudUp: function () { return up() && Module._PortGameHudUpJs ? Module._PortGameHudUpJs() : 1; }
     };
   };
 

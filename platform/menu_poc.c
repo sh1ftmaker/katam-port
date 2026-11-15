@@ -135,7 +135,7 @@
 /* The settings screen: six rows on screen (and in sprite memory); a list
  * with more scrolls (the settings' seventh, PLAYERS). */
 #define ROWS            6
-#define SET_ROWS        8
+#define SET_ROWS        9
 #define ROW_W           208         /* the banner, widened by 32            */
 #define ROW_WIDEN_AT    100         /* the column repeated to widen it      */
 #define ROW_COLS        7
@@ -866,10 +866,11 @@ static const char *const kZoomName[] = { "0.5X", "0.67X", "0.8X", "1X", "1.25X",
 #define NZOOM ((int)(sizeof(kZoom) / sizeof(kZoom[0])))
 static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH" };
 
-enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS, R_PARTY };
+enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS, R_PARTY, R_TAGS };
 
 static const char *const kRowName[SET_ROWS] = {
     "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME", "PLAYERS", "PARTY HUD",
+    "NAME TAGS",
 };
 /* Only letters the game's description pictures have (no Z, Q, J, digits). */
 static const char *const kRowDesc[SET_ROWS] = {
@@ -881,6 +882,7 @@ static const char *const kRowDesc[SET_ROWS] = {
     "MUSIC AND SOUND EFFECTS",
     "CHOOSE WHO USES WHICH PAD",
     "CARDS FOR THE OTHER PLAYERS",
+    "NAMES OVER THE PLAYERS",
 };
 static const char *const kPartyName[] = { "OFF", "PLAYERS", "ALL" };
 
@@ -927,7 +929,9 @@ static void FromCopy(PortSettings *s)
     s->scaling = c[5];
     s->volume = c[6];
     s->mute = c[7];
-    s->partyHud = c[11] <= PS_PARTY_HELPERS ? c[11] : PS_PARTY_HELPERS;
+    /* [11]: the party HUD (low four bits) and the name tags (bit 4) */
+    s->partyHud = (c[11] & 15) <= PS_PARTY_HELPERS ? (c[11] & 15) : PS_PARTY_HELPERS;
+    s->nameTags = (c[11] >> 4) & 1;
 }
 
 static void ToCopy(u8 *c, const PortSettings *s)
@@ -939,7 +943,7 @@ static void ToCopy(u8 *c, const PortSettings *s)
     c[5] = (u8)s->scaling;
     c[6] = (u8)s->volume;
     c[7] = (u8)s->mute;
-    c[11] = (u8)s->partyHud;
+    c[11] = (u8)((s->partyHud & 15) | (s->nameTags ? 0x10 : 0));
 }
 
 /* The host, as its session starts: the copy begins as its settings. */
@@ -972,7 +976,8 @@ void PortPocSessionSettingsApply(const u8 *c)
     case R_SMOOTHCAM: s.smoothCam = tmp[4]; break;
     case R_PIXELS:    s.scaling = tmp[5]; break;
     case R_VOLUME:    s.volume = tmp[6]; s.mute = tmp[7]; break;
-    case R_PARTY:     s.partyHud = tmp[11]; break;
+    case R_PARTY:     s.partyHud = tmp[11] & 15; break;
+    case R_TAGS:      s.nameTags = (tmp[11] >> 4) & 1; break;
     default:
         s.renderer = tmp[1];
         s.aspect = tmp[2];
@@ -981,7 +986,8 @@ void PortPocSessionSettingsApply(const u8 *c)
         s.scaling = tmp[5];
         s.volume = tmp[6];
         s.mute = tmp[7];
-        s.partyHud = tmp[11];
+        s.partyHud = tmp[11] & 15;
+        s.nameTags = (tmp[11] >> 4) & 1;
         break;
     }
     PortSettingsClamp(&s);
@@ -1011,6 +1017,7 @@ static void RowValue(int row, char *buf, int size)
         break;
     case R_PLAYERS:   PortPuiSummary(buf, size); break;
     case R_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
+    case R_TAGS:      snprintf(buf, size, "%s", s->nameTags ? "ON" : "OFF"); break;
     default: buf[0] = '\0';
     }
 }
@@ -1029,6 +1036,7 @@ static void RowStepOn(PortSettings *s, int row, int dir)
     }
     case R_SMOOTHCAM: s->smoothCam = !s->smoothCam; break;
     case R_PARTY:     s->partyHud = (s->partyHud + dir + PS_PARTY_HELPERS + 1) % (PS_PARTY_HELPERS + 1); break;
+    case R_TAGS:      s->nameTags = !s->nameTags; break;
     case R_PIXELS:    s->scaling = (s->scaling + dir + PS_SCALE_COUNT) % PS_SCALE_COUNT; break;
     case R_VOLUME:
         if (s->mute) {
@@ -1356,11 +1364,12 @@ static void DrawRowTiles(u32 tiles, int row, int cursor)
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
              LBL_FILL, LBL_EDGE);
     /* more rows below the last one on screen, or above the first: a small
-     * triangle at the banner's right end */
+     * triangle just past the banner's tip, in the margin (inside the banner
+     * it read as part of the value: "AUTO^") */
     if (row == top + VisRows() - 1 && top + VisRows() < sModel->rows)
-        CellText(px, w, PIC_H, ROW_VALUE_X1 + 7, LBL_ROW0 + 1, "v", LBL_FILL, LBL_EDGE);
+        CellText(px, w, PIC_H, ROW_W + 3, LBL_ROW0 + 1, "v", LBL_FILL, LBL_EDGE);
     else if (row == top && top > 0)
-        CellText(px, w, PIC_H, ROW_VALUE_X1 + 7, LBL_ROW0 + 1, "^", LBL_FILL, LBL_EDGE);
+        CellText(px, w, PIC_H, ROW_W + 3, LBL_ROW0 + 1, "^", LBL_FILL, LBL_EDGE);
     PackPic(px, ROW_COLS, RowVram(tiles, row - top));
 }
 

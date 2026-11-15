@@ -34,6 +34,10 @@ extern "C" {
 
 /* Frames a player's last device may be gone before the CPU takes the Kirby. */
 #define PORT_DEV_GRACE_FRAMES 180
+/* Frames since player 1 last used a FOLLOW pad (or keyboard set B) before
+ * its Start joins instead of pausing; Select held this long leaves. */
+#define PORT_DEV_JOIN_QUIET        180
+#define PORT_DEV_HOLD_LEAVE_FRAMES 120
 
 /* --- the host's side ------------------------------------------------------ */
 /* A device appeared.  `key` identifies the physical device across unplugging
@@ -83,8 +87,9 @@ int  PortDevAssign(int id, int player);
 /* Player 2..4 (1..3) leaves: their devices are parked (Start rejoins) and the
  * CPU takes the Kirby.  Player 1 cannot leave.  Returns 0 if refused. */
 int  PortDevDropOut(int player);
-/* The join press: Start on a gamepad that is not the one player 1 is using,
- * or keyboard set B's Start.  Exposed for a menu "join" button too. */
+/* Join now (the join press: during play, Start on a gamepad or keyboard set
+ * B player 1 has not used for PORT_DEV_JOIN_QUIET frames, or on a parked
+ * device).  Exposed for a menu "join" button too. */
 int  PortDevJoin(int id);
 /* The device player 1 drives with right now (the last unclaimed one used). */
 int  PortDevPlayer1Device(void);
@@ -96,6 +101,8 @@ struct PortDevSink {
     int (*canRequest)(void);                /* PortLmpCanRequest              */
     void (*hostKeys)(int player, u16 mask); /* PortLmpSetHostKeys             */
     int (*slotJoinable)(int slot);          /* PortLmpSlotJoinable            */
+    int (*inStory)(void);                   /* PortLmpInStory: in play (joins
+                                             * only then); NULL = always      */
 };
 void PortDevSetSink(const struct PortDevSink *sink);   /* NULL = the game's */
 /* Log join/leave/plug decisions (PortLog).  On by default. */

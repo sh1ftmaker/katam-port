@@ -66,6 +66,7 @@
 #include "port/seats.h"
 #include "port/menu_poc.h"
 #include "ui/ui.h"              /* PortSettingsChanged */
+#include "ui/settings.h"        /* gPortSettings.nameTags */
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -81,7 +82,6 @@ extern "C" {
 static struct PortCard sCards[PORT_CARD_PLAYERS];
 static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
 static int sSlotNamed[4];
-static int sTagsOn = 0;      /* name tags over the Kirbys: off unless asked */
 
 /* The characters a name may hold, in the order Left / Right step through
  * them (space first: it ends a name). */
@@ -330,20 +330,27 @@ CARD_EXPORT int PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room)
 {
     const struct Kirby *k;
 
-    if (!sTagsOn || slot < 0 || slot > 3 || !PortPlayerName(slot)[0])
+    if (!gPortSettings.nameTags || slot < 0 || slot > 3 || !PortLmpSlotPerson(slot))
         return 0;
     k = &gKirbys[slot];
     if (k->hp <= 0 || k->base.roomId == 0xFFFF || (k->base.flags & 0x100)
         || k->base.roomId != gKirbys[gLocalPlayerId].base.roomId)
         return 0;
     if (x) *x = k->base.x >> 8;
-    if (y) *y = (k->base.y >> 8) - 20;     /* about a Kirby's height up */
+    if (y) *y = (k->base.y >> 8) - 11;     /* base.y is its middle: just over the head */
     if (room) *room = k->base.roomId;
     return 1;
 }
 
-CARD_EXPORT int PortCardTagsOn(void) { return sTagsOn; }
-CARD_EXPORT void PortCardSetTagsOn(int on) { sTagsOn = on != 0; }
+/* The device setting (SETTINGS > NAME TAGS, ui/settings.h nameTags). */
+CARD_EXPORT int PortCardTagsOn(void) { return gPortSettings.nameTags; }
+CARD_EXPORT void PortCardSetTagsOn(int on)
+{
+    if (gPortSettings.nameTags == (on != 0))
+        return;
+    gPortSettings.nameTags = on != 0;
+    PortSettingsChanged();
+}
 
 /* --- online hand-off ------------------------------------------------------------ */
 
@@ -625,6 +632,12 @@ enum { R_PLAYER, R_NAME, R_COLOR };
 enum { R_HUE, R_SAT, R_VAL };
 
 static int sSub, sPlayer, sFixed, sNamePos;
+/* The NAME row's typing state: entered with A on the row, left with Start
+ * (Enter on a keyboard), Escape, B at the first letter, Up/Down, or A past
+ * the last letter.  Only while it is on do Left/Right pick letters and does
+ * the web page send a keyboard's letters here; otherwise the row is a row
+ * like the others and every key is the game's. */
+static int sTyping;
 static struct PortCard sEdit;       /* the card being edited                */
 static u32 sGen = 1;
 
@@ -638,6 +651,7 @@ static void Changed(void)
 
 static void Load(int p)
 {
+    sTyping = 0;
     sPlayer = p;
     sEdit = sCards[p];
     sNamePos = (int)strlen(sEdit.name);
@@ -676,6 +690,7 @@ CARD_EXPORT void PortPlayerCardClose(void)
         Store();
     sSub = PORT_CARD_SUB_NONE;
     sEditing = 0;
+    sTyping = 0;
     Changed();
 }
 
@@ -723,7 +738,7 @@ void PortCardRowValue(int sub, int row, int selected, char *buf, int size)
         for (i = 0; i < PORT_CARD_NAME_MAX && o < size - 4; i++) {
             char c = i < len ? sEdit.name[i] : ' ';
 
-            if (selected && i == sNamePos) {
+            if (selected && sTyping && i == sNamePos) {
                 buf[o++] = '<';
                 buf[o++] = c == ' ' ? '-' : c;
                 buf[o++] = '>';
@@ -755,7 +770,7 @@ const char *PortCardRowDesc(int sub, int row)
     }
     switch (row) {
     case R_PLAYER: return sFixed ? "WHOSE CARD THIS IS" : "LEFT RIGHT PICK A PLAYER";
-    case R_NAME:   return "LEFT RIGHT LETTER - A NEXT";
+    case R_NAME:   return sTyping ? "TYPE OR PICK - START DONE" : "A TO TYPE A NAME";
     default:
         return sEdit.mode == PORT_CARD_GAME ? "THE GAMES OWN SPRAY PAINT"
              : "A PICKS ANY COLOR";
@@ -824,16 +839,31 @@ static int Clamp100(int v) { return v < 0 ? 0 : v > 100 ? 100 : v; }
 
 CARD_EXPORT int PortCardKey(int *row, unsigned key)
 {
+    /* The screens give A and Start as one key (1); Start alone is the
+     * typing state's "done". */
+    if (key == 1 && (gPressedKeys & START_BUTTON) && !(gPressedKeys & A_BUTTON))
+        key = PORT_CARD_KEY_START;
     switch (sSub) {
     case PORT_CARD_SUB_CARD:
         if (key == 3 || key == 4) {
+            sTyping = 0;
             *row = (*row + (key == 4 ? 1 : PORT_CARD_ROWS - 1)) % PORT_CARD_ROWS;
             Changed();
             return PORT_CARD_K_CURSOR;
         }
+        if (*row == R_NAME && sTyping && key == PORT_CARD_KEY_START) {
+            sTyping = 0;            /* done: the row is a row again */
+            Changed();
+            return PORT_CARD_K_SELECT;
+        }
+        if (key == PORT_CARD_KEY_START)
+            key = 1;
         if (key == 2) {
-            if (*row == R_NAME && sNamePos > 0) {
-                sNamePos--;
+            if (*row == R_NAME && sTyping) {
+                if (sNamePos > 0)
+                    sNamePos--;
+                else
+                    sTyping = 0;    /* B at the first letter: done */
                 Changed();
                 return PORT_CARD_K_CURSOR;
             }
@@ -849,6 +879,16 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
             Changed();
             return PORT_CARD_K_CURSOR;
         case R_NAME:
+            if (!sTyping) {
+                if (key != 1)
+                    return PORT_CARD_K_NONE;
+                sTyping = 1;            /* A: type (pick letters) from here */
+                sNamePos = (int)strlen(sEdit.name);
+                if (sNamePos >= PORT_CARD_NAME_MAX)
+                    sNamePos = PORT_CARD_NAME_MAX - 1;
+                Changed();
+                return PORT_CARD_K_SELECT;
+            }
             if (key == 5 || key == 6) {
                 NameStep(key == 6 ? 1 : -1);
                 Store();
@@ -860,6 +900,7 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
                     Changed();
                     return PORT_CARD_K_CURSOR;
                 }
+                sTyping = 0;
                 *row = R_COLOR;          /* the name is done */
                 Changed();
                 return PORT_CARD_K_SELECT;
@@ -945,6 +986,22 @@ CARD_EXPORT int PortCardWantsText(void)
     return sSub == PORT_CARD_SUB_CARD && sCursorRow == R_NAME;
 }
 
+/* The typing state is on (A on the NAME row): the web page's keyboard types
+ * into the name; the game's keys are not sent letters then. */
+CARD_EXPORT int PortCardTyping(void)
+{
+    return sSub == PORT_CARD_SUB_CARD && sCursorRow == R_NAME && sTyping;
+}
+
+/* Enter or Escape on a keyboard: the typing state ends, the name kept. */
+CARD_EXPORT void PortCardTypingEnd(void)
+{
+    if (!sTyping)
+        return;
+    sTyping = 0;
+    Changed();
+}
+
 /* The screen tells us its row (menu_poc.c keeps the cursor). */
 void PortCardNoteRow(int row)
 {
@@ -955,7 +1012,7 @@ CARD_EXPORT void PortCardTypeChar(int c)
 {
     int len;
 
-    if (sSub != PORT_CARD_SUB_CARD)
+    if (sSub != PORT_CARD_SUB_CARD || !sTyping)
         return;
     len = (int)strlen(sEdit.name);
     if (c == 8) {

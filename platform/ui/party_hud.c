@@ -52,9 +52,36 @@
  *   - Its size is the HUD's: PortLayoutHudScale with the GPU renderer, the
  *     picture's own scale with the Classic one.  Zooming out (local
  *     multiplayer) shrinks the world, never the cards.
- *   - Pinned to the HUD's corners (or to the original strip's), and pushed
- *     down below anything registered as a keep-out (PortPartyHudKeepOut:
- *     the web page's touch pads and menu button, the native menu button).
+ *   - Where: in the bar beside the picture (or above it) when the window
+ *     has one wide enough and nothing of the page's is there -- whole
+ *     cards, opaque, at the HUD's size or a step or two smaller (never
+ *     under half).  Otherwise pinned to the HUD's top right corner (or the
+ *     original strip's), pushed down below anything registered as a
+ *     keep-out (PortPartyHudKeepOut: the web page's touch pads and menu
+ *     button, the native menu button), and a little see-through (alpha
+ *     200/255) over the play field.
+ *   - Compact over the play field: a card is its tag and health bar, one
+ *     row of 8 (three cards: about 15% x 18% of the 240x160 view, where
+ *     whole cards took 27% x 32%).  It opens to the whole card for three
+ *     seconds when it first appears and whenever that Kirby's health,
+ *     ability, lives or state change (WatchCard), then closes again.
+ *
+ * --- name tags -----------------------------------------------------------------
+ *
+ * SETTINGS > NAME TAGS (gPortSettings.nameTags, off by default): a small
+ * tag over each person's Kirby in the screen's room while two or more
+ * people play -- the player card's name, or "2P" -- outlined in the Kirby's
+ * light shade, on a plate of its colour for this device's own players.
+ * Anchored by PortPlayerTagAnchor (world pixels), projected with the view
+ * present.c reports (PortPartyHudSetView), stacked when Kirbys stand side
+ * by side, dropped when off the picture.  Drawn under the cards.
+ *
+ * --- colours ---------------------------------------------------------------------
+ *
+ * A player card's custom colour (kirby_paint.c) shades the little Kirby,
+ * its tag and its bar the way the simulation shades the bottom bar
+ * (PortPaintHudPaletteOf), so they match the Kirby rather than the nearest
+ * spray.
  *
  * --- the pictures -----------------------------------------------------------
  *
@@ -80,6 +107,7 @@
 #include "port/localmp.h"
 #include "port/lmpnet.h"
 #include "port/player_card.h"
+#include "port/kirby_paint.h"
 #include "render/gl_renderer.h"
 #include "ui/party_hud.h"
 #include "ui/settings.h"
@@ -100,8 +128,18 @@ enum { ST_OK = 0, ST_KO, ST_OUT, ST_AWAY };
 
 typedef struct {
     u8 slot, color, hp, maxHp, lives, ability, state, human, local;
+    u8 full;                /* the whole card (else tag + health only)      */
     char name[PORT_CARD_NAME_MAX + 1];  /* the player card's name, "" none */
+    u16 pal[16];            /* the HUD palette for its colour (a card's own) */
 } Member;
+
+/* A name tag over a person's Kirby: world pixels of the top of its head. */
+typedef struct {
+    u8 on, local;
+    s32 x, y;
+    char text[PORT_CARD_NAME_MAX + 1];
+    u16 pal[16];
+} NameTag;
 
 typedef struct {
     u8 show;                /* the game's HUD is up                          */
@@ -109,10 +147,62 @@ typedef struct {
     u8 tag;                 /* the "1P" tag on the game's bar                */
     u8 p1slot, p1color, p1local;
     u8 lo[3], hi[3];        /* fade: c -> lo + c * (hi - lo) / 31            */
+    u16 p1pal[16];
     Member m[3];
 } Party;
 
 static Party sNow;
+static NameTag sTags[4];    /* sampled with the party; independent of it   */
+static u8 sTagsShow;
+static Party sTagFade;      /* the HUD's fade, for the tags (lo/hi only)   */
+
+/* Where the picture's world pixels land: view pixel = world - cam - view
+ * origin; the picture is viewW x viewH of those (present.c, from the GPU
+ * renderer's frame, or the game camera for the Classic one). */
+static struct { int ok; s32 camX, camY, viewX, viewY, viewW, viewH; } sView;
+
+void PortPartyHudSetView(int ok, int camX, int camY, int viewX, int viewY, int viewW, int viewH)
+{
+    sView.ok = ok && viewW > 0 && viewH > 0;
+    sView.camX = camX; sView.camY = camY;
+    sView.viewX = viewX; sView.viewY = viewY;
+    sView.viewW = viewW; sView.viewH = viewH;
+}
+
+/* --- compact cards ------------------------------------------------------------
+ * A card is its tag and health bar; for EXPAND_FRAMES after its health,
+ * ability, lives or state change (or when it first appears) it opens to the
+ * whole card -- icon, name, ability, lives -- then closes again.  Per slot,
+ * per device, presentation only. */
+#define EXPAND_FRAMES 180
+static struct { u8 seen, hp, ability, lives, state, human; int left; } sWatch[4];
+
+static int WatchCard(const Member *m)
+{
+    int s = m->slot & 3;
+
+    if (!sWatch[s].seen || sWatch[s].hp != m->hp || sWatch[s].ability != m->ability
+        || sWatch[s].lives != m->lives || sWatch[s].state != m->state || sWatch[s].human != m->human)
+        sWatch[s].left = EXPAND_FRAMES;
+    sWatch[s].seen = 2;         /* 2: on a card this sample */
+    sWatch[s].hp = m->hp;
+    sWatch[s].ability = m->ability;
+    sWatch[s].lives = m->lives;
+    sWatch[s].state = m->state;
+    sWatch[s].human = m->human;
+    if (sWatch[s].left > 0)
+        sWatch[s].left--;
+    return sWatch[s].left > 0;
+}
+
+/* The HUD palette slot s's Kirby wears: the game's row for its colour, or a
+ * player card's custom colour shaded the way the simulation shades it
+ * (kirby_paint.c), so the little Kirby matches the big one. */
+static void PaletteOf(int s, int color, u16 out[16])
+{
+    if (!PortPaintHudPaletteOf(PortPaintOfSlot(s), color, out))
+        memcpy(out, sHudPalettes[color < 18 ? color : 0], 16 * sizeof(u16));
+}
 static int sKeep[PORT_PARTY_KEEPOUTS][4];
 
 /* Rooms mode (online, players in different rooms): a short line at the top
@@ -160,11 +250,40 @@ int PortPartyHudCards(void)
     return sNow.show ? sNow.n : 0;
 }
 
+/* Where the cards were last drawn: x y w h (framebuffer), 1 if in a bar
+ * beside or above the picture, and how many were drawn whole. */
+static int sCardsAt[6];
+
+int PortPartyHudFullCards(void)
+{
+    int i, n = 0;
+
+    for (i = 0; sNow.show && i < sNow.n; i++)
+        n += sNow.m[i].full;
+    return n;
+}
+
+int PortPartyHudNameTags(void)
+{
+    int s, n = 0;
+
+    for (s = 0; sTagsShow && s < 4; s++)
+        n += sTags[s].on;
+    return n;
+}
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 /* Tests: the setting (PS_PARTY_*) and the cards up now. */
 EMSCRIPTEN_KEEPALIVE int PortPartyHudSettingJs(void) { return gPortSettings.partyHud; }
 EMSCRIPTEN_KEEPALIVE int PortPartyHudCardsJs(void) { return PortPartyHudCards(); }
+EMSCRIPTEN_KEEPALIVE int PortPartyHudFullJs(void) { return PortPartyHudFullCards(); }
+EMSCRIPTEN_KEEPALIVE int PortPartyHudTagsJs(void) { return PortPartyHudNameTags(); }
+EMSCRIPTEN_KEEPALIVE int PortPartyHudAtJs(int i) { return i >= 0 && i < 6 ? sCardsAt[i] : 0; }
+/* The game's HUD is up: play, not the pause screens, menus or cutscenes
+ * (web/input_devices.js: the join hint shows only then). */
+static int HudShowing(void);
+EMSCRIPTEN_KEEPALIVE int PortGameHudUpJs(void) { return HudShowing(); }
 #endif
 
 /* Is Kirby slot s a person?  The game's own answer is s < gNumHumanPlayers;
@@ -236,6 +355,44 @@ static void SampleFade(Party *p)
     }
 }
 
+/* The name tags: each person's Kirby in the screen's room, while there are
+ * two or more people (alone, a tag over yourself says nothing). */
+static void SampleTags(void)
+{
+    int s, people = 0;
+
+    memset(sTags, 0, sizeof(sTags));
+    sTagsShow = 0;
+    if (!gPortSettings.nameTags || !HudShowing() || gNumKirbys < 2 || gNumKirbys > 4 || !sView.ok)
+        return;
+    for (s = 0; s < gNumKirbys; s++)
+        people += IsHuman(s) != 0;
+    if (people < 2)
+        return;
+    for (s = 0; s < gNumKirbys; s++) {
+        NameTag *t = &sTags[s];
+        const char *name;
+        s32 x, y;
+        u16 room;
+
+        if (!IsHuman(s) || !PortPlayerTagAnchor(s, &x, &y, &room))
+            continue;
+        name = PortPlayerName(s);
+        if (name[0])
+            snprintf(t->text, sizeof(t->text), "%s", name);
+        else
+            snprintf(t->text, sizeof(t->text), "%dP", s + 1);
+        t->on = 1;
+        t->local = (u8)IsLocal(s);
+        t->x = x;
+        t->y = y;
+        PaletteOf(s, gKirbys[s].color < 18 ? gKirbys[s].color : 0, t->pal);
+        sTagsShow = 1;
+    }
+    if (sTagsShow)
+        SampleFade(&sTagFade);
+}
+
 void PortPartyHudSample(void)
 {
     Party p;
@@ -243,9 +400,12 @@ void PortPartyHudSample(void)
     u16 room;
 
     memset(&p, 0, sizeof(p));
+    SampleTags();
     if (!gPortSettings.partyHud || !HudShowing() || gNumKirbys < 2 || gNumKirbys > 4) {
         sNow = p;
         sHintText[0] = '\0';
+        for (s = 0; s < 4; s++)
+            sWatch[s].seen = 0;
         return;
     }
     SampleHint();
@@ -280,12 +440,21 @@ void PortPartyHudSample(void)
                 m->state = ST_AWAY;
             else
                 m->state = ST_OK;
+            PaletteOf(s, m->color, m->pal);
+            m->full = (u8)WatchCard(m);
         }
+    }
+    for (s = 0; s < 4; s++) {   /* a card gone: it opens again when it is back */
+        if (sWatch[s].seen == 2)
+            sWatch[s].seen = 1;
+        else
+            sWatch[s].seen = 0;
     }
     p.n = (u8)n;
     p.tag = n > 0;
     p.p1slot = (u8)me;
     p.p1color = gKirbys[me].color < 18 ? gKirbys[me].color : 0;
+    PaletteOf(me, p.p1color, p.p1pal);
     p.p1local = (u8)IsLocal(me);
     SampleFade(&p);
     sNow = p;
@@ -551,7 +720,9 @@ static void TagFor(const Member *m, char *buf)
         snprintf(buf, 4, "CPU");
 }
 
-static int CardWidth(const Member *m)
+#define COMPACT_H 8
+
+static int FullWidth(const Member *m)
 {
     char tag[4], lives[4];
     int top, bottom;
@@ -566,23 +737,44 @@ static int CardWidth(const Member *m)
     return 17 + (top > bottom ? top : bottom) + 1;
 }
 
-static void Card(Canvas *cv, int y, int w, const Member *m)
+/* Compact: the tag and the bar, one HUD row of 8. */
+static int CompactWidth(const Member *m)
 {
-    const u16 *pal = sHudPalettes[m->color];
+    char tag[4];
+
+    TagFor(m, tag);
+    return TextW(tag) + 4 + 1 + (m->maxHp * 3 + 1);
+}
+
+static int CardHeight(const Member *m)
+{
+    return m->full ? CARD_H : COMPACT_H;
+}
+
+static int CardTag(Canvas *cv, int x, int y, const Member *m, u8 a)
+{
+    char tag[4];
+
+    TagFor(m, tag);
+    if (!m->human)
+        return Tag(cv, x, y, tag, GREY, WHITE, a);
+    if (m->local)
+        return LitTag(cv, x, y, tag, m->pal, a);
+    return DarkTag(cv, x, y, tag, m->pal, a);
+}
+
+/* A whole card, its left edge at x0, its right edge (the lives) at x1. */
+static void Card(Canvas *cv, int x0, int x1, int y, const Member *m)
+{
+    const u16 *pal = m->pal;
     int ko = m->state == ST_KO || m->state == ST_OUT;
     u8 a = m->state == ST_OK ? 255 : m->state == ST_AWAY ? 150 : 200;
-    char tag[4], lives[4];
+    char lives[4];
     const char *label;
     int x;
 
-    TagFor(m, tag);
-    KirbyIcon(cv, 0, y, pal, ko, a);
-    if (!m->human)
-        x = 17 + Tag(cv, 17, y, tag, GREY, WHITE, a);
-    else if (m->local)
-        x = 17 + LitTag(cv, 17, y, tag, pal, a);
-    else
-        x = 17 + DarkTag(cv, 17, y, tag, pal, a);
+    KirbyIcon(cv, x0, y, pal, ko, a);
+    x = x0 + 17 + CardTag(cv, x0 + 17, y, m, a);
     /* the name, after the tag, in the Kirby's light shade (outlined) */
     if (m->name[0])
         x += 2 + Text(cv, x + 2, y + 1, m->name, ko ? pal[4] : pal[1], 0, 1, a) + 1;
@@ -590,24 +782,39 @@ static void Card(Canvas *cv, int y, int w, const Member *m)
 
     label = m->state == ST_OUT ? "OUT" : m->state == ST_KO ? "KO"
           : m->state == ST_AWAY ? "AWAY" : kAbility[m->ability];
-    Text(cv, 18, y + 9, label, ko ? pal[4] : m->state == ST_AWAY ? GREY : WHITE, 0, 1, a);
+    Text(cv, x0 + 18, y + 9, label, ko ? pal[4] : m->state == ST_AWAY ? GREY : WHITE, 0, 1, a);
     snprintf(lives, sizeof(lives), "x%d", m->lives);
-    Text(cv, w - 1 - TextW(lives), y + 9, lives, pal[9], 0, 1, a);
+    Text(cv, x1 - 1 - TextW(lives), y + 9, lives, pal[9], 0, 1, a);
+}
+
+static void CompactCard(Canvas *cv, int x0, int y, const Member *m)
+{
+    int ko = m->state == ST_KO || m->state == ST_OUT;
+    u8 a = m->state == ST_OK ? 255 : m->state == ST_AWAY ? 150 : 200;
+    int x = x0 + CardTag(cv, x0, y, m, a);
+
+    Bar(cv, x + 1, y, m->hp, m->maxHp, m->pal, ko, a);
 }
 
 /* Composed canvases and what they were composed from. */
-static Canvas sCards, sTag, sHint;
+static Canvas sCards, sTag, sHint, sNameTag[4];
 static u32 sHintPx[160 * 8];
 static Party sComposed;
-static int sHaveComposed;
+static int sHaveComposed, sComposedAlpha = -1;
 static u32 sCardsPx[CANVAS_W * 64], sTagPx[16 * 8];
+static u32 sNameTagPx[4][CANVAS_W * 10];
+static NameTag sNameTagDrawn[4];
+static u8 sNameTagFade[4][6];
+static u8 sNameTagUpload[4];         /* composed, not yet sent to the GPU */
 
-static void Finish(const Canvas *cv, u32 *out, const Party *p)
+/* `alpha` (0..255) scales the whole canvas: the cards over the play field
+ * are a little see-through. */
+static void Finish(const Canvas *cv, u32 *out, const Party *p, int alpha)
 {
     int i;
 
     for (i = 0; i < cv->w * cv->h; i++) {
-        u32 a = cv->a[i], rgb[3];
+        u32 a = cv->a[i] * (u32)alpha / 255, rgb[3];
         int c;
 
         if (a == 0) {
@@ -624,36 +831,48 @@ static void Finish(const Canvas *cv, u32 *out, const Party *p)
     }
 }
 
-static void Compose(const Party *p)
+static void Compose(const Party *p, int alpha)
 {
-    int i, w = 0;
+    int i, w = 0, wFull = 0, y;
 
     for (i = 0; i < p->n; i++) {
-        int cw = CardWidth(&p->m[i]);
+        const Member *m = &p->m[i];
+        int cw = m->full ? FullWidth(m) : CompactWidth(m);
+
         if (cw > w) w = cw;
+        if (m->full && cw > wFull) wFull = cw;
     }
     if (w > CANVAS_W) w = CANVAS_W;
     memset(&sCards, 0, sizeof(sCards));
     sCards.w = w;
-    sCards.h = p->n * (CARD_H + CARD_GAP) - CARD_GAP;
+    sCards.h = 0;
     for (i = 0; i < p->n; i++)
-        Card(&sCards, i * (CARD_H + CARD_GAP), w, &p->m[i]);
-    Finish(&sCards, sCardsPx, p);
+        sCards.h += CardHeight(&p->m[i]) + (i ? CARD_GAP : 0);
+    /* right-aligned: the cards hug the corner, the whole ones share an edge */
+    for (y = 0, i = 0; i < p->n; i++) {
+        const Member *m = &p->m[i];
+
+        if (m->full)
+            Card(&sCards, w - wFull, w, y, m);
+        else
+            CompactCard(&sCards, w - CompactWidth(m), y, m);
+        y += CardHeight(m) + CARD_GAP;
+    }
+    Finish(&sCards, sCardsPx, p, alpha);
 
     memset(&sTag, 0, sizeof(sTag));
     {
         char t[4];
-        const u16 *pal = sHudPalettes[p->p1color];
 
         snprintf(t, sizeof(t), "%dP", p->p1slot + 1);
         sTag.w = TextW(t) + 4;
         sTag.h = 8;
         if (p->p1local)
-            LitTag(&sTag, 0, 0, t, pal, 255);
+            LitTag(&sTag, 0, 0, t, p->p1pal, 255);
         else
-            DarkTag(&sTag, 0, 0, t, pal, 255);
+            DarkTag(&sTag, 0, 0, t, p->p1pal, 255);
     }
-    Finish(&sTag, sTagPx, p);
+    Finish(&sTag, sTagPx, p, 255);
 }
 
 /* --- drawing -------------------------------------------------------------- */
@@ -663,13 +882,110 @@ static int Overlaps(double x, double y, double w, double h, const int *k)
     return k[2] > 0 && x < k[0] + k[2] && k[0] < x + w && y < k[1] + k[3] && k[1] < y + h;
 }
 
+static int HitsKeepOut(double x, double y, double w, double h)
+{
+    int k;
+
+    for (k = 0; k < PORT_PARTY_KEEPOUTS; k++)
+        if (Overlaps(x, y, w, h, sKeep[k]))
+            return 1;
+    return 0;
+}
+
+/* Name tags over the people's Kirbys: the name (or "2P") in the Kirby's light
+ * shade with the HUD's black outline, centred over its head; this device's
+ * own players' on a plate of their colour.  Under the cards. */
+static void DrawNameTags(int fbW, int fbH, const int world[4], double scale, int smooth)
+{
+    double kx, ky, rx[4], ry[4], rw[4], rh[4];
+    int s, on[4], dirty[4], moved, pass;
+
+    if (!sTagsShow || !sView.ok || scale <= 0.0)
+        return;
+    kx = (double)world[2] / sView.viewW;
+    ky = (double)world[3] / sView.viewH;
+    for (s = 0; s < 4; s++) {
+        NameTag *t = &sTags[s];
+        Canvas *cv = &sNameTag[s];
+
+        on[s] = 0;
+        dirty[s] = 0;
+        if (!t->on)
+            continue;
+        if (memcmp(t->text, sNameTagDrawn[s].text, sizeof(t->text)) != 0 || t->local != sNameTagDrawn[s].local
+            || memcmp(t->pal, sNameTagDrawn[s].pal, sizeof(t->pal)) != 0 || cv->w == 0
+            || memcmp(sNameTagFade[s], sTagFade.lo, 3) != 0 || memcmp(sNameTagFade[s] + 3, sTagFade.hi, 3) != 0) {
+            memset(cv, 0, sizeof(*cv));
+            cv->w = TextW(t->text) + 4;
+            if (cv->w > CANVAS_W) cv->w = CANVAS_W;
+            cv->h = 8;
+            if (t->local)
+                LitTag(cv, 0, 0, t->text, t->pal, 255);
+            else
+                Text(cv, 2, 1, t->text, t->pal[1], 0, 1, 255);
+            Finish(cv, sNameTagPx[s], &sTagFade, 230);
+            sNameTagDrawn[s] = *t;
+            memcpy(sNameTagFade[s], sTagFade.lo, 3);
+            memcpy(sNameTagFade[s] + 3, sTagFade.hi, 3);
+            sNameTagUpload[s] = 1;
+        }
+        dirty[s] = sNameTagUpload[s];
+        /* world pixel -> view pixel -> framebuffer: centred over the head */
+        rw[s] = cv->w * scale;
+        rh[s] = cv->h * scale;
+        rx[s] = world[0] + (t->x - sView.camX - sView.viewX) * kx - rw[s] / 2;
+        ry[s] = world[1] + (t->y - sView.camY - sView.viewY) * ky - rh[s];
+        if (rx[s] < world[0]) rx[s] = world[0];
+        if (rx[s] + rw[s] > world[0] + world[2]) rx[s] = world[0] + world[2] - rw[s];
+        on[s] = 1;
+    }
+    /* Kirbys side by side: a tag that would cover another goes up a row. */
+    for (pass = 0, moved = 1; moved && pass < 4; pass++) {
+        int a, b;
+
+        moved = 0;
+        for (a = 0; a < 4; a++)
+            for (b = 0; b < a; b++)
+                if (on[a] && on[b] && rx[a] < rx[b] + rw[b] && rx[b] < rx[a] + rw[a]
+                    && ry[a] < ry[b] + rh[b] && ry[b] < ry[a] + rh[a]) {
+                    ry[a] = ry[b] - rh[a] - scale;
+                    moved = 1;
+                }
+    }
+    for (s = 0; s < 4; s++) {
+        if (!on[s] || ry[s] < world[1] || ry[s] + rh[s] > world[1] + world[3])
+            continue;               /* off the top or bottom: no tag */
+        GlrDrawOverlay(3 + s, sNameTagPx[s], sNameTag[s].w, sNameTag[s].h, dirty[s], fbW, fbH,
+                       (double)(int)(rx[s] + 0.5), (double)(int)(ry[s] + 0.5), scale, smooth);
+        sNameTagUpload[s] = 0;
+    }
+}
+
+/* The cards' size in HUD pixels as they would be composed. */
+static void CardsSize(const Party *p, int *w, int *h)
+{
+    int i;
+
+    *w = *h = 0;
+    for (i = 0; i < p->n; i++) {
+        const Member *m = &p->m[i];
+        int mw = m->full ? FullWidth(m) : CompactWidth(m);
+
+        if (mw > *w) *w = mw;
+        *h += CardHeight(m) + (i ? CARD_GAP : 0);
+    }
+    if (*w > CANVAS_W) *w = CANVAS_W;
+}
+
 void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int strip, int smooth)
 {
     const Party *p = &sNow;
-    int dirty = 0;
-    double left, right, top, bottom, cw, ch, x, y;
+    Party whole;
+    int dirty = 0, alpha, inBand = 0, w, h;
+    double left, right, top, bottom, cw, ch, x = 0, y = 0, gap, sc, cardScale = scale;
     int i, moved;
 
+    DrawNameTags(fbW, fbH, world, scale, smooth);
     if (p->show && sHintText[0] && scale > 0.0) {
         /* the waiting hint: centred at the top, in the HUD's fade */
         int hd = strcmp(sHintText, sHintDrawn) != 0;
@@ -680,7 +996,7 @@ void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int st
             if (sHint.w > 160) sHint.w = 160;
             sHint.h = 8;
             Text(&sHint, 2, 1, sHintText, WHITE, 0, 1, 255);
-            Finish(&sHint, sHintPx, p);
+            Finish(&sHint, sHintPx, p, 255);
             snprintf(sHintDrawn, sizeof sHintDrawn, "%s", sHintText);
         }
         GlrDrawOverlay(2, sHintPx, sHint.w, sHint.h, hd, fbW, fbH,
@@ -689,12 +1005,6 @@ void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int st
     }
     if (!p->show || p->n == 0 || scale <= 0.0)
         return;
-    if (!sHaveComposed || memcmp(&sComposed, p, sizeof(*p)) != 0) {
-        Compose(p);
-        sComposed = *p;
-        sHaveComposed = 1;
-        dirty = 1;
-    }
     /* The HUD's own frame: the picture's corners, or the centred strip. */
     left = world[0];
     right = world[0] + world[2];
@@ -706,23 +1016,70 @@ void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int st
     }
     top = world[1];
     bottom = world[1] + world[3];
+    gap = 2 * scale;
 
-    /* Cards: top right, 2 HUD pixels in, and below any keep-out in the way. */
-    cw = sCards.w * scale;
-    ch = sCards.h * scale;
-    x = (double)(int)(right - 2 * scale - cw + 0.5);
-    y = (double)(int)(top + 2 * scale + 0.5);
-    for (moved = 1, i = 0; moved && i < 8; i++) {
-        int k;
+    /* Where: in a bar beside or above the picture when there is room there
+     * and nothing of the page's is in the way -- whole cards, opaque, a size
+     * or two smaller than the HUD's if that is what fits (never under half);
+     * they cost the play field nothing there.  Else the picture's top right
+     * corner, below any keep-out, a little see-through, compact unless
+     * something just changed. */
+    whole = *p;
+    for (i = 0; i < whole.n; i++)
+        whole.m[i].full = 1;
+    CardsSize(&whole, &w, &h);
+    for (sc = scale; !inBand && sc >= scale / 2 && sc >= 1.0; sc = (double)(int)sc == sc ? sc - 1 : (double)(int)sc) {
+        double bw = w * sc, bh = h * sc, g = 2 * sc;
 
-        moved = 0;
-        for (k = 0; k < PORT_PARTY_KEEPOUTS; k++)
-            if (Overlaps(x, y, cw, ch, sKeep[k]) && sKeep[k][1] + sKeep[k][3] + scale + ch <= bottom) {
-                y = (double)(int)(sKeep[k][1] + sKeep[k][3] + scale + 0.5);
-                moved = 1;
-            }
+        if (fbW - (world[0] + world[2]) >= bw + 2 * g
+            && !HitsKeepOut(world[0] + world[2] + g, top + g, bw, bh)) {
+            x = (double)(int)(world[0] + world[2] + g + 0.5);     /* the right bar */
+            y = (double)(int)(top + g + 0.5);
+            inBand = 1;
+        } else if (world[1] >= bh + 2 * g
+                   && !HitsKeepOut(right - g - bw, world[1] - g - bh, bw, bh)) {
+            x = (double)(int)(right - g - bw + 0.5);                /* the top bar */
+            y = (double)(int)(world[1] - g - bh + 0.5);
+            inBand = 1;
+        }
+        if (inBand)
+            cardScale = sc;
     }
-    GlrDrawOverlay(0, sCardsPx, sCards.w, sCards.h, dirty, fbW, fbH, x, y, scale, smooth);
+    if (inBand)
+        p = &whole;
+    else
+        CardsSize(p, &w, &h);
+    cw = w * cardScale;
+    ch = h * cardScale;
+    alpha = inBand ? 255 : 200;
+    if (!sHaveComposed || memcmp(&sComposed, p, sizeof(*p)) != 0 || alpha != sComposedAlpha) {
+        Compose(p, alpha);
+        sComposed = *p;
+        sComposedAlpha = alpha;
+        sHaveComposed = 1;
+        dirty = 1;
+    }
+    if (!inBand) {
+        /* Cards: top right, 2 HUD pixels in, and below any keep-out in the way. */
+        x = (double)(int)(right - gap - cw + 0.5);
+        y = (double)(int)(top + gap + 0.5);
+        for (moved = 1, i = 0; moved && i < 8; i++) {
+            int k;
+
+            moved = 0;
+            for (k = 0; k < PORT_PARTY_KEEPOUTS; k++)
+                if (Overlaps(x, y, cw, ch, sKeep[k]) && sKeep[k][1] + sKeep[k][3] + scale + ch <= bottom) {
+                    y = (double)(int)(sKeep[k][1] + sKeep[k][3] + scale + 0.5);
+                    moved = 1;
+                }
+        }
+    }
+    sCardsAt[0] = (int)x; sCardsAt[1] = (int)y; sCardsAt[2] = (int)cw; sCardsAt[3] = (int)ch;
+    sCardsAt[4] = inBand;
+    sCardsAt[5] = 0;
+    for (i = 0; i < p->n; i++)
+        sCardsAt[5] += p->m[i].full;
+    GlrDrawOverlay(0, sCardsPx, sCards.w, sCards.h, dirty, fbW, fbH, x, y, cardScale, smooth);
 
     /* "1P" on the game's bar, in the gap between the ability name (tiles
      * 0-4) and the lives icon (tile 7): x 42, rows 148-155. */

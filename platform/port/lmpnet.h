@@ -154,6 +154,10 @@ int  PortLnGoHome(void);
 int  PortLnHomeReady(void);
 u32  PortLnHomeLoads(void);
 void PortLnHomeFrame(void);               /* platform/main.c, after PortLnFrame */
+/* game/src/logo.c: 1 on the first logo frame after a home load (the logo
+ * then goes straight to the title); PortLnHomeExpressed counts them. */
+int  PortLnHomeExpress(void);
+u32  PortLnHomeExpressed(void);
 
 /* Diagnostics: a full image of the state at the top of `frame`, refreshed
  * every time that frame's top runs (the last pass wins). */
