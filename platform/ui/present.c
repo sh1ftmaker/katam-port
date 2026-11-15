@@ -22,6 +22,7 @@
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "ui/settings.h"
+#include "ui/party_hud.h"
 #include "ui/ui.h"
 
 #ifdef __cplusplus
@@ -332,6 +333,14 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
     if (GlrHudActive())
         GlrPresentHud(fbW, fbH, sDst, PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst),
                       gPortSettings.scaling == PS_SCALE_SMOOTH);
+    /* The party HUD (party_hud.c), at the game HUD's size: the HUD scale
+     * over a world picture, the picture's own scale over the PPU's. */
+    if (sDst[2] > 0 && sDst[3] > 0)
+        PortPartyHudDraw(fbW, fbH, sDst,
+                         sLastWorld ? PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst)
+                                    : (double)sDst[3] / sSrc[3],
+                         sLastWorld && gPortSettings.hud == PS_HUD_STRIP,
+                         gPortSettings.scaling == PS_SCALE_SMOOTH);
     if (sUi)
         PortUiDraw(fbW, fbH, dpr, nowMs);
 }
@@ -410,6 +419,7 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
         gPortUiStatus.viewH = ppuH;
         gPortUiStatus.world = 0;
     }
+    PortPartyHudSample();
     gPortUiStatus.gpu = sUsingGpu == 1;
     gPortUiStatus.zoomNow = zoom;
     CountRates(nowMs, 1);

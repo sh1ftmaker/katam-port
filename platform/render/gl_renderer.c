@@ -1100,6 +1100,55 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
     G(glDisable)(GL_BLEND);
 }
 
+/* Small host-drawn overlays (the party HUD, platform/ui/party_hud.c): one
+ * texture per slot, re-uploaded only when the caller says the pixels
+ * changed, drawn with the HUD program (premultiplied, nearest or sharp
+ * bilinear). */
+#define GLR_OVERLAYS 4
+static struct { GLuint tex; int w, h; } sOvl[GLR_OVERLAYS];
+
+void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,
+                    int fbW, int fbH, double x, double y, double scale, int smooth)
+{
+    if (!sReady || slot < 0 || slot >= GLR_OVERLAYS || w <= 0 || h <= 0 || scale <= 0.0
+        || fbW <= 0 || fbH <= 0)
+        return;
+    if (sOvl[slot].tex == 0 || sOvl[slot].w < w || sOvl[slot].h < h) {
+        int tw = w > sOvl[slot].w ? w : sOvl[slot].w, th = h > sOvl[slot].h ? h : sOvl[slot].h;
+
+        if (sOvl[slot].tex)
+            G(glDeleteTextures)(1, &sOvl[slot].tex);
+        G(glActiveTexture)(GL_TEXTURE0);
+        sOvl[slot].tex = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, tw, th);
+        G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        G(glTexParameteri)(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        sOvl[slot].w = tw;
+        sOvl[slot].h = th;
+        dirty = 1;
+    }
+    G(glActiveTexture)(GL_TEXTURE0);
+    G(glBindTexture)(GL_TEXTURE_2D, sOvl[slot].tex);
+    if (dirty)
+        G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
+    G(glViewport)(0, 0, fbW, fbH);
+    G(glDisable)(GL_SCISSOR_TEST);
+    G(glEnable)(GL_BLEND);
+    G(glBlendFuncSeparate)(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    G(glUseProgram)(sProgHud);
+    G(glUniform1i)(uBSharp, smooth && scale != (double)(int)scale);
+    G(glUniform2f)(uBScale, (float)scale, (float)scale);
+    G(glUniform2f)(uBTexSize, (float)sOvl[slot].w, (float)sOvl[slot].h);
+    G(glUniform4f)(uBDst, (float)(x / fbW * 2.0 - 1.0), (float)(1.0 - y / fbH * 2.0),
+                   (float)((x + w * scale) / fbW * 2.0 - 1.0),
+                   (float)(1.0 - (y + h * scale) / fbH * 2.0));
+    G(glUniform4f)(uBSrc, 0.0f, 0.0f, (float)w, (float)h);
+    G(glBindVertexArray)(sVaoEmpty);
+    G(glDrawArrays)(GL_TRIANGLE_STRIP, 0, 4);
+    G(glBindVertexArray)(0);
+    G(glDisable)(GL_BLEND);
+}
+
 int GlrSourceSize(int *w, int *h)
 {
     if (!sReady)

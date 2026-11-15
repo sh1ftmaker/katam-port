@@ -1,0 +1,36 @@
+/* The party HUD: every Kirby that matters at a glance -- each human player,
+ * and the CPU helpers while they are with the group.  platform/ui/party_hud.c
+ * has the design.  Presentation only: it reads the displayed frame's game
+ * state and draws over the presented picture; nothing here is written to
+ * game memory, recorded, or hashed. */
+#ifndef GUARD_PORT_UI_PARTY_HUD_H
+#define GUARD_PORT_UI_PARTY_HUD_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Once per simulated frame, at the blit (present.c): read the party from the
+ * frame just shown. */
+void PortPartyHudSample(void);
+/* Draw it over the presented frame.  `world` = {x, y, w, h} is the picture
+ * the game's HUD is pinned to (framebuffer pixels, top-left origin), `scale`
+ * framebuffer pixels per HUD pixel, `strip` the HUD's "original strip"
+ * anchoring (centred, 240 wide) instead of the corners. */
+void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int strip,
+                      int smooth);
+/* Screen areas the party HUD keeps out of: the page's touch pads and menu
+ * button, the native menu button.  Framebuffer pixels, top-left origin;
+ * slot 0..PORT_PARTY_KEEPOUTS-1, w or h <= 0 clears the slot. */
+#define PORT_PARTY_KEEPOUTS 12
+void PortPartyHudKeepOut(int slot, int x, int y, int w, int h);
+
+/* For the tests and the menu: how many cards the last sample showed, and
+ * whether the "1P" tag on the game's own bar was up. */
+int PortPartyHudCards(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

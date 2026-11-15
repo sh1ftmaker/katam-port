@@ -303,7 +303,7 @@ endif()
 # The settings menu's C half (presentation and settings, no ImGui): linked
 # last of the executable's own sources, and -fno-plt, so the game's code and
 # the PLT ahead of it stay where they were (docs/DETERMINISM.md, layout).
-set(UI_SRCS platform/ui/settings.c platform/ui/present.c)
+set(UI_SRCS platform/ui/settings.c platform/ui/present.c platform/ui/party_hud.c)
 list(APPEND NATIVE_SRCS ${UI_SRCS})
 set_source_files_properties(${UI_SRCS} PROPERTIES COMPILE_OPTIONS "-fno-plt")
 
