@@ -494,6 +494,25 @@ static const char *kHudFs =
     "  oColor = texture(uHud, (i + 0.5 + f) / uTexSize);\n"
     "}\n";
 
+/* Why GlrInit failed, one line (the status line, settings.h). */
+static char sInitErr[96];
+
+static void NoteInitErr(const char *what, const char *kind, const char *log)
+{
+    size_t n;
+
+    if (sInitErr[0])
+        return;
+    snprintf(sInitErr, sizeof(sInitErr), "%s %s: %s", what, kind, log ? log : "");
+    n = strcspn(sInitErr, "\r\n");
+    sInitErr[n] = '\0';
+}
+
+const char *GlrInitError(void)
+{
+    return sInitErr;
+}
+
 static GLuint Compile(GLenum type, const char *body, const char *what)
 {
     const char *srcs[3];
@@ -510,6 +529,7 @@ static GLuint Compile(GLenum type, const char *body, const char *what)
         char log[4096];
         G(glGetShaderInfoLog)(sh, sizeof(log), NULL, log);
         PortError("[katam-port] gpu: %s shader: %s", what, log);
+        NoteInitErr(what, type == GL_VERTEX_SHADER ? "vertex shader" : "fragment shader", log);
         G(glDeleteShader)(sh);
         return 0;
     }
@@ -536,6 +556,7 @@ static GLuint Link(const char *vs, const char *fs, const char *what)
         char log[4096];
         G(glGetProgramInfoLog)(p, sizeof(log), NULL, log);
         PortError("[katam-port] gpu: %s link: %s", what, log);
+        NoteInitErr(what, "link", log);
         return 0;
     }
     return p;
