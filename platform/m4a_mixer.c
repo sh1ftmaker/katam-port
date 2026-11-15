@@ -1188,6 +1188,17 @@ void PortMixerRender(struct SoundInfo *soundInfo)
         u64 t0 = PortHostMicros();
         int mix, ear;
 
+        /* Rooms mode: an online guest's canonical shadow (platform/lmpnet.c)
+         * is heard by nobody, and the live timeline's block staged before it
+         * ran is still to be handed over: the channels advance, nothing else. */
+        if (PortLnCanonRunning()) {
+            sStateOnly = 1;
+            for (ch = 0; ch < soundInfo->maxChans; ch++)
+                MixChannel(soundInfo, &soundInfo->chans[ch], frames, sAccR, sAccL);
+            sStateOnly = 0;
+            return;
+        }
+
         for (ch = 0; ch < soundInfo->maxChans; ch++)
             if (soundInfo->chans[ch].status & 0xC7)
                 sCanonStats[4]++;

@@ -67,6 +67,7 @@
 #include "port/rollback.h"
 #include "port/spawn.h"
 #include "port/simblock.h"
+#include "port/localmp.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "data.h"
@@ -816,17 +817,27 @@ static void Margin(u8 player, s32 camX, s32 camY, s32 w, s32 h,
 {
     const struct LevelInfo *li = &gCurLevelInfo[player & 3];
     s32 lo, hi;
+    /* The room's extent.  The BG layer's map size (unkC0[1].unk14/16) is
+     * what the renderer places by, but it is set (LoadLevelGfx) only for the
+     * screen's player's room; for every other Kirby it is BgInit's.  So with
+     * players on different screens (local multiplayer's rooms mode) it is
+     * per-device view state, and reading it here made the spawn windows --
+     * the simulation -- differ by device (ROOMS-REPORT.md).  There, the
+     * room's own size. */
+    int fix = PortLmpRoomsMarginFix();
+    s32 mapW = fix ? (s32)li->roomWidth : li->unkC0[1].unk14 * 8;
+    s32 mapH = fix ? (s32)li->roomHeight : li->unkC0[1].unk16 * 8;
 
     m->padL = m->padR = m->padT = m->padB = 0;
     if (w > PORT_SCREEN_W) {
         Reach(w, PORT_SCREEN_W, camX, li->unk_S32Vec2_6C.x >> 8,
-              li->unk_S32Vec2_74.x >> 8, 8, 8, li->unkC0[1].unk14 * 8, &lo, &hi);
+              li->unk_S32Vec2_74.x >> 8, 8, 8, mapW, &lo, &hi);
         m->padL = Cells(lo);
         m->padR = Cells(hi);
     }
     if (h > PORT_SCREEN_H) {
         Reach(h, PORT_SCREEN_H, camY, li->unk_S32Vec2_6C.y >> 8,
-              li->unk_S32Vec2_74.y >> 8, 8, 0, li->unkC0[1].unk16 * 8, &lo, &hi);
+              li->unk_S32Vec2_74.y >> 8, 8, 0, mapH, &lo, &hi);
         m->padT = Cells(lo);
         m->padB = Cells(hi);
     }

@@ -45,7 +45,9 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
         gLocalPlayerId = (*(vu32*)REG_ADDR_SIOCNT << 0x1a) >> 0x1e;
     }
     else {
-        gLocalPlayerId = arg1;
+        /* PORT: local multiplayer's rooms mode names this device's player
+         * (platform/localmp.c); otherwise arg1, as before. */
+        gLocalPlayerId = PortLmpLocalPlayer(arg1);
     }
     gNumHumanPlayers = arg0;
 

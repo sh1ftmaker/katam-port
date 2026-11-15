@@ -94,6 +94,23 @@ localmp sSessKeys setting an online session's keys for players 2-4 (platform/lmp
 localmp sSessOn setting whether an online session supplies the latch's keys for players 2-4 (on only while platform/lmpnet.c runs)
 localmp sTrace diagnostic KATAM_LOCAL_MP_TRACE, a log interval
 localmp sMinZoom presentation the shared camera's zoom floor (KATAM_LOCAL_MP_MINZOOM), read only by platform/ui/present.c
+localmp sRooms setting rooms mode requested (KATAM_LOCAL_MP_ROOMS, `option rooms 1`, PortLmpSetRooms); reaches the game only through gPortSim->view.lmpRooms, latched at the frame latch
+localmp sRoomsAt setting rooms mode from a frame on (`option roomsat F`, a recorded online session); reaches the game only through gPortSim->view.lmpRooms, latched at the frame latch
+localmp sView presentation this device's screen player in rooms mode (KATAM_LOCAL_MP_VIEW, PortLmpSetView): per device by design; decides gLocalPlayerId, which ROOMS-REPORT.md shows does not reach the gameplay digest
+localmp sReviews diagnostic rooms mode: re-views done (PortLmpReviews)
+localmp sReviewWaits diagnostic rooms mode: frames a re-view waited (paused, between rooms)
+localmp _ZZ12PortLmpFrameE4sAtF diagnostic rooms mode test hook KATAM_LOCAL_MP_VIEW_AT=F:k, the frame
+localmp _ZZ12PortLmpFrameE4sAtV diagnostic rooms mode test hook KATAM_LOCAL_MP_VIEW_AT=F:k, the player
+localmp sDigF diagnostic rooms mode: frame numbers of the gameplay digest ring (PortLmpDigestAt), read by the session layer, never by the game
+localmp sRoomsTest diagnostic rooms mode measurement switch (PortLmpRoomsTest): the spawn-margin fix off, for ROOMS-REPORT.md only
+localmp sDigParts diagnostic rooms mode: the gameplay digest's parts as last computed (PortLmpDigestParts)
+localmp sDig diagnostic rooms mode: the gameplay digest ring (PortLmpDigestAt), read by the session layer, never by the game
+localmp sDxF diagnostic rooms mode: frames of the digest explanation ring (PortLmpDigestExplain), log only
+localmp sDxPart diagnostic rooms mode: the digest's parts per frame, for the mismatch log only
+localmp sDxMain diagnostic rooms mode: the task types per frame, for the mismatch log only
+localmp sDxN diagnostic rooms mode: the task count per frame, for the mismatch log only
+localmp sSettle presentation rooms mode: the re-view's OBJ palette settle is pending (this device's screen only; never runs in an online guest's canonical shadow)
+localmp sSettleAt presentation rooms mode: the frame from which the re-view's OBJ palette settle may run
 bios _ZZ10CpuRangeOkE9sReported diagnostic log once
 sram sRestored diagnostic host loaded a save file at boot
 sram sPersistOff setting online guest: this device's storage is not written (never read by the game)
@@ -173,3 +190,4 @@ menu_poc _ZZL15CardPreviewPackjE3src scratch written before every read
 menu_poc _ZL13sCardPalSaved front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL12sCardPalSave front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL13sCardGenShown front-end PLAYER CARD rows drawn at this PortCardGen
+online_ui sRoomsMode front-end HOST GAME's TOGETHER / FREE ROAM choice, read by the page when the game starts (it seals the mode)

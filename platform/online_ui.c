@@ -25,6 +25,13 @@ static int sState, sNote;
 static char sCode[5] = "----";
 static int sJoin[4], sJoinPos;
 static int sStartPending;
+/* HOST GAME's START row, Left / Right: play TOGETHER (one screen's rules:
+ * everyone in one room, a shared camera) or FREE ROAM (rooms mode,
+ * platform/localmp.c: each device on its own player, meeting through doors
+ * and the cell phone).  Read by web/online.js when the game starts. */
+static int sRoomsMode;
+
+int PortOuiRoomsMode(void) { return sRoomsMode; }
 static int sPlayers = 1, sConnecting;
 static u32 sGen = 1;
 static int sEv[8], sEvHead, sEvTail;
@@ -145,6 +152,11 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
             case PORT_OUI_H_WAITING:
             case PORT_OUI_H_JOINING:
             case PORT_OUI_H_READY:
+                /* selected: the mode, Left / Right change it */
+                if (selected) {
+                    snprintf(buf, size, "<%s>", sRoomsMode ? "FREE ROAM" : "TOGETHER");
+                    return;
+                }
                 if (sPlayers <= 1 && !sConnecting) { v = "ALONE"; break; }
                 snprintf(buf, size, "PLAYERS %d/4%s", sPlayers, sConnecting ? " +" : "");
                 return;
@@ -207,8 +219,10 @@ const char *PortOuiRowDesc(int sub, int row)
             if (row == 0)
                 return sPlayers >= 4 ? "FOUR PLAYERS - THE GAME IS FULL"
                      : sPlayers == 3 ? "THREE PLAYERS ARE HERE" : "TWO PLAYERS ARE HERE";
-            return "PRESS A TO PLAY TOGETHER";
+            return sRoomsMode ? "EACH PLAYS ON - MEET BY PHONE" : "PRESS A TO PLAY TOGETHER";
         default:
+            if (row == 1 && HostHasRoom())
+                return sRoomsMode ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
             return row == 0 ? "A COPIES AN INVITE LINK" : "A FRIEND CAN COME IN LATER";
         }
     }
@@ -302,6 +316,13 @@ int PortOuiKey(int *row, unsigned key)
             Go(PORT_OUI_SUB_ONLINE);
             *row = 0;
             return PORT_OUI_K_BACK;
+        }
+        if ((key == 5 || key == 6) && *row == 1) {
+            if (!HostHasRoom())
+                return PORT_OUI_K_DENY;
+            sRoomsMode = !sRoomsMode;
+            sGen++;
+            return PORT_OUI_K_CURSOR;
         }
         if (key != 1)
             return PORT_OUI_K_NONE;

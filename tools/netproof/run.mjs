@@ -15,6 +15,10 @@
 //              and takes it back (a new join image) when it is heard again
 //   rate, drift, freezes   as c.guest
 // c.hostSeats: [[frame, seat, on], ...] local joins / leaves on the host.
+// c.rooms: the host seals rooms mode (PORT_LN_EV_ROOMS) at the session's
+// first frame: players in different rooms, each device on its own screen
+// (tools/rooms/gates.mjs).  c.onHostFrame(host, f) / c.onGuestTick(g) are
+// its observers; sc.pad(dev, seat), when a scenario has it, gives the pads.
 import { createInstance } from './instance.mjs';
 import { Scheduler, Link } from './link.mjs';
 import { HostHub, GuestSession, engineOf, PERIOD } from './session.mjs';
@@ -68,6 +72,7 @@ export async function runSession(cfg) {
     if (!host.M._PortLnStart(1, c.kfEvery, c.kfCount, c.flags | F_HASH_EVERY | (c.hostKeyframes ? F_HOST_KEYS : 0)))
         throw new Error('host PortLnStart failed');
     host.M._PortLmpSetHostKeys(1, 0);
+    if (c.rooms) host.M._PortLnEvent(7, 1, 0, 0, 0);
     const S = host.frame();
     const joinFrame = c.joinFrame ?? S;
     const endFrame = S + c.durationFrames;
@@ -83,6 +88,7 @@ export async function runSession(cfg) {
     // --- who plays: (device, seat) -> a pad function of (frame, own screen) ---
     const extra = new Map();
     const playerFn = (dev, seat) => {
+        if (sc.pad) { const p = sc.pad(dev, seat); if (p) return p; }
         if (dev === 0 && seat === 0) return sc.p1;
         if (dev === 1 && seat === 0) return sc.p2;
         const k = dev * 4 + seat;
@@ -107,7 +113,7 @@ export async function runSession(cfg) {
                                         audio: (g.dev === 1 ? c.guestAudio : c.guestAudioN) || null, clock: () => sch.now * (1 + g.cfg.drift),
                                         modulePre: c.guestModulePre || null });
         if (c.guestPre) c.guestPre(g.inst, g.dev);
-        if (!g.inst.M._PortLnStart(2, c.kfEvery, c.kfCount, c.flags | F_HASH_EVERY))
+        if (!g.inst.M._PortLnStart(2, c.kfEvery, c.kfCount, c.guestFlags ?? (c.flags | F_HASH_EVERY)))
             throw new Error('guest PortLnStart failed (memory for keyframes?)');
         g.link = new Link(sch, c.seed * 1000003 + 17 + (g.dev - 1) * 7919 + g.gen * 104729, Object.assign({}, spec(g).link || c.link));
         const ge = engineOf(g.inst);
@@ -302,6 +308,7 @@ export async function runSession(cfg) {
             await stepOne(host, null);
             hostRan++;
             observeHost();
+            if (c.onHostFrame) c.onHostFrame(host, host.frame());
             if (host.frame() >= endFrame + 240) done = true;
         }
         scanHostLogs();
@@ -326,7 +333,7 @@ export async function runSession(cfg) {
                 if (on) g.seatsOn |= 1 << seat; else g.seatsOn &= ~(1 << seat);
                 res.churn.push({ t: +sch.now.toFixed(0), f, dev: g.dev, what: on ? 'local join' : 'local leave', seat, accepted: r });
             }
-            if (g.dev === 1 && !g.gen) for (const cz of c.corrupt) if (!cz.done && f >= cz.frame && g.gs.joined) {
+            if (g.dev === (c.corruptDev || 1) && !g.gen) for (const cz of c.corrupt) if (!cz.done && f >= cz.frame && g.gs.joined) {
                 cz.done = true;
                 cz.apply(g.inst);
                 res.corrupt.push({ what: cz.what, frame: f, t: sch.now, tel0: g.inst.tel.read(), target: g.inst.lastCorrupt || null });
@@ -343,7 +350,8 @@ export async function runSession(cfg) {
         }
         g.gs.afterTick();
         compare(g);
-        if (g.dev === 1 && !g.gen) for (const r of res.corrupt) {
+        if (c.onGuestTick) c.onGuestTick(g);
+        if (g.dev === (c.corruptDev || 1) && !g.gen) for (const r of res.corrupt) {
             const tel = g.inst.tel.read();
             if (r.detectT === undefined) {
                 if (tel.mismatches > r.tel0.mismatches) { r.detectT = sch.now; r.detectFrame = tel.firstMismatch; }
@@ -399,6 +407,7 @@ export async function runSession(cfg) {
     res.hostLogs = host.logs.filter((l) => /lmpnet|error|ERROR|fault|trap/i.test(l)).slice(-60);
     res.guestLogs = G[0] && G[0].inst ? G[0].inst.logs.filter((l) => /lmpnet|error|ERROR|fault|trap/i.test(l)).slice(-40) : [];
     res._host = host; res._guest = G[0] ? G[0].inst : null;
+    Object.defineProperty(res, '_G', { value: G, enumerable: false });   // tools/rooms/gates.mjs; never serialised
     return res;
 }
 

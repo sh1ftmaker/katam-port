@@ -36,7 +36,10 @@
 //           1, katamOnline.requestSlot); the dropped guest rejoins by invite
 //           and gets a Kirby (now four players); a local join on a guest is
 //           refused (full) with a notice; the host's second player leaves
-//           and the guest's local join gets that Kirby.  Each local player's
+//           and the guest's local join gets that Kirby.
+//   rooms   FREE ROAM (rooms mode) with two and three pages (--rooms-pages
+//           2,3): each page on its own player's room, the canonical frames
+//           identical, the digest equal, a phone call, the pause menu.  Each local player's
 //           keys go in through Module._PortLmpSetHostKeys(seat, ...), the
 //           page's input path for seats 1..3 at this commit.
 import fs from 'fs';
@@ -711,6 +714,123 @@ if (CASES.includes('three')) {
     R.menuText = txt;
     await host.close(); await ga.close(); await gb2.close();
     delete pages.host; delete pages.guestA; delete pages.guestB;
+}
+
+// --- rooms: FREE ROAM (rooms mode), two and three pages --------------------------
+//   The host picks FREE ROAM on HOST GAME's START row (Right), then each
+//   player is warped to a room of their own: every page must show its own
+//   player in that player's room (Module._PortLnObserve: whose screen, which
+//   room) with the WebGL2 renderer; every guest's canonical shadow identical
+//   to the host's frames (the hashes it verifies), its own game equal to the
+//   shadow by the gameplay digest; a phone call (R) by the host brings
+//   everyone to the host's room; the pause menu opened from each page in turn.
+async function screenOf(p) {
+    return p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);var lp=Module.HEAP32[(q>>2)+13],room=Module.HEAP32[(q>>2)+12],paused=Module.HEAP32[q>>2];
+        Module._PortLnKirby(lp,q);var kr=Module.HEAP32[(q>>2)+2];var rooms=[];for(var i=0;i<4;i++){Module._PortLnKirby(i,q);rooms.push(Module.HEAP32[(q>>2)+2]);}
+        Module._free(q);return {lp:lp,room:room,kroom:kr,rooms:rooms,paused:paused};})()`);
+}
+for (const nPages of (flag('rooms-pages', '2,3')).split(',').map(Number)) {
+    if (!CASES.includes('rooms')) break;
+    const tag = 'fr' + nPages;
+    say(`# rooms: FREE ROAM with ${nPages} pages`);
+    const R = results[tag] = {};
+    const host = await openPage('host', knobs);
+    const code = await hostToWaiting(host, tag);
+    ok(`${tag}: host room`, !!code, code);
+    const guests = [];
+    for (let i = 1; i < nPages; i++) {
+        const g = await openPage('guest' + i, Object.assign({ join: code }, knobs));
+        const w = await until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 40000);
+        await glCheck(g);
+        ok(`${tag}: guest ${i} (invite link) waits`, !!w);
+        guests.push(g);
+    }
+    await sleep(1500);
+    await press(host, 'DOWN');              // the START row
+    await waitFrames(host, 10);
+    await press(host, 'RIGHT');             // TOGETHER -> FREE ROAM
+    await waitFrames(host, 20);
+    await shot(host, `${tag}-01-host-free-roam.png`);
+    ok(`${tag}: HOST GAME offers FREE ROAM`, (await host.ev('Module._PortOuiRoomsMode()')) === 1);
+    await press(host, 'A');
+    ok(`${tag}: session started`, !!(await until(async () => { const st = await stats(host); return st && st.session; }, 20000)));
+    for (const g of guests) ok(`${tag}: ${g.name} took the host's image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 30000)));
+    await sleep(2500);
+    const hs0 = await stats(host);
+    ok(`${tag}: rooms mode is on for every page`, hs0.rooms === 1 && (await Promise.all(guests.map(stats))).every((x) => x.rooms === 1));
+    // the script: each player to a room of their own, then a phone call by
+    // the host (R), the others answer (R 40 frames later)
+    const spots = [[117, 44, 9], [203, 60, 5], [101, 3, 7], [104, 2, 9]];
+    const r0 = (await frame(host)) + 60, CALL = 900;
+    const warps = [];
+    for (let k = 0; k < nPages; k++) warps.push([0, k, spots[k][0], spots[k][1], spots[k][2]]);
+    const keysFor = (who) => { const K = new Array(3000).fill(0);
+        const at = who === 0 ? CALL : CALL + 40; for (let i = 0; i < 6; i++) K[at + i] = KEY.R; return K; };
+    await setScript(host, keysFor(0), r0, warps);
+    for (const g of guests) await setScript(g, keysFor(1), r0, []);
+    const cmps = guests.map((g) => makeComparer(host, g));
+    await until(async () => (await frame(host)) >= r0 + 420, 30000);
+    for (const c of cmps) await c.run();
+    // apart: each page on its own player, in that player's room
+    const all = [host, ...guests];
+    const apart = [];
+    for (let i = 0; i < all.length; i++) {
+        const sc = await screenOf(all[i]);
+        apart.push(sc);
+        await shot(all[i], `${tag}-02-apart-${all[i].name}.png`);
+        ok(`${tag}: ${all[i].name} shows its own player (${i + 1}P) in that player's room`, sc.lp === i && sc.room === sc.kroom && sc.room === spots[i][0],
+           JSON.stringify(sc));
+    }
+    R.apart = apart;
+    ok(`${tag}: the players are in ${nPages} different rooms`, new Set(apart[0].rooms.slice(0, nPages)).size === nPages, JSON.stringify(apart[0].rooms));
+    // the phone: the host calls, the others answer
+    await until(async () => (await frame(host)) >= r0 + CALL + 600, 40000);
+    const met = [];
+    for (let i = 0; i < all.length; i++) {
+        const sc = await screenOf(all[i]);
+        met.push(sc);
+        await shot(all[i], `${tag}-03-after-call-${all[i].name}.png`);
+    }
+    R.afterCall = met;
+    ok(`${tag}: the host's call brought everyone to the host's room`, met[0].rooms.slice(0, nPages).every((r) => r === met[0].rooms[0]), JSON.stringify(met[0].rooms));
+    ok(`${tag}: each page still shows its own player`, met.every((sc, i) => sc.lp === i && sc.room === sc.kroom), JSON.stringify(met.map((x) => [x.lp, x.room, x.kroom])));
+    // the pause menu, opened from each page in turn (START, then START again)
+    R.pause = [];
+    for (let i = 0; i < all.length; i++) {
+        const p = all[i], f0 = await frame(p), K = new Array(400).fill(0);
+        for (let j = 0; j < 6; j++) { K[20 + j] = KEY.START; }
+        await setScript(p, K, f0, []);
+        const paused = await until(async () => (await screenOf(host)).paused === 1, 10000);
+        await sleep(1500);
+        const shotsNow = [];
+        for (const q of all) { await shot(q, `${tag}-04-pause-by-${p.name}-on-${q.name}.png`); shotsNow.push(await screenOf(q)); }
+        R.pause.push({ by: p.name, paused: !!paused, screens: shotsNow });
+        ok(`${tag}: ${p.name} pauses the game for everyone`, !!paused && shotsNow.every((x) => x.paused === 1));
+        const f1 = await frame(p), K2 = new Array(400).fill(0);
+        for (let j = 0; j < 6; j++) K2[10 + j] = KEY.START;
+        await setScript(p, K2, f1, []);
+        let resumed = await until(async () => (await screenOf(host)).paused === 0, 6000);
+        if (!resumed) {
+            const f2 = await frame(p), K3 = new Array(400).fill(0);
+            for (let j = 0; j < 6; j++) K3[10 + j] = KEY.B;
+            await setScript(p, K3, f2, []);
+            resumed = await until(async () => (await screenOf(host)).paused === 0, 8000);
+        }
+        ok(`${tag}: ${p.name} closes the pause menu`, !!resumed);
+        await sleep(800);
+    }
+    for (const c of cmps) await c.run();
+    const gsts = [];
+    for (let i = 0; i < guests.length; i++) {
+        const st = await snapStats(guests[i].name, guests[i]);
+        gsts.push(st);
+        ok(`${tag}: ${guests[i].name}'s canonical frames identical to the host's`, cmps[i].compared > 20 && cmps[i].mismatched === 0, `${cmps[i].equal}/${cmps[i].compared}; repairs ${st.repairs}`);
+        ok(`${tag}: ${guests[i].name}'s own game equal to the canonical one (digest)`, st.digCompared > 500 && st.digMismatch === 0 && !st.persRepairs,
+           `${st.digEqual}/${st.digCompared}, rebuilt ${st.persRepairs}, shadow ${st.canonUsPerFrame} us/frame`);
+    }
+    R.guests = gsts; R.compare = cmps.map((c) => ({ ...c, run: undefined, reset: undefined }));
+    R.wasm = await host.ev(`fetch('katam.wasm').then(r=>r.arrayBuffer()).then(b=>crypto.subtle.digest('SHA-1',b)).then(h=>Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join(''))`);
+    for (const p of all) { await p.close(); delete pages[p.name]; }
 }
 
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));

@@ -334,7 +334,7 @@ static void ProbeCommit(u32 n)
 
 int PortEarActive(int frames)
 {
-    if (!gPortLnOn || frames != BLK || !PortAudioHasDevice())
+    if (!gPortLnOn || frames != BLK || !PortAudioHasDevice() || PortLnCanonRunning())
         return 0;
     if (PortLnRole() != PORT_LN_GUEST && !sProbe)
         return 0;
