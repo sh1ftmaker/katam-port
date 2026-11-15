@@ -130,7 +130,24 @@ menu_poc _ZZL10BuildLabelP12Unk_08138D64jE2px scratch written before every read
 menu_poc _ZL3sOn setting the new-menus switch (KATAM_MENU_POC / PortMenuPocSet); carried in the online image header
 menu_poc _ZL7sNoCuts setting KATAM_MENU_POC=2; with sOn
 # platform/online_ui.c: the ONLINE screens' state and the page's requests.
-menu_poc _ZL12sOuiGenShown front-end ONLINE screens' redraw generation; unused in a session
+menu_poc _ZL12sOuiGenShown host-state rows' redraw generation (ONLINE screens, PLAYERS page, the settings' PLAYERS count); carried by PortPocHostStateSave
+menu_poc _ZL7sArtLbl front-end the art the screen was built from, read only to build the PLAYERS page in place (never in a session)
+menu_poc _ZL10sArtLblVar front-end with sArtLbl
+menu_poc _ZL7sArtHdr front-end with sArtLbl
+menu_poc _ZL10sArtHdrVar front-end with sArtLbl
+menu_poc _ZL14sLastDrawFrame diagnostic the frame the screen was last drawn (tests); never read by the game
+# platform/players_ui.c: the PLAYERS page (host devices -> players), reachable
+# only outside an online session (its row is dimmed in one, every key checks
+# gPortLnOn), so like the ONLINE screens never part of a session's state.
+players_ui sSnap front-end the host's devices and players, as the page pushed them
+players_ui sNext front-end the snapshot being pushed
+players_ui sNameBuf front-end the page's name buffer for the next device
+players_ui sGen front-end redraw generation
+players_ui sOpHead front-end requests to the page
+players_ui sActive front-end is the PLAYERS page up
+players_ui sCardHook setting the player card's entry (set once by the host)
+players_ui sChoice front-end each row's controller being chosen
+players_ui sDesc front-end the description line being shown
 online_ui sSub front-end which ONLINE screen is up
 online_ui sState front-end network state the page reports
 online_ui sNote front-end transient note (link copied)

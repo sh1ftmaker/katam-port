@@ -185,6 +185,11 @@ static void PauseSettingsDestructor(struct Task *task) {
 static void PauseSettingsDraw(struct PauseSettings *ps) {
     if (!ps->open)
         return;
+    /* the PLAYERS page: B goes back, so no B QUIT hint (BG3) */
+    if (PortPocScreenSub())
+        gDispCnt &= ~DISPCNT_BG3_ON;
+    else
+        gDispCnt |= DISPCNT_BG3_ON;
     PortPocScreenDraw(TILES, ps->row, 0, 0x10);
     if (!sub_08155128(&ps->cursor))
         ps->cursor.unk1B = 0xFF;
@@ -225,6 +230,10 @@ static u8 PauseSettingsKey(struct PauseSettings *ps) {
         return 0;
     if (menu->pressedKeys & A_BUTTON)
         return 1;
+    /* B: back to SETTINGS from the PLAYERS page (pause_help.c leaves B to
+     * this page then); on SETTINGS itself the pause screen's own */
+    if ((menu->pressedKeys & B_BUTTON) && PortPocScreenSub())
+        return 2;
     if (repeated & DPAD_UP)
         return 3;
     if (repeated & DPAD_DOWN)
@@ -262,13 +271,24 @@ static void PauseSettingsMain(void) {
 
     key = PauseSettingsKey(ps);
     switch (PortPocScreenInput(TILES, &ps->row, key)) {
-    case 1:
+    case PORT_POC_IN_CURSOR:
         m4aSongNumStart(SE_MAIN_MENU_CURSOR);
         ps->cursor.y = PortPocScreenCursorY(ps->row);
         sub_08155128(&ps->cursor);
         break;
-    case 2:
+    case PORT_POC_IN_VALUE:
         m4aSongNumStart(key == 1 ? SE_MAIN_MENU_SELECT : SE_MAIN_MENU_CURSOR);
+        break;
+    case PORT_POC_IN_SCREEN:    /* SETTINGS <-> PLAYERS */
+        m4aSongNumStart(key == 2 ? SE_MAIN_MENU_BACK : SE_MAIN_MENU_SELECT);
+        ps->cursor.y = PortPocScreenCursorY(ps->row);
+        sub_08155128(&ps->cursor);
+        break;
+    case PORT_POC_IN_DONE:
+        m4aSongNumStart(SE_MAIN_MENU_SELECT);
+        break;
+    case PORT_POC_IN_REFUSED:
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
         break;
     }
     PauseSettingsDraw(ps);

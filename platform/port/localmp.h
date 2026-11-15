@@ -64,6 +64,10 @@ int  PortLmpCanRequest(void);
 /* Would a join of slot s take effect now (not a Kirby the story is walking
  * through the intro)?  The device core prefers such slots.  Read-only. */
 int  PortLmpSlotJoinable(int slot);
+/* Is the game in ordinary story play (not the title, the menus, the demo, a
+ * sub-game or link play)?  The page's devices only take a Start press as a
+ * join then.  Read-only, for the host. */
+int  PortLmpInStory(void);
 /* Tests (--devices `when`): is Kirby slot s in state `cond` -- dead, alive,
  * away (not in player 1's room), door (between rooms), boss (a boss is alive
  * in its room), human, cpu, anim:N, flag:HEX (base.flags)?  Read-only. */

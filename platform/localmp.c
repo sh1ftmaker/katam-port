@@ -179,10 +179,16 @@ void PortLmpSetHumans(int n)
     sFromHost = n;
 }
 
+/* The game's own menu: MULTIPLAYER > LOCAL chooses 2, ONE PLAYER 0.  ONE
+ * PLAYER does not cancel a count the host set (?localmp=N on the web,
+ * KATAM_LOCAL_MP, a recording's `option localmp N`): that is "that many
+ * players from the next game, menus or not", and a menus-off recording
+ * replayed on a page with the in-game menus (START GAME's pop-up answered
+ * by its A press) used to play as one player. */
 void PortLmpChoose(int n)
 {
     if (n < 2)
-        n = 0;
+        n = sFromHost;
     if (n > 4)
         n = 4;
     sSetting = n;
@@ -525,6 +531,11 @@ int PortLmpSlotJoinable(int slot)
     if (slot < 1 || slot > 3)
         return 0;
     return !InStoryPlay() || !Scripted((u8)slot);
+}
+
+int PortLmpInStory(void)
+{
+    return InStoryPlay();
 }
 
 int PortLmpCanRequest(void)

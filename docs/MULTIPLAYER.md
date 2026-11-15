@@ -1331,36 +1331,108 @@ come through the Gamepad API's standard mapping.
 - **What crosses into the game.** Only the per-player masks (`kp` lines) and
   the slot events (`human` lines), both recorded.
 
-**Wiring `web/input_devices.js` into `web/shell.html`** (not done here; the
-page is being changed elsewhere):
+### The web page
 
-1. Load the module before the shell script:
-   `<script src="input_devices.js"></script>`. Add the file to whatever copies
-   `web/*.js` into the build or dist. Check the Makefile's `dist` and `pages`
-   rules.
-2. In the Input section, create
-   `var devs = new KatamInputDevices({ sink: KatamInputDevices.moduleSink(Module), log: function (t) { console.log('[devices] ' + t); } });`.
-3. In the `keydown` and `keyup` handlers, call `devs.keyDown(e.code)` and
-   `devs.keyUp(e.code)`. Each returns true for a game key; use that instead of
-   the `KEYMAP` / `KEYMAP_P2` / `lmpInPlay()` test, and still
-   `preventDefault()` on it. Keep `uiKeys` and `typingInAField` in front.
-4. In the touch code, call `devs.setTouch(touchMask)` wherever `touchMask`
-   changes.
-5. Replace `pollPads` and `pushMask` with one requestAnimationFrame loop:
-   `var m = uiOpen ? 0 : devs.poll(); if (m !== lastMask) { lastMask = m; Module._PortSetKeys(m); }`.
-   `poll()` also calls `Module._PortLmpSetHostKeys(p, …)` for players 2–4.
-   While the menu is open, call `devs.poll()` anyway and send zero, so that
-   joins and edges stay current. Delete `readPad`, `padMask`, `KEYMAP_P2` and
-   `lmpInPlay`.
-6. Keep `syncP2` / `_PortLmpSetP2Input` as is: a touch-only device still
-   cannot start MULTIPLAYER → LOCAL.
-7. The exports are already in the Makefile's `PORT_EXPORTS`:
-   `_PortLmpSlotIsHuman`, `_PortLmpRequestHuman`, `_PortLmpCanRequest`,
-   `_PortLmpSlotJoinable`.
+`web/shell.html`'s Input section runs every device through
+`web/input_devices.js` (`window.katamDevices`, one `poll()` per animation
+frame, also on every key event): keyboard set A, keyboard set B, the touch
+buttons and each gamepad. Player 1's mask goes to `_PortSetKeys`, players
+2–4's to `_PortLmpSetHostKeys`. While the page's own menu (F1) is open the
+devices are still read but `muted`: the game sees nothing and nothing joins.
+`input_devices.js` is copied by `make dist`, `scripts/publish-pages.sh` and
+`tools/make_playtest_dist.mjs`, and content-hashed by `tools/stamp_build.py`.
 
-Behaviour change on both hosts: Numpad Enter and `;` are keyboard set B's
-Start, so they join instead of being player 1's Start. Enter is still player
-1's Start.
+Gamepads: the Gamepad API's `standard` mapping (every XInput pad, and the
+browsers' own maps of DualShock/DualSense/Switch Pro), a fallback for pads
+with no mapping (faces 0–3, shoulders 4–7, Select/Start 8/9 — or 6/7 on an
+eight-button pad — d-pad from buttons 12–15, the left stick, a hat on axes
+6/7 once seen at rest, or a hat as axis 9 once seen centred), several at
+once, hot-plug (polled; `gamepadconnected`/`gamepaddisconnected` trigger a
+scan, which also covers browsers that list a pad only after a button
+press). A "pad" with fewer than four buttons (motion sensors) is ignored.
+Names: the browser's id without vendor/product noise; the PLAYERS page
+labels them `PAD 1`, `PAD 2`, … (the lowest number free when first seen,
+kept across unplugging).
+
+**Decisions reviewed when wiring** (the native core keeps the original rules
+until it is brought in line; see the header of `web/input_devices.js`):
+
+- *Kept:* Numpad Enter and `;` are keyboard set B's Start and join; a device
+  that joined stays that player in the next game; unplug grace 180 frames;
+  dropped-out devices are parked (Start rejoins); joins during the story
+  intro wait (the notice says "joins after this scene").
+- *Changed — joins only during play.* On the title and the menus a Start is
+  player 1's, whatever it comes from (`PortLmpInStory`). Picking a pad up at
+  the title and pressing Start no longer makes a player 2 for the next game.
+- *Changed — "the first device touched is player 1's" became "what player 1
+  played with in the last three seconds is player 1's".* A keyboard-and-pad
+  player's Start on either pauses; a pad (or set B) left alone for three
+  seconds joins on Start.
+- *Changed — the fifth pad.* Once a second person is playing, the pad player
+  1 was using is claimed by player 1 (unplugged and back, still theirs) and
+  every other unclaimed pad *waits*: it drives nobody, its Start joins or
+  shows "4 players already" and pauses nothing.
+- *New — leaving with the pad:* Select held two seconds on a joined device
+  hands the Kirby back to the CPU (the game never reads Select in play).
+- *New — moving the only controller off a player makes that player leave*
+  (the PLAYERS page's "take PAD 2 from P3").
+
+Notices (`#pnotices`, top centre, no pointer events, gone in about three
+seconds): PLAYER n JOINED (with the device and "hold Select to leave"),
+PLAYER n LEFT, PLAYER n: CONTROLLER UNPLUGGED, PLAYER n RECONNECTED,
+4 PLAYERS ALREADY. The hint (`#pjoinhint`, top right): "PAD 2: PRESS START
+TO JOIN" for six seconds whenever the set of free pads changes — a pad that
+pressed something and whose Start would join now; for one person, only a
+pad player 1 has never used.
+
+MULTIPLAYER > LOCAL still starts two players (the device module gives
+player 2 a pad player 1 is not using, else keyboard set B — checked by the
+browser test with and without a pad). `PortLmpChoose(0)` (the pop-up's ONE
+PLAYER) now falls back to the host's count (`?localmp=N`, a recording's
+`option localmp N`) instead of cancelling it, so a menus-off recording
+replayed on a page with the in-game menus keeps its players.
+
+### The PLAYERS page
+
+The SETTINGS screen (Game Select's and the pause menu's) has a seventh row,
+PLAYERS ("2 PLAYERS", from the simulation), below VOLUME; six rows fit, so
+the list scrolls with the cursor (a small triangle shows there is more). A
+opens the PLAYERS page in place (`platform/players_ui.c`, drawn by
+`menu_poc.c`'s list screen): P1–P4, each CPU, JOINING, UNPLUGGED, or its
+controller (KEYBOARD, KEYS 2, TOUCH, PAD n, a `+` for a second one); the
+description line has the pad's own name, or what to do. Left/Right pick a
+controller (or CPU / ANY) for that row, A does it: a free or parked
+controller joins a CPU row, a controller taken from another player moves
+(that player leaves if it was their only one), CPU drops the player out,
+ANY gives player 1 back every unclaimed controller. B goes back to SETTINGS
+(on the pause page `pause_help.c` leaves B to it while the page is up;
+Start still returns to the game). In an online session the row is dimmed
+("NOT IN AN ONLINE GAME") and the page cannot open: what it shows is host
+state.
+
+The page reads a snapshot the host pushes while it is up
+(`PortPuiBegin/AddDevice/SetPlayer/End`, names through `PortPuiNameBuf`)
+and queues what it asks for (`PortPuiPoll`: assign, drop, any); natively it
+reads and drives `platform/input_devices.c` itself. Only the joins and
+leaves reach the game, as recorded `human` events.
+
+**For the player card** (name, colour): `PortPuiSetCardHook(int (*open)(int
+slot))`. Once set, A on a row with no controller change pending calls it
+with the slot (0–3) and the description line offers "A: PLAYER CARD"; return
+1 if the card opened. Nothing else depends on it.
+
+**For sessions with more slots** (`platform/lmpnet.c`, `web/online.js`):
+the page calls `katamDevices.setOnline(katamOnline.inSession())` every
+frame. Today that merges every device into this device's player and leaves
+players 2–4's host keys alone. A session carrying several local players per
+device can instead call, once,
+`katamDevices.setOnline(true, { split: true, join: function (devId) { /* seal a join, return slot 1..3 or -1 */ }, leave: function (slot) { /* seal a leave, return true */ } })`
+and read `katamDevices.localKeys(p)` per local player each frame (the
+device module then keeps its local assignment; Start on a free pad calls
+`join`, Select held or `dropOut(p)` calls `leave`). `listDevices()`,
+`listPlayers()`, `waitingPads()` and the `onEvent` notices work the same
+online.
+
 
 ### Online
 
@@ -1384,3 +1456,9 @@ refused while a session is on (`PortLmpCanRequest`). Generalising this means:
   against the live run, frame by frame.
 - `make input-devices-test` runs the web module against fake
   `navigator.getGamepads` gamepads.
+- `tools/devices_browser_test.mjs` drives the real page in a headless
+  Chromium with fake gamepads: joins by Start to four players, the notices
+  and the hint, Select-hold leave and rejoin, unplug and replug (in and out
+  of the grace period), a fifth Start, the PLAYERS page on Game Select and in
+  the pause menu (drop out, add a waiting pad, move a pad), one person with a
+  keyboard and a pad, and a phone with touch only.
