@@ -57,12 +57,13 @@
     The page frame
     --------------
     The picture has the window. There is no panel beside or under it:
-    everything the page can do lives in the game's own menu (platform/ui,
-    Dear ImGui -- the gear, F1 or Tab), which draws over the picture and
-    calls back into this page for the things only a page can do (the file
-    pickers, fullscreen). Without WebGL2 there is no such
-    menu, and the gear opens #chrome instead: the same controls as plain
-    HTML, in a sheet that is closed until asked for.
+    everything the page can do lives in the game's own menus (Game Select
+    > SETTINGS, and the pause menu's SETTINGS page: platform/menu_poc.c),
+    drawn in the game's picture, which call back into this page for the
+    things only a page can do (the file pickers, fullscreen: portUiAction
+    below). The old overlay menu (platform/ui, Dear ImGui) is for
+    developers only: ?dev=1 and F1 or Tab; without WebGL2 that opens
+    #chrome instead, the same controls as plain HTML, in a sheet.
 
     One grid: the stage, and in portrait with the touch pads up a second
     row the pads sit in, so the picture is never under a thumb. The stage
@@ -180,7 +181,7 @@
      that matters and it has to be readable. Must follow the rule above:
      same specificity, later wins. */
   body.crashed #screen-wrap { touch-action: pan-y; }
-  /* A mouse left still over the game hides itself, with the gear. */
+  /* A mouse left still over the game hides itself. */
   body.idle.rom-ready:not(.ui-open):not(.crashed) #screen-wrap { cursor: none; }
 
   /* Portrait with the pads up: the pads have their own row under the
@@ -202,37 +203,29 @@
   }
   body.gl #gpu-screen { background: var(--void); }
 
-  /* The menu button: once a game is running. Fades away with the mouse
-     pointer when it is left idle (desktop), and is always there, quietly,
-     for a finger. Top right, out of the way of the HUD's own corners; in
-     landscape with the pads up the R pad has that corner, so top centre. */
-  #uigear {
-    display: none;
+  /* (There is no menu button: the game's own SETTINGS hold everything.
+     ?dev=1 and F1 open the developer menu.) */
+  /* A page action the game asked for from a gamepad, which a browser will
+     not let a page do without a click or tap of its own. */
+  #gesture {
     position: fixed;
-    top: calc(10px + var(--safe-t));
-    right: calc(10px + var(--safe-r));
-    z-index: 12;
-    width: 40px;
-    height: 40px;
-    padding: 0;
+    left: 50%;
+    bottom: calc(18% + var(--safe-b));
+    transform: translateX(-50%);
+    z-index: 72;
+    padding: 10px 20px;
     border-radius: 12px;
-    font-size: 22px;
-    line-height: 1;
-    color: #e6eaf0;
-    background: rgba(20, 23, 28, .55);
-    border-color: rgba(255, 255, 255, .14);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    opacity: .78;
-    transition: opacity .35s, border-color .12s;
+    border: 3px solid #f8d850;
+    background: #f8d850;
+    color: #181040;
+    font: bold 15px/1.2 ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .35);
+    cursor: pointer;
     touch-action: manipulation;
   }
-  #uigear:hover { opacity: 1; }
-  body.rom-ready:not(.crashed):not(.ui-open):not(.sheet-open) #uigear { display: block; }
-  body.idle #uigear { opacity: 0; pointer-events: none; }
-  @media (orientation: landscape) {
-    body.touch-on #uigear { right: auto; left: 50%; translate: -50% 0; }
-  }
+  #gesture[hidden] { display: none; }
   /* The player card's name row (Start Game > MULTIPLAYER > PLAYER CARD,
      platform/player_card.c): a button that brings up the device keyboard.
      Only while that row is selected and the touch pads are up; a physical
@@ -411,8 +404,8 @@
     Chrome — the bar, the legend and the log
   ====================================================================*/
 
-  /* Only without WebGL2 (no game menu): the page's own controls, as a
-     sheet the gear opens. */
+  /* Developers only (?dev=1, F1) without WebGL2: the page's own controls,
+     as a sheet. */
   #chrome {
     min-height: 0;
     display: flex;
@@ -581,7 +574,7 @@
 
   /*====================================================================
     Diagnostics readout
-    Over the picture, top left (the gear has the top right): the one
+    Over the picture, top left: the one
     readout that has to survive every layout.
   ====================================================================*/
 
@@ -986,9 +979,9 @@
       </details>
       <p class="fine">
         You only do this once: the file is kept in this browser's own storage
-        (IndexedDB), on this device. The menu (&#9881;&#xFE0E;, F1 or Tab) has&nbsp;<b>Forget
-        stored ROM</b>&nbsp;to erase it, and your save, settings and the
-        randomizer.
+        (IndexedDB), on this device. The game's own menu, SETTINGS&nbsp;&gt;
+        GAME, has&nbsp;<b>FORGET ROM</b>&nbsp;to erase it (and&nbsp;<b>DELETE
+        SAVE</b>&nbsp;for your save).
       </p>
     </div>
   </div>
@@ -1007,11 +1000,10 @@
   </div>
 </div>
 
-<!-- The menu. The game draws it over the picture (platform/ui, Dear ImGui)
-     whenever there is WebGL2; this opens it, as do F1 and Tab. Without
-     WebGL2 it opens the sheet below instead. -->
-<button id="uigear" type="button" aria-label="Menu" aria-pressed="false"
-        title="Menu (F1 / Tab)">&#9881;&#xFE0E;</button>
+<!-- A page action the game's SETTINGS asked for that needs a click or a
+     tap of its own (a file picker, fullscreen, the clipboard) when the
+     button that asked was a gamepad's: Module.portUiAction, below. -->
+<button id="gesture" type="button" hidden>Click or tap to continue</button>
 
 <button id="cardname" type="button" aria-label="Type your player name">&#9998;&#xFE0E; Type name</button>
 
@@ -1020,10 +1012,10 @@
 <!-- Dims the game and takes the stray taps while the sheet is open. -->
 <div id="scrim"></div>
 
-<!-- The page's own controls, as HTML: only ever shown without WebGL2, where
-     there is no game menu to hold them. Everything here is also in the
-     game menu's Game / Controls / Randomizer / Advanced pages, which
-     drive the same code (Module.portUiAction, at the end of this file). -->
+<!-- The page's own controls, as HTML: for developers (?dev=1, F1) without
+     WebGL2, where there is no overlay menu. Everything here is also in the
+     game's own SETTINGS (GAME, DISPLAY, PLAYERS, ADVANCED), which drive the
+     same code (Module.portUiAction, at the end of this file). -->
 <section id="chrome" aria-label="ROM, controls and diagnostics">
   <div id="sheethead">
     <span id="sheettitle">Kirby &amp; The Amazing Mirror — decompilation port</span>
@@ -2933,7 +2925,17 @@ var Module = (function () {
     Escape: 11, Space: 12, Backspace: 13
   };
 
+  // The overlay menu is the developers' (?dev=1): for everyone else F1 and
+  // Tab are nothing, and the game's own SETTINGS hold every option.
+  var devMenu = new URLSearchParams(location.search).get('dev') === '1';
   function uiKeys(e, down) {
+    if (!devMenu) return false;
+    if (down && !e.repeat && e.code === 'F1' && !shell.uiAvailable() &&
+        body.classList.contains('rom-ready')) {
+      e.preventDefault();
+      setSheet(!sheetOpen());           /* without WebGL2: the HTML sheet */
+      return true;
+    }
     if (!shell.uiAvailable()) return false;
     if (down && !e.repeat && (e.code === 'F1' || (e.code === 'Tab' && !uiOpen))) {
       e.preventDefault();
@@ -3395,13 +3397,10 @@ var Module = (function () {
   };
 
   //--------------------------------------------------------------------
-  // The game menu: the gear opens it, and while it is open every pointer
-  // on the picture goes to it (in canvas pixels) and the pads are hidden,
-  // so a thumb cannot be on a pad and a slider at once. Without WebGL2
-  // there is no game menu and the gear opens the HTML sheet instead.
+  // The developer menu (?dev=1, F1): while it is open every pointer on the
+  // picture goes to it (in canvas pixels) and the pads are hidden, so a
+  // thumb cannot be on a pad and a slider at once.
   //--------------------------------------------------------------------
-  var gearBtn = document.getElementById('uigear');
-
   shell.uiAvailable = function () {
     return !!(Module.portGl && Module.portRuntimeUp && Module._PortUiToggle && body.classList.contains('rom-ready') &&
               !body.classList.contains('crashed'));
@@ -3412,41 +3411,18 @@ var Module = (function () {
     devs.releaseKeys();
     releaseAllTouch();
     body.classList.toggle('ui-open', uiOpen);
-    if (gearBtn) gearBtn.setAttribute('aria-pressed', uiOpen ? 'true' : 'false');
     lastMask = -1;
     update();
   };
 
-  // pointerup, not click: the stage cancels touchstart (so a thumb on the
-  // picture never scrolls or zooms), and that suppresses the synthesised
-  // click on a phone.  click stays for the keyboard, de-duplicated.
-  if (gearBtn) {
-    var gearAt = 0;
-    var gearToggle = function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var now = performance.now();
-      if (now - gearAt < 400) return;
-      gearAt = now;
-      if (shell.uiAvailable()) Module._PortUiToggle();
-      else if (body.classList.contains('rom-ready')) setSheet(!sheetOpen());
-    };
-    gearBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
-    gearBtn.addEventListener('pointerup', gearToggle);
-    gearBtn.addEventListener('click', gearToggle);
-  }
-
-  // A mouse left still over the game takes the gear (and itself) away
-  // after a moment; any movement brings them back. Fingers have no hover,
-  // so on a touch screen the gear simply stays.
+  // A mouse left still over the game takes itself away after a moment;
+  // any movement brings it back.
   var idleTimer = 0;
   function wake(e) {
     if (e && e.pointerType && e.pointerType !== 'mouse') return;
     body.classList.remove('idle');
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(function () {
-      if (!gearBtn.matches(':hover')) body.classList.add('idle');
-    }, 2500);
+    idleTimer = setTimeout(function () { body.classList.add('idle'); }, 2500);
   }
   window.addEventListener('pointermove', wake, { passive: true });
   window.addEventListener('pointerdown', wake, { passive: true });
@@ -4683,17 +4659,60 @@ var Module = (function () {
 
   function later(fn) { setTimeout(fn, 0); }
 
+  // A file picker, fullscreen, the clipboard and a download need the
+  // page's "user activation": a key press or a tap a moment ago counts, a
+  // gamepad button does not.  The game's own SETTINGS call these from the
+  // game's frame, after the key that pressed the row: with the activation
+  // still live, now; a tap's comes as the finger lifts, so wait a moment
+  // for it; failing that (a gamepad), a button on the page asks for a click
+  // or a tap, and that does it.
+  var gestureBtn = document.getElementById('gesture'), gestureFn = null, gestureT = 0;
+  function gestureAsk(fn) {
+    if (!gestureBtn) { fn(); return; }
+    gestureFn = fn;
+    gestureBtn.hidden = false;
+    clearTimeout(gestureT);
+    gestureT = setTimeout(function () { gestureBtn.hidden = true; gestureFn = null; }, 15000);
+  }
+  if (gestureBtn) {
+    var gestureGo = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var fn = gestureFn;
+      gestureFn = null;
+      gestureBtn.hidden = true;
+      clearTimeout(gestureT);
+      if (fn) fn();
+    };
+    gestureBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    gestureBtn.addEventListener('click', gestureGo);
+  }
+  function withGesture(fn) {
+    return function (arg) {
+      var ua = navigator.userActivation;
+      if (!ua) { gestureAsk(function () { fn(arg); }); return; }
+      if (ua.isActive) { fn(arg); return; }
+      var t0 = performance.now(), poll = setInterval(function () {
+        if (ua.isActive) { clearInterval(poll); fn(arg); }
+        else if (performance.now() - t0 > 1200) { clearInterval(poll); gestureAsk(function () { fn(arg); }); }
+      }, 40);
+    };
+  }
+  shell.gesturePending = function () { return !!(gestureBtn && !gestureBtn.hidden); };
+
   var A = {
-    // Need the click: run now.
-    'rom.load':    function () { shell.romApi.pick(); },
-    'save.import': function () { shell.save.pick(); },
-    'fullscreen':  function () { shell.fullscreen.toggle(); },
-    'log.copy':    function () { shell.copyLog(); },
-    'save.export': function () { shell.save.exportNow(); },
+    // Need the click: now if the key or tap that asked still counts.
+    'rom.load':    withGesture(function () { shell.romApi.pick(); }),
+    'save.import': withGesture(function () { shell.save.pick(); }),
+    'fullscreen':  withGesture(function () { shell.fullscreen.toggle(); }),
+    'log.copy':    withGesture(function () { shell.copyLog(); }),
+    'save.export': withGesture(function () { shell.save.exportNow(); }),
     // Do not: a turn later.
     'rom.forget':  function () { later(shell.romApi.forget); },
     'save.delete': function () { later(shell.save.del); },
     'online.leave': function () { later(function () { if (window.katamOnline) window.katamOnline.leave('from the menu'); }); },
+    // the host's SETTINGS > ONLINE list: remove the device playing slot n
+    'online.kick': function (n) { later(function () { if (window.katamOnline) window.katamOnline.kick(n); }); },
     'reset':       function () {
       shell.note('Restarting…', 'ok');
       if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block */ } }
@@ -4705,7 +4724,7 @@ var Module = (function () {
     'rando.size':  function () { later(shell.rando.toggleSize); },
     'rando.ability': function () { later(shell.rando.toggleAbility); },
     'rando.reroll':  function () { later(shell.rando.reroll); },
-    'rando.seed':  function () {
+    'rando.seed':  withGesture(function () {
       // prompt() blocks; never from inside the menu's frame.
       later(function () {
         var cur = (shell.rando.get().split(',')[3]) || '';
@@ -4714,7 +4733,7 @@ var Module = (function () {
         if (!shell.rando.setSeed(String(v).trim()))
           shell.note('"' + v + '" is not a seed: use a whole number.', 'err');
       });
-    }
+    })
   };
 
   Module.portUiAction = function (name, arg) {

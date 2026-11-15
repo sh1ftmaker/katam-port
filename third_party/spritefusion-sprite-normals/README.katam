@@ -1,0 +1,27 @@
+Sprite Normals (MIT, see LICENSE), Copyright (c) 2026 Hugo Duprez.
+https://github.com/Hugo-Dz/spritefusion-sprite-normals
+at d14b06726cabab09c68a403ce2e684a52efbfe4c.
+
+No source file from it is vendored. The generator in its src/relief.rs,
+src/field.rs, src/distance.rs and src/color.rs is ported, step for step, to the
+GLSL passes in platform/render/relief_glsl.h. The port runs on the GPU every
+frame, because the game's art only exists once the ROM has been decoded into
+VRAM; the crate's PNG/GIF front end and its CLI and wasm wrappers are not used.
+
+Where the port differs from the crate:
+
+- The distance to the silhouette is capped instead of unbounded: at 32 px
+  for sprites, which no GBA sprite (64x64 at most) reaches, so they are exact;
+  at 12 px for background layers, whose solid ground would otherwise become
+  one dome the size of the room.
+- Islands (8-connected components) are not split out. The crate processes
+  them one at a time, but that only re-centres the lightness, and its
+  normalised blur makes that a no-op.
+- Intermediates are half floats.
+- Background layers use the crate's defaults: normal strength 1.5, detail
+  strength 6, detail scale 0.6, shape strength 1.15, shape radius 4, softness
+  1.15, alpha threshold 0.03, OpenGL green channel.  Sprites use detail
+  strength 2 (the CLI's --detail-strength 2): the game's sprites are shaded
+  already, and at 6 lighting that shading again doubled it.
+- Sprites are processed per group of touching hardware sprites (one
+  character), not per hardware sprite.

@@ -638,6 +638,7 @@ static int sSub, sPlayer, sFixed, sNamePos;
  * the web page send a keyboard's letters here; otherwise the row is a row
  * like the others and every key is the game's. */
 static int sTyping;
+static char sTypedFrom[PORT_CARD_NAME_MAX + 1];   /* the name as typing began */
 static struct PortCard sEdit;       /* the card being edited                */
 static u32 sGen = 1;
 
@@ -770,7 +771,12 @@ const char *PortCardRowDesc(int sub, int row)
     }
     switch (row) {
     case R_PLAYER: return sFixed ? "WHOSE CARD THIS IS" : "LEFT RIGHT PICK A PLAYER";
-    case R_NAME:   return sTyping ? "TYPE OR PICK - START DONE" : "A TO TYPE A NAME";
+    case R_NAME:
+        if (!sTyping)
+            return "A TO TYPE A NAME";
+        /* alternate, about every two seconds: how to finish, how to cancel */
+        return (gPortSim->frame.frameCount / 120) & 1 ? "B ON FIRST LETTER CANCELS"
+                                                      : "TYPE OR PICK - START DONE";
     default:
         return sEdit.mode == PORT_CARD_GAME ? "THE GAMES OWN SPRAY PAINT"
              : "A PICKS ANY COLOR";
@@ -860,10 +866,14 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
             key = 1;
         if (key == 2) {
             if (*row == R_NAME && sTyping) {
-                if (sNamePos > 0)
+                if (sNamePos > 0) {
                     sNamePos--;
-                else
-                    sTyping = 0;    /* B at the first letter: done */
+                } else {
+                    /* B at the first letter: cancel -- the name as it was */
+                    snprintf(sEdit.name, sizeof sEdit.name, "%s", sTypedFrom);
+                    sTyping = 0;
+                    Store();
+                }
                 Changed();
                 return PORT_CARD_K_CURSOR;
             }
@@ -883,6 +893,7 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
                 if (key != 1)
                     return PORT_CARD_K_NONE;
                 sTyping = 1;            /* A: type (pick letters) from here */
+                snprintf(sTypedFrom, sizeof sTypedFrom, "%s", sEdit.name);
                 sNamePos = (int)strlen(sEdit.name);
                 if (sNamePos >= PORT_CARD_NAME_MAX)
                     sNamePos = PORT_CARD_NAME_MAX - 1;

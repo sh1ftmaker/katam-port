@@ -80,12 +80,18 @@ static char *TypeBuf(void)
     return sTyping == T_HOST ? sHostPass : sTyping == T_JOIN ? sJoinPass : NULL;
 }
 
+/* the password as typing began: B at the first letter puts it back (the
+ * menus' rule for every text entry: Start or A past the end finishes, B
+ * steps back and at the first letter cancels) */
+static char sTypedFrom[PORT_OBR_PASS_MAX + 1];
+
 static void TypeStart(int which)
 {
     char *b;
 
     sTyping = which;
     b = TypeBuf();
+    snprintf(sTypedFrom, sizeof sTypedFrom, "%s", b);
     sTypePos = (int)strlen(b);
     if (sTypePos >= PORT_OBR_PASS_MAX)
         sTypePos = PORT_OBR_PASS_MAX - 1;
@@ -177,10 +183,12 @@ static int TypeKey(int *row, unsigned key, int nextRow)
             *row = nextRow;
         return PORT_OUI_K_SELECT;
     case 2:
-        if (sTypePos > 0)
+        if (sTypePos > 0) {
             sTypePos--;
-        else
-            sTyping = T_NONE;       /* B at the first letter: done */
+        } else {                    /* B at the first letter: cancel */
+            snprintf(b, PORT_OBR_PASS_MAX + 1, "%s", sTypedFrom);
+            sTyping = T_NONE;
+        }
         PortOuiChanged();
         return PORT_OUI_K_CURSOR;
     default:

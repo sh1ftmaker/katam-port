@@ -119,13 +119,25 @@ again.
 
 ### Settings menu
 
-A Dear ImGui menu drawn by the game itself over the picture, on the web
-(WebGL2) and in the native window. Open it with **F1** or **Tab**, the
-**gear** button (top right of the picture; beside *Menu* on a landscape
-phone), or *Menu* in the native window; **Esc**, *Resume* or a tap outside
-the panel closes it. The game pauses while it is open (the host simply stops
-asking for frames; nothing in the game changes). On a phone, drag the panel
-to scroll, tap to press, and hold or slide sideways to move a slider.
+The game's own menus hold every option, drawn in the game's picture and
+driven by the pad or keys: **Game Select > SETTINGS**, and the pause menu's
+**SETTINGS** page (Select turns the pause menu's pages to it). SETTINGS is a
+short list of sections -- DISPLAY, SOUND, PLAYERS, ONLINE, GAME, ADVANCED,
+and in the pause menu MAIN MENU (back to the title without reloading; in an
+online game LEAVE GAME, or END GAME for the host). A opens a section, B goes
+back one level, Start closes the pause from any page. ONLINE shows the room
+code, the mode and who plays each Kirby; the host can remove a guest there.
+In an online game each player edits their own device's settings. Rows that
+open a browser dialog (a file picker, fullscreen, the clipboard) work at once
+from a key or a tap; from a gamepad the page asks for a click or a tap.
+Code: `platform/menu_poc.c` (the sections), `game/src/pause_settings.c`.
+
+For developers the older Dear ImGui overlay is still there, drawn by the game
+over the picture: natively with **F1** or **Tab** or its *Menu* button, on the
+web only with `?dev=1` in the address (then **F1** or **Tab**); **Esc**,
+*Resume* or a tap outside the panel closes it. The game pauses while it is
+open (the host simply stops asking for frames; nothing in the game changes).
+It covers the same settings:
 
 - **Renderer**: GPU (the render list, default where WebGL2 / GL ES 3 exists)
   or PPU (the emulated scanline renderer, always 240x160).

@@ -48,6 +48,15 @@ extern "C" {
 #define PORT_LN_EV_PAINT   6   /* a=slot 0..3 b=paint (PORT_PAINT_*, kirby_paint.c) */
 #define PORT_LN_EV_ROOMS   7   /* a=1: rooms mode (localmp.c), the host's choice,
                                 * sealed at the session's start              */
+#define PORT_LN_EV_PSET    8   /* a=slot 0..3 b=that slot's device's settings
+                                * (platform/menu_poc.c PortPocSettingsWord),
+                                * c=its other sections' online rows (...ExtWord),
+                                * for the pause SETTINGS page; only with the
+                                * menus on                                   */
+#define PORT_LN_EV_NAME    9   /* a=slot b,c=its player's name, 4 + 4 letters
+                                * (low byte first), as the host has it from
+                                * the cards: drawn by the pause SETTINGS
+                                * page's ONLINE list; only with the menus on */
 
 /* --- slots, devices, seats -------------------------------------------------
  * Up to four devices in a star: the host is device 0, guests 1..3 (the host
@@ -151,6 +160,15 @@ void PortLnSetImageSkip(int mask);
  * own save (a guest's from before the host's image), its own view, and the
  * frame counter running on.  0 if there is no picture (then only stopped). */
 int  PortLnGoHome(void);
+/* The same outside a session: the pause menu's MAIN MENU.  0 if there is no
+ * picture (a replay, or a session). */
+int  PortLnGoHomeLocal(void);
+/* The host, before its session's first frame: the room code (4 letters),
+ * which the session carries for the pause menus (platform/menu_poc.c). */
+void PortLnSetRoomCode(int c0, int c1, int c2, int c3);
+/* The host: a guest device's settings as a session copy (web/ln_session.js
+ * `pset`), sealed for the slots that device plays (PORT_LN_EV_PSET). */
+void PortLnDeviceSettings(int dev, u32 word, u32 ext);
 int  PortLnHomeReady(void);
 u32  PortLnHomeLoads(void);
 void PortLnHomeFrame(void);               /* platform/main.c, after PortLnFrame */

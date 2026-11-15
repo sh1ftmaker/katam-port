@@ -34,6 +34,8 @@
 #   NEEDS: -    nothing
 #          web  a browser and a room server: the command gets $CDP $BASE
 #               $ROM_URL $RELAY
+#          web2 as web, plus a second room server without the public game
+#               list (--no-public), as $RELAY_OLD (the server browser's case)
 #          old  --old was given: the command gets $OLD
 #   In COMMAND: $ROM, $D (this suite's own directory), $ROOT (the checkout,
 #   also the cwd), $W (its slots), $PLAY (browser play seconds:
@@ -67,6 +69,9 @@ web-dev-touch      1     web    node tools/devices_browser_test.mjs --cdp $CDP -
 web-dev-frontend   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases frontend
 web-on-errors      1     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases errors
 web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases gl
+web-menu-exits     1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D"
+web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases exits --play 30
+web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
 netplay            1     -      cd netplay && npm test --silent
@@ -185,7 +190,7 @@ for f in build/dist/index.html build/dist/katam.wasm build/katam-node.js build/l
 done
 
 # --- the static server (one, read-only, for every browser suite) -----------
-if printf '%s\n' "${NEEDS[@]}" | grep -qx web; then
+if printf '%s\n' "${NEEDS[@]}" | grep -qxE 'web2?'; then
     mkdir -p "$OUT/www"
     ln -sfn "$ROOT/build/dist" "$OUT/www/dist"
     ln -sfn "$ROM" "$OUT/www/rom.gba"
@@ -205,9 +210,13 @@ run_suite() {  # index
     local D="$OUT/$name" log="$OUT/$name.log" t0 rc=0 pre=()
     mkdir -p "$D"
     t0=$(date +%s%N)
-    if [ "$needs" = web ]; then
-        local cdp relay
+    if [ "$needs" = web ] || [ "$needs" = web2 ]; then
+        local cdp relay relay2=""
         cdp=$(port_free 19500 19600) && relay=$(port_free 18600 18700) || { echo "no free port" >"$log"; rc=1; }
+        if [ $rc = 0 ] && [ "$needs" = web2 ]; then
+            relay2=$(port_free $((relay + 1)) 18700) || { echo "no free port" >"$log"; rc=1; }
+            [ $rc = 0 ] && sbg_start "$name-relay2" 2G node netplay/dev-relay.mjs "$relay2" --no-public
+        fi
         if [ $rc = 0 ]; then
             mkdir -p "$D/profile"
             sbg_start "$name-relay" 2G node netplay/dev-relay.mjs "$relay"
@@ -220,10 +229,11 @@ run_suite() {  # index
             fi
         fi
         if [ $rc = 0 ]; then
-            ( export CDP=$cdp RELAY="http://127.0.0.1:$relay" D; eval "$cmd" ) >"$log" 2>&1 </dev/null
+            ( export CDP=$cdp RELAY="http://127.0.0.1:$relay" RELAY_OLD="http://127.0.0.1:$relay2" D; eval "$cmd" ) >"$log" 2>&1 </dev/null
             rc=$?
         fi
         sbg_stop "$name-chrome"; sbg_stop "$name-relay"
+        [ -n "$relay2" ] && sbg_stop "$name-relay2"
         rm -rf "$D/profile"
     else
         ( export D; eval "nice -n 10 bash -c '$cmd'" ) >"$log" 2>&1 </dev/null

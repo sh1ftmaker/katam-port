@@ -90,6 +90,13 @@ typedef ptrdiff_t GLintptr;
 #define GL_COLOR_ATTACHMENT0 0x8CE0
 #define GL_BACK 0x0405
 #define GL_LINEAR 0x2601
+#define GL_RG8 0x822B
+#define GL_RG 0x8227
+#define GL_R32UI 0x8236
+#define GL_R8 0x8229
+#define GL_RG32UI 0x823C
+#define GL_RGBA32UI 0x8D70
+#define GL_RG_INTEGER 0x8228
 #define GL_ONE 1
 #define GL_SRC_ALPHA 0x0302
 #define GL_ONE_MINUS_SRC_ALPHA 0x0303
@@ -123,6 +130,8 @@ typedef ptrdiff_t GLintptr;
     X(GLenum, glCheckFramebufferStatus, (GLenum)) \
     X(void, glReadPixels, (GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void *)) \
     X(void, glClearBufferuiv, (GLenum, GLint, const GLuint *)) \
+    X(void, glClearBufferfv, (GLenum, GLint, const GLfloat *)) \
+    X(void, glDrawBuffers, (GLsizei, const GLenum *)) \
     X(void, glBlitFramebuffer, (GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum)) \
     X(GLuint, glCreateShader, (GLenum)) \
     X(void, glShaderSource, (GLuint, GLsizei, const GLchar *const *, const GLint *)) \
@@ -131,6 +140,7 @@ typedef ptrdiff_t GLintptr;
     X(void, glGetShaderInfoLog, (GLuint, GLsizei, GLsizei *, GLchar *)) \
     X(void, glDeleteShader, (GLuint)) \
     X(GLuint, glCreateProgram, (void)) \
+    X(void, glDeleteProgram, (GLuint)) \
     X(void, glAttachShader, (GLuint, GLuint)) \
     X(void, glLinkProgram, (GLuint)) \
     X(void, glGetProgramiv, (GLuint, GLenum, GLint *)) \
@@ -139,12 +149,18 @@ typedef ptrdiff_t GLintptr;
     X(GLint, glGetUniformLocation, (GLuint, const GLchar *)) \
     X(void, glUniform1i, (GLint, GLint)) \
     X(void, glUniform2i, (GLint, GLint, GLint)) \
+    X(void, glUniform3i, (GLint, GLint, GLint, GLint)) \
     X(void, glUniform4i, (GLint, GLint, GLint, GLint, GLint)) \
     X(void, glUniform1iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform2iv, (GLint, GLsizei, const GLint *)) \
     X(void, glUniform4iv, (GLint, GLsizei, const GLint *)) \
+    X(void, glUniform1f, (GLint, GLfloat)) \
     X(void, glUniform2f, (GLint, GLfloat, GLfloat)) \
+    X(void, glUniform2fv, (GLint, GLsizei, const GLfloat *)) \
+    X(void, glUniform3f, (GLint, GLfloat, GLfloat, GLfloat)) \
+    X(void, glUniform3fv, (GLint, GLsizei, const GLfloat *)) \
     X(void, glUniform4f, (GLint, GLfloat, GLfloat, GLfloat, GLfloat)) \
+    X(void, glUniform4fv, (GLint, GLsizei, const GLfloat *)) \
     X(void, glGenBuffers, (GLsizei, GLuint *)) \
     X(void, glBindBuffer, (GLenum, GLuint)) \
     X(void, glBufferData, (GLenum, GLsizeiptr, const void *, GLenum)) \

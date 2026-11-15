@@ -215,18 +215,19 @@ async function startPlay(p) {
     await waitFrames(p, 60);
 }
 
-/* Game Select's SETTINGS (the fifth row) and its PLAYERS row (the seventh:
- * Up from the first wraps to NAME TAGS, the ninth, then PARTY HUD, then
- * PLAYERS) */
+/* Game Select's SETTINGS (the fifth row), its PLAYERS section (the third
+ * row) and in it the PLAYERS row (the first) */
 async function toSettingsPlayers(p) {
     for (let i = 0; i < 4; i++) { await press(p, 'DOWN'); await waitFrames(p, 8); }
     await press(p, 'A');
     await until(() => screenLive(p), 10000);
     await waitFrames(p, 30);
-    await press(p, 'UP'); await waitFrames(p, 10);         // wraps to NAME TAGS
-    await press(p, 'UP'); await waitFrames(p, 10);         // PARTY HUD
-    await press(p, 'UP'); await waitFrames(p, 10);         // PLAYERS
+    await press(p, 'DOWN'); await waitFrames(p, 10);       // LIGHTING
+    await press(p, 'DOWN'); await waitFrames(p, 10);       // SOUND
+    await press(p, 'DOWN'); await waitFrames(p, 10);       // PLAYERS
+    await press(p, 'A'); await waitFrames(p, 20);          // the PLAYERS section, on PLAYERS
 }
+const SEC_PLAYERS = 12, TOP = 0, PAUSE_TOP = 9;
 
 /* The pause menu's SETTINGS page: Start, then Select until the page is up */
 async function toPauseSettings(p) {
@@ -274,7 +275,7 @@ async function caseFrontend() {
     await p.ev(`__padPlug(0, ${JSON.stringify(XBOX)})`);
     await waitFrames(p, 10);
     await toSettingsPlayers(p);
-    ok('the settings screen is up (model SETTINGS)', (await pagesModel(p)) === 0);
+    ok('the settings screen is up (SETTINGS > PLAYERS)', (await pagesModel(p)) === SEC_PLAYERS);
     await shot(p, 'front-01-settings-players-row.png');
     await press(p, 'A'); await waitFrames(p, 20);
     ok('A on PLAYERS opens the PLAYERS page', (await pagesModel(p)) === 5 && await p.ev('Module._PortPuiActive()') === 1);
@@ -312,7 +313,9 @@ async function caseFrontend() {
     await press(p, 'B'); await waitFrames(p, 20);          // X: the game's B again
     ok('B (X) on the card after typing: back to PLAYERS', (await pagesModel(p)) === 5);
     await press(p, 'B'); await waitFrames(p, 20);
-    ok('B goes back to SETTINGS', (await pagesModel(p)) === 0 && await p.ev('Module._PortPuiActive()') === 0);
+    ok('B goes back to the PLAYERS section', (await pagesModel(p)) === SEC_PLAYERS && await p.ev('Module._PortPuiActive()') === 0);
+    await press(p, 'B'); await waitFrames(p, 20);
+    ok('B goes back to SETTINGS', (await pagesModel(p)) === TOP);
     await press(p, 'B'); await waitFrames(p, 40);
     ok('B again leaves SETTINGS', !(await screenLive(p)));
     await shot(p, 'front-04-back-on-game-select.png');
@@ -427,8 +430,15 @@ async function caseLocal() {
 
     // the pause menu's SETTINGS > PLAYERS
     ok('the pause SETTINGS page is up', await toPauseSettings(p));
-    // NAME TAGS (the last row): OFF / ON, Right turns them on
-    await press(p, 'UP'); await waitFrames(p, 10);          // wraps to NAME TAGS
+    ok('... on its top level', (await pagesModel(p)) === PAUSE_TOP);
+    await press(p, 'DOWN'); await waitFrames(p, 10);        // LIGHTING
+    await press(p, 'DOWN'); await waitFrames(p, 10);        // SOUND
+    await press(p, 'DOWN'); await waitFrames(p, 10);        // PLAYERS
+    await press(p, 'A'); await waitFrames(p, 20);
+    ok('A opens the PLAYERS section', (await pagesModel(p)) === SEC_PLAYERS);
+    // NAME TAGS (the third row): OFF / ON, Right turns them on
+    await press(p, 'DOWN'); await waitFrames(p, 10);        // PARTY HUD
+    await press(p, 'DOWN'); await waitFrames(p, 10);        // NAME TAGS
     {
         const was = await p.ev('Module._PortCardTagsOn()');
         await press(p, 'RIGHT'); await waitFrames(p, 10);
@@ -483,7 +493,9 @@ async function caseLocal() {
     await press(p, 'B'); await waitFrames(p, 30);
     ok('B on the card: back to PLAYERS on P4', (await pagesModel(p)) === 5);
     await press(p, 'B'); await waitFrames(p, 30);
-    ok('B on the pause PLAYERS page: back to SETTINGS, still paused', (await pagesModel(p)) === 0 && await screenLive(p));
+    ok('B on the pause PLAYERS page: back to the PLAYERS section, still paused', (await pagesModel(p)) === SEC_PLAYERS && await screenLive(p));
+    await press(p, 'B'); await waitFrames(p, 30);
+    ok('B again: SETTINGS, still paused', (await pagesModel(p)) === PAUSE_TOP && await screenLive(p));
     await shot(p, 'local-12-pause-back-to-settings.png');
     await press(p, 'START'); await waitFrames(p, 60);
     ok('Start: back to the game', !(await screenLive(p)));
@@ -687,7 +699,7 @@ async function caseHudPlaces() {
             // the touch pads take the bars: the cards stay over the picture,
             // pushed clear of every keep-out
             const keep = await p.ev(`(function(){var c=Module.portGlCanvas,cr=c.getBoundingClientRect(),sx=c.width/cr.width,sy=c.height/cr.height,o=[];
-              ['dpad','tb-a','tb-b','tb-l','tb-r','tb-select','tb-start','uigear'].forEach(function(id){var e=document.getElementById(id);if(!e)return;var r=e.getBoundingClientRect();
+              ['dpad','tb-a','tb-b','tb-l','tb-r','tb-select','tb-start'].forEach(function(id){var e=document.getElementById(id);if(!e)return;var r=e.getBoundingClientRect();
               if(r.width>0&&r.height>0)o.push([(r.left-cr.left)*sx,(r.top-cr.top)*sy,r.width*sx,r.height*sy])});return o})()`);
             const hit = keep.some((k) => at[0] < k[0] + k[2] && k[0] < at[0] + at[2] && at[1] < k[1] + k[3] && k[1] < at[1] + at[3]);
             ok('phone: the cards are clear of the touch controls', at[2] > 0 && !hit, JSON.stringify(at) + ' vs ' + keep.length + ' controls');

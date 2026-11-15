@@ -36,6 +36,7 @@ enum {
     PORT_OUI_J_FAILED, PORT_OUI_J_HOSTLEFT,
     /* server browser: a locked game asks (web/online_browse.js) */
     PORT_OUI_J_PASSWORD, PORT_OUI_J_PWBAD, PORT_OUI_J_PWLOCK,
+    PORT_OUI_J_REMOVED,     /* 18: the host removed this device (web/online.js UI) */
     PORT_OUI_STATES
 };
 
@@ -89,7 +90,7 @@ void PortOuiFadeDone(void);
 /* Is the screen busy with the network (the idle timeout must not fire)? */
 int  PortOuiBusy(void);
 
-/* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode). */
+/* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode, the default). */
 int PortOuiRoomsMode(void);
 
 /* server browser (platform/online_browse.c): something it shows changed;
