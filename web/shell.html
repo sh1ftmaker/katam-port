@@ -279,68 +279,374 @@
   #toast.warn { border-color: var(--warn); }
   #toast.err  { border-color: var(--err); color: #ffd9d6; }
 
-  /* Covers the picture until a ROM is supplied: one card, centred. */
+  /*====================================================================
+    The first screen (the "curtain")
+    --------------------------------
+    Covers the picture until a ROM is supplied. One card on a quiet field
+    of colour; the only thing to do is the big button (or a drop, on a
+    desktop). Its look is our own: four soft diamonds and a slow wash of
+    light, drawn here in CSS and inline SVG. Nothing is fetched for it.
+
+    States are classes on #curtain, set by the small script after its
+    markup, which only *watches* the loader (the file input, the drop, the
+    toast, the log): is-drag, is-reading, is-error, is-invite,
+    is-invite-bad, no-store, no-gl. The checks themselves are the loader's.
+  ====================================================================*/
   #curtain {
+    --c-sky:   #6fb2ff;
+    --c-mint:  #5fd3b3;
+    --c-gold:  #ffcf6b;
+    --c-coral: #ff8f7e;
+    --c-ink:   #0b0d11;
+    --c-card:  rgba(22, 25, 31, .9);
+    --c-line:  rgba(255, 255, 255, .10);
+    --c-text:  #e8ebf0;
+    --c-soft:  #aab2bf;        /* body copy: 7:1 on the card */
+    --c-faint: #8b93a1;        /* fine print: 4.8:1 on the card */
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
     position: absolute;
     inset: 0;
     z-index: 4;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: calc(16px + var(--safe-t)) calc(16px + var(--safe-r))
-             calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+    padding: calc(20px + var(--safe-t)) calc(16px + var(--safe-r))
+             calc(20px + var(--safe-b)) calc(16px + var(--safe-l));
     overflow-y: auto;
     touch-action: pan-y;       /* the card can be taller than a small screen */
     overscroll-behavior: contain;
-    background: radial-gradient(120% 90% at 50% 20%, #1a1e26 0%, var(--void) 75%);
+    isolation: isolate;
+    background: var(--c-ink);
+    font: 15px/1.5 var(--sans);
+    color: var(--c-text);
+    -webkit-font-smoothing: antialiased;
   }
   #curtain.hidden { display: none; }
 
+  /* The field: a slow wash of three colours, and a faint lattice of
+     diamonds that fades out towards the edges. Transforms only, so it
+     costs the compositor and not the page. */
+  #curtain .field, #curtain .field::before, #curtain .field::after {
+    position: fixed;
+    pointer-events: none;
+    z-index: -1;
+  }
+  #curtain .field { inset: 0; overflow: hidden; }
+  #curtain .field::before {
+    content: "";
+    inset: -30%;
+    background:
+      radial-gradient(32% 28% at 28% 30%, rgba(111, 178, 255, .20), transparent 70%),
+      radial-gradient(30% 26% at 74% 68%, rgba(255, 143, 126, .13), transparent 70%),
+      radial-gradient(26% 24% at 66% 24%, rgba(95, 211, 179, .12), transparent 70%);
+    animation: curtain-drift 38s ease-in-out infinite alternate;
+  }
+  #curtain .field::after {
+    content: "";
+    inset: 0;
+    background:
+      linear-gradient(45deg, transparent 49.3%, rgba(255, 255, 255, .045) 49.3%,
+                             rgba(255, 255, 255, .045) 50.7%, transparent 50.7%),
+      linear-gradient(-45deg, transparent 49.3%, rgba(255, 255, 255, .045) 49.3%,
+                              rgba(255, 255, 255, .045) 50.7%, transparent 50.7%);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(70% 60% at 50% 45%, #000 0%, transparent 75%);
+            mask-image: radial-gradient(70% 60% at 50% 45%, #000 0%, transparent 75%);
+  }
+  @keyframes curtain-drift {
+    from { transform: translate3d(-3%, -2%, 0) rotate(0deg); }
+    to   { transform: translate3d(3%, 2%, 0) rotate(8deg); }
+  }
+
   #curtain .card {
-    width: min(460px, 100%);
+    position: relative;
+    width: min(500px, 100%);
     margin: auto;              /* centred, and still scrollable when taller */
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    text-align: center;
-    padding: 26px 22px 20px;
-    background: rgba(28, 31, 37, .92);
-    border: 1px solid var(--edge);
-    border-radius: 16px;
-    box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .95);
+    gap: 18px;
+    padding: 30px 28px 22px;
+    background: var(--c-card);
+    border: 1px solid var(--c-line);
+    border-radius: 22px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset,
+                0 40px 80px -40px rgba(0, 0, 0, .9);
+    animation: curtain-in .42s cubic-bezier(.2, .7, .2, 1) .08s both;
   }
-  body.dragging #curtain .card { border-color: var(--accent); }
-  #curtain h2 {
+  @keyframes curtain-in {
+    from { opacity: 0; transform: translateY(10px) scale(.99); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* What this is. */
+  #curtain .intro { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  #curtain .mark { width: 60px; height: 60px; margin-bottom: 4px; overflow: visible; }
+  /* A shape and its reflection, and two small glints: two rounded
+     diamonds that overlap (the overlap lightens, screen blend) and drift a
+     little apart and back. */
+  #curtain .mark rect { mix-blend-mode: screen; transform-box: fill-box; transform-origin: center; transform: rotate(45deg); }
+  #curtain .mark .m1 { fill: var(--c-sky);   animation: curtain-m1 6s ease-in-out infinite; }
+  #curtain .mark .m2 { fill: var(--c-coral); animation: curtain-m2 6s ease-in-out infinite; }
+  #curtain .mark .m3 { fill: var(--c-gold);  animation: curtain-m3 6s ease-in-out infinite; }
+  #curtain .mark .m4 { fill: var(--c-mint);  animation: curtain-m3 6s ease-in-out 3s infinite; }
+  @keyframes curtain-m1 { 50% { transform: translateX(-2px) rotate(45deg); } }
+  @keyframes curtain-m2 { 50% { transform: translateX(2px) rotate(45deg); } }
+  @keyframes curtain-m3 { 50% { transform: scale(.6) rotate(45deg); opacity: .6; } }
+  #curtain .eyebrow {
     margin: 0;
-    font-size: 16px;
-    letter-spacing: .02em;
-    color: #fff;
-  }
-  #curtain p  { margin: 0; max-width: 42ch; color: var(--dim); }
-  #curtain .filebtn.big {
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 12px 26px;
-    border-radius: 10px;
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #08121f;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--c-faint);
   }
-  #curtain .filebtn.big:hover { color: #000; filter: brightness(1.08); }
-  #curtain .drop {
-    width: 100%;
-    padding: 12px;
-    border: 1px dashed var(--edge);
-    border-radius: 10px;
-    color: var(--dim);
+  #curtain h1 {
+    margin: 0;
+    font-size: clamp(22px, 2.2vw + 12px, 28px);
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: #fff;
+    text-wrap: balance;
   }
-  #curtain details { width: 100%; text-align: left; color: var(--dim); }
-  #curtain summary { cursor: pointer; text-align: center; padding: 4px; }
-  #curtain details[open] summary { margin-bottom: 8px; }
-  #curtain .fine { font-size: 11px; line-height: 1.5; }
-  #rominfo { min-height: 1.5em; font-size: 12px; color: var(--dim); }
+  #curtain p { margin: 0; }
+  #curtain .lead { max-width: 40ch; color: var(--c-soft); text-wrap: pretty; }
+  #curtain .lead b { color: var(--c-text); font-weight: 600; }
+
+  /* An invite (?join=CODE) is said first: it is why they are here. */
+  #curtain .invite {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 207, 107, .09);
+    border: 1px solid rgba(255, 207, 107, .35);
+    text-align: left;
+  }
+  #curtain.is-invite .invite, #curtain.is-invite-bad .invite { display: flex; }
+  #curtain .invite svg { flex: none; width: 26px; height: 26px; color: var(--c-gold); }
+  #curtain .invite strong { display: block; color: #fff; font-weight: 600; }
+  #curtain .invite span { color: var(--c-soft); font-size: 14px; }
+  #curtain .invite code {
+    font: 600 14px/1 var(--mono);
+    letter-spacing: .12em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: rgba(255, 207, 107, .16);
+    color: var(--c-gold);
+  }
+  #curtain.is-invite-bad .invite { background: rgba(255, 143, 126, .08); border-color: rgba(255, 143, 126, .35); }
+  #curtain.is-invite-bad .invite svg { color: var(--c-coral); }
+
+  /* The one thing to do. .target is the whole action area: a dashed drop
+     target on a desktop, and simply the button's surround on a touch
+     screen. .drop is the line under the button. */
+  #curtain .target {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 22px 16px 18px;
+    border: 1.5px dashed rgba(255, 255, 255, .16);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .02);
+    transition: border-color .18s, background-color .18s, transform .18s;
+  }
+  #curtain .filebtn.big {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 52px;
+    min-width: min(100%, 260px);
+    padding: 14px 28px;
+    font: 600 17px/1.2 var(--sans);
+    letter-spacing: .005em;
+    color: #06111f;
+    background: linear-gradient(180deg, #8cc4ff, var(--c-sky));
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .45) inset,
+                0 10px 24px -10px rgba(111, 178, 255, .75);
+    transition: transform .12s, box-shadow .12s, filter .12s;
+  }
+  #curtain .filebtn.big svg { width: 20px; height: 20px; flex: none; }
+  #curtain .filebtn.big:hover { color: #06111f; filter: brightness(1.06); transform: translateY(-1px); }
+  #curtain .filebtn.big:active { transform: translateY(1px); background: var(--c-sky); }
+  #curtain .filebtn.big:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+  }
+  #curtain .hint { font-size: 14px; color: var(--c-faint); text-align: center; }
+  #curtain .hint .on-touch { display: none; }
+  #curtain .hint kbd {
+    font: 13px/1 var(--mono);
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--c-line);
+    background: rgba(255, 255, 255, .05);
+    color: var(--c-soft);
+  }
+  /* No drag and drop worth mentioning on a touch screen. */
+  @media (hover: none) and (pointer: coarse) {
+    #curtain .target { border-color: transparent; background: none; padding: 4px 0 0; }
+    #curtain .hint .on-desk { display: none; }
+    #curtain .hint .on-touch { display: inline; }
+  }
+
+  /* Dragging a file over the page: the card is the target. The page-wide
+     dashed frame (body.dragging::after, below) is for a running game. */
+  body.curtain-up.dragging::after { display: none; }
+  #curtain.is-drag .target {
+    border-color: var(--c-sky);
+    background: rgba(111, 178, 255, .10);
+    transform: scale(1.015);
+  }
+  #curtain .target .when-drag { display: none; font-weight: 600; color: #fff; font-size: 17px; }
+  #curtain.is-drag .target .when-drag { display: block; }
+  #curtain.is-drag .target .when-idle { display: none; }
+  #curtain .target .when-drag svg { display: block; width: 34px; height: 34px; margin: 0 auto 6px; color: var(--c-sky); }
+
+  /* Reading the file and starting the game. */
+  #curtain .busy { display: none; flex-direction: column; align-items: center; gap: 12px; padding: 6px 0; }
+  #curtain.is-reading .busy { display: flex; }
+  #curtain.is-reading .when-idle, #curtain.is-reading .when-drag { display: none !important; }
+  #curtain .busy strong { font-weight: 600; color: #fff; }
+  #curtain .bar {
+    position: relative;
+    width: min(260px, 100%);
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, .08);
+  }
+  #curtain .bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--c-sky), var(--c-mint));
+    animation: curtain-bar 1.2s ease-in-out infinite;
+  }
+  @keyframes curtain-bar {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(250%); }
+  }
+
+  /* What the loader had to say: progress, or a file that will not do. */
+  #curtain .status { display: none; gap: 10px; align-items: flex-start; text-align: left;
+                     padding: 12px 14px; border-radius: 12px; font-size: 14px;
+                     background: rgba(255, 255, 255, .04); border: 1px solid var(--c-line); color: var(--c-soft); }
+  #curtain .status.show { display: flex; }
+  #curtain .status svg { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+  #curtain .status strong { display: block; color: #fff; font-weight: 600; }
+  #curtain .status.err { background: rgba(255, 123, 114, .08); border-color: rgba(255, 123, 114, .45); }
+  #curtain .status.err svg { color: var(--err); }
+  #curtain .status.warn svg { color: var(--warn); }
+  #curtain .status.ok svg { color: var(--c-mint); }
+  #rominfo { margin: 0; min-height: 1.5em; font-size: 13px; color: var(--c-faint); text-align: center; }
   #rominfo:empty { display: none; }
+
+  /* The reassurance: three short lines, not a paragraph. */
+  #curtain .facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 14px; color: var(--c-soft); }
+  #curtain .facts li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+  #curtain .facts svg { width: 18px; height: 18px; margin-top: 2px; color: var(--c-mint); }
+  #curtain .facts b { color: var(--c-text); font-weight: 600; }
+  #curtain .facts .menu-path { white-space: nowrap; font-size: 13px; color: var(--c-text); font-family: var(--mono); }
+  #curtain .facts .when-nostore { display: none; }
+  #curtain.no-store .facts .when-store { display: none; }
+  #curtain.no-store .facts .when-nostore { display: grid; }
+  #curtain.no-store .facts .when-nostore svg { color: var(--warn); }
+
+  /* Details, behind two quiet disclosures. */
+  #curtain .more { display: grid; gap: 4px; border-top: 1px solid var(--c-line); padding-top: 10px; }
+  #curtain details { color: var(--c-soft); font-size: 14px; }
+  #curtain summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 4px;
+    border-radius: 8px;
+    color: var(--c-soft);
+  }
+  #curtain summary::-webkit-details-marker { display: none; }
+  #curtain summary::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin: 0 4px 0 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform .15s;
+  }
+  #curtain details[open] summary::before { transform: rotate(45deg); }
+  #curtain summary:hover { color: #fff; }
+  #curtain summary:focus-visible { outline: 2px solid var(--c-sky); outline-offset: 0; }
+  #curtain details > :not(summary) { margin: 4px 4px 12px 25px; }
+  #curtain .urlbox { display: flex; gap: 8px; }
+  #curtain .urlbox button { font: 600 14px/1.2 var(--sans); padding: 8px 16px; border-radius: 9px; }
+  #curtain #romurl { font: 14px/1.3 var(--sans); padding: 9px 11px; border-radius: 9px; }
+  #curtain .fine { font-size: 13px; line-height: 1.55; color: var(--c-faint); }
+  #curtain .fine b { color: var(--c-soft); font-weight: 600; }
+
+  /* Simple display: said quietly, at the foot. */
+  #curtain .glnote { display: none; font-size: 13px; color: var(--c-faint); text-align: center; }
+  #curtain.no-gl .glnote { display: block; }
+
+  /* Wide enough: the field gets a little more room to breathe. */
+  @media (min-width: 1200px) and (min-height: 760px) {
+    #curtain .card { width: 540px; padding: 38px 36px 26px; gap: 20px; }
+    #curtain .mark { width: 68px; height: 68px; }
+  }
+
+  /* A phone on its side: two columns, so the button is on the first
+     screen rather than below the fold. */
+  @media (orientation: landscape) and (max-height: 520px) {
+    #curtain { padding-top: calc(12px + var(--safe-t)); padding-bottom: calc(12px + var(--safe-b)); }
+    #curtain .card {
+      width: min(780px, 100%);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-areas:
+        "intro invite"
+        "intro action"
+        "facts action"
+        "facts more"
+        "facts glnote";
+      align-content: start;
+      column-gap: 28px;
+      row-gap: 12px;
+      padding: 20px 24px 16px;
+    }
+    #curtain .intro  { grid-area: intro; align-items: flex-start; text-align: left; gap: 6px; }
+    #curtain .facts  { grid-area: facts; align-self: start; }
+    #curtain .invite { grid-area: invite; }
+    #curtain .action { grid-area: action; }
+    #curtain .more   { grid-area: more; }
+    #curtain .glnote { grid-area: glnote; }
+    #curtain .mark { width: 40px; height: 40px; margin: 0 0 2px; }
+    #curtain h1 { font-size: 22px; }
+  }
+
+  #curtain .action { display: flex; flex-direction: column; gap: 12px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #curtain .field::before, #curtain .mark rect, #curtain .card { animation: none; }
+    #curtain .bar::after { animation: none; width: 100%; opacity: .6; }
+    #curtain.is-drag .target { transform: none; }
+  }
+
+  /* While the first screen is up, the loader's messages are shown in the
+     card (above), not in a toast under it; and an invite is said in the
+     card, not in the banner web/online.js lays over the game. */
+  body.curtain-up #toast { display: none; }
+  body.curtain-up #lnbanner { display: none !important; }
 
   /*====================================================================
     Buttons and fields
@@ -954,37 +1260,306 @@
 
 <div id="screen-wrap">
   <canvas id="screen" width="240" height="160"></canvas>
-  <div id="curtain">
+  <!-- The first screen. Its states are classes the script just below sets
+       (see the CSS section "The first screen"); the big button stays a
+       label for the romfile input, because that is what opens the picker on
+       every phone. (No line here may start with a hash sign: emcc reads
+       the shell through its preprocessor.) -->
+  <div id="curtain" role="region" aria-labelledby="curtaintitle">
+    <div class="field" aria-hidden="true"></div>
     <div class="card">
-      <h2>Kirby &amp; The Amazing Mirror</h2>
-      <p>
-        This port ships no game data. Load your own legally obtained&nbsp;<b>Kirby
-        &amp; The Amazing Mirror</b>&nbsp;(GBA) ROM to play. It is read here
-        in your browser and never uploaded anywhere.
-      </p>
-      <label class="filebtn big" for="romfile">Load ROM…</label>
-      <div class="drop">…or drop the&nbsp;<code>.gba</code>&nbsp;file anywhere on this page</div>
-      <p id="rominfo"></p>
-      <details>
-        <summary>Load from a link instead</summary>
-        <span class="urlbox">
-          <input id="romurl" type="url" spellcheck="false" autocomplete="off"
-                 placeholder="direct link to a .gba you have the right to use">
-          <button id="romurlgo" type="button">Load</button>
-        </span>
-        <p class="fine">
-          Your browser downloads it straight from that address — it is not
-          uploaded to, or routed through, this page.
+      <div class="invite" id="curtaininvite">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/>
+          <circle cx="17" cy="9" r="2.6"/><path d="M15.8 14.2c2.4-.3 4.3 1.2 4.7 4.3"/>
+        </svg>
+        <div>
+          <strong id="curtaininvitehead">You've been invited to a game</strong>
+          <span id="curtaininvitetext">Add your ROM to join.</span>
+        </div>
+      </div>
+
+      <div class="intro">
+        <svg class="mark" viewBox="-30 -30 60 60" aria-hidden="true">
+          <rect class="m1" x="-22" y="-13" width="26" height="26" rx="5"/>
+          <rect class="m2" x="-4"  y="-13" width="26" height="26" rx="5"/>
+          <rect class="m3" x="15"  y="-25" width="8"  height="8"  rx="2"/>
+          <rect class="m4" x="-24" y="16"  width="6"  height="6"  rx="1.5"/>
+        </svg>
+        <p class="eyebrow">Native port for the web</p>
+        <h1 id="curtaintitle">Kirby &amp; The Amazing Mirror</h1>
+        <p class="lead">
+          This port ships no game data. To play, choose your own legally
+          obtained&nbsp;<b>GBA ROM</b>&nbsp;of the game.
         </p>
-      </details>
-      <p class="fine">
-        You only do this once: the file is kept in this browser's own storage
-        (IndexedDB), on this device. The game's own menu, SETTINGS&nbsp;&gt;
-        GAME, has&nbsp;<b>FORGET ROM</b>&nbsp;to erase it (and&nbsp;<b>DELETE
-        SAVE</b>&nbsp;for your save).
-      </p>
+      </div>
+
+      <div class="action" aria-live="polite">
+        <div class="target">
+          <div class="when-idle">
+            <label class="filebtn big" for="romfile" id="rompick" role="button" tabindex="0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 17v-6"/><path d="M9.5 13.5 12 11l2.5 2.5"/>
+              </svg>
+              <span id="rompicktext">Choose your ROM file</span>
+            </label>
+          </div>
+          <div class="when-idle hint drop">
+            <span class="on-desk">or drop the&nbsp;<kbd>.gba</kbd>&nbsp;file anywhere on this page</span>
+            <span class="on-touch">It's the&nbsp;<kbd>.gba</kbd>&nbsp;file, often in your Downloads</span>
+          </div>
+          <div class="when-drag" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>
+            </svg>
+            Drop it to start
+          </div>
+          <div class="busy">
+            <strong id="curtainbusy">Opening your file…</strong>
+            <div class="bar" aria-hidden="true"></div>
+          </div>
+        </div>
+        <div class="status" id="curtainstatus">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><path d="M12 16.5v.01"/>
+          </svg>
+          <div><strong id="curtainstatushead"></strong><span id="curtainstatustext"></span></div>
+        </div>
+        <p id="rominfo"></p>
+      </div>
+
+      <ul class="facts">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>
+          </svg>
+          <span><b>It stays on your device.</b>&nbsp;The file is read here in your browser and never uploaded anywhere.</span>
+        </li>
+        <li class="when-store">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4.5h-4.5"/>
+          </svg>
+          <span><b>You only do this once.</b>&nbsp;This browser remembers the file for next time.</span>
+        </li>
+        <li class="when-nostore">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5"/><path d="M12 17.5v.01"/>
+          </svg>
+          <span><b>This browser won't keep it.</b>&nbsp;Storage is blocked here (a private window, perhaps), so you will choose the file again next visit.</span>
+        </li>
+        <li class="when-store">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/>
+          </svg>
+          <span><b>Forget it any time</b>&nbsp;in the game's menu:&nbsp;<span class="menu-path">SETTINGS&nbsp;&gt; GAME&nbsp;&gt; FORGET&nbsp;ROM</span></span>
+        </li>
+      </ul>
+
+      <div class="more">
+        <details>
+          <summary>More about your file</summary>
+          <p class="fine">
+            The file is kept in this browser's own storage (IndexedDB), on this
+            device only, so the game starts by itself next time. In the game's
+            menu, SETTINGS&nbsp;&gt; GAME has&nbsp;<b>FORGET ROM</b>&nbsp;to erase it,
+            and&nbsp;<b>DELETE SAVE</b>&nbsp;for your save.
+          </p>
+        </details>
+        <details>
+          <summary>Load from a link instead</summary>
+          <span class="urlbox">
+            <input id="romurl" type="url" spellcheck="false" autocomplete="off"
+                   aria-label="Direct link to the ROM file"
+                   placeholder="direct link to a .gba you have the right to use">
+            <button id="romurlgo" type="button">Load</button>
+          </span>
+          <p class="fine">
+            Your browser downloads it straight from that address — it is not
+            uploaded to, or routed through, this page.
+          </p>
+        </details>
+      </div>
+
+      <p class="glnote">This browser has no WebGL2, so the game uses a simpler display. It still plays.</p>
     </div>
   </div>
+  <script>
+  //====================================================================
+  // The first screen's states. Presentation only: this watches what the
+  // ROM loader below does (the picker, the drop, its toast and log lines,
+  // #rominfo) and sets classes on #curtain. It decides nothing, checks
+  // nothing and stores nothing; the loader works the same without it.
+  //====================================================================
+  (function () {
+    var curtain = document.getElementById('curtain');
+    if (!curtain) return;
+    var body     = document.body;
+    var statusEl = document.getElementById('curtainstatus');
+    var headEl   = document.getElementById('curtainstatushead');
+    var textEl   = document.getElementById('curtainstatustext');
+    var busyEl   = document.getElementById('curtainbusy');
+    var infoEl   = document.getElementById('rominfo');
+    var pick     = document.getElementById('rompick');
+    var input    = document.getElementById('romfile');
+
+    function up() { return !curtain.classList.contains('hidden'); }
+    function state(name, on) { curtain.classList.toggle(name, !!on); }
+    function syncUp() { body.classList.toggle('curtain-up', up()); }
+
+    function showStatus(kind, head, text) {
+      statusEl.className = 'status show ' + kind;
+      headEl.textContent = head || '';
+      textEl.textContent = text || '';
+    }
+    function clearStatus() { statusEl.className = 'status'; }
+
+    // The picker, by keyboard: the label is focusable and acts as a button.
+    // The two file inputs themselves are invisible (they are only ever
+    // opened through a label or .click()), so Tab skips them rather than
+    // landing somewhere that shows no focus at all.
+    input.tabIndex = -1;
+    var saveInput = document.getElementById('savefile');
+    if (saveInput) saveInput.tabIndex = -1;
+    pick.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        input.click();
+      }
+    });
+    // Enter and Space are game buttons, and the game's key handler on the
+    // window cancels them -- which would also cancel what they do on the
+    // card's own controls (open a disclosure, press Load). There is no game
+    // under the card, so they stop here.
+    function keepKey(e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') e.stopPropagation();
+    }
+    curtain.addEventListener('keydown', keepKey);
+    curtain.addEventListener('keyup', keepKey);
+
+    // Reading: a file was chosen or dropped. The loader turns archives and
+    // saves away itself (with a message, mirrored below); anything else it
+    // reads and starts.
+    function chosen(file) {
+      if (!file || !up()) return;
+      if (/\.(zip|7z|rar|sav|srm)$/i.test(file.name)) return;
+      // Only once the loader is listening (it publishes romApi then).
+      if (!(window.Module && Module._shell && Module._shell.romApi)) return;
+      clearStatus();
+      busyEl.textContent = 'Opening ' + file.name + '…';
+      state('is-reading', true);
+      setTimeout(function () {
+        if (curtain.classList.contains('is-reading') && up())
+          busyEl.textContent = 'Starting the game…';
+      }, 600);
+    }
+    input.addEventListener('change', function (e) { chosen(e.target.files && e.target.files[0]); });
+
+    var depth = 0;
+    window.addEventListener('dragenter', function () { if (++depth === 1) state('is-drag', true); });
+    window.addEventListener('dragleave', function () { if (--depth <= 0) { depth = 0; state('is-drag', false); } });
+    window.addEventListener('drop', function (e) {
+      depth = 0;
+      state('is-drag', false);
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      chosen(f);
+    });
+
+    // An invite link (?join=CODE): web/online.js joins once the game is up;
+    // the card only says so, and the address keeps the code meanwhile.
+    var join = new URLSearchParams(location.search).get('join');
+    function invite(code) {
+      state('is-invite', true);
+      var s = document.getElementById('curtaininvitetext');
+      s.textContent = '';
+      s.appendChild(document.createTextNode('Add your ROM to join game\u00a0'));
+      var c = document.createElement('code'); c.textContent = code; s.appendChild(c);
+      s.appendChild(document.createTextNode('. You\'ll go straight in.'));
+      document.getElementById('rompicktext').textContent = 'Choose your ROM to join';
+    }
+    if (join) invite(join.toUpperCase());
+
+    // The rest needs the page below this point: the toast, the log, the
+    // invite-code rules and the WebGL2 probe.
+    document.addEventListener('DOMContentLoaded', function () {
+    var toastEl = document.getElementById('toast');
+    var logEl   = document.getElementById('log');
+
+    // From here on the loader's messages are shown in the card (the toast
+    // is hidden under it while body.curtain-up).
+    syncUp();
+    new MutationObserver(syncUp).observe(curtain, { attributes: true, attributeFilter: ['class'] });
+
+    if (toastEl) new MutationObserver(function () {
+      if (!up() || !/\bshow\b/.test(toastEl.className)) return;
+      var t = toastEl.textContent || '';
+      if (/\berr\b/.test(toastEl.className)) {
+        state('is-reading', false);
+        showStatus('err', 'That file won\'t work', t);
+      } else if (/\bwarn\b/.test(toastEl.className)) {
+        showStatus('warn', '', t);
+      } else {
+        showStatus('ok', '', t);
+      }
+    }).observe(toastEl, { attributes: true, attributeFilter: ['class'], childList: true });
+
+    // Downloads (Load from a link) report progress in #rominfo.
+    new MutationObserver(function () {
+      var t = infoEl.textContent || '';
+      if (/^downloading/.test(t) && up()) {
+        clearStatus();
+        busyEl.textContent = 'Downloading… ' + t.replace(/^downloading…\s*/, '');
+        state('is-reading', true);
+      } else if (/^Download failed/.test(t)) {
+        state('is-reading', false);
+      }
+    }).observe(infoEl, { childList: true, characterData: true, subtree: true });
+
+    // The log says whether storage works and whether a start failed.
+    function logLine(n) {
+      var t = n.textContent || '';
+      if (/browser storage (is unavailable|did not answer)|could not save the ROM/.test(t))
+        state('no-store', true);
+      if (n.className === 'err' && curtain.classList.contains('is-reading') && /^fatal/.test(t)) {
+        state('is-reading', false);
+        showStatus('err', 'The game could not start', t);
+      }
+    }
+    if (logEl) {
+      for (var k = 0; k < logEl.children.length; k++) logLine(logEl.children[k]);
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++)
+          for (var j = 0; j < muts[i].addedNodes.length; j++) logLine(muts[i].addedNodes[j]);
+      }).observe(logEl, { childList: true });
+    }
+
+    // The same rules web/online.js applies to the code.
+    if (join && window.KatamNet && KatamNet.normalizeCode) {
+      var code = KatamNet.normalizeCode(join);
+      if (code) invite(code);
+      else {
+        state('is-invite', false);
+        state('is-invite-bad', true);
+        document.getElementById('rompicktext').textContent = 'Choose your ROM file';
+        document.getElementById('curtaininvitehead').textContent = 'This invite link doesn\'t work';
+        document.getElementById('curtaininvitetext').textContent =
+          '"' + join + '" is not a game code (4 letters, no vowels). Ask for a new link, or just play.';
+      }
+    }
+
+    // Simple display (no WebGL2): the loader's probe has already run.
+    if (!body.classList.contains('gl') && !/[?&]renderer=2d(&|$)/.test(location.search))
+      state('no-gl', true);
+    });
+  })();
+  </script>
 
   <div id="diag" aria-hidden="true"></div>
 
