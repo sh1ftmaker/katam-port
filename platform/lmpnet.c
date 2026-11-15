@@ -47,8 +47,21 @@
  * platform/inputlog.c -> PortLmpLatch), so player 2's pad reaches the game
  * by exactly the path a second local pad does.
  *
+ * --- more than two ------------------------------------------------------------
+ *
+ * Up to four devices in a star (one host, guests 1..3), each with up to four
+ * local seats; the Kirby slots are mapped onto (device, seat) by the host
+ * (port/lmpnet.h, "slots").  The sealed record carries every slot's keys;
+ * each guest predicts every slot it does not play; the host fills a guest
+ * seat's slot from that guest's inputs.  Who has which slot (sOwn) changes
+ * only through sealed PORT_LN_EV_HUMAN events, so every device switches on
+ * the same frame; it is held in keyframes and images and hashed with the
+ * host-state region, so a rewind restores it and a device that disagrees is
+ * repaired.  The host's wishes (sWant) reach the timeline through Reconcile,
+ * at the latch.
+ *
  * Everything here is host memory: session machinery, not simulation state.
- * The simulation state it moves is the snapshot. */
+ * The simulation state it moves is the snapshot (and the slot table). */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,7 +117,11 @@ int gPortLnOn;
     X(soundsLive) X(soundsJudged) X(soundsRefire) X(soundsSpurious) X(soundsMissed) X(soundOverflow) \
     X(sramWrites) X(sramWritesUnsealed) X(sramWritesReplay) \
     X(settingsApplied) X(settingsUnsealed) X(settingsReplay) X(settingsDeviceApplied) X(settingsOtherEdits) \
-    X(audioBlocksMuted) X(dumpFrame) X(latches) X(liveFrames)
+    X(audioBlocksMuted) X(dumpFrame) X(latches) X(liveFrames) \
+    X(self) X(own0) X(own1) X(own2) X(own3) X(managed) \
+    X(seatGrants) X(seatReleases) X(seatFull) X(seatAsks) X(reconciles) X(slotEvents) \
+    X(d1KeyOnTime) X(d1KeyMissing) X(d2KeyOnTime) X(d2KeyMissing) X(d3KeyOnTime) X(d3KeyMissing) \
+    X(mispredOther) X(ownSlots)
 
 #define X_FIELD(n) u32 n;
 struct LnTelemetry { LN_TELEMETRY(X_FIELD) };
@@ -131,12 +148,19 @@ enum {
 
 #define SND_MAX 4
 
+/* Per frame: sk = the sealed keys of slots 0..3, uk = the keys this device
+ * simulated with; lk = this device's own seats' keys (lm: which arrived);
+ * host: rk = each guest device's seats' keys (rm: bit (dev-1)*4+seat);
+ * own = slot ownership as latched (PORT_LN_OWN codes, 0 = CPU). */
 struct Ent {
     u32 frame;
-    u16 sk[2], uk[2];
-    u16 local, remote;
+    u16 sk[4], uk[4];
+    u16 lk[4];
+    u16 rk[PORT_LN_MAX_DEV - 1][4];
+    u16 rm;
+    u8  lm;
+    u8  own[4];
     u16 flags;
-    s16 margin;             /* host: guest key's arrival, frames before the latch */
     u32 evSig, usedEvSig;
     u32 h[2], rh[2];
     u32 heard[SND_MAX], last[SND_MAX];
@@ -239,7 +263,19 @@ static u64 sCatchT0;
 static u32 sCatchFrom;
 static u32 sFloor;                /* guest: nothing before this is ours    */
 static u32 sSealedUpTo, sVerify;
-static u16 sLastLocal, sLastSealedK0, sLastSealedK1;
+static u16 sLastLocal[4], sLastSealedK[4];
+static u8  sLastSealedOwn[4];
+/* Slots (port/lmpnet.h): sOwn is applied ownership -- simulation-side session
+ * state, replayed, in keyframes and images, hashed.  The rest is the host's:
+ * sWant what it decided, sMem the slot each (device, seat) last had, sRecon
+ * the next frame a slot may be reconciled again.  sAsk: a guest's own seat
+ * requests waiting for the page. */
+static u8  sOwn[4], sWant[4];
+static int sManaged, sSelf;
+static s8  sMem[PORT_LN_MAX_DEV][4];
+static u32 sRecon[4];
+static int sAsk[8], sAskN;
+static u8  sAskSeats;
 static int sForceKf;
 static int sSetInit, sSetApplied = -1;
 
@@ -307,11 +343,16 @@ static void HashState(u32 f)
     HashWords64(sHostBuf, n, RG_PPU, g[RG_PPU]);
     HashWords64((const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE, RG_SRAM, g[RG_SRAM]);
     {
+        /* host state the simulation reads back, and the slot ownership */
         static u8 *x;
         u32 xn = PortLnExtrasSize();
 
-        if (x == NULL) x = (u8 *)malloc(xn ? xn : 4);
-        if (x != NULL) { PortLnExtrasSave(x); HashWords64(x, xn, RG_HOST, g[RG_HOST]); }
+        if (x == NULL) x = (u8 *)malloc(xn + 4);
+        if (x != NULL) {
+            PortLnExtrasSave(x);
+            memcpy(x + xn, sOwn, 4);
+            HashWords64(x, xn + 4, RG_HOST, g[RG_HOST]);
+        }
     }
     for (i = 0; i < NRGN; i++)
         h = (h ^ (((u64)g[i][1] << 32) | g[i][0])) * 0x9E3779B97F4A7C15ull + i;
@@ -331,6 +372,8 @@ static int KfSram(void) { return !(sFlags & PORT_LN_F_NO_SRAM_KF); }
 
 static u32 KfSramOff(void) { return sSnapBytes; }
 static u32 KfExtraOff(void) { return sSnapBytes + (KfSram() ? GBA_SRAM_SIZE : 0); }
+static u32 KfOwnOff(void) { return KfExtraOff() + PortLnExtrasSize(); }
+#define KF_OWN_BYTES 4u
 
 static void SaveState(u8 *d)
 {
@@ -338,6 +381,7 @@ static void SaveState(u8 *d)
     if (KfSram())
         memcpy(d + KfSramOff(), (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
     PortLnExtrasSave(d + KfExtraOff());
+    memcpy(d + KfOwnOff(), sOwn, KF_OWN_BYTES);
 }
 
 static void LoadState(const u8 *s, int sram)
@@ -346,6 +390,7 @@ static void LoadState(const u8 *s, int sram)
     if (sram)
         memcpy((void *)(uintptr_t)GBA_SRAM_BASE, s + KfSramOff(), GBA_SRAM_SIZE);
     PortLnExtrasLoad(s + KfExtraOff(), PortLnExtrasSize());
+    memcpy(sOwn, s + KfOwnOff(), KF_OWN_BYTES);
 }
 
 static void KfSave(u32 f)
@@ -486,13 +531,28 @@ int PortLnFindEnemy(s32 *out)
     return 0;
 }
 
+/* The correction records' "own" Kirby: this device's first slot (a guest
+ * with none yet, or the host: slot 1). */
+static int sPendOwn = 1;
+static int OwnSlot(void)
+{
+    int s;
+
+    if (sRole == PORT_LN_GUEST)
+        for (s = 1; s < 4; s++)
+            if (sOwn[s] && (sOwn[s] - 1) / 4 == sSelf)
+                return s;
+    return 1;
+}
+
 static void PendOpen(int kind, u32 at, u32 target, u32 kf, int cause)
 {
     s32 a[6], b[6];
 
     memset(sPend, 0, sizeof sPend);
+    sPendOwn = OwnSlot();
     PortLnKirby(0, a);
-    PortLnKirby(1, b);
+    PortLnKirby(sPendOwn, b);
     sPend[0] = kind; sPend[1] = (s32)at; sPend[2] = (s32)target; sPend[3] = (s32)kf;
     sPend[4] = (s32)(at - target); sPend[5] = (s32)(at > kf ? at - kf : 0);
     sPend[7] = a[0]; sPend[8] = a[1]; sPend[9] = b[0]; sPend[10] = b[1];
@@ -509,7 +569,7 @@ static void PendClose(u64 us)
     if (!sPendOpen)
         return;
     PortLnKirby(0, a);
-    PortLnKirby(1, b);
+    PortLnKirby(sPendOwn, b);
     sPend[6] = (s32)us;
     sPend[13] = (a[2] == sPend[11] ? 1 : 0) | (b[2] == sPend[12] ? 2 : 0);
     sPend[7] = a[0] - sPend[7]; sPend[8] = a[1] - sPend[8];
@@ -540,6 +600,9 @@ void PortLnStop(void)
     sRole = 0;
     sCatch = 0;
     sNumEv = 0;
+    sAskN = 0;
+    sAskSeats = 0;
+    PortLmpSetSessionKeys(NULL);
     PortLnDeviceEnd();
 }
 
@@ -559,7 +622,7 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     sKfEvery = kfEvery;
     sKfCount = kfCount;
     sSnapBytes = PortRbSnapshotBytes();
-    sKfBytes = sSnapBytes + (KfSram() ? GBA_SRAM_SIZE : 0) + PortLnExtrasSize();
+    sKfBytes = sSnapBytes + (KfSram() ? GBA_SRAM_SIZE : 0) + PortLnExtrasSize() + KF_OWN_BYTES;
     sTl = (struct Ent *)calloc(TLN, sizeof *sTl);
     sRgn = (u32 (*)[NRGN][2])calloc(TLN, sizeof *sRgn);
     if (sTl == NULL || sRgn == NULL) {
@@ -602,7 +665,21 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     sForce = 0;
     sTop = NONE;
     sCurLatch = NONE;
-    sLastLocal = sLastSealedK0 = sLastSealedK1 = 0;
+    memset(sLastLocal, 0, sizeof sLastLocal);
+    memset(sLastSealedK, 0, sizeof sLastSealedK);
+    memset(sLastSealedOwn, 0, sizeof sLastSealedOwn);
+    /* Slot 0 the host's seat 0; slot 1 device 1's seat 0 until the host
+     * manages the slots (port/lmpnet.h). */
+    memset(sOwn, 0, sizeof sOwn);
+    sOwn[0] = PORT_LN_OWN(0, 0);
+    sOwn[1] = PORT_LN_OWN(1, 0);
+    memcpy(sWant, sOwn, sizeof sWant);
+    sManaged = 0;
+    sSelf = role == PORT_LN_HOST ? 0 : 1;
+    memset(sMem, -1, sizeof sMem);
+    memset(sRecon, 0, sizeof sRecon);
+    sAskN = 0;
+    sAskSeats = 0;
     sForceKf = 1;
     sSetInit = 0;
     sSetApplied = -1;
@@ -624,68 +701,273 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
 }
 
 /* --- inputs ------------------------------------------------------------------- */
-void PortLnLocalInput(u32 f, u16 keys)
+void PortLnLocalInputSeat(u32 f, int seat, u16 keys)
 {
     struct Ent *e;
 
-    if (!gPortLnOn)
+    if (!gPortLnOn || seat < 0 || seat > 3)
         return;
     e = Claim(f);
-    e->local = keys & 0x03FF;
-    e->flags |= E_LOCAL;
-    T.localFrames++;
+    e->lk[seat] = keys & 0x03FF;
+    if (seat == 0 && !(e->lm & 1))
+        T.localFrames++;
+    e->lm |= (u8)(1u << seat);
 }
 
-void PortLnRemoteInput(u32 f, u16 keys)
+void PortLnLocalInput(u32 f, u16 keys) { PortLnLocalInputSeat(f, 0, keys); }
+
+void PortLnRemoteInputSeat(u32 f, int dev, int seat, u16 keys)
 {
     struct Ent *e;
     u32 next = PortFrameNumber();
+    u16 bit;
+    int s;
 
-    if (!gPortLnOn || sRole != PORT_LN_HOST)
+    if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 1 || dev >= PORT_LN_MAX_DEV || seat < 0 || seat > 3)
         return;
     keys &= 0x03FF;
     if (f + TLN / 2 < next)
         return;                                  /* ancient: ignore      */
     e = Claim(f);
-    if (e->flags & E_REMOTE)
+    bit = (u16)(1u << ((dev - 1) * 4 + seat));
+    if (e->rm & bit)
         return;                                  /* duplicate            */
-    e->remote = keys;
-    e->flags |= E_REMOTE;
-    e->margin = (s16)((s32)f - (s32)next);
+    e->rk[dev - 1][seat] = keys;
+    e->rm |= bit;
     if (f < next && (e->flags & E_SEALED)) {
         T.hostKeyLate++;
-        if (e->sk[1] != keys) {
-            T.hostKeyLateDiffer++;
-            e->flags |= E_OVR;
-        }
+        for (s = 0; s < 4; s++)
+            if (e->own[s] == PORT_LN_OWN(dev, seat) && e->sk[s] != keys) {
+                T.hostKeyLateDiffer++;
+                e->flags |= E_OVR;
+            }
     }
 }
 
-/* What the host knows of the guest's pad for frame f: the key for f, else
- * the newest one it has for an earlier frame, else the last it sealed. */
-static u16 HostGuestKey(u32 f, int *ontime)
+void PortLnRemoteInput(u32 f, u16 keys) { PortLnRemoteInputSeat(f, 1, 0, keys); }
+
+/* What the host knows of a guest seat's pad for frame f: the key for f, else
+ * the newest one it has for an earlier frame, else what it last sealed for
+ * that slot if the same seat had it. */
+static u16 HostGuestKey(u32 f, int slot, int dev, int seat, int *ontime)
 {
+    u16 bit = (u16)(1u << ((dev - 1) * 4 + seat));
     u32 g;
 
     *ontime = 0;
-    if (Have(f) && (E(f)->flags & E_REMOTE)) {
+    if (Have(f) && (E(f)->rm & bit)) {
         *ontime = 1;
-        return E(f)->remote;
+        return E(f)->rk[dev - 1][seat];
     }
     for (g = f; g-- > 0 && g + 120 > f;)
-        if (Have(g) && (E(g)->flags & E_REMOTE))
-            return E(g)->remote;
-    return sLastSealedK1;
+        if (Have(g) && (E(g)->rm & bit))
+            return E(g)->rk[dev - 1][seat];
+    return sLastSealedOwn[slot] == PORT_LN_OWN(dev, seat) ? sLastSealedK[slot] : 0;
 }
 
-static u16 PredictHost(u32 f)
+/* A guest's prediction of a slot it does not play: as last sealed. */
+static u16 PredictSlot(u32 f, int slot)
 {
     u32 g;
 
     for (g = f; g-- > 0 && g + 240 > f;)
         if (Have(g) && (E(g)->flags & E_SEALED))
-            return E(g)->sk[0];
-    return sLastSealedK0;
+            return E(g)->sk[slot];
+    return sLastSealedK[slot];
+}
+
+/* --- slots ------------------------------------------------------------------------ */
+static int OwnDev(u8 o) { return o ? (o - 1) / 4 : -1; }
+static int OwnSeat(u8 o) { return o ? (o - 1) % 4 : -1; }
+
+static void Manage(void)
+{
+    if (sManaged)
+        return;
+    /* From here on the host's table is the truth: slot 1 is nobody's until
+     * someone asks (port/lmpnet.h). */
+    sManaged = 1;
+    memset(sWant, 0, sizeof sWant);
+    sWant[0] = PORT_LN_OWN(0, 0);
+    T.managed = 1;
+}
+
+int PortLnSeatRequest(int dev, int seat, int on)
+{
+    int s, pick = -1;
+    u8 o;
+
+    if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 0 || dev >= PORT_LN_MAX_DEV || seat < 0 || seat > 3)
+        return -1;
+    Manage();
+    o = (u8)PORT_LN_OWN(dev, seat);
+    if (o == PORT_LN_OWN(0, 0))
+        return on ? 0 : -1;                  /* the host's own player is slot 0 */
+    for (s = 1; s < 4; s++)
+        if (sWant[s] == o)
+            pick = s;
+    if (!on) {
+        if (pick < 0)
+            return -1;
+        sWant[pick] = 0;
+        sRecon[pick] = 0;
+        T.seatReleases++;
+        PortLog("[katam-port] lmpnet: slot %d (device %d seat %d) back to the CPU", pick, dev, seat);
+        return pick;
+    }
+    if (pick >= 0)
+        return pick;
+    s = sMem[dev][seat];
+    if (s >= 1 && s < 4 && !sWant[s])
+        pick = s;
+    for (s = 1; s < 4 && pick < 0; s++)
+        if (!sWant[s])
+            pick = s;
+    if (pick < 0) {
+        T.seatFull++;
+        PortLog("[katam-port] lmpnet: device %d seat %d refused -- all four Kirbys are people", dev, seat);
+        return -1;
+    }
+    sWant[pick] = o;
+    sMem[dev][seat] = (s8)pick;
+    sRecon[pick] = 0;
+    T.seatGrants++;
+    PortLog("[katam-port] lmpnet: slot %d to device %d seat %d", pick, dev, seat);
+    return pick;
+}
+
+void PortLnDeviceGone(int dev)
+{
+    int s;
+
+    if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 1 || dev >= PORT_LN_MAX_DEV)
+        return;
+    Manage();
+    for (s = 1; s < 4; s++)
+        if (OwnDev(sWant[s]) == dev) {
+            sWant[s] = 0;
+            sRecon[s] = 0;
+            T.seatReleases++;
+            PortLog("[katam-port] lmpnet: device %d gone; slot %d to the CPU", dev, s);
+        }
+}
+
+int PortLnFreeSlots(void)
+{
+    int s, n = 0;
+
+    if (!gPortLnOn || sRole != PORT_LN_HOST)
+        return 0;
+    for (s = 1; s < 4; s++)
+        n += sManaged ? !sWant[s] : 0;
+    return n;
+}
+
+int PortLnSlotWant(int slot)
+{
+    if (!gPortLnOn || slot < 0 || slot > 3 || !sWant[slot])
+        return -1;
+    return sWant[slot] - 1;
+}
+
+int PortLnSlotOwner(int slot)
+{
+    if (!gPortLnOn || slot < 0 || slot > 3 || !sOwn[slot])
+        return -1;
+    return sOwn[slot] - 1;
+}
+
+int PortLnSeatSlot(int dev, int seat)
+{
+    int s;
+
+    if (!gPortLnOn)
+        return -1;
+    for (s = 0; s < 4; s++)
+        if (sOwn[s] && sOwn[s] == PORT_LN_OWN(dev, seat))
+            return s;
+    return -1;
+}
+
+void PortLnSetSelf(int dev)
+{
+    if (gPortLnOn && sRole == PORT_LN_GUEST && dev >= 1 && dev < PORT_LN_MAX_DEV)
+        sSelf = dev;
+    T.self = (u32)sSelf;
+}
+
+int PortLnSelf(void) { return sSelf; }
+
+int PortLnSelfSeats(void)
+{
+    int s, m = 1;
+
+    for (s = 0; s < 4; s++)
+        if (sOwn[s] && OwnDev(sOwn[s]) == sSelf)
+            m |= 1 << OwnSeat(sOwn[s]);
+    return m | sAskSeats;
+}
+
+int PortLnSelfSlots(void)
+{
+    int s, m = 0;
+
+    if (!gPortLnOn)
+        return 0;
+    for (s = 0; s < 4; s++)
+        if (sOwn[s] && OwnDev(sOwn[s]) == sSelf)
+            m |= 1 << s;
+    return m;
+}
+
+int PortLnSeatAsk(int seat, int on)
+{
+    if (!gPortLnOn || seat < 0 || seat > 3)
+        return 0;
+    T.seatAsks++;
+    if (sRole == PORT_LN_HOST)
+        return PortLnSeatRequest(0, seat, on) >= 0;
+    if (on) sAskSeats |= (u8)(1u << seat); else sAskSeats &= (u8)~(1u << seat);
+    if (sAskN < 8)
+        sAsk[sAskN++] = 1 + seat + 4 * (on != 0);
+    return 1;
+}
+
+int PortLnSeatAskPoll(void)
+{
+    int v, i;
+
+    if (!gPortLnOn || sAskN == 0)
+        return 0;
+    v = sAsk[0];
+    for (i = 1; i < sAskN; i++)
+        sAsk[i - 1] = sAsk[i];
+    sAskN--;
+    return v;
+}
+
+/* host, at the latch of f: seal whatever brings the simulation and the
+ * applied ownership to what the host decided.  Also mends a slot the game
+ * itself changed (a start that made a person of a slot nobody has: HOST
+ * GAME > START is a two-player start). */
+static void Reconcile(u32 f)
+{
+    int s;
+
+    if (!sManaged)
+        return;
+    for (s = 1; s < 4; s++) {
+        int want = sWant[s] != 0;
+
+        if (sWant[s] == sOwn[s] && PortLmpSlotPerson(s) == want)
+            continue;
+        if (f < sRecon[s])
+            continue;
+        sRecon[s] = f + 30;
+        if (sWant[s] != sOwn[s]) T.slotEvents++; else T.reconciles++;
+        EvAdd(f, PORT_LN_EV_HUMAN, s, want, sWant[s], 0);
+        T.events++;
+    }
 }
 
 int PortLnEvent(int type, int a, int b, int c, int d)
@@ -719,6 +1001,8 @@ int PortLnSealedGet(u32 f, u32 *out)
     out[4] = (e->flags & E_HASH) ? e->h[0] : 0;
     out[5] = (e->flags & E_HASH) ? e->h[1] : 0;
     out[6] = (e->flags & E_HASH) ? 1 : 0;
+    out[7] = e->sk[2];
+    out[8] = e->sk[3];
     return 1;
 }
 
@@ -773,10 +1057,11 @@ static void MarkDirty(u32 f, int event)
     }
 }
 
-void PortLnSealed(u32 f, u16 k0, u16 k1, int nev)
+void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
 {
     struct Ent *e;
     u32 next = PortFrameNumber();
+    u16 k[4];
     int i;
 
     if (!gPortLnOn || sRole != PORT_LN_GUEST)
@@ -806,27 +1091,51 @@ void PortLnSealed(u32 f, u16 k0, u16 k1, int nev)
         for (i = 0; i < sEvStageN && i < nev; i++)
             EvAdd(f, sEvStage[i].type, sEvStage[i].a, sEvStage[i].b, sEvStage[i].c, sEvStage[i].d);
     sEvStageFrame = NONE;
-    e->sk[0] = k0 & 0x03FF;
-    e->sk[1] = k1 & 0x03FF;
+    k[0] = k0; k[1] = k1; k[2] = k2; k[3] = k3;
+    for (i = 0; i < 4; i++)
+        e->sk[i] = k[i] & 0x03FF;
     e->flags |= E_SEALED;
     e->evSig = EvSig(f);
-    if ((e->flags & E_LOCAL) && e->local != e->sk[1])
-        T.ownOverridden++;
-    if (f < next && f >= sFloor && (e->flags & E_SIM)) {
-        int keys = e->uk[0] != e->sk[0] || e->uk[1] != e->sk[1];
-        int evs = e->usedEvSig != e->evSig;
+    /* own keys the host overrode (late or lost), by the ownership this
+     * device latched the frame with (or holds now, if not simulated yet) */
+    {
+        const u8 *own = (e->flags & E_SIM) ? e->own : sOwn;
+        int over = 0;
 
-        if (e->uk[0] != e->sk[0]) T.mispredHost++;
-        if (e->uk[1] != e->sk[1]) T.ownOverriddenSim++;
+        for (i = 0; i < 4; i++) {
+            int seat = OwnSeat(own[i]);
+
+            if (own[i] && OwnDev(own[i]) == sSelf && (e->lm & (1u << seat)) && e->lk[seat] != e->sk[i])
+                over = 1;
+        }
+        if (over)
+            T.ownOverridden++;
+    }
+    if (f < next && f >= sFloor && (e->flags & E_SIM)) {
+        int keys = 0, evs = e->usedEvSig != e->evSig, mine = 0, other = 0;
+
+        for (i = 0; i < 4; i++)
+            if (e->uk[i] != e->sk[i]) {
+                keys = 1;
+                if (e->own[i] && OwnDev(e->own[i]) == sSelf) mine = 1;
+                else if (i == 0) other |= 1;
+                else other |= 2;
+            }
+        if (other & 1) T.mispredHost++;
+        if (other & 2) T.mispredOther++;
+        if (mine) T.ownOverriddenSim++;
         if (evs) T.eventsLate++;
         if (keys || evs)
             MarkDirty(f, evs && !keys);
     }
     AdvanceSealed();
     if (sSealedUpTo > 0 && Have(sSealedUpTo - 1))
-        sLastSealedK0 = E(sSealedUpTo - 1)->sk[0];
+        for (i = 0; i < 4; i++)
+            sLastSealedK[i] = E(sSealedUpTo - 1)->sk[i];
     T.sealedUpTo = sSealedUpTo;
 }
+
+void PortLnSealed(u32 f, u16 k0, u16 k1, int nev) { PortLnSealed4(f, k0, k1, 0, 0, nev); }
 
 void PortLnRemoteHash(u32 f, u32 lo, u32 hi)
 {
@@ -1002,6 +1311,13 @@ static void ApplyEvents(u32 f)
             PortLmpSetHumans(v->a);
             break;
         case PORT_LN_EV_HUMAN:
+            /* who plays it first (the keys below follow), then the game */
+            if (v->a >= 1 && v->a <= 3) {
+                if (!v->b)
+                    sOwn[v->a] = 0;
+                else if (v->c > 0 && v->c <= PORT_LN_OWN(PORT_LN_MAX_DEV - 1, 3))
+                    sOwn[v->a] = (u8)v->c;
+            }
             PortLmpSetSlotHuman(v->a, v->b);
             break;
         case PORT_LN_EV_POKE:
@@ -1018,54 +1334,89 @@ int PortLnKeyOverride(u16 *keys)
 {
     u32 f;
     struct Ent *e;
-    u16 k0, k1;
+    u16 k[4];
+    int s;
 
     if (!gPortLnOn)
         return 0;
     f = PortFrameNumber();
     e = Claim(f);
     T.latches++;
+    /* This frame's events first: a slot changing hands takes this frame's
+     * keys from its new owner (as a recording's `human` line does). */
+    if (sRole == PORT_LN_HOST)
+        Reconcile(f);
+    ApplyEvents(f);
+    memcpy(e->own, sOwn, sizeof e->own);
     if (sRole == PORT_LN_HOST) {
-        int ontime;
+        int ontime1 = 0;
 
-        k0 = (e->flags & E_LOCAL) ? e->local : sLastLocal;
-        k1 = HostGuestKey(f, &ontime);
-        e->sk[0] = k0;
-        e->sk[1] = k1;
-        e->flags |= E_SEALED | (ontime ? E_ONTIME : 0);
+        for (s = 0; s < 4; s++) {
+            u8 o = sOwn[s];
+            int dev = OwnDev(o), seat = OwnSeat(o);
+
+            if (!o) {
+                k[s] = 0;
+            } else if (dev == 0) {
+                k[s] = (e->lm & (1u << seat)) ? e->lk[seat] : sLastLocal[seat];
+            } else {
+                int ontime;
+
+                k[s] = HostGuestKey(f, s, dev, seat, &ontime);
+                if (dev == 1 && seat == 0) ontime1 = ontime;
+                if (ontime) { T.hostKeyOnTime++; if (dev == 1) T.d1KeyOnTime++; else if (dev == 2) T.d2KeyOnTime++; else T.d3KeyOnTime++; }
+                else { T.hostKeyMissing++; if (dev == 1) T.d1KeyMissing++; else if (dev == 2) T.d2KeyMissing++; else T.d3KeyMissing++; }
+            }
+            e->sk[s] = k[s];
+            sLastSealedK[s] = k[s];
+            sLastSealedOwn[s] = o;
+        }
+        e->flags |= E_SEALED | (ontime1 ? E_ONTIME : 0);
         e->evSig = EvSig(f);
         T.hostSealed++;
-        if (ontime) T.hostKeyOnTime++; else T.hostKeyMissing++;
-        sLastSealedK0 = k0;
-        sLastSealedK1 = k1;
         sSealedUpTo = f + 1;
         T.sealedUpTo = sSealedUpTo;
+    } else if (e->flags & E_SEALED) {
+        memcpy(k, e->sk, sizeof k);
     } else {
-        if (e->flags & E_SEALED) {
-            k0 = e->sk[0];
-            k1 = e->sk[1];
-        } else {
-            k0 = PredictHost(f);
-            k1 = (e->flags & E_LOCAL) ? e->local : sLastLocal;
-            T.predictedFrames++;
+        for (s = 0; s < 4; s++) {
+            u8 o = sOwn[s];
+            int seat = OwnSeat(o);
+
+            if (!o)
+                k[s] = 0;
+            else if (OwnDev(o) == sSelf)
+                k[s] = (e->lm & (1u << seat)) ? e->lk[seat] : sLastLocal[seat];
+            else
+                k[s] = PredictSlot(f, s);
         }
+        T.predictedFrames++;
     }
-    if (e->flags & E_LOCAL)
-        sLastLocal = e->local;
+    for (s = 0; s < 4; s++)
+        if (e->lm & (1u << s))
+            sLastLocal[s] = e->lk[s];
     if (sCatch)
         e->flags |= E_REPLAYED;
     else
         T.liveFrames++;
-    e->uk[0] = k0;
-    e->uk[1] = k1;
+    memcpy(e->uk, k, sizeof k);
     e->usedEvSig = EvSig(f);
     e->flags |= E_SIM;
     e->nLast = 0;
     sCurLatch = f;
     sCurLatchReplay = sCatch;
-    *keys = k0;
-    PortLmpSetHostKeys(1, k1);
-    ApplyEvents(f);
+    *keys = k[0];
+    PortLmpSetSessionKeys(k);
+    {
+        int n = 0;
+
+        for (s = 0; s < 4; s++) {
+            (&T.own0)[s] = sOwn[s] ? sOwn[s] - 1u : 0xFFFFFFFFu;
+            n += sOwn[s] != 0;
+        }
+        T.ownSlots = (u32)n;
+        T.self = (u32)sSelf;
+    }
     T.frame = f;
     return 1;
 }
@@ -1089,7 +1440,7 @@ static void SaveImage(u8 *d, u32 f)
 
     memset(d, 0, IMG_HDR);
     Put32(d + 0, IMG_MAGIC);
-    Put32(d + 4, 1);
+    Put32(d + 4, 2);
     Put32(d + 8, f);
     Put32(d + 12, sSnapBytes);
     Put32(d + 16, (u32)PortLmpSetting());
@@ -1101,6 +1452,7 @@ static void SaveImage(u8 *d, u32 f)
     Put32(d + 40, x);
     Put32(d + 44, gPortRandoFlags);
     Put32(d + 48, gPortRandoSeed);
+    memcpy(d + 52, sOwn, 4);         /* version 2: the slot ownership */
     PortRbSnapshotSave(d + IMG_HDR);
     memcpy(d + IMG_HDR + sSnapBytes, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
     PortLnExtrasSave(d + IMG_HDR + sSnapBytes + GBA_SRAM_SIZE);
@@ -1171,6 +1523,8 @@ static void ApplyImage(void)
     if (!(sImgSkip & PORT_LN_SKIP_RANDO))
         PortRandoSessionSet(Get32(s + 44), Get32(s + 48));
     PortRbSnapshotLoad(s + IMG_HDR);
+    if (!(sImgSkip & PORT_LN_SKIP_OWN) && Get32(s + 4) >= 2)
+        memcpy(sOwn, s + 52, 4);
     if (!(sImgSkip & PORT_LN_SKIP_SRAM))
         memcpy((void *)(uintptr_t)GBA_SRAM_BASE, s + IMG_HDR + sSnapBytes, GBA_SRAM_SIZE);
     if (!(sImgSkip & PORT_LN_SKIP_SRAMLOAD))
@@ -1282,7 +1636,8 @@ void PortLnForceRewind(u32 depth)
  * device's player is applied to this device, once (port/simblock.h). */
 static void FinalSettings(const struct Ent *e)
 {
-    int me = sRole == PORT_LN_HOST ? 0 : 1;
+    /* the pauser's slot (set[9]) is this device's if it owns that slot */
+    int me = e->set[9] < 4 && OwnDev(sOwn[e->set[9]]) == sSelf ? e->set[9] : -1;
 
     if (!e->set[0])
         return;

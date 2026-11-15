@@ -33,6 +33,11 @@ int  PortLmpP2InputAvailable(void);
  * the console's own keys (platform/inputlog.c), recorded and replayed. */
 void PortLmpSetHostKeys(int player, u16 mask);
 u16  PortLmpHostKeys(int player);
+/* What the latch gives players 2..4 (platform/inputlog.c): the host keys,
+ * or, during an online session, the slots' keys the session decided
+ * (platform/lmpnet.c sets them every latch; NULL hands back). */
+void PortLmpSetSessionKeys(const u16 *keys4);
+u16  PortLmpLatchKeys(int player);
 /* The smallest zoom the shared camera may use (presentation). */
 float PortLmpMinZoom(void);
 /* The world rectangle (pixels) the shared camera wants to show this frame:
@@ -57,9 +62,14 @@ void PortLmpSetSlotHuman(int slot, int on);
 u32  PortLmpRequestHuman(int slot, int on);
 /* Is slot s a person, as far as the simulation knows (1 for slot 0)?  True
  * from the latch that applied the join, also outside play (a join on the
- * title screen is held for the next game).  Read-only, for the host. */
+ * title screen is held for the next game).  Read-only, for the host.
+ * During an online session: is this device's local seat s playing (see
+ * localmp.c, "the device layer's door"); PortLmpSlotPerson is always the
+ * simulation's answer. */
 int  PortLmpSlotIsHuman(int slot);
-/* Can the host ask for joins now (no rollback/netsim/seat/online session)? */
+int  PortLmpSlotPerson(int slot);
+/* Can the host ask for joins now (no rollback/netsim/seat session; in an
+ * online session yes: the request goes to the session's host)? */
 int  PortLmpCanRequest(void);
 /* Would a join of slot s take effect now (not a Kirby the story is walking
  * through the intro)?  The device core prefers such slots.  Read-only. */

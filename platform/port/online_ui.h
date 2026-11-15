@@ -59,6 +59,10 @@ enum {
 /* --- the page's side (exported to JS) --- */
 void PortOuiSet(int state, int c0, int c1, int c2, int c3);
 void PortOuiNote(int note);
+/* HOST GAME: people in the game so far (1..4: the host and each guest's
+ * players), and of those how many are still connecting.  The START row
+ * shows "PLAYERS n/4". */
+void PortOuiSetPlayers(int players, int connecting);
 int  PortOuiPoll(void);
 int  PortOuiJoinCode(int i);
 int  PortOuiScreen(void);           /* sub * 256 + state, for tests        */

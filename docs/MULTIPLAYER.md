@@ -1364,15 +1364,11 @@ Start, so they join instead of being player 1's Start. Enter is still player
 
 ### Online
 
-`PORT_LN_EV_HUMAN` (a = slot, b = 1 joins / 0 leaves) is applied by
-`lmpnet.c`'s `ApplyEvents`, like the other sealed events. The session layer
-is unchanged: host = slot 0, guest = slot 1. Local joins on either device are
-refused while a session is on (`PortLmpCanRequest`). Generalising this means:
-
-- carrying a third and fourth pad in the sealed frames;
-- having the host seal `PORT_LN_EV_HUMAN` when a guest or a local pad joins;
-- extending `PortLnKeyOverride`, which today sets only
-  `PortLmpSetHostKeys(1, …)`.
+Done: see §14. A session maps each device's local players onto the Kirby
+slots; `PORT_LN_EV_HUMAN` carries who owns the slot, and during a session
+the device layer's four calls (`PortLmpSlotIsHuman`, `PortLmpRequestHuman`,
+`PortLmpCanRequest`, `PortLmpSlotJoinable`) speak of this device's local
+seats, so the device core needs no change to work online.
 
 ### Tests
 
@@ -1384,3 +1380,130 @@ refused while a session is on (`PortLmpCanRequest`). Generalising this means:
   against the live run, frame by frame.
 - `make input-devices-test` runs the web module against fake
   `navigator.getGamepads` gamepads.
+
+---
+
+## 14. Online with up to four players, local and online together
+
+`platform/lmpnet.c` started as two devices, host = Kirby 1 and guest =
+Kirby 2. It is now a star of up to four devices — one host, up to three
+guests, guests talking only to the host — and each device may have more
+than one person on it. The design of the session is unchanged (§10, and the
+comment at the top of `lmpnet.c`): every device runs the same local
+multiplayer simulation, the host's timeline is authoritative and never
+rewinds, a guest runs ahead and rewinds when a sealed frame differs. What
+changed is who plays which Kirby, and that this can change mid-game.
+
+### Devices, seats, slots
+
+- A **device** is a page (or a native instance) in the session: the host is
+  device 0, guests 1..3. The host numbers them as they connect; a page that
+  reloads with the same tab token (sessionStorage) gets its old number back.
+- A **seat** is a local player on one device: seat 0 is the device's own keys
+  (`PortSetKeys`), seats 1..3 are the pads given to `PortLmpSetHostKeys(seat,
+  mask)` — the same three host keys local multiplayer has always used.
+- A **slot** is a Kirby, 0..3. Slot 0 is always the host's seat 0. Slots 1..3
+  are owned by a (device, seat) or are the CPU's.
+
+Ownership is session state. The host decides it (`PortLnSeatRequest(dev,
+seat, on)`, `PortLnDeviceGone(dev)`); the decision reaches the timeline at
+the next latch as a sealed `PORT_LN_EV_HUMAN` with `c = 1 + dev*4 + seat`
+(`Reconcile`), and every device applies it on the same frame — the owner
+first, then `PortLmpSetSlotHuman`, then that frame's keys from the new owner.
+The applied table (`sOwn`) is in every keyframe and image (image header
+version 2, bytes 52..55) and is hashed with the `host` region. The rig's
+ablation (R13) shows it has to be: a guest joining after the host's second
+player took slot 1, with the table left out of the image, mismatches until
+it is repaired, every time.
+
+The host's choice: the slot that (device, seat) had last if it is free,
+else the lowest free one. No slot free: refused (`seatFull`), and the device
+is told (`seatfull`; a guest connecting while all four are people is turned
+away at `hi` with GAME FULL). A guest that is already connected when a slot
+frees gets it.
+
+The host also mends what the game changes itself: HOST GAME > START is a
+two-player start (`PortLmpChoose(2)`), so a host that starts alone has Kirby 2
+a person for one frame, and the next latch hands it to the CPU.
+
+Until the host first calls `PortLnSeatRequest` or `PortLnDeviceGone`,
+slot 1 is device 1's seat 0 and nothing is reconciled: a caller of the old
+two-device API (`PortLnLocalInput`, `PortLnRemoteInput`, `PortLnSealed`) sees
+exactly what it did before. `HostHub` (in `web/ln_session.js`) is what calls
+it: the page and the rig both use it.
+
+### Wire
+
+- **Input** (guest → host): `u8 0x31, u32 g, u8 n, u32 ack, u32 ts, u8 mask,
+  n × popcount(mask) × u16` — the guest's keys for frames g-n+1..g for each
+  seat in `mask`, redundantly (32 frames). One seat: one byte more than before.
+- **Sealed** (host → each guest, its own stream: its own ack, lateness and
+  echo): the 23-byte header as before, then per frame `u8 flags` (bits 0-3:
+  which slots' keys follow — a slot not listed pressed nothing, so a CPU slot
+  or an idle player costs nothing; bit 4 hashed; bit 5 events follow), `[u8
+  nev]`, `u16` per listed slot, `[u32 lo, u32 hi]`, `nev × 17`. Two idle
+  players: one byte a frame (it was five).
+- **Image**: the reliable message carries `dev`, the id the host gave this
+  guest, and the guest sets it (`PortLnSetSelf`) before loading.
+- **Seat requests**: reliable `{t: 'seat', seat, on}` from a guest; `{t:
+  'seatfull', seat}` back if refused.
+
+### The seams
+
+**Input.** Each device reads its seats' keys at the frame top: seat 0 from
+`PortCurrentKeys()`, seats 1..3 from `PortLmpHostKeys(seat)` — whatever the
+page or the device layer last gave `PortLmpSetHostKeys`. The session never
+writes those: at the latch it hands the slots' keys to the simulation through
+`PortLmpSetSessionKeys`, and `platform/inputlog.c` latches
+`PortLmpLatchKeys(q)` (the host keys when no session is on, so a game nobody
+plays online is unchanged).
+
+**Joining and leaving.** During a session the device layer's four calls take
+seats instead of slots (`platform/localmp.c`, "the device layer's door"):
+
+| call | outside a session | during one |
+|---|---|---|
+| `PortLmpRequestHuman(s, on)` | schedule `human` for Kirby slot s | ask the session for a slot for seat s (`PortLnSeatAsk`): the host decides at once; a guest queues it, the page sends it |
+| `PortLmpSlotIsHuman(s)` | Kirby s is a person | seat s has a slot (applied, from a sealed frame) |
+| `PortLmpCanRequest()` | no rollback / netsim / seats / replay | not replaying |
+| `PortLmpSlotJoinable(s)` | not held by the intro | yes |
+
+`PortLmpSlotPerson(s)` is always the simulation's answer. The device core
+(`platform/input_devices.c`, `web/input_devices.js`) calls these through its
+sink and needs no change: its player p is seat p, its keys go to
+`PortLmpSetHostKeys(p)` as before, a join press asks, an unplugged pad's
+grace period ends in a leave. On the page the same is
+`katamOnline.requestSlot(seat, on)`; `katamOnline.slots()` says who has
+which Kirby.
+
+**Per-slot data for others** (a player card, a colour): the applied owner of
+slot s is `PortLnSlotOwner(s)` (`dev*4 + seat`, -1 = CPU) on every device;
+`PortLnSelf()` is this device's id; `PortLnSelfSlots()` is a bit per Kirby
+this device's people play (for a HUD's "local" marker: the host is not
+always slot 0 alone, nor a guest slot 1); a new event type belongs in
+`ApplyEvents` next to `PORT_LN_EV_HUMAN`.
+
+### The page
+
+`web/online.js` keeps one link per guest (data channels, relay fallback,
+liveness, images, repairs), drops a guest whose link is silent 6 s (its
+Kirbys to the CPU), and shows: the HOST screen's START row `PLAYERS n/4`
+(`PortOuiSetPlayers`), a notice on every device when a Kirby changes hands
+(`Player 3 joined`, `Player 3 left - the CPU has that Kirby`, `You are
+Player 2`), and per guest in `katamOnline.stats().peers` and the menu's
+Online section (path, round trip, late keys, images, repairs). The relay
+room needed nothing: members beyond two were always allowed.
+
+### Verified
+
+`make netproof`: R13 (three and four devices, two local players on one
+guest, churn with joins, leaves, a link drop and return, a full game and
+slot reuse, the slot-table ablation), R14 (the link matrix on three
+devices), R15 (feel per guest with 2, 3 and 4 devices: what more players
+cost). `tools/online_browser_test.mjs --cases three`: three pages through
+the game's own screens and an invite link, a drop, local joins on the host
+and on a guest, a refusal when full.
+
+Not verified: real devices, real networks, NAT traversal between more than
+two browsers (each guest has its own WebRTC link to the host; the relay
+carries any that fail).
