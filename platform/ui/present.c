@@ -225,7 +225,7 @@ void PortSettingsApplyEarly(void)
 
 void PortSettingsChanged(void)
 {
-    char buf[1024];     /* the settings and the player cards */
+    char buf[2048];     /* the settings, the player cards and the lighting */
 
     PortSettingsApplyEarly();
     PortHostSetVsync(gPortSettings.vsync);

@@ -53,7 +53,7 @@ typedef struct PortSettings {
                          * players' cards, and the CPU helpers' with them  */
     int nameTags;       /* small name tags over the players' Kirbys (party_hud.c) */
     /* Lighting (GPU renderer, every level; platform/render/light.c). */
-    int lightOn;        /* -1 the page's default (/lighting/), 0 off, 1 on   */
+    int lightOn;        /* 0 off (the default, on every page), 1 on       */
     int lightMode;      /* LIGHT_REQ_AUTO / _SUN / _POINT                   */
     float lightStrength, lightShadow, lightSoft, lightAngle, lightWarm,
           lightCool, lightGlow;   /* PortLightParams                        */

@@ -1551,7 +1551,7 @@ const RlFrame *PortRlBuildFrame(void)
     memcpy(sPal, (const void *)GBA_PLTT_BASE, sizeof(sPal));
     f->palette = sPal;
     f->light = NULL;
-    if (gPortLighting != 0)
+    if (gPortLighting)
         PortLightAttach(f, fgRec >= 0 ? (int)(sScreen.bg[1].flags & 3) : -1);
     return f;
 }

@@ -247,14 +247,13 @@ void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
 
-/* Sunlight, proof of concept (light.c).
+/* Lighting (light.c), presentation only.
  *
- * gPortLighting is the effective switch: -1 undecided, 0 off, 1 on.  It is
- * gPortLightingUser (the settings menu: -1 follow the default, 0, 1) if set,
- * else gPortLightingDefault (the web page's /lighting/ path or ?lighting=1;
- * natively KATAM_LIGHTING=1; -1 = read the env).  PortLightResolve works it
- * out again after either changes.  PortLightAttach sets f->light for a
- * Rainbow Route world frame, NULL otherwise. */
+ * gPortLighting is the effective switch, 0 off (the default) or 1 on: the
+ * setting gPortLightingUser (gPortSettings.lightOn; natively KATAM_LIGHTING=
+ * 0/1 overrides it), and never while the GPU could not compile the lighting
+ * (GlrLightState).  PortLightResolve works it out again after a change.
+ * PortLightAttach sets f->light for a lit world frame, NULL otherwise. */
 enum { RL_LIGHT_SUN = 0, RL_LIGHT_POINT = 1 };          /* what a frame uses */
 /* What the settings ask for: by the room (open sky: the area's sun;
  * enclosed: its point lights), or one of them everywhere. */
@@ -295,7 +294,7 @@ typedef struct PortLightParams {
                                     0.5f, 0.10f, 0.8f, 0, 5.0f, 1.0f, 0, 3.0f, 16.0f, 3.0f, 1, 0.12f, \
                                     LIGHT_ENGINE_CLASSIC, 0.5f, 0 }
 extern PortLightParams gPortLightParams;
-extern int gPortLighting, gPortLightingDefault, gPortLightingUser;
+extern int gPortLighting, gPortLightingUser;
 /* 1: lit frames show their normal maps (web ?normals=1, KATAM_RELIEF_VIEW=1);
  * 2, 3: the relief atlas's sprite art, sprite normals; 4: the shadow map;
  * 5: the picture with each lamp marked (and the lamps found, logged). */

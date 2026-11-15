@@ -626,7 +626,7 @@ static int PageDisplay(void)
     if (Section("Lighting")) {
         /* render/light.c.  Map parameters (mode, softness, angle) rebuild
          * the shadow map, at most 5 times a second while a slider moves. */
-        bool on = gPortLighting > 0;
+        bool on = s.lightOn != 0;
         ImGui::BeginDisabled(s.renderer != PS_RENDER_GPU);
         if (ImGui::Checkbox("Lighting and shadows (every level)", &on)) {
             s.lightOn = on ? 1 : 0;

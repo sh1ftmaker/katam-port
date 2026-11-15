@@ -396,10 +396,23 @@ per-present camera step in game pixels, jumps excluded):
 1420-1530) the jerk goes 0.772 -> 0.103 -> 0.081 at 60 Hz and 1.215 ->
 1.146 -> 0.250 at 120 Hz, and Kirby's on-screen step sd 0.437 -> 0.
 
-## Lighting and relief (branch `lighting`)
+## Lighting and relief
 
-Off unless asked for: the page at `/lighting/`, `?lighting=1`, or
-`KATAM_LIGHTING=1`; every level; GPU renderer only.
+Off by default on every page; the player turns it on in the settings
+(`gPortSettings.lightOn`, saved as `lighton`; the in-game section's model is
+`platform/ui/light_opts.c`, the developer menu has a Lighting section).
+Natively `KATAM_LIGHTING=1` (or `0`) overrides the setting, for tools.  Every
+level; GPU renderer only -- with the Classic (PPU) renderer or the page's 2D
+canvas the render list is not built and the lighting does not exist.
+
+**Off means off.**  The lit sprite and composite programs are the same
+sources compiled with `KATAM_LIGHT` defined; without it the plain programs
+are, shader text for shader text, the renderer before the lighting, with a
+one-target sprite pass.  The lit programs and the passes only the lighting
+uses (character shadows, relief, radiance cascades) are compiled the first
+time a frame carries a light map.  If they do not compile, the frame is drawn
+unlit, the reason is logged ("lighting: off -- its shaders did not
+compile"), and the lighting stays off (`GlrLightState`).
 `platform/render/light.c` builds a per-room shadow map from the collision grid
 (its header has the details) and the composite tints world pixels with it.
 

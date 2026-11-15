@@ -261,13 +261,15 @@ static const char *kObjFs =
     "flat in ivec4 vD;\n"
     "uniform int uWinPass;\n"
     "uniform int uK;\n"
-    "#ifdef RELIEF_DECODE\n"
+    "#if defined(RELIEF_DECODE)\n"
     "out vec4 oAlb;\n"
-    "#else\n"
+    "#elif defined(KATAM_LIGHT)\n"
     "precision highp sampler2D;\n"
     "uniform sampler2D uNrmAtlas;\n"
     "layout(location = 0) out uvec4 oObj;\n"
     "layout(location = 1) out vec4 oNrm;\n"
+    "#else\n"
+    "out uvec4 oObj;\n"
     "#endif\n"
     "void main() {\n"
     /* This pixel's centre in view coordinates, 1/256 px, and the sprite
@@ -311,14 +313,18 @@ static const char *kObjFs =
     "  oAlb = vec4(vec3(float((r << 3) | (r >> 2)), float((g << 3) | (g >> 2)),\n"
     "                   float((b << 3) | (b >> 2))) / 255.0, 1.0);\n"
     "#else\n"
+    "#ifdef KATAM_LIGHT\n"
     "  oNrm = vec4(0.5, 0.5, 1.0, 0.0);\n"
+    "#endif\n"
     "  if (uWinPass != 0) { oObj = uvec4(1u); return; }\n"
     "  oObj = uvec4(uint(col & 255), uint(col >> 8),\n"
     "               uint(((fl >> 8) & 3) | (((fl >> 10) & 1) << 2) | 8 | (((fl >> 13) & 1) << 4)), 0u);\n"
+    "#ifdef KATAM_LIGHT\n"
     "  if (vD.z != 0)\n"
     /* The map is of the sprite's group as drawn: the box pixel's normal is
      * already the screen's. */
     "    oNrm = vec4(texelFetch(uNrmAtlas, vD.xy + q, 0).xyz, 1.0);\n"
+    "#endif\n"
     "#endif\n"
     "}\n";
 
@@ -430,6 +436,7 @@ static const char *kCompFs =
     "uniform int uHudPass;\n"        /* 0 HUD in the view, 1 world only, 2 HUD only */
     "uniform int uHudSel;\n"         /* HUD pass: the region                */
     "uniform ivec2 uHudOrg;\n"       /* HUD pass: atlas = HUD coords + this */
+    "#ifdef KATAM_LIGHT\n"
     "uniform int uLight;\n"          /* sunlight: BG mask it tints, 0 off   */
     "uniform ivec4 uLightGeom;\n"    /* camX camY mapW mapH (texels)       */
     "uniform sampler2D uShadow;\n"
@@ -480,6 +487,7 @@ static const char *kCompFs =
     "uniform int uNrmView;\n"      /* 1 the normals; 2, 3 the atlas's sprite art, normals; 4 shadow */
     "uniform highp sampler2D uAlbAtlas;\n"
     "uniform int uSprY0;\n"        /* the atlas's first sprite row       */
+    "#endif\n"
     "out vec4 oColor;\n"
     "int L(int line, int w) {\n"
     "  ivec4 t = texelFetch(uLines, ivec2(w >> 2, line), 0);\n"
@@ -617,6 +625,7 @@ static const char *kCompFs =
     "  return vec4(float(r), float(g), float(b), 255.0) / 255.0;\n"
     "}\n"
     "void main() {\n"
+    "#ifdef KATAM_LIGHT\n"
     "  if (uDecode.x >= 0) {\n"
     "    int bg = uDecode.x;\n"
     "    ivec2 t = ivec2(gl_FragCoord.xy) - uNrmOff[bg].xy;\n"
@@ -627,6 +636,7 @@ static const char *kCompFs =
     "    oColor = c < 0 ? vec4(0.0) : vec4(toRgba(c).rgb, 1.0);\n"
     "    return;\n"
     "  }\n"
+    "#endif\n"
     /* h: the target pixel.  v: the view pixel it lies in (the HUD's grid).
      * b: its centre in SCREEN coordinates, 1/256 px -- the world's grid.
      * The HUD pass draws at k = 1 with no fraction (GlrDrawScaled). */
@@ -642,10 +652,16 @@ static const char *kCompFs =
     "  int dispcnt = L(rl, 16);\n"
     "  if ((dispcnt & 0x80) != 0) { oColor = hudPass ? vec4(0.0) : vec4(1.0); return; }\n"
     "  int mode = dispcnt & 7;\n"
+    "#ifdef KATAM_LIGHT\n"
     "  int lc[4]; int lp[4]; ivec2 lxy[4];\n"
+    "#else\n"
+    "  int lc[4]; int lp[4];\n"
+    "#endif\n"
     "  for (int bg = 0; bg < 4; bg++) {\n"
     "    lc[bg] = -1;\n"
+    "#ifdef KATAM_LIGHT\n"
     "    lxy[bg] = ivec2(0);\n"
+    "#endif\n"
     "    lp[bg] = L(rl, 27 + bg) & 3;\n"
     "    if ((dispcnt & (0x100 << bg)) == 0) continue;\n"
     "    if (uLayer[bg].x < 0 || (letterbox && uLayer[bg].x != 2)) continue;\n"
@@ -666,7 +682,9 @@ static const char *kCompFs =
     "      }\n"
     "      if (!found) continue;\n"
     "    }\n"
+    "#ifdef KATAM_LIGHT\n"
     "    lxy[bg] = ivec2(x, y);\n"
+    "#endif\n"
     "    if (mode == 0 || (mode == 1 && bg < 2)) lc[bg] = sampleText(bg, x, y, rl);\n"
     "    else if ((mode == 1 && bg == 2) || (mode == 2 && bg >= 2)) lc[bg] = sampleAffine(bg, x, y, rl);\n"
     "  }\n"
@@ -722,6 +740,7 @@ static const char *kCompFs =
     "    else if (effect == 2 && t1) result = bright(topC, evy, true);\n"
     "    else if (effect == 3 && t1) result = bright(topC, evy, false);\n"
     "  }\n"
+    "#ifdef KATAM_LIGHT\n"
     /* Sunlight (light.c): the sun from the upper left, or point lights in
      * the room.  Every world layer and world sprite takes the shadow map's
      * shade and warmth (and the point lights' halo); never the HUD. */
@@ -913,6 +932,7 @@ static const char *kCompFs =
     "    oColor = vec4(min(col, vec3(1.0)), 1.0);\n"
     "    return;\n"
     "  }\n"
+    "#endif\n"
     "  oColor = toRgba(result);\n"
     "}\n";
 
@@ -1027,33 +1047,110 @@ static void SetSamplers(GLuint prog)
     }
 }
 
-int GlrInit(void *(*getProc)(const char *), int es)
+/* Lighting (light.c) has its own sprite and composite programs, the same
+ * sources with KATAM_LIGHT defined, and the passes only it uses (character
+ * shadows, relief; radiance cascades on first use, EnsureRcProgram), all
+ * compiled the first time a frame carries a light map.  Without it the
+ * plain programs are the renderer as it was before the lighting, shader
+ * text for shader text, with a one-target sprite pass: lighting off draws
+ * the same pixels at the same cost.  A GPU that cannot compile the lit
+ * programs keeps the plain picture, and the lighting stays off with the
+ * reason logged (GlrLightState). */
+static GLuint sProgObjPlain, sProgCompPlain, sProgObjLit, sProgCompLit;
+static int sLitState;            /* 0 not tried, 1 ready, -1 failed          */
+static int sCurLit = -1;         /* the programs in use: 0 plain, 1 lit       */
+
+static void ObjLocs(GLuint p)
 {
-    sEs = es;
-#ifndef __EMSCRIPTEN__
-#define GLR_LOAD(ret, name, args) \
-    glr_##name = (PFN_glr_##name)getProc(#name); \
-    if (glr_##name == NULL) { \
-        PortError("[katam-port] gpu: no %s in this GL", #name); \
-        return 0; \
+    SetSamplers(p);
+    uObjView = G(glGetUniformLocation)(p, "uViewSize");
+    uObjWinPass = G(glGetUniformLocation)(p, "uWinPass");
+    uObjK = G(glGetUniformLocation)(p, "uK");
+    {
+        GLint loc = G(glGetUniformLocation)(p, "uNrmAtlas");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_NRM);
     }
-    GLR_FUNCS(GLR_LOAD)
-#undef GLR_LOAD
-#else
-    (void)getProc;
-#endif
+}
 
-    snprintf(sDesc, sizeof(sDesc), "%s / %s / %s",
-             (const char *)G(glGetString)(GL_VERSION),
-             (const char *)G(glGetString)(GL_RENDERER),
-             (const char *)G(glGetString)(GL_SHADING_LANGUAGE_VERSION));
-    G(glGetIntegerv)(GL_MAX_TEXTURE_SIZE, &sMaxTex);
+static void CompLocs(GLuint p)
+{
+    SetSamplers(p);
+    uCView = G(glGetUniformLocation)(p, "uView");
+    uCSub = G(glGetUniformLocation)(p, "uSub");
+    uCContent = G(glGetUniformLocation)(p, "uContent");
+    uCLayer = G(glGetUniformLocation)(p, "uLayer");
+    uCValid = G(glGetUniformLocation)(p, "uValid");
+    uCMapGeom = G(glGetUniformLocation)(p, "uMapGeom");
+    uCMapScroll = G(glGetUniformLocation)(p, "uMapScroll");
+    uCNumHud = G(glGetUniformLocation)(p, "uNumHud");
+    uCHudRect = G(glGetUniformLocation)(p, "uHudRect");
+    uCHudD = G(glGetUniformLocation)(p, "uHudD");
+    uHPass = G(glGetUniformLocation)(p, "uHudPass");
+    uHSel = G(glGetUniformLocation)(p, "uHudSel");
+    uHOrg = G(glGetUniformLocation)(p, "uHudOrg");
+    uCLight = G(glGetUniformLocation)(p, "uLight");
+    uCLightGeom = G(glGetUniformLocation)(p, "uLightGeom");
+    uCLightK = G(glGetUniformLocation)(p, "uLightK");
+    uCLights = G(glGetUniformLocation)(p, "uLights");
+    uCNumLights = G(glGetUniformLocation)(p, "uNumLights");
+    uCLightP = G(glGetUniformLocation)(p, "uLightP");
+    uCLightMode = G(glGetUniformLocation)(p, "uLightMode");
+    uCLightMix = G(glGetUniformLocation)(p, "uLightMix");
+    uCSunSide = G(glGetUniformLocation)(p, "uSunSide");
+    uCEnvLift = G(glGetUniformLocation)(p, "uEnvLift");
+    uCEnvShade = G(glGetUniformLocation)(p, "uEnvShade");
+    uCEnvHalo = G(glGetUniformLocation)(p, "uEnvHalo");
+    uCEnvSpec = G(glGetUniformLocation)(p, "uEnvSpec");
+    uCCharShP = G(glGetUniformLocation)(p, "uCharShP");
+    uCLightCol = G(glGetUniformLocation)(p, "uLightCol");
+    uCLamp = G(glGetUniformLocation)(p, "uLamp");
+    uCRcOn = G(glGetUniformLocation)(p, "uRcOn");
+    uCRcGeom = G(glGetUniformLocation)(p, "uRcGeom");
+    uCRcN = G(glGetUniformLocation)(p, "uRcN");
+    uCRcLo = G(glGetUniformLocation)(p, "uRcLo");
+    uCRcHi = G(glGetUniformLocation)(p, "uRcHi");
+    uCRcInv = G(glGetUniformLocation)(p, "uRcInv");
+    {
+        GLint loc = G(glGetUniformLocation)(p, "uRcT");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_RC);
+        G(glUniform1i)(uCRcOn, 0);
+    }
+    {
+        GLint loc = G(glGetUniformLocation)(p, "uCharSh");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_CHARSH);
+    }
+    uCDecode = G(glGetUniformLocation)(p, "uDecode");
+    uCNrm = G(glGetUniformLocation)(p, "uNrm");
+    uCNrmOff = G(glGetUniformLocation)(p, "uNrmOff");
+    uCRelief = G(glGetUniformLocation)(p, "uRelief");
+    uCSunDir = G(glGetUniformLocation)(p, "uSunDir");
+    uCNrmView = G(glGetUniformLocation)(p, "uNrmView");
+    uCSprY0 = G(glGetUniformLocation)(p, "uSprY0");
+    uCRespS = G(glGetUniformLocation)(p, "uRespS");
+    uCRespB = G(glGetUniformLocation)(p, "uRespB");
+    {
+        GLint loc = G(glGetUniformLocation)(p, "uShadow");
+        if (loc >= 0)
+            G(glUniform1i)(loc, 6);
+        loc = G(glGetUniformLocation)(p, "uNrmAtlas");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_NRM);
+        loc = G(glGetUniformLocation)(p, "uObjN");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_OBJN);
+        loc = G(glGetUniformLocation)(p, "uAlbAtlas");
+        if (loc >= 0)
+            G(glUniform1i)(loc, UNIT_ALB_VIEW);
+        G(glUniform4i)(uCDecode, -1, 0, 0, 0);
+        G(glUniform1i)(uCNrm, 0);
+    }
+}
 
-    sProgObj = Link(kObjVs, kObjFs, "sprite");
-    sProgComp = Link(kCompVs, kCompFs, "composite");
-    sProgHud = Link(kHudVs, kHudFs, "hud");
-    if (!sProgObj || !sProgComp || !sProgHud)
-        return 0;
+static void LitPasses(void)
+{
     sProgCharSh = Link(kCompVs, kCharShFs, "character shadows");
     if (sProgCharSh) {
         G(glUseProgram)(sProgCharSh);
@@ -1107,87 +1204,84 @@ int GlrInit(void *(*getProc)(const char *), int es)
             PortLog("[katam-port] gpu: relief (normal maps) unavailable; lighting stays flat");
         }
     }
-    SetSamplers(sProgObj);
-    uObjView = G(glGetUniformLocation)(sProgObj, "uViewSize");
-    uObjWinPass = G(glGetUniformLocation)(sProgObj, "uWinPass");
-    uObjK = G(glGetUniformLocation)(sProgObj, "uK");
-    {
-        GLint loc = G(glGetUniformLocation)(sProgObj, "uNrmAtlas");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_NRM);
+}
+
+/* The programs for a lit (1) or plain (0) frame.  The sprite target is made
+ * again with or without the normal target the lit sprite pass writes. */
+static void UseLit(int lit)
+{
+    if (lit == sCurLit)
+        return;
+    sCurLit = lit;
+    sProgObj = lit ? sProgObjLit : sProgObjPlain;
+    sProgComp = lit ? sProgCompLit : sProgCompPlain;
+    ObjLocs(sProgObj);
+    CompLocs(sProgComp);
+    sFboW = sFboH = -1;              /* EnsureTargets: the sprite target again */
+    sPrevOk = 0;
+}
+
+static int EnsureLit(void)
+{
+    if (sLitState)
+        return sLitState > 0;
+    sProgObjLit = LinkX(kObjVs, "#define KATAM_LIGHT 1\n", kObjFs, "lighting sprite");
+    sProgCompLit = sProgObjLit ? LinkX(kCompVs, "#define KATAM_LIGHT 1\n", kCompFs, "lighting composite") : 0;
+    if (!sProgObjLit || !sProgCompLit) {
+        if (sProgObjLit)
+            G(glDeleteProgram)(sProgObjLit);
+        sProgObjLit = 0;
+        sLitState = -1;
+        PortLog("[katam-port] lighting: off -- its shaders did not compile on this GPU (%s); "
+                "the picture is the unlit one", sDesc);
+        return 0;
     }
-    SetSamplers(sProgComp);
-    uCView = G(glGetUniformLocation)(sProgComp, "uView");
-    uCSub = G(glGetUniformLocation)(sProgComp, "uSub");
-    uCContent = G(glGetUniformLocation)(sProgComp, "uContent");
-    uCLayer = G(glGetUniformLocation)(sProgComp, "uLayer");
-    uCValid = G(glGetUniformLocation)(sProgComp, "uValid");
-    uCMapGeom = G(glGetUniformLocation)(sProgComp, "uMapGeom");
-    uCMapScroll = G(glGetUniformLocation)(sProgComp, "uMapScroll");
-    uCNumHud = G(glGetUniformLocation)(sProgComp, "uNumHud");
-    uCHudRect = G(glGetUniformLocation)(sProgComp, "uHudRect");
-    uCHudD = G(glGetUniformLocation)(sProgComp, "uHudD");
-    uHPass = G(glGetUniformLocation)(sProgComp, "uHudPass");
-    uHSel = G(glGetUniformLocation)(sProgComp, "uHudSel");
-    uHOrg = G(glGetUniformLocation)(sProgComp, "uHudOrg");
-    uCLight = G(glGetUniformLocation)(sProgComp, "uLight");
-    uCLightGeom = G(glGetUniformLocation)(sProgComp, "uLightGeom");
-    uCLightK = G(glGetUniformLocation)(sProgComp, "uLightK");
-    uCLights = G(glGetUniformLocation)(sProgComp, "uLights");
-    uCNumLights = G(glGetUniformLocation)(sProgComp, "uNumLights");
-    uCLightP = G(glGetUniformLocation)(sProgComp, "uLightP");
-    uCLightMode = G(glGetUniformLocation)(sProgComp, "uLightMode");
-    uCLightMix = G(glGetUniformLocation)(sProgComp, "uLightMix");
-    uCSunSide = G(glGetUniformLocation)(sProgComp, "uSunSide");
-    uCEnvLift = G(glGetUniformLocation)(sProgComp, "uEnvLift");
-    uCEnvShade = G(glGetUniformLocation)(sProgComp, "uEnvShade");
-    uCEnvHalo = G(glGetUniformLocation)(sProgComp, "uEnvHalo");
-    uCEnvSpec = G(glGetUniformLocation)(sProgComp, "uEnvSpec");
-    uCCharShP = G(glGetUniformLocation)(sProgComp, "uCharShP");
-    uCLightCol = G(glGetUniformLocation)(sProgComp, "uLightCol");
-    uCLamp = G(glGetUniformLocation)(sProgComp, "uLamp");
-    uCRcOn = G(glGetUniformLocation)(sProgComp, "uRcOn");
-    uCRcGeom = G(glGetUniformLocation)(sProgComp, "uRcGeom");
-    uCRcN = G(glGetUniformLocation)(sProgComp, "uRcN");
-    uCRcLo = G(glGetUniformLocation)(sProgComp, "uRcLo");
-    uCRcHi = G(glGetUniformLocation)(sProgComp, "uRcHi");
-    uCRcInv = G(glGetUniformLocation)(sProgComp, "uRcInv");
-    {
-        GLint loc = G(glGetUniformLocation)(sProgComp, "uRcT");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_RC);
-        G(glUniform1i)(uCRcOn, 0);
+    LitPasses();
+    sLitState = 1;
+    PortLog("[katam-port] lighting: shaders ready");
+    return 1;
+}
+
+int GlrLightState(void)
+{
+    if (!sReady)
+        return GLR_LIGHT_NONE;
+    if (sLitState < 0)
+        return GLR_LIGHT_FAILED;
+    return GLR_LIGHT_OK | (sLitState > 0 && sRelOk ? GLR_LIGHT_RELIEF : 0)
+         | (sLitState > 0 && sProgCharSh ? GLR_LIGHT_CHARSH : 0)
+         | (sRcTried && !sProgRc ? 0 : GLR_LIGHT_RC);
+}
+
+int GlrInit(void *(*getProc)(const char *), int es)
+{
+    sEs = es;
+#ifndef __EMSCRIPTEN__
+#define GLR_LOAD(ret, name, args) \
+    glr_##name = (PFN_glr_##name)getProc(#name); \
+    if (glr_##name == NULL) { \
+        PortError("[katam-port] gpu: no %s in this GL", #name); \
+        return 0; \
     }
-    {
-        GLint loc = G(glGetUniformLocation)(sProgComp, "uCharSh");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_CHARSH);
-    }
-    uCDecode = G(glGetUniformLocation)(sProgComp, "uDecode");
-    uCNrm = G(glGetUniformLocation)(sProgComp, "uNrm");
-    uCNrmOff = G(glGetUniformLocation)(sProgComp, "uNrmOff");
-    uCRelief = G(glGetUniformLocation)(sProgComp, "uRelief");
-    uCSunDir = G(glGetUniformLocation)(sProgComp, "uSunDir");
-    uCNrmView = G(glGetUniformLocation)(sProgComp, "uNrmView");
-    uCSprY0 = G(glGetUniformLocation)(sProgComp, "uSprY0");
-    uCRespS = G(glGetUniformLocation)(sProgComp, "uRespS");
-    uCRespB = G(glGetUniformLocation)(sProgComp, "uRespB");
-    {
-        GLint loc = G(glGetUniformLocation)(sProgComp, "uShadow");
-        if (loc >= 0)
-            G(glUniform1i)(loc, 6);
-        loc = G(glGetUniformLocation)(sProgComp, "uNrmAtlas");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_NRM);
-        loc = G(glGetUniformLocation)(sProgComp, "uObjN");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_OBJN);
-        loc = G(glGetUniformLocation)(sProgComp, "uAlbAtlas");
-        if (loc >= 0)
-            G(glUniform1i)(loc, UNIT_ALB_VIEW);
-        G(glUniform4i)(uCDecode, -1, 0, 0, 0);
-        G(glUniform1i)(uCNrm, 0);
-    }
+    GLR_FUNCS(GLR_LOAD)
+#undef GLR_LOAD
+#else
+    (void)getProc;
+#endif
+
+    snprintf(sDesc, sizeof(sDesc), "%s / %s / %s",
+             (const char *)G(glGetString)(GL_VERSION),
+             (const char *)G(glGetString)(GL_RENDERER),
+             (const char *)G(glGetString)(GL_SHADING_LANGUAGE_VERSION));
+    G(glGetIntegerv)(GL_MAX_TEXTURE_SIZE, &sMaxTex);
+
+    sProgObjPlain = Link(kObjVs, kObjFs, "sprite");
+    sProgCompPlain = Link(kCompVs, kCompFs, "composite");
+    sProgHud = Link(kHudVs, kHudFs, "hud");
+    if (!sProgObjPlain || !sProgCompPlain || !sProgHud)
+        return 0;
+    sCurLit = -1;
+    UseLit(0);
     G(glUseProgram)(sProgHud);
     G(glUniform1i)(G(glGetUniformLocation)(sProgHud, "uHud"), 0);
     uBDst = G(glGetUniformLocation)(sProgHud, "uDst");
@@ -1240,18 +1334,22 @@ static void EnsureTargets(int w, int h)
         G(glDeleteTextures)(1, &sTexObj);
         G(glDeleteTextures)(1, &sTexObjWin);
         G(glDeleteTextures)(1, &sTexComp);
-        G(glDeleteTextures)(1, &sTexObjN);
+        if (sTexObjN)
+            G(glDeleteTextures)(1, &sTexObjN);
+        sTexObjN = 0;
     }
-    sTexObjN = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, w, h);
     sTexObj = MakeTex(GL_RGBA8UI, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, w, h);
     sTexObjWin = MakeTex(GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, w, h);
     sTexComp = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, w, h);
     G(glGenFramebuffers)(1, &sFboObj);
     G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboObj);
     G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sTexObj, 0);
-    G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + 1, GL_TEXTURE_2D, sTexObjN, 0);
-    {
+    if (sCurLit == 1) {
+        /* The lit sprite pass's second target: the sprites' normals. */
         static const GLenum kBufs[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT0 + 1 };
+        sTexObjN = MakeTex(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, w, h);
+        G(glBindFramebuffer)(GL_FRAMEBUFFER, sFboObj);
+        G(glFramebufferTexture2D)(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + 1, GL_TEXTURE_2D, sTexObjN, 0);
         G(glDrawBuffers)(2, kBufs);
     }
     if (G(glCheckFramebufferStatus)(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -1426,7 +1524,7 @@ static void DrawSprites(const RlFrame *f, GLuint fbo, u32 from, u32 count, int w
     G(glBindFramebuffer)(GL_FRAMEBUFFER, fbo);
     G(glViewport)(0, 0, tw * k, th * k);
     G(glClearBufferuiv)(GL_COLOR, 0, kZero);
-    if (fbo == sFboObj)
+    if (fbo == sFboObj && sCurLit == 1)
         G(glClearBufferfv)(GL_COLOR, 1, kFlat);
     n = BuildInstances(f, from, count, which, tw, th,
                        sRelOn && fbo == sFboObj && !winPass);
@@ -2270,6 +2368,15 @@ void GlrDrawScaled(const RlFrame *f, int k)
 
     if (!sReady)
         return;
+    if (f->light && !EnsureLit()) {
+        /* The lighting cannot run here: this frame unlit, and no more maps
+         * (light.c reads GlrLightState). */
+        static RlFrame sUnlit;
+        sUnlit = *f;
+        sUnlit.light = NULL;
+        f = &sUnlit;
+    }
+    UseLit(f->light != NULL);
     if (k < 1) k = 1;
     while (k > 1 && (f->viewW * k > sMaxTex || f->viewH * k > sMaxTex))
         k--;

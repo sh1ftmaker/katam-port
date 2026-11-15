@@ -1,8 +1,11 @@
 /* Lighting for every level (branch `lighting`).
  *
- * Off unless asked for: KATAM_LIGHTING=1 (native/node) or the web page's
- * /lighting/ path or ?lighting=1 (host_web.c sets gPortLighting).  With it
- * off nothing here runs and the render list is what it always was.
+ * Off unless the player turns it on (Settings, Lighting: gPortSettings.
+ * lightOn, 0 by default everywhere; natively KATAM_LIGHTING=1/0 overrides
+ * it, for tools).  It needs the GPU renderer -- the render list is built only
+ * for it -- and lit shaders that compiled (GlrLightState).  With it off
+ * nothing here runs, the render list is what it always was, and the GL
+ * renderer draws with its plain, pre-lighting programs.
  *
  * Each area has an environment (kEnvs, by the area the game's own area map
  * puts the room in, light_rooms.c): a sun -- or moon, or starlight -- with
@@ -46,6 +49,7 @@
 #include "main.h"
 #include "data.h"
 #include "render/render_list.h"
+#include "render/gl_renderer.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -60,20 +64,22 @@ static double NowMs(void)
 }
 #endif
 
-int gPortLighting = -1;          /* effective; -1 not decided yet             */
-int gPortLightingDefault = -1;   /* page / env default; -1 read KATAM_LIGHTING */
-int gPortLightingUser = -1;      /* the settings menu; -1 follow the default  */
+int gPortLighting;               /* effective: 0 off, 1 on                    */
+int gPortLightingUser;           /* the setting (gPortSettings.lightOn)       */
 PortLightParams gPortLightParams = PORT_LIGHT_PARAMS_DEFAULT;
 double gPortLightBuildMs;        /* the last light-map build, for the report  */
 int gPortReliefView;             /* show the normal maps                      */
 
 void PortLightResolve(void)
 {
-    if (gPortLightingDefault < 0) {
+    static int env = -2;
+
+    if (env == -2) {
         const char *e = getenv("KATAM_LIGHTING");
-        gPortLightingDefault = (e && e[0] == '1') ? 1 : 0;
+        env = (e && (e[0] == '0' || e[0] == '1')) ? e[0] - '0' : -1;
     }
-    gPortLighting = gPortLightingUser >= 0 ? gPortLightingUser : gPortLightingDefault;
+    gPortLighting = (env >= 0 ? env : gPortLightingUser > 0)
+                    && !(GlrLightState() & GLR_LIGHT_FAILED);
 }
 
 /* The environments, by enum AreaId (game/include/pause_area_map.h); a room
@@ -738,6 +744,8 @@ void PortLightRefreshParams(RlFrame *f)
     int anim = sBuiltMode == RL_LIGHT_SUN && P->sunAnim;
     float base = P->mode == LIGHT_REQ_SUN ? P->angle : sEnv->angle;
 
+    if (f && f->light && !gPortLighting)
+        f->light = NULL;             /* turned off on a held frame */
     if (!f || !f->light)
         return;
     /* A map parameter changed on a held frame: build the map again from
@@ -819,8 +827,8 @@ static void Attach(RlFrame *f, int roomBg)
     float target, shown, warmK = 1.0f;
 
     f->light = NULL;
-    if (gPortLighting < 0)
-        PortLightResolve();
+    if (gPortLighting && (GlrLightState() & GLR_LIGHT_FAILED))
+        PortLightResolve();          /* the GPU could not compile it: off */
     if (!gPortLighting || !f->world || roomBg < 0 || roomBg > 3)
         return;
     if (!sEnvDone) {

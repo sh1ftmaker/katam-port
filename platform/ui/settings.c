@@ -41,7 +41,7 @@ void PortSettingsDefaults(PortSettings *s)
     s->interp = 1;
     s->partyHud = PS_PARTY_HELPERS;
     s->nameTags = 0;
-    s->lightOn = -1;
+    s->lightOn = 0;     /* off unless the player turns it on */
     LightDefaults(s);
 }
 
@@ -106,7 +106,7 @@ void PortSettingsClamp(PortSettings *s)
     s->interp = !!s->interp;
     s->partyHud = ClampI(s->partyHud, 0, PS_PARTY_HELPERS);
     s->nameTags = !!s->nameTags;
-    s->lightOn = ClampI(s->lightOn, -1, 1);
+    s->lightOn = !!s->lightOn;
     s->lightMode = ClampI(s->lightMode, 0, 2);
     s->lightStrength = ClampF(s->lightStrength, 0.0f, 3.0f);
     s->lightShadow = ClampF(s->lightShadow, 0.0f, 0.8f);
@@ -174,7 +174,11 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("interp", interp)
                 INT_KEY("partyhud", partyHud)
                 INT_KEY("nametags", nameTags)
-                INT_KEY("light", lightOn)
+                /* "lighton": the switch.  Not the old /lighting/ page's
+                 * "light" (that page shares the site's storage, and there
+                 * -1 meant on by the page's default): it is ignored, so
+                 * lighting is off until it is turned on here. */
+                INT_KEY("lighton", lightOn)
                 INT_KEY("lightmode", lightMode)
                 FLT_KEY("lightk", lightStrength)
                 FLT_KEY("lightshadow", lightShadow)
@@ -210,7 +214,7 @@ void PortSettingsParse(PortSettings *s, const char *text)
 #undef INT_KEY
 #undef FLT_KEY
                 if (strncmp(key, "light", 5) == 0 && strcmp(key, "light") != 0
-                    && strcmp(key, "lightver") != 0)
+                    && strcmp(key, "lighton") != 0 && strcmp(key, "lightver") != 0)
                     lightKeys = 1;
             }
         }
@@ -237,7 +241,7 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         n += PortCardFormatSettings(buf + n, size - n);
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n),
-                      "lightver=%d\nlight=%d\nlightmode=%d\nlightk=%.3f\nlightshadow=%.3f\n"
+                      "lightver=%d\nlighton=%d\nlightmode=%d\nlightk=%.3f\nlightshadow=%.3f\n"
                       "lightsoft=%.3f\nlightangle=%.1f\nlightwarm=%.3f\n"
                       "lightcool=%.3f\nlightglow=%.3f\nlightrelief=%.3f\n"
                       "lightshine2=%.3f\nlightheight=%.3f\nlightsunanim=%d\n"

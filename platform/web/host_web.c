@@ -50,19 +50,6 @@ EM_JS(int, PortWebRendererParam, (void), {
     return r === 'gpu' ? 0 : r === 'ppu' ? 1 : -1;
 });
 
-/* Sunlight proof of concept (render/light.c): a page served from .../lighting/
- * or with ?lighting=1.  1 on, 0 off. */
-EM_JS(int, PortWebLightingParam, (void), {
-    try {
-        var q = new URLSearchParams(location.search);
-        if (q.get('lighting') === '1') return 1;
-        var p = location.pathname, i = p.lastIndexOf('/');
-        p = p.substring(0, i);
-        if (p.substring(p.lastIndexOf('/') + 1) === 'lighting') return 1;
-    } catch (e) {}
-    return 0;
-});
-
 /* ?normals=1: lit frames show their normal maps (render/relief_glsl.h);
  * 2 and 3: the relief atlas's sprite art and sprite normals, pixel for pixel;
  * 4: the shadow map. */
@@ -157,7 +144,7 @@ static void PortWebGlInit(void)
 
 void PortHostInit(int argc, char **argv)
 {
-    char buf[1024];
+    char buf[2048];     /* the settings, the player cards and the lighting */
     int r;
 
     (void)argc;
@@ -171,12 +158,11 @@ void PortHostInit(int argc, char **argv)
     r = PortWebEngineParam();
     if (r >= 0)
         gPortSettings.lightEngine = r;
-    PortSettingsApplyEarly();
-    gPortLightingDefault = PortWebLightingParam();
+    /* Lighting (render/light.c) is the player's setting alone, off by
+     * default: no page or query turns it on.  ?normals= and ?engine= only
+     * change how it looks once it is on. */
     gPortReliefView = PortWebNormalsParam();
-    PortLightResolve();
-    if (gPortLighting)
-        PortLog("[katam-port] lighting: on (every level, proof of concept; Settings > Display > Lighting)");
+    PortSettingsApplyEarly();
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
 }
