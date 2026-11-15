@@ -153,6 +153,16 @@ struct PortSimBlock {
 
 #define gPortSim ((struct PortSimBlock *)(uintptr_t)PORT_SIM_BASE)
 
+/* hdr.reserved: 12 bytes, zero unless an online session (platform/lmpnet.c)
+ * is on.  Then they hold the session's copy of the settings the pause
+ * SETTINGS page shows and edits (platform/menu_poc.c): the page is drawn into
+ * game memory, so what it shows must be the same on every device and must
+ * rewind with everything else.  Layout: [0] 1 = valid, [1] renderer,
+ * [2] aspect, [3] zoom index, [4] smooth camera, [5] scaling, [6] volume,
+ * [7] mute, [8] edit count, [9] player who made the last edit. */
+#define PORT_SIM_LNSET       ((u8 *)&gPortSim->hdr.reserved[0])
+#define PORT_SIM_LNSET_BYTES 12
+
 /* hdr.flags */
 #define PORT_SIM_F_SESSION 0x0001u  /* a NETPLAY-V2 session: one world, many peers */
 

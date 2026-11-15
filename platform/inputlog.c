@@ -168,6 +168,15 @@ void PortInputLogViewAt(u32 frame, s32 *w, s32 *h)
     }
 }
 
+/* A view event at exactly `frame`, whatever has been latched: an online
+ * session (platform/lmpnet.c) seals view changes with a frame and a guest
+ * that already ran that frame rewinds to it.  The list is keyed by frame, so
+ * the re-latched frames read the new value. */
+void PortInputLogPutView(u32 frame, s32 w, s32 h)
+{
+    AddView(frame, (u16)w, (u16)h);
+}
+
 u32 PortInputLogScheduleView(u32 frame, s32 w, s32 h)
 {
     if (sReplaying)

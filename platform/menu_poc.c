@@ -72,6 +72,7 @@
 #include "gba/syscall.h"
 #include "constants/languages.h"
 #include "code_08138D64.h"
+#include "port/lmpnet.h"
 #include "port/port.h"
 #include "port/menu_poc.h"
 #include "port/localmp.h"
@@ -162,6 +163,14 @@ EM_JS(int, PortWebMenuPocParam, (void), {
     return 0;
 });
 #endif
+
+/* For a host with no environment (node, the online rig): the same switch
+ * KATAM_MENU_POC is.  A host setting both online peers must agree on. */
+void PortMenuPocSet(int on)
+{
+    sOn = on > 0;
+    sNoCuts = on == 2;
+}
 
 int PortMenuPoc(void)
 {
@@ -848,13 +857,13 @@ static const char *const kRowDesc[ROWS] = {
     "MUSIC AND SOUND EFFECTS",
 };
 
-static int ZoomIndex(void)
+static int ZoomIndexOf(const PortSettings *s)
 {
     int i, best = 0;
     float bestD = 99.0f;
 
     for (i = 0; i < NZOOM; i++) {
-        float d = gPortSettings.zoom - kZoom[i];
+        float d = s->zoom - kZoom[i];
 
         if (d < 0) d = -d;
         if (d < bestD) { bestD = d; best = i; }
@@ -862,14 +871,94 @@ static int ZoomIndex(void)
     return best;
 }
 
+
+
+/* --- online: the session's copy of the settings ------------------------------
+ *
+ * The page draws its values into game memory (OBJ VRAM), so online it must
+ * show the same values on both devices, and an edit must rewind with the
+ * frame that made it: a guest that replays the frame of a Right press must
+ * not step its own settings a second time.  So while an online session holds
+ * a copy (port/simblock.h, PORT_SIM_LNSET), the page shows and edits that
+ * copy -- simulation state -- and the engine applies an edit to the device of
+ * the player who made it once the frame is final (PortPocSessionSettingsApply,
+ * from platform/lmpnet.c).  Off, nothing here is used. */
+static int SessionCopy(void)
+{
+    return gPortLnOn && PORT_SIM_LNSET[0];
+}
+
+static void FromCopy(PortSettings *s)
+{
+    const u8 *c = PORT_SIM_LNSET;
+
+    *s = gPortSettings;
+    s->renderer = c[1];
+    s->aspect = c[2];
+    s->zoom = kZoom[c[3] < NZOOM ? c[3] : NZOOM - 1];
+    s->smoothCam = c[4];
+    s->scaling = c[5];
+    s->volume = c[6];
+    s->mute = c[7];
+}
+
+static void ToCopy(u8 *c, const PortSettings *s)
+{
+    c[1] = (u8)s->renderer;
+    c[2] = (u8)s->aspect;
+    c[3] = (u8)ZoomIndexOf(s);
+    c[4] = (u8)s->smoothCam;
+    c[5] = (u8)s->scaling;
+    c[6] = (u8)s->volume;
+    c[7] = (u8)s->mute;
+}
+
+/* The host, as its session starts: the copy begins as its settings. */
+void PortPocSessionSettingsInit(void)
+{
+    u8 *c = PORT_SIM_LNSET;
+
+    memset(c, 0, PORT_SIM_LNSET_BYTES);
+    ToCopy(c, &gPortSettings);
+    c[0] = 1;
+}
+
+/* A final frame's copy, edited by this device's player: theirs to keep. */
+void PortPocSessionSettingsApply(const u8 *c)
+{
+    PortSettings s;
+    const u8 *was = PORT_SIM_LNSET;
+    u8 tmp[PORT_SIM_LNSET_BYTES];
+
+    (void)was;
+    memcpy(tmp, c, sizeof tmp);
+    s = gPortSettings;
+    s.renderer = tmp[1];
+    s.aspect = tmp[2];
+    s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1];
+    s.smoothCam = tmp[4];
+    s.scaling = tmp[5];
+    s.volume = tmp[6];
+    s.mute = tmp[7];
+    PortSettingsClamp(&s);
+    gPortSettings = s;
+    PortSettingsChanged();
+}
+
 static void RowValue(int row, char *buf, int size)
 {
+    PortSettings copy;
     const PortSettings *s = &gPortSettings;
+
+    if (SessionCopy()) {
+        FromCopy(&copy);
+        s = &copy;
+    }
 
     switch (row) {
     case R_GRAPHICS:  snprintf(buf, size, "%s", s->renderer == PS_RENDER_GPU ? "ENHANCED" : "CLASSIC"); break;
     case R_SCREEN:    snprintf(buf, size, "%s", kAspect[s->aspect]); break;
-    case R_ZOOM:      snprintf(buf, size, "%s", kZoomName[ZoomIndex()]); break;
+    case R_ZOOM:      snprintf(buf, size, "%s", kZoomName[ZoomIndexOf(s)]); break;
     case R_SMOOTHCAM: snprintf(buf, size, "%s", s->smoothCam ? "SMOOTH" : "NORMAL"); break;
     case R_PIXELS:    snprintf(buf, size, "%s", kScaling[s->scaling]); break;
     case R_VOLUME:
@@ -881,15 +970,13 @@ static void RowValue(int row, char *buf, int size)
 }
 
 /* dir -1 or +1; wraps for the lists, stops at the ends for the numbers. */
-static void RowStep(int row, int dir)
+static void RowStepOn(PortSettings *s, int row, int dir)
 {
-    PortSettings *s = &gPortSettings;
-
     switch (row) {
     case R_GRAPHICS:  s->renderer = s->renderer == PS_RENDER_GPU ? PS_RENDER_PPU : PS_RENDER_GPU; break;
     case R_SCREEN:    s->aspect = (s->aspect + dir + PS_ASPECT_COUNT) % PS_ASPECT_COUNT; break;
     case R_ZOOM: {
-        int z = ZoomIndex() + dir;
+        int z = ZoomIndexOf(s) + dir;
 
         s->zoom = kZoom[z < 0 ? 0 : z >= NZOOM ? NZOOM - 1 : z];
         break;
@@ -906,6 +993,25 @@ static void RowStep(int row, int dir)
         }
         break;
     }
+}
+
+static void RowStep(int row, int dir)
+{
+    PortSettings *s = &gPortSettings;
+
+    if (SessionCopy()) {
+        PortSettings copy;
+        u8 *c = PORT_SIM_LNSET;
+
+        FromCopy(&copy);
+        RowStepOn(&copy, row, dir);
+        PortSettingsClamp(&copy);
+        ToCopy(c, &copy);
+        c[8]++;
+        c[9] = gUnk_0203AD50;
+        return;
+    }
+    RowStepOn(s, row, dir);
     /* What the settings menu does after a change (ui_menu.cpp): clamp,
      * apply, persist. */
     PortSettingsClamp(s);
@@ -1130,11 +1236,13 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
     case 6:     /* right */
         if (!sModel->step(was, 1))
             return 0;
+        PortLnNoteSetting(was);     /* a host setting changed (online: R9) */
         DrawRowTiles(tiles, was, 1);
         return 2;
     case 5:     /* left */
         if (!sModel->step(was, -1))
             return 0;
+        PortLnNoteSetting(was);
         DrawRowTiles(tiles, was, 1);
         return 2;
     default:
@@ -1268,4 +1376,69 @@ void PortPocPauseObjRestore(void)
         return;
     memcpy((void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sObjSave, sizeof(sObjSave));
     sObjSaved = 0;
+}
+
+/* --- online: this file's host state, as simulation state ------------------------
+ *
+ * The pause page keeps simulation-reaching state in host memory: the OBJ tiles
+ * it saved (put back into VRAM when it closes), whether it saved them, the
+ * model, the description shown, the row banner and its geometry.  An online
+ * session (platform/lmpnet.c) rewinds and replays frames, and hands a joining
+ * device the host's memory, so it carries these with every keyframe and image
+ * and hashes them.  The decoded pictures (LoadSources) are a pure function of
+ * the ROM and are rebuilt instead of copied.  Same build only (pointers). */
+struct PocHostState {
+    u32 objSaved;
+    u32 model;                      /* 0 settings, 1 multiplayer          */
+    u64 descShown, owner, gsWant, gsShown;
+    s16 lblOffX, lblOffY, hdrOffX, hdrOffY;
+    s32 descLine;
+    u8  objSave[PORT_POC_PAUSE_OBJ_BYTES];
+    u8  rowBanner[sizeof(sRowBanner)];
+};
+
+u32 PortPocHostStateSize(void)
+{
+    return (u32)((sizeof(struct PocHostState) + 3u) & ~3u);
+}
+
+void PortPocHostStateSave(u8 *dest)
+{
+    struct PocHostState *h = (struct PocHostState *)dest;
+
+    memset(dest, 0, PortPocHostStateSize());
+    h->objSaved = (u32)sObjSaved;
+    h->model = sModel == &kMpModel ? 1 : 0;
+    h->descShown = (u64)(uintptr_t)sDescShown;
+    h->owner = (u64)(uintptr_t)sOwner;
+    h->gsWant = (u64)(uintptr_t)sGsDescWant;
+    h->gsShown = (u64)(uintptr_t)sGsDescShown;
+    h->lblOffX = sLblOffX; h->lblOffY = sLblOffY; h->hdrOffX = sHdrOffX; h->hdrOffY = sHdrOffY;
+    h->descLine = sDescLine;
+    memcpy(h->objSave, sObjSave, sizeof(sObjSave));
+    memcpy(h->rowBanner, sRowBanner, sizeof(sRowBanner));
+}
+
+void PortPocHostStateLoad(const u8 *src)
+{
+    const struct PocHostState *h = (const struct PocHostState *)src;
+
+    sObjSaved = (int)h->objSaved;
+    sModel = h->model ? &kMpModel : &kSettingsModel;
+    sDescShown = (const char *)(uintptr_t)h->descShown;
+    sOwner = (struct Unk_08138D64 *)(uintptr_t)h->owner;
+    sGsDescWant = (const char *)(uintptr_t)h->gsWant;
+    sGsDescShown = (const char *)(uintptr_t)h->gsShown;
+    sLblOffX = h->lblOffX; sLblOffY = h->lblOffY; sHdrOffX = h->hdrOffX; sHdrOffY = h->hdrOffY;
+    sDescLine = h->descLine;
+    memcpy(sObjSave, h->objSave, sizeof(sObjSave));
+    memcpy(sRowBanner, h->rowBanner, sizeof(sRowBanner));
+}
+
+/* A device that took an image without ever building a screen: the decoded
+ * pictures, from the ROM, as a screen build would have made them. */
+void PortPocHostStateRebuild(void)
+{
+    if (PortMenuPoc())
+        LoadSources();
 }

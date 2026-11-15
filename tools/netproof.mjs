@@ -1,0 +1,417 @@
+#!/usr/bin/env node
+// Online local multiplayer, proof-of-concept rig: reruns every gate and
+// writes RIG-REPORT.md + rig-report.json.
+//
+//   node tools/netproof.mjs [--rom ROM] [--module build/katam-node.js]
+//        [--out DIR] [--quick] [--skip-r11] [--only R2,R4] [--recording FILE]
+//        [--seeds 3] [--jobs N]
+//
+// Two wasm instances (host, guest) of the same build in one node process, a
+// seeded discrete-event link (tools/netproof/link.mjs) on a virtual clock,
+// the session logic (tools/netproof/session.mjs) and the engine
+// (platform/lmpnet.c).  Every run is reproducible from its config.
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { execFileSync, spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { runSession, dist, pct } from './netproof/run.mjs';
+import { buildScenario, loadRecording, BOOT_END, SCRIPTED_END } from './netproof/scenario.mjs';
+import { layout, diffImages } from './netproof/localise.mjs';
+import { createInstance } from './netproof/instance.mjs';
+import { PERIOD } from './netproof/session.mjs';
+import { CAUSES, NOTES } from './netproof/causes.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(here, '..');
+const argv = process.argv.slice(2);
+const flag = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[i + 1] : d; };
+const has = (k) => argv.includes('--' + k);
+const ROM = flag('rom', process.env.ROM || '/bigdata/agent-tom/projects/katamport/decomp/baserom.gba');
+const MODULE = path.resolve(flag('module', path.join(ROOT, 'build/katam-node.js')));
+const OUT = path.resolve(flag('out', process.env.NETPROOF_OUT || path.join(ROOT, '../netproof-eval')));
+const QUICK = has('quick');
+const ONLY = flag('only', '') ? flag('only').split(',') : null;
+const SEEDS = +flag('seeds', QUICK ? 1 : 3);
+const RECORDING = null;
+const AUDIT = path.join(ROOT, '../netaudit-wt/tests/recordings');
+// --recording a.txt,b.txt (default: the audit agent's local-multiplayer
+// recordings when they exist; --recording none for none)
+const RECORDINGS = (flag('recording', '') ? (flag('recording') === 'none' ? [] : flag('recording').split(','))
+    : ['localmp_tour.txt', 'localmp_menus.txt'].map((f) => path.join(AUDIT, f))).filter((f) => fs.existsSync(f));
+const want = (g) => !ONLY || ONLY.includes(g);
+const rom = fs.readFileSync(ROM);
+const t0 = Date.now();
+const log = (...a) => console.log(`[netproof ${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
+
+const KIRBY = 0x02020EE0, KSIZE = 0x1A8;
+const SCRIPTED = SCRIPTED_END - BOOT_END;          // frames of scripted scenario after the session starts
+const MATRIX_FRAMES = QUICK ? SCRIPTED + 1800 : SCRIPTED + 3600;
+const HEADLINE_FRAMES = QUICK ? SCRIPTED + 6000 : SCRIPTED + 36000;   // >= 10 min of free play
+
+const runs = [];          // every run's summary (no instances)
+const localisations = []; // every distinct mismatch, localised
+
+function slim(r) {
+    const o = Object.assign({}, r);
+    delete o._host; delete o._guest; delete o.dumps;
+    return o;
+}
+
+async function run(name, cfg, scenarioOpts = {}) {
+    const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600) }, scenarioOpts)));
+    const r = await runSession(Object.assign({ name, modulePath: MODULE, rom, scenario: sc }, cfg));
+    const s = slim(r);
+    runs.push(s);
+    const tag = r.compare.mismatched ? `MISMATCH x${r.compare.mismatched} first@${r.compare.firstMismatch}` : 'identical';
+    log(`${name}: ${r.compare.equal}/${r.compare.compared} frames ${tag}; rewinds ${r.guest.tel.rewinds}, images ${r.guest.tel.imagesLoaded}, wall ${r.wallSec}s`);
+    if (r.compare.mismatched && !cfg.noLocalise) await localise(name, cfg, sc, r);
+    r._host = r._guest = null;
+    return s;
+}
+
+// Re-run the same deterministic session with full dumps at the first
+// mismatching frame, and diff the two images.
+async function localise(name, cfg, sc, r) {
+    const f = r.compare.firstMismatch;
+    const rr = await runSession(Object.assign({ name: name + '/localise', modulePath: MODULE, rom, scenario: sc }, cfg, { dumpAt: f, corrupt: (cfg.corrupt || []).map((c) => Object.assign({}, c, { done: false })) }));
+    const d = rr.dumps || {};
+    const rec = { run: name, frame: f, regions: r.mismatches[0] ? r.mismatches[0].regions : [], reproduced: rr.compare.firstMismatch === f };
+    if (d.host && d.guest && d.host.frame === f && d.guest.frame === f) {
+        const parts = layout(rr._host);
+        const xs = rr._host.M._PortLnImageBytes() - 64 - (parts[parts.length - 1].offset + parts[parts.length - 1].size);
+        if (xs > 0) parts.push({ name: 'host', base: 0, offset: parts[parts.length - 1].offset + parts[parts.length - 1].size, size: xs });
+        const df = diffImages(d.host.bytes, d.guest.bytes, parts);
+        rec.bytesByRegion = df.regions;
+        rec.runs = df.runs.slice(0, 24);
+        fs.mkdirSync(path.join(OUT, 'rig-tmp', 'dumps'), { recursive: true });
+        const base = path.join(OUT, 'rig-tmp', 'dumps', `${name.replace(/[^\w.-]+/g, '_')}_f${f}`);
+        fs.writeFileSync(base + '.host.bin', d.host.bytes);
+        fs.writeFileSync(base + '.guest.bin', d.guest.bytes);
+        rec.dumps = base + '.{host,guest}.bin';
+    } else rec.note = 'dump not captured';
+    localisations.push(rec);
+    log(`  localised ${name} f${f}: ${JSON.stringify(rec.bytesByRegion || rec.note)} ${(rec.runs || []).slice(0, 4).map((x) => x.symbol).join(', ')}`);
+}
+
+// --- link conditions --------------------------------------------------------
+const L = (oneWay, jitter, loss, extra = {}) => Object.assign({ oneWay, jitter, loss }, extra);
+const matrix = [];
+for (const ow of [0, 30, 60, 120, 200])
+    for (const loss of [0, 0.02, 0.10])
+        for (const rough of [false, true]) {
+            if (QUICK && rough && loss === 0.02) continue;
+            const j = rough ? Math.round(ow / 4) + 5 : 0;
+            matrix.push({ id: `${ow}ms j${j} loss${loss * 100}%${rough ? ' reorder5% dup2%' : ''}`, link: L(ow, j, loss, rough ? { reorder: 0.05, reorderMs: 40, dup: 0.02 } : {}) });
+        }
+const FREE = (SCRIPTED + 300) * PERIOD;   // ms after the session start: free play, both players busy
+const HEADLINE = L(120, 30, 0.02, { reorder: 0.02, reorderMs: 30, dup: 0.01 });
+
+const report = { started: new Date().toISOString(), rom: path.basename(ROM), module: MODULE, quick: QUICK, gates: {}, notes: [] };
+
+// ---------------------------------------------------------------------------
+async function main() {
+    fs.mkdirSync(OUT, { recursive: true });
+    // R0: rig sanity
+    if (want('R0')) {
+        const a = await run('R0 lockstep, perfect link', { link: L(0, 0, 0), lockstep: true, durationFrames: MATRIX_FRAMES });
+        const b = await run('R0 predicted, perfect link', { link: L(0, 0, 0), durationFrames: MATRIX_FRAMES });
+        const c = await run('R0 guest renders, host does not', { link: L(0, 0, 0), durationFrames: QUICK ? 2000 : 4000, renderGuest: true });
+        const ok = [a, b, c].every((r) => r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected - 2);
+        report.gates.R0 = { verdict: ok ? 'PASS' : 'FAIL', runs: [a, b, c].map(brief),
+            text: `lockstep: ${a.compare.equal}/${a.compare.expected} frames identical, ${a.guest.tel.rewinds} rewinds; predicted: ${b.compare.equal}/${b.compare.expected}, ${b.guest.tel.rewinds} rewinds; guest rendering: ${c.compare.equal}/${c.compare.expected}` };
+    }
+    // R1: snapshot exactness: forced deep rewinds on a perfect link through
+    // the scripted scenario (doors, carries, boss, death, pause, phone)
+    if (want('R1')) {
+        const a = await run('R1 forced rewind 150f every 37f', { link: L(0, 0, 0), forceRewind: { every: 37, depth: 150 }, durationFrames: MATRIX_FRAMES });
+        const b = await run('R1 forced rewind 330f every 101f', { link: L(0, 0, 0), forceRewind: { every: 101, depth: 330 }, durationFrames: MATRIX_FRAMES });
+        const c = await run('R1 keyframe every frame, rewind 20f every 7f', { link: L(0, 0, 0), kfEvery: 1, kfCount: 24, forceRewind: { every: 7, depth: 20 }, durationFrames: QUICK ? 2500 : MATRIX_FRAMES });
+        const ok = [a, b, c].every((r) => r.compare.mismatched === 0 && r.guest.tel.rewindsForced > 10);
+        report.gates.R1 = { verdict: ok ? 'PASS' : 'FAIL', runs: [a, b, c].map(brief),
+            text: [a, b, c].map((r) => `${r.name}: ${r.guest.tel.rewindsForced} forced rewinds, ${r.guest.tel.replayedFrames} frames replayed, ${r.compare.equal}/${r.compare.compared} identical`).join('; '),
+            coverage: a.coverage };
+    }
+    // R2: convergence matrix and special conditions
+    if (want('R2')) {
+        const m = [];
+        for (const x of matrix) m.push(await run(`R2 ${x.id}`, { link: x.link, durationFrames: MATRIX_FRAMES, seed: 11 }));
+        const sp = [];
+        sp.push(await run('R2 outage 0.5s @120ms', { link: Object.assign({}, HEADLINE, { outages: [[FREE, 500], [FREE + 20000, 500]] }), durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 outage 3s @120ms', { link: Object.assign({}, HEADLINE, { outages: [[FREE, 3000], [FREE + 25000, 3000]] }), durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 guest frozen 5s', { link: HEADLINE, guest: { freezes: [[FREE, 5000]] }, durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 host frozen 5s', { link: HEADLINE, host: { freezes: [[FREE, 5000]] }, durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 guest at 30Hz', { link: HEADLINE, guest: { rate: 30 }, durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 host at 30Hz', { link: HEADLINE, host: { rate: 30 }, durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 guest clock +0.5%', { link: HEADLINE, guest: { drift: 0.005 }, durationFrames: MATRIX_FRAMES }));
+        sp.push(await run('R2 guest clock -0.5%', { link: HEADLINE, guest: { drift: -0.005 }, durationFrames: MATRIX_FRAMES }));
+        const hl = [];
+        for (let s = 1; s <= SEEDS; s++)
+            hl.push(await run(`R2 HEADLINE 120ms j30 loss2% seed ${s}`, { link: HEADLINE, durationFrames: HEADLINE_FRAMES, seed: s, progress: log }));
+        for (const file of RECORDINGS) {
+            const rec = loadRecording(file);
+            hl.push(await run(`R2 recording ${path.basename(file)} (menus ${rec.menus}) @120ms`, { link: HEADLINE, scenario: rec, startFrame: Math.min(BOOT_END, rec.end - 100), durationFrames: Math.max(100, rec.end - BOOT_END - 240) }));
+        }
+        const all = [...m, ...sp, ...hl];
+        const bad = all.filter((r) => r.compare.mismatched || r.compare.compared < r.compare.expected * 0.9);
+        report.gates.R2 = { verdict: bad.length ? 'FAIL' : 'PASS', matrix: m.map(brief), special: sp.map(brief), headline: hl.map(brief),
+            text: `${all.length} runs; ${all.filter((r) => !r.compare.mismatched).length} with every final frame identical; ` +
+                  `frames compared ${all.reduce((n, r) => n + r.compare.compared, 0)}, mismatched ${all.reduce((n, r) => n + r.compare.mismatched, 0)}; ` +
+                  `headline: ${hl.map((r) => `${r.frames.gameMinutes} min, ${r.compare.equal}/${r.compare.compared}`).join('; ')}` +
+                  (bad.length ? `; FAILING: ${bad.map((r) => r.name).join(', ')}` : '') };
+        report.feel = all.map(feelRow);
+    }
+    // R3: no silent drops -- force the history to be exceeded (no lead cap,
+    // a 10 s outage) and show each one repaired
+    if (want('R3')) {
+        const a = await run('R3 history exceeded (no lead cap, 10s outage)', { link: Object.assign({}, HEADLINE, { outages: [[FREE, 10000]] }), durationFrames: MATRIX_FRAMES, guestOpts: { leadCap: 100000, maxExtrap: 100000 } });
+        const all = runs.filter((r) => !r.name.includes('/localise'));
+        const exceeded = all.reduce((n, r) => n + r.guest.tel.historyExceeded, 0);
+        const unrepaired = all.filter((r) => r.guest.tel.historyExceeded && r.guest.tel.imagesLoaded < 2);
+        const residual = a.mismatches.filter((m) => m.f >= a.guest.tel.floor).length;
+        const ok = a.guest.tel.historyExceeded > 0 && a.guest.tel.imagesLoaded >= 2 && residual === 0 && !unrepaired.length;
+        report.gates.R3 = { verdict: ok ? 'PASS' : 'FAIL', runs: [brief(a)],
+            text: `all runs: ${exceeded} sealed frames older than history, in ${all.filter((r) => r.guest.tel.historyExceeded).length} runs; forced case: ${a.guest.tel.historyExceeded} exceeded -> ${a.guest.tel.imagesLoaded - 1} repairs by image, then ${a.compare.equal}/${a.compare.compared} final frames identical (${a.compare.mismatched} known-wrong frames before the repair, residual after it ${residual}); runs with an exceed and no repair: ${unrepaired.length}` };
+    }
+    // R4: injected corruption
+    if (want('R4')) {
+        const at = BOOT_END + SCRIPTED + 1200;
+        const mk = (what, apply) => ({ what, frame: at, apply });
+        const cases = [
+            mk('RNG word (gRngVal ^= 0x5A5A)', (g) => g.poke32(0x030068D8, g.peek32(0x030068D8) ^ 0x5A5A)),
+            mk('enemy x (+32 px)', (g) => { const p = g.M._malloc(16); const ok = g.M._PortLnFindEnemy(p); const a = g.M.HEAP32[p >> 2], ty = g.M.HEAP32[(p >> 2) + 1]; g.M._free(p); if (ok) g.poke32(a + 0x40, (g.peek32(a + 0x40) + 0x2000) >>> 0); g.lastCorrupt = ok ? `object 0x${(a >>> 0).toString(16)} type 0x${ty.toString(16)}` : 'no enemy in room'; }),
+            mk('VRAM byte (BG char 0x0600C010 ^= 0xFF)', (g) => g.poke8(0x0600C010, g.peek8(0x0600C010) ^ 0xFF)),
+            mk('sim-block byte (spare 0x0204001F)', (g) => g.poke8(0x0204001F, g.peek8(0x0204001F) ^ 0x80)),
+        ];
+        cases[1].frame = 3000;   // in Kracko's arena
+        const res = [];
+        for (const cz of cases) {
+            const r = await run(`R4 ${cz.what}`, { link: HEADLINE, durationFrames: SCRIPTED + 1200 + (QUICK ? 1200 : 2400), corrupt: [cz], noLocalise: true });
+            const c = r.corrupt[0] || {};
+            const after = r.mismatches.filter((m) => c.repairT !== undefined && m.t > c.repairT + 1000);
+            res.push({ what: cz.what, target: c.target, detected: c.detectT !== undefined, detectMs: c.detectT !== undefined ? +(c.detectT - c.t).toFixed(0) : null,
+                       repairMs: c.repairT !== undefined ? +(c.repairT - c.t).toFixed(0) : null, mismatchedFrames: r.compare.mismatched,
+                       residual: after.length, behindImages: r.host.session.behindImages || 0, regions: [...new Set(r.mismatches.flatMap((m) => m.regions))],
+                       imageRaw: r.host.session.imageRaw, imageComp: r.host.session.imageComp,
+                       applyMs: +(r.guest.session.imageApplyMs / Math.max(1, r.guest.session.images)).toFixed(2),
+                       compressMs: +(r.host.session.compressMs / Math.max(1, r.host.session.images)).toFixed(2),
+                       imageLoadUs: r.guest.tel.imageLoadUs, repairs: r.guest.tel.imagesLoaded - 1, run: r.name });
+        }
+        const ok = res.every((x) => x.residual === 0 && (x.detected ? x.repairMs !== null : x.mismatchedFrames === 0));
+        report.gates.R4 = { verdict: ok ? 'PASS' : 'FAIL', cases: res,
+            text: res.map((x) => `${x.what}: ${x.detected ? `detected in ${x.detectMs} ms, repaired at ${x.repairMs} ms, residual ${x.residual}` : `never diverged (${x.mismatchedFrames} mismatched frames)`}`).join('; ') };
+    }
+    // R5: start/join by image, and what has to travel besides memory
+    if (want('R5')) {
+        const base = { link: HEADLINE };
+        const mid = await run('R5 join mid-game (after the scripted part)', Object.assign({}, base, { joinFrame: BOOT_END + SCRIPTED + 400, durationFrames: SCRIPTED + 400 + (QUICK ? 1800 : 3600) }));
+        const open = await run('R5 join while the pause SETTINGS page is open', Object.assign({}, base, { joinFrame: 5330, durationFrames: 5330 - BOOT_END + 2400 }));
+        const abl = [];
+        const skips = [
+            ['local-multiplayer switch', 0x01, BOOT_END + SCRIPTED + 400],
+            ['new-menus switch', 0x02, 4600],
+            ['save memory', 0x04, BOOT_END + SCRIPTED + 400],
+            ['"save already loaded" flag', 0x08, BOOT_END + SCRIPTED + 400],
+            ['session view list', 0x10, 8200],
+            ['menu_poc host state', 0x20, 5330],
+        ];
+        for (const [what, mask, join] of skips) {
+            const r = await run(`R5 ablation: without ${what}`, Object.assign({}, base, { joinFrame: join, durationFrames: join - BOOT_END + (QUICK ? 1500 : 2400), noLocalise: true,
+                guestPre: (g) => g.M._PortLnSetImageSkip(mask) }));
+            abl.push({ what, joinFrame: join, diverged: r.compare.mismatched > 0, firstMismatch: r.compare.firstMismatch,
+                       regions: [...new Set(r.mismatches.flatMap((m) => m.regions))], repairs: r.guest.tel.imagesLoaded - 1 });
+        }
+        const ok = mid.compare.mismatched === 0 && open.compare.mismatched === 0;
+        report.gates.R5 = { verdict: ok ? 'PASS' : 'FAIL', runs: [brief(mid), brief(open)], ablations: abl,
+            text: `mid-game join at f${mid.frames.join}: ${mid.compare.equal}/${mid.compare.compared} identical; join with the SETTINGS page open: ${open.compare.equal}/${open.compare.compared}; image ${mid.host.session.imageRaw} B raw, ${mid.host.session.imageComp} B deflated` };
+    }
+    // R6: authority -- across every run
+    if (want('R6')) {
+        const all = runs.filter((r) => !r.name.includes('/localise'));
+        const hr = all.reduce((n, r) => n + r.host.tel.hostRewinds + r.host.tel.rewinds, 0);
+        const hc = all.reduce((n, r) => Math.max(n, r.host.tel.catchUpFramesMax), 0);
+        report.gates.R6 = { verdict: hr === 0 && hc === 0 ? 'PASS' : 'FAIL', text: `${all.length} runs: host rewinds ${hr}, host replayed frames ${hc}` };
+    }
+    // R8: cost
+    if (want('R8')) report.gates.R8 = Object.assign({ verdict: 'MEASURED' }, await costs());
+    // R9 / R10: from every run
+    if (want('R9')) report.gates.R9 = sideEffects();
+    if (want('R10')) report.gates.R10 = events();
+    if (want('R7')) report.gates.R7 = { verdict: 'MEASURED', text: 'per link condition below (feel table)' };
+    if (want('R11') && !has('skip-r11')) report.gates.R11 = r11();
+    report.localisations = localisations;
+    report.runs = runs;
+    report.finished = new Date().toISOString();
+    report.wallSec = Math.round((Date.now() - t0) / 1000);
+    fs.writeFileSync(path.join(OUT, 'rig-report.json'), JSON.stringify(report, null, 1));
+    fs.writeFileSync(path.join(OUT, 'RIG-REPORT.md'), markdown(report));
+    log(`wrote ${path.join(OUT, 'RIG-REPORT.md')} and rig-report.json (${report.wallSec}s)`);
+    for (const [g, v] of Object.entries(report.gates)) log(`${g} ${v.verdict}: ${v.text || ''}`);
+}
+
+function brief(r) {
+    return { name: r.name, frames: r.compare.expected, compared: r.compare.compared, equal: r.compare.equal, mismatched: r.compare.mismatched,
+             firstMismatch: r.compare.firstMismatch, gameMin: r.frames.gameMinutes, rewinds: r.guest.tel.rewinds, images: r.guest.tel.imagesLoaded,
+             historyExceeded: r.guest.tel.historyExceeded, engineMismatches: r.guest.tel.mismatches, wallSec: r.wallSec };
+}
+
+function feelRow(r) {
+    const f = r.feel, g = r.guest;
+    return { name: r.name, gameMin: r.frames.gameMinutes, identical: r.compare.mismatched === 0, rewindsPerMin: f.rewindsPerMin, replayedPerSec: f.replayedFramesPerSec,
+             depth: f.depth, own: f.ownDisp, other: f.otherDisp, ownNonzero: f.ownDispNonzero, otherNonzero: f.otherDispNonzero,
+             ownOverriddenPct: f.ownOverriddenPct, hostKeyLatePct: f.hostKeyLatePct, lead: g.lead, margin: g.margin, rtt: g.rtt,
+             holdsPerMin: f.holdsPerMin, skipsPerMin: f.skipsPerMin, burstsPerMin: f.burstsPerMin, capHolds: f.capHolds,
+             worstGuestStepMs: f.worstGuestStepMs, guestStep: g.stepMs, images: g.tel.imagesLoaded, bigCorrections: r.bigCorrections, roomChange: f.roomChangeCorrections, soundsBad: f.soundsMispredicted, soundsJudged: f.soundsJudged,
+             upBps: Math.round(r.link.gh.bytes / Math.max(1, r.frames.gameMinutes * 60)), downBps: Math.round(r.link.hg.bytes / Math.max(1, r.frames.gameMinutes * 60)) };
+}
+
+async function costs() {
+    // simulation alone, local multiplayer, render off, no session; then the
+    // session's own per-frame work on top (hash every frame / every 16th)
+    const sc = buildScenario({ seed: 5, humanFrames: 20000 });
+    const out = {};
+    for (const mode of ['plain', 'session-hash16', 'session-hash1']) {
+        const h = await createInstance({ modulePath: MODULE, rom, name: 'cost' });
+        h.M._PortLmpSetHumans(2);
+        while (h.frame() < BOOT_END) { const f = h.frame(); h.M._PortSetKeys(sc.p1(f)); await h.step(); }
+        if (mode !== 'plain') h.M._PortLnStart(1, 15, 24, mode === 'session-hash1' ? 1 : 0);
+        const N = QUICK ? 4000 : 12000, f0 = h.frame();
+        let t = performance.now();
+        for (let i = 0; i < N; i++) {
+            const f = h.frame();
+            if (mode === 'plain') { h.M._PortSetKeys(sc.p1(f)); h.M._PortLmpSetHostKeys(1, sc.p2(f)); }
+            else { h.M._PortLnLocalInput(f, sc.p1(f)); h.M._PortLnRemoteInput(f, sc.p2(f)); }
+            await h.step();
+        }
+        out[mode] = +((performance.now() - t) * 1000 / N).toFixed(1);
+        if (mode === 'session-hash1') {
+            const tel = h.tel.read();
+            out.hashUsAvg = +(tel.hashUsSum / tel.hashed).toFixed(1);
+            out.hashUsMax = tel.hashUsMax;
+            out.imageBytes = h.M._PortLnImageBytes();
+        }
+    }
+    // an empty step: the shim's own cost (await round trip), for honesty
+    const pure = await createInstance({ modulePath: MODULE, rom, name: 'cost2' });
+    const all = runs.filter((r) => !r.name.includes('/localise') && r.guest.tel.kfSaved);
+    const kfSave = all.reduce((a, r) => [a[0] + r.guest.tel.kfSaveUsSum, a[1] + r.guest.tel.kfSaved, Math.max(a[2], r.guest.tel.kfSaveUsMax)], [0, 0, 0]);
+    const kfLoad = all.reduce((a, r) => [a[0] + r.guest.tel.kfLoadUsSum, a[1] + r.guest.tel.rewinds, Math.max(a[2], r.guest.tel.kfLoadUsMax)], [0, 0, 0]);
+    const cu = all.reduce((a, r) => [a[0] + r.guest.tel.catchUpUsSum, a[1] + r.guest.tel.replayedFrames], [0, 0]);
+    const t = all[0] ? all[0].guest.tel : {};
+    out.keyframeSaveUs = { avg: +(kfSave[0] / Math.max(1, kfSave[1])).toFixed(1), max: kfSave[2], n: kfSave[1] };
+    out.keyframeRestoreUs = { avg: +(kfLoad[0] / Math.max(1, kfLoad[1])).toFixed(1), max: kfLoad[2], n: kfLoad[1] };
+    out.replayUsPerFrame = +(cu[0] / Math.max(1, cu[1])).toFixed(1);
+    out.keyframeBytes = t.kfBytes; out.keyframes = t.kfCount;
+    out.historyBytes = (t.kfBytes || 0) * (t.kfCount || 0);
+    out.timelineBytes = 8192 * (60 + 11 * 8 + 12);
+    out.historyFramesCovered = 15 * 24;
+    const img = all.map((r) => r.host.session).filter((s) => s.images);
+    out.imageRaw = img[0] ? img[0].imageRaw : null;
+    out.imageCompressed = dist(img.map((s) => s.imageComp));
+    out.worstGuestStepMsByRun = all.map((r) => [r.name, r.feel.worstGuestStepMs]);
+    out.text = `sim ${out.plain} us/frame (wasm, local MP, render off, incl. ~JS step overhead); +session w/ hash every 16th ${out['session-hash16']} us; hash every frame ${out['session-hash1']} us (hash ${out.hashUsAvg} us avg); ` +
+               `keyframe save ${out.keyframeSaveUs.avg} us avg / ${out.keyframeSaveUs.max} max, restore ${out.keyframeRestoreUs.avg} / ${out.keyframeRestoreUs.max}, replay ${out.replayUsPerFrame} us/frame; ` +
+               `history ${(out.historyBytes / 1048576).toFixed(1)} MiB (${out.keyframes} x ${out.keyframeBytes} B, ${out.historyFramesCovered} frames) + timeline ${(out.timelineBytes / 1048576).toFixed(1)} MiB; image ${out.imageRaw} B raw, ${out.imageCompressed.p50} B deflated (p50)`;
+    void pure;
+    return out;
+}
+
+function sideEffects() {
+    const all = runs.filter((r) => !r.name.includes('/localise'));
+    const sum = (k, side = 'guest') => all.reduce((n, r) => n + (r[side].tel[k] || 0), 0);
+    const o = {
+        soundsLiveGuest: sum('soundsLive'), soundsRefire: sum('soundsRefire'), soundsSpurious: sum('soundsSpurious'), soundsMissed: sum('soundsMissed'),
+        sramWritesGuest: sum('sramWrites'), sramWritesUnsealed: sum('sramWritesUnsealed'), sramWritesReplay: sum('sramWritesReplay'), sramWritesHost: sum('sramWrites', 'host'),
+        settingsEditsGuest: sum('settingsApplied'), settingsEditsUnsealed: sum('settingsUnsealed'), settingsEditsReplay: sum('settingsReplay'),
+        settingsAppliedToDeviceGuest: sum('settingsDeviceApplied'), settingsAppliedToDeviceHost: sum('settingsDeviceApplied', 'host'),
+        audioBlocksMuted: sum('audioBlocksMuted'), guestMinutes: +all.reduce((n, r) => n + r.frames.gameMinutes, 0).toFixed(1),
+    };
+    o.verdict = 'MEASURED';
+    o.text = `over ${o.guestMinutes} guest-minutes: sounds started live ${o.soundsLiveGuest}; in replayed frames, same sound again (would re-fire) ${o.soundsRefire}, heard but not in the final timeline (mispredicted) ${o.soundsSpurious}, in the final timeline but never heard live ${o.soundsMissed}; ` +
+             `SRAM writes on the guest ${o.sramWritesGuest} (${o.sramWritesUnsealed} from unsealed live frames, ${o.sramWritesReplay} from replays; host ${o.sramWritesHost}); ` +
+             `pause-page setting edits on the guest ${o.settingsEditsGuest} (${o.settingsEditsUnsealed} unsealed, ${o.settingsEditsReplay} replayed) -- now simulation state, applied to a device only when final: guest ${o.settingsAppliedToDeviceGuest}, host ${o.settingsAppliedToDeviceHost}`;
+    return o;
+}
+
+function events() {
+    const all = runs.filter((r) => !r.name.includes('/localise'));
+    const sum = (k, side = 'guest') => all.reduce((n, r) => n + (r[side].tel[k] || 0), 0);
+    const late = sum('eventsLate'), sealed = sum('events', 'host'), applied = sum('eventsApplied');
+    const withLate = all.filter((r) => r.guest.tel.eventsLate && !/^R3 |^R4 |^R5 ablation/.test(r.name));
+    const ok = withLate.every((r) => r.compare.mismatched === 0) && sealed > 0;
+    return { verdict: ok ? 'PASS' : 'FAIL', sealed, late, applied, rewindsForEvents: sum('rewindsEvent'),
+             text: `${sealed} events sealed by hosts (warps, view changes, pokes), ${late} reached a guest after it had simulated that frame (${sum('rewindsEvent')} rewinds caused by an event alone); every run with late events converged: ${ok}` };
+}
+
+function r11() {
+    const res = { verdict: 'FAIL', parts: {} };
+    const env = Object.assign({}, process.env, { ROM });
+    const sh = (cmd, args, opts = {}) => {
+        const r = spawnSync(cmd, args, Object.assign({ cwd: ROOT, env, encoding: 'utf8', maxBuffer: 1 << 26 }, opts));
+        return { rc: r.status, out: (r.stdout || '') + (r.stderr || '') };
+    };
+    log('R11: native build + make regress / regress-wasm / check_sim_state / lint-determinism');
+    const b = sh('cmake', ['--build', 'build/lp64', '-j', String(os.cpus().length)]);
+    res.parts.nativeBuild = b.rc === 0 ? 'ok' : 'FAILED';
+    const reg = sh('make', ['regress', `ROM=${ROM}`]);
+    const lines = reg.out.split('\n').filter((l) => /^(aim|attract|boot_to_level|play_rooms|tutorial_walk|warp_sweep|wide_view)\s/.test(l));
+    res.parts.regress = lines;
+    const regOk = lines.length === 7 && lines.every((l) => /\sOK\s/.test(l) || /^aim\s+DIVERGED\s+first divergent frame: sim@3318$/.test(l.trim()));
+    const wasm = sh('make', ['regress-wasm', `ROM=${ROM}`]);
+    const wl = wasm.out.split('\n').filter((l) => /^(aim|attract|boot_to_level|play_rooms|tutorial_walk|warp_sweep|wide_view)\s/.test(l));
+    res.parts.regressWasm = wl;
+    const wasmOk = wl.length === 7 && wl.every((l) => /\sOK\s/.test(l));
+    const ss = sh('python3', ['tools/check_sim_state.py']);
+    res.parts.checkSimState = ss.out.trim().split('\n').slice(-3);
+    const ld = sh('make', ['lint-determinism']);
+    res.parts.lintDeterminism = ld.out.trim().split('\n').slice(-3);
+    res.verdict = regOk && wasmOk && ss.rc === 0 && ld.rc === 0 && b.rc === 0 ? 'PASS' : 'FAIL';
+    res.text = `native build ${res.parts.nativeBuild}; regress: ${regOk ? 'as baseline (aim sim@3318 only, keys/vid/sram/pix match)' : 'DIFFERS'}; regress-wasm: ${wasmOk ? '7/7 OK' : 'DIFFERS'}; check_sim_state rc ${ss.rc}; lint-determinism rc ${ld.rc}`;
+    return res;
+}
+
+// --- markdown ---------------------------------------------------------------
+function md(rows, cols) {
+    const head = '| ' + cols.map((c) => c[0]).join(' | ') + ' |\n|' + cols.map(() => '---').join('|') + '|\n';
+    return head + rows.map((r) => '| ' + cols.map((c) => { const v = c[1](r); return v === undefined || v === null ? '' : String(v); }).join(' | ') + ' |').join('\n') + '\n';
+}
+const d3 = (d) => (d && d.n ? `${fmt(d.p50)}/${fmt(d.p90)}/${fmt(d.p99)}/${fmt(d.max)}` : '-');
+const fmt = (v) => (v === null || v === undefined ? '-' : Number.isInteger(v) ? v : (+v).toFixed(1));
+
+function markdown(R) {
+    let s = `# Online local multiplayer: proof-of-concept rig report\n\n`;
+    s += `Generated by \`node tools/netproof.mjs\` (${R.quick ? 'QUICK mode' : 'full'}) on ${R.finished}, ${R.wallSec} s wall. ROM: the player's own (${R.rom}); module ${path.relative(ROOT, R.module)}.\n`;
+    s += `Every number below is measured by this run on a virtual clock (seeded, reproducible); nothing is cited.\n\n## Gates\n\n`;
+    s += md(Object.entries(R.gates), [['gate', ([g]) => g], ['verdict', ([, v]) => `**${v.verdict}**`], ['numbers', ([, v]) => (v.text || '').replace(/\|/g, '/')]]);
+    if (R.gates.R2) {
+        s += `\n## R2 runs\n\n`;
+        s += md([...R.gates.R2.matrix, ...R.gates.R2.special, ...R.gates.R2.headline], [['run', (r) => r.name], ['game min', (r) => r.gameMin], ['final frames identical', (r) => `${r.equal}/${r.compared} of ${r.frames}`],
+            ['rewinds', (r) => r.rewinds], ['images (join+repairs)', (r) => r.images], ['history exceeded', (r) => r.historyExceeded], ['engine mismatches', (r) => r.engineMismatches], ['wall s', (r) => r.wallSec]]);
+    }
+    if (R.feel) {
+        s += `\n## R7 feel, per link condition\n\nDisplacement is the jump of a Kirby on the guest's screen at a correction (rewind or image), in pixels, same room only: p50/p90/p99/max over corrections. "Own" is the guest's Kirby (player 2), "other" is player 1. Lead is guest frame minus its sealed frontier.\n\n`;
+        s += md(R.feel, [['run', (r) => r.name], ['rewinds/min', (r) => r.rewindsPerMin], ['replayed f/s', (r) => r.replayedPerSec], ['depth p50/90/99/max', (r) => d3(r.depth)],
+            ['own px', (r) => d3(r.own)], ['other px', (r) => d3(r.other)], ['own overridden %', (r) => r.ownOverriddenPct], ['guest key late at host %', (r) => r.hostKeyLatePct],
+            ['lead p50/90/99/max', (r) => d3(r.lead)], ['holds/min', (r) => r.holdsPerMin], ['skips/min', (r) => r.skipsPerMin], ['bursts/min', (r) => r.burstsPerMin], ['worst guest step ms', (r) => r.worstGuestStepMs],
+            ['corrections that changed a room', (r) => r.roomChange], ['sounds mispredicted / judged', (r) => `${r.soundsBad}/${r.soundsJudged}`], ['up/down B/s', (r) => `${r.upBps}/${r.downBps}`]]);
+    }
+    if (R.gates.R4) s += `\n## R4 corruption\n\n` + md(R.gates.R4.cases, [['injected', (x) => x.what], ['detected', (x) => x.detected], ['detect ms', (x) => x.detectMs], ['repaired ms', (x) => x.repairMs], ['mismatched frames', (x) => x.mismatchedFrames],
+        ['residual', (x) => x.residual], ['regions', (x) => x.regions.join(' ')], ['image raw/deflated B', (x) => `${x.imageRaw}/${x.imageComp}`], ['deflate ms', (x) => x.compressMs], ['inflate+load ms', (x) => x.applyMs], ['engine load us', (x) => x.imageLoadUs]]);
+    if (R.gates.R5) s += `\n## R5 what has to travel besides memory (ablations)\n\nEach row is a mid-game join with one item left out of the image load.\n\n` + md(R.gates.R5.ablations, [['left out', (x) => x.what], ['join frame', (x) => x.joinFrame], ['diverged', (x) => x.diverged], ['first mismatch', (x) => x.firstMismatch], ['regions', (x) => x.regions.join(' ')], ['repairs', (x) => x.repairs]]);
+    if (R.gates.R8) s += `\n## R8 cost\n\n${R.gates.R8.text}\n\nWorst guest step (one presented frame including any replay) per run, ms: ${R.gates.R8.worstGuestStepMsByRun.map(([n, v]) => `${n}: ${v}`).join('; ')}\n`;
+    if (R.gates.R9) s += `\n## R9 side effects under rewind\n\n${R.gates.R9.text}\n`;
+    if (R.gates.R11) s += `\n## R11 feature off\n\n${R.gates.R11.text}\n\n\`\`\`\n${[...(R.gates.R11.parts.regress || []), '--- wasm', ...(R.gates.R11.parts.regressWasm || []), '---', ...(R.gates.R11.parts.checkSimState || []), ...(R.gates.R11.parts.lintDeterminism || [])].join('\n')}\n\`\`\`\n`;
+    s += `\n## Mismatches localised in this run\n\n`;
+    if (!R.localisations.length) s += 'None: no run had a final frame that differed (other than the R4 injections and R5 ablations, which are expected and listed above).\n';
+    for (const x of R.localisations) {
+        s += `- **${x.run}**, first differing frame ${x.frame} (${x.reproduced ? 'reproduced on rerun' : 'NOT reproduced on rerun'}); bytes by region ${JSON.stringify(x.bytesByRegion || {})}\n`;
+        for (const r of (x.runs || []).slice(0, 8)) s += `  - ${r.region} ${r.addr} len ${r.len} ${r.symbol}: host ${r.host} guest ${r.guest}\n`;
+    }
+    s += `\n## Causes found and fixed while building the rig\n\n${CAUSES}\n`;
+    s += `\n## Real-build requirements and limits\n${NOTES}\n`;
+    s += `\n## Coverage (host side, headline seed 1)\n\n${R.gates.R2 && R.gates.R2.headline[0] ? '```\n' + JSON.stringify((R.runs.find((r) => r.name === R.gates.R2.headline[0].name) || {}).coverage, null, 0) + '\n```' : '-'}\n`;
+    return s;
+}
+
+
+main().catch((e) => { console.error(e); process.exit(1); });

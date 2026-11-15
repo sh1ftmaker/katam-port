@@ -36,6 +36,15 @@ struct Unk_08138D64;
 
 /* Nonzero when the proof of concept is switched on (read once). */
 int PortMenuPoc(void);
+void PortMenuPocSet(int on);   /* hosts with no environment (node) */
+/* Online (platform/lmpnet.c): the pause SETTINGS page's session copy. */
+void PortPocSessionSettingsInit(void);
+void PortPocSessionSettingsApply(const u8 *copy);
+/* Online: the page's host state, carried with keyframes and images. */
+u32  PortPocHostStateSize(void);
+void PortPocHostStateSave(u8 *dest);
+void PortPocHostStateLoad(const u8 *src);
+void PortPocHostStateRebuild(void);
 
 /* --- Game Select's fifth entry -------------------------------------------- */
 

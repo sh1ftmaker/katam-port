@@ -4,6 +4,7 @@ extern "C" {
 #endif
 
 #include "gba/m4a.h"
+#include "port/lmpnet.h"
 
 /* PORT: gSoundInfo, gMPlayJumpTable, gCgbChans, gMPlayInfo_0..3 and
  * gMPlayMemAccArea are defined as fixed GBA addresses in
@@ -518,6 +519,9 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
                 || (mplayInfo->status & MUSICPLAYER_STATUS_PAUSE)))
         || (mplayInfo->priority <= songHeader->priority))
     {
+        /* PORT: online play counts sound starts (platform/lmpnet.c R9); a
+         * no-op unless a session is on. */
+        PortLnNoteSound((u32)(uintptr_t)songHeader);
         ++mplayInfo->ident;
         mplayInfo->status = 0;
         mplayInfo->songHeader = songHeader;

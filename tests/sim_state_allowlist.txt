@@ -92,3 +92,33 @@ dma sChannels host-state armed DMA channels; serialised canonically (PortDmaStat
 dma sBadByShape diagnostic transfer statistics
 dma sBadTransfers diagnostic transfer statistics
 dma sTransferCount diagnostic transfer statistics
+# platform/menu_poc.c runs inside simulated frames (the pause SETTINGS page,
+# the front end's settings screens).  Its screen state is carried by online
+# keyframes and images (PortPocHostStateSave/Load, platform/lmpnet.c) --
+# found by the online rig; the rest is scratch rebuilt from the ROM.
+menu_poc _ZL8sObjSave host-state pause page's saved OBJ tiles; carried by PortPocHostStateSave
+menu_poc _ZL9sObjSaved host-state pause page's saved-tiles flag; carried by PortPocHostStateSave
+menu_poc _ZL6sModel host-state screen model; carried by PortPocHostStateSave
+menu_poc _ZL10sDescShown host-state description shown; carried by PortPocHostStateSave
+menu_poc _ZL6sOwner host-state front-end screen owner; carried by PortPocHostStateSave
+menu_poc _ZL11sGsDescWant host-state Game Select description; carried by PortPocHostStateSave
+menu_poc _ZL12sGsDescShown host-state Game Select description; carried by PortPocHostStateSave
+menu_poc _ZL10sRowBanner host-state widened banner; carried by PortPocHostStateSave
+menu_poc _ZL8sLblOffX host-state decoded label geometry; carried by PortPocHostStateSave
+menu_poc _ZL8sLblOffY host-state decoded label geometry; carried by PortPocHostStateSave
+menu_poc _ZL8sHdrOffX host-state decoded header geometry; carried by PortPocHostStateSave
+menu_poc _ZL8sHdrOffY host-state decoded header geometry; carried by PortPocHostStateSave
+menu_poc _ZL9sDescLine host-state description palette line; carried by PortPocHostStateSave
+menu_poc _ZL4sSrc rom-cache decoded pictures, rebuilt from the ROM at each screen build (PortPocHostStateRebuild)
+menu_poc _ZL5sSrcW rom-cache decoded pictures' widths, rebuilt with sSrc
+menu_poc _ZL12sLabelCutsOk rom-cache lettering check, rebuilt with sSrc
+menu_poc _ZL13sHeaderCutsOk rom-cache lettering check, rebuilt with sSrc
+menu_poc _ZL11sDescCutsOk rom-cache lettering check, rebuilt with sSrc
+menu_poc _ZL8sBgTiles scratch decompression buffer, written before every read
+menu_poc _ZZL12DrawRowTilesjiiE2px scratch written before every read
+menu_poc _ZZL9BuildDescPKcjE2px scratch written before every read
+menu_poc _ZZL14BuildRowBannerthE3src scratch written before every read
+menu_poc _ZZL13DrawHeadTilesjthE2px scratch written before every read
+menu_poc _ZZL10BuildLabelP12Unk_08138D64jE2px scratch written before every read
+menu_poc _ZL3sOn setting the new-menus switch (KATAM_MENU_POC / PortMenuPocSet); carried in the online image header
+menu_poc _ZL7sNoCuts setting KATAM_MENU_POC=2; with sOn

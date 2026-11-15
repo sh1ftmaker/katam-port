@@ -43,6 +43,7 @@
 #include "port/dma.h"
 #include "port/mp.h"
 #include "port/rollback.h"
+#include "port/lmpnet.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
 #include "port/simblock.h"
@@ -335,6 +336,10 @@ static void UpdateKeyInput(int frameLatch)
     if (PortNetKeyOverride(&keys))
         sKeysDown = keys;
     if (PortSeatKeyOverride(&keys))
+        sKeysDown = keys;
+    /* Online local multiplayer: both players' pads for this frame from the
+     * session timeline (platform/lmpnet.c).  0 unless a session is on. */
+    if (frameLatch && PortLnKeyOverride(&keys))
         sKeysDown = keys;
     /* The playtest boot (platform/playtest.c): the keys that get from
      * power-on to gameplay, until the warp into the room under test. */
@@ -900,6 +905,9 @@ void PortPresentFrame(void)
      * of these do nothing at all unless something armed them. */
     PortRbFrame();
     PortNetFrameTop();
+    /* Online local multiplayer (platform/lmpnet.c): rewinds, keyframes,
+     * image loads and the per-frame hash.  Returns at once unless on. */
+    PortLnFrame();
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 
@@ -925,7 +933,7 @@ void PortPresentFrame(void)
     /* ...and the GPU renderer's list of the same frame, taken at the same
      * moment: after the scan, before the VBlank handler can touch anything.
      * Presentation only -- it reads, and the host draws it at the blit. */
-    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp())
+    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp() && !PortLnCatchingUp())
         PortRlBuildFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
@@ -964,7 +972,7 @@ void PortPresentFrame(void)
      * milliseconds of simulation.  The host's own per-frame work (input
      * polling, frame counting, MASH scripts) does not run for caught-up
      * frames, which is correct: their input comes from the timeline. */
-    if (PortRbCatchingUp() || PortNetCatchingUp()) {
+    if (PortRbCatchingUp() || PortNetCatchingUp() || PortLnCatchingUp()) {
         if ((sFrameCount & 0x3FF) == 0)
             PortAwaitYield();
     } else {

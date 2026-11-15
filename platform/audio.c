@@ -35,6 +35,7 @@
 
 #include "port/port.h"
 #include "port/audio.h"
+#include "port/lmpnet.h"
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
@@ -292,7 +293,11 @@ void m4aSoundVSync(void)
         memset(sSilence, 0, (size_t)frames * 2 * sizeof(s16));
     }
 
-    PortAudioPush(block, frames);
+    /* Online play (platform/lmpnet.c): a replayed frame's sound was already
+     * heard, or belongs to a timeline that was thrown away.  The sound
+     * engine's state is replayed exactly; only the push is skipped. */
+    if (!PortLnMuteAudio())
+        PortAudioPush(block, frames);
 
     /* Pick the next block's length from the queue depth left after that push,
      * so the correction lands on the block that is actually late, and tell the

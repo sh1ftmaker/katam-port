@@ -9,6 +9,7 @@
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
+#include "port/lmpnet.h"
 #include "port/port.h"
 #include "port/res.h"
 #include "port/backend.h"
@@ -436,7 +437,7 @@ static void AudioTopUp(void)
  * under it.  Not online (either session driver), where a peer would stall. */
 void PortAwaitAnimationFrame(void)
 {
-    int online = PortRbActive() || PortNetActive();
+    int online = PortRbActive() || PortNetActive() || PortLnActive();
 
     while (sGl && PortUiIsOpen() && !online) {
         PortWebAwaitPaint();

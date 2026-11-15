@@ -73,6 +73,7 @@ extern "C" {
 
 #include "port/port.h"
 #include "port/backend.h"
+#include "port/lmpnet.h"
 #include "gba/gba.h"
 #include "agb_sram.h"
 
@@ -133,8 +134,19 @@ void WriteSram(const u8 *src, u8 *dest, u32 size)
         return;
 
     memcpy(dest, src, size);
-    if (InSram(dest, size))
+    if (InSram(dest, size)) {
+        /* Online (platform/lmpnet.c): counted -- a write from a frame that
+         * may yet be rewound must not reach storage in a real build. */
+        PortLnNoteSramWrite(size);
         PortSramMarkDirty();
+    }
+}
+
+/* An online guest that took the host's image holds the host's save memory;
+ * its own stored save must not be loaded over it later. */
+void PortSramSetRestored(void)
+{
+    sRestored = 1;
 }
 
 u32 VerifySram(const u8 *src, u8 *target, u32 size)
