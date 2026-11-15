@@ -114,7 +114,9 @@ int  PortLnSnapPart(int i, u32 *out);      /* base, offset, size of part i  */  
 /* --- hooks (called by the frame loop / the game; no-ops when off) ------- */
 void PortLnFrame(void);                    /* platform/main.c, frame top     */
 int  PortLnKeyOverride(u16 *keys);         /* platform/main.c, the latch     */
-void PortLnNoteSoundSlow(u32 id);          /* game/src/m4a.c MPlayStart      */
+void PortLnNoteSoundSlow(u32 id, const void *mplayInfo); /* game/src/m4a.c MPlayStart */
+u32  PortLnLatchFrame(void);               /* the latest latch, or ~0         */
+u32  PortLnSealedFrontier(void);           /* frames below it are sealed       */
 void PortLnNoteSramWriteSlow(u32 bytes);   /* platform/sram.c WriteSram      */
 void PortLnNoteSettingSlow(int row);       /* platform/menu_poc.c, a value   */
 int  PortLnMuteAudio(void);                /* platform/audio.c: replayed frame */
@@ -125,7 +127,7 @@ int  PortLnAudioMuted(void);               /* platform/m4a_mixer.c: block unhear
 void PortLnDeviceBegin(int role);
 void PortLnDeviceEnd(void);
 
-#define PortLnNoteSound(id)      do { if (gPortLnOn) PortLnNoteSoundSlow(id); } while (0)
+#define PortLnNoteSound(id, mp)  do { if (gPortLnOn) PortLnNoteSoundSlow(id, mp); } while (0)
 #define PortLnNoteSramWrite(n)   do { if (gPortLnOn) PortLnNoteSramWriteSlow(n); } while (0)
 #define PortLnNoteSetting(r)     do { if (gPortLnOn) PortLnNoteSettingSlow(r); } while (0)
 

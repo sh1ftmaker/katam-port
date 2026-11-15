@@ -65,6 +65,7 @@
 #include "port/localmp.h"
 #include "port/inputlog.h"
 #include "port/lmpnet.h"
+#include "port/audio_ear.h"
 #include "port/menu_poc.h"
 #include "pause_help.h"
 #include "task.h"
@@ -523,6 +524,8 @@ static void PendClose(u64 us)
 int PortLnActive(void) { return gPortLnOn; }
 int PortLnRole(void) { return sRole; }
 int PortLnCatchingUp(void) { return gPortLnOn && sCatch; }
+u32 PortLnLatchFrame(void) { return gPortLnOn ? sCurLatch : NONE; }
+u32 PortLnSealedFrontier(void) { return sSealedUpTo; }
 
 void PortLnStop(void)
 {
@@ -881,10 +884,12 @@ static int Unsealed(void)
     return sRole == PORT_LN_GUEST && sCurLatch != NONE && sCurLatch >= sSealedUpTo;
 }
 
-void PortLnNoteSoundSlow(u32 id)
+void PortLnNoteSoundSlow(u32 id, const void *mplayInfo)
 {
     struct Ent *e;
 
+    /* The guest's speakers (platform/audio_ear.c): which player, which slot. */
+    PortEarNoteStart(sCurLatch, mplayInfo, id);
     if (sCurLatch == NONE || !Have(sCurLatch))
         return;
     e = E(sCurLatch);
@@ -969,6 +974,7 @@ static void JudgeSounds(struct Ent *e)
     if (e->flags & E_JUDGED)
         return;
     e->flags |= E_JUDGED;
+    PortEarFinal(e->frame);
     T.soundsJudged += e->nLast;
     if (!(e->flags & E_REPLAYED))
         return;
@@ -1060,6 +1066,7 @@ int PortLnKeyOverride(u16 *keys)
     e->nLast = 0;
     sCurLatch = f;
     sCurLatchReplay = sCatch;
+    PortEarLatch(f);
     *keys = k0;
     PortLmpSetHostKeys(1, k1);
     ApplyEvents(f);
@@ -1200,6 +1207,8 @@ static void ApplyImage(void)
     if (sVerify < F || join)
         sVerify = F;
     sForceKf = 1;
+    /* The guest's speakers: a replay F..old to reconcile, or a fresh start. */
+    PortEarReplay(F, old > F && !join ? old : F);
     if (old > F && !join) {
         sCatchTo = old;
         sCatchFrom = F;
@@ -1235,6 +1244,9 @@ static void Rewind(u32 target, int cause)
     kfF = sKfFrame[k];
     t0 = MICROS();
     PendOpen(1, at, target, kfF, cause);
+    /* The guest's speakers: kfF..at is about to be replayed unheard. */
+    if (at > kfF)
+        PortEarReplay(kfF, at);
     LoadState(sKf + (size_t)k * sKfBytes, KfSram());
     {
         u64 dt = MICROS() - t0;
