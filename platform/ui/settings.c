@@ -41,6 +41,43 @@ void PortSettingsDefaults(PortSettings *s)
     s->interp = 1;
     s->partyHud = PS_PARTY_HELPERS;
     s->nameTags = 0;
+    s->lightOn = -1;
+    LightDefaults(s);
+}
+
+/* The lighting settings saved by a build before LIGHT_SETTINGS_VER are
+ * dropped for the current defaults, once (the on/off switch is kept): the
+ * defaults moved a long way while the lighting was being tuned, and every
+ * value was saved by anyone who touched any setting. */
+#define LIGHT_SETTINGS_VER 3
+void LightDefaults(PortSettings *s)
+{
+    {
+        static const PortLightParams kL = PORT_LIGHT_PARAMS_DEFAULT;
+        s->lightMode = kL.mode;
+        s->lightStrength = kL.strength;
+        s->lightShadow = kL.shadow;
+        s->lightSoft = kL.soft;
+        s->lightAngle = kL.angle;
+        s->lightWarm = kL.warmth;
+        s->lightCool = kL.cool;
+        s->lightGlow = kL.glow;
+        s->lightRelief = kL.relief;
+        s->lightShine = kL.shine;
+        s->lightHeight = kL.height;
+        s->lightSunAnim = kL.sunAnim;
+        s->lightSunSpeed = kL.sunSpeed;
+        s->lightSprShadow = kL.sprShadow;
+        s->lightReliefBg = kL.reliefBg;
+        s->lightDepth = kL.depth;
+        s->lightCharReach = kL.charReach;
+        s->lightCharDepth = kL.charDepth;
+        s->lightReliefOn = kL.reliefOn;
+        s->lightIndoor = kL.indoorShade;
+        s->lightEngine = kL.engine;
+        s->lightBounce = kL.bounce;
+        s->lightSolidShade = kL.solidShade;
+    }
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -69,11 +106,36 @@ void PortSettingsClamp(PortSettings *s)
     s->interp = !!s->interp;
     s->partyHud = ClampI(s->partyHud, 0, PS_PARTY_HELPERS);
     s->nameTags = !!s->nameTags;
+    s->lightOn = ClampI(s->lightOn, -1, 1);
+    s->lightMode = ClampI(s->lightMode, 0, 2);
+    s->lightStrength = ClampF(s->lightStrength, 0.0f, 3.0f);
+    s->lightShadow = ClampF(s->lightShadow, 0.0f, 0.8f);
+    s->lightSoft = ClampF(s->lightSoft, 0.0f, 1.0f);
+    s->lightAngle = ClampF(s->lightAngle, -75.0f, 75.0f);
+    s->lightWarm = ClampF(s->lightWarm, 0.0f, 1.0f);
+    s->lightCool = ClampF(s->lightCool, 0.0f, 1.0f);
+    s->lightGlow = ClampF(s->lightGlow, 0.0f, 2.0f);
+    s->lightRelief = ClampF(s->lightRelief, 0.0f, 2.0f);
+    s->lightShine = ClampF(s->lightShine, 0.0f, 1.0f);
+    s->lightHeight = ClampF(s->lightHeight, 0.2f, 2.0f);
+    s->lightSunAnim = !!s->lightSunAnim;
+    s->lightSunSpeed = ClampF(s->lightSunSpeed, 0.5f, 30.0f);
+    s->lightSprShadow = ClampF(s->lightSprShadow, 0.0f, 1.0f);
+    s->lightReliefBg = !!s->lightReliefBg;
+    s->lightDepth = ClampF(s->lightDepth, 0.0f, 48.0f);
+    s->lightCharReach = ClampF(s->lightCharReach, 16.0f, 160.0f);
+    s->lightCharDepth = ClampF(s->lightCharDepth, 0.0f, 48.0f);
+    s->lightReliefOn = !!s->lightReliefOn;
+    s->lightIndoor = ClampF(s->lightIndoor, 0.0f, 1.0f);
+    s->lightEngine = ClampI(s->lightEngine, 0, 1);
+    s->lightBounce = ClampF(s->lightBounce, 0.0f, 1.0f);
+    s->lightSolidShade = ClampI(s->lightSolidShade, 0, 1);
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
 {
     const char *p = text;
+    int lightVer = -1, lightKeys = 0;
 
     while (p != NULL && *p != '\0') {
         char key[32], val[64];
@@ -112,14 +174,50 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("interp", interp)
                 INT_KEY("partyhud", partyHud)
                 INT_KEY("nametags", nameTags)
+                INT_KEY("light", lightOn)
+                INT_KEY("lightmode", lightMode)
+                FLT_KEY("lightk", lightStrength)
+                FLT_KEY("lightshadow", lightShadow)
+                FLT_KEY("lightsoft", lightSoft)
+                FLT_KEY("lightangle", lightAngle)
+                FLT_KEY("lightwarm", lightWarm)
+                FLT_KEY("lightcool", lightCool)
+                FLT_KEY("lightglow", lightGlow)
+                FLT_KEY("lightrelief", lightRelief)
+                /* "lightshine2": the default went from 0.35 to 0.1, and the
+                 * old key was saved by anyone who touched any setting. */
+                FLT_KEY("lightshine2", lightShine)
+                FLT_KEY("lightheight", lightHeight)
+                INT_KEY("lightsunanim", lightSunAnim)
+                FLT_KEY("lightsunspeed", lightSunSpeed)
+                /* "lightcharshadow": the raycast character shadows.  The
+                 * drop shadows before them were "lightsprshadow"/"...2";
+                 * a value saved for those means something else, so it is
+                 * ignored -- as smoothcam2 above. */
+                FLT_KEY("lightcharshadow", lightSprShadow)
+                INT_KEY("lightreliefbg", lightReliefBg)
+                FLT_KEY("lightdepth", lightDepth)
+                FLT_KEY("lightcharreach", lightCharReach)
+                FLT_KEY("lightchardepth", lightCharDepth)
+                INT_KEY("lightreliefon", lightReliefOn)
+                FLT_KEY("lightindoor", lightIndoor)
+                INT_KEY("lightengine", lightEngine)
+                FLT_KEY("lightbounce", lightBounce)
+                INT_KEY("lightsolid", lightSolidShade)
+                else if (strcmp(key, "lightver") == 0) lightVer = (int)strtol(val, NULL, 0);
                 /* the player cards (platform/player_card.c) */
                 else PortCardParseSetting(key, val);
 #undef INT_KEY
 #undef FLT_KEY
+                if (strncmp(key, "light", 5) == 0 && strcmp(key, "light") != 0
+                    && strcmp(key, "lightver") != 0)
+                    lightKeys = 1;
             }
         }
         p = *eol ? eol + 1 : eol;
     }
+    if (lightKeys && lightVer < LIGHT_SETTINGS_VER)
+        LightDefaults(s);
     PortSettingsClamp(s);
 }
 
@@ -137,6 +235,25 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
                       s->smoothCam, s->interp, s->partyHud, s->nameTags);
     if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);
+    if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n),
+                      "lightver=%d\nlight=%d\nlightmode=%d\nlightk=%.3f\nlightshadow=%.3f\n"
+                      "lightsoft=%.3f\nlightangle=%.1f\nlightwarm=%.3f\n"
+                      "lightcool=%.3f\nlightglow=%.3f\nlightrelief=%.3f\n"
+                      "lightshine2=%.3f\nlightheight=%.3f\nlightsunanim=%d\n"
+                      "lightsunspeed=%.2f\nlightcharshadow=%.3f\nlightreliefbg=%d\n"
+                      "lightdepth=%.1f\nlightcharreach=%.1f\nlightchardepth=%.1f\nlightreliefon=%d\nlightindoor=%.3f\n"
+                      "lightengine=%d\nlightbounce=%.3f\nlightsolid=%d\n",
+                      LIGHT_SETTINGS_VER, s->lightOn, s->lightMode, (double)s->lightStrength,
+                      (double)s->lightShadow, (double)s->lightSoft,
+                      (double)s->lightAngle, (double)s->lightWarm,
+                      (double)s->lightCool, (double)s->lightGlow,
+                      (double)s->lightRelief, (double)s->lightShine,
+                      (double)s->lightHeight, s->lightSunAnim, (double)s->lightSunSpeed,
+                      (double)s->lightSprShadow, s->lightReliefBg,
+                      (double)s->lightDepth, (double)s->lightCharReach,
+                      (double)s->lightCharDepth, s->lightReliefOn, (double)s->lightIndoor,
+                      s->lightEngine, (double)s->lightBounce, s->lightSolidShade);
     return n < size ? n : size - 1;
 }
 

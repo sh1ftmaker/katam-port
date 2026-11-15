@@ -1550,6 +1550,9 @@ const RlFrame *PortRlBuildFrame(void)
     f->vram = sVram;
     memcpy(sPal, (const void *)GBA_PLTT_BASE, sizeof(sPal));
     f->palette = sPal;
+    f->light = NULL;
+    if (gPortLighting != 0)
+        PortLightAttach(f, fgRec >= 0 ? (int)(sScreen.bg[1].flags & 3) : -1);
     return f;
 }
 
@@ -1658,6 +1661,7 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
         }
         sDiag[2] = (sFrame.camX + sFrame.viewX) * 256;
         sDiag[3] = (sFrame.camY + sFrame.viewY) * 256;
+        PortLightRefreshParams(&sFrame);
         return sFrame.serial ? &sFrame : NULL;
     }
     t = (flags & RL_PRESENT_INTERP) ? (s32)(alpha * 256.0f + 0.5f) : 256;
@@ -1755,6 +1759,7 @@ const RlFrame *PortRlPresentFrame(int flags, float alpha)
     }
     sDiag[2] = (o->camX + o->viewX) * 256 + o->viewSubX;
     sDiag[3] = (o->camY + o->viewY) * 256 + o->viewSubY;
+    PortLightRefreshParams(o);
     return o;
 }
 

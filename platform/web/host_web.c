@@ -50,6 +50,36 @@ EM_JS(int, PortWebRendererParam, (void), {
     return r === 'gpu' ? 0 : r === 'ppu' ? 1 : -1;
 });
 
+/* Sunlight proof of concept (render/light.c): a page served from .../lighting/
+ * or with ?lighting=1.  1 on, 0 off. */
+EM_JS(int, PortWebLightingParam, (void), {
+    try {
+        var q = new URLSearchParams(location.search);
+        if (q.get('lighting') === '1') return 1;
+        var p = location.pathname, i = p.lastIndexOf('/');
+        p = p.substring(0, i);
+        if (p.substring(p.lastIndexOf('/') + 1) === 'lighting') return 1;
+    } catch (e) {}
+    return 0;
+});
+
+/* ?normals=1: lit frames show their normal maps (render/relief_glsl.h);
+ * 2 and 3: the relief atlas's sprite art and sprite normals, pixel for pixel;
+ * 4: the shadow map. */
+EM_JS(int, PortWebNormalsParam, (void), {
+    try { var n = parseInt(new URLSearchParams(location.search).get('normals') || '0', 10);
+          return n >= 1 && n <= 5 ? n : 0; }
+    catch (e) { return 0; }
+});
+
+/* ?engine=rc (radiance cascades) or ?engine=classic: the lighting engine
+ * for this visit, over the saved setting; -1 none given. */
+EM_JS(int, PortWebEngineParam, (void), {
+    try { var e = new URLSearchParams(location.search).get('engine');
+          return e === 'rc' ? 1 : e === 'classic' ? 0 : -1; }
+    catch (err) { return -1; }
+});
+
 EM_JS(void, PortWebLoadSettings, (char *buf, int size), {
     var t = '';
     try { t = localStorage.getItem('katam.settings') || ''; } catch (e) { t = ''; }
@@ -138,7 +168,15 @@ void PortHostInit(int argc, char **argv)
     r = PortWebRendererParam();
     if (r >= 0)
         gPortSettings.renderer = r;
+    r = PortWebEngineParam();
+    if (r >= 0)
+        gPortSettings.lightEngine = r;
     PortSettingsApplyEarly();
+    gPortLightingDefault = PortWebLightingParam();
+    gPortReliefView = PortWebNormalsParam();
+    PortLightResolve();
+    if (gPortLighting)
+        PortLog("[katam-port] lighting: on (every level, proof of concept; Settings > Display > Lighting)");
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
 }
@@ -163,6 +201,23 @@ EM_JS(int, PortHostUiQuery, (const char *key, char *buf, int size), {
 
 /* For the page: its own gear button and keyboard. */
 EMSCRIPTEN_KEEPALIVE int PortUiIsOpenJs(void) { return PortUiIsOpen(); }
+
+/* For comparing looks on one picture (tools, the console):
+ * Module._PortWebFreeze(1) holds the game on its frame, as the menu's pause
+ * does, and keeps presenting it; Module.ccall('PortWebSetting', null,
+ * ['string'], ['lightrelief=0']) applies settings lines as the menu would. */
+static int sFreeze;
+EMSCRIPTEN_KEEPALIVE void PortWebFreeze(int on) { sFreeze = on; }
+EMSCRIPTEN_KEEPALIVE void PortWebSetting(const char *text)
+{
+    char buf[1024];
+
+    /* Current, so the version check keeps what is already set. */
+    snprintf(buf, sizeof(buf), "lightver=99\n%s", text);
+    PortSettingsParse(&gPortSettings, buf);
+    PortSettingsClamp(&gPortSettings);
+    PortSettingsChanged();
+}
 
 /* The playtest page (web/playtest/): a room bundle compiled in the browser.
  * Set before the ROM handshake releases main(), so the session build links
@@ -468,7 +523,7 @@ void PortAwaitAnimationFrame(void)
 {
     int online = PortRbActive() || PortNetActive() || PortLnActive();
 
-    while (sGl && PortUiIsOpen() && !online) {
+    while (sGl && (PortUiIsOpen() || sFreeze) && !online) {
         PortWebAwaitPaint();
         Show(NULL, 0, 0, 0);
     }

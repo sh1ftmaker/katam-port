@@ -23,6 +23,7 @@ void PortError(const char *fmt, ...);
 #include "ui/settings.h"
 #include "ui/party_hud.h"
 #include "ui/ui.h"
+extern int gPortLighting;   /* render/render_list.h: the effective switch */
 }
 #include "ui/ui_internal.h"
 
@@ -620,6 +621,138 @@ static int PageDisplay(void)
         Hint("The game always runs at the GBA's 59.73 Hz. Smooth camera scrolls by fractions of a "
              "game pixel; Interpolation draws in-between frames on a faster display (up to one "
              "frame of extra delay).");
+    }
+
+    if (Section("Lighting")) {
+        /* render/light.c.  Map parameters (mode, softness, angle) rebuild
+         * the shadow map, at most 5 times a second while a slider moves. */
+        bool on = gPortLighting > 0;
+        ImGui::BeginDisabled(s.renderer != PS_RENDER_GPU);
+        if (ImGui::Checkbox("Lighting and shadows (every level)", &on)) {
+            s.lightOn = on ? 1 : 0;
+            changed = 1;
+        }
+        ImGui::BeginDisabled(!on);
+        /* The engine (render_list.h LIGHT_ENGINE_*): radiance cascades
+         * solve the sky, the sun, the lamps and the sprites' shadows
+         * together each frame (render/rc_glsl.h). */
+        ImGui::TextUnformatted("Engine:");
+        ImGui::SameLine();
+        changed |= Radio("Classic", &s.lightEngine, 0);
+        SameLineIfFits("Radiance cascades");
+        changed |= Radio("Radiance cascades", &s.lightEngine, 1);
+        ImGui::BeginDisabled(s.lightEngine != 1);
+        ImGui::PushItemWidth(-1);
+        changed |= ImGui::SliderFloat("##lb", &s.lightBounce, 0.0f, 1.0f, "Bounce light %.2f (radiance cascades)", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::PopItemWidth();
+        ImGui::EndDisabled();
+        changed |= Radio("Auto (by room)", &s.lightMode, 0);
+        SameLineIfFits("Sun");
+        changed |= Radio("Sun", &s.lightMode, 1);
+        SameLineIfFits("Point lights");
+        changed |= Radio("Point lights", &s.lightMode, 2);
+        ImGui::PushItemWidth(-1);
+        changed |= ImGui::SliderFloat("##lk", &s.lightStrength, 0.0f, 3.0f, "Strength %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##ls", &s.lightShadow, 0.0f, 0.8f, "Shadow darkness %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lf", &s.lightSoft, 0.0f, 1.0f, "Shadow softness %.2f", ImGuiSliderFlags_AlwaysClamp);
+        {
+            bool dark = s.lightSolidShade != 0;
+            if (ImGui::Checkbox("Darken inside solid ground", &dark)) {
+                s.lightSolidShade = dark ? 1 : 0;
+                changed = 1;
+            }
+        }
+        ImGui::BeginDisabled(s.lightSolidShade == 0);
+        changed |= ImGui::SliderFloat("##lp", &s.lightDepth, 0.0f, 48.0f, "Light into the ground %.0f px", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        changed |= ImGui::SliderFloat("##li", &s.lightIndoor, 0.0f, 1.0f, "Indoor shade %.2f (away from lamps)", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightMode == 2);
+        {
+            bool anim = s.lightSunAnim != 0;
+            if (ImGui::Checkbox("Sun crosses the sky (sunrise to sunset)", &anim)) {
+                s.lightSunAnim = anim ? 1 : 0;
+                changed = 1;
+            }
+        }
+        ImGui::BeginDisabled(!s.lightSunAnim);
+        changed |= ImGui::SliderFloat("##lv", &s.lightSunSpeed, 0.5f, 30.0f, "Sun speed %.1f deg/s", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(s.lightSunAnim != 0 || s.lightMode != 1);
+        changed |= ImGui::SliderFloat("##la", &s.lightAngle, -75.0f, 75.0f, "Sun angle %.0f deg (+ left, - right)", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        changed |= ImGui::SliderFloat("##lw", &s.lightWarm, 0.0f, 1.0f, "Warmth of lit areas %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lc", &s.lightCool, 0.0f, 1.0f, "Coolness of shade %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightMode == 1);
+        changed |= ImGui::SliderFloat("##lg", &s.lightGlow, 0.0f, 2.0f, "Glow (point lights) %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        /* Normal maps from the art itself (render/relief_glsl.h). */
+        {
+            bool nm = s.lightReliefOn != 0;
+            if (ImGui::Checkbox("Normal maps (relief and shine)", &nm)) {
+                s.lightReliefOn = nm ? 1 : 0;
+                changed = 1;
+            }
+        }
+        ImGui::BeginDisabled(!s.lightReliefOn);
+        changed |= ImGui::SliderFloat("##lr", &s.lightRelief, 0.0f, 2.0f, "Relief (normal maps) %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightRelief <= 0.0f);
+        {
+            bool bgr = s.lightReliefBg != 0;
+            if (ImGui::Checkbox("Relief on backgrounds too (experimental)", &bgr)) {
+                s.lightReliefBg = bgr ? 1 : 0;
+                changed = 1;
+            }
+        }
+        changed |= ImGui::SliderFloat("##lh", &s.lightShine, 0.0f, 1.0f, "Shine %.2f", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lz", &s.lightHeight, 0.2f, 2.0f, "Light height %.2f", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        changed |= ImGui::SliderFloat("##ld", &s.lightSprShadow, 0.0f, 1.0f, "Character shadows %.2f (0 off)", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::BeginDisabled(s.lightSprShadow <= 0.0f);
+        changed |= ImGui::SliderFloat("##le", &s.lightCharReach, 16.0f, 160.0f, "Character shadow length %.0f px", ImGuiSliderFlags_AlwaysClamp);
+        changed |= ImGui::SliderFloat("##lq", &s.lightCharDepth, 0.0f, 48.0f, "Character shadows into the ground %.0f px", ImGuiSliderFlags_AlwaysClamp);
+        ImGui::EndDisabled();
+        ImGui::PopItemWidth();
+        ImGui::EndDisabled();
+        if (ImGui::Button("Reset lighting")) {
+            PortSettings d;
+            PortSettingsDefaults(&d);
+            s.lightMode = d.lightMode;
+            s.lightStrength = d.lightStrength;
+            s.lightShadow = d.lightShadow;
+            s.lightSoft = d.lightSoft;
+            s.lightAngle = d.lightAngle;
+            s.lightWarm = d.lightWarm;
+            s.lightCool = d.lightCool;
+            s.lightGlow = d.lightGlow;
+            s.lightRelief = d.lightRelief;
+            s.lightShine = d.lightShine;
+            s.lightHeight = d.lightHeight;
+            s.lightSunAnim = d.lightSunAnim;
+            s.lightSunSpeed = d.lightSunSpeed;
+            s.lightSprShadow = d.lightSprShadow;
+            s.lightReliefBg = d.lightReliefBg;
+            s.lightDepth = d.lightDepth;
+            s.lightCharReach = d.lightCharReach;
+            s.lightCharDepth = d.lightCharDepth;
+            s.lightReliefOn = d.lightReliefOn;
+            s.lightIndoor = d.lightIndoor;
+            s.lightBounce = d.lightBounce;
+            s.lightSolidShade = d.lightSolidShade;
+            /* The engine is a choice, not a tuning: Reset keeps it. */
+            changed = 1;
+        }
+        ImGui::EndDisabled();
+        Hint("Proof of concept: GPU renderer. Each area has its own light (sun, moon, stars; "
+             "torches, crystals, lava indoors); Auto picks point lights for rooms closed to the sky "
+             "and the area's sun angle (the Sun angle slider applies with Sun). Shadows are cast by the "
+             "level's solid tiles, and by Kirby and the enemies (Character shadows). Relief gives "
+             "sprites a normal map made from their own pixels each frame (after Sprite Normals "
+             "by Hugo Duprez, MIT); backgrounds only if you ask for it. Radiance cascades (after "
+             "Alexander Sannikov; the sky's light in closed form after Mathis) light the room "
+             "from the sky and its lamps through every gap, with soft shadows and corners "
+             "darkened; Character shadow length is how far a sprite blocks light.");
     }
 
     if (Section("Menu size")) {

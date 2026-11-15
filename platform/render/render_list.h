@@ -132,6 +132,8 @@ typedef struct RlHudRegion {
 #define RL_LINE_BGCNT   27   /* 4 words */
 #define RL_LINE_AFFB    32   /* pb2 pd2 pb3 pd3 */
 
+#define RL_MAX_LIGHTS 8         /* point lights a frame carries (the nearest) */
+
 typedef struct RlFrame {
     u32 serial;              /* bumps every built frame                      */
     u8 world;                /* 1: gameplay framing (view != 240x160 allowed) */
@@ -171,6 +173,51 @@ typedef struct RlFrame {
     /* Diagnostics: where the list came from. */
     u32 spritesFromHooks, spritesFromOam, spritesOffscreen, spritesOverflow;
     u8 hookSpritesUsed;      /* 0: OAM did not match the hooks this frame    */
+
+    /* Sunlight (platform/render/light.c): NULL when off.  Four u8 per 8x8
+     * world pixels from the room's top-left: the previous map's shadow (light
+     * blocked) and light (light arriving), 0..255, then the current map's;
+     * lightMix blends them (1 = current; a moving sun fades each new map in).  World x = camX + SCREEN x.  lights:
+     * the room's point lights (world px), for their halo; lightK the
+     * strength (0 none, 1 default).  lightLayers: the room BG (unused by
+     * the shader at present -- every non-HUD layer is lit). */
+    const u8 *light;
+    s32 lightW, lightH;
+    u32 lightGen;
+    u8 lightLayers, numLights;
+    float lightK;
+    float lights[RL_MAX_LIGHTS][2];
+    u8 lightMode;            /* RL_LIGHT_SUN / RL_LIGHT_POINT                 */
+    float lightShadow, lightWarm, lightCool, lightGlow;  /* PortLightParams  */
+    /* Relief: normal maps for the sprites and layers, made on the GPU from
+     * their own pixels (render/relief_glsl.h).  lightRelief 0: none. */
+    float lightRelief, lightShine, lightHeight, lightAngle;
+    u8 lightNrmView;         /* 1: show the normals instead of the picture   */
+    float lightMix;          /* previous -> current map, 0..1                 */
+    /* The environment's colours (light.c, per area; docs/RENDERER.md):
+     * lit areas are lifted by warmth x envLift, shade is tinted towards
+     * envShade at full coolness, point lights glow envHalo, relief
+     * highlights are envSpec.  Rainbow Route's: (0.45 0.25 -0.08),
+     * (0.90 0.95 1.20), (0.55 0.42 0.20), (1.0 0.92 0.75). */
+    float envLift[3], envShade[3], envHalo[3], envSpec[3];
+    /* Point-lit rooms: each lamp's colour (lights[] are where the art draws
+     * it), how far a lamp lights (px), and how dark it is away from them. */
+    float lightCol[RL_MAX_LIGHTS][3];
+    float lampRange, lightIndoor;
+    float lightSunSide;      /* -1 sun on the right .. 1 on the left (35 deg) */
+    float lightSprShadow;    /* characters' shadows: strength, 0 none         */
+    float lightSoft;         /* penumbra, 0..1 (PortLightParams.soft)         */
+    float lightCharReach;    /* how far a character's shadow reaches, px      */
+    float lightCharDepth;    /* ... and into solid ground, px                 */
+    /* The room's collision cells the map is built from (one u8 per 16x16
+     * world px from the room's top-left: 0 air, 1 solid, 2 jump-through). */
+    const u8 *lightOcc;
+    s32 lightOccW, lightOccH;
+    u32 lightOccGen;
+    u8 lightReliefBg;        /* relief on the background layers too           */
+    u8 lightEngine;          /* LIGHT_ENGINE_*: classic, radiance cascades    */
+    float lightDepth;        /* how far light reaches into solid ground, px   */
+    float lightBounce;       /* radiance cascades: light off solids, 0..1     */
 } RlFrame;
 
 /* --- the renderer's switches (platform/render/rl_build.c) --------------- */
@@ -199,6 +246,73 @@ const RlFrame *PortRlBuildFrame(void);
 void PortRlReportPopIn(void);
 /* The last frame built, or NULL before the first. */
 const RlFrame *PortRlCurrentFrame(void);
+
+/* Sunlight, proof of concept (light.c).
+ *
+ * gPortLighting is the effective switch: -1 undecided, 0 off, 1 on.  It is
+ * gPortLightingUser (the settings menu: -1 follow the default, 0, 1) if set,
+ * else gPortLightingDefault (the web page's /lighting/ path or ?lighting=1;
+ * natively KATAM_LIGHTING=1; -1 = read the env).  PortLightResolve works it
+ * out again after either changes.  PortLightAttach sets f->light for a
+ * Rainbow Route world frame, NULL otherwise. */
+enum { RL_LIGHT_SUN = 0, RL_LIGHT_POINT = 1 };          /* what a frame uses */
+/* What the settings ask for: by the room (open sky: the area's sun;
+ * enclosed: its point lights), or one of them everywhere. */
+enum { LIGHT_REQ_AUTO = 0, LIGHT_REQ_SUN = 1, LIGHT_REQ_POINT = 2 };
+/* The engine: the classic one (a shadow map from the sun, analytic lamps,
+ * the character shadow pass), or radiance cascades (render/rc_glsl.h:
+ * the sky, the sun, the lamps and the sprites in one 2D GI solve). */
+enum { LIGHT_ENGINE_CLASSIC = 0, LIGHT_ENGINE_RC = 1 };
+typedef struct PortLightParams {
+    int mode;           /* LIGHT_REQ_*                                      */
+    float strength;     /* the whole effect, 0..3                           */
+    float shadow;       /* how dark full shade is, 0..0.8                   */
+    float soft;         /* sun disc / light size: the penumbra, 0..1        */
+    float angle;        /* sun: degrees left of straight up, -75..75        */
+    float warmth;       /* lift of lit areas, 0..1                          */
+    float cool;         /* blue of the shade, 0..1                          */
+    float glow;         /* point lights' halo, 0..2                         */
+    float relief;       /* normal-mapped shading of the art, 0 off .. 2     */
+    float shine;        /* its highlight, 0..1                              */
+    float height;       /* the light's height over the picture, 0.2..2      */
+    int sunAnim;        /* 1: the sun crosses the sky, sunrise to sunset    */
+    float sunSpeed;     /* ... at this many degrees a second, 0.5..30       */
+    float sprShadow;    /* characters' shadows, raycast like the level's:
+                         * strength 0 off .. 1 (the level's own)            */
+    int reliefBg;       /* relief on the background layers too, 0 / 1       */
+    float depth;        /* how far light reaches into solid ground, px 0..48 */
+    float charReach;    /* how far a character's shadow reaches, px 16..160  */
+    float charDepth;    /* ... and into solid ground, px 0..48              */
+    int reliefOn;       /* normal maps at all (relief, shine): 0 none       */
+    float indoorShade;  /* point-lit rooms: shade away from the lamps, 0..1 */
+    int engine;         /* LIGHT_ENGINE_*                                   */
+    float bounce;       /* radiance cascades: light off solids, 0..1        */
+    int solidShade;     /* 1: solid ground darkens below `depth` px; 0 (the
+                         * default): light goes through a solid body, so the
+                         * ground is lit like its own surface               */
+} PortLightParams;
+#define PORT_LIGHT_PARAMS_DEFAULT { LIGHT_REQ_AUTO, 2.0f, 0.30f, 0.35f, 35.0f, 0.35f, 0.5f, 1.0f, \
+                                    0.5f, 0.10f, 0.8f, 0, 5.0f, 1.0f, 0, 3.0f, 16.0f, 3.0f, 1, 0.12f, \
+                                    LIGHT_ENGINE_CLASSIC, 0.5f, 0 }
+extern PortLightParams gPortLightParams;
+extern int gPortLighting, gPortLightingDefault, gPortLightingUser;
+/* 1: lit frames show their normal maps (web ?normals=1, KATAM_RELIEF_VIEW=1);
+ * 2, 3: the relief atlas's sprite art, sprite normals; 4: the shadow map;
+ * 5: the picture with each lamp marked (and the lamps found, logged). */
+extern int gPortReliefView;
+extern double gPortLightBuildMs;
+void PortLightResolve(void);
+void PortLightAttach(RlFrame *f, int roomBg);
+void PortLightRefreshParams(RlFrame *f);
+/* The area a room belongs to (enum AreaId, game/include/pause_area_map.h),
+ * or -1 if the area map does not list it (platform/render/light_rooms.c). */
+int PortLightRoomArea(u16 room);
+/* 1 indoors, 0 outdoors, -1 not judged (light_rooms.c); 1 for the world
+ * map screens, which are not lit. */
+int PortLightRoomIndoor(u16 room);
+int PortLightRoomUnlit(u16 room);
+/* 1: the room's lamps, found in its art, are used (light_rooms.c). */
+int PortLightRoomLamps(u16 room);
 
 /* The last frame built, for showing on a display finer than the game's pixel
  * grid and faster than its 59.73 Hz.  Presentation only: the result is a

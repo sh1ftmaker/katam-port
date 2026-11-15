@@ -396,6 +396,202 @@ per-present camera step in game pixels, jumps excluded):
 1420-1530) the jerk goes 0.772 -> 0.103 -> 0.081 at 60 Hz and 1.215 ->
 1.146 -> 0.250 at 120 Hz, and Kirby's on-screen step sd 0.437 -> 0.
 
+## Lighting and relief (branch `lighting`)
+
+Off unless asked for: the page at `/lighting/`, `?lighting=1`, or
+`KATAM_LIGHTING=1`; every level; GPU renderer only.
+`platform/render/light.c` builds a per-room shadow map from the collision grid
+(its header has the details) and the composite tints world pixels with it.
+
+Each area has an environment (`kEnvs` in light.c, by the area the game's own
+area map gives the room -- `platform/render/light_rooms.c`, falling back to the
+room header's area byte for the tutorial and the Dimension Mirror): a sun's
+direction and look for open rooms and a point-light look for enclosed ones --
+day and torches (Rainbow Route), moonlight and candles (Moonlight Mansion), a
+green day and crystal light (Cabbage Cavern), an orange sun and lava (Mustard
+Mountain), golden afternoon (Carrot Castle), sea sun and aqua grottoes (Olive
+Ocean), ice (Peppermint Palace), desert sun and amber torches (Radish Ruins),
+starlight and violet crystals (Candy Constellation), mirror light and magenta
+crystals (Dimension Mirror).  The renderer takes the colours from the frame
+(`envLift`, `envShade`, `envHalo`, `envSpec`).
+
+Settings > Lighting *Auto* (the default) decides per room: indoors or out as
+people judged each room from its picture (`light_rooms.c`, 182 rooms), and for
+a room not judged, the area's sun map is built and if it lights under 45% of
+the room's open air the room is lit as indoors.  The world map screens are
+not lit.
+
+**Lamps** are found in the background art (light.c `FindLanterns`): every
+layer that moves with the room and whose whole map the frame carries is read
+tile by tile from VRAM and the palette, once the palette has held still for
+12 frames after the room's fade-in.  A tile with a quarter of its pixels near
+full brightness is a lamp's core (a brick's highlight is not); core tiles
+touching, corners included (a candelabra's bulbs), make a lamp if the group
+is at most 40 tiles in an 8-tile box, has at least 40 bright pixels, and the
+two tiles round it are clearly darker -- which leaves out the sky, snow,
+white walls and specks -- and it hangs in open air (not on solid cells) and
+is not a tile the room repeats more than 24 times (blocks, logs, ledges).
+
+How well that works was measured, not guessed: every room was captured with
+the lamps ringed (`?normals=5`) and Sonnet agents reviewed the pictures.  The
+first cut put 24 rings on real lamps and 385 on bright terrain; the two
+terrain tests above cut the false ones to 22 against 7 real, nearly all in
+water and ice.  Real lamp art is rare in this game (Moonlight Mansion's wall
+lamps, a few sconces and orbs), so lamps are used only in the rooms where
+reviewers confirmed them (`kLampRooms`); every other indoor room is lit
+softly, without point lights.  Not lit as lamps yet: lava and stained glass
+(large glowing areas, which the size test leaves out on purpose).  The light goes at the bright pixels' centre in their
+colour (a white lamp, warm white), re-placed every frame from its layer's
+scroll; the nearest 8 go to the renderer.  The composite lights them without
+walls in the way: lift and glow in each lamp's colour, falling off over
+200 px, and away from them only *Indoor shade* (0.12 by default) of the
+shade -- an indoor room is not a cave to be dark in.  `?normals=5` rings each
+lamp in magenta (and logs what was found, per room).  *Sun* and
+*Point lights* force one everywhere (the sun angle slider applies with Sun).
+Saved lighting settings from before `LIGHT_SETTINGS_VER` 3 are reset to the
+defaults once.
+
+The sun can cross the sky (Settings > Lighting > *Sun crosses the sky*, on
+by default; *Sun speed* in degrees a second): sunrise far left to sunset far
+right, the lighting fading out at dusk and in at dawn so the jump back is
+never seen.  A moving sun's shadow map is rebuilt an eighth at a time each
+frame, and each finished map fades in over the time the next one takes (the
+map texture holds the previous and the current map; `lightMix` blends them),
+so the shadows glide at a fraction of a full build's cost per frame.
+`?normals=4` shows the shadow map.
+
+**Solid ground is not darkened** (since 2026-11-10; the owner found blocks
+and terrain too dark): a ray that starts inside solid ground goes on to
+where it leaves that body of ground, however deep, so the ground is lit like
+its own exposed surface and only a shadow cast by something else darkens it.
+*Darken inside solid ground* (off by default) brings back the old look:
+
+*Light into the ground* (0-48 px, 3 by default; only with *Darken inside
+solid ground*): a ray that starts inside solid ground counts from where it
+leaves it only if it does within this distance, otherwise the ground there
+is in shade.  0 shades solid ground from its surface down -- which also
+shows where the collision grid and the art disagree (solid cells with
+nothing drawn on them).
+
+**Character shadows** (Settings > Lighting, 1 = as dark as the level's, 0
+off): the level's own sun shadows with Kirby and the enemies as the
+occluders.  Every lit frame, after the sprite pass, `RunCharShadow` marches
+five rays across the sun's disc (three across each point light's) from each
+2x2 view pixels towards the light through the sprite target, counting a
+blocked ray less the further away its sprite is -- `BuildSun`'s rule -- into
+an R8 texture over the view, out to *Character shadow length* (16-160 px,
+64 by default).  A ray that starts inside solid ground (the room's collision
+cells, uploaded from light.c) counts only if it leaves the ground within
+*Character shadows into the ground* (0-48 px, 6 by default): deeper, the
+ground is in the way.  The composite takes the darker of that and the
+level's shadow for background pixels, so the two share one tint and
+darkness and never stack.  (Before them, each silhouette was simply dropped
+a few pixels away from the sun; that read as smudges and is gone.)
+
+Default strength is 2.  **Relief** gives that light something to shade; on
+sprites only, unless *Relief on backgrounds too* is ticked -- at the crate's
+defaults every cloud and pillar became a blurred grey pillow, and the
+background settings are now much flatter.  Every lit frame, every
+on-screen world sprite and the part of every non-HUD background layer around
+the view get a normal map made from their own pixels, on the GPU, by a port of
+[Sprite Normals](https://github.com/Hugo-Dz/spritefusion-sprite-normals) (MIT;
+`platform/render/relief_glsl.h`, and `third_party/spritefusion-sprite-normals/`
+for what was ported and where it differs).  It has to run in the renderer: the
+art only exists once the game has decoded it into VRAM.
+
+Per frame, before the sprite pass:
+
+1. `PlanRelief` packs the layers' pieces (view + 20 px all round, in the
+   composite's own layer coordinates) and the on-screen world sprites onto
+   shelves of an RGBA8 atlas with transparent gutters.  Sprites are packed in
+   *groups*: a character is often several hardware sprites side by side, and
+   made one by one each piece got a rim where it meets the next (a crease down
+   the sword knight).  Sprites that touch or overlap with the same palette,
+   priority, blending and sub-pixel position are one group, one picture.
+2. `RunRelief` draws the layers through the composite program's decode branch
+   and each group's sprites, as on screen (flipped, rotated, front one on
+   top), through a decode variant of the sprite program, then runs the crate's
+   steps as five full-atlas passes (half floats in integer targets, which
+   every GLES 3.0 can render to).
+3. The sprite pass writes a second target, each pixel's normal read at its
+   place in its group's picture; the composite reads that for sprite pixels
+   and the atlas for layer pixels.
+
+The composite shades the top pixel's normal against the sun's direction or the
+room's lights, relative to what a flat pixel gets, so flat art keeps its
+colours; shade (no direct light) gets none of it.
+
+Sprites are tuned apart from the layers (`kReliefGenSpr`, `kReliefRespSpr`).
+With the crate's defaults a small sprite looked awful: it is nearly all rim,
+and its painted shading, read as relief at detail strength 6 and lit again,
+doubled -- the standing Kirby went chalky on top and muddy below, colours
+clipped to white.  Sprites therefore use detail strength 2, stay within
+0.72-1.25 of their own colour, and brighten without leaving their hue; the
+puffed-up Kirby keeps its dome and highlight.  `tools/relief_check/tune.html`
+was used to choose this on real sprites.  Settings > Display >
+Lighting: **Normal maps** (one switch for all of it: no passes when off), **Relief**, **Shine**,
+**Light height** (shine 0.1 by default).  `?normals=1` (`KATAM_RELIEF_VIEW=1`) shows the normal maps
+instead of the picture; `?normals=2` and `=3` show the atlas's sprite groups
+and their normals, pixel for pixel.  For comparing looks on one picture:
+`Module._PortWebFreeze(1)` holds the game on its frame and keeps presenting it,
+and `Module.ccall('PortWebSetting', null, ['string'], ['lightrelief=0'])`
+applies settings lines as the menu does.
+
+Checked against the crate's own CLI with `tools/relief_check/`: on 20-48 px
+test sprites the port's normals differ from the CLI's by at most 1/255 per
+channel, at the crate's defaults and at `--detail-strength 2`.  `make regress-wasm` is unchanged (renderer only).  Not measured: the
+cost on a phone GPU.
+
+### Engine: radiance cascades
+
+Settings > Lighting > *Engine: Radiance cascades* (`lightengine=1`, or
+`?engine=rc` for one visit) swaps the classic engine above -- the sun's
+shadow map, analytic lamps, the character shadow pass -- for one 2D global
+illumination solve each frame: `platform/render/rc_glsl.h` (the shader and
+its layout) and `RunRadiance` in `gl_renderer.c`.  After Alexander
+Sannikov's *Radiance Cascades*, with the merge and the bilinear fix as in
+the Shadertoy versions by fad and Suslik, and the sky's light over an
+interval of directions in closed form from Mathis's *Analytic Direct
+Illumination* (shadertoy.com/view/NttSW7).
+
+- **Scene**, all the game's own: the room's collision cells block light (the
+  same 16 px cells and rules as the classic map); opaque world sprites block
+  it within *Character shadow length* of a probe (and a probe inside a
+  sprite sees past it, so characters are lit, not black); the room's lamps
+  are 3 px discs in their own colour.  A probe inside solid ground sees
+  through its own ground (walked cell by cell to where the ray leaves it, so
+  never through a second solid), so solid ground is lit like its surface;
+  with *Darken inside solid ground* the light fades by e every 2.5 x *Light
+  into the ground* px instead, lighting blocks only at their edges.
+- **Sky**: a ray that gets past the last cascade unblocked sees Mathis's sky
+  (the area's shade tint, brighter overhead) plus a sun lobe at the area's
+  angle (its lift colour, 60% of the open sky's light, as wide as *Shadow
+  softness* makes the classic sun) -- integrated over the ray's own
+  directions, so the sun's penumbra is exact at any cascade resolution.  The
+  moving sun needs nothing extra: the solve is per frame.  Enclosed rooms
+  have no sky; a ray past 96 px unblocked sees a flat ambient instead, and
+  the lamps light the rest (through the room, walls in the way).
+- **Bounce** (*Bounce light*, 0.5): a ray stopped by a solid sees what the
+  last frame showed just inside it, x Bounce -- sunlit ground lights the
+  shade above it in its own colour, one more bounce each frame.
+- **Layout**: 5 cascades, probes 2 px apart (world-locked to multiples of
+  32 px, so a still scene's light does not swim as the camera scrolls) over
+  the view + 48 px, 4 directions per probe at cascade 0 and 4 x as many per
+  cascade up, intervals 0-6, 6-24, 24-96, 96-384, 384-1536 px.  Rays march
+  the collision cells by DDA (and the sprite target in 1.5 px steps near the
+  probe).  Cascades 0-2 use the bilinear fix (16 rays a texel), 3-4 the plain
+  merge.  Half floats in RG32UI targets, as the relief passes.
+- **Look**: the classic engine's settings set it -- no light at all gives
+  the classic full shade (Shadow darkness x Strength, tinted by Coolness;
+  *Indoor shade* of it indoors), the open sky the classic lit warmth,
+  linearly between; brighter than that (near lamps) keeps the hue.  Relief
+  shades each pixel's normal by the light from cascade 0's four directions.
+
+`?normals=4` shows the cascades' light instead of the shadow map.  60 frames
+a second at 1280x640 on a Radeon integrated GPU (headless Chromium) with
+either engine; the program is compiled the first time the engine is chosen.
+Not measured: phones.
+
 ## Next
 
 * **Effects** (S each): OBJ mosaic; windows as world-space shapes instead of

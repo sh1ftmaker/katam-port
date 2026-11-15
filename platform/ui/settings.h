@@ -52,6 +52,24 @@ typedef struct PortSettings {
     int partyHud;       /* PS_PARTY_*: the party HUD (party_hud.c) -- other
                          * players' cards, and the CPU helpers' with them  */
     int nameTags;       /* small name tags over the players' Kirbys (party_hud.c) */
+    /* Lighting (GPU renderer, every level; platform/render/light.c). */
+    int lightOn;        /* -1 the page's default (/lighting/), 0 off, 1 on   */
+    int lightMode;      /* LIGHT_REQ_AUTO / _SUN / _POINT                   */
+    float lightStrength, lightShadow, lightSoft, lightAngle, lightWarm,
+          lightCool, lightGlow;   /* PortLightParams                        */
+    float lightRelief, lightShine, lightHeight;   /* ... normal maps        */
+    int lightSunAnim;   /* the sun crosses the sky                          */
+    float lightSunSpeed;  /* ... degrees a second                           */
+    float lightSprShadow; /* sprites' drop shadows, 0 off                   */
+    int lightReliefBg;  /* relief on background layers too                  */
+    float lightDepth;   /* light into solid ground, px                      */
+    float lightCharReach; /* character shadow length, px                    */
+    float lightCharDepth; /* character shadows into solid ground, px        */
+    int lightReliefOn;  /* normal maps at all (relief, shine)               */
+    float lightIndoor;  /* point-lit rooms: shade away from the lamps       */
+    int lightEngine;    /* LIGHT_ENGINE_*: classic, radiance cascades       */
+    float lightBounce;  /* radiance cascades: light off solids              */
+    int lightSolidShade; /* darken inside solid ground (below lightDepth)   */
 } PortSettings;
 
 extern PortSettings gPortSettings;
@@ -59,6 +77,8 @@ extern PortSettings gPortSettings;
 void PortSettingsDefaults(PortSettings *s);
 /* Apply "key=value" lines over *s; unknown keys and bad values are skipped. */
 void PortSettingsParse(PortSettings *s, const char *text);
+/* Every lighting setting but the on/off switch to its default. */
+void LightDefaults(PortSettings *s);
 /* Returns the length written (always NUL-terminated). */
 int PortSettingsFormat(const PortSettings *s, char *buf, int size);
 void PortSettingsClamp(PortSettings *s);
