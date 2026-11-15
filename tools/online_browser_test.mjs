@@ -47,6 +47,18 @@
 //           hosts again through the game's menus and guest A joins again.
 //           Scripted local players' keys go in through
 //           Module._PortLmpSetHostKeys(seat, ...); the pad through the page.
+//   browse  the server browser (web/online_browse.js, platform/online_browse.c;
+//           not in the default list): a PRIVATE room is never listed; a
+//           PUBLIC one is, with the host's card name, players, mode and lock;
+//           a joiner from the list types a wrong password (WRONG, another
+//           try) and then the right one and is in; an invite link asks in its
+//           box; five wrong answers and the host stops answering that tab; a
+//           full game shows FULL and A on it does nothing; the cursor stays on
+//           its game through refreshes; the host ends and the game leaves the
+//           list.  Then against a server WITHOUT the list (--relay-old, a dev
+//           relay run with --no-public): BROWSE GAMES says the server needs an
+//           update, PUBLIC says it cannot be listed, and hosting and joining by
+//           code work as before.
 //   rooms   FREE ROAM (rooms mode) with two and three pages (--rooms-pages
 //           2,3): each page on its own player's room, the canonical frames
 //           identical, the digest equal, a phone call, the pause menu.
@@ -62,6 +74,7 @@ const BASE = flag('base', 'http://127.0.0.1:8941/dist/');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8941/rom.gba');
 const LIVE = has('live');
 const RELAY = LIVE ? null : flag('relay', 'http://127.0.0.1:8797');
+const RELAY_OLD = flag('relay-old', '');      /* browse: a server without the public list */
 const SHOTS = flag('shots', '');
 const PLAY_S = +flag('play', 130);
 const LAG = +flag('lag', 120), JITTER = +flag('jitter', 30), LOSS = +flag('loss', 2);
@@ -1155,6 +1168,221 @@ async function roomsMore(tag, R, host, guest, code) {
     ok(`${tag}: again: canonical identical, digest equal`, cmp.compared > 10 && cmp.mismatched === 0 && st.digMismatch === 0 && !st.persRepairs,
        `${cmp.equal}/${cmp.compared}; digest ${st.digEqual}/${st.digCompared}, rebuilt ${st.persRepairs}`);
     R.again = { code2, screens: scs, compare: { equal: cmp.equal, compared: cmp.compared } };
+}
+
+// --- browse: the public list and passwords ----------------------------------------
+/* letters and digits on a keyboard (the password rows' typing state takes them) */
+async function typeText(p, text) {
+    for (const ch of text) {
+        const up = ch.toUpperCase();
+        const code = /[0-9]/.test(ch) ? 'Digit' + ch : 'Key' + up;
+        await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code, key: ch, text: ch, windowsVirtualKeyCode: up.charCodeAt(0) });
+        await p.s('Input.dispatchKeyEvent', { type: 'keyUp', code, key: ch, windowsVirtualKeyCode: up.charCodeAt(0) });
+        await sleep(120);
+    }
+}
+async function typeKey(p, key, code, vk) {
+    await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code, key, windowsVirtualKeyCode: vk });
+    await p.s('Input.dispatchKeyEvent', { type: 'keyUp', code, key, windowsVirtualKeyCode: vk });
+    await sleep(150);
+}
+const kb = (p) => p.ev('window.KatamBrowse ? KatamBrowse.stats() : null');
+const relayGet = async (base) => { try { const r = await fetch(base + '/v2/public'); return r.status === 200 ? (await r.json()).games : null; } catch (e) { return null; } };
+const selected = (p) => p.ev("Module.ccall('PortObrSelectedJs', 'string', [], [])");
+async function toBrowse(p) {
+    await press(p, 'DOWN'); await press(p, 'DOWN');      // BROWSE GAMES
+    await press(p, 'A');
+    return until(async () => ((await screen(p)) >> 8) === 4, 5000);
+}
+async function hostThroughMenus(p, tag, name) {
+    await toGameSelect(p);
+    if (name) await p.ev(`(Module._PortPlayerCardOpen(0, 0), Module.ccall('PortCardSetNameJs', null, ['string'], [${JSON.stringify(name)}]), Module._PortPlayerCardClose(), 1)`);
+    await toOnline(p);
+    await shot(p, `${tag}-01-online.png`);
+    await press(p, 'A');                    // HOST GAME
+    return until(async () => { const s = await stats(p); return s && s.code && (await screen(p)) === 2 * 256 + 2 ? s.code : null; }, 20000);
+}
+
+if (CASES.includes('browse')) {
+    say('# browse: public games and passwords');
+    const R = results.browse = {};
+    // host A: PUBLIC with a password; host B: PRIVATE (the default)
+    const hostA = await openPage('hostA', {}, 1440, 800);
+    const codeA = await hostThroughMenus(hostA, 'b-a', 'dedede');
+    ok('browse: host A has a room', !!codeA, codeA);
+    await waitFrames(hostA, 20);
+    await shot(hostA, 'b-a-02-host-1440.png');
+    ok('browse: a new room is PRIVATE and not listed', (await hostA.ev('Module._PortObrHostPublic()')) === 0
+       && !((await relayGet(RELAY)) || []).some((g) => g.code === codeA));
+    await press(hostA, 'DOWN'); await press(hostA, 'DOWN');   // GAME
+    await waitFrames(hostA, 10);
+    await shot(hostA, 'b-a-03-game-private.png');
+    await press(hostA, 'RIGHT');                               // PUBLIC
+    await waitFrames(hostA, 10);
+    await shot(hostA, 'b-a-04-game-public.png');
+    await press(hostA, 'DOWN');                                // PASSWORD
+    await press(hostA, 'A');                                   // type
+    await press(hostA, 'RIGHT'); await press(hostA, 'RIGHT');  // Left/Right pick: B
+    // (a keyboard's Z, the A key, would type a Z here: the typing state
+    // takes letters, as the player card's NAME row does)
+    await typeText(hostA, '7');                                // a keyboard: 7
+    await waitFrames(hostA, 10);
+    await shot(hostA, 'b-a-05-password-typing.png');
+    await typeKey(hostA, 'Enter', 'Enter', 13);
+    const hpw = await hostA.ev("Module.ccall('PortObrHostPassJs', 'string', [], [])");
+    ok('browse: the host typed a password with the pad and a keyboard', hpw === 'B7', hpw);
+    await waitFrames(hostA, 10);
+    await shot(hostA, 'b-a-06-password-set.png');
+    const listed = await until(async () => ((await relayGet(RELAY)) || []).find((g) => g.code === codeA), 15000);
+    const modeA = (await hostA.ev('Module._PortOuiRoomsMode()')) ? 'roam' : 'together';
+    ok('browse: PUBLIC: listed with name, count, mode and lock', !!listed && listed.name === 'DEDEDE' && listed.n === 1
+       && listed.mode === modeA && listed.locked === true && !listed.full, JSON.stringify(listed));
+    ok('browse: the listing holds nothing else', !!listed && Object.keys(listed).sort().join() === 'age,code,full,locked,max,mode,n,name');
+
+    const hostB = await openPage('hostB', {}, 960, 640);
+    const codeB = await hostThroughMenus(hostB, 'b-b', 'privat');
+    ok('browse: host B (private) has a room', !!codeB, codeB);
+
+    // guest 1 at 1440x800: the list, a wrong password, the right one
+    const g1 = await openPage('g1', {}, 1440, 800);
+    await toGameSelect(g1);
+    await toOnline(g1);
+    await press(g1, 'DOWN'); await press(g1, 'DOWN');
+    await waitFrames(g1, 10);
+    await shot(g1, 'b-g1-01-online-browse-row.png');
+    await press(g1, 'A');
+    const seen = await until(async () => { const k = await kb(g1); return k && k.listStatus === 1 && k.games.some((g) => g.code === codeA) ? k : null; }, 15000);
+    await waitFrames(g1, 20);
+    await shot(g1, 'b-g1-02-list-1440.png');
+    ok('browse: the list screen shows the public game', !!seen && (await screen(g1)) >> 8 === 4 && (await g1.ev('Module._PortPocScreenModel()')) === 9);
+    ok('browse: the private game is never listed', !!seen && !seen.games.some((g) => g.code === codeB)
+       && !((await relayGet(RELAY)) || []).some((g) => g.code === codeB));
+    await hostB.close();
+    ok('browse: the cursor is on that game', (await selected(g1)) === codeA, await selected(g1));
+    await press(g1, 'A');                                       // join it
+    const asked = await until(async () => (await screen(g1)) === 5 * 256 + 15, 15000);
+    await waitFrames(g1, 20);
+    await shot(g1, 'b-g1-03-password-asked.png');
+    ok('browse: a locked game asks for its password (PASSWORD screen)', !!asked, 'screen ' + (await screen(g1)));
+    await typeText(g1, 'wrong');
+    await typeKey(g1, 'Enter', 'Enter', 13);
+    await press(g1, 'DOWN');
+    await press(g1, 'A');                                       // JOIN: answer
+    const wrong = await until(async () => (await screen(g1)) === 5 * 256 + 16, 10000);
+    await waitFrames(g1, 20);
+    await shot(g1, 'b-g1-04-password-wrong.png');
+    ok('browse: a wrong password is refused, with another try', !!wrong && !(await stats(g1)).peer, 'screen ' + (await screen(g1)));
+    for (let i = 0; i < 5; i++) await typeKey(g1, 'Backspace', 'Backspace', 8);
+    await typeText(g1, 'b7');
+    await typeKey(g1, 'Enter', 'Enter', 13);
+    await press(g1, 'DOWN');
+    await press(g1, 'A');
+    const inG1 = await until(async () => (await screen(g1)) === 5 * 256 + 7, 15000);
+    await waitFrames(g1, 20);
+    await shot(g1, 'b-g1-05-password-right-waiting.png');
+    ok('browse: the right password joins (waiting for the host)', !!inG1, 'screen ' + (await screen(g1)));
+    ok('browse: the host counts that player', !!(await until(async () => (await screen(hostA)) === 2 * 256 + 4, 10000)));
+
+    // an invite link: the box over the picture, wrong once, then right
+    const g4 = await openPage('g4', { join: codeA }, 390, 844);
+    const boxUp = () => g4.ev("(function(){var e=document.getElementById('obrpw');return !!(e&&e.style.display!=='none');})()");
+    ok('browse: an invite link to a locked game asks in its box', !!(await until(boxUp, 60000)));
+    await shot(g4, 'b-g4-01-invite-box-phone.png');
+    const submit = (pw) => g4.ev(`(document.getElementById('obrpwin').value=${JSON.stringify(pw)}, document.getElementById('obrpwok').click(), 1)`);
+    await submit('nope');
+    await sleep(800);
+    ok('browse: invite: wrong, asked again', !!(await until(async () => (await boxUp()) && /wrong/i.test(await g4.ev("document.getElementById('obrpwmsg').textContent")), 10000)));
+    await submit('b7');
+    ok('browse: invite: right password, in', !!(await until(async () => { const s = await stats(g4); return s && s.phase === 'waiting'; }, 15000)));
+
+    // five wrong answers: the host stops answering that tab
+    const g5 = await openPage('g5', { join: codeA }, 960, 640);
+    const box5 = () => g5.ev("(function(){var e=document.getElementById('obrpw');return !!(e&&e.style.display!=='none');})()");
+    await until(box5, 60000);
+    let locked5 = false;
+    for (let i = 0; i < 5 && !locked5; i++) {
+        await until(box5, 8000);
+        await g5.ev("(document.getElementById('obrpwin').value='X" + i + "', document.getElementById('obrpwok').click(), 1)");
+        locked5 = !!(await until(async () => (await g5.ev('katamOnline._S.uiState')) === 17, 1500));
+    }
+    ok('browse: five wrong passwords: refused for good', locked5, 'ui ' + (await g5.ev('katamOnline._S.uiState')));
+    await g5.ev(`katamOnline.join(${JSON.stringify(codeA)})`);
+    const ignored = await until(async () => (await g5.ev('katamOnline._S.uiState')) === 13, 20000);
+    ok('browse: ... and the host no longer answers that tab', !!ignored && !(await kb(g5)).guestAsked);
+    await g5.close();
+
+    // a full game (published straight to the server: three more pages would be four games' worth of memory)
+    const full = await (await fetch(RELAY + '/v2/rooms', { method: 'POST' })).json();
+    const fp = await fetch(RELAY + '/v2/public', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: full.code, resume: full.resume, name: 'fullup', n: 4, mode: 'together', locked: false }) });
+    ok('browse: a full game published', fp.status === 200);
+
+    // guest 2 at phone size: the list with both, FULL refused, the cursor kept
+    const g2 = await openPage('g2', {}, 390, 844);
+    await toGameSelect(g2);
+    await toOnline(g2);
+    await toBrowse(g2);
+    const both = await until(async () => { const k = await kb(g2); return k && k.games.length >= 2 ? k : null; }, 15000);
+    const ea = both && both.games.find((g) => g.code === codeA), ef = both && both.games.find((g) => g.code === full.code);
+    ok('browse: the list: the game with its players (3: host and two guests)', !!ea && ea.n === 3 && ea.locked, JSON.stringify(ea));
+    ok('browse: the list: the full game shows FULL, after the open one', !!ef && ef.full && both.games.indexOf(ef) > both.games.indexOf(ea));
+    await waitFrames(g2, 20);
+    await shot(g2, 'b-g2-01-list-phone.png');
+    await press(g2, 'DOWN');
+    await waitFrames(g2, 10);
+    ok('browse: Down moves to the full game', (await selected(g2)) === full.code);
+    await shot(g2, 'b-g2-02-list-full-selected-phone.png');
+    const lists0 = (await kb(g2)).lists;
+    await until(async () => (await kb(g2)).lists >= lists0 + 2, 15000);
+    ok('browse: refreshes every few seconds, the cursor stays', (await kb(g2)).lists >= lists0 + 2 && (await selected(g2)) === full.code);
+    await press(g2, 'A');
+    await waitFrames(g2, 20);
+    ok('browse: A on a full game does nothing', (await screen(g2)) >> 8 === 4 && !(await stats(g2)).role);
+
+    // the host ends it: off the list; the cursor stays on its game
+    await press(hostA, 'B');                // leave HOST GAME: the room closes
+    const gone = await until(async () => { const k = await kb(g2); return k && k.lists > 0 && !k.games.some((g) => g.code === codeA) ? k : null; }, 15000);
+    ok('browse: the host ends it and it leaves the list', !!gone && !((await relayGet(RELAY)) || []).some((g) => g.code === codeA));
+    ok('browse: ... the cursor still on the game it was on', (await selected(g2)) === full.code, await selected(g2));
+    await waitFrames(g2, 20);
+    await shot(g2, 'b-g2-03-list-after-end-phone.png');
+    await press(g2, 'B');
+    ok('browse: B backs out to ONLINE', !!(await until(async () => (await screen(g2)) >> 8 === 1, 5000)));
+    for (const p of [hostA, g1, g4, g2]) await p.close();
+
+    // a server without the list
+    if (RELAY_OLD) {
+        say('# browse: against a server without the public list');
+        const h3 = await openPage('h3', { netserver: RELAY_OLD }, 960, 640);
+        const code3 = await hostThroughMenus(h3, 'b-old', 'oldie');
+        ok('browse/old: hosting works as before', !!code3, code3);
+        await press(h3, 'DOWN'); await press(h3, 'DOWN'); await press(h3, 'RIGHT');   // PUBLIC
+        const old3 = await until(async () => { const k = await kb(h3); return k && k.host && k.host.state === 3; }, 10000);
+        await waitFrames(h3, 20);
+        await shot(h3, 'b-old-02-public-needs-update.png');
+        ok('browse/old: PUBLIC says the server needs an update (the game stays private)', !!old3);
+        const g3 = await openPage('g3', { netserver: RELAY_OLD }, 390, 844);
+        await toGameSelect(g3);
+        await toOnline(g3);
+        await toBrowse(g3);
+        const st3 = await until(async () => { const k = await kb(g3); return k && k.listStatus === 3; }, 10000);
+        await waitFrames(g3, 20);
+        await shot(g3, 'b-old-03-browse-needs-update-phone.png');
+        ok('browse/old: BROWSE GAMES says the server needs an update', !!st3);
+        await press(g3, 'B');                   // ONLINE, on BROWSE GAMES
+        await press(g3, 'UP');                  // JOIN GAME
+        await press(g3, 'A');
+        await waitFrames(g3, 20);
+        await typeCode(g3, code3);
+        ok('browse/old: joining by code works as before', !!(await until(async () => (await screen(g3)) === 3 * 256 + 7, 20000)));
+        ok('browse/old: the host sees the player', !!(await until(async () => (await screen(h3)) === 2 * 256 + 4, 10000)));
+        await press(h3, 'UP');                  // START
+        await press(h3, 'A');
+        ok('browse/old: the game starts for both', !!(await until(async () => { const a = await stats(h3), b = await stats(g3); return a.session && b.session && b.joined; }, 30000)));
+        await h3.close(); await g3.close();
+    } else {
+        ok('browse/old: --relay-old given', false);
+    }
 }
 
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));

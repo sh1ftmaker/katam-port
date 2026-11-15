@@ -91,7 +91,7 @@ def main():
     sim.update(args.sim_flags.encode())
     # (and the online session's wire: two pages that speak it differently
     # must not meet -- web/ln_session.js, web/online.js)
-    for name in ('rb_boot.js', 'net_game.js', 'ln_session.js', 'online.js'):
+    for name in ('rb_boot.js', 'net_game.js', 'ln_session.js', 'online.js', 'online_browse.js'):
         f = args.dir / name
         if f.exists():
             sim.update(f.read_bytes())
@@ -105,7 +105,7 @@ def main():
     # cannot connect".  Same cure: content-hashed URLs, per file, so an
     # unchanged file keeps its cache and a changed one busts it.
     for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js',
-                 'lobby.js', 'ln_session.js', 'online.js', 'input_devices.js'):
+                 'lobby.js', 'ln_session.js', 'online.js', 'online_browse.js', 'input_devices.js'):
         f = args.dir / name
         if not f.exists():
             continue
