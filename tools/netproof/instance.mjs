@@ -69,6 +69,7 @@ export function audioDevice(spec, clock) {
             this.st.pushes++;
             this.st.frames += f32.length >> 1;
             if (this.depth > this.st.maxDepth) this.st.maxDepth = this.depth;
+            if (spec.onPush) spec.onPush(f32);      // measuring: a capture of what it plays
         },
     };
     return dev;
@@ -185,7 +186,13 @@ function api(inst) {
         audioStats() {
             if (!M._PortAudioStatsJs) return null;
             const a = M._PortAudioStatsJs(0) >> 2, b = M._PortAudioStatsJs(1) >> 2;
-            return { mixer: Array.from(M.HEAPU32.subarray(a, a + 5)), out: Array.from(M.HEAPU32.subarray(b, b + 7)),
+            // platform/audio_ear.c: what the guest's speakers heard (null without it)
+            let ear = null;
+            if (M._PortAudioEarNamesJs) {
+                const names = cstr(M, M._PortAudioEarNamesJs()).split(',').filter(Boolean), e = M._PortAudioStatsJs(2) >> 2;
+                ear = {}; names.forEach((n, i) => { ear[n] = M.HEAPU32[e + i]; });
+            }
+            return { mixer: Array.from(M.HEAPU32.subarray(a, a + 5)), out: Array.from(M.HEAPU32.subarray(b, b + 7)), ear,
                      device: inst.audio ? Object.assign({ rate: inst.audio.rate }, inst.audio.st) : null };
         },
         peek8: (a) => M.HEAPU8[a],

@@ -52,6 +52,8 @@
 
 #include "port/port.h"
 #include "port/audio.h"
+#include "port/audio_ear.h"
+#include "port/lmpnet.h"
 #include "gba/gba.h"
 #include "gba/m4a.h"
 
@@ -857,6 +859,7 @@ static int sCanonRate;      /* nonzero: the canonical device's rate (fixed) */
 static u32 sCanonStats[5];
 static u64 sCanonT0;
 static int sCanonTiming;
+static int sEarRender;      /* this render's channels are in the ear's groups */
 u64 PortHostMicros(void);
 
 u32 *PortMixerCanonStats(void)
@@ -986,7 +989,7 @@ static int AdvanceOnly(struct SoundChannel *chan, const s8 *p, s32 remain, u32 f
 }
 
 static void MixChannel(struct SoundInfo *soundInfo, struct SoundChannel *chan,
-                       int frames)
+                       int frames, s32 *accR, s32 *accL)
 {
     struct WaveData *wav = chan->wav;
     u32 status = chan->status;
@@ -1129,8 +1132,8 @@ setvol:
         s32 s = cur + ((((s32)p[1] - cur) * (s32)fw) >> 23);
         u32 adv;
 
-        sAccR[i] += ((erQ >> 8) * s) >> 8;
-        sAccL[i] += ((elQ >> 8) * s) >> 8;
+        accR[i] += ((erQ >> 8) * s) >> 8;
+        accL[i] += ((elQ >> 8) * s) >> 8;
         erQ += erStep;
         elQ += elStep;
 
@@ -1173,17 +1176,52 @@ void PortMixerRender(struct SoundInfo *soundInfo)
 
     /* Online session: the canonical device (see sStateOnly).  Nothing below
      * this block changes game memory except MixChannel, so a render nobody
-     * will hear runs MixChannel alone, without samples. */
+     * will hear runs MixChannel alone, without samples.
+     *
+     * On a guest with a device, each music player's channels go to a group
+     * of their own (platform/audio_ear.c, what the speakers hear): a render
+     * nobody hears mixes the groups the ears may play late and advances the
+     * rest without samples, and a heard one hands every group over to be
+     * composed.  Either way the channels' state is the same as without
+     * (MixChannel and AdvanceOnly leave the same state). */
     if (sCanonRate) {
         u64 t0 = PortHostMicros();
+        int mix, ear;
 
         for (ch = 0; ch < soundInfo->maxChans; ch++)
             if (soundInfo->chans[ch].status & 0xC7)
                 sCanonStats[4]++;
-        sStateOnly = !PortAudioCanonRender(soundInfo);
+        mix = PortAudioCanonRender(soundInfo);
+        ear = PortEarActive(frames);
+        if (ear && (!mix || PortLnAudioMuted())) {
+            /* Unheard, ears on: the groups they may play late, mixed;
+             * the rest advanced without samples.  (Measuring with replayed
+             * frames mixed: every group.) */
+            u32 mask = mix ? (1u << PORT_EAR_GROUPS) - 1 : PortEarReplayMask();
+
+            PortEarClear(mask);
+            for (ch = 0; ch < soundInfo->maxChans; ch++) {
+                struct SoundChannel *c = &soundInfo->chans[ch];
+                int g = (c->status & 0xC7) ? PortEarOwner(soundInfo, ch) : 0;
+
+                if (mask >> g & 1) {
+                    MixChannel(soundInfo, c, frames, PortEarAcc(g, 1), PortEarAcc(g, 0));
+                } else {
+                    sStateOnly = 1;
+                    MixChannel(soundInfo, c, frames, sAccR, sAccL);
+                    sStateOnly = 0;
+                }
+            }
+            PortEarRendered(mask, 0, NULL, NULL);
+            sStageFrames = 0;
+            sCanonStats[mask ? 0 : 1]++;
+            sCanonStats[mask ? 2 : 3] += (u32)(PortHostMicros() - t0);
+            return;
+        }
+        sStateOnly = !mix;
         if (sStateOnly) {
             for (ch = 0; ch < soundInfo->maxChans; ch++)
-                MixChannel(soundInfo, &soundInfo->chans[ch], frames);
+                MixChannel(soundInfo, &soundInfo->chans[ch], frames, sAccR, sAccL);
             sStateOnly = 0;
             sStageFrames = 0;
             sCanonStats[1]++;
@@ -1192,6 +1230,19 @@ void PortMixerRender(struct SoundInfo *soundInfo)
         }
         sCanonT0 = t0;
         sCanonTiming = 1;
+        if (ear) {
+            sEarRender = 1;
+            PortEarClear((1u << PORT_EAR_GROUPS) - 1);
+            for (ch = 0; ch < soundInfo->maxChans; ch++) {
+                struct SoundChannel *c = &soundInfo->chans[ch];
+
+                if (c->status & 0xC7) {
+                    int g = PortEarOwner(soundInfo, ch);
+
+                    MixChannel(soundInfo, c, frames, PortEarAcc(g, 1), PortEarAcc(g, 0));
+                }
+            }
+        }
     }
 
     /* Reverb, exactly as SoundMainRAM does it: the block about to be written
@@ -1217,8 +1268,14 @@ void PortMixerRender(struct SoundInfo *soundInfo)
         memset(sAccL, 0, sizeof(s32) * (size_t)frames);
     }
 
-    for (ch = 0; ch < soundInfo->maxChans; ch++)
-        MixChannel(soundInfo, &soundInfo->chans[ch], frames);
+    if (sEarRender) {
+        /* The speakers' block from the groups, on top of the reverb. */
+        sEarRender = 0;
+        PortEarRendered((1u << PORT_EAR_GROUPS) - 1, 1, sAccR, sAccL);
+    } else {
+        for (ch = 0; ch < soundInfo->maxChans; ch++)
+            MixChannel(soundInfo, &soundInfo->chans[ch], frames, sAccR, sAccL);
+    }
 
     /* Back into the ring for the next reverb pass, and out as s16.
      *

@@ -329,6 +329,22 @@ bursts, replays); the rig's R12 runs host and guest with different devices.
 Off a session none of it runs: the rendered audio of a non-session run is
 byte-identical to the build before it (tools/netaudit/audio_compare.js).
 
+What a guest's speakers hear is decided outside the image too
+(platform/audio_ear.c).  Replayed frames are unheard, so a sound the other
+player starts falls in one and would be picked up mid-way (or not at all),
+and a guessed one is cut off by the rewind.  The mixer renders each music
+player's channels into a group of its own; per player, the speakers follow
+that stream through a reader that may run up to 48 frames behind: at the end
+of each replay, a start the corrected timeline has and the speakers have not
+heard is played from its beginning, late by the correction, and everything
+else is cross-faded (8 ms) from the block the speakers would have heard to
+the corrected one.  None of it is game memory, none of it is hashed, and the
+simulation never reads it: the channels' state is the same whether a group is
+mixed or advanced without samples.  The host never rewinds and keeps the old
+path; with the reconciler off (`PortEarSet(0)`) the guest's output is
+byte-identical to the build before it.  tools/netproof/sound_eval.mjs
+measures it against the host.
+
 ## Known issues the harness tripped over
 
 All three that were here are fixed, and the recordings now cover them:
