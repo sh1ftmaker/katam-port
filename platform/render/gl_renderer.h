@@ -60,6 +60,13 @@ void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
 void GlrSetHudLayer(int on);
 int GlrHudActive(void);
 void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smooth);
+/* A small host-drawn picture over the presented frame (the party HUD):
+ * `pixels` is w x h premultiplied RGBA (R in the low byte), uploaded into
+ * overlay `slot` (0..3) when `dirty` or new, and drawn with its top-left at
+ * framebuffer pixel (x, y), `scale` framebuffer pixels per pixel -- nearest,
+ * or sharp bilinear with `smooth` at a fractional scale. */
+void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,
+                    int fbW, int fbH, double x, double y, double scale, int smooth);
 /* GlrPresent's fit of a vw x vh picture into w x h: {x, y, w, h}, top-left
  * origin.  Integer scale when it is at least 1x. */
 void GlrFitRect(int w, int h, int vw, int vh, int dst[4]);

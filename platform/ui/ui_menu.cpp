@@ -21,6 +21,7 @@ extern "C" {
 void PortLog(const char *fmt, ...);
 void PortError(const char *fmt, ...);
 #include "ui/settings.h"
+#include "ui/party_hud.h"
 #include "ui/ui.h"
 }
 #include "ui/ui_internal.h"
@@ -571,6 +572,16 @@ static int PageDisplay(void)
                      (double)st.hudScaleNow);
             Hint(line);
         }
+        ImGui::TextUnformatted("Party:");
+        ImGui::SameLine();
+        changed |= Radio("Off", &s.partyHud, PS_PARTY_OFF);
+        SameLineIfFits("Players");
+        changed |= Radio("Players", &s.partyHud, PS_PARTY_PLAYERS);
+        SameLineIfFits("Players + helpers");
+        changed |= Radio("Players + helpers", &s.partyHud, PS_PARTY_HELPERS);
+        Hint("Party: the other players' health, ability and lives in the top right corner "
+             "(and the CPU helpers' while they are with you); the game's own bar is player 1's. "
+             "Playing alone with nobody along, nothing changes.");
         Hint("Auto keeps the HUD the size it has at zoom 1, whatever the zoom; "
              "a fixed size is capped so the whole HUD fits the picture. "
              "Corners vs strip only differs when the picture is wider than the HUD.");
@@ -854,6 +865,11 @@ static void DrawGear(int fbW)
     if (ImGui::Button("Menu"))
         PortUiSetOpen(1);
     ImGui::PopStyleVar();
+    {
+        /* The party HUD keeps out of the button's corner. */
+        ImVec2 p = ImGui::GetWindowPos(), z = ImGui::GetWindowSize();
+        PortPartyHudKeepOut(0, (int)p.x, (int)p.y, (int)(z.x + 0.5f), (int)(z.y + 0.5f));
+    }
     ImGui::End();
     ImGui::PopStyleVar();
 }
@@ -875,6 +891,7 @@ extern "C" void PortUiDraw(int fbW, int fbH, float dpr, double nowMs)
     sLast = nowMs;
 
     ImGui::NewFrame();
+    PortPartyHudKeepOut(0, 0, 0, 0, 0);
     if (sOpen) {
         sOpenFrames++;
         DrawMenu(fbW, fbH);

@@ -29,6 +29,7 @@ enum { PS_ASPECT_AUTO = 0, PS_ASPECT_3_2, PS_ASPECT_4_3, PS_ASPECT_16_10,
        PS_ASPECT_16_9, PS_ASPECT_21_9, PS_ASPECT_FILL, PS_ASPECT_COUNT };
 enum { PS_SCALE_INTEGER = 0, PS_SCALE_FIT, PS_SCALE_SMOOTH, PS_SCALE_COUNT };
 enum { PS_HUD_CORNERS = 0, PS_HUD_STRIP };
+enum { PS_PARTY_OFF = 0, PS_PARTY_PLAYERS, PS_PARTY_HELPERS };
 #define PS_HUD_SCALE_MAX 8
 
 typedef struct PortSettings {
@@ -48,6 +49,8 @@ typedef struct PortSettings {
     float uiScale;      /* menu size multiplier, 1.0 = automatic            */
     int smoothCam;      /* GPU: the camera at the game's sub-pixel position */
     int interp;         /* GPU: lerp between sim frames at display rate     */
+    int partyHud;       /* PS_PARTY_*: the party HUD (party_hud.c) -- other
+                         * players' cards, and the CPU helpers' with them  */
 } PortSettings;
 
 extern PortSettings gPortSettings;

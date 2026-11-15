@@ -3015,7 +3015,35 @@ var Module = (function () {
   // Called by fitScreen(), which already runs on every resize, rotation,
   // fullscreen change and stage reflow — the exact set of events that can
   // move a pad.
-  shell.hooks.onLayout = function () { measurePads(); reevaluate(); };
+  shell.hooks.onLayout = function () { measurePads(); reevaluate(); sendKeepOuts(); };
+
+  // The party HUD (platform/ui/party_hud.c) stays out from under the pads
+  // and the menu button: their boxes in canvas pixels, on every layout and
+  // twice a second besides (the pads appear and go with the touch toggle,
+  // the sheet and the menu, none of which reflows the stage).  A hidden
+  // control measures as nothing and clears its slot; the idle-faded gear
+  // keeps its slot, so nothing jumps when the mouse moves.  Slot 0 is the
+  // native menu button's.
+  var keepIds = ['dpad', 'tb-a', 'tb-b', 'tb-l', 'tb-r', 'tb-select', 'tb-start', 'uigear'];
+  function sendKeepOuts() {
+    var c = Module.portGlCanvas, cr, sx, sy, i;
+    if (!Module.portRuntimeUp || !Module._PortPartyHudKeepOut || !c) return;
+    cr = c.getBoundingClientRect();
+    if (!cr.width || !cr.height) return;
+    sx = c.width / cr.width;
+    sy = c.height / cr.height;
+    for (i = 0; i < keepIds.length; i++) {
+      var el = document.getElementById(keepIds[i]);
+      var b = el ? el.getBoundingClientRect() : null;
+      if (b && b.width && b.height)
+        Module._PortPartyHudKeepOut(i + 1, Math.floor((b.left - cr.left) * sx),
+                                    Math.floor((b.top - cr.top) * sy),
+                                    Math.ceil(b.width * sx), Math.ceil(b.height * sy));
+      else
+        Module._PortPartyHudKeepOut(i + 1, 0, 0, 0, 0);
+    }
+  }
+  setInterval(sendKeepOuts, 500);
 
   function inDpad(x, y) {
     if (!geomOk) return false;

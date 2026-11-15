@@ -235,6 +235,21 @@ warp_sweep (956 frames, fades included). `--shot-at F:PREFIX` also writes
 `PREFIX-win.png`, the presented window, which is the picture that has the
 HUD layer in it (`PREFIX-gpu.png` is the composite only).
 
+### Party HUD
+
+With more than one Kirby that matters on screen (other humans; CPU helpers
+in the group's room) a card per Kirby goes in the top right corner and a
+"1P" tag on the game's own bar, which stays player 1's card
+(`platform/ui/party_hud.c` has the design). It is drawn by the host over
+the presented picture, after the HUD and before the menu
+(`GlrDrawOverlay`), in both renderers: at the HUD layer's scale and corners
+over a GPU world, at the picture's own scale over the PPU's. It reads the
+Kirbys and the registers at the blit and writes nothing: shown exactly when
+the game's HUD is (BG1 on screen block 28), faded with it (the HUD palette
+line and BLDY), and kept clear of the page's touch pads and menu buttons
+(`PortPartyHudKeepOut`). Settings: Display > HUD > Party (Off, Players,
+Players + helpers; default the last).
+
 ### Object pop-in
 
 The game spawns objects 48 px (3 cells) past the 240x160 screen and destroys
