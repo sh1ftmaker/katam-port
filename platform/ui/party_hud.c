@@ -142,8 +142,10 @@ static int IsHuman(int s)
 /* Does this device control slot s?  Per device: never simulation state. */
 static int IsLocal(int s)
 {
+    /* online: the session says which Kirbys this device plays (one bit
+     * per slot; several when people share this device) */
     if (PortLnActive())
-        return s == (PortLnRole() == PORT_LN_GUEST ? 1 : 0);
+        return (PortLnSelfSlots() >> s) & 1;
     if (gPortSim->lmp.humans)
         return IsHuman(s);
     return s == gLocalPlayerId;

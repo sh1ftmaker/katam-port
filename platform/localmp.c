@@ -233,6 +233,26 @@ u16 PortLmpHostKeys(int player)
     return (player >= 1 && player <= 3) ? sHostKeys[player] : 0;
 }
 
+/* An online session (platform/lmpnet.c) decides every slot's pad at the
+ * latch; this device's own pads (PortLmpHostKeys) are its seats, which the
+ * session reads and maps.  Off (NULL), the latch reads the host keys. */
+static u16 sSessKeys[4];
+static int sSessOn;
+
+void PortLmpSetSessionKeys(const u16 *k)
+{
+    sSessOn = k != NULL;
+    if (k != NULL)
+        memcpy(sSessKeys, k, sizeof sSessKeys);
+}
+
+u16 PortLmpLatchKeys(int player)
+{
+    if (player < 1 || player > 3)
+        return 0;
+    return sSessOn ? sSessKeys[player] : sHostKeys[player];
+}
+
 static float sMinZoom = -1.0f;
 
 float PortLmpMinZoom(void)
@@ -520,24 +540,38 @@ static void Waiting(void)
         }
 }
 
+/* --- the device layer's door (platform/input_devices.c, web/input_devices.js)
+ *
+ * Outside an online session `slot` is a Kirby slot.  In one, which Kirby a
+ * person on this device gets is the host's to decide (platform/lmpnet.c,
+ * "slots"), so the same four calls speak of this device's local SEATS
+ * instead: seat 0 is the console's own keys, seats 1..3 the pads given to
+ * PortLmpSetHostKeys(seat, ...).  A join asks the session for a slot for
+ * that seat (on a guest the page carries the request to the host); the seat
+ * "is human" once a sealed frame gave it one.  The device core needs no
+ * change for this: its player p is seat p, its keys go where they went. */
 int PortLmpSlotJoinable(int slot)
 {
     if (slot < 1 || slot > 3)
         return 0;
+    if (PortLnActive())
+        return 1;
     return !InStoryPlay() || !Scripted((u8)slot);
 }
 
 int PortLmpCanRequest(void)
 {
-    /* Online (platform/lmpnet.c) the slots are host = 1, guest = 2 for now:
-     * more people on either device is the session's to seal and carry. */
-    return !SessionActive() && !PortLnActive() && !PortInputLogReplaying();
+    if (PortLnActive())
+        return !PortInputLogReplaying();
+    return !SessionActive() && !PortInputLogReplaying();
 }
 
 u32 PortLmpRequestHuman(int slot, int on)
 {
     if (slot < 1 || slot > 3 || !PortLmpCanRequest())
         return 0;
+    if (PortLnActive())
+        return PortLnSeatAsk(slot, on != 0) ? 1u : 0u;
     return PortInputLogScheduleHuman((u8)slot, (u8)(on != 0));
 }
 
@@ -558,9 +592,9 @@ int PortLmpProbe(int slot, const char *cond)
     if (strcmp(cond, "door") == 0)
         return (k->base.flags & 0x100) != 0;
     if (strcmp(cond, "human") == 0)
-        return PortLmpSlotIsHuman(slot);
+        return PortLmpSlotPerson(slot);
     if (strcmp(cond, "cpu") == 0)
-        return !PortLmpSlotIsHuman(slot);
+        return !PortLmpSlotPerson(slot);
     if (strncmp(cond, "anim:", 5) == 0)
         return k->animationIndex == (u16)atoi(cond + 5);
     if (strncmp(cond, "flag:", 5) == 0)
@@ -584,13 +618,20 @@ int PortLmpProbe(int slot, const char *cond)
     return 0;
 }
 
-int PortLmpSlotIsHuman(int slot)
+int PortLmpSlotPerson(int slot)
 {
     if (slot == 0)
         return 1;
     if (slot < 0 || slot > 3)
         return 0;
     return ((L->slots >> slot) & 1) || ((L->joining >> (8 + slot)) & 1);
+}
+
+int PortLmpSlotIsHuman(int slot)
+{
+    if (PortLnActive())
+        return slot == 0 || (slot >= 1 && slot <= 3 && PortLnSeatSlot(PortLnSelf(), slot) >= 0);
+    return PortLmpSlotPerson(slot);
 }
 
 void PortLmpEndSlow(void)

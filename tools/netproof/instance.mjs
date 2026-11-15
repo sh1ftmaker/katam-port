@@ -147,7 +147,7 @@ function api(inst) {
         },
         sealedGet(f) {
             if (!M._PortLnSealedGet(f, scratch)) return null;
-            const rec = { k0: u32(0), k1: u32(1), nev: u32(2), ontime: u32(3), hlo: u32(4), hhi: u32(5), hashed: u32(6), ev: [] };
+            const rec = { k0: u32(0), k1: u32(1), nev: u32(2), ontime: u32(3), hlo: u32(4), hhi: u32(5), hashed: u32(6), k2: u32(7), k3: u32(8), ev: [] };
             for (let i = 0; i < rec.nev; i++) {
                 M._PortLnSealedEventGet(f, i, scratch);
                 rec.ev.push([s32(0), s32(1), s32(2), s32(3), s32(4)]);

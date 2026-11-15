@@ -844,7 +844,7 @@ void PortInputLogLatch(u32 frame, u16 *keys)
             if (sReplaying)
                 kp[q] = frame < sKeysPLen[q] ? sKeysP[q][frame] : 0;
             else
-                kp[q] = PortLmpHostKeys(q);
+                kp[q] = PortLmpLatchKeys(q);
             if (sRecording && GrowKeysP(q, frame + 1)) {
                 sKeysP[q][frame] = kp[q];
                 if (frame + 1 > sKeysPLen[q])

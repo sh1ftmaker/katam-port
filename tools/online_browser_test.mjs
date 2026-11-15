@@ -1,13 +1,17 @@
-// Online two-player play end to end in a real browser (web/online.js): two
+// Online play end to end in a real browser (web/online.js): two or three
 // headless Chromium pages on build/dist, a room server, the game's own menus.
 //
 //   node tools/online_browser_test.mjs --cdp 9351 --base http://127.0.0.1:8941/dist/
 //        --rom-url http://127.0.0.1:8941/rom.gba --relay http://127.0.0.1:8797
 //        --shots DIR [--play 130] [--lag 120 --jitter 30 --loss 2]
-//        [--cases menu,invite,drop,relay,errors] [--live]
+//        [--cases menu,invite,drop,relay,errors,three] [--live]
 //
 // Needs: a Chromium already listening on --cdp with its own profile (never
-// the shared one), a static server for the dist and for a ROM you own (served
+// the shared one; on this machine `--headless=new --ignore-gpu-blocklist
+// --use-angle=gl-egl` gives WebGL2 -- SwiftShader flags give none, and the
+// page then falls back to its 2D canvas; every page is checked for
+// Module.portGl), ports nobody else uses (check that the served katam.wasm
+// is your build's), a static server for the dist and for a ROM you own (served
 // from outside the tree), and a room server: netplay/dev-relay.mjs locally,
 // or --live for the deployed worker (normal client use: one room, joined).
 // Screenshots are ROM-derived: write them outside the tree.
@@ -24,6 +28,17 @@
 //   invite  a guest joining by ?join=CODE (the drop case's rejoin is one).
 //   relay   ?netrelay=1: the same over the room's signal path.
 //   errors  JOIN with a code nobody has: NO SUCH GAME.
+//   three   host + two guests (one through JOIN GAME, one by invite link):
+//           the HOST screen counts them (PLAYERS 3/4), play with latency,
+//           every frame of both guests compared with the host's; a guest
+//           drops (its page closes) and its Kirby goes to the CPU; a local
+//           join on the host (a second player on the host's keyboard: seat
+//           1, katamOnline.requestSlot); the dropped guest rejoins by invite
+//           and gets a Kirby (now four players); a local join on a guest is
+//           refused (full) with a notice; the host's second player leaves
+//           and the guest's local join gets that Kirby.  Each local player's
+//           keys go in through Module._PortLmpSetHostKeys(seat, ...), the
+//           page's input path for seats 1..3 at this commit.
 import fs from 'fs';
 import path from 'path';
 import { human, ROOMS } from './netproof/scenario.mjs';
@@ -39,7 +54,7 @@ const RELAY = LIVE ? null : flag('relay', 'http://127.0.0.1:8797');
 const SHOTS = flag('shots', '');
 const PLAY_S = +flag('play', 130);
 const LAG = +flag('lag', 120), JITTER = +flag('jitter', 30), LOSS = +flag('loss', 2);
-const CASES = flag('cases', 'errors,menu,drop,relay').split(',');
+const CASES = flag('cases', 'errors,menu,drop,relay,three').split(',');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
 const results = {};
@@ -144,6 +159,10 @@ const PAGE_HOOK = `(function(){
       if (window.__script) {
         try { M._PortSetKeys(window.__script(M._PortFrameNumber()) & 0x3FF); } catch (e) { console.log('script: ' + e); window.__script = null; }
       }
+      if (window.__seats) {
+        try { var k = window.__seats(M._PortFrameNumber()); for (var s = 1; s < 4; s++) M._PortLmpSetHostKeys(s, (k[s] || 0) & 0x3FF); }
+        catch (e) { console.log('seats: ' + e); window.__seats = null; }
+      }
     };
   }, 20);
 })();`;
@@ -174,8 +193,18 @@ const screen = (p) => p.ev('Module._PortOuiScreen ? Module._PortOuiScreen() : -1
 const waitFrames = async (p, n) => { const f0 = await frame(p); await until(async () => (await frame(p)) >= f0 + n, 60000, 50); };
 
 /* power-on to Game Select, FILE 1 (a fresh profile: an empty file) */
+/* every page must run the WebGL2 path (the developer menu, the HUD): a page
+ * that fell back to the 2D canvas is not the page players get */
+const glSeen = new Set();
+async function glCheck(p) {
+    if (glSeen.has(p)) return;
+    glSeen.add(p);
+    await until(() => p.ev('!!(window.Module && Module.portRuntimeUp)'), 60000);
+    ok(`${p.name}: WebGL2 renderer (Module.portGl)`, !!(await p.ev('!!Module.portGl')));
+}
 async function toGameSelect(p) {
     await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
+    await glCheck(p);
     await until(async () => (await frame(p)) >= 400, 60000, 30);
     await press(p, 'START'); await waitFrames(p, 100);     // the intro -> the title
     await press(p, 'START'); await waitFrames(p, 100);     // the title -> file select
@@ -470,6 +499,7 @@ if (CASES.includes('menu')) {
         await sleep(1500);
         await shot(guest2, 'd-02-invite-banner.png');
         const back = await until(async () => { const s = await stats(guest2); return s && s.session && s.joined; }, 60000);
+    await glCheck(guest2);
         ok('a guest rejoins with the same code (invite link)', !!back);
         await sleep(1500);
         await shot(guest2, 'd-03-rejoined-guest.png');
@@ -512,6 +542,7 @@ if (CASES.includes('relay')) {
     ok('relay: host room', !!code, code);
     const guest = await openPage('guest', Object.assign({ join: code }, k));
     const ready = await until(async () => (await screen(host)) === 2 * 256 + 4, 30000);
+    await glCheck(guest);
     ok('relay: player 2 ready', !!ready);
     ok('relay: session started', !!(await startHost(host, 'r')));
     const joined = await until(async () => { const s = await stats(guest); return s && s.session && s.joined; }, 30000);
@@ -528,6 +559,158 @@ if (CASES.includes('relay')) {
     ok('relay: path is the relay on both', gs.path === 'relay' && hs.path === 'relay' && !gs.dcOpen);
     ok('relay: identical', cmp.compared > 40 && cmp.mismatched === 0, `${cmp.equal}/${cmp.compared}; repairs ${gs.repairs}`);
     await host.close(); await guest.close();
+}
+
+// --- three: host + two guests, drop and rejoin, local joins on host and guest ----
+async function seatScript(p, seat, seed) {
+    // a human-like second player on this page's seat `seat` (its keys through PortLmpSetHostKeys)
+    await p.ev(`(function(){
+        var seed = ${seed}, a = seed >>> 0;
+        function rnd() { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+        var until = 0, dir = 0, jumpUntil = 0, last = -1, held = 0;
+        var prev = window.__seats;
+        window.__seatOn = window.__seatOn || {};
+        window.__seatOn[${seat}] = true;
+        window.__seats = function (f) {
+            var out = prev ? prev(f) : [0, 0, 0, 0];
+            if (!window.__seatOn[${seat}]) { out[${seat}] = 0; return out; }
+            if (f !== last) {
+                last = f;
+                if (f >= until) { var r = rnd(); dir = r < 0.5 ? 16 : r < 0.75 ? 32 : 0; until = f + 6 + Math.floor(rnd() * 40); }
+                if (f >= jumpUntil && rnd() < 0.03) jumpUntil = f + 4 + Math.floor(rnd() * 24);
+                held = dir | (f < jumpUntil ? 1 : 0);
+            }
+            out[${seat}] = held;
+            return out;
+        };
+    })()`);
+}
+async function slotsOf(p) { return p.ev('katamOnline.slots()'); }
+const slotsStr = (sl) => sl.map((x, i) => `P${i + 1}:` + (x ? `${x.dev}.${x.seat}` : 'cpu')).join(' ');
+async function playMany(host, guests, secs, cmps, tag, shotsAt = []) {
+    const t0 = Date.now();
+    let shotIdx = 0;
+    while (Date.now() - t0 < secs * 1000) {
+        await sleep(5000);
+        for (const c of cmps) await c.run();
+        const el = (Date.now() - t0) / 1000;
+        if (shotIdx < shotsAt.length && el >= shotsAt[shotIdx]) {
+            await shot(host, `${tag}-host-${shotIdx}.png`);
+            for (const [i, g] of guests.entries()) await shot(g, `${tag}-guest${i + 1}-${shotIdx}.png`);
+            shotIdx++;
+        }
+        const hs = await stats(host);
+        const gl = [];
+        for (const g of guests) { const s = await stats(g); gl.push(`f${s.frame} lead ${s.lead} rew ${s.rewinds} rep ${s.repairs} mism ${s.mismatches}`); }
+        say(`${tag}: host f${hs.frame} ${slotsStr(hs.slots)} | ` + gl.join(' | ') + ' | cmp ' + cmps.map((c) => `${c.equal}/${c.compared}`).join(' '));
+    }
+}
+if (CASES.includes('three')) {
+    say('# three: host + two guests (JOIN GAME and invite link), drop and rejoin, local joins');
+    const R = results.three = { steps: [] };
+    const host = await openPage('host', knobs);
+    const code = await hostToWaiting(host, 't');
+    ok('three: host room', !!code, code);
+    // guest A through the menus
+    const ga = await openPage('guestA', knobs);
+    await toGameSelect(ga);
+    await toOnline(ga);
+    await press(ga, 'DOWN');
+    await press(ga, 'A');
+    await waitFrames(ga, 20);
+    await typeCode(ga, code);
+    const aw = await until(async () => (await screen(ga)) === 3 * 256 + 7, 25000);
+    ok('three: guest A (JOIN GAME) connected and waits', !!aw);
+    // guest B by invite link
+    const gb = await openPage('guestB', Object.assign({ join: code }, knobs));
+    const bw = await until(async () => { const s = await stats(gb); return s && s.phase === 'waiting'; }, 40000);
+    await glCheck(gb);
+    ok('three: guest B (invite link) connected and waits', !!bw);
+    await sleep(1500);
+    await press(host, 'DOWN');              // the START row: PLAYERS 3/4
+    await waitFrames(host, 20);
+    await shot(host, 't-03-host-players-3of4.png');
+    const hsPre = await stats(host);
+    ok('three: host counts two guests ready', hsPre.peers && hsPre.peers.filter((p) => p.ready).length === 2, JSON.stringify(hsPre.peers.map((p) => [p.dev, p.ready, p.path])));
+    await press(host, 'A');
+    const started = await until(async () => { const s = await stats(host); return s && s.session; }, 20000);
+    ok('three: session started', !!started);
+    const inA = await until(async () => { const s = await stats(ga); return s && s.session && s.joined; }, 30000);
+    const inB = await until(async () => { const s = await stats(gb); return s && s.session && s.joined; }, 30000);
+    ok('three: both guests took the host\'s image', !!inA && !!inB);
+    await sleep(2500);
+    const sl0 = await slotsOf(host);
+    ok('three: three Kirbys are people (host, guest A, guest B)', sl0[0] && sl0[1] && sl0[2] && !sl0[3] && sl0[1].dev !== sl0[2].dev, slotsStr(sl0));
+    await shot(host, 't-04-host-ingame.png'); await shot(ga, 't-04-guestA-ingame.png'); await shot(gb, 't-04-guestB-ingame.png');
+    const base = (await stats(host)).startFrame;
+    const frames = 60 * 200;
+    const play = buildPlay(frames, 4, 900);
+    await setScript(host, play.k1, base, play.warps);
+    await setScript(ga, play.k2, base, []);
+    const pb = buildPlay(frames, 5, 100000);
+    await setScript(gb, pb.k2, base, []);
+    const cA = makeComparer(host, ga), cB = makeComparer(host, gb);
+    await playMany(host, [ga, gb], 60, [cA, cB], 't-play', [15, 40]);
+    await cA.run(); await cB.run();
+    ok('three: guest A identical to the host', cA.compared > 50 && cA.mismatched === 0, `${cA.equal}/${cA.compared}`);
+    ok('three: guest B identical to the host', cB.compared > 50 && cB.mismatched === 0, `${cB.equal}/${cB.compared}`);
+    R.steps.push({ step: 'play3', host: await stats(host), a: await stats(ga), b: await stats(gb), cA: cA.equal + '/' + cA.compared, cB: cB.equal + '/' + cB.compared });
+    // guest B drops
+    const bSlot = (await slotsOf(host)).findIndex((x) => x && x.dev === (R.steps[0].b.self));
+    await gb.close(); delete pages.guestB;
+    const cpu = await until(async () => { const sl = await slotsOf(host); return bSlot > 0 && !sl[bSlot] ? sl : null; }, 20000);
+    ok('three: guest B\'s Kirby goes to the CPU when its page goes', !!cpu, cpu ? slotsStr(cpu) : 'slot ' + bSlot);
+    await sleep(800);
+    await shot(host, 't-05-host-guestB-left.png'); await shot(ga, 't-05-guestA-guestB-left.png');
+    const noteA = (await stats(ga)).banner;
+    ok('three: guest A is told', /left/i.test(noteA || ''), String(noteA));
+    // a local join on the host: a second player on the host's keyboard
+    await seatScript(host, 1, 77);
+    const hj = await host.ev('katamOnline.requestSlot(1, true)');
+    const hjs = await until(async () => { const sl = await slotsOf(host); return sl.some((x) => x && x.dev === 0 && x.seat === 1) ? sl : null; }, 10000);
+    ok('three: local join on the host gets a Kirby', hj && !!hjs, hjs ? slotsStr(hjs) : '');
+    await sleep(700);
+    await shot(host, 't-06-host-local-join.png');
+    // guest B rejoins by invite
+    const gb2 = await openPage('guestB', Object.assign({ join: code }, knobs));
+    const inB2 = await until(async () => { const s = await stats(gb2); return s && s.session && s.joined; }, 60000);
+    await glCheck(gb2);
+    ok('three: guest B rejoins with the same code (invite) and plays', !!inB2);
+    await sleep(2500);
+    const sl4 = await slotsOf(host);
+    ok('three: four Kirbys are people now', sl4.every(Boolean), slotsStr(sl4));
+    await shot(gb2, 't-07-guestB-rejoined.png'); await shot(host, 't-07-host-four.png');
+    await setScript(gb2, buildPlay(frames, 6, 100000).k2, (await frame(gb2)), []);
+    const cB2 = makeComparer(host, gb2);
+    // a local join on guest A: refused, the game is full
+    await seatScript(ga, 1, 99);
+    await ga.ev('katamOnline.requestSlot(1, true)');
+    const refused = await until(async () => { const s = await stats(ga); return s.seatFullNotes > 0 ? s : null; }, 15000);
+    await sleep(300);
+    await shot(ga, 't-08-guestA-full.png');
+    ok('three: a local join on a guest is refused when four play, with a notice', !!refused, refused ? refused.banner : '');
+    // the host's second player leaves; guest A asks again and gets that Kirby
+    await host.ev('window.__seatOn[1] = false; katamOnline.requestSlot(1, false)');
+    const freed = await until(async () => { const sl = await slotsOf(host); return !sl.some((x) => x && x.dev === 0 && x.seat === 1) ? sl : null; }, 10000);
+    ok('three: the host\'s second player leaves', !!freed, freed ? slotsStr(freed) : '');
+    const aDev = (await stats(ga)).self;
+    await ga.ev('katamOnline.requestSlot(1, true)');
+    const gj = await until(async () => { const sl = await slotsOf(host); return sl.some((x) => x && x.dev === aDev && x.seat === 1) ? sl : null; }, 15000);
+    ok('three: local join on a guest gets the free Kirby', !!gj, gj ? slotsStr(gj) : '');
+    await sleep(800);
+    await shot(ga, 't-09-guestA-two-players.png'); await shot(host, 't-09-host.png');
+    await playMany(host, [ga, gb2], 40, [cA, cB2], 't-play4', [20]);
+    await cA.run(); await cB2.run();
+    ok('three: after the churn, guest A identical', cA.mismatched === 0, `${cA.equal}/${cA.compared}`);
+    ok('three: after the churn, rejoined guest B identical', cB2.compared > 30 && cB2.mismatched === 0, `${cB2.equal}/${cB2.compared}`);
+    const hsEnd = await snapStats('host', host), aEnd = await snapStats('guestA', ga), bEnd = await snapStats('guestB', gb2);
+    R.end = { host: hsEnd, a: aEnd, b: bEnd, cA: cA.equal + '/' + cA.compared, cB2: cB2.equal + '/' + cB2.compared };
+    ok('three: host never rewound', !hsEnd.hostRewinds && !hsEnd.rewinds, `${hsEnd.hostRewinds}/${hsEnd.rewinds}`);
+    const txt = await host.ev("Module.portUiQuery ? Module.portUiQuery('online') : ''");
+    ok('three: the menu\'s Online section lists each guest', /Dev \d/.test(txt) && (txt.match(/Dev \d/g) || []).length >= 2, txt.replace(/\n/g, ' | '));
+    R.menuText = txt;
+    await host.close(); await ga.close(); await gb2.close();
+    delete pages.host; delete pages.guestA; delete pages.guestB;
 }
 
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));
