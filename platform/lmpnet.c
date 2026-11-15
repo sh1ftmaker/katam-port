@@ -122,7 +122,9 @@ int gPortLnOn;
     X(self) X(own0) X(own1) X(own2) X(own3) X(managed) \
     X(seatGrants) X(seatReleases) X(seatFull) X(seatAsks) X(reconciles) X(slotEvents) \
     X(d1KeyOnTime) X(d1KeyMissing) X(d2KeyOnTime) X(d2KeyMissing) X(d3KeyOnTime) X(d3KeyMissing) \
-    X(mispredOther) X(ownSlots)
+    X(mispredOther) X(ownSlots) \
+    X(rooms) X(canonFrame) X(canonRuns) X(canonFrames) X(canonUsSum) X(canonUsMax) X(canonSwapUsSum) \
+    X(digCompared) X(digEqual) X(digMismatch) X(digFirstMismatch) X(digUpTo) X(persRepairs) X(view)
 
 #define X_FIELD(n) u32 n;
 struct LnTelemetry { LN_TELEMETRY(X_FIELD) };
@@ -279,6 +281,24 @@ static int sAsk[8], sAskN;
 static u8  sAskSeats;
 static int sForceKf;
 static int sSetInit, sSetApplied = -1;
+
+/* Rooms mode on a guest (the canonical shadow, below "rooms mode"): */
+static u8 *sCanon, *sCanonSwap;   /* C's state; the live state while C runs */
+static u32 sCanonF = NONE;        /* C is parked at this frame top          */
+static u32 sCanonDone = NONE;     /* C has hashed every top up to this one  */
+static int sCanonRun;             /* C is the live state now               */
+static u32 sCanonTo, sCanonP;     /* C runs to this top; the live frame     */
+static u64 sCanonT0;
+static u32 sDigV = NONE;          /* the next digest to compare            */
+static int sPersRepair;           /* the live state is to be rebuilt from C */
+static int RoomsGuest(void);
+/* The frame the live (personal) timeline is at: while C runs, the frame
+ * number in memory is C's. */
+static u32 NowF(void) { return sCanonRun ? sCanonP : PortFrameNumber(); }
+static void RoomsDevices(void);
+static void RoomsSetView(void);
+static void CanonAdopt(void);
+static int  PersRepair(void);
 
 static u8 *sImg;  static u32 sImgBytes, sImgFrame1;  static int sImgReq;
 static u8 *sImgIn; static u32 sImgInLen; static int sImgLoad;
@@ -599,6 +619,11 @@ void PortLnStop(void)
     free(sImg); sImg = NULL;
     free(sImgIn); sImgIn = NULL;
     free(sDump); sDump = NULL;
+    free(sCanon); sCanon = NULL;
+    free(sCanonSwap); sCanonSwap = NULL;
+    sCanonRun = 0;
+    sCanonF = sCanonDone = sDigV = NONE;
+    sPersRepair = 0;
     gPortLnOn = 0;
     sRole = 0;
     sCatch = 0;
@@ -722,7 +747,7 @@ void PortLnLocalInput(u32 f, u16 keys) { PortLnLocalInputSeat(f, 0, keys); }
 void PortLnRemoteInputSeat(u32 f, int dev, int seat, u16 keys)
 {
     struct Ent *e;
-    u32 next = PortFrameNumber();
+    u32 next = NowF();
     u16 bit;
     int s;
 
@@ -979,7 +1004,7 @@ int PortLnEvent(int type, int a, int b, int c, int d)
 
     if (!gPortLnOn || sRole != PORT_LN_HOST)
         return -1;
-    f = PortFrameNumber();       /* the next latch */
+    f = NowF();                  /* the next latch */
     if (Have(f) && (E(f)->flags & E_SEALED))
         f++;
     if (!EvAdd(f, type, a, b, c, d))
@@ -1063,7 +1088,7 @@ static void MarkDirty(u32 f, int event)
 void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
 {
     struct Ent *e;
-    u32 next = PortFrameNumber();
+    u32 next = NowF();
     u16 k[4];
     int i;
 
@@ -1146,7 +1171,7 @@ void PortLnRemoteHash(u32 f, u32 lo, u32 hi)
 
     if (!gPortLnOn || sRole != PORT_LN_GUEST || f < sFloor)
         return;
-    if (f + TLN - 64 < PortFrameNumber())
+    if (f + TLN - 64 < NowF())
         return;
     e = Claim(f);
     e->rh[0] = lo;
@@ -1160,6 +1185,10 @@ int PortLnHashFinal(u32 f)
         return 0;
     if (sRole == PORT_LN_HOST)
         return sTop != NONE && f <= sTop;
+    if (RoomsGuest())
+        /* the canonical shadow's: it runs sealed frames only, once */
+        return !sCanonRun && sCanonDone != NONE && f <= sCanonDone && f >= sFloor
+            && !(T.repairWanted && T.repairFrame != NONE && f > T.repairFrame);
     if (sCatch || sTop == NONE || f > sTop || f > sSealedUpTo || f < sFloor)
         return 0;
     /* Known wrong (a mismatch, or history exceeded): nothing after it is
@@ -1197,6 +1226,8 @@ void PortLnNoteSoundSlow(u32 id, const void *mplayInfo)
 {
     struct Ent *e;
 
+    if (sCanonRun)
+        return;             /* the canonical shadow is heard by nobody */
     /* The guest's speakers (platform/audio_ear.c): which player, which slot. */
     PortEarNoteStart(sCurLatch, mplayInfo, id);
     if (sCurLatch == NONE || !Have(sCurLatch))
@@ -1211,6 +1242,8 @@ void PortLnNoteSoundSlow(u32 id, const void *mplayInfo)
 void PortLnNoteSramWriteSlow(u32 bytes)
 {
     (void)bytes;
+    if (sCanonRun)
+        return;
     T.sramWrites++;
     if (sCatch)
         T.sramWritesReplay++;
@@ -1221,6 +1254,8 @@ void PortLnNoteSramWriteSlow(u32 bytes)
 void PortLnNoteSettingSlow(int row)
 {
     (void)row;
+    if (sCanonRun)
+        return;
     T.settingsApplied++;
     if (sCatch)
         T.settingsReplay++;
@@ -1235,12 +1270,16 @@ void PortLnNoteSettingSlow(int row)
  * same game state either way. */
 int PortLnAudioMuted(void)
 {
+    if (sCanonRun)
+        return 1;
     return gPortLnOn && sCatch && !(sFlags & PORT_LN_F_NO_AUDIO_CU)
         && PortFrameNumber() < sCatchTo;
 }
 
 int PortLnMuteAudio(void)
 {
+    if (sCanonRun)
+        return 1;
     if (!gPortLnOn || !sCatch || (sFlags & PORT_LN_F_NO_AUDIO_CU))
         return 0;
     T.audioBlocksMuted++;
@@ -1324,7 +1363,13 @@ static void ApplyEvents(u32 f)
                 else if (v->c > 0 && v->c <= PORT_LN_OWN(PORT_LN_MAX_DEV - 1, 3))
                     sOwn[v->a] = (u8)v->c;
             }
+            RoomsDevices();
             PortLmpSetSlotHuman(v->a, v->b);
+            break;
+        case PORT_LN_EV_ROOMS:
+            /* the session's mode, the host's choice (localmp.c rooms mode) */
+            PortLmpRoomsSealed(v->a);
+            RoomsDevices();
             break;
         case PORT_LN_EV_POKE:
             if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
@@ -1346,6 +1391,18 @@ int PortLnKeyOverride(u16 *keys)
     if (!gPortLnOn)
         return 0;
     f = PortFrameNumber();
+    if (sCanonRun) {
+        /* The canonical shadow (rooms mode): the sealed frame, nothing of
+         * this device's -- no prediction, no records, no speakers. */
+        ApplyEvents(f);
+        if (Have(f) && (E(f)->flags & E_SEALED))
+            memcpy(k, E(f)->sk, sizeof k);
+        else
+            memset(k, 0, sizeof k);
+        *keys = k[0];
+        PortLmpSetSessionKeys(k);
+        return 1;
+    }
     e = Claim(f);
     T.latches++;
     /* This frame's events first: a slot changing hands takes this frame's
@@ -1406,6 +1463,8 @@ int PortLnKeyOverride(u16 *keys)
     else
         T.liveFrames++;
     memcpy(e->uk, k, sizeof k);
+    if (RoomsGuest())
+        RoomsSetView();
     e->usedEvSig = EvSig(f);
     e->flags |= E_SIM;
     e->nLast = 0;
@@ -1564,6 +1623,9 @@ static void ApplyImage(void)
     if (sVerify < F || join)
         sVerify = F;
     sForceKf = 1;
+    /* Rooms mode: the image is the canonical shadow's as well (it shows
+     * player 1, as the host); the live state re-views at its next latch. */
+    CanonAdopt();
     /* The guest's speakers: a replay F..old to reconcile, or a fresh start. */
     PortEarReplay(F, old > F && !join ? old : F);
     if (old > F && !join) {
@@ -1590,6 +1652,8 @@ static void Rewind(u32 target, int cause)
         T.hostRewinds++;          /* never: the host is the authority */
         return;
     }
+    if (k < 0 && RoomsGuest() && sCanonF != NONE && sCanonF <= target && PersRepair())
+        return;             /* rooms mode: the canonical shadow is a keyframe */
     if (k < 0) {
         /* Older than every keyframe: cannot be replayed.  Never dropped
          * silently -- the caller fetches the host's image. */
@@ -1642,6 +1706,276 @@ void PortLnForceRewind(u32 depth)
         sForce = depth ? depth : 1;
 }
 
+/* --- rooms mode on a guest: the canonical shadow -------------------------------
+ *
+ * In rooms mode (platform/localmp.c: the players in different rooms, each
+ * device showing its own) a guest's picture is its own player's, so its
+ * memory is not the host's: the display, the palettes, the sound engine and
+ * the heap layout differ by what it shows (ROOMS-REPORT.md, netproof-eval).
+ * The whole-image hash cannot compare it.  So each guest keeps a second
+ * state, the CANONICAL SHADOW C: the session as the host shows it (player
+ * 1's screen), advanced on sealed frames only, never predicted, never drawn,
+ * never heard.  C is what the host's hashes verify, byte for byte, with the
+ * machinery of every other session (Verify, repairWanted, the host's image).
+ * The live state -- the PERSONAL timeline P: predicted, rewound, drawn and
+ * heard as any guest's -- is checked against C on the same device by the
+ * gameplay digest (localmp.c PortLmpDigestOf), and rebuilt from C when they
+ * differ (PersRepair: C's state, re-viewed, replayed to the present).  No
+ * second program: C is one more state image, swapped in at a frame top,
+ * run a batch of sealed frames the way a rewind replays them, and swapped
+ * out (CanonStart, CanonTop).  The host shows player 1 and has no shadow.
+ *
+ * C's buffers: SaveState's layout plus SRAM always.  sCanonF: the frame top
+ * C is parked at (it has run every frame before it); sCanonDone: the last
+ * top C hashed.  While C runs (sCanonRun) the frame number in memory is
+ * C's; NowF() is P's. */
+#define CANON_BATCH_DEF 16
+static int sCanonBatch = CANON_BATCH_DEF;
+
+static int RoomsGuest(void)
+{
+    return sRole == PORT_LN_GUEST && PortLmpRooms();
+}
+
+int PortLnCanonRunning(void)
+{
+    return sCanonRun;
+}
+
+/* Measurement: frames per shadow batch (1..240). */
+void PortLnSetCanonBatch(int n)
+{
+    sCanonBatch = n < 1 ? 1 : n > 240 ? 240 : n;
+}
+
+static u32 CanonBytes(void)
+{
+    return sKfBytes + GBA_SRAM_SIZE;
+}
+
+static void CanonSave(u8 *d)
+{
+    SaveState(d);
+    memcpy(d + sKfBytes, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
+}
+
+static void CanonLoad(const u8 *src)
+{
+    LoadState(src, 0);
+    memcpy((void *)(uintptr_t)GBA_SRAM_BASE, src + sKfBytes, GBA_SRAM_SIZE);
+}
+
+/* The slots' devices, into the simulation (localmp.c's per-device groups:
+ * several people on one device share its screen). */
+static void RoomsDevices(void)
+{
+    int dev[4], s;
+
+    for (s = 0; s < 4; s++)
+        dev[s] = sOwn[s] ? OwnDev(sOwn[s]) : -1;
+    PortLmpSetDevices(dev);
+}
+
+/* This device's screen: its first Kirby (the anchor of its group: the
+ * shared camera bends that one's), player 1's while it has none. */
+static void RoomsSetView(void)
+{
+    int s, v = 0;
+
+    for (s = 0; s < 4; s++)
+        if (sOwn[s] && OwnDev(sOwn[s]) == sSelf) { v = s; break; }
+    PortLmpSetView(v);
+    T.view = (u32)v;
+}
+
+/* An image (a join, a repair) has just been loaded into the live state at
+ * F: it is the canonical shadow's too. */
+static void CanonAdopt(void)
+{
+    u32 F = PortFrameNumber();
+
+    T.rooms = (u32)RoomsGuest();
+    if (!RoomsGuest())
+        return;
+    if (sCanon == NULL)
+        sCanon = (u8 *)malloc(CanonBytes());
+    if (sCanonSwap == NULL)
+        sCanonSwap = (u8 *)malloc(CanonBytes());
+    if (sCanon == NULL || sCanonSwap == NULL) {
+        PortError("[katam-port] lmpnet: rooms mode: no memory for the canonical shadow");
+        return;
+    }
+    CanonSave(sCanon);
+    sCanonF = F;
+    sCanonDone = F > 0 ? F - 1 : NONE;
+    sDigV = F + 1;
+    sPersRepair = 0;
+    T.canonFrame = F;
+}
+
+/* At a frame top of the live state: run the shadow if a batch of sealed
+ * frames is waiting for it.  Returns 1 with the shadow live. */
+static int CanonTopRun(void);
+
+static int CanonStart(void)
+{
+    u32 now, target;
+    u64 t0;
+
+    if (!RoomsGuest() || sCanon == NULL || sCanonF == NONE || sCatch || sImgLoad || sPersRepair
+        || sDirty != NONE || sForce || T.repairWanted)
+        return 0;
+    now = PortFrameNumber();
+    target = sSealedUpTo < now ? sSealedUpTo : now;
+    if (target < sCanonF + (u32)sCanonBatch)
+        return 0;
+    t0 = MICROS();
+    CanonSave(sCanonSwap);
+    CanonLoad(sCanon);
+    T.canonSwapUsSum += (u32)(MICROS() - t0);
+    sCanonRun = 1;
+    sCanonP = now;
+    sCanonTo = target;
+    sCanonT0 = t0;
+    sRenderWas = PortRenderEnabled();
+    sCatch = 1;                 /* the frame loop: no picture, no waiting */
+    sCatchTo = target;
+    PortSetRenderEnabled(0);
+    T.canonRuns++;
+    return CanonTopRun();
+}
+
+/* A frame top while the shadow runs.  Returns 1 while it still runs; 0 once
+ * it has been put away and the live state is back at its own top. */
+static int CanonTopRun(void)
+{
+    u32 f = PortFrameNumber();
+    u64 t1, dt;
+
+    if (f < sCanonTo) {
+        if ((sFlags & PORT_LN_F_HASH_EVERY) || (f & 15) == 0)
+            HashState(f);
+        if (sDumpAt == f) {
+            if (sDump == NULL)
+                sDump = (u8 *)malloc(ImageBytes());
+            if (sDump != NULL) {
+                SaveImage(sDump, f);
+                sDumpReady = f + 1;
+                T.dumpFrame = f;
+            }
+        }
+        sCanonDone = f;
+        T.canonFrames++;
+        return 1;
+    }
+    t1 = MICROS();
+    CanonSave(sCanon);
+    sCanonF = f;
+    CanonLoad(sCanonSwap);
+    sCanonRun = 0;
+    sCatch = 0;
+    PortSetRenderEnabled(sRenderWas);
+    T.canonSwapUsSum += (u32)(MICROS() - t1);
+    dt = MICROS() - sCanonT0;
+    T.canonUsSum += (u32)dt;
+    if (dt > T.canonUsMax) T.canonUsMax = (u32)dt;
+    T.canonFrame = f;
+    return 0;
+}
+
+/* The personal timeline against the shadow: the gameplay digest of every
+ * frame both hold final and the shadow has had verified by the host. */
+static void DigestCheck(void)
+{
+    u32 lim, g;
+
+    if (!RoomsGuest() || sCatch || sDigV == NONE || sCanonF == NONE || T.repairWanted || sPersRepair)
+        return;
+    lim = sCanonF;                                  /* C ran latch g-1 */
+    if (sSealedUpTo < lim) lim = sSealedUpTo;       /* P latched it sealed */
+    if (PortFrameNumber() < lim) lim = PortFrameNumber();
+    if (sDirty != NONE && sDirty < lim) lim = sDirty;
+    if (sVerify < lim + 1) lim = sVerify > 0 ? sVerify - 1 : 0;   /* the host agreed */
+    for (g = sDigV; g <= lim; g++) {
+        u32 a = PortLmpDigestOf(1, g), b = PortLmpDigestOf(0, g);
+
+        if (!a || !b)
+            continue;
+        T.digCompared++;
+        if (a == b) {
+            T.digEqual++;
+            continue;
+        }
+        T.digMismatch++;
+        if (T.digFirstMismatch == 0) T.digFirstMismatch = g;
+        PortLog("[katam-port] lmpnet: f%u rooms: this device's game differs from the canonical one "
+                "at f%u (digest %08X vs %08X); rebuilt from it",
+                (unsigned)PortFrameNumber(), (unsigned)g, (unsigned)b, (unsigned)a);
+        PortLmpDigestExplain(g);
+        sPersRepair = 1;
+        g++;
+        break;
+    }
+    if (g > sDigV) sDigV = g;
+    T.digUpTo = sDigV;
+}
+
+/* Tests: flip bits of one byte of the canonical shadow at a GBA address
+ * (as the rig corrupts a live state with a poke).  1 if it holds it. */
+int PortLnCanonPoke(u32 addr, u32 xorMask)
+{
+    struct PortRbPart pt;
+    int i;
+
+    if (sCanon == NULL || sCanonRun)
+        return 0;
+    for (i = 0; PortRbSnapshotPart(i, &pt); i++)
+        if (addr >= pt.base && addr < pt.base + pt.size) {
+            sCanon[pt.offset + (addr - pt.base)] ^= (u8)xorMask;
+            return 1;
+        }
+    return 0;
+}
+
+/* The live state rebuilt from the shadow: its state at sCanonF, re-viewed
+ * to this device's player at the next latch that may, then replayed to the
+ * present with what this device holds.  Like an image from the host, with
+ * no network. */
+static int PersRepair(void)
+{
+    u32 old = PortFrameNumber(), F = sCanonF;
+    u64 t0 = MICROS();
+    u32 f;
+
+    if (sCanon == NULL || F == NONE || F > old)
+        return 0;
+    PendOpen(2, old, F, F, 4);
+    CanonLoad(sCanon);
+    KfInvalidateAll();
+    sFloor = F;
+    sDirty = NONE;
+    sForce = 0;
+    sForceKf = 1;
+    sPersRepair = 0;
+    sDigV = F + 1;
+    for (f = F; f < old && f < F + TLN; f++)
+        if (Have(f))
+            E(f)->flags &= ~E_SIM;
+    T.persRepairs++;
+    PortEarReplay(F, old);
+    if (old > F) {
+        if (!sCatch) sRenderWas = PortRenderEnabled();
+        sCatch = 1;
+        sCatchTo = old;
+        sCatchFrom = F;
+        sCatchT0 = t0;
+        PortSetRenderEnabled(0);
+    } else {
+        PendClose(MICROS() - t0);
+    }
+    return 1;
+}
+
 /* --- the frame top ----------------------------------------------------------- */
 
 /* The pause page's session settings in a final frame: an edit made by this
@@ -1675,7 +2009,13 @@ static void Verify(void)
     if (sRole != PORT_LN_GUEST || sCatch || sTop == NONE)
         return;
     lim = sSealedUpTo < sTop ? sSealedUpTo : sTop;
-    if (sDirty != NONE && sDirty < lim)
+    if (RoomsGuest()) {
+        /* the hashes are the canonical shadow's (rooms mode) */
+        if (sCanonDone == NONE)
+            return;
+        if (sCanonDone < lim)
+            lim = sCanonDone;
+    } else if (sDirty != NONE && sDirty < lim)
         lim = sDirty;
     if (T.repairWanted && T.repairFrame != NONE && T.repairFrame < lim)
         lim = T.repairFrame;
@@ -1725,10 +2065,19 @@ void PortLnFrame(void)
     if (!gPortLnOn)
         return;
     t0 = MICROS();
-    CloseSounds();
+    if (sCanonRun) {
+        if (CanonTopRun())
+            return;             /* the canonical shadow's top (rooms mode) */
+    } else {
+        CloseSounds();
+        if (CanonStart())
+            return;
+    }
 
     if (sImgLoad) {
         ApplyImage();
+    } else if (sPersRepair && sRole == PORT_LN_GUEST && !sCatch) {
+        PersRepair();
     } else if (sRole == PORT_LN_GUEST && !sCatch && (sDirty != NONE || sForce)) {
         u32 at = PortFrameNumber();
         u32 target = sDirty;
@@ -1777,7 +2126,9 @@ void PortLnFrame(void)
         T.historyFrames = o == NONE ? 0 : f - o;
     }
 
-    if ((sFlags & PORT_LN_F_HASH_EVERY) || (f & 15) == 0)
+    if (RoomsGuest())
+        ;                       /* the canonical shadow hashes (rooms mode) */
+    else if ((sFlags & PORT_LN_F_HASH_EVERY) || (f & 15) == 0)
         HashState(f);
     else if (Have(f))
         E(f)->flags &= ~E_HASH;
@@ -1787,6 +2138,7 @@ void PortLnFrame(void)
     if (sRole == PORT_LN_HOST && Have(f))
         JudgeSounds(E(f > 0 ? f - 1 : 0));
     Verify();
+    DigestCheck();
 
     if (sImgReq) {
         u64 t1 = MICROS();
@@ -1803,7 +2155,7 @@ void PortLnFrame(void)
         }
         sImgReq = 0;
     }
-    if (sDumpAt == f) {
+    if (sDumpAt == f && !RoomsGuest()) {
         if (sDump == NULL)
             sDump = (u8 *)malloc(ImageBytes());
         if (sDump != NULL) {

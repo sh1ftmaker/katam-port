@@ -101,11 +101,17 @@ struct PortSimView {            /* 0x50 */
     s32 prevW, prevH;           /* the previous frame's                      */
     s32 stock;                  /* both 240x160 and no --cull none           */
     u8  lmpRooms;               /* local multiplayer, rooms mode (localmp.c):
-                                 * the one-room rule, the stragglers and the
-                                 * shared camera off.  Experimental; 0 = off,
-                                 * and it was a spare zero byte */
-    u8  pad8[3];
-    u32 reserved[2];
+                                 * players in different rooms, each device
+                                 * its own screen.  0 = off; it and the rest
+                                 * of this were spare zero bytes */
+    u8  lmpDev;                 /* rooms mode: each slot's device, 2 bits per
+                                 * slot (bit 2s), for the slots in lmpDevSet */
+    u8  lmpDevSet;              /* rooms mode: slots whose device is known;
+                                 * any other slot is a device of its own */
+    u8  pad8;
+    u16 lmpGroupRoom[4];        /* rooms mode: each device's group room + 1
+                                 * (several people on one device share its
+                                 * screen: the one-room rule per device) */
 };                              /* 0x20 */
 
 /* Game globals the decompilation had in IWRAM by way of assembly (crt0) or

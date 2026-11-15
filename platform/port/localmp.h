@@ -51,6 +51,7 @@ int  PortLmpViewNeed(s32 *w, s32 *h);
  * gPortSim->view.lmpRooms), so the same on every device: `option rooms 1`
  * in a recording, KATAM_LOCAL_MP_ROOMS=1 natively. */
 void PortLmpSetRooms(int on);
+void PortLmpSetRoomsAt(u32 frame);        /* `option roomsat F` */
 int  PortLmpRooms(void);
 /* This device's screen player (0..3; -1 = the game's choice).  Per device,
  * honoured only in rooms mode.  KATAM_LOCAL_MP_VIEW=k natively. */
@@ -61,6 +62,8 @@ u8   PortLmpLocalPlayer(u8 game);
 /* platform/view.c: spawn margins from the room's size (rooms mode). */
 int  PortLmpRoomsMarginFix(void);
 void PortLmpRoomsTest(int flags);
+void PortLmpTestHogTasks(int k);          /* tests: F2 */
+int  PortLmpTaskMains(u32 *out, int max);  /* measurement */
 /* Re-pin the focus to this device's player if the image says otherwise. */
 void PortLmpReview(void);
 u32  PortLmpReviews(void);
@@ -69,6 +72,17 @@ u32  PortLmpReviews(void);
 u32  PortLmpDigestNow(void);
 u32  PortLmpDigestAt(u32 f);
 const u32 *PortLmpDigestParts(void);
+/* The digest kept per timeline: 1 = the canonical shadow's, 0 = the live
+ * (personal) one's, of frame f (0 = not held).  platform/lmpnet.c compares. */
+u32  PortLmpDigestOf(int canon, u32 f);
+void PortLmpDigestExplain(u32 f);          /* log what differs (diagnostic) */
+/* Online: the session's mode, sealed (PORT_LN_EV_ROOMS); each slot's device
+ * (-1 = nobody's), so the people on one device share its screen. */
+void PortLmpRoomsSealed(int on);
+void PortLmpSetDevices(const int dev[4]);
+/* Rooms mode, presentation: this screen's player at a big door (1) or the
+ * goal star (2) that waits for *who, a person elsewhere; 0 = no. */
+int  PortLmpWaitingFor(int *who);
 
 /* --- the latch (platform/inputlog.c, platform/main.c) -------------------- */
 void PortLmpLatch(u16 keys[4]);

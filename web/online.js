@@ -544,6 +544,11 @@
         if (role === 1) {
             S.lastView = M._PortSimViewRequested() >>> 0;
             S.hub = new LS.HostHub(engine(), clock, { codec: CODEC });
+            /* HOST GAME > START, Left/Right: FREE ROAM is rooms mode, sealed
+             * for every device at this first frame (platform/localmp.c);
+             * ?rooms=1 is the same for tests */
+            S.rooms = !!((M._PortOuiRoomsMode && M._PortOuiRoomsMode()) || q.get('rooms') === '1');
+            if (S.rooms) M._PortLnEvent(7, 1, 0, 0, 0);
             /* everyone already in: their Kirbys from the first frame */
             forPeers(function (p) { if (p.ready) addToHub(p); });
             for (var s = 1; s < 4; s++) S.owners[s] = M._PortLnSlotWant(s);
@@ -963,6 +968,14 @@
             o.hostKeyLatePct = pct(t.hostKeyMissing, t.hostKeyMissing + t.hostKeyOnTime);
             o.soundsMissed = t.soundsMissed; o.soundsSpurious = t.soundsSpurious;
             o.seatGrants = t.seatGrants; o.seatReleases = t.seatReleases; o.seatFull = t.seatFull; o.hostRewinds = t.hostRewinds;
+            /* rooms mode (FREE ROAM): this device's screen and, on a guest,
+             * its game against the canonical one (platform/lmpnet.c) */
+            o.rooms = M._PortLmpRooms ? M._PortLmpRooms() : 0;
+            if (o.rooms) {
+                o.view = t.view; o.digCompared = t.digCompared; o.digEqual = t.digEqual; o.digMismatch = t.digMismatch;
+                o.persRepairs = t.persRepairs; o.canonFrame = t.canonFrame; o.canonRuns = t.canonRuns;
+                o.canonUsPerFrame = t.canonFrames ? +(t.canonUsSum / t.canonFrames).toFixed(1) : null;
+            }
         }
         if (S.gs) {
             var g = S.gs;

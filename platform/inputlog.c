@@ -298,6 +298,9 @@ long PortInputLogLoad(const char *text, u32 len)
         } else if (sscanf(line, "option localmp %u", &a) == 1) {
             sHaveLocalMp = 1;
             sLocalMp = a;
+        } else if (sscanf(line, "option roomsat %u", &a) == 1) {
+            /* rooms mode from frame a on (a recorded online session) */
+            PortLmpSetRoomsAt(a);
         } else if (sscanf(line, "option rooms %u", &a) == 1) {
             /* local multiplayer's rooms mode (platform/localmp.c) */
             PortLmpSetRooms((int)a);

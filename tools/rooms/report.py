@@ -89,35 +89,99 @@ def classes(namer, dirs):
     return '\n'.join(out), summ, unexplained, tot
 
 
-def rig_table(path):
+def gates_tables(path):
+    """tools/rooms/gates.mjs: the shipped design in the N-device rig."""
     if not os.path.exists(path):
-        return '(rig not run)', {}
+        return {'gates': '(gates.mjs not run)', 'corrupt': '', 'cost': '', 'local': ''}
     R = json.load(open(path))
     runs = {r['name']: r for r in R['runs']}
-    out = ['| run | game min | canonical final frames identical to host | personal digest equal to canonical | personal repairs asked / images | personal re-views | screen on player 2 (checks wrong/all) | players apart (frames) | meetings | rooms P1 / P2 | guest C images | step ms p50/p99: guest C, personal | wall s |',
-           '|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+    out = ['| run | devices | game min | canonical frames identical to the host (all guests) | personal digest equal to canonical | screen on its own player (wrong/checks) | personal rebuilds | images | players apart (frames) | meetings | phone calls that gathered everyone | door meetings | shadow us/frame | guest step ms p50/p99 | wall s |',
+           '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|']
+    for n in ('two', 'three', 'four', 'join', 'local2'):
+        r = runs.get(n)
+        if not r:
+            continue
+        G = r['guests']
+        sc = [g['screen'] or {'wrong': 0, 'checks': 0} for g in G]
+        cov = r['coverage']
+        ph = cov.get('phone') or []
+        out.append('| %s | %d | %.2f | %d/%d | %d/%d | %d/%d | %d | %d | %d/%d | %d | %d/%d | %d/%d | %s | %s | %.0f |' % (
+            n, 1 + len(G), r['frames']['gameMinutes'], r['compare']['equal'], r['compare']['compared'],
+            sum(g['digest']['equal'] for g in G), sum(g['digest']['compared'] for g in G),
+            sum(x['wrong'] for x in sc), sum(x['checks'] for x in sc), sum(g['persRepairs'] for g in G), sum(g['images'] for g in G),
+            cov['apartFrames'], cov['frames'], cov['meetings'], sum(1 for x in ph if x['met']), len(ph), cov['doorsMet'], cov['doorMeetings'],
+            '/'.join(str(g['canon']['perFrameUs']) for g in G),
+            ', '.join('%.2f/%.2f' % (g['stepMs']['p50'], g['stepMs']['p99']) for g in G), r['wallSec']))
+    cor = ['| run | injected | timeline | device | detected after (frames) | rebuilt / repaired after (frames) | how |', '|---|---|---|---|---|---|---|']
+    for n in ('corrupt', 'pool'):
+        r = runs.get(n)
+        if not r:
+            continue
+        for c in r['corrupt']:
+            how = ('whole-image hash vs the host; the host\'s image' if c['target'] == 'canon'
+                   else 'gameplay digest vs the shadow; rebuilt from the shadow (no network)')
+            cor.append('| %s | %s | %s | %s | %s | %s | %s |' % (n, c['what'], 'canonical shadow' if c['target'] == 'canon' else 'personal',
+                                                         c.get('dev', 1) if 'dev' in c else '', c['detectFrames'], c['repairFrames'], how))
+        cor.append('| %s | (final frames known wrong between injection and repair) | | | %d | | |' % (n, r['compare']['compared'] - r['compare']['equal']))
+    cost = ['| run | shadow batch (frames) | shadow us per canonical frame (incl. swaps) | swap us per batch | shadow ms per game minute | guest step ms per game minute (all its work) | guest step ms p50/p99 | personal rebuilds |',
+            '|---|---|---|---|---|---|---|---|']
     for n, r in runs.items():
-        pc = r['personal']['compare']
-        gs, ps_ = r['guest']['stepMs'], r['personal']['stepMs']
-        steps = '%.2f/%.2f, %.2f/%.2f' % (gs['p50'], gs['p99'], ps_['p50'], ps_['p99'])
-        out.append('| %s | %.2f | %d/%d | %d/%d | %d / %d | %d | %d/%d | %d/%d | %d | %d / %d | %d | %s | %.1f |' % (
-            n, r['frames']['gameMinutes'], r['compare']['equal'], r['compare']['compared'], pc['equal'], pc['compared'],
-            pc['repairsAsked'], len(r['personal']['images']), r['personal']['reviews'], pc['viewWrong'], pc['viewChecks'],
-            r['apart']['frames'], r['apart']['total'], r['apart']['meetings'], len(r['apart']['rooms1']), len(r['apart']['rooms2']),
-            r['guest']['images'], steps, r['wallSec']))
-    return '\n'.join(out), runs
+        if not n.startswith('cost-'):
+            continue
+        g = r['guests'][0]
+        mins = max(1e-9, g['minutes'] or 0)
+        cost.append('| %s | %s | %s | %s | %.1f | %.0f | %.2f/%.2f | %d |' % (
+            n, r.get('batch', '') if r.get('roomsOn', True) else '-', g['canon']['perFrameUs'], g['canon']['swapPerRunUs'],
+            g['canon']['perMinUs'] / 1000.0, g['stepSumMs'] / mins, g['stepMs']['p50'], g['stepMs']['p99'], g['persRepairs']))
+    loc = ''
+    r = runs.get('local2')
+    if r:
+        c = r['coverage']
+        loc = ('device 1 has two players (slots %s): frames with them in different rooms %d of %d, longest stretch %d frames '
+               '(each warped elsewhere on purpose every period; the one-room rule of their device gathers them)' % (
+                   [i for i, o in enumerate(r['owners']) if o >= 4 and o < 8], c['groupApart'], c['groupFrames'], c['groupApartMax']))
+    return {'gates': '\n'.join(out), 'corrupt': '\n'.join(cor), 'cost': '\n'.join(cost), 'local': loc}
 
 
-def corrupt_table(runs):
-    r = runs.get('corrupt')
-    if not r:
-        return '(no corruption run)'
-    out = ['| injected | instance | detected | detect ms | repaired ms | how |', '|---|---|---|---|---|---|']
-    for c in r['corrupt']:
-        how = ('gameplay digest vs canonical; host image for P + re-view' if c['personal']
-               else 'whole-image hash vs host; host image')
-        out.append('| %s | %s | %s | %s | %s | %s |' % (c['what'].replace('personal: ', ''), 'personal' if c['personal'] else 'canonical',
-                                                      c['detectMs'] is not None, c['detectMs'], c['repairMs'], how))
+def census_table(path):
+    if not os.path.exists(path):
+        return '(census not run)'
+    d = json.load(open(path))
+    out = ['| recording | frames | digest differs | task pool peak (views A/B, of 128) |', '|---|---|---|---|']
+    for r in d['runs']:
+        out.append('| %s | %d | %d | %s |' % (r['rec'], r['frames'], r['digestDiff'], '/'.join(map(str, r['poolMax']))))
+    out.append('')
+    out.append('| task type (main) | frames its number differed | by up to | first |')
+    out.append('|---|---|---|---|')
+    for e in d['viewOnly']:
+        out.append('| %s | %d | %d | %s |' % (e['main'], e['frames'], e['peak'], e['first']))
+    return '\n'.join(out)
+
+
+def cost_json(path):
+    if not os.path.exists(path):
+        return '(cost.mjs not run)'
+    d = json.load(open(path))
+    return '\n'.join('- %s: %s' % (k, v) for k, v in d.items())
+
+
+def browser_table(path):
+    if not os.path.exists(path):
+        return '(browser test not run into this directory)'
+    d = json.load(open(path))
+    out = ['| case | page | apart: its screen (player, room) | after the host\'s call (player, room) | canonical frames identical | digest equal | shadow us/frame |',
+           '|---|---|---|---|---|---|---|']
+    for tag in sorted(k for k in d if k.startswith('fr')):
+        r = d[tag]
+        names = ['host'] + ['guest%d' % i for i in range(1, len(r.get('apart', [])))]
+        for i, nm in enumerate(names):
+            a, m = r['apart'][i], r['afterCall'][i]
+            cmp = r['compare'][i - 1] if i else None
+            gs = r['guests'][i - 1] if i else None
+            out.append('| %s | %s | %dP, %d | %dP, %d | %s | %s | %s |' % (
+                tag, nm, a['lp'] + 1, a['room'], m['lp'] + 1, m['room'],
+                '%d/%d' % (cmp['equal'], cmp['compared']) if cmp else '(host)',
+                '%d/%d' % (gs['digEqual'], gs['digCompared']) if gs else '-', gs['canonUsPerFrame'] if gs else '-'))
     return '\n'.join(out)
 
 
@@ -155,8 +219,7 @@ def main():
     parts['classes'], parts['class_sum'], unexplained, tot = classes(namer, v01 + v23)
     parts['unexplained'] = '\n'.join('- %s %s %08X+%d first %s' % (g['sym'], g['field'], g['lo'], g['hi'] - g['lo'], g['first'])
                                      for g in unexplained[:40]) or 'none'
-    parts['rig'], runs = rig_table(os.path.join(T, 'rig.json'))
-    parts['corrupt'] = corrupt_table(runs)
+    gt = gates_tables(os.path.join(T, 'gates.json'))
     parts['review'] = review_table(glob.glob(os.path.join(T, 'review', '*.json')))
     gates = os.path.join(T, 'gates.txt')
     parts['gates'] = open(gates).read() if os.path.exists(gates) else '(gates not run)'
@@ -171,9 +234,17 @@ def main():
     md.append('Unexplained ranges: ' + parts['unexplained'] + '\n')
     md.append('## Measured: the re-view (a device told it is player 2\'s at frame F, against one that was all along)\n')
     md.append(parts['review'] + '\n')
-    md.append('## Measured: the rig (design (c))\n')
-    md.append(parts['rig'] + '\n')
-    md.append('Corruption:\n\n' + parts['corrupt'] + '\n')
+    md.append('## Measured: the shipped design in the rig (tools/rooms/gates.mjs)\n')
+    md.append(gt['gates'] + '\n')
+    md.append('Several people on one device: ' + (gt['local'] or '(not run)') + '\n')
+    md.append('Corruption (lockstep, so a rewind cannot heal an injection silently):\n\n' + gt['corrupt'] + '\n')
+    md.append('## Measured: the cost per guest\n')
+    md.append('In the rig, as the page runs it (the guest hashes every 16th frame):\n\n' + gt['cost'] + '\n')
+    md.append('Two wasm instances against the shadow (tools/rooms/cost.mjs, node, this machine):\n\n' + cost_json(os.path.join(T, 'cost.json')) + '\n')
+    md.append('## Measured: which task types are the screen\'s own (tools/rooms/census.mjs)\n')
+    md.append(census_table(os.path.join(T, 'census.json')) + '\n')
+    md.append('## Measured: in a browser (tools/online_browser_test.mjs --cases rooms)\n')
+    md.append(browser_table(os.path.join(T, 'browser.json')) + '\n')
     md.append('## Gates (switch off)\n\n```\n' + parts['gates'] + '\n```\n')
     measured = '\n'.join(md)
     head = '<!-- generated by tools/rooms/run_all.sh on %s; edit tools/rooms/ROOMS-PROSE.md, not this file -->\n' % time.strftime('%Y-%m-%d %H:%M')

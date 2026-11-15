@@ -84,6 +84,9 @@ void PortOuiFadeDone(void);
 /* Is the screen busy with the network (the idle timeout must not fire)? */
 int  PortOuiBusy(void);
 
+/* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode). */
+int PortOuiRoomsMode(void);
+
 #ifdef __cplusplus
 }
 #endif

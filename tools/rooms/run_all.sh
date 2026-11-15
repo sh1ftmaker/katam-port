@@ -8,7 +8,9 @@
 #   build (wasm + native)                         ~2 min
 #   measure: 9 recordings x views 0/1, 2/3, 0/0, and with the fix off  ~1 min (parallel)
 #   re-view tests: 5 points                       ~1 min (parallel)
-#   rig: apart, wander, free (40000 f), corrupt, join   ~2 min
+#   gates.mjs: 2/3/4 devices, corruption, pool, join, two players on one
+#     device, cost by batch size                ~3 min
+#   census + cost                                 ~1 min
 #   gates: regress, regress-wasm (+ lint-determinism, check_sim_state)  ~3 min
 #   netproof (switch off, full)                   ~7 min (--no-gates skips)
 set -euo pipefail
@@ -48,12 +50,20 @@ node tools/rooms/review_test.mjs --rom "$ROM" --rec tests/recordings/rooms_wande
     --out "$T/review/wander-4000.json" >/dev/null 2>&1 &
 wait
 
-mkdir -p "$T/rec"
-node tools/rooms/rig.mjs --rom "$ROM" --out "$T/rig.json" --record-dir "$T/rec" $QUICK 2>&1 \
-    | grep -E '^(apart|wander|free|corrupt|join): canonical' | tee "$T/rig-summary.txt"
-# the free session, replayed offline with both views (the rig's personal
-# repairs, if any, are explained here)
-M --rec "$T/rec/free.txt" --out "$T/final/rigfree" --views 0,1 --parts
+# the shipped design: the N-device rig with the canonical shadow (gates RM1-RM5)
+node tools/rooms/gates.mjs --rom "$ROM" --out "$T/gates.json" $QUICK 2>&1 \
+    | grep -E '^(two|three|four|corrupt|pool|join|local2|cost-[a-z0-9]+): ' | tee "$T/gates-summary.txt"
+# which task types are the screen's own (the digest leaves them out)
+L=tests/recordings
+node tools/rooms/census.mjs --rom "$ROM" --rec $L/rooms_apart.txt,$L/rooms_wander.txt,$L/localmp_tour.txt,$L/players_boss.txt,$L/players_dropin.txt,$L/players_goal.txt,$L/players_local.txt,$L/players_rooms.txt \
+    --out "$T/census.json" 2>&1 | grep -E 'frames|differs on' || true
+# two wasm instances against the shadow: memory and per-frame costs
+node --expose-gc tools/rooms/cost.mjs --rom "$ROM" 2>/dev/null | grep -v '^\[' > "$T/cost.json" || true
+# the browser case (needs a Chromium with WebGL2, a static server and a room
+# server; see tools/online_browser_test.mjs): its results are read from
+# $T/browser.json when present, e.g.
+#   node tools/online_browser_test.mjs --cdp PORT --base URL --rom-url URL --relay URL --shots $T/shots --cases rooms
+#   cp $T/shots/online-test-results.json $T/browser.json
 
 if [ -n "$GATES" ]; then
     {

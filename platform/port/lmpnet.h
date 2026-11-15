@@ -45,6 +45,9 @@ extern "C" {
 #define PORT_LN_EV_HUMAN   5   /* a=slot 1..3 b=1 joins / 0 leaves (localmp.c)
                                 * c=owner: 0 = unchanged (a test's bare join),
                                 * else 1 + device*4 + seat (see "slots" below) */
+/* 6 is left for PORT_LN_EV_PAINT (the player card, another branch). */
+#define PORT_LN_EV_ROOMS   7   /* a=1: rooms mode (localmp.c), the host's choice,
+                                * sealed at the session's start              */
 
 /* --- slots, devices, seats -------------------------------------------------
  * Up to four devices in a star: the host is device 0, guests 1..3 (the host
@@ -69,6 +72,11 @@ void PortLnStop(void);
 int  PortLnActive(void);
 int  PortLnRole(void);
 int  PortLnCatchingUp(void);
+/* Rooms mode on a guest (lmpnet.c "the canonical shadow"): the shadow is the
+ * live state now -- nothing of this device's may reach it. */
+int  PortLnCanonRunning(void);
+void PortLnSetCanonBatch(int frames);
+int  PortLnCanonPoke(u32 addr, u32 xorMask);     /* tests */
 
 /* --- inputs ------------------------------------------------------------- */
 void PortLnLocalInput(u32 frame, u16 keys);          /* own seat 0's pad      */

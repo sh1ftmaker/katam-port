@@ -462,6 +462,10 @@ static void CanonVSync(struct SoundInfo *soundInfo)
     int have = 0, n, center, outN, queued, err, adj, limit;
     u64 t0;
 
+    /* Rooms mode: an online guest's canonical shadow runs inside one of the
+     * live frames; the live block waits for that frame (platform/lmpnet.c). */
+    if (PortLnCanonRunning())
+        return;
     if (SoundInfoLive(soundInfo))
         have = PortMixerTakeBlock(&block);
     if (sRate == 0)

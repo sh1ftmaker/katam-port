@@ -1,55 +1,51 @@
-# Rooms mode: online players in different rooms, each device on its own Kirby
+# Rooms mode (FREE ROAM): online players in different rooms, each device on its own Kirby
 
-Worktree `rooms-wt`, branch `online-rooms` (from `online` 85dceed), uncommitted.
-Every number in the tables below is measured by `tools/rooms/run_all.sh`; the
-prose around them is written by hand (`tools/rooms/ROOMS-PROSE.md`) and cites
-the tables.
+Worktree `rooms-wt`, branch `online-rooms`: the prototype (8c44be6) merged
+with `main` b75dc58 (merge commit 87b3ed4), and the shipping work on top,
+uncommitted.  Every number in the tables is measured by
+`tools/rooms/run_all.sh`; the prose around them is written by hand
+(`tools/rooms/ROOMS-PROSE.md`) and cites the tables.
 
 ## Answer first
 
-- **It works, and the original design carries it.** With players free to be in
-  different rooms and each device showing its own Kirby, the gameplay of two
-  devices fed the same inputs stayed identical over the whole corpus (about
-  145 000 frames, players apart most of the time, meeting through doors and
-  the cell phone, pausing apart, a boss room and the goal room with the other
-  player elsewhere) — **after one fix**: the port's own wide-view spawn
-  margin read a per-screen BG field (below, F1). The original game's link
-  play already kept gameplay independent of the screen; the port's additions
-  were the risk, and the measurement found exactly one.
-- **The raw images never agree, and cannot be made to by masks alone.** Every
-  frame about 2 000–3 000 byte runs differ: the display and its shadows,
-  palettes, BG streaming, sound, HUD, pause screens — and, the hard part, the
-  *heap*: view-only tasks (HUD effects, pause screens, effects created only
-  for the screen's player) take task slots and heap first, so the same
-  gameplay objects sit at other addresses and the pointers to them differ
-  (class H below). A mask cannot say "this byte is the same object
-  elsewhere".
-- **Recommended: design (c), a canonical instance plus a personal instance on
-  each guest device.** The canonical instance shows player 1's view on every
-  device, so it is today's byte-identical image: today's whole-image hash
-  with no masks, today's join and repair, untouched. The personal instance
-  is what the player sees and hears; it is checked against the canonical one
-  on the same device by a positively built gameplay digest, and repaired
-  from a host image plus a **re-view** (the game's own room-arrival and
-  pause-exit display paths, without their gameplay half). The host shows
-  player 1 and needs no second instance.
-- **The prototype holds in the rig** (table "the rig"; the corruption run is
-  lockstep, so an injection cannot be healed silently by a rewind; the
-  screen check skips the 2 s after each image load, while the re-view may
-  legitimately wait): over five runs the
-  canonical instance matched the host on every final frame; the personal
-  instance's digest matched the canonical's on every compared frame; a
-  mid-game join with the players apart landed on player 2's screen; gameplay
-  corruption was detected and repaired on both instances; zero unexplained
-  byte differences in the classification.
-- **What is not done**: the personal instance in the rig is a second full
-  session guest whose outgoing traffic is dropped (the shipped form would
-  share one session object); the rooms switch is a host setting latched into
-  the sim block, not a sealed session event; several local players on one
-  device in rooms mode (the one-room rule per device) is designed, not built;
-  the re-view leaves small palette/HUD-icon colour differences in some rooms
-  until the next room change (table "the re-view"); special rooms with their
-  own display setup (918/919, `sub_08002EC4`) are not handled by the re-view.
+- **It ships as a session mode.** The host picks TOGETHER (as before) or
+  FREE ROAM on HOST GAME's START row (Left/Right); FREE ROAM is sealed for
+  every device at the session's first frame (`PORT_LN_EV_ROOMS`, type 7) and
+  travels in every image (the sim byte `view.lmpRooms`).  Off, nothing new
+  runs and every gate is as on `main` (section "Gates").
+- **One wasm instance per guest, not two: the canonical shadow.** Each guest
+  keeps the session *as the host shows it* (player 1's screen) as one more
+  state image inside the same instance (`platform/lmpnet.c`, "the canonical
+  shadow"): every batch of 16 sealed frames it is swapped in at a frame top,
+  run the way a rewind replays frames (no picture, no sound, no speakers, no
+  records of this device), and swapped out.  It is what the host's hashes
+  verify -- byte for byte, today's machinery, no masks -- and what an image
+  from the host repairs.  The live state is the personal timeline: predicted,
+  rewound, drawn and heard as any guest's, on this device's own player.  It
+  is checked against the shadow on the same device by the gameplay digest of
+  every final frame the host has verified, and when they differ it is
+  rebuilt *from the shadow* (its state, re-viewed, replayed to the present):
+  no network round trip.  Memory: 1.1 MiB per guest (two state buffers)
+  against a whole second program (192 MiB of wasm memory reserved, ~15 MiB
+  resident, plus its history); time: the table "the cost per guest".  The
+  session object is unchanged (`web/ln_session.js` needs no second guest).
+- **Measured in the rig** (two, three and four devices apart for long
+  stretches, meeting through doors and the phone; a mid-game join; two
+  players on one device; corruption of either timeline; the task pool filled
+  on one timeline; a brain pointer redirected): every final frame of every
+  shadow identical to the host's; every personal digest equal except at the
+  injected faults (each detected and rebuilt) and once without one, a real
+  view-dependent difference (F4, section 3; caught and rebuilt); every screen on its own
+  player's room once that player is in a room.  **In a browser** (WebGL2,
+  two and three pages): each page on its own player's room, the host's phone
+  call gathering everyone, the pause menu from each page, shadows identical,
+  digests equal.
+- **Not done or not clean** (section 6): the HUD's icons of absent players
+  can be drawn in a stale palette; the palette residue after a re-view is now
+  matched on sprites but the BG palette's animation phase and the game's own
+  "one step too bright" fade ending remain history-dependent; re-view during
+  a cutscene is untested; the digest does not hash the contents of non-object
+  tasks; per-device groups are verified for one guest with two players only.
 
 ## 1. Who is "the local player", and what local multiplayer pins
 
@@ -116,7 +112,8 @@ zero differing bytes.
   Kirbys from 3471 ("before the fix" table). In rooms mode the margin now
   reads the room's own size (`roomWidth/roomHeight`, which `FillLevelInfo`
   sets for every Kirby). After that, nothing in the corpus diverged.
-- **F2, latent: one task pool and one heap for both.** View-only tasks
+- **F2, latent: one task pool and one heap for both.** (Now tested: the
+  digest's task census and the rig's `pool` run, below.) View-only tasks
   (effects created `if (gLocalPlayerId == kirby->base.unk56)`,
   `code_0806F780.c:10006`; HUD and pause tasks; goal-star digits) take slots
   of the 128-task pool and IWRAM/EWRAM heap. Measured consequence: the same
@@ -129,7 +126,8 @@ zero differing bytes.
   (well under 128 in this corpus); a crowded boss fight was not stressed.
   Under design (c) this can only hurt the personal instance, and the digest
   catches it.
-- **F3, latent: stale pointers in the CPU brains.** The brains
+- **F3, latent: stale pointers in the CPU brains.** (Now tested: the rig's
+  `pool` run redirects a brain's object pointer on one timeline; below.) The brains
   (`gUnk_02038590[k]`, +0x3C, +0x48, +0x74, +0x88, +0x98) keep object pointers
   that outlive their objects; the memory behind a stale one is reused for
   different things on different devices (measured in the free session). No
@@ -142,6 +140,20 @@ zero differing bytes.
   brain part differed. The digest now hashes heap pointers in the brains as
   "a heap pointer"; the same session replayed with it: 0/41 540 frames
   differ (the "free" row of the corpus table).
+- **F4, found, not fixed: an arrival one frame late on the screen's own
+  device.**  In the rig's 30 000-frame two-device run (`two`, frame 18946)
+  the personal digest differed from the shadow with no injection.  Replayed
+  offline from the host's sealed stream (`gates.mjs --record-dir`, then
+  `tools/rooms/first_diff.mjs`): two devices on views 0 and 1 diverge on
+  their own.  Player 2, carried by the respawn route (state
+  `sub_08055D9C`, after a call), runs its case 2 (`kirby.c`, the arrival's
+  end: `flags &= ~0x400`, a random draw) one frame later on the device that
+  shows player 2 -- that Kirby's state function is skipped for a frame on
+  its own screen (unkD9 and stateFn unchanged across 18945-18946).  The
+  cause of the skipped update is not found.  Shipped behaviour: the digest
+  catches it within the next verified batch and the live state is rebuilt
+  from the shadow (one rebuild in 8.4 game minutes in that run; the screen
+  re-views, a white flash).
 - **Checked and not feedback:** the sound engine (its two gameplay-side readers
   choose music only), the `gUnk_0203AD10` bit 0x100 (mutes effects while the
   screen's Kirby dies), screen shake (`gUnk_0203AD18`, `viewportMod*`: the
@@ -153,161 +165,140 @@ zero differing bytes.
   palette slots (taken and freed by the draw macros only for the screen's
   room).
 
-## 4. The designs
+## 4. The design that ships, and the one that does not
 
-**(a) One instance per device, per-device views, a gameplay hash.**
-Verification needs a hash over "everything except the view", and the
-measurement says that set is not a byte mask: besides ~60 view symbols, the
-H class is heap layout — same objects, other addresses, other slot
-numbers, other pointers. It needs a positively built, address-independent
-gameplay hash (walk the tasks, hash each gameplay struct's fields with
-pointers translated to identities). The digest here is that idea, for the
-Kirbys, brains and objects; making it complete means a reviewed field list
-for every task type that holds gameplay (dozens: boss parts, doors, switches,
-chests, cannons, the goal star, the cutscene triggers…) and maintaining it.
-Join and repair: the host's image, then a re-view. Cheapest at run time (one
-simulation); weakest verification: anything outside the hash diverges
-unseen. Pool exhaustion (F2) is a real desync here.
+**The canonical shadow (shipped).**  `platform/lmpnet.c` keeps, on a guest in
+rooms mode, `sCanon` (SaveState's layout plus SRAM) and the frame it is
+parked at.  At a frame top of the live timeline, when at least a batch of
+sealed frames is waiting and nothing else is (no rewind, image or repair
+pending, the shadow not known wrong), `CanonStart` saves the live state,
+loads the shadow and sets the catch-up flag: the frame loop then runs the
+shadow's frames without presenting or waiting, exactly as a rewind's replay.
+Its latch takes the sealed keys and events and records nothing of this
+device's (`PortLnKeyOverride`); its frame tops hash (`HashState`, the regions
+the host hashes) and nothing else; its sounds are noted nowhere and its
+mixer only advances the channels (`m4a_mixer.c`, `audio.c`: the live block
+staged before it ran is handed over after), the ears are off
+(`audio_ear.c`); `gLocalPlayerId` stays the game's (`PortLmpLocalPlayer`)
+and the re-view never runs (`PortLmpReview`); localmp keeps its digests in
+a ring of their own.  At the batch's end `CanonTopRun` saves the shadow and
+loads the live state back at its own frame top, whose processing then goes
+on.  `Verify` compares the shadow's hashes with the host's as it always
+compared a guest's; `PortLnHashFinal` reports them.  An image (join or
+repair) is loaded into the live state as before and adopted by the shadow
+(`CanonAdopt`).  `DigestCheck` compares the two timelines' digests for every
+frame the shadow ran, the live timeline latched with sealed keys, and the
+host verified; a difference logs which digest parts and task types differ
+(`PortLmpDigestExplain`) and `PersRepair` rebuilds the live state from the
+shadow.  A rewind older than every keyframe uses the shadow as its keyframe.
+JS-facing calls during a shadow run use the live frame (`NowF`).
 
-**(b) Every player's view inside the image.** The GBA has one VRAM, one
-palette, one OAM, one set of display registers, one sound engine; the game
-draws into them. Keeping four views in the image means four copies of all of
-it, and every writer above taught to write the right copy — the game's whole
-display and sound pipeline. Not credible for the gain.
+**Two wasm instances (measured, not shipped).**  The prototype's rig ran a
+second complete guest.  The page would need a second Module (the web build
+is not MODULARIZE), its own 192 MiB of linear memory, the ROM copied in again
+and its own history; on a phone the second 192 MiB reservation is the risk.
+It buys nothing the shadow does not: the shadow is the same simulation on
+the same sealed inputs, verified by the same hashes.
 
-**(c) A canonical instance for truth, a personal instance for the screen
-(recommended).** Measured above: the canonical instance stays byte-identical
-to the host with today's machinery unchanged; the personal instance's
-gameplay stays identical to the canonical's (digest equal on every compared
-frame once the digest stopped looking through heap pointers), and when it
-does not (injected), it is repaired from the host's image and re-viewed.
-Costs: a second simulation on each guest (render-off sim is ~6 µs/frame in
-wasm; the personal instance renders and is the one that predicts and rewinds,
-so its cost is today's guest cost; the canonical one only needs the sealed
-frames — in the prototype it is a full guest too); a second 0.5 MB image
-plus its keyframe history (24 × 494 KiB ≈ 12 MiB in the rig's settings);
-the re-view's room load (an LZ77 tileset + BG redraw, once per join/repair,
-repeated if a rewind crosses it — measured re-views per run in the rig
-table). The canonical instance's sound is muted; the personal one's is
-the device's sound, room-correct by construction.
+**The host** shows player 1 and is canonical: no shadow.
 
-**(d) Variants.** (c) with the canonical instance running only sealed frames
-(no prediction, no rewinds, no rendering: cheapest truth) — the prototype
-does not do this yet, it is the shipped form. (a) with the digest shipped
-next to the hash ("trust the digest") for very weak devices. A seats-style
-single wasm instance swapping two 0.5 MB images per frame
-(`platform/seats.c` already does this) instead of two wasm instances.
-
-**Cross-cutting, as measured:**
-
-- *Sound*: today the session's sound state is canonical and inside the
-  image. Under (c) the canonical instance keeps that (muted); the personal
-  instance's m4a state is per device (class VS) and its replays need today's
-  guest sound judging (refire/mispredict), unchanged.
-- *Pause*: the pause starts and ends on the same frame everywhere; what each
-  screen shows during it is its own player's menu slot driven by the
-  pauser's keys. Not checked visually.
-- *Several people on one device*: they share that screen, so the one-room
-  rule, the stragglers and the shared camera apply per device. The shared
-  camera bends a Kirby's camera, which sizes spawn windows — gameplay — so
-  the per-device grouping must be session state in the canonical simulation
-  (a slot→device map in the sim block, the group camera applied to the
-  group's anchor regardless of `gLocalPlayerId`). Not built.
-- *Cell phone*: the original's own mechanism works unchanged: the caller
-  presses R, the others answer with R (`kirby.c` Macro_0803FF64_7) and arrive
-  in the caller's room; CPUs answer by themselves. Measured meetings: the
-  rig's "meetings" column.
-- *Big doors and the goal game*: they wait for every person
-  (`shard.c`, `special_doors.c`, `warp_star.c:2003`), in any room — the
-  original's link-play rule. In `rooms_apart` the goal star waited for
-  player 2 until player 2 arrived. A shipped version wants a "waiting for
-  the others — call them" hint; no simulation change.
-- *Boss rooms*: a boss fight with the other player elsewhere showed no
-  divergence; boss HP scales with the number of people playing, not present
-  (the original rule).
-- *The join image*: unchanged — the host's image (player 1's view), 506 KB raw.
-  The joiner's canonical instance loads it as today; its personal instance
-  loads the same bytes and re-views. No extra data on the wire.
+**Several people on one device (item 3).**  Which slots share a device is
+simulation state: `view.lmpDev` / `lmpDevSet` (two bits per slot), set from
+the session's slot table at every sealed slot change and at the mode's event
+(`lmpnet.c RoomsDevices`), and `view.lmpGroupRoom[4]`, each device's group
+room.  In rooms mode `RoomsGroups` applies together mode's one-room rule,
+dying rule and straggler rule per device that has two or more people, with
+that device's anchor (its lowest slot) in player 1's place;
+`PortLmpCamTarget` bends the anchor's camera to the group's centre on every
+device alike (the camera is gameplay); the zoom, the off-screen arrows and a
+joiner's carry follow the same groups.  A device's screen is its anchor's.
+A slot whose device is unknown (no session) is a device of its own.
 
 ## 5. The re-view
 
 `PortLmpReview` (`platform/localmp.c`) is the display half of the game's
-"the screen's player arrives in a room" (`kirby.c sub_080562D0`) and of the
-pause exit (`in_game_interlude.c RestoreGameplayAfterInGameInterludeScreen`):
-re-pin `gLocalPlayerId` and the display task, the Kirbys' and shared sprites'
-OBJ tiles and palettes (`sub_0803E458` + `sub_0803E050`), SaveDisplayState +
-RestoreDisplayState (LoadLevelGfx, animated tiles, BG redraw), the room's
-palettes, a fade from white for the screen's player and a hidden one for the
-old (the arrival's own pair), the HUD (`RefreshGameplayHud`, the HUD's
-per-Kirby icon sprites re-initialised as `CreateGameplayHud` does, the
-Kirbys' 0x80000 hide bits cleared — `DrawHudOtherKirbys` sets them for
-Kirbys in other rooms and would never clear them on the new screen's
-Kirby), the area name, the room's music. Objects' sprites follow by
-themselves: the game's draw macros free tiles for objects outside the
-screen's room and take them inside it. It waits while paused or between
-rooms. Measured residue against a device that showed player 2 from the start
-(table): the room, camera, BG, objects, Kirbys and HUD layout match; in some
-rooms the OBJ palette stays one step (1/31) brighter and the HUD's
-other-Kirby icons a shade off until the next palette event; native
-screenshots (`tools/rooms/pngdiff.py`) show differences confined to the HUD
-icons, the screen's own Kirby's shading, or the ability label.
+"the screen's player arrives in a room" and of the pause exit, without
+their gameplay half (prototype, unchanged in substance).  New: it waits in
+the rooms with a display of their own (918, 919); and once its fade has
+ended and no palette effect runs it sets the OBJ shadow palette to its
+source (`ReviewSettle`).  Measured (table "the re-view"): at the first test
+point the picture now equals the always-player-2 device after 19 frames
+(was 724).  At the others the remaining differences are not the re-view's:
+dumps at +300 frames show the always-player-2 device itself with sprites one
+step too bright (its own last fade ended there; the game's queue-indexed
+restore, `palette_effects.c` "Indexed by queue position"), and BG palette
+animation phases that differ by when the room was entered; the re-viewed
+device shows the room's source palette.  The party HUD, the pause menu and
+the sound follow the personal timeline by construction: they are the live
+state's (screenshots in the browser table's directory).
 
-## 6. What a shipped version still needs (rough size)
+## 6. What ships, what does not
 
-1. Session: the rooms switch as a sealed session parameter (in the join
-   image already: the sim byte), not a host setting. Small (~50 lines C/JS).
-2. The guest device's two instances in `web/ln_session.js`/`web/online.js`:
-   one session object feeding both, the canonical instance on sealed frames
-   only, render/sound from the personal one, the digest comparison and the
-   personal repair (in the rig: `tools/rooms/rooms_run.mjs`). Medium
-   (~400–700 lines JS), and it collides with the four-device work in
-   `slots-wt` — do it after that merge.
-3. Per-device groups for several local people on one device (sim-block
-   slot→device map, per-group one-room rule and camera). Medium (~300–500
-   lines C + recordings).
-4. Re-view polish: the palette/HUD residue, special rooms (918/919),
-   Dark Mind's arenas, re-view while a fade or cutscene runs. Small–medium.
-5. Digest review: a positive field list for the task types that hold
-   gameplay beyond Kirbys/brains/objects (the digest is the personal
-   instance's only check). Medium, mostly reading.
-6. UI: whose screen the device shows, "waiting for the others" at big doors
-   and the goal star. Small.
+Ships (uncommitted): the merge; the session mode and the HOST GAME choice;
+the canonical shadow; per-device groups; the digest with a task census; the
+re-view's palette settle and special-room wait; the waiting hint (party HUD:
+"THE DOOR WAITS FOR 2P - R CALLS" / "THE STAR ..." while this screen's player
+stands at a door to the hub or on the goal star and a person is elsewhere,
+up to 4 s, never blocking); the rig, census and cost tools; the browser case.
+
+Does not, or not cleanly:
+- F4 (section 3): a real view-dependent desync remains; it is caught and
+  healed locally, not prevented.
+- The HUD's icons of other Kirbys use those Kirbys' own sprite palettes; a
+  Kirby in another room may have none loaded on this screen, and its icon
+  shows in a stale palette (seen: 3P's page, 1P's icon pale).  Cosmetic.
+- The hint is from the screen player's position only (doors to the hub and
+  the goal star); boss doors and the area doors were not checked for the
+  wait-for-everyone rule.  It is not localised.
+- Re-view during a cutscene or an intro walk is not specially handled and
+  not tested; 918/919 wait.
+- The digest hashes the contents of the Kirbys, the brains and every live
+  object, and the *existence* of every other task type; the contents of
+  non-object gameplay tasks are not hashed (a difference there is caught
+  once it moves something hashed).  The view-only task list comes from the
+  corpus and the rig; a task type the corpus never met that differs by view
+  would cost a needless local rebuild (logged with its main), not a desync.
+- Per-device groups: verified with one guest holding two players (the group
+  gathered after every forced split); host-side groups (the host's own
+  second player) only by construction.
+- Phone etiquette, doors that wait: the original rules, unchanged (decisions
+  for the user, below).
 
 ## 7. Rerun
 
 ```
-# everything in this report (build, measure, re-view tests, rig, gates, netproof), ~15 min:
+# everything in this report (build, measure, re-view tests, gates.mjs, census, cost, regress, netproof), ~20 min:
 tools/rooms/run_all.sh ROM TMPDIR netproof-eval/ROOMS-REPORT.md
 # pieces:
-node tools/rooms/measure.mjs --rom ROM --rec tests/recordings/rooms_apart.txt --out TMP --views 0,1   # ~12 s
-node tools/rooms/review_test.mjs --rom ROM --rec tests/recordings/rooms_apart.txt --at 1800 --frames 2600  # ~20 s
-node tools/rooms/rig.mjs --rom ROM --out TMP/rig.json [--quick] [--only join]                       # ~1-2 min
+node tools/rooms/gates.mjs --rom ROM --out TMP/gates.json [--quick] [--only two,corrupt]   # ~4 min full
+node tools/rooms/census.mjs --rom ROM --rec tests/recordings/rooms_apart.txt --out TMP/census.json
+node --expose-gc tools/rooms/cost.mjs --rom ROM > TMP/cost.json
+node tools/rooms/review_test.mjs --rom ROM --rec tests/recordings/rooms_apart.txt --at 1800 --frames 2600
+node tools/online_browser_test.mjs --cdp PORT --base URL/dist/ --rom-url URL/rom.gba --relay URL --shots DIR --cases rooms --rooms-pages 2,3  # ~2 min
 python3 tools/rooms/report.py --tmp TMP --out OUT.md --prose tools/rooms/ROOMS-PROSE.md
-# natively (screenshots, gdb): KATAM_LOCAL_MP_ROOMS=1 KATAM_LOCAL_MP_VIEW=k [KATAM_LOCAL_MP_VIEW_AT=F:k]
+# natively: KATAM_LOCAL_MP_ROOMS=1 KATAM_LOCAL_MP_VIEW=k [KATAM_LOCAL_MP_VIEW_AT=F:k]
 ```
 
 ## 8. Files
 
-Engine (all additive; every path is behind `gPortSim->view.lmpRooms`, a
-spare zero byte, or a host setting that defaults off):
-
-- `platform/port/simblock.h`: `view.lmpRooms` (was `reserved[0]`, size and
-  layout asserts unchanged).
-- `platform/localmp.c`, `platform/port/localmp.h`: rooms mode (switch, view,
-  `PortLmpLocalPlayer`, the re-view, the gameplay digest, the test hooks);
-  the shared camera, stragglers, one-room rule and joiner carrying skipped in
-  rooms mode.
-- `game/src/code_080332BC.c`: `gLocalPlayerId = PortLmpLocalPlayer(arg1)`.
-- `platform/view.c`: the spawn margin from the room's size in rooms mode (F1).
-- `platform/inputlog.c`: `option rooms 1`.
-- `Makefile`: exports (a separate `PORT_EXPORTS +=` line, to merge cleanly).
-- `tests/sim_state_allowlist.txt`: the new host statics.
-
-Tools and recordings (new): `tools/rooms/` (`measure.mjs`, `review_test.mjs`,
-`rooms_run.mjs`, `rig.mjs`, `symbols.py`, `summarize.py`, `classify.py`,
-`objdiff.py`, `pngdiff.py`, `report.py`, `make_rooms_recordings.py`,
-`run_all.sh`, this prose), `tests/recordings/rooms_apart.txt`,
-`rooms_wander.txt` (inputs only, `no-regress`).
-
-Not touched: `platform/lmpnet.c`, `web/ln_session.js`, `web/online.js`
-(the four-device work in `slots-wt`).
+- `platform/lmpnet.c`, `platform/port/lmpnet.h`: `PORT_LN_EV_ROOMS`; the
+  canonical shadow (one contiguous section before "the frame top", plus
+  hooks in the latch, `Verify`, `PortLnHashFinal`, `ApplyImage`, `Rewind`,
+  `PortLnFrame`, the sound/SRAM/setting notes, `PortLnStop`); telemetry
+  fields appended; `RoomsDevices`, `RoomsSetView`.
+- `platform/localmp.c`, `platform/port/localmp.h`: sealed mode, devices and
+  groups, the digest's task census and two rings, `PortLmpDigestExplain`,
+  `PortLmpWaitingFor`, the re-view's settle and wait, test hooks.
+- `platform/port/simblock.h`: `view.lmpDev`, `lmpDevSet`, `lmpGroupRoom[4]`
+  (were spare zero bytes; size unchanged).
+- `platform/m4a_mixer.c`, `platform/audio.c`, `platform/audio_ear.c`: the
+  shadow is heard by nobody.
+- `platform/online_ui.c`, `platform/port/online_ui.h`: HOST GAME's mode.
+- `platform/ui/party_hud.c`: the waiting hint.
+- `web/online.js`: seals the mode at the host's start; rooms fields in stats.
+- `Makefile` (exports), `tests/sim_state_allowlist.txt`.
+- Tools: `tools/rooms/gates.mjs`, `census.mjs`, `cost.mjs` (new);
+  `rig.mjs`, `rooms_run.mjs` (the two-instance prototype rig) removed;
+  `run_all.sh`, `report.py` updated; `tools/netproof/run.mjs` (a `rooms`
+  option, observers, per-guest flags); `tools/online_browser_test.mjs`
+  (case `rooms`).

@@ -111,6 +111,34 @@ typedef struct {
 static Party sNow;
 static int sKeep[PORT_PARTY_KEEPOUTS][4];
 
+/* Rooms mode (online, players in different rooms): a short line at the top
+ * while this screen's player stands at a big door or on the goal star that
+ * waits for someone elsewhere (localmp.c PortLmpWaitingFor).  Up to 4 s per
+ * wait, then quiet until the player has left it for a second; it never
+ * stops anything.  sHintText is what is up, "" = nothing. */
+#define HINT_FRAMES 240
+static char sHintText[40], sHintDrawn[40];
+static int sHintOn, sHintOff;
+
+static void SampleHint(void)
+{
+    int who = -1, kind = PortLmpWaitingFor(&who);
+
+    if (!kind) {
+        if (++sHintOff > 60)
+            sHintOn = 0;
+        sHintText[0] = '\0';
+        return;
+    }
+    sHintOff = 0;
+    if (sHintOn++ >= HINT_FRAMES) {
+        sHintText[0] = '\0';
+        return;
+    }
+    snprintf(sHintText, sizeof sHintText, "%s WAITS FOR %dP - R CALLS",
+             kind == 2 ? "THE STAR" : "THE DOOR", who + 1);
+}
+
 void PortPartyHudKeepOut(int slot, int x, int y, int w, int h)
 {
     if (slot < 0 || slot >= PORT_PARTY_KEEPOUTS)
@@ -206,8 +234,10 @@ void PortPartyHudSample(void)
     memset(&p, 0, sizeof(p));
     if (!gPortSettings.partyHud || !HudShowing() || gNumKirbys < 2 || gNumKirbys > 4) {
         sNow = p;
+        sHintText[0] = '\0';
         return;
     }
+    SampleHint();
     p.show = 1;
     me = gLocalPlayerId & 3;
     room = gKirbys[me].base.roomId;
@@ -543,7 +573,8 @@ static void Card(Canvas *cv, int y, int w, const Member *m)
 }
 
 /* Composed canvases and what they were composed from. */
-static Canvas sCards, sTag;
+static Canvas sCards, sTag, sHint;
+static u32 sHintPx[160 * 8];
 static Party sComposed;
 static int sHaveComposed;
 static u32 sCardsPx[96 * 64], sTagPx[16 * 8];
@@ -616,6 +647,23 @@ void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int st
     double left, right, top, bottom, cw, ch, x, y;
     int i, moved;
 
+    if (p->show && sHintText[0] && scale > 0.0) {
+        /* the waiting hint: centred at the top, in the HUD's fade */
+        int hd = strcmp(sHintText, sHintDrawn) != 0;
+
+        if (hd) {
+            memset(&sHint, 0, sizeof(sHint));
+            sHint.w = TextW(sHintText) + 4;
+            if (sHint.w > 160) sHint.w = 160;
+            sHint.h = 8;
+            Text(&sHint, 2, 1, sHintText, WHITE, 0, 1, 255);
+            Finish(&sHint, sHintPx, p);
+            snprintf(sHintDrawn, sizeof sHintDrawn, "%s", sHintText);
+        }
+        GlrDrawOverlay(2, sHintPx, sHint.w, sHint.h, hd, fbW, fbH,
+                       (double)(int)(world[0] + (world[2] - sHint.w * scale) / 2 + 0.5),
+                       (double)(int)(world[1] + 2 * scale + 0.5), scale, smooth);
+    }
     if (!p->show || p->n == 0 || scale <= 0.0)
         return;
     if (!sHaveComposed || memcmp(&sComposed, p, sizeof(*p)) != 0) {
