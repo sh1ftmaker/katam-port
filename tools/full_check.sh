@@ -72,6 +72,9 @@ web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP -
 web-menu-exits     1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D"
 web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases exits --play 30
 web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
+web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker
+rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
+paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
 netplay            1     -      cd netplay && npm test --silent

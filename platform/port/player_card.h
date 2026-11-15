@@ -20,28 +20,38 @@ extern "C" {
 /* How a card's colour is chosen. */
 #define PORT_CARD_GAME   0          /* the game's own (spray paint / slot)     */
 #define PORT_CARD_SPRAY  1          /* one of the game's fourteen              */
-#define PORT_CARD_CUSTOM 2          /* any colour: hue / saturation / value    */
+#define PORT_CARD_CUSTOM 2          /* by parts: a body and feet from the
+                                     * presets (port/kirby_paint.h); a card
+                                     * saved before the parts: its one colour
+                                     * as hue / saturation / value          */
 
 struct PortCard {
     char name[PORT_CARD_NAME_MAX + 1];  /* "" = no name (shown as P1..P4)  */
     u8   mode;                          /* PORT_CARD_*                       */
     u8   spray;                         /* 0..13 while mode is SPRAY         */
-    u16  hue;                           /* 0..359 } while mode is CUSTOM     */
-    u8   sat, val;                      /* 0..100 }                          */
+    u16  hue;                           /* 0..359 } while mode is CUSTOM and */
+    u8   sat, val;                      /* 0..100 } body is 0 (an old card)  */
+    u8   body;                          /* CUSTOM: 1 + preset, 0 = h/s/v     */
+    u8   feet;                          /* CUSTOM: 1 + preset, 0 = as the body */
 };
 
 /* --- the cards (player p = 0..3; card 0 is this device's own profile) ----- */
 const struct PortCard *PortCardGet(int p);
 void PortCardSet(int p, const struct PortCard *c);  /* clamps, saves         */
-/* The paint value (port/kirby_paint.h) a card stands for; 0 = the game's. */
+/* The paint value (port/kirby_paint.h) a card stands for; 0 = the game's.
+ * PortCardFeet: its feet value (PORT_PAINT_FEET_ON | BGR555; 0 = with the
+ * body). */
 u32  PortCardPaint(int p);
+u32  PortCardFeet(int p);
 /* A card's name as shown: its name, or "P1".."P4". */
 const char *PortCardShownName(int p);
 /* 0xRRGGBB of a custom colour (h 0..359, s and v 0..100). */
 u32  PortCardHsvRgb(int h, int s, int v);
 
 /* --- settings (platform/ui/settings.c) ------------------------------------- */
-/* A settings line card0..card3; 1 if it was one of ours. */
+/* A settings line card0..card3 (MODE,SPRAY,HUE,SAT,VAL,NAME, as ever), or
+ * card0parts..card3parts (BODY,FEET: the card's parts, 1 + preset, 0 =
+ * none; written only when set, after its card line); 1 if it was ours. */
 int  PortCardParseSetting(const char *key, const char *val);
 /* Our lines, appended to the settings text; returns the bytes written. */
 int  PortCardFormatSettings(char *buf, int size);
@@ -69,13 +79,14 @@ void PortCardSetTagsOn(int on);
 
 /* --- online hand-off (the session layer: web/online.js, web/ln_session.js) --
  * "Send this device's profile to the host": the profile as a short string,
- * NAME then a tab then the paint as 8 hex digits ("KIRBY\t02FF80C0"); the
- * page sends it and the host turns it into the two calls below. */
+ * NAME then a tab then the paint as 8 hex digits, then (feet of their own)
+ * a tab and the feet as 4 ("KIRBY\t02FF80C0" or "KIRBY\t01000002\tC622");
+ * the page sends it and the host turns it into the two calls below. */
 const char *PortCardProfileString(void);
 /* Host: apply slot s's paint as a sealed event at the next frame it seals
  * (PORT_LN_EV_PAINT); returns that frame, -1 when not the host of a session
  * or the value is not a paint.  Every device then applies it at that frame. */
-int  PortCardHostApplyPaint(int slot, u32 paint);
+int  PortCardHostApplyPaint(int slot, u32 paint, u32 feet);
 /* Host: the same from a profile string (paint part); also names the slot. */
 int  PortCardHostApplyProfile(int slot, const char *profile);
 
@@ -95,8 +106,8 @@ const char *PortCardSlotNames(void);
 void PortCardSetSlotNames(const char *names);
 /* A session ended: the slots' names and the profiles are forgotten. */
 void PortCardSessionEnd(void);
-/* Tests / console: card p from a settings value "MODE,SPRAY,HUE,SAT,VAL,NAME"
- * (not saved). */
+/* Tests / console: card p from a settings value "MODE,SPRAY,HUE,SAT,VAL,NAME",
+ * optionally followed by "|BODY,FEET" (its parts line) (not saved). */
 int  PortCardSetJs(int p, const char *val);
 
 /* --- the host's frame hook (platform/main.c, before the latch) -------------
@@ -112,8 +123,9 @@ void PortCardHostFrame(void);
  * players page or the pause menu can too) --------------------------------- */
 #define PORT_CARD_SUB_NONE 0
 #define PORT_CARD_SUB_CARD 1        /* PLAYER / NAME / COLOR                  */
-#define PORT_CARD_SUB_PICK 2        /* HUE / VIVID / BRIGHT (h, s, v)         */
-#define PORT_CARD_ROWS     3
+#define PORT_CARD_SUB_PICK 2        /* BODY / FEET, and the grid of presets   */
+#define PORT_CARD_ROWS     3        /* the CARD screen's                      */
+#define PORT_CARD_PICK_ROWS 2       /* the PICK screen's                      */
 
 /* Open player p's card (0..3); `fixed` hides the PLAYER row's choice (a
  * caller that already knows whose card it is).  The screens below are then
@@ -139,9 +151,13 @@ int  PortCardKey(int *row, unsigned key);
 #define PORT_CARD_KEY_START 7   /* Start without A (PortCardKey works it out) */
 /* The edited card's body palette (16 BGR555), for a preview. */
 int  PortCardPreviewPalette(u16 out[16]);
-/* A picker row's bar: 13 BGR555 colours across its range at the current
- * other two values, and where the current value sits (0..12). */
-int  PortCardBar(int row, u16 out[13]);
+/* The PICK screen's grid: the presets as BGR555 into out (PORT_PAINT_PRESETS,
+ * PORT_PAINT_PRESET_COLS a row), and the cell to frame: the cursor while
+ * the grid is open (*open = 1), else the row's part's own preset (-1 when
+ * it is none: a feet as the body, an old card's colour). */
+int  PortCardGrid(int row, u16 out[], int *open);
+/* The colour a PICK row's part shows now (BGR555), for its swatch. */
+u16  PortCardPartColor(int row);
 /* The edited name with the cursor: is the NAME row taking typed letters
  * (the web page sends a keyboard's or a phone keyboard's letters here). */
 int  PortCardWantsText(void);

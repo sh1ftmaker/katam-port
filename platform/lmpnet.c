@@ -1440,7 +1440,7 @@ static void ApplyEvents(u32 f)
             PortLmpSetSlotHuman(v->a, v->b);
             break;
         case PORT_LN_EV_PAINT:
-            PortPaintSetSlot(v->a, (u32)v->b);
+            PortPaintSetSlot(v->a, (u32)v->b, (u32)v->c);
             break;
         case PORT_LN_EV_ROOMS:
             /* the session's mode, the host's choice (localmp.c rooms mode) */

@@ -25,8 +25,9 @@
  *     warp FRAME PLAYER ROOM CELLX CELLY
  *     view FRAME W H      the session view from FRAME on (platform/view.c)
  *     human FRAME SLOT ON slot SLOT a person (1) or the CPU (0) from FRAME
- *     paint FRAME SLOT V  slot SLOT's player-card colour from FRAME (hex,
- *                         PORT_PAINT_*, platform/kirby_paint.c)
+ *     paint FRAME SLOT V [FEET]  slot SLOT's player-card colour from FRAME
+ *                         (hex, PORT_PAINT_*, platform/kirby_paint.c), and
+ *                         its feet (hex, PORT_PAINT_FEET_ON | BGR555; none: 0)
  *
  * Lines starting with '#' are comments.  Nothing in it comes from the ROM. */
 #ifdef __cplusplus
@@ -66,9 +67,10 @@ void PortInputLogScheduleWarp(u32 frame, u8 player, u16 room, u8 cellX, u8 cellY
  * recorded as `human FRAME SLOT ON`.  Returns the frame, 0 when replaying. */
 u32  PortInputLogScheduleHuman(u8 slot, u8 on);
 /* A player card's colour: Kirby slot `slot` (0..3) wears paint `value`
- * (port/kirby_paint.h) from the next latch, recorded as `paint FRAME SLOT
- * VALUE`.  Returns the frame, 0 when replaying or refused. */
-u32  PortInputLogSchedulePaint(u8 slot, u32 value);
+ * and feet `feet` (port/kirby_paint.h) from the next latch, recorded as
+ * `paint FRAME SLOT VALUE [FEET]`.  Returns the frame, 0 when replaying or
+ * refused. */
+u32  PortInputLogSchedulePaint(u8 slot, u32 value, u32 feet);
 /* Tests only: write a halfword of EWRAM at the next latch, recorded as
  * `poke16 FRAME ADDR VALUE` (tools/netaudit/make_players_recordings.py). */
 u32  PortInputLogSchedulePoke16(u32 addr, u16 value);

@@ -1616,12 +1616,14 @@ carries any that fail).
 
 Every slot wears its owner's card (§15): the host's own seats its cards
 0..3, a guest's seats that guest's. A guest sends the profiles of its four
-seats (`PortCardSeatProfiles`: a line per seat, `NAME\tPAINT8`) to the host
+seats (`PortCardSeatProfiles`: a line per seat, `NAME\tPAINT8`, and
+`\tFEET4` when the card has feet of their own) to the host
 as a reliable `{t: 'card', p}` whenever they change and after every image
 (`web/ln_session.js`); the host keeps them by (device, seat)
 (`PortCardHostSetProfiles`, forgotten when the device goes) and
 `PortCardHostFrame` seals each slot's paint from `PortLnSlotOwner` as
-`PORT_LN_EV_PAINT`. A CPU slot, or one whose owner's profile has not
+`PORT_LN_EV_PAINT` (b the paint, c the feet: both parts in one event, so no
+device ever draws a Kirby with one part changed and not the other). A CPU slot, or one whose owner's profile has not
 arrived, wears the game's own colour, so a leave (or a drop) gives the
 Kirby its colour back and a slot that changes hands takes the newcomer's.
 The host names the slots the same way and relays the four names

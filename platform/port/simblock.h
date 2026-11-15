@@ -128,7 +128,11 @@ struct PortSimGame {            /* 0x70 */
     u8  paintOn;                /* nonzero while any slot's paint is set     */
     u8  paintDirty;             /* slots whose palette must be reloaded      */
     u16 paintPad;
-    u32 reserved[3];
+    /* Each slot's feet colour (the feet and the cheeks: kirby_paint.c),
+     * PORT_PAINT_FEET_ON | BGR555, 0 = shaded with the body as ever.  Was
+     * spare (reserved[0..1]); zero unless a card picks feet of their own. */
+    u16 paintFeet[4];
+    u32 reserved[1];
 };                              /* 0x40 */
 
 /* The timeline's derived state: which peer drives each Kirby slot, how many

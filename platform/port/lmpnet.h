@@ -45,7 +45,9 @@ extern "C" {
 #define PORT_LN_EV_HUMAN   5   /* a=slot 1..3 b=1 joins / 0 leaves (localmp.c)
                                 * c=owner: 0 = unchanged (a test's bare join),
                                 * else 1 + device*4 + seat (see "slots" below) */
-#define PORT_LN_EV_PAINT   6   /* a=slot 0..3 b=paint (PORT_PAINT_*, kirby_paint.c) */
+#define PORT_LN_EV_PAINT   6   /* a=slot 0..3 b=paint (PORT_PAINT_*, kirby_paint.c)
+                                * c=feet (PORT_PAINT_FEET_ON | BGR555, 0 = with
+                                * the body)                                  */
 #define PORT_LN_EV_ROOMS   7   /* a=1: rooms mode (localmp.c), the host's choice,
                                 * sealed at the session's start              */
 #define PORT_LN_EV_PSET    8   /* a=slot 0..3 b=that slot's device's settings
