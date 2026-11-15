@@ -103,7 +103,7 @@ static int sOpen;
  * from another epoch, and hold the timestep while a live peer is still in
  * one, so the 8-frame countdown cannot burn while their catch-up is in
  * flight. */
-#define INPLAY ((volatile u8 *)0x020382D0)
+#define INPLAY ((volatile u8 *)(uintptr_t)PORT_ADDR_INPUT)   /* port/wide.h */
 
 static int sPayloadMode;
 static u32 sLocalFrame;         /* frames since payload mode began         */

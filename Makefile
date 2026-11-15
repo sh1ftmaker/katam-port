@@ -82,6 +82,14 @@ INCLUDES := -I$(PORT_SRC)/include -I$(GENERATED) -Iplatform
 # own headers, so they have to be in scope before anything else is parsed.
 FORCE_INCLUDE := -include port/prelude.h -include port/ram_symbols.h -include port/rom_data.h
 
+# More than four Kirbys in one world (docs/design/ONE-WORLD-16.md):
+# KATAM_MAX_KIRBYS=4..16 with a BUILD directory of its own, e.g.
+#   make BUILD=build/w16 KATAM_MAX_KIRBYS=16 build/w16/katam-node.js
+ifneq ($(KATAM_MAX_KIRBYS),)
+DEFINES += -DKATAM_MAX_KIRBYS=$(KATAM_MAX_KIRBYS)
+FORCE_INCLUDE += -include port/wide_symbols.h
+endif
+
 # -Wno-everything is right for the decompilation itself: it is machine-shaped C
 # that warns about everything and means none of it.  The one warning that has
 # to survive is an implicit declaration.  On ARM a call to an undeclared

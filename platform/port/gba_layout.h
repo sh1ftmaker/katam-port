@@ -1472,10 +1472,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkA) == 10, "struct PaletteEf
 PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkC) == 12, "struct PaletteEffect::unkC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffect, unkE) == 14, "struct PaletteEffect::unkE moved");
 
+#if KATAM_KIRBYS <= 4  /* widened in the wide build (port/wide.h); its own asserts are in platform/wide.c */
 /* struct PaletteEffectManager -- palette_effects.h:26 */
 PORT_LAYOUT_ASSERT(sizeof(struct PaletteEffectManager) == 160, "struct PaletteEffectManager changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffectManager, unk0) == 0, "struct PaletteEffectManager::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct PaletteEffectManager, unk80) == 128, "struct PaletteEffectManager::unk80 moved");
+#endif
 
 /* struct PauseFadeStruct -- pause_fade.h:11 */
 PORT_LAYOUT_ASSERT(sizeof(struct PauseFadeStruct) == 4, "struct PauseFadeStruct changed size -- it is read at a fixed address");
@@ -1979,6 +1981,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382A0_8_1, unk00) == 0, "struct Unk_02
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382A0_8_1, unk02) == 2, "struct Unk_020382A0_8_1::unk02 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382A0_8_1, unk04) == 4, "struct Unk_020382A0_8_1::unk04 moved");
 
+#if KATAM_KIRBYS <= 4  /* widened in the wide build (port/wide.h); its own asserts are in platform/wide.c */
 /* struct Unk_020382D0 -- main.h:23 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_020382D0) == 688, "struct Unk_020382D0 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0, unk0) == 0, "struct Unk_020382D0::unk0 moved");
@@ -1992,6 +1995,7 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0, unk2A4) == 676, "struct Unk_020
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0, unk2A8) == 680, "struct Unk_020382D0::unk2A8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0, unk2AC) == 684, "struct Unk_020382D0::unk2AC moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_020382D0, unk2AD) == 685, "struct Unk_020382D0::unk2AD moved");
+#endif
 
 /* struct Unk_020382D0_sub -- main.h:18 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_020382D0_sub) == 8, "struct Unk_020382D0_sub changed size -- it is read at a fixed address");
@@ -2064,10 +2068,12 @@ PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unk4) == 4, "struct Unk_0203
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unk8) == 8, "struct Unk_02038590_4C::unk8 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_02038590_4C, unkA) == 10, "struct Unk_02038590_4C::unkA moved");
 
+#if KATAM_KIRBYS <= 4  /* widened in the wide build (port/wide.h); its own asserts are in platform/wide.c */
 /* struct Unk_03000510 -- data.h:568 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_03000510) == 5, "struct Unk_03000510 changed size -- it is read at a fixed address");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03000510, unk0) == 0, "struct Unk_03000510::unk0 moved");
 PORT_LAYOUT_ASSERT(offsetof(struct Unk_03000510, unk4) == 4, "struct Unk_03000510::unk4 moved");
+#endif
 
 /* struct Unk_030023F4 -- main.h:37 */
 PORT_LAYOUT_ASSERT(sizeof(struct Unk_030023F4) == 4, "struct Unk_030023F4 changed size -- it is read at a fixed address");

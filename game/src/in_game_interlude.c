@@ -247,7 +247,7 @@ static void StartInGameInterludeFadeOut(struct InGameInterlude *transition)
     struct PaletteEffect *effect;
 
     transition->timer = 0;
-    effect = CreatePaletteFadeToWhite(7);
+    effect = CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7));
     effect->unk8 |= 0x80;
     effect->unk4 = 0xFFFF;
     effect->unk6 = 0xFFFF;
@@ -311,7 +311,7 @@ static void StartInGameInterludeFadeIn(struct InGameInterlude *transition)
     u16 color;
 
     transition->timer = 0;
-    effect = CreatePaletteFadeFromWhite(7);
+    effect = CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7));
     effect->unk8 |= 0x80;
     effect->unk4 = 0xFFFF;
     effect->unk6 = 0xFFFF;

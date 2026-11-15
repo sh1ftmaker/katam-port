@@ -1221,7 +1221,7 @@ void sub_080021E4(void)
     levelInfo = gCurLevelInfo + var1;
     currentRoom = levelInfo->currentRoom;
 
-    if ((gUnk_03000510.unk4 & (1 << var1 | 0x10)) != 0)
+    if ((gUnk_03000510.unk4 & (1 << var1 | FREEZE_ALL)) != 0)
         return;
 
     fgInfo = gForegroundInfo[gRoomProps[currentRoom].pixelDataIdx];
@@ -1686,25 +1686,25 @@ void sub_08002C18(u16 roomId, u16 arg1, u8 arg2, u8 arg3)
 void sub_08002C98(u16 arg0, u16 *arg1, bool32 *arg2, s32 *arg3)
 {
     if (gAIKirbyState < AI_KIRBY_STATE_CUTSCENE) {
-        *arg1 = gUnk_082D8CB8[arg0];
-        *arg2 = gUnk_082D8CC0[arg0];
+        *arg1 = gUnk_082D8CB8[KATAM_ROM_ROW(arg0)];
+        *arg2 = gUnk_082D8CC0[KATAM_ROM_ROW(arg0)];
 
-        arg3[0] = gUnk_082D8CD0[arg0][0];
-        arg3[1] = gUnk_082D8CD0[arg0][1];
+        arg3[0] = gUnk_082D8CD0[KATAM_ROM_ROW(arg0)][0];
+        arg3[1] = gUnk_082D8CD0[KATAM_ROM_ROW(arg0)][1];
     }
     else if (gAIKirbyState < AI_KIRBY_STATE_NORMAL) {
-        *arg1 = gUnk_082D8CF0[arg0];
+        *arg1 = gUnk_082D8CF0[KATAM_ROM_ROW(arg0)];
         *arg2 = gUnk_082D8CF8[arg0];
 
-        arg3[0] = gUnk_082D8D08[arg0][0];
-        arg3[1] = gUnk_082D8D08[arg0][1];
+        arg3[0] = gUnk_082D8D08[KATAM_ROM_ROW(arg0)][0];
+        arg3[1] = gUnk_082D8D08[KATAM_ROM_ROW(arg0)][1];
     }
     else {
-        *arg1 = gUnk_082D8D28[arg0];
-        *arg2 = gUnk_082D8D30[arg0];
+        *arg1 = gUnk_082D8D28[KATAM_ROM_ROW(arg0)];
+        *arg2 = gUnk_082D8D30[KATAM_ROM_ROW(arg0)];
 
-        arg3[0] = gUnk_082D8D40[arg0][0];
-        arg3[1] = gUnk_082D8D40[arg0][1];
+        arg3[0] = gUnk_082D8D40[KATAM_ROM_ROW(arg0)][0];
+        arg3[1] = gUnk_082D8D40[KATAM_ROM_ROW(arg0)][1];
     }
 }
 
@@ -1877,7 +1877,7 @@ void sub_08003108(u8 playerId, bool32 arg1)
     struct LevelInfo *levelInfo0 = gCurLevelInfo + playerId;
     u16 currentRoom = levelInfo0->currentRoom;
 
-    if (arg1 && (gUnk_03000510.unk4 & (1 << playerId | 0x10)) == 0) {
+    if (arg1 && (gUnk_03000510.unk4 & (1 << playerId | FREEZE_ALL)) == 0) {
         const struct ForegroundPalette *fgPal = gForegroundPalettes[gRoomProps[currentRoom].paletteDataIdx];
         u16 i, why = fgPal->unk8;
 

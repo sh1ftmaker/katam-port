@@ -300,7 +300,7 @@ static void sub_080F5CD0(struct DarkMetaKnight *dmk)
                     && kirby->base.roomId == dmk->obj.base.roomId
                     && kirby->unk11A & 8)
                 {
-                    pointer = CreateRoomPaletteEffect(5, dmk->obj.base.roomId);
+                    pointer = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), dmk->obj.base.roomId);
                     pointer->unk0 = 1;
                     pointer->unkA = 0x800;
                     pointer->unk2 = 0x20;
@@ -685,7 +685,7 @@ static void sub_080F6824(struct DarkMetaKnight *dmk)
                 dmk->obj.unk83 = 0x12;
                 CreateEffectObject(&dmk->obj.base, 0, 0x2AD, 2);
                 RequestScreenShake(1, &dmk->obj.base);
-                pointer = CreateRoomPaletteEffect(5, dmk->obj.base.roomId);
+                pointer = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), dmk->obj.base.roomId);
                 pointer->unk0 = 1;
                 pointer->unkA = 0x800;
                 pointer->unk2 = 0x20;
@@ -727,7 +727,7 @@ static void sub_080F6AEC(struct DarkMetaKnight *dmk, u8 a2)
     Macro_08100F18(&dmk->obj);
     if (!a2)
     {
-        struct PaletteEffect *pointer = CreateRoomPaletteEffect(5, dmk->obj.base.roomId);
+        struct PaletteEffect *pointer = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), dmk->obj.base.roomId);
 
         pointer->unk0 = 1;
         pointer->unkA = 0xF800;

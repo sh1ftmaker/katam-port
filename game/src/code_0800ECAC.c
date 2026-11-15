@@ -43,7 +43,7 @@ void sub_0800ECAC(u8 a1, u16 a2, u16 a3) {
     r5->unk3C = 0;
     r5->unkA0 = 0;
     r5->unk44 = 0;
-    r5->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[a1];
+    r5->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(a1)];
     r5->unkA2 = 0;
     r5->unkAC = 0;
     r5->unkA4 = 0;
@@ -69,7 +69,7 @@ void sub_0800EE04(u8 a1, u32 a2 __attribute__((unused))) {
     s->unk3C = 0;
     s->unkA0 = 0;
     s->unk44 = 0;
-    s->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[a1];
+    s->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(a1)];
     s->unkA2 = 0;
     s->unkAC = 0;
     s->unkA4 = 0;

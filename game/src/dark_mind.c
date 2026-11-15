@@ -6236,7 +6236,7 @@ static void sub_0810C62C(struct DarkMindForm2 *r5)
     r5->unk0.unk9F = 0;
     r5->unk0.base.counter = 360;
     RequestScreenShake(5, &r5->unk0.base);
-    s = CreateRoomPaletteEffect(5, r5->unk0.base.roomId);
+    s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r5->unk0.base.roomId);
     s->unk0 = 3;
     s->unk8 |= 0x40;
     s->unkA = 0x20;
@@ -6262,7 +6262,7 @@ static void sub_0810C6A4(struct DarkMindForm2 *r7)
         CpuFill32(0, (void *)0x600E800, 0x1000);
         if (gKirbys[gLocalPlayerId].base.roomId == r7->unk0.base.roomId)
             gCurLevelInfo[gLocalPlayerId].unk0 = 1;
-        s = CreateRoomPaletteEffect(5, r7->unk0.base.roomId);
+        s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r7->unk0.base.roomId);
         s->unk0 = 3;
         s->unkA = 0xFF00;
         s->unkC = 0x1F00;
@@ -9644,7 +9644,7 @@ static struct Task *sub_08113508(struct DarkMindForm2 *r5, u16 r6)
         var->unk4 = r6;
         var->unk6 = 8;
         var->unk8 = r5;
-        s = CreateRoomPaletteEffect(5, r5->unk0.base.roomId);
+        s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r5->unk0.base.roomId);
         s->unk0 = 1;
         s->unkA = 0x400;
         s->unk2 = 0x20;
@@ -9662,7 +9662,7 @@ static void sub_081135A8(void)
 
     if (r4->unk0.base.flags & 0x1000)
     {
-        struct PaletteEffect *s = CreateRoomPaletteEffect(5, r4->unk0.base.roomId);
+        struct PaletteEffect *s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r4->unk0.base.roomId);
 
         s->unk0 = 1;
         s->unkA = 0xFF00;
@@ -9682,7 +9682,7 @@ static void sub_081135A8(void)
             --r2->unk6;
             if (!r2->unk6)
             {
-                struct PaletteEffect *s = CreateRoomPaletteEffect(5, r4->unk0.base.roomId);
+                struct PaletteEffect *s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r4->unk0.base.roomId);
 
                 s->unk0 = 1;
                 s->unkA = 0xFF00;
@@ -9748,7 +9748,7 @@ static void sub_081138D0(struct Task *t)
     if (t->main == FN(sub_0811370C))
     {
         r2->unk6 = 9;
-        r0 = CreateRoomPaletteEffect(5, r3->unk0.base.roomId);
+        r0 = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), r3->unk0.base.roomId);
         r0->unk0 = 1;
         r0->unkA = 0x400;
         r0->unk2 = 0x20;
@@ -9772,7 +9772,7 @@ static void sub_08113940(void)
         --r2->unk6;
         if (!r2->unk6)
         {
-            s = CreateRoomPaletteEffect(5, ip->unk0.base.roomId);
+            s = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), ip->unk0.base.roomId);
             s->unk0 = 1;
             s->unkA = 0xFF00;
             s->unkC = 0x2000;

@@ -290,6 +290,9 @@ void PortSimBlockInit(void)
     gPortSim->view.viewW = gPortSim->view.prevW = PORT_SCREEN_W;
     gPortSim->view.viewH = gPortSim->view.prevH = PORT_SCREEN_H;
     gPortSim->view.stock = 1;
+#if KATAM_WIDE
+    PortWideInit();   /* port/wide.h */
+#endif
 }
 
 /* Microseconds from an arbitrary origin, for statistics only (netsim.c).

@@ -739,7 +739,14 @@ void PortStateHashes(u32 out[PORT_HASH_COUNT])
     }
     h = HashWords(h, fs, sizeof fs);
     /* The port sim block (port/simblock.h): no host pointers in it, by rule. */
+#if KATAM_WIDE
+    /* ...except the wide build's moved game tables (port/wide.h), which are
+     * game memory and are canonicalised like the EWRAM they came from. */
+    h = HashWords(h, (const void *)(uintptr_t)PORT_SIM_BASE, WIDE_SIM_OFFSET);
+    h = HashWordsCanon(h, PORT_SIM_BASE + WIDE_SIM_OFFSET, PortSimUsedBytes() - WIDE_SIM_OFFSET);
+#else
     h = HashWords(h, (const void *)(uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
+#endif
     out[PORT_HASH_SIM] = h;
 
     h = FNV_INIT;
@@ -812,7 +819,23 @@ static void DumpTo(u8 *d)
         PortPpuStateSave(d);
     d += 64;
     PUT((uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
+#if KATAM_WIDE
+    /* The wide area as hashed: canonicalised (port/wide.h). */
+    PUT((uintptr_t)PORT_SIM_BASE, WIDE_SIM_OFFSET);
+    {
+        u32 j;
+
+        for (j = WIDE_SIM_OFFSET; j < PortSimUsedBytes(); j += 4) {
+            const u8 *s = (const u8 *)(uintptr_t)(PORT_SIM_BASE + j);
+            u32 w = CanonAt(PORT_SIM_BASE + j, (u32)s[0] | ((u32)s[1] << 8)
+                                               | ((u32)s[2] << 16) | ((u32)s[3] << 24));
+            d[0] = (u8)w; d[1] = (u8)(w >> 8); d[2] = (u8)(w >> 16); d[3] = (u8)(w >> 24);
+            d += 4;
+        }
+    }
+#else
     PUT((uintptr_t)PORT_SIM_BASE, PortSimUsedBytes());
+#endif
 #undef PUT
 }
 

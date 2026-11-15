@@ -289,7 +289,7 @@ static void sub_0801CC30(struct Unk_0801C6F8 *var)
 
     LoadBgPaletteAndPaletteEffectSource(r2->palette, 0, 0x60);
     LoadBgPaletteAndPaletteEffectSource(bg->palette, bg->paletteOffset, bg->paletteSize);
-    unkStruct = CreatePaletteFadeFromWhite(7);
+    unkStruct = CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7));
     unkStruct->unk8 |= 0x180;
     unkStruct->unk4 = 0xFFFF;
     unkStruct->unk6 = 0xFFFF;
@@ -334,7 +334,7 @@ static void sub_0801CE74(struct Unk_0801C6F8 *var)
         m4aSongNumStart(SE_MIRROR_COMPLETE);
     else
         m4aSongNumStart(SE_SHARD_OBTAINED);
-    unkStruct = CreatePaletteFadeToWhite(7);
+    unkStruct = CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7));
     unkStruct->unk8 |= 0x180;
     unkStruct->unk6 = 0;
     unkStruct->unk4 = 6;
@@ -366,7 +366,7 @@ static void sub_0801CF00(struct Unk_0801C6F8 *var)
 static void sub_0801CF78(struct Unk_0801C6F8 *var)
 {
     struct Sprite sprite;
-    struct PaletteEffect *unkStruct = CreatePaletteFadeFromWhite(7);
+    struct PaletteEffect *unkStruct = CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7));
 
     unkStruct->unk8 |= 0x180;
     unkStruct->unkA = unkStruct->unkA >> 2;
@@ -540,7 +540,7 @@ static void sub_0801D568(struct Unk_0801C6F8 *var)
 static void sub_0801D584(struct Unk_0801C6F8 *var)
 {
     u16 color = RGB_WHITE;
-    struct PaletteEffect *unkStruct = CreatePaletteFadeToWhite(7);
+    struct PaletteEffect *unkStruct = CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7));
 
     unkStruct->unk8 |= 0x180;
     unkStruct->unk4 = 0xFFFF;

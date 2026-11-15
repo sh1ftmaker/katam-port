@@ -58,7 +58,7 @@ extern "C" {
             } \
         } \
     } \
-    if (gUnk_03000510.unk4 & ((1 << _r3) | 0x10) && !(_obj->flags & 0x2000)) { \
+    if (gUnk_03000510.unk4 & ((1 << _r3) | FREEZE_ALL) && !(_obj->flags & 0x2000)) { \
         EffectObjectDisplaySprite(_obj); \
         return; \
     } \
@@ -224,7 +224,7 @@ extern "C" {
  * register LSL gives 0, and a compiler may assume it cannot happen at all.
  * Spelled out as what the console computed. */
 #define Macro_0810B1F4(objBase) (gUnk_03000510.unk4 & \
-    (((objBase)->unk56 < 32 ? 1 << (objBase)->unk56 : 0) | 0x10))
+    (((objBase)->unk56 < 32 ? 1 << (objBase)->unk56 : 0) | FREEZE_ALL))
 
 #define Macro_081003EC(obj, objBase) ({ \
     (obj)->unkA4 = gCurLevelInfo[(objBase)->unk56].unkA0 >> 8; \

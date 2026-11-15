@@ -93,6 +93,11 @@ static int RangeOk(uintptr_t addr, u32 len)
         { GBA_IO_BASE,    GBA_IO_SIZE    }, { GBA_PLTT_BASE,  GBA_PLTT_SIZE  },
         { GBA_VRAM_BASE,  GBA_VRAM_SIZE  }, { GBA_OAM_BASE,   GBA_OAM_SIZE   },
         { GBA_ROM_BASE,   GBA_ROM_MAX    }, { GBA_SRAM_BASE,  GBA_SRAM_SIZE  },
+#if KATAM_WIDE
+        /* The wide build's moved per-player tables (port/wide.h): game
+         * memory now, filled and copied by the game's own transfers. */
+        { WIDE_BASE,      WIDE_BYTES     },
+#endif
     };
     u32 i;
 

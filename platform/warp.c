@@ -164,7 +164,7 @@ static void Deliver(u8 playerId, u16 room, u8 cellX, u8 cellY)
 
 void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY)
 {
-    if (playerId >= 4) {
+    if (playerId >= KATAM_KIRBYS) {   /* port/wide.h: 4 unless the wide build */
         PortLog("[katam-port] warp: player %u does not exist", (unsigned)playerId);
         return;
     }

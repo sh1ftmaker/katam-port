@@ -2617,8 +2617,8 @@ bool32 sub_08014454(struct Unk_02038590 *a1) {
                     a1->unkA8 = sub_08013DB4(a1->unk40->base.unk56);
                     a1->flags &= ~0x20;
                     a1->unk18 = 0x321;
-                    a = gUnk_082D8D08[a1->unk40->base.unk56][0] >> 0xC;
-                    b = gUnk_082D8D08[a1->unk40->base.unk56][1] >> 0xC;
+                    a = gUnk_082D8D08[KATAM_ROM_ROW(a1->unk40->base.unk56)][0] >> 0xC;
+                    b = gUnk_082D8D08[KATAM_ROM_ROW(a1->unk40->base.unk56)][1] >> 0xC;
                     sl = gUnk_08D6CD0C[a1->unk18];
                     r4 = gUnk_08D6CD0C[CurrentRoom(a1->unk14)];
                     if (sub_080551FC(a1->unk40, 0x321, a, b)) {
@@ -4110,6 +4110,14 @@ void sub_08017950(struct Unk_02038590 *a1) {
 
                 if (a < a1->unk14->roomHeight >> 4
                     && !(gCollisionAttributes[sub_080024F0(a1->unk14, a1->unk40->base.x >> 0xC, a)] & 0x200)) {
+#if KATAM_WIDE
+                    /* PORT: the wide build reaches this with no target (the
+                     * console reads BIOS memory through NULL here; a native
+                     * host faults).  No target: as if far away. */
+                    if (a1->unk48 == NULL)
+                        b = 0x10;
+                    else
+#endif
                     b = ((a1->unk40->base.x - a1->unk48->base.x) * 0x100) >> 0x10;
                     if (b < 0) b = -b;
                     if (b < 0x10)
