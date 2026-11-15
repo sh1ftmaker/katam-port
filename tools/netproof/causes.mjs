@@ -69,7 +69,13 @@ export const NOTES = `
   and replayed frames (R9 counts).  SRAM is in every keyframe and image so the
   simulation stays exact, but the *storage write* must only happen from final
   frames (e.g. persist when the SRAM region hash of a verified frame changes).
-  Not built: the node rig has no storage.
+  Built for the guest, more simply: a guest's save memory is the host's (the
+  session's world), so from its \`PortLnStart\` until the page reloads nothing
+  it holds reaches its storage (\`platform/sram.c\` PortSramPersistBlock; the
+  page asks \`PortSramPersistAllowedJs\` before every write) and its own save
+  is never restored over the host's.  The host persists as usual: it never
+  rewinds.  \`tools/netproof/save_test.mjs\` runs the page's own save code in
+  both instances: the guest's stored save survives byte for byte.
 - **Device settings edited on the pause SETTINGS page.**  Built: the page
   edits a session copy (sim block); each device applies its own player's
   edits when the frame is final.  Same treatment is still needed for the front
@@ -86,16 +92,17 @@ export const NOTES = `
 
 ### Device-dependent inputs a real build must make common (not visible to two identical instances)
 
-From the audit agent (\`../netaudit-wt\`), checked against the code, not run here:
-the audio device's rate / block size reach \`gSoundInfo\` from frame 0 (the rig
-runs both instances with audio off, so it cannot see it; a guest that takes
-the host's image gets the host's values, but the guest's audio host must not
-rewrite them); \`AudioTopUp\` (\`platform/web/host_web.c\`) runs extra
-\`m4aSoundMain\` when the queue starves -- now also suppressed while
-\`PortLnActive()\` (this branch); the sim view follows each display unless
+From the audit (\`tools/netaudit/matrix.py\`, its "in a session" rows), now
+handled by \`platform/lnsession.c\` as a session starts: the mixer runs against a
+canonical device (47782 Hz x 800 a frame, every frame, device or none;
+\`platform/audio.c\`) and only the output is resampled to the device -- R12
+runs host and guest with different audio device models, or none, and every
+gate holds; \`AudioTopUp\` (\`platform/web/host_web.c\`) is suppressed while
+\`PortLnActive()\`; the sim view follows each display unless
 \`PortSimViewUseSession\` is used (\`PortLnStart\` calls it; view changes are
-sealed VIEW events); \`PortLmpP2InputAvailable\` (touch-only device) is read by
-the front-end MULTIPLAYER screen inside the simulation.
+sealed VIEW events); the page's widescreen experiment is held at the hardware
+view (\`platform/view.c\`); \`PortLmpP2InputAvailable\` is 1 in a session
+(\`platform/localmp.c\`); the randomizer's settings travel in the image.
 
 ### Not verified / not run
 
@@ -108,7 +115,8 @@ the front-end MULTIPLAYER screen inside the simulation.
 - Native gdb watchpoints were not needed: every mismatch was localised by
   image diff to a named symbol and its writer found by reading the code.
 - The "save already loaded" flag ablation cannot diverge in node (no stored
-  save); in a browser the guest would load its own save over the host's.
+  save).  The guest now sets it as its session starts; save_test.mjs checks
+  with a stored save that it is never restored after that.
 - Host frozen / host at 30 Hz were measured; a host that *migrates* (host
   leaves) is not designed or tested.
 - Cell phone: one call at a time; in the scripted part player 2 calls (battery

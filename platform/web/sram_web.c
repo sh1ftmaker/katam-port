@@ -26,3 +26,10 @@ EM_JS(void, PortSramMarkDirty, (void), {
     if (Module.portSramDirty)
         Module.portSramDirty();
 });
+
+/* For the page: may it write save memory to storage now?  0 on a device that
+ * has been an online guest since the page loaded (platform/sram.c). */
+EMSCRIPTEN_KEEPALIVE int PortSramPersistAllowedJs(void)
+{
+    return PortSramPersistAllowed();
+}

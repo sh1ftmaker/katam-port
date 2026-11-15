@@ -86,6 +86,7 @@ int  PortLnImageLoad(u32 len);
 #define PORT_LN_SKIP_SRAMLOAD 0x08   /* "the save is already loaded"        */
 #define PORT_LN_SKIP_VIEW     0x10   /* the session view's event list       */
 #define PORT_LN_SKIP_HOST     0x20   /* platform/menu_poc.c's host state     */
+#define PORT_LN_SKIP_RANDO    0x40   /* the randomizer's settings            */
 void PortLnSetImageSkip(int mask);
 
 /* Diagnostics: a full image of the state at the top of `frame`, refreshed
@@ -117,6 +118,12 @@ void PortLnNoteSoundSlow(u32 id);          /* game/src/m4a.c MPlayStart      */
 void PortLnNoteSramWriteSlow(u32 bytes);   /* platform/sram.c WriteSram      */
 void PortLnNoteSettingSlow(int row);       /* platform/menu_poc.c, a value   */
 int  PortLnMuteAudio(void);                /* platform/audio.c: replayed frame */
+int  PortLnAudioMuted(void);               /* platform/m4a_mixer.c: block unheard */
+
+/* platform/lnsession.c: the device side of a session (canonical audio,
+ * the page's view experiment held off, the guest's own save kept out). */
+void PortLnDeviceBegin(int role);
+void PortLnDeviceEnd(void);
 
 #define PortLnNoteSound(id)      do { if (gPortLnOn) PortLnNoteSoundSlow(id); } while (0)
 #define PortLnNoteSramWrite(n)   do { if (gPortLnOn) PortLnNoteSramWriteSlow(n); } while (0)

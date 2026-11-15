@@ -31,6 +31,7 @@
  * last frame.
  */
 
+#include <math.h>
 #include <string.h>
 
 #include "port/port.h"
@@ -121,10 +122,16 @@ static int sSeenUnderruns;
 static int sQuietFrames;
 static int sQueueAvg;        /* running average of the depth, x16 */
 
+/* An online session (below) starts deeper: a guest's frames arrive less
+ * evenly than a lone game's (it holds and skips to keep its lead), so the
+ * floor there is three and a half frames. */
+static int sCanon;
+#define TARGET_FLOOR() (sCanon ? sNominal * 7 / 2 : sNominal * 5 / 2)
+
 static void TendTarget(void)
 {
     if (sTarget == 0)
-        sTarget = sNominal * 5 / 2;
+        sTarget = TARGET_FLOOR();
 #ifdef __EMSCRIPTEN__
     {
         int u = PortAudioUnderruns();
@@ -138,8 +145,8 @@ static void TendTarget(void)
         } else if (++sQuietFrames >= 1800) {
             sQuietFrames = 0;
             sTarget -= sNominal / 8;
-            if (sTarget < sNominal * 5 / 2)
-                sTarget = sNominal * 5 / 2;
+            if (sTarget < TARGET_FLOOR())
+                sTarget = TARGET_FLOOR();
         }
     }
 #endif
@@ -209,6 +216,364 @@ static void RenderTone(s16 *dst, int frames)
 }
 
 /* ------------------------------------------------------------------------- *
+ * Online sessions: the canonical device.
+ *
+ * Two devices in an online session (platform/lmpnet.c) run the same
+ * simulation and must hold byte-identical memory, and the sound engine's
+ * state is in that memory: gSoundInfo's header (the rate, the samples per
+ * frame) and every channel's envelope and sample position, which the mixer
+ * advances by the block it renders.  Off a session the block follows the
+ * device -- its rate, its callback size, its clock (ChooseBlockSize) -- and
+ * no device at all means no mixing; all of that reaches game memory
+ * (tools/netaudit: audio-on-off, audio-rate, audio-block, pace-burst-audio).
+ *
+ * So for a session the mixer runs against a device that exists nowhere: a
+ * fixed CANON_BLOCK samples a frame at CANON_RATE, on every simulated frame
+ * including replayed ones, whether or not this device has audio at all.
+ * Only what reaches the speakers adapts, outside the image: the canonical
+ * block is resampled to the device's rate, and the output length per frame
+ * is steered gently around the device's own clock from the queue depth --
+ * small ratio changes around a target fill, a dropped block (cross-faded)
+ * only when far too much is queued.  A device that will not play the block
+ * (none, or a replayed frame whose sound was already heard) gets the channel
+ * state without the samples (m4a_mixer.c, AdvanceOnly), which is exact.
+ *
+ * CANON_RATE is exactly CANON_BLOCK frames of the GBA's 59.7275 Hz, so the
+ * canonical stream is pitch-true at the game's own frame rate, and its
+ * resampled output is pitch-true at any device rate.  Off a session none of
+ * this runs and nothing above or below is changed by it. */
+#define CANON_BLOCK 800
+#define CANON_RATE  47782               /* 800 * 59.7275 */
+
+static int sReplayMix;                  /* measuring: mix unheard blocks too */
+
+/* The resampler: a 32-tap windowed sinc, 256 phases, nearest phase. */
+#define RS_TAPS   32
+#define RS_PHASES 256
+#define RS_CAP    4096                  /* canonical frames held (power of 2) */
+static float sRsH[RS_PHASES][RS_TAPS];
+static float sRsIn[RS_CAP][2];
+static s64 sRsW;                        /* canonical frames written         */
+static s64 sRsPos;                      /* read position, 32.32 frames      */
+static int sRsSkip;                     /* frames of a dropped block, to skip */
+static int sRsDesignedFor;
+static u32 sCenterAcc;
+static int sCQueueAvg;
+static s16 sRsOut[PORT_AUDIO_MAX_BLOCK * 2];
+static int sPadCool;
+static u32 sCanonOut[7];                /* pushes, frames out, drops, pads,
+                                           muted, frames in, us resampling
+                                           (diagnostics) */
+u64 PortHostMicros(void);
+
+static void RsDesign(int outRate)
+{
+    double fc = 0.5 * 0.92 * (outRate < CANON_RATE ? (double)outRate / CANON_RATE : 1.0);
+    const double pi = 3.14159265358979323846;
+    int ph, t;
+
+    for (ph = 0; ph < RS_PHASES; ph++) {
+        double sum = 0, frac = (double)ph / RS_PHASES;
+
+        for (t = 0; t < RS_TAPS; t++) {
+            double d = (double)t - (RS_TAPS / 2 - 1) - frac;
+            double x = 2.0 * fc * d;
+            double k = d == 0.0 ? 2.0 * fc : sin(pi * x) / (pi * d);
+            double u = d / RS_TAPS;     /* -0.5 .. 0.5 */
+            double w = 0.42 + 0.5 * cos(2.0 * pi * u) + 0.08 * cos(4.0 * pi * u);
+
+            sRsH[ph][t] = (float)(k * w);
+            sum += k * w;
+        }
+        for (t = 0; t < RS_TAPS; t++)
+            sRsH[ph][t] = (float)(sRsH[ph][t] / sum);
+    }
+    sRsDesignedFor = outRate;
+}
+
+static void RsReset(void)
+{
+    memset(sRsIn, 0, sizeof sRsIn);
+    sRsW = 0;
+    /* Lag the writer by half the filter, so the last output of a block has
+     * its whole window already written. */
+    sRsPos = -((s64)(RS_TAPS / 2 + 1) << 32);
+    sRsSkip = 0;
+    sCQueueAvg = 0;
+    sCenterAcc = 0;
+    sPadCool = 0;
+}
+
+static void RsFeed(const s16 *block, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++) {
+        float *d = sRsIn[(sRsW + i) & (RS_CAP - 1)];
+
+        d[0] = block ? block[i * 2] * (1.0f / 32768.0f) : 0.0f;
+        d[1] = block ? block[i * 2 + 1] * (1.0f / 32768.0f) : 0.0f;
+    }
+    sRsW += n;
+}
+
+static void RsAt(s64 pos, float *l, float *r)
+{
+    s64 ip = pos >> 32;
+    const float *h = sRsH[(u32)(pos >> 24) & (RS_PHASES - 1)];
+    s64 base = ip - (RS_TAPS / 2 - 1);
+    float a = 0, b = 0;
+    int t;
+
+    for (t = 0; t < RS_TAPS; t++) {
+        const float *x = sRsIn[(base + t) & (RS_CAP - 1)];
+
+        a += x[0] * h[t];
+        b += x[1] * h[t];
+    }
+    *l = a;
+    *r = b;
+}
+
+static s16 ToS16(float v)
+{
+    v *= 32768.0f;
+    if (v > 32767.0f) return 32767;
+    if (v < -32768.0f) return -32768;
+    return (s16)lrintf(v);
+}
+
+/* Render `outN` device frames from the next `n` canonical ones (plus a
+ * dropped block before them, cross-faded out). */
+static void RsOut(int n, int outN)
+{
+    s64 step = ((s64)n << 32) / outN;
+    int xf = sRsSkip ? (outN < 256 ? outN : 256) : 0;
+    int i;
+
+    for (i = 0; i < outN; i++) {
+        s64 pos = sRsPos + step * i;
+        float l, r;
+
+        if (sRsSkip) {
+            float l2, r2;
+
+            RsAt(pos + ((s64)sRsSkip << 32), &l2, &r2);
+            if (i < xf) {
+                float g = (float)(i + 1) / (float)xf;
+
+                RsAt(pos, &l, &r);
+                l = l * (1.0f - g) + l2 * g;
+                r = r * (1.0f - g) + r2 * g;
+            } else {
+                l = l2; r = r2;
+            }
+        } else {
+            RsAt(pos, &l, &r);
+        }
+        sRsOut[i * 2] = ToS16(l);
+        sRsOut[i * 2 + 1] = ToS16(r);
+    }
+    sRsPos += (s64)(n + sRsSkip) << 32;
+    sRsSkip = 0;
+}
+
+/* The other large excursion, too little queued (the frames are arriving
+ * slower than the device plays: a guest holding back to its lead): this
+ * block twice, the second pass cross-faded in over the end of the first --
+ * one frame more in the queue without a gap or a pitch change. */
+static int RsOutPad(int n, int outN)
+{
+    s64 step = ((s64)n << 32) / outN;
+    int xf = outN < 256 ? outN / 2 : 256;
+    int total = 2 * outN - xf, i;
+
+    if (total > PORT_AUDIO_MAX_BLOCK)
+        return 0;
+    for (i = 0; i < total; i++) {
+        float l, r;
+
+        if (i < outN - xf) {
+            RsAt(sRsPos + step * i, &l, &r);
+        } else if (i < outN) {
+            float l2, r2, g = (float)(i - (outN - xf) + 1) / (float)xf;
+
+            RsAt(sRsPos + step * i, &l, &r);
+            RsAt(sRsPos + step * (i - (outN - xf)), &l2, &r2);
+            l = l * (1.0f - g) + l2 * g;
+            r = r * (1.0f - g) + r2 * g;
+        } else {
+            RsAt(sRsPos + step * (i - (outN - xf)), &l, &r);
+        }
+        sRsOut[i * 2] = ToS16(l);
+        sRsOut[i * 2 + 1] = ToS16(r);
+    }
+    sRsPos += (s64)n << 32;
+    return total;
+}
+
+int PortAudioCanonical(void)
+{
+    return sCanon;
+}
+
+/* Called by the mixer at every render in a session: the fixed voices' step
+ * from the engine's own rate index (so it is the same on every device even
+ * if an image brought a different one), and whether to make samples. */
+int PortAudioCanonRender(struct SoundInfo *soundInfo)
+{
+    u32 index = soundInfo->freq;
+
+    if (index >= 1 && index <= 12)
+        PortMixerSetFixedRate((597275 * gPcmSamplesPerVBlankTable[index - 1] + 5000) / 10000);
+    else
+        PortMixerSetFixedRate(0);
+    return sRate != 0 && (sReplayMix || !PortLnAudioMuted());
+}
+
+void PortAudioSetReplayMix(int on)
+{
+    sReplayMix = on != 0;
+}
+
+static void CanonHeader(struct SoundInfo *soundInfo)
+{
+    soundInfo->pcmSamplesPerVBlank = CANON_BLOCK;
+    soundInfo->pcmFreq = CANON_RATE;
+    soundInfo->divFreq = (0x1000000 / CANON_RATE + 1) >> 1;
+    soundInfo->pcmDmaPeriod = 1;
+}
+
+static int SoundInfoLive(const struct SoundInfo *si)
+{
+    return si != NULL && si->ident >= ID_NUMBER && si->ident <= ID_NUMBER + 1;
+}
+
+/* The frame's block, to the device. */
+static void CanonVSync(struct SoundInfo *soundInfo)
+{
+    const s16 *block = NULL;
+    int have = 0, n, center, outN, queued, err, adj, limit;
+    u64 t0;
+
+    if (SoundInfoLive(soundInfo))
+        have = PortMixerTakeBlock(&block);
+    if (sRate == 0)
+        return;
+    if (PortLnMuteAudio()) {
+        sCanonOut[4]++;
+        return;
+    }
+    if (sToneHz) {
+        RenderTone(sSilence, sNominal);
+        PortAudioPush(sSilence, sNominal);
+        return;
+    }
+    if (sRsDesignedFor != sRate) {
+        RsDesign(sRate);
+        RsReset();
+    }
+    n = have > 0 ? have : CANON_BLOCK;
+    RsFeed(have > 0 ? block : NULL, n);
+    sCanonOut[5] += (u32)n;
+
+    /* The device's frames per game frame, exactly: rate / 59.7275. */
+    sCenterAcc += (u32)sRate * 10000u;
+    center = (int)(sCenterAcc / 597275u);
+    sCenterAcc %= 597275u;
+
+    TendTarget();
+    queued = PortAudioQueuedFrames();
+    if (sCQueueAvg == 0)
+        sCQueueAvg = queued << 4;
+    sCQueueAvg += queued - (sCQueueAvg >> 4);
+    err = sTarget - (sCQueueAvg >> 4);
+
+    /* Far too much queued (a burst of live frames, a guest skipping ahead):
+     * hold this block back and cross-fade over it with the next. */
+    if (err < -3 * sNominal && !sRsSkip) {
+        sRsSkip = n;
+        sCanonOut[2]++;
+        return;
+    }
+    if (sPadCool > 0)
+        sPadCool--;
+    /* Otherwise a gentle steer, at most 1% (17 cents) either way. */
+    limit = center / 100;
+    if (limit < 1) limit = 1;
+    adj = err / 16;
+    if (adj > limit) adj = limit;
+    if (adj < -limit) adj = -limit;
+    outN = (int)((s64)(center + adj) * n / CANON_BLOCK);
+    if (outN < 16) outN = 16;
+    if (outN > PORT_AUDIO_MAX_BLOCK) outN = PORT_AUDIO_MAX_BLOCK;
+    sBlock = outN;
+    t0 = PortHostMicros();
+    if (err > sNominal * 5 / 4 && sPadCool == 0 && !sRsSkip) {
+        int total = RsOutPad(n, outN);
+
+        if (total > 0) {
+            sPadCool = 30;
+            sCanonOut[3]++;
+            sCanonOut[6] += (u32)(PortHostMicros() - t0);
+            PortAudioPush(sRsOut, total);
+            sCanonOut[0]++;
+            sCanonOut[1] += (u32)total;
+            return;
+        }
+    }
+    RsOut(n, outN);
+    sCanonOut[6] += (u32)(PortHostMicros() - t0);
+    PortAudioPush(sRsOut, outN);
+    sCanonOut[0]++;
+    sCanonOut[1] += (u32)outN;
+}
+
+u32 *PortAudioCanonOutStats(void)
+{
+    return sCanonOut;
+}
+
+/* platform/lmpnet.c, as a session starts and stops. */
+void PortAudioSessionBegin(void)
+{
+    struct SoundInfo *si = SOUND_INFO_PTR;
+
+    if (sCanon)
+        return;
+    sCanon = 1;
+    if (sTarget < TARGET_FLOOR())
+        sTarget = TARGET_FLOOR();
+    PortMixerSetCanon(CANON_RATE);
+    PortMixerInit(CANON_RATE, CANON_BLOCK);
+    RsReset();
+    if (SoundInfoLive(si)) {
+        CanonHeader(si);
+        PortAudioCanonRender(si);
+    }
+    PortLog("[katam-port] audio: online session -- canonical %d Hz x %d per frame, "
+            "device %d Hz", CANON_RATE, CANON_BLOCK, sRate);
+}
+
+void PortAudioSessionEnd(void)
+{
+    struct SoundInfo *si = SOUND_INFO_PTR;
+
+    if (!sCanon)
+        return;
+    sCanon = 0;
+    PortMixerSetCanon(0);
+    if (sRate != 0) {
+        PortMixerInit(sRate, sNominal);
+        sBlock = sNominal;
+    } else {
+        PortMixerInit(0, 0);
+    }
+    if (SoundInfoLive(si))
+        PortSampleRateSet(si);
+}
+
+/* ------------------------------------------------------------------------- *
  * The hooks src/m4a.c calls into.
  * ------------------------------------------------------------------------- */
 
@@ -240,6 +605,13 @@ void PortSampleRateSet(struct SoundInfo *soundInfo)
 
     PortAudioStartup();
 
+    /* Online session: the canonical device, whatever this one is. */
+    if (sCanon) {
+        CanonHeader(soundInfo);
+        PortAudioCanonRender(soundInfo);
+        return;
+    }
+
     if (sRate == 0) {
         /* No audio device.  Leave the engine coherent -- the game reads these
          * back -- but with nothing downstream. */
@@ -270,6 +642,10 @@ void m4aSoundVSync(void)
     const s16 *block = sSilence;
     int frames;
 
+    if (sCanon) {
+        CanonVSync(soundInfo);
+        return;
+    }
     if (sRate == 0)
         return;
 
@@ -328,7 +704,8 @@ void PortAudioStartup(void)
     if (sNominal > PORT_AUDIO_MAX_BLOCK)
         sNominal = PORT_AUDIO_MAX_BLOCK;
     sBlock = sNominal;
-    PortMixerInit(sRate, sNominal);
+    if (!sCanon)
+        PortMixerInit(sRate, sNominal);
     PortLog("[katam-port] audio: %d Hz, %d samples per frame", sRate, sNominal);
 }
 

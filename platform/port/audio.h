@@ -61,6 +61,18 @@ void PortMixerRender(struct SoundInfo *soundInfo);
 int  PortMixerTakeBlock(const s16 **out);
 void PortMixerSilence(void);
 
+/* Online sessions: the canonical device (platform/audio.c).  Begin/End from
+ * platform/lnsession.c; the mixer asks PortAudioCanonRender at each render
+ * whether to make samples (1) or only advance game state (0). */
+void PortAudioSessionBegin(void);
+void PortAudioSessionEnd(void);
+int  PortAudioCanonical(void);
+int  PortAudioCanonRender(struct SoundInfo *soundInfo);
+void PortMixerSetCanon(int rate);
+u32 *PortMixerCanonStats(void);
+u32 *PortAudioCanonOutStats(void);
+void PortAudioSetReplayMix(int on);    /* measuring only: mix unheard blocks too */
+
 /* Opens the device and sizes the mixer.  Called from the patched
  * SampleFreqSet, which is the first thing SoundInit does -- everything after
  * it needs the rate.  Safe to call repeatedly. */

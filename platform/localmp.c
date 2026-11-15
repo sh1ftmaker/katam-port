@@ -71,6 +71,7 @@
 #include "port/simblock.h"
 #include "port/localmp.h"
 #include "port/rollback.h"
+#include "port/lmpnet.h"
 #include "port/netsim.h"
 #include "port/seats.h"
 
@@ -127,8 +128,15 @@ void PortLmpSetP2Input(int available)
     sP2Input = available != 0;
 }
 
+/* Read inside the simulation (the MULTIPLAYER screen dims LOCAL on a
+ * touch-only device).  In an online session (platform/lmpnet.c) player 2 is
+ * on the far side of the network with a pad of their own, and what this
+ * device has must not decide anything the other device simulates too
+ * (tools/netaudit: p2-input). */
 int PortLmpP2InputAvailable(void)
 {
+    if (PortLnActive())
+        return 1;
     return sP2Input;
 }
 

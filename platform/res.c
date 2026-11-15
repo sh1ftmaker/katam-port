@@ -14,6 +14,7 @@
 #include "global.h"
 #include "data.h"
 #include "port/port.h"
+#include "port/lmpnet.h"
 #include "port/res.h"
 #include "res_internal.h"
 
@@ -293,7 +294,14 @@ int Res_LevelSetHash(u8 out[32])
 
 int Res_ReloadRooms(const void *data, u32 size)
 {
-    int rc = ResRoomsReload(data, size);
+    int rc;
+
+    /* Not under an online session: the other device keeps the old rooms. */
+    if (PortLnActive()) {
+        PortLog("[katam-port] res: room reload refused during an online session");
+        return -1;
+    }
+    rc = ResRoomsReload(data, size);
 
     if (rc == 0)
         sHaveLevelSet = ResFinishLevelSetHash(sLevelSet);

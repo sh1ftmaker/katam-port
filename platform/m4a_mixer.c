@@ -850,6 +850,20 @@ static s32 sAccL[PORT_AUDIO_MAX_BLOCK];
 static s16 sStage[PORT_AUDIO_MAX_BLOCK * 2];
 static int sStageFrames;
 
+static int sStateOnly;      /* this render: game memory only, no samples */
+static int sCanonRate;      /* nonzero: the canonical device's rate (fixed) */
+/* Cost, for the rig: renders mixed, renders state-only, microseconds in
+ * each, active channels summed over both (diagnostics only). */
+static u32 sCanonStats[5];
+static u64 sCanonT0;
+static int sCanonTiming;
+u64 PortHostMicros(void);
+
+u32 *PortMixerCanonStats(void)
+{
+    return sCanonStats;
+}
+
 /* Phase step in the assembly's own format: a 23-bit fraction, so `>> 23` is
  * how many whole samples to advance.
  *
@@ -907,11 +921,68 @@ void PortMixerSetFixedRate(int gbaPcmFreq)
     sFixedStep = StepFor((u32)gbaPcmFreq);
 }
 
+/* Online sessions: the mixer's rate and block become the canonical device's
+ * (rate 0: back to the device, which the caller then re-inits). */
+void PortMixerSetCanon(int rate)
+{
+    sCanonRate = rate;
+}
+
 void PortMixerSilence(void)
 {
     sStageFrames = 0;
     memset(sRingR, 0, sizeof(s32) * (size_t)sRingLen);
     memset(sRingL, 0, sizeof(s32) * (size_t)sRingLen);
+}
+
+/* Online sessions (platform/audio.c, "the canonical device"): the mixer runs
+ * at a fixed rate and block on every device, and only a device that will
+ * play the block needs its samples.  The others -- no audio device, or a
+ * replayed frame whose sound was already heard -- only need what the mix
+ * leaves in game memory: each channel's envelope (computed exactly as below)
+ * and its sample position.  The position after a block has a closed form,
+ * so a frame nobody hears costs a few multiplies per channel instead of
+ * a block of samples.  Exactness: see AdvanceOnly. */
+
+/* The per-sample loop below, without the samples, in closed form.
+ *
+ * fw is the 23-bit fractional phase: every sample adds `step` and moves the
+ * read pointer by fw >> 23, keeping the remainder, so after n samples the
+ * pointer has moved floor((fw + n*step) / 2^23) and the phase is the rest --
+ * the same sum taken at once (fw < 2^23 + step < 2^31, so nothing wraps).
+ * `remain` only ever falls; it is tested on every sample that moves the
+ * pointer, so "it reached <= 0 at some sample" is "it is <= 0 at the end",
+ * provided the pointer moved at all.  Then, as below: no loop ends the
+ * channel without writing cp/ct/fw back; a loop adds loopLen until positive
+ * -- the result is the residue in (0, loopLen] -- and the pointer is
+ * loopLen - remain past the loop start.  A channel that never wrapped just
+ * moved `whole` samples.  A non-positive loop length would spin forever in
+ * the loop below too; it is left to that loop. */
+static int AdvanceOnly(struct SoundChannel *chan, const s8 *p, s32 remain, u32 fw,
+                       u32 step, const s8 *loopPtr, s32 loopLen, int frames)
+{
+    u64 tot = (u64)fw + (u64)step * (u32)frames;
+    s32 whole = (s32)(tot >> 23);
+
+    if (loopLen < 0)
+        return 0;
+    fw = (u32)tot & 0x7FFFFF;
+    if (whole != 0) {
+        remain -= whole;
+        if (remain > 0) {
+            p += whole;
+        } else if (loopLen == 0) {
+            chan->status = 0;
+            return 1;
+        } else {
+            remain = loopLen - (s32)((u32)(-remain) % (u32)loopLen);
+            p = loopPtr + (loopLen - remain);
+        }
+    }
+    chan->cp = (u32)(uintptr_t)p;
+    chan->ct = (u32)remain;
+    chan->fw = fw;
+    return 1;
 }
 
 static void MixChannel(struct SoundInfo *soundInfo, struct SoundChannel *chan,
@@ -1029,6 +1100,9 @@ setvol:
     el = chan->el;
     step = (chan->type & TONEDATA_TYPE_FIX) ? sFixedStep : StepFor(chan->freq);
 
+    if (sStateOnly && AdvanceOnly(chan, p, remain, fw, step, loopPtr, loopLen, frames))
+        return;
+
     /* The envelope moves once a frame, and on the console the volume jumps
      * with it: every channel that is fading takes a small step at each block
      * edge, sixty times a second.  Through an 8-bit DAC at 15.7 kHz that is
@@ -1097,6 +1171,29 @@ void PortMixerRender(struct SoundInfo *soundInfo)
     if (sRate == 0 || frames <= 0)
         return;
 
+    /* Online session: the canonical device (see sStateOnly).  Nothing below
+     * this block changes game memory except MixChannel, so a render nobody
+     * will hear runs MixChannel alone, without samples. */
+    if (sCanonRate) {
+        u64 t0 = PortHostMicros();
+
+        for (ch = 0; ch < soundInfo->maxChans; ch++)
+            if (soundInfo->chans[ch].status & 0xC7)
+                sCanonStats[4]++;
+        sStateOnly = !PortAudioCanonRender(soundInfo);
+        if (sStateOnly) {
+            for (ch = 0; ch < soundInfo->maxChans; ch++)
+                MixChannel(soundInfo, &soundInfo->chans[ch], frames);
+            sStateOnly = 0;
+            sStageFrames = 0;
+            sCanonStats[1]++;
+            sCanonStats[3] += (u32)(PortHostMicros() - t0);
+            return;
+        }
+        sCanonT0 = t0;
+        sCanonTiming = 1;
+    }
+
     /* Reverb, exactly as SoundMainRAM does it: the block about to be written
      * is summed with the one after it in the ring -- both holding audio from a
      * full trip round the ring ago -- scaled by soundInfo->reverb, and used as
@@ -1145,6 +1242,11 @@ void PortMixerRender(struct SoundInfo *soundInfo)
 
     sRingPos = (sRingPos + frames) % sRingLen;
     sStageFrames = frames;
+    if (sCanonTiming) {
+        sCanonTiming = 0;
+        sCanonStats[0]++;
+        sCanonStats[2] += (u32)(PortHostMicros() - sCanonT0);
+    }
 }
 
 /* Hand the finished block to the transport.  Returns 0 when SoundMain has not

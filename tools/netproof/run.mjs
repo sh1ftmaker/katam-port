@@ -32,7 +32,13 @@ export async function runSession(cfg) {
     // menus: 'session' (default: off for the boot, on from the session start, so
     // the pause SETTINGS page exists), 'boot' (on from power-on), 'off'
     const menus = c.menus || sc.menus || 'session';
-    const host = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'host', menus: menus === 'boot' ? 1 : 0 });
+    // Audio device models (c.hostAudio / c.guestAudio, instance.mjs
+    // audioDevice): on each side's own clock; the host's boot runs on a
+    // clock of its own frames.
+    let bootT = 0, hostClockF = () => bootT, guestClockF = () => 0;
+    const host = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'host', menus: menus === 'boot' ? 1 : 0,
+                                        audio: c.hostAudio || null, clock: () => hostClockF(), modulePre: c.hostModulePre || null });
+    if (c.hostPre) c.hostPre(host);
     host.M._PortLmpSetHumans(sc.localmp || 2);
     // events before the session (a recording's boot: its view, early warps)
     for (const e of sc.events) if (e.f < c.startFrame) {
@@ -44,6 +50,7 @@ export async function runSession(cfg) {
         host.M._PortSetKeys(sc.p1(f, null));
         host.M._PortLmpSetHostKeys(1, sc.p2(f, null));
         await host.step();
+        bootT += PERIOD;
     }
     // the pause SETTINGS page needs the new menus; turned on with the session
     if (menus === 'session') host.M._PortMenuPocSet(1);
@@ -54,7 +61,8 @@ export async function runSession(cfg) {
     const endFrame = S + c.durationFrames;
 
     // --- guest: a fresh instance that never sees the menus ---
-    const guest = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'guest', render: c.renderGuest });
+    const guest = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'guest', render: c.renderGuest,
+                                         audio: c.guestAudio || null, clock: () => guestClockF(), modulePre: c.guestModulePre || null });
     if (c.guestPre) c.guestPre(guest);
     if (!guest.M._PortLnStart(2, c.kfEvery, c.kfCount, c.flags | F_HASH_EVERY))
         throw new Error('guest PortLnStart failed (memory for keyframes?)');
@@ -63,6 +71,8 @@ export async function runSession(cfg) {
     const link = new Link(sch, c.seed * 1000003 + 17, c.link);
     const hostClock = () => sch.now * (1 + hostCfg.drift);
     const guestClock = () => sch.now * (1 + guestCfg.drift);
+    hostClockF = () => bootT + hostClock();
+    guestClockF = () => guestClock();
     const frozen = (cf, t) => cf.freezes.some(([a, d]) => t >= a && t < a + d);
     const backlog = { host: [], guest: [] };
     const deliver = (who, fn) => (x) => {
@@ -286,6 +296,7 @@ export async function runSession(cfg) {
     res.topOther = corr.filter((x) => x.sameRoom & 1).sort((a, b) => oth(b) - oth(a)).slice(0, 8);
     res.feel.roomChangeCorrections = corr.filter((x) => x.kind === 1 && x.sameRoom !== 3).length;
     res.link = link.st;
+    res.audio = { host: host.audioStats(), guest: guest.audioStats() };
     res.coverage = Object.assign({}, cov, { rooms: [...cov.rooms].sort((a, b) => a - b), abilities: [...cov.abilities] });
     res.wallSec = +((performance.now() - t0wall) / 1000).toFixed(1);
     res.dumps = c.dumpAt !== null ? dumps : undefined;
@@ -298,5 +309,6 @@ export async function runSession(cfg) {
 function summaryCfg(c) {
     return { seed: c.seed, link: c.link, host: c.host, guest: c.guest, kfEvery: c.kfEvery, kfCount: c.kfCount,
              durationFrames: c.durationFrames, joinFrame: c.joinFrame, lockstep: c.lockstep, forceRewind: c.forceRewind,
-             flags: c.flags, renderGuest: c.renderGuest, corrupt: (c.corrupt || []).map((x) => ({ what: x.what, frame: x.frame })) };
+             flags: c.flags, renderGuest: c.renderGuest, corrupt: (c.corrupt || []).map((x) => ({ what: x.what, frame: x.frame })),
+             hostAudio: c.hostAudio || null, guestAudio: c.guestAudio || null };
 }

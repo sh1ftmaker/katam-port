@@ -254,6 +254,12 @@ void PortAudioSubmit(const float *samples, int frames);
  * PortSramMarkDirty says a byte changed.  The host debounces. */
 int  PortSramLoad(u8 *dest, u32 size);
 void PortSramMarkDirty(void);
+/* Online guest (platform/sram.c): the save memory it holds is the host's,
+ * so from the session's start until the page is reloaded nothing it holds
+ * reaches this device's storage.  PortSramPersistAllowed is what the page
+ * asks before every storage write. */
+void PortSramPersistBlock(void);
+int  PortSramPersistAllowed(void);
 
 
 #ifdef __cplusplus

@@ -313,6 +313,22 @@ the game can read -- comes from the device rate. Every run here uses
 (docs/DEBUG-TOOLING.md §7 measured it moving EWRAM at frame 63). For netplay the
 mixer will have to be driven by frames, not the device.
 
+Online local multiplayer (platform/lmpnet.c) does exactly that, for the
+session's length only (platform/lnsession.c -> `PortAudioSessionBegin`):
+the mixer runs against a canonical device -- 47782 Hz (800 x 59.7275) and 800
+samples a frame, on every simulated frame including replayed ones, whether or
+not the device has audio -- and gSoundInfo's header holds those numbers on
+every device.  A render nobody will hear (no device, or a replayed frame)
+advances the channels without making samples (`AdvanceOnly`, the closed form
+of the per-sample loop; exact).  Only the output adapts, outside the image:
+a 32-tap windowed-sinc resampler to the device rate, its output length
+steered within 1% from the queue depth, a cross-faded drop or repeat of one
+block on a large excursion.  tools/netaudit's `s-*` rows show the device
+factors gone (audio on/off, 44.1/48 kHz, callback size, 30 Hz starvation,
+bursts, replays); the rig's R12 runs host and guest with different devices.
+Off a session none of it runs: the rendered audio of a non-session run is
+byte-identical to the build before it (tools/netaudit/audio_compare.js).
+
 ## Known issues the harness tripped over
 
 All three that were here are fixed, and the recordings now cover them:

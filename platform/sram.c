@@ -83,6 +83,7 @@ extern const char gAgbSramLibVer[];
 const char gAgbSramLibVer[] = "NINTENDOSRAM_V113";
 
 static int sRestored;
+static int sPersistOff;
 
 /* The whole region is asked for at once, not just the range being read.  The
  * game reads a checksum out of one part of save memory and then the section
@@ -138,8 +139,28 @@ void WriteSram(const u8 *src, u8 *dest, u32 size)
         /* Online (platform/lmpnet.c): counted -- a write from a frame that
          * may yet be rewound must not reach storage in a real build. */
         PortLnNoteSramWrite(size);
-        PortSramMarkDirty();
+        if (!sPersistOff)
+            PortSramMarkDirty();
     }
+}
+
+/* An online guest holds the host's save memory -- the session's world -- and
+ * simulates frames that may yet be rewound.  None of it may reach this
+ * device's storage: from the session's start until the page is reloaded the
+ * dirty hook stays quiet, and the page asks PortSramPersistAllowed before any
+ * write of its own (its backstop scan, pagehide), so the guest's own save is
+ * exactly what it was before it joined.  The host persists as usual: it never
+ * rewinds, so every frame it simulates is final. */
+void PortSramPersistBlock(void)
+{
+    if (!sPersistOff)
+        PortLog("[katam-port] save: online guest -- this device's stored save is left as it was");
+    sPersistOff = 1;
+}
+
+int PortSramPersistAllowed(void)
+{
+    return !sPersistOff;
 }
 
 /* An online guest that took the host's image holds the host's save memory;

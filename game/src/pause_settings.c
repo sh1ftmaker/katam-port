@@ -41,6 +41,7 @@ extern "C" {
 #include "task.h"
 #include "constants/songs.h"
 #include "port/menu_poc.h"
+#include "port/localmp.h"
 
 struct PauseSettings {
     /* 0x00 */ struct Sprite cursor;
@@ -49,6 +50,8 @@ struct PauseSettings {
     /* 0x2A */ u8 nextMenuId;
     /* 0x2B */ u8 open;
     /* 0x2C */ u8 repeatIntervals[NUM_KEYS];
+    /* 0x36 */ u16 padPrev;                    /* PauseSettingsRepeat */
+    /* 0x38 */ u8 padCounters[NUM_KEYS];
 };
 
 static void PauseSettingsMain(void);
@@ -188,22 +191,47 @@ static void PauseSettingsDraw(struct PauseSettings *ps) {
     DisplaySprite(&ps->cursor);
 }
 
+/* gRepeatedKeys is the console's own pad (GetInput).  In local multiplayer
+ * the page belongs to whoever paused (pause_help.c gives that player's keys to
+ * gPauseMenus[gLocalPlayerId]); when that is player 2 -- on this screen, or
+ * online on the far side of the network -- their held keys get the same
+ * repeat GetInput gives player 1's, here.  Off local multiplayer, or with
+ * player 1 paused, this is gRepeatedKeys exactly as before. */
+static u16 PauseSettingsRepeat(struct PauseSettings *ps, const struct PauseMenu *menu) {
+    u16 held = menu->heldKeys, rep = (held ^ ps->padPrev) & held;
+    s32 i;
+
+    for (i = 0; i < NUM_KEYS; i++) {
+        if (!(held & (1 << i)))
+            ps->padCounters[i] = gKeysFirstRepeatIntervals[i];
+        else if (ps->padCounters[i] != 0)
+            ps->padCounters[i]--;
+        else {
+            rep |= 1 << i;
+            ps->padCounters[i] = gKeysContinuedRepeatIntervals[i];
+        }
+    }
+    ps->padPrev = held;
+    return PortLmpViewer() != gLocalPlayerId ? rep : gRepeatedKeys;
+}
+
 /* The pad as Game Select's sub_0813B484 reads it, A only (Start is the pause
- * screen's), and only the local player's, when the pause screen lets it. */
-static u8 PauseSettingsKey(void) {
+ * screen's), and only the pausing player's, when the pause screen lets it. */
+static u8 PauseSettingsKey(struct PauseSettings *ps) {
     struct PauseMenu *menu = &gPauseMenus[gLocalPlayerId];
+    u16 repeated = PauseSettingsRepeat(ps, menu);
 
     if (menu->flags & (MENU_FLAG_DISABLE_INPUT | MENU_FLAG_AI))
         return 0;
     if (menu->pressedKeys & A_BUTTON)
         return 1;
-    if (gRepeatedKeys & DPAD_UP)
+    if (repeated & DPAD_UP)
         return 3;
-    if (gRepeatedKeys & DPAD_DOWN)
+    if (repeated & DPAD_DOWN)
         return 4;
-    if (gRepeatedKeys & DPAD_LEFT)
+    if (repeated & DPAD_LEFT)
         return 5;
-    if (gRepeatedKeys & DPAD_RIGHT)
+    if (repeated & DPAD_RIGHT)
         return 6;
     return 0;
 }
@@ -232,7 +260,7 @@ static void PauseSettingsMain(void) {
         }
     }
 
-    key = PauseSettingsKey();
+    key = PauseSettingsKey(ps);
     switch (PortPocScreenInput(TILES, &ps->row, key)) {
     case 1:
         m4aSongNumStart(SE_MAIN_MENU_CURSOR);

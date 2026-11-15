@@ -208,6 +208,10 @@ void PortViewUpdate(void);
  * window, 2 read the room's own tilemap for what is past it. */
 void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
                      u32 tilemap);
+/* Online sessions: the experiment held at the hardware's view, the page's
+ * request kept for afterwards (platform/lnsession.c). */
+void PortViewSessionBegin(void);
+void PortViewSessionEnd(void);
 extern u32 gPortClipToStreamed, gPortSynthesiseColumns;
 
 /* The literals tools/legacy-sync/portify.py lifts out of the game's own sources.  Each
@@ -282,6 +286,10 @@ int  PortPlaytestKeyOverride(u32 frame, u16 *keys);
 int  PortPlaytestBooting(void);
 extern u32 gPortWarpCount;
 extern u32 gPortRandoFlags, gPortRandoSeed;
+/* Online sessions: the host's settings from its image; the page's request
+ * during a session, applied after it (platform/rando.c). */
+void PortRandoSessionSet(u32 flags, u32 seed);
+void PortRandoSessionEnd(void);
 
 struct LevelInfo_1E4;
 const struct LevelInfo_1E4 *PortRandoObjList(u8 playerId, u16 roomId,

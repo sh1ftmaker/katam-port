@@ -79,6 +79,9 @@ rando gPortRandoSeed setting recorded as `option rando`
 rando sReportedOverflow diagnostic log once
 rando sRoomsSeen diagnostic PortRandoReport
 rando sSwapsMade diagnostic PortRandoReport
+rando sRandoHeld setting the page's request during an online session, applied after it
+rando sRandoHeldFlags setting the page's request during an online session, applied after it
+rando sRandoHeldSeed setting the page's request during an online session, applied after it
 warp gPortWarpCount diagnostic warps delivered
 localmp sSetting setting local multiplayer switch; recorded as `option localmp`, reaches the game at its start
 localmp sFromHost setting whether the local multiplayer switch came from the host (env/URL/recording option), so only that is written into a recording as `option localmp`
@@ -88,6 +91,7 @@ localmp sTrace diagnostic KATAM_LOCAL_MP_TRACE, a log interval
 localmp sMinZoom presentation the shared camera's zoom floor (KATAM_LOCAL_MP_MINZOOM), read only by platform/ui/present.c
 bios _ZZ10CpuRangeOkE9sReported diagnostic log once
 sram sRestored diagnostic host loaded a save file at boot
+sram sPersistOff setting online guest: this device's storage is not written (never read by the game)
 dma sChannels host-state armed DMA channels; serialised canonically (PortDmaStateCanon)
 dma sBadByShape diagnostic transfer statistics
 dma sBadTransfers diagnostic transfer statistics

@@ -27,9 +27,58 @@ function cstr(M, p) {
     return s;
 }
 
-export async function createInstance({ modulePath, rom, name, render = false, menus = 0, quiet = true, onLog }) {
+// An audio device model on the caller's clock (ms): the browser transport's
+// interface (platform/web/audio_out_web.c) -- a queue the device drains in
+// callbacks of `quantum` frames at `rate`, with optional jitter; `live` makes
+// the context report "running" (the page's AudioTopUp path); `drift` the
+// audio clock's error against the caller's (0.0005 = 500 ppm).  null: no
+// device at all (pcmSamplesPerVBlank 1 off a session).
+export function audioDevice(spec, clock) {
+    if (!spec) return null;
+    let seed = spec.seed || 1;
+    const rnd = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const q = spec.quantum || 128;
+    const dev = {
+        rate: spec.rate || 48000, depth: 0, underruns: 0, headless: true, ready: true, pending: [],
+        lastT: null, acc: 0, playing: false,
+        ctx: spec.live ? { state: 'running' } : null, rep: spec.live ? { d: 0 } : null,
+        st: { pushes: 0, frames: 0, underruns: 0, maxDepth: 0, dryFrames: 0, underrunsAfter10s: 0, dryFramesAfter10s: 0, t0: null },
+        drain() {
+            const t = clock();
+            if (this.lastT === null) this.lastT = t;
+            this.acc += Math.max(0, t - this.lastT) * this.rate * (1 + (spec.drift || 0)) / 1000;
+            this.lastT = t;
+            const slack = spec.jitter ? (rnd() - 0.5) * 2 * spec.jitter * q : 0;
+            let n = Math.max(0, Math.floor((this.acc + slack) / q) * q);
+            if (n > this.acc + q) n = Math.floor(this.acc / q) * q;
+            this.acc -= n;
+            if (n > this.depth) {
+                if (this.st.pushes > 8) {
+                    this.underruns++; this.st.underruns++; this.st.dryFrames += n - this.depth;
+                    if (t - this.st.t0 > 10000) { this.st.underrunsAfter10s++; this.st.dryFramesAfter10s += n - this.depth; }
+                }
+                this.depth = 0;
+            } else this.depth -= n;
+        },
+        queued() { this.drain(); return this.depth; },
+        push(f32) {
+            this.drain();
+            if (this.st.t0 === null) this.st.t0 = clock();
+            this.depth += f32.length >> 1;
+            this.st.pushes++;
+            this.st.frames += f32.length >> 1;
+            if (this.depth > this.st.maxDepth) this.st.maxDepth = this.depth;
+        },
+    };
+    return dev;
+}
+
+export async function createInstance({ modulePath, rom, name, render = false, menus = 0, quiet = true, onLog, audio = null, clock = null, modulePre = null }) {
     const createKatam = require(path.resolve(modulePath));
     const inst = { name, logs: [], _raf: null, _onRaf: null, frames: 0 };
+    const device = audioDevice(audio, clock || (() => 0));
+    inst.audio = device;
     const log = (t) => {
         inst.logs.push(t);
         if (inst.logs.length > 20000) inst.logs.splice(0, 5000);
@@ -39,7 +88,7 @@ export async function createInstance({ modulePath, rom, name, render = false, me
     let romReady;
     const Module = {
         portRomReady: new Promise((r) => { romReady = r; }),
-        portAudioRate: 0,
+        portAudioRate: device ? device.rate : 0,
         print: log, printErr: log, portDiag: log,
         portPresent() { inst.frames++; },
         onRuntimeInitialized() {
@@ -50,6 +99,8 @@ export async function createInstance({ modulePath, rom, name, render = false, me
             romReady();
         },
     };
+    if (device) Module.portAudio = device;
+    if (modulePre) modulePre(Module);       // a page's own hooks, before the game runs
     inst.M = Module;
     current = inst;
     const first = new Promise((r) => { inst._onRaf = r; });
@@ -127,6 +178,15 @@ function api(inst) {
             if (!r) return null;
             const p = M._PortLnDumpPtr(), n = M._PortLnImageBytes();
             return { frame: r - 1, bytes: M.HEAPU8.slice(p, p + n) };
+        },
+        // platform/audio.c + m4a_mixer.c, sessions: [mixed renders, state-only
+        // renders, us mixing, us state-only, active channels summed] and
+        // [pushes, frames out, drops, pads, muted, frames in, us resampling]
+        audioStats() {
+            if (!M._PortAudioStatsJs) return null;
+            const a = M._PortAudioStatsJs(0) >> 2, b = M._PortAudioStatsJs(1) >> 2;
+            return { mixer: Array.from(M.HEAPU32.subarray(a, a + 5)), out: Array.from(M.HEAPU32.subarray(b, b + 7)),
+                     device: inst.audio ? Object.assign({ rate: inst.audio.rate }, inst.audio.st) : null };
         },
         peek8: (a) => M.HEAPU8[a],
         peek32: (a) => M.HEAPU32[a >> 2],

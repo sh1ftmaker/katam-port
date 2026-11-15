@@ -12,6 +12,32 @@ import time
 # c state outside the image a session start must carry; d harmless but breaks
 # a whole-image hash.
 KB = {
+    's-baseline': ('-', 'Control: two processes, host sessions from frame 0.', ''),
+    's-audio-on-off': ('-', 'Canonical sound device (platform/audio.c): the mixer runs at 47782 Hz x 800 a frame on '
+                       'every device, device or none; the device-free renders advance the channels without samples '
+                       '(m4a_mixer.c AdvanceOnly).', ''),
+    's-audio-rate': ('-', 'The device rate only reaches the resampler after the image.', ''),
+    's-audio-block': ('-', 'The device queue only steers the resampler\'s output length, outside the image.', ''),
+    's-audio-phone': ('-', 'All of the phone-like device at once.', ''),
+    's-audio-live-30hz': ('-', 'AudioTopUp is held off while PortLnActive (host_web.c); starvation only shows at the sink.', ''),
+    's-pace-burst-audio': ('-', 'Bursts move only the output queue.', ''),
+    's-replays-audio': ('-', 'Replayed frames render state-only (muted, AdvanceOnly), live frames mix and resample: '
+                        'the same channel state either way, over thousands of replayed frames.', ''),
+    's-replays-noaudio': ('-', 'Replays without a device against a host with one.', ''),
+    's-replays-menus': ('-', 'Replays through the menus recording (front end, pause SETTINGS page edited by both '
+                        'players), on a guest that took the host\'s image as a joiner does.', ''),
+    's-view-follow': ('-', 'PortSimViewUseSession (PortLnStart): a display\'s request goes to the session, not the game.', ''),
+    's-view-mode': ('-', 'The widescreen experiment is held at the hardware view for the session (view.c '
+                    'PortViewSessionBegin) and the page\'s request applied after it.', ''),
+    's-p2-input': ('-', 'PortLmpP2InputAvailable is 1 in a session (localmp.c): the second player is remote.', ''),
+    's-settings-tour': ('-', 'Settings never reach the image without the menus.', ''),
+    's-settings-host': ('by design', 'The pause SETTINGS page shows the session\'s copy of the settings, which starts '
+                        'as the HOST\'s (menu_poc.c PortPocSessionSettingsInit): two hosts with different settings '
+                        'show different values while the page is up. A guest\'s never reach it: s-guest-settings.', ''),
+    's-guest-settings': ('-', 'A guest\'s stored settings never reach the image: the page draws the session copy.', ''),
+    's-guest-sram': ('-', 'A guest never loads its own save over the host\'s image (lnsession.c: PortSramSetRestored '
+                     'at the guest\'s PortLnStart).', ''),
+    's-guest-all': ('-', 'Everything about a phone guest at once.', ''),
     'baseline-tour': ('-', 'Control. Two processes, same build, same device: identical raw image on every frame.', ''),
     'baseline-menus': ('-', 'Control for the menus recording (menus on).', ''),
     'baseline-native': ('-', 'Control for the native factors (setarch -R).', ''),

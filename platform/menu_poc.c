@@ -933,13 +933,26 @@ void PortPocSessionSettingsApply(const u8 *c)
     (void)was;
     memcpy(tmp, c, sizeof tmp);
     s = gPortSettings;
-    s.renderer = tmp[1];
-    s.aspect = tmp[2];
-    s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1];
-    s.smoothCam = tmp[4];
-    s.scaling = tmp[5];
-    s.volume = tmp[6];
-    s.mute = tmp[7];
+    /* Only the row this player changed ([10], row + 1): the copy's other
+     * values are the host's, and a guest who turned its volume down must
+     * not take the host's renderer and zoom with it. */
+    switch (tmp[10] ? tmp[10] - 1 : -1) {
+    case R_GRAPHICS:  s.renderer = tmp[1]; break;
+    case R_SCREEN:    s.aspect = tmp[2]; break;
+    case R_ZOOM:      s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1]; break;
+    case R_SMOOTHCAM: s.smoothCam = tmp[4]; break;
+    case R_PIXELS:    s.scaling = tmp[5]; break;
+    case R_VOLUME:    s.volume = tmp[6]; s.mute = tmp[7]; break;
+    default:
+        s.renderer = tmp[1];
+        s.aspect = tmp[2];
+        s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1];
+        s.smoothCam = tmp[4];
+        s.scaling = tmp[5];
+        s.volume = tmp[6];
+        s.mute = tmp[7];
+        break;
+    }
     PortSettingsClamp(&s);
     gPortSettings = s;
     PortSettingsChanged();
@@ -1009,6 +1022,7 @@ static void RowStep(int row, int dir)
         ToCopy(c, &copy);
         c[8]++;
         c[9] = gUnk_0203AD50;
+        c[10] = (u8)(row + 1);
         return;
     }
     RowStepOn(s, row, dir);

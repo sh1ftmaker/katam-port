@@ -347,3 +347,19 @@ EM_JS(void, PortAudioSubmit, (const float *samples, int frames), {
     if (pa.ready) pa.push(f32);
     else if (pa.pending.length < 8) pa.pending.push(f32);
 });
+
+/* For the rig (tools/netproof): the online session's audio counters
+ * (platform/audio.c, platform/m4a_mixer.c).  0: the mixer's, 1: the
+ * output's.  And a knob for measuring: 1 makes replayed frames mix their
+ * samples too (as without AdvanceOnly), to price what that saves. */
+#include "port/audio.h"
+
+EMSCRIPTEN_KEEPALIVE u32 *PortAudioStatsJs(int which)
+{
+    return which ? PortAudioCanonOutStats() : PortMixerCanonStats();
+}
+
+EMSCRIPTEN_KEEPALIVE void PortAudioReplayMixJs(int on)
+{
+    PortAudioSetReplayMix(on);
+}

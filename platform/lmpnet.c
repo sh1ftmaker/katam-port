@@ -539,6 +539,7 @@ void PortLnStop(void)
     sRole = 0;
     sCatch = 0;
     sNumEv = 0;
+    PortLnDeviceEnd();
 }
 
 static u32 ImageBytes(void);
@@ -611,6 +612,9 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     /* Every view request on this device becomes a request to the session
      * (platform/view.c); only sealed VIEW events reach the game. */
     PortSimViewUseSession();
+    /* What about this device must not reach the session (sound, the view
+     * experiment, its stored save): platform/lnsession.c. */
+    PortLnDeviceBegin(role);
     gPortLnOn = 1;
     PortLog("[katam-port] lmpnet: %s from frame %u, keyframe every %d x %d (%u KiB each)",
             role == PORT_LN_HOST ? "host" : "guest", (unsigned)f, kfEvery,
@@ -909,6 +913,17 @@ void PortLnNoteSettingSlow(int row)
         T.settingsUnsealed++;
 }
 
+/* platform/m4a_mixer.c, as SoundMain renders: will the block it renders now
+ * be played?  It is handed over at the next present's VBlank, so it is muted
+ * when that present is still a replayed one (the last replayed frame's
+ * block is the first live one heard).  Output only: the mixer advances the
+ * same game state either way. */
+int PortLnAudioMuted(void)
+{
+    return gPortLnOn && sCatch && !(sFlags & PORT_LN_F_NO_AUDIO_CU)
+        && PortFrameNumber() < sCatchTo;
+}
+
 int PortLnMuteAudio(void)
 {
     if (!gPortLnOn || !sCatch || (sFlags & PORT_LN_F_NO_AUDIO_CU))
@@ -1080,6 +1095,8 @@ static void SaveImage(u8 *d, u32 f)
     Put32(d + 28, (u32)w); Put32(d + 32, (u32)h);
     Put32(d + 36, (u32)PortMenuPoc());
     Put32(d + 40, x);
+    Put32(d + 44, gPortRandoFlags);
+    Put32(d + 48, gPortRandoSeed);
     PortRbSnapshotSave(d + IMG_HDR);
     memcpy(d + IMG_HDR + sSnapBytes, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
     PortLnExtrasSave(d + IMG_HDR + sSnapBytes + GBA_SRAM_SIZE);
@@ -1137,6 +1154,9 @@ static void ApplyImage(void)
         PortLmpSetHumans((int)Get32(s + 16));
     if (!(sImgSkip & PORT_LN_SKIP_MENUS) && (int)Get32(s + 36) != PortMenuPoc())
         PortMenuPocSet((int)Get32(s + 36));
+    /* The randomizer is read by the simulation (rando.c): the host's. */
+    if (!(sImgSkip & PORT_LN_SKIP_RANDO))
+        PortRandoSessionSet(Get32(s + 44), Get32(s + 48));
     PortRbSnapshotLoad(s + IMG_HDR);
     if (!(sImgSkip & PORT_LN_SKIP_SRAM))
         memcpy((void *)(uintptr_t)GBA_SRAM_BASE, s + IMG_HDR + sSnapBytes, GBA_SRAM_SIZE);

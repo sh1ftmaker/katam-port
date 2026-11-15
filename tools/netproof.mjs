@@ -225,6 +225,55 @@ async function main() {
         report.gates.R5 = { verdict: ok ? 'PASS' : 'FAIL', runs: [brief(mid), brief(open)], ablations: abl,
             text: `mid-game join at f${mid.frames.join}: ${mid.compare.equal}/${mid.compare.compared} identical; join with the SETTINGS page open: ${open.compare.equal}/${open.compare.compared}; image ${mid.host.session.imageRaw} B raw, ${mid.host.session.imageComp} B deflated` };
     }
+    // R12: host and guest with DIFFERENT audio devices (and one with none):
+    // the session's sound state must not depend on either (platform/audio.c,
+    // the canonical device).  Every gate's condition still holds: every
+    // final frame identical, no repair image needed.  Plus what mixing costs.
+    if (want('R12')) {
+        const desk = { rate: 48000, quantum: 128, live: true };
+        const phone = { rate: 44100, quantum: 1024, jitter: 0.5, seed: 7, live: true, drift: 0.0003 };
+        const cases = [
+            ['R12 host desktop 48 kHz, guest phone 44.1 kHz (1024, jitter, +300 ppm)', { hostAudio: desk, guestAudio: phone }],
+            ['R12 host phone 44.1 kHz, guest no audio device', { hostAudio: phone, guestAudio: null }],
+            ['R12 host no audio device, guest desktop 48 kHz at 30 Hz', { hostAudio: null, guestAudio: desk, guest: { rate: 30 } }],
+            ['R12 host desktop, guest phone, forced rewind 150f every 37f', { hostAudio: desk, guestAudio: phone, link: L(0, 0, 0), forceRewind: { every: 37, depth: 150 } }],
+            ['R12 host desktop, guest phone, 3 s outage', { hostAudio: desk, guestAudio: phone, link: Object.assign({}, HEADLINE, { outages: [[FREE, 3000]] }) }],
+            ['R12 recording localmp_menus (pause SETTINGS by both players), host desktop, guest phone', { hostAudio: desk, guestAudio: phone, rec: true }],
+        ];
+        const rs = [];
+        for (const [name, cf] of cases) {
+            const cfg = Object.assign({ link: HEADLINE, durationFrames: MATRIX_FRAMES }, cf);
+            if (cf.rec) {
+                const file = RECORDINGS.find((f) => /menus/.test(f));
+                if (!file) continue;
+                const rec = loadRecording(file);
+                Object.assign(cfg, { scenario: rec, startFrame: Math.min(BOOT_END, rec.end - 100), durationFrames: Math.max(100, rec.end - BOOT_END - 240) });
+            }
+            rs.push(await run(name, cfg));
+        }
+        // the price of mixing a replayed frame: the same forced-rewind run
+        // with replayed frames rendered state-only (shipped) and mixed
+        const priced = [];
+        for (const mix of [0, 1]) {
+            const r = await run(`R12 cost: replayed frames ${mix ? 'mixed (not shipped)' : 'state-only (shipped)'}`,
+                { link: L(0, 0, 0), hostAudio: desk, guestAudio: desk, forceRewind: { every: 37, depth: 150 }, durationFrames: QUICK ? 3000 : MATRIX_FRAMES,
+                  guestPre: (g) => g.M._PortAudioReplayMixJs(mix), noLocalise: true });
+            const a = r.audio.guest.mixer;
+            priced.push({ mix, replayUsPerFrame: +(r.guest.tel.catchUpUsSum / Math.max(1, r.guest.tel.replayedFrames)).toFixed(1),
+                          mixedRenders: a[0], stateRenders: a[1], usPerMixed: +(a[2] / Math.max(1, a[0])).toFixed(1),
+                          usPerState: +(a[3] / Math.max(1, a[1])).toFixed(2), activeChannels: +(a[4] / Math.max(1, a[0] + a[1])).toFixed(1),
+                          usResamplePerBlock: +(r.audio.guest.out[6] / Math.max(1, r.audio.guest.out[0])).toFixed(1),
+                          identical: r.compare.mismatched === 0 });
+        }
+        const bad = rs.filter((r) => r.compare.mismatched || r.compare.compared < r.compare.expected * 0.9 || r.guest.tel.imagesLoaded > 1);
+        const au = (r, side) => { const x = r.audio[side]; if (!x || !x.device) return `${side} none`;
+            const o = x.out, d = x.device;
+            return `${side} ${d.rate} Hz: ${o[0]} blocks out, ${o[2]} dropped, ${o[4]} muted, device underruns ${d.underruns} (${(1000 * d.dryFrames / d.rate).toFixed(0)} ms dry; after the first 10 s ${d.underrunsAfter10s}, ${(1000 * d.dryFramesAfter10s / d.rate).toFixed(0)} ms)`; };
+        report.gates.R12 = { verdict: bad.length || priced.some((p) => !p.identical) ? 'FAIL' : 'PASS', runs: rs.map(brief), audio: rs.map((r) => ({ name: r.name, host: r.audio.host, guest: r.audio.guest })), priced,
+            text: rs.map((r) => `${r.name}: ${r.compare.equal}/${r.compare.compared} identical, images ${r.guest.tel.imagesLoaded}; ${au(r, 'host')}; ${au(r, 'guest')}`).join('; ') +
+                  `; mixing cost (guest, wasm, ${priced[0].activeChannels} active channels avg): mixed render ${priced[1].usPerMixed} us, state-only render ${priced[0].usPerState} us, resampling ${priced[0].usResamplePerBlock} us per live block; replay ${priced[0].replayUsPerFrame} us/frame state-only vs ${priced[1].replayUsPerFrame} us/frame mixed` +
+                  (bad.length ? `; FAILING: ${bad.map((r) => r.name).join(', ')}` : '') };
+    }
     // R6: authority -- across every run
     if (want('R6')) {
         const all = runs.filter((r) => !r.name.includes('/localise'));
@@ -398,6 +447,13 @@ function markdown(R) {
     if (R.gates.R4) s += `\n## R4 corruption\n\n` + md(R.gates.R4.cases, [['injected', (x) => x.what], ['detected', (x) => x.detected], ['detect ms', (x) => x.detectMs], ['repaired ms', (x) => x.repairMs], ['mismatched frames', (x) => x.mismatchedFrames],
         ['residual', (x) => x.residual], ['regions', (x) => x.regions.join(' ')], ['image raw/deflated B', (x) => `${x.imageRaw}/${x.imageComp}`], ['deflate ms', (x) => x.compressMs], ['inflate+load ms', (x) => x.applyMs], ['engine load us', (x) => x.imageLoadUs]]);
     if (R.gates.R5) s += `\n## R5 what has to travel besides memory (ablations)\n\nEach row is a mid-game join with one item left out of the image load.\n\n` + md(R.gates.R5.ablations, [['left out', (x) => x.what], ['join frame', (x) => x.joinFrame], ['diverged', (x) => x.diverged], ['first mismatch', (x) => x.firstMismatch], ['regions', (x) => x.regions.join(' ')], ['repairs', (x) => x.repairs]]);
+    if (R.gates.R12) {
+        s += `\n## R12 different audio devices\n\nHost and guest each with their own audio device model (instance.mjs audioDevice: rate, callback size, jitter, clock drift; or none). Blocks out/dropped/muted: platform/audio.c's output side (dropped = held back and cross-faded because far too much was queued; muted = replayed frames). Device underruns: callbacks the model found the queue short for.\n\n`;
+        s += md(R.gates.R12.audio, [['run', (x) => x.name], ['host device', (x) => x.host && x.host.device ? `${x.host.device.rate} Hz, ${x.host.out[0]} out, ${x.host.out[2]} dropped, ${x.host.device.underruns} underruns` : 'none'],
+            ['guest device', (x) => x.guest && x.guest.device ? `${x.guest.device.rate} Hz, ${x.guest.out[0]} out, ${x.guest.out[2]} dropped, ${x.guest.out[4]} muted, ${x.guest.device.underruns} underruns (${(1000 * x.guest.device.dryFrames / x.guest.device.rate).toFixed(0)} ms dry; after 10 s: ${x.guest.device.underrunsAfter10s}, ${(1000 * x.guest.device.dryFramesAfter10s / x.guest.device.rate).toFixed(0)} ms)` : 'none'],
+            ['guest renders mixed / state-only', (x) => x.guest ? `${x.guest.mixer[0]} / ${x.guest.mixer[1]}` : '']]);
+        s += `\nMixing cost, measured on the guest (wasm, node): ` + R.gates.R12.priced.map((p) => `${p.mix ? 'replayed frames mixed (not shipped)' : 'replayed frames state-only (shipped)'}: replay ${p.replayUsPerFrame} us/frame, mixed render ${p.usPerMixed} us, state-only render ${p.usPerState} us, resampling ${p.usResamplePerBlock} us per live block, ${p.activeChannels} active channels avg, identical ${p.identical}`).join('; ') + '\n';
+    }
     if (R.gates.R8) s += `\n## R8 cost\n\n${R.gates.R8.text}\n\nWorst guest step (one presented frame including any replay) per run, ms: ${R.gates.R8.worstGuestStepMsByRun.map(([n, v]) => `${n}: ${v}`).join('; ')}\n`;
     if (R.gates.R9) s += `\n## R9 side effects under rewind\n\n${R.gates.R9.text}\n`;
     if (R.gates.R11) s += `\n## R11 feature off\n\n${R.gates.R11.text}\n\n\`\`\`\n${[...(R.gates.R11.parts.regress || []), '--- wasm', ...(R.gates.R11.parts.regressWasm || []), '---', ...(R.gates.R11.parts.checkSimState || []), ...(R.gates.R11.parts.lintDeterminism || [])].join('\n')}\n\`\`\`\n`;

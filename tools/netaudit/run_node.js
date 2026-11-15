@@ -43,6 +43,14 @@
 //   sessionViews [[F, W, H], ...]  PortInputLogScheduleView (with "session")
 //   join         {frame, image, mask}  load a KAUD dump's parts at that frame
 //   keysAt       [[F, mask], ...] PortSetKeys calls (host keys; replay ignores)
+//   session      {role, at, kfEvery, kfCount, flags, forceRewind:{every, depth}}
+//                an online session (platform/lmpnet.c) from frame `at`
+//                (default 1): role 1 host, 2 guest.  The recording still
+//                drives both pads.  forceRewind (guest): PortLnForceRewind
+//                every N frames, so replayed frames run (muted, render off).
+//   viewRequestAt [F, w, h]  PortSimViewRequest at F (a display asking)
+//   audio.capture  path: every block pushed to the device, as raw float32
+//                stereo little-endian (what the speakers would get)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -97,6 +105,7 @@ global.localStorage = {
 const audio = cfg.audio === undefined ? 'off' : cfg.audio;
 const audioStats = { pushes: 0, frames: 0, underruns: 0, maxDepth: 0, topUps: 0 };
 let device = null;
+const captureFd = audio !== 'off' && audio.capture ? fs.openSync(audio.capture, 'w') : null;
 if (audio !== 'off') {
     const rnd = mulberry(audio.seed || 1);
     device = {
@@ -121,6 +130,7 @@ if (audio !== 'off') {
         },
         queued() { this.drain(); return this.depth; },
         push(f32) {
+            if (captureFd !== null) fs.writeSync(captureFd, Buffer.from(f32.buffer, f32.byteOffset, f32.byteLength));
             this.drain();
             this.depth += f32.length >> 1;
             audioStats.pushes++;
@@ -153,14 +163,30 @@ let lastFrameSeen = -1;
 
 function finish(code) {
     fs.writeFileSync(out, hashLines.join('\n') + '\n');
+    if (captureFd !== null) fs.closeSync(captureFd);
+    let lnTel = null;
+    if (cfg.session && Module._PortLnTelemetry) {
+        const names = cstr(Module._PortLnTelemetryNames()).split(',').filter(Boolean);
+        const p = Module._PortLnTelemetry() >> 2;
+        lnTel = {};
+        names.forEach((n, i) => { lnTel[n] = Module.HEAPU32[p + i]; });
+    }
     const meta = {
-        frames, audioStats, storageWrites, sramWrites, store,
+        frames, audioStats, storageWrites, sramWrites, store, lnTel,
         wallMs: realNow() - t0,
         log: logLines.filter((l) => /localmp|menu-poc|audio|renderer|refused|FAIL|error|save/i.test(l)).slice(0, 400),
     };
     fs.writeFileSync(out.replace(/\.txt$/, '') + '.meta.json', JSON.stringify(meta, null, 1));
     process.exit(code || 0);
 }
+
+function cstr(p) {
+    let t = '';
+    for (let i = p; Module.HEAPU8[i]; i++) t += String.fromCharCode(Module.HEAPU8[i]);
+    return t;
+}
+const sess = cfg.session || null;
+const sessAt = sess ? (sess.at === undefined ? 1 : sess.at) : -1;
 
 let step = 0;
 global.requestAnimationFrame = (cb) => {
@@ -184,10 +210,19 @@ const Module = {
     portPresent() {
         const f = frames;
         if (keysAt.has(f)) Module._PortSetKeys(keysAt.get(f));
+        if (cfg.viewRequestAt && f === cfg.viewRequestAt[0])
+            Module._PortSimViewRequest(cfg.viewRequestAt[1], cfg.viewRequestAt[2]);
         if (f === viewModeAt) {
             const v = cfg.viewMode;
             Module._PortSetViewMode(v[1], v[2], v[3], v[4], v[5], v[6]);
         }
+        if (f === sessAt) {
+            if (!Module._PortLnStart(sess.role || 1, sess.kfEvery || 15, sess.kfCount || 24, sess.flags || 0)) {
+                logLines.push('FAIL: PortLnStart'); finish(3);
+            }
+        }
+        if (sess && sess.forceRewind && f > sessAt + 60 && f % sess.forceRewind.every === 0)
+            Module._PortLnForceRewind(sess.forceRewind.depth);
         // The frame that runs next: render on or off.
         Module._PortSetRenderEnabled(renderOffAt(f + 1) ? 0 : 1);
         if (++frames > target) finish(0);

@@ -345,6 +345,72 @@ def factors(R):
     for x in F:
         if x['id'] in F_:
             x['from'] = F_[x['id']]
+    # --- the same device factors with an online session on (platform/lmpnet.c,
+    # platform/lnsession.c): every device in a session must hold the same raw
+    # image whatever its audio, pacing, display or storage.  Host-vs-host
+    # rows: both devices start a host session at frame 1 and the recording
+    # drives both pads.  Guest rows: a guest-session device with its own
+    # storage receives the host device's image at frame 2 (as a joiner does),
+    # compared from there.  Replay rows: a guest forced to rewind 20 frames
+    # every 37, so a third of its frames are replayed (muted, render off).
+    HS = {'role': 1, 'at': 0}
+    GS = {'role': 2, 'at': 0}
+    GRW = {'role': 2, 'at': 0, 'forceRewind': {'every': 37, 'depth': 20}}
+    S = dict(T, session=HS)
+    SM = dict(Mn, session=HS)
+    live = dict(desk, live=True)
+    phone_live = dict(phone, live=True)
+    burst = {'dts': [0] * 7 + [16.74 * 8] + [16.74] * 52}
+    f('s-baseline', 'session', 'in a session: two processes, identical device', S, dict(S))
+    f('s-audio-on-off', 'session', 'in a session: audio device 48 kHz vs none', S, dict(S, audio=desk))
+    f('s-audio-rate', 'session', 'in a session: audio 44.1 kHz vs 48 kHz', dict(S, audio=desk),
+      dict(S, audio=dict(desk, rate=44100)))
+    f('s-audio-block', 'session', 'in a session: phone-like device (1024-frame callbacks, jitter) vs desktop (128)',
+      dict(S, audio=desk), dict(S, audio=dict(phone, rate=48000)))
+    f('s-audio-phone', 'session', 'in a session: phone 44.1 kHz, 1024, jitter, live vs no audio', S,
+      dict(S, audio=phone_live))
+    f('s-audio-live-30hz', 'session', 'in a session: live audio at 30 Hz pacing (queue starves) vs live at 60 Hz',
+      dict(S, audio=live), dict(S, audio=live, pace={'dts': [33.49, 0]}))
+    f('s-pace-burst-audio', 'session', 'in a session: catch-up bursts with render off, live audio vs paced live audio',
+      dict(S, audio=live), dict(S, audio=live, pace=burst, renderOff={'burst': 8, 'period': 60}))
+    f('s-replays-audio', 'session', 'in a session: guest replaying 1/3 of its frames, phone audio live vs host, no audio',
+      S, dict(T, session=GRW, audio=phone_live))
+    f('s-replays-noaudio', 'session', 'in a session: guest replaying 1/3 of its frames, no audio vs host, desktop audio',
+      dict(S, audio=desk), dict(T, session=GRW))
+    f('s-view-follow', 'session', 'in a session: the display asks for 746x320 (PortSimViewRequest) vs not',
+      S, dict(S, viewRequestAt=[1, 746, 320]))
+    f('s-view-mode', 'session', 'in a session: page view experiment widescreen (PortSetViewMode 1,40) from 1500',
+      S, dict(S, viewMode=[1500, 1, 40, 0, 0, 0, 2]))
+    f('s-p2-input', 'session', 'in a session, menus recording: touch-only device vs keyboard/gamepad', SM,
+      dict(SM, p2Input=0))
+    f('s-settings-tour', 'session', 'in a session: different stored settings, tour', S, dict(S, storage=stg))
+    f('s-settings-host', 'session', 'in a session, menus recording: the HOST has different stored settings', SM,
+      dict(SM, storage=stg))
+
+    def sjoin(fid, title, base, extra, Fj=2, role=None):
+        v = dict(base, **extra)
+        v['session'] = dict(role or GS)
+        v['join'] = {'frame': Fj, 'mask': 0x3FF, 'donor': fid}
+        f(fid, 'session', title, base, v)
+        # From the frame after the load: at the load frame itself the IO DMA
+        # source mirror is the donor run's (a stack address that its dump
+        # call moved: class d, dma.c:311; iocanon equal), not the base's.
+        F_[fid] = Fj + 1
+    sjoin('s-guest-settings', 'in a session, menus recording: a guest with different stored settings joins (image at 2)',
+          SM, {'storage': stg})
+    sjoin('s-guest-sram', 'in a session: a guest with its own played save joins (image at 2)', S,
+          {'sram': str(C.save)})
+    sjoin('s-replays-menus', 'in a session, menus recording: a phone guest joins (image at 2) and replays 1/3 of its frames',
+          SM, {'audio': phone_live}, role=GRW)
+    sjoin('s-guest-all', 'in a session, menus recording: a phone guest (44.1 kHz, touch-only, own settings and save) joins',
+          SM, {'storage': stg, 'sram': str(C.save), 'p2Input': 0, 'audio': phone_live})
+    for x in F:
+        if x['id'] in F_:
+            x['from'] = F_[x['id']]
+        elif x['group'] == 'session':
+            # The session starts at the present of frame 0; the image at the
+            # top of frame 0 is the device's own, before it.
+            x['from'] = 1
     # native-only
     N = {'native': True, 'replay': tour}
     f('native-gpu', 'display', 'native: GPU renderer (offscreen GL) vs PPU', N,

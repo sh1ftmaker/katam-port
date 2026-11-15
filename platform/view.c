@@ -492,8 +492,55 @@ void PortViewUpdate(void)
 
 /* The page's single entry point.  Everything it can change is here, so a
  * setting can never be half-applied. */
+static void ApplyViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
+                          u32 tilemap);
+
+/* Online sessions (platform/lnsession.c): the widescreen experiment reaches
+ * the simulation -- gPortCamPadX/Y feed the game's camera clamp
+ * (code_080023A4.c), the floors feed the object windows -- and each device
+ * has its own, so a session holds it at the hardware's view on every device
+ * and keeps the page's request for afterwards.  Off a session a request is
+ * applied at once, as it always was. */
+static int sViewHeld, sViewWanted;
+static u32 sWant[6];
+
 void PortSetViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
                      u32 tilemap)
+{
+    if (sViewHeld) {
+        sWant[0] = mode; sWant[1] = (u32)padX; sWant[2] = (u32)padY;
+        sWant[3] = cull; sWant[4] = pinHud; sWant[5] = tilemap;
+        sViewWanted = 1;
+        return;
+    }
+    ApplyViewMode(mode, padX, padY, cull, pinHud, tilemap);
+}
+
+void PortViewSessionBegin(void)
+{
+    if (sViewHeld)
+        return;
+    sWant[0] = gPortViewMode; sWant[1] = (u32)gPortViewPadX; sWant[2] = (u32)gPortViewPadY;
+    sWant[3] = gPortViewCull; sWant[4] = gPortPinScreenSpace;
+    sWant[5] = gPortSynthesiseColumns ? 2 : gPortClipToStreamed ? 1 : 0;
+    sViewWanted = gPortViewMode != PORT_VIEW_NATIVE;
+    if (sViewWanted)
+        ApplyViewMode(PORT_VIEW_NATIVE, 0, 0, PORT_CULL_STOCK, sWant[4], sWant[5]);
+    sViewHeld = 1;
+}
+
+void PortViewSessionEnd(void)
+{
+    if (!sViewHeld)
+        return;
+    sViewHeld = 0;
+    if (sViewWanted)
+        ApplyViewMode(sWant[0], (s32)sWant[1], (s32)sWant[2], sWant[3], sWant[4], sWant[5]);
+    sViewWanted = 0;
+}
+
+static void ApplyViewMode(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
+                          u32 tilemap)
 {
     /* One control, three settings, because they are three points on one
      * scale of honesty and offering them separately invites the combination

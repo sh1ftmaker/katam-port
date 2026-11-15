@@ -96,6 +96,7 @@
 #include <stddef.h>
 
 #include "port/port.h"
+#include "port/lmpnet.h"
 #include "port/simblock.h"
 #include "gba/gba.h"
 #include "data.h"
@@ -367,7 +368,42 @@ static u8 sReportedOverflow;
  * has to say. */
 static u32 sRoomsSeen, sSwapsMade;
 
+static void RandoSet(u32 flags, u32 seed);
+
+/* Online sessions (platform/lmpnet.c): the randomizer is read by the
+ * simulation, so a session plays the host's settings -- they travel in its
+ * image (PortRandoSessionSet) -- and the page's own (stored per device,
+ * changed from its menu at any time) wait until the session ends. */
+static int sRandoHeld;
+static u32 sRandoHeldFlags, sRandoHeldSeed;
+
 void PortSetRando(u32 flags, u32 seed)
+{
+    if (PortLnActive()) {
+        sRandoHeld = 1;
+        sRandoHeldFlags = flags;
+        sRandoHeldSeed = seed;
+        PortLog("rando: held until the online session ends (the session plays the host's)");
+        return;
+    }
+    RandoSet(flags, seed);
+}
+
+void PortRandoSessionSet(u32 flags, u32 seed)
+{
+    if (flags != gPortRandoFlags || seed != gPortRandoSeed)
+        RandoSet(flags, seed);
+}
+
+void PortRandoSessionEnd(void)
+{
+    if (!sRandoHeld)
+        return;
+    sRandoHeld = 0;
+    RandoSet(sRandoHeldFlags, sRandoHeldSeed);
+}
+
+static void RandoSet(u32 flags, u32 seed)
 {
     gPortRandoFlags = flags;
     gPortRandoSeed = seed;

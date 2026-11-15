@@ -3794,9 +3794,20 @@ var Module = (function () {
     });
   }
 
+  // An online guest holds the host's save (the session's world): nothing
+  // in save memory may reach this browser's storage until the page is
+  // reloaded, so the guest's own save is what it was before it joined
+  // (platform/sram.c, PortSramPersistBlock).
+  function persistAllowed() {
+    try {
+      return !Module._PortSramPersistAllowedJs || !!Module._PortSramPersistAllowedJs();
+    } catch (e) { return true; }
+  }
+
   function flush() {
     if (timer) { clearTimeout(timer); timer = 0; }
     if (!armed || stopped || !romKey) return;
+    if (!persistAllowed()) return;
     // One transaction at a time. A second in-game save landing mid-write is
     // remembered rather than dropped, and runs once this one has finished.
     if (writing) { queued = true; return; }
@@ -3860,6 +3871,7 @@ var Module = (function () {
     // A real change still tries again: the dirty hook and pagehide both go
     // straight to flush().
     if (!armed || stopped || broken || timer || writing || document.hidden) return;
+    if (!persistAllowed()) return;
     if (sum() === savedSum) return;
     if (!scanNoted) {
       scanNoted = true;
@@ -3917,6 +3929,11 @@ var Module = (function () {
   exportBtn.addEventListener('click', exportSave);
 
   function applyImport(bytes, name) {
+    // Not into an online session's save memory: it is the session's world.
+    if (Module._PortLnActive && Module._PortLnActive()) {
+      shell.note('Leave the online session first — its save belongs to the session.', 'warn');
+      return;
+    }
     stopped = false;
 
     if (armed && heap()) {
