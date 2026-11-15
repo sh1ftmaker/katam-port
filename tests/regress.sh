@@ -114,6 +114,8 @@ status=0
 start=$(date +%s)
 for name in "${NAMES[@]}"; do
     [ -f "$REC_DIR/$name.txt" ] || { echo "$name: no such recording"; status=1; continue; }
+    # Scenario recordings for other harnesses (tools/netaudit/) say so.
+    if grep -q '^# no-regress' "$REC_DIR/$name.txt"; then echo "$name: skipped (no-regress)"; continue; fi
     out=$TMP/$name.hash
     t0=$(date +%s)
     if [ "$WASM" = 1 ]; then run_wasm "$name" "$out"; else run_native "$name" "$out"; fi
