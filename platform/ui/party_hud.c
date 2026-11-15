@@ -224,73 +224,27 @@ static int Lum5Of(u16 c)
     return ((c & 31) * 5 + ((c >> 5) & 31) * 9 + ((c >> 10) & 31) * 2) / 16;
 }
 
-/* The hint line, at the top of the picture (PortPartyHudDraw):
- *
- *   - a call to answer: another person's phone call is ringing
- *     (gUnk_02021580, the game's "who is calling") and this screen's player
- *     is somewhere the game lets it answer -- "TOM CALLS - PRESS R TO GO".
- *     The game's own rule (kirby.c, Macro_0803FF64_7): a called person comes
- *     only by pressing R while it rings; not pressing costs nothing and the
- *     call ends by itself (sub_08057AD0, about five seconds).  CPU helpers
- *     answer through their brains and need no prompt.
- *   - rooms mode, players apart: while this screen's player stands at a big
- *     door or on the goal star that waits for someone elsewhere (localmp.c
- *     PortLmpWaitingFor), "THE DOOR WAITS FOR 2P - R CALLS", up to 4 s per
- *     wait, then quiet until the player has left it for a second.
+/* The hint line, at the top of the picture (PortPartyHudDraw): in rooms
+ * mode, players apart, while this screen's player stands at a big door or
+ * on the goal star that waits for someone elsewhere (localmp.c
+ * PortLmpWaitingFor), "THE DOOR WAITS FOR 2P - R CALLS", up to 4 s per wait,
+ * then quiet until the player has left it for a second.  (Phone calls get
+ * no line of ours: the game's own HUD shows the caller's icon, and a called
+ * person comes only by pressing R -- tools/rooms/phone_optin_test.mjs.)
  *
  * Shown whenever the game's HUD is up, party cards on or off; it never stops
  * anything.  sHintText is what is up, "" = nothing; sHintEdge its plate's
- * edge (the caller's colour for a call). */
+ * edge. */
 #define HINT_FRAMES 240
 static char sHintText[40], sHintDrawn[40];
 static int sHintOn, sHintOff;
 static u16 sHintEdge = 0x5AD6;
-static u8 sHintKind;            /* 0 none, 1 door, 2 star, 3 a call        */
-
-static int IsHuman(int s);
-
-/* Could this screen's player answer the ringing call by pressing R?  The
- * game's test (kirby.c Macro_0803FF64_7) without the state it is in: a
- * caller that is another person, this Kirby not Mini, and either the caller
- * knocked out (a rescue: any room the game allows calls in) or this Kirby
- * alive in another room. */
-static int CallFor(int me)
-{
-    int c = gUnk_02021580;
-    const struct Kirby *k = &gKirbys[me];
-
-    if (c >= gNumKirbys || c == me || c > 3 || !IsHuman(c) || !IsHuman(me))
-        return -1;
-    if (k->ability == KIRBY_ABILITY_MINI || k->hp <= 0 || k->base.roomId == 0xFFFF
-        || gKirbys[c].base.roomId == 0xFFFF)
-        return -1;
-    if (!(gRoomProps[k->base.roomId].priorityFlags & 0x10))
-        return -1;
-    if (gKirbys[c].base.unkC & 0x10000)
-        return (!(k->base.unkC & 0x10000) && k->lives) ? c : -1;
-    if (k->base.unkC & 0x10000 || gKirbys[c].base.roomId == k->base.roomId)
-        return -1;
-    return c;
-}
+static u8 sHintKind;            /* 0 none, 1 door, 2 star                  */
 
 static void SampleHint(void)
 {
-    int me = gLocalPlayerId & 3, who = -1, kind, c = CallFor(me);
+    int who = -1, kind = PortLmpWaitingFor(&who);
 
-    if (c >= 0) {
-        const char *name = PortPlayerName(c);
-        u16 pal[16];
-
-        if (name[0])
-            snprintf(sHintText, sizeof sHintText, "%s CALLS - PRESS R TO GO", name);
-        else
-            snprintf(sHintText, sizeof sHintText, "%dP CALLS - PRESS R TO GO", c + 1);
-        PaletteOf(c, gKirbys[c].color < 18 ? gKirbys[c].color : 0, pal);
-        sHintEdge = Lum5Of(pal[1]) < 18 ? 0x5AD6 : pal[1];
-        sHintKind = 3;
-        return;
-    }
-    kind = PortLmpWaitingFor(&who);
     if (!kind) {
         if (++sHintOff > 60)
             sHintOn = 0;
@@ -1282,7 +1236,7 @@ static void Layout(const Target *tg, const int world[4], double scale, int strip
     }
 
     if (sHintText[0]) {
-        /* The hint (a call to answer, a door that waits): on a plate, centred
+        /* The hint (a door or the star that waits): on a plate, centred
          * at the top -- moved left of the cards when they are in the way, or
          * under them when there is no room. */
         int hd = strcmp(sHintText, sHintDrawn) != 0 || sHint.w == 0;

@@ -7,10 +7,10 @@
 // own.  Then, on the host's (canonical) timeline:
 //   decline  player 1 calls (R); player 2 presses nothing.  Player 2 must not
 //            move: same room, same position, same hp, lives and battery
-//            after the call has rung out -- declining costs nothing.  While
-//            it rings, player 2's screen (the guest) shows the prompt "1P
-//            CALLS - PRESS R TO GO" (party_hud.c, sampled through
-//            PortPartyHudTestSampleJs), and player 1's screen shows none.
+//            after the call has rung out -- declining costs nothing.  (The
+//            party HUD's hint line on each screen while it rings is logged,
+//            sampled through PortPartyHudTestSampleJs; nothing is asserted
+//            about it -- the game's own calling icon is the prompt.)
 //   accept   player 1 calls again; player 2 presses R while it rings.  Player
 //            2 must arrive in player 1's room.
 //   helpers  the CPU helpers (slots 2, 3) come to player 1's room on its call.
@@ -133,7 +133,7 @@ const r = await runSession({ name: 'phone', modulePath: a.module, rom, seed: a.s
 const fmt = (s) => s ? s.map((k, i) => `${i + 1}P r${k.room} hp${k.hp} l${k.lives} b${k.battery}`).join(', ') : 'none';
 for (const [ph] of Object.entries(PH)) {
     const o = obs[ph], c = callerOf(ph), callee = 1 - c;
-    console.log(`  ${ph}: before ${fmt(o.before)}\n  ${ph}: after  ${fmt(o.after)}\n  ${ph}: rang ${o.rang} frames; prompt on the callee's screen ${JSON.stringify([...(callee === 1 ? o.hintGuest : o.hintHost)])}`);
+    console.log(`  ${ph}: before ${fmt(o.before)}\n  ${ph}: after  ${fmt(o.after)}\n  ${ph}: rang ${o.rang} frames; hint line while ringing: host ${JSON.stringify([...o.hintHost])}, guest ${JSON.stringify([...o.hintGuest])}`);
     ok(`${ph}: the call rang`, o.rang > 20, `${o.rang} frames`);
     ok(`${ph}: the two people were apart when it rang`, o.before && o.before[0].room !== o.before[1].room, fmt(o.before));
     if (!o.before || !o.after) continue;
@@ -148,10 +148,6 @@ for (const [ph] of Object.entries(PH)) {
         ok(`${ph}: declining cost ${callee + 1}P nothing (lives, battery)`, e.lives === b.lives && e.battery === b.battery,
            `hp ${b.hp}->${e.hp} lives ${b.lives}->${e.lives} battery ${b.battery}->${e.battery}`);
     }
-    const prompts = [...(callee === 1 ? o.hintGuest : o.hintHost)];
-    ok(`${ph}: ${callee + 1}P's screen says who calls and what to press`, prompts.includes(`${c + 1}P CALLS - PRESS R TO GO`), JSON.stringify(prompts));
-    const own = [...(c === 0 ? o.hintHost : o.hintGuest)].filter((t) => /CALLS/.test(t));
-    ok(`${ph}: the caller's own screen shows no prompt`, own.length === 0, JSON.stringify(own));
     if (ph === 'decline') {
         const h = o.after.slice(2).map((k) => k.room), cr = o.after[0].room;
         ok('helpers: the CPU helpers came to 1P\'s room on its call', h.every((x) => x === cr), `helpers in ${h.join(',')}, 1P in ${cr}`);
