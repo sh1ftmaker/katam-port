@@ -519,9 +519,10 @@ void MPlayStart(struct MusicPlayerInfo *mplayInfo, struct SongHeader *songHeader
                 || (mplayInfo->status & MUSICPLAYER_STATUS_PAUSE)))
         || (mplayInfo->priority <= songHeader->priority))
     {
-        /* PORT: online play counts sound starts (platform/lmpnet.c R9); a
-         * no-op unless a session is on. */
-        PortLnNoteSound((u32)(uintptr_t)songHeader);
+        /* PORT: online play counts sound starts (platform/lmpnet.c R9) and
+         * the guest's speakers follow them (platform/audio_ear.c); a no-op
+         * unless a session is on. */
+        PortLnNoteSound((u32)(uintptr_t)songHeader, mplayInfo);
         ++mplayInfo->ident;
         mplayInfo->status = 0;
         mplayInfo->songHeader = songHeader;

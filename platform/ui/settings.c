@@ -38,6 +38,7 @@ void PortSettingsDefaults(PortSettings *s)
      * down after a minute or so of play (2026-11-09). */
     s->smoothCam = 0;
     s->interp = 1;
+    s->partyHud = PS_PARTY_HELPERS;
 }
 
 static int ClampI(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -64,6 +65,7 @@ void PortSettingsClamp(PortSettings *s)
     s->uiScale = ClampF(s->uiScale, 0.6f, 2.0f);
     s->smoothCam = !!s->smoothCam;
     s->interp = !!s->interp;
+    s->partyHud = ClampI(s->partyHud, 0, PS_PARTY_HELPERS);
 }
 
 void PortSettingsParse(PortSettings *s, const char *text)
@@ -105,6 +107,7 @@ void PortSettingsParse(PortSettings *s, const char *text)
                  * ignored -- everyone starts from the new default once. */
                 INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
+                INT_KEY("partyhud", partyHud)
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -124,8 +127,8 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
-        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\n",
-                      s->smoothCam, s->interp);
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\n",
+                      s->smoothCam, s->interp, s->partyHud);
     return n < size ? n : size - 1;
 }
 

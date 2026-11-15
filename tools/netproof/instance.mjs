@@ -69,6 +69,7 @@ export function audioDevice(spec, clock) {
             this.st.pushes++;
             this.st.frames += f32.length >> 1;
             if (this.depth > this.st.maxDepth) this.st.maxDepth = this.depth;
+            if (spec.onPush) spec.onPush(f32);      // measuring: a capture of what it plays
         },
     };
     return dev;
@@ -146,7 +147,7 @@ function api(inst) {
         },
         sealedGet(f) {
             if (!M._PortLnSealedGet(f, scratch)) return null;
-            const rec = { k0: u32(0), k1: u32(1), nev: u32(2), ontime: u32(3), hlo: u32(4), hhi: u32(5), hashed: u32(6), ev: [] };
+            const rec = { k0: u32(0), k1: u32(1), nev: u32(2), ontime: u32(3), hlo: u32(4), hhi: u32(5), hashed: u32(6), k2: u32(7), k3: u32(8), ev: [] };
             for (let i = 0; i < rec.nev; i++) {
                 M._PortLnSealedEventGet(f, i, scratch);
                 rec.ev.push([s32(0), s32(1), s32(2), s32(3), s32(4)]);
@@ -185,7 +186,13 @@ function api(inst) {
         audioStats() {
             if (!M._PortAudioStatsJs) return null;
             const a = M._PortAudioStatsJs(0) >> 2, b = M._PortAudioStatsJs(1) >> 2;
-            return { mixer: Array.from(M.HEAPU32.subarray(a, a + 5)), out: Array.from(M.HEAPU32.subarray(b, b + 7)),
+            // platform/audio_ear.c: what the guest's speakers heard (null without it)
+            let ear = null;
+            if (M._PortAudioEarNamesJs) {
+                const names = cstr(M, M._PortAudioEarNamesJs()).split(',').filter(Boolean), e = M._PortAudioStatsJs(2) >> 2;
+                ear = {}; names.forEach((n, i) => { ear[n] = M.HEAPU32[e + i]; });
+            }
+            return { mixer: Array.from(M.HEAPU32.subarray(a, a + 5)), out: Array.from(M.HEAPU32.subarray(b, b + 7)), ear,
                      device: inst.audio ? Object.assign({ rate: inst.audio.rate }, inst.audio.st) : null };
         },
         peek8: (a) => M.HEAPU8[a],

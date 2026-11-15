@@ -17,8 +17,9 @@ const BT = KID.BUTTONS;
 function fakeGame() {
   const g = {
     slots: 1, queue: [], frame: 0, requests: [], keys: [0, 0, 0, 0], canRequest: true,
-    joinable: [1, 1, 1, 1],
+    joinable: [1, 1, 1, 1], story: true,
     sink: {
+      inStory: () => g.story,
       slotIsHuman: (s) => (s === 0 ? 1 : (g.slots >> s) & 1),
       request: (s, on) => { g.requests.push([g.frame + 1, s, on]); g.queue.push([s, on]); return g.frame + 1; },
       canRequest: () => g.canRequest,
@@ -44,9 +45,11 @@ function rig() {
   const g = fakeGame();
   const pads = [];
   const log = [];
-  const core = new KID({ sink: g.sink, getGamepads: () => pads.slice(), log: (t) => log.push(t) });
+  const events = [];
+  const core = new KID({ sink: g.sink, getGamepads: () => pads.slice(), log: (t) => log.push(t),
+                         onEvent: (e) => events.push(e) });
   const step = (n = 1) => { let p1 = 0; for (let i = 0; i < n; i++) { p1 = core.poll(); g.latch(); } return p1; };
-  return { g, pads, core, step, log };
+  return { g, pads, core, step, log, events };
 }
 const byName = (core, name) => core.listDevices().find((d) => d.name === name);
 let passed = 0;
@@ -93,11 +96,16 @@ test('drop in: Start on a second pad, set B Start; four is the limit', () => {
   core.keyDown('NumpadEnter'); step(); core.keyUp('NumpadEnter'); step();
   assert.equal(g.slots & 8, 8, 'keyboard set B is player 4');
   pads.push(pad(2, 'Fifth Pad'));
-  step(); press(pads[2], START); step(); press(pads[2]); step();
+  step(); press(pads[2], START);
+  assert.equal(step() & BT.START, 0, "a fifth pad's Start does not pause player 1's game");
+  press(pads[2], RIGHT_BTN);
+  assert.equal(step() & BT.RIGHT, 0, 'nor does its d-pad move player 1: it waits');
+  press(pads[2]); step();
   assert.equal(byName(core, 'Fifth Pad').player, KID.FOLLOW);
   assert.ok(core.listPlayers().every((p) => p.human));
   assert.deepEqual(core.listPlayers().map((p) => p.names.join('+')),
-    ['Keyboard+Fifth Pad', 'Xbox One Controller', 'DualSense Wireless Controller', 'Keyboard (arrows + numpad)']);
+    ['Keyboard', 'Xbox One Controller', 'DualSense Wireless Controller', 'Keyboard (arrows + numpad)']);
+  assert.deepEqual(core.waitingPads(), [], 'no join hint with four playing');
 });
 
 test('drop out from the menu (a middle player) and rejoin on the same slot', () => {
@@ -158,7 +166,7 @@ test('reassign, list, and a slot the story holds is skipped', () => {
   assert.ok(core.assign(kbB, KID.OFF));
   core.keyDown('ArrowUp');
   assert.equal(step() & BT.UP, 0, 'an OFF device drives nobody');
-  assert.equal(g.slots & 8, 8, 'taking the device away does not make player 4 leave');
+  assert.equal(g.slots & 8, 0, 'taking their only device away: player 4 leaves (the CPU plays)');
   assert.equal(core.listPlayers()[3].names.length, 0);
 });
 
@@ -189,6 +197,159 @@ test('touch is a device that drives player 1 and never joins', () => {
   core.setTouch(BT.START);
   assert.equal(step() & BT.START, BT.START);
   assert.equal(g.requests.length, 0);
+});
+
+test('on the title and in the menus a second pad\'s Start is player 1\'s', () => {
+  const { pads, core, step, g } = rig();
+  g.story = false;
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ'); step();
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], START);
+  assert.equal(step() & BT.START, BT.START);
+  assert.equal(g.requests.length, 0);
+  core.keyDown('NumpadEnter');
+  assert.equal(step() & BT.START, BT.START, 'Numpad Enter too');
+  assert.deepEqual(core.waitingPads(), [], 'no join hint outside play');
+});
+
+test('a pad player 1 used a moment ago is still player 1\'s: its Start pauses', () => {
+  const { pads, core, step, g } = rig();
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], A_BTN); step(); press(pads[0]); step();
+  core.keyDown('KeyD'); step(); core.keyUp('KeyD'); step();     // the keyboard is the last one used
+  press(pads[0], START);
+  assert.equal(step() & BT.START, BT.START, 'a pause, not a join');
+  assert.equal(g.requests.length, 0);
+  press(pads[0]); step();
+  core.keyDown('KeyD'); step(); core.keyUp('KeyD'); step(KID.JOIN_QUIET + 5);   // keyboard again, pad idle
+  press(pads[0], START);
+  step();
+  assert.equal(g.slots & 2, 2, 'a while later the same press joins');
+});
+
+test("player 1's pad is theirs once someone joins: unplugged and back, still player 1", () => {
+  const { pads, core, step, g } = rig();
+  pads.push(pad(0, 'P1 pad'), pad(1, 'P2 pad'));
+  step(); press(pads[0], A_BTN); step(); press(pads[0]); step();
+  press(pads[1], START); step(); press(pads[1]); step();
+  assert.equal(g.slots & 2, 2);
+  assert.equal(byName(core, 'P1 pad').player, 0, 'claimed by player 1');
+  const gp = pads.shift();
+  step(10);
+  pads.unshift(gp);
+  step();
+  press(gp, START);
+  assert.equal(step() & BT.START, BT.START, "player 1's Start pauses, it does not join");
+  assert.equal(g.slots, 0b0011);
+});
+
+test('Select held two seconds leaves; the pad is parked and Start rejoins', () => {
+  const { pads, core, step, g, events } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], START); step(); press(pads[0]); step();
+  assert.equal(g.slots & 2, 2);
+  press(pads[0], 8);
+  step(KID.HOLD_LEAVE_FRAMES - 5);
+  assert.equal(g.slots & 2, 2, 'not yet');
+  step(10);
+  assert.equal(g.slots & 2, 0, 'left');
+  assert.equal(byName(core, 'Pad').player, KID.PARKED);
+  assert.ok(events.some((e) => e.type === 'leave' && e.player === 1 && e.why === 'select'));
+  press(pads[0]); step();
+  assert.deepEqual(core.waitingPads(), [byName(core, 'Pad').id], 'the hint shows the parked pad');
+  press(pads[0], START); step(); press(pads[0]); step();
+  assert.equal(g.slots & 2, 2);
+});
+
+test('the PLAYERS page: moving a pad from player 2 to player 3 is a leave and a join', () => {
+  const { pads, core, step, g } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], START); step(); press(pads[0]); step();
+  assert.equal(g.slots, 0b0011);
+  assert.ok(core.assign(byName(core, 'Pad').id, 2));
+  step(2);
+  assert.equal(g.slots, 0b0101, 'player 2 left, player 3 joined');
+  press(pads[0], A_BTN); step();
+  assert.equal(g.keys[2], BT.A);
+});
+
+test('events: join, unplugged, back, leave', () => {
+  const { pads, core, step, events } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], START); step(); press(pads[0]); step();
+  const gp = pads.pop(); step(5); pads.push(gp); step();
+  pads.pop(); step(KID.GRACE_FRAMES + 2);
+  const types = events.filter((e) => e.player === 1).map((e) => e.type);
+  assert.deepEqual(types, ['join', 'unplugged', 'back', 'unplugged', 'leave']);
+  assert.equal(events.find((e) => e.type === 'join').label, 'PAD 1');
+});
+
+test('online: every device drives this device\'s player, nobody joins, host keys untouched', () => {
+  const { pads, core, step, g } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'));
+  step(); press(pads[0], START); step(); press(pads[0]); step();
+  assert.equal(g.slots & 2, 2);
+  core.setOnline(true);
+  g.keys = [0, 7, 7, 7];
+  press(pads[0], RIGHT_BTN);
+  assert.equal(step() & BT.RIGHT, BT.RIGHT, 'a joined pad drives this device\'s player online');
+  assert.deepEqual(g.keys, [0, 7, 7, 7], 'players 2-4 are the session\'s');
+  pads.push(pad(1, 'Pad B'));
+  step(); press(pads[1], START);
+  assert.equal(step() & BT.START, BT.START);
+  assert.equal(g.requests.length, 1);
+});
+
+test('the page menu open: the game sees nothing, nothing joins', () => {
+  const { pads, core, step, g } = rig();
+  core.keyDown('KeyJ'); step(); core.keyUp('KeyJ');
+  pads.push(pad(0, 'Pad'));
+  step();
+  core.muted = true;
+  press(pads[0], START);
+  assert.equal(step(), 0);
+  assert.equal(g.requests.length, 0);
+});
+
+test('a pad without the standard mapping: hat axes, Start on 9 or 7, motion sensors ignored', () => {
+  const gp = { index: 0, id: 'Generic USB Joystick', mapping: '', connected: true,
+               buttons: Array.from({ length: 12 }, () => ({ pressed: false, value: 0 })), axes: [0, 0, 0, 0, 0, 0, 0, 0] };
+  gp.axes[6] = 1; gp.axes[7] = -1; gp.buttons[9].pressed = true;
+  assert.equal(KID.padMask(gp), BT.RIGHT | BT.UP | BT.START);
+  const eight = { mapping: '', buttons: Array.from({ length: 8 }, () => ({ pressed: false, value: 0 })), axes: [0, 0] };
+  eight.buttons[7].pressed = true; eight.buttons[6].pressed = true;
+  assert.equal(KID.padMask(eight), BT.START | BT.SELECT);
+  const hat = { mapping: '', buttons: Array.from({ length: 12 }, () => ({ pressed: false, value: 0 })),
+                axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -1 / 7] };    // a hat as one axis: down-right
+  const st = {};
+  assert.equal(KID.padMask(hat, st), 0, 'not a hat until it has been seen centred');
+  hat.axes[9] = 9 / 7;                                              // centred
+  assert.equal(KID.padMask(hat, st), 0);
+  hat.axes[9] = -1 / 7;
+  assert.equal(KID.padMask(hat, st), BT.DOWN | BT.RIGHT);
+  hat.axes[9] = -1;
+  assert.equal(KID.padMask(hat, st), BT.UP);
+  assert.equal(KID.padName('Xbox 360 Controller (XInput STANDARD GAMEPAD)'), 'Xbox 360 Controller');
+  assert.equal(KID.padName('054c-0ce6-Sony Interactive Entertainment Wireless Controller'),
+    'Sony Interactive Entertainment Wireless Controller');
+  const { pads, core, step } = rig();
+  pads.push({ index: 0, id: 'Motion Sensors', connected: true, buttons: [], axes: [0, 0, 0] });
+  step();
+  assert.equal(core.listDevices().filter((d) => d.kind === KID.KIND.PAD).length, 0);
+});
+
+test('two identical pads: numbered, and each comes back as itself', () => {
+  const { pads, core, step } = rig();
+  pads.push(pad(0, 'Xbox 360 Controller (XInput STANDARD GAMEPAD)'), pad(1, 'Xbox 360 Controller (XInput STANDARD GAMEPAD)'));
+  step();
+  const list = core.listDevices().filter((d) => d.kind === KID.KIND.PAD);
+  assert.deepEqual(list.map((d) => d.label), ['PAD 1', 'PAD 2']);
+  pads.pop(); step(); pads.push(pad(1, 'Xbox 360 Controller (XInput STANDARD GAMEPAD)')); step();
+  assert.deepEqual(core.listDevices().filter((d) => d.kind === KID.KIND.PAD).map((d) => d.label), ['PAD 1', 'PAD 2']);
 });
 
 console.log(`${passed} tests passed`);

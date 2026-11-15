@@ -2147,6 +2147,9 @@ var Module = (function () {
 })();
 </script>
 
+<!-- Input devices -> players (drop-in / drop-out local multiplayer): used
+     by the Input section below. -->
+<script src="input_devices.js"></script>
 <script>
 //======================================================================
 // ROM loading + input. Independent of the wasm loader; safe either side
@@ -2722,87 +2725,94 @@ var Module = (function () {
       RIGHT = 1 << 4, LEFT = 1 << 5, UP = 1 << 6, DOWN = 1 << 7,
       BTN_R = 1 << 8, BTN_L = 1 << 9;
 
-  // KeyboardEvent.code -> button bit. Layout-independent, and lets two
-  // physical keys share one button (arrows + WASD, J/Z, K/X).
-  var KEYMAP = {
-    ArrowUp: UP,     KeyW: UP,
-    ArrowDown: DOWN, KeyS: DOWN,
-    ArrowLeft: LEFT, KeyA: LEFT,
-    ArrowRight: RIGHT, KeyD: RIGHT,
-    KeyJ: A, KeyZ: A,
-    KeyK: B, KeyX: B,
-    KeyQ: BTN_L,
-    KeyE: BTN_R,
-    Enter: START, NumpadEnter: START,
-    Backspace: SELECT, ShiftRight: SELECT
-  };
-
-  // Local multiplayer (Start Game > MULTIPLAYER > LOCAL; platform/localmp.c).
-  // While such a game is being played -- and only then -- these keys are
-  // player 2's: the arrows are their d-pad (player 1 keeps WASD), the
-  // numpad their buttons (Numpad Enter leaves player 1, who keeps Enter),
-  // and a few keys right of the letters for a keyboard without a numpad.
-  // Everything else, and everything outside a local game, is as before.
-  var KEYMAP_P2 = {
-    ArrowUp: UP, ArrowDown: DOWN, ArrowLeft: LEFT, ArrowRight: RIGHT,
-    Numpad0: A, Numpad2: A, Numpad1: B, NumpadDecimal: B,
-    Numpad4: BTN_L, Numpad5: BTN_R, NumpadEnter: START, NumpadAdd: SELECT,
-    Period: A, Comma: B, KeyM: BTN_L, Slash: BTN_R, Semicolon: START, Quote: SELECT
-  };
-  function lmpInPlay() {
-    return !!(Module.portRuntimeUp && Module._PortLmpInPlay && Module._PortLmpInPlay());
-  }
-
-  // Track held *codes*, not the mask, so releasing one of two keys bound to
-  // the same button doesn't clear it while the other is still down.
-  var held = Object.create(null);
-
-  // What the on-screen pads are holding, kept as its own value rather than
-  // folded into `held`. The two paths are live at the same time — a tablet
-  // with a keyboard, a laptop with a touchscreen — so neither may publish a
-  // mask of its own; the union of both is the only thing the C side ever
-  // sees, and a keyup must not be able to release a finger's button.
-  var touchMask = 0;
+  // Every input device -- keyboard set A (WASD, J/K, Enter ...), keyboard
+  // set B (the arrows, the numpad, . , ; '), the touch buttons, each gamepad
+  // -- goes through web/input_devices.js, which says which player each one
+  // drives (docs/MULTIPLAYER.md §13).  Alone, every device drives player 1,
+  // as it always has.  During play, Start on a controller nobody is using
+  // (or keyboard set B's Start: Numpad Enter or ;) makes it the next player;
+  // Select held on it for two seconds, the PLAYERS page, or unplugging it
+  // hands that Kirby back to the CPU.  In an online session every device
+  // drives this device's player (web/online.js decides which Kirby that is).
+  //
+  // window.katamDevices is the instance: the PLAYERS page's bridge below
+  // uses it, and so may a session that carries more than one player per
+  // device (devs.setOnline(true, { split: true, join, leave }) and
+  // devs.localKeys(p); see the setOnline comment in input_devices.js).
+  var notices = null;              // the notices and the join hint, below
+  var devs = new KatamInputDevices({
+    sink: KatamInputDevices.moduleSink(Module),
+    log: function (t) { console.log('[devices] ' + t); },
+    onEvent: function (ev) { if (notices) notices.event(ev); }
+  });
+  window.katamDevices = devs;
 
   var lastMask = -1;
 
   // The settings menu (platform/ui) has the input while it is open: the
-  // game sees no buttons, and is paused by the C side anyway.
+  // game sees no buttons, and is paused by the C side anyway.  The devices
+  // are still read (muted), so a release while it is open is not a press
+  // when it closes.
   var uiOpen = false;
 
-  // Gamepads (navigator.getGamepads, the "standard" layout): pad 1 adds to
-  // player 1's keys; pad 2 is player 2's in a local game and adds to
-  // player 1's otherwise.  Face buttons as natively (bottom/right A,
-  // left/top B), shoulders and triggers L/R, the left stick as the d-pad.
-  var padMask = [0, 0], lastMask2 = -1;
-  function readPad(gp) {
-    var m = 0, b = gp.buttons, ax = gp.axes;
-    function on(i) { return b[i] && (b[i].pressed || b[i].value > 0.5); }
-    if (on(0) || on(1)) m |= A;
-    if (on(2) || on(3)) m |= B;
-    if (on(4) || on(6)) m |= BTN_L;
-    if (on(5) || on(7)) m |= BTN_R;
-    if (on(8)) m |= SELECT;
-    if (on(9)) m |= START;
-    if (on(12) || (ax[1] !== undefined && ax[1] < -0.5)) m |= UP;
-    if (on(13) || (ax[1] !== undefined && ax[1] > 0.5)) m |= DOWN;
-    if (on(14) || (ax[0] !== undefined && ax[0] < -0.5)) m |= LEFT;
-    if (on(15) || (ax[0] !== undefined && ax[0] > 0.5)) m |= RIGHT;
-    return m;
+  // One look at every device: player 1's mask to the game, players 2-4's
+  // through the device module (Module._PortLmpSetHostKeys).
+  function update() {
+    var online = !!(window.katamOnline && window.katamOnline.inSession && window.katamOnline.inSession());
+    devs.setOnline(online);
+    devs.muted = uiOpen;
+    var mask = devs.poll();
+    if (mask === lastMask) return;
+    lastMask = mask;
+    // Guard: keys can be pressed before the wasm exports exist.
+    if (Module.portRuntimeUp && Module._PortSetKeys) Module._PortSetKeys(mask);
+    else lastMask = -1;           // send it again once the runtime is up
   }
+
   var padsSeen = 0, p2Synced = false;
-  function pollPads() {
-    var list = navigator.getGamepads ? navigator.getGamepads() : [], n = 0, i;
-    padMask[0] = padMask[1] = 0;
-    for (i = 0; list && i < list.length && n < 2; i++) {
-      if (!list[i] || !list[i].connected) continue;
-      padMask[n++] = readPad(list[i]);
-    }
+  function inputFrame() {
+    update();
+    var n = 0, list = devs.listDevices();
+    for (var i = 0; i < list.length; i++)
+      if (list[i].present && list[i].kind === KatamInputDevices.KIND.PAD) n++;
     if (n !== padsSeen || (!p2Synced && Module.portRuntimeUp)) { padsSeen = n; p2Synced = true; syncP2(); }
-    pushMask();
-    requestAnimationFrame(pollPads);
+    playersPage();
+    if (notices) notices.frame();
+    requestAnimationFrame(inputFrame);
   }
-  requestAnimationFrame(pollPads);
+  requestAnimationFrame(inputFrame);
+  // Chrome lists a pad only after one of its buttons is pressed, Firefox
+  // wants a listener before it lists any; either way the next poll has it.
+  window.addEventListener('gamepadconnected', function () { devs.scanPads(); });
+  window.addEventListener('gamepaddisconnected', function () { devs.scanPads(); });
+
+  // The PLAYERS page (platform/players_ui.c, in the game's SETTINGS): while
+  // it is up, the devices as the device module has them, and what its rows
+  // asked for.
+  function playersPage() {
+    if (!Module.portRuntimeUp || !Module._PortPuiActive) return;
+    var op;
+    while ((op = Module._PortPuiPoll())) {
+      var kind = op & 255, p = (op >> 8) & 255, id = op >>> 16;
+      if (kind === 1) devs.assign(id, p);
+      else if (kind === 2) devs.dropOut(p, 'menu');
+      else if (kind === 3)
+        devs.listDevices().forEach(function (d) { if (d.player === 0) devs.assign(d.id, KatamInputDevices.FOLLOW); });
+    }
+    if (!Module._PortPuiActive()) return;
+    var list = devs.listDevices(), pl = devs.listPlayers(), buf = Module._PortPuiNameBuf(), j, k;
+    Module._PortPuiBegin();
+    for (j = 0; j < list.length; j++) {
+      var d = list[j], name = String(d.name || '').replace(/[^\x20-\x7e]/g, '?').slice(0, 39);
+      for (k = 0; k < name.length; k++) Module.HEAPU8[buf + k] = name.charCodeAt(k);
+      Module.HEAPU8[buf + name.length] = 0;
+      Module._PortPuiAddDevice(d.id, d.kind, d.num || 0, d.player, (d.present ? 1 : 0) | (d.waiting ? 2 : 0));
+    }
+    for (j = 0; j < 4; j++)
+      Module._PortPuiSetPlayer(j, (pl[j].human ? 1 : 0) | (pl[j].pending ? 2 : 0) | (pl[j].graceLeft ? 4 : 0),
+                               pl[j].main || 0);
+    Module._PortPuiEnd();
+  }
 
   // Can player 2 press anything?  Not on a touch-only device (the pads are
   // player 1's), until a key is pressed or a gamepad shows up: then the
@@ -2816,29 +2826,6 @@ var Module = (function () {
     if (Module.portRuntimeUp && Module._PortLmpSetP2Input) Module._PortLmpSetP2Input(ok ? 1 : 0);
   }
   Module._portLmpSyncP2 = syncP2;
-
-  function pushMask() {
-    // Online (web/online.js): each device's player-1 controls drive that
-    // device's player; the local player-2 keys are off.
-    var online = !!(window.katamOnline && window.katamOnline.inSession());
-    var mask = touchMask | padMask[0], mask2 = 0, two = lmpInPlay() && !online;
-    for (var code in held) {
-      if (two && KEYMAP_P2[code] !== undefined) mask2 |= KEYMAP_P2[code];
-      else if (KEYMAP[code] !== undefined) mask |= KEYMAP[code];
-    }
-    if (two) mask2 |= padMask[1];
-    else mask |= padMask[1];
-    if (uiOpen) mask = mask2 = 0;
-    if (mask2 !== lastMask2 && Module.portRuntimeUp && Module._PortLmpSetHostKeys) {
-      lastMask2 = mask2;
-      Module._PortLmpSetHostKeys(1, mask2);
-    }
-    if (mask === lastMask) return;
-    lastMask = mask;
-    // Guard: keys can be pressed before the wasm exports exist.
-    if (Module.portRuntimeUp && Module._PortSetKeys) Module._PortSetKeys(mask);
-    else lastMask = -1;           // send it again once the runtime is up
-  }
 
   // A keystroke aimed at the URL box is not aimed at the game. Without this
   // every "d" typed into it would also walk Kirby to the right, and Backspace
@@ -2872,22 +2859,106 @@ var Module = (function () {
     if (typingInAField(e)) return;
     if (!sawKey) { sawKey = true; syncP2(); }
     if (uiKeys(e, true)) return;
-    var bit = KEYMAP[e.code];
-    if (bit === undefined && !(KEYMAP_P2[e.code] !== undefined && lmpInPlay())) return;
+    if (!devs.keyDown(e.code)) return;
     e.preventDefault();                        // arrows/space must not scroll,
                                                // Backspace must not navigate back
     if (e.repeat) return;
-    held[e.code] = 1;
-    pushMask();
+    update();
   });
 
   window.addEventListener('keyup', function (e) {
     if (uiKeys(e, false)) return;
-    if (KEYMAP[e.code] === undefined && !held[e.code]) return;
+    if (!devs.keyUp(e.code)) return;
     e.preventDefault();
-    delete held[e.code];
-    pushMask();
+    update();
   });
+
+  // Notices over the picture: "PLAYER 2 JOINED", "PLAYER 3 LEFT", and a
+  // small "PRESS START TO JOIN" while a controller nobody is using waits.
+  // Never in the way: no pointer events, a corner of the picture, gone in a
+  // few seconds.
+  notices = (function () {
+    var COLORS = ['#ff9ad0', '#ffe066', '#ff6b5e', '#7be08a'];   // the four Kirbys
+    var box = document.createElement('div');
+    box.id = 'pnotices';
+    box.setAttribute('aria-live', 'polite');
+    box.style.cssText = 'position:fixed;left:50%;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);' +
+      'z-index:65;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;' +
+      'max-width:min(92vw,520px)';
+    var hint = document.createElement('div');
+    hint.id = 'pjoinhint';
+    hint.style.cssText = 'position:fixed;right:max(10px,env(safe-area-inset-right));top:max(52px,calc(env(safe-area-inset-top) + 52px));' +
+      'z-index:65;pointer-events:none;padding:6px 10px;border-radius:10px;background:rgba(24,16,64,.78);' +
+      'border:2px solid #f8d850;color:#fff;font:bold 12px/1.3 ui-monospace,Menlo,Consolas,monospace;' +
+      'letter-spacing:.06em;text-transform:uppercase;opacity:0;transition:opacity .4s';
+    function attach() {
+      if (!box.parentNode && document.body) { document.body.appendChild(box); document.body.appendChild(hint); }
+    }
+    function show(text, player, sub, ms) {
+      attach();
+      var el = document.createElement('div');
+      el.className = 'pnotice';
+      el.style.cssText = 'padding:7px 14px;border-radius:12px;background:rgba(24,16,64,.86);color:#fff;' +
+        'border:3px solid ' + (player >= 0 ? COLORS[player] : '#f8d850') + ';text-align:center;' +
+        'font:bold 15px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;' +
+        'box-shadow:0 4px 0 rgba(0,0,0,.35);transition:opacity .5s;opacity:1';
+      el.textContent = text;
+      if (sub) {
+        var s = document.createElement('div');
+        s.style.cssText = 'font-size:11px;opacity:.85;margin-top:2px';
+        s.textContent = sub;
+        el.appendChild(s);
+      }
+      box.appendChild(el);
+      while (box.children.length > 3) box.removeChild(box.firstChild);
+      setTimeout(function () { el.style.opacity = '0'; }, ms || 2600);
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, (ms || 2600) + 600);
+    }
+    var lastFull = 0;
+    function event(ev) {
+      var who = ev.player >= 0 ? 'Player ' + (ev.player + 1) : '';
+      switch (ev.type) {
+        case 'join':
+          if (ev.why === 'game') return;   // MULTIPLAYER > LOCAL: the game's own start
+          show(ev.waits ? who + ' joins after this scene' : who + ' joined', ev.player,
+               ev.label + (ev.why === 'menu' ? '' : ' - hold Select to leave'));
+          break;
+        case 'leave':
+          show(who + ' left', ev.player,
+               ev.why === 'unplugged' ? 'controller unplugged - the CPU plays' : 'the CPU plays');
+          break;
+        case 'unplugged':
+          show(who + ': controller unplugged', ev.player, 'plug it back in to keep playing', 3000);
+          break;
+        case 'back':
+          show(who + ' reconnected', ev.player, ev.label);
+          break;
+        case 'full':
+          if (performance.now() - lastFull > 2000) { lastFull = performance.now(); show('4 players already', -1, ev.label); }
+          break;
+      }
+    }
+    // The hint: shown while a free controller waits, for six seconds each
+    // time the set of them changes.
+    var hintKey = '', hintUntil = 0;
+    function frame() {
+      var w = devs.waitingPads(), key = w.join(','), now = performance.now();
+      if (key !== hintKey) {
+        hintKey = key;
+        hintUntil = w.length ? now + 6000 : 0;
+        if (w.length) {
+          attach();
+          var labels = devs.listDevices().filter(function (d) { return w.indexOf(d.id) >= 0; })
+            .map(function (d) { return d.label; });
+          hint.textContent = labels.join(', ') + ': press Start to join';
+        }
+      }
+      var on = w.length > 0 && now < hintUntil && !uiOpen;
+      var op = on ? '1' : '0';
+      if (hint.style.opacity !== op) hint.style.opacity = op;
+    }
+    return { event: event, frame: frame, show: show };
+  })();
 
   //====================================================================
   // On-screen touch controls
@@ -3015,7 +3086,35 @@ var Module = (function () {
   // Called by fitScreen(), which already runs on every resize, rotation,
   // fullscreen change and stage reflow — the exact set of events that can
   // move a pad.
-  shell.hooks.onLayout = function () { measurePads(); reevaluate(); };
+  shell.hooks.onLayout = function () { measurePads(); reevaluate(); sendKeepOuts(); };
+
+  // The party HUD (platform/ui/party_hud.c) stays out from under the pads
+  // and the menu button: their boxes in canvas pixels, on every layout and
+  // twice a second besides (the pads appear and go with the touch toggle,
+  // the sheet and the menu, none of which reflows the stage).  A hidden
+  // control measures as nothing and clears its slot; the idle-faded gear
+  // keeps its slot, so nothing jumps when the mouse moves.  Slot 0 is the
+  // native menu button's.
+  var keepIds = ['dpad', 'tb-a', 'tb-b', 'tb-l', 'tb-r', 'tb-select', 'tb-start', 'uigear'];
+  function sendKeepOuts() {
+    var c = Module.portGlCanvas, cr, sx, sy, i;
+    if (!Module.portRuntimeUp || !Module._PortPartyHudKeepOut || !c) return;
+    cr = c.getBoundingClientRect();
+    if (!cr.width || !cr.height) return;
+    sx = c.width / cr.width;
+    sy = c.height / cr.height;
+    for (i = 0; i < keepIds.length; i++) {
+      var el = document.getElementById(keepIds[i]);
+      var b = el ? el.getBoundingClientRect() : null;
+      if (b && b.width && b.height)
+        Module._PortPartyHudKeepOut(i + 1, Math.floor((b.left - cr.left) * sx),
+                                    Math.floor((b.top - cr.top) * sy),
+                                    Math.ceil(b.width * sx), Math.ceil(b.height * sy));
+      else
+        Module._PortPartyHudKeepOut(i + 1, 0, 0, 0, 0);
+    }
+  }
+  setInterval(sendKeepOuts, 500);
 
   function inDpad(x, y) {
     if (!geomOk) return false;
@@ -3077,10 +3176,16 @@ var Module = (function () {
   var pointers = Object.create(null);
   var pointerCount = 0;
 
+  // What the on-screen pads are holding: the touch device's mask
+  // (devs.setTouch), its own device beside the keyboards and pads, so a
+  // keyup can never release a finger's button and a finger never a key's.
+  var touchMask = 0;
+
   function syncTouch() {
     var m = 0, n = 0;
     for (var id in pointers) { m |= pointers[id].bits; n++; }
     touchMask = m;
+    devs.setTouch(m);
     pointerCount = n;
     for (var i = 0; i < padButtons.length; i++) {
       padButtons[i].el.classList.toggle('down', (m & padButtons[i].bit) !== 0);
@@ -3094,7 +3199,7 @@ var Module = (function () {
     dpadEl.classList.toggle('on', !!dir);
     // Landscape fades the whole overlay back until it is being used.
     body.classList.toggle('touching', n > 0);
-    pushMask();
+    update();
   }
 
   // Absent on desktop and on iOS, and some builds throw instead of returning
@@ -3119,9 +3224,9 @@ var Module = (function () {
   }
 
   shell.releaseInput = function () {
-    held = Object.create(null);
+    devs.releaseKeys();
     releaseAllTouch();
-    pushMask();
+    update();
   };
 
   //--------------------------------------------------------------------
@@ -3139,12 +3244,12 @@ var Module = (function () {
 
   Module.portUiOpenChanged = function (open) {
     uiOpen = !!open;
-    held = Object.create(null);
+    devs.releaseKeys();
     releaseAllTouch();
     body.classList.toggle('ui-open', uiOpen);
     if (gearBtn) gearBtn.setAttribute('aria-pressed', uiOpen ? 'true' : 'false');
     lastMask = -1;
-    pushMask();
+    update();
   };
 
   // pointerup, not click: the stage cancels touchstart (so a thumb on the

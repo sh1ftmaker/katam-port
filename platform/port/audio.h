@@ -72,6 +72,7 @@ void PortMixerSetCanon(int rate);
 u32 *PortMixerCanonStats(void);
 u32 *PortAudioCanonOutStats(void);
 void PortAudioSetReplayMix(int on);    /* measuring only: mix unheard blocks too */
+int  PortAudioHasDevice(void);          /* a device granted (platform/audio_ear.c) */
 
 /* Opens the device and sizes the mixer.  Called from the patched
  * SampleFreqSet, which is the first thing SoundInit does -- everything after

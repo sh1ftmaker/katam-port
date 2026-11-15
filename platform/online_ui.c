@@ -25,6 +25,7 @@ static int sState, sNote;
 static char sCode[5] = "----";
 static int sJoin[4], sJoinPos;
 static int sStartPending;
+static int sPlayers = 1, sConnecting;
 static u32 sGen = 1;
 static int sEv[8], sEvHead, sEvTail;
 
@@ -49,6 +50,13 @@ void PortOuiSet(int state, int c0, int c1, int c2, int c3)
         sCode[0] = (char)c0; sCode[1] = (char)c1; sCode[2] = (char)c2; sCode[3] = (char)c3;
         sCode[4] = '\0';
     }
+    sGen++;
+}
+
+void PortOuiSetPlayers(int players, int connecting)
+{
+    sPlayers = players < 1 ? 1 : players > 4 ? 4 : players;
+    sConnecting = connecting < 0 ? 0 : connecting;
     sGen++;
 }
 
@@ -134,9 +142,12 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
             v = sState == PORT_OUI_H_CREATING ? "...." : HostHasRoom() ? sCode : "----";
         } else {
             switch (sState) {
-            case PORT_OUI_H_WAITING:  v = "ALONE"; break;
-            case PORT_OUI_H_JOINING:  v = "P2 JOINING"; break;
-            case PORT_OUI_H_READY:    v = "P2 READY"; break;
+            case PORT_OUI_H_WAITING:
+            case PORT_OUI_H_JOINING:
+            case PORT_OUI_H_READY:
+                if (sPlayers <= 1 && !sConnecting) { v = "ALONE"; break; }
+                snprintf(buf, size, "PLAYERS %d/4%s", sPlayers, sConnecting ? " +" : "");
+                return;
             case PORT_OUI_H_NOSERVER: v = "OFFLINE"; break;
             default:                  v = ""; break;
             }
@@ -191,9 +202,12 @@ const char *PortOuiRowDesc(int sub, int row)
         switch (sState) {
         case PORT_OUI_H_CREATING: return "MAKING A GAME CODE";
         case PORT_OUI_H_NOSERVER: return "NO GAME SERVER - TRY AGAIN";
-        case PORT_OUI_H_JOINING:  return "PLAYER TWO IS CONNECTING";
+        case PORT_OUI_H_JOINING:  return "A PLAYER IS CONNECTING";
         case PORT_OUI_H_READY:
-            return row == 0 ? "PLAYER TWO IS HERE" : "PRESS A TO PLAY TOGETHER";
+            if (row == 0)
+                return sPlayers >= 4 ? "FOUR PLAYERS - THE GAME IS FULL"
+                     : sPlayers == 3 ? "THREE PLAYERS ARE HERE" : "TWO PLAYERS ARE HERE";
+            return "PRESS A TO PLAY TOGETHER";
         default:
             return row == 0 ? "A COPIES AN INVITE LINK" : "A FRIEND CAN COME IN LATER";
         }
@@ -204,7 +218,7 @@ const char *PortOuiRowDesc(int sub, int row)
         case PORT_OUI_J_WAITING:    return "WAITING FOR THE HOST";
         case PORT_OUI_J_STARTING:   return "GETTING THE GAME";
         case PORT_OUI_J_NOGAME:     return "CHECK THE CODE";
-        case PORT_OUI_J_FULL:       return "THAT GAME HAS TWO PLAYERS";
+        case PORT_OUI_J_FULL:       return "THAT GAME HAS FOUR PLAYERS";
         case PORT_OUI_J_BUILD:      return "REFRESH THE PAGE";
         case PORT_OUI_J_ROM:        return "YOU BOTH NEED THE SAME ROM";
         case PORT_OUI_J_FAILED:     return "NO CONNECTION - TRY AGAIN";

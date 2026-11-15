@@ -35,21 +35,49 @@
     function dv(b) { return new DataView(b.buffer, b.byteOffset, b.byteLength); }
 
     // --- wire -----------------------------------------------------------------
-    function encInput(g, keys, ack, ts) {
-        var b = new Uint8Array(14 + 2 * keys.length), d = dv(b);
-        b[0] = T_INPUT; d.setUint32(1, g >>> 0, true); b[5] = keys.length;
-        d.setUint32(6, ack >>> 0, true); d.setUint32(10, ts >>> 0, true);
-        for (var i = 0; i < keys.length; i++) d.setUint16(14 + 2 * i, keys[i], true);
+    // Input (guest -> host): its keys for frames g-n+1..g, for each local seat
+    // in `mask` (bit per seat, seat 0 = the console's own keys), frame-major.
+    //   u8 T_INPUT, u32 g, u8 n, u32 ack, u32 ts, u8 mask, n x popcount(mask) x u16
+    // `frames` is an array of key arrays indexed by seat (a plain number is
+    // seat 0's key, mask 1).
+    function popcount(m) { var n = 0; for (; m; m &= m - 1) n++; return n; }
+    function encInput(g, frames, ack, ts, mask) {
+        mask = mask === undefined ? 1 : mask & 15;
+        var per = popcount(mask), b = new Uint8Array(15 + 2 * per * frames.length), d = dv(b), o = 15;
+        b[0] = T_INPUT; d.setUint32(1, g >>> 0, true); b[5] = frames.length;
+        d.setUint32(6, ack >>> 0, true); d.setUint32(10, ts >>> 0, true); b[14] = mask;
+        for (var i = 0; i < frames.length; i++) {
+            var fr = frames[i];
+            for (var s = 0; s < 4; s++) {
+                if (!(mask & (1 << s))) continue;
+                d.setUint16(o, (typeof fr === 'number' ? (s === 0 ? fr : 0) : (fr[s] || 0)) & 0x3FF, true); o += 2;
+            }
+        }
         return b;
     }
     function decInput(b) {
-        var d = dv(b), n = b[5], keys = [];
-        for (var i = 0; i < n; i++) keys.push(d.getUint16(14 + 2 * i, true));
-        return { g: d.getUint32(1, true), keys: keys, ack: d.getUint32(6, true), ts: d.getUint32(10, true) };
+        var d = dv(b), n = b[5], mask = b[14], frames = [], o = 15;
+        for (var i = 0; i < n; i++) {
+            var fr = [0, 0, 0, 0];
+            for (var s = 0; s < 4; s++) if (mask & (1 << s)) { fr[s] = d.getUint16(o, true); o += 2; }
+            frames.push(fr);
+        }
+        return { g: d.getUint32(1, true), mask: mask, keys: frames, ack: d.getUint32(6, true), ts: d.getUint32(10, true) };
     }
+    // Sealed (host -> one guest): 23-byte header (frontier P, first frame,
+    // count, that guest's contiguous inputs, its lateness, the echo), then per
+    // frame: u8 flags (bits 0-3 slots whose keys follow -- a slot not listed
+    // has none pressed, so a CPU slot or an idle player costs nothing; bit 4
+    // hashed; bit 5 events follow), [u8 nev], u16 per listed slot, [u32 lo,
+    // u32 hi], nev x 17 bytes.  Two idle players: 1 byte a frame.
+    function recKeys(r) { return [r.k0 | 0, r.k1 | 0, r.k2 | 0, r.k3 | 0]; }
     function encSealed(P, first, recs, guestContig, marginMin, echoTs, holdMs) {
-        var n = 23, r, i, k;
-        for (i = 0; i < recs.length; i++) n += 5 + (recs[i].hashed ? 8 : 0) + recs[i].ev.length * 17;
+        var n = 23, r, i, k, s;
+        for (i = 0; i < recs.length; i++) {
+            var kk = recKeys(recs[i]);
+            n += 1 + (recs[i].ev.length ? 1 : 0) + (recs[i].hashed ? 8 : 0) + recs[i].ev.length * 17;
+            for (s = 0; s < 4; s++) if (kk[s]) n += 2;
+        }
         var b = new Uint8Array(n), d = dv(b);
         b[0] = T_SEALED; d.setUint32(1, P >>> 0, true); d.setUint32(5, first >>> 0, true);
         d.setUint16(9, recs.length, true);
@@ -60,8 +88,11 @@
         var o = 23;
         for (i = 0; i < recs.length; i++) {
             r = recs[i];
-            d.setUint16(o, r.k0, true); d.setUint16(o + 2, r.k1, true);
-            b[o + 4] = (r.hashed ? 1 : 0) | (r.ev.length << 1); o += 5;
+            var keys = recKeys(r), m = 0;
+            for (s = 0; s < 4; s++) if (keys[s]) m |= 1 << s;
+            b[o++] = m | (r.hashed ? 16 : 0) | (r.ev.length ? 32 : 0);
+            if (r.ev.length) b[o++] = r.ev.length;
+            for (s = 0; s < 4; s++) if (m & (1 << s)) { d.setUint16(o, keys[s], true); o += 2; }
             if (r.hashed) { d.setUint32(o, r.hlo >>> 0, true); d.setUint32(o + 4, r.hhi >>> 0, true); o += 8; }
             for (k = 0; k < r.ev.length; k++) {
                 var e = r.ev[k];
@@ -75,8 +106,9 @@
     function decSealed(b) {
         var d = dv(b), n = d.getUint16(9, true), recs = [], o = 23;
         for (var i = 0; i < n; i++) {
-            var r = { k0: d.getUint16(o, true), k1: d.getUint16(o + 2, true), hashed: b[o + 4] & 1, ev: [] };
-            var nev = b[o + 4] >> 1; o += 5;
+            var fl = b[o++], nev = fl & 32 ? b[o++] : 0, kk = [0, 0, 0, 0];
+            for (var s = 0; s < 4; s++) if (fl & (1 << s)) { kk[s] = d.getUint16(o, true); o += 2; }
+            var r = { k0: kk[0], k1: kk[1], k2: kk[2], k3: kk[3], hashed: fl & 16 ? 1 : 0, ev: [] };
             if (r.hashed) { r.hlo = d.getUint32(o, true); r.hhi = d.getUint32(o + 4, true); o += 8; }
             for (var k = 0; k < nev; k++) {
                 var e = [b[o]];
@@ -99,10 +131,14 @@
     }
 
     // --- host -------------------------------------------------------------------
+    // One per guest device (opts.dev, 1..3): that guest's inputs in, its
+    // sealed stream and images out.  Several share the one engine (HostHub).
     function HostSession(eng, tx, clock, opts) {
         this.e = eng; this.tx = tx; this.clock = clock;
-        this.o = assign({ maxPerPacket: 64, resendWindow: 1024, codec: null }, opts || {});
+        this.o = assign({ maxPerPacket: 64, resendWindow: 1024, codec: null, dev: 1 }, opts || {});
+        this.dev = this.o.dev;
         this.start = eng.frame();
+        this.lastHeard = clock();
         this.guestAck = this.start;       // guest has every sealed frame below this
         this.guestHigh = -1;              // highest guest input frame seen
         this.guestContig = 0;             // guest inputs contiguous below this
@@ -119,6 +155,7 @@
         var t = this.clock(), m = decInput(buf), next = this.e.frame();
         var first = m.g - m.keys.length + 1;
         this.st.inputsIn++;
+        this.lastHeard = t;
         for (var i = 0; i < m.keys.length; i++) {
             var f = first + i;
             if (f < this.start) continue;
@@ -127,7 +164,8 @@
                 this.margins.push({ t: t, m: f - next });
                 if (f < next) this.st.inputsUseless++;
             }
-            this.e.remoteInput(f, m.keys[i]);
+            for (var s = 0; s < 4; s++)
+                if (m.mask & (1 << s)) this.e.remoteInput(f, m.keys[i][s], this.dev, s);
         }
         if (m.g > this.guestHigh) this.guestHigh = m.g;
         while (this.seen.has(this.guestContig) || this.guestContig < this.start) {
@@ -144,6 +182,12 @@
             if (this.imgInFlight === null || msg.frame >= this.imgInFlight) this.wantImage('repair:' + msg.reason);
             else this.st.repairDup = (this.st.repairDup || 0) + 1;
         } else if (msg.t === 'viewreq') { this.st.viewReqs++; this.e.event(2, msg.w, msg.h, 0, 0); }
+        else if (msg.t === 'seat') {
+            // a local join (or leave) on that guest: the host decides the slot
+            this.st.seatReqs = (this.st.seatReqs || 0) + 1;
+            var slot = this.e.seatRequest(this.dev, msg.seat | 0, msg.on ? 1 : 0);
+            if (msg.on && slot < 0) { this.st.seatFull = (this.st.seatFull || 0) + 1; this.tx.reliable({ t: 'seatfull', seat: msg.seat | 0 }, 16); }
+        }
     };
     HostSession.prototype.wantImage = function (reason) {
         if (!this.imageWanted) { this.imageWanted = 1; this.imageReason = reason; this.e.imageRequest(); }
@@ -161,7 +205,7 @@
                 var reason = this.imageReason;
                 var send = function (comp) {
                     self.st.imageComp = comp.length;
-                    self.tx.reliable({ t: 'image', F: img.frame, raw: img.bytes.length, comp: comp, reason: reason },
+                    self.tx.reliable({ t: 'image', F: img.frame, raw: img.bytes.length, comp: comp, reason: reason, dev: self.dev },
                                      comp.length + 32);
                 };
                 this.st.images++; this.st.imageRaw = img.bytes.length;
@@ -213,7 +257,8 @@
         this.lastAdj = -1e9; this.goodSince = null;
         this.settling = false; this.settleUntil = -1e9; this.heldLast = false;
         this.repairInFlight = 0; this.repairAt = 0;
-        this.joined = false; this.lastLocal = -1; this.keyRing = new Uint16Array(4096); this.offs = [];
+        this.joined = false; this.lastLocal = -1; this.keyRing = new Uint16Array(4 * 4096); this.offs = [];
+        this.dev = null; this.onSeatFull = null;
         this.st = { packets: 0, recs: 0, holds: 0, skips: 0, skipFrames: 0, bursts: 0, burstFrames: 0, capHolds: 0,
                     lockHolds: 0, images: 0, imageApplyMs: 0, imageBytes: 0, repairReqs: 0, marginUps: 0, marginDowns: 0,
                     leadSamples: [], marginSamples: [], firstImageAt: null };
@@ -228,7 +273,7 @@
         for (i = 0; i < m.recs.length; i++) {
             var f = m.first + i, r = m.recs[i];
             for (var k = 0; k < r.ev.length; k++) this.e.sealedEvent(f, r.ev[k]);
-            this.e.sealed(f, r.k0, r.k1, r.ev.length);
+            this.e.sealed(f, r.k0, r.k1, r.ev.length, r.k2, r.k3);
             if (r.hashed) this.e.remoteHash(f, r.hlo, r.hhi);
         }
         this.st.recs += m.recs.length;
@@ -275,8 +320,15 @@
     };
     // An image: msg.raw (bytes, already inflated) or msg.comp (raw deflate).
     GuestSession.prototype.onReliable = function (msg) {
+        if (msg.t === 'seatfull') {
+            this.st.seatFull = (this.st.seatFull || 0) + 1;
+            if (this.onSeatFull) this.onSeatFull(msg.seat);
+            return;
+        }
         if (msg.t !== 'image') return;
         var t0 = now();
+        // the device id the host gave this guest, before its image lands
+        if (msg.dev) { this.dev = msg.dev; this.e.setSelf(msg.dev); }
         var raw = msg.raw && msg.raw.length !== undefined ? msg.raw : this.o.codec.inflate(msg.comp);
         this.e.loadImage(raw);
         this.st.imageApplyMs += now() - t0;
@@ -330,8 +382,15 @@
         }
         return Math.max(0, n);
     };
+    // keys: this device's seat 0 key, or an array of its seats' keys
     GuestSession.prototype.beforeFrame = function (f, keys) {
-        this.e.localInput(f, keys); this.lastLocal = f; this.keyRing[f & 4095] = keys;
+        var o = (f & 4095) * 4;
+        for (var s = 0; s < 4; s++) {
+            var k = typeof keys === 'number' ? (s === 0 ? keys : 0) : (keys[s] || 0);
+            if (s === 0 || typeof keys !== 'number') this.e.localInput(f, k, s);
+            this.keyRing[o + s] = k;
+        }
+        this.lastLocal = f;
     };
     GuestSession.prototype.afterTick = function () {
         var t = this.clock(), tel = this.e.tel();
@@ -339,15 +398,76 @@
             this.repairInFlight = 1; this.repairAt = t; this.st.repairReqs++;
             this.tx.reliable({ t: 'repair', reason: tel.mismatches ? 'mismatch' : 'history', frame: tel.repairFrame }, 16);
         }
+        // this device's own seat requests (a local join or leave), to the host
+        var a;
+        while ((a = this.e.seatAskPoll ? this.e.seatAskPoll() : 0)) {
+            this.st.seatAsks = (this.st.seatAsks || 0) + 1;
+            this.tx.reliable({ t: 'seat', seat: (a - 1) & 3, on: (a - 1) >> 2 ? 1 : 0 }, 16);
+        }
         if (this.lastLocal < 0) return;
-        var g = this.lastLocal;
+        var g = this.lastLocal, mask = this.e.selfSeats ? this.e.selfSeats() & 15 : 1;
         var from = Math.max(this.hostAck, g - this.o.redundancy + 1, 0);
         var keys = [];
-        for (var f = from; f <= g; f++) keys.push(this.keyAt(f));
+        for (var f = from; f <= g; f++) keys.push(this.keysAt(f));
         if (!keys.length) return;
-        this.tx.datagram(encInput(g, keys, tel.sealedUpTo, Math.round(t * 10)));
+        this.tx.datagram(encInput(g, keys, tel.sealedUpTo, Math.round(t * 10), mask | 1));
     };
-    GuestSession.prototype.keyAt = function (f) { return this.keyRing[f & 4095]; };
+    GuestSession.prototype.keyAt = function (f) { return this.keyRing[(f & 4095) * 4]; };
+    GuestSession.prototype.keysAt = function (f) { var o = (f & 4095) * 4; return [this.keyRing[o], this.keyRing[o + 1], this.keyRing[o + 2], this.keyRing[o + 3]]; };
+
+    // --- the host's side of several guests --------------------------------------
+    // A star: one HostSession per guest device, the slots decided by the
+    // engine (PortLnSeatRequest).  add() gives a connecting device its first
+    // player's slot (the next free one, or the one it had) and a join image;
+    // remove() hands its Kirbys to the CPU.  The caller says who is
+    // connected; the hub keeps no timers.
+    function HostHub(eng, clock, opts) {
+        this.e = eng; this.clock = clock; this.o = opts || {};
+        this.peers = {};
+        this.st = { adds: 0, removes: 0, full: 0 };
+        eng.seatRequest(0, 0, 1);          // the host's own player: slot 0; the host now manages the slots
+    }
+    HostHub.prototype.add = function (dev, tx, opts) {
+        if (this.peers[dev]) this.remove(dev);
+        var hs = new HostSession(this.e, tx, this.clock, assign({}, this.o, opts || {}, { dev: dev }));
+        hs.slot = this.e.seatRequest(dev, 0, 1);
+        if (hs.slot < 0) this.st.full++;
+        hs.wantImage('join');
+        this.peers[dev] = hs;
+        this.st.adds++;
+        return hs;
+    };
+    HostHub.prototype.remove = function (dev) {
+        if (!this.peers[dev]) return;
+        delete this.peers[dev];
+        this.e.deviceGone(dev);
+        this.st.removes++;
+    };
+    HostHub.prototype.get = function (dev) { return this.peers[dev] || null; };
+    HostHub.prototype.devs = function () { return Object.keys(this.peers).map(Number).sort(); };
+    HostHub.prototype.count = function () { return this.devs().length; };
+    // a device id for a newcomer: `prefer` (a returning device) if free, else the lowest
+    HostHub.prototype.freeDev = function (prefer) {
+        if (prefer >= 1 && prefer <= 3 && !this.peers[prefer]) return prefer;
+        for (var d = 1; d <= 3; d++) if (!this.peers[d]) return d;
+        return -1;
+    };
+    // the host's own seats' keys for frame f (seat 0 = the console's)
+    HostHub.prototype.beforeFrame = function (f, keys) {
+        for (var s = 0; s < 4; s++) {
+            var k = typeof keys === 'number' ? (s === 0 ? keys : 0) : (keys[s] || 0);
+            if (s === 0 || typeof keys !== 'number') this.e.localInput(f, k, s);
+        }
+    };
+    HostHub.prototype.afterTick = function () {
+        var ds = this.devs();
+        for (var i = 0; i < ds.length; i++) {
+            var hs = this.peers[ds[i]];
+            // a device that came in while all four Kirbys were people: a slot when one frees
+            if (hs.slot < 0) hs.slot = this.e.freeSlots() > 0 ? this.e.seatRequest(hs.dev, 0, 1) : -1;
+            hs.afterTick();
+        }
+    };
 
     // --- an engine adapter over a running module (the page) ----------------------
     // tools/netproof/instance.mjs has the rig's own; this is the same calls.
@@ -363,12 +483,12 @@
         function s32(i) { return M.HEAP32[(scratch >> 2) + i]; }
         var eng = {
             frame: function () { return M._PortFrameNumber(); },
-            localInput: function (f, k) { M._PortLnLocalInput(f, k); },
-            remoteInput: function (f, k) { M._PortLnRemoteInput(f, k); },
+            localInput: function (f, k, seat) { M._PortLnLocalInputSeat(f, seat | 0, k); },
+            remoteInput: function (f, k, dev, seat) { M._PortLnRemoteInputSeat(f, dev === undefined ? 1 : dev, seat | 0, k); },
             sealedGet: function (f) {
                 if (!M._PortLnSealedGet(f, scratch)) return null;
                 var rec = { k0: u32(0), k1: u32(1), nev: u32(2), ontime: u32(3), hlo: u32(4), hhi: u32(5),
-                            hashed: u32(6), ev: [] };
+                            hashed: u32(6), k2: u32(7), k3: u32(8), ev: [] };
                 for (var i = 0; i < rec.nev; i++) {
                     M._PortLnSealedEventGet(f, i, scratch);
                     rec.ev.push([s32(0), s32(1), s32(2), s32(3), s32(4)]);
@@ -376,7 +496,7 @@
                 return rec;
             },
             sealedEvent: function (f, e) { M._PortLnSealedEvent(f, e[0], e[1], e[2], e[3], e[4]); },
-            sealed: function (f, k0, k1, nev) { M._PortLnSealed(f, k0, k1, nev); },
+            sealed: function (f, k0, k1, nev, k2, k3) { M._PortLnSealed4(f, k0, k1, k2 | 0, k3 | 0, nev); },
             remoteHash: function (f, lo, hi) { M._PortLnRemoteHash(f, lo, hi); },
             event: function (t, a, b, c, d) { return M._PortLnEvent(t, a, b, c, d); },
             tel: function () {
@@ -398,13 +518,20 @@
                 M.HEAPU8.set(bytes, p);
                 return M._PortLnImageLoad(bytes.length);
             },
+            seatRequest: function (dev, seat, on) { return M._PortLnSeatRequest(dev, seat, on); },
+            deviceGone: function (dev) { M._PortLnDeviceGone(dev); },
+            freeSlots: function () { return M._PortLnFreeSlots(); },
+            setSelf: function (dev) { M._PortLnSetSelf(dev); },
+            selfSeats: function () { return M._PortLnSelfSeats(); },
+            seatAskPoll: function () { return M._PortLnSeatAskPoll(); },
+            slotOwner: function (s) { return M._PortLnSlotOwner(s); },
         };
         return eng;
     }
 
     return {
         PERIOD: PERIOD, T_INPUT: T_INPUT, T_SEALED: T_SEALED,
-        HostSession: HostSession, GuestSession: GuestSession,
+        HostSession: HostSession, GuestSession: GuestSession, HostHub: HostHub,
         encInput: encInput, decInput: decInput, encSealed: encSealed, decSealed: decSealed,
         engineOfModule: engineOfModule,
     };

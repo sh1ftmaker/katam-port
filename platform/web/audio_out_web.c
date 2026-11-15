@@ -353,11 +353,38 @@ EM_JS(void, PortAudioSubmit, (const float *samples, int frames), {
  * output's.  And a knob for measuring: 1 makes replayed frames mix their
  * samples too (as without AdvanceOnly), to price what that saves. */
 #include "port/audio.h"
+#include "port/audio_ear.h"
 
 EMSCRIPTEN_KEEPALIVE u32 *PortAudioStatsJs(int which)
 {
+    if (which == 2)
+        return PortEarStats();
     return which ? PortAudioCanonOutStats() : PortMixerCanonStats();
 }
+
+/* The guest's speakers in a session (platform/audio_ear.c): the reconciler
+ * on (default) or off, and its counters' names. */
+EMSCRIPTEN_KEEPALIVE void PortAudioEarJs(int on)
+{
+    PortEarSet(on);
+}
+
+EMSCRIPTEN_KEEPALIVE const char *PortAudioEarNamesJs(void)
+{
+    return PortEarStatsNames();
+}
+
+/* Measuring (tools/netproof/sound_eval.mjs): per-player output energy per
+ * render, and the render tag of the block being pushed now. */
+u32 PortLnLatchFrame(void);
+
+EMSCRIPTEN_KEEPALIVE void PortAudioEarProbeJs(int on) { PortEarProbe(on); }
+EMSCRIPTEN_KEEPALIVE u32 PortAudioEarProbeCountJs(void) { return PortEarProbeCount(); }
+EMSCRIPTEN_KEEPALIVE void *PortAudioEarProbeRingJs(void) { return PortEarProbeRing(); }
+EMSCRIPTEN_KEEPALIVE int PortAudioEarProbeCapJs(void) { return PortEarProbeCap(); }
+EMSCRIPTEN_KEEPALIVE u32 PortAudioPushTagJs(void) { return PortLnLatchFrame(); }
+EMSCRIPTEN_KEEPALIVE u32 PortAudioEarStartsJs(int which) { return PortEarStartLog(which); }
+EMSCRIPTEN_KEEPALIVE u32 PortAudioEarDebugJs(int which) { return PortEarDebug(which); }
 
 EMSCRIPTEN_KEEPALIVE void PortAudioReplayMixJs(int on)
 {
