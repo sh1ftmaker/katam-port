@@ -92,6 +92,7 @@ void PortMenuPocMpStarted(void);
 #define PORT_MENU_POC_MP_SCREEN 0x11
 #define PORT_MENU_POC_MP_LOCAL  0
 #define PORT_MENU_POC_MP_ONLINE 1
+#define PORT_MENU_POC_MP_CARD   2   /* PLAYER CARD (platform/player_card.c) */
 
 /* --- the settings screen ---------------------------------------------------- */
 
@@ -145,6 +146,10 @@ u32 PortPocScreenLastDraw(void);
 int PortPocScreenModel(void);
 int PortPocScreenCursorY(int row);
 int PortPocScreenCursorX(void);
+
+/* An animation variant's first frame as 4bpp colour indices (cw x ch,
+ * cleared first); returns its width, *h its height, 0 on anything odd. */
+int PortPocDecodeFrame(u16 animId, u8 variant, u8 *px, int cw, int ch, int *h);
 
 /* --- the pause menu's settings page (game/src/pause_settings.c) -------------- */
 

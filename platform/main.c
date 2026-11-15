@@ -44,6 +44,7 @@
 #include "port/mp.h"
 #include "port/rollback.h"
 #include "port/lmpnet.h"
+#include "port/player_card.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
 #include "port/simblock.h"
@@ -1019,6 +1020,10 @@ void PortPresentFrame(void)
      * then serves the seat that was just loaded. */
     PortSeatEndFrame();
 
+    /* The player cards (platform/player_card.c): a colour a slot should wear
+     * and does not yet is scheduled for the latch below, as a recorded
+     * input.  Host side: it reads the simulation and writes nothing to it. */
+    PortCardHostFrame();
     UpdateKeyInput(1);
     sFrameCount++;
 

@@ -79,6 +79,7 @@
 #include "port/inputlog.h"
 #include "port/lmpnet.h"
 #include "port/audio_ear.h"
+#include "port/kirby_paint.h"
 #include "port/menu_poc.h"
 #include "pause_help.h"
 #include "task.h"
@@ -1325,6 +1326,9 @@ static void ApplyEvents(u32 f)
                     sOwn[v->a] = (u8)v->c;
             }
             PortLmpSetSlotHuman(v->a, v->b);
+            break;
+        case PORT_LN_EV_PAINT:
+            PortPaintSetSlot(v->a, (u32)v->b);
             break;
         case PORT_LN_EV_POKE:
             if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)

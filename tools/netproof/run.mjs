@@ -295,7 +295,7 @@ export async function runSession(cfg) {
             while (evIdx < sc.events.length && sc.events[evIdx].f <= f) {
                 const e = sc.events[evIdx++];
                 he.event(e.type, e.a, e.b, e.c, e.d);
-                if (e.type === 2) cov.views++; else if (e.type === 4) cov.pokes++;
+                if (e.type === 2) cov.views++; else if (e.type === 4) cov.pokes++; else if (e.type === 6) cov.paints = (cov.paints || 0) + 1;
             }
             lastObs.me = host.kirby(0); lastObs.enemy = host.findEnemy();
             hub.beforeFrame(f, seatKeys(host, 0, hostSeatsOn, f, lastObs));

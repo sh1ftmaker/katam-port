@@ -6,6 +6,7 @@ extern "C" {
 /* PORT: view bounds, see platform/view.c */
 extern s32 gPortOamMinX, gPortOamMaxX, gPortOamMinY, gPortOamMaxY;
 #include "port/spawn.h"
+#include "port/kirby_paint.h"
 #include "port/localmp.h"
 extern s32 gPortCamPadX, gPortCamPadY;
 #include "hud.h"
@@ -6248,6 +6249,8 @@ void sub_0803EA90(struct Kirby *kirby, u16 sl, const s32 *r2, bool32 r3)
         kirby->color = gUnk_0203AD1C[kirby->base.unk56];
     else
         kirby->color = kirby->base.unk56;
+    /* PORT: a player card's colour (platform/kirby_paint.c) */
+    kirby->color = PortPaintColorInit(kirby->base.unk56, kirby->color);
     kirby->roomId = sl;
     kirby->spawnLocation.x = 4;
     kirby->spawnLocation.y = 4;
@@ -6307,6 +6310,7 @@ void sub_0803EE18(void)
     s32 r0;
     u16 *fake;
 
+    PortPaintTick(kirby); /* PORT: a player card's colour changed (platform/kirby_paint.c) */
     kirby->base.unkC &= ~0x201494;
     if (kirby->unkE8 && kirby->unkE8->base.flags & 0x1000)
     {

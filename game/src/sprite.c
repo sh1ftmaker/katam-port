@@ -16,6 +16,7 @@ extern s32 gPortCamPadX, gPortCamPadY;
 #include "trig.h"
 #include "palette.h"
 #include "task.h"
+#include "port/kirby_paint.h"
 #include <string.h>
 
 s32 sub_08153D78(struct Sprite *sprite) {
@@ -891,14 +892,22 @@ s32 sub_08155400(union AnimCmd cursor, struct Sprite *sprite) {
 
     sprite->animCursor += sizeof(struct AnimCmd_GetPalette) / 4;
     if (!(sprite->unk8 & 0x40000)) {
+        /* PORT: a player card's colour (platform/kirby_paint.c) replaces a
+         * Kirby's palette here; nobody painting, the ROM's, as before. */
+        u16 paint[16];
+        const u16 *src;
+
         idx = cursor.getPalette->palId;
+        src = gSpriteTables->palette + 0x10 * idx;
+        src = PortPaintPalette(sprite, src, paint,
+                               cursor.getPalette->numColors, cursor.getPalette->insertOffset);
         if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_TRANSFORMATION_ENABLE) {
-            LoadObjPaletteWithTransformation(gSpriteTables->palette + 0x10 * idx,
+            LoadObjPaletteWithTransformation(src,
                 0x10 * sprite->palId + cursor.getPalette->insertOffset,
                 cursor.getPalette->numColors);
         } else {
             DmaCopy16(3,
-                gSpriteTables->palette + 0x10 * idx,
+                src,
                 &gObjPalette[0x10 * sprite->palId + cursor.getPalette->insertOffset],
                 cursor.getPalette->numColors * sizeof(u16));
             gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;

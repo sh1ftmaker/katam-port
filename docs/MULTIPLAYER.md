@@ -1585,3 +1585,43 @@ and on a guest, a refusal when full.
 Not verified: real devices, real networks, NAT traversal between more than
 two browsers (each guest has its own WebRTC link to the host; the relay
 carries any that fail).
+
+---
+
+## 15. Player cards: a name and a Kirby colour per player
+
+Start Game > MULTIPLAYER > **PLAYER CARD** (`platform/player_card.c`, drawn by
+`platform/menu_poc.c` like the ONLINE screens): PLAYER (P1..P4: this device's
+own card and the cards of whoever plays players 2..4 on this screen), NAME (up
+to 8 of A-Z 0-9 space - . !: Left/Right pick a letter, A the next; a keyboard
+types into it on the web, and on a phone a "Type name" button brings up the
+device keyboard), COLOR (GAME = the game's own, the fourteen spray paints,
+CUSTOM; A opens HUE / VIVID / BRIGHT bars).  A standing Kirby below shows the
+exact palette the game will load.  Cards are `card0..card3` lines in the
+settings text (settings.ini / localStorage) and never game memory.
+
+**Colour in the simulation** (`platform/kirby_paint.c`, `port/kirby_paint.h`):
+a per-slot paint in the sim block (`gPortSim->game.paint[4]`, spare bytes, all
+zero until used), set only at a latch by `paint FRAME SLOT VALUE` (recording)
+or `PORT_LN_EV_PAINT` (session).  The palette command (`sprite.c`) swaps in a
+derived palette for anim 0x15 and the UFO's 14 variants; the Kirby's colour
+index becomes the spray it was shaded from, so every colour-indexed table
+(HUD, UFO, Fighter's red headband) stays in range; the Kirby's own task
+reloads the palette once when the paint changes.  Derivation: integer HSV;
+the nearest spray (by hue for colours over 25% saturated, else Snow/Carbon)
+is the template; each entry that differs between the sprays is hue-shifted by
+(colour - template fill) and has saturation/value remapped piecewise-linearly
+(fill -> colour, 0 and 255 fixed).  Cherry and Chalk are not templates.
+
+**Who schedules it**: `PortCardHostFrame` (host side, before the latch):
+local play, slot 0 wears card 0 from the start and slot s card s while it is a
+person; online host, its own slot.  Not while replaying, under
+rollback/netsim/seats, or while a card is open.  Online guests' colours are
+the session layer's: guest page sends `PortCardProfileString()`; host page
+calls `PortCardHostApplyProfile(slot, profile)` (sealed paint +
+`PortCardSetSlotName`) and relays names; each device calls
+`PortCardSetSlotName(slot, name)`.  Presentation: `PortPlayerName(slot)`,
+`PortPlayerColor(slot)`, `PortPlayerTagAnchor(slot, ...)`.
+
+Scenario: `tests/recordings/card_colors.txt` (keys/vid/sram/pix identical
+native vs wasm).

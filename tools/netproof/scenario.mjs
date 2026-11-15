@@ -9,7 +9,7 @@ import { mulberry32 } from './link.mjs';
 import { KEY } from './instance.mjs';
 
 const M = { A: 1, B: 2, s: 4, S: 8, R: 16, L: 32, U: 64, D: 128, r: 256, l: 512 };
-export const EV = { WARP: 1, VIEW: 2, LMP: 3, POKE: 4 };
+export const EV = { WARP: 1, VIEW: 2, LMP: 3, POKE: 4, HUMAN: 5, PAINT: 6 };
 export const BOOT_END = 1300;
 export const SCRIPTED_END = 10100;
 export const ROOMS = [[101, 3, 7], [104, 2, 9], [106, 2, 9], [202, 3, 4], [205, 3, 3], [310, 4, 9],
@@ -198,7 +198,8 @@ export function buildScenario({ seed = 1, humanFrames = 36000, skipScripted = fa
 }
 
 // A recorded local-multiplayer session (inputlog text: k, kp 1, warp, view,
-// option localmp).  Player 1 is the host's pad, kp 1 the guest's.
+// paint (player-card colours, sealed as PORT_LN_EV_PAINT), option localmp).
+// Player 1 is the host's pad, kp 1 the guest's.
 export function loadRecording(file, menus) {
     const k1 = [], k2 = [], ev = [];
     let frames = 0, localmp = 0;
@@ -208,6 +209,7 @@ export function loadRecording(file, menus) {
         else if (p[0] === 'kp' && p[1] === '1') k2.push([+p[2], parseInt(p[3], 16)]);
         else if (p[0] === 'warp') ev.push({ f: +p[1], type: EV.WARP, a: +p[2], b: +p[3], c: +p[4], d: +p[5] });
         else if (p[0] === 'view') ev.push({ f: +p[1], type: EV.VIEW, a: +p[2], b: +p[3], c: 0, d: 0 });
+        else if (p[0] === 'paint') ev.push({ f: +p[1], type: EV.PAINT, a: +p[2], b: parseInt(p[3], 16) | 0, c: 0, d: 0 });
         else if (p[0] === 'frames') frames = +p[1];
         else if (p[0] === 'option' && p[1] === 'localmp') localmp = +p[2];
     }

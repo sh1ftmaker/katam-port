@@ -7,6 +7,7 @@
 
 #include "port/port.h"
 #include "ui/settings.h"
+#include "port/player_card.h"
 #include "render/render_list.h"
 
 #define PORT_HUD_W 240
@@ -108,6 +109,8 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
                 INT_KEY("partyhud", partyHud)
+                /* the player cards (platform/player_card.c) */
+                else PortCardParseSetting(key, val);
 #undef INT_KEY
 #undef FLT_KEY
             }
@@ -129,6 +132,8 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\n",
                       s->smoothCam, s->interp, s->partyHud);
+    if (n >= 0 && n < size)
+        n += PortCardFormatSettings(buf + n, size - n);
     return n < size ? n : size - 1;
 }
 

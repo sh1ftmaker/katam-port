@@ -16,6 +16,7 @@
 #include "port/inputlog.h"
 #include "port/simblock.h"
 #include "port/localmp.h"
+#include "port/kirby_paint.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py. */
 #ifdef __cplusplus
@@ -60,6 +61,37 @@ static u32 sLocalMp;
 struct HumanEv { u32 frame; u8 slot, on; };
 static struct HumanEv *sHumans;
 static u32 sNumHumans, sHumansCap;
+
+/* Player-card paint (platform/kirby_paint.c): Kirby slot SLOT wears paint
+ * VALUE (PORT_PAINT_*, hex) from the latch of FRAME.  `paint FRAME SLOT
+ * VALUE` in the file.  Kept sorted by frame. */
+struct PaintEv { u32 frame; u8 slot; u32 value; };
+static struct PaintEv *sPaints;
+static u32 sNumPaints, sPaintsCap;
+
+static void AddPaint(u32 frame, u8 slot, u32 value)
+{
+    u32 i;
+
+    if (sNumPaints == sPaintsCap) {
+        u32 cap = sPaintsCap ? sPaintsCap * 2 : 16;
+        struct PaintEv *e = (struct PaintEv *)realloc(sPaints, cap * sizeof *e);
+
+        if (e == NULL)
+            return;
+        sPaints = e;
+        sPaintsCap = cap;
+    }
+    i = sNumPaints;
+    while (i > 0 && sPaints[i - 1].frame > frame) {
+        sPaints[i] = sPaints[i - 1];
+        i--;
+    }
+    sPaints[i].frame = frame;
+    sPaints[i].slot = slot;
+    sPaints[i].value = value;
+    sNumPaints++;
+}
 
 /* Tests only: `poke16 FRAME ADDR VALUE` writes a halfword of EWRAM at the
  * latch of FRAME (as PORT_LN_EV_POKE does online) -- e.g. gAIKirbyState, to
@@ -263,6 +295,7 @@ long PortInputLogLoad(const char *text, u32 len)
     sNumWarps = 0;
     sNumViews = 0;
     sNumHumans = 0;
+    sNumPaints = 0;
     sNumPokes = 0;
 
     while (p < end) {
@@ -313,6 +346,12 @@ long PortInputLogLoad(const char *text, u32 len)
                 return -1;
             }
             AddHuman(a, (u8)b, (u8)c);
+        } else if (sscanf(line, "paint %u %u %x", &a, &b, &c) == 3) {
+            if (b > 3 || !PortPaintValid(c)) {
+                PortError("[katam-port] replay: bad paint line: %s", line);
+                return -1;
+            }
+            AddPaint(a, (u8)b, c);
         } else if (sscanf(line, "warp %u %u %u %u %u", &a, &b, &c, &d, &e) == 5) {
             AddWarp(a, (u8)b, (u16)c, (u8)d, (u8)e);
         } else if (sscanf(line, "view %u %u %u", &a, &b, &c) == 3) {
@@ -409,9 +448,10 @@ void PortInputLogNoteView(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
 char *PortInputLogSerialize(u32 *outLen)
 {
     size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48
-               + (size_t)sNumViews * 32 + (size_t)sNumHumans * 32, len = 0;
+               + (size_t)sNumViews * 32 + (size_t)sNumHumans * 32
+               + (size_t)sNumPaints * 40, len = 0;
     char *s = (char *)malloc(cap);
-    u32 f, w = 0, v = 0, hu = 0;
+    u32 f, w = 0, v = 0, hu = 0, pa = 0;
     int have = 0;
     u16 prev = 0;
 
@@ -441,6 +481,12 @@ char *PortInputLogSerialize(u32 *outLen)
             EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
                  (unsigned)sHumans[hu].slot, (unsigned)sHumans[hu].on);
             hu++;
+        }
+        while (pa < sNumPaints && sPaints[pa].frame <= f) {
+            if (cap - len < 64) break;
+            EMIT("paint %u %u %X\n", (unsigned)sPaints[pa].frame,
+                 (unsigned)sPaints[pa].slot, (unsigned)sPaints[pa].value);
+            pa++;
         }
         while (w < sNumWarps && sWarps[w].frame <= f) {
             if (cap - len < 64) break;
@@ -494,6 +540,12 @@ char *PortInputLogSerialize(u32 *outLen)
             EMIT("poke16 %u %X %X\n", (unsigned)sPokes[q].frame, (unsigned)sPokes[q].addr,
                  (unsigned)sPokes[q].value);
     }
+    while (pa < sNumPaints) {
+        if (cap - len < 64) break;
+        EMIT("paint %u %u %X\n", (unsigned)sPaints[pa].frame,
+             (unsigned)sPaints[pa].slot, (unsigned)sPaints[pa].value);
+        pa++;
+    }
     while (hu < sNumHumans) {
         if (cap - len < 64) break;
         EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
@@ -530,6 +582,16 @@ u32 PortInputLogScheduleHuman(u8 slot, u8 on)
     if (sReplaying || slot < 1 || slot > 3)
         return 0;
     AddHuman(frame, slot, on ? 1 : 0);
+    return frame;
+}
+
+u32 PortInputLogSchedulePaint(u8 slot, u32 value)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying || slot > 3 || !PortPaintValid(value))
+        return 0;
+    AddPaint(frame, slot, value);
     return frame;
 }
 
@@ -832,6 +894,11 @@ void PortInputLogLatch(u32 frame, u16 *keys)
     for (i = 0; i < sNumHumans; i++)
         if (sHumans[i].frame == frame)
             PortLmpSetSlotHuman(sHumans[i].slot, sHumans[i].on);
+
+    /* Player-card paint (platform/kirby_paint.c), the same way. */
+    for (i = 0; i < sNumPaints; i++)
+        if (sPaints[i].frame == frame)
+            PortPaintSetSlot(sPaints[i].slot, sPaints[i].value);
 
     /* The other local humans' pads (platform/localmp.c), the same way.
      * Every frame: a game nobody has joined latches nothing (PortLmpLatch

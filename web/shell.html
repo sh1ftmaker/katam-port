@@ -233,6 +233,26 @@
   @media (orientation: landscape) {
     body.touch-on #uigear { right: auto; left: 50%; translate: -50% 0; }
   }
+  /* The player card's name row (Start Game > MULTIPLAYER > PLAYER CARD,
+     platform/player_card.c): a button that brings up the device keyboard.
+     Only while that row is selected and the touch pads are up; a physical
+     keyboard types into the row directly. */
+  #cardname {
+    display: none;
+    position: fixed;
+    top: calc(10px + var(--safe-t));
+    left: calc(10px + var(--safe-l, 0px));
+    z-index: 12;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    font-size: 15px;
+    color: #e6eaf0;
+    background: rgba(20, 23, 28, .7);
+    border-color: rgba(255, 255, 255, .2);
+    touch-action: manipulation;
+  }
+  body.card-text.touch-on.rom-ready:not(.ui-open):not(.sheet-open) #cardname { display: block; }
   /* The menu has the screen while it is open. */
   body.ui-open #touch { display: none !important; }
   #buildinfo { color: var(--dim); padding: 4px 0; font-size: 12px; }
@@ -992,6 +1012,8 @@
      WebGL2 it opens the sheet below instead. -->
 <button id="uigear" type="button" aria-label="Menu" aria-pressed="false"
         title="Menu (F1 / Tab)">&#9881;&#xFE0E;</button>
+
+<button id="cardname" type="button" aria-label="Type your player name">&#9998;&#xFE0E; Type name</button>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -2855,10 +2877,49 @@ var Module = (function () {
     return true;
   }
 
+  // The player card's NAME row takes letters from a keyboard: while it is
+  // selected, a letter, digit, space, - . ! is a letter of the name and
+  // Backspace removes one (platform/player_card.c PortCardWantsText).  The
+  // arrows still move, so the d-pad keys WASD type letters there instead.
+  function cardWantsText() {
+    try { return !!(Module._PortCardWantsText && Module._PortCardWantsText()); }
+    catch (err) { return false; }
+  }
+  function cardKeys(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || !cardWantsText()) return false;
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      Module._PortCardTypeChar(8);
+      return true;
+    }
+    if (e.key && e.key.length === 1 && /[A-Za-z0-9 .!-]/.test(e.key)) {
+      e.preventDefault();
+      Module._PortCardTypeChar(e.key.toUpperCase().charCodeAt(0));
+      return true;
+    }
+    return false;
+  }
+
+  // ... and on a phone, a button over the picture brings up the device's
+  // keyboard (a prompt: the one text box every mobile browser does well).
+  var cardNameBtn = document.getElementById('cardname');
+  cardNameBtn.addEventListener('click', function () {
+    var cur = '', n;
+    try { cur = Module.ccall('PortCardNameJs', 'string', [], []); } catch (err) {}
+    n = window.prompt('Player name (up to 8: letters, digits, space - . !)', cur);
+    if (n === null) return;
+    try { Module.ccall('PortCardSetNameJs', null, ['string'], [n]); } catch (err) {}
+  });
+  setInterval(function () {
+    var on = cardWantsText();
+    if (on !== body.classList.contains('card-text')) body.classList.toggle('card-text', on);
+  }, 250);
+
   window.addEventListener('keydown', function (e) {
     if (typingInAField(e)) return;
     if (!sawKey) { sawKey = true; syncP2(); }
     if (uiKeys(e, true)) return;
+    if (!e.repeat && cardKeys(e)) return;   // the player card's NAME row
     if (!devs.keyDown(e.code)) return;
     e.preventDefault();                        // arrows/space must not scroll,
                                                // Backspace must not navigate back
