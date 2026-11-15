@@ -76,6 +76,18 @@ void GlrFitRect(int w, int h, int vw, int vh, int dst[4]);
 /* Where the last GlrPresent put the picture: {x, y, w, h}, top-left origin. */
 void GlrLastPresentRect(int dst[4]);
 
+/* What the lighting (render/light.c) can do on this GPU: 0 no GPU renderer;
+ * GLR_LIGHT_FAILED its shaders did not compile (logged; lighting stays off);
+ * else GLR_LIGHT_OK, with RELIEF / CHARSH / RC for the parts that compiled
+ * (before the first lit frame they are not tried yet: OK, RC only). */
+#define GLR_LIGHT_NONE    0
+#define GLR_LIGHT_OK      1
+#define GLR_LIGHT_RELIEF  2
+#define GLR_LIGHT_CHARSH  4
+#define GLR_LIGHT_RC      8
+#define GLR_LIGHT_FAILED  16
+int GlrLightState(void);
+
 #ifdef __cplusplus
 }
 #endif
