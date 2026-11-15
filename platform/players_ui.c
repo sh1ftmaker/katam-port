@@ -510,8 +510,10 @@ void PortPuiSummary(char *buf, int size)
 {
     int s, n = 0;
 
+    /* shown on the SETTINGS screens, which are drawn into game memory: the
+     * simulation's count, the same on every device in a session */
     for (s = 0; s < 4; s++)
-        if (PortLmpSlotIsHuman(s))
+        if (PortLmpSlotPerson(s))
             n++;
     snprintf(buf, size, n == 1 ? "1 PLAYER" : "%d PLAYERS", n);
 }

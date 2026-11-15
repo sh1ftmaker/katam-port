@@ -1086,15 +1086,17 @@ static int SetStep(int row, int dir)
     return 1;
 }
 static int SetUnavailable(int row) { return row == R_PLAYERS && gPortLnOn; }
-/* The PLAYERS row's count follows joins and leaves while the screen is up
- * (simulation state: the same on every device online). */
+/* The PLAYERS row's count follows joins and leaves while the screen is up.
+ * It is drawn into game memory, so it must be the simulation's answer
+ * (PortLmpSlotPerson): PortLmpSlotIsHuman is about this device's own seats
+ * during a session and differs from device to device. */
 static u32 SetGen(void)
 {
     u32 g = 0;
     int s;
 
     for (s = 1; s < 4; s++)
-        g = g * 2u + (u32)(PortLmpSlotIsHuman(s) != 0);
+        g = g * 2u + (u32)(PortLmpSlotPerson(s) != 0);
     return g;
 }
 
