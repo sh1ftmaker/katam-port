@@ -61,10 +61,15 @@ export const NOTES = `
   the largest feel problem measured**: every action of player 1 reaches the
   guest one lead late, so its sound start falls in a replayed (muted) frame and
   is never heard from its start -- the "never heard live" count is of the same
-  order as the number of final sound starts.  A real build needs a sound
-  reconciler: after a replay, start the final timeline's sounds that were not
-  heard (late, skipping what elapsed) and stop the ones heard that are no
-  longer in it.  Not built.
+  order as the number of final sound starts.  **Built for the guest's
+  speakers** (\`platform/audio_ear.c\`, device-side, outside the image): each
+  music player's channels are mixed into a group of their own; at the end of a
+  replay a start the corrected timeline has and the speakers have not heard is
+  played from its beginning, late by the correction, and the rest is
+  cross-faded to the corrected stream.  R9's "guest speakers" figures are what
+  reached the speakers in the runs with a guest audio device;
+  \`tools/netproof/sound_eval.mjs\` compares them with the host per link
+  condition.
 - **SRAM persistence.**  \`WriteSram\` -> \`PortSramMarkDirty\` runs from unsealed
   and replayed frames (R9 counts).  SRAM is in every keyframe and image so the
   simulation stays exact, but the *storage write* must only happen from final

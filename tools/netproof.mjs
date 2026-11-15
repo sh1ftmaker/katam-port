@@ -375,8 +375,19 @@ function sideEffects() {
         settingsAppliedToDeviceGuest: sum('settingsDeviceApplied'), settingsAppliedToDeviceHost: sum('settingsDeviceApplied', 'host'),
         audioBlocksMuted: sum('audioBlocksMuted'), guestMinutes: +all.reduce((n, r) => n + r.frames.gameMinutes, 0).toFixed(1),
     };
+    // what the guest's speakers heard (platform/audio_ear.c), runs with a guest audio device
+    const heard = all.filter((r) => r.audio && r.audio.guest && r.audio.guest.ear && r.audio.guest.device);
+    const es = (k) => heard.reduce((n, r) => n + (r.audio.guest.ear[k] || 0), 0);
+    o.speakers = { runs: heard.length, guestMinutes: +heard.reduce((n, r) => n + r.frames.gameMinutes, 0).toFixed(1),
+        finalStarts: es('finalStarts'), heardFromStart: es('heardFromStart'), neverHeardFromStart: es('neverHeard'), heardTwice: es('doubles'),
+        heardNotFinal: es('spurious'), heardNotFinalFramesSum: es('spurDurSum'), lateFramesSum: es('lateSum'), lateMaxFrames: Math.max(0, ...heard.map((r) => r.audio.guest.ear.lateMax || 0)),
+        lateN: es('lateN'), reconciles: es('reconciles') };
+    const sp = o.speakers;
     o.verdict = 'MEASURED';
-    o.text = `over ${o.guestMinutes} guest-minutes: sounds started live ${o.soundsLiveGuest}; in replayed frames, same sound again (would re-fire) ${o.soundsRefire}, heard but not in the final timeline (mispredicted) ${o.soundsSpurious}, in the final timeline but never heard live ${o.soundsMissed}; ` +
+    o.text = (sp.runs ? `guest speakers (${sp.runs} runs with a guest audio device, ${sp.guestMinutes} guest-minutes, platform/audio_ear.c): final starts ${sp.finalStarts}, heard from their start ${sp.heardFromStart} ` +
+              `(late ${(sp.lateFramesSum / Math.max(1, sp.lateN)).toFixed(1)} frames on average, at most ${sp.lateMaxFrames}), never heard from their start ${sp.neverHeardFromStart}, heard twice ${sp.heardTwice}; ` +
+              `heard but not final ${sp.heardNotFinal} (${(sp.heardNotFinalFramesSum / Math.max(1, sp.heardNotFinal)).toFixed(1)} frames on average before the cut); ` : '') +
+             `over ${o.guestMinutes} guest-minutes: sounds started live ${o.soundsLiveGuest}; in replayed frames, same sound again (would re-fire) ${o.soundsRefire}, heard but not in the final timeline (mispredicted) ${o.soundsSpurious}, in the final timeline but never heard live ${o.soundsMissed}; ` +
              `SRAM writes on the guest ${o.sramWritesGuest} (${o.sramWritesUnsealed} from unsealed live frames, ${o.sramWritesReplay} from replays; host ${o.sramWritesHost}); ` +
              `pause-page setting edits on the guest ${o.settingsEditsGuest} (${o.settingsEditsUnsealed} unsealed, ${o.settingsEditsReplay} replayed) -- now simulation state, applied to a device only when final: guest ${o.settingsAppliedToDeviceGuest}, host ${o.settingsAppliedToDeviceHost}`;
     return o;

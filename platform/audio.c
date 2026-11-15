@@ -36,6 +36,7 @@
 
 #include "port/port.h"
 #include "port/audio.h"
+#include "port/audio_ear.h"
 #include "port/lmpnet.h"
 #include "gba/gba.h"
 #include "gba/m4a.h"
@@ -436,6 +437,11 @@ void PortAudioSetReplayMix(int on)
     sReplayMix = on != 0;
 }
 
+int PortAudioHasDevice(void)
+{
+    return sRate != 0;
+}
+
 static void CanonHeader(struct SoundInfo *soundInfo)
 {
     soundInfo->pcmSamplesPerVBlank = CANON_BLOCK;
@@ -562,6 +568,7 @@ void PortAudioSessionEnd(void)
     if (!sCanon)
         return;
     sCanon = 0;
+    PortEarSessionEnd();
     PortMixerSetCanon(0);
     if (sRate != 0) {
         PortMixerInit(sRate, sNominal);
