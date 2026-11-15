@@ -177,6 +177,14 @@ void PortInputLogPutView(u32 frame, s32 w, s32 h)
     AddView(frame, (u16)w, (u16)h);
 }
 
+/* Forget every view event after `frame` (an online guest joining: what it
+ * scheduled for its own frames is not the session's, platform/lmpnet.c). */
+void PortInputLogDropViewsAfter(u32 frame)
+{
+    while (sNumViews > 0 && sViews[sNumViews - 1].frame > frame)
+        sNumViews--;
+}
+
 u32 PortInputLogScheduleView(u32 frame, s32 w, s32 h)
 {
     if (sReplaying)

@@ -2818,7 +2818,10 @@ var Module = (function () {
   Module._portLmpSyncP2 = syncP2;
 
   function pushMask() {
-    var mask = touchMask | padMask[0], mask2 = 0, two = lmpInPlay();
+    // Online (web/online.js): each device's player-1 controls drive that
+    // device's player; the local player-2 keys are off.
+    var online = !!(window.katamOnline && window.katamOnline.inSession());
+    var mask = touchMask | padMask[0], mask2 = 0, two = lmpInPlay() && !online;
     for (var code in held) {
       if (two && KEYMAP_P2[code] !== undefined) mask2 |= KEYMAP_P2[code];
       else if (KEYMAP[code] !== undefined) mask |= KEYMAP[code];
@@ -3647,6 +3650,7 @@ var Module = (function () {
   var stored   = false;     // is there a record for this ROM right now?
   var armed    = false;     // has the C side told us what save memory holds?
   var stopped  = false;     // the player deleted it — do not write it back
+  var held     = false;     // an online guest: save memory is the host's (web/online.js)
   var broken   = false;     // storage is unusable; say so once, not every time
   var scanNoted = false;
 
@@ -3806,7 +3810,7 @@ var Module = (function () {
 
   function flush() {
     if (timer) { clearTimeout(timer); timer = 0; }
-    if (!armed || stopped || !romKey) return;
+    if (!armed || stopped || held || !romKey) return;
     if (!persistAllowed()) return;
     // One transaction at a time. A second in-game save landing mid-write is
     // remembered rather than dropped, and runs once this one has finished.
@@ -3826,7 +3830,7 @@ var Module = (function () {
   }
 
   function schedule() {
-    if (!armed || stopped || timer) return;
+    if (!armed || stopped || held || timer) return;
     timer = setTimeout(function () { timer = 0; flush(); }, WRITE_DELAY_MS);
   }
 
@@ -4018,7 +4022,10 @@ var Module = (function () {
     exportNow: exportSave,
     pick:   function () { if (!needRom()) importEl.click(); },
     importFile: importFile,
-    del:    deleteSave
+    del:    deleteSave,
+    // Online, as a guest: the save memory now running is the host's, from
+    // the session's image. Nothing more is written until the page reloads.
+    hold:   function () { held = true; if (timer) { clearTimeout(timer); timer = 0; } }
   };
 
   //--------------------------------------------------------------------
@@ -4179,6 +4186,11 @@ var Module = (function () {
 <script src="net_session.js"></script>
 <script src="net_game.js"></script>
 <script src="lobby.js"></script>
+<!-- Online two-player play from the game's own menus (Start Game >
+     MULTIPLAYER > ONLINE) and ?join=CODE invite links: web/online.js over
+     the session logic the node rig tests (web/ln_session.js). -->
+<script src="ln_session.js"></script>
+<script src="online.js"></script>
 <script>
 //======================================================================
 // Netplay hookup, by URL.
@@ -4384,7 +4396,8 @@ var Module = (function () {
     'touch':       function () { return bit(shell.touch && shell.touch.on()); },
     'diag':        function () { return bit(shell.diag && shell.diag.on()); },
     'rando':       function () { return shell.rando ? shell.rando.get() : '0,1,1,1'; },
-    'log':         function () { return shell.logTail(80).join('\n').slice(-15000); }
+    'log':         function () { return shell.logTail(80).join('\n').slice(-15000); },
+    'online':      function () { return window.katamOnline ? window.katamOnline.statsText() : ''; }
   };
 
   Module.portUiQuery = function (key) {

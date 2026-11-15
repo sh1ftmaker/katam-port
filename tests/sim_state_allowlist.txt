@@ -16,6 +16,9 @@
 #   host-state   simulation state that cannot be GBA bytes because it holds
 #                host pointers; the snapshot serialises it canonically.
 #   presentation audio/video output state (NETPLAY-V2 §3.1 class P).
+#   front-end    the front end's ONLINE screens (platform/online_ui.c): read by
+#                simulated frames only while no online session is on (every
+#                reader checks gPortLnOn), so never part of a session's state.
 cabbage_cavern_1 gCabbageCavern1RoomTiledBG const-init room background descriptor (P32 members)
 cabbage_cavern_2 gCabbageCavern2RoomTiledBG const-init room background descriptor (P32 members)
 cabbage_cavern_3 gCabbageCavern3RoomTiledBG const-init room background descriptor (P32 members)
@@ -126,3 +129,16 @@ menu_poc _ZZL13DrawHeadTilesjthE2px scratch written before every read
 menu_poc _ZZL10BuildLabelP12Unk_08138D64jE2px scratch written before every read
 menu_poc _ZL3sOn setting the new-menus switch (KATAM_MENU_POC / PortMenuPocSet); carried in the online image header
 menu_poc _ZL7sNoCuts setting KATAM_MENU_POC=2; with sOn
+# platform/online_ui.c: the ONLINE screens' state and the page's requests.
+menu_poc _ZL12sOuiGenShown front-end ONLINE screens' redraw generation; unused in a session
+online_ui sSub front-end which ONLINE screen is up
+online_ui sState front-end network state the page reports
+online_ui sNote front-end transient note (link copied)
+online_ui sCode front-end the hosted room's code
+online_ui sGen front-end redraw generation
+online_ui sJoin front-end JOIN GAME's code letters
+online_ui sJoinPos front-end JOIN GAME's letter cursor
+online_ui sStartPending front-end HOST GAME start waiting for the fade
+online_ui sEv front-end requests to the page
+online_ui sEvHead front-end requests to the page
+online_ui sEvTail front-end requests to the page

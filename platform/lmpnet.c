@@ -76,6 +76,7 @@ extern "C" {
 u64  PortHostMicros(void);
 void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY);
 void PortInputLogPutView(u32 frame, s32 w, s32 h);
+void PortInputLogDropViewsAfter(u32 frame);
 void PortSramSetRestored(void);
 int  PortMenuPoc(void);
 void PortMenuPocSet(int on);
@@ -1144,8 +1145,17 @@ static void ApplyImage(void)
     const u8 *s = sImgIn;
     u32 old = PortFrameNumber(), F = Get32(s + 8), f, x;
     u64 t0 = MICROS();
+    /* A join: the first image of this session.  Nothing this device ran
+     * before it belongs to the session -- in a browser the guest has been
+     * running its own front end, its frame counter may be ahead of the
+     * host's, and its view list holds its own frames -- so the session
+     * starts at F: no catch-up from F to where the guest was, and nothing
+     * of its own past F. */
+    int join = T.imagesLoaded == 0;
 
     sImgLoad = 0;
+    if (join)
+        PortInputLogDropViewsAfter(F);
     PendOpen(2, old, F, F, 0);
     /* What has to travel besides memory (R5): the local-multiplayer switch,
      * the session view (a frame-keyed event list outside the image), the
@@ -1184,13 +1194,13 @@ static void ApplyImage(void)
     for (f = F; f < old && f < F + TLN; f++)
         if (Have(f))
             E(f)->flags &= ~(E_VERIFIED | E_MISMATCH | E_HASH);
-    if (sSealedUpTo < F)
+    if (sSealedUpTo < F || join)
         sSealedUpTo = F;
     AdvanceSealed();
-    if (sVerify < F)
+    if (sVerify < F || join)
         sVerify = F;
     sForceKf = 1;
-    if (old > F) {
+    if (old > F && !join) {
         sCatchTo = old;
         sCatchFrom = F;
         if (!sCatch) sRenderWas = PortRenderEnabled();

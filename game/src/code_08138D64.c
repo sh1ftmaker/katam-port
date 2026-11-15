@@ -23,6 +23,7 @@ extern "C" {
 #include "port/menu_poc.h"   /* PORT: KATAM_MENU_POC, off by default */
 #include "pause_settings.h"   /* PORT: the same screen as a pause page */
 #include "port/localmp.h"     /* PORT: MULTIPLAYER > LOCAL */
+#include "port/online_ui.h"   /* PORT: MULTIPLAYER > ONLINE */
 
 struct Unk_08385CD4 {
     u16 animId;
@@ -2799,29 +2800,56 @@ static void PortPocMpEnter(struct Unk_08138D64 *a1) {
     CALL(a1->unkBDC)(a1);
 }
 
+/* LOCAL, or HOST GAME > START: the one-player start (sub_0814238C onwards)
+ * with two humans; the walking Kirbys the start's transition gathers come
+ * back first (this screen took them off). */
+static void PortPocMpStart(struct Unk_08138D64 *a1) {
+    m4aSongNumStart(SE_MAIN_MENU_SELECT);
+    PortLmpChoose(2);
+    if (!a1->unkBEC)
+        a1->unkBEC = sub_0802E57C();
+    gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
+    gBldRegs.bldAlpha = 0;
+    gBldRegs.bldY = 0;
+    a1->unk9D8 = 0;
+    a1->unk9CC = FN(PortPocMpFadeOut);
+}
+
 static void PortPocMpInput(struct Unk_08138D64 *a1) {
     u8 key;
+    int act;
 
-    sub_0813B4F0(a1);
+    /* no idle timeout while an ONLINE screen waits on the network */
+    if (!PortMenuPocMpBusy())
+        sub_0813B4F0(a1);
     key = sub_0813B484();
-    if (key == 2) {
+    /* ONLINE > HOST GAME / JOIN GAME (platform/online_ui.c) first */
+    act = key ? PortMenuPocMpKey(a1, key) : PORT_OUI_K_NONE;
+    if (act != PORT_OUI_K_NONE) {
+        switch (act) {
+        case PORT_OUI_K_START:
+            PortPocMpStart(a1);
+            break;
+        case PORT_OUI_K_CURSOR:
+            m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+            break;
+        case PORT_OUI_K_SELECT:
+            m4aSongNumStart(SE_MAIN_MENU_SELECT);
+            break;
+        case PORT_OUI_K_BACK:
+        case PORT_OUI_K_DENY:
+            m4aSongNumStart(SE_MAIN_MENU_BACK);
+            break;
+        }
+        a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+        sub_08155128(&a1->unk28C);
+    } else if (key == 2) {
         m4aSongNumStart(SE_MAIN_MENU_BACK);
         a1->unk9D8 = 0;
         a1->unk9CC = FN(PortPocSettingsSlideOut);
     } else if (key == 1) {
         if (a1->unk3A6 == PORT_MENU_POC_MP_LOCAL && PortMenuPocRowAvailable(a1->unk3A6)) {
-            /* LOCAL: the one-player start (sub_0814238C onwards) with two
-             * humans; the walking Kirbys the start's transition gathers
-             * come back first (this screen took them off). */
-            m4aSongNumStart(SE_MAIN_MENU_SELECT);
-            PortLmpChoose(2);
-            if (!a1->unkBEC)
-                a1->unkBEC = sub_0802E57C();
-            gBldRegs.bldCnt = BLDCNT_TGT1_ALL | BLDCNT_EFFECT_LIGHTEN;
-            gBldRegs.bldAlpha = 0;
-            gBldRegs.bldY = 0;
-            a1->unk9D8 = 0;
-            a1->unk9CC = FN(PortPocMpFadeOut);
+            PortPocMpStart(a1);
         } else {
             /* not available (ONLINE, or LOCAL without a second pad) */
             m4aSongNumStart(SE_MAIN_MENU_BACK);
@@ -2843,8 +2871,10 @@ static void PortPocMpInput(struct Unk_08138D64 *a1) {
 static void PortPocMpFadeOut(struct Unk_08138D64 *a1) {
     ++a1->unk9D8;
     gBldRegs.bldY = 0x10 * a1->unk9D8 / 0xF;
-    if (a1->unk9D8 > 0xE)
+    if (a1->unk9D8 > 0xE) {
         a1->unk9CC = FN(sub_081423F0);
+        PortMenuPocMpStarted();     /* HOST GAME: the online session starts now */
+    }
     PortMenuPocSettingsDraw(a1, 0);
     DisplaySprite(&a1->unk28C);
 }

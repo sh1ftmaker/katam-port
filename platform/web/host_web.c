@@ -245,6 +245,35 @@ EM_ASYNC_JS(int, PortWebAwaitFrame, (int interp), {
         await new Promise(function (resolve) { requestAnimationFrame(resolve); });
         return 0;
     }
+    /* An online session (web/online.js, Module.portLn): the session decides
+     * how many frames each tick runs -- 0..N on the guest (holds, skips,
+     * bursts; a burst's frames go straight through, undrawn but the last),
+     * the nominal count on the host.  after() once the tick's frames are
+     * done (send now), tick(t) on each display tick, frame() before every
+     * simulated frame (its pad into the session). */
+    var ln = Module.portLn;
+    if (ln && ln.on) {
+        if (ln.burst > 0) { ln.burst--; ln.frame(); return 0; }
+        ln.after();
+        for (;;) {
+            var t;
+            if (document.hidden) {
+                await new Promise(function (resolve) { setTimeout(resolve, 4); });
+                t = performance.now();
+            } else {
+                t = await new Promise(function (resolve) {
+                    var guard = setTimeout(function () { resolve(performance.now()); }, 100);
+                    requestAnimationFrame(function () {
+                        clearTimeout(guard);
+                        resolve(performance.now());
+                    });
+                });
+            }
+            if (!ln.on) { Module.portFrameDue = 0; return 0; }
+            var n = ln.tick(t);
+            if (n > 0) { ln.burst = n - 1; ln.frame(); return 0; }
+        }
+    }
     /* Fast-forward (the playtest page's boot): no pacing, a yield to the
      * page every 8 frames so it stays responsive; then the clock restarts. */
     if (Module.portTurbo && Module.portTurbo()) {
