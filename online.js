@@ -555,9 +555,13 @@
         } else {
             S.gs = new LS.GuestSession(engine(), txOf(S.peer.link), clock,
                                        { codec: CODEC, leadCap: KF_EVERY * (KF_COUNT - 2) - 10, samples: false });
-            S.gs.onSeatFull = function () {
+            S.gs.onSeatFull = function (seat) {
                 S.stats.refusedFull++;
-                banner('No Kirby free - the game has four players', 3500);
+                /* the device module had given that controller the seat: park
+                 * it (its Start asks again) -- it says so on the page */
+                var kd = window.katamDevices, pl = kd && kd.listPlayers ? kd.listPlayers()[seat] : null;
+                if (seat >= 1 && pl && pl.devices.length) kd.dropOut(seat, 'full');
+                else banner('No Kirby free - the game has four players', 3500);
             };
             /* the host's save memory is in the image: never store it here */
             if (window.shell && shell.save && shell.save.hold) shell.save.hold();
@@ -820,6 +824,9 @@
             if (peer !== S.peer) return;
             if (msg.t === 'bye') { hostGone('closed the game'); return; }
             if (msg.t === 'seatfull') { S.inbox.push({ m: msg }); return; }
+            /* every slot's name, from the host: presentation only, so at once
+             * (it may come before the image does) */
+            if (msg.t === 'names') { var e = engine(); if (e.setSlotNames && typeof msg.n === 'string') e.setSlotNames(msg.n); return; }
             if (msg.t !== 'image') return;
             if (!S.session) { ui(UI.J_STARTING); if (S.invite) banner('Getting the game...', 0); }
             var t0 = nowMs();
@@ -838,8 +845,54 @@
         log('the host ' + why);
         S.phase = 'hostleft';
         if (S.peer) { S.peer.link.close(false); }
-        if (S.session) banner('The host left the game. Reload the page to play again.', 0);
+        if (S.session) { banner('The host left the game.', 0); leaveButton(true); }
         else { ui(UI.J_HOSTLEFT); if (S.invite) banner('The host left. Reload the page to try again.', 0); }
+    }
+
+    /* --- leaving: back to the title, without reloading the page ------------------
+     * The host ends the game for everyone (each guest hears 'bye' and gets the
+     * same way out); a guest leaves alone (the host hands its Kirbys to the
+     * CPU).  Either way this device's game goes back to power-on and boots to
+     * the title (platform/lmpnet.c PortLnGoHome: its own save, its own view),
+     * and the ONLINE screens can host or join again. */
+    function leaveButton(on) {
+        var b = document.getElementById('lnleave');
+        if (!b && on) {
+            b = document.createElement('button');
+            b.id = 'lnleave';
+            b.type = 'button';
+            b.textContent = 'Back to the title';
+            b.style.cssText = 'position:fixed;left:50%;bottom:calc(12% - 52px);transform:translateX(-50%);z-index:71;' +
+                'padding:8px 18px;border-radius:12px;border:3px solid #f8d850;background:#f8d850;color:#181040;' +
+                'font:bold 15px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;' +
+                'box-shadow:0 4px 0 rgba(0,0,0,.35);cursor:pointer';
+            b.addEventListener('click', function () { leave('the host had left'); });
+            document.body.appendChild(b);
+        }
+        if (b) b.style.display = on ? 'block' : 'none';
+    }
+    function leave(why) {
+        if (!S.role && !S.session) return false;
+        var was = S.role, inGame = S.session;
+        log((was === 'host' ? 'ending the online game' : 'leaving the online game') + (why ? ' (' + why + ')' : ''));
+        reset();                                /* links closed with a bye, the room left */
+        S.inbox = []; S.startWanted = false; S.accept = false; S.gs = null; S.hub = null; S.eng = S.eng || null;
+        S.owners = [0, -1, -1, -1]; S.myDev = null; S.hostAwayAt = 0; S.tokDev = {};
+        if (inGame) {
+            S.session = false;
+            ln.on = false; ln.burst = 0;
+            if (up() && M._PortLnGoHome && !M._PortLnGoHome()) log('no power-on picture: the game stays where it is');
+            /* the save memory is this device's own again: storing it may resume */
+            var sh = window.shell || M._shell;
+            if (sh && sh.save && sh.save.release) sh.save.release();
+        }
+        if (up() && M._PortCardSessionEnd) M._PortCardSessionEnd();
+        if (up() && M._PortOuiReset) M._PortOuiReset();
+        ui(UI.IDLE);
+        leaveButton(false);
+        banner(was === 'host' && inGame ? 'Online game ended' : 'You left the online game', 2500);
+        S.stats.leaves = (S.stats.leaves || 0) + 1;
+        return true;
     }
 
     function joinCancel() {
@@ -1062,6 +1115,8 @@
     window.katamOnline = {
         stats: stats, statsText: statsText, hashes: hashes, regions: regions,
         inSession: function () { return S.session; },
+        /* leave (a guest) or end (the host) the online game: back to the title */
+        leave: leave, role: function () { return S.role; },
         requestSlot: requestSlot, slots: slotsNow,
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },
