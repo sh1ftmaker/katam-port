@@ -24,6 +24,7 @@ extern "C" {
 #include "constants/languages.h"
 #include "code_08020220.h"
 #include "code_080257A8.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_08100F18(struct DarkMindForm1 *);
 static void sub_08101784(struct DarkMindForm1 *);
@@ -4451,7 +4452,7 @@ static void sub_08107BA8(void)
             r5->flags &= ~0x40000;
             if (r2
                 && !r2->base.header.kind
-                && r2->base.unk56 < gNumHumanPlayers
+                && PortIsHuman(r2->base.unk56)
                 && r2->hp > 0
                 && r2->animationIndex != 39
                 && r2->animationIndex < 123

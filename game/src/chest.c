@@ -14,6 +14,7 @@ extern "C" {
 #include "save.h"
 #include "multi_08030C94.h"
 #include "constants/object_types.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_0800AEB0(struct Chest *);
 static void sub_0800AFC8(struct Chest *);
@@ -93,7 +94,9 @@ static void sub_0800AEB0(struct Chest *chest) {
             .y = (obj->base.unk3F - obj->base.unk3D) * 0x100,
         }; // width and height
 
-        for (i = 0; i < gNumHumanPlayers; i++, kirby++) {
+        /* PORT: human slots -- the people need not be slots 0..n-1
+         * (platform/localmp.c); the same loop with nobody joined. */
+        for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i), kirby = gKirbys + i) {
             if (level->currentRoom == gCurLevelInfo[i].currentRoom
              && pos.x <= kirby->base.x && pos.x + measure.x >= kirby->base.x
              && pos.y <= kirby->base.y && pos.y + measure.y >= kirby->base.y

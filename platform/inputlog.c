@@ -54,6 +54,55 @@ static u32 sKeysPCap[4], sKeysPLen[4];
 static int sHaveLocalMp;
 static u32 sLocalMp;
 
+/* Drop-in / drop-out (platform/localmp.c, "human slots"): Kirby slot SLOT
+ * becomes a person (ON 1) or goes back to the CPU (ON 0) at the latch of
+ * FRAME.  `human FRAME SLOT ON` in the file.  Kept sorted by frame. */
+struct HumanEv { u32 frame; u8 slot, on; };
+static struct HumanEv *sHumans;
+static u32 sNumHumans, sHumansCap;
+
+/* Tests only: `poke16 FRAME ADDR VALUE` writes a halfword of EWRAM at the
+ * latch of FRAME (as PORT_LN_EV_POKE does online) -- e.g. gAIKirbyState, to
+ * test the CPU partners' rules without playing through the intro.  Recorded,
+ * so a replay does the same. */
+struct PokeEv { u32 frame, addr; u16 value; };
+static struct PokeEv sPokes[16];
+static u32 sNumPokes;
+
+static void AddPoke(u32 frame, u32 addr, u16 value)
+{
+    if (sNumPokes < sizeof sPokes / sizeof sPokes[0]) {
+        sPokes[sNumPokes].frame = frame;
+        sPokes[sNumPokes].addr = addr;
+        sPokes[sNumPokes].value = value;
+        sNumPokes++;
+    }
+}
+
+static void AddHuman(u32 frame, u8 slot, u8 on)
+{
+    u32 i;
+
+    if (sNumHumans == sHumansCap) {
+        u32 cap = sHumansCap ? sHumansCap * 2 : 16;
+        struct HumanEv *h = (struct HumanEv *)realloc(sHumans, cap * sizeof *h);
+
+        if (h == NULL)
+            return;
+        sHumans = h;
+        sHumansCap = cap;
+    }
+    i = sNumHumans;
+    while (i > 0 && sHumans[i - 1].frame > frame) {
+        sHumans[i] = sHumans[i - 1];
+        i--;
+    }
+    sHumans[i].frame = frame;
+    sHumans[i].slot = slot;
+    sHumans[i].on = on;
+    sNumHumans++;
+}
+
 static int GrowKeysP(int p, u32 want)
 {
     u32 cap = sKeysPCap[p] ? sKeysPCap[p] : 4096;
@@ -205,6 +254,8 @@ long PortInputLogLoad(const char *text, u32 len)
         sKeysPLen[pl] = 0;
     sNumWarps = 0;
     sNumViews = 0;
+    sNumHumans = 0;
+    sNumPokes = 0;
 
     while (p < end) {
         char line[160];
@@ -246,6 +297,14 @@ long PortInputLogLoad(const char *text, u32 len)
                 sKeys[last++] = mask;
             mask = (u16)(b & 0x03FF);
             sKeys[last++] = mask;
+        } else if (sscanf(line, "poke16 %u %x %x", &a, &b, &c) == 3) {
+            AddPoke(a, b, (u16)c);
+        } else if (sscanf(line, "human %u %u %u", &a, &b, &c) == 3) {
+            if (b < 1 || b > 3 || c > 1) {
+                PortError("[katam-port] replay: bad human line: %s", line);
+                return -1;
+            }
+            AddHuman(a, (u8)b, (u8)c);
         } else if (sscanf(line, "warp %u %u %u %u %u", &a, &b, &c, &d, &e) == 5) {
             AddWarp(a, (u8)b, (u16)c, (u8)d, (u8)e);
         } else if (sscanf(line, "view %u %u %u", &a, &b, &c) == 3) {
@@ -298,8 +357,9 @@ long PortInputLogLoad(const char *text, u32 len)
     if (sHaveView)
         PortSetViewMode(sViewMode, sViewPadX, sViewPadY, sViewCull, sViewPin,
                         sViewTile);
-    PortLog("[katam-port] replay: %u frames, %u warps, %u view changes",
-            (unsigned)sKeysLen, (unsigned)sNumWarps, (unsigned)sNumViews);
+    PortLog("[katam-port] replay: %u frames, %u warps, %u view changes, %u slot changes",
+            (unsigned)sKeysLen, (unsigned)sNumWarps, (unsigned)sNumViews,
+            (unsigned)sNumHumans);
     return (long)sKeysLen;
 }
 
@@ -341,9 +401,9 @@ void PortInputLogNoteView(u32 mode, s32 padX, s32 padY, u32 cull, u32 pinHud,
 char *PortInputLogSerialize(u32 *outLen)
 {
     size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48
-               + (size_t)sNumViews * 32, len = 0;
+               + (size_t)sNumViews * 32 + (size_t)sNumHumans * 32, len = 0;
     char *s = (char *)malloc(cap);
-    u32 f, w = 0, v = 0;
+    u32 f, w = 0, v = 0, hu = 0;
     int have = 0;
     u16 prev = 0;
 
@@ -367,6 +427,12 @@ char *PortInputLogSerialize(u32 *outLen)
             EMIT("view %u %u %u\n", (unsigned)sViews[v].frame,
                  (unsigned)sViews[v].w, (unsigned)sViews[v].h);
             v++;
+        }
+        while (hu < sNumHumans && sHumans[hu].frame <= f) {
+            if (cap - len < 64) break;
+            EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
+                 (unsigned)sHumans[hu].slot, (unsigned)sHumans[hu].on);
+            hu++;
         }
         while (w < sNumWarps && sWarps[w].frame <= f) {
             if (cap - len < 64) break;
@@ -413,6 +479,19 @@ char *PortInputLogSerialize(u32 *outLen)
              (unsigned)sWarps[w].x, (unsigned)sWarps[w].y);
         w++;
     }
+    {
+        u32 q;
+
+        for (q = 0; q < sNumPokes && cap - len >= 64; q++)
+            EMIT("poke16 %u %X %X\n", (unsigned)sPokes[q].frame, (unsigned)sPokes[q].addr,
+                 (unsigned)sPokes[q].value);
+    }
+    while (hu < sNumHumans) {
+        if (cap - len < 64) break;
+        EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
+             (unsigned)sHumans[hu].slot, (unsigned)sHumans[hu].on);
+        hu++;
+    }
     while (v < sNumViews) {
         if (cap - len < 64) break;
         EMIT("view %u %u %u\n", (unsigned)sViews[v].frame,
@@ -424,6 +503,26 @@ char *PortInputLogSerialize(u32 *outLen)
     if (outLen)
         *outLen = (u32)len;
     return s;
+}
+
+u32 PortInputLogSchedulePoke16(u32 addr, u16 value)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying)
+        return 0;
+    AddPoke(frame, addr, value);
+    return frame;
+}
+
+u32 PortInputLogScheduleHuman(u8 slot, u8 on)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying || slot < 1 || slot > 3)
+        return 0;
+    AddHuman(frame, slot, on ? 1 : 0);
+    return frame;
 }
 
 void PortInputLogScheduleWarp(u32 frame, u8 player, u16 room, u8 cellX, u8 cellY)
@@ -709,8 +808,27 @@ void PortInputLogLatch(u32 frame, u16 *keys)
             sKeysLen = frame + 1;
     }
 
-    /* The other local humans' pads (platform/localmp.c), the same way. */
-    if (PortLmpSetting() >= 2) {
+    for (i = 0; i < sNumPokes; i++)
+        if (sPokes[i].frame == frame && sPokes[i].addr >= GBA_EWRAM_BASE
+            && sPokes[i].addr + 2 <= GBA_EWRAM_BASE + GBA_EWRAM_SIZE) {
+            u8 *m = (u8 *)(uintptr_t)sPokes[i].addr;
+
+            m[0] = (u8)sPokes[i].value;
+            m[1] = (u8)(sPokes[i].value >> 8);
+            PortLog("[katam-port] poke16: f%u %08X = %04X", (unsigned)frame,
+                    (unsigned)sPokes[i].addr, (unsigned)sPokes[i].value);
+        }
+
+    /* Slots changing hands this frame (drop in / drop out), before the pads
+     * so a joiner's keys count from the frame they joined. */
+    for (i = 0; i < sNumHumans; i++)
+        if (sHumans[i].frame == frame)
+            PortLmpSetSlotHuman(sHumans[i].slot, sHumans[i].on);
+
+    /* The other local humans' pads (platform/localmp.c), the same way.
+     * Every frame: a game nobody has joined latches nothing (PortLmpLatch
+     * returns at once) and records nothing (all-zero pads write no line). */
+    {
         u16 kp[4] = { 0, 0, 0, 0 };
         int q;
 

@@ -12,6 +12,7 @@ extern "C" {
 #include "sir_kibble.h"
 #include "hot_head.h"
 #include "constants/kirby.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_08023910(struct Task *);
 static void sub_08023990(struct Object *);
@@ -813,7 +814,7 @@ static void sub_08024B44(void)
                 objBase->flags &= ~0x40000;
                 if (kirby
                     && !kirby->base.header.kind
-                    && kirby->base.unk56 < gNumHumanPlayers
+                    && PortIsHuman(kirby->base.unk56)
                     && kirby->ability == KIRBY_ABILITY_NORMAL
                     && kirby->transitioningAbility == (KIRBY_ABILITY_NORMAL | 0)
                     && kirby->hp > 0

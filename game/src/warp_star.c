@@ -14,6 +14,7 @@ extern "C" {
 #include "palette.h"
 #include "goal_game_bonus.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_0800C270(struct WarpStar *);
 static void sub_0800C6E8(struct GoalStar *);
@@ -1797,7 +1798,7 @@ static bool32 sub_0800C084(struct WarpStar *ws, bool32 a2)
 
     if (ws->unk0.obj.base.flags & 0x40000
         && !(kirby2 = (struct Kirby *)ws->unk0.obj.base.unk6C)->base.header.kind
-        && (!a2 || kirby2->base.unk56 < gNumHumanPlayers)
+        && (!a2 || PortIsHuman(kirby2->base.unk56))
         && sub_080525C0(kirby2))
     {
         ws->unk0.unkB5 |= 1 << kirby2->base.unk56;
@@ -1925,7 +1926,7 @@ static bool32 sub_0800C3BC(struct GoalStar *gs)
 
     if (gs->unk0.obj.base.flags & 0x40000
         && !(kirby2 = (struct Kirby *)gs->unk0.obj.base.unk6C)->base.header.kind
-        && kirby2->base.unk56 < gNumHumanPlayers
+        && PortIsHuman(kirby2->base.unk56)
         && sub_080525C0(kirby2))
     {
         gs->unk0.unkB5 |= 1 << kirby2->base.unk56;
@@ -1941,7 +1942,7 @@ static bool32 sub_0800C3BC(struct GoalStar *gs)
 ({ \
     u16 _j = 0, _k; \
  \
-    for (_k = 0; _k < gNumHumanPlayers; ++_k) \
+    for (_k = 0; _k < PortHumanEnd(); ++_k) \
         if (((gs)->unk0.unkB5 >> _k) & 1) \
             ++_j; \
     _j; \
@@ -1955,7 +1956,7 @@ static void sub_0800C42C(struct GoalStar *gs)
     gs->unkC2 = Macro_0800C42C(gs);
     for (k = 0; k < gs->unkC2; ++k)
     {
-        for (; i < gNumHumanPlayers; ++i)
+        for (; i < PortHumanEnd(); ++i)
         {
             if ((gs->unk0.unkB5 >> i) & 1)
             {
@@ -2000,7 +2001,7 @@ static void sub_0800C558(struct GoalStar *gs)
     }
     roomId = gs->unk0.obj.base.roomId;
     i = 0;
-    for (j = 0; j < gNumHumanPlayers; ++j)
+    for (j = 0; j < PortHumanEnd(); j = PortHumanNext(j))
     {
         if (roomId == gKirbys[j].base.roomId)
         {

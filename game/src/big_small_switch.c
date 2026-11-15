@@ -14,6 +14,7 @@ extern "C" {
 #include "task.h"
 #include "constants/object_types.h"
 #include "constants/songs.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_08119980(struct Switch *);
 static void sub_08119A20(struct Switch *);
@@ -193,7 +194,7 @@ static bool32 sub_081194DC(struct Switch *sw)
         if (!sw->unkB8)
             return TRUE;
         kirby = sw->obj.base.unk6C;
-        if (kirby->base.unk56 < gNumHumanPlayers) {
+        if (PortIsHuman(kirby->base.unk56)) {
             if (!(sw->unkB6 & 0x2000))
                 BonusCreateTomato(kirby);
             return TRUE;

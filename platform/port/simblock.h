@@ -74,10 +74,12 @@ struct PortSimFrame {           /* 0x20 */
  * this one game.  Was the spare 16 bytes; all zero while the switch is off,
  * so the hash of a run without it is the hash it always was. */
 struct PortSimLocalMp {         /* 0x30 */
-    u8  humans;                 /* human Kirby slots, 0 = off                 */
-    u8  flags;
+    u8  humans;                 /* humans in play while engaged, 0 = off      */
+    u8  slots;                  /* which Kirby slots are people (bit 0 = P1)  */
     u16 groupRoom;              /* the room everyone is in or is being taken to */
-    u16 keys[4];                /* this frame's held keys per slot (1..3 used) */
+    u16 joining;                /* slots (bit s) that joined away from the
+                                 * group: their arrival does not move it      */
+    u16 keys[3];                /* this frame's held keys, players 2-4       */
     u8  stray[4];               /* frames each slot has been out of the frame  */
 };                              /* 0x10 */
 

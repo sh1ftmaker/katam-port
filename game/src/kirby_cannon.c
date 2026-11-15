@@ -11,6 +11,7 @@ extern "C" {
 #include "object_collision.h"
 #include "task.h"
 #include "constants/songs.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_08121B70(struct KirbyCannon *);
 static void sub_08121FCC(struct KirbyCannon *);
@@ -83,26 +84,26 @@ static void sub_08121B70(struct KirbyCannon *cannon)
             struct ObjectBase *other = cannon->obj.base.unk6C;
 
             cannon2->unkB6 |= 1;
-            if (other->unk56 < gNumHumanPlayers) {
-                if (gNumHumanPlayers > 0 && gKirbys[0].base.roomId == roomId
+            if (PortIsHuman(other->unk56)) {
+                if (PortIsHuman(0) && gKirbys[0].base.roomId == roomId
                     && !(cannon2->unkB8 & 1)
                     && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[0].base)
                     && gKirbys[0].base.unk6C == cannon
                     && sub_080510EC(&gKirbys[0]))
                     cannon2->unkB8 |= 1;
-                if (gNumHumanPlayers > 1 && gKirbys[1].base.roomId == roomId
+                if (PortIsHuman(1) && gKirbys[1].base.roomId == roomId
                     && !(cannon2->unkB8 & 2)
                     && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[1].base)
                     && gKirbys[1].base.unk6C == cannon
                     && sub_080510EC(&gKirbys[1]))
                     cannon2->unkB8 |= 2;
-                if (gNumHumanPlayers > 2 && gKirbys[2].base.roomId == roomId
+                if (PortIsHuman(2) && gKirbys[2].base.roomId == roomId
                     && !(cannon2->unkB8 & 4)
                     && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[2].base)
                     && gKirbys[2].base.unk6C == cannon
                     && sub_080510EC(&gKirbys[2]))
                     cannon2->unkB8 |= 4;
-                if (gNumHumanPlayers > 3 && gKirbys[3].base.roomId == roomId
+                if (PortIsHuman(3) && gKirbys[3].base.roomId == roomId
                     && !(cannon2->unkB8 & 8)
                     && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[3].base)
                     && gKirbys[3].base.unk6C == cannon

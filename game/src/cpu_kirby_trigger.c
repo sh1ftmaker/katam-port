@@ -6,6 +6,7 @@ extern "C" {
 #include "cpu_kirby_trigger.h"
 #include "functions.h"
 #include "kirby.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_081209D8(struct Task *);
 
@@ -57,8 +58,8 @@ static void sub_08120788(struct Object *obj)
     room = gCurLevelInfo[obj->base.unk56].currentRoom;
     for (i = 0; i < gNumKirbys; i++) {
         if (room == gCurLevelInfo[i].currentRoom
-            && (obj->objTemplate->unk22 & 2 || i >= gNumHumanPlayers)
-            && (obj->objTemplate->unk22 & 4 || i < gNumHumanPlayers)
+            && (obj->objTemplate->unk22 & 2 || !PortIsHuman(i))
+            && (obj->objTemplate->unk22 & 4 || PortIsHuman(i))
             && (min = rect[0]) <= gKirbys[i].base.x >> 8 && rect[2] >= gKirbys[i].base.x >> 8
             && (min = rect[1]) <= gKirbys[i].base.y >> 8 && rect[3] >= gKirbys[i].base.y >> 8
             && !(gKirbys[i].base.unkC & 0x8000)) {

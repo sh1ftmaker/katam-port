@@ -10,6 +10,7 @@ extern "C" {
 #include "random.h"
 #include "task.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 void sub_08118C18(struct BossChallengeDoor *);
 static void sub_08118D80(struct BossChallengeDoor *);
@@ -103,7 +104,7 @@ static void sub_08118D80(struct BossChallengeDoor *door) {
             .y = (door->obj.base.unk3F - door->obj.base.unk3D) * 0x100,
         };
         touched = FALSE;
-        for (i = 0; i < gNumHumanPlayers; i++) {
+        for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
             struct Kirby *kirby = &gKirbys[i];
 
             if (level->currentRoom != gCurLevelInfo[i].currentRoom)

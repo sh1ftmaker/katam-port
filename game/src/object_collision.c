@@ -29,6 +29,7 @@ extern "C" {
 #include "constants/object_types.h"
 #include "prank.h"
 #include "soarar.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static bool8 KirbyCanContactOther(struct Kirby *, struct Kirby *);
 static void UpdateObjectCollisions(void);
@@ -167,9 +168,9 @@ static bool16 HandleObjectCollision(struct ObjectBase *attack, struct ObjectBase
             sub_0809CFC4((struct Object *)other);
             return TRUE;
         }
-        if (attack->unk56 >= gNumHumanPlayers) {
+        if (!PortIsHuman(attack->unk56)) {
             if (ObjType5ETo6C((struct Object *)other) || ((struct Object *)other)->type == OBJ_ABILITY_STAR_2
-                || (((struct Object *)other)->type == OBJ_ABILITY_STAR_1 && other->unk56 < gNumHumanPlayers))
+                || (((struct Object *)other)->type == OBJ_ABILITY_STAR_1 && PortIsHuman(other->unk56)))
                 return FALSE;
         }
         tmpAttackObjectFlags = attack->flags;
@@ -1183,7 +1184,7 @@ static void ProcessKirbyContacts(void)
                     && first->unkE5 != 0 && !((first->unkE1 >> secondId) & 1)) {
                     if (CanKirbyUseSharingAnimation(first)) {
                         if (CanKirbyUseSharingAnimation(&gKirbys[secondId])
-                            && (first->base.unk56 < gNumHumanPlayers || gKirbys[secondId].base.unk56 < gNumHumanPlayers)) {
+                            && (PortIsHuman(first->base.unk56) || PortIsHuman(gKirbys[secondId].base.unk56))) {
                             sub_08053DAC(first, secondId);
                             sub_08054414(&gKirbys[secondId], firstId);
                             first->unkE1 |= 1 << secondId;
@@ -1197,7 +1198,7 @@ static void ProcessKirbyContacts(void)
                         && gKirbys[secondId].unkE5 != 0 && !((gKirbys[secondId].unkE1 >> firstId) & 1)) {
                         if (CanKirbyUseSharingAnimation(first)) {
                             if (CanKirbyUseSharingAnimation(&gKirbys[secondId])
-                                && (first->base.unk56 < gNumHumanPlayers || gKirbys[secondId].base.unk56 < gNumHumanPlayers)) {
+                                && (PortIsHuman(first->base.unk56) || PortIsHuman(gKirbys[secondId].base.unk56))) {
                                 StartKirbyShare(&gKirbys[secondId], secondId, first, firstId);
                                 ++secondId;
                                 continue;

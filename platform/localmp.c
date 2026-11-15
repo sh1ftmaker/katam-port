@@ -1,10 +1,11 @@
 /* Local multiplayer: two to four people on one screen, in one running game.
  *
- * A feasibility spike, off by default (KATAM_LOCAL_MP=2 natively, ?localmp=2
- * on the web, `option localmp N` in a recording).  Off, nothing here runs:
- * every game-side hook tests gPortSim->lmp.humans, which stays zero, and
- * the 16 bytes of the sim block it lives in were the spare zero bytes the
- * hash always covered.
+ * Off until someone is a second player: MULTIPLAYER > LOCAL, KATAM_LOCAL_MP=2
+ * natively, ?localmp=2 on the web, `option localmp N` in a recording -- or a
+ * join at any frame of play (drop in: `human FRAME SLOT ON`, below).  Off,
+ * nothing here runs: every game-side hook tests gPortSim->lmp.humans, which
+ * stays zero, and the 16 bytes of the sim block it lives in were the spare
+ * zero bytes the hash always covered.
  *
  * --- what the game already has -------------------------------------------
  *
@@ -18,11 +19,73 @@
  * sub_080332BC, the start of play, gives CPU brains (sub_0800ECAC) only to
  * slots >= its human count.
  *
- * So a second local human is: start the game with gNumHumanPlayers = 2
- * (PortLmpStartHumans), and give slot 1 a pad instead of the CPU's output
- * (PortLmpKeys, latched with the console's own keys and recorded with
- * them).  Nothing about the Kirby is faked; it is the same Kirby a link
- * partner would have been, simulated by the same code.
+ * So another local human is: make that slot a person in the game's eyes,
+ * and give it a pad instead of the CPU's output (PortLmpKeys, latched with
+ * the console's own keys and recorded with them).  Nothing about the Kirby
+ * is faked; it is the same Kirby a link partner would have been, simulated
+ * by the same code.
+ *
+ * --- human slots: drop in, drop out -----------------------------------------
+ *
+ * Any of slots 1..3 can become a person, or go back to the CPU, at any frame
+ * of play: PortLmpSetSlotHuman, a frame-stamped input (`human FRAME SLOT ON`
+ * in a recording, PORT_LN_EV_HUMAN online).  The scheme, and why:
+ *
+ *   gPortSim->lmp.slots   WHO is a person: a bit per slot, bit 0 always.
+ *   gNumHumanPlayers      HOW MANY: the bits set, so 1..4, never 0.
+ *
+ * The game reads gNumHumanPlayers in 200 places (docs/MULTIPLAYER.md §13
+ * lists them).  About 110 use it as a number -- boss HP and phase thresholds
+ * (table[count - 1]), the boss HP bar, the mirror-phase tally, `count > 1`
+ * for the borrow-a-life rule -- and those keep reading it unchanged: the
+ * number of people playing is what they mean.  About 75 use it as a set of
+ * slots -- `slot < count` for "is this Kirby a person" (doors by Up, chests,
+ * shards, items, switches, cannons, the phone, deaths and lives, room
+ * arrivals that spawn objects, the CPU brain's "is a person in my room")
+ * and `for (i = 0; i < count; i++)` over the people (the big doors that wait
+ * for everyone, the goal star, the enemies' target pick, the spawn windows).
+ * Those go through PortIsHuman / PortHumanNext / PortCpuNext / PortSlotOrder
+ * (port/localmp.h), which are the original expression whenever nobody has
+ * joined.  The rest are link-cable, demo and subgame code, which never sees
+ * the mask (it is only engaged in ordinary story play).
+ *
+ * Humans need not be a prefix of the slots.  The other schemes, measured
+ * against the readers and rejected:
+ *   - count = highest human slot + 1, a CPU in the "gap" below it: the CPU
+ *     brain assumes slots below the count are people (code_0800ECAC_2.c:
+ *     809, 2334-2410: it finds itself as "a person in my room" and never
+ *     follows anyone), the gap CPU's brain is not reset on room changes
+ *     (kirby.c:12976), it loses lives, borrows them and counts for game
+ *     over, and the big doors and the goal star wait for it (shard.c:122,
+ *     special_doors.c:218, warp_star.c:2003);
+ *   - renumbering (moving the last human down into the vacated slot):
+ *     changes which Kirby a person is holding, mid-game.
+ * So when player 2 leaves while player 3 stays, slot 1 is simply a CPU
+ * again, slot 2 a person, and gNumHumanPlayers 2.
+ *
+ * The CPU brains.  Every play start now gives every slot 1..3 a brain
+ * (sub_080332BC is told one human, PortLmpStartHumans) and the humans join
+ * right after (PortLmpStarted): MULTIPLAYER > LOCAL is "start, then a join".
+ * A person's brain is frozen (sub_0800EF60 returns early for a human slot)
+ * and reset (sub_0800EE04) when the CPU takes the Kirby back, so it starts
+ * from where the Kirby is, not from where it was when the person took over.
+ * Should a brain ever be missing it is created then.  Other brains that were
+ * following a slot that stopped being a person follow player 1 instead.
+ *
+ * What a join or a leave keeps: the Kirby -- position, ability, health,
+ * lives -- is not touched.  A joiner in another room, dying, mid-door, in a
+ * cannon or a goal sequence is brought to the group by the one-room rule
+ * below as soon as they can be moved.
+ *
+ * What it changes mid-fight: a boss's HP was set at spawn for the old count
+ * (object.c:2081) while its phase thresholds and its HP bar read the live
+ * one, so a count change rescales the HP of every live boss in proportion
+ * (RescaleBosses) -- a boss at half health stays at half health.
+ *
+ * A join outside play (the title, the menus) is held in the mask and
+ * applied when the next game starts; the title screen ends everything
+ * (PortLmpEnd), and the host's device core asks again for anyone who is
+ * still holding a pad (platform/input_devices.c).
  *
  * What link play does NOT give is one screen.  On a cable each console draws
  * the room its own player is in, with a camera on its own player.  Here
@@ -61,12 +124,15 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "global.h"
 #include "data.h"
 #include "kirby.h"
 #include "object.h"
 #include "functions.h"
+#include "task.h"
+#include "constants/object_types.h"
 #include "port/port.h"
 #include "port/simblock.h"
 #include "port/localmp.h"
@@ -74,6 +140,7 @@
 #include "port/lmpnet.h"
 #include "port/netsim.h"
 #include "port/seats.h"
+#include "port/inputlog.h"
 
 /* C linkage for the 64-bit builds -- see platform/warp.c. */
 #ifdef __cplusplus
@@ -81,6 +148,9 @@ extern "C" {
 #endif
 
 extern void sub_08055920(struct Kirby *);
+extern void sub_0800ECAC(u8, u16, u16);
+extern void sub_0800EE04(u8, u32);
+extern void sub_0800EF60(void);
 
 #define L (&gPortSim->lmp)
 
@@ -185,31 +255,64 @@ void PortLmpLatch(u16 keys[4])
     if (!L->humans)
         return;
     for (p = 1; p < 4; p++) {
-        u16 k = p < L->humans ? (u16)(keys[p] & 0x03FF) : 0;
+        u16 k = PortLmpHumanSlot(p) ? (u16)(keys[p] & 0x03FF) : 0;
 
-        gPortSim->frame.lmpPressed[p - 1] = k & ~L->keys[p];
-        L->keys[p] = k;
+        gPortSim->frame.lmpPressed[p - 1] = k & ~L->keys[p - 1];
+        L->keys[p - 1] = k;
     }
 }
 
 /* --- game hooks ------------------------------------------------------------ */
 
+static int Popcount(u8 m)
+{
+    int n = 0;
+
+    for (; m; m &= (u8)(m - 1))
+        n++;
+    return n;
+}
+
+/* The start of play (sub_080332BC's human count).  Everyone it is told is a
+ * person; it is always told one, so that slots 1..3 all get a CPU brain, and
+ * the other humans -- the MULTIPLAYER > LOCAL setting, and anyone who joined
+ * outside play -- join once the brains exist (PortLmpStartedSlow). */
 u8 PortLmpStartHumans(u8 n)
 {
-    if (sSetting < 2) {
-        L->humans = 0;
-        return n;
+    u8 want = L->slots;
+    int s;
+
+    L->humans = 0;
+    for (s = 1; s < sSetting && s < 4; s++)
+        want |= (u8)(1u << s);
+    if (want & 0x0E) {
+        if (SessionActive()) {
+            PortLog("[katam-port] localmp: refused -- a netplay/rollback/link session is active");
+            L->slots = 0;
+            return n;
+        }
+        L->slots = (u8)(want | 1u);
+    } else {
+        L->slots = 0;
     }
-    if (SessionActive()) {
-        PortLog("[katam-port] localmp: refused -- a netplay/rollback/link session is active");
-        L->humans = 0;
-        return n;
-    }
-    L->humans = (u8)sSetting;
+    return n;
+}
+
+static void Engage(void)
+{
     L->groupRoom = 0xFFFF;
     L->stray[0] = L->stray[1] = L->stray[2] = L->stray[3] = 0;
-    PortLog("[katam-port] localmp: game starts with %d human players", sSetting);
-    return (u8)sSetting;
+}
+
+void PortLmpStartedSlow(void)
+{
+    if (!(L->slots & 0x0E) || (gUnk_0203AD10 & 0x12))
+        return;
+    Engage();
+    L->humans = (u8)Popcount(L->slots);
+    gNumHumanPlayers = L->humans;
+    PortLog("[katam-port] localmp: game starts with %d human players (slots %X)",
+            (int)L->humans, (unsigned)L->slots);
 }
 
 /* Ordinary play with local humans: not the attract demo (0x10), not link
@@ -224,20 +327,289 @@ int PortLmpInPlay(void)
     return Active();
 }
 
+/* --- human slots ----------------------------------------------------------- */
+
+static int InRoom(const struct Kirby *k);
+
+/* Slot s's CPU brain task (sub_0800ECAC: priority 0x2100 | slot). */
+static struct Task *Brain(u8 s)
+{
+    int i;
+
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        struct Task *t = &gTasks[i];
+
+        if (t->main == FN(sub_0800EF60) && t->priority == (u16)(0x2100 | s) && t->structOffset)
+            return t;
+    }
+    return NULL;
+}
+
+/* Ordinary story play: Kirbys with brains, not link play or the demo. */
+static int InStoryPlay(void)
+{
+    int s;
+
+    if (gUnk_0203AD10 & 0x12)
+        return 0;
+    for (s = 1; s < 4; s++)
+        if (Brain((u8)s))
+            return 1;
+    return 0;
+}
+
+/* A boss's HP was set at spawn from gUnk_08351530[type][count - 1]
+ * (object.c:2081); its phase thresholds and its HP bar read the live count.
+ * Keep the fraction it has left.  Dark Mind's first form (its own table,
+ * indexed by a spawn parameter the object does not keep) is left alone. */
+static void RescaleBosses(int from, int to)
+{
+    int i;
+
+    if (from < 1 || from > 4 || to < 1 || to > 4 || from == to)
+        return;
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        const struct Task *t = &gTasks[i];
+        struct Object *o;
+        s32 a, b, hp;
+
+        if (!t->main || !t->structOffset)
+            continue;
+        o = (struct Object *)((t->flags & TASK_USE_EWRAM)
+                ? (uintptr_t)EWRAM_START + ((uintptr_t)t->structOffset << 2)
+                : (uintptr_t)IWRAM_START + t->structOffset);
+        if (o->base.header.kind != 1 || !(o->base.flags & 0x4000000) || !ObjType38To52(o)
+            || o->type == OBJ_DARK_MIND_FORM_1 || o->unk80 <= 0)
+            continue;
+        a = gUnk_08351530[ObjTypeAltIdx(o)][from - 1];
+        b = gUnk_08351530[ObjTypeAltIdx(o)][to - 1];
+        if (a <= 0 || b <= 0)
+            continue;
+        hp = (o->unk80 * b + a / 2) / a;
+        if (hp < 1)
+            hp = 1;
+        PortLog("[katam-port] localmp: f%u boss type %u hp %d -> %d (%d -> %d humans)",
+                (unsigned)gPortSim->frame.frameCount, (unsigned)o->type, (int)o->unk80,
+                (int)hp, from, to);
+        o->unk80 = (s16)hp;
+    }
+}
+
+static void ToCpu(u8 s)
+{
+    struct Unk_02038590 *b = &gUnk_02038590[s];
+
+    if (Brain(s) == NULL) {
+        u16 room = gCurLevelInfo[s].currentRoom != 0xFFFF ? gCurLevelInfo[s].currentRoom
+                                                          : gKirbys[s].base.roomId;
+
+        PortLog("[katam-port] localmp: slot %u had no CPU brain; making one", (unsigned)s);
+        sub_0800ECAC(s, room, gAIKirbyState > 199 ? 0x321 : 0x323);
+    } else if (gCurLevelInfo[s].currentRoom != 0xFFFF) {
+        sub_0800EE04(s, 0);
+    }
+    b->unk9C = 0;
+    b->unk9E = 0;
+    b->unkA8 = &gKirbys[0];
+    L->keys[s - 1] = 0;
+    L->joining &= (u16)~(1u << s);
+    gPortSim->frame.lmpPressed[s - 1] = 0;
+}
+
+/* During the tutorial and the intro (gAIKirbyState below NORMAL) the other
+ * Kirbys are the story's: they mirror player 1, and a script walks them
+ * through a door into the hub (801) for the opening cutscene.  A person
+ * taking one over on that walk would arrive in the hub as a person and start
+ * the cutscene early (measured: tests/recordings/players_rooms.txt); so a
+ * join waits while that Kirby is between rooms or in the hub.  Anywhere else
+ * it joins at once and the one-room rule brings it to the group. */
+static int Scripted(u8 s)
+{
+    const struct Kirby *k = &gKirbys[s];
+
+    return gAIKirbyState < AI_KIRBY_STATE_NORMAL
+        && (!InRoom(k) || k->base.roomId == 0x321);
+}
+
+static void Apply(int slot, int on, u8 old, u8 m)
+{
+    int s, from, to;
+
+    if (!L->humans)
+        Engage();
+    from = gNumHumanPlayers;
+    to = Popcount(m);
+    L->slots = m;
+    L->humans = (u8)to;
+    for (s = 1; s < 4; s++) {
+        u8 bit = (u8)(1u << s);
+
+        if ((old & bit) && !(m & bit))
+            ToCpu((u8)s);
+        else if (!(old & bit) && (m & bit)) {
+            const struct Kirby *k = &gKirbys[s];
+            u16 g = L->groupRoom != 0xFFFF ? L->groupRoom : gKirbys[0].base.roomId;
+
+            gUnk_02038590[s].unk9E = 0;
+            L->stray[s] = 0;
+            /* A joiner away from the group -- another room, mid-door, dying
+             * -- is brought to the group; their own arrival somewhere (the
+             * door they were already in) must not move everyone there. */
+            if (k->base.roomId != g || !InRoom(k))
+                L->joining |= bit;
+        }
+    }
+    /* Brains that were following someone who is no longer a person. */
+    for (s = 1; s < 4; s++) {
+        struct Unk_02038590 *b = &gUnk_02038590[s];
+        const struct Kirby *lead = b->unkA8;
+
+        if (!(m & (1u << s)) && lead != NULL && (old & (1u << (lead->base.unk56 & 3)))
+            && !(m & (1u << (lead->base.unk56 & 3))))
+            b->unkA8 = &gKirbys[0];
+    }
+    RescaleBosses(from, to);
+    gNumHumanPlayers = (u8)to;
+    PortLog("[katam-port] localmp: f%u player %d %s; %d human players (slots %X)",
+            (unsigned)gPortSim->frame.frameCount, slot + 1, on ? "joins" : "leaves",
+            to, (unsigned)m);
+}
+
+void PortLmpSetSlotHuman(int slot, int on)
+{
+    u8 old = L->slots ? L->slots : 1, m;
+
+    if (slot < 1 || slot > 3)
+        return;
+    if (SessionActive()) {
+        PortLog("[katam-port] localmp: slot change refused -- a rollback/netsim/seat session owns the slots");
+        return;
+    }
+    L->joining &= (u16)~(0x100u << slot);     /* a waiting join is superseded */
+    m = on ? (u8)(old | (1u << slot)) : (u8)(old & ~(1u << slot));
+    if (m == old && L->slots)
+        return;
+    if (!InStoryPlay()) {
+        /* Held for the next game's start (PortLmpStartHumans). */
+        L->slots = (m & 0x0E) ? m : 0;
+        PortLog("[katam-port] localmp: f%u player %d %s (not in play: from the next game)",
+                (unsigned)gPortSim->frame.frameCount, slot + 1, on ? "joins" : "leaves");
+        return;
+    }
+    if (on && Scripted((u8)slot)) {
+        L->joining |= (u16)(0x100u << slot);
+        PortLog("[katam-port] localmp: f%u player %d joins once that Kirby is with player 1 (the story has it)",
+                (unsigned)gPortSim->frame.frameCount, slot + 1);
+        return;
+    }
+    Apply(slot, on, old, m);
+}
+
+/* Joins waiting for the story to let go of the Kirby (Scripted). */
+static void Waiting(void)
+{
+    int s;
+
+    for (s = 1; s < 4; s++)
+        if ((L->joining & (0x100u << s)) && !Scripted((u8)s)) {
+            u8 old = L->slots ? L->slots : 1;
+
+            L->joining &= (u16)~(0x100u << s);
+            if (!(old & (1u << s)))
+                Apply(s, 1, old, (u8)(old | (1u << s)));
+        }
+}
+
+int PortLmpSlotJoinable(int slot)
+{
+    if (slot < 1 || slot > 3)
+        return 0;
+    return !InStoryPlay() || !Scripted((u8)slot);
+}
+
+int PortLmpCanRequest(void)
+{
+    /* Online (platform/lmpnet.c) the slots are host = 1, guest = 2 for now:
+     * more people on either device is the session's to seal and carry. */
+    return !SessionActive() && !PortLnActive() && !PortInputLogReplaying();
+}
+
+u32 PortLmpRequestHuman(int slot, int on)
+{
+    if (slot < 1 || slot > 3 || !PortLmpCanRequest())
+        return 0;
+    return PortInputLogScheduleHuman((u8)slot, (u8)(on != 0));
+}
+
+int PortLmpProbe(int slot, const char *cond)
+{
+    const struct Kirby *k;
+    int i;
+
+    if (slot < 0 || slot > 3 || cond == NULL)
+        return 0;
+    k = &gKirbys[slot];
+    if (strcmp(cond, "dead") == 0)
+        return k->hp <= 0;
+    if (strcmp(cond, "alive") == 0)
+        return k->hp > 0 && k->base.roomId != 0xFFFF;
+    if (strcmp(cond, "away") == 0)
+        return k->base.roomId != gKirbys[0].base.roomId;
+    if (strcmp(cond, "door") == 0)
+        return (k->base.flags & 0x100) != 0;
+    if (strcmp(cond, "human") == 0)
+        return PortLmpSlotIsHuman(slot);
+    if (strcmp(cond, "cpu") == 0)
+        return !PortLmpSlotIsHuman(slot);
+    if (strncmp(cond, "anim:", 5) == 0)
+        return k->animationIndex == (u16)atoi(cond + 5);
+    if (strncmp(cond, "flag:", 5) == 0)
+        return (k->base.flags & (u32)strtoul(cond + 5, NULL, 16)) != 0;
+    if (strcmp(cond, "boss") == 0) {
+        for (i = 0; i < MAX_TASK_NUM; i++) {
+            const struct Task *t = &gTasks[i];
+            const struct Object *o;
+
+            if (!t->main || !t->structOffset)
+                continue;
+            o = (const struct Object *)((t->flags & TASK_USE_EWRAM)
+                    ? (uintptr_t)EWRAM_START + ((uintptr_t)t->structOffset << 2)
+                    : (uintptr_t)IWRAM_START + t->structOffset);
+            if (o->base.header.kind == 1 && (o->base.flags & 0x4000000) && ObjType38To52(o)
+                && o->unk80 > 0 && o->base.roomId == k->base.roomId)
+                return 1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+int PortLmpSlotIsHuman(int slot)
+{
+    if (slot == 0)
+        return 1;
+    if (slot < 0 || slot > 3)
+        return 0;
+    return ((L->slots >> slot) & 1) || ((L->joining >> (8 + slot)) & 1);
+}
+
 void PortLmpEndSlow(void)
 {
     if (L->humans)
         PortLog("[katam-port] localmp: back to the title; local players off");
     L->humans = 0;
+    L->slots = 0;
     L->groupRoom = 0;
-    L->keys[1] = L->keys[2] = L->keys[3] = 0;
+    L->keys[0] = L->keys[1] = L->keys[2] = 0;
+    L->joining = 0;
     L->stray[0] = L->stray[1] = L->stray[2] = L->stray[3] = 0;
     gPortSim->frame.lmpPressed[0] = gPortSim->frame.lmpPressed[1] = gPortSim->frame.lmpPressed[2] = 0;
 }
 
-static int Humans(void)
+/* Is slot k one of the humans on this screen?  (Slot 0 always.) */
+static int Human(int k)
 {
-    return L->humans < gNumHumanPlayers ? L->humans : gNumHumanPlayers;
+    return k == 0 || PortLmpHumanSlot(k);
 }
 
 /* In a room and not between rooms: what the camera frames. */
@@ -377,14 +749,14 @@ void PortLmpCamTargetSlow(u8 player, s32 *x, s32 *y)
 
     if (!Active() || player != gLocalPlayerId)
         return;
-    n = Humans();
+    n = 4;
     room = gKirbys[player].base.roomId;
     minX = maxX = *x;
     minY = maxY = *y;
     for (k = 0; k < n; k++) {
         const struct Kirby *o = &gKirbys[k];
 
-        if (k == player || o->base.roomId != room || !InRoom(o))
+        if (k == player || !Human(k) || o->base.roomId != room || !InRoom(o))
             continue;
         if (o->base.x < minX) minX = o->base.x;
         if (o->base.x > maxX) maxX = o->base.x;
@@ -429,8 +801,18 @@ void PortLmpArrivedSlow(struct Kirby *k)
 {
     if (k->base.unk56 == gLocalPlayerId)
         ListDoors(gLocalPlayerId);
-    if (!Active() || k->base.unk56 >= Humans())
+    if (!Active() || !Human(k->base.unk56))
         return;
+    if (L->joining & (1u << (k->base.unk56 & 3))) {
+        if (L->groupRoom == 0xFFFF || L->groupRoom == k->base.roomId)
+            L->joining &= (u16)~(1u << (k->base.unk56 & 3));
+        else {
+            PortLog("[katam-port] localmp: f%u player %u (just joined) arrives in room %u; brought to the group",
+                    (unsigned)gPortSim->frame.frameCount, (unsigned)k->base.unk56 + 1,
+                    (unsigned)k->base.roomId);
+            return;
+        }
+    }
     if (L->groupRoom != k->base.roomId)
         PortLog("[katam-port] localmp: f%u player %u arrives in room %u; the group follows",
                 (unsigned)gPortSim->frame.frameCount, (unsigned)k->base.unk56 + 1,
@@ -452,16 +834,19 @@ static void Trace(void)
     }
     if (sTrace <= 0 || f % (u32)sTrace)
         return;
-    PortLog("[katam-port] localmp-trace: f%u pauser %u keys %03X %03X %03X",
-            (unsigned)f, (unsigned)gUnk_0203AD50, (unsigned)L->keys[1],
-            (unsigned)L->keys[2], (unsigned)L->keys[3]);
-    for (k = 0; k < Humans(); k++) {
+    PortLog("[katam-port] localmp-trace: f%u pauser %u freeze %X keys %03X %03X %03X",
+            (unsigned)f, (unsigned)gUnk_0203AD50, (unsigned)gUnk_03000510.unk4, (unsigned)L->keys[0],
+            (unsigned)L->keys[1], (unsigned)L->keys[2]);
+    for (k = 0; k < 4; k++) {
         const struct Kirby *o = &gKirbys[k];
 
-        PortLog("[katam-port] localmp-trace: f%u p%d room %u x %d y %d hp %d flags %08X anim %u cam %d,%d",
+        if (!Human(k))
+            continue;
+
+        PortLog("[katam-port] localmp-trace: f%u p%d room %u x %d y %d hp %d lives %d flags %08X anim %u state %08X cam %d,%d",
                 (unsigned)f, k + 1, (unsigned)o->base.roomId, (int)(o->base.x >> 8),
-                (int)(o->base.y >> 8), (int)o->hp, (unsigned)o->base.flags,
-                (unsigned)o->animationIndex,
+                (int)(o->base.y >> 8), (int)o->hp, (int)o->lives, (unsigned)o->base.flags,
+                (unsigned)o->animationIndex, (unsigned)(uintptr_t)o->stateFn,
                 (int)(gCurLevelInfo[gLocalPlayerId].viewportPosition.x >> 8),
                 (int)(gCurLevelInfo[gLocalPlayerId].viewportPosition.y >> 8));
     }
@@ -474,10 +859,12 @@ void PortLmpFrame(void)
     u16 g;
     int k, n;
 
+    if (L->joining & 0x0E00)
+        Waiting();
     if (!Active())
         return;
     Trace();
-    n = Humans();
+    n = 4;
     g = L->groupRoom;
     if (g == 0xFFFF) {
         /* First frame in a level: the group is wherever player 1 is. */
@@ -487,7 +874,7 @@ void PortLmpFrame(void)
     }
     /* The first human in the group's room, preferring one who is alive. */
     for (k = 0; k < n; k++)
-        if (gKirbys[k].base.roomId == g
+        if (Human(k) && gKirbys[k].base.roomId == g
             && (anchor == NULL || (anchor->hp <= 0 && gKirbys[k].hp > 0)))
             anchor = &gKirbys[k];
     if (anchor == NULL)
@@ -502,7 +889,7 @@ void PortLmpFrame(void)
     for (k = 0; k < n; k++) {
         struct Kirby *o = &gKirbys[k];
 
-        if (o == anchor || o->hp > 0 || o->base.roomId == 0xFFFF)
+        if (!Human(k) || o == anchor || o->hp > 0 || o->base.roomId == 0xFFFF)
             continue;
         if (anchor->roomId == g) {
             o->roomId = g;
@@ -518,9 +905,24 @@ void PortLmpFrame(void)
     for (k = 0; k < n; k++) {
         struct Kirby *o = &gKirbys[k];
 
-        if (o->base.roomId != g && Movable(o)) {
+        if ((L->joining & (1u << k)) && o->base.roomId == g && InRoom(o))
+            L->joining &= (u16)~(1u << k);
+
+        if (Human(k) && o->base.roomId != g && Movable(o)) {
             L->stray[k] = 0;
             Carry(o, g, anchor, 1);
+        } else if ((L->joining & (1u << k)) && o->base.roomId != g && o->base.roomId != 0xFFFF
+                   && o->hp > 0 && !(o->base.flags & 0x3800000)) {
+            /* A joiner that a CPU-only state holds (a CPU parked in the hub,
+             * waiting for a call: flags 0xB00, which only its brain -- now
+             * frozen -- would end): after two seconds, carried anyway. */
+            if (L->stray[k] < 255)
+                L->stray[k]++;
+            if (L->stray[k] >= 120) {
+                L->stray[k] = 0;
+                o->base.flags &= ~0xB00u;
+                Carry(o, g, anchor, 1);
+            }
         }
     }
 
@@ -532,8 +934,9 @@ void PortLmpFrame(void)
         for (k = 1; k < n; k++) {
             struct Kirby *o = &gKirbys[k];
 
-            if (o->base.roomId != g || !InRoom(o)) {
-                L->stray[k] = 0;
+            if (!Human(k) || o->base.roomId != g || !InRoom(o)) {
+                if (!(L->joining & (1u << k)))      /* its counter, above */
+                    L->stray[k] = 0;
                 continue;
             }
             if (o->base.x >= x0 + 0x800 && o->base.x <= x1 - 0x800
@@ -567,13 +970,13 @@ int PortLmpViewNeed(s32 *w, s32 *h)
     room = gKirbys[p].base.roomId;
     if (room == 0xFFFF || li->currentRoom == 0xFFFF)
         return 0;
-    n = Humans();
+    n = 4;
     minX = maxX = gKirbys[p].base.x;
     minY = maxY = gKirbys[p].base.y;
     for (k = 0; k < n; k++) {
         const struct Kirby *o = &gKirbys[k];
 
-        if (k == p || o->base.roomId != room || !InRoom(o))
+        if (k == p || !Human(k) || o->base.roomId != room || !InRoom(o))
             continue;
         if (o->base.x < minX) minX = o->base.x;
         if (o->base.x > maxX) maxX = o->base.x;

@@ -5353,12 +5353,17 @@ extern const struct AnimInfo gUnk_08350B30[] = {
 struct Kirby *FindTargetKirby(struct ObjectBase *r6)
 {
     u8 i = 0; // redundant initialization
+    u8 pos;
     u32 sp00 = 0, sl = 0;
     bool32 sp04 = TRUE;
     s32 r7 = INT_MAX;
 
-    for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r7 == INT_MAX); ++i)
+    /* PORT: human slots -- `pos` walks the slots humans first (the humans
+     * need not be slots 0..n-1; platform/localmp.c); identical with
+     * nobody joined. */
+    for (pos = 0; pos < gNumKirbys && (pos < gNumHumanPlayers || r7 == INT_MAX); ++pos)
     {
+        i = (u8)PortSlotOrder(pos);
         if (r6->roomId == gKirbys[i].base.roomId)
         {
             s32 r3 = abs(r6->x - gKirbys[i].base.x);
@@ -5432,12 +5437,17 @@ struct Kirby *sub_0803D46C(struct ObjectBase *sb)
 struct Kirby *sub_0803D5CC(struct ObjectBase *r5)
 {
     u8 i = 0; // redundant initialization
+    u8 pos;
     u32 sp00 = 0, r8 = 0;
     bool32 sb = TRUE;
     s32 r6 = INT_MAX;
 
-    for (i = 0; i < gNumKirbys && (i < gNumHumanPlayers || r6 == INT_MAX); ++i)
+    /* PORT: human slots -- `pos` walks the slots humans first (the humans
+     * need not be slots 0..n-1; platform/localmp.c); identical with
+     * nobody joined. */
+    for (pos = 0; pos < gNumKirbys && (pos < gNumHumanPlayers || r6 == INT_MAX); ++pos)
     {
+        i = (u8)PortSlotOrder(pos);
         if (r5->roomId == gKirbys[i].base.roomId)
         {
             s32 r2 = abs(r5->x - gKirbys[i].base.x);
@@ -6504,7 +6514,7 @@ void sub_0803F324(struct Kirby *kirby)
             r3 = gHeldKeys;
         /* PORT: local multiplayer -- another person's pad, where the CPU's
          * output would be.  Never true with it off.  platform/localmp.c. */
-        else if (PortLmpHumanSlot(kirby->base.unk56) && kirby->base.unk56 < gNumHumanPlayers)
+        else if (PortLmpHumanSlot(kirby->base.unk56))
             r3 = PortLmpKeys(kirby->base.unk56);
         else
             r3 = gUnk_02038590[kirby->base.unk56].unk9E;
@@ -7087,7 +7097,7 @@ void sub_0803FE74(struct Kirby *kirby)
                 { \
                     if (!(gUnk_0203AD20 & 2) \
                         && gRoomProps[(kirby)->base.roomId].priorityFlags & 8 \
-                        && gNumHumanPlayers > (kirby)->base.unk56) \
+                        && PortIsHuman((kirby)->base.unk56)) \
                     { \
                         if (!Macro_0803FF64_5(kirby) || (kirby)->base.unkC & 0x10000) \
                         { \
@@ -10630,7 +10640,7 @@ void sub_0804FBFC(struct Kirby *kirby)
         sub_08098184(&kirby->base);
         if (kirby->base.unk56 == gLocalPlayerId)
             PlaySfx(&kirby->base, MUS_KIRBY_DEAD);
-        else if (gNumHumanPlayers > kirby->base.unk56
+        else if (PortIsHuman(kirby->base.unk56)
             && kirby->base.roomId == gKirbys[gLocalPlayerId].base.roomId)
             PlaySfxInternal(&gKirbys[gLocalPlayerId].base, SE_KIRBY_DEAD);
     }
@@ -10662,14 +10672,14 @@ void sub_0804FBFC(struct Kirby *kirby)
         }
     }
     if (kirby->base.counter == 210
-        && gNumHumanPlayers > kirby->base.unk56
+        && PortIsHuman(kirby->base.unk56)
         && gNumHumanPlayers < 2
         && !kirby->lives
         && (kirby->base.roomId >= 0x38D && kirby->base.roomId <= 0x397))
     {
         u8 i;
 
-        for (i = gNumHumanPlayers; i < gNumKirbys; ++i)
+        for (i = PortCpuFirst(); i < gNumKirbys; i = PortCpuNext(i))
         {
             if ((gKirbys[i].base.roomId >= 0x38D && gKirbys[i].base.roomId <= 0x397)
                 && gKirbys[i].stateFn != FN(sub_08055C14))
@@ -10680,7 +10690,7 @@ void sub_0804FBFC(struct Kirby *kirby)
     {
         if (gLocalPlayerId == kirby->base.unk56)
             gUnk_0203AD10 &= ~0x100;
-        if (gNumHumanPlayers <= kirby->base.unk56)
+        if (!PortIsHuman(kirby->base.unk56))
         {
             if (gAIKirbyState >= AI_KIRBY_STATE_CUTSCENE)
             {
@@ -10723,7 +10733,7 @@ void sub_0804FBFC(struct Kirby *kirby)
                 u8 i;
                 bool32 a = TRUE;
 
-                for (i = 0; i < gNumHumanPlayers; ++i)
+                for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
                 {
                     struct Kirby *k = &gKirbys[i];
 
@@ -10872,7 +10882,7 @@ void sub_080502E0(struct Kirby *kirby)
         {
             if (!(gUnk_0203AD20 & 2)
                 && gRoomProps[kirby->base.roomId].priorityFlags & 8
-                && gNumHumanPlayers > kirby->base.unk56)
+                && PortIsHuman(kirby->base.unk56))
             {
                 if (!Macro_0803FF64_5(kirby) || kirby->base.unkC & 0x10000)
                 {
@@ -10905,7 +10915,7 @@ void sub_080506A8(struct Kirby *kirby)
         && !kirby->lives
         && (kirby->base.roomId >= 0x38D && kirby->base.roomId <= 0x397))
     {
-        for (i = gNumHumanPlayers; i < gNumKirbys; ++i)
+        for (i = PortCpuFirst(); i < gNumKirbys; i = PortCpuNext(i))
         {
             if ((gKirbys[i].base.roomId >= 0x38D && gKirbys[i].base.roomId <= 0x397)
                 && gKirbys[i].stateFn != FN(sub_08055C14))
@@ -10972,7 +10982,7 @@ void sub_08050908(struct Kirby *kirby)
 
         if (kirby->base.unk56 != kirby3->base.unk56
             && kirby3->stateFn != FN(sub_08050908)
-            && kirby3->base.unk56 < gNumHumanPlayers)
+            && PortIsHuman(kirby3->base.unk56))
         {
             if (kirby2)
             {
@@ -11063,7 +11073,7 @@ void sub_08050B44(struct Kirby *kirby)
         if (kirby->base.unk56 != kirby3->base.unk56
             && kirby3->stateFn != FN(sub_08050B44)
             && kirby3->stateFn != FN(sub_08057E08)
-            && kirby3->base.unk56 < gNumHumanPlayers)
+            && PortIsHuman(kirby3->base.unk56))
         {
             if (kirby3->stateFn == FN(sub_080506A8) && !kirby3->lives)
             {
@@ -11168,7 +11178,7 @@ void sub_08050B44(struct Kirby *kirby)
             {
                 if (!(gUnk_0203AD20 & 2)
                     && gRoomProps[kirby->base.roomId].priorityFlags & 8
-                    && gNumHumanPlayers > kirby->base.unk56)
+                    && PortIsHuman(kirby->base.unk56))
                 {
                     if (!Macro_0803FF64_5(kirby) || kirby->base.unkC & 0x10000)
                     {
@@ -12768,7 +12778,7 @@ void sub_08055D9C(struct Kirby *kirby)
             if (!(gUnk_0203AD10 & 4))
             {
                 sub_0812379C(kirby);
-                if (kirby->base.unk56 >= gNumHumanPlayers)
+                if (!PortIsHuman(kirby->base.unk56))
                     BonusCreateRandom(&kirby->base, kirby->flyTimer - 1);
             }
             kirby->flyTimer = 5;
@@ -12777,7 +12787,7 @@ void sub_08055D9C(struct Kirby *kirby)
         kirby->stateFn = FN(sub_08056128);
         Macro_08050218(kirby);
         sub_08001358(kirby->base.unk56);
-        if (gNumHumanPlayers > kirby->base.unk56)
+        if (PortIsHuman(kirby->base.unk56))
             sub_080023A4(kirby->base.unk56);
         if (kirby->hp)
             kirby->base.flags &= ~0x400;
@@ -12903,7 +12913,7 @@ void sub_080562D0(struct Kirby *kirby)
                 kirby->unkF2 = kirby->base.x >> 12;
                 kirby->unkF3 = (kirby->base.y >> 12) + 1;
             }
-            if (gNumHumanPlayers > *fake)
+            if (PortIsHuman(*fake))
                 sub_08002C18(kirby->base.roomId, r4.pat3->unk08, r4.pat3->unk0A, r4.pat3->unk0B);
             kirby->base.roomId = r4.pat3->unk08;
             kirby->base.x = (r4.pat3->unk0A << 12) - 0x800;
@@ -12973,9 +12983,9 @@ _080564F8:
     kirby->sprites[1].palId = kirby->base.unk56 + 4;
     sub_0806ED58(kirby);
     FillLevelInfo(kirby->base.unk56, kirby->base.roomId, &a, &b);
-    if (gNumHumanPlayers <= kirby->base.unk56)
+    if (!PortIsHuman(kirby->base.unk56))
         sub_0800EE04(kirby->base.unk56, sb);
-    if (gNumHumanPlayers > kirby->base.unk56)
+    if (PortIsHuman(kirby->base.unk56))
     {
         if (sl != 0xFFFF)
         {
@@ -13556,7 +13566,7 @@ void sub_08057E08(struct Kirby *kirby)
             if (kirby->base.unk56 != kirby3->base.unk56
                 && kirby3->stateFn != FN(sub_08050B44)
                 && kirby3->stateFn != FN(sub_08057E08)
-                && kirby3->base.unk56 < gNumHumanPlayers)
+                && PortIsHuman(kirby3->base.unk56))
             {
                 if (kirby3->stateFn != FN(sub_080506A8) || kirby3->lives)
                 {
@@ -14925,7 +14935,7 @@ bool8 sub_0805BC78(struct Kirby *kirby)
         && kirby->base.y < gCurLevelInfo[kirby->base.unk56].levelMaxPosition.y)
         r6 = gCollisionAttributes[GetCollisionTile(kirby->base.unk56, kirby->base.x >> 12, kirby->base.y >> 12)];
     kirby->base.unkC |= 0x1000;
-    if (kirby->base.unk56 < gNumHumanPlayers && kirby->movementState & 0x40)
+    if (PortIsHuman(kirby->base.unk56) && kirby->movementState & 0x40)
     {
         if (r6 & 0x4000)
         {
@@ -15234,7 +15244,7 @@ void sub_0805C3B8(struct Kirby *kirby)
     if (kirby->idleTimer > 0xA
         && (kirby->unk11A & 3
             || !kirby->flyTimer
-            || kirby->base.unk56 >= gNumHumanPlayers))
+            || !PortIsHuman(kirby->base.unk56)))
     {
         kirby->base.counter = 1;
         kirby->flyTimer = 0;

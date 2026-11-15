@@ -1000,6 +1000,9 @@ static void ApplyEvents(u32 f)
         case PORT_LN_EV_LMP:
             PortLmpSetHumans(v->a);
             break;
+        case PORT_LN_EV_HUMAN:
+            PortLmpSetSlotHuman(v->a, v->b);
+            break;
         case PORT_LN_EV_POKE:
             if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
                 *(u8 *)(uintptr_t)(u32)v->a = (u8)v->b;

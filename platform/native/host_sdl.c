@@ -33,6 +33,7 @@
 #include "port/netsim.h"
 #include "port/seats.h"
 #include "port/localmp.h"
+#include "port/input_devices.h"
 #include "port/res.h"
 #include "port/audio.h"
 #include "port/mp.h"
@@ -84,7 +85,10 @@ int gPortNativeNoAudio;
 static SDL_Window   *sWindow;
 static SDL_Renderer *sRenderer;
 static SDL_Texture  *sTexture;
-static SDL_GameController *sPads[4];
+
+/* --devices FILE (fake controllers for tests; see LoadDevicesScript). */
+static const char *sDevicesPath;
+static void LoadDevicesScript(const char *path);
 
 static int  sScale = 3;
 static int  sWinW, sWinH;       /* --window: the GL window's size, 0 = by scale */
@@ -267,6 +271,9 @@ static void Usage(const char *argv0)
 "  --hold MASK        hold these buttons down for the whole run\n"
 "  --mash S:MASK:P[:E] from frame S, tap MASK every P frames, stop at E\n"
 "  --press F:MASK,... set the button mask at frame F and leave it set\n"
+"  --devices FILE     fake controllers: plug/unplug SDL virtual pads, press\n"
+"                     their buttons, join, drop out, reassign (a test script;\n"
+"                     the grammar is in platform/native/host_sdl.c)\n"
 "  --mp loopback[:N]  attach the in-process link transport, N units\n"
 "  --mp-at F          ... at frame F (default 60)\n"
 "  --turbo            do not pace; run as fast as the machine allows\n"
@@ -466,6 +473,9 @@ static void ParseArgs(int argc, char **argv)
             sRandoFlags = flags;
         } else if (strcmp(a, "--hold") == 0) {
             sHoldMask = (int)strtol(argv[i = NeedValue(i, argc, argv)], NULL, 0);
+        } else if (strcmp(a, "--devices") == 0) {
+            sDevicesPath = argv[i = NeedValue(i, argc, argv)];
+            LoadDevicesScript(sDevicesPath);
         } else if (strcmp(a, "--press") == 0) {
             const char *v = argv[i = NeedValue(i, argc, argv)];
 
@@ -831,11 +841,11 @@ static const struct { SDL_GameControllerButton pad; u16 bit; } kPadButtons[] = {
     { SDL_CONTROLLER_BUTTON_DPAD_RIGHT,    DPAD_RIGHT    },
 };
 
-/* Local multiplayer (platform/localmp.c): while a local game is being
- * played -- and only then -- these keys are player 2's.  The arrows are
- * their d-pad (player 1 keeps WASD); the numpad their buttons (Numpad Enter
- * leaves player 1, who keeps Enter); and for a keyboard without a numpad a
- * few keys right of the letters.  Gamepad 2 drives player 2 then too. */
+/* Keyboard set B (platform/input_devices.c): the arrows for a d-pad (set A
+ * keeps WASD), the numpad for buttons (Numpad Enter is its Start, so it
+ * joins), and for a keyboard without a numpad a few keys right of the
+ * letters.  While nobody has claimed set B it drives player 1 like every
+ * unclaimed device -- the arrows move player 1, as they always did. */
 static const struct { SDL_Scancode key; u16 bit; } kKeysP2[] = {
     { SDL_SCANCODE_RIGHT,     DPAD_RIGHT }, { SDL_SCANCODE_LEFT,      DPAD_LEFT     },
     { SDL_SCANCODE_UP,        DPAD_UP    }, { SDL_SCANCODE_DOWN,      DPAD_DOWN     },
@@ -862,55 +872,336 @@ static int IsP2Key(SDL_Scancode k)
  * decided push should not read as one, and the diagonal has to be reachable. */
 #define STICK_DEADZONE 16384
 
+/* --- input devices -------------------------------------------------------
+ *
+ * Every keyboard set and gamepad is a device of platform/input_devices.c,
+ * which decides who drives which player (drop in with Start, drop out by
+ * unplugging or from the menu).  Gamepads arrive through SDL's game
+ * controller API -- XInput pads on Windows, the same pads through evdev or
+ * hidapi elsewhere -- and are tracked by instance id, so hot-plugging works
+ * and a pad that comes back is recognised by its GUID and name. */
+#define MAX_PADS 8
+static struct {
+    SDL_GameController *c;
+    SDL_JoystickID inst;
+    int dev;
+} sPadTab[MAX_PADS];
+static int sKbA, sKbB;
+static u16 sFakeKb[2];          /* --devices: keyboard sets A and B         */
+
+static void PadAdded(int index)
+{
+    SDL_JoystickID inst;
+    SDL_GameController *c;
+    char guid[40], key[96];
+    const char *name;
+    int i, slot = -1;
+
+    if (!SDL_IsGameController(index))
+        return;
+    inst = SDL_JoystickGetDeviceInstanceID(index);
+    for (i = 0; i < MAX_PADS; i++) {
+        if (sPadTab[i].c != NULL && sPadTab[i].inst == inst)
+            return;
+        if (sPadTab[i].c == NULL && slot < 0)
+            slot = i;
+    }
+    if (slot < 0)
+        return;
+    c = SDL_GameControllerOpen(index);
+    if (c == NULL)
+        return;
+    name = SDL_GameControllerName(c);
+    SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(index), guid, sizeof guid);
+    snprintf(key, sizeof key, "%s/%s", guid, name ? name : "pad");
+    sPadTab[slot].c = c;
+    sPadTab[slot].inst = inst;
+    sPadTab[slot].dev = PortDevAdd(PORT_DEV_PAD, key, name ? name : "Gamepad");
+    PortLog("[katam-port] gamepad %d: %s", slot, name ? name : "?");
+}
+
+static void PadRemoved(SDL_JoystickID inst)
+{
+    int i;
+
+    for (i = 0; i < MAX_PADS; i++)
+        if (sPadTab[i].c != NULL && sPadTab[i].inst == inst) {
+            PortDevRemove(sPadTab[i].dev);
+            SDL_GameControllerClose(sPadTab[i].c);
+            sPadTab[i].c = NULL;
+            sPadTab[i].dev = 0;
+        }
+}
+
+static void OpenPads(void)
+{
+    int i, n = SDL_NumJoysticks();
+
+    if (!sKbA) {
+        sKbA = PortDevAdd(PORT_DEV_KEYS_A, "keyboard-a", "Keyboard");
+        sKbB = PortDevAdd(PORT_DEV_KEYS_B, "keyboard-b", "Keyboard (arrows + numpad)");
+    }
+    for (i = 0; i < n; i++)
+        PadAdded(i);
+}
+
+static u16 PadMask(SDL_GameController *c)
+{
+    u16 down = 0;
+    Sint16 ax, ay;
+    size_t i;
+
+    for (i = 0; i < sizeof(kPadButtons) / sizeof(kPadButtons[0]); i++)
+        if (SDL_GameControllerGetButton(c, kPadButtons[i].pad))
+            down |= kPadButtons[i].bit;
+    ax = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTX);
+    ay = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTY);
+    if (ax < -STICK_DEADZONE) down |= DPAD_LEFT;
+    if (ax >  STICK_DEADZONE) down |= DPAD_RIGHT;
+    if (ay < -STICK_DEADZONE) down |= DPAD_UP;
+    if (ay >  STICK_DEADZONE) down |= DPAD_DOWN;
+    if (SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16384)
+        down |= L_BUTTON;
+    if (SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16384)
+        down |= R_BUTTON;
+    return down;
+}
+
+/* --- --devices FILE: fake devices for tests ------------------------------
+ *
+ * A script of steps, one per line, each `@F CMD` (at host frame F) or
+ * `+N CMD` (N frames after the previous step); `#` starts a comment.
+ *   plug NAME...        attach an SDL virtual game controller (it arrives
+ *                       through the same hot-plug event a real pad does);
+ *                       pads are numbered pad1, pad2, ... in plug order
+ *   unplug padN         detach it
+ *   pad N KEYS          hold KEYS on padN (through SDL's virtual buttons)
+ *   kb a|b KEYS         hold KEYS on keyboard set A / B
+ *   assign DEV P        DEV = padN, kba, kbb; P = 1..4, follow, parked, off
+ *   dropout P           player P (2..4) drops out
+ *   join DEV            the menu's join for DEV
+ *   list                log the players and their devices
+ *   poke16 ADDR VALUE   tests: write a halfword of EWRAM (recorded), e.g.
+ *                       poke16 0203AD2C 300 -- gAIKirbyState past the intro
+ *   when SLOT COND      wait (from the previous step's frame) until Kirby
+ *                       slot SLOT (0..3) is COND (PortLmpProbe: dead, alive,
+ *                       away, door, boss, human, cpu, anim:N, flag:HEX); the
+ *                       next `+N` counts from then
+ * KEYS: letters A B s(elect) S(tart) R(ight) L(eft) U D r (R) l (L), or a
+ * hex mask 0x..., or - for none. */
+#define MAX_STEPS 512
+static struct Step { long at; int rel; char cmd[120]; } sSteps[MAX_STEPS];
+static int sNumSteps, sStep;
+static long sStepBase;
+static struct { SDL_Joystick *j; SDL_JoystickID inst; } sVirt[8];
+static int sNumVirt;
+
+static void LoadDevicesScript(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    char line[160];
+
+    if (f == NULL) {
+        PortError("[katam-port] --devices: cannot read %s", path);
+        exit(2);
+    }
+    while (fgets(line, sizeof line, f) && sNumSteps < MAX_STEPS) {
+        char *p = line, *e;
+        struct Step *st = &sSteps[sNumSteps];
+
+        if ((e = strchr(p, '#')) != NULL) *e = '\0';
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p != '@' && *p != '+')
+            continue;
+        st->rel = *p == '+';
+        st->at = strtol(p + 1, &e, 10);
+        while (*e == ' ' || *e == '\t') e++;
+        snprintf(st->cmd, sizeof st->cmd, "%s", e);
+        for (e = st->cmd + strlen(st->cmd); e > st->cmd && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' '); )
+            *--e = '\0';
+        sNumSteps++;
+    }
+    fclose(f);
+}
+
+static u16 KeysArg(const char *s)
+{
+    u16 m = 0;
+
+    if (s[0] == '0' && s[1] == 'x')
+        return (u16)strtol(s, NULL, 16);
+    for (; *s && *s != ' '; s++)
+        switch (*s) {
+        case 'A': m |= A_BUTTON; break;     case 'B': m |= B_BUTTON; break;
+        case 's': m |= SELECT_BUTTON; break; case 'S': m |= START_BUTTON; break;
+        case 'R': m |= DPAD_RIGHT; break;   case 'L': m |= DPAD_LEFT; break;
+        case 'U': m |= DPAD_UP; break;      case 'D': m |= DPAD_DOWN; break;
+        case 'r': m |= R_BUTTON; break;     case 'l': m |= L_BUTTON; break;
+        default: break;
+        }
+    return m;
+}
+
+static int PadDevOfVirt(int n)
+{
+    int i;
+
+    if (n < 1 || n > sNumVirt || sVirt[n - 1].j == NULL)
+        return 0;
+    for (i = 0; i < MAX_PADS; i++)
+        if (sPadTab[i].c != NULL && sPadTab[i].inst == sVirt[n - 1].inst)
+            return sPadTab[i].dev;
+    return 0;
+}
+
+static int DevArg(const char *s)
+{
+    if (strncmp(s, "pad", 3) == 0)
+        return PadDevOfVirt(atoi(s + 3));
+    if (strcmp(s, "kba") == 0)
+        return sKbA;
+    if (strcmp(s, "kbb") == 0)
+        return sKbB;
+    return 0;
+}
+
+static void ListPlayers(void)
+{
+    struct PortDevPlayerInfo pl[4];
+    int p;
+
+    PortDevListPlayers(pl);
+    for (p = 0; p < 4; p++)
+        PortLog("[katam-port] devices: f%ld player %d %s%s: %s", sFrames, p + 1,
+                pl[p].human ? "person" : "CPU", pl[p].pending ? " (changing)" : "",
+                pl[p].numDevices ? pl[p].names : "-");
+}
+
+static void SetVirtualPad(int n, u16 m)
+{
+    static const struct { u16 bit; int b; } map[] = {
+        { A_BUTTON, SDL_CONTROLLER_BUTTON_A }, { B_BUTTON, SDL_CONTROLLER_BUTTON_X },
+        { START_BUTTON, SDL_CONTROLLER_BUTTON_START }, { SELECT_BUTTON, SDL_CONTROLLER_BUTTON_BACK },
+        { L_BUTTON, SDL_CONTROLLER_BUTTON_LEFTSHOULDER }, { R_BUTTON, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER },
+        { DPAD_UP, SDL_CONTROLLER_BUTTON_DPAD_UP }, { DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN },
+        { DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT }, { DPAD_RIGHT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT },
+    };
+    size_t i;
+
+    if (n < 1 || n > sNumVirt || sVirt[n - 1].j == NULL)
+        return;
+    for (i = 0; i < sizeof map / sizeof map[0]; i++)
+        SDL_JoystickSetVirtualButton(sVirt[n - 1].j, map[i].b, (m & map[i].bit) ? 1 : 0);
+}
+
+static void RunStep(const char *cmd)
+{
+    char a[64] = "", b[64] = "";
+
+    PortLog("[katam-port] devices-script: f%ld %s", sFrames, cmd);
+    if (strncmp(cmd, "plug ", 5) == 0) {
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+        SDL_VirtualJoystickDesc desc;
+        int idx;
+
+        SDL_zero(desc);
+        desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+        desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
+        desc.naxes = SDL_CONTROLLER_AXIS_MAX;
+        desc.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
+        desc.name = cmd + 5;
+        idx = SDL_JoystickAttachVirtualEx(&desc);
+        if (idx < 0 || sNumVirt >= 8) {
+            PortLog("[katam-port] devices-script: plug failed: %s", SDL_GetError());
+            return;
+        }
+        sVirt[sNumVirt].j = SDL_JoystickOpen(idx);
+        sVirt[sNumVirt].inst = SDL_JoystickGetDeviceInstanceID(idx);
+        sNumVirt++;
+#else
+        PortLog("[katam-port] devices-script: virtual pads need SDL 2.24");
+#endif
+    } else if (sscanf(cmd, "unplug pad%63s", a) == 1) {
+        int n = atoi(a), i;
+
+        if (n >= 1 && n <= sNumVirt && sVirt[n - 1].j != NULL) {
+            for (i = 0; i < SDL_NumJoysticks(); i++)
+                if (SDL_JoystickGetDeviceInstanceID(i) == sVirt[n - 1].inst) {
+                    SDL_JoystickClose(sVirt[n - 1].j);
+                    sVirt[n - 1].j = NULL;
+                    SDL_JoystickDetachVirtual(i);
+                    break;
+                }
+        }
+    } else if (sscanf(cmd, "pad %63s %63s", a, b) == 2) {
+        SetVirtualPad(atoi(a), KeysArg(b));
+    } else if (sscanf(cmd, "kb %63s %63s", a, b) == 2) {
+        sFakeKb[a[0] == 'b'] = KeysArg(b);
+    } else if (sscanf(cmd, "assign %63s %63s", a, b) == 2) {
+        int p = strcmp(b, "follow") == 0 ? PORT_DEV_FOLLOW : strcmp(b, "parked") == 0
+                ? PORT_DEV_PARKED : strcmp(b, "off") == 0 ? PORT_DEV_OFF : atoi(b) - 1;
+
+        PortDevAssign(DevArg(a), p);
+    } else if (sscanf(cmd, "dropout %63s", a) == 1) {
+        PortDevDropOut(atoi(a) - 1);
+    } else if (sscanf(cmd, "join %63s", a) == 1) {
+        PortDevJoin(DevArg(a));
+    } else if (strcmp(cmd, "list") == 0) {
+        ListPlayers();
+    } else if (sscanf(cmd, "poke16 %63s %63s", a, b) == 2) {
+        PortInputLogSchedulePoke16((u32)strtoul(a, NULL, 16), (u16)strtoul(b, NULL, 0));
+    }
+}
+
+static void DevicesScript(void)
+{
+    while (sStep < sNumSteps) {
+        struct Step *st = &sSteps[sStep];
+        long at = st->rel ? sStepBase + st->at : st->at;
+        int slot;
+        char cond[32];
+
+        if (sFrames < at)
+            return;
+        if (sscanf(st->cmd, "when %d %31s", &slot, cond) == 2) {
+            if (!PortLmpProbe(slot, cond))
+                return;
+            PortLog("[katam-port] devices-script: f%ld slot %d is %s", sFrames, slot, cond);
+        } else {
+            RunStep(st->cmd);
+        }
+        sStepBase = sFrames;
+        sStep++;
+    }
+}
+
 static u16 ReadInput(void)
 {
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
-    u16 down = 0, other[4] = { 0, 0, 0, 0 };
+    u16 down = 0, a = 0, b = 0;
     size_t i;
-    int p, lmp = PortLmpInPlay();
+    int p;
 
+    if (sDevicesPath != NULL)
+        DevicesScript();
     /* The menu has the keyboard and the pads while it is open. */
-    if (sUiMode && PortUiIsOpen())
+    if (sUiMode && PortUiIsOpen()) {
+        for (p = 1; p < 4; p++)
+            PortLmpSetHostKeys(p, 0);
         goto scripted;
-    for (i = 0; i < sizeof(kKeys) / sizeof(kKeys[0]); i++)
-        if (keys[kKeys[i].key] && !(lmp && IsP2Key(kKeys[i].key)))
-            down |= kKeys[i].bit;
-    if (lmp)
-        for (i = 0; i < sizeof(kKeysP2) / sizeof(kKeysP2[0]); i++)
-            if (keys[kKeysP2[i].key])
-                other[1] |= kKeysP2[i].bit;
-
-    for (p = 0; p < 4; p++) {
-        SDL_GameController *c = sPads[p];
-        Sint16 ax, ay;
-        u16 save = down;
-
-        if (c == NULL || !SDL_GameControllerGetAttached(c))
-            continue;
-        if (lmp && p > 0)
-            down = 0;
-        for (i = 0; i < sizeof(kPadButtons) / sizeof(kPadButtons[0]); i++)
-            if (SDL_GameControllerGetButton(c, kPadButtons[i].pad))
-                down |= kPadButtons[i].bit;
-
-        ax = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTX);
-        ay = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTY);
-        if (ax < -STICK_DEADZONE) down |= DPAD_LEFT;
-        if (ax >  STICK_DEADZONE) down |= DPAD_RIGHT;
-        if (ay < -STICK_DEADZONE) down |= DPAD_UP;
-        if (ay >  STICK_DEADZONE) down |= DPAD_DOWN;
-
-        if (SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16384)
-            down |= L_BUTTON;
-        if (SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16384)
-            down |= R_BUTTON;
-        if (lmp && p > 0) {
-            other[p] |= down;
-            down = save;
-        }
     }
-    for (p = 1; p < 4; p++)
-        PortLmpSetHostKeys(p, lmp ? other[p] : 0);
+    for (i = 0; i < sizeof(kKeys) / sizeof(kKeys[0]); i++)
+        if (keys[kKeys[i].key] && !IsP2Key(kKeys[i].key))
+            a |= kKeys[i].bit;
+    for (i = 0; i < sizeof(kKeysP2) / sizeof(kKeysP2[0]); i++)
+        if (keys[kKeysP2[i].key])
+            b |= kKeysP2[i].bit;
+    PortDevSetKeys(sKbA, (u16)(a | sFakeKb[0]));
+    PortDevSetKeys(sKbB, (u16)(b | sFakeKb[1]));
+    for (p = 0; p < MAX_PADS; p++)
+        if (sPadTab[p].c != NULL && SDL_GameControllerGetAttached(sPadTab[p].c))
+            PortDevSetKeys(sPadTab[p].dev, PadMask(sPadTab[p].c));
+    down = PortDevFrame();
 
 scripted:
     down |= (u16)sHoldMask;
@@ -933,24 +1224,6 @@ scripted:
     down |= (u16)sPressMask;
 
     return down;
-}
-
-static void OpenPads(void)
-{
-    int i, n = SDL_NumJoysticks(), slot = 0;
-
-    for (i = 0; i < n && slot < 4; i++) {
-        if (!SDL_IsGameController(i))
-            continue;
-        if (sPads[slot] != NULL)
-            continue;
-        sPads[slot] = SDL_GameControllerOpen(i);
-        if (sPads[slot] != NULL) {
-            PortLog("[katam-port] gamepad %d: %s", slot,
-                    SDL_GameControllerName(sPads[slot]));
-            slot++;
-        }
-    }
 }
 
 /* --- window --------------------------------------------------------------- */
@@ -1689,7 +1962,10 @@ static void HandleEvents(void)
             SDL_free(ev.drop.file);
             break;
         case SDL_CONTROLLERDEVICEADDED:
-            OpenPads();
+            PadAdded(ev.cdevice.which);
+            break;
+        case SDL_CONTROLLERDEVICEREMOVED:
+            PadRemoved(ev.cdevice.which);
             break;
         case SDL_KEYDOWN:
             if (ev.key.repeat)
