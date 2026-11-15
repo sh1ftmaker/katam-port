@@ -69,7 +69,9 @@ web-dev-touch      1     web    node tools/devices_browser_test.mjs --cdp $CDP -
 web-dev-frontend   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases frontend
 web-on-errors      1     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases errors
 web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases gl
-web-menu-exits     1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D"
+web-menu-exits-a   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases front,joinmsg
+web-menu-exits-b   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases pause
+web-menu-exits-c   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases local,phone,wide
 web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases exits --play 30
 web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
 web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker

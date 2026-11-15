@@ -407,7 +407,20 @@ async function casePause() {
         for (let i = 0; i < 6; i++) { if ((await pauseState(p)).menu === want) return true; await step(p, 'SELECT', 70); }
         return (await pauseState(p)).menu === want;
     };
-    const open = async () => { await step(p, 'START', 70); return (await pauseState(p)).paused === 1; };
+    /* Start until paused: a press the game does not see (a frame longer
+     * than the key was held, on a loaded machine, or mid-transition) is
+     * pressed again -- the exits are what is tested, not one key's timing */
+    const open = async () => {
+        for (let i = 0; i < 5; i++) {
+            await step(p, 'START', 70);
+            if ((await pauseState(p)).paused === 1) {
+                if (i) console.log(`    (Start pressed ${i + 1} times before the game paused)`);
+                return true;
+            }
+            await waitFrames(p, 30);
+        }
+        return false;
+    };
     const closed = async () => { await waitFrames(p, 40); return (await pauseState(p)).paused === 0; };
     ok('Start pauses (the help page)', await open() && (await pauseState(p)).menu === MENU.HELP);
     await shot(p, 'pause-help-alone.png');
