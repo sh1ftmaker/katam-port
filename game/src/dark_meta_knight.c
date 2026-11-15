@@ -3359,9 +3359,9 @@ static void sub_080FDC68(struct DarkMetaKnight *dmk, struct Kirby *kirby, u8 a3)
         s32 dx = (kirby->base.x - dmk->obj.base.x) >> 8;
         s32 dy = (dmk->obj.base.y - kirby->base.y) >> 8;
         s32 dist = Sqrt((dx*dx + dy*dy) * 0x100);
-        s32 ratio1 = dx * 0x100 / dist;
+        s32 ratio1 = dx * 0x100 / PORT_DIVISOR(dist);
         u32 r8 = ratio1 * 0x100;
-        s32 ratio2 = dy * 0x100 / dist;
+        s32 ratio2 = dy * 0x100 / PORT_DIVISOR(dist);
         s32 r2 = ratio2 * 0x100;
 
         objBase->xspeed = (((ratio1<<11) - r8) * 8) >> 8;

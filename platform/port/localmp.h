@@ -225,6 +225,17 @@ void PortLmpArrivedSlow(struct Kirby *k);
 #define PortLmpArrived(k) \
     do { if (gPortSim->lmp.humans) PortLmpArrivedSlow(k); } while (0)
 
+/* FREE ROAM: a task's struct is being freed (task.c TaskDestroy).  The CPU
+ * brains forget an object they track when they next see it flagged dead
+ * (code_0800ECAC_2.c sub_08010294); a brain that does not run in between
+ * keeps a stale pointer, and the memory behind it is reused differently on
+ * devices that show different rooms (their screens' own tasks share the
+ * heap), so a later pointer comparison or countdown differs by screen
+ * (ROOMS-REPORT.md F3; seen in the rig: tools/rooms/gates.mjs two, seed 1,
+ * frame 23573).  In rooms mode the brains forget it as it is freed. */
+void PortLmpTaskGoneSlow(const void *structPtr);
+#define PortLmpTaskGone(p) do { if (gPortSim->view.lmpRooms) PortLmpTaskGoneSlow(p); } while (0)
+
 #ifdef __cplusplus
 }
 #endif

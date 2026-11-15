@@ -162,8 +162,8 @@ static void sub_080ABA40(struct Object *obj) {
     dy -= obj->kirby3->base.y;
     dy >>= 8;
     dist = Sqrt((dx * dx + dy * dy) << 8);
-    a = (dx * 0x100 / dist) * 0x100;
-    b = (dy * 0x100 / dist) * 0x100;
+    a = (dx * 0x100 / PORT_DIVISOR(dist)) * 0x100;
+    b = (dy * 0x100 / PORT_DIVISOR(dist)) * 0x100;
     obj->unkA0 = a;
     obj->unkA2 = b;
     obj->base.xspeed = (obj->unkA0 * 3) >> 5;

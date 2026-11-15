@@ -170,8 +170,8 @@ static void sub_080BCF24(struct Object* arg0) {
         s32 dx = (arg0->kirby3->base.x - arg0->base.x) >> 8;
         s32 dy = (arg0->base.y - arg0->kirby3->base.y) >> 8;
         u16 dist = Sqrt((dx * dx + dy * dy) * 256);
-        u32 x = (dx * 256 / dist) * 256;
-        u32 y = (dy * 256 / dist) * 256;
+        u32 x = (dx * 256 / PORT_DIVISOR(dist)) * 256;
+        u32 y = (dy * 256 / PORT_DIVISOR(dist)) * 256;
         if (arg0->subtype != 0) {
             s32 xsp, ysp;
             xsp = x * 26;
@@ -180,8 +180,8 @@ static void sub_080BCF24(struct Object* arg0) {
             arg0->base.yspeed = ysp >> 8;
         }
         else {
-            arg0->base.xspeed = ((dx * 256 / dist) * 2048 + x) / 128;
-            arg0->base.yspeed = ((dy * 256 / dist) * 2048 + y) / 128;
+            arg0->base.xspeed = ((dx * 256 / PORT_DIVISOR(dist)) * 2048 + x) / 128;
+            arg0->base.yspeed = ((dy * 256 / PORT_DIVISOR(dist)) * 2048 + y) / 128;
         }
         if (arg0->base.x > arg0->kirby3->base.x) {
             arg0->base.flags |= 1;

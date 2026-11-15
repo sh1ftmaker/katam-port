@@ -90,7 +90,7 @@ void sub_080C2B28(struct Object *r5) {
         r4 = (r5->kirby3->base.x - r5->base.x) >> 8;
         r1 = (r5->base.y - r5->kirby3->base.y) >> 8;
         sqrt = Sqrt((r4 * r4 + r1 * r1) * 0x100);
-        div = ((r4 * 0x100) / sqrt);
+        div = ((r4 * 0x100) / PORT_DIVISOR(sqrt));
         a = div * 0x100;
         b = div * 0x200;
         r5->base.xspeed = -(((b+a) * 2) >> 8);

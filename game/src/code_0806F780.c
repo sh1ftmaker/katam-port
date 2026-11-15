@@ -8672,6 +8672,19 @@ void sub_08085328(struct Kirby *kirby) {
 }
 
 void sub_080853C8(struct Kirby *kirby, u16 a2) {
+    /* PORT: an ice block whose frozen enemy has died (sub_0807DE28 clears its
+     * parent) still carries attack flag 0x10000000, and when a Kirby touches
+     * it HandleAttackObjectCollision passes that NULL parent here.  On
+     * hardware the reads land in the read-protected BIOS, whose open bus is a
+     * BIOS opcode with a non-zero low byte, so `header.kind` is non-zero and
+     * nothing happens.  Natively page zero does not exist (a segfault:
+     * tests/recordings/rooms_apart.txt, frame 5478); in wasm it is low linear
+     * memory that DMAs with destination 0 fill with sprite tiles that differ
+     * by screen and are in no snapshot -- a kind of 0 and an hp > 0 there
+     * would create a task and write flags at address 8.  Do what the
+     * hardware does. */
+    if (kirby == NULL)
+        return;
     if (!kirby->base.header.kind && !(kirby->base.flags & 0x800000)
         && (kirby->animationIndex != 0x27
             && kirby->hp > 0

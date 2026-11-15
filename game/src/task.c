@@ -11,6 +11,7 @@ void PortCallDtor(struct Task *);
 #include "malloc_ewram.h"
 #include "gba/m4a.h"
 #include "palette.h"
+#include "port/localmp.h"   /* PORT: FREE ROAM, PortLmpTaskGone */
 
 static void TaskMainDummy(void);
 static void TaskMainDummy2(void);
@@ -168,6 +169,7 @@ void TaskDestroy(struct Task* task) {
             ((struct Task*)next)->prev = prev;
 
             if (task->structOffset != 0) {
+                PortLmpTaskGone(TaskGetStructPtr(task));
                 if (task->flags & TASK_USE_EWRAM) {
                     EwramFree(task->structOffset + (u32*)EWRAM_START);
                 }

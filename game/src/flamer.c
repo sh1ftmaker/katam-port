@@ -698,8 +698,8 @@ static void sub_080B94F4(struct Object *flamer)
         s32 dy = (flamer->base.y - flamer->kirby3->base.y) >> 8;
         u16 dist = Sqrt((dx * dx + dy * dy) * 0x100);
 
-        dx = dx * 0x100 / dist;
-        dy = dy * 0x100 / dist;
+        dx = dx * 0x100 / PORT_DIVISOR(dist);
+        dy = dy * 0x100 / PORT_DIVISOR(dist);
         flamer->base.xspeed = dx * 0x10;
         flamer->base.yspeed = dy * 0x10;
         flamer->base.counter = Macro_080B89DC(flamer, 12, 9, 6);
@@ -876,8 +876,8 @@ static void sub_080B9AF0(struct Object *flamer)
         s32 dy = (flamer->base.y - flamer->kirby3->base.y) >> 8;
         u16 dist = Sqrt((dx * dx + dy * dy) * 0x100);
 
-        dx = dx * 0x100 / dist;
-        dy = dy * 0x100 / dist;
+        dx = dx * 0x100 / PORT_DIVISOR(dist);
+        dy = dy * 0x100 / PORT_DIVISOR(dist);
         flamer->base.xspeed = dx * 0x10;
         flamer->base.yspeed = dy * 0x10;
         flamer->base.counter = Macro_080B89DC(flamer, 12, 9, 6);

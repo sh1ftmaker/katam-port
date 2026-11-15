@@ -321,7 +321,7 @@ export async function runSession(cfg) {
                 he.event(e.type, e.a, e.b, e.c, e.d);
                 if (e.type === 2) cov.views++; else if (e.type === 4) cov.pokes++; else if (e.type === 6) cov.paints = (cov.paints || 0) + 1;
             }
-            lastObs.me = host.kirby(0); lastObs.enemy = host.findEnemy();
+            lastObs.me = host.kirby(0); lastObs.enemy = host.findEnemy(); lastObs.inst = host;
             hub.beforeFrame(f, seatKeys(host, 0, hostSeatsOn, f, lastObs));
             await stepOne(host, null);
             hostRan++;
@@ -370,7 +370,7 @@ export async function runSession(cfg) {
             }
             if (c.forceRewind && g.gs.joined && f % c.forceRewind.every === 0 && f > g.cmpStart + 60)
                 g.inst.M._PortLnForceRewind(c.forceRewind.depth);
-            const obs = g.inst.observe(); obs.me = g.inst.kirby(Math.max(1, g.inst.M._PortLnSeatSlot(g.dev, 0))); obs.enemy = g.inst.findEnemy();
+            const obs = g.inst.observe(); obs.me = g.inst.kirby(Math.max(1, g.inst.M._PortLnSeatSlot(g.dev, 0))); obs.enemy = g.inst.findEnemy(); obs.inst = g.inst;
             g.gs.beforeFrame(f, f >= joinFrame ? seatKeys(g.inst, g.dev, g.seatsOn, f, obs) : 0);
             await stepOne(g.inst, g);
         }
