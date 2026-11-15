@@ -1,4 +1,4 @@
-/* Online two-player play: the page's half.
+/* Online play, up to four players on up to four devices: the page's half.
  *
  * The game's own front end has the screens (Start Game > MULTIPLAYER >
  * ONLINE > HOST GAME / JOIN GAME: platform/online_ui.c, drawn by
@@ -6,7 +6,8 @@
  *
  *   rooms      a relay room (web/net_session.js, netplay/session.mjs) gives a
  *              4-letter code, gates on build and ROM at hello, and relays
- *              `signal` messages between its two members.
+ *              `signal` messages between its members: the host and up to
+ *              three guests, a star (guests talk only to the host).
  *   transport  WebRTC data channels between the two browsers -- one
  *              unreliable + unordered for inputs and sealed frames, one
  *              reliable + ordered for images and control -- signalled over
@@ -19,6 +20,19 @@
  *              guest runs ahead and rewinds (platform/lmpnet.c).  It drives
  *              the frame loop through Module.portLn (platform/web/host_web.c
  *              PortWebAwaitFrame): 0..N frames per display tick on the guest.
+ *
+ * Slots.  Kirby 1 is the host's.  A guest that connects gets the next free
+ * Kirby for its first player; more people on any device ask through
+ * katamOnline.requestSlot(seat, on) -- or, the same thing, the device
+ * layer's PortLmpRequestHuman(seat, on) (platform/localmp.c, "the device
+ * layer's door"), which the input-device core already calls.  A seat is a
+ * local player on this device: 0 = this device's own keys
+ * (Module._PortSetKeys), 1..3 = the pads given to
+ * Module._PortLmpSetHostKeys(seat, mask).  The host decides which Kirby
+ * (platform/lmpnet.c PortLnSeatRequest); every device applies it on the
+ * same sealed frame.  A guest leaving, or its link going quiet for 6 s,
+ * hands its Kirbys to the CPU; back with the same code (the same tab, or a
+ * reload of it), it gets a Kirby again -- the one it had, if still free.
  *
  * Invite links: ?join=CODE joins straight after the ROM is loaded.
  * Test knobs: ?netlag=ms (one way, added to everything this page sends),
@@ -69,17 +83,28 @@
         role: null,            /* 'host' | 'guest' */
         phase: 'idle',         /* idle | hosting | joining | waiting | playing | hostleft | failed */
         code: null, net: null,
-        peer: null,            /* host: {mid, sid, link, ready, at}; guest: {mid, sid, link} */
+        peer: null,            /* guest: the host {mid, sid, link} */
+        peers: {},             /* host: by room member id, {mid, sid, link, ready, at, dev, tok} */
+        tokDev: {},            /* host: a returning device's id, by its tab token */
         session: false,        /* the engine session is on (PortLnStart done) */
         startWanted: false,
-        eng: null, hs: null, gs: null,
+        eng: null, hub: null, gs: null, owners: [0, -1, -1, -1],
         inbox: [], accept: false,
         t0: 0, ticks: 0, reanchors: 0,
         startedAt: 0, lastView: -1, invite: null,
         uiState: 0, banner: null,
         stats: { relayIn: 0, relayOut: 0, p2pIn: 0, p2pOut: 0, bytesIn: 0, bytesOut: 0, dropped: 0,
-                 joins: 0, guestDrops: 0, imagesSent: 0, imagesIn: 0 },
+                 joins: 0, guestDrops: 0, imagesSent: 0, imagesIn: 0, slotChanges: 0, refusedFull: 0 },
     };
+    var MAX_GUESTS = 3;
+    /* this tab's token: a reload of it is the same device to the host */
+    var TOK = (function () {
+        try {
+            var t = sessionStorage.getItem('katamLnTok');
+            if (!t) { t = Math.random().toString(36).slice(2, 12); sessionStorage.setItem('katamLnTok', t); }
+            return t;
+        } catch (e) { return Math.random().toString(36).slice(2, 12); }
+    }());
 
     function ui(state, code) {
         S.uiState = state;
@@ -184,7 +209,7 @@
         this.net = net; this.mid = peerMid; this.sid = sid; this.guest = isGuest;
         this.pc = null; this.dcU = null; this.dcR = null;
         this.p2p = false; this.decided = false; this.closed = false;
-        this.lastRecv = nowMs(); this.rtt = null; this.relNext = 0;
+        this.lastRecv = nowMs(); this.rtt = null; this.relNext = 0; this.bIn = 0; this.bOut = 0;
         this.onDatagram = null; this.onReliable = null; this.onDecided = null;
         this.img = { dc: null, relay: null };
         this.iceQ = []; this.haveRemote = false;
@@ -294,7 +319,7 @@
         if (this.closed) return;
         if (KNOB.loss && Math.random() < KNOB.loss) { S.stats.dropped++; return; }
         var d = KNOB.lag + Math.random() * KNOB.jitter;
-        S.stats.bytesOut += bytes.length;
+        S.stats.bytesOut += bytes.length; this.bOut += bytes.length;
         this.later(d, function () {
             if (self.closed) return;
             if (self.p2p && self.dcU.readyState === 'open') {
@@ -315,9 +340,9 @@
         var p2p = this.p2p && this.dcR.readyState === 'open';
         if (msg.t === 'image') {
             var comp = msg.comp, size = p2p ? DC_CHUNK : RELAY_CHUNK, n = Math.max(1, Math.ceil(comp.length / size));
-            var hdr = { t: 'image', F: msg.F, raw: msg.raw, reason: msg.reason, len: comp.length, n: n };
+            var hdr = { t: 'image', F: msg.F, raw: msg.raw, reason: msg.reason, len: comp.length, n: n, dev: msg.dev };
             S.stats.imagesSent++;
-            S.stats.bytesOut += comp.length;
+            S.stats.bytesOut += comp.length; this.bOut += comp.length;
             if (p2p) {
                 try {
                     this.dcR.send(JSON.stringify(hdr));
@@ -338,7 +363,7 @@
     };
     Link.prototype.recvDatagram = function (bytes, via) {
         this.lastRecv = nowMs();
-        S.stats.bytesIn += bytes.length;
+        S.stats.bytesIn += bytes.length; this.bIn += bytes.length;
         if (via === 'p2p') S.stats.p2pIn++;
         if (this.onDatagram) this.onDatagram(bytes);
     };
@@ -359,13 +384,13 @@
         var im = this.img[via];
         if (!im) return;
         im.parts.push(u8); im.got += u8.length;
-        S.stats.bytesIn += u8.length;
+        S.stats.bytesIn += u8.length; this.bIn += u8.length;
         if (im.parts.length < im.hdr.n) return;
         this.img[via] = null;
         var comp = new Uint8Array(im.got), o = 0;
         for (var i = 0; i < im.parts.length; i++) { comp.set(im.parts[i], o); o += im.parts[i].length; }
         S.stats.imagesIn++;
-        if (this.onReliable) this.onReliable({ t: 'image', F: im.hdr.F, raw: im.hdr.raw, reason: im.hdr.reason, comp: comp });
+        if (this.onReliable) this.onReliable({ t: 'image', F: im.hdr.F, raw: im.hdr.raw, reason: im.hdr.reason, comp: comp, dev: im.hdr.dev });
     };
     Link.prototype.ping = function () { if (!this.closed) this.reliable({ t: 'ping', c: nowMs() }); };
     Link.prototype.dead = function () { return nowMs() - this.lastRecv > DEAD_MS; };
@@ -406,11 +431,47 @@
         for (var i = 0; i < box.length; i++) {
             var it = box[i];
             if (S.role === 'host') {
-                if (!S.hs || it.peer !== S.peer) continue;
-                if (it.d) S.hs.onDatagram(it.d); else S.hs.onReliable(it.m);
+                var p = it.peer, hs = S.hub && p && S.peers[p.mid] === p ? S.hub.get(p.dev) : null;
+                if (!hs) continue;
+                if (it.d) hs.onDatagram(it.d); else hs.onReliable(it.m);
             } else if (S.gs) {
-                if (it.img) { S.gs.onReliable({ t: 'image', raw: it.img }); continue; }
+                if (it.img) { S.gs.onReliable({ t: 'image', raw: it.img, dev: it.dev }); continue; }
+                if (it.m) { S.gs.onReliable(it.m); continue; }
                 if (it.d && S.accept) S.gs.onDatagram(it.d);
+            }
+        }
+    }
+
+    /* This device's local seats' keys for the frame about to run: seat 0 is
+     * the console's own keys, seats 1..3 whatever the page or the device
+     * layer gave PortLmpSetHostKeys -- read back here, so any input path
+     * that sets those works unchanged. */
+    function seatKeys() {
+        var k = [M._PortCurrentKeys() & 0x3FF, 0, 0, 0];
+        if (M._PortLmpHostKeys) for (var s = 1; s < 4; s++) k[s] = M._PortLmpHostKeys(s) & 0x3FF;
+        return k;
+    }
+
+    /* Who plays which Kirby, as the sealed frames say: a notice when it changes. */
+    function slotName(s) { return 'Player ' + (s + 1); }
+    function watchSlots() {
+        if (!S.session || !M._PortLnSlotOwner) return;
+        var self = S.role === 'host' ? 0 : M._PortLnSelf();
+        for (var s = 1; s < 4; s++) {
+            var o = M._PortLnSlotOwner(s), was = S.owners[s];
+            if (o === was) continue;
+            S.owners[s] = o;
+            S.stats.slotChanges++;
+            var mine = o >= 0 && (o >> 2) === self;
+            if (o >= 0 && was < 0) {
+                banner(mine ? ((o & 3) ? 'Your player ' + ((o & 3) + 1) + ' is ' + slotName(s) : 'You are ' + slotName(s))
+                       : slotName(s) + ' joined', 3000);
+                log('slot ' + s + ': device ' + (o >> 2) + ' seat ' + (o & 3) + ' joins');
+            } else if (o < 0) {
+                banner(slotName(s) + ' left - the CPU has that Kirby', 3500);
+                log('slot ' + s + ': to the CPU');
+            } else {
+                banner(slotName(s) + ' changed hands', 2500);
             }
         }
     }
@@ -423,16 +484,19 @@
             drain();
             if (!S.session) return;
             if (S.role === 'host') {
-                if (S.hs) S.hs.afterTick();
+                if (S.hub) S.hub.afterTick();
             } else if (S.gs) {
-                if (S.gs.joined && !S.gs.imagePending) {
+                if (S.gs.joined && !S.gs.imagePending && !S.accept) {
                     /* in the game: whatever said "connecting" or "getting
                      * the game" is done (it used to stay up for good) */
-                    if (!S.accept) banner('You are player 2', 2500);
                     S.accept = true;
+                    for (var s = 1; s < 4; s++) S.owners[s] = M._PortLnSlotOwner(s);
+                    var mine = M._PortLnSeatSlot(M._PortLnSelf(), 0);
+                    banner(mine > 0 ? 'You are ' + slotName(mine) : 'You are in - waiting for a free Kirby', 2500);
                 }
                 S.gs.afterTick();
             }
+            if (S.role === 'host' || S.accept) watchSlots();
         },
         tick: function (t) {
             drain();
@@ -444,15 +508,13 @@
             if (S.phase === 'hostleft') return 0;
             return S.gs.framesToRun(k);
         },
-        /* before each simulated frame: this device's pad into the session */
+        /* before each simulated frame: this device's pads into the session */
         frame: function () {
             if (!S.session) return;
-            var f = M._PortFrameNumber(), keys = M._PortCurrentKeys() & 0x3FF, e = engine();
+            var f = M._PortFrameNumber(), keys = seatKeys(), e = engine();
             M._PortSetRenderEnabled(ln.burst > 0 ? 0 : 1);
             if (S.role === 'host') {
-                if (S.hs) S.hs.beforeFrame(f, keys); else e.localInput(f, keys);
-                /* player 2 idles while nobody is there */
-                if (!S.peer || !S.peer.ready) e.remoteInput(f, 0);
+                if (S.hub) S.hub.beforeFrame(f, keys); else e.localInput(f, keys[0], 0);
                 /* the session view is the host's (sealed VIEW events) */
                 var v = M._PortSimViewRequested() >>> 0;
                 if (v !== S.lastView) {
@@ -478,12 +540,20 @@
         S.startedAt = nowMs();
         S.startFrame = M._PortFrameNumber();
         S.t0 = 0;
+        S.owners = [0, -1, -1, -1];
         if (role === 1) {
             S.lastView = M._PortSimViewRequested() >>> 0;
-            if (S.peer && S.peer.ready) newHostSession();
+            S.hub = new LS.HostHub(engine(), clock, { codec: CODEC });
+            /* everyone already in: their Kirbys from the first frame */
+            forPeers(function (p) { if (p.ready) addToHub(p); });
+            for (var s = 1; s < 4; s++) S.owners[s] = M._PortLnSlotWant(s);
         } else {
             S.gs = new LS.GuestSession(engine(), txOf(S.peer.link), clock,
                                        { codec: CODEC, leadCap: KF_EVERY * (KF_COUNT - 2) - 10, samples: false });
+            S.gs.onSeatFull = function () {
+                S.stats.refusedFull++;
+                banner('No Kirby free - the game has four players', 3500);
+            };
             /* the host's save memory is in the image: never store it here */
             if (window.shell && shell.save && shell.save.hold) shell.save.hold();
             else if (M._shell && M._shell.save && M._shell.save.hold) M._shell.save.hold();
@@ -492,16 +562,33 @@
     }
 
     /* --- host ------------------------------------------------------------------ */
-    function newHostSession() {
-        S.hs = new LS.HostSession(engine(), txOf(S.peer.link), clock, { codec: CODEC });
-        S.hs.wantImage('join');
+    function forPeers(fn) { Object.keys(S.peers).forEach(function (k) { fn(S.peers[k]); }); }
+    function peerList() { return Object.keys(S.peers).map(function (k) { return S.peers[k]; }); }
+    function readyCount() { return peerList().filter(function (p) { return p.ready; }).length; }
+
+    function addToHub(p) {
+        var hs = S.hub.add(p.dev, txOf(p.link));
         S.stats.joins++;
+        if (hs.slot < 0) {
+            S.stats.refusedFull++;
+            log('device ' + p.dev + ' is in, but all four Kirbys are people: it plays when one is free');
+        }
+        return hs;
+    }
+
+    /* the HOST screen: who is in */
+    function hostUi() {
+        if (S.session || S.role !== 'host' || !S.code) return;
+        var ps = peerList(), ready = readyCount();
+        if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1 + ready, ps.length - ready);
+        ui(!ps.length ? UI.H_WAITING : ready ? UI.H_READY : UI.H_JOINING, S.code);
     }
 
     function hostOpen() {
-        if (S.role === 'host' && S.net) { ui(S.peer && S.peer.ready ? UI.H_READY : UI.H_WAITING, S.code); return; }
+        if (S.role === 'host' && S.net) { hostUi(); return; }
         reset();
         S.role = 'host'; S.phase = 'hosting';
+        if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1, 0);
         ui(UI.H_CREATING);
         var gen = ++S.gen;
         versions().then(function (v) {
@@ -515,7 +602,7 @@
             net.on('welcome', function () {
                 if (gen !== S.gen) return;
                 log('hosting ' + S.code);
-                if (!S.session) ui(S.peer && S.peer.ready ? UI.H_READY : UI.H_WAITING, S.code);
+                hostUi();
             });
             net.on('error', function (e) {
                 log('room: ' + Net.explainError(e));
@@ -523,11 +610,22 @@
             });
             net.on('signal', hostSignal);
             net.on('roster', function (m) {
-                if (!S.peer) return;
-                var here = m.members.some(function (x) { return x.mid === S.peer.mid && x.connected; });
-                if (!here && S.peer.ready && nowMs() - S.peer.at > 3000) guestGone('left the room');
+                forPeers(function (p) {
+                    var here = m.members.some(function (x) { return x.mid === p.mid && x.connected; });
+                    if (!here && p.ready && nowMs() - p.at > 3000) guestGone(p, 'left the room');
+                });
             });
         });
+    }
+
+    /* a device id for a newcomer: the one this tab had (a reload), else the lowest free */
+    function devFor(tok) {
+        var used = {};
+        forPeers(function (p) { used[p.dev] = true; });
+        var d = tok && S.tokDev[tok];
+        if (d && !used[d]) return d;
+        for (d = 1; d <= MAX_GUESTS; d++) if (!used[d]) return d;
+        return -1;
     }
 
     function hostSignal(m) {
@@ -538,50 +636,62 @@
                 S.net.send({ t: 'signal', to: m.from, data: { k: 'bad', sid: d.sid, field: d.sim !== v.sim ? 'sim' : 'rom' } });
                 return;
             }
-            if (S.peer && S.peer.mid !== m.from && !S.peer.link.dead()) {
+            var old = S.peers[m.from];
+            if (old) dropPeer(old, false);                 /* the same member again: a fresh link */
+            /* a tab that was here before (and whose link is dead) comes back as itself */
+            forPeers(function (p) { if (d.tok && p.tok === d.tok) guestGone(p, 'came back'); });
+            var dev = devFor(d.tok);
+            /* full: three guests, or (in play) no Kirby free for its player */
+            var noKirby = S.session && M._PortLnFreeSlots() === 0;
+            if (dev < 0 || noKirby) {
+                S.stats.refusedFull++;
                 S.net.send({ t: 'signal', to: m.from, data: { k: 'busy', sid: d.sid } });
                 return;
             }
-            if (S.peer) dropPeer(false);
+            if (d.tok) S.tokDev[d.tok] = dev;
             var link = new Link(S.net, m.from, d.sid, false, !!d.relay);
-            var peer = S.peer = { mid: m.from, sid: d.sid, link: link, ready: false, at: nowMs() };
+            var peer = { mid: m.from, sid: d.sid, link: link, ready: false, at: nowMs(), dev: dev, tok: d.tok || null };
+            S.peers[m.from] = peer;
             link.onReliable = function (msg) {
-                if (peer !== S.peer) return;
+                if (S.peers[peer.mid] !== peer) return;
                 if (msg.t === 'ready') {
                     peer.ready = true;
-                    log('player 2 is in (' + link.path() + ')');
-                    if (!S.session) ui(UI.H_READY, S.code);
-                    else { newHostSession(); banner('Player 2 joined', 2500); }
+                    log('device ' + peer.dev + ' is in (' + link.path() + ')');
+                    if (!S.session) hostUi();
+                    else addToHub(peer);
                     return;
                 }
-                if (msg.t === 'bye') { guestGone('left'); return; }
+                if (msg.t === 'bye') { guestGone(peer, 'left'); return; }
                 S.inbox.push({ peer: peer, m: msg });
             };
-            link.onDatagram = function (b) { if (peer === S.peer) S.inbox.push({ peer: peer, d: b }); };
-            S.net.send({ t: 'signal', to: m.from, data: { k: 'hiok', sid: d.sid, relay: KNOB.relay } });
-            if (!S.session) ui(UI.H_JOINING, S.code);
-            else banner('Player 2 is joining...', 4000);
+            link.onDatagram = function (b) { if (S.peers[peer.mid] === peer) S.inbox.push({ peer: peer, d: b }); };
+            S.net.send({ t: 'signal', to: m.from, data: { k: 'hiok', sid: d.sid, relay: KNOB.relay, dev: dev } });
+            if (!S.session) hostUi();
+            else banner('A player is joining...', 3000);
             return;
         }
-        if (!S.peer || d.sid !== S.peer.sid || m.from !== S.peer.mid) return;
-        if (d.k === 'bye') { guestGone('left'); return; }
-        S.peer.link.signal(d);
+        var p = S.peers[m.from];
+        if (!p || d.sid !== p.sid) return;
+        if (d.k === 'bye') { guestGone(p, 'left'); return; }
+        p.link.signal(d);
     }
 
-    function dropPeer(bye) {
-        if (!S.peer) return;
-        S.peer.link.close(bye);
-        S.peer = null;
-        S.hs = null;
+    function dropPeer(p, bye) {
+        if (!p || S.peers[p.mid] !== p) return;
+        p.link.close(bye);
+        delete S.peers[p.mid];
+        if (S.hub && S.hub.get(p.dev)) S.hub.remove(p.dev);
     }
 
-    function guestGone(why) {
-        if (!S.peer) return;
-        log('player 2 ' + why);
-        dropPeer(false);
+    function guestGone(p, why) {
+        if (!p || S.peers[p.mid] !== p) return;
+        log('device ' + p.dev + ' ' + why);
+        var was = p.ready;
+        dropPeer(p, false);
         S.stats.guestDrops++;
-        if (S.session) banner('Player 2 left. They can come back with code ' + S.code, 6000);
-        else ui(UI.H_WAITING, S.code);
+        /* in play, the Kirbys' notice comes from the sealed frames (watchSlots) */
+        if (!S.session) hostUi();
+        else if (!was) banner('A player could not connect', 3000);
     }
 
     function hostStart() {
@@ -653,7 +763,7 @@
                 if (gen !== S.gen || again && S.peer) return;
                 var sid = rid();
                 S.hostMid = net.host;
-                net.send({ t: 'signal', to: net.host, data: { k: 'hi', sid: sid, sim: S.ver.sim, rom: S.ver.rom, relay: KNOB.relay } });
+                net.send({ t: 'signal', to: net.host, data: { k: 'hi', sid: sid, sim: S.ver.sim, rom: S.ver.rom, relay: KNOB.relay, tok: TOK } });
                 S.pendingSid = sid;
                 clearTimeout(hiTimer);
                 hiTimer = setTimeout(function () {
@@ -669,7 +779,7 @@
             net.on('signal', function (m) {
                 if (gen !== S.gen || m.from !== S.hostMid) return;
                 var d = m.data || {};
-                if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game already has two players.'); }
+                if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game is full: four players.'); }
                 if (d.k === 'bad') {
                     clearTimeout(hiTimer);
                     return d.field === 'rom' ? joinFail(UI.J_ROM, 'Your ROM is not the same as the host\'s.')
@@ -678,6 +788,7 @@
                 if (d.k === 'hiok') {
                     if (d.sid !== S.pendingSid || S.peer) return;
                     clearTimeout(hiTimer);
+                    S.myDev = d.dev || null;
                     guestLink(net, d.sid, !!d.relay);
                     return;
                 }
@@ -703,13 +814,14 @@
         link.onReliable = function (msg) {
             if (peer !== S.peer) return;
             if (msg.t === 'bye') { hostGone('closed the game'); return; }
+            if (msg.t === 'seatfull') { S.inbox.push({ m: msg }); return; }
             if (msg.t !== 'image') return;
             if (!S.session) { ui(UI.J_STARTING); if (S.invite) banner('Getting the game...', 0); }
             var t0 = nowMs();
             CODEC.inflate(msg.comp).then(function (raw) {
                 if (peer !== S.peer) return;
                 S.lastImageMs = nowMs() - t0;
-                S.inbox.push({ img: raw });
+                S.inbox.push({ img: raw, dev: msg.dev });
                 S.phase = 'playing';
                 if (!S.session) { S.startWanted = true; ln.on = true; }
             }, function (e) { log('image would not inflate: ' + e.message); });
@@ -737,7 +849,9 @@
         S.gen = (S.gen || 0) + 1;
         if (S.peer) { S.peer.link.close(true); S.peer = null; }
         if (S.net) { try { S.net.leave(); } catch (e) { /* gone */ } S.net = null; }
-        S.role = null; S.phase = 'idle'; S.code = null; S.hs = null; S.pendingSid = null;
+        forPeers(function (p) { p.link.close(true); });
+        S.peers = {};
+        S.role = null; S.phase = 'idle'; S.code = null; S.hub = null; S.pendingSid = null;
     }
 
     /* --- polling: the game's requests, and liveness ---------------------------- */
@@ -761,7 +875,7 @@
         }
     }
     setInterval(function () {
-        if (S.role === 'host' && S.peer && S.peer.link.dead()) guestGone('stopped answering');
+        if (S.role === 'host') forPeers(function (p) { if (p.link.dead()) guestGone(p, 'stopped answering'); });
         if (S.role === 'guest' && S.peer && S.phase !== 'hostleft' && S.phase !== 'failed') {
             if (S.peer.link.dead() || (S.hostAwayAt && nowMs() - S.hostAwayAt > 3000)) hostGone('stopped answering');
         }
@@ -774,6 +888,7 @@
     };
     window.addEventListener('pagehide', function () {
         if (S.peer) S.peer.link.close(true);
+        forPeers(function (p) { p.link.close(true); });
         if (S.net) { try { S.net.leave(); } catch (e) { /* gone */ } }
     });
 
@@ -793,17 +908,48 @@
     }
 
     /* --- telemetry ------------------------------------------------------------------ */
+    function pct(a, b) { return +(100 * a / Math.max(1, b)).toFixed(2); }
+    function slotsNow() {
+        var out = [];
+        for (var s = 0; s < 4; s++) {
+            var o = S.session && M._PortLnSlotOwner ? M._PortLnSlotOwner(s) : (s === 0 ? 0 : -1);
+            out.push(o < 0 ? null : { dev: o >> 2, seat: o & 3 });
+        }
+        return out;
+    }
+    function peerStats(p, t) {
+        var hs = S.hub ? S.hub.get(p.dev) : null, l = p.link, slots = [];
+        for (var s = 1; s < 4; s++) if (S.session && (M._PortLnSlotOwner(s) >> 2) === p.dev && M._PortLnSlotOwner(s) >= 0) slots.push(s);
+        var o = { dev: p.dev, ready: p.ready, slots: slots, path: l.path(), dcOpen: !!l.p2p,
+                  linkRttMs: l.rtt !== null ? Math.round(l.rtt) : null, bytesIn: l.bIn, bytesOut: l.bOut, silentMs: Math.round(nowMs() - l.lastRecv) };
+        if (hs) {
+            o.inputsIn = hs.st.inputsIn; o.images = hs.st.images; o.repairReqs = hs.st.repairReqs;
+            o.lastImageBytes = hs.st.imageComp; o.seatReqs = hs.st.seatReqs || 0; o.seatFull = hs.st.seatFull || 0;
+            o.guestAck = hs.guestAck; o.guestContig = hs.guestContig;
+        }
+        if (t) {
+            var miss = t['d' + p.dev + 'KeyMissing'] || 0, on = t['d' + p.dev + 'KeyOnTime'] || 0;
+            o.keyLatePct = pct(miss, miss + on);
+        }
+        return o;
+    }
     function stats() {
         var t = tel(), link = S.peer && S.peer.link, secs = S.session ? (nowMs() - S.startedAt) / 1000 : 0;
         var o = {
             role: S.role, phase: S.phase, code: S.code, session: S.session,
             path: link ? link.path() : null, dcOpen: !!(link && link.p2p), linkDecided: !!(link && link.decided),
             linkRttMs: link && link.rtt !== null ? Math.round(link.rtt) : null,
-            peer: !!(S.peer && (S.role === 'guest' || S.peer.ready)),
+            peer: S.role === 'guest' ? !!S.peer : readyCount() > 0,
             frame: up() ? M._PortFrameNumber() : 0, sessionSec: +secs.toFixed(1), startFrame: S.startFrame,
             knobs: KNOB, net: Object.assign({}, S.stats), reanchors: S.reanchors, banner: S.banner,
             screen: up() ? M._PortOuiScreen() : 0,
+            slots: slotsNow(), self: S.session && M._PortLnSelf ? M._PortLnSelf() : (S.role === 'host' ? 0 : S.myDev || null),
         };
+        o.players = o.slots.filter(Boolean).length;
+        if (S.role === 'host') {
+            o.peers = peerList().map(function (p) { return peerStats(p, t); });
+            if (o.peers.length) { var p1 = o.peers[0]; o.path = p1.path; o.dcOpen = p1.dcOpen; o.linkRttMs = p1.linkRttMs; }
+        }
         if (t) {
             var mins = Math.max(secs / 60, 1e-9);
             o.sealedUpTo = t.sealedUpTo; o.verifiedUpTo = t.verifiedUpTo; o.verified = t.verified;
@@ -812,37 +958,52 @@
             o.replayedFrames = t.replayedFrames; o.imagesLoaded = t.imagesLoaded;
             o.repairs = S.role === 'guest' ? Math.max(0, t.imagesLoaded - 1) : Math.max(0, S.stats.imagesSent - S.stats.joins);
             o.ownOverridden = t.ownOverridden; o.sealedRecv = t.sealedRecv;
-            o.ownOverriddenPct = +(100 * t.ownOverridden / Math.max(1, t.sealedRecv)).toFixed(2);
-            o.hostKeyLatePct = +(100 * t.hostKeyMissing / Math.max(1, t.hostSealed)).toFixed(2);
+            o.ownOverriddenPct = pct(t.ownOverridden, t.sealedRecv);
+            o.mispredHostPct = pct(t.mispredHost, t.sealedRecv); o.mispredOtherPct = pct(t.mispredOther, t.sealedRecv);
+            o.hostKeyLatePct = pct(t.hostKeyMissing, t.hostKeyMissing + t.hostKeyOnTime);
             o.soundsMissed = t.soundsMissed; o.soundsSpurious = t.soundsSpurious;
+            o.seatGrants = t.seatGrants; o.seatReleases = t.seatReleases; o.seatFull = t.seatFull; o.hostRewinds = t.hostRewinds;
         }
         if (S.gs) {
             var g = S.gs;
             o.lead = g.lastLead; o.margin = g.margin; o.rttMs = g.rtt === null ? null : +g.rtt.toFixed(1);
             o.holds = g.st.holds; o.skips = g.st.skips; o.bursts = g.st.bursts; o.capHolds = g.st.capHolds;
             o.repairReqs = g.st.repairReqs; o.joined = g.joined; o.lastImageMs = S.lastImageMs;
+            o.seatAsks = g.st.seatAsks || 0; o.seatFullNotes = g.st.seatFull || 0;
         }
-        if (S.hs) {
-            o.hostImages = S.hs.st.images; o.repairReqs = S.hs.st.repairReqs; o.inputsIn = S.hs.st.inputsIn;
-            o.lastImageBytes = S.hs.st.imageComp;
+        if (S.hub) {
+            var p0 = S.hub.get(1) || S.hub.get(S.hub.devs()[0]);
+            if (p0) { o.hostImages = p0.st.images; o.repairReqs = p0.st.repairReqs; o.inputsIn = p0.st.inputsIn; o.lastImageBytes = p0.st.imageComp; }
         }
         return o;
     }
     function statsText() {
         if (!S.role) return '';
         var o = stats(), L = [];
+        var who = o.slots.map(function (x, i) { return 'P' + (i + 1) + ' ' + (x ? (x.dev === o.self ? 'you' : x.dev === 0 ? 'host' : 'dev ' + x.dev) + (x.seat ? '.' + x.seat : '') : 'cpu'); });
         L.push((o.role === 'host' ? 'Hosting' : 'Joined') + ' game ' + (o.code || '-') + ', ' + o.phase +
-               (o.peer ? '' : ' (no player 2)'));
-        L.push('Path: ' + (o.path === 'p2p' ? 'direct (WebRTC)' : o.path ? 'relay (room server)' : '-') +
-               (o.linkRttMs !== null ? ', link round trip ' + o.linkRttMs + ' ms' : ''));
+               (o.session ? ', players ' + o.players + '/4' : ''));
+        if (o.session) L.push(who.join(', '));
+        if (o.role === 'host') {
+            if (!o.peers.length) L.push('No guests connected');
+            o.peers.forEach(function (p) {
+                L.push('Dev ' + p.dev + (p.slots.length ? ' (P' + p.slots.map(function (s) { return s + 1; }).join(',P') + ')' : '') + ': ' +
+                       (p.path === 'p2p' ? 'direct' : 'relay') + (p.linkRttMs !== null ? ' ' + p.linkRttMs + ' ms' : '') +
+                       (p.ready ? '' : ', connecting') + (p.keyLatePct !== undefined ? ', late ' + p.keyLatePct + '%' : '') +
+                       (p.images !== undefined ? ', images ' + p.images : '') + (p.repairReqs ? ', repairs ' + p.repairReqs : ''));
+            });
+        } else {
+            L.push('Path: ' + (o.path === 'p2p' ? 'direct (WebRTC)' : o.path ? 'relay (room server)' : '-') +
+                   (o.linkRttMs !== null ? ', link round trip ' + o.linkRttMs + ' ms' : ''));
+        }
         if (o.session) {
             if (o.role === 'guest')
                 L.push('Round trip ' + (o.rttMs === null ? '-' : o.rttMs + ' ms') + ', lead ' + o.lead + ' frames' +
                        ', holds ' + o.holds + ' skips ' + o.skips + ' bursts ' + o.bursts);
             L.push('Rewinds ' + o.rewinds + ' (' + o.rewindsPerMin + '/min), repairs ' + o.repairs +
                    ', mismatches ' + o.mismatches + (o.repairWanted ? ' (repair pending)' : ''));
-            if (o.role === 'guest') L.push('Own input overridden ' + o.ownOverriddenPct + '%');
-            else L.push('Player 2 key late at the latch ' + o.hostKeyLatePct + '%');
+            if (o.role === 'guest') L.push('Own input overridden ' + o.ownOverriddenPct + '%, others mispredicted ' + o.mispredHostPct + '% / ' + o.mispredOtherPct + '%');
+            else L.push('Guest keys late at the latch ' + o.hostKeyLatePct + '%');
         }
         if (KNOB.lag || KNOB.jitter || KNOB.loss || KNOB.relay)
             L.push('Test knobs: +' + KNOB.lag + ' ms, jitter ' + KNOB.jitter + ' ms, loss ' + (KNOB.loss * 100) + '%' +
@@ -874,9 +1035,21 @@
         return r ? { final: r === 2, rg: o } : null;
     }
 
+    /* The seam for local players during a session (the device layer, or a
+     * test): seat 1..3 of THIS device wants a Kirby (on) or gives it back
+     * (off).  Its keys are whatever Module._PortLmpSetHostKeys(seat, ...)
+     * holds.  The host answers on a sealed frame; katamOnline.slots() shows
+     * the result.  Returns false if there is no session or the host is full.
+     * The same as Module._PortLmpRequestHuman(seat, on) during a session. */
+    function requestSlot(seat, on) {
+        if (!S.session || !up()) return false;
+        return !!M._PortLmpRequestHuman(seat, on === false || on === 0 ? 0 : 1);
+    }
+
     window.katamOnline = {
         stats: stats, statsText: statsText, hashes: hashes, regions: regions,
         inSession: function () { return S.session; },
+        requestSlot: requestSlot, slots: slotsNow,
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },
         invite: function () { return S.code ? inviteLink() : null; },
