@@ -38,8 +38,8 @@ run() {  # bin out rec [args...]
         "$@" "$ROM" >"$out.log" 2>&1
 }
 
-status=0
-for r in "${NAMES[@]}"; do
+check() {  # rec -> its verdict line(s) on stdout; exit 1 if not neutral
+    local r=$1 status=0
     run "$A" "$TMP/a.$r" "$r" --hash-log "$TMP/a.$r.hash" &
     run "$B" "$TMP/b.$r" "$r" --hash-log "$TMP/b.$r.hash" &
     wait
@@ -52,8 +52,7 @@ for r in "${NAMES[@]}"; do
     [ "$(wc -l < "$TMP/b.$r.hash")" = "$frames" ] || other="length"
     if [ -n "$other" ]; then
         echo "$r: keys/vid/sram/pix differ at frame $other -- NOT layout-neutral"
-        status=1
-        continue
+        return 1
     fi
     picks=()
     [ -n "$first" ] && picks+=("$first")
@@ -83,5 +82,23 @@ for r in "${NAMES[@]}"; do
     else
         status=1
     fi
+    return $status
+}
+
+# LN_JOBS recordings at a time (default: all of them; each is two processes,
+# then two more and a python per dump); the lines come out in recording order.
+JOBS=${LN_JOBS:-${#NAMES[@]}}
+status=0
+pids=()
+for r in "${NAMES[@]}"; do
+    while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
+    check "$r" >"$TMP/verdict.$r" 2>&1 &
+    pids+=($!)
+done
+i=0
+for r in "${NAMES[@]}"; do
+    wait "${pids[$i]}" || status=1
+    cat "$TMP/verdict.$r"
+    i=$((i + 1))
 done
 exit $status
