@@ -425,7 +425,12 @@
             if (S.role === 'host') {
                 if (S.hs) S.hs.afterTick();
             } else if (S.gs) {
-                if (S.gs.joined && !S.gs.imagePending) S.accept = true;
+                if (S.gs.joined && !S.gs.imagePending) {
+                    /* in the game: whatever said "connecting" or "getting
+                     * the game" is done (it used to stay up for good) */
+                    if (!S.accept) banner('You are player 2', 2500);
+                    S.accept = true;
+                }
                 S.gs.afterTick();
             }
         },
