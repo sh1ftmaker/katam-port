@@ -31,6 +31,7 @@ enum {
     PORT_OUI_J_CONNECTING, PORT_OUI_J_WAITING, PORT_OUI_J_STARTING,
     PORT_OUI_J_NOGAME, PORT_OUI_J_FULL, PORT_OUI_J_BUILD, PORT_OUI_J_ROM,
     PORT_OUI_J_FAILED, PORT_OUI_J_HOSTLEFT,
+    PORT_OUI_J_REMOVED,     /* the host removed this device (a kick) */
     PORT_OUI_STATES
 };
 
@@ -84,7 +85,7 @@ void PortOuiFadeDone(void);
 /* Is the screen busy with the network (the idle timeout must not fire)? */
 int  PortOuiBusy(void);
 
-/* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode). */
+/* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode, the default). */
 int PortOuiRoomsMode(void);
 
 #ifdef __cplusplus

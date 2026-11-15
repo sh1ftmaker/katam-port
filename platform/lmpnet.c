@@ -81,8 +81,15 @@
 #include "port/audio_ear.h"
 #include "port/kirby_paint.h"
 #include "port/menu_poc.h"
+#include "port/player_card.h"
 #include "pause_help.h"
 #include "task.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#define LN_EXPORT EMSCRIPTEN_KEEPALIVE
+#else
+#define LN_EXPORT
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -282,6 +289,12 @@ static int sAsk[8], sAskN;
 static u8  sAskSeats;
 static int sForceKf;
 static int sSetInit, sSetApplied = -1;
+/* The pause SETTINGS page's session copies (platform/menu_poc.c): the room
+ * code the host's page gave it, and each device's settings as last heard
+ * (the host's own, device 0, read directly). */
+static char sRoomCode[5];
+static u32 sDevSet[PORT_LN_MAX_DEV], sDevExt[PORT_LN_MAX_DEV];
+static u8 sDevSetOn;
 
 /* Rooms mode on a guest (the canonical shadow, below "rooms mode"): */
 static u8 *sCanon, *sCanonSwap;   /* C's state; the live state while C runs */
@@ -631,6 +644,7 @@ void PortLnStop(void)
     sNumEv = 0;
     sAskN = 0;
     sAskSeats = 0;
+    sRoomCode[0] = '\0';
     PortLmpSetSessionKeys(NULL);
     PortLnDeviceEnd();
 }
@@ -715,6 +729,7 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     sForceKf = 1;
     sSetInit = 0;
     sSetApplied = -1;
+    sDevSetOn = 0;
     sNumEv = 0;
     sImgReq = sImgLoad = 0;
     sImgFrame1 = 0;
@@ -976,6 +991,60 @@ int PortLnSeatAskPoll(void)
         sAsk[i - 1] = sAsk[i];
     sAskN--;
     return v;
+}
+
+/* host, at the latch of f: each slot's settings copy (the pause SETTINGS
+ * page, platform/menu_poc.c) as its device last told -- sealed when it
+ * differs from what the session holds.  Only with the menus on. */
+static void SealSettings(u32 f)
+{
+    int s;
+
+    if (!PortMenuPoc())
+        return;
+    sDevSet[0] = PortPocSettingsWord();
+    sDevExt[0] = PortPocSettingsExtWord();
+    sDevSetOn |= 1;
+    for (s = 0; s < 4; s++) {
+        int dev = s == 0 ? 0 : OwnDev(sOwn[s]);
+        u32 have, haveExt;
+
+        if (dev < 0 || !(sDevSetOn & (1u << dev)))
+            continue;
+        if (PortPocSlotSettingsHave(s, &have, &haveExt) && have == sDevSet[dev] && haveExt == sDevExt[dev])
+            continue;
+        if (Have(f) && (E(f)->flags & E_SEALED))
+            continue;
+        if (EvAdd(f, PORT_LN_EV_PSET, s, (int)sDevSet[dev], (int)sDevExt[dev], 0))
+            T.events++;
+    }
+    /* and each slot's player's name, as the cards name them here (a CPU
+     * slot: none) -- the ONLINE list draws these */
+    for (s = 0; s < 4; s++) {
+        const char *n = (s == 0 || (sOwn[s] && PortLmpSlotPerson(s))) ? PortPlayerName(s) : "";
+        u32 lo, hi;
+
+        if (PortPocSlotNameSame(s, n) || (Have(f) && (E(f)->flags & E_SEALED)))
+            continue;
+        PortPocNameWords(n, &lo, &hi);
+        if (EvAdd(f, PORT_LN_EV_NAME, s, (int)lo, (int)hi, 0))
+            T.events++;
+    }
+}
+
+LN_EXPORT void PortLnDeviceSettings(int dev, u32 word, u32 ext)
+{
+    if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 1 || dev >= PORT_LN_MAX_DEV)
+        return;
+    sDevSet[dev] = word;
+    sDevExt[dev] = ext;
+    sDevSetOn |= (u8)(1u << dev);
+}
+
+LN_EXPORT void PortLnSetRoomCode(int c0, int c1, int c2, int c3)
+{
+    sRoomCode[0] = (char)c0; sRoomCode[1] = (char)c1; sRoomCode[2] = (char)c2; sRoomCode[3] = (char)c3;
+    sRoomCode[4] = '\0';
 }
 
 /* host, at the latch of f: seal whatever brings the simulation and the
@@ -1378,6 +1447,12 @@ static void ApplyEvents(u32 f)
             PortLmpRoomsSealed(v->a);
             RoomsDevices();
             break;
+        case PORT_LN_EV_PSET:
+            PortPocSlotSettingsSet(v->a, (u32)v->b, (u32)v->c);
+            break;
+        case PORT_LN_EV_NAME:
+            PortPocSlotNameSet(v->a, (u32)v->b, (u32)v->c);
+            break;
         case PORT_LN_EV_POKE:
             if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
                 *(u8 *)(uintptr_t)(u32)v->a = (u8)v->b;
@@ -1414,8 +1489,10 @@ int PortLnKeyOverride(u16 *keys)
     T.latches++;
     /* This frame's events first: a slot changing hands takes this frame's
      * keys from its new owner (as a recording's `human` line does). */
-    if (sRole == PORT_LN_HOST)
+    if (sRole == PORT_LN_HOST) {
         Reconcile(f);
+        SealSettings(f);
+    }
     ApplyEvents(f);
     memcpy(e->own, sOwn, sizeof e->own);
     if (sRole == PORT_LN_HOST) {
@@ -1985,24 +2062,33 @@ static int PersRepair(void)
 
 /* --- the frame top ----------------------------------------------------------- */
 
-/* The pause page's session settings in a final frame: an edit made by this
- * device's player is applied to this device, once (port/simblock.h). */
+/* The pause page's edit request in a final frame (port/simblock.h
+ * PORT_SIM_LNSET: [1] count, [2] the slot of the player who made it, [3]
+ * the item, [4] the step): an edit by a player of this device is carried
+ * out on this device, once -- a final frame is never rewound, and each is
+ * seen here once, in order.  The others' edits are theirs. */
 static void FinalSettings(const struct Ent *e)
 {
-    /* the pauser's slot (set[9]) is this device's if it owns that slot */
-    int me = e->set[9] < 4 && OwnDev(sOwn[e->set[9]]) == sSelf ? e->set[9] : -1;
+    int slot = e->set[2] & 3;
+    int me;
 
-    if (!e->set[0])
+    if (e->set[0] != 2)
         return;
     if (sSetApplied < 0) {
-        sSetApplied = e->set[8];
+        sSetApplied = e->set[1];
         return;
     }
-    if (e->set[8] == (u8)sSetApplied)
+    if (e->set[1] == (u8)sSetApplied)
         return;
-    sSetApplied = e->set[8];
-    if (e->set[9] == me) {
-        PortPocSessionSettingsApply(e->set);
+    sSetApplied = e->set[1];
+    /* slot 0 is always the host's; another slot is whoever plays it now */
+    {
+        const u8 *own = (e->flags & E_SIM) ? e->own : sOwn;
+
+        me = slot == 0 ? sSelf == 0 : OwnDev(own[slot]) == sSelf;
+    }
+    if (me) {
+        PortPocSessionEditApply(e->set[3], (s8)e->set[4]);
         T.settingsDeviceApplied++;
     } else {
         T.settingsOtherEdits++;
@@ -2105,7 +2191,7 @@ void PortLnFrame(void)
     if (!sSetInit) {
         sSetInit = 1;
         if (sRole == PORT_LN_HOST && PortMenuPoc())
-            PortPocSessionSettingsInit();
+            PortPocSessionSettingsInit(sRoomCode[0] ? sRoomCode : NULL);
     }
     f = PortFrameNumber();
     memcpy(Claim(f)->set, PORT_SIM_LNSET, PORT_SIM_LNSET_BYTES);
@@ -2295,6 +2381,14 @@ void PortLnHomeFrame(void)
     }
     if (!sHomeTried && !gPortLnOn && !PortInputLogReplaying() && PortFrameNumber() >= 1)
         HomeSave();
+}
+
+LN_EXPORT int PortLnGoHomeLocal(void)
+{
+    if (gPortLnOn || sHome == NULL || PortInputLogReplaying())
+        return 0;
+    sHomeLoad = 1;
+    return 1;
 }
 
 int PortLnGoHome(void)

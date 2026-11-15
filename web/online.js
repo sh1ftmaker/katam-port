@@ -39,7 +39,7 @@
  * ?netjitter=ms (uniform 0..ms on datagrams), ?netloss=% (datagrams),
  * ?netrelay=1 (never try WebRTC), ?netserver=<base> (another room server).
  *
- * window.katamOnline.stats() is the telemetry; the game menu's Game page
+ * window.katamOnline.stats() is the telemetry; the developer menu (?dev=1, F1): Game page
  * shows the same as text (Module.portUiQuery('online')). */
 (function () {
     'use strict';
@@ -65,7 +65,7 @@
     var CONTENT = 'lmpnet1';
 
     /* platform/port/online_ui.h */
-    var UI = { IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
+    var UI = { J_REMOVED: 15, IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
                J_CONNECTING: 6, J_WAITING: 7, J_STARTING: 8, J_NOGAME: 9, J_FULL: 10, J_BUILD: 11,
                J_ROM: 12, J_FAILED: 13, J_HOSTLEFT: 14 };
     var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6 };
@@ -85,6 +85,7 @@
         code: null, net: null,
         peer: null,            /* guest: the host {mid, sid, link} */
         peers: {},             /* host: by room member id, {mid, sid, link, ready, at, dev, tok} */
+        banned: {},            /* host: tab tokens of devices it removed (this room) */
         tokDev: {},            /* host: a returning device's id, by its tab token */
         session: false,        /* the engine session is on (PortLnStart done) */
         startWanted: false,
@@ -554,6 +555,10 @@
         S.t0 = 0;
         S.owners = [0, -1, -1, -1];
         if (role === 1) {
+            /* the room code, for the pause menus (session state from the
+             * first frame: platform/lmpnet.c, platform/menu_poc.c) */
+            if (M._PortLnSetRoomCode && S.code && S.code.length === 4)
+                M._PortLnSetRoomCode(S.code.charCodeAt(0), S.code.charCodeAt(1), S.code.charCodeAt(2), S.code.charCodeAt(3));
             S.lastView = M._PortSimViewRequested() >>> 0;
             S.hub = new LS.HostHub(engine(), clock, { codec: CODEC });
             /* HOST GAME > START, Left/Right: FREE ROAM is rooms mode, sealed
@@ -655,6 +660,13 @@
             var v = S.ver;
             if (d.sim !== v.sim || d.rom !== v.rom) {
                 S.net.send({ t: 'signal', to: m.from, data: { k: 'bad', sid: d.sid, field: d.sim !== v.sim ? 'sim' : 'rom' } });
+                return;
+            }
+            /* a device the host removed: not back in this room (its tab
+             * token; a new tab gets a new one -- a new room is the remedy) */
+            if (d.tok && S.banned[d.tok]) {
+                S.stats.refusedRemoved = (S.stats.refusedRemoved || 0) + 1;
+                S.net.send({ t: 'signal', to: m.from, data: { k: 'removed', sid: d.sid } });
                 return;
             }
             var old = S.peers[m.from];
@@ -801,6 +813,11 @@
                 if (gen !== S.gen || m.from !== S.hostMid) return;
                 var d = m.data || {};
                 if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game is full: four players.'); }
+                if (d.k === 'removed') {
+                    clearTimeout(hiTimer);
+                    if (S.session) { removedByHost(); return; }
+                    return joinFail(UI.J_REMOVED, 'The host removed you from this game.');
+                }
                 if (d.k === 'bad') {
                     clearTimeout(hiTimer);
                     return d.field === 'rom' ? joinFail(UI.J_ROM, 'Your ROM is not the same as the host\'s.')
@@ -857,8 +874,23 @@
         log('the host ' + why);
         S.phase = 'hostleft';
         if (S.peer) { S.peer.link.close(false); }
-        if (S.session) { banner('The host left the game.', 0); leaveButton(true); }
+        if (S.session) {
+            banner('The host left the game. Press A or Start to go back to the title.', 0);
+            leaveButton(true);
+            padExit();
+        }
         else { ui(UI.J_HOSTLEFT); if (S.invite) banner('The host left. Reload the page to try again.', 0); }
+    }
+    /* The game no longer runs (nothing comes from the host), so its menus
+     * cannot take a key: a fresh A, B or Start on this device's pad or keys
+     * is the way out, as the button is for a mouse or a finger. */
+    function padExit() {
+        var was = up() ? M._PortCurrentKeys() & 0x0B : 0x0B, t = setInterval(function () {
+            if (S.phase !== 'hostleft' || !S.session || !up()) { clearInterval(t); return; }
+            var k = M._PortCurrentKeys() & 0x0B;          /* A, B, Start */
+            if (k & ~was) { clearInterval(t); leave('the host had left'); return; }
+            was = k;
+        }, 50);
     }
 
     /* --- leaving: back to the title, without reloading the page ------------------
@@ -907,6 +939,34 @@
         return true;
     }
 
+    /* --- removing a guest (the host's SETTINGS > ONLINE list) -------------------
+     * The host's pause menu asks (platform/menu_poc.c), and the host's final
+     * frame carries it out here, once: that device's link closes, its Kirbys
+     * go to the CPU as when a guest leaves, and its tab token may not come
+     * back into this room. */
+    function kick(slot) {
+        if (S.role !== 'host' || !S.session || !M._PortLnSlotOwner) return false;
+        var o = M._PortLnSlotOwner(slot | 0), dev = o < 0 ? -1 : o >> 2, done = false;
+        if (dev < 1) return false;
+        forPeers(function (p) {
+            if (p.dev !== dev || done) return;
+            done = true;
+            if (p.tok) S.banned[p.tok] = true;
+            try { S.net.send({ t: 'signal', to: p.mid, data: { k: 'removed', sid: p.sid } }); } catch (e) { /* gone */ }
+            S.stats.removed = (S.stats.removed || 0) + 1;
+            guestGone(p, 'removed by the host');
+        });
+        if (done) banner('Player removed', 2500);
+        return done;
+    }
+    /* this guest: the host removed it -- the title, with a plain message */
+    function removedByHost() {
+        if (S.role !== 'guest') return;
+        leave('removed by the host');
+        S.stats.removedByHost = (S.stats.removedByHost || 0) + 1;
+        banner('REMOVED BY THE HOST', 5000);
+    }
+
     function joinCancel() {
         if (S.role !== 'guest' || S.session) return;
         if (S.peer) S.peer.link.close(true);
@@ -922,6 +982,7 @@
         forPeers(function (p) { p.link.close(true); });
         S.peers = {};
         S.role = null; S.phase = 'idle'; S.code = null; S.hub = null; S.pendingSid = null;
+        S.banned = {};
     }
 
     /* --- polling: the game's requests, and liveness ---------------------------- */
@@ -1128,7 +1189,7 @@
         stats: stats, statsText: statsText, hashes: hashes, regions: regions,
         inSession: function () { return S.session; },
         /* leave (a guest) or end (the host) the online game: back to the title */
-        leave: leave, role: function () { return S.role; },
+        leave: leave, kick: kick, role: function () { return S.role; },
         requestSlot: requestSlot, slots: slotsNow,
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },

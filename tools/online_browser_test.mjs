@@ -366,9 +366,16 @@ async function hostToWaiting(p, tag) {
     return code;
 }
 
-async function startHost(p, tag) {
+/* HOST GAME's START row: FREE ROAM is the default; Left / Right pick the
+ * other mode (rooms 1 = FREE ROAM, 0 = TOGETHER) */
+async function pickMode(p, rooms) {
+    if ((await p.ev('Module._PortOuiRoomsMode()')) !== rooms) { await press(p, 'RIGHT'); await waitFrames(p, 20); }
+    return (await p.ev('Module._PortOuiRoomsMode()')) === rooms;
+}
+async function startHost(p, tag, rooms = 0) {
     await press(p, 'DOWN');                 // START
     await waitFrames(p, 10);
+    ok(`${tag}: START row set to ${rooms ? 'FREE ROAM' : 'TOGETHER'}`, await pickMode(p, rooms));
     await shot(p, `${tag}-04-host-start-row.png`);
     await press(p, 'A');
     return until(async () => { const s = await stats(p); return s && s.session; }, 20000);
@@ -512,15 +519,11 @@ if (CASES.includes('menu')) {
     ok('doors: a room change led by each player', results.menu.arrivals[1] > 0 && results.menu.arrivals[2] > 0, JSON.stringify(results.menu.arrivals));
     console.log(`    guest own-input overridden ${gs.ownOverriddenPct}%, rewinds ${gs.rewinds} (${gs.rewindsPerMin}/min), lead ${gs.lead}, rtt ${gs.rttMs} ms, holds ${gs.holds} skips ${gs.skips} bursts ${gs.bursts}; audio ${JSON.stringify(audio)}`);
     pages.menuHost = host; pages.menuGuest = guest;
-    // the game menu's Game page has an Online section (F1 opens the menu)
-    const click = async (p, x, y) => { for (const type of ['mousePressed', 'mouseReleased'])
-        await p.s('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }); };
-    await click(guest, 930, 28);            // the gear
-    await sleep(1000);
-    await shot(guest, 'm-08-guest-imgui-online.png');
+    // the page's online readout (the developer menu's Online section, the
+    // diagnostics): the numbers; there is no gear for players any more
+    ok('no gear button on the page', !(await guest.ev('!!document.getElementById("uigear")')));
     const txt = await guest.ev("Module.portUiQuery ? Module.portUiQuery('online') : ''");
     ok('menu Online section has the numbers', /Path: direct/.test(txt) && /Rewinds/.test(txt), txt.replace(/\n/g, ' | '));
-    await guest.ev('Module._PortUiSetOpen && Module._PortUiSetOpen(0)');
 
     // --- drop: the guest goes away; the host plays on; a new guest by invite ---
     if (CASES.includes('drop')) {
@@ -702,6 +705,10 @@ if (CASES.includes('three')) {
     await sleep(1500);
     await press(host, 'DOWN');              // the START row: PLAYERS 3/4
     await waitFrames(host, 20);
+    ok('three: FREE ROAM is the default mode', (await host.ev('Module._PortOuiRoomsMode()')) === 1);
+    ok('three: START row set to TOGETHER', await pickMode(host, 0));
+    await press(host, 'UP'); await waitFrames(host, 10);    // (not selected: PLAYERS n/4)
+    await press(host, 'DOWN'); await waitFrames(host, 10);
     await shot(host, 't-03-host-players-3of4.png');
     const hsPre = await stats(host);
     ok('three: host counts two guests ready', hsPre.peers && hsPre.peers.filter((p) => p.ready).length === 2, JSON.stringify(hsPre.peers.map((p) => [p.dev, p.ready, p.path])));
@@ -826,8 +833,12 @@ if (CASES.includes('three')) {
         else { await press(host, 'SELECT'); await waitFrames(host, 70); }
     }
     ok('session: the pause SETTINGS page is up', pageUp);
-    await press(host, 'UP'); await waitFrames(host, 10);          // NAME TAGS (the ninth row)
-    await press(host, 'RIGHT'); await waitFrames(host, 30);       // the session copy: ON
+    await press(host, 'DOWN'); await waitFrames(host, 10);        // SOUND
+    await press(host, 'DOWN'); await waitFrames(host, 10);        // PLAYERS
+    await press(host, 'A'); await waitFrames(host, 20);           // the PLAYERS section
+    await press(host, 'DOWN'); await waitFrames(host, 10);        // PARTY HUD
+    await press(host, 'DOWN'); await waitFrames(host, 10);        // NAME TAGS
+    await press(host, 'RIGHT'); await waitFrames(host, 30);       // the edit: the host's own device
     await sleep(800);
     await shot(host, 't-09b-host-pause-name-tags.png'); await shot(ga, 't-09b-guestA-pause-name-tags.png');
     ok('session: NAME TAGS on the pause page goes to the host\'s own setting', (await host.ev('Module._PortCardTagsOn()')) === 1
@@ -844,7 +855,9 @@ if (CASES.includes('three')) {
     ok('session: PLAYERS opens the read-only page on every device', models.every((m) => m === 8), JSON.stringify(models));
     await shot(host, 't-09d-host-session-players.png'); await shot(ga, 't-09d-guestA-session-players.png'); await shot(gb2, 't-09d-guestB-session-players.png');
     await press(host, 'B'); await waitFrames(host, 30);
-    ok('session: B goes back to SETTINGS', (await host.ev('Module._PortPocScreenModel()')) === 0);
+    ok('session: B goes back to the PLAYERS section', (await host.ev('Module._PortPocScreenModel()')) === 12);
+    await press(host, 'B'); await waitFrames(host, 30);
+    ok('session: B again: SETTINGS', (await host.ev('Module._PortPocScreenModel()')) === 9);
     await press(host, 'START'); await waitFrames(host, 60);
     await host.ev('window.__script = window.__scriptSaved');
     await playMany(host, [ga, gb2], 40, [cA, cB2], 't-play4', [20]);
@@ -966,6 +979,184 @@ if (CASES.includes('three')) {
     delete pages.host; delete pages.guestA; delete pages.guestB;
 }
 
+// --- exits: the pause menus in an online game, per-device settings, REMOVE ----------
+//   Three pages, TOGETHER.  The room code in session state and on the help
+//   page; B / Start / Select as the pauser and as the others; per-device
+//   settings (the owner's four cases: a guest's ZOOM and CAMERA edits are
+//   its own, the host's page then shows the host's values and each press
+//   changes the host by one step; an edit rewound on the guest is applied
+//   once); the host REMOVEs guest B (its title, the CPU, refused when it
+//   comes back, a new guest still welcome); guest A's LEAVE GAME; the host's
+//   END GAME, and the remaining guest's pad takes it to the title.
+const SIM_LNSET = 0x02040014;
+const lnset = (p) => p.ev(`Array.from(Module.HEAPU8.subarray(${SIM_LNSET}, ${SIM_LNSET + 12}))`);
+const pauseOf = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
+    var r={paused:Module.HEAP32[q>>2],pauser:Module.HEAP32[(q>>2)+1],menu:Module.HEAP32[(q>>2)+2]};Module._free(q);return r})()`);
+const modelOf = (p) => p.ev('Module._PortPocScreenModel()');
+const word = (p) => p.ev('Module._PortPocSettingsWord() >>> 0');
+const shownWord = (p) => p.ev('Module._PortPocShownWord() >>> 0');
+const zoomIdx = (w) => (w >>> 4) & 7, camOf = (w) => (w >>> 7) & 1;
+if (CASES.includes('exits')) {
+    say('# exits: the pause menus online, per-device settings, REMOVE, LEAVE / END GAME');
+    const table = [];
+    const step = async (p, k, n = 20) => { await press(p, k); await waitFrames(p, n); };
+    /* Start until the game is paused (a Start right after the pause closed,
+     * or mid-door, is the game's to ignore) */
+    const pauseNow = async (p) => {
+        for (let i = 0; i < 6; i++) {
+            if ((await pauseOf(p)).paused === 1) return true;
+            await waitFrames(p, 60);
+            await step(p, 'START', 90);
+        }
+        return (await pauseOf(p)).paused === 1;
+    };
+    const toSettings = async (p) => {
+        for (let i = 0; i < 5 && (await pauseOf(p)).menu !== 8; i++) await step(p, 'SELECT', 80);
+        return (await pauseOf(p)).menu === 8;
+    };
+    const host = await openPage('host', knobs);
+    const code = await hostToWaiting(host, 'x');
+    ok('exits: host room', !!code, code);
+    const ga = await openPage('guestA', Object.assign({ join: code }, knobs));
+    ok('exits: guest A waits', !!(await until(async () => { const st = await stats(ga); return st && st.phase === 'waiting'; }, 40000)));
+    const gb = await openPage('guestB', Object.assign({ join: code }, knobs));
+    ok('exits: guest B waits', !!(await until(async () => { const st = await stats(gb); return st && st.phase === 'waiting'; }, 40000)));
+    await glCheck(ga); await glCheck(gb);
+    await sleep(1500);
+    ok('exits: session started (TOGETHER)', !!(await startHost(host, 'x', 0)));
+    for (const g of [ga, gb]) ok(`exits: ${g.name} took the image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 30000)));
+    await sleep(3000);
+    const all = [host, ga, gb];
+    // the room code: session state, the same everywhere
+    const sets = await Promise.all(all.map(lnset));
+    const codeIn = (b) => String.fromCharCode(b[6], b[7], b[8], b[9]);
+    ok('exits: the room code is session state on every page', sets.every((b) => b[0] === 2 && b[5] === 1 && codeIn(b) === code), JSON.stringify(sets.map(codeIn)));
+    const cmpA = makeComparer(host, ga), cmpB = makeComparer(host, gb);
+    // --- guest A pauses: the help page with the code
+    await pauseNow(ga);
+    const pz = await Promise.all(all.map(pauseOf));
+    ok('exits: guest A pauses the game for everyone', pz.every((x) => x.paused === 1), JSON.stringify(pz));
+    ok('exits: the help page shows the room line on every page', (await Promise.all(all.map((p) => p.ev('Module._PortPocHelpLineShown()')))).every((v) => v === 1));
+    await shot(ga, 'x-01-guestA-help-code.png'); await shot(host, 'x-01-host-help-code.png');
+    await step(host, 'B', 30);
+    ok('exits: the host\'s B does not close guest A\'s pause', (await pauseOf(host)).paused === 1);
+    await step(host, 'SELECT', 80);
+    ok('exits: the host\'s Select turns the page (any player\'s, as the game has it)', (await pauseOf(host)).menu !== 1);
+    for (let i = 0; i < 5 && (await pauseOf(ga)).menu !== 8; i++) await step(ga, 'SELECT', 80);
+    ok('exits: guest A on SETTINGS', (await modelOf(ga)) === 9 && (await modelOf(host)) === 9);
+    table.push(['Pause, online (TOGETHER)', 'the other players', 'nothing', 'nothing', 'next page']);
+    // --- SETTINGS > ONLINE on guest A: the code and the list, read only
+    for (let i = 0; i < 3; i++) await step(ga, 'DOWN', 10);
+    await step(ga, 'A', 30);
+    ok('exits: ONLINE section (guest A)', (await modelOf(ga)) === 13);
+    await waitFrames(ga, 30);
+    await shot(ga, 'x-02-guestA-online-list.png'); await shot(host, 'x-02-host-online-list.png');
+    await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);   // a player row
+    await step(ga, 'A', 30);
+    ok('exits: a guest cannot REMOVE (stays on the list)', (await modelOf(ga)) === 13);
+    await step(ga, 'B', 30);
+    ok('exits: B: SETTINGS', (await modelOf(ga)) === 9);
+    // --- the owner's cases: guest A's ZOOM and CAMERA are its own
+    const h0 = await word(host), a0 = await word(ga);
+    for (let i = 0; i < 3; i++) await step(ga, 'UP', 10);         // (B left the cursor on ONLINE)
+    await step(ga, 'A', 30);                                       // DISPLAY
+    await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);        // ZOOM
+    await step(ga, 'RIGHT', 30); await sleep(1500);
+    let h1 = await word(host), a1 = await word(ga);
+    ok('case 1: guest A\'s ZOOM Right: guest A one step, the host unchanged',
+       zoomIdx(a1) === Math.min(6, zoomIdx(a0) + 1) && zoomIdx(h1) === zoomIdx(h0), `A ${zoomIdx(a0)}->${zoomIdx(a1)}, host ${zoomIdx(h0)}->${zoomIdx(h1)}`);
+    ok('case 1: every page shows guest A\'s value', (await Promise.all(all.map(shownWord))).every((w) => zoomIdx(w) === zoomIdx(a1)));
+    await shot(ga, 'x-03-guestA-zoom.png'); await shot(host, 'x-03-host-sees-guestA-zoom.png');
+    // an edit rewound on the guest is still applied once
+    await ga.ev('Module._PortLnForceRewind(40)'); await sleep(1500);
+    ok('exits: a rewind over guest A\'s edit does not apply it again', zoomIdx(await word(ga)) === zoomIdx(a1), `${zoomIdx(await word(ga))}`);
+    await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);       // CAMERA
+    await step(ga, 'RIGHT', 30); await sleep(1500);
+    ok('case 3: guest A\'s CAMERA Right: guest A toggled, the host not', camOf(await word(ga)) !== camOf(a0) && camOf(await word(host)) === camOf(h0));
+    await step(ga, 'START', 60);
+    ok('exits: guest A\'s Start (in a section) closes the pause', (await pauseOf(host)).paused === 0);
+    table.push(['Pause, online', 'the pauser, in a section', 'SETTINGS', 'close the pause', 'next page']);
+    // --- the host pauses: its own values; each press one step
+    ok('exits: the host pauses', await pauseNow(host) && await toSettings(host));
+    await step(host, 'A', 30); await step(host, 'DOWN', 10); await step(host, 'DOWN', 10);   // DISPLAY > ZOOM
+    await sleep(800);
+    const sh = await shownWord(host), hz = zoomIdx(await word(host));
+    ok('case 2: the host\'s page shows the host\'s own ZOOM', zoomIdx(sh) === hz && zoomIdx(sh) !== zoomIdx(await word(ga)), `shown ${zoomIdx(sh)}, host ${hz}, A ${zoomIdx(await word(ga))}`);
+    await shot(host, 'x-04-host-own-zoom.png');
+    await step(host, 'RIGHT', 30); await sleep(800);
+    ok('case 2: Right: the host one step, guest A unchanged', zoomIdx(await word(host)) === Math.min(6, hz + 1) && zoomIdx(await word(ga)) === zoomIdx(a1));
+    await step(host, 'DOWN', 10); await step(host, 'DOWN', 10);   // CAMERA
+    for (let i = 0; i < 3; i++) {
+        const c0 = camOf(await word(host));
+        await step(host, 'RIGHT', 30); await sleep(800);
+        ok(`case 4: CAMERA Right #${i + 1} toggles the host's own`, camOf(await word(host)) !== c0 && camOf(await shownWord(host)) === camOf(await word(host)));
+    }
+    await step(host, 'LEFT', 30); await sleep(500);                // (back to where it was, odd count)
+    await step(host, 'UP', 10); await step(host, 'UP', 10); await step(host, 'LEFT', 30);   // ZOOM back
+    await step(host, 'B', 30);
+    // --- REMOVE guest B (the host's list; B is guest 2)
+    for (let i = 0; i < 3; i++) await step(host, 'DOWN', 10);      // ONLINE
+    await step(host, 'A', 30);
+    for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // row 4: guest 2's Kirby
+    await step(host, 'A', 30);
+    ok('exits: the host\'s A on a guest\'s row asks (NO / YES)', (await modelOf(host)) === 16);
+    await shot(host, 'x-05-host-remove-confirm.png'); await shot(ga, 'x-05-guestA-sees-remove-confirm.png');
+    await step(host, 'B', 30);
+    ok('exits: B on REMOVE: back to the list', (await modelOf(host)) === 13);
+    await step(host, 'A', 30); await step(host, 'DOWN', 10);
+    const bDev = (await stats(gb)).self, bSlot = (await slotsOf(host)).findIndex((x) => x && x.dev === bDev);
+    await step(host, 'A', 30);                                       // YES
+    const bOut = await until(async () => { const s2 = await stats(gb); return s2 && !s2.session && (await gb.ev('Module._PortLnHomeLoads()')) === 1 ? s2 : null; }, 15000);
+    ok('REMOVE: guest B is out, its game back at the title', !!bOut);
+    await sleep(500);
+    await shot(gb, 'x-06-guestB-removed.png');
+    ok('REMOVE: guest B says REMOVED BY THE HOST', /REMOVED BY THE HOST/.test((await stats(gb)).banner || ''), (await stats(gb)).banner);
+    const bCpu = await until(async () => { const sl = await slotsOf(host); return bSlot > 0 && !sl[bSlot]; }, 15000);
+    ok('REMOVE: guest B\'s Kirby is the CPU', !!bCpu, String(bSlot));
+    await step(host, 'START', 60);
+    ok('exits: the host\'s Start closes the pause after REMOVE', (await pauseOf(host)).paused === 0);
+    await sleep(2000);
+    await cmpA.run();
+    ok('REMOVE: guest A still identical to the host', cmpA.mismatched === 0 && cmpA.compared > 5, `${cmpA.equal}/${cmpA.compared}`);
+    await waitFrames(gb, 200);
+    await gb.ev(`katamOnline.join(${JSON.stringify(code)})`);
+    const refused = await until(async () => ((await screen(gb)) & 255) === 15, 20000);   /* REMOVED (from the title: no JOIN screen) */
+    ok('REMOVE: guest B\'s rejoin with the code is refused (REMOVED)', !!refused, String(await screen(gb)));
+    await waitFrames(gb, 10);
+    await shot(gb, 'x-07-guestB-rejoin-refused.png');
+    const gc = await openPage('guestC', Object.assign({ join: code }, knobs));
+    ok('REMOVE: a new guest can still join', !!(await until(async () => { const st = await stats(gc); return st && st.session && st.joined; }, 60000)));
+    await sleep(2500);
+    // --- guest A: LEAVE GAME from its pause
+    ok('exits: guest A pauses again', await pauseNow(ga) && await toSettings(ga));
+    await step(ga, 'UP', 10); await step(ga, 'A', 30);              // MAIN MENU (the top level's last row)
+    ok('exits: a guest\'s MAIN MENU asks', (await modelOf(ga)) === 16);
+    await shot(ga, 'x-08-guestA-leave-confirm.png');
+    await step(ga, 'DOWN', 10); await step(ga, 'A', 30);
+    const aOut = await until(async () => { const s2 = await stats(ga); return s2 && !s2.session && (await ga.ev('Module._PortLnHomeLoads()')) === 1; }, 15000);
+    ok('LEAVE GAME: guest A leaves, its game at the title', !!aOut);
+    await sleep(1500);
+    ok('LEAVE GAME: the others are still paused (guest A was the pauser)', (await pauseOf(host)).paused === 1);
+    await step(host, 'START', 60);
+    ok('LEAVE GAME: the host can close the pause the leaver left open', (await pauseOf(host)).paused === 0);
+    table.push(['Pause, online', 'the pauser left / was removed', 'n/a', 'the host closes it', 'next page']);
+    // --- the host: END GAME
+    ok('exits: the host pauses again', await pauseNow(host) && await toSettings(host));
+    await step(host, 'UP', 10); await step(host, 'A', 30);
+    await shot(host, 'x-09-host-end-confirm.png');
+    await step(host, 'DOWN', 10); await step(host, 'A', 30);
+    ok('END GAME: the host goes to the title', !!(await until(async () => (await host.ev('Module._PortLnHomeLoads()')) === 1, 15000)));
+    ok('END GAME: guest C is told', !!(await until(async () => { const s2 = await stats(gc); return s2 && s2.phase === 'hostleft'; }, 15000)));
+    await sleep(500);
+    await shot(gc, 'x-10-guestC-host-left.png');
+    await step(gc, 'A', 5); await sleep(1500);
+    ok('END GAME: guest C\'s A (the pad or keys) takes it to the title', (await gc.ev('Module._PortLnHomeLoads()')) === 1 && !(await stats(gc)).session);
+    table.push(['Online, the host left', 'guest, game stopped', 'title', 'title', '(A too) title']);
+    console.log('  exits table (online):'); for (const r of table) console.log('    ' + r.join(' | '));
+    for (const p of [host, ga, gb, gc]) await p.close();
+    delete pages.host; delete pages.guestA; delete pages.guestB; delete pages.guestC;
+}
+
 // --- rooms: FREE ROAM (rooms mode), two and three pages --------------------------
 //   The host picks FREE ROAM on HOST GAME's START row (Right), then each
 //   player is warped to a room of their own: every page must show its own
@@ -998,8 +1189,7 @@ for (const nPages of (flag('rooms-pages', '2,3')).split(',').map(Number)) {
     await sleep(1500);
     await press(host, 'DOWN');              // the START row
     await waitFrames(host, 10);
-    await press(host, 'RIGHT');             // TOGETHER -> FREE ROAM
-    await waitFrames(host, 20);
+    await pickMode(host, 1);                // FREE ROAM (the default; TOGETHER if a test left it so)
     await shot(host, `${tag}-01-host-free-roam.png`);
     ok(`${tag}: HOST GAME offers FREE ROAM`, (await host.ev('Module._PortOuiRoomsMode()')) === 1);
     await press(host, 'A');

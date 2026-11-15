@@ -378,6 +378,9 @@ void CreateHelpMenu(void) {
         SpriteInit(&unkSprite, (u32)OBJ_VRAM0, 0x480, sHelpMenuButtonAnimInfos[language][1].animId, sHelpMenuButtonAnimInfos[language][1].variant, 0,
                    0xff, 0x10, 8, 0, 0, 0x80000);
     }
+    /* PORT: in an online game, a line with its code (port/menu_poc.h) */
+    if (PortMenuPoc())
+        PortPocHelpLineOpen();
     SaveObjPaletteColors(0x80, 0x7f);
     SaveBgPaletteColors(0x00, 0xff);
 
@@ -456,6 +459,9 @@ static void HelpMenuMain(void) {
     struct HelpMenu *tmp, *helpmenu;
     helpmenu = tmp = TaskGetStructPtr(gCurTask);
 
+    if (PortMenuPoc())
+        PortPocHelpLineDraw();
+
     if (gPauseMenus[0].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[1].flags & MENU_FLAG_BACK_TO_GAME ||
         gPauseMenus[2].flags & MENU_FLAG_BACK_TO_GAME || gPauseMenus[3].flags & MENU_FLAG_BACK_TO_GAME) {
         m4aSongNumStart(SE_PAUSE_MENU_ACTIVATE);
@@ -493,7 +499,11 @@ static void HelpMenuToNextMenu(void) {
     struct HelpMenu *tmp, *helpmenu;
     helpmenu = tmp = TaskGetStructPtr(gCurTask);
 
+    if (PortMenuPoc())
+        PortPocHelpLineDraw();
     if (!sub_0812A304()) {
+        if (PortMenuPoc())
+            PortPocHelpLineClose();
         if (helpmenu->nextMenuId == MENU_WORLDMAP) {
             CreateWorldMap(WORLDMAP_NO_UNLOCK);
         }
@@ -519,7 +529,11 @@ static void HelpMenuToGame(void) {
     struct HelpMenu* helpmenu;
     helpmenu = TaskGetStructPtr(gCurTask);
 
+    if (PortMenuPoc())
+        PortPocHelpLineDraw();
     if (helpmenu->toGameCounter++ > 18) {
+        if (PortMenuPoc())
+            PortPocHelpLineClose();
         TaskDestroy(gPauseMenus[gLocalPlayerId].mainTask);
         FinishInGameInterludeScreen();
         TaskDestroy(gCurTask);

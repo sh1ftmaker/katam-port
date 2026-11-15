@@ -51,18 +51,17 @@
  * (game/src/pause_settings.c), which supplies its own sprite memory and
  * palette lines and draws the same rows, header, description and cursor.
  *
- * Six rows over gPortSettings (platform/ui/settings.h), the ones a first-time
- * player has a reason to touch.  A change is clamped, applied with
- * PortSettingsChanged() and saved by it -- exactly what the ImGui menu
- * (ui_menu.cpp) does -- so it takes effect at once and lands in localStorage
- * on the web, settings.ini natively (scripted native runs save nothing, as
- * with the ImGui menu).  The values are host presentation settings, not game
- * state; the screen only reads them to draw its rows.
- *
- * A seventh row, PLAYERS (the number of people playing), opens the PLAYERS
- * page in place (platform/players_ui.c: who plays which Kirby with which
- * controller); B comes back to it.  Six rows fit the screen, so the list
- * scrolls by the cursor (TopRow), with a small triangle where there is more.
+ * SETTINGS is a list of sections (DISPLAY, SOUND, PLAYERS, ONLINE, GAME,
+ * ADVANCED; MAIN MENU on the pause page) holding every option the old ImGui
+ * menu had ("the settings screen: sections" below).  A setting is clamped,
+ * applied with PortSettingsChanged() and saved by it -- exactly what the
+ * ImGui menu (ui_menu.cpp) does; the page's own things (files, fullscreen,
+ * the touch pads, the randomizer, the log) are Module.portUiAction calls,
+ * the same the ImGui menu makes.  A section scrolls by the cursor (TopRow),
+ * with a small triangle where there is more; B goes back one level; the
+ * PLAYERS row opens the PLAYERS page in place (platform/players_ui.c).
+ * Online, everything drawn is session state and an edit belongs to the
+ * pausing player's device ("online: per-device settings" below).
  */
 
 #include <stdlib.h>
@@ -86,6 +85,7 @@
 #include "port/backend.h"     /* PortFrameNumber (tests) */
 #include "port/player_card.h"
 #include "port/simblock.h"
+#include "port/inputlog.h"   /* PortInputLogReplaying */
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 
@@ -856,7 +856,19 @@ void PortMenuPocBlankBanner(void)
     }
 }
 
-/* --- the settings screen -------------------------------------------------- */
+/* --- the settings screen: sections ------------------------------------------------
+ *
+ * SETTINGS is a short list of sections (DISPLAY, SOUND, PLAYERS, ONLINE, GAME,
+ * ADVANCED, and on the pause page MAIN MENU); A opens one, B comes back.  A
+ * section is a list of items: settings (Left / Right / A step them, the
+ * value between arrows), page toggles and actions the web page carries out
+ * (Module.portUiAction, web/shell.html: the same calls the ImGui menu makes),
+ * sub-pages (PLAYERS), read-only lines, and things that ask first (a NO /
+ * YES screen, kConfirmModel).  Every item of the old ImGui menu is here or
+ * listed in docs as dropped.
+ *
+ * Online, everything drawn is session state: see "online: per-device
+ * settings" below. */
 
 static const char *const kAspect[PS_ASPECT_COUNT] = {
     "AUTO", "3:2 GBA", "4:3", "16:10", "16:9", "21:9", "FILL",
@@ -865,26 +877,149 @@ static const float kZoom[] = { 0.5f, 0.67f, 0.8f, 1.0f, 1.25f, 1.5f, 2.0f };
 static const char *const kZoomName[] = { "0.5X", "0.67X", "0.8X", "1X", "1.25X", "1.5X", "2X" };
 #define NZOOM ((int)(sizeof(kZoom) / sizeof(kZoom[0])))
 static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH" };
-
-enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS, R_PARTY, R_TAGS };
-
-static const char *const kRowName[SET_ROWS] = {
-    "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME", "PLAYERS", "PARTY HUD",
-    "NAME TAGS",
-};
-/* Only letters the game's description pictures have (no Z, Q, J, digits). */
-static const char *const kRowDesc[SET_ROWS] = {
-    "ENHANCED CAN GO WIDESCREEN",
-    "PICTURE SHAPE FOR ENHANCED",
-    "HOW MUCH OF THE LEVEL SHOWS",
-    "SMOOTHER SCROLLING",
-    "HOW THE PICTURE IS SCALED",
-    "MUSIC AND SOUND EFFECTS",
-    "CHOOSE WHO USES WHICH PAD",
-    "CARDS FOR THE OTHER PLAYERS",
-    "NAMES OVER THE PLAYERS",
-};
 static const char *const kPartyName[] = { "OFF", "PLAYERS", "ALL" };
+/* the ImGui menu's four border colours (ui_menu.cpp), and anything else */
+static const unsigned kBorder[4] = { 0x000000, 0x0C0E11, 0x2A2E36, 0x3A2A55 };
+static const char *const kBorderName[5] = { "BLACK", "DARK", "GREY", "PURPLE", "OTHER" };
+
+enum {
+    IT_NONE,
+    /* the top level */
+    IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_MAINMENU,
+    /* DISPLAY */
+    IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
+    IT_HUD, IT_HUDSIZE, IT_FPS, IT_FULLSCREEN, IT_VSYNC,
+    /* SOUND */
+    IT_VOLUME, IT_MUTE,
+    /* PLAYERS */
+    IT_PLAYERS, IT_PARTY, IT_TAGS, IT_TOUCH,
+    /* ONLINE: the code, the mode, then the four Kirbys (rows ordered by
+     * device, RowSlot) */
+    IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT1, IT_SLOT2, IT_SLOT3,
+    /* GAME */
+    IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
+    IT_SIZES, IT_ABIL, IT_RESET,
+    /* ADVANCED */
+    IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
+    /* not a row: the NO / YES screen's REMOVE (a player row's A) */
+    IT_KICK,
+    IT_COUNT
+};
+
+/* What an item is. */
+enum {
+    K_SECTION,      /* A opens a section                                    */
+    K_SETTING,      /* a gPortSettings field: Left / Right / A step it      */
+    K_TOGGLE,       /* the page's on / off (or list): Left / Right / A      */
+    K_ACTION,       /* A does it                                            */
+    K_CONFIRM,      /* A asks first (NO / YES), then does it                */
+    K_OPEN,         /* A opens a page (PLAYERS)                             */
+    K_INFO,         /* shown only                                           */
+    K_PLAYER,       /* a Kirby in the online game: the host's A removes it  */
+};
+
+struct ItemDef {
+    const char *name;
+    u8 kind;
+    const char *desc;       /* what it is (when it is available)            */
+};
+
+/* Descriptions: the game's own description letters where it has them (no
+ * J, Q, Z, digits); anything else is drawn in the fallback font. */
+static const struct ItemDef kItem[IT_COUNT] = {
+    [IT_NONE]        = { "", K_INFO, "" },
+    [IT_SEC_DISPLAY] = { "DISPLAY", K_SECTION, "PICTURE SHAPE SIZE AND HUD" },
+    [IT_SEC_SOUND]   = { "SOUND", K_SECTION, "MUSIC AND SOUND EFFECTS" },
+    [IT_SEC_PLAYERS] = { "PLAYERS", K_SECTION, "WHO PLAYS AND THEIR CARDS" },
+    [IT_SEC_ONLINE]  = { "ONLINE", K_SECTION, "THE ONLINE GAME" },
+    [IT_SEC_GAME]    = { "GAME", K_SECTION, "SAVE ROM AND RANDOMIZER" },
+    [IT_SEC_ADVANCED]= { "ADVANCED", K_SECTION, "LOG BUILD AND DEFAULTS" },
+    [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
+    [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
+    [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
+    [IT_ZOOM]        = { "ZOOM", K_SETTING, "HOW MUCH OF THE LEVEL SHOWS" },
+    [IT_DYNZOOM]     = { "AUTO ZOOM", K_SETTING, "EASES IN WHEN KIRBY RESTS" },
+    [IT_CAMERA]      = { "CAMERA", K_SETTING, "SMOOTHER SCROLLING" },
+    [IT_INTERP]      = { "IN-BETWEEN", K_SETTING, "SMOOTHER ON FAST SCREENS" },
+    [IT_PIXELS]      = { "PIXELS", K_SETTING, "HOW THE PICTURE IS SCALED" },
+    [IT_BORDERS]     = { "BORDERS", K_SETTING, "COLOR AROUND THE PICTURE" },
+    [IT_HUD]         = { "HUD", K_SETTING, "WHERE THE HUD SITS" },
+    [IT_HUDSIZE]     = { "HUD SIZE", K_SETTING, "AUTO KEEPS THE GAMES SIZE" },
+    [IT_FPS]         = { "SHOW FPS", K_SETTING, "FRAMES PER SECOND COUNTER" },
+    [IT_FULLSCREEN]  = { "FULLSCREEN", K_TOGGLE, "FILL THE WHOLE SCREEN" },
+    [IT_VSYNC]       = { "VSYNC", K_SETTING, "MATCH THE DISPLAY REFRESH" },
+    [IT_VOLUME]      = { "VOLUME", K_SETTING, "MUSIC AND SOUND EFFECTS" },
+    [IT_MUTE]        = { "MUTE", K_SETTING, "SILENCE EVERYTHING" },
+    [IT_PLAYERS]     = { "PLAYERS", K_OPEN, "CHOOSE WHO USES WHICH PAD" },
+    [IT_PARTY]       = { "PARTY HUD", K_SETTING, "CARDS FOR THE OTHER PLAYERS" },
+    [IT_TAGS]        = { "NAME TAGS", K_SETTING, "NAMES OVER THE PLAYERS" },
+    [IT_TOUCH]       = { "TOUCH PADS", K_TOGGLE, "BUTTONS ON THE SCREEN" },
+    [IT_CODE]        = { "CODE", K_INFO, "TELL A FRIEND THIS CODE" },
+    [IT_MODE]        = { "MODE", K_INFO, "CHOSEN BY THE HOST" },
+    [IT_SLOT0]       = { "", K_PLAYER, "" },
+    [IT_SLOT1]       = { "", K_PLAYER, "" },
+    [IT_SLOT2]       = { "", K_PLAYER, "" },
+    [IT_SLOT3]       = { "", K_PLAYER, "" },
+    [IT_EXPORT]      = { "EXPORT SAVE", K_ACTION, "A DOWNLOADS A COPY - BACKUP" },
+    [IT_IMPORT]      = { "IMPORT SAVE", K_ACTION, "LOAD A SAV FILE" },
+    [IT_DELSAVE]     = { "DELETE SAVE", K_CONFIRM, "ERASE THE STORED SAVE" },
+    [IT_ROMLOAD]     = { "CHANGE ROM", K_ACTION, "PICK ANOTHER ROM FILE" },
+    [IT_ROMFORGET]   = { "FORGET ROM", K_CONFIRM, "ERASE THE STORED ROM" },
+    [IT_RANDO]       = { "RANDOMIZER", K_TOGGLE, "SHUFFLE THE ENEMIES" },
+    [IT_SEED]        = { "SEED", K_ACTION, "A TYPES A SEED NUMBER" },
+    [IT_REROLL]      = { "NEW SEED", K_ACTION, "A PICKS A NEW RANDOM SEED" },
+    [IT_SIZES]       = { "MATCH SIZES", K_TOGGLE, "KEEP ENEMY SIZES ALIKE" },
+    [IT_ABIL]        = { "KEEP ABILITY", K_TOGGLE, "ABILITIES STAY IN PLACE" },
+    [IT_RESET]       = { "RESET GAME", K_CONFIRM, "RESTART - YOUR SAVE IS KEPT" },
+    [IT_DIAG]        = { "DIAGNOSTICS", K_TOGGLE, "NUMBERS OVER THE PICTURE" },
+    [IT_COPYLOG]     = { "COPY LOG", K_ACTION, "FOR A BUG REPORT" },
+    [IT_DEFAULTS]    = { "DEFAULTS", K_CONFIRM, "SETTINGS BACK TO DEFAULT" },
+    [IT_BUILD]       = { "BUILD", K_INFO, "THE VERSION YOU ARE PLAYING" },
+    [IT_RENDERER]    = { "RENDERER", K_INFO, "" },
+    [IT_WEBGL]       = { "WEBGL2", K_INFO, "" },
+    [IT_GPU]         = { "GPU", K_INFO, "" },
+    [IT_SETSTORE]    = { "STORED", K_INFO, "" },
+    [IT_KICK]        = { "REMOVE", K_CONFIRM, "" },
+};
+
+/* The sections' items.  Per build: the page's actions on the web, VSYNC
+ * natively. */
+static const u8 kTopItems[] = {
+    IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_MAINMENU,
+};
+static const u8 kDisplayItems[] = {
+    IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
+    IT_HUD, IT_HUDSIZE, IT_FPS,
+#ifdef __EMSCRIPTEN__
+    IT_FULLSCREEN,
+#else
+    IT_VSYNC,
+#endif
+};
+static const u8 kSoundItems[] = { IT_VOLUME, IT_MUTE };
+static const u8 kPlayersItems[] = {
+    IT_PLAYERS, IT_PARTY, IT_TAGS,
+#ifdef __EMSCRIPTEN__
+    IT_TOUCH,
+#endif
+};
+static const u8 kOnlineItems[] = { IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT1, IT_SLOT2, IT_SLOT3 };
+static const u8 kGameItems[] = {
+    IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
+    IT_SIZES, IT_ABIL, IT_RESET,
+};
+static const u8 kAdvancedItems[] = {
+    IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
+};
+static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
+
+/* Sections kept by other files (port/menu_poc.h "Adding a section"): their
+ * rows' definitions, before the NULL.  The index here is the one in
+ * EXT_SECTION and in an edit's item number. */
+static const struct PortPocRows *const kExtRows[] = { NULL };
+#define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
 static int ZoomIndexOf(const PortSettings *s)
 {
@@ -900,145 +1035,633 @@ static int ZoomIndexOf(const PortSettings *s)
     return best;
 }
 
+static int BorderIndexOf(const PortSettings *s)
+{
+    int i;
 
+    for (i = 0; i < 4; i++)
+        if ((s->letterbox & 0xFFFFFFu) == kBorder[i])
+            return i;
+    return 4;
+}
 
-/* --- online: the session's copy of the settings ------------------------------
+/* --- STUBS: the other agent's queries (platform/ui/settings.h, branch of
+ * hudfix-wt), with their exact signatures.  Weak, so the real ones replace
+ * them on merge; delete these then.
+ *   PortDisplayOptionsAvailable: 0 while the page draws on its 2D canvas,
+ *     where the picture options do nothing.
+ *   PortDisplayStatus: five lines ("BUILD: ...", "RENDERER: ...", "WEBGL2:
+ *     ...", "GPU: ...", "SETTINGS: ..."), '\n' between them. */
+__attribute__((weak)) int PortDisplayOptionsAvailable(void)
+{
+    return 1;                       /* STUB(display-fallback) */
+}
+
+__attribute__((weak)) const char *PortDisplayStatus(void)
+{
+    return "";                      /* STUB(graphics-status) */
+}
+
+static int PocDisplayFallback(void)
+{
+    return !PortDisplayOptionsAvailable();
+}
+
+/* Line `n` of PortDisplayStatus (0 BUILD, 1 RENDERER, 2 WEBGL2, 3 GPU, 4
+ * SETTINGS) after its "NAME: ", drawable, at most max characters. */
+static void StatusLine(int n, char *out, int max)
+{
+    const char *t = PortDisplayStatus(), *e;
+    int i, len;
+
+    out[0] = '\0';
+    for (i = 0; i < n && t; i++) {
+        t = strchr(t, '\n');
+        if (t) t++;
+    }
+    if (t == NULL || !*t)
+        return;
+    e = strchr(t, '\n');
+    len = e ? (int)(e - t) : (int)strlen(t);
+    {
+        const char *c = memchr(t, ':', (size_t)len);
+
+        if (c != NULL) {
+            len -= (int)(c + 1 - t);
+            t = c + 1;
+            while (len > 0 && *t == ' ') { t++; len--; }
+        }
+    }
+    if (len > 63) len = 63;
+    memcpy(out, t, (size_t)len);
+    out[len] = '\0';
+    for (i = 0; out[i]; i++)
+        if (out[i] == '|') out[i] = '/';
+    if ((int)strlen(out) > max) out[max] = '\0';
+}
+
+/* --- online: per-device settings ----------------------------------------------------
  *
- * The page draws its values into game memory (OBJ VRAM), so online it must
- * show the same values on both devices, and an edit must rewind with the
- * frame that made it: a guest that replays the frame of a Right press must
- * not step its own settings a second time.  So while an online session holds
- * a copy (port/simblock.h, PORT_SIM_LNSET), the page shows and edits that
- * copy -- simulation state -- and the engine applies an edit to the device of
- * the player who made it once the frame is final (PortPocSessionSettingsApply,
- * from platform/lmpnet.c).  Off, nothing here is used. */
-static int SessionCopy(void)
+ * The page is drawn into game memory, so in a session it may show only what
+ * every device holds alike, and an edit must rewind with the frame that made
+ * it.  So:
+ *
+ *   - Each player slot has a copy of its device's settings in session state
+ *     (sSlotSet below, carried with this file's host state in every keyframe
+ *     and image and hashed).  A device publishes its own settings whenever
+ *     they change (web/ln_session.js `pset`; the host's own directly), and the
+ *     host seals them as PORT_LN_EV_PSET events for every slot that device
+ *     plays (platform/lmpnet.c), the way player cards' colours travel.  The
+ *     page shows the copy of the slot whose player paused.
+ *   - An edit (a setting step, a toggle, an action) is written into the
+ *     session's edit request (PORT_SIM_LNSET: counter, slot, item, step) and
+ *     nothing else happens in the frame.  When the frame is final
+ *     (platform/lmpnet.c FinalSettings: every frame on the host, verified
+ *     frames on a guest), the device that plays that slot carries the edit
+ *     out on itself -- once, whatever was rewound and replayed -- and its
+ *     changed settings come back to every device as a sealed copy.
+ *
+ * Nothing in gPortSettings is ever read for drawing in a session, and
+ * nothing a device does to itself reaches the simulation but through the
+ * host's sealed events.  Off, none of this runs. */
+static u32 sSlotSet[4];             /* packed (PocPack), valid if sSlotSetOn */
+static u8 sSlotSetOn;               /* bit per slot                          */
+static u16 sSlotExt[4];             /* per slot: the other files' online rows */
+/* Each slot's player's name as the host sealed it (PORT_LN_EV_NAME): names
+ * are relayed to the guests as presentation, so the list in game memory
+ * draws these, which every device applies at the same frame. */
+static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
+static u8 sConfirmArg;              /* REMOVE: the slot asked about          */
+
+/* Settings to a word (and back) for the copies: the fields the sections
+ * show, nothing native-only. */
+static u32 PocPack(const PortSettings *s)
 {
-    return gPortLnOn && PORT_SIM_LNSET[0];
+    u32 v = 0;
+    int vol = s->volume < 0 ? 0 : s->volume > 100 ? 100 : s->volume;
+
+    v |= (u32)(s->renderer & 1);
+    v |= (u32)(s->aspect & 7) << 1;
+    v |= (u32)(ZoomIndexOf(s) & 7) << 4;
+    v |= (u32)(s->smoothCam != 0) << 7;
+    v |= (u32)(s->scaling & 3) << 8;
+    v |= (u32)vol << 10;
+    v |= (u32)(s->mute != 0) << 17;
+    v |= (u32)(s->partyHud & 3) << 18;
+    v |= (u32)(s->nameTags != 0) << 20;
+    v |= (u32)(s->dynZoom != 0) << 21;
+    v |= (u32)(s->interp != 0) << 22;
+    v |= (u32)(s->hud & 1) << 23;
+    v |= (u32)(s->hudScale & 15) << 24;
+    v |= (u32)(s->showFps != 0) << 28;
+    v |= (u32)(BorderIndexOf(s) & 7) << 29;
+    return v;
 }
 
-static void FromCopy(PortSettings *s)
+static void PocUnpack(u32 v, PortSettings *s)
 {
-    const u8 *c = PORT_SIM_LNSET;
+    int b = (int)(v >> 29) & 7;
 
-    *s = gPortSettings;
-    s->renderer = c[1];
-    s->aspect = c[2];
-    s->zoom = kZoom[c[3] < NZOOM ? c[3] : NZOOM - 1];
-    s->smoothCam = c[4];
-    s->scaling = c[5];
-    s->volume = c[6];
-    s->mute = c[7];
-    /* [11]: the party HUD (low four bits) and the name tags (bit 4) */
-    s->partyHud = (c[11] & 15) <= PS_PARTY_HELPERS ? (c[11] & 15) : PS_PARTY_HELPERS;
-    s->nameTags = (c[11] >> 4) & 1;
+    PortSettingsDefaults(s);
+    s->renderer = (int)(v & 1);
+    s->aspect = (int)(v >> 1) & 7;
+    if (s->aspect >= PS_ASPECT_COUNT) s->aspect = 0;
+    s->zoom = kZoom[((v >> 4) & 7) < (u32)NZOOM ? (v >> 4) & 7 : NZOOM - 1];
+    s->smoothCam = (int)(v >> 7) & 1;
+    s->scaling = (int)(v >> 8) & 3;
+    if (s->scaling >= PS_SCALE_COUNT) s->scaling = 0;
+    s->volume = (int)(v >> 10) & 127;
+    s->mute = (int)(v >> 17) & 1;
+    s->partyHud = (int)(v >> 18) & 3;
+    if (s->partyHud > PS_PARTY_HELPERS) s->partyHud = PS_PARTY_HELPERS;
+    s->nameTags = (int)(v >> 20) & 1;
+    s->dynZoom = (int)(v >> 21) & 1;
+    s->interp = (int)(v >> 22) & 1;
+    s->hud = (int)(v >> 23) & 1;
+    s->hudScale = (int)(v >> 24) & 15;
+    s->showFps = (int)(v >> 28) & 1;
+    s->letterbox = b < 4 ? kBorder[b] : 0x123456u;      /* OTHER */
 }
 
-static void ToCopy(u8 *c, const PortSettings *s)
+/* This device's settings as a session copy (web/ln_session.js publishes it). */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+u32 PortPocSettingsWord(void)
 {
-    c[1] = (u8)s->renderer;
-    c[2] = (u8)s->aspect;
-    c[3] = (u8)ZoomIndexOf(s);
-    c[4] = (u8)s->smoothCam;
-    c[5] = (u8)s->scaling;
-    c[6] = (u8)s->volume;
-    c[7] = (u8)s->mute;
-    c[11] = (u8)((s->partyHud & 15) | (s->nameTags ? 0x10 : 0));
+    return PocPack(&gPortSettings);
 }
 
-/* The host, as its session starts: the copy begins as its settings. */
-void PortPocSessionSettingsInit(void)
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int PortPocMenusOn(void)
+{
+    return PortMenuPoc();
+}
+
+/* The online rows of the sections other files keep: four 4-bit values. */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+u32 PortPocSettingsExtWord(void)
+{
+    u32 v = 0;
+    int i, r;
+
+    for (i = 0; i < NEXTROWS; i++) {
+        const struct PortPocRows *x = kExtRows[i];
+
+        for (r = 0; x->onlineSlot && x->onlineGet && r < 16; r++) {
+            int o = x->onlineSlot(r);
+
+            if (o >= 0 && o < 4)
+                v |= (u32)(x->onlineGet(o) & 15) << (4 * o);
+        }
+    }
+    return v;
+}
+
+/* A sealed PORT_LN_EV_PSET (platform/lmpnet.c ApplyEvents). */
+void PortPocSlotSettingsSet(int slot, u32 word, u32 ext)
+{
+    if (slot < 0 || slot > 3)
+        return;
+    sSlotExt[slot] = (u16)ext;
+    sSlotSet[slot] = word;
+    sSlotSetOn |= (u8)(1u << slot);
+}
+
+/* A sealed PORT_LN_EV_NAME, and what the host compares before sealing. */
+void PortPocSlotNameSet(int slot, u32 lo, u32 hi)
+{
+    int i;
+
+    if (slot < 0 || slot > 3)
+        return;
+    for (i = 0; i < 8 && i < PORT_CARD_NAME_MAX; i++) {
+        u32 w = i < 4 ? lo : hi;
+        char c = (char)((w >> (8 * (i & 3))) & 0xFF);
+
+        sSlotName[slot][i] = (c >= ' ' && c < 127) ? c : '\0';
+        if (!c)
+            break;
+    }
+    sSlotName[slot][i < PORT_CARD_NAME_MAX ? i : PORT_CARD_NAME_MAX] = '\0';
+}
+
+void PortPocNameWords(const char *name, u32 *lo, u32 *hi)
+{
+    int i;
+
+    *lo = *hi = 0;
+    for (i = 0; i < 8 && name[i]; i++)
+        *(i < 4 ? lo : hi) |= (u32)(u8)name[i] << (8 * (i & 3));
+}
+
+int PortPocSlotNameSame(int slot, const char *name)
+{
+    return slot >= 0 && slot < 4 && strncmp(sSlotName[slot], name, PORT_CARD_NAME_MAX) == 0;
+}
+
+/* The host, before sealing: what slot `slot`'s copy holds (-1: none). */
+int PortPocSlotSettingsHave(int slot, u32 *word, u32 *ext)
+{
+    if (slot < 0 || slot > 3 || !(sSlotSetOn & (1u << slot)))
+        return 0;
+    *word = sSlotSet[slot];
+    *ext = sSlotExt[slot];
+    return 1;
+}
+
+/* The host, as its session starts: the edit request and the room code. */
+void PortPocSessionSettingsInit(const char code[4])
 {
     u8 *c = PORT_SIM_LNSET;
 
     memset(c, 0, PORT_SIM_LNSET_BYTES);
-    ToCopy(c, &gPortSettings);
-    c[0] = 1;
+    c[0] = 2;
+    if (code != NULL && code[0]) {
+        c[5] = 1;
+        memcpy(&c[6], code, 4);
+    }
 }
 
-/* A final frame's copy, edited by this device's player: theirs to keep. */
-void PortPocSessionSettingsApply(const u8 *c)
+/* The session's room code (session state: the host's, with every image), or
+ * NULL outside a session. */
+static const char *SessionCode(void)
 {
-    PortSettings s;
-    const u8 *was = PORT_SIM_LNSET;
-    u8 tmp[PORT_SIM_LNSET_BYTES];
+    static char code[5];
+    const u8 *c = PORT_SIM_LNSET;
 
-    (void)was;
-    memcpy(tmp, c, sizeof tmp);
-    s = gPortSettings;
-    /* Only the row this player changed ([10], row + 1): the copy's other
-     * values are the host's, and a guest who turned its volume down must
-     * not take the host's renderer and zoom with it. */
-    switch (tmp[10] ? tmp[10] - 1 : -1) {
-    case R_GRAPHICS:  s.renderer = tmp[1]; break;
-    case R_SCREEN:    s.aspect = tmp[2]; break;
-    case R_ZOOM:      s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1]; break;
-    case R_SMOOTHCAM: s.smoothCam = tmp[4]; break;
-    case R_PIXELS:    s.scaling = tmp[5]; break;
-    case R_VOLUME:    s.volume = tmp[6]; s.mute = tmp[7]; break;
-    case R_PARTY:     s.partyHud = tmp[11] & 15; break;
-    case R_TAGS:      s.nameTags = (tmp[11] >> 4) & 1; break;
+    if (!gPortLnOn || c[0] != 2 || !c[5])
+        return NULL;
+    memcpy(code, &c[6], 4);
+    code[4] = '\0';
+    return code;
+}
+
+/* The player whose pause menu this is (the simulation's: gUnk_0203AD50). */
+static int Pauser(void)
+{
+    return gUnk_0203AD50 < 4 ? gUnk_0203AD50 : 0;
+}
+
+/* The settings the page shows: this device's own; in a session the copy of
+ * the pausing player's device (NULL while it has none yet). */
+static const PortSettings *Shown(void)
+{
+    static PortSettings copy;
+
+    if (!gPortLnOn)
+        return &gPortSettings;
+    if (!(sSlotSetOn & (1u << Pauser())))
+        return NULL;
+    PocUnpack(sSlotSet[Pauser()], &copy);
+    return &copy;
+}
+
+/* --- what the page asks of the web page (web/shell.html portUiAction) ------------ */
+
+static int HostAct(const char *name, int arg)
+{
+    if (PortInputLogReplaying())
+        return 0;               /* a replay never reaches the page */
+    return PortHostUiAction(name, arg);
+}
+
+static int HostOn(const char *key)
+{
+    char b[8];
+
+    b[0] = '\0';
+    PortHostUiQuery(key, b, (int)sizeof b);
+    return b[0] == '1';
+}
+
+/* The randomizer as the page has it: pools, sizes, abilities, seed. */
+static void Rando(unsigned v[4])
+{
+    char b[64];
+
+    v[0] = 0; v[1] = 1; v[2] = 1; v[3] = 0;
+    b[0] = '\0';
+    PortHostUiQuery("rando", b, (int)sizeof b);
+    if (b[0])
+        sscanf(b, "%u,%u,%u,%u", &v[0], &v[1], &v[2], &v[3]);
+}
+
+static int Web(void)
+{
+#ifdef __EMSCRIPTEN__
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/* --- items: values, availability, steps -------------------------------------------- */
+
+static void OnOff(char *buf, int size, int on) { snprintf(buf, size, "%s", on ? "ON" : "OFF"); }
+
+static void Drawable(char *s, int max);
+
+/* --- the ONLINE list: who plays each Kirby ----------------------------------------
+ * Session state only: the slot table (PortLnSlotOwner, sealed, in every image
+ * and keyframe), the people (PortLmpSlotPerson) and the sealed names. */
+
+/* The device that plays slot s: 0 the host, 1..3 a guest, -1 the CPU. */
+static int SlotDevice(int s)
+{
+    int o = PortLnSlotOwner(s);
+
+    if (s == 0)
+        return 0;                   /* slot 0 is always the host's own */
+    if (o < 0 || !PortLmpSlotPerson(s))
+        return -1;
+    return o >> 2;
+}
+
+/* Is the pausing player on the host's device?  (The host's own Kirbys:
+ * END GAME, REMOVE.) */
+static int PauserIsHost(void)
+{
+    return SlotDevice(Pauser()) == 0;
+}
+
+/* The slot shown on row k of the list: by device (the host's first, then
+ * each guest's), so Kirbys that share a device sit together; the CPU last. */
+static int RowSlot(int k)
+{
+    int order[4], n = 0, d, s;
+
+    for (d = 0; d < PORT_LN_MAX_DEV; d++)
+        for (s = 0; s < 4; s++)
+            if (SlotDevice(s) == d)
+                order[n++] = s;
+    for (s = 0; s < 4; s++)
+        if (SlotDevice(s) < 0)
+            order[n++] = s;
+    return order[k & 3];
+}
+
+static void SlotWho(int s, char *buf, int size)
+{
+    int d = SlotDevice(s);
+
+    if (d < 0) snprintf(buf, size, "CPU");
+    else if (d == 0) snprintf(buf, size, "HOST");
+    else snprintf(buf, size, "GUEST %d", d);
+}
+
+/* A list row's label: the Kirby's tag and its player's name, shortened
+ * until it fits beside the device. */
+static const char *SlotLabel(int k)
+{
+    static char lbl[4][24];
+    char who[12], name[PORT_CARD_NAME_MAX + 1];
+    int s = RowSlot(k), n;
+
+    if (!gPortLnOn) {
+        snprintf(lbl[k & 3], sizeof lbl[0], "%dP", k + 1);
+        return lbl[k & 3];
+    }
+    SlotWho(s, who, sizeof who);
+    snprintf(name, sizeof name, "%s", SlotDevice(s) < 0 ? "" : sSlotName[s]);
+    Drawable(name, PORT_CARD_NAME_MAX);
+    for (n = (int)strlen(name); ; n--) {
+        name[n] = '\0';
+        snprintf(lbl[k & 3], sizeof lbl[0], "%dP%s%s", s + 1, n ? " " : "", name);
+        if (n == 0 || LBL_TEXT_LEFT + CellWidth(lbl[k & 3]) + 8 + CellWidth(who) <= ROW_VALUE_X1)
+            break;
+    }
+    return lbl[k & 3];
+}
+
+/* Drawable text: the fallback font's letters, upper case. */
+static void Drawable(char *s, int max)
+{
+    int i, o = 0;
+
+    for (i = 0; s[i] && o < max; i++) {
+        char c = s[i];
+
+        if (c >= 'a' && c <= 'z')
+            c -= 32;
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ' || c == '-' || c == '.'
+            || c == ':' || c == '/' || c == '%' || c == '+' || c == '!')
+            s[o++] = c;
+        else if (c == '_' || c == ',' || c == '(' || c == ')')
+            s[o++] = ' ';
+    }
+    s[o] = '\0';
+}
+
+static void ItemValue(int it, char *buf, int size)
+{
+    const PortSettings *s = Shown();
+
+    buf[0] = '\0';
+    if (kItem[it].kind == K_SETTING && s == NULL) {
+        snprintf(buf, size, "-");       /* that device has not told us yet */
+        return;
+    }
+    switch (it) {
+    case IT_SEC_ONLINE: {
+        const char *code = SessionCode();
+
+        snprintf(buf, size, "%s", code ? code : "");
+        break;
+    }
+    case IT_GRAPHICS:  snprintf(buf, size, "%s", s->renderer == PS_RENDER_GPU ? "ENHANCED" : "CLASSIC"); break;
+    case IT_SCREEN:    snprintf(buf, size, "%s", kAspect[s->aspect]); break;
+    case IT_ZOOM:      snprintf(buf, size, "%s", kZoomName[ZoomIndexOf(s)]); break;
+    case IT_DYNZOOM:   OnOff(buf, size, s->dynZoom); break;
+    case IT_CAMERA:    snprintf(buf, size, "%s", s->smoothCam ? "SMOOTH" : "NORMAL"); break;
+    case IT_INTERP:    OnOff(buf, size, s->interp); break;
+    case IT_PIXELS:    snprintf(buf, size, "%s", kScaling[s->scaling]); break;
+    case IT_BORDERS:   snprintf(buf, size, "%s", kBorderName[BorderIndexOf(s)]); break;
+    case IT_HUD:       snprintf(buf, size, "%s", s->hud == PS_HUD_STRIP ? "STRIP" : "CORNERS"); break;
+    case IT_HUDSIZE:
+        if (s->hudScale <= 0) snprintf(buf, size, "AUTO");
+        else snprintf(buf, size, "%dX", s->hudScale);
+        break;
+    case IT_FPS:       OnOff(buf, size, s->showFps); break;
+    case IT_VSYNC:     OnOff(buf, size, s->vsync); break;
+    case IT_VOLUME:    snprintf(buf, size, "%d%%", s->volume); break;
+    case IT_MUTE:      OnOff(buf, size, s->mute); break;
+    case IT_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
+    case IT_TAGS:      OnOff(buf, size, s->nameTags); break;
+    case IT_PLAYERS:   PortPuiSummary(buf, size); break;
+    /* the page's own state: per device, so never shown in a session */
+    case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
+    case IT_TOUCH:      if (!gPortLnOn) OnOff(buf, size, HostOn("touch")); break;
+    case IT_DIAG:       if (!gPortLnOn) OnOff(buf, size, HostOn("diag")); break;
+    case IT_RANDO: case IT_SEED: case IT_SIZES: case IT_ABIL: {
+        unsigned v[4];
+
+        if (gPortLnOn || !Web())
+            break;
+        Rando(v);
+        if (it == IT_RANDO) snprintf(buf, size, "%s", v[0] == 0 ? "OFF" : v[0] == 1 ? "SHUFFLE" : "BOSSES TOO");
+        else if (it == IT_SEED) snprintf(buf, size, "%u", v[3]);
+        else OnOff(buf, size, it == IT_SIZES ? v[1] != 0 : v[2] != 0);
+        break;
+    }
+    /* ONLINE: session state only */
+    case IT_CODE: {
+        const char *code = SessionCode();
+
+        snprintf(buf, size, "%s", code ? code : "----");
+        break;
+    }
+    case IT_MODE:
+        snprintf(buf, size, "%s", !gPortLnOn ? "-" : gPortSim->view.lmpRooms ? "FREE ROAM" : "TOGETHER");
+        break;
+    case IT_SLOT0: case IT_SLOT1: case IT_SLOT2: case IT_SLOT3:
+        if (gPortLnOn) SlotWho(RowSlot(it - IT_SLOT0), buf, size);
+        else snprintf(buf, size, "-");
+        break;
+    case IT_BUILD:
+        snprintf(buf, size, "%s", PortUiBuildLabel());
+        Drawable(buf, 14);
+        break;
+    case IT_RENDERER: case IT_WEBGL: case IT_GPU: case IT_SETSTORE: {
+        char line[64];
+        int n;
+
+        if (gPortLnOn)
+            break;                  /* this device's: not in a session */
+        StatusLine(it - IT_RENDERER + 1, line, 63);
+        Drawable(line, 63);
+        /* as much as fits beside the name; the description has more */
+        for (n = (int)strlen(line); n > 0; n--) {
+            line[n] = '\0';
+            if (LBL_TEXT_LEFT + CellWidth(kItem[it].name) + 8 + CellWidth(line) <= ROW_VALUE_X1)
+                break;
+        }
+        snprintf(buf, size, "%s", line);
+        break;
+    }
     default:
-        s.renderer = tmp[1];
-        s.aspect = tmp[2];
-        s.zoom = kZoom[tmp[3] < NZOOM ? tmp[3] : NZOOM - 1];
-        s.smoothCam = tmp[4];
-        s.scaling = tmp[5];
-        s.volume = tmp[6];
-        s.mute = tmp[7];
-        s.partyHud = tmp[11] & 15;
-        s.nameTags = (tmp[11] >> 4) & 1;
         break;
     }
-    PortSettingsClamp(&s);
-    gPortSettings = s;
-    PortSettingsChanged();
 }
 
-static void RowValue(int row, char *buf, int size)
+/* Why an item cannot be used now, or NULL if it can.  In a session only
+ * session state decides. */
+static const char *ItemWhyNot(int it)
 {
-    PortSettings copy;
-    const PortSettings *s = &gPortSettings;
+    /* on the 2D canvas the picture options do nothing (the GL path's) */
+    int display = it == IT_GRAPHICS || it == IT_SCREEN || it == IT_ZOOM || it == IT_DYNZOOM
+               || it == IT_CAMERA || it == IT_INTERP || it == IT_PIXELS || it == IT_FPS;
+    int game = it >= IT_EXPORT && it <= IT_RESET;
 
-    if (SessionCopy()) {
-        FromCopy(&copy);
-        s = &copy;
+    if (display && PocDisplayFallback())
+        return "NOT WITH THE 2D FALLBACK";
+    /* the CLASSIC renderer draws the GBA's 240 x 160 only: the view's
+     * shape, zoom and camera are the ENHANCED renderer's (GRAPHICS stays
+     * live to switch back).  In a session: the pausing player's setting. */
+    if (it == IT_SCREEN || it == IT_ZOOM || it == IT_DYNZOOM || it == IT_CAMERA || it == IT_INTERP) {
+        const PortSettings *sh = Shown();
+        int classic = gPortLnOn ? (sh != NULL && sh->renderer == PS_RENDER_PPU) : !PortShowUsingGpu();
+
+        if (classic)
+            return "NEEDS ENHANCED GRAPHICS";
     }
+    if (game && gPortLnOn)
+        return "NOT DURING AN ONLINE GAME";
+    if ((game || it == IT_FULLSCREEN || it == IT_TOUCH || it == IT_DIAG || it == IT_COPYLOG) && !Web())
+        return "ON THE WEB PAGE ONLY";
+    if (it >= IT_RENDERER && it <= IT_SETSTORE && gPortLnOn)
+        return "NOT DURING AN ONLINE GAME";
+    if ((it == IT_CODE || it == IT_MODE || (it >= IT_SLOT0 && it <= IT_SLOT3)) && !gPortLnOn)
+        return "NOT IN AN ONLINE GAME";
+    if (gPortLnOn)
+        return NULL;
+    /* the page's state, outside a session */
+    if (it == IT_DELSAVE && !HostOn("save.stored"))
+        return "NO SAVE IS STORED";
+    if (it == IT_ROMFORGET && !HostOn("rom.stored"))
+        return "NO ROM IS STORED";
+    if (it == IT_SEED || it == IT_REROLL || it == IT_SIZES || it == IT_ABIL) {
+        unsigned v[4];
 
-    switch (row) {
-    case R_GRAPHICS:  snprintf(buf, size, "%s", s->renderer == PS_RENDER_GPU ? "ENHANCED" : "CLASSIC"); break;
-    case R_SCREEN:    snprintf(buf, size, "%s", kAspect[s->aspect]); break;
-    case R_ZOOM:      snprintf(buf, size, "%s", kZoomName[ZoomIndexOf(s)]); break;
-    case R_SMOOTHCAM: snprintf(buf, size, "%s", s->smoothCam ? "SMOOTH" : "NORMAL"); break;
-    case R_PIXELS:    snprintf(buf, size, "%s", kScaling[s->scaling]); break;
-    case R_VOLUME:
-        if (s->mute) snprintf(buf, size, "MUTE");
-        else         snprintf(buf, size, "%d%%", s->volume);
-        break;
-    case R_PLAYERS:   PortPuiSummary(buf, size); break;
-    case R_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
-    case R_TAGS:      snprintf(buf, size, "%s", s->nameTags ? "ON" : "OFF"); break;
-    default: buf[0] = '\0';
+        Rando(v);
+        if (v[0] == 0)
+            return "TURN THE RANDOMIZER ON";
+    }
+    return NULL;
+}
+
+static const char *ItemDesc(int it)
+{
+    const char *why = ItemWhyNot(it);
+    static char line[40];
+
+    if (why != NULL)
+        return why;
+    switch (it) {
+    case IT_PLAYERS:
+        return gPortLnOn ? "WHO PLAYS EACH KIRBY" : kItem[it].desc;
+    case IT_MAINMENU:
+        if (gPortLnOn)
+            return PauserIsHost() ? "END THE GAME FOR EVERYONE" : "LEAVE - THE CPU TAKES OVER";
+        return kItem[it].desc;
+    case IT_SEC_ONLINE:
+        return gPortLnOn ? "CODE MODE AND PLAYERS" : "NOT IN AN ONLINE GAME";
+    case IT_MODE:
+        return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
+    case IT_SLOT0: case IT_SLOT1: case IT_SLOT2: case IT_SLOT3: {
+        int d = SlotDevice(RowSlot(it - IT_SLOT0));
+
+        if (d < 0) return "THE CPU PLAYS THIS KIRBY";
+        if (d == 0) return "THE HOST PLAYS THIS KIRBY";
+        return PauserIsHost() ? "A REMOVES THIS PLAYER" : "ONLY THE HOST CAN REMOVE";
+    }
+    case IT_RENDERER: case IT_WEBGL: case IT_GPU: case IT_SETSTORE:
+        /* the whole line (as much as the description holds) */
+        StatusLine(it - IT_RENDERER + 1, line, 28);
+        Drawable(line, 28);
+        return line[0] ? line : it == IT_RENDERER ? "HOW THE PICTURE IS DRAWN"
+             : it == IT_WEBGL ? "THE BROWSERS 3D GRAPHICS" : it == IT_GPU ? "THE GRAPHICS CHIP"
+             : "HOW YOUR SETTINGS ARE KEPT";
+    default:
+        return kItem[it].desc;
     }
 }
 
 /* dir -1 or +1; wraps for the lists, stops at the ends for the numbers. */
-static void RowStepOn(PortSettings *s, int row, int dir)
+static void RowStepOn(PortSettings *s, int it, int dir)
 {
-    switch (row) {
-    case R_GRAPHICS:  s->renderer = s->renderer == PS_RENDER_GPU ? PS_RENDER_PPU : PS_RENDER_GPU; break;
-    case R_SCREEN:    s->aspect = (s->aspect + dir + PS_ASPECT_COUNT) % PS_ASPECT_COUNT; break;
-    case R_ZOOM: {
+    switch (it) {
+    case IT_GRAPHICS:  s->renderer = s->renderer == PS_RENDER_GPU ? PS_RENDER_PPU : PS_RENDER_GPU; break;
+    case IT_SCREEN:    s->aspect = (s->aspect + dir + PS_ASPECT_COUNT) % PS_ASPECT_COUNT; break;
+    case IT_ZOOM: {
         int z = ZoomIndexOf(s) + dir;
 
         s->zoom = kZoom[z < 0 ? 0 : z >= NZOOM ? NZOOM - 1 : z];
         break;
     }
-    case R_SMOOTHCAM: s->smoothCam = !s->smoothCam; break;
-    case R_PARTY:     s->partyHud = (s->partyHud + dir + PS_PARTY_HELPERS + 1) % (PS_PARTY_HELPERS + 1); break;
-    case R_TAGS:      s->nameTags = !s->nameTags; break;
-    case R_PIXELS:    s->scaling = (s->scaling + dir + PS_SCALE_COUNT) % PS_SCALE_COUNT; break;
-    case R_VOLUME:
+    case IT_DYNZOOM:   s->dynZoom = !s->dynZoom; break;
+    case IT_CAMERA:    s->smoothCam = !s->smoothCam; break;
+    case IT_INTERP:    s->interp = !s->interp; break;
+    case IT_PIXELS:    s->scaling = (s->scaling + dir + PS_SCALE_COUNT) % PS_SCALE_COUNT; break;
+    case IT_BORDERS: {
+        int b = BorderIndexOf(s);
+
+        b = b >= 4 ? (dir > 0 ? 0 : 3) : (b + dir + 4) % 4;
+        s->letterbox = kBorder[b];
+        break;
+    }
+    case IT_HUD:       s->hud = s->hud == PS_HUD_STRIP ? PS_HUD_CORNERS : PS_HUD_STRIP; break;
+    case IT_HUDSIZE:   s->hudScale = (s->hudScale + dir + PS_HUD_SCALE_MAX + 1) % (PS_HUD_SCALE_MAX + 1); break;
+    case IT_FPS:       s->showFps = !s->showFps; break;
+    case IT_VSYNC:     s->vsync = !s->vsync; break;
+    case IT_PARTY:     s->partyHud = (s->partyHud + dir + PS_PARTY_HELPERS + 1) % (PS_PARTY_HELPERS + 1); break;
+    case IT_TAGS:      s->nameTags = !s->nameTags; break;
+    case IT_MUTE:      s->mute = !s->mute; break;
+    case IT_VOLUME:
         if (s->mute) {
             s->mute = 0;
         } else {
@@ -1050,35 +1673,102 @@ static void RowStepOn(PortSettings *s, int row, int dir)
     }
 }
 
-static void RowStep(int row, int dir)
+/* An item carried out on THIS device: at once outside a session, from a
+ * final frame inside one (PortPocSessionEditApply). */
+static void ItemApply(int it, int dir)
 {
-    PortSettings *s = &gPortSettings;
+    if (it >= 0x80) {                   /* a section another file keeps */
+        int x = (it >> 4) & 7;
 
-    if (SessionCopy()) {
-        PortSettings copy;
-        u8 *c = PORT_SIM_LNSET;
-
-        FromCopy(&copy);
-        RowStepOn(&copy, row, dir);
-        PortSettingsClamp(&copy);
-        ToCopy(c, &copy);
-        c[8]++;
-        c[9] = gUnk_0203AD50;
-        c[10] = (u8)(row + 1);
+        if (x < NEXTROWS && kExtRows[x]->step)
+            kExtRows[x]->step(it & 15, dir);
         return;
     }
-    RowStepOn(s, row, dir);
-    /* What the settings menu does after a change (ui_menu.cpp): clamp,
-     * apply, persist. */
-    PortSettingsClamp(s);
-    PortSettingsChanged();
+    switch (kItem[it].kind) {
+    case K_SETTING:
+        RowStepOn(&gPortSettings, it, dir);
+        /* What the settings menu does after a change (ui_menu.cpp): clamp,
+         * apply, persist. */
+        PortSettingsClamp(&gPortSettings);
+        PortSettingsChanged();
+        return;
+    default:
+        break;
+    }
+    switch (it) {
+    case IT_FULLSCREEN: HostAct("fullscreen", 0); break;
+    case IT_TOUCH:      HostAct("touch", 0); break;
+    case IT_DIAG:       HostAct("diag", 0); break;
+    case IT_COPYLOG:    HostAct("log.copy", 0); break;
+    case IT_EXPORT:     HostAct("save.export", 0); break;
+    case IT_IMPORT:     HostAct("save.import", 0); break;
+    case IT_DELSAVE:    HostAct("save.delete", 0); break;
+    case IT_ROMLOAD:    HostAct("rom.load", 0); break;
+    case IT_ROMFORGET:  HostAct("rom.forget", 0); break;
+    case IT_RESET:      HostAct("reset", 0); break;
+    case IT_SEED:       HostAct("rando.seed", 0); break;
+    case IT_REROLL:     HostAct("rando.reroll", 0); break;
+    case IT_SIZES:      HostAct("rando.size", 0); break;
+    case IT_ABIL:       HostAct("rando.ability", 0); break;
+    case IT_RANDO: {
+        static const int kPools[3] = { 0, 1, 7 };
+        unsigned v[4];
+        int i;
+
+        Rando(v);
+        i = v[0] == 0 ? 0 : v[0] == 1 ? 1 : 2;
+        HostAct("rando.pools", kPools[(i + dir + 3) % 3]);
+        break;
+    }
+    case IT_DEFAULTS:
+        PortSettingsDefaults(&gPortSettings);
+        PortSettingsChanged();
+        break;
+    case IT_KICK:                       /* the host's device: remove a guest's */
+        if (gPortLnOn && PortLnRole() == PORT_LN_HOST && dir >= 1 && dir <= 3)
+            HostAct("online.kick", dir);
+        break;
+    case IT_MAINMENU:
+        if (gPortLnOn)
+            HostAct("online.leave", 0);     /* guest: leave; host: end it */
+        else if (!PortInputLogReplaying())
+            PortLnGoHomeLocal();            /* back to the title at the next frame */
+        break;
+    }
+}
+
+/* platform/lmpnet.c, a final frame's edit by a player of this device. */
+void PortPocSessionEditApply(int item, int dir)
+{
+    if (item <= IT_NONE || (item >= IT_COUNT && item < 0x80) || item > 0xFF)
+        return;
+    ItemApply(item, dir);
+}
+
+/* An edit on the page: carried out here and now, or in a session written
+ * into the session's edit request for the pausing player's device. */
+static void ItemDo(int it, int dir)
+{
+    if (gPortLnOn) {
+        u8 *c = PORT_SIM_LNSET;
+
+        if (c[0] != 2)
+            return;
+        c[1]++;
+        c[2] = (u8)Pauser();
+        c[3] = (u8)it;
+        c[4] = (u8)(s8)dir;
+        return;
+    }
+    ItemApply(it, dir);
 }
 
 /* --- what a list screen shows ----------------------------------------------------
  *
  * The screen below draws a model: its rows' names and values, a header, a
- * description per row, and what Left/Right/A do.  Two models: the settings
- * (front end and pause page) and the front end's MULTIPLAYER choice. */
+ * description per row, and what Left/Right/A do.  The settings' sections
+ * and NO / YES screen, the front end's MULTIPLAYER choice and ONLINE
+ * screens, the PLAYERS page and the player card. */
 struct PocModel {
     int rows;
     const char *header;
@@ -1099,47 +1789,262 @@ struct PocModel {
     int pui;
     /* a player card screen (platform/player_card.c): its PORT_CARD_SUB_* */
     int card;
+    /* a settings section: its items (rows); NULL for the others */
+    const u8 *items;
+    /* where B goes (and the row it lands on); NULL: the caller's own B */
+    const struct PocModel *parent;
+    int parentRow;
+    /* a section whose rows another file keeps (port/menu_poc.h
+     * struct PortPocRows), with its index in kExtRows */
+    const struct PortPocRows *ext;
+    int extIndex;
 };
 
-static const char *SetName(int row) { return kRowName[row]; }
-static const char *SetDesc(int row)
+static const char *SecName(int row);
+static void SecValue(int row, char *buf, int size);
+static const char *SecDesc(int row);
+static int SecStep(int row, int dir);
+static int SecUnavailable(int row);
+static u32 SecGen(void);
+/* (MAIN MENU is kTopItems' last: the front end shows the rest) */
+static const struct PocModel kTopModel = {
+    (int)ARRAY_COUNT(kTopItems) - 1, "SETTINGS", SecName, SecValue, SecDesc, SecStep, SecUnavailable, 0, SecGen, 0, 0, kTopItems, NULL, 0, NULL, 0,
+};
+static const struct PocModel kTopPauseModel = {
+    (int)ARRAY_COUNT(kTopItems), "SETTINGS", SecName, SecValue, SecDesc, SecStep, SecUnavailable, 0, SecGen, 0, 0, kTopItems, NULL, 0, NULL, 0,
+};
+/* The model up now (never NULL: a device that took an image without the
+ * host state still draws something). */
+static const struct PocModel *sModel = &kTopModel;
+static u8 sConfirmItem;             /* the item a NO / YES screen asks about */
+
+static int ModelItem(int row)
 {
-    if (row == R_PLAYERS && gPortLnOn)
-        return "WHO PLAYS EACH KIRBY";
-    return kRowDesc[row];
+    return sModel->items != NULL && row >= 0 && row < sModel->rows ? sModel->items[row] : IT_NONE;
 }
-static int SetStep(int row, int dir)
+
+/* --- sections kept by another file (port/menu_poc.h struct PortPocRows) --------
+ * Its rows' edits travel like the others': item EXT_ITEM(section, row) in
+ * the session's edit request.  In a session only the rows it names as online
+ * rows work, their values drawn from the slots' copies (a 4-bit value each,
+ * four such rows in all, in the second word of PORT_LN_EV_PSET); the rest
+ * are dimmed. */
+#define EXT_ITEM(x, r)   (0x80 | ((x) << 4) | ((r) & 15))
+
+static int ExtOnline(const struct PortPocRows *x, int row)
 {
-    if (row == R_PLAYERS)
-        return 0;           /* A opens the page (PortPocScreenInput) */
-    RowStep(row, dir);
-    return 1;
+    return x->onlineSlot ? x->onlineSlot(row) : -1;
 }
-static int SetUnavailable(int row) { (void)row; return 0; }
-/* The PLAYERS row's count follows joins and leaves while the screen is up.
- * It is drawn into game memory, so it must be the simulation's answer
- * (PortLmpSlotPerson): PortLmpSlotIsHuman is about this device's own seats
- * during a session and differs from device to device. */
-static u32 SetGen(void)
+
+static int ExtUnavailable(int row)
+{
+    const struct PortPocRows *x = sModel->ext;
+
+    if (gPortLnOn)
+        return ExtOnline(x, row) < 0 || !(sSlotSetOn & (1u << Pauser()));
+    return x->available ? !x->available(row) : 0;
+}
+
+static const char *ExtDesc(int row)
+{
+    const struct PortPocRows *x = sModel->ext;
+
+    if (gPortLnOn && ExtOnline(x, row) < 0)
+        return "NOT DURING AN ONLINE GAME";
+    return x->desc(row);
+}
+
+static void ExtValue(int row, char *buf, int size)
+{
+    const struct PortPocRows *x = sModel->ext;
+    int o = ExtOnline(x, row);
+
+    buf[0] = '\0';
+    if (!gPortLnOn) {
+        x->value(row, buf, size);
+        return;
+    }
+    if (o >= 0 && o < 4 && x->onlineText && (sSlotSetOn & (1u << Pauser())))
+        x->onlineText(o, (sSlotExt[Pauser()] >> (4 * o)) & 15, buf, size);
+}
+
+static const char *ExtName(int row) { return sModel->ext->name(row); }
+
+static const char *SecName(int row)
+{
+    int it = ModelItem(row);
+
+    if (it >= IT_SLOT0 && it <= IT_SLOT3)
+        return SlotLabel(it - IT_SLOT0);
+    return kItem[it].name;
+}
+static void SecValue(int row, char *buf, int size) { ItemValue(ModelItem(row), buf, size); }
+static const char *SecDesc(int row) { return ItemDesc(ModelItem(row)); }
+static int SecUnavailable(int row) { return ItemWhyNot(ModelItem(row)) != NULL; }
+static int SecStep(int row, int dir) { (void)row; (void)dir; return 0; }    /* PortPocScreenInput */
+
+/* Rows follow, while the screen is up, what changes without a key: the
+ * people playing and, in a session, the copies and the code (simulation
+ * state); outside a session the page's own state (fullscreen, the touch
+ * pads, the randomizer, stored files), which is this device's only. */
+static u32 SecGen(void)
 {
     u32 g = 0;
     int s;
 
-    for (s = 1; s < 4; s++)
+    for (s = 0; s < 4; s++)
         g = g * 2u + (u32)(PortLmpSlotPerson(s) != 0);
+    if (gPortLnOn) {
+        const u8 *c = PORT_SIM_LNSET;
+
+        for (s = 0; s < 4; s++)
+            g = g * 31u + ((sSlotSetOn >> s) & 1u ? sSlotSet[s] + sSlotExt[s] * 7u : 0x5A5Au)
+                + (u32)(PortLnSlotOwner(s) + 1);
+        for (s = 5; s < 10; s++)
+            g = g * 31u + c[s];
+        for (s = 0; s < (int)sizeof sSlotName; s++)
+            g = g * 31u + (u8)((const char *)sSlotName)[s];
+        g = g * 31u + gPortSim->view.lmpRooms;
+        return g;
+    }
+    if (Web() && (sModel->items == kDisplayItems || sModel->items == kPlayersItems
+                  || sModel->items == kGameItems || sModel->items == kAdvancedItems)) {
+        char b[64];
+
+        g = g * 31u + (u32)HostOn("fullscreen") * 2u + (u32)HostOn("touch") * 4u + (u32)HostOn("diag") * 8u
+            + (u32)HostOn("save.stored") * 16u + (u32)HostOn("rom.stored") * 32u;
+        b[0] = '\0';
+        PortHostUiQuery("rando", b, (int)sizeof b);
+        for (s = 0; b[s]; s++)
+            g = g * 31u + (u8)b[s];
+    }
     return g;
 }
 
-static const struct PocModel kSettingsModel = {
-    SET_ROWS, "SETTINGS", SetName, RowValue, SetDesc, SetStep, SetUnavailable, 0, SetGen,
+#define SECTION(n, hdr, list, par, prow) \
+    static const struct PocModel n = { (int)ARRAY_COUNT(list), hdr, SecName, SecValue, SecDesc, SecStep, \
+                                       SecUnavailable, 0, SecGen, 0, 0, list, par, prow, NULL, 0 }
+/* a section kept by another file: its rows (a constant count), the place of
+ * its row on the top level, its index in kExtRows */
+#define EXT_SECTION(n, rowsDef, nrows, prow, idx) \
+    static const struct PocModel n = { nrows, NULL, ExtName, ExtValue, ExtDesc, SecStep, \
+                                       ExtUnavailable, 0, SecGen, 0, 0, NULL, &kTopModel, prow, rowsDef, idx }
+
+/* the top level: the front end's six, the pause page's seven (MAIN MENU) */
+/* (a section's parent row is its place on the top level; the parent itself
+ * is whichever top level is up: SectionParent) */
+SECTION(kSecDisplay, "DISPLAY", kDisplayItems, &kTopModel, 0);
+SECTION(kSecSound, "SOUND", kSoundItems, &kTopModel, 1);
+SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 2);
+SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 3);
+SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 4);
+SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 5);
+
+/* NO / YES */
+static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
+static void ConfirmValue(int row, char *buf, int size) { (void)row; buf[0] = '\0'; (void)size; }
+static const char *ConfirmDesc(int row)
+{
+    static char q[40];
+
+    if (sConfirmItem == IT_KICK) {
+        const char *n = sSlotName[sConfirmArg & 3];
+        char who[12];
+
+        SlotWho(sConfirmArg & 3, who, sizeof who);
+        snprintf(q, sizeof q, row == 0 ? "REMOVE %s?" : "%s CANNOT COME BACK", n[0] ? n : who);
+        Drawable(q, 30);
+        return q;
+    }
+    if (row == 0)
+        return "B OR NO GOES BACK";
+    switch (sConfirmItem) {
+    case IT_MAINMENU:
+        if (!gPortLnOn)
+            return "TO THE TITLE - SAVE KEPT";
+        return PauserIsHost() ? "ENDS THE GAME FOR EVERYONE" : "THE CPU TAKES YOUR KIRBY";
+    case IT_DELSAVE:   return "THE STORED SAVE IS ERASED";
+    case IT_ROMFORGET: return "PICK THE ROM AGAIN LATER";
+    case IT_RESET:     return "RESTARTS - THE SAVE IS KEPT";
+    case IT_DEFAULTS:  return "ALL SETTINGS TO DEFAULT";
+    default:           return "";
+    }
+}
+static int ConfirmUnavailable(int row) { (void)row; return 0; }
+static const struct PocModel kConfirmModel = {
+    2, "", ConfirmName, ConfirmValue, ConfirmDesc, SecStep, ConfirmUnavailable, 0, NULL, 0, 0,
+    kConfirmItems, &kTopModel, 0, NULL, 0,
 };
+
+static const char *ConfirmHeader(void)
+{
+    switch (sConfirmItem) {
+    case IT_MAINMENU:
+        if (!gPortLnOn)
+            return "MAIN MENU";
+        return PauserIsHost() ? "END GAME" : "LEAVE GAME";
+    default:
+        return kItem[sConfirmItem].name;
+    }
+}
+
+/* Each top-level section row and its screen (port/menu_poc.h "Adding a
+ * section"). */
+static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
+    { IT_SEC_DISPLAY, &kSecDisplay }, { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
+    { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
+};
+static const struct PocModel *const kSections[] = {
+    &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced,
+};
+
+static const struct PocModel *SectionModel(int it)
+{
+    int i;
+
+    for (i = 0; i < (int)ARRAY_COUNT(kSectionOf); i++)
+        if (kSectionOf[i].item == it)
+            return kSectionOf[i].m;
+    return NULL;
+}
+
+/* The section holding item `it`, and its row there (the top level's rows
+ * for the top-level items). */
+static const struct PocModel *ItemHome(int it, int *row)
+{
+    int i, r;
+
+    for (i = 0; i < (int)ARRAY_COUNT(kSections); i++)
+        for (r = 0; kSections[i]->items && r < kSections[i]->rows; r++)
+            if (kSections[i]->items[r] == it) {
+                *row = r;
+                return kSections[i];
+            }
+    for (r = 0; r < (int)ARRAY_COUNT(kTopItems); r++)
+        if (kTopItems[r] == it)
+            *row = r;
+    return NULL;            /* the top level */
+}
+
+/* The top level up now or last: the pause page's when it is the pause page. */
+static int sPauseScreen;
+
+static const struct PocModel *TopModel(void)
+{
+    return sPauseScreen ? &kTopPauseModel : &kTopModel;
+}
+
+static int IsTop(const struct PocModel *m)
+{
+    return m == &kTopModel || m == &kTopPauseModel;
+}
 
 /* PLAYERS (platform/players_ui.c): P1..P4 and their controllers. */
 static void PuiValue(int row, char *buf, int size) { PortPuiRowValue(row, 0, buf, size); }
 static int PuiStep(int row, int dir) { (void)row; (void)dir; return 0; }
 static const struct PocModel kPlayersModel = {
     PORT_PUI_ROWS, "PLAYERS", PortPuiRowName, PuiValue, PortPuiRowDesc, PuiStep, PortPuiRowUnavailable,
-    0, PortPuiGen, 1,
+    0, PortPuiGen, 1, 0, NULL, &kSecPlayers, 0,
 };
 
 /* PLAYERS during an online session: who plays each Kirby, read only.  It is
@@ -1180,7 +2085,8 @@ static u32 LnPlGen(void)
     return g;
 }
 static const struct PocModel kLnPlayersModel = {
-    4, "PLAYERS", LnPlName, LnPlValue, LnPlDesc, LnPlStep, LnPlUnavailable, 0, LnPlGen,
+    4, "PLAYERS", LnPlName, LnPlValue, LnPlDesc, LnPlStep, LnPlUnavailable, 0, LnPlGen, 0, 0, NULL,
+    &kSecPlayers, 0,
 };
 
 /* MULTIPLAYER: LOCAL (two players on this screen, platform/localmp.c) and
@@ -1223,7 +2129,6 @@ static const struct PocModel kMpModel = {
 
 /* ONLINE > HOST GAME / JOIN GAME, and the two screens behind them: the
  * MULTIPLAYER screen's two rows and tiles, text from platform/online_ui.c. */
-static const struct PocModel *sModel = &kSettingsModel;
 static const char *OuiName(int row) { return PortOuiRowName(sModel->oui, row); }
 static void OuiValue(int row, char *buf, int size) { PortOuiRowValue(sModel->oui, row, 0, buf, size); }
 static const char *OuiDesc(int row) { return PortOuiRowDesc(sModel->oui, row); }
@@ -1261,8 +2166,11 @@ static u32 sCardGenShown;           /* PortCardGen() the same              */
 
 /* The models, numbered for the host state an online image carries. */
 static const struct PocModel *const kModels[] = {
-    &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel, &kPlayersModel,
+    &kTopModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel, &kPlayersModel,
     &kCardModel, &kPickModel, &kLnPlayersModel,
+    /* 9.. the pause page's top level, the sections, NO / YES, PLAYING */
+    &kTopPauseModel, &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced,
+    &kConfirmModel,
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -1358,7 +2266,10 @@ static void DrawRowTiles(u32 tiles, int row, int cursor)
     /* the selected row's value between arrows, where they fit (and where
      * Left/Right change it) */
     snprintf(shown, sizeof(shown), "<%s>", val);
-    if (!selected || sModel != &kSettingsModel || row == R_PLAYERS
+    if (!selected || (sModel->ext == NULL && (sModel->items == NULL
+                                               || (kItem[ModelItem(row)].kind != K_SETTING
+                                                   && kItem[ModelItem(row)].kind != K_TOGGLE)))
+        || sModel->unavailable(row)
         || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > ROW_VALUE_X1)
         snprintf(shown, sizeof(shown), "%s", val);
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
@@ -1385,7 +2296,8 @@ static void DrawRows(u32 tiles, int cursor)
  * headers' own lettering. */
 static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
 {
-    const char *text = sModel->header;
+    const char *text = sModel == &kConfirmModel ? ConfirmHeader()
+                     : sModel->ext != NULL ? sModel->ext->header : sModel->header;
     static u8 px[PIC_H * HEAD_COLS * 32];
     int w = HEAD_COLS * 32, fw, h, x, y;
 
@@ -1579,17 +2491,30 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
     BuildDesc(sDescShown, SetDescVram(tiles));
 }
 
-void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+static void ScreenBuild(int pause, u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
 {
     PortPuiClose();
-    if (sModel->card && PortCardSub() != PORT_CARD_SUB_NONE)
+    if (sModel != NULL && sModel->card && PortCardSub() != PORT_CARD_SUB_NONE)
         PortPlayerCardClose();      /* a card left open from PLAYERS */
-    ModelBuild(&kSettingsModel, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
+    sPauseScreen = pause;
+    ModelBuild(TopModel(), tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
 }
 
+void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+{
+    ScreenBuild(0, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
+}
+
+void PortPocPauseScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
+{
+    ScreenBuild(1, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
+}
+
+/* Below SETTINGS' top level (a section, NO / YES, PLAYERS, a card): B is
+ * the screen's own (back one level), not the caller's. */
 int PortPocScreenSub(void)
 {
-    return sModel->pui || sModel->card || sModel == &kLnPlayersModel;
+    return sModel != NULL && !IsTop(sModel);
 }
 
 static s32 RowFrameY(int row)
@@ -1663,7 +2588,7 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     if (sModel->gen && sModel->gen() != sOuiGenShown) {
         sOuiGenShown = sModel->gen();
         DrawRows(tiles, row);
-        if (sModel->pui) {
+        if (sModel->pui || sModel->items) {
             sDescShown = sModel->desc(row);
             BuildDesc(sDescShown, SetDescVram(tiles));
         }
@@ -1733,26 +2658,112 @@ static int CardScreenInput(u32 tiles, u8 *row, unsigned key)
     return act == PORT_CARD_K_CURSOR ? PORT_POC_IN_CURSOR : PORT_POC_IN_VALUE;
 }
 
+/* B on a screen below SETTINGS' top level: back one level, onto the row
+ * that opened it. */
+static int ScreenBack(u32 tiles, u8 *row)
+{
+    const struct PocModel *to = sModel->parent;
+    int r = sModel->parentRow;
+
+    if (sModel == &kConfirmModel) {
+        to = ItemHome(sConfirmItem, &r);
+        if (sConfirmItem == IT_KICK) {
+            to = &kSecOnline;
+            for (r = 0; r < 4 && RowSlot(r) != sConfirmArg; r++)
+                ;
+            r = 2 + (r & 3);
+        }
+    }
+    if (to == NULL || IsTop(to))
+        to = TopModel();
+    *row = (u8)r;
+    SwapModel(tiles, to, *row);
+    return PORT_POC_IN_SCREEN;
+}
+
+
+/* A, Left or Right on a settings item. */
+static int ItemKey(u32 tiles, u8 *row, unsigned key)
+{
+    int was = *row, it = ModelItem(was), dir = key == 5 ? -1 : 1;
+
+    if (ItemWhyNot(it) != NULL)
+        return key == 1 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+    switch (kItem[it].kind) {
+    case K_SECTION:
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        *row = 0;
+        SwapModel(tiles, SectionModel(it) ? SectionModel(it) : TopModel(), 0);
+        return PORT_POC_IN_SCREEN;
+    case K_OPEN:
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        *row = 0;
+        /* in an online session: who plays each Kirby (the same on every
+         * device); otherwise the controllers */
+        SwapModel(tiles, gPortLnOn ? &kLnPlayersModel : &kPlayersModel, 0);
+        return PORT_POC_IN_SCREEN;
+    case K_PLAYER: {
+        int slot = RowSlot(it - IT_SLOT0);
+
+        /* the host's players remove a guest's device (never the host's own:
+         * that is END GAME); everyone else only sees the list */
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        if (!PauserIsHost() || SlotDevice(slot) < 1)
+            return PORT_POC_IN_REFUSED;
+        sConfirmItem = IT_KICK;
+        sConfirmArg = (u8)slot;
+        *row = 0;
+        SwapModel(tiles, &kConfirmModel, 0);
+        return PORT_POC_IN_SCREEN;
+    }
+    case K_CONFIRM:
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        sConfirmItem = (u8)it;
+        *row = 0;                   /* on NO */
+        SwapModel(tiles, &kConfirmModel, 0);
+        return PORT_POC_IN_SCREEN;
+    case K_ACTION:
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        ItemDo(it, 1);
+        DrawRowTiles(tiles, was, was);
+        return PORT_POC_IN_DONE;
+    case K_SETTING:
+    case K_TOGGLE:
+        ItemDo(it, dir);
+        PortLnNoteSetting(was);     /* a setting changed (online: R9) */
+        DrawRows(tiles, was);
+        sDescShown = sModel->desc(was);
+        BuildDesc(sDescShown, SetDescVram(tiles));
+        return PORT_POC_IN_VALUE;
+    default:
+        return key == 1 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+    }
+}
+
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
 {
     int was = *row, n = sModel->rows;
 
     if (sModel->card)
         return CardScreenInput(tiles, row, key);
-    if (sModel == &kLnPlayersModel && key == 2) {  /* B: back to SETTINGS */
-        *row = R_PLAYERS;
-        SwapModel(tiles, &kSettingsModel, *row);
-        return PORT_POC_IN_SCREEN;
+    if (key == 2 && !IsTop(sModel) && (sModel->parent != NULL || sModel == &kConfirmModel))
+        return ScreenBack(tiles, row);          /* B: back one level */
+    if (sModel == &kConfirmModel && key == 1) {
+        int item = sConfirmItem;
+
+        if (was == 1)
+            ItemDo(item, item == IT_KICK ? sConfirmArg : 1);   /* YES */
+        ScreenBack(tiles, row);
+        return was == 1 ? PORT_POC_IN_DONE : PORT_POC_IN_SCREEN;
     }
     if (sModel->pui) {
-        int act;
+        int act = key == 1 || key == 5 || key == 6 ? PortPuiKey(was, key) : PORT_OUI_K_NONE;
 
-        if (key == 2) {         /* B: back to SETTINGS, on its PLAYERS row */
-            *row = R_PLAYERS;
-            SwapModel(tiles, &kSettingsModel, *row);
-            return 3;
-        }
-        act = key == 1 || key == 5 || key == 6 ? PortPuiKey(was, key) : PORT_OUI_K_NONE;
         if (PortCardSub() != PORT_CARD_SUB_NONE) {     /* A opened the card */
             *row = 1;           /* NAME: whose card it is is fixed */
             SwapModel(tiles, &kCardModel, *row);
@@ -1767,14 +2778,17 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
         }
         if (key == 3 || key == 4)
             PortPuiLeaveRow(was);
-    } else if (sModel == &kSettingsModel && was == R_PLAYERS && (key == 1 || key == 6)) {
+    } else if (sModel->items != NULL && sModel != &kConfirmModel && (key == 1 || key == 5 || key == 6)) {
+        return ItemKey(tiles, row, key);
+    } else if (sModel->ext != NULL && (key == 1 || key == 5 || key == 6)) {
         if (sModel->unavailable(was))
-            return key == 1 ? 5 : 0;
-        *row = 0;
-        /* in an online session: who plays each Kirby (the same on every
-         * device); otherwise the controllers */
-        SwapModel(tiles, gPortLnOn ? &kLnPlayersModel : &kPlayersModel, *row);
-        return 3;
+            return key == 1 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+        ItemDo(EXT_ITEM(sModel->extIndex, was), key == 5 ? -1 : 1);
+        PortLnNoteSetting(was);
+        DrawRows(tiles, was);
+        sDescShown = sModel->desc(was);
+        BuildDesc(sDescShown, SetDescVram(tiles));
+        return PORT_POC_IN_VALUE;
     }
 
     switch (key) {
@@ -1788,13 +2802,11 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
     case 6:     /* right */
         if (!sModel->step(was, 1))
             return 0;
-        PortLnNoteSetting(was);     /* a host setting changed (online: R9) */
         DrawRowTiles(tiles, was, was);
         return 2;
     case 5:     /* left */
         if (!sModel->step(was, -1))
             return 0;
-        PortLnNoteSetting(was);
         DrawRowTiles(tiles, was, was);
         return 2;
     default:
@@ -2004,16 +3016,135 @@ void PortPocPauseObjSave(void)
 void PortPocPauseObjRestore(void)
 {
     PortPuiClose();
-    if (sModel->card) {             /* the page closed on a player's card */
+    if (sModel != NULL && sModel->card) {   /* the page closed on a player's card */
         if (PortCardSub() != PORT_CARD_SUB_NONE)
             PortPlayerCardClose();
         CardPalettesKeep(0);
-        sModel = &kSettingsModel;
+        sModel = &kTopPauseModel;
     }
     if (!sObjSaved)
         return;
     memcpy((void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sObjSave, sizeof(sObjSave));
     sObjSaved = 0;
+}
+
+/* --- the pause help page's line about the online game ----------------------------
+ *
+ * In a session the first pause page (the game's help page, pause_help.c)
+ * says which game this is: its code, the mode and how many play, in a small
+ * line along the top of the paper, above the page's frame.  Session state
+ * only (SessionCode, the rooms flag, the people), so every device draws the
+ * same bytes; the tiles are fixed OBJ VRAM the help page does not use,
+ * kept and put back around the page like the settings page's.  Off a
+ * session, or with the menus off, nothing. */
+#define HELP_VRAM   (PORT_POC_PAUSE_OBJ_VRAM + 0x4000u)
+#define HELP_COLS   (PORT_POC_HELP_BYTES / (4 * 32))     /* 32 x 8 objects */
+#define PAL_HELP    13
+static u8 sHelpSave[PORT_POC_HELP_BYTES];
+static int sHelpSaved;
+
+/* s in a font of 1-pixel cells (the fallback font's glyphs at half size)
+ * with a 1-pixel outline; returns the width. */
+static int SmallText(u8 *px, int w, int h, int x, int y, const char *s, u8 fill, u8 edge)
+{
+    int pass, x0 = x;
+
+    for (pass = 0; pass < 2; pass++) {
+        const char *p;
+
+        x = x0;
+        for (p = s; *p; p++) {
+            const struct CellGlyph *g = CellFind(*p);
+            int gw, r, c, dx, dy;
+
+            if (*p == ' ') { x += 3; continue; }
+            if (g == NULL) continue;
+            gw = (int)strlen(g->rows[0]);
+            for (r = 0; r < 5; r++)
+                for (c = 0; c < gw && g->rows[r][c]; c++) {
+                    if (g->rows[r][c] != '#')
+                        continue;
+                    for (dy = pass ? 0 : -1; dy <= (pass ? 0 : 1); dy++)
+                        for (dx = pass ? 0 : -1; dx <= (pass ? 0 : 1); dx++) {
+                            int qx = x + c + dx, qy = y + r + dy;
+
+                            if (px != NULL && qx >= 0 && qx < w && qy >= 0 && qy < h)
+                                px[qy * w + qx] = pass ? fill : edge;
+                        }
+                }
+            x += gw + 2;
+        }
+    }
+    return x - x0;
+}
+
+static int HelpLineText(char *buf, int size)
+{
+    const char *code = SessionCode();
+    int s, n = 0;
+
+    if (!PortMenuPoc() || code == NULL)
+        return 0;
+    for (s = 0; s < 4; s++)
+        n += PortLmpSlotPerson(s) != 0;
+    snprintf(buf, size, "GAME %s - %s - %d PLAYER%s", code,
+             gPortSim->view.lmpRooms ? "FREE ROAM" : "TOGETHER", n, n == 1 ? "" : "S");
+    return 1;
+}
+
+void PortPocHelpLineOpen(void)
+{
+    char t[48];
+
+    if (sHelpSaved || !HelpLineText(t, sizeof t))
+        return;
+    memcpy(sHelpSave, (const void *)(uintptr_t)HELP_VRAM, sizeof sHelpSave);
+    sHelpSaved = 1;
+    /* dark blue on a white edge, over the paper */
+    gObjPalette[PAL_HELP * 16 + 1] = (u16)((20 << 10) | (6 << 5) | 4);
+    gObjPalette[PAL_HELP * 16 + 2] = 0x7FFF;
+    gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+}
+
+void PortPocHelpLineDraw(void)
+{
+    static u8 px[8 * HELP_COLS * 32];
+    char t[48];
+    int w = HELP_COLS * 32, tw, c;
+
+    if (!sHelpSaved || !HelpLineText(t, sizeof t))
+        return;
+    memset(px, 0, sizeof px);
+    tw = SmallText(NULL, w, 8, 0, 1, t, 1, 2);
+    SmallText(px, w, 8, w - tw, 1, t, 1, 2);
+    PackObj(px, w, 8, HELP_VRAM);       /* a w x 8 strip: one tile row */
+    for (c = 0; c < HELP_COLS; c++)
+        PutObj(0x10, DISPLAY_WIDTH - 2 - w + c * 32, 0, 1, 1, HELP_VRAM + c * 4 * 32, PAL_HELP);
+}
+
+/* Tests: is the help page's line up; the settings word the page shows (the
+ * pausing player's device's, in a session; 0 if none yet). */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int PortPocHelpLineShown(void) { return sHelpSaved; }
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+u32 PortPocShownWord(void)
+{
+    const PortSettings *s = Shown();
+
+    return s ? PocPack(s) : 0;
+}
+
+void PortPocHelpLineClose(void)
+{
+    if (!sHelpSaved)
+        return;
+    memcpy((void *)(uintptr_t)HELP_VRAM, sHelpSave, sizeof sHelpSave);
+    sHelpSaved = 0;
 }
 
 /* --- online: this file's host state, as simulation state ------------------------
@@ -2032,6 +3163,11 @@ struct PocHostState {
     s16 lblOffX, lblOffY, hdrOffX, hdrOffY;
     s32 descLine;
     u32 genShown;                   /* sOuiGenShown                       */
+    u32 slotSet[4];                 /* online: each slot's settings copy  */
+    u16 slotExt[4];
+    u8  slotSetOn, confirmItem, pauseScreen, helpSaved, confirmArg;
+    char slotName[4][PORT_CARD_NAME_MAX + 1];
+    u8  helpSave[PORT_POC_HELP_BYTES];  /* under the pause help page's line */
     u8  objSave[PORT_POC_PAUSE_OBJ_BYTES];
     u8  rowBanner[sizeof(sRowBanner)];
 };
@@ -2061,6 +3197,15 @@ void PortPocHostStateSave(u8 *dest)
     h->lblOffX = sLblOffX; h->lblOffY = sLblOffY; h->hdrOffX = sHdrOffX; h->hdrOffY = sHdrOffY;
     h->descLine = sDescLine;
     h->genShown = sOuiGenShown;
+    memcpy(h->slotSet, sSlotSet, sizeof sSlotSet);
+    memcpy(h->slotExt, sSlotExt, sizeof sSlotExt);
+    h->slotSetOn = sSlotSetOn;
+    h->confirmItem = sConfirmItem;
+    h->confirmArg = sConfirmArg;
+    memcpy(h->slotName, sSlotName, sizeof sSlotName);
+    h->pauseScreen = (u8)sPauseScreen;
+    h->helpSaved = (u8)sHelpSaved;
+    memcpy(h->helpSave, sHelpSave, sizeof sHelpSave);
     memcpy(h->objSave, sObjSave, sizeof(sObjSave));
     memcpy(h->rowBanner, sRowBanner, sizeof(sRowBanner));
 }
@@ -2070,7 +3215,7 @@ void PortPocHostStateLoad(const u8 *src)
     const struct PocHostState *h = (const struct PocHostState *)src;
 
     sObjSaved = (int)h->objSaved;
-    sModel = h->model < ARRAY_COUNT(kModels) ? kModels[h->model] : &kSettingsModel;
+    sModel = h->model < ARRAY_COUNT(kModels) ? kModels[h->model] : &kTopModel;
     sDescShown = (const char *)(uintptr_t)h->descShown;
     sOwner = (struct Unk_08138D64 *)(uintptr_t)h->owner;
     sGsDescWant = (const char *)(uintptr_t)h->gsWant;
@@ -2078,6 +3223,15 @@ void PortPocHostStateLoad(const u8 *src)
     sLblOffX = h->lblOffX; sLblOffY = h->lblOffY; sHdrOffX = h->hdrOffX; sHdrOffY = h->hdrOffY;
     sDescLine = h->descLine;
     sOuiGenShown = h->genShown;
+    memcpy(sSlotSet, h->slotSet, sizeof sSlotSet);
+    memcpy(sSlotExt, h->slotExt, sizeof sSlotExt);
+    sSlotSetOn = h->slotSetOn;
+    sConfirmItem = h->confirmItem;
+    sConfirmArg = h->confirmArg;
+    memcpy(sSlotName, h->slotName, sizeof sSlotName);
+    sPauseScreen = h->pauseScreen;
+    sHelpSaved = h->helpSaved;
+    memcpy(sHelpSave, h->helpSave, sizeof sHelpSave);
     memcpy(sObjSave, h->objSave, sizeof(sObjSave));
     memcpy(sRowBanner, h->rowBanner, sizeof(sRowBanner));
 }

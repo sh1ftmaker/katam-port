@@ -174,14 +174,16 @@ struct PortSimBlock {
 #define gPortSim ((struct PortSimBlock *)(uintptr_t)PORT_SIM_BASE)
 
 /* hdr.reserved: 12 bytes, zero unless an online session (platform/lmpnet.c)
- * is on.  Then they hold the session's copy of the settings the pause
- * SETTINGS page shows and edits (platform/menu_poc.c): the page is drawn into
- * game memory, so what it shows must be the same on every device and must
- * rewind with everything else.  Layout: [0] 1 = valid, [1] renderer,
- * [2] aspect, [3] zoom index, [4] smooth camera, [5] scaling, [6] volume,
- * [7] mute, [8] edit count, [9] player who made the last edit, [10] the
- * row it changed + 1 (only that row is applied to that player's device),
- * [11] the party HUD (PS_PARTY_*). */
+ * with the menus on.  Then they hold what the pause SETTINGS page
+ * (platform/menu_poc.c) needs from the session -- the page is drawn into game
+ * memory, so what it shows must be the same on every device and rewind with
+ * everything else.  Layout: [0] 2 = valid, [1] edit count, [2] the slot of
+ * the player who made the last edit, [3] its item, [4] its step (s8) -- an
+ * edit is carried out by that player's device once the frame is final;
+ * [5] 1 = a room code follows, [6..9] the room code (4 letters, set by the
+ * host as the session starts, so a joining device gets it with the image);
+ * [10..11] zero.  Each slot's copy of its device's settings is in
+ * platform/menu_poc.c's host state (sealed PORT_LN_EV_PSET events). */
 #define PORT_SIM_LNSET       ((u8 *)&gPortSim->hdr.reserved[0])
 #define PORT_SIM_LNSET_BYTES 12
 

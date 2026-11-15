@@ -191,3 +191,19 @@ menu_poc _ZL13sCardPalSaved front-end PLAYER CARD's lent OBJ palette lines (kept
 menu_poc _ZL12sCardPalSave front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL13sCardGenShown front-end PLAYER CARD rows drawn at this PortCardGen
 online_ui sRoomsMode front-end HOST GAME's TOGETHER / FREE ROAM choice, read by the page when the game starts (it seals the mode)
+# the SETTINGS sections and the online pause pages (menu-sections)
+menu_poc _ZL8sSlotSet host-state each slot's settings copy (sealed PORT_LN_EV_PSET); carried by PortPocHostStateSave
+menu_poc _ZL8sSlotExt host-state each slot's other sections' online rows (PSET); carried by PortPocHostStateSave
+menu_poc _ZL10sSlotSetOn host-state which slots have a copy; carried by PortPocHostStateSave
+menu_poc _ZL9sSlotName host-state each slot's sealed name (PORT_LN_EV_NAME); carried by PortPocHostStateSave
+menu_poc _ZL12sConfirmItem host-state what the NO / YES screen asks about; carried by PortPocHostStateSave
+menu_poc _ZL11sConfirmArg host-state the slot REMOVE asks about; carried by PortPocHostStateSave
+menu_poc _ZL12sPauseScreen host-state the pause page's top level (MAIN MENU) or the front end's; carried by PortPocHostStateSave
+menu_poc _ZL10sHelpSaved host-state the help page's code line saved its tiles; carried by PortPocHostStateSave
+menu_poc _ZL9sHelpSave host-state OBJ tiles under the help page's code line; carried by PortPocHostStateSave
+menu_poc _ZZ19PortPocHelpLineDrawE2px scratch written before every read
+menu_poc _ZZL5ShownvE4copy scratch written before every read
+menu_poc _ZZL11ConfirmDesciE1q scratch written before every read
+menu_poc _ZZL9SlotLabeliE3lbl scratch written before every read
+menu_poc _ZZL11SessionCodevE4code scratch written before every read
+menu_poc _ZZL8ItemDesciE4line scratch written before every read

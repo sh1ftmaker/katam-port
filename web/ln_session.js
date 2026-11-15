@@ -192,6 +192,11 @@
             // each slot's colour from its owner's card (platform/player_card.c)
             this.st.cards = (this.st.cards || 0) + 1;
             if (this.e.cardSet && typeof msg.p === 'string') this.e.cardSet(this.dev, msg.p);
+        } else if (msg.t === 'pset') {
+            // that device's settings, for the pause SETTINGS page: the host
+            // seals them for the slots it plays (platform/lmpnet.c PSET)
+            this.st.psets = (this.st.psets || 0) + 1;
+            if (this.e.deviceSettings && typeof msg.v === 'number') this.e.deviceSettings(this.dev, msg.v >>> 0, (msg.x || 0) >>> 0);
         }
     };
     HostSession.prototype.wantImage = function (reason) {
@@ -348,6 +353,7 @@
         this.joined = true;
         this.imagePending = true;   // applied at the next frame top: run exactly one frame first
         this.cardSent = null;       // the host may have forgotten this device's cards: again
+        this.psetSent = null;       // and its settings
         this.settling = true;       // catching up to the host: lateness now is not the link's
         if (this.st.firstImageAt === null) this.st.firstImageAt = this.clock();
     };
@@ -423,6 +429,16 @@
                 this.cardSent = pr;
                 this.st.cardsSent = (this.st.cardsSent || 0) + 1;
                 this.tx.reliable({ t: 'card', p: pr }, 16 + pr.length);
+            }
+        }
+        // this device's settings (the pause SETTINGS page shows the pauser's
+        // device's), to the host, whenever they change
+        if (this.joined && this.e.settingsWord) {
+            var sw = this.e.settingsWord();
+            if (sw !== null && sw.k !== this.psetSent) {
+                this.psetSent = sw.k;
+                this.st.psetsSent = (this.st.psetsSent || 0) + 1;
+                this.tx.reliable({ t: 'pset', v: sw.v, x: sw.x }, 32);
             }
         }
         if (this.lastLocal < 0) return;
@@ -523,6 +539,18 @@
         eng.cardDrop = function (dev) { M._PortCardHostDropDevice(dev); };
         eng.slotNames = function () { return cstr(M, M._PortCardSlotNames()); };
         eng.setSlotNames = function (n) { M._PortCardSetSlotNames(putStr(M, sbuf, 256, n)); };
+        return settingsCalls(M, eng);
+    }
+    // the pause SETTINGS page's per-device copies (platform/menu_poc.c,
+    // platform/lmpnet.c), absent in an older build or with the menus off
+    function settingsCalls(M, eng) {
+        if (!M._PortPocSettingsWord || !M._PortLnDeviceSettings) return eng;
+        eng.settingsWord = function () {
+            if (!(M._PortPocMenusOn && M._PortPocMenusOn())) return null;
+            var v = M._PortPocSettingsWord() >>> 0, x = M._PortPocSettingsExtWord ? M._PortPocSettingsExtWord() >>> 0 : 0;
+            return { v: v, x: x, k: v + ':' + x };
+        };
+        eng.deviceSettings = function (dev, v, x) { M._PortLnDeviceSettings(dev, v >>> 0, (x || 0) >>> 0); };
         return eng;
     }
     function engineOfModule(M) {

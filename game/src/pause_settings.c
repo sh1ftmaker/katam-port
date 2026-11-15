@@ -4,8 +4,10 @@
  * settings screen (platform/menu_poc.c draws both from the same functions)
  * on the pause screens' own terms -- opened and left with their page-turn
  * fade and sound (pause_help.c's PauseMenuMain changes gPauseMenus[].menuId,
- * the page sees it and fades), B or Start back to the game, Up/Down/Left/
- * Right/A its own.  The switch off, nothing reaches this file: menuId never
+ * the page sees it and fades).  Start back to the game from any level; B
+ * back one level (from SETTINGS' top level, to the game); Select the next
+ * page; Up/Down/Left/Right/A its own.  MAIN MENU leaves for the title
+ * (platform/lmpnet.c PortLnGoHomeLocal) or, online, leaves / ends the game.  The switch off, nothing reaches this file: menuId never
  * becomes MENU_PORT_SETTINGS.
  *
  * Video, while it is up (the other pages' layout, reused where it can be):
@@ -150,7 +152,7 @@ void CreatePauseSettings(void) {
     PortPocPauseLoadMenuColours(PORT_POC_PAUSE_CURSOR_VRAM);
     PortPocPauseMenuArt(&lblAnim, &lblVariant, &hdrAnim, &hdrVariant);
     ps->row = 0;
-    PortPocScreenBuild(TILES, lblAnim, lblVariant, hdrAnim, hdrVariant, ps->row);
+    PortPocPauseScreenBuild(TILES, lblAnim, lblVariant, hdrAnim, hdrVariant, ps->row);
     PortMenuPocBlankBanner();
     /* the star, as Game Select's (sub_08139344: unk28C) */
     SpriteInitNoPointer2(&ps->cursor, PORT_POC_PAUSE_CURSOR_VRAM, 0x280, 0x355, 2, 0, 0xFF, 0x10, 1,

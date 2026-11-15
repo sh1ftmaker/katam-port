@@ -49,6 +49,8 @@ void PortShowNoteSwap(double nowMs);
 int PortUiInit(int es);
 void PortUiDraw(int fbW, int fbH, float dpr, double nowMs);
 int PortUiIsOpen(void);
+/* The build's label (KATAM_BUILD_LABEL), for the game's own SETTINGS. */
+const char *PortUiBuildLabel(void);
 void PortUiSetOpen(int open);
 void PortUiToggle(void);
 

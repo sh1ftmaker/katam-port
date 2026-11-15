@@ -37,6 +37,8 @@ void PortError(const char *fmt, ...);
 
 extern "C" {
 PortUiStatus gPortUiStatus;
+/* For the game's own SETTINGS > ADVANCED > BUILD (platform/menu_poc.c). */
+const char *PortUiBuildLabel(void) { return KATAM_BUILD_LABEL; }
 }
 
 static int sReady, sOpen, sOpenFrames;
@@ -663,7 +665,8 @@ static void PageControls(void)
     Heading("Keyboard");
     ImGui::TextWrapped("D-pad: arrows / WASD. A: J / Z. B: K / X.");
     ImGui::TextWrapped("L: Q. R: E. Start: Enter. Select: Backspace / R-Shift.");
-    ImGui::TextWrapped("This menu: F1 or Tab (Esc closes), or the gear button.");
+    ImGui::TextWrapped(Web() ? "This menu: F1 or Tab with ?dev=1 in the address (Esc closes). Players use the game's own SETTINGS (Select in the pause menu)."
+                              : "This menu: F1 or Tab (Esc closes), or the gear button.");
     if (!Web())
         ImGui::TextWrapped("F11 fullscreen, F12 screenshot, 1-6 window scale.");
     else

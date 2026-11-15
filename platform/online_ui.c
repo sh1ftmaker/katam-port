@@ -25,11 +25,12 @@ static int sState, sNote;
 static char sCode[5] = "----";
 static int sJoin[4], sJoinPos;
 static int sStartPending;
-/* HOST GAME's START row, Left / Right: play TOGETHER (one screen's rules:
- * everyone in one room, a shared camera) or FREE ROAM (rooms mode,
+/* HOST GAME's START row, Left / Right: FREE ROAM (rooms mode,
  * platform/localmp.c: each device on its own player, meeting through doors
- * and the cell phone).  Read by web/online.js when the game starts. */
-static int sRoomsMode;
+ * and the cell phone; the default) or TOGETHER (one screen's rules: everyone
+ * in one room, a shared camera).  Read by web/online.js when the game
+ * starts. */
+static int sRoomsMode = 1;
 
 int PortOuiRoomsMode(void) { return sRoomsMode; }
 static int sPlayers = 1, sConnecting;
@@ -193,6 +194,7 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
         case PORT_OUI_J_ROM:        v = "OTHER ROM"; break;
         case PORT_OUI_J_FAILED:     v = "FAILED"; break;
         case PORT_OUI_J_HOSTLEFT:   v = "HOST LEFT"; break;
+        case PORT_OUI_J_REMOVED:    v = "REMOVED"; break;
         default:                    v = ""; break;
         }
         snprintf(buf, size, "%s", v);
@@ -237,6 +239,7 @@ const char *PortOuiRowDesc(int sub, int row)
         case PORT_OUI_J_ROM:        return "YOU BOTH NEED THE SAME ROM";
         case PORT_OUI_J_FAILED:     return "NO CONNECTION - TRY AGAIN";
         case PORT_OUI_J_HOSTLEFT:   return "THE HOST CLOSED THE GAME";
+        case PORT_OUI_J_REMOVED:    return "THE HOST REMOVED YOU";
         default:
             return row == 0 ? "LEFT RIGHT PICK - A NEXT" : "PRESS A TO PLAY";
         }

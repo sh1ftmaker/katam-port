@@ -37,9 +37,59 @@ struct Unk_08138D64;
 /* Nonzero when the proof of concept is switched on (read once). */
 int PortMenuPoc(void);
 void PortMenuPocSet(int on);   /* hosts with no environment (node) */
-/* Online (platform/lmpnet.c): the pause SETTINGS page's session copy. */
-void PortPocSessionSettingsInit(void);
-void PortPocSessionSettingsApply(const u8 *copy);
+/* Online (platform/lmpnet.c): the pause SETTINGS page in a session.
+ * Init: the host, at its session's first frame (the edit request zeroed,
+ * the room code -- 4 letters, or NULL -- into session state).
+ * EditApply: a final frame's edit (PORT_SIM_LNSET) by a player of this
+ * device, carried out on this device.  SlotSettings: each slot's copy of
+ * its device's settings (sealed PORT_LN_EV_PSET events); Word: this
+ * device's settings as such a copy. */
+void PortPocSessionSettingsInit(const char *code);
+void PortPocSessionEditApply(int item, int dir);
+void PortPocSlotSettingsSet(int slot, u32 word, u32 ext);
+int  PortPocSlotSettingsHave(int slot, u32 *word, u32 *ext);
+u32  PortPocSettingsWord(void);
+u32  PortPocSettingsExtWord(void);      /* the external sections' online rows */
+
+/* --- a SETTINGS section another file keeps ------------------------------------
+ *
+ * Rows the file owns, drawn by the SETTINGS screen like its own (the game's
+ * banner, the value between arrows, the description line).  Upper-case text
+ * in the fallback font's letters (A-Z 0-9 space : . - ! / % +).
+ *
+ * Online, the page shows the pausing player's device and an edit is carried
+ * out by that device once its frame is final -- the step function is called
+ * then, on that device only, outside any frame.  A row works in a session
+ * only if onlineSlot gives it one of four slots (0..3, unique across all
+ * sections): its value, 0..15, travels with each device's settings copy
+ * (onlineGet on the device, onlineText on every device to draw it).  Every
+ * other row is dimmed in a session ("NOT DURING AN ONLINE GAME").
+ *
+ * Adding a section (platform/menu_poc.c):
+ *   1. an item IT_SEC_<NAME> in the item enum (before IT_MAINMENU) and its
+ *      kItem entry { "NAME", K_SECTION, "DESCRIPTION" };
+ *   2. the item in kTopItems (before IT_MAINMENU: its place on the list);
+ *   3. for rows of your own: a kItems list and SECTION(kSecName, "NAME",
+ *      list, &kTopModel, place); for another file's: its struct PortPocRows
+ *      in kExtRows (before the NULL) and EXT_SECTION(kSecName, &rows,
+ *      ROWCOUNT, place, index in kExtRows);
+ *   4. { IT_SEC_<NAME>, &kSecName } in kSectionOf, &kSecName in kSections
+ *      and at the end of kModels (the tests' model numbers). */
+struct PortPocRows {
+    const char *header;                         /* the screen's header      */
+    const char *(*name)(int row);
+    const char *(*desc)(int row);
+    void (*value)(int row, char *buf, int size);/* this device's value      */
+    void (*step)(int row, int dir);             /* -1 / +1 (A is +1): apply */
+    int  (*available)(int row);                 /* NULL: always             */
+    int  (*onlineSlot)(int row);                /* NULL / -1: not online    */
+    int  (*onlineGet)(int slot);                /* this device's 0..15      */
+    void (*onlineText)(int slot, int v, char *buf, int size);
+};
+/* Each slot's player's name for the ONLINE list (sealed PORT_LN_EV_NAME). */
+void PortPocSlotNameSet(int slot, u32 lo, u32 hi);
+int  PortPocSlotNameSame(int slot, const char *name);
+void PortPocNameWords(const char *name, u32 *lo, u32 *hi);
 /* Online: the page's host state, carried with keyframes and images. */
 u32  PortPocHostStateSize(void);
 void PortPocHostStateSave(u8 *dest);
@@ -123,6 +173,8 @@ void PortMenuPocSettingsClose(struct Unk_08138D64 *a1);
  * line of the banner at 0x0600FD40 (BG0, screen block 31, rows 21-22). */
 #define PORT_POC_SCREEN_TILES 660
 void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row);
+/* The same for the pause page: its top level has MAIN MENU too. */
+void PortPocPauseScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row);
 /* Into OAM; everything shifted right by slide pixels (0 = in place). */
 void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer);
 /* key as sub_0813B484 (1 A, 2 B, 3 up, 4 down, 5 left, 6 right): 0 nothing
@@ -137,11 +189,13 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer);
 #define PORT_POC_IN_DONE    4
 #define PORT_POC_IN_REFUSED 5
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key);
-/* Is a sub-screen (PLAYERS, platform/players_ui.c) up, where B goes back to
- * SETTINGS instead of leaving?  Never in an online session. */
+/* Is the screen below SETTINGS' top level (a section, NO / YES, PLAYERS, a
+ * player card), where B goes back one level instead of leaving? */
 int PortPocScreenSub(void);
 /* Tests: the frame the screen was last drawn on; the model it shows (0
- * SETTINGS, 1 MULTIPLAYER, 2-4 ONLINE, 5 PLAYERS). */
+ * SETTINGS, 1 MULTIPLAYER, 2-4 ONLINE, 5 PLAYERS, 6-7 the card, 8 the
+ * session's PLAYERS, 9 the pause page's SETTINGS, 10-15 the sections
+ * DISPLAY SOUND PLAYERS ONLINE GAME ADVANCED, 16 NO / YES, 17 PLAYING). */
 u32 PortPocScreenLastDraw(void);
 int PortPocScreenModel(void);
 int PortPocScreenCursorY(int row);
@@ -161,6 +215,15 @@ int PortPocDecodeFrame(u16 animId, u8 variant, u8 *px, int cw, int ch, int *h);
 #define PORT_POC_PAUSE_OBJ_BYTES   0x5600u
 void PortPocPauseObjSave(void);
 void PortPocPauseObjRestore(void);
+
+/* The pause help page's line about the online game (its code, mode and
+ * players): opened as the page is made (before it saves its palettes),
+ * drawn every frame, closed as the page goes (its tiles put back).  Only
+ * in a session; otherwise nothing. */
+#define PORT_POC_HELP_BYTES 768
+void PortPocHelpLineOpen(void);
+void PortPocHelpLineDraw(void);
+void PortPocHelpLineClose(void);
 
 #ifdef __cplusplus
 }
