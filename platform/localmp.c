@@ -123,6 +123,7 @@
  * follower who is not the screen's player arrives behind a hidden fade.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -141,6 +142,14 @@
 #include "port/netsim.h"
 #include "port/seats.h"
 #include "port/inputlog.h"
+#include "port/game_addrs.h"
+#include "level.h"
+#include "main.h"
+#include "palette_effects.h"
+#include "palette.h"
+#include "hud.h"
+#include "sprite.h"
+#include "in_game_interlude.h"
 
 /* C linkage for the 64-bit builds -- see platform/warp.c. */
 #ifdef __cplusplus
@@ -151,6 +160,7 @@ extern void sub_08055920(struct Kirby *);
 extern void sub_0800ECAC(u8, u16, u16);
 extern void sub_0800EE04(u8, u32);
 extern void sub_0800EF60(void);
+extern void sub_0803E050(u16);
 
 #define L (&gPortSim->lmp)
 
@@ -162,6 +172,90 @@ static u16 sHostKeys[4];
 /* Can player 2 press anything on this device?  The web page clears it on a
  * touch-only device until a key or a gamepad shows up. */
 static int sP2Input = 1;
+
+/* --- rooms mode (experimental, off by default) ------------------------------
+ *
+ * The cable's arrangement instead of one screen: no one-room rule, no
+ * stragglers, no shared camera -- every Kirby's camera follows that Kirby, as
+ * in link play -- and each device shows its own player (gLocalPlayerId, the
+ * game's "whose screen is this").  The people meet through doors and the
+ * cell phone, as in the original.  ROOMS-REPORT.md (netproof-eval) measures
+ * what that makes differ between devices.
+ *
+ *   sRooms   the request: latched into gPortSim->view.lmpRooms (simulation
+ *            state, a spare zero byte) at the frame latch.  It is a game
+ *            rule, so it must be the same on every device: a recording's
+ *            `option rooms 1`, KATAM_LOCAL_MP_ROOMS=1, PortLmpSetRooms.
+ *   sView    this device's screen player, 0..3, or -1 = the game's own
+ *            choice (slot 0).  Not a rule: per device.  Honoured only in
+ *            rooms mode: at the start of play (sub_080332BC's local player)
+ *            and, when the image says otherwise (a host's image loaded),
+ *            by re-pinning the focus at the latch (PortLmpReview).
+ * Off (sRooms 0, the default) nothing here runs and the byte stays 0. */
+static int sRooms = -1, sView = -2;
+
+#define ROOMS() (gPortSim->view.lmpRooms != 0)
+
+static void RoomsEnv(void)
+{
+    if (sRooms < 0) {
+        const char *e = getenv("KATAM_LOCAL_MP_ROOMS");
+
+        sRooms = e ? atoi(e) != 0 : 0;
+    }
+    if (sView == -2) {
+        const char *e = getenv("KATAM_LOCAL_MP_VIEW");
+
+        sView = e ? atoi(e) : -1;
+        if (sView < -1 || sView > 3)
+            sView = -1;
+    }
+}
+
+void PortLmpSetRooms(int on)
+{
+    RoomsEnv();
+    sRooms = on != 0;
+}
+
+int PortLmpRooms(void)
+{
+    return ROOMS();
+}
+
+void PortLmpSetView(int slot)
+{
+    RoomsEnv();
+    sView = (slot >= 0 && slot <= 3) ? slot : -1;
+}
+
+int PortLmpView(void)
+{
+    RoomsEnv();
+    return sView;
+}
+
+/* Measurement only (ROOMS-REPORT.md "before the fix"): bit 0 = rooms mode
+ * keeps the old spawn-margin source (platform/view.c), to show what it did. */
+static int sRoomsTest;
+
+void PortLmpRoomsTest(int flags)
+{
+    sRoomsTest = flags;
+}
+
+int PortLmpRoomsMarginFix(void)
+{
+    return ROOMS() && !(sRoomsTest & 1);
+}
+
+u8 PortLmpLocalPlayer(u8 game)
+{
+    RoomsEnv();
+    if (sRooms > 0 && sView >= 0)
+        return (u8)sView;
+    return game;
+}
 
 /* Margins, in pixels, kept between a framed player and the picture's edge. */
 #define MARGIN_X 40
@@ -454,8 +548,9 @@ static void Apply(int slot, int on, u8 old, u8 m)
             L->stray[s] = 0;
             /* A joiner away from the group -- another room, mid-door, dying
              * -- is brought to the group; their own arrival somewhere (the
-             * door they were already in) must not move everyone there. */
-            if (k->base.roomId != g || !InRoom(k))
+             * door they were already in) must not move everyone there.
+             * Rooms mode has no group: they play where they are. */
+            if (!ROOMS() && (k->base.roomId != g || !InRoom(k)))
                 L->joining |= bit;
         }
     }
@@ -735,7 +830,7 @@ int PortLmpInFrameSlow(const struct ObjectBase *o)
 {
     s32 x0, y0, x1, y1;
 
-    if (!Active() || o->roomId != gCurLevelInfo[gLocalPlayerId].currentRoom)
+    if (!Active() || ROOMS() || o->roomId != gCurLevelInfo[gLocalPlayerId].currentRoom)
         return 0;
     Frame(gLocalPlayerId, &x0, &y0, &x1, &y1);
     return o->x >= x0 + 0x800 && o->x <= x1 - 0x800 && o->y >= y0 + 0x800 && o->y <= y1 - 0x800;
@@ -747,7 +842,7 @@ void PortLmpCamTargetSlow(u8 player, s32 *x, s32 *y)
     u16 room;
     int k, n;
 
-    if (!Active() || player != gLocalPlayerId)
+    if (!Active() || ROOMS() || player != gLocalPlayerId)
         return;
     n = 4;
     room = gKirbys[player].base.roomId;
@@ -801,7 +896,7 @@ void PortLmpArrivedSlow(struct Kirby *k)
 {
     if (k->base.unk56 == gLocalPlayerId)
         ListDoors(gLocalPlayerId);
-    if (!Active() || !Human(k->base.unk56))
+    if (!Active() || ROOMS() || !Human(k->base.unk56))
         return;
     if (L->joining & (1u << (k->base.unk56 & 3))) {
         if (L->groupRoom == 0xFFFF || L->groupRoom == k->base.roomId)
@@ -852,6 +947,243 @@ static void Trace(void)
     }
 }
 
+/* Rooms mode: this device's screen is sView's.  At the start of play the
+ * game is told so (PortLmpLocalPlayer); after that only an image from
+ * another device (a join, a repair) can say otherwise.  Then the screen is
+ * rebuilt for this device's player: the "re-view".
+ *
+ * It is the display half of a room arrival (kirby.c sub_080562D0 for the
+ * screen's player) and of the pause screen's exit (in_game_interlude.c
+ * RestoreGameplayAfterInGameInterludeScreen), without their gameplay half:
+ *   - the focus: gLocalPlayerId and the display task's player (whose room
+ *     LoadLevelGfx, the BG streaming, the animated tiles and the camera's
+ *     BG scroll follow);
+ *   - the Kirbys' and the shared sprites' OBJ tiles and palettes
+ *     (sub_0803E458 + sub_0803E050, as an arrival in another room does);
+ *   - the room's BG tiles, BG control and scroll, animated tiles, a full BG
+ *     redraw (SaveDisplayState + RestoreDisplayState, as the pause exit);
+ *   - the room's palettes into the palette effects' source and the screen
+ *     (LoadLevelPaletteEffectSourcePalettes' layout), the palette effects
+ *     of this room enabled (EnablePaletteEffectsForCurrentRoom);
+ *   - the HUD for this player (RefreshGameplayHud, as the pause exit), the
+ *     area name, the room's music (sub_08001358).
+ * Every object's sprite tiles and palette follow by themselves: the game's
+ * draw macros free them for an object outside the screen's room and take
+ * them for one inside it (object.h Macro_08107BA8_4, Macro_081050E8).
+ * Waits while paused, between rooms or with the Kirby not in a live room.
+ * Never touches gameplay state: ROOMS-REPORT.md measures that. */
+static u32 sReviews, sReviewWaits;
+
+static int ReviewReady(u8 v)
+{
+    const struct Kirby *k = &gKirbys[v];
+
+    return !(gMainFlags & 0x400) && gInGameInterludeTask == NULL
+        && k->base.roomId != 0xFFFF && gCurLevelInfo[v].currentRoom == k->base.roomId
+        && !(k->base.flags & 0x100) && gUnk_02023354 != NULL;
+}
+
+void PortLmpReview(void)
+{
+    u8 v = (u8)sView, old;
+    u16 room;
+    const u16 *fg, *bg;
+
+    if (!ROOMS() || sView < 0 || !Active() || gLocalPlayerId == v)
+        return;
+    if (!ReviewReady(v)) {
+        sReviewWaits++;
+        return;
+    }
+    room = gCurLevelInfo[v].currentRoom;
+    PortLog("[katam-port] localmp: f%u rooms: this screen is player %d's (was %u's), room %u",
+            (unsigned)gPortSim->frame.frameCount, sView + 1, (unsigned)gLocalPlayerId + 1, (unsigned)room);
+    old = gLocalPlayerId;
+    GAME_REPIN_FOCUS(v);
+    /* The Kirbys' sprites: the HUD hides the ones in other rooms (hud.c
+     * DrawHudOtherKirbys sets 0x80000 on all three) and shows them again
+     * only on its own transition, which a Kirby that becomes the screen's
+     * never takes; and the screen's Kirby is drawn in front (kirby.c
+     * Macro_0803E920).  The HUD's per-Kirby icon state starts again. */
+    {
+        int k;
+        struct GameplayHud *hud = gGameplayHudTask ? TaskGetStructPtr(gGameplayHudTask) : NULL;
+
+        for (k = 0; k < 4; k++) {
+            struct Kirby *kb = &gKirbys[k];
+            u16 pri = k == v ? 0x3C0 : (u16)((k + 0x10) * 0x40);
+
+            kb->base.sprite.unk8 &= ~0x80000u;
+            kb->sprites[0].unk8 &= ~0x80000u;
+            kb->sprites[1].unk8 &= ~0x80000u;
+            kb->base.sprite.unk14 = kb->sprites[0].unk14 = kb->sprites[1].unk14 = pri;
+            if (hud) {
+                hud->unk15[k] = 0;
+                /* The HUD's icon of each other Kirby draws from that
+                 * Kirby's own sprite tiles; the screen's slot is the
+                 * calling-Kirby icon (hud.c CreateGameplayHud). */
+                if (k == v) {
+                    SpriteInitNoFunc(&hud->unk20[0][k], 0, 0x80, 0x2DB, 1, 0, 0xFF, 0x10, 0, 8, 15, 0x40000);
+                } else {
+                    SpriteInitNoFunc(&hud->unk20[0][k], kb->base.sprite.tilesVram, 0x80, 0, 0, 0, 0xFF, 0x10,
+                                     kb->base.sprite.palId, 0, 0, 0x42000);
+                }
+            }
+        }
+    }
+    sub_0803E458();
+    sub_0803E050(room);
+    SaveDisplayState();
+    RestoreDisplayState();
+    fg = gForegroundPalettes[gRoomProps[room].paletteDataIdx]->palette;
+    bg = gCurLevelInfo[v].unk180[1].palette;
+    LoadLevelPaletteEffectSourcePalettes(&fg, &bg);
+    if (gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE) {
+        LoadBgPaletteWithTransformation(fg, 0, 0x60);
+        LoadBgPaletteWithTransformation(bg, 0x60, 0x80);
+    } else {
+        CpuCopy32(fg, &gBgPalette[0], 0xC0);
+        CpuCopy32(bg, &gBgPalette[0x60], 0x100);
+    }
+    gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+    /* The palette fades are per player, the screen's player's visible and
+     * the others' hidden (kirby.c, the arrival's Macro: FadeFromWhite for
+     * the screen's player, HiddenFadeToWhite for anyone else): the re-view
+     * arrives the way a door does, from white. */
+    CreatePaletteFadeFromWhite(v);
+    if (old < 4 && old != v)
+        CreateHiddenPaletteFadeToWhite(old);
+    EnablePaletteEffectsForCurrentRoom();
+    RefreshGameplayHud(&gKirbys[v]);
+    DrawEnemyHealthOrAreaName(NULL);
+    sub_08001358(v);
+    sReviews++;
+}
+
+u32 PortLmpReviews(void)
+{
+    return sReviews;
+}
+
+/* --- rooms mode: the gameplay digest ----------------------------------------
+ *
+ * Devices that show different rooms do not hold the same bytes (ROOMS-REPORT.md
+ * lists what differs and why), so the whole-image hash cannot compare them.
+ * This is a positively built hash of gameplay state that does not depend on
+ * whose screen it is nor on where the heap put things: the RNG, the people
+ * and the story stage, each Kirby's position, motion, room, health, lives,
+ * battery, ability, state and flags, the CPU brains, and every live object
+ * (struct Object, kind 1) by its type, position, motion, room, owner, health
+ * and flags, combined order-independently.  Taken once a frame at the latch
+ * (replayed frames included, so a frame's entry is its last simulation),
+ * kept for the last DIGN frames.  Coverage is what the list says, no more:
+ * gameplay state outside it can differ unseen until it moves something in
+ * it. */
+#define DIGN 4096u
+static u32 sDigF[DIGN], sDig[DIGN];
+
+static u32 Fnv1(u32 h, const void *p, u32 n)
+{
+    const u8 *b = (const u8 *)p;
+    u32 i;
+
+    for (i = 0; i < n; i++)
+        h = (h ^ b[i]) * 16777619u;
+    return h;
+}
+
+#define FNV_ADD(h, v) do { u32 _v = (u32)(v); (h) = Fnv1((h), &_v, 4); } while (0)
+
+static u32 sDigParts[4];
+
+/* The digest's four parts as last computed: globals, Kirbys, CPU brains,
+ * objects (diagnostics: which part differs). */
+const u32 *PortLmpDigestParts(void)
+{
+    return sDigParts;
+}
+
+u32 PortLmpDigestNow(void)
+{
+    u32 h = 2166136261u, sum = 0, x = 0, n = 0;
+    int i, k;
+
+    FNV_ADD(h, gRngVal);
+    FNV_ADD(h, gNumHumanPlayers);
+    FNV_ADD(h, gAIKirbyState);
+    FNV_ADD(h, gMainFlags & 0x400);
+    h = Fnv1(h, &gPortSim->lmp, sizeof gPortSim->lmp);
+    sDigParts[0] = h;
+    for (k = 0; k < 4; k++) {
+        const struct Kirby *kb = &gKirbys[k];
+
+        FNV_ADD(h, kb->base.x); FNV_ADD(h, kb->base.y);
+        FNV_ADD(h, kb->base.xspeed); FNV_ADD(h, kb->base.yspeed);
+        FNV_ADD(h, kb->base.roomId); FNV_ADD(h, kb->base.flags); FNV_ADD(h, kb->base.unkC);
+        FNV_ADD(h, kb->hp); FNV_ADD(h, kb->lives); FNV_ADD(h, kb->battery);
+        FNV_ADD(h, kb->ability); FNV_ADD(h, kb->animationIndex);
+        FNV_ADD(h, (u32)(uintptr_t)kb->stateFn); FNV_ADD(h, kb->movementState);
+    }
+    sDigParts[1] = h;
+    /* The CPU brains, word by word; a word that points into a heap is
+     * hashed as "a heap pointer" only.  Measured (ROOMS-REPORT.md): the
+     * brains keep pointers to objects (unk48, +0x3C, +0x74, +0x88, +0x98)
+     * that differ by heap layout alone, and stale ones whose memory another
+     * device has reused for something else.  Whether a brain ever follows a
+     * stale one is not known; if it did, the Kirbys and objects hashed here
+     * would show it. */
+    {
+        const u32 *w = (const u32 *)(const void *)&gUnk_02038590;
+        u32 j;
+
+        for (j = 0; j < sizeof gUnk_02038590 / 4; j++) {
+            u32 v = w[j];
+
+            if ((v >= 0x02000000u && v < 0x02020000u) || (v >= 0x03003A20u && v < 0x03006030u))
+                FNV_ADD(h, 0xEEEEu | (v & 3u));
+            else
+                FNV_ADD(h, v);
+        }
+    }
+    sDigParts[2] = h;
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        const struct Task *t = &gTasks[i];
+        const struct Object *o;
+        u32 e = 2166136261u;
+
+        if (t->main != FN(ObjectMain) || !t->structOffset)
+            continue;
+        o = (const struct Object *)((t->flags & TASK_USE_EWRAM)
+                ? (uintptr_t)EWRAM_START + ((uintptr_t)t->structOffset << 2)
+                : (uintptr_t)IWRAM_START + t->structOffset);
+        if (o->base.header.kind != 1)
+            continue;
+        FNV_ADD(e, o->type); FNV_ADD(e, o->subtype); FNV_ADD(e, o->base.x); FNV_ADD(e, o->base.y);
+        FNV_ADD(e, o->base.xspeed); FNV_ADD(e, o->base.yspeed); FNV_ADD(e, o->base.roomId);
+        FNV_ADD(e, o->base.unk56); FNV_ADD(e, o->unk80); FNV_ADD(e, o->base.flags);
+        sum += e;
+        x ^= e * 0x9E3779B1u;
+        n++;
+    }
+    FNV_ADD(h, sum); FNV_ADD(h, x); FNV_ADD(h, n);
+    sDigParts[3] = h;
+    return h;
+}
+
+/* The digest of frame f, if still held: 0 when not. */
+u32 PortLmpDigestAt(u32 f)
+{
+    return sDigF[f % DIGN] == f ? sDig[f % DIGN] : 0;
+}
+
+static void Digest(void)
+{
+    u32 f = gPortSim->frame.frameCount;
+
+    sDigF[f % DIGN] = f;
+    sDig[f % DIGN] = PortLmpDigestNow() | 1u;
+}
+
 /* Once a frame, at the latch (platform/main.c, after PortWarpPoll). */
 void PortLmpFrame(void)
 {
@@ -859,11 +1191,36 @@ void PortLmpFrame(void)
     u16 g;
     int k, n;
 
+    RoomsEnv();
+    if (sRooms > 0 && !ROOMS())
+        gPortSim->view.lmpRooms = 1;
+    if (ROOMS())
+        Digest();
+    {
+        /* Testing the re-view natively: KATAM_LOCAL_MP_VIEW_AT=F:k makes this
+         * device player k's from frame F (as a loaded image would). */
+        static int sAtF = -2, sAtV;
+        if (sAtF == -2) {
+            const char *e = getenv("KATAM_LOCAL_MP_VIEW_AT");
+
+            sAtF = -1;
+            if (e && sscanf(e, "%d:%d", &sAtF, &sAtV) != 2)
+                sAtF = -1;
+        }
+        if (sAtF >= 0 && gPortSim->frame.frameCount == (u32)sAtF)
+            PortLmpSetView(sAtV);
+    }
     if (L->joining & 0x0E00)
         Waiting();
     if (!Active())
         return;
     Trace();
+    if (ROOMS()) {
+        /* No group: nobody is carried anywhere, nobody waits to be. */
+        L->joining &= (u16)~0x000Fu;
+        PortLmpReview();
+        return;
+    }
     n = 4;
     g = L->groupRoom;
     if (g == 0xFFFF) {
@@ -964,7 +1321,7 @@ int PortLmpViewNeed(s32 *w, s32 *h)
     u16 room;
     int k, n;
 
-    if (!Active() || p >= 4)
+    if (!Active() || ROOMS() || p >= 4)
         return 0;
     li = &gCurLevelInfo[p];
     room = gKirbys[p].base.roomId;

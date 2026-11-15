@@ -40,6 +40,31 @@ float PortLmpMinZoom(void);
  * Returns 0 when local multiplayer is not in play.  Presentation only. */
 int  PortLmpViewNeed(s32 *w, s32 *h);
 
+/* --- rooms mode (experimental, off by default; platform/localmp.c) ------- */
+/* Players in different rooms, each device showing its own: no one-room
+ * rule, no stragglers, no shared camera.  A game rule (simulation state,
+ * gPortSim->view.lmpRooms), so the same on every device: `option rooms 1`
+ * in a recording, KATAM_LOCAL_MP_ROOMS=1 natively. */
+void PortLmpSetRooms(int on);
+int  PortLmpRooms(void);
+/* This device's screen player (0..3; -1 = the game's choice).  Per device,
+ * honoured only in rooms mode.  KATAM_LOCAL_MP_VIEW=k natively. */
+void PortLmpSetView(int slot);
+int  PortLmpView(void);
+/* sub_080332BC's local player: `game` unless rooms mode names one. */
+u8   PortLmpLocalPlayer(u8 game);
+/* platform/view.c: spawn margins from the room's size (rooms mode). */
+int  PortLmpRoomsMarginFix(void);
+void PortLmpRoomsTest(int flags);
+/* Re-pin the focus to this device's player if the image says otherwise. */
+void PortLmpReview(void);
+u32  PortLmpReviews(void);
+/* Rooms mode's gameplay digest (view- and heap-independent), now and as
+ * taken at the latch of frame f (0 = not held). */
+u32  PortLmpDigestNow(void);
+u32  PortLmpDigestAt(u32 f);
+const u32 *PortLmpDigestParts(void);
+
 /* --- the latch (platform/inputlog.c, platform/main.c) -------------------- */
 void PortLmpLatch(u16 keys[4]);
 void PortLmpFrame(void);

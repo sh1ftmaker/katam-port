@@ -92,6 +92,16 @@ localmp sP2Input setting whether player 2 has any input on this device (the web 
 localmp sHostKeys setting the host's pads for players 2-4; latched into the sim block and recorded as `kp` lines
 localmp sTrace diagnostic KATAM_LOCAL_MP_TRACE, a log interval
 localmp sMinZoom presentation the shared camera's zoom floor (KATAM_LOCAL_MP_MINZOOM), read only by platform/ui/present.c
+localmp sRooms setting rooms mode requested (KATAM_LOCAL_MP_ROOMS, `option rooms 1`, PortLmpSetRooms); reaches the game only through gPortSim->view.lmpRooms, latched at the frame latch
+localmp sView presentation this device's screen player in rooms mode (KATAM_LOCAL_MP_VIEW, PortLmpSetView): per device by design; decides gLocalPlayerId, which ROOMS-REPORT.md shows does not reach the gameplay digest
+localmp sReviews diagnostic rooms mode: re-views done (PortLmpReviews)
+localmp sReviewWaits diagnostic rooms mode: frames a re-view waited (paused, between rooms)
+localmp _ZZ12PortLmpFrameE4sAtF diagnostic rooms mode test hook KATAM_LOCAL_MP_VIEW_AT=F:k, the frame
+localmp _ZZ12PortLmpFrameE4sAtV diagnostic rooms mode test hook KATAM_LOCAL_MP_VIEW_AT=F:k, the player
+localmp sDigF diagnostic rooms mode: frame numbers of the gameplay digest ring (PortLmpDigestAt), read by the session layer, never by the game
+localmp sRoomsTest diagnostic rooms mode measurement switch (PortLmpRoomsTest): the spawn-margin fix off, for ROOMS-REPORT.md only
+localmp sDigParts diagnostic rooms mode: the gameplay digest's parts as last computed (PortLmpDigestParts)
+localmp sDig diagnostic rooms mode: the gameplay digest ring (PortLmpDigestAt), read by the session layer, never by the game
 bios _ZZ10CpuRangeOkE9sReported diagnostic log once
 sram sRestored diagnostic host loaded a save file at boot
 sram sPersistOff setting online guest: this device's storage is not written (never read by the game)
