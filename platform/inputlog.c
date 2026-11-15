@@ -656,10 +656,13 @@ void PortSetStateDumpAt(u32 frame)
 }
 
 /* Top of PortPresentFrame: the state the previous frame's logic left. */
+void PortAuditFrameStart(u32 frame);    /* platform/audit.c (diagnostics) */
+
 void PortInputLogFrameStart(u32 frame)
 {
     int i;
 
+    PortAuditFrameStart(frame);
     sDumpLen = 0;
     if (!sHashLog)
         return;
