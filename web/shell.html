@@ -1247,12 +1247,35 @@ var Module = (function () {
   // overrides the saved renderer setting for this visit.
   var rendererParam = (/[?&]renderer=(gpu|ppu|2d)(&|$)/.exec(location.search) || [])[1] || '';
   var gpuMode = false;
-  if (rendererParam !== '2d') {
+  // What the probe found, for the status line (platform/ui/present.c
+  // PortDisplayStatus, window.katamStatus) and the 2D notice below: WebGL2
+  // or not, why not, and the GPU's own name where the browser tells it.
+  var glProbe = { webgl2: false, why: '', gpu: '' };
+  (function () {
+    var probe, gl, msg = '';
     try {
-      var probe = document.createElement('canvas');
-      gpuMode = !!(window.WebGL2RenderingContext && probe.getContext('webgl2'));
-    } catch (e) { gpuMode = false; }
-  }
+      probe = document.createElement('canvas');
+      if (!window.WebGL2RenderingContext) { glProbe.why = 'this browser has no WebGL2'; return; }
+      probe.addEventListener('webglcontextcreationerror', function (e) { msg = e.statusMessage || ''; });
+      gl = probe.getContext('webgl2');
+      if (!gl) {
+        // Chrome's statusMessage is long; the status line keeps its gist
+        // (the whole message goes to the console).
+        var em = /ErrorMessage = ([^\n]*)/.exec(msg || '');
+        glProbe.why = 'the browser refused WebGL2 (GPU or hardware acceleration off, or blocked)' +
+          (em && em[1] ? ': ' + em[1].replace(/[.\s]+$/, '') : '');
+        if (msg) console.warn('[katam-port] webglcontextcreationerror: ' + msg);
+        return;
+      }
+      glProbe.webgl2 = true;
+      var ext = gl.getExtension('WEBGL_debug_renderer_info');
+      glProbe.gpu = String((ext && gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) || gl.getParameter(gl.RENDERER) || '');
+      var lose = gl.getExtension('WEBGL_lose_context');
+      if (lose) lose.loseContext();      // the probe's context is not needed again
+    } catch (e) { glProbe.why = 'WebGL2 probe failed: ' + e; }
+  })();
+  if (rendererParam === '2d') glProbe.why = 'asked for by ?renderer=2d';
+  else gpuMode = glProbe.webgl2;
   var gpuCanvas = null;
   if (gpuMode) {
     gpuCanvas = document.createElement('canvas');
@@ -1263,8 +1286,19 @@ var Module = (function () {
     document.body.classList.add('gl');
   }
 
+  if (gpuCanvas) {
+    // A lost context (the GPU reset, the driver crashed, too many pages with
+    // WebGL) leaves the picture frozen: say so in the status and the log.
+    gpuCanvas.addEventListener('webglcontextlost', function () {
+      glProbe.lost = true;
+      console.error('[katam-port] the WebGL2 context was lost (GPU reset?) -- reload the page');
+      if (Module._PortDisplayNoteContextLostJs) Module._PortDisplayNoteContextLostJs(1);
+    });
+  }
+
   // The C side could not start WebGL after all: back to the 2D canvas.
-  function glFailed() {
+  function glFailed(why) {
+    if (why) glProbe.why = why;
     if (!gpuMode) return;
     gpuMode = false;
     if (gpuCanvas && gpuCanvas.parentNode) gpuCanvas.parentNode.removeChild(gpuCanvas);
@@ -1457,6 +1491,17 @@ var Module = (function () {
   if (window.ResizeObserver) {
     new ResizeObserver(refit).observe(wrapEl);
   }
+  // The pixel density alone can change -- a window dragged between a
+  // standard and a Retina screen, or the browser's zoom -- with no resize
+  // event: the WebGL canvas would stay at the old resolution (blurred, or
+  // four times the pixels it needs).  Watch the density itself.
+  (function watchDpr() {
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia('(resolution: ' + (window.devicePixelRatio || 1) + 'dppx)');
+    var again = function () { refit(); watchDpr(); };
+    if (mq.addEventListener) mq.addEventListener('change', again, { once: true });
+    else if (mq.addListener) mq.addListener(function h() { mq.removeListener(h); again(); });
+  })();
   document.addEventListener('fullscreenchange', refit);
   document.addEventListener('webkitfullscreenchange', refit);
 
@@ -1470,6 +1515,22 @@ var Module = (function () {
     portGl:        gpuMode,
     portGlCanvas:  gpuCanvas,
     portGlFailed:  glFailed,
+    portGlProbe:   glProbe,
+    // The C side's word that the picture is the 2D canvas (host_web.c): said
+    // once, plainly, on the page -- not only in the log -- because it costs
+    // the player the display options and the widescreen picture.
+    portSimpleDisplay: function (why) {
+      if (Module.portSimpleSaid) return;
+      Module.portSimpleSaid = true;
+      why = why || glProbe.why;
+      var head = 'Simple display: no WebGL2';
+      var sub = (why ? why + '. ' : '') + 'The picture is the original 240x160 and the SCREEN, ZOOM, CAMERA and PIXELS settings do nothing here.';
+      log(head + ' -- ' + sub, 'warn');
+      try {
+        if (window.katamNotices) window.katamNotices.show(head, -1, sub, 12000);
+        else toast(head + ' -- ' + sub, 'warn');
+      } catch (e) { /* the notice is a courtesy */ }
+    },
     portRenderer:  rendererParam === 'gpu' || rendererParam === 'ppu' ? rendererParam : '',
 
     // Called once, on the first real user gesture.  A browser will not let
@@ -1489,6 +1550,12 @@ var Module = (function () {
     portDiag: function (text, isErr) { log(text, isErr ? 'err' : ''); },
 
     onRuntimeInitialized: function () {
+      // The status line (platform/ui/present.c PortDisplayStatus): build,
+      // renderer, WebGL2 and GPU, settings schema -- what to read back when
+      // the picture or the settings misbehave on someone's machine.
+      window.katamStatus = function () {
+        try { return Module.ccall('PortDisplayStatusJs', 'string', [], []); } catch (e) { return ''; }
+      };
       // Emscripten defines the Module._Port* export stubs before the wasm is
       // instantiated, and they throw until it is; "does the function exist"
       // is not "can it be called".  This flag is.

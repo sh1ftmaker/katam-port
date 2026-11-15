@@ -23,7 +23,13 @@ void PortPartyHudSetView(int ok, int camX, int camY, int viewX, int viewY, int v
  * framebuffer pixels per HUD pixel, `strip` the HUD's "original strip"
  * anchoring (centred, 240 wide) instead of the corners. */
 void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int strip,
-                      int smooth);
+                      int smooth, double dpr);
+/* The 2D canvas (the web page without WebGL2, host_web.c): sample the frame
+ * just simulated (1: something to draw), then blend the cards, the hint and
+ * the name tags into a 240x160 RGBA copy of the picture -- never the
+ * framebuffer itself. */
+int PortPartyHudSoftSample(void);
+void PortPartyHudDrawSoft(unsigned int *pixels, int w, int h);
 /* Screen areas the party HUD keeps out of: the page's touch pads and menu
  * button, the native menu button.  Framebuffer pixels, top-left origin;
  * slot 0..PORT_PARTY_KEEPOUTS-1, w or h <= 0 clears the slot. */

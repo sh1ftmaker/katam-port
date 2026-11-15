@@ -35,6 +35,9 @@ void GlrPresent(int w, int h);
 int GlrReadback(u32 *out, int maxPixels, int *w, int *h);
 
 const char *GlrDescribe(void);
+/* Why the last GlrInit failed: the first shader or link error, one line
+ * ("" none). */
+const char *GlrInitError(void);
 
 /* The host-driven present (platform/ui/present.c).  UploadPicture makes a
  * plain RGBA picture (the PPU framebuffer) the source instead of the

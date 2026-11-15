@@ -423,7 +423,7 @@ def factors(R):
     f('native-ini', 'display', 'native: GPU, settings.ini zoom 0.5, 21:9, smooth camera, smooth pixels, volume 40 vs defaults',
       dict(N, args=['--no-audio', '--renderer', 'gpu', '--window', '960x640'], env={'SDL_VIDEODRIVER': 'offscreen'}),
       dict(N, args=['--no-audio', '--renderer', 'gpu', '--window', '960x640'], env={'SDL_VIDEODRIVER': 'offscreen'},
-           ini='zoom=0.5\naspect=5\nsmoothcam2=1\nscaling=2\nvolume=40\ninterp=1\nhud=1\n'))
+           ini='schema=2\nzoom=0.5\naspect=5\nsmoothcam2=1\nscaling=2\nvolume=40\ninterp=1\nhud=1\n'))
     f('native-audio', 'audio', 'native: SDL audio device (dummy driver) vs --no-audio', N,
       dict(N, args=[]))
     return F

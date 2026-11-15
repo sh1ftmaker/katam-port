@@ -229,6 +229,88 @@ int PortShowUsingGpu(void)
     return sUsingGpu == 1;
 }
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+/* Tests: where the picture went (x y w h, framebuffer pixels), and the view
+ * the world was drawn with (k 4, 5). */
+EMSCRIPTEN_KEEPALIVE int PortShowDstJs(int k)
+{
+    return k >= 0 && k < 4 ? sDst[k] : k == 4 ? sWorldViewW : k == 5 ? sWorldViewH : 0;
+}
+#endif
+
+/* --- what the picture runs on (settings.h) ------------------------------------ */
+
+static struct { int set, webgl2, lost; char gpu[96], why2d[96], build[64]; } sHostInfo;
+
+void PortDisplayNoteContextLost(int lost)
+{
+    sHostInfo.lost = lost != 0;
+}
+
+static void CopyUpper(char *dst, size_t n, const char *src)
+{
+    size_t i;
+
+    for (i = 0; src && src[i] && i + 1 < n; i++) {
+        char c = src[i];
+
+        if (c >= 'a' && c <= 'z')
+            c = (char)(c - 'a' + 'A');
+        else if ((unsigned char)c < 32 || (unsigned char)c > 126)
+            c = ' ';
+        dst[i] = c;
+    }
+    dst[i] = '\0';
+}
+
+void PortDisplaySetHostInfo(int webgl2, const char *gpu, const char *why2d, const char *build)
+{
+    sHostInfo.set = 1;
+    sHostInfo.webgl2 = webgl2;
+    CopyUpper(sHostInfo.gpu, sizeof(sHostInfo.gpu), gpu);
+    CopyUpper(sHostInfo.why2d, sizeof(sHostInfo.why2d), why2d);
+    CopyUpper(sHostInfo.build, sizeof(sHostInfo.build), build);
+}
+
+int PortDisplayOptionsAvailable(void)
+{
+    return sReady;
+}
+
+const char *PortDisplayStatus(void)
+{
+    static char out[400];
+    char gpu[64];
+    int schema, migrated, n;
+    const char *render;
+
+    PortSettingsParseInfo(&schema, &migrated);
+    if (!sReady)
+        render = "2D FALLBACK";
+    else if (sHostInfo.lost)
+        render = "STOPPED - WEBGL CONTEXT LOST (RELOAD)";
+    else if (sUsingGpu == 1)
+        render = "GPU";
+    else if (!sGpuAvail)
+        render = "CLASSIC (NO GPU RENDERER)";
+    else
+        render = "CLASSIC";
+    if (sHostInfo.set && sHostInfo.gpu[0])
+        CopyUpper(gpu, sizeof(gpu), sHostInfo.gpu);
+    else
+        CopyUpper(gpu, sizeof(gpu), sReady ? GlrDescribe() : "");
+    n = snprintf(out, sizeof(out), "BUILD: %s\nRENDERER: %s", sHostInfo.build[0] ? sHostInfo.build : "?", render);
+    if (!sReady && sHostInfo.why2d[0])
+        n += snprintf(out + n, sizeof(out) - (size_t)n, " - %s", sHostInfo.why2d);
+    n += snprintf(out + n, sizeof(out) - (size_t)n, "\nWEBGL2: %s\nGPU: %s\nSETTINGS: SCHEMA %d, %s",
+                  sHostInfo.set ? (sHostInfo.webgl2 ? "YES" : "NO") : (sReady ? "YES" : "NO"),
+                  gpu[0] ? gpu : "?", PORT_SETTINGS_SCHEMA,
+                  migrated ? "MIGRATED FROM AN OLDER BUILD" : schema == PORT_SETTINGS_SCHEMA ? "CURRENT" : "NEW");
+    (void)n;
+    return out;
+}
+
 static void UpdateDynZoom(void)
 {
     s32 kx, ky, cx, cy, dx, dy;
@@ -340,7 +422,7 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
                          sLastWorld ? PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst)
                                     : (double)sDst[3] / sSrc[3],
                          sLastWorld && gPortSettings.hud == PS_HUD_STRIP,
-                         gPortSettings.scaling == PS_SCALE_SMOOTH);
+                         gPortSettings.scaling == PS_SCALE_SMOOTH, dpr);
     if (sUi)
         PortUiDraw(fbW, fbH, dpr, nowMs);
 }

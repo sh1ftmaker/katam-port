@@ -71,10 +71,47 @@ void PortSettingsClamp(PortSettings *s)
     s->nameTags = !!s->nameTags;
 }
 
+static int sParseSchema, sParseMigrated;
+
+void PortSettingsParseInfo(int *storedSchema, int *migrated)
+{
+    if (storedSchema) *storedSchema = sParseSchema;
+    if (migrated) *migrated = sParseMigrated;
+}
+
+/* The schema the text says, 0 when it says none; *any: a setting of ours is
+ * in it (not just the player cards), so there is something to migrate. */
+static int SchemaOf(const char *text, int *any)
+{
+    const char *p = text;
+    int schema = 0;
+
+    *any = 0;
+    while (p != NULL && *p != '\0') {
+        const char *eol = strchr(p, '\n');
+        const char *eq = strchr(p, '=');
+
+        if (eol == NULL) eol = p + strlen(p);
+        if (eq != NULL && eq < eol && eq > p) {
+            if ((size_t)(eq - p) == 6 && strncmp(p, "schema", 6) == 0)
+                schema = (int)strtol(eq + 1, NULL, 10);
+            else if (strncmp(p, "card", 4) != 0)
+                *any = 1;
+        }
+        p = *eol ? eol + 1 : eol;
+    }
+    return schema;
+}
+
 void PortSettingsParse(PortSettings *s, const char *text)
 {
     const char *p = text;
+    int any, schema = SchemaOf(text ? text : "", &any);
+    /* An older schema keeps only the cards and the volume (settings.h). */
+    int migrate = any && schema < PORT_SETTINGS_SCHEMA;
 
+    sParseSchema = schema;
+    sParseMigrated = migrate;
     while (p != NULL && *p != '\0') {
         char key[32], val[64];
         const char *eol = strchr(p, '\n');
@@ -89,6 +126,11 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 memcpy(key, p, kl); key[kl] = '\0';
                 memcpy(val, eq + 1, vl); val[vl] = '\0';
                 if (vl && val[vl - 1] == '\r') val[vl - 1] = '\0';
+                if (migrate && strcmp(key, "volume") != 0 && strcmp(key, "mute") != 0
+                    && strncmp(key, "card", 4) != 0) {
+                    p = *eol ? eol + 1 : eol;
+                    continue;
+                }
 #define INT_KEY(name, field) else if (strcmp(key, name) == 0) s->field = (int)strtol(val, NULL, 0);
 #define FLT_KEY(name, field) else if (strcmp(key, name) == 0) s->field = (float)strtod(val, NULL);
                 if (0) {}
@@ -126,10 +168,10 @@ void PortSettingsParse(PortSettings *s, const char *text)
 int PortSettingsFormat(const PortSettings *s, char *buf, int size)
 {
     int n = snprintf(buf, (size_t)size,
-        "renderer=%d\nzoom=%.3f\ndynzoom=%d\naspect=%d\nscaling=%d\n"
+        "schema=%d\nrenderer=%d\nzoom=%.3f\ndynzoom=%d\naspect=%d\nscaling=%d\n"
         "letterbox=%06X\nhud=%d\nhudscale=%d\nvsync=%d\nfps=%d\nvolume=%d\n"
         "mute=%d\nuiscale=%.2f\n",
-        s->renderer, (double)s->zoom, s->dynZoom, s->aspect, s->scaling,
+        PORT_SETTINGS_SCHEMA, s->renderer, (double)s->zoom, s->dynZoom, s->aspect, s->scaling,
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
