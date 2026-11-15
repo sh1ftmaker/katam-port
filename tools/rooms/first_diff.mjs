@@ -1,12 +1,13 @@
 // first_diff.mjs -- replay a rooms recording on two views (0 and 1) and print
 // the first frames whose gameplay differs, with Kirby 2's unkD9 / idleTimer /
-// stateFn / unkC (F4 in ROOMS-REPORT.md).  node first_diff.mjs ROM REC UPTO
+// stateFn / unkC (F4 in ROOMS-REPORT.md).  node first_diff.mjs ROM REC UPTO [VA VB]
+// (views VA and VB, default 0 and 1; e.g. 0 2 for a three-device recording)
 import fs from 'fs';
 import { createInstance } from '../netproof/instance.mjs';
 const [rom, rec, upto] = [fs.readFileSync(process.argv[2]), fs.readFileSync(process.argv[3]), +process.argv[4]];
 async function dev(view) { return createInstance({ modulePath: new URL('../../build/katam-node.js', import.meta.url).pathname, rom, name: 'v' + view, modulePre(M) {
   const o = M.onRuntimeInitialized; M.onRuntimeInitialized = function () { const p = M._malloc(rec.length + 1); M.HEAPU8.set(rec, p); M._PortInputLogLoad(p, rec.length); M._PortLmpSetView(view); o(); }; } }); }
-const A = await dev(0), B = await dev(1);
+const A = await dev(+(process.argv[5] ?? 0)), B = await dev(+(process.argv[6] ?? 1));
 const parts = (I) => { const p = I.M._PortLmpDigestParts() >> 2; return Array.from(I.M.HEAPU32.subarray(p, p + 5)); };
 let reported = 0;
 for (let f = 0; f < upto; f++) {

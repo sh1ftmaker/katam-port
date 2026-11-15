@@ -1194,13 +1194,41 @@ static void ReviewSettle(void)
         if (gPaletteEffectManager.unk80[i] != NULL)
             return;
     sSettle = 0;
-    /* OBJ only: the BG's on-screen palette is the room's own business
-     * (its transformation; measured equal after the re-view). */
     if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_TRANSFORMATION_ENABLE)
         LoadObjPaletteWithTransformation(src + 0x100, 0, 0x100);
     else
         CpuCopy32(src + 0x100, gObjPalette, sizeof gObjPalette);
     gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+    /* The BG as well, but only when what it shows is exactly the fade's
+     * residue -- every colour equal to its source or one step brighter in
+     * each channel (measured: rooms_apart.txt re-viewed at 7000 in room 117,
+     * the whole BG +1/31 for 800+ frames against the device that was always
+     * player 2's, whose BG equals its source).  Anything else on the BG is
+     * the room's own (a transformation, an animation: room 203 at 1800 shows
+     * colours that are not its source, as the always-device does), and
+     * copying the source over it was measured to make the picture worse. */
+    if (!(gMainFlags & MAIN_FLAG_BG_PALETTE_TRANSFORMATION_ENABLE)) {
+        int residue = 0, other = 0;
+
+        for (i = 0; i < 0x100 && !other; i++) {
+            u16 s = src[i], d = gBgPalette[i];
+            int c;
+
+            if (s == d)
+                continue;
+            for (c = 0; c < 15; c += 5) {
+                int sc = (s >> c) & 31, dc = (d >> c) & 31;
+
+                if (dc != (sc < 31 ? sc + 1 : 31))
+                    other = 1;
+            }
+            residue = 1;
+        }
+        if (residue && !other) {
+            CpuCopy32(src, gBgPalette, sizeof gBgPalette);
+            gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE;
+        }
+    }
 }
 
 static int ReviewReady(u8 v)
@@ -1356,6 +1384,27 @@ static int ViewTask(u32 m)
     return 0;
 }
 
+/* A display effect: an EffectObject (header.kind 3) task, the kind every
+ * effect constructor builds with ObjectBaseDestroy as its destructor.  Their
+ * number follows the screen: an effect's sprite animation runs only where it
+ * is drawn, and effects spawn effects from it (the bomb fuse's sparks,
+ * sub_08096464 from code_0806F780.c:3907 `if (sprite->animId)`; the ice
+ * shards' sub_08093F00 at the end of an animation, :14112).  Measured in the
+ * rig (gates.mjs --seeds 1,2,3 --long 2): every personal rebuild left after
+ * the F4 fix was a task census difference in one of these two types.  Kind 2
+ * (attack objects) and kind 1 (objects) stay counted. */
+static int EffectTask(const struct Task *t)
+{
+    const struct ObjectBase *o;
+
+    if (t->dtor != FN(ObjectBaseDestroy) || !t->structOffset)
+        return 0;
+    o = (const struct ObjectBase *)((t->flags & TASK_USE_EWRAM)
+            ? (uintptr_t)EWRAM_START + ((uintptr_t)t->structOffset << 2)
+            : (uintptr_t)IWRAM_START + t->structOffset);
+    return o->header.kind == 3;
+}
+
 u32 PortLmpDigestNow(void)
 {
     u32 h = 2166136261u, sum = 0, x = 0, n = 0;
@@ -1437,7 +1486,7 @@ u32 PortLmpDigestNow(void)
     for (i = 0; i < MAX_TASK_NUM; i++) {
         u32 m = (u32)(uintptr_t)gTasks[i].main, e = 2166136261u;
 
-        if (m == 0 || ViewTask(m))
+        if (m == 0 || ViewTask(m) || EffectTask(&gTasks[i]))
             continue;
         FNV_ADD(e, m); FNV_ADD(e, gTasks[i].priority);
         sum += e;
@@ -1447,6 +1496,21 @@ u32 PortLmpDigestNow(void)
     FNV_ADD(h, sum); FNV_ADD(h, x); FNV_ADD(h, n);
     sDigParts[4] = h;
     return h;
+}
+
+void PortLmpTaskGoneSlow(const void *structPtr)
+{
+    int k, i;
+
+    for (k = 0; k < 4; k++) {
+        struct Unk_02038590 *b = &gUnk_02038590[k];
+
+        if ((const void *)b->unk48 == structPtr)
+            b->unk48 = NULL;
+        for (i = 0; i < 4; i++)
+            if ((const void *)b->unk4C[i].unk4 == structPtr)
+                b->unk4C[i].unk4 = NULL;
+    }
 }
 
 /* Tests (tools/rooms/gates.mjs, F2): take k free task slots of this

@@ -1049,6 +1049,17 @@ void PortVBlankConsume(u32 bytes)
 
     if (!(*dispstat & DISPSTAT_VBLANK))
         return;
+    /* FREE ROAM (rooms mode, platform/localmp.c): what a VBlank has to move
+     * is this screen's -- its room's BG streaming, its sprites' tiles -- and
+     * a window that closes on it leaves the game's upload queue undrained,
+     * which makes the next frame a lag frame (main.c GameLoop: no input, no
+     * tasks while gUnk_030035D4 != 0xff).  A lag frame on one screen only is
+     * a desync (ROOMS-REPORT.md F4: a Kirby carried into the screen's room
+     * one frame late), so in rooms mode the window never closes on the
+     * budget: every screen drains its queue in one VBlank and no device
+     * lags.  SoundMain still ends the window (m4a_mixer.c). */
+    if (gPortSim->view.lmpRooms)
+        return;
     sVBlankBudget -= (s32)bytes;
     if (sVBlankBudget <= 0)
         PortVBlankEnd();

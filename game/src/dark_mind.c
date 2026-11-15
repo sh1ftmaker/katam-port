@@ -4001,8 +4001,8 @@ static void sub_08106874(struct DarkMindForm1 *r7)
         s32 r4 = (r1->base.x - r7->unk0.base.x) >> 8;
         s32 r5 = (r7->unk0.base.y - r1->base.y) >> 8;
         u16 d = Sqrt((r4 * r4 + r5 * r5) * 0x100);
-        s32 div1 = (r4 * 0x100) / d;
-        s32 div2 = (r5 * 0x100) / d;
+        s32 div1 = (r4 * 0x100) / PORT_DIVISOR(d);
+        s32 div2 = (r5 * 0x100) / PORT_DIVISOR(d);
 
         r7->unk0.base.xspeed = div1 * 0x40;
         r7->unk0.base.yspeed = div2 * 0x40;
@@ -4030,9 +4030,9 @@ static void sub_081068F8(struct DarkMindForm1 *r5)
     diffX = (r6->base.x - r5->unk0.base.x) >> 8;
     diffY = (r5->unk0.base.y - r6->base.y) >> 8;
     d = Sqrt((diffX * diffX + diffY * diffY) * 0x100);
-    div1 = (diffX * 0x100) / d;
+    div1 = (diffX * 0x100) / PORT_DIVISOR(d);
     tmp1 = div1 * 0x100;
-    div2 = (diffY * 0x100) / d;
+    div2 = (diffY * 0x100) / PORT_DIVISOR(d);
     tmp2 = div2 * 0x100;
     r5->unk0.base.xspeed = (0x400u * div1 + tmp1) >> 4;
     r5->unk0.base.yspeed = (0x400u * div2 + tmp2) >> 4;

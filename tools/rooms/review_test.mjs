@@ -69,6 +69,22 @@ function diffBytes(A, B, base, n) {
     return d;
 }
 
+// Is every palette colour that differs between J and R one step brighter on
+// R (per channel, clamped)?  That is the game's own fade ending one step
+// short (palette_effects.c, "Indexed by queue position") on the device that
+// was always there, which the re-view's settle does not copy: J shows the
+// room's source palette instead (localmp.c ReviewSettle).
+function rResidue(J, R) {
+    const a = new Uint16Array(J.M.HEAPU8.buffer, 0x05000000, 0x200), b = new Uint16Array(R.M.HEAPU8.buffer, 0x05000000, 0x200);
+    let any = false;
+    for (let i = 0; i < 0x200; i++) {
+        if (a[i] === b[i]) continue;
+        for (let c = 0; c < 15; c += 5) { const x = (a[i] >> c) & 31, y = (b[i] >> c) & 31; if (y !== Math.min(31, x + 1)) return false; }
+        any = true;
+    }
+    return any;
+}
+
 function probe(I) {
     const k = [0, 1, 2, 3].map((i) => I.kirby(i));
     const o = I.observe();
@@ -89,6 +105,7 @@ for (let f = 0; f < total; f++) {
                   vram: diffBytes(J, R, 0x06000000, 0x18000), pltt: diffBytes(J, R, 0x05000000, 0x400),
                   oam: diffBytes(J, R, 0x07000000, 0x400), io: diffBytes(J, R, 0x04000000, 0x400),
                   rooms: [R.kirby(0).room, R.kirby(a.view).room], jLocal: J.observe().localPlayer };
+    row.rResidue = row.jPix !== row.rPix && rResidue(J, R);
     if (probe(J) !== probe(R) && gameplayDiffer === null) gameplayDiffer = fr;
     if (a.dump && a.dump.includes(fr)) {
         const REG = [[0x02000000, 0x40000], [0x03000000, 0x8000], [0x04000000, 0x400], [0x05000000, 0x400],
@@ -110,6 +127,9 @@ for (const F of a.at) {
         framesToSamePicture: firstEq ? firstEq.f - F : null,
         settledFrames: settled.length, settledAllSame: settled.every((r) => r.jPix === r.rPix),
         framesSameAfter: window.filter((r) => r.jPix === r.rPix).length, framesAfter: window.length,
+        // the same, or differing only by R's own one-step-bright fade residue
+        framesToSameOrResidue: (() => { const x = after.find((r) => r.jPix === r.rPix || r.rResidue); return x ? x.f - F : null; })(),
+        framesSameOrResidueAfter: window.filter((r) => r.jPix === r.rPix || r.rResidue).length,
         controlSameAsR: window.filter((r) => r.sPix === r.rPix).length,
         residual: window.length ? window[window.length - 1] : null,
     });

@@ -1080,7 +1080,81 @@ for (const nPages of (flag('rooms-pages', '2,3')).split(',').map(Number)) {
     }
     R.guests = gsts; R.compare = cmps.map((c) => ({ ...c, run: undefined, reset: undefined }));
     R.wasm = await host.ev(`fetch('katam.wasm').then(r=>r.arrayBuffer()).then(b=>crypto.subtle.digest('SHA-1',b)).then(h=>Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join(''))`);
-    for (const p of all) { await p.close(); delete pages[p.name]; }
+    if (nPages === 2) await roomsMore(tag, R, host, guests[0], code);
+    for (const p of all) { try { await p.close(); } catch (e) { /* gone */ } delete pages[p.name]; }
+}
+
+/* FREE ROAM, two pages, after the main checks: the waiting hint at a door to
+ * the hub (room 390, cell 8,9: OBJ_DOOR_TO_HUB) on each page while the other
+ * player is elsewhere (localmp.c PortLmpWaitingFor, drawn by the party HUD);
+ * then the host leaves, hosts FREE ROAM again from its own menus and the
+ * guest joins again: rooms mode on, each page on its own player, digest equal. */
+async function waitingFor(p) {
+    return p.ev('(function(){var b=Module._malloc(4);Module.HEAP32[b>>2]=-1;var k=Module._PortLmpWaitingFor(b),w=Module.HEAP32[b>>2];Module._free(b);return [k,w];})()');
+}
+async function roomsMore(tag, R, host, guest, code) {
+    const HUB = [390, 8, 9];
+    R.hint = [];
+    for (const [who, other, page] of [[0, 1, host], [1, 0, guest]]) {
+        const f0 = (await frame(host)) + 60;
+        await setScript(host, new Array(600).fill(0), f0, [[0, who, HUB[0], HUB[1], HUB[2]], [1, other, 203, 60, 5]]);
+        await setScript(guest, new Array(600).fill(0), f0, []);
+        await until(async () => (await frame(page)) >= f0 + 90, 20000);
+        let seen = null;
+        for (let i = 0; i < 20 && !seen; i++) { const w = await waitingFor(page); if (w[0] === 1) seen = w; else await waitFrames(page, 6); }
+        await sleep(300);
+        await shot(page, `${tag}-05-hint-${page.name}.png`);
+        const sc = await screenOf(page);
+        R.hint.push({ page: page.name, seen, screen: sc });
+        ok(`${tag}: ${page.name} at the door to the hub, the other player elsewhere: "THE DOOR WAITS FOR ${other + 1}P"`,
+           !!seen && seen[1] === other && sc.kroom === HUB[0], JSON.stringify({ seen, rooms: sc.rooms }));
+    }
+    // leave, host FREE ROAM again, join again
+    for (const p of [host, guest]) await p.ev('window.__script = null; window.__seats = null; Module._PortSetKeys(0)');
+    await host.ev('katamOnline.leave()');
+    const hOut = await until(async () => { const s = await stats(host); return s && !s.session ? s : null; }, 10000);
+    ok(`${tag}: the host ends the game`, !!hOut);
+    const left = await until(async () => { const s = await stats(guest); return s && s.phase === 'hostleft' ? s : null; }, 15000);
+    ok(`${tag}: the guest is told the host left`, !!left);
+    const hf0 = await frame(host);
+    await until(async () => (await frame(host)) >= hf0 + 300, 60000, 30);
+    let atFs = false;
+    for (let i = 0; i < 6 && !atFs; i++) { await press(host, 'START'); await waitFrames(host, 100); atFs = (await fsPrint(host)) === host.fsPrint; }
+    ok(`${tag}: again: the host is back at FILE SELECT`, atFs);
+    await waitFrames(host, 150);
+    await press(host, 'A'); await waitFrames(host, 200);
+    await toOnline(host);
+    await press(host, 'A');
+    const code2 = await until(async () => { const s = await stats(host); return s && s.code && s.phase === 'hosting' && (await screen(host)) === 2 * 256 + 2 ? s.code : null; }, 20000);
+    ok(`${tag}: again: the host makes a new room`, !!code2 && code2 !== code, code2);
+    await guest.ev('document.getElementById("lnleave").click()');
+    await until(async () => { const s = await stats(guest); return s && !s.session && !s.role; }, 10000);
+    await waitFrames(guest, 200);
+    await guest.ev(`katamOnline.join(${JSON.stringify(code2)})`);
+    ok(`${tag}: again: the guest waits in the new room`, !!(await until(async () => { const s = await stats(guest); return s && s.phase === 'waiting'; }, 40000)));
+    await sleep(1500);
+    await press(host, 'DOWN'); await waitFrames(host, 10);
+    ok(`${tag}: again: HOST GAME still offers FREE ROAM`, (await host.ev('Module._PortOuiRoomsMode()')) === 1 || (await (async () => { await press(host, 'RIGHT'); await waitFrames(host, 20); return (await host.ev('Module._PortOuiRoomsMode()')) === 1; })()));
+    await shot(host, `${tag}-06-again-free-roam.png`);
+    await press(host, 'A');
+    ok(`${tag}: again: session started`, !!(await until(async () => { const st = await stats(host); return st && st.session; }, 20000)));
+    ok(`${tag}: again: the guest took the image`, !!(await until(async () => { const st = await stats(guest); return st && st.session && st.joined; }, 30000)));
+    await sleep(2500);
+    ok(`${tag}: again: rooms mode on for both`, (await stats(host)).rooms === 1 && (await stats(guest)).rooms === 1);
+    const r0 = (await frame(host)) + 60;
+    await setScript(host, new Array(900).fill(0), r0, [[0, 0, 117, 44, 9], [0, 1, 203, 60, 5]]);
+    await setScript(guest, new Array(900).fill(0), r0, []);
+    const cmp = makeComparer(host, guest);
+    await until(async () => (await frame(host)) >= r0 + 600, 30000);
+    await cmp.run();
+    const scs = [await screenOf(host), await screenOf(guest)];
+    await shot(host, `${tag}-07-again-host.png`); await shot(guest, `${tag}-07-again-guest.png`);
+    ok(`${tag}: again: each page on its own player in that player's room`, scs[0].lp === 0 && scs[1].lp === 1 && scs[0].room === 117 && scs[1].room === 203,
+       JSON.stringify(scs.map((x) => [x.lp, x.room, x.kroom])));
+    const st = await snapStats(guest.name, guest);
+    ok(`${tag}: again: canonical identical, digest equal`, cmp.compared > 10 && cmp.mismatched === 0 && st.digMismatch === 0 && !st.persRepairs,
+       `${cmp.equal}/${cmp.compared}; digest ${st.digEqual}/${st.digCompared}, rebuilt ${st.persRepairs}`);
+    R.again = { code2, screens: scs, compare: { equal: cmp.equal, compared: cmp.compared } };
 }
 
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));

@@ -251,10 +251,10 @@ static void sub_080C3A7C(struct Object *hotHead, struct Kirby *kirby) {
     dx = (kirby->base.x - hotHead->base.x) >> 8;
     dy = (hotHead->base.y - kirby->base.y) >> 8;
     dist = Sqrt((dx * dx + dy * dy) * 0x100);
-    x = (dx * 0x100 / dist) * 0x100;
-    y = (dy * 0x100 / dist) * 0x100;
-    objBase->xspeed = ((dx * 0x100 / dist) * 0x200u + x) >> 4;
-    objBase->yspeed = (((dy * 0x100 / dist) * 0x200 + y) * 0x10) >> 8;
+    x = (dx * 0x100 / PORT_DIVISOR(dist)) * 0x100;
+    y = (dy * 0x100 / PORT_DIVISOR(dist)) * 0x100;
+    objBase->xspeed = ((dx * 0x100 / PORT_DIVISOR(dist)) * 0x200u + x) >> 4;
+    objBase->yspeed = (((dy * 0x100 / PORT_DIVISOR(dist)) * 0x200 + y) * 0x10) >> 8;
     if (objBase->yspeed < 0) {
         if (objBase->yspeed < -0xDE)
             objBase->yspeed = -0xDE;

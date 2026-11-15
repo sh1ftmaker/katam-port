@@ -23,6 +23,14 @@ void RegisterRamReset(u32 resetFlags);
 void VBlankIntrWait(void);
 
 u16 Sqrt(u32 num);
+/* PORT: a distance from Sqrt used as a divisor (the homing enemies: batty,
+ * flamer, hot_head, parasol, soarar, ufo, dark_meta_knight, dark_mind).  It
+ * is 0 only when both offsets are 0 -- Sqrt(n * 256) >= 16 for n >= 1 -- and
+ * then the dividend is 0 as well.  On the GBA agbcc's __divsi3 returns 0 for
+ * x / 0 (lib1thumb.asm, Ldiv0); wasm traps ("divide by zero": the page's game
+ * stops -- seen in tools/rooms/gates.mjs hostlocal2, seed 2, flamer.c) and
+ * x86 raises SIGFPE.  Dividing by 1 instead gives the GBA's 0. */
+#define PORT_DIVISOR(d) ((d) ? (d) : 1)
 
 u16 ArcTan2(s16 x, s16 y);
 

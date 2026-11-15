@@ -40,9 +40,14 @@ for (let i = 2; i < process.argv.length; i++) {
     else if (k === '--module') a.module = path.resolve(n());
     else if (k === '--frames') a.frames = +n();
     else if (k === '--record-dir') a.recordDir = n();
+    else if (k === '--seeds') a.seeds = n().split(',').map(Number);
+    else if (k === '--long') a.long = +n();
+    else if (k === '--phone-old') a.phoneOld = true;
     else throw new Error('unknown ' + k);
 }
 const rom = fs.readFileSync(a.rom);
+// frames from a call to the check that everyone is in the caller's room
+const PHONE_WINDOW = 420;
 const LINK = { oneWay: 60, jitter: 30, loss: 0.02, reorder: 0.05, dup: 0.02 };
 
 // Rooms (and a cell next to a door) in several areas, from the recordings.
@@ -56,16 +61,28 @@ const DOOR = [117, 44, 9];       // h8:R then Up: the door to 118
 // one takes the door, the other follows 200 frames later).  `slots` maps a
 // Kirby slot to its (device, seat); `groups` lists slots that share a device
 // (they are warped apart on purpose: the one-room rule must gather them).
-function roomsScenario({ seed, slots, frames, period = 1800 }) {
-    const n = slots.length, end = BOOT_END + frames, ev = [], scripted = new Map();
+// A door to the hub (OBJ_DOOR_TO_HUB, found by warping into every room and
+// listing its objects): standing at it with a person elsewhere is what the
+// party HUD's "THE DOOR WAITS FOR nP" hint is for (localmp.c PortLmpWaitingFor).
+const HUB_DOOR = [390, 8, 9];
+
+function roomsScenario({ seed, slots, frames, period = 1800, hint = false }) {
+    const n = slots.length, end = BOOT_END + frames, ev = [], scripted = new Map(), hints = [];
     const wr = mulberry32(seed * 31 + 7);
     const tap = (slot, f, k, len = 6) => { for (let i = 0; i < len; i++) scripted.set(slot * 1e7 + f + i, k); };
     const quiet = (slot, f, len) => { for (let i = 0; i < len; i++) if (!scripted.has(slot * 1e7 + f + i)) scripted.set(slot * 1e7 + f + i, 0); };
-    const calls = [], doors = [];
+    const calls = [], doors = [], answers = new Map();
     for (let g = BOOT_END + 30, i = 0; g < end - 400; g += period, i++) {
         const order = SPOTS.slice().sort(() => wr() - 0.5);
         for (let s = 0; s < n; s++)
             ev.push({ f: g + s, type: 1, a: s, b: order[s][0], c: order[s][1], d: order[s][2] });
+        if (hint && i % 3 === 0) {
+            // one person warped to the hub door, standing still, the others elsewhere
+            const s0 = i % n, at = g + 200;
+            ev.push({ f: at, type: 1, a: s0, b: HUB_DOOR[0], c: HUB_DOOR[1], d: HUB_DOOR[2] });
+            quiet(s0, at - 10, 330);
+            hints.push({ f: at, slot: s0 });
+        }
         if (i % 3 === 2 && n >= 2) {
             // a meeting by door: slots 0 and the period's partner into 117
             const p = 1 + (i % (n - 1));
@@ -81,20 +98,52 @@ function roomsScenario({ seed, slots, frames, period = 1800 }) {
         if (i % 2 === 1) {
             const caller = Math.floor(i / 2) % n, at = g + 1300;
             for (let s = 0; s < n; s++) {
-                quiet(s, at - 30, 260);
-                if (s === caller) tap(s, at, KEY.R); else tap(s, at + 40, KEY.R);
+                quiet(s, at - 30, a.phoneOld ? 260 : PHONE_WINDOW + 60);
+                if (s === caller) { tap(s, at, KEY.R); if (!a.phoneOld) answers.set(s * 1e7 + at, { from: at + 12, to: at + 90, caller, at, dial: true }); }
+                else if (a.phoneOld) tap(s, at + 40, KEY.R);
+                else answers.set(s * 1e7 + at, { from: at + 30, to: at + PHONE_WINDOW - 40, caller, at });
             }
             calls.push({ f: at, caller });
         }
     }
     const pads = slots.map((_, s) => human(seed * 10 + s + 1, { phone: 0, start: 0.0002 }));
-    const padOf = (s) => (f) => {
+    // A callee answers the way a person does: while its own screen shows the
+    // caller's call ringing (gUnk_02021580, the caller's slot) and it is not
+    // in the caller's room, it taps R (6 frames in every 24).  A single tap
+    // at a fixed frame (--phone-old) misses whenever the call starts later
+    // than the tap (the dialling takes 28-45 frames), the callee is
+    // floating, or another answerer in its room froze it (sub_08056C2C ->
+    // sub_08033540 freezes everyone in the answerer's room for the answer).
+    const answerKey = (s, f, obs) => {
+        for (const w of calls) {
+            const x = answers.get(s * 1e7 + w.f);
+            if (!x || f < x.from || f > x.to) continue;
+            const I = obs && obs.inst;
+            if (!I) return 0;
+            const me = I.kirby(s), ck = I.kirby(x.caller);
+            if (x.dial) {
+                // the caller, as a person: if no call is ringing and it is not
+                // dialling (sub_0805701C), it tries again while it has battery
+                const fn = I.peek32(0x02020EE0 + 0x1A8 * s + 0x78) >>> 0, bat = I.peek8(0x02020EE0 + 0x1A8 * s + 0xDC);
+                if (I.peek8(0x02021580) === 0xFF && fn !== 0x0805701D && bat > 0 && me.hp > 0)
+                    return ((f - x.at) % 12) < 6 ? KEY.R : 0;
+                return 0;
+            }
+            if (I.peek8(0x02021580) === x.caller && me.room !== ck.room && me.hp > 0)
+                return ((f - x.at) % 24) < 6 ? KEY.R : 0;
+            return 0;
+        }
+        return null;
+    };
+    const padOf = (s) => (f, obs) => {
         if (f < BOOT_END) return s === 0 ? bootKey(f) : 0;
+        const ans = answerKey(s, f, obs);
+        if (ans !== null) return ans;
         const k = scripted.get(s * 1e7 + f);
         return k !== undefined ? k : pads[s](f);
     };
     return {
-        end, events: ev.sort((x, y) => x.f - y.f), marks: [['rooms', BOOT_END, end]], localmp: 2, menus: 'off', calls, doors,
+        end, events: ev.sort((x, y) => x.f - y.f), marks: [['rooms', BOOT_END, end]], localmp: 2, menus: 'off', calls, doors, hints,
         p1: padOf(0), p2: padOf(1),
         pad: (dev, seat) => { const s = slots.findIndex(([d, t]) => d === dev && t === seat); return s >= 0 ? padOf(s) : null; },
     };
@@ -125,7 +174,67 @@ async function roomsRun(name, cfg) {
                   phone: [], doorsMet: 0, groupApart: 0, groupFrames: 0, groupApartMax: 0, groupRun: 0, rooms: new Set() };
     const groups = cfg.groups || [];
     const rec = cfg.recordTo ? { lines: [], next: null } : null;
+    // The phone check, on the host (canonical): for each scripted call, what
+    // the game did with it over PHONE_WINDOW frames, and why a call that did
+    // not gather everyone did not (rule of the game, the script, or neither:
+    // "UNEXPLAINED", which is what a bug would look like).
+    const fnOf = (host, s) => host.peek32(0x02020EE0 + 0x1A8 * s + 0x78) >>> 0;
+    const ANSWER_FNS = new Set([0x0805701D, 0x08058159]);   // sub_0805701C (dialling/answering), sub_08058158 (going to the caller)
+    const phoneOpen = new Map();
+    const phoneTrack = (host, f, k) => {
+        for (const call of sc.calls || []) {
+            if (call.f >= cfg.durationFrames + BOOT_END - PHONE_WINDOW) continue;
+            if (f === call.f) phoneOpen.set(call.f, { call, rooms0: k.map((x) => x.room), bat: host.peek8(0x02020EE0 + 0x1A8 * call.caller + 0xDC),
+                fn0: fnOf(host, call.caller), ring: null, answered: {}, died: {}, fns: {} });
+            const t = phoneOpen.get(call.f);
+            if (!t || t.done) continue;
+            const ring = host.peek8(0x02021580);
+            if (process.env.PHONE_DEBUG == call.f && (f - call.f) % 20 === 0) console.error('phone', f, ring, k.map((x) => x.room), [0, 1, 2, 3].slice(0, nSlots).map((s) => fnOf(host, s).toString(16)));
+            if (t.ring === null && ring === call.caller) t.ring = f - call.f;
+            if (t.ring !== null && t.ringEnd === undefined && ring !== call.caller) { t.ringEnd = f - call.f; t.endFn = fnOf(host, call.caller); t.endHp = k[call.caller].hp; }
+            for (let s = 0; s < nSlots; s++) {
+                if (s === call.caller) continue;
+                if (k[s].hp <= 0) t.died[s] = true;
+                const fn = fnOf(host, s);
+                if (ring === call.caller && ANSWER_FNS.has(fn) && t.answered[s] === undefined) t.answered[s] = f - call.f;
+                if (t.answered[s] === undefined) t.fns[s] = fn;
+            }
+            const late = f >= call.f + PHONE_WINDOW;
+            if (late && (!k.some((x) => x.room === 0xFFFF || x.room < 0) || f >= call.f + PHONE_WINDOW + 60)) {
+                t.done = true;
+                const cr = k[call.caller].room, met = k.every((x) => x.room === cr);
+                const why = [];
+                if (met) why.push(new Set(t.rooms0).size === 1 ? 'already together' : 'gathered');
+                else if (t.ring === null) why.push(t.bat === 0 ? 'no call: caller battery empty' : `no call: caller could not call (state ${t.fn0.toString(16)})`);
+                else for (let s = 0; s < nSlots; s++) if (s !== call.caller && k[s].room !== cr) {
+                    if (t.died[s]) why.push(`P${s + 1} died`);
+                    else if (t.answered[s] === undefined) why.push(`P${s + 1} never in a state that answers (${t.fns[s].toString(16)})`);
+                    else if (t.ringEnd !== undefined && t.endFn !== 0x08057AD1)
+                        why.push(`P${s + 1} answered; the call was cut off (the caller left its waiting state sub_08057AD0 for ${t.endFn.toString(16)}${t.endHp <= 0 ? ', dead' : ''})`);
+                    else why.push(`UNEXPLAINED: P${s + 1} answered at +${t.answered[s]} and is in ${k[s].room}, the caller in ${cr}`);
+                }
+                cov.phone.push({ f: call.f, caller: call.caller, met, placed: t.ring !== null, ringAt: t.ring, battery: t.bat, rooms0: t.rooms0,
+                                 rooms: k.map((x) => x.room), why: why.join('; ') });
+            }
+        }
+    };
+    // The waiting hint: on the device whose screen is the visiting slot's,
+    // frames where PortLmpWaitingFor says "the door waits for <someone else>".
+    const hintRes = (sc.hints || []).map((h) => ({ f: h.f, slot: h.slot, frames: 0, door: 0, who: null, room: null }));
+    const waitBuf = new Map();
+    const hintSample = (inst, view, f) => {
+        if (!inst.M._PortLmpWaitingFor) return;
+        for (const h of hintRes) {
+            if (h.slot !== view || f < h.f + 20 || f > h.f + 300) continue;
+            let b = waitBuf.get(inst); if (!b) { b = inst.M._malloc(4); waitBuf.set(inst, b); }
+            inst.M.HEAP32[b >> 2] = -1;
+            const kind = inst.M._PortLmpWaitingFor(b), who = inst.M.HEAP32[b >> 2];
+            h.frames++; h.room = inst.kirby(view).room;
+            if (kind === 1 && who >= 0 && who !== view) { h.door++; h.who = who; }
+        }
+    };
     const onHostFrame = (host, f) => {
+        hintSample(host, 0, f);
         if (rec) {
             if (rec.next === null) rec.next = f - 1;
             for (; rec.next < f; rec.next++) {
@@ -140,6 +249,7 @@ async function roomsRun(name, cfg) {
         if (f < (cfg.joinFrame || BOOT_END) + 60) return;
         const k = [];
         for (let s = 0; s < nSlots; s++) k.push(host.kirby(s));
+        phoneTrack(host, f, k);
         if (k.some((x) => x.room === 0xFFFF || x.room < 0)) return;
         const rooms = new Set(k.map((x) => x.room));
         k.forEach((x) => cov.rooms.add(x.room));
@@ -149,10 +259,6 @@ async function roomsRun(name, cfg) {
         if (cov.lastRooms !== null && rooms.size < cov.lastRooms) cov.meetings++;
         if (cov.lastRooms !== null && rooms.size > cov.lastRooms) cov.partings++;
         cov.lastRooms = rooms.size;
-        for (const call of sc.calls || []) if (f === call.f + 300 && call.f < cfg.durationFrames + BOOT_END) {
-            const met = k.every((x) => x.room === k[call.caller].room);
-            cov.phone.push({ f: call.f, caller: call.caller, met, rooms: k.map((x) => x.room) });
-        }
         for (const d of sc.doors || []) if (f === d.f + 700) { if (k[d.a].room === k[d.b].room) cov.doorsMet++; }
         for (const grp of groups) {
             cov.groupFrames++;
@@ -167,6 +273,7 @@ async function roomsRun(name, cfg) {
     const onGuestTick = (g) => {
         if (!g.gs.joined || !g.inst) return;
         const inst = g.inst, tel = inst.tel.read(), f = inst.frame();
+        hintSample(inst, tel.view, f);
         const s = scr[g.name] || (scr[g.name] = { checks: 0, wrong: 0, pending: 0, list: [], last: -1, quietUntil: 0, imgs: 0, reps: 0, viewSlots: new Set() });
         if (tel.imagesLoaded !== s.imgs || tel.persRepairs !== s.reps) { s.imgs = tel.imagesLoaded; s.reps = tel.persRepairs; s.quietUntil = f + 120; }
         if (f !== s.last) {
@@ -235,7 +342,15 @@ async function roomsRun(name, cfg) {
     const gl = guests.map((g) => `${g.name}: canon ${g.compare.equal}/${g.compare.compared}, digest ${g.digest.equal}/${g.digest.compared}` +
         `, screen wrong ${g.screen ? g.screen.wrong : '?'}/${g.screen ? g.screen.checks : '?'}, views ${g.screen ? g.screen.viewSlots : ''}, repairs ${g.persRepairs}, images ${g.images}` +
         `, shadow ${g.canon.perFrameUs} us/f`).join('; ');
-    console.error(`${name}: ${r.compare.equal}/${r.compare.compared} final frames identical; apart ${cov.apartFrames}/${cov.frames}, meetings ${cov.meetings}; ${gl}; ${out.wallSec.toFixed(0)} s`);
+    const ph = cov.phone, placed = ph.filter((p) => p.placed);
+    const reasons = {};
+    for (const p of ph) if (!p.met || !p.placed) for (const w of p.why.split('; ')) { const key = w.replace(/^P\d /, 'P? ').replace(/\(.*\)|\+\d+|in \d+/g, ''); reasons[key] = (reasons[key] || 0) + 1; }
+    out.hints = hintRes;
+    if (hintRes.length) console.error(`${name}: waiting hint shown at ${hintRes.filter((h) => h.door > 0).length}/${hintRes.length} hub-door visits (` +
+        hintRes.map((h) => `P${h.slot + 1}@${h.f} room ${h.room}: ${h.door}/${h.frames} frames`).join(', ') + ')');
+    out.phoneSummary = { calls: ph.length, placed: placed.length, gathered: placed.filter((p) => p.met).length, reasons };
+    console.error(`${name}: ${r.compare.equal}/${r.compare.compared} final frames identical; apart ${cov.apartFrames}/${cov.frames}, meetings ${cov.meetings}; ` +
+        `phone: ${out.phoneSummary.gathered}/${placed.length} placed calls gathered everyone (${ph.length} scripted${Object.keys(reasons).length ? '; ' + Object.entries(reasons).map(([w, c]) => `${w} x${c}`).join(', ') : ''}); ${gl}; ${out.wallSec.toFixed(0)} s`);
     return out;
 }
 
@@ -256,13 +371,26 @@ const plan = [
     { name: 'join', slots: slotsFor(3), frames: 9000, guests: [{ dev: 1 }, { dev: 2, join: BOOT_END + 3100 }] },
     { name: 'local2', slots: [[0, 0], [1, 0], [1, 1]], groups: [[1, 2]], frames: Q ? 9000 : 18000,
       guests: [{ dev: 1, seats: [[BOOT_END + 200, 1, 1]] }] },
+    // the host with two local players (its second seat joins after the guest)
+    { name: 'hostlocal2', slots: [[0, 0], [1, 0], [0, 1]], groups: [[0, 2]], frames: Q ? 9000 : 18000,
+      hostSeats: [[BOOT_END + 200, 1, 1]], guests: [{ dev: 1 }] },
+    // the waiting hint at a door to the hub, on the host's and the guest's screen
+    { name: 'hint', slots: slotsFor(2), frames: 12000, hint: true, guests: [{ dev: 1 }] },
 ];
 const runs = [];
-for (const p of plan) {
-    if (a.only && !a.only.includes(p.name)) continue;
-    const sc = roomsScenario({ seed: 1, slots: p.slots, frames: p.frames });
-    runs.push(await roomsRun(p.name, Object.assign({ scenario: sc, durationFrames: p.frames - 10,
-        recordTo: a.recordDir ? path.join(a.recordDir, p.name + '.txt') : null }, p)));
+// --seeds 1,2,3 runs every chosen plan once per seed (seed 1 keeps the
+// historical names); --long K multiplies the free-roam runs' length (two,
+// three, four, join, local2; corrupt and pool keep their fixed schedules).
+const LONG = new Set(['two', 'three', 'four', 'join', 'local2', 'hostlocal2']);
+for (const seed of a.seeds || [1]) for (const p0 of plan) {
+    if (a.only && !a.only.includes(p0.name)) continue;
+    const p = Object.assign({}, p0, { seed, frames: LONG.has(p0.name) && a.long ? Math.round(p0.frames * a.long) : p0.frames });
+    const name = seed === 1 ? p.name : `${p.name}-s${seed}`;
+    const sc = roomsScenario({ seed, slots: p.slots, frames: p.frames, hint: !!p.hint });
+    const r = await roomsRun(name, Object.assign({ scenario: sc, durationFrames: p.frames - 10,
+        recordTo: a.recordDir ? path.join(a.recordDir, name + '.txt') : null }, p));
+    r.seed = seed; r.plan = p.name;
+    runs.push(r);
 }
 // RM5: the shadow's cost by batch size (two devices, 9000 frames)
 if (!a.only || a.only.includes('cost')) {

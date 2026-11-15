@@ -144,8 +144,8 @@ static void sub_080C4B70(struct Object *ufo)
         r4 = (ufo->kirby3->base.x + r3 - ufo->base.x) >> 8;
         r5 = (ufo->base.y - (ufo->kirby3->base.y + r1)) >> 8;
         d = Sqrt((r4*r4 + r5*r5) * 0x100);
-        cos = r4 * 0x100 / d;
-        sin = r5 * 0x100 / d;
+        cos = r4 * 0x100 / PORT_DIVISOR(d);
+        sin = r5 * 0x100 / PORT_DIVISOR(d);
         ufo->base.xspeed = cos * 0x40;
         ufo->base.yspeed = sin * 0x40;
         if (abs(ufo->kirby3->base.x + r3 - ufo->base.x) < 0x800
