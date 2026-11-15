@@ -66,7 +66,7 @@
     var CONTENT = 'lmpnet1';
 
     /* platform/port/online_ui.h */
-    var UI = { J_REMOVED: 15, IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
+    var UI = { J_REMOVED: 18, IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
                J_CONNECTING: 6, J_WAITING: 7, J_STARTING: 8, J_NOGAME: 9, J_FULL: 10, J_BUILD: 11,
                J_ROM: 12, J_FAILED: 13, J_HOSTLEFT: 14 };
     var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6 };

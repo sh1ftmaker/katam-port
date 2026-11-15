@@ -34,9 +34,9 @@ enum {
     PORT_OUI_J_CONNECTING, PORT_OUI_J_WAITING, PORT_OUI_J_STARTING,
     PORT_OUI_J_NOGAME, PORT_OUI_J_FULL, PORT_OUI_J_BUILD, PORT_OUI_J_ROM,
     PORT_OUI_J_FAILED, PORT_OUI_J_HOSTLEFT,
-    PORT_OUI_J_REMOVED,     /* the host removed this device (a kick) */
     /* server browser: a locked game asks (web/online_browse.js) */
     PORT_OUI_J_PASSWORD, PORT_OUI_J_PWBAD, PORT_OUI_J_PWLOCK,
+    PORT_OUI_J_REMOVED,     /* 18: the host removed this device (web/online.js UI) */
     PORT_OUI_STATES
 };
 

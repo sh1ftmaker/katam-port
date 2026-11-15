@@ -89,6 +89,7 @@
 #include "port/inputlog.h"   /* PortInputLogReplaying */
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
+#include "ui/light_opts.h"  /* the LIGHTING section's rows */
 
 /* Palette slots: the game's own, plus one for the description line. */
 #define PAL_HEADER      0           /* the screen header (unkC's palId)     */
@@ -573,6 +574,9 @@ static const struct CellGlyph *CellFind(char c)
     return NULL;
 }
 
+static int SmallText(u8 *px, int w, int h, int x, int y, const char *s, u8 fill, u8 edge);
+static int sCellGap = 2, sCellSpace = 4;     /* CellText's spacing (BuildDesc condenses) */
+
 /* Ink width of s in pixels (letters 2 px a cell, one empty column between,
  * spaces 4 px). */
 static int CellWidth(const char *s)
@@ -582,9 +586,9 @@ static int CellWidth(const char *s)
     for (; *s; s++) {
         const struct CellGlyph *g = CellFind(*s);
 
-        if (*s == ' ') { w += 4; continue; }
+        if (*s == ' ') { w += sCellSpace; continue; }
         if (g == NULL) continue;
-        if (!first) w += 2;     /* a column of outline, shared, + one more */
+        if (!first) w += sCellGap;     /* a column of outline, shared, + one more */
         first = 0;
         w += 2 * (int)strlen(g->rows[0]);
     }
@@ -593,6 +597,7 @@ static int CellWidth(const char *s)
 
 /* Draw s with its ink starting at (x, y), ink colour fill and, if edge, a
  * one-pixel outline in edge. */
+
 static void CellText(u8 *px, int w, int h, int x, int y, const char *s, u8 fill, u8 edge)
 {
     int pass, first;
@@ -606,9 +611,9 @@ static void CellText(u8 *px, int w, int h, int x, int y, const char *s, u8 fill,
             const struct CellGlyph *g = CellFind(*p);
             int gw, r, c, dx, dy;
 
-            if (*p == ' ') { cx += 4; continue; }
+            if (*p == ' ') { cx += sCellSpace; continue; }
             if (g == NULL) continue;
-            if (!first) cx += 2;
+            if (!first) cx += sCellGap;
             first = 0;
             gw = (int)strlen(g->rows[0]);
             for (r = 0; r < 5; r++)
@@ -712,16 +717,34 @@ static void BuildDesc(const char *s, u32 vram)
     memset(px, 0, sizeof(px));
     if (sDescCutsOk && CanCut(kDescCuts, ARRAY_COUNT(kDescCuts), s)) {
         /* the game's spacing: one empty column between letters, seven
-         * between words */
-        int tw = PasteCut(NULL, w, 0, kDescCuts, ARRAY_COUNT(kDescCuts), s, 0, 15, 0,
-                          DSC_TEXT, 0, 1, 6);
+         * between words -- or, for a line too long for that (LIGHTING's
+         * run to 40 letters), three between words */
+        int space = 6, tw = PasteCut(NULL, w, 0, kDescCuts, ARRAY_COUNT(kDescCuts), s, 0, 15, 0,
+                                     DSC_TEXT, 0, 1, space);
 
-        if (tw > DISPLAY_WIDTH - 4)
-            PortLog("[menu-poc] description too wide (%d px): %s", tw, s);
-        PasteCut(px, w, (DISPLAY_WIDTH - tw) / 2, kDescCuts, ARRAY_COUNT(kDescCuts), s,
-                 0, 15, 0, DSC_TEXT, 0, 1, 6);
-    } else {
+        if (tw > DISPLAY_WIDTH - 4) {
+            space = 3;
+            tw = PasteCut(NULL, w, 0, kDescCuts, ARRAY_COUNT(kDescCuts), s, 0, 15, 0, DSC_TEXT, 0, 1, space);
+        }
+        if (tw <= DISPLAY_WIDTH - 2) {
+            PasteCut(px, w, (DISPLAY_WIDTH - tw) / 2, kDescCuts, ARRAY_COUNT(kDescCuts), s,
+                     0, 15, 0, DSC_TEXT, 0, 1, space);
+            PackPic(px, GS_DESC_COLS, vram);
+            return;
+        }
+    }
+    if (CellWidth(s) <= DISPLAY_WIDTH - 4) {
         CellText(px, w, PIC_H, (DISPLAY_WIDTH - CellWidth(s)) / 2, 3, s, DSC_TEXT, 0);
+    } else {
+        /* too long for the line: letters closer together, and failing that
+         * the half-size font */
+        sCellGap = 1; sCellSpace = 3;
+        if (CellWidth(s) <= DISPLAY_WIDTH - 2)
+            CellText(px, w, PIC_H, (DISPLAY_WIDTH - CellWidth(s)) / 2, 3, s, DSC_TEXT, 0);
+        else
+            SmallText(px, w, PIC_H, (DISPLAY_WIDTH - SmallText(NULL, w, PIC_H, 0, 5, s, DSC_TEXT, 0)) / 2, 5, s,
+                      DSC_TEXT, 0);
+        sCellGap = 2; sCellSpace = 4;
     }
     PackPic(px, GS_DESC_COLS, vram);
 }
@@ -888,6 +911,7 @@ enum {
     IT_NONE,
     /* the top level */
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_SEC_LIGHTING,
     IT_MAINMENU,
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
@@ -937,6 +961,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_SEC_ONLINE]  = { "ONLINE", K_SECTION, "THE ONLINE GAME" },
     [IT_SEC_GAME]    = { "GAME", K_SECTION, "SAVE ROM AND RANDOMIZER" },
     [IT_SEC_ADVANCED]= { "ADVANCED", K_SECTION, "LOG BUILD AND DEFAULTS" },
+    [IT_SEC_LIGHTING]= { "LIGHTING", K_SECTION, "LIGHT AND SHADOWS" },
     [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
     [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
     [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
@@ -988,7 +1013,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
 /* The sections' items.  Per build: the page's actions on the web, VSYNC
  * natively. */
 static const u8 kTopItems[] = {
-    IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_SEC_DISPLAY, IT_SEC_LIGHTING, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
     IT_MAINMENU,
 };
 static const u8 kDisplayItems[] = {
@@ -1020,7 +1045,8 @@ static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
 /* Sections kept by other files (port/menu_poc.h "Adding a section"): their
  * rows' definitions, before the NULL.  The index here is the one in
  * EXT_SECTION and in an edit's item number. */
-static const struct PortPocRows *const kExtRows[] = { NULL };
+extern const struct PortPocRows gPocLightRows;     /* LIGHTING, below */
+static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, NULL };
 #define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
 static int ZoomIndexOf(const PortSettings *s)
@@ -1830,8 +1856,8 @@ static int ExtUnavailable(int row)
 {
     const struct PortPocRows *x = sModel->ext;
 
-    if (gPortLnOn)
-        return ExtOnline(x, row) < 0 || !(sSlotSetOn & (1u << Pauser()));
+    if (gPortLnOn && (ExtOnline(x, row) < 0 || !(sSlotSetOn & (1u << Pauser()))))
+        return 1;
     return x->available ? !x->available(row) : 0;
 }
 
@@ -1859,6 +1885,92 @@ static void ExtValue(int row, char *buf, int size)
 }
 
 static const char *ExtName(int row) { return sModel->ext->name(row); }
+
+/* --- LIGHTING (platform/ui/light_opts.h) -------------------------------------
+ * Offline: this device's settings and GPU, every row.  In a session the
+ * section is drawn from the pausing player's device's copy -- its four
+ * online rows (LIGHTING, ENGINE, STYLE, LIGHT SOURCE: rows 0-3, online slots
+ * 0-3) carried as 4-bit values with the settings copy -- and as if every
+ * device could light (LIGHT_OPT_HOST_ALL), so nothing drawn depends on this
+ * device's GPU; the other rows are dimmed.  An edit is that device's own
+ * LightOptStepLive, from its final frame. */
+#define LIGHT_ONLINE_ROWS 4
+
+static const PortSettings *LightSettings(int *host)
+{
+    static PortSettings copy;
+    const PortSettings *sh;
+    u32 x;
+    int st;
+
+    if (!gPortLnOn) {
+        *host = LightOptHost();
+        return &gPortSettings;
+    }
+    *host = LIGHT_OPT_HOST_ALL;
+    sh = Shown();
+    if (sh != NULL) copy = *sh; else PortSettingsDefaults(&copy);
+    x = sSlotExt[Pauser()];
+    copy.lightOn = (int)(x & 1);
+    copy.lightEngine = (int)((x >> 4) & 1);
+    copy.lightMode = (int)((x >> 12) & 3);
+    /* STYLE: the defaults are NORMAL; a step either side is SUBTLE or
+     * STRONG; anything else draws as CUSTOM */
+    st = (int)((x >> 8) & 15);
+    if (st == 0 || st == 2)
+        LightOptStep(&copy, 2, st == 0 ? -1 : 1);
+    else if (st >= 3)
+        copy.lightStrength = 1.37f;
+    return &copy;
+}
+
+static const char *LightName(int row) { return LightOptName(row); }
+static const char *LightDesc(int row)
+{
+    int host;
+    const PortSettings *s = LightSettings(&host);
+
+    return LightOptDesc(s, row, host);
+}
+static void LightValue(int row, char *buf, int size)
+{
+    int host;
+
+    LightOptValue(LightSettings(&host), row, buf, size);
+}
+static void LightStep(int row, int dir) { LightOptStepLive(row, dir); }
+static int LightAvailable(int row)
+{
+    int host;
+    const PortSettings *s = LightSettings(&host);
+
+    return LightOptAvailable(s, row, host);
+}
+static int LightOnlineSlot(int row) { return row < LIGHT_ONLINE_ROWS ? row : -1; }
+static int LightOnlineGet(int slot)
+{
+    char v[16];
+    const PortSettings *s = &gPortSettings;
+
+    switch (slot) {
+    case 0: return s->lightOn & 1;
+    case 1: return s->lightEngine & 1;
+    case 2:
+        LightOptValue(s, 2, v, sizeof v);
+        return strcmp(v, "SUBTLE") == 0 ? 0 : strcmp(v, "NORMAL") == 0 ? 1 : strcmp(v, "STRONG") == 0 ? 2 : 3;
+    default: return s->lightMode & 3;
+    }
+}
+static void LightOnlineText(int slot, int v, char *buf, int size)
+{
+    (void)v;
+    LightValue(slot, buf, size);    /* the copy holds v (LightSettings) */
+}
+
+const struct PortPocRows gPocLightRows = {
+    "LIGHTING", LightName, LightDesc, LightValue, LightStep, LightAvailable,
+    LightOnlineSlot, LightOnlineGet, LightOnlineText,
+};
 
 static const char *SecName(int row)
 {
@@ -1924,11 +2036,13 @@ static u32 SecGen(void)
 /* (a section's parent row is its place on the top level; the parent itself
  * is whichever top level is up: SectionParent) */
 SECTION(kSecDisplay, "DISPLAY", kDisplayItems, &kTopModel, 0);
-SECTION(kSecSound, "SOUND", kSoundItems, &kTopModel, 1);
-SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 2);
-SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 3);
-SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 4);
-SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 5);
+#define LIGHT_ROWS 26               /* LightOptCount(): checked as it opens */
+EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, 1, 0);
+SECTION(kSecSound, "SOUND", kSoundItems, &kTopModel, 2);
+SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 3);
+SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 4);
+SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 5);
+SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 6);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -1981,11 +2095,12 @@ static const char *ConfirmHeader(void)
 /* Each top-level section row and its screen (port/menu_poc.h "Adding a
  * section"). */
 static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
-    { IT_SEC_DISPLAY, &kSecDisplay }, { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
+    { IT_SEC_DISPLAY, &kSecDisplay }, { IT_SEC_LIGHTING, &kSecLighting },
+    { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
 };
 static const struct PocModel *const kSections[] = {
-    &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced,
+    &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2172,6 +2287,7 @@ static const struct PocModel *const kModels[] = {
     &kConfirmModel,
     /* 17, 18: the server browser's */
     &kBrowseModel, &kPassModel,     /* server browser */
+    &kSecLighting,                  /* 19 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -2270,7 +2386,7 @@ static void DrawRowTiles(u32 tiles, int row, int cursor)
     if (!selected || (sModel->ext == NULL && (sModel->items == NULL
                                                || (kItem[ModelItem(row)].kind != K_SETTING
                                                    && kItem[ModelItem(row)].kind != K_TOGGLE)))
-        || sModel->unavailable(row)
+        || sModel->unavailable(row) || !val[0]
         || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > ROW_VALUE_X1)
         snprintf(shown, sizeof(shown), "%s", val);
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
@@ -2502,6 +2618,8 @@ static void ScreenBuild(int pause, u32 tiles, u16 lblAnim, u8 lblVariant, u16 hd
     if (sModel != NULL && sModel->card && PortCardSub() != PORT_CARD_SUB_NONE)
         PortPlayerCardClose();      /* a card left open from PLAYERS */
     sPauseScreen = pause;
+    if (LightOptCount() != LIGHT_ROWS)
+        PortLog("[menu-poc] LIGHTING has %d rows, the section %d: update LIGHT_ROWS", LightOptCount(), LIGHT_ROWS);
     ModelBuild(TopModel(), tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
 }
 

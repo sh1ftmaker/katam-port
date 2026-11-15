@@ -200,9 +200,9 @@ async function startPlay(p) {
 
 const XBOX = 'Xbox 360 Controller (XInput STANDARD GAMEPAD)';
 const XONE = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
-const M = { BROWSE: 17, PASS: 18, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
+const M = { BROWSE: 17, PASS: 18, LIGHTING: 19, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
             PAUSE_TOP: 9, DISPLAY: 10, SOUND: 11, SEC_PLAYERS: 12, SEC_ONLINE: 13, GAME: 14, ADVANCED: 15, CONFIRM: 16 };
-const SECTIONS = ['DISPLAY', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED'];
+const SECTIONS = ['DISPLAY', 'LIGHTING', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED'];
 const ouiScreen = (p) => p.ev('Module._PortOuiScreen()');
 /* the pause screen (PortLnObserve works outside a session too): paused, its page */
 const pauseState = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
@@ -213,6 +213,7 @@ const row = (screen, state, b, start, select) => TABLE.push({ screen, state, b, 
 async function step(p, k, n = 20) { await press(p, k); await waitFrames(p, n); }
 const settingsWord = (p) => p.ev('Module._PortPocSettingsWord() >>> 0');
 const volume = async (p) => ((await settingsWord(p)) >>> 10) & 127;
+const lightOn = async (p) => (await p.ev('Module._PortPocSettingsExtWord() >>> 0')) & 1;
 
 // --------------------------------------------------------------------------
 /* Front end: SETTINGS, each section and the NO / YES screen; MULTIPLAYER,
@@ -240,8 +241,15 @@ async function caseFront() {
         await step(p, 'DOWN', 10);
     }
     row('Front SETTINGS > each section', 'rows', 'back to SETTINGS on its row', '= A', 'nothing (game rule)');
+    // LIGHTING: off by default; LIGHTING Right turns it on, every row then works
+    await step(p, 'DOWN', 10); await step(p, 'A');               // (wrapped to DISPLAY) -> LIGHTING
+    ok('LIGHTING section; lighting off by default', (await pagesModel(p)) === M.LIGHTING && (await lightOn(p)) === 0);
+    await step(p, 'RIGHT', 10);
+    ok('LIGHTING Right: on', (await lightOn(p)) === 1);
+    await shot(p, 'front-lighting-on.png');
+    await step(p, 'B'); await step(p, 'UP', 10);                 // back on DISPLAY
     // ADVANCED > DEFAULTS: NO / YES
-    for (let i = 0; i < 5; i++) await step(p, 'DOWN', 8);      // (wrapped to DISPLAY above) -> ADVANCED
+    for (let i = 0; i < 6; i++) await step(p, 'DOWN', 8);      // (wrapped to DISPLAY above) -> ADVANCED
     await step(p, 'A');
     ok('ADVANCED is up', (await pagesModel(p)) === M.ADVANCED);
     await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);        // DEFAULTS
@@ -261,8 +269,9 @@ async function caseFront() {
     await step(p, 'A'); await step(p, 'DOWN', 8); await step(p, 'A', 30);      // YES
     ok('DEFAULTS > YES: the volume is the default again, back on ADVANCED', (await volume(p)) === 100 && (await pagesModel(p)) === M.ADVANCED,
        String(await volume(p)));
+    ok('DEFAULTS > YES: lighting off again', (await lightOn(p)) === 0);
     // the gesture rows: FULLSCREEN by the keyboard (now) and by a pad (asks)
-    await step(p, 'B'); for (let i = 0; i < 5; i++) await step(p, 'DOWN', 8);   // wraps to DISPLAY
+    await step(p, 'B'); await step(p, 'DOWN', 8);              // wraps to DISPLAY
     await step(p, 'A');
     for (let i = 0; i < 11; i++) await step(p, 'DOWN', 6);     // FULLSCREEN
     await shot(p, 'front-display-fullscreen-row.png');
@@ -366,15 +375,19 @@ async function caseJoinMessage() {
     for (let i = 0; i < 3; i++) await step(p, 'DOWN', 10); // PASS (row 3)
     const pass = () => p.ev('Module.ccall("PortObrHostPassJs","string",[],[])');
     const p0 = await pass();
-    await step(p, 'A', 10);                                 // typing
+    // the pad (keyboard letters type the password: B is X there)
+    await p.ev(`__padPlug(0, ${JSON.stringify(XBOX)})`); await waitFrames(p, 10);
+    const pad = async (k) => { await padPress(p, 0, k); await waitFrames(p, 10); };
+    await pad('A');                                        // typing
     ok('HOST GAME > PASS: A starts typing', (await p.ev('Module._PortObrTyping()')) !== 0);
-    await step(p, 'RIGHT', 10);
+    await pad('RIGHT');
     ok('... Right picks a letter', (await pass()) !== p0, JSON.stringify(await pass()));
-    for (let i = 0; i < 9 && (await p.ev('Module._PortObrTyping()')); i++) await step(p, 'B', 8);
-    ok('... B at the first letter cancels (the password as it was)', (await pass()) === p0 && (await pagesModel(p)) === M.HOST);
-    await step(p, 'A', 10); await step(p, 'RIGHT', 10);
+    for (let i = 0; i < 9 && (await p.ev('Module._PortObrTyping()')); i++) await pad('B');
+    ok('... B at the first letter cancels (the password as it was)', (await pass()) === p0 && (await pagesModel(p)) === M.HOST,
+       JSON.stringify(await pass()) + ' model ' + (await pagesModel(p)));
+    await pad('A'); await pad('RIGHT');
     const p1 = await pass();
-    await step(p, 'START', 10);
+    await pad('START');
     ok('... Start finishes typing, kept', (await p.ev('Module._PortObrTyping()')) === 0 && (await pass()) === p1 && (await pagesModel(p)) === M.HOST);
     row('HOST GAME > PASS / PASSWORD screen', 'typing a password', 'a letter back; at the first: cancel', 'done (kept)', 'nothing');
     await step(p, 'B', 30);
@@ -432,7 +445,7 @@ async function casePause() {
     await step(p, 'SELECT', 70); ok('NO / YES: Select turns the page (nothing done)', (await pauseState(p)).menu !== MENU.SETTINGS && (await pauseState(p)).paused === 1);
     row('Pause SETTINGS > NO / YES (MAIN MENU)', 'asking', 'SETTINGS (= NO)', 'close the pause', 'next page (= NO)');
     await toPage(MENU.SETTINGS);
-    for (const [i, name] of [[0, 'DISPLAY'], [2, 'SEC_PLAYERS']]) {
+    for (const [i, name] of [[0, 'DISPLAY'], [3, 'SEC_PLAYERS']]) {
         for (let k = 0; k < i; k++) await step(p, 'DOWN', 8);
         await step(p, 'A');
         await step(p, 'START'); ok(`${name}: Start closes the pause`, await closed());
@@ -444,14 +457,14 @@ async function casePause() {
     }
     row('Pause SETTINGS > a section', 'its rows', 'SETTINGS on its row', 'close the pause', 'next page');
     // PLAYERS page and a card
-    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A');   // the PLAYERS section
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A');   // the PLAYERS section
     await step(p, 'A', 30);
     ok('the PLAYERS page', (await pagesModel(p)) === M.PLAYERS);
     await step(p, 'B'); ok('PLAYERS page: B back to the PLAYERS section', (await pagesModel(p)) === M.SEC_PLAYERS);
     await step(p, 'A', 30); await step(p, 'START'); ok('PLAYERS page: Start closes the pause', await closed());
     row('Pause PLAYERS page', 'choosing pads', 'the PLAYERS section', 'close the pause', 'next page');
     await open(); await toPage(MENU.SETTINGS);
-    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A'); await step(p, 'A', 30);
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A'); await step(p, 'A', 30);
     await step(p, 'DOWN', 8); await step(p, 'A', 30);         // P2: nothing chosen -> P2's card
     ok('a card from the PLAYERS page', (await pagesModel(p)) === M.CARD);
     await step(p, 'B'); ok('card: B back to PLAYERS', (await pagesModel(p)) === M.PLAYERS);
@@ -544,6 +557,13 @@ async function caseLooks(tag, opts) {
     await shot(p, `${tag}-front-settings.png`);
     for (let i = 0; i < SECTIONS.length; i++) {
         await step(p, 'A'); await shot(p, `${tag}-front-${SECTIONS[i].toLowerCase()}.png`);
+        if (SECTIONS[i] === 'LIGHTING') {
+            await step(p, 'RIGHT', 10); await shot(p, `${tag}-front-lighting-on.png`);
+            for (let k = 0; k < 4; k++) await step(p, 'DOWN', 6);
+            await shot(p, `${tag}-front-lighting-on-rows.png`);
+            for (let k = 0; k < 4; k++) await step(p, 'UP', 6);
+            await step(p, 'LEFT', 10);
+        }
         await step(p, 'B'); await step(p, 'DOWN', 10);
     }
     await step(p, 'B', 40);

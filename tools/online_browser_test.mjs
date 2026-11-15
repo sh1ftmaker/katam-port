@@ -846,6 +846,7 @@ if (CASES.includes('three')) {
         else { await press(host, 'SELECT'); await waitFrames(host, 70); }
     }
     ok('session: the pause SETTINGS page is up', pageUp);
+    await press(host, 'DOWN'); await waitFrames(host, 10);        // LIGHTING
     await press(host, 'DOWN'); await waitFrames(host, 10);        // SOUND
     await press(host, 'DOWN'); await waitFrames(host, 10);        // PLAYERS
     await press(host, 'A'); await waitFrames(host, 20);           // the PLAYERS section
@@ -1059,7 +1060,7 @@ if (CASES.includes('exits')) {
     ok('exits: guest A on SETTINGS', (await modelOf(ga)) === 9 && (await modelOf(host)) === 9);
     table.push(['Pause, online (TOGETHER)', 'the other players', 'nothing', 'nothing', 'next page']);
     // --- SETTINGS > ONLINE on guest A: the code and the list, read only
-    for (let i = 0; i < 3; i++) await step(ga, 'DOWN', 10);
+    for (let i = 0; i < 4; i++) await step(ga, 'DOWN', 10);
     await step(ga, 'A', 30);
     ok('exits: ONLINE section (guest A)', (await modelOf(ga)) === 13);
     await waitFrames(ga, 30);
@@ -1071,7 +1072,7 @@ if (CASES.includes('exits')) {
     ok('exits: B: SETTINGS', (await modelOf(ga)) === 9);
     // --- the owner's cases: guest A's ZOOM and CAMERA are its own
     const h0 = await word(host), a0 = await word(ga);
-    for (let i = 0; i < 3; i++) await step(ga, 'UP', 10);         // (B left the cursor on ONLINE)
+    for (let i = 0; i < 4; i++) await step(ga, 'UP', 10);         // (B left the cursor on ONLINE)
     await step(ga, 'A', 30);                                       // DISPLAY
     await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);        // ZOOM
     await step(ga, 'RIGHT', 30); await sleep(1500);
@@ -1086,6 +1087,20 @@ if (CASES.includes('exits')) {
     await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);       // CAMERA
     await step(ga, 'RIGHT', 30); await sleep(1500);
     ok('case 3: guest A\'s CAMERA Right: guest A toggled, the host not', camOf(await word(ga)) !== camOf(a0) && camOf(await word(host)) === camOf(h0));
+    // LIGHTING online: the switch is guest A's own, the other rows dimmed
+    await step(ga, 'B', 20);                                     // SETTINGS, on DISPLAY
+    await step(ga, 'DOWN', 10); await step(ga, 'A', 30);         // LIGHTING
+    const lon = (p) => p.ev('Module._PortPocSettingsExtWord() >>> 0').then((v) => v & 1);
+    ok('exits: LIGHTING section online', (await modelOf(ga)) === 19);
+    await step(ga, 'RIGHT', 30); await sleep(1500);
+    ok('exits: LIGHTING Right online: guest A\'s on, the host\'s off', (await lon(ga)) === 1 && (await lon(host)) === 0);
+    await shot(ga, 'x-03b-guestA-lighting-online.png'); await shot(host, 'x-03b-host-sees-guestA-lighting.png');
+    for (let i = 0; i < 4; i++) await step(ga, 'DOWN', 8);      // STRENGTH: dimmed online
+    await step(ga, 'RIGHT', 30);
+    await shot(ga, 'x-03c-guestA-lighting-dimmed-row.png');
+    for (let i = 0; i < 4; i++) await step(ga, 'UP', 8);
+    await step(ga, 'LEFT', 30); await sleep(1500);
+    ok('exits: ... and Left turns guest A\'s off again', (await lon(ga)) === 0);
     await step(ga, 'START', 60);
     ok('exits: guest A\'s Start (in a section) closes the pause', (await pauseOf(host)).paused === 0);
     table.push(['Pause, online', 'the pauser, in a section', 'SETTINGS', 'close the pause', 'next page']);
@@ -1108,7 +1123,7 @@ if (CASES.includes('exits')) {
     await step(host, 'UP', 10); await step(host, 'UP', 10); await step(host, 'LEFT', 30);   // ZOOM back
     await step(host, 'B', 30);
     // --- REMOVE guest B (the host's list; B is guest 2)
-    for (let i = 0; i < 3; i++) await step(host, 'DOWN', 10);      // ONLINE
+    for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // ONLINE
     await step(host, 'A', 30);
     for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // row 4: guest 2's Kirby
     await step(host, 'A', 30);
@@ -1133,7 +1148,7 @@ if (CASES.includes('exits')) {
     ok('REMOVE: guest A still identical to the host', cmpA.mismatched === 0 && cmpA.compared > 5, `${cmpA.equal}/${cmpA.compared}`);
     await waitFrames(gb, 200);
     await gb.ev(`katamOnline.join(${JSON.stringify(code)})`);
-    const refused = await until(async () => ((await screen(gb)) & 255) === 15, 20000);   /* REMOVED (from the title: no JOIN screen) */
+    const refused = await until(async () => ((await screen(gb)) & 255) === 18, 20000);   /* REMOVED (from the title: no JOIN screen) */
     ok('REMOVE: guest B\'s rejoin with the code is refused (REMOVED)', !!refused, String(await screen(gb)));
     await waitFrames(gb, 10);
     await shot(gb, 'x-07-guestB-rejoin-refused.png');

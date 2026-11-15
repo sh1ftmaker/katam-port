@@ -208,3 +208,6 @@ menu_poc _ZZL9SlotLabeliE3lbl scratch written before every read
 menu_poc _ZZL11SessionCodevE4code scratch written before every read
 menu_poc _ZZL8ItemDesciE4line scratch written before every read
 menu_poc _ZL12kBrowseModel front-end BROWSE GAMES list model: its row count follows the fetched list (per device, before any session)
+menu_poc _ZZL13LightSettingsPiE4copy scratch written before every read
+menu_poc _ZL8sCellGap scratch the fallback font's letter gap, set and restored within one BuildDesc
+menu_poc _ZL10sCellSpace scratch with sCellGap
