@@ -9,8 +9,15 @@
 //   GET  /v2/rooms/<CODE>/ws        -> WebSocket upgrade into the room
 //                                      (the host resolves the code with
 //                                      lookup() and forwards; same limits)
+//
+// The public game list (listing.mjs), opt-in per room:
+//   GET  /v2/public                 -> 200 {v, games, every, ttl} | 429
+//   POST /v2/public  {code, resume, name, n, mode, locked}
+//                                   -> 200 {ok, listed} | 400 | 403 | 409 | 429
+//   POST /v2/public/remove {code, resume} -> 200 {ok, removed} | 403 | 429
 
 import { CodeDirectory, makeEdgeLimits, normalizeCode } from './codes.mjs';
+import { ListService } from './listing.mjs';
 
 export class DirectoryService {
     constructor(opts = {}) {
@@ -18,6 +25,7 @@ export class DirectoryService {
         this.dir = opts.directory || new CodeDirectory({ now: this.now, rng: opts.rng,
                                                          idleMs: opts.idleMs });
         this.limits = makeEdgeLimits(this.now);
+        this.pub = new ListService(this, opts.list || {});
     }
 
     _limited(kind, ip, cost = 1) {
@@ -66,7 +74,15 @@ export class DirectoryService {
         return { status: 200, body: { code: r.code, resume: r.resumeToken }, roomId: r.roomId };
     }
 
-    touch(roomId, occupants) { this.dir.touch(roomId, occupants); }
+    touch(roomId, occupants) {
+        this.dir.touch(roomId, occupants);
+        this.pub.occupancy(roomId, occupants);
+    }
+
+    // The public list: in memory only, never part of toJSON / storage.
+    publicList(ip) { return this.pub.get(ip); }
+    publish(body, ip) { return this.pub.publish(body, ip); }
+    unpublish(body, ip) { return this.pub.remove(body, ip); }
 }
 
 export const CORS = {

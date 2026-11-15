@@ -198,6 +198,18 @@ export class Directory {
             out = this.svc.lookup(url.searchParams.get('code') || '', ip);
         } else if (url.pathname === '/resume') {
             out = this.svc.resume(url.searchParams.get('token') || '', ip);
+        } else if (url.pathname === '/public' || url.pathname === '/public/put'
+                   || url.pathname === '/public/del') {
+            /* the public game list (listing.mjs): memory only -- no _save(),
+             * so listing and heartbeats never cost a storage write */
+            if (url.pathname === '/public') {
+                out = this.svc.publicList(ip);
+            } else {
+                let b = null;
+                try { b = await req.json(); } catch (e) { /* not JSON */ }
+                out = url.pathname === '/public/put' ? this.svc.publish(b, ip) : this.svc.unpublish(b, ip);
+            }
+            return json(out.status, out.body, out.headers);
         } else if (url.pathname === '/touch') {
             this.svc.touch(url.searchParams.get('room') || '', Number(url.searchParams.get('n')) | 0);
             this._save();
@@ -325,6 +337,18 @@ async function v2(req, env) {
     let m = /^\/v2\/rooms\/([^/]+)$/.exec(url.pathname);
     if (req.method === 'GET' && m)
         return strip(await ask('/lookup?code=' + encodeURIComponent(decodeURIComponent(m[1]))));
+    /* the public game list (netplay/listing.mjs) */
+    if (url.pathname === '/v2/public' && req.method === 'GET')
+        return strip(await ask('/public'));
+    if (req.method === 'POST' && (url.pathname === '/v2/public' || url.pathname === '/v2/public/remove')) {
+        let body = '';
+        try { body = await req.text(); } catch (e) { /* empty */ }
+        if (body.length > 2048)
+            return json(413, { error: 'bad', msg: 'Too large.' });
+        return strip(await dir.fetch(`https://dir${url.pathname === '/v2/public' ? '/public/put' : '/public/del'}`, {
+            method: 'POST', body: body || '{}',
+            headers: { 'X-Client-IP': ip, 'Content-Type': 'application/json' } }));
+    }
     m = /^\/v2\/rooms\/([^/]+)\/ws$/.exec(url.pathname);
     if (m) {
         if (req.headers.get('Upgrade') !== 'websocket')

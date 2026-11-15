@@ -4,7 +4,7 @@
 // transport bug is a lot easier to look at when the server is forty lines in
 // the same process as the test.
 //
-//   node netplay/dev-relay.mjs [port]          one room per URL path
+//   node netplay/dev-relay.mjs [port] [--no-public]   one room per URL path
 //
 // or from a test:
 //
@@ -168,7 +168,7 @@ export function startRelay(port = 8787, opts = {}) {
 //   WebSocket at /v2/rooms/<CODE>/ws.
 // opts.ipHeader: trust X-Forwarded-For (tests fake many IPs with it).
 export function startV2(opts = {}, log = () => {}) {
-    const service = opts.directory || new DirectoryService({ idleMs: opts.idleMs });
+    const service = opts.directory || new DirectoryService({ idleMs: opts.idleMs, list: opts.list });
     const rooms = new Map();          /* roomId -> {core, socks: Map, timer} */
     const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
     let nextConn = 1;
@@ -241,6 +241,22 @@ export function startV2(opts = {}, log = () => {}) {
         let m = /^\/v2\/rooms\/([^/]+)$/.exec(url.pathname);
         if (req.method === 'GET' && m)
             return reply(res, service.lookup(decodeURIComponent(m[1]), ip));
+        /* the public game list (listing.mjs); opts.noPublic: a server from
+         * before it (the deployed worker until the owner deploys this one),
+         * for the page's "needs a server update" path */
+        if (!opts.noPublic && url.pathname === '/v2/public' && req.method === 'GET')
+            return reply(res, service.publicList(ip));
+        if (!opts.noPublic && req.method === 'POST'
+            && (url.pathname === '/v2/public' || url.pathname === '/v2/public/remove')) {
+            let body = '';
+            req.on('data', (d) => { body += d; if (body.length > 2048) req.destroy(); });
+            req.on('end', () => {
+                let b = null;
+                try { b = JSON.parse(body); } catch (e) { /* not JSON */ }
+                reply(res, url.pathname === '/v2/public' ? service.publish(b, ip) : service.unpublish(b, ip));
+            });
+            return;
+        }
         if (req.method === 'POST' && url.pathname === '/v2/resume') {
             let body = '';
             req.on('data', (d) => { body += d; if (body.length > 4096) req.destroy(); });
@@ -301,7 +317,10 @@ export function startV2(opts = {}, log = () => {}) {
     };
 }
 
-/* CLI */
+/* CLI.  --no-public (or RELAY_NO_PUBLIC=1): no public game list, as the
+ * worker was before it (tests of the page against an old server). */
 if (import.meta.url === `file://${process.argv[1]}`)
-    startRelay(parseInt(process.argv[2] || '8787', 10),
-               { host: process.env.RELAY_HOST || '127.0.0.1' });
+    startRelay(parseInt(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || '8787', 10),
+               { host: process.env.RELAY_HOST || '127.0.0.1',
+                 noPublic: process.argv.includes('--no-public') || process.env.RELAY_NO_PUBLIC === '1',
+                 ipHeader: process.env.RELAY_IP_HEADER === '1' });
