@@ -135,7 +135,7 @@
 /* The settings screen: six rows on screen (and in sprite memory); a list
  * with more scrolls (the settings' seventh, PLAYERS). */
 #define ROWS            6
-#define SET_ROWS        7
+#define SET_ROWS        8
 #define ROW_W           208         /* the banner, widened by 32            */
 #define ROW_WIDEN_AT    100         /* the column repeated to widen it      */
 #define ROW_COLS        7
@@ -866,10 +866,10 @@ static const char *const kZoomName[] = { "0.5X", "0.67X", "0.8X", "1X", "1.25X",
 #define NZOOM ((int)(sizeof(kZoom) / sizeof(kZoom[0])))
 static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH" };
 
-enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS };
+enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS, R_PARTY };
 
 static const char *const kRowName[SET_ROWS] = {
-    "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME", "PLAYERS",
+    "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME", "PLAYERS", "PARTY HUD",
 };
 /* Only letters the game's description pictures have (no Z, Q, J, digits). */
 static const char *const kRowDesc[SET_ROWS] = {
@@ -880,7 +880,9 @@ static const char *const kRowDesc[SET_ROWS] = {
     "HOW THE PICTURE IS SCALED",
     "MUSIC AND SOUND EFFECTS",
     "CHOOSE WHO USES WHICH PAD",
+    "CARDS FOR THE OTHER PLAYERS",
 };
+static const char *const kPartyName[] = { "OFF", "PLAYERS", "ALL" };
 
 static int ZoomIndexOf(const PortSettings *s)
 {
@@ -925,6 +927,7 @@ static void FromCopy(PortSettings *s)
     s->scaling = c[5];
     s->volume = c[6];
     s->mute = c[7];
+    s->partyHud = c[11] <= PS_PARTY_HELPERS ? c[11] : PS_PARTY_HELPERS;
 }
 
 static void ToCopy(u8 *c, const PortSettings *s)
@@ -936,6 +939,7 @@ static void ToCopy(u8 *c, const PortSettings *s)
     c[5] = (u8)s->scaling;
     c[6] = (u8)s->volume;
     c[7] = (u8)s->mute;
+    c[11] = (u8)s->partyHud;
 }
 
 /* The host, as its session starts: the copy begins as its settings. */
@@ -968,6 +972,7 @@ void PortPocSessionSettingsApply(const u8 *c)
     case R_SMOOTHCAM: s.smoothCam = tmp[4]; break;
     case R_PIXELS:    s.scaling = tmp[5]; break;
     case R_VOLUME:    s.volume = tmp[6]; s.mute = tmp[7]; break;
+    case R_PARTY:     s.partyHud = tmp[11]; break;
     default:
         s.renderer = tmp[1];
         s.aspect = tmp[2];
@@ -976,6 +981,7 @@ void PortPocSessionSettingsApply(const u8 *c)
         s.scaling = tmp[5];
         s.volume = tmp[6];
         s.mute = tmp[7];
+        s.partyHud = tmp[11];
         break;
     }
     PortSettingsClamp(&s);
@@ -1004,6 +1010,7 @@ static void RowValue(int row, char *buf, int size)
         else         snprintf(buf, size, "%d%%", s->volume);
         break;
     case R_PLAYERS:   PortPuiSummary(buf, size); break;
+    case R_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
     default: buf[0] = '\0';
     }
 }
@@ -1021,6 +1028,7 @@ static void RowStepOn(PortSettings *s, int row, int dir)
         break;
     }
     case R_SMOOTHCAM: s->smoothCam = !s->smoothCam; break;
+    case R_PARTY:     s->partyHud = (s->partyHud + dir + PS_PARTY_HELPERS + 1) % (PS_PARTY_HELPERS + 1); break;
     case R_PIXELS:    s->scaling = (s->scaling + dir + PS_SCALE_COUNT) % PS_SCALE_COUNT; break;
     case R_VOLUME:
         if (s->mute) {
@@ -1089,7 +1097,7 @@ static const char *SetName(int row) { return kRowName[row]; }
 static const char *SetDesc(int row)
 {
     if (row == R_PLAYERS && gPortLnOn)
-        return "NOT IN AN ONLINE GAME";
+        return "WHO PLAYS EACH KIRBY";
     return kRowDesc[row];
 }
 static int SetStep(int row, int dir)
@@ -1099,7 +1107,7 @@ static int SetStep(int row, int dir)
     RowStep(row, dir);
     return 1;
 }
-static int SetUnavailable(int row) { return row == R_PLAYERS && gPortLnOn; }
+static int SetUnavailable(int row) { (void)row; return 0; }
 /* The PLAYERS row's count follows joins and leaves while the screen is up.
  * It is drawn into game memory, so it must be the simulation's answer
  * (PortLmpSlotPerson): PortLmpSlotIsHuman is about this device's own seats
@@ -1124,6 +1132,47 @@ static int PuiStep(int row, int dir) { (void)row; (void)dir; return 0; }
 static const struct PocModel kPlayersModel = {
     PORT_PUI_ROWS, "PLAYERS", PortPuiRowName, PuiValue, PortPuiRowDesc, PuiStep, PortPuiRowUnavailable,
     0, PortPuiGen, 1,
+};
+
+/* PLAYERS during an online session: who plays each Kirby, read only.  It is
+ * drawn into game memory, so only what is the same on every device at the
+ * same frame: the session's slot table (PortLnSlotOwner -- applied with the
+ * sealed frames, in every keyframe and image, hashed), never a name (names
+ * are relayed, not sealed) and never "you".  The host is HOST, guests are
+ * GUEST 1..3 by the number the host gave them; a second person on one
+ * device has a +. */
+static const char *LnPlName(int row)
+{
+    static const char *const n[4] = { "P1", "P2", "P3", "P4" };
+    return n[row & 3];
+}
+static void LnPlValue(int row, char *buf, int size)
+{
+    int o = PortLnSlotOwner(row);
+
+    if (row == 0 && o < 0)
+        o = 0;                      /* slot 0 is always the host's own */
+    if (o < 0)
+        snprintf(buf, size, "CPU");
+    else if (o >> 2 == 0)
+        snprintf(buf, size, "HOST%s", (o & 3) ? " +" : "");
+    else
+        snprintf(buf, size, "GUEST %d%s", o >> 2, (o & 3) ? " +" : "");
+}
+static const char *LnPlDesc(int row) { (void)row; return "WHO PLAYS EACH KIRBY"; }
+static int LnPlStep(int row, int dir) { (void)row; (void)dir; return 0; }
+static int LnPlUnavailable(int row) { (void)row; return 0; }
+static u32 LnPlGen(void)
+{
+    u32 g = 0;
+    int s;
+
+    for (s = 0; s < 4; s++)
+        g = g * 64u + (u32)(PortLnSlotOwner(s) + 1);
+    return g;
+}
+static const struct PocModel kLnPlayersModel = {
+    4, "PLAYERS", LnPlName, LnPlValue, LnPlDesc, LnPlStep, LnPlUnavailable, 0, LnPlGen,
 };
 
 /* MULTIPLAYER: LOCAL (two players on this screen, platform/localmp.c) and
@@ -1205,7 +1254,7 @@ static u32 sCardGenShown;           /* PortCardGen() the same              */
 /* The models, numbered for the host state an online image carries. */
 static const struct PocModel *const kModels[] = {
     &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel, &kPlayersModel,
-    &kCardModel, &kPickModel,
+    &kCardModel, &kPickModel, &kLnPlayersModel,
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -1524,12 +1573,14 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
 void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
 {
     PortPuiClose();
+    if (sModel->card && PortCardSub() != PORT_CARD_SUB_NONE)
+        PortPlayerCardClose();      /* a card left open from PLAYERS */
     ModelBuild(&kSettingsModel, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
 }
 
 int PortPocScreenSub(void)
 {
-    return sModel->pui;
+    return sModel->pui || sModel->card || sModel == &kLnPlayersModel;
 }
 
 static s32 RowFrameY(int row)
@@ -1617,20 +1668,73 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     DrawPic(layer, 0, DESC_Y, SetDescVram(tiles), GS_DESC_COLS, 16, PAL_DESC);
 }
 
-/* SETTINGS -> PLAYERS and back, in place, with the same tiles. */
+static int CardFromPlayers(int slot);
+
+/* SETTINGS -> PLAYERS and back, in place, with the same tiles (and PLAYERS
+ * -> a player's card and back). */
 static void SwapModel(u32 tiles, const struct PocModel *m, int row)
 {
-    if (m == &kPlayersModel)
+    if (m == &kPlayersModel) {
+        PortPuiSetCardHook(CardFromPlayers);
         PortPuiOpen();
-    else
+    } else
         PortPuiClose();
     ModelBuild(m, tiles, sArtLbl, sArtLblVar, sArtHdr, sArtHdrVar, row);
+}
+
+/* The PLAYERS page's A on a player: that player's card, in place (local
+ * play: slot p is card p).  Never online -- the page cannot open then, and
+ * a card is device state that would be drawn into game memory. */
+static int CardFromPlayers(int slot)
+{
+    if (gPortLnOn || slot < 0 || slot >= PORT_CARD_PLAYERS)
+        return 0;
+    PortPlayerCardOpen(slot, 1);
+    return 1;
+}
+
+/* A key on a card screen opened from PLAYERS (the shared screen: Game
+ * Select's SETTINGS and the pause page). */
+static int CardScreenInput(u32 tiles, u8 *row, unsigned key)
+{
+    int r = *row, act = PortCardKey(&r, key);
+
+    switch (act) {
+    case PORT_CARD_K_NONE:
+    case PORT_CARD_K_QUIET:
+        return key == 2 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+    case PORT_CARD_K_CLOSE:     /* back to PLAYERS, on that player's row */
+        *row = (u8)PortCardPlayer();
+        SwapModel(tiles, &kPlayersModel, *row);
+        return PORT_POC_IN_SCREEN;
+    default:
+        break;
+    }
+    *row = (u8)r;
+    PortCardNoteRow(r);
+    if ((PortCardSub() == PORT_CARD_SUB_PICK) != (sModel == &kPickModel)) {
+        SwapModel(tiles, PortCardSub() == PORT_CARD_SUB_PICK ? &kPickModel : &kCardModel, r);
+        return PORT_POC_IN_SCREEN;
+    }
+    sCardGenShown = PortCardGen();
+    DrawRows(tiles, r);
+    CardBarsPack(tiles);
+    sDescShown = sModel->desc(r);
+    BuildDesc(sDescShown, SetDescVram(tiles));
+    return act == PORT_CARD_K_CURSOR ? PORT_POC_IN_CURSOR : PORT_POC_IN_VALUE;
 }
 
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
 {
     int was = *row, n = sModel->rows;
 
+    if (sModel->card)
+        return CardScreenInput(tiles, row, key);
+    if (sModel == &kLnPlayersModel && key == 2) {  /* B: back to SETTINGS */
+        *row = R_PLAYERS;
+        SwapModel(tiles, &kSettingsModel, *row);
+        return PORT_POC_IN_SCREEN;
+    }
     if (sModel->pui) {
         int act;
 
@@ -1640,6 +1744,11 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
             return 3;
         }
         act = key == 1 || key == 5 || key == 6 ? PortPuiKey(was, key) : PORT_OUI_K_NONE;
+        if (PortCardSub() != PORT_CARD_SUB_NONE) {     /* A opened the card */
+            *row = 1;           /* NAME: whose card it is is fixed */
+            SwapModel(tiles, &kCardModel, *row);
+            return PORT_POC_IN_SCREEN;
+        }
         if (act != PORT_OUI_K_NONE) {
             sOuiGenShown = sModel->gen();
             DrawRowTiles(tiles, was, was);
@@ -1653,7 +1762,9 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
         if (sModel->unavailable(was))
             return key == 1 ? 5 : 0;
         *row = 0;
-        SwapModel(tiles, &kPlayersModel, *row);
+        /* in an online session: who plays each Kirby (the same on every
+         * device); otherwise the controllers */
+        SwapModel(tiles, gPortLnOn ? &kLnPlayersModel : &kPlayersModel, *row);
         return 3;
     }
 
@@ -1830,6 +1941,8 @@ int PortMenuPocRowAvailable(int row)
 void PortMenuPocSettingsClose(struct Unk_08138D64 *a1)
 {
     PortPuiClose();
+    if (sModel->card && PortCardSub() != PORT_CARD_SUB_NONE)
+        PortPlayerCardClose();
     PortMenuPocFree(a1);
 }
 
@@ -1882,6 +1995,12 @@ void PortPocPauseObjSave(void)
 void PortPocPauseObjRestore(void)
 {
     PortPuiClose();
+    if (sModel->card) {             /* the page closed on a player's card */
+        if (PortCardSub() != PORT_CARD_SUB_NONE)
+            PortPlayerCardClose();
+        CardPalettesKeep(0);
+        sModel = &kSettingsModel;
+    }
     if (!sObjSaved)
         return;
     memcpy((void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sObjSave, sizeof(sObjSave));

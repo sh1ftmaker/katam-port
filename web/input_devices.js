@@ -40,7 +40,10 @@
  *   - Events for the page's notices (opts.onEvent) and a "free controller"
  *     test for its hint (waitingPads()).
  *   - Online (setOnline): every device drives this device's player, nothing
- *     joins and the host keys of players 2-4 are left to the session.
+ *     joins and the host keys of players 2-4 are left to the session -- or,
+ *     with { seats: true } (what the page uses), the local rules exactly,
+ *     player p being this device's seat p (the session's Kirby for it is the
+ *     host's choice: docs/MULTIPLAYER.md §14).
  *
  * No DOM or wasm dependency: the page gives it a `sink` (the game's exports)
  * and calls poll() once a frame; node tests give it fakes
@@ -179,6 +182,9 @@
     this.padIds = Object.create(null);   /* gamepad slot index -> device id */
     this.online = false;
     this.onlineHooks = null;
+    this.seatMode = false;               /* a session's seats (setOnline seats) */
+    this.seatWrote = [0, 0, 0, 0];
+    this.spareQuiet = 0;
     this.muted = false;                  /* the page's own menu has the input */
     this.wasMulti = false;
     this.kbA = this.addDevice(KIND.KEYS_A, 'keyboard-a', 'Keyboard');
@@ -331,7 +337,11 @@
       return false;
     }
     waits = !!(this.sink.slotJoinable && !this.sink.slotJoinable(s));
-    if (!this.sink.slotIsHuman(s) && !this.ask(s, true)) return false;
+    if (!this.sink.slotIsHuman(s) && !this.ask(s, true)) {
+      /* a session's host with every Kirby a person already */
+      if (this.seatMode) this.emit({ type: 'full', device: d.id, label: this.label(d), name: d.name });
+      return false;
+    }
     this.claim(d, s);
     this.log(d.name + ' joins as player ' + (s + 1));
     this.emit({ type: 'join', player: s, device: d.id, label: this.label(d), name: d.name,
@@ -462,13 +472,30 @@
    * local joins, and players 2-4's host keys belong to the session.
    * hooks (for a session that carries more players per device):
    *   { split: true  -- keep the local assignment: localKeys(p) per player,
-   *     join(devId) -> slot 1..3 or -1, leave(slot) -> bool }. */
+   *     join(devId) -> slot 1..3 or -1, leave(slot) -> bool }.
+   *   { seats: true } -- the local rules, unchanged: during a session the
+   *     sink's calls speak of this device's SEATS (platform/localmp.c's
+   *     "device layer's door"), so player p is seat p, its keys go to
+   *     hostKeys(p) as always, a join asks the host for a Kirby for that
+   *     seat and a leave gives it back.  this.seatMode says so (the page's
+   *     notices name the Kirby the host gave the seat). */
   P.setOnline = function (on, hooks) {
     on = !!on;
     if (hooks !== undefined) this.onlineHooks = hooks || null;
+    var seats = on && !!(this.onlineHooks && this.onlineHooks.seats), s;
+    if (seats !== this.seatMode) {
+      /* what the sink's slot numbers mean changes: nothing is pending */
+      this.seatMode = seats;
+      for (s = 1; s < 4; s++) this.pend[s] = 0;
+      /* leaving a session: for a moment the game still has the session's
+       * people (the page puts this device's own game back at the next
+       * frame), and none of them is a person here to give a controller to */
+      if (!seats) this.spareQuiet = this.tick + 60;
+      this.log(seats ? 'online: the local players are this device\'s seats' : 'online session over: local players again');
+    }
+    on = on && !seats;
     if (on === this.online) return;
     this.online = on;
-    var s;
     for (s = 1; s < 4; s++) this.pend[s] = 0;
     if (on) for (s = 1; s < 4; s++) this.sink.hostKeys(s, 0);
     this.log(on ? 'online: every device drives this device\'s player' : 'online session over: local players again');
@@ -484,7 +511,7 @@
       if (pressed) d.touched = true;
       if (this.joinPress(d, pressed)) {
         if (this.join(d.id)) d.swallow = true;
-        else if (d.player === FOLLOW && this.multi()) d.swallow = true;   /* a waiting pad's Start pauses nobody */
+        else if (d.player === FOLLOW && (this.multi() || this.seatMode)) d.swallow = true;   /* a waiting pad's Start pauses nobody */
       }
     }
     multi = this.multi();
@@ -527,7 +554,11 @@
         }
         if (this.hasDevice(s, true) && !human) {
           if (sink.canRequest()) this.ask(s, true);
-        } else if (human && !this.hasDevice(s, true) && !this.bound[s]) {
+        } else if (human && !this.hasDevice(s, true) && !this.bound[s] && !this.seatMode &&
+                   this.tick >= this.spareQuiet) {
+          /* (not in a session: a seat there is only ever a person because a
+           * controller of this device asked, or katamOnline.requestSlot did
+           * -- whose keys are its caller's) */
           var spare = null;
           for (i = 0; i < this.devs.length && !spare; i++) {
             d = this.devs[i];
@@ -574,7 +605,13 @@
     if (this.muted) out = [0, 0, 0, 0];   /* the page's menu is open: the game sees nothing */
     this.out = out;
     if (this.online) return out[0];
-    for (s = 1; s < 4; s++) sink.hostKeys(s, out[s]);
+    for (s = 1; s < 4; s++) {
+      /* a session's seats: only those a controller here plays (and a last 0
+       * when it stops) -- katamOnline.requestSlot's callers set their own */
+      var mine = this.hasDevice(s, true);
+      if (!this.seatMode || mine || this.seatWrote[s]) sink.hostKeys(s, out[s]);
+      this.seatWrote[s] = mine;
+    }
     return out[0];
   };
 

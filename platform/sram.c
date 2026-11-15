@@ -163,6 +163,22 @@ int PortSramPersistAllowed(void)
     return !sPersistOff;
 }
 
+/* The device left the session (platform/lmpnet.c PortLnGoHome): its own save
+ * memory is back, and it is this device's to keep again. */
+void PortSramPersistUnblock(void)
+{
+    if (sPersistOff)
+        PortLog("[katam-port] save: left the online game -- this device's save is its own again");
+    sPersistOff = 0;
+}
+
+/* Load this device's stored save now if nothing has asked for it yet (a
+ * guest keeps a copy of it before the host's image replaces it). */
+void PortSramEnsureRestored(void)
+{
+    SramRestoreOnce();
+}
+
 /* An online guest that took the host's image holds the host's save memory;
  * its own stored save must not be loaded over it later. */
 void PortSramSetRestored(void)

@@ -2754,13 +2754,14 @@ var Module = (function () {
   // as it always has.  During play, Start on a controller nobody is using
   // (or keyboard set B's Start: Numpad Enter or ;) makes it the next player;
   // Select held on it for two seconds, the PLAYERS page, or unplugging it
-  // hands that Kirby back to the CPU.  In an online session every device
-  // drives this device's player (web/online.js decides which Kirby that is).
+  // hands that Kirby back to the CPU.  In an online session the same rules
+  // hold, for this device's own players (its seats): a second person here
+  // joins with Start on a free pad or keyboard set B, the host gives that
+  // seat a Kirby (web/online.js, docs/MULTIPLAYER.md §14), Select held or
+  // unplugging gives it back (devs.setOnline(true, { seats: true })).
   //
   // window.katamDevices is the instance: the PLAYERS page's bridge below
-  // uses it, and so may a session that carries more than one player per
-  // device (devs.setOnline(true, { split: true, join, leave }) and
-  // devs.localKeys(p); see the setOnline comment in input_devices.js).
+  // uses it.
   var notices = null;              // the notices and the join hint, below
   var devs = new KatamInputDevices({
     sink: KatamInputDevices.moduleSink(Module),
@@ -2770,6 +2771,7 @@ var Module = (function () {
   window.katamDevices = devs;
 
   var lastMask = -1;
+  var SEAT_HOOKS = { seats: true };
 
   // The settings menu (platform/ui) has the input while it is open: the
   // game sees no buttons, and is paused by the C side anyway.  The devices
@@ -2781,7 +2783,7 @@ var Module = (function () {
   // through the device module (Module._PortLmpSetHostKeys).
   function update() {
     var online = !!(window.katamOnline && window.katamOnline.inSession && window.katamOnline.inSession());
-    devs.setOnline(online);
+    devs.setOnline(online, SEAT_HOOKS);
     devs.muted = uiOpen;
     var mask = devs.poll();
     if (mask === lastMask) return;
@@ -2976,8 +2978,24 @@ var Module = (function () {
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, (ms || 2600) + 600);
     }
     var lastFull = 0;
+    // In a session the device module's players are this device's seats: the
+    // Kirby a seat plays is the host's choice (Module._PortLnSeatSlot), and
+    // web/online.js says "Your player 2 is Player 4" when it lands.
+    function seatSlot(seat) {
+      try {
+        if (!devs.seatMode || !Module._PortLnSeatSlot) return -2;
+        return Module._PortLnSeatSlot(Module._PortLnSelf(), seat);
+      } catch (e) { return -2; }
+    }
     function event(ev) {
       var who = ev.player >= 0 ? 'Player ' + (ev.player + 1) : '';
+      if (devs.seatMode && ev.player >= 1) {
+        var sl = seatSlot(ev.player);
+        if (ev.type === 'join' && sl < 0) { show('A player is joining', -1, ev.label + ' - hold Select to leave'); return; }
+        if (ev.type === 'leave' && ev.why === 'full') { show('No Kirby free', -1, 'the game has four players', 3000); return; }
+        who = sl >= 0 ? 'Player ' + (sl + 1) : 'Your player ' + (ev.player + 1);
+        ev = Object.assign({}, ev, { player: sl >= 0 ? sl : -1 });
+      }
       switch (ev.type) {
         case 'join':
           if (ev.why === 'game') return;   // MULTIPLAYER > LOCAL: the game's own start
@@ -4191,7 +4209,10 @@ var Module = (function () {
     del:    deleteSave,
     // Online, as a guest: the save memory now running is the host's, from
     // the session's image. Nothing more is written until the page reloads.
-    hold:   function () { held = true; if (timer) { clearTimeout(timer); timer = 0; } }
+    hold:   function () { held = true; if (timer) { clearTimeout(timer); timer = 0; } },
+    // ... and back: the guest left the session (web/online.js leave), its
+    // own save memory is running again.
+    release: function () { held = false; }
   };
 
   //--------------------------------------------------------------------
@@ -4563,7 +4584,8 @@ var Module = (function () {
     'diag':        function () { return bit(shell.diag && shell.diag.on()); },
     'rando':       function () { return shell.rando ? shell.rando.get() : '0,1,1,1'; },
     'log':         function () { return shell.logTail(80).join('\n').slice(-15000); },
-    'online':      function () { return window.katamOnline ? window.katamOnline.statsText() : ''; }
+    'online':      function () { return window.katamOnline ? window.katamOnline.statsText() : ''; },
+    'online.role': function () { return window.katamOnline && window.katamOnline.role() ? window.katamOnline.role() : ''; }
   };
 
   Module.portUiQuery = function (key) {
@@ -4583,6 +4605,7 @@ var Module = (function () {
     // Do not: a turn later.
     'rom.forget':  function () { later(shell.romApi.forget); },
     'save.delete': function () { later(shell.save.del); },
+    'online.leave': function () { later(function () { if (window.katamOnline) window.katamOnline.leave('from the menu'); }); },
     'reset':       function () {
       shell.note('Restarting…', 'ok');
       if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block */ } }

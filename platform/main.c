@@ -909,6 +909,7 @@ void PortPresentFrame(void)
     /* Online local multiplayer (platform/lmpnet.c): rewinds, keyframes,
      * image loads and the per-frame hash.  Returns at once unless on. */
     PortLnFrame();
+    PortLnHomeFrame();      /* the power-on picture a session is left to */
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 

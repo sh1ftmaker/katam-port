@@ -14,11 +14,15 @@
 //              longer than DEAD_MS and the host hands its Kirbys to the CPU,
 //              and takes it back (a new join image) when it is heard again
 //   rate, drift, freezes   as c.guest
+//   cards      [[frame, card, value], ...] player-card changes on that device
+//              (card 0..3 = seat 0..3; value "MODE,SPRAY,HUE,SAT,VAL,NAME",
+//              platform/player_card.c PortCardSetJs), by its own frame
 // c.hostSeats: [[frame, seat, on], ...] local joins / leaves on the host.
 // c.rooms: the host seals rooms mode (PORT_LN_EV_ROOMS) at the session's
 // first frame: players in different rooms, each device on its own screen
 // (tools/rooms/gates.mjs).  c.onHostFrame(host, f) / c.onGuestTick(g) are
 // its observers; sc.pad(dev, seat), when a scenario has it, gives the pads.
+// c.hostCards: the host's card changes, likewise.
 import { createInstance } from './instance.mjs';
 import { Scheduler, Link } from './link.mjs';
 import { HostHub, GuestSession, engineOf, PERIOD } from './session.mjs';
@@ -41,7 +45,7 @@ export async function runSession(cfg) {
         seed: 1, link: {}, host: {}, guest: {}, kfEvery: 15, kfCount: 24, flags: 0,
         startFrame: BOOT_END, joinFrame: null, durationFrames: 6000, forceRewind: null,
         corrupt: [], lockstep: false, renderGuest: false, dumpAt: null, maxWallMs: 30 * 60 * 1000,
-        guests: null, hostSeats: [], deadMs: DEAD_MS,
+        guests: null, hostSeats: [], hostCards: [], deadMs: DEAD_MS,
     }, cfg);
     const hostCfg = Object.assign({ rate: 60, drift: 0, freezes: [] }, c.host);
     const sc = c.scenario;
@@ -103,7 +107,7 @@ export async function runSession(cfg) {
         const gc = Object.assign({ rate: 60, drift: 0, freezes: [] }, c.guest, spec.guest || {});
         const g = { spec, gen, dev: spec.dev, cfg: gc, inst: null, gs: null, link: null, started: false, gone: false,
                     backlog: [], cmpNext: 0, compared: 0, equal: 0, skipped: 0, firstMismatch: null, stepMs: [], stepMax: 0, leadMax: 0,
-                    joinAt: null, seatsOn: 1, seatIdx: 0, name: `guest${spec.dev}${gen ? '.' + gen : ''}`, heardAt: 0, admitted: false };
+                    joinAt: null, seatsOn: 1, seatIdx: 0, cardIdx: 0, name: `guest${spec.dev}${gen ? '.' + gen : ''}`, heardAt: 0, admitted: false };
         return g;
     }
     for (const sp of specs) G.push(newGuest(sp, 0));
@@ -246,7 +250,16 @@ export async function runSession(cfg) {
     let done = false;
     if (c.dumpAt !== null) host.M._PortLnDumpAt(c.dumpAt);
     const hostSeats = (c.hostSeats || []).slice().sort((a, b) => a[0] - b[0]);
-    let hostSeatIdx = 0, hostSeatsOn = 1;
+    let hostSeatIdx = 0, hostSeatsOn = 1, hostCardIdx = 0, lastCardTrace = '';
+    res.cardTrace = [];
+    const hostCards = (c.hostCards || []).slice().sort((a, b) => a[0] - b[0]);
+    const setCard = (inst, card, val) => {
+        const b = inst.M._malloc(64);
+        for (let i = 0; i < val.length; i++) inst.M.HEAPU8[b + i] = val.charCodeAt(i);
+        inst.M.HEAPU8[b + val.length] = 0;
+        inst.M._PortCardSetJs(card, b);
+        inst.M._free(b);
+    };
     const seatKeys = (inst, dev, on, f, obs) => {
         // seats 1..3 through the host keys (what a device layer sets), read back
         // the way the page reads them: the narrow seam
@@ -298,6 +311,11 @@ export async function runSession(cfg) {
                 if (on) hostSeatsOn |= 1 << seat; else hostSeatsOn &= ~(1 << seat);
                 res.churn.push({ t: +sch.now.toFixed(0), f, dev: 0, what: on ? 'local join' : 'local leave', seat, accepted: r });
             }
+            while (hostCardIdx < hostCards.length && hostCards[hostCardIdx][0] <= f) {
+                const [, card, val] = hostCards[hostCardIdx++];
+                setCard(host, card, val);
+                res.churn.push({ t: +sch.now.toFixed(0), f, dev: 0, what: 'card', seat: card });
+            }
             while (evIdx < sc.events.length && sc.events[evIdx].f <= f) {
                 const e = sc.events[evIdx++];
                 he.event(e.type, e.a, e.b, e.c, e.d);
@@ -307,6 +325,12 @@ export async function runSession(cfg) {
             hub.beforeFrame(f, seatKeys(host, 0, hostSeatsOn, f, lastObs));
             await stepOne(host, null);
             hostRan++;
+            if (host.M._PortCardSlotPaintJs) {
+                // every change of a slot's colour or name on the host, in order
+                const pt = [0, 1, 2, 3].map((s) => (host.M._PortCardSlotPaintJs(s) >>> 0).toString(16)).join(' ') + ' | ' +
+                           [0, 1, 2, 3].map((s) => host.cstr(host.M._PortPlayerName(s)) || '-').join(' ');
+                if (pt !== lastCardTrace) { lastCardTrace = pt; res.cardTrace.push({ f: host.frame(), v: pt }); }
+            }
             observeHost();
             if (c.onHostFrame) c.onHostFrame(host, host.frame());
             if (host.frame() >= endFrame + 240) done = true;
@@ -332,6 +356,12 @@ export async function runSession(cfg) {
                 const r = g.inst.M._PortLmpRequestHuman(seat, on);
                 if (on) g.seatsOn |= 1 << seat; else g.seatsOn &= ~(1 << seat);
                 res.churn.push({ t: +sch.now.toFixed(0), f, dev: g.dev, what: on ? 'local join' : 'local leave', seat, accepted: r });
+            }
+            const cards = g.spec.cards || [];
+            while (g.cardIdx < cards.length && cards[g.cardIdx][0] <= f) {
+                const [, card, val] = cards[g.cardIdx++];
+                setCard(g.inst, card, val);
+                res.churn.push({ t: +sch.now.toFixed(0), f, dev: g.dev, what: 'card', seat: card });
             }
             if (g.dev === (c.corruptDev || 1) && !g.gen) for (const cz of c.corrupt) if (!cz.done && f >= cz.frame && g.gs.joined) {
                 cz.done = true;
@@ -402,6 +432,13 @@ export async function runSession(cfg) {
     res.audio = { host: host.audioStats(), guest: G[0] && G[0].inst ? G[0].inst.audioStats() : null };
     res.coverage = Object.assign({}, cov, { rooms: [...cov.rooms].sort((a, b) => a - b), abilities: [...cov.abilities] });
     res.owners = [0, 1, 2, 3].map((s) => host.M._PortLnSlotOwner(s));
+    // the player cards at the end: each live device's view of every slot's
+    // colour (simulation) and name (presentation, relayed by the host)
+    const cardView = (inst) => (inst.M._PortCardSlotPaintJs ? {
+        paint: [0, 1, 2, 3].map((s) => (inst.M._PortCardSlotPaintJs(s) >>> 0).toString(16)),
+        names: [0, 1, 2, 3].map((s) => inst.cstr(inst.M._PortPlayerName(s))),
+    } : null);
+    res.cards = { host: cardView(host), guests: G.filter((g) => g.inst && !g.gone).map((g) => Object.assign({ name: g.name }, cardView(g.inst))) };
     res.wallSec = +((performance.now() - t0wall) / 1000).toFixed(1);
     res.dumps = c.dumpAt !== null ? dumps : undefined;
     res.hostLogs = host.logs.filter((l) => /lmpnet|error|ERROR|fault|trap/i.test(l)).slice(-60);

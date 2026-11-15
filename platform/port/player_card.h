@@ -61,7 +61,7 @@ u32  PortPlayerColor(int slot);
 int  PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room);
 /* Online: slot s is `name` on this device (NULL / "" clears it). */
 void PortCardSetSlotName(int slot, const char *name);
-/* Name tags over the Kirbys (web page / renderer): on by default. */
+/* Name tags over the Kirbys (web page / renderer): off by default. */
 int  PortCardTagsOn(void);
 void PortCardSetTagsOn(int on);
 
@@ -76,6 +76,26 @@ const char *PortCardProfileString(void);
 int  PortCardHostApplyPaint(int slot, u32 paint);
 /* Host: the same from a profile string (paint part); also names the slot. */
 int  PortCardHostApplyProfile(int slot, const char *profile);
+
+/* --- online, every slot (web/ln_session.js carries these) -------------------
+ * This device's four seats' profiles, one per line (seat s wears card s):
+ * every device sends them to the host whenever they change and after every
+ * image.  The host keeps them by (device, seat); PortCardHostFrame then seals
+ * each slot's paint from its owner (PortLnSlotOwner): the host's own seats
+ * from its cards, a guest's from its profiles, a CPU slot (or one whose
+ * owner's profile has not arrived) the game's own colour.  The host names
+ * every slot likewise (PortCardSlotNames: four names, tab-separated) and the
+ * page relays them; a guest applies them with PortCardSetSlotNames. */
+const char *PortCardSeatProfiles(void);
+void PortCardHostSetProfiles(int dev, const char *profiles);   /* dev 1..3 */
+void PortCardHostDropDevice(int dev);
+const char *PortCardSlotNames(void);
+void PortCardSetSlotNames(const char *names);
+/* A session ended: the slots' names and the profiles are forgotten. */
+void PortCardSessionEnd(void);
+/* Tests / console: card p from a settings value "MODE,SPRAY,HUE,SAT,VAL,NAME"
+ * (not saved). */
+int  PortCardSetJs(int p, const char *val);
 
 /* --- the host's frame hook (platform/main.c, before the latch) -------------
  * Local play: a human slot wears its card (slot 0 from the start, the

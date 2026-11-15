@@ -636,6 +636,7 @@ void PortLnStop(void)
 }
 
 static u32 ImageBytes(void);
+static void HomeKeepOwnSave(void);
 
 int PortLnStart(int role, int kfEvery, int kfCount, int flags)
 {
@@ -648,6 +649,8 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     if (kfCount < 2) kfCount = 2;
     sRole = role;
     sFlags = flags;
+    if (role == PORT_LN_GUEST)
+        HomeKeepOwnSave();
     sKfEvery = kfEvery;
     sKfCount = kfCount;
     sSnapBytes = PortRbSnapshotBytes();
@@ -2205,6 +2208,103 @@ int PortLnSnapPart(int i, u32 *out)
     out[0] = pt.base; out[1] = pt.offset; out[2] = pt.size;
     return 1;
 }
+
+/* --- home: leaving a session without reloading the page -------------------------
+ *
+ * Every device keeps one picture of its own game from just after power-on
+ * (the first frame top, before the game has read its save): the GBA map, the
+ * port's out-of-map state and the host state an image carries.  Leaving a
+ * session (PortLnGoHome) stops it and puts that picture back at the next
+ * frame top: the game boots again, to the title, as at power-on -- with this
+ * device's own save memory (the host: what it has now, its world; a guest:
+ * what it had before the host's image replaced it), its own view, and the
+ * frame counter running on (nothing on this side ever sees time go back).
+ * Then it can host or join again.  Device state only; outside a session it is
+ * taken once and never read. */
+static u8 *sHome;                   /* snapshot, then host extras           */
+static u32 sHomeSnap, sHomeExtras;
+static int sHomeLmp, sHomeLoad, sHomeTried;
+static u8 *sOwnSram;                /* a guest's own save, from its start   */
+static u32 sHomeLoads;
+
+void PortSramEnsureRestored(void);
+void PortSramPersistUnblock(void);
+
+static void HomeSave(void)
+{
+    sHomeTried = 1;
+    sHomeSnap = PortRbSnapshotBytes();
+    sHomeExtras = PortLnExtrasSize();
+    sHome = (u8 *)malloc(sHomeSnap + sHomeExtras);
+    if (sHome == NULL)
+        return;
+    PortRbSnapshotSave(sHome);
+    PortLnExtrasSave(sHome + sHomeSnap);
+    sHomeLmp = PortLmpSetting();
+}
+
+/* A guest, as its session starts: its own save, before the host's image. */
+static void HomeKeepOwnSave(void)
+{
+    PortSramEnsureRestored();
+    if (sOwnSram == NULL)
+        sOwnSram = (u8 *)malloc(GBA_SRAM_SIZE);
+    if (sOwnSram != NULL)
+        memcpy(sOwnSram, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
+}
+
+static void HomeLoad(void)
+{
+    u8 fs[64];
+    u32 v;
+
+    sHomeLoad = 0;
+    if (sHome == NULL || PortFrameStateSize() > sizeof fs)
+        return;
+    PortFrameStateSave(fs);             /* the frame counter runs on */
+    PortRbSnapshotLoad(sHome);
+    PortFrameStateLoad(fs);
+    if (sOwnSram != NULL) {             /* a guest: its own save again */
+        memcpy((void *)(uintptr_t)GBA_SRAM_BASE, sOwnSram, GBA_SRAM_SIZE);
+        free(sOwnSram);
+        sOwnSram = NULL;
+    }
+    PortSramPersistUnblock();
+    if (PortLmpSetting() != sHomeLmp)
+        PortLmpSetHumans(sHomeLmp);
+    PortLnExtrasLoad(sHome + sHomeSnap, sHomeExtras);
+    PortPocHostStateRebuild();
+    /* this device's own view again (the session's was the host's) */
+    v = PortSimViewRequested();
+    if (v)
+        PortInputLogScheduleView(PortFrameNumber() + 1, (s32)(v >> 16), (s32)(v & 0xFFFF));
+    sHomeLoads++;
+    PortLog("[katam-port] lmpnet: left the session -- back to power-on (frame %u)",
+            (unsigned)PortFrameNumber());
+}
+
+/* platform/main.c, right after PortLnFrame: the home picture, taken once. */
+void PortLnHomeFrame(void)
+{
+    if (sHomeLoad && !gPortLnOn) {
+        HomeLoad();
+        return;
+    }
+    if (!sHomeTried && !gPortLnOn && !PortInputLogReplaying() && PortFrameNumber() >= 1)
+        HomeSave();
+}
+
+int PortLnGoHome(void)
+{
+    PortLnStop();
+    if (sHome == NULL)
+        return 0;
+    sHomeLoad = 1;
+    return 1;
+}
+
+int PortLnHomeReady(void) { return sHome != NULL; }
+u32 PortLnHomeLoads(void) { return sHomeLoads; }
 
 /* Host state outside the GBA map and the sim block that the simulation reads
  * back, carried with every keyframe and image and hashed as region "host"

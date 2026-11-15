@@ -155,7 +155,10 @@ async function shot(p, name) {
 // arrows -- keyboard set B, a device of its own -- stay out of it.
 const KEYS = { A: ['KeyZ', 'z', 90], B: ['KeyX', 'x', 88], START: ['Enter', 'Enter', 13], SELECT: ['Backspace', 'Backspace', 8],
                UP: ['KeyW', 'w', 87], DOWN: ['KeyS', 's', 83], LEFT: ['KeyA', 'a', 65], RIGHT: ['KeyD', 'd', 68],
-               NUMENTER: ['NumpadEnter', 'Enter', 13] };
+               NUMENTER: ['NumpadEnter', 'Enter', 13],
+               /* keyboard set B's arrows: on the player card's NAME row the
+                * letters type (WASD, X too), the arrows still move */
+               ARROWDOWN: ['ArrowDown', 'ArrowDown', 40] };
 async function press(p, k, holdMs = 90, gapMs = 160) {
     const [code, key, vk] = KEYS[k];
     await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code, key, windowsVirtualKeyCode: vk });
@@ -209,13 +212,14 @@ async function startPlay(p) {
 }
 
 /* Game Select's SETTINGS (the fifth row) and its PLAYERS row (the seventh:
- * Up from the first wraps to it) */
+ * Up from the first wraps to PARTY HUD, the eighth, and Up again is PLAYERS) */
 async function toSettingsPlayers(p) {
     for (let i = 0; i < 4; i++) { await press(p, 'DOWN'); await waitFrames(p, 8); }
     await press(p, 'A');
     await until(() => screenLive(p), 10000);
     await waitFrames(p, 30);
-    await press(p, 'UP'); await waitFrames(p, 10);         // wraps to PLAYERS
+    await press(p, 'UP'); await waitFrames(p, 10);         // wraps to PARTY HUD
+    await press(p, 'UP'); await waitFrames(p, 10);         // PLAYERS
 }
 
 /* The pause menu's SETTINGS page: Start, then Select until the page is up */
@@ -275,8 +279,22 @@ async function caseFrontend() {
     await shot(p, 'front-03-players-choose-pad.png');
     await press(p, 'UP'); await waitFrames(p, 10);         // the cursor leaves the row: the choice is forgotten
     await press(p, 'DOWN'); await waitFrames(p, 10);
-    await press(p, 'A'); await waitFrames(p, 20);          // nothing to do
+    await press(p, 'A'); await waitFrames(p, 20);          // nothing chosen: P2's card
     ok('nothing chosen, nothing joined', (await human(p, 1)) === 0);
+    ok('A on P2 with nothing chosen opens player 2\'s card', (await pagesModel(p)) === 6);
+    // the NAME row takes typed letters (web/shell.html cardKeys)
+    for (const ch of 'ANNA') {
+        await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code: 'Key' + ch, key: ch.toLowerCase(), text: ch.toLowerCase(), windowsVirtualKeyCode: ch.charCodeAt(0) });
+        await p.s('Input.dispatchKeyEvent', { type: 'keyUp', code: 'Key' + ch, key: ch.toLowerCase(), windowsVirtualKeyCode: ch.charCodeAt(0) });
+        await waitFrames(p, 4);
+    }
+    await waitFrames(p, 10);
+    await shot(p, 'front-03a-p2-card-name.png');
+    const prof = await p.ev('Module.ccall("PortCardSeatProfiles","string",[],[])');
+    ok('typed letters name player 2\'s card', prof.split('\n')[1].split('\t')[0] === 'ANNA', JSON.stringify(prof));
+    await press(p, 'ARROWDOWN'); await waitFrames(p, 10);  // COLOR (X would type an X on NAME)
+    await press(p, 'B'); await waitFrames(p, 20);
+    ok('B on the card: back to PLAYERS', (await pagesModel(p)) === 5);
     await press(p, 'B'); await waitFrames(p, 20);
     ok('B goes back to SETTINGS', (await pagesModel(p)) === 0 && await p.ev('Module._PortPuiActive()') === 0);
     await press(p, 'B'); await waitFrames(p, 40);
@@ -393,7 +411,18 @@ async function caseLocal() {
 
     // the pause menu's SETTINGS > PLAYERS
     ok('the pause SETTINGS page is up', await toPauseSettings(p));
-    await press(p, 'UP'); await waitFrames(p, 10);          // wraps to PLAYERS
+    // PARTY HUD (the last row): OFF / PLAYERS / ALL, Right steps it
+    await press(p, 'UP'); await waitFrames(p, 10);          // wraps to PARTY HUD
+    {
+        const was = await p.ev('Module._PortPartyHudSettingJs()');
+        await press(p, 'RIGHT'); await waitFrames(p, 10);
+        const now = await p.ev('Module._PortPartyHudSettingJs()');
+        ok('pause SETTINGS > PARTY HUD: Right steps the setting', now === (was + 1) % 3, `${was} -> ${now}`);
+        await shot(p, 'local-08a-pause-party-hud-row.png');
+        await press(p, 'LEFT'); await waitFrames(p, 10);
+        ok('... and Left steps it back', (await p.ev('Module._PortPartyHudSettingJs()')) === was);
+    }
+    await press(p, 'UP'); await waitFrames(p, 10);          // PLAYERS
     await shot(p, 'local-08-pause-settings-players-row.png');
     await press(p, 'A'); await waitFrames(p, 20);
     ok('the pause PLAYERS page is up', (await pagesModel(p)) === 5);
@@ -417,11 +446,33 @@ async function caseLocal() {
        dl.find((d) => d.id === pad2).player === 3 && (await human(p, 2)) === 0 && (await human(p, 3)) === 1,
        JSON.stringify(await humans(p)));
     await shot(p, 'local-11-pause-players-moved.png');
+    // A on a row with nothing chosen: that player's card (cursor on P4)
+    await press(p, 'A'); await waitFrames(p, 20);
+    ok('pause PLAYERS: A on P4 opens player 4\'s card', (await pagesModel(p)) === 6 && await screenLive(p));
+    await shot(p, 'local-11a-pause-p4-card.png');
+    await press(p, 'ARROWDOWN'); await waitFrames(p, 8);    // COLOR (WASD type letters on NAME)
+    await press(p, 'RIGHT'); await waitFrames(p, 10);       // the first spray (PINK)
+    await press(p, 'RIGHT'); await waitFrames(p, 10);       // YELLOW
+    await shot(p, 'local-11b-pause-p4-card-yellow.png');
+    await press(p, 'B'); await waitFrames(p, 30);
+    ok('B on the card: back to PLAYERS on P4', (await pagesModel(p)) === 5);
     await press(p, 'B'); await waitFrames(p, 30);
     ok('B on the pause PLAYERS page: back to SETTINGS, still paused', (await pagesModel(p)) === 0 && await screenLive(p));
     await shot(p, 'local-12-pause-back-to-settings.png');
     await press(p, 'START'); await waitFrames(p, 60);
     ok('Start: back to the game', !(await screenLive(p)));
+    // the card's colour went on when the card closed (a recorded paint)
+    await waitFrames(p, 30);
+    ok("player 4 wears the card's colour (YELLOW)", (await p.ev('Module._PortCardSlotPaintJs(3) >>> 0')) === 0x01000001,
+       (await p.ev('Module._PortCardSlotPaintJs(3) >>> 0')).toString(16));
+    // names on the party HUD's cards (presentation)
+    await p.ev(`(function(){function set(c,v){var b=Module._malloc(64);for(var i=0;i<v.length;i++)Module.HEAPU8[b+i]=v.charCodeAt(i);Module.HEAPU8[b+v.length]=0;Module._PortCardSetJs(c,b);Module._free(b);}
+        set(1,'1,6,0,0,0,ANNA');set(3,'1,1,0,0,0,DOT.');})()`);
+    await waitFrames(p, 60);
+    ok('party HUD: cards up for the other players', (await p.ev('Module._PortPartyHudCardsJs()')) >= 2, String(await p.ev('Module._PortPartyHudCardsJs()')));
+    ok('party HUD names: P2 ANNA, P4 DOT.', (await p.ev('Module.ccall("PortPlayerName","string",["number"],[1])')) === 'ANNA'
+       && (await p.ev('Module.ccall("PortPlayerName","string",["number"],[3])')) === 'DOT.');
+    await shot(p, 'local-13-party-hud-names.png');
     await p.close();
 }
 

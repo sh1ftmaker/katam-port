@@ -81,7 +81,7 @@ extern "C" {
 static struct PortCard sCards[PORT_CARD_PLAYERS];
 static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
 static int sSlotNamed[4];
-static int sTagsOn = 1;
+static int sTagsOn = 0;      /* name tags over the Kirbys: off unless asked */
 
 /* The characters a name may hold, in the order Left / Right step through
  * them (space first: it ends a name). */
@@ -294,7 +294,7 @@ CARD_EXPORT const char *PortPlayerName(int slot)
         return "";          /* online: the session names its players */
     if (!PortLmpSlotIsHuman(slot))
         return "";
-    return PortCardShownName(slot);
+    return sCards[slot].name;   /* "" when the card has none */
 }
 
 CARD_EXPORT u32 PortPlayerColor(int slot)
@@ -382,6 +382,163 @@ CARD_EXPORT int PortCardHostApplyProfile(int slot, const char *profile)
     return PortCardHostApplyPaint(slot, paint);
 }
 
+/* --- online: every slot's card, through the host ----------------------------------
+ *
+ * Each device sends the host the profiles of its four local seats (seat s
+ * wears card s: seat 0 the device's own, seats 1..3 the people who play on
+ * that screen) -- PortCardSeatProfiles, whenever it changes and after every
+ * image.  The host keeps them by (device, seat) (PortCardHostSetProfiles,
+ * device state on the host), and PortCardHostFrame seals the paint of every
+ * slot from whoever owns it (PortLnSlotOwner): a CPU slot, or one whose
+ * owner's profile has not arrived, wears the game's own.  The host names the
+ * slots the same way, and the page relays the names (PortCardSlotNames on the
+ * host, PortCardSetSlotNames on each guest).  Names never reach game memory. */
+
+static void Changed(void);
+
+#define PROF_OWNERS (PORT_LN_MAX_DEV * 4)
+static char sProfName[PROF_OWNERS][PORT_CARD_NAME_MAX + 1];
+static u32 sProfPaint[PROF_OWNERS];
+
+/* One profile ("NAME\tPAINT8"), the paint 0 if it is not one. */
+static void ParseProfile(const char *pr, char name[PORT_CARD_NAME_MAX + 1], u32 *paint)
+{
+    const char *tab = pr ? strchr(pr, '\t') : NULL;
+    unsigned v = 0;
+    size_t n;
+
+    name[0] = '\0';
+    *paint = PORT_PAINT_NONE;
+    if (tab == NULL)
+        return;
+    n = (size_t)(tab - pr);
+    if (n > PORT_CARD_NAME_MAX)
+        n = PORT_CARD_NAME_MAX;
+    memcpy(name, pr, n);
+    name[n] = '\0';
+    CleanName(name);
+    if (sscanf(tab + 1, "%8x", &v) == 1 && PortPaintValid(v))
+        *paint = v;
+}
+
+CARD_EXPORT const char *PortCardSeatProfiles(void)
+{
+    static char buf[4 * (PORT_CARD_NAME_MAX + 12)];
+    int s, n = 0;
+
+    for (s = 0; s < 4; s++)
+        n += snprintf(buf + n, sizeof(buf) - (size_t)n, "%s%s\t%08X", s ? "\n" : "", sCards[s].name,
+                      (unsigned)PortCardPaint(s));
+    return buf;
+}
+
+CARD_EXPORT void PortCardHostSetProfiles(int dev, const char *profiles)
+{
+    const char *p = profiles;
+    int s;
+
+    if (dev < 1 || dev >= PORT_LN_MAX_DEV || profiles == NULL)
+        return;
+    for (s = 0; s < 4; s++) {
+        char one[PORT_CARD_NAME_MAX + 16];
+        const char *nl = p ? strchr(p, '\n') : NULL;
+        size_t n = p ? (nl ? (size_t)(nl - p) : strlen(p)) : 0;
+
+        if (n >= sizeof(one))
+            n = sizeof(one) - 1;
+        if (p)
+            memcpy(one, p, n);
+        one[n] = '\0';
+        ParseProfile(one, sProfName[dev * 4 + s], &sProfPaint[dev * 4 + s]);
+        p = nl ? nl + 1 : NULL;
+    }
+}
+
+CARD_EXPORT void PortCardHostDropDevice(int dev)
+{
+    if (dev < 1 || dev >= PORT_LN_MAX_DEV)
+        return;
+    memset(sProfName[dev * 4], 0, sizeof(sProfName[0]) * 4);
+    memset(&sProfPaint[dev * 4], 0, sizeof(sProfPaint[0]) * 4);
+}
+
+/* Host: what slot s's owner's card says (the host's own seats: its cards). */
+static u32 OwnerPaint(int own, const char **name)
+{
+    if (own < 0) {
+        *name = "";
+        return PORT_PAINT_NONE;
+    }
+    if (own < 4) {
+        *name = sCards[own].name;
+        return PortCardPaint(own);
+    }
+    if (own >= PROF_OWNERS) {
+        *name = "";
+        return PORT_PAINT_NONE;
+    }
+    *name = sProfName[own];
+    return sProfPaint[own];
+}
+
+CARD_EXPORT const char *PortCardSlotNames(void)
+{
+    static char buf[4 * (PORT_CARD_NAME_MAX + 1) + 4];
+    int s, n = 0;
+
+    for (s = 0; s < 4; s++)
+        n += snprintf(buf + n, sizeof(buf) - (size_t)n, "%s%s", s ? "\t" : "", PortPlayerName(s));
+    return buf;
+}
+
+CARD_EXPORT void PortCardSetSlotNames(const char *names)
+{
+    const char *p = names;
+    int s;
+
+    for (s = 0; s < 4; s++) {
+        char one[PORT_CARD_NAME_MAX + 1];
+        const char *tab = p ? strchr(p, '\t') : NULL;
+        size_t n = p ? (tab ? (size_t)(tab - p) : strlen(p)) : 0;
+
+        if (n > PORT_CARD_NAME_MAX)
+            n = PORT_CARD_NAME_MAX;
+        if (p)
+            memcpy(one, p, n);
+        one[n] = '\0';
+        PortCardSetSlotName(s, one);
+        p = tab ? tab + 1 : NULL;
+    }
+}
+
+/* The end of a session: no slot is named by it any more, no profiles kept. */
+CARD_EXPORT void PortCardSessionEnd(void)
+{
+    int s;
+
+    for (s = 0; s < 4; s++)
+        PortCardSetSlotName(s, NULL);
+    memset(sProfName, 0, sizeof(sProfName));
+    memset(sProfPaint, 0, sizeof(sProfPaint));
+}
+
+/* Tests: slot s's paint as the simulation has it. */
+CARD_EXPORT u32 PortCardSlotPaintJs(int s) { return PortPaintOfSlot(s); }
+
+/* Tests and the console: set card p from a settings value
+ * ("MODE,SPRAY,HUE,SAT,VAL,NAME"), not saved. */
+CARD_EXPORT int PortCardSetJs(int p, const char *val)
+{
+    char key[6] = "card0";
+
+    if (p < 0 || p >= PORT_CARD_PLAYERS || val == NULL)
+        return 0;
+    key[4] = (char)('0' + p);
+    PortCardParseSetting(key, val);
+    Changed();
+    return 1;
+}
+
 /* --- the host's frame hook ----------------------------------------------------- */
 
 static int sEditing;
@@ -422,17 +579,33 @@ void PortCardHostFrame(void)
         if (sheet)
             PortCardDebugSheet();
     }
-    if (sEditing || PortInputLogReplaying() || PortRbActive() || PortNetActive() || PortSeatActive())
+    if ((sEditing && !gPortLnOn) || PortInputLogReplaying() || PortRbActive() || PortNetActive() || PortSeatActive())
         return;
     if (gPortLnOn) {
-        /* online: the host keeps its own slot in step; the guests' slots
-         * are the session layer's (PortCardHostApplyProfile) */
+        /* online: every slot from its owner's card (the host's own seats
+         * from its cards, the guests' from the profiles they sent) */
         if (PortLnRole() != PORT_LN_HOST || PortLnCatchingUp())
             return;
-        n = 1;
-    } else {
-        n = 4;
+        for (s = 0; s < 4; s++) {
+            const char *name;
+            int own = PortLnSlotOwner(s);
+            u32 want = OwnerPaint(own, &name);
+
+            if (strcmp(PortPlayerName(s), name) != 0)
+                PortCardSetSlotName(s, name);
+            if (sEditing && own >= 0 && own < 4)
+                continue;       /* the host's own card is being edited */
+            if (PortPaintOfSlot(s) == want) {
+                sAskedValid[s] = 0;
+                continue;
+            }
+            if (sAskedValid[s] && sAsked[s] == want && PortFrameNumber() <= sAskedAt[s] + 2)
+                continue;
+            Ask(s, want);
+        }
+        return;
     }
+    n = 4;
     for (s = 0; s < n; s++) {
         u32 want = (s == 0 || PortLmpSlotIsHuman(s)) ? PortCardPaint(s) : PORT_PAINT_NONE;
 

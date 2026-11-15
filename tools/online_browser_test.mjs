@@ -36,12 +36,20 @@
 //           1, katamOnline.requestSlot); the dropped guest rejoins by invite
 //           and gets a Kirby (now four players); a local join on a guest is
 //           refused (full) with a notice; the host's second player leaves
-//           and the guest's local join gets that Kirby.
+//           and a pad on that guest joins by Start (the device module's
+//           seat path) and gets that Kirby, drives it, and leaves by holding
+//           Select.  Player cards: every device's names and colours (a
+//           guest's custom colour too) the same on all three pages, through
+//           joins, the drop, the rejoin and the pad's player; the party HUD
+//           up.  Then leaving without a reload: guest B leaves from its menu
+//           (back to power-on), joins again and is identical; the host ends
+//           the game, guest A gets a "Back to the title" button; the host
+//           hosts again through the game's menus and guest A joins again.
+//           Scripted local players' keys go in through
+//           Module._PortLmpSetHostKeys(seat, ...); the pad through the page.
 //   rooms   FREE ROAM (rooms mode) with two and three pages (--rooms-pages
 //           2,3): each page on its own player's room, the canonical frames
-//           identical, the digest equal, a phone call, the pause menu.  Each local player's
-//           keys go in through Module._PortLmpSetHostKeys(seat, ...), the
-//           page's input path for seats 1..3 at this commit.
+//           identical, the digest equal, a phone call, the pause menu.
 import fs from 'fs';
 import path from 'path';
 import { human, ROOMS } from './netproof/scenario.mjs';
@@ -133,6 +141,7 @@ async function openPage(name, extra, w = 960, h = 640) {
     await s('Page.enable'); await s('Runtime.enable');
     await s('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
     await s('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HOOK });
+    await s('Page.addScriptToEvaluateOnNewDocument', { source: PAD_HOOK });
     if (has('noaudio')) await s('Page.addScriptToEvaluateOnNewDocument', { source: NOAUDIO_HOOK });
     await s('Page.navigate', { url: pageUrl(extra) });
     return p;
@@ -145,6 +154,28 @@ const NOAUDIO_HOOK = `(function(){
   Object.defineProperty(window, 'Module', { configurable: true, get: function () { return M; },
     set: function (v) { M = v; if (v && typeof v === 'object' && !v.portAudio)
       v.portAudio = { rate: 0, depth: 0, headless: true, push: function () {} }; } });
+})();`;
+
+// Fake gamepads, in place before the page's own scripts.
+const PAD_HOOK = `(function(){
+  var pads = [null, null, null, null, null];
+  window.__pads = pads;
+  function mk(i, id) {
+    var b = [];
+    for (var k = 0; k < 17; k++) b.push({ pressed: false, touched: false, value: 0 });
+    return { index: i, id: id, connected: true, mapping: 'standard', buttons: b, axes: [0, 0, 0, 0],
+             timestamp: performance.now() };
+  }
+  Object.defineProperty(Navigator.prototype, 'getGamepads', { configurable: true, value: function () { return pads.slice(); } });
+  function fire(type, g) { var e = new Event(type); e.gamepad = g; window.dispatchEvent(e); }
+  window.__padPlug = function (i, id) { pads[i] = mk(i, id); fire('gamepadconnected', pads[i]); };
+  window.__padUnplug = function (i) { var g = pads[i]; if (!g) return; g.connected = false; pads[i] = null; fire('gamepaddisconnected', g); };
+  window.__padSet = function (i, btns, axes) {
+    var g = pads[i]; if (!g) return;
+    g.buttons.forEach(function (b, k) { var on = btns.indexOf(k) >= 0; b.pressed = on; b.value = on ? 1 : 0; });
+    if (axes) g.axes = axes;
+    g.timestamp = performance.now();
+  };
 })();`;
 
 // In every page: a scripted pad (window.__script(frame) -> mask, applied
@@ -182,7 +213,7 @@ async function shot(p, name) {
     console.log('    shot ' + path.join(SHOTS, name));
 }
 const KEYS = { A: ['KeyZ', 'z', 90], B: ['KeyX', 'x', 88], START: ['Enter', 'Enter', 13], UP: ['ArrowUp', 'ArrowUp', 38],
-               DOWN: ['ArrowDown', 'ArrowDown', 40], F1: ['F1', 'F1', 112], LEFT: ['ArrowLeft', 'ArrowLeft', 37], RIGHT: ['ArrowRight', 'ArrowRight', 39] };
+               DOWN: ['ArrowDown', 'ArrowDown', 40], F1: ['F1', 'F1', 112], SELECT: ['Backspace', 'Backspace', 8], LEFT: ['ArrowLeft', 'ArrowLeft', 37], RIGHT: ['ArrowRight', 'ArrowRight', 39] };
 async function press(p, k, holdMs = 90, gapMs = 160) {
     const [code, key, vk] = KEYS[k];
     await p.s('Input.dispatchKeyEvent', { type: 'keyDown', code, key, windowsVirtualKeyCode: vk });
@@ -211,8 +242,11 @@ async function toGameSelect(p) {
     await until(async () => (await frame(p)) >= 400, 60000, 30);
     await press(p, 'START'); await waitFrames(p, 100);     // the intro -> the title
     await press(p, 'START'); await waitFrames(p, 100);     // the title -> file select
+    p.fsPrint = await fsPrint(p);                          // what FILE SELECT looks like (to find it again)
     await press(p, 'A'); await waitFrames(p, 100);         // FILE 1 -> Game Select
 }
+/* a screen's fingerprint: the first BG palette lines and DISPCNT */
+const fsPrint = (p) => p.ev('Array.from(Module.HEAPU8.subarray(0x05000000, 0x05000040)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x04000000, 0x04000010)).join(",") + "|" + Array.from(Module.HEAPU8.subarray(0x05000200, 0x05000240)).join(",")');
 
 /* Game Select > Start Game > MULTIPLAYER > ONLINE */
 async function toOnline(p) {
@@ -589,6 +623,34 @@ async function seatScript(p, seat, seed) {
     })()`);
 }
 async function slotsOf(p) { return p.ev('katamOnline.slots()'); }
+const screenLive = async (p) => (await frame(p)) - (await p.ev('Module._PortPocScreenLastDraw()')) < 5;
+/* the player cards (platform/player_card.c): set card c from a settings value
+ * "MODE,SPRAY,HUE,SAT,VAL,NAME"; read every slot's name and colour as this
+ * page has them */
+async function setCard(p, c, v) {
+    await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortCardSetJs)'), 60000);
+    await p.ev(`(function(){var v=${JSON.stringify(v)},b=Module._malloc(64);for(var i=0;i<v.length;i++)Module.HEAPU8[b+i]=v.charCodeAt(i);Module.HEAPU8[b+v.length]=0;Module._PortCardSetJs(${c},b);Module._free(b);})()`);
+}
+async function cardsOf(p) {
+    return p.ev(`({ names: [0,1,2,3].map(function(s){return Module.ccall('PortPlayerName','string',['number'],[s])}),
+                    paint: [0,1,2,3].map(function(s){return (Module._PortCardSlotPaintJs(s)>>>0).toString(16)}) })`);
+}
+const cardsStr = (c) => c.names.map((n, i) => `${n || '-'}:${c.paint[i]}`).join(' ');
+/* every page has the same names and colours, and they are `want` (by slot:
+ * [name, paint] or null = a CPU: no name, the game's own colour) */
+async function cardsCheck(tag, pagesList, want) {
+    const all = [];
+    for (const p of pagesList) all.push(await cardsOf(p));
+    const same = all.every((c) => cardsStr(c) === cardsStr(all[0]));
+    const exp = want.map((w) => (w ? `${w[0]}:${w[1]}` : '-:0')).join(' ');
+    const match = cardsStr(all[0]).split(' ').every((x, i) => {
+        const w = exp.split(' ')[i];
+        return w.endsWith(':custom') ? x.startsWith(w.split(':')[0] + ':2') : x === w;
+    });
+    ok(`${tag}: every page has the same names and colours`, same, all.map(cardsStr).join(' / '));
+    ok(`${tag}: names and colours as the cards say`, match, `${cardsStr(all[0])} vs ${exp}`);
+    return all[0];
+}
 const slotsStr = (sl) => sl.map((x, i) => `P${i + 1}:` + (x ? `${x.dev}.${x.seat}` : 'cpu')).join(' ');
 async function playMany(host, guests, secs, cmps, tag, shotsAt = []) {
     const t0 = Date.now();
@@ -612,10 +674,14 @@ if (CASES.includes('three')) {
     say('# three: host + two guests (JOIN GAME and invite link), drop and rejoin, local joins');
     const R = results.three = { steps: [] };
     const host = await openPage('host', knobs);
+    // the player cards: each device's own (seat 0), the host's and guest A's
+    // second players (seat 1)
+    await setCard(host, 0, '1,2,0,0,0,HOSTY'); await setCard(host, 1, '1,9,0,0,0,COUCH');
     const code = await hostToWaiting(host, 't');
     ok('three: host room', !!code, code);
     // guest A through the menus
     const ga = await openPage('guestA', knobs);
+    await setCard(ga, 0, '1,6,0,0,0,ANNA'); await setCard(ga, 1, '1,10,0,0,0,PADDY');
     await toGameSelect(ga);
     await toOnline(ga);
     await press(ga, 'DOWN');
@@ -626,6 +692,7 @@ if (CASES.includes('three')) {
     ok('three: guest A (JOIN GAME) connected and waits', !!aw);
     // guest B by invite link
     const gb = await openPage('guestB', Object.assign({ join: code }, knobs));
+    await setCard(gb, 0, '2,0,120,90,80,BOB');
     const bw = await until(async () => { const s = await stats(gb); return s && s.phase === 'waiting'; }, 40000);
     await glCheck(gb);
     ok('three: guest B (invite link) connected and waits', !!bw);
@@ -645,6 +712,13 @@ if (CASES.includes('three')) {
     const sl0 = await slotsOf(host);
     ok('three: three Kirbys are people (host, guest A, guest B)', sl0[0] && sl0[1] && sl0[2] && !sl0[3] && sl0[1].dev !== sl0[2].dev, slotsStr(sl0));
     await shot(host, 't-04-host-ingame.png'); await shot(ga, 't-04-guestA-ingame.png'); await shot(gb, 't-04-guestB-ingame.png');
+    // a guest's colour reaches every device; every name too
+    const devOf = (sl, d) => sl.findIndex((x) => x && x.dev === d && x.seat === 0);
+    const cw = [null, null, null, null];
+    cw[0] = ['HOSTY', '1000002'];
+    cw[devOf(sl0, (await stats(ga)).self)] = ['ANNA', '1000006'];
+    cw[devOf(sl0, (await stats(gb)).self)] = ['BOB', 'custom'];
+    await cardsCheck('three: cards', [host, ga, gb], cw);
     const base = (await stats(host)).startFrame;
     const frames = 60 * 200;
     const play = buildPlay(frames, 4, 900);
@@ -654,6 +728,8 @@ if (CASES.includes('three')) {
     await setScript(gb, pb.k2, base, []);
     const cA = makeComparer(host, ga), cB = makeComparer(host, gb);
     await playMany(host, [ga, gb], 60, [cA, cB], 't-play', [15, 40]);
+    ok('three: the party HUD is up with cards on every page', (await host.ev('Module._PortPartyHudCardsJs()')) >= 1
+       && (await ga.ev('Module._PortPartyHudCardsJs()')) >= 1 && (await gb.ev('Module._PortPartyHudCardsJs()')) >= 1);
     await cA.run(); await cB.run();
     ok('three: guest A identical to the host', cA.compared > 50 && cA.mismatched === 0, `${cA.equal}/${cA.compared}`);
     ok('three: guest B identical to the host', cB.compared > 50 && cB.mismatched === 0, `${cB.equal}/${cB.compared}`);
@@ -663,6 +739,8 @@ if (CASES.includes('three')) {
     await gb.close(); delete pages.guestB;
     const cpu = await until(async () => { const sl = await slotsOf(host); return bSlot > 0 && !sl[bSlot] ? sl : null; }, 20000);
     ok('three: guest B\'s Kirby goes to the CPU when its page goes', !!cpu, cpu ? slotsStr(cpu) : 'slot ' + bSlot);
+    const bGone = await until(async () => { const c = await cardsOf(host); return !c.names[bSlot] && c.paint[bSlot] === '0' ? c : null; }, 10000);
+    ok('three: its name and colour go with it (the game\'s own colour again)', !!bGone, bGone ? cardsStr(bGone) : cardsStr(await cardsOf(host)));
     await sleep(800);
     await shot(host, 't-05-host-guestB-left.png'); await shot(ga, 't-05-guestA-guestB-left.png');
     const noteA = (await stats(ga)).banner;
@@ -676,6 +754,7 @@ if (CASES.includes('three')) {
     await shot(host, 't-06-host-local-join.png');
     // guest B rejoins by invite
     const gb2 = await openPage('guestB', Object.assign({ join: code }, knobs));
+    await setCard(gb2, 0, '2,0,120,90,80,BOB');
     const inB2 = await until(async () => { const s = await stats(gb2); return s && s.session && s.joined; }, 60000);
     await glCheck(gb2);
     ok('three: guest B rejoins with the same code (invite) and plays', !!inB2);
@@ -697,12 +776,62 @@ if (CASES.includes('three')) {
     const freed = await until(async () => { const sl = await slotsOf(host); return !sl.some((x) => x && x.dev === 0 && x.seat === 1) ? sl : null; }, 10000);
     ok('three: the host\'s second player leaves', !!freed, freed ? slotsStr(freed) : '');
     const aDev = (await stats(ga)).self;
-    await ga.ev('katamOnline.requestSlot(1, true)');
+    // ... by the device path: a pad on guest A, Start (as offline: the
+    // device module, its seat 1, the host's choice of Kirby)
+    await ga.ev('window.__seatOn[1] = false; window.__seats = null');
+    await ga.ev(`__padPlug(0, ${JSON.stringify('Xbox 360 Controller (XInput STANDARD GAMEPAD)')})`);
+    await press(ga, 'RIGHT'); await waitFrames(ga, 10);   // player 1 played with the keyboard just now
+    await sleep(3200);                                     // ... and the pad was put down a while
+    await shot(ga, 't-08b-guestA-pad-hint.png');
+    await ga.ev('__padSet(0, [9])'); await sleep(150); await ga.ev('__padSet(0, [])');
     const gj = await until(async () => { const sl = await slotsOf(host); return sl.some((x) => x && x.dev === aDev && x.seat === 1) ? sl : null; }, 15000);
-    ok('three: local join on a guest gets the free Kirby', !!gj, gj ? slotsStr(gj) : '');
+    ok('three: a pad on guest A joins by Start and gets the free Kirby', !!gj, gj ? slotsStr(gj) : '');
+    const gaNotes = await ga.ev('Array.from(document.querySelectorAll("#pnotices .pnotice")).map(function(e){return e.textContent}).join(" | ")');
+    ok('three: guest A is told (notice)', /joining|joined/i.test(gaNotes) || /Your player/i.test((await stats(ga)).banner || ''), gaNotes + ' / ' + (await stats(ga)).banner);
+    await ga.ev('__padSet(0, [15])'); await waitFrames(ga, 6);
+    ok('three: the pad drives guest A\'s seat 1 (its host keys)', (await ga.ev('Module._PortLmpHostKeys(1)')) === 16);
+    await ga.ev('__padSet(0, [])');
     await sleep(800);
     await shot(ga, 't-09-guestA-two-players.png'); await shot(host, 't-09-host.png');
+    const padSlot = gj ? gj.findIndex((x) => x && x.dev === aDev && x.seat === 1) : -1;
+    const bDev2 = (await stats(gb2)).self, bSlot2 = devOf(await slotsOf(host), bDev2);
+    const cw2 = [['HOSTY', '1000002'], null, null, null];
+    cw2[devOf(await slotsOf(host), aDev)] = ['ANNA', '1000006'];
+    if (padSlot > 0) cw2[padSlot] = ['PADDY', '100000a'];
+    if (bSlot2 > 0) cw2[bSlot2] = ['BOB', 'custom'];
+    await sleep(1500);
+    await cardsCheck('three: four players\' cards', [host, ga, gb2], cw2);
+    // the PLAYERS page in a session (pause > SETTINGS > PLAYERS): who plays
+    // each Kirby, read only, drawn the same on every device (the comparers
+    // below cover these frames)
+    await host.ev('window.__scriptSaved = window.__script; window.__script = null; Module._PortSetKeys(0)');
+    await waitFrames(host, 10);
+    await press(host, 'START'); await waitFrames(host, 60);
+    let pageUp = false;
+    for (let i = 0; i < 5 && !pageUp; i++) {
+        if (await screenLive(host)) pageUp = true;
+        else { await press(host, 'SELECT'); await waitFrames(host, 70); }
+    }
+    ok('session: the pause SETTINGS page is up', pageUp);
+    await press(host, 'UP'); await waitFrames(host, 10);          // PARTY HUD
+    await shot(host, 't-09c-host-pause-party-hud.png');
+    await press(host, 'UP'); await waitFrames(host, 10);          // PLAYERS
+    await press(host, 'A'); await waitFrames(host, 40);
+    await sleep(1500);
+    const models = [await host.ev('Module._PortPocScreenModel()'), await ga.ev('Module._PortPocScreenModel()'), await gb2.ev('Module._PortPocScreenModel()')];
+    ok('session: PLAYERS opens the read-only page on every device', models.every((m) => m === 8), JSON.stringify(models));
+    await shot(host, 't-09d-host-session-players.png'); await shot(ga, 't-09d-guestA-session-players.png'); await shot(gb2, 't-09d-guestB-session-players.png');
+    await press(host, 'B'); await waitFrames(host, 30);
+    ok('session: B goes back to SETTINGS', (await host.ev('Module._PortPocScreenModel()')) === 0);
+    await press(host, 'START'); await waitFrames(host, 60);
+    await host.ev('window.__script = window.__scriptSaved');
     await playMany(host, [ga, gb2], 40, [cA, cB2], 't-play4', [20]);
+    // the pad's player leaves by holding Select (two seconds): the CPU, the game's colour
+    await ga.ev('__padSet(0, [8])'); await sleep(3000); await ga.ev('__padSet(0, [])');
+    const padGone = await until(async () => { const sl = await slotsOf(host); return padSlot > 0 && !sl[padSlot] ? sl : null; }, 15000);
+    ok('three: the pad\'s player leaves by holding Select', !!padGone, padGone ? slotsStr(padGone) : slotsStr(await slotsOf(host)));
+    const padCol = await until(async () => { const c = await cardsOf(ga); return padSlot > 0 && c.paint[padSlot] === '0' && !c.names[padSlot] ? c : null; }, 10000);
+    ok('three: ... and its colour and name go (on guest A)', !!padCol, cardsStr(await cardsOf(ga)));
     await cA.run(); await cB2.run();
     ok('three: after the churn, guest A identical', cA.mismatched === 0, `${cA.equal}/${cA.compared}`);
     ok('three: after the churn, rejoined guest B identical', cB2.compared > 30 && cB2.mismatched === 0, `${cB2.equal}/${cB2.compared}`);
@@ -712,6 +841,90 @@ if (CASES.includes('three')) {
     const txt = await host.ev("Module.portUiQuery ? Module.portUiQuery('online') : ''");
     ok('three: the menu\'s Online section lists each guest', /Dev \d/.test(txt) && (txt.match(/Dev \d/g) || []).length >= 2, txt.replace(/\n/g, ' | '));
     R.menuText = txt;
+
+    // --- leaving without reloading (web/online.js leave, PortLnGoHome) -------
+    say('three: leaving, joining again and hosting again, no reload');
+    const bDevL = (await stats(gb2)).self, bSlotL = devOf(await slotsOf(host), bDevL);
+    await gb2.ev('window.__script = null; Module._PortSetKeys(0); katamOnline.leave()');
+    const bOut = await until(async () => { const s = await stats(gb2); return s && !s.session && !s.role ? s : null; }, 10000);
+    ok('leave: guest B leaves from its menu (no session, no role)', !!bOut);
+    const homed = await until(() => gb2.ev('Module._PortLnHomeLoads()'), 5000);
+    ok('leave: guest B\'s game went back to power-on', homed === 1, String(homed));
+    const bCpu = await until(async () => { const sl = await slotsOf(host); return bSlotL > 0 && !sl[bSlotL] ? sl : null; }, 15000);
+    ok('leave: the host hands guest B\'s Kirby to the CPU', !!bCpu, bCpu ? slotsStr(bCpu) : slotsStr(await slotsOf(host)));
+    await waitFrames(gb2, 420);
+    await shot(gb2, 't-10-guestB-left-boots-again.png');
+    ok('leave: guest B runs on its own (frames advance, no session)', !(await stats(gb2)).session && (await frame(gb2)) > 0);
+    await gb2.ev(`katamOnline.join(${JSON.stringify(code)})`);
+    const inB3 = await until(async () => { const s = await stats(gb2); return s && s.session && s.joined; }, 60000);
+    ok('leave: guest B joins again without reloading', !!inB3);
+    await sleep(2500);
+    const cB3 = makeComparer(host, gb2);
+    await playMany(host, [ga, gb2], 20, [cA, cB3], 't-rejoin', [10]);
+    await cB3.run();
+    ok('leave: guest B identical after joining again', cB3.compared > 20 && cB3.mismatched === 0, `${cB3.equal}/${cB3.compared}`);
+    // the host ends the game: each guest is told and goes back the same way
+    // (the scripted pads stop: from here on the menus are driven by hand)
+    for (const p of [host, ga, gb2]) await p.ev('window.__script = null; window.__seats = null; Module._PortSetKeys(0)');
+    await host.ev('katamOnline.leave()');
+    const hOut = await until(async () => { const s = await stats(host); return s && !s.session && (await host.ev('Module._PortLnHomeLoads()')) === 1 ? s : null; }, 10000);
+    ok('leave: the host ends the game (back to power-on)', !!hOut);
+    const hf0 = await frame(host);
+    const aLeft = await until(async () => { const s = await stats(ga); return s && s.phase === 'hostleft' ? s : null; }, 15000);
+    ok('leave: guest A is told the host left', !!aLeft, aLeft ? aLeft.banner : '');
+    await sleep(300);
+    await shot(ga, 't-11-guestA-host-left.png');
+    const btn = await ga.ev('(function(){var b=document.getElementById("lnleave");return !!(b && b.style.display!=="none")})()');
+    ok('leave: guest A gets a "Back to the title" button', btn);
+    // the host's game boots again: through the game's own menus from power-on
+    // (its intro is as long as the save makes it: Start until FILE SELECT)
+    await until(async () => (await frame(host)) >= hf0 + 300, 60000, 30);
+    await shot(host, 't2-00-host-boots-again.png');
+    let atFs = false;
+    for (let i = 0; i < 6 && !atFs; i++) {
+        await press(host, 'START'); await waitFrames(host, 100);
+        atFs = (await fsPrint(host)) === host.fsPrint;
+    }
+    ok('again: the host\'s game is back at FILE SELECT, through its own intro and title', atFs);
+    await waitFrames(host, 150);                               // (it takes input once it has faded in)
+    await press(host, 'A'); await waitFrames(host, 200);       // FILE 1 -> Game Select
+    await toOnline(host);
+    await shot(host, 't2-01-online.png');
+    ok('again: the host is on the ONLINE screen', (await host.ev('Module._PortPocScreenModel()')) === 2 && await screenLive(host),
+       String(await host.ev('Module._PortPocScreenModel()')));
+    await press(host, 'A');                                    // HOST GAME
+    const code2 = await until(async () => { const s = await stats(host); return s && s.code && s.phase === 'hosting' && (await screen(host)) === 2 * 256 + 2 ? s.code : null; }, 20000);
+    await waitFrames(host, 20);
+    await shot(host, 't2-02-host-waiting.png');
+    await ga.ev('document.getElementById("lnleave").click()');
+    const aOut = await until(async () => { const s = await stats(ga); return s && !s.session && !s.role && (await ga.ev('Module._PortLnHomeLoads()')) === 1 ? s : null; }, 10000);
+    ok('leave: the button takes guest A back to the title', !!aOut);
+    await until(async () => { const s = await stats(gb2); return s && s.phase === 'hostleft'; }, 15000);
+    await gb2.ev('katamOnline.leave()');
+    await waitFrames(ga, 420);
+    await shot(ga, 't-12-guestA-title-again.png');
+    ok('again: the host makes a new room from the menus', !!code2 && code2 !== code, code2);
+    await ga.ev(`katamOnline.join(${JSON.stringify(code2)})`);
+    const aw2 = await until(async () => { const s = await stats(ga); return s && s.phase === 'waiting'; }, 40000);
+    ok('again: guest A connects and waits', !!aw2);
+    await sleep(1500);
+    const st2 = await startHost(host, 't2');
+    ok('again: the session starts', !!st2);
+    const inA2 = await until(async () => { const s = await stats(ga); return s && s.session && s.joined; }, 30000);
+    ok('again: guest A takes the new image and plays', !!inA2);
+    await sleep(2500);
+    const slA = await slotsOf(host);
+    const cw3 = [['HOSTY', '1000002'], null, null, null];
+    cw3[devOf(slA, (await stats(ga)).self)] = ['ANNA', '1000006'];
+    await cardsCheck('again: cards', [host, ga], cw3);
+    const b3 = (await stats(host)).startFrame;
+    const play3 = buildPlay(60 * 60, 8, 900);
+    await setScript(host, play3.k1, b3, play3.warps);
+    await setScript(ga, play3.k2, b3, []);
+    const cA2 = makeComparer(host, ga);
+    await playMany(host, [ga], 25, [cA2], 't-again', [12]);
+    await cA2.run();
+    ok('again: guest A identical to the host', cA2.compared > 30 && cA2.mismatched === 0, `${cA2.equal}/${cA2.compared}`);
     await host.close(); await ga.close(); await gb2.close();
     delete pages.host; delete pages.guestA; delete pages.guestB;
 }

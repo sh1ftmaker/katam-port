@@ -180,7 +180,8 @@ struct PortSimBlock {
  * rewind with everything else.  Layout: [0] 1 = valid, [1] renderer,
  * [2] aspect, [3] zoom index, [4] smooth camera, [5] scaling, [6] volume,
  * [7] mute, [8] edit count, [9] player who made the last edit, [10] the
- * row it changed + 1 (only that row is applied to that player's device). */
+ * row it changed + 1 (only that row is applied to that player's device),
+ * [11] the party HUD (PS_PARTY_*). */
 #define PORT_SIM_LNSET       ((u8 *)&gPortSim->hdr.reserved[0])
 #define PORT_SIM_LNSET_BYTES 12
 

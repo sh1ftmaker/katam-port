@@ -14,7 +14,9 @@
  *     the top left already say where the absent ones are).
  *
  * A card is 16 HUD pixels tall: the game's own lives icon (the Kirby from
- * the bottom bar) in that Kirby's colours, a tag (2P..4P, or CPU), a health
+ * the bottom bar) in that Kirby's colours, a tag (2P..4P, or CPU), the
+ * player's name from the player cards when they have one (PortPlayerName:
+ * locally the card's, online the name the host relays), a health
  * bar with one pip per hit point in the bar's own colours, the ability's
  * name and the lives left.  States: KO (hp gone: grey icon, "KO", or "OUT"
  * with no lives left), AWAY (a human in another room, dimmed), CPU.  When a
@@ -24,8 +26,8 @@
  *
  * "You": the tags of the players this device controls are lit (white
  * lettering on the Kirby's colour), everyone else's are dark.  On one screen
- * that is every human; online it is this device's own player (the host is
- * player 1, the guest player 2: PortLnRole).  Per-device presentation, read
+ * that is every human; online it is this device's own players
+ * (PortLnSelfSlots).  Per-device presentation, read
  * from host state, never written anywhere the simulation can see.
  *
  * --- where it draws from -------------------------------------------------
@@ -77,6 +79,7 @@
 #include "port/backend.h"
 #include "port/localmp.h"
 #include "port/lmpnet.h"
+#include "port/player_card.h"
 #include "render/gl_renderer.h"
 #include "ui/party_hud.h"
 #include "ui/settings.h"
@@ -97,6 +100,7 @@ enum { ST_OK = 0, ST_KO, ST_OUT, ST_AWAY };
 
 typedef struct {
     u8 slot, color, hp, maxHp, lives, ability, state, human, local;
+    char name[PORT_CARD_NAME_MAX + 1];  /* the player card's name, "" none */
 } Member;
 
 typedef struct {
@@ -155,6 +159,13 @@ int PortPartyHudCards(void)
 {
     return sNow.show ? sNow.n : 0;
 }
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+/* Tests: the setting (PS_PARTY_*) and the cards up now. */
+EMSCRIPTEN_KEEPALIVE int PortPartyHudSettingJs(void) { return gPortSettings.partyHud; }
+EMSCRIPTEN_KEEPALIVE int PortPartyHudCardsJs(void) { return PortPartyHudCards(); }
+#endif
 
 /* Is Kirby slot s a person?  The game's own answer is s < gNumHumanPlayers;
  * with drop-in/drop-out (localmp.h, PortIsHuman) the humans are any set. */
@@ -261,6 +272,8 @@ void PortPartyHudSample(void)
             m->ability = k->ability < KIRBY_ABILITY_COUNT ? k->ability : 0;
             m->human = (u8)human;
             m->local = (u8)(human && IsLocal(s));
+            if (human)          /* a person's name from the player cards */
+                snprintf(m->name, sizeof(m->name), "%s", PortPlayerName(s));
             if (k->hp <= 0)
                 m->state = k->lives == 0 ? ST_OUT : ST_KO;
             else if (k->base.roomId != room)
@@ -304,12 +317,15 @@ void PortPartyHudSample(void)
 
 /* --- pictures ------------------------------------------------------------- */
 
+/* Wide enough for a card with an eight-letter name and a twelve-pip bar. */
+#define CANVAS_W 120
+
 /* Pixels are composed as GBA colours with an alpha and only turned into
  * RGBA (faded, premultiplied) at the end. */
 typedef struct {
     int w, h;
-    u16 c[96 * 64];
-    u8 a[96 * 64];
+    u16 c[CANVAS_W * 64];
+    u8 a[CANVAS_W * 64];
 } Canvas;
 
 static void Put(Canvas *cv, int x, int y, u16 c, u8 a)
@@ -360,6 +376,8 @@ static const struct { char ch; const char *rows[6]; } kFont[] = {
     { '9', { ".##.", "#..#", "#..#", ".###", "...#", ".##." } },
     { 'x', { "...", "...", "#.#", ".#.", "#.#", "..." } },
     { '-', { "...", "...", "###", "...", "...", "..." } },
+    { '.', { ".", ".", ".", ".", ".", "#" } },
+    { '!', { "#", "#", "#", "#", ".", "#" } },
 };
 
 static int Glyph(char ch)
@@ -541,6 +559,8 @@ static int CardWidth(const Member *m)
     TagFor(m, tag);
     snprintf(lives, sizeof(lives), "x%d", m->lives);
     top = TextW(tag) + 4 + 1 + (m->maxHp * 3 + 1);
+    if (m->name[0])
+        top += TextW(m->name) + 3;
     bottom = (m->state == ST_OK || m->state == ST_AWAY ? TextW(m->state == ST_AWAY ? "AWAY"
               : kAbility[m->ability]) : TextW(m->state == ST_OUT ? "OUT" : "KO")) + 2 + 3 + TextW(lives);
     return 17 + (top > bottom ? top : bottom) + 1;
@@ -563,6 +583,9 @@ static void Card(Canvas *cv, int y, int w, const Member *m)
         x = 17 + LitTag(cv, 17, y, tag, pal, a);
     else
         x = 17 + DarkTag(cv, 17, y, tag, pal, a);
+    /* the name, after the tag, in the Kirby's light shade (outlined) */
+    if (m->name[0])
+        x += 2 + Text(cv, x + 2, y + 1, m->name, ko ? pal[4] : pal[1], 0, 1, a) + 1;
     Bar(cv, x + 1, y, m->hp, m->maxHp, pal, ko, a);
 
     label = m->state == ST_OUT ? "OUT" : m->state == ST_KO ? "KO"
@@ -577,7 +600,7 @@ static Canvas sCards, sTag, sHint;
 static u32 sHintPx[160 * 8];
 static Party sComposed;
 static int sHaveComposed;
-static u32 sCardsPx[96 * 64], sTagPx[16 * 8];
+static u32 sCardsPx[CANVAS_W * 64], sTagPx[16 * 8];
 
 static void Finish(const Canvas *cv, u32 *out, const Party *p)
 {
@@ -609,7 +632,7 @@ static void Compose(const Party *p)
         int cw = CardWidth(&p->m[i]);
         if (cw > w) w = cw;
     }
-    if (w > 96) w = 96;
+    if (w > CANVAS_W) w = CANVAS_W;
     memset(&sCards, 0, sizeof(sCards));
     sCards.w = w;
     sCards.h = p->n * (CARD_H + CARD_GAP) - CARD_GAP;

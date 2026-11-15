@@ -145,6 +145,16 @@ int  PortLnImageLoad(u32 len);
 #define PORT_LN_SKIP_OWN      0x80   /* the slot ownership                   */
 void PortLnSetImageSkip(int mask);
 
+/* Leaving a session without reloading (the page's "Leave online game"):
+ * stop it and, at the next frame top, put back the picture of this device's
+ * own game taken just after power-on -- it boots to the title again, with its
+ * own save (a guest's from before the host's image), its own view, and the
+ * frame counter running on.  0 if there is no picture (then only stopped). */
+int  PortLnGoHome(void);
+int  PortLnHomeReady(void);
+u32  PortLnHomeLoads(void);
+void PortLnHomeFrame(void);               /* platform/main.c, after PortLnFrame */
+
 /* Diagnostics: a full image of the state at the top of `frame`, refreshed
  * every time that frame's top runs (the last pass wins). */
 void PortLnDumpAt(u32 frame);

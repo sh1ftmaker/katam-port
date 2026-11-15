@@ -187,6 +187,11 @@
             this.st.seatReqs = (this.st.seatReqs || 0) + 1;
             var slot = this.e.seatRequest(this.dev, msg.seat | 0, msg.on ? 1 : 0);
             if (msg.on && slot < 0) { this.st.seatFull = (this.st.seatFull || 0) + 1; this.tx.reliable({ t: 'seatfull', seat: msg.seat | 0 }, 16); }
+        } else if (msg.t === 'card') {
+            // that device's seats' player cards (name, colour): the host seals
+            // each slot's colour from its owner's card (platform/player_card.c)
+            this.st.cards = (this.st.cards || 0) + 1;
+            if (this.e.cardSet && typeof msg.p === 'string') this.e.cardSet(this.dev, msg.p);
         }
     };
     HostSession.prototype.wantImage = function (reason) {
@@ -325,6 +330,12 @@
             if (this.onSeatFull) this.onSeatFull(msg.seat);
             return;
         }
+        if (msg.t === 'names') {
+            // every slot's name, from the host (presentation only)
+            this.st.names = (this.st.names || 0) + 1;
+            if (this.e.setSlotNames && typeof msg.n === 'string') this.e.setSlotNames(msg.n);
+            return;
+        }
         if (msg.t !== 'image') return;
         var t0 = now();
         // the device id the host gave this guest, before its image lands
@@ -336,6 +347,7 @@
         this.repairInFlight = 0;
         this.joined = true;
         this.imagePending = true;   // applied at the next frame top: run exactly one frame first
+        this.cardSent = null;       // the host may have forgotten this device's cards: again
         this.settling = true;       // catching up to the host: lateness now is not the link's
         if (this.st.firstImageAt === null) this.st.firstImageAt = this.clock();
     };
@@ -404,6 +416,15 @@
             this.st.seatAsks = (this.st.seatAsks || 0) + 1;
             this.tx.reliable({ t: 'seat', seat: (a - 1) & 3, on: (a - 1) >> 2 ? 1 : 0 }, 16);
         }
+        // this device's player cards, to the host, whenever they change
+        if (this.joined && this.e.cardProfiles) {
+            var pr = this.e.cardProfiles();
+            if (pr !== this.cardSent) {
+                this.cardSent = pr;
+                this.st.cardsSent = (this.st.cardsSent || 0) + 1;
+                this.tx.reliable({ t: 'card', p: pr }, 16 + pr.length);
+            }
+        }
         if (this.lastLocal < 0) return;
         var g = this.lastLocal, mask = this.e.selfSeats ? this.e.selfSeats() & 15 : 1;
         var from = Math.max(this.hostAck, g - this.o.redundancy + 1, 0);
@@ -441,6 +462,7 @@
         if (!this.peers[dev]) return;
         delete this.peers[dev];
         this.e.deviceGone(dev);
+        if (this.e.cardDrop) this.e.cardDrop(dev);
         this.st.removes++;
     };
     HostHub.prototype.get = function (dev) { return this.peers[dev] || null; };
@@ -467,6 +489,16 @@
             if (hs.slot < 0) hs.slot = this.e.freeSlots() > 0 ? this.e.seatRequest(hs.dev, 0, 1) : -1;
             hs.afterTick();
         }
+        // every slot's name to every guest, when it changes (the host names
+        // the slots from the cards: platform/player_card.c)
+        var names = this.e.slotNames ? this.e.slotNames() : null;
+        if (names !== null)
+            for (i = 0; i < ds.length; i++) {
+                var p = this.peers[ds[i]];
+                if (p.namesSent === names) continue;
+                p.namesSent = names;
+                p.tx.reliable({ t: 'names', n: names }, 16 + names.length);
+            }
     };
 
     // --- an engine adapter over a running module (the page) ----------------------
@@ -475,6 +507,23 @@
         var s = '';
         for (var i = p; M.HEAPU8[i]; i++) s += String.fromCharCode(M.HEAPU8[i]);
         return s;
+    }
+    function putStr(M, buf, size, str) {
+        var n = Math.min(str.length, size - 1);
+        for (var i = 0; i < n; i++) M.HEAPU8[buf + i] = str.charCodeAt(i) & 0x7F;
+        M.HEAPU8[buf + n] = 0;
+        return buf;
+    }
+    // the player-card calls (platform/player_card.c), absent in an older build
+    function cardCalls(M, eng) {
+        if (!M._PortCardSeatProfiles) return eng;
+        var sbuf = M._malloc(256);
+        eng.cardProfiles = function () { return cstr(M, M._PortCardSeatProfiles()); };
+        eng.cardSet = function (dev, p) { M._PortCardHostSetProfiles(dev, putStr(M, sbuf, 256, p)); };
+        eng.cardDrop = function (dev) { M._PortCardHostDropDevice(dev); };
+        eng.slotNames = function () { return cstr(M, M._PortCardSlotNames()); };
+        eng.setSlotNames = function (n) { M._PortCardSetSlotNames(putStr(M, sbuf, 256, n)); };
+        return eng;
     }
     function engineOfModule(M) {
         var scratch = M._malloc(512);
@@ -526,13 +575,13 @@
             seatAskPoll: function () { return M._PortLnSeatAskPoll(); },
             slotOwner: function (s) { return M._PortLnSlotOwner(s); },
         };
-        return eng;
+        return cardCalls(M, eng);
     }
 
     return {
         PERIOD: PERIOD, T_INPUT: T_INPUT, T_SEALED: T_SEALED,
         HostSession: HostSession, GuestSession: GuestSession, HostHub: HostHub,
         encInput: encInput, decInput: decInput, encSealed: encSealed, decSealed: decSealed,
-        engineOfModule: engineOfModule,
+        engineOfModule: engineOfModule, cardCalls: cardCalls,
     };
 }));

@@ -433,9 +433,19 @@ static void PageGame(void)
         /* Online play (web/online.js): the link, the session's numbers. */
         const char *on = Q("online");
         Heading("Online");
-        if (on[0])
+        if (on[0]) {
+            const char *role = Q("online.role");
+
             ImGui::TextUnformatted(on);
-        else
+            /* leaving without reloading: back to the title (web/online.js) */
+            if (role[0] && ConfirmButton(strcmp(role, "host") == 0 ? "End online game" : "Leave online game",
+                                         "onlineleave"))
+                Act("online.leave");
+            if (role[0])
+                Hint(strcmp(role, "host") == 0 ? "Ends the game for everyone; the game goes back to the title."
+                                               : "Your Kirby goes to the CPU; your game goes back to the title "
+                                                 "with your own save.");
+        } else
             Hint("Start Game > MULTIPLAYER > ONLINE: host a game and give a friend its "
                  "4-letter code, or join theirs.");
     }

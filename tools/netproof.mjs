@@ -13,7 +13,8 @@
 // (platform/lmpnet.c).  Every run is reproducible from its config.
 // R0-R12 are the two-device gates; R13 slots (3-4 devices, two local players
 // on one device, churn, a full game, slot reuse, the slot-table ablation),
-// R14 the link matrix on three devices, R15 feel per guest for 2/3/4 devices.
+// R14 the link matrix on three devices, R15 feel per guest for 2/3/4 devices,
+// R16 player cards online (colours and names through joins, leaves, repairs).
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -364,6 +365,45 @@ async function main() {
                 const avg = (k) => +(rr.reduce((a, x) => a + x[k], 0) / Math.max(1, rr.length)).toFixed(1);
                 return `${n} devices ${ln}: rewinds/min ${avg('rewindsPerMin')} (per guest ${rr.map((x) => x.rewindsPerMin).join('/')}), lead p50 ${rr.map((x) => x.lead.p50).join('/')}, own px p99 ${rr.map((x) => fmt(x.own.p99)).join('/')}, others mispredicted ${avg('mispredOtherPct')}%`;
             }).join('; ')).join('; ') };
+    }
+    // R16: player cards online -- every slot's colour sealed by the host from
+    // its owner's card and every name relayed to every device, through a
+    // guest's second local player, a link drop and return (the host forgets
+    // that device's cards and hears them again after the image), a card
+    // changed mid-game, a leave (the colour goes back to the game's own) and
+    // the host's own second player reusing the slot
+    if (want('R16')) {
+        const B = BOOT_END, verdicts = [], texts = [], briefs = [];
+        // together, and in free roam (rooms mode: each device's own game is
+        // rebuilt from the canonical one -- a paint must be in both)
+        for (const rooms of [false, true]) {
+        const r = await run(`R16 cards${rooms ? ' (free roam)' : ''}: names and colours, 3 devices, joins, a drop and return, a leave, slot reuse @120ms`, { rooms,
+            link: HEADLINE, durationFrames: QUICK ? 4200 : 5200,
+            hostCards: [[0, 0, '1,2,0,0,0,HOSTY'], [0, 1, '2,0,200,80,90,COUCH']],
+            hostSeats: [[B + 3000, 1, 1]],
+            guests: [
+                { dev: 1, cards: [[0, 0, '1,6,0,0,0,ALICE'], [0, 1, '1,9,0,0,0,AL2'], [B + 1200, 0, '1,10,0,0,0,ALICE']], seats: [[B + 300, 1, 1]] },
+                { dev: 2, cards: [[0, 0, '2,0,120,90,80,BOB']], leave: B + 2400, link: Object.assign({}, HEADLINE, { outages: [[13400, 8000]] }) },
+            ] });
+        const want0 = ['1000002', '100000a', null, '1000009'], names0 = ['HOSTY', 'ALICE', 'COUCH', 'AL2'];
+        const views = [r.cards.host, ...r.cards.guests];
+        const sameAll = views.every((v) => v && v.paint.join() === r.cards.host.paint.join() && v.names.join() === r.cards.host.names.join());
+        const p = r.cards.host.paint;
+        const paintsOk = p[0] === want0[0] && p[1] === want0[1] && p[3] === want0[3] && /^2[0-9a-f]{6}$/.test(p[2]);
+        const namesOk = r.cards.host.names.join() === names0.join();
+        // slot 2 over time: BOB's colour, the game's own while the link was
+        // down, BOB's again, the game's own after the leave, then COUCH's
+        const s2 = []; for (const x of r.cardTrace) { const v = x.v.split(' ')[2]; if (s2[s2.length - 1] !== v) s2.push(v); }
+        const bob = s2.find((v) => v !== '0');
+        const s2ok = !!bob && s2.join(' ').endsWith(`${bob} 0 ${bob} 0 ${p[2]}`) && p[2] !== bob;
+        const okRun = r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected * 0.9 && r.host.tel.hostRewinds === 0;
+        verdicts.push(okRun && sameAll && paintsOk && namesOk && s2ok);
+        briefs.push(Object.assign(brief(r), { trace: r.cardTrace, cards: r.cards }));
+        texts.push(`${rooms ? 'free roam' : 'together'}: ${r.compare.equal}/${r.compare.compared} frames identical; at the end every device has paints ${p.join(' ')} and names ${r.cards.host.names.join(' ')} (${sameAll ? 'the same on all ' + views.length : 'NOT the same on every device'}); ` +
+                  `slot 2's colour over time ${s2.join(' -> ')} (${s2ok ? 'BOB, the game\'s own while gone, BOB, the game\'s own after the leave, then the host\'s second player' : 'NOT as expected'}); ` +
+                  `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}`);
+        }
+        report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };
     }
     // R6: authority -- across every run
     if (want('R6')) {

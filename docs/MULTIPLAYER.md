@@ -1406,9 +1406,12 @@ controller joins a CPU row, a controller taken from another player moves
 (that player leaves if it was their only one), CPU drops the player out,
 ANY gives player 1 back every unclaimed controller. B goes back to SETTINGS
 (on the pause page `pause_help.c` leaves B to it while the page is up;
-Start still returns to the game). In an online session the row is dimmed
-("NOT IN AN ONLINE GAME") and the page cannot open: what it shows is host
-state.
+Start still returns to the game). In an online session the row opens a
+read-only page instead (§14, "The in-game screens in a session"): what the
+controller page shows is host state.
+
+The eighth row, PARTY HUD (OFF / PLAYERS / ALL), is `gPortSettings.partyHud`
+(§14).
 
 The page reads a snapshot the host pushes while it is up
 (`PortPuiBegin/AddDevice/SetPlayer/End`, names through `PortPuiNameBuf`)
@@ -1416,22 +1419,32 @@ and queues what it asks for (`PortPuiPoll`: assign, drop, any); natively it
 reads and drives `platform/input_devices.c` itself. Only the joins and
 leaves reach the game, as recorded `human` events.
 
-**For the player card** (name, colour): `PortPuiSetCardHook(int (*open)(int
+**The player card** (name, colour): `PortPuiSetCardHook(int (*open)(int
 slot))`. Once set, A on a row with no controller change pending calls it
 with the slot (0–3) and the description line offers "A: PLAYER CARD"; return
-1 if the card opened. Nothing else depends on it.
+1 if the card opened. `menu_poc.c` sets it when the page opens: player p's
+card (card p) opens in place, on the same tiles, from Game Select's
+SETTINGS and from the pause page (local play only: online the page is the
+read-only one), its PLAYER row fixed; B on the card goes back to PLAYERS on
+that row. A colour picked there goes on when the card closes.
 
-**For sessions with more slots** (`platform/lmpnet.c`, `web/online.js`):
-the page calls `katamDevices.setOnline(katamOnline.inSession())` every
-frame. Today that merges every device into this device's player and leaves
-players 2–4's host keys alone. A session carrying several local players per
-device can instead call, once,
-`katamDevices.setOnline(true, { split: true, join: function (devId) { /* seal a join, return slot 1..3 or -1 */ }, leave: function (slot) { /* seal a leave, return true */ } })`
-and read `katamDevices.localKeys(p)` per local player each frame (the
-device module then keeps its local assignment; Start on a free pad calls
-`join`, Select held or `dropOut(p)` calls `leave`). `listDevices()`,
-`listPlayers()`, `waitingPads()` and the `onEvent` notices work the same
-online.
+**In an online session** the page calls
+`katamDevices.setOnline(katamOnline.inSession(), { seats: true })` every
+frame: the device module keeps the local rules exactly, its player p being
+this device's seat p (§14). Start on a free pad (or keyboard set B) asks the
+host for a Kirby for the next free seat, Select held or unplugging gives it
+back, and the seat's keys go to `PortLmpSetHostKeys(p)` as always. Two
+differences: a seat that became a person without a controller here (a
+caller of `katamOnline.requestSlot`) is not given a spare one, and only
+seats a controller here plays have their host keys written (the caller of
+`requestSlot` sets its own). For a second after the session ends nobody is
+given a spare controller either: the game still has the session's people
+until the device's own game is put back (§14, "Leaving without
+reloading"), and without this keyboard set B became player 2's. The notices name the Kirby the host gave the
+seat; a guest whose request the host refuses (four people) gets "No Kirby
+free" and the pad is parked. (`setOnline(true)` alone, or with `{ split:
+true, join, leave }`, are the earlier modes and are no longer used by the
+page.)
 
 
 ### Online
@@ -1586,6 +1599,66 @@ Not verified: real devices, real networks, NAT traversal between more than
 two browsers (each guest has its own WebRTC link to the host; the relay
 carries any that fail).
 
+### Player cards online
+
+Every slot wears its owner's card (§15): the host's own seats its cards
+0..3, a guest's seats that guest's. A guest sends the profiles of its four
+seats (`PortCardSeatProfiles`: a line per seat, `NAME\tPAINT8`) to the host
+as a reliable `{t: 'card', p}` whenever they change and after every image
+(`web/ln_session.js`); the host keeps them by (device, seat)
+(`PortCardHostSetProfiles`, forgotten when the device goes) and
+`PortCardHostFrame` seals each slot's paint from `PortLnSlotOwner` as
+`PORT_LN_EV_PAINT`. A CPU slot, or one whose owner's profile has not
+arrived, wears the game's own colour, so a leave (or a drop) gives the
+Kirby its colour back and a slot that changes hands takes the newcomer's.
+The host names the slots the same way and relays the four names
+(`PortCardSlotNames`, `{t: 'names', n}`) whenever they change and to each
+new link; guests apply them (`PortCardSetSlotNames`). Names are
+presentation only: they are never in game memory. Rig: R16 (together and in free
+roam, where a paint is in both the guest's own game and its canonical one).
+
+### Names on the party HUD
+
+`platform/ui/party_hud.c` puts a person's name (`PortPlayerName`) after the
+2P..4P tag, in the Kirby's light shade, when the card has one; the tag and
+the per-device lit "you" tag stay. Name tags over the Kirbys
+(`PortPlayerTagAnchor`, `PortCardSetTagsOn`) are off by default and nothing
+draws them yet.
+
+### The in-game screens in a session
+
+Drawn into game memory, so only what is the same on every device:
+
+- PARTY HUD on the SETTINGS screens: the pause page's session copy carries
+  it (`PORT_SIM_LNSET[11]`); a change goes to the device of the player who
+  made it, as the other rows.
+- PLAYERS: a read-only page, P1..P4 = HOST / GUEST n (a `+` for a second
+  person on that device) / CPU, from the session's slot table
+  (`PortLnSlotOwner`: sealed, in every keyframe and image, hashed). Names
+  are not shown there: they are relayed, not sealed, so two devices could
+  draw different letters on the same frame. No "you" either.
+- A player card cannot be opened in a session (the PLAYERS page there is
+  the read-only one; MULTIPLAYER's PLAYER CARD row is dimmed).
+
+### Leaving without reloading
+
+The page menu's Online section has **Leave online game** (a guest) or **End
+online game** (the host) while a session is on (`katamOnline.leave()`); a
+guest whose host left gets a **Back to the title** button under the notice.
+Leaving closes the links with a bye (the host hands a leaving guest's Kirbys
+to the CPU; a host that ends tells every guest) and calls `PortLnGoHome`:
+the session stops and, at the next frame top, the device's own picture
+from just after power-on (`platform/lmpnet.c`, taken once at the first
+frame top: the GBA map, the port's out-of-map state, the screens' host
+state) is put back. The game boots again to the title as at power-on, with
+this device's own save memory (the host keeps what it has, its world; a
+guest gets back the save it had before the host's image, and storing it
+resumes), its own view, local multiplayer and the randomizer as they were,
+and the frame counter running on. The ONLINE screens can then host or join
+again. Tested by `tools/online_browser_test.mjs --cases three` (a guest
+leaves and joins again, the host ends, the host hosts again and a guest
+joins it, all identical).
+
 ---
 
 ## 15. Player cards: a name and a Kirby colour per player
@@ -1615,13 +1688,12 @@ is the template; each entry that differs between the sprays is hue-shifted by
 
 **Who schedules it**: `PortCardHostFrame` (host side, before the latch):
 local play, slot 0 wears card 0 from the start and slot s card s while it is a
-person; online host, its own slot.  Not while replaying, under
-rollback/netsim/seats, or while a card is open.  Online guests' colours are
-the session layer's: guest page sends `PortCardProfileString()`; host page
-calls `PortCardHostApplyProfile(slot, profile)` (sealed paint +
-`PortCardSetSlotName`) and relays names; each device calls
-`PortCardSetSlotName(slot, name)`.  Presentation: `PortPlayerName(slot)`,
-`PortPlayerColor(slot)`, `PortPlayerTagAnchor(slot, ...)`.
+person; online host, every slot from its owner's card (§14, "Player cards
+online").  Not while replaying, under rollback/netsim/seats, or while a card
+is open (online: the host's own slots only).  Presentation:
+`PortPlayerName(slot)` (the card's name, "" without one or for a CPU),
+`PortPlayerColor(slot)`, `PortPlayerTagAnchor(slot, ...)`.  The card also
+opens from the PLAYERS page (§13).
 
 Scenario: `tests/recordings/card_colors.txt` (keys/vid/sram/pix identical
 native vs wasm).
