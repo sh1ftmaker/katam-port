@@ -2671,21 +2671,34 @@ static void PortPocSettingsInput(struct Unk_08138D64 *a1) {
 
     sub_0813B4F0(a1);
     key = sub_0813B484();
-    if (key == 2) {
-        m4aSongNumStart(SE_MAIN_MENU_BACK);
-        a1->unk9D8 = 0;
-        a1->unk9CC = FN(PortPocSettingsSlideOut);
-    } else {
-        switch (PortMenuPocSettingsInput(a1, key)) {
-        case 1:
-            m4aSongNumStart(SE_MAIN_MENU_CURSOR);
-            a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
-            sub_08155128(&a1->unk28C);
-            break;
-        case 2:
-            m4aSongNumStart(key == 1 ? SE_MAIN_MENU_SELECT : SE_MAIN_MENU_CURSOR);
-            break;
+    /* B is the PLAYERS page's own (back to SETTINGS) while it is up */
+    switch (PortMenuPocSettingsInput(a1, key)) {
+    case PORT_POC_IN_NONE:
+        if (key == 2) {
+            m4aSongNumStart(SE_MAIN_MENU_BACK);
+            a1->unk9D8 = 0;
+            a1->unk9CC = FN(PortPocSettingsSlideOut);
         }
+        break;
+    case PORT_POC_IN_CURSOR:
+        m4aSongNumStart(SE_MAIN_MENU_CURSOR);
+        a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+        sub_08155128(&a1->unk28C);
+        break;
+    case PORT_POC_IN_VALUE:
+        m4aSongNumStart(key == 1 ? SE_MAIN_MENU_SELECT : SE_MAIN_MENU_CURSOR);
+        break;
+    case PORT_POC_IN_SCREEN:
+        m4aSongNumStart(key == 2 ? SE_MAIN_MENU_BACK : SE_MAIN_MENU_SELECT);
+        a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
+        sub_08155128(&a1->unk28C);
+        break;
+    case PORT_POC_IN_DONE:
+        m4aSongNumStart(SE_MAIN_MENU_SELECT);
+        break;
+    case PORT_POC_IN_REFUSED:
+        m4aSongNumStart(SE_MAIN_MENU_BACK);
+        break;
     }
     PortMenuPocSettingsDraw(a1, 0);
     if (!sub_08155128(&a1->unk28C))

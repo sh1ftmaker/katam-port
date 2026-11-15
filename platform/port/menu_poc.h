@@ -103,8 +103,8 @@ void PortMenuPocMpStarted(void);
 int  PortMenuPocSettingsOpen(struct Unk_08138D64 *a1);
 /* Put it into OAM, everything shifted right by slide pixels (0 = in place). */
 void PortMenuPocSettingsDraw(struct Unk_08138D64 *a1, int slide);
-/* One pad event (sub_0813B484's 0..6, B excluded): 0 nothing happened,
- * 1 the cursor moved, 2 a value changed (applied and saved). */
+/* One pad event (sub_0813B484's 0..6): PORT_POC_IN_* as PortPocScreenInput
+ * (B is the caller's when this returns 0). */
 int PortMenuPocSettingsInput(struct Unk_08138D64 *a1, unsigned key);
 /* The star cursor's place for the current row. */
 int PortMenuPocSettingsCursorY(struct Unk_08138D64 *a1);
@@ -113,7 +113,8 @@ void PortMenuPocSettingsClose(struct Unk_08138D64 *a1);
 
 /* --- the screen, shared by the front end and the pause page ------------------
  *
- * The same six rows, header and description line from one set of functions;
+ * The same rows (six on screen, seven with PLAYERS), header and description
+ * line from one set of functions;
  * a caller supplies PORT_POC_SCREEN_TILES of OBJ VRAM, keeps the row cursor
  * in its own memory, and names the label (ERASE A FILE) and header
  * (SUB-GAMES) sprite variants of the game's language to build them from.
@@ -123,9 +124,25 @@ void PortMenuPocSettingsClose(struct Unk_08138D64 *a1);
 void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row);
 /* Into OAM; everything shifted right by slide pixels (0 = in place). */
 void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer);
-/* key as sub_0813B484 (1 A, 3 up, 4 down, 5 left, 6 right): 0 nothing,
- * 1 the cursor moved, 2 a value changed (applied and saved). */
+/* key as sub_0813B484 (1 A, 2 B, 3 up, 4 down, 5 left, 6 right): 0 nothing
+ * (B: the caller's own back), 1 the cursor moved, 2 a value changed
+ * (applied and saved), 3 the screen changed in place (SETTINGS -> PLAYERS on
+ * A, PLAYERS -> SETTINGS on B; the cursor row too), 4 something was done
+ * (a PLAYERS change), 5 refused. */
+#define PORT_POC_IN_NONE    0
+#define PORT_POC_IN_CURSOR  1
+#define PORT_POC_IN_VALUE   2
+#define PORT_POC_IN_SCREEN  3
+#define PORT_POC_IN_DONE    4
+#define PORT_POC_IN_REFUSED 5
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key);
+/* Is a sub-screen (PLAYERS, platform/players_ui.c) up, where B goes back to
+ * SETTINGS instead of leaving?  Never in an online session. */
+int PortPocScreenSub(void);
+/* Tests: the frame the screen was last drawn on; the model it shows (0
+ * SETTINGS, 1 MULTIPLAYER, 2-4 ONLINE, 5 PLAYERS). */
+u32 PortPocScreenLastDraw(void);
+int PortPocScreenModel(void);
 int PortPocScreenCursorY(int row);
 int PortPocScreenCursorX(void);
 

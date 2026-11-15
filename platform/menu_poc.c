@@ -58,6 +58,11 @@
  * on the web, settings.ini natively (scripted native runs save nothing, as
  * with the ImGui menu).  The values are host presentation settings, not game
  * state; the screen only reads them to draw its rows.
+ *
+ * A seventh row, PLAYERS (the number of people playing), opens the PLAYERS
+ * page in place (platform/players_ui.c: who plays which Kirby with which
+ * controller); B comes back to it.  Six rows fit the screen, so the list
+ * scrolls by the cursor (TopRow), with a small triangle where there is more.
  */
 
 #include <stdlib.h>
@@ -77,6 +82,8 @@
 #include "port/menu_poc.h"
 #include "port/localmp.h"
 #include "port/online_ui.h"
+#include "port/players_ui.h"
+#include "port/backend.h"     /* PortFrameNumber (tests) */
 #include "port/simblock.h"
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
@@ -124,8 +131,10 @@
 #define GS_DESC_COLS    8           /* 240 px                               */
 #define GS_TILES        ((GS_LABEL_COLS + GS_DESC_COLS) * COL_TILES)
 
-/* The settings screen. */
+/* The settings screen: six rows on screen (and in sprite memory); a list
+ * with more scrolls (the settings' seventh, PLAYERS). */
 #define ROWS            6
+#define SET_ROWS        7
 #define ROW_W           208         /* the banner, widened by 32            */
 #define ROW_WIDEN_AT    100         /* the column repeated to widen it      */
 #define ROW_COLS        7
@@ -537,6 +546,8 @@ static const struct CellGlyph kCell[] = {
     { '+', { "   ", " # ", "###", " # ", "   " } },
     { '<', { "  ", " #", "##", " #", "  " } },   /* triangles, like the */
     { '>', { "  ", "# ", "##", "# ", "  " } },   /* labels' bullet      */
+    { 'v', { "   ", "   ", "###", " # ", "   " } },  /* more rows below     */
+    { '^', { "   ", " # ", "###", "   ", "   " } },  /* more rows above     */
 };
 
 static const struct CellGlyph *CellFind(char c)
@@ -843,19 +854,20 @@ static const char *const kZoomName[] = { "0.5X", "0.67X", "0.8X", "1X", "1.25X",
 #define NZOOM ((int)(sizeof(kZoom) / sizeof(kZoom[0])))
 static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH" };
 
-enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME };
+enum { R_GRAPHICS, R_SCREEN, R_ZOOM, R_SMOOTHCAM, R_PIXELS, R_VOLUME, R_PLAYERS };
 
-static const char *const kRowName[ROWS] = {
-    "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME",
+static const char *const kRowName[SET_ROWS] = {
+    "GRAPHICS", "SCREEN", "ZOOM", "CAMERA", "PIXELS", "VOLUME", "PLAYERS",
 };
 /* Only letters the game's description pictures have (no Z, Q, J, digits). */
-static const char *const kRowDesc[ROWS] = {
+static const char *const kRowDesc[SET_ROWS] = {
     "ENHANCED CAN GO WIDESCREEN",
     "PICTURE SHAPE FOR ENHANCED",
     "HOW MUCH OF THE LEVEL SHOWS",
     "SMOOTHER SCROLLING",
     "HOW THE PICTURE IS SCALED",
     "MUSIC AND SOUND EFFECTS",
+    "CHOOSE WHO USES WHICH PAD",
 };
 
 static int ZoomIndexOf(const PortSettings *s)
@@ -979,6 +991,7 @@ static void RowValue(int row, char *buf, int size)
         if (s->mute) snprintf(buf, size, "MUTE");
         else         snprintf(buf, size, "%d%%", s->volume);
         break;
+    case R_PLAYERS:   PortPuiSummary(buf, size); break;
     default: buf[0] = '\0';
     }
 }
@@ -1051,15 +1064,50 @@ struct PocModel {
     /* an ONLINE sub-screen (platform/online_ui.c draws its text): its
      * PORT_OUI_SUB_*, 0 for the others */
     int oui;
+    /* rows and description redrawn when this changes (NULL: on input only) */
+    u32 (*gen)(void);
+    /* the PLAYERS page (platform/players_ui.c): values carry their own
+     * arrows, Left/Right/A are its own */
+    int pui;
 };
 
 static const char *SetName(int row) { return kRowName[row]; }
-static const char *SetDesc(int row) { return kRowDesc[row]; }
-static int SetStep(int row, int dir) { RowStep(row, dir); return 1; }
-static int SetUnavailable(int row) { (void)row; return 0; }
+static const char *SetDesc(int row)
+{
+    if (row == R_PLAYERS && gPortLnOn)
+        return "NOT IN AN ONLINE GAME";
+    return kRowDesc[row];
+}
+static int SetStep(int row, int dir)
+{
+    if (row == R_PLAYERS)
+        return 0;           /* A opens the page (PortPocScreenInput) */
+    RowStep(row, dir);
+    return 1;
+}
+static int SetUnavailable(int row) { return row == R_PLAYERS && gPortLnOn; }
+/* The PLAYERS row's count follows joins and leaves while the screen is up
+ * (simulation state: the same on every device online). */
+static u32 SetGen(void)
+{
+    u32 g = 0;
+    int s;
+
+    for (s = 1; s < 4; s++)
+        g = g * 2u + (u32)(PortLmpSlotIsHuman(s) != 0);
+    return g;
+}
 
 static const struct PocModel kSettingsModel = {
-    ROWS, "SETTINGS", SetName, RowValue, SetDesc, SetStep, SetUnavailable,
+    SET_ROWS, "SETTINGS", SetName, RowValue, SetDesc, SetStep, SetUnavailable, 0, SetGen,
+};
+
+/* PLAYERS (platform/players_ui.c): P1..P4 and their controllers. */
+static void PuiValue(int row, char *buf, int size) { PortPuiRowValue(row, 0, buf, size); }
+static int PuiStep(int row, int dir) { (void)row; (void)dir; return 0; }
+static const struct PocModel kPlayersModel = {
+    PORT_PUI_ROWS, "PLAYERS", PortPuiRowName, PuiValue, PortPuiRowDesc, PuiStep, PortPuiRowUnavailable,
+    0, PortPuiGen, 1,
 };
 
 /* MULTIPLAYER: LOCAL (two players on this screen, platform/localmp.c) and
@@ -1080,7 +1128,7 @@ static const char *MpDesc(int row)
     if (!PortLmpP2InputAvailable())
         return "NEEDS KEYS OR A GAMEPAD";
     /* alternate, about every two seconds: what it is, and player 2's keys */
-    return (gPortSim->frame.frameCount / 120) & 1 ? "P2: ARROW KEYS + NUMPAD"
+    return (gPortSim->frame.frameCount / 120) & 1 ? "P2: A PAD OR ARROWS + NUMPAD"
                                                   : "TWO PLAYERS ON ONE SCREEN";
 }
 static int MpStep(int row, int dir) { (void)row; (void)dir; return 0; }
@@ -1118,8 +1166,13 @@ static u32 sOuiGenShown;            /* PortOuiGen() the rows were drawn at */
 
 /* The models, numbered for the host state an online image carries. */
 static const struct PocModel *const kModels[] = {
-    &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel,
+    &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel, &kPlayersModel,
 };
+
+/* The art the screen up now was built from, for a sub-screen built in place
+ * (PLAYERS from SETTINGS and back). */
+static u16 sArtLbl, sArtHdr;
+static u8 sArtLblVar, sArtHdrVar;
 
 /* --- the screen itself, shared by the front end and the pause page ----------
  *
@@ -1130,9 +1183,28 @@ static const struct PocModel *const kModels[] = {
  * from VramMalloc, row in a1->unk3A6) and the pause menu's settings page
  * (game/src/pause_settings.c: fixed tiles, saved and put back around it). */
 
-static u32 RowVram(u32 tiles, int row)
+/* Rows on screen (and in sprite memory) for the model up now. */
+static int VisRows(void)
 {
-    return tiles + row * ROW_COLS * COL_TILES * 32;
+    return sModel->rows < ROWS ? sModel->rows : ROWS;
+}
+
+/* The first row on screen while the cursor is on `row`: a function of the
+ * cursor alone (the list scrolls just enough to show it), so neither caller
+ * keeps any more state for it. */
+static int TopRow(int row)
+{
+    int top = row - (ROWS - 1);
+
+    if (top < 0 || sModel->rows <= ROWS)
+        return 0;
+    return top > sModel->rows - ROWS ? sModel->rows - ROWS : top;
+}
+
+/* Sprite memory of the row shown in screen slot `slot`. */
+static u32 RowVram(u32 tiles, int slot)
+{
+    return tiles + slot * ROW_COLS * COL_TILES * 32;
 }
 
 /* The header and description follow the rows the screen up now has (the
@@ -1140,7 +1212,7 @@ static u32 RowVram(u32 tiles, int row)
  * to it can find the VRAM heap too fragmented for the settings' 660). */
 static u32 HeadVram(u32 tiles)
 {
-    return RowVram(tiles, sModel->rows);
+    return RowVram(tiles, VisRows());
 }
 
 static u32 SetDescVram(u32 tiles)
@@ -1167,27 +1239,47 @@ static int BuildRowBanner(u16 lblAnim, u8 lblVariant)
     return 1;
 }
 
-static void DrawRowTiles(u32 tiles, int row, int selected)
+/* Draw row `row` into its screen slot, if it is on screen with the cursor
+ * on `cursor`. */
+static void DrawRowTiles(u32 tiles, int row, int cursor)
 {
     static u8 px[PIC_H * ROW_COLS * 32];
-    int w = ROW_COLS * 32;
+    int w = ROW_COLS * 32, top = TopRow(cursor), selected = row == cursor;
     char val[24], shown[32];
 
+    if (row < top || row >= top + VisRows())
+        return;
     memcpy(px, sRowBanner, sizeof(px));
     CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, sModel->name(row), LBL_FILL, LBL_EDGE);
     if (sModel->oui)
         PortOuiRowValue(sModel->oui, row, selected, val, sizeof(val));
+    else if (sModel->pui)
+        PortPuiRowValue(row, selected, val, sizeof(val));
     else
         sModel->value(row, val, sizeof(val));
     /* the selected row's value between arrows, where they fit (and where
      * Left/Right change it) */
     snprintf(shown, sizeof(shown), "<%s>", val);
-    if (!selected || sModel != &kSettingsModel
+    if (!selected || sModel != &kSettingsModel || row == R_PLAYERS
         || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > ROW_VALUE_X1)
         snprintf(shown, sizeof(shown), "%s", val);
     CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
              LBL_FILL, LBL_EDGE);
-    PackPic(px, ROW_COLS, RowVram(tiles, row));
+    /* more rows below the last one on screen, or above the first: a small
+     * triangle at the banner's right end */
+    if (row == top + VisRows() - 1 && top + VisRows() < sModel->rows)
+        CellText(px, w, PIC_H, ROW_VALUE_X1 + 7, LBL_ROW0 + 1, "v", LBL_FILL, LBL_EDGE);
+    else if (row == top && top > 0)
+        CellText(px, w, PIC_H, ROW_VALUE_X1 + 7, LBL_ROW0 + 1, "^", LBL_FILL, LBL_EDGE);
+    PackPic(px, ROW_COLS, RowVram(tiles, row - top));
+}
+
+static void DrawRows(u32 tiles, int cursor)
+{
+    int r;
+
+    for (r = 0; r < sModel->rows; r++)
+        DrawRowTiles(tiles, r, cursor);
 }
 
 /* The SUB-GAMES header (its S icon suits SETTINGS) with "SETTINGS" in the
@@ -1221,13 +1313,14 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
 {
     int r;
 
+    (void)r;
     sModel = m;
-    sOuiGenShown = PortOuiGen();
+    sArtLbl = lblAnim; sArtLblVar = lblVariant; sArtHdr = hdrAnim; sArtHdrVar = hdrVariant;
+    sOuiGenShown = m->gen ? m->gen() : PortOuiGen();
     LoadSources();
     if (!BuildRowBanner(lblAnim, lblVariant))
         PortLog("[menu-poc] the ERASE A FILE label is not the expected shape; rows without banners");
-    for (r = 0; r < m->rows; r++)
-        DrawRowTiles(tiles, r, r == row);
+    DrawRows(tiles, row);
     DrawHeadTiles(tiles, hdrAnim, hdrVariant);
     sDescShown = m->desc(row);
     BuildDesc(sDescShown, SetDescVram(tiles));
@@ -1235,7 +1328,13 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
 
 void PortPocScreenBuild(u32 tiles, u16 lblAnim, u8 lblVariant, u16 hdrAnim, u8 hdrVariant, int row)
 {
+    PortPuiClose();
     ModelBuild(&kSettingsModel, tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
+}
+
+int PortPocScreenSub(void)
+{
+    return sModel->pui;
 }
 
 static s32 RowFrameY(int row)
@@ -1247,7 +1346,7 @@ int PortPocScreenCursorY(int row)
 {
     /* Game Select draws the star 11 px above a label sprite's y
      * (gUnk_0838650A), and a label's frame is drawn sLblOffY above that. */
-    return RowFrameY(row) + sLblOffY - 11;
+    return RowFrameY(row - TopRow(row)) + sLblOffY - 11;
 }
 
 int PortPocScreenCursorX(void)
@@ -1256,23 +1355,54 @@ int PortPocScreenCursorX(void)
     return ROW_FRAME_X + sLblOffX - 16;
 }
 
+/* Tests (the page's browser test): the frame the screen was last drawn on,
+ * and which model it shows (index in kModels).  Host memory, never read by
+ * the game. */
+static u32 sLastDrawFrame;
+
+u32 PortPocScreenLastDraw(void)
+{
+    return sLastDrawFrame;
+}
+
+int PortPocScreenModel(void)
+{
+    int i;
+
+    for (i = 0; i < (int)ARRAY_COUNT(kModels); i++)
+        if (sModel == kModels[i])
+            return i;
+    return -1;
+}
+
 void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
 {
     int r;
 
+    sLastDrawFrame = PortFrameNumber();
+
     /* the header slides in from the left as the game's (unkC) do */
     DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(tiles), HEAD_COLS,
             PIC_H, PAL_HEADER);
-    for (r = 0; r < sModel->rows; r++)
+    for (r = 0; r < VisRows(); r++)
         DrawPic(layer, ROW_FRAME_X + slide, RowFrameY(r), RowVram(tiles, r), ROW_COLS, PIC_H,
-                row == r && !sModel->unavailable(r) ? PAL_LIT : PAL_DIM);
+                row == TopRow(row) + r && !sModel->unavailable(row) ? PAL_LIT : PAL_DIM);
     /* the ONLINE screens' rows follow the network (platform/online_ui.c);
      * never in a session (PortOuiGen is not simulation state, and these
      * screens are not reachable then) */
     if (sModel->oui && !gPortLnOn && PortOuiGen() != sOuiGenShown) {
         sOuiGenShown = PortOuiGen();
-        for (r = 0; r < sModel->rows; r++)
-            DrawRowTiles(tiles, r, r == row);
+        DrawRows(tiles, row);
+    }
+    /* the PLAYERS page follows the devices (host state, never online), the
+     * settings' PLAYERS row the number of people (simulation state) */
+    if (sModel->gen && sModel->gen() != sOuiGenShown) {
+        sOuiGenShown = sModel->gen();
+        DrawRows(tiles, row);
+        if (sModel->pui) {
+            sDescShown = sModel->desc(row);
+            BuildDesc(sDescShown, SetDescVram(tiles));
+        }
     }
     /* a description that changes by itself (MULTIPLAYER's LOCAL row) */
     if (sModel->desc(row) != sDescShown) {
@@ -1283,9 +1413,45 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     DrawPic(layer, 0, DESC_Y, SetDescVram(tiles), GS_DESC_COLS, 16, PAL_DESC);
 }
 
+/* SETTINGS -> PLAYERS and back, in place, with the same tiles. */
+static void SwapModel(u32 tiles, const struct PocModel *m, int row)
+{
+    if (m == &kPlayersModel)
+        PortPuiOpen();
+    else
+        PortPuiClose();
+    ModelBuild(m, tiles, sArtLbl, sArtLblVar, sArtHdr, sArtHdrVar, row);
+}
+
 int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
 {
     int was = *row, n = sModel->rows;
+
+    if (sModel->pui) {
+        int act;
+
+        if (key == 2) {         /* B: back to SETTINGS, on its PLAYERS row */
+            *row = R_PLAYERS;
+            SwapModel(tiles, &kSettingsModel, *row);
+            return 3;
+        }
+        act = key == 1 || key == 5 || key == 6 ? PortPuiKey(was, key) : PORT_OUI_K_NONE;
+        if (act != PORT_OUI_K_NONE) {
+            sOuiGenShown = sModel->gen();
+            DrawRowTiles(tiles, was, was);
+            sDescShown = sModel->desc(was);
+            BuildDesc(sDescShown, SetDescVram(tiles));
+            return act == PORT_OUI_K_SELECT ? 4 : act == PORT_OUI_K_DENY ? 5 : 2;
+        }
+        if (key == 3 || key == 4)
+            PortPuiLeaveRow(was);
+    } else if (sModel == &kSettingsModel && was == R_PLAYERS && (key == 1 || key == 6)) {
+        if (sModel->unavailable(was))
+            return key == 1 ? 5 : 0;
+        *row = 0;
+        SwapModel(tiles, &kPlayersModel, *row);
+        return 3;
+    }
 
     switch (key) {
     case 3:     /* up */
@@ -1299,19 +1465,23 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
         if (!sModel->step(was, 1))
             return 0;
         PortLnNoteSetting(was);     /* a host setting changed (online: R9) */
-        DrawRowTiles(tiles, was, 1);
+        DrawRowTiles(tiles, was, was);
         return 2;
     case 5:     /* left */
         if (!sModel->step(was, -1))
             return 0;
         PortLnNoteSetting(was);
-        DrawRowTiles(tiles, was, 1);
+        DrawRowTiles(tiles, was, was);
         return 2;
     default:
         return 0;
     }
-    DrawRowTiles(tiles, was, 0);
-    DrawRowTiles(tiles, *row, 1);
+    if (TopRow(was) != TopRow(*row)) {
+        DrawRows(tiles, *row);
+    } else {
+        DrawRowTiles(tiles, was, *row);
+        DrawRowTiles(tiles, *row, *row);
+    }
     sDescShown = sModel->desc(*row);
     BuildDesc(sDescShown, SetDescVram(tiles));
     return 1;
@@ -1396,8 +1566,8 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
                    a1->unkC.animId, a1->unkC.variant + 1, row);
     } else {
         sOuiGenShown = PortOuiGen();
-        for (r = 0; r < sModel->rows; r++)
-            DrawRowTiles(a1->unk3A8.tilesVram, r, r == row);
+        (void)r;
+        DrawRows(a1->unk3A8.tilesVram, row);
         sDescShown = sModel->desc(row);
         BuildDesc(sDescShown, SetDescVram(a1->unk3A8.tilesVram));
     }
@@ -1422,6 +1592,7 @@ int PortMenuPocRowAvailable(int row)
 
 void PortMenuPocSettingsClose(struct Unk_08138D64 *a1)
 {
+    PortPuiClose();
     PortMenuPocFree(a1);
 }
 
@@ -1473,6 +1644,7 @@ void PortPocPauseObjSave(void)
 
 void PortPocPauseObjRestore(void)
 {
+    PortPuiClose();
     if (!sObjSaved)
         return;
     memcpy((void *)(uintptr_t)PORT_POC_PAUSE_OBJ_VRAM, sObjSave, sizeof(sObjSave));
@@ -1494,6 +1666,7 @@ struct PocHostState {
     u64 descShown, owner, gsWant, gsShown;
     s16 lblOffX, lblOffY, hdrOffX, hdrOffY;
     s32 descLine;
+    u32 genShown;                   /* sOuiGenShown                       */
     u8  objSave[PORT_POC_PAUSE_OBJ_BYTES];
     u8  rowBanner[sizeof(sRowBanner)];
 };
@@ -1522,6 +1695,7 @@ void PortPocHostStateSave(u8 *dest)
     h->gsShown = (u64)(uintptr_t)sGsDescShown;
     h->lblOffX = sLblOffX; h->lblOffY = sLblOffY; h->hdrOffX = sHdrOffX; h->hdrOffY = sHdrOffY;
     h->descLine = sDescLine;
+    h->genShown = sOuiGenShown;
     memcpy(h->objSave, sObjSave, sizeof(sObjSave));
     memcpy(h->rowBanner, sRowBanner, sizeof(sRowBanner));
 }
@@ -1538,6 +1712,7 @@ void PortPocHostStateLoad(const u8 *src)
     sGsDescShown = (const char *)(uintptr_t)h->gsShown;
     sLblOffX = h->lblOffX; sLblOffY = h->lblOffY; sHdrOffX = h->hdrOffX; sHdrOffY = h->hdrOffY;
     sDescLine = h->descLine;
+    sOuiGenShown = h->genShown;
     memcpy(sObjSave, h->objSave, sizeof(sObjSave));
     memcpy(sRowBanner, h->rowBanner, sizeof(sRowBanner));
 }

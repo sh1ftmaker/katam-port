@@ -563,7 +563,12 @@ static void PauseMenuMain(void) {
         PauseMenuFetchInputs(gPauseMenus + playerId);
     }
 
-    if (gPauseMenus[gUnk_0203AD50].pressedKeys & (B_BUTTON | START_BUTTON) && !(gPauseMenus[gUnk_0203AD50].flags & MENU_FLAG_DISABLE_INPUT)) {
+    /* PORT: on the settings page's PLAYERS screen B goes back to SETTINGS
+     * (pause_settings.c), only Start back to the game; never online
+     * (PortPocScreenSub is 0 there). */
+    if (gPauseMenus[gUnk_0203AD50].pressedKeys & (B_BUTTON | START_BUTTON) && !(gPauseMenus[gUnk_0203AD50].flags & MENU_FLAG_DISABLE_INPUT)
+        && !(gPauseMenus[gLocalPlayerId].menuId == MENU_PORT_SETTINGS && PortPocScreenSub()
+             && !(gPauseMenus[gUnk_0203AD50].pressedKeys & START_BUTTON))) {
         for (playerId = 0; playerId < 4; playerId++) {
             gPauseMenus[playerId].flags |= MENU_FLAG_BACK_TO_GAME;
             gPauseMenus[playerId].disableInputCounter = 60;
