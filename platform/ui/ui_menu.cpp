@@ -428,6 +428,17 @@ static void PageGame(void)
     Hint("A plain 64 KiB SRAM image (.sav), the same file an emulator reads. "
          "Export one now and then: it is your backup.");
 
+    {
+        /* Online play (web/online.js): the link, the session's numbers. */
+        const char *on = Q("online");
+        Heading("Online");
+        if (on[0])
+            ImGui::TextUnformatted(on);
+        else
+            Hint("Start Game > MULTIPLAYER > ONLINE: host a game and give a friend its "
+                 "4-letter code, or join theirs.");
+    }
+
     Heading("Session");
     if (ConfirmButton("Reset game", "reset"))
         Act("reset");
@@ -714,9 +725,10 @@ static int PageAdvanced(void)
     if (Web()) {
         Heading("Developer flags");
         Hint("Page-address flags, for development: ?renderer=gpu|ppu|2d, ?rom=<link>. "
-             "Online play is parked (it desyncs) and has no menu entry: ?online=1 opens "
-             "its lobby, ?room=CODE joins a game, ?world= / ?room=<name> are the older "
-             "relay sessions (docs/design/NETPLAY-V2.md).");
+             "Online two-player play is in the game's menus (MULTIPLAYER > ONLINE); "
+             "?join=CODE joins a game directly, ?netlag=ms&netjitter=ms&netloss=% "
+             "and ?netrelay=1 test its link. ?online=1, ?room=CODE, ?world= are the "
+             "older, parked netplay sessions (docs/design/NETPLAY-V2.md).");
     }
 
     Heading("Settings");

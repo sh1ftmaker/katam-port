@@ -76,6 +76,7 @@
 #include "port/port.h"
 #include "port/menu_poc.h"
 #include "port/localmp.h"
+#include "port/online_ui.h"
 #include "port/simblock.h"
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
@@ -1033,6 +1034,9 @@ struct PocModel {
     int (*step)(int row, int dir);
     /* a row shown but not available: always dimmed */
     int (*unavailable)(int row);
+    /* an ONLINE sub-screen (platform/online_ui.c draws its text): its
+     * PORT_OUI_SUB_*, 0 for the others */
+    int oui;
 };
 
 static const char *SetName(int row) { return kRowName[row]; }
@@ -1045,16 +1049,20 @@ static const struct PocModel kSettingsModel = {
 };
 
 /* MULTIPLAYER: LOCAL (two players on this screen, platform/localmp.c) and
- * ONLINE (not built yet: shown, dimmed, does nothing). */
+ * ONLINE (two devices, platform/online_ui.c and web/online.js).  In an
+ * online session, should the game ever come back here, nothing that depends
+ * on the device: both rows dimmed, fixed text. */
 static const char *MpName(int row) { return row == 0 ? "LOCAL" : "ONLINE"; }
 static void MpValue(int row, char *buf, int size)
 {
-    snprintf(buf, size, "%s", row == 0 ? "2 PLAYERS" : "SOON");
+    snprintf(buf, size, "%s", row == 0 ? "2 PLAYERS" : "INTERNET");
 }
 static const char *MpDesc(int row)
 {
+    if (gPortLnOn)
+        return "IN AN ONLINE GAME";
     if (row != 0)
-        return "COMING LATER";
+        return "PLAY WITH A FRIEND ONLINE";
     if (!PortLmpP2InputAvailable())
         return "NEEDS KEYS OR A GAMEPAD";
     /* alternate, about every two seconds: what it is, and player 2's keys */
@@ -1062,14 +1070,42 @@ static const char *MpDesc(int row)
                                                   : "TWO PLAYERS ON ONE SCREEN";
 }
 static int MpStep(int row, int dir) { (void)row; (void)dir; return 0; }
-static int MpUnavailable(int row) { return row != 0 || !PortLmpP2InputAvailable(); }
+static int MpUnavailable(int row)
+{
+    if (gPortLnOn)
+        return 1;
+    return row == 0 && !PortLmpP2InputAvailable();
+}
 
 static const struct PocModel kMpModel = {
     2, "MULTIPLAYER", MpName, MpValue, MpDesc, MpStep, MpUnavailable,
 };
 
+/* ONLINE > HOST GAME / JOIN GAME, and the two screens behind them: the
+ * MULTIPLAYER screen's two rows and tiles, text from platform/online_ui.c. */
 static const struct PocModel *sModel = &kSettingsModel;
+static const char *OuiName(int row) { return PortOuiRowName(sModel->oui, row); }
+static void OuiValue(int row, char *buf, int size) { PortOuiRowValue(sModel->oui, row, 0, buf, size); }
+static const char *OuiDesc(int row) { return PortOuiRowDesc(sModel->oui, row); }
+static int OuiUnavailable(int row) { return PortOuiRowUnavailable(sModel->oui, row); }
+
+static const struct PocModel kOnlineModel = {
+    2, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
+};
+static const struct PocModel kHostModel = {
+    2, "HOST GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_HOST,
+};
+static const struct PocModel kJoinModel = {
+    2, "JOIN GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_JOIN,
+};
+
 static const char *sDescShown;      /* what the screen's description holds */
+static u32 sOuiGenShown;            /* PortOuiGen() the rows were drawn at */
+
+/* The models, numbered for the host state an online image carries. */
+static const struct PocModel *const kModels[] = {
+    &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel,
+};
 
 /* --- the screen itself, shared by the front end and the pause page ----------
  *
@@ -1125,7 +1161,10 @@ static void DrawRowTiles(u32 tiles, int row, int selected)
 
     memcpy(px, sRowBanner, sizeof(px));
     CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, sModel->name(row), LBL_FILL, LBL_EDGE);
-    sModel->value(row, val, sizeof(val));
+    if (sModel->oui)
+        PortOuiRowValue(sModel->oui, row, selected, val, sizeof(val));
+    else
+        sModel->value(row, val, sizeof(val));
     /* the selected row's value between arrows, where they fit (and where
      * Left/Right change it) */
     snprintf(shown, sizeof(shown), "<%s>", val);
@@ -1169,6 +1208,7 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
     int r;
 
     sModel = m;
+    sOuiGenShown = PortOuiGen();
     LoadSources();
     if (!BuildRowBanner(lblAnim, lblVariant))
         PortLog("[menu-poc] the ERASE A FILE label is not the expected shape; rows without banners");
@@ -1212,6 +1252,14 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     for (r = 0; r < sModel->rows; r++)
         DrawPic(layer, ROW_FRAME_X + slide, RowFrameY(r), RowVram(tiles, r), ROW_COLS, PIC_H,
                 row == r && !sModel->unavailable(r) ? PAL_LIT : PAL_DIM);
+    /* the ONLINE screens' rows follow the network (platform/online_ui.c);
+     * never in a session (PortOuiGen is not simulation state, and these
+     * screens are not reachable then) */
+    if (sModel->oui && !gPortLnOn && PortOuiGen() != sOuiGenShown) {
+        sOuiGenShown = PortOuiGen();
+        for (r = 0; r < sModel->rows; r++)
+            DrawRowTiles(tiles, r, r == row);
+    }
     /* a description that changes by itself (MULTIPLAYER's LOCAL row) */
     if (sModel->desc(row) != sDescShown) {
         sDescShown = sModel->desc(row);
@@ -1307,10 +1355,49 @@ int PortMenuPocMpOpen(struct Unk_08138D64 *a1)
         return 0;
     a1->unk3A8.tilesVram = v;
     sOwner = a1;
+    PortOuiReset();
     ModelBuild(&kMpModel, v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
                a1->unkC.animId, a1->unkC.variant + 1, 0);
     PortMenuPocBlankBanner();
     return 1;
+}
+
+/* A key on the MULTIPLAYER screen, for the ONLINE screens behind it
+ * (platform/online_ui.c): PORT_OUI_K_NONE leaves it to the screen's own
+ * handling.  A change of sub-screen rebuilds the screen in place, with the
+ * same two rows' tiles. */
+int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
+{
+    static const struct PocModel *const kSub[] = { &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel };
+    int row = a1->unk3A6, sub0 = PortOuiSub(), act, r;
+
+    if (!PortMenuPoc() || sOwner != a1 || !a1->unk3A8.tilesVram || gPortLnOn)
+        return PORT_OUI_K_NONE;
+    act = PortOuiKey(&row, key);
+    if (act == PORT_OUI_K_NONE)
+        return act;
+    a1->unk3A6 = (u8)row;
+    if (PortOuiSub() != sub0) {
+        ModelBuild(kSub[PortOuiSub() & 3], a1->unk3A8.tilesVram, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+                   a1->unkC.animId, a1->unkC.variant + 1, row);
+    } else {
+        sOuiGenShown = PortOuiGen();
+        for (r = 0; r < sModel->rows; r++)
+            DrawRowTiles(a1->unk3A8.tilesVram, r, r == row);
+        sDescShown = sModel->desc(row);
+        BuildDesc(sDescShown, SetDescVram(a1->unk3A8.tilesVram));
+    }
+    return act;
+}
+
+int PortMenuPocMpBusy(void)
+{
+    return PortOuiBusy();
+}
+
+void PortMenuPocMpStarted(void)
+{
+    PortOuiFadeDone();
 }
 
 /* Is row `row` of the screen up now available (A does something)? */
@@ -1389,7 +1476,7 @@ void PortPocPauseObjRestore(void)
  * the ROM and are rebuilt instead of copied.  Same build only (pointers). */
 struct PocHostState {
     u32 objSaved;
-    u32 model;                      /* 0 settings, 1 multiplayer          */
+    u32 model;                      /* index in kModels                   */
     u64 descShown, owner, gsWant, gsShown;
     s16 lblOffX, lblOffY, hdrOffX, hdrOffY;
     s32 descLine;
@@ -1408,7 +1495,13 @@ void PortPocHostStateSave(u8 *dest)
 
     memset(dest, 0, PortPocHostStateSize());
     h->objSaved = (u32)sObjSaved;
-    h->model = sModel == &kMpModel ? 1 : 0;
+    {
+        u32 i;
+
+        for (i = 0; i < ARRAY_COUNT(kModels); i++)
+            if (sModel == kModels[i])
+                h->model = i;
+    }
     h->descShown = (u64)(uintptr_t)sDescShown;
     h->owner = (u64)(uintptr_t)sOwner;
     h->gsWant = (u64)(uintptr_t)sGsDescWant;
@@ -1424,7 +1517,7 @@ void PortPocHostStateLoad(const u8 *src)
     const struct PocHostState *h = (const struct PocHostState *)src;
 
     sObjSaved = (int)h->objSaved;
-    sModel = h->model ? &kMpModel : &kSettingsModel;
+    sModel = h->model < ARRAY_COUNT(kModels) ? kModels[h->model] : &kSettingsModel;
     sDescShown = (const char *)(uintptr_t)h->descShown;
     sOwner = (struct Unk_08138D64 *)(uintptr_t)h->owner;
     sGsDescWant = (const char *)(uintptr_t)h->gsWant;

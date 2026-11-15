@@ -81,6 +81,13 @@ int  PortMenuPocMpOpen(struct Unk_08138D64 *a1);
 int  PortMenuPocScreenReady(struct Unk_08138D64 *a1, int multiplayer, int frames);
 /* Does A on this row of the screen up now do anything? */
 int PortMenuPocRowAvailable(int row);
+/* A key on the MULTIPLAYER screen for the ONLINE screens behind its ONLINE
+ * row (platform/port/online_ui.h): a PORT_OUI_K_* (0: the screen's own). */
+int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key);
+/* An ONLINE screen is up: the menu's idle timeout must wait. */
+int PortMenuPocMpBusy(void);
+/* The fade out after PORT_OUI_K_START is over: the game proper starts. */
+void PortMenuPocMpStarted(void);
 /* a1->unk1 while the MULTIPLAYER screen is up. */
 #define PORT_MENU_POC_MP_SCREEN 0x11
 #define PORT_MENU_POC_MP_LOCAL  0
