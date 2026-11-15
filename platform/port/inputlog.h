@@ -58,6 +58,14 @@ char *PortInputLogSerialize(u32 *len);
  * warps are the ones that happen. */
 void PortInputLogScheduleWarp(u32 frame, u8 player, u16 room, u8 cellX, u8 cellY);
 
+/* Drop in / drop out: Kirby slot `slot` (1..3) becomes a person (on) or goes
+ * back to the CPU at the next latch (platform/localmp.c PortLmpSetSlotHuman),
+ * recorded as `human FRAME SLOT ON`.  Returns the frame, 0 when replaying. */
+u32  PortInputLogScheduleHuman(u8 slot, u8 on);
+/* Tests only: write a halfword of EWRAM at the next latch, recorded as
+ * `poke16 FRAME ADDR VALUE` (tools/netaudit/make_players_recordings.py). */
+u32  PortInputLogSchedulePoke16(u32 addr, u16 value);
+
 /* A change of the simulation view (the world view the game's spawn/despawn
  * windows are sized for, platform/view.c) from frame on.  Recorded; ignored
  * while replaying.  Moved past the newest frame already latched if it names

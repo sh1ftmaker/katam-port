@@ -169,7 +169,7 @@ static void PauseMenuFetchInputs(struct PauseMenu* pauseMenu) {
     /* PORT: local multiplayer -- the menus read the pad of whoever paused,
      * including the one on screen (platform/localmp.c).  Never true with it
      * off: PortLmpHumanSlot is 0 unless the switch is on. */
-    else if (PortLmpHumanSlot(gUnk_0203AD50) && gUnk_0203AD50 < gNumHumanPlayers
+    else if (PortLmpHumanSlot(gUnk_0203AD50)
              && (pauseMenu->playerId == gLocalPlayerId || pauseMenu->playerId == gUnk_0203AD50)) {
         pauseMenu->pressedKeys = PortLmpPressed(gUnk_0203AD50);
         pauseMenu->heldKeys = PortLmpKeys(gUnk_0203AD50);
@@ -249,7 +249,7 @@ static inline void PauseMenuInit(struct PauseMenu* pauseMenu, u32 playerId, stru
     pauseMenu->pressedKeys = 0;
     pauseMenu->heldKeys = 0;
     pauseMenu->playerId = playerId;
-    if (playerId < gNumHumanPlayers) {
+    if (PortIsHuman(playerId)) {
         pauseMenu->flags = MENU_FLAG_PLAYER;
     }
     else {

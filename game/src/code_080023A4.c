@@ -5943,7 +5943,7 @@ void CreateLevelObjects(u8 playerId)
                 if (unkY > (obj->y >> 4) || (obj->y >> 4) >= unkY + 0x11 + mg[playerId].padT + mg[playerId].padB)
                     continue;
 
-                for (p = 0; p < gNumHumanPlayers; p++) {
+                for (p = 0; p < PortHumanEnd(); p = PortHumanNext(p)) {
                     if (
                         p == playerId ||
                         gCurLevelInfo[p].currentRoom != levelInfo->currentRoom ||
@@ -6005,7 +6005,7 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
                 continue;
         }
 
-        for (p = 0; p < gNumHumanPlayers; p++)
+        for (p = 0; p < PortHumanEnd(); p = PortHumanNext(p))
             if (
                 p != playerId &&
                 gCurLevelInfo[p].currentRoom == levelInfo->currentRoom &&
@@ -6056,7 +6056,7 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
                 continue;
         }
 
-        for (p = 0; p < gNumHumanPlayers; p++)
+        for (p = 0; p < PortHumanEnd(); p = PortHumanNext(p))
             if (
                 p != playerId &&
                 gCurLevelInfo[p].currentRoom == levelInfo->currentRoom &&
@@ -6144,7 +6144,7 @@ void sub_0800A6E8(void)
 
     u8 p;
 
-    for (p = 0; p < gNumHumanPlayers; p++) {
+    for (p = 0; p < PortHumanEnd(); p = PortHumanNext(p)) {
         if (gCurLevelInfo[p].currentRoom == 0xFFFF)
             continue;
 

@@ -11,6 +11,7 @@ extern "C" {
 #include "kirby.h"
 #include "save.h"
 #include "task.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_0814A914(void);
 static void sub_0814ACA8(struct Unk_0814A828 *);
@@ -279,7 +280,7 @@ void sub_0814A828(void) {
         LoadBgPaletteAndPaletteEffectSource(&color, 0, 1);
         gDispCnt = DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP;
         m4aSoundVSyncOn();
-        for (i = 0; i < gNumHumanPlayers; ++i)
+        for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
             gKirbys[i].base.flags &= ~0x1000000;
         t = TaskCreate(FN(sub_0814A914), sizeof(struct Unk_0814A828), 0x1000, TASK_USE_IWRAM | TASK_x0004, FN(nullsub_12));
         var = TaskGetStructPtr(t);

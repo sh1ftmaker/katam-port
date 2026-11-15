@@ -12,6 +12,7 @@ extern "C" {
 #include "random.h"
 #include "shard.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_0802AC5C(struct DoorToHub *);
 static void sub_0802AD00(struct DoorToHub *);
@@ -194,7 +195,7 @@ static void sub_0802AE9C(struct DoorToHub *door)
         else
             r8 = FALSE;
         r8 = FALSE;
-        for (j = 0; j < gNumHumanPlayers; ++j)
+        for (j = 0; j < PortHumanEnd(); j = PortHumanNext(j))
         {
             struct Kirby *kirby = gKirbys + j;
 
@@ -215,14 +216,14 @@ static void sub_0802AE9C(struct DoorToHub *door)
         {
             struct LevelInfo *li = &gCurLevelInfo[door->obj.base.unk56];
 
-            for (i = 0; i < gNumHumanPlayers; ++i)
+            for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
             {
                 struct Kirby *kirby = gKirbys + i;
 
                 if (kirby->hp <= 0) return;
                 if (li->currentRoom != GetLevelCurrentRoom(i)) return;
             }
-            for (j = 0; j < gNumHumanPlayers; ++j)
+            for (j = 0; j < PortHumanEnd(); j = PortHumanNext(j))
             {
                 gKirbys[j].base.unkC |= 0x800000;
                 sub_0805BDF4(&gKirbys[j], gUnk_082D8CF0[j], gUnk_082D8D08[j][0] >> 12, gUnk_082D8D08[j][1] >> 12);

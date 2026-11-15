@@ -41,6 +41,7 @@ extern "C" {
 #define PORT_LN_EV_VIEW    2   /* a=w b=h: the session (sim) view            */
 #define PORT_LN_EV_LMP     3   /* a=humans: local-multiplayer setting        */
 #define PORT_LN_EV_POKE    4   /* a=GBA address b=byte (tests: an "option")  */
+#define PORT_LN_EV_HUMAN   5   /* a=slot 1..3 b=1 joins / 0 leaves (localmp.c) */
 
 extern int gPortLnOn;
 

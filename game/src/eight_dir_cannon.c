@@ -8,6 +8,7 @@ extern "C" {
 #include "functions.h"
 #include "task.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void EightDirCannonIdle(struct EightDirCannon *);
 static void EightDirCannonRotate(struct EightDirCannon *);
@@ -99,7 +100,7 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
     u16 roomId = cannon->obj.base.roomId;
 
     if (cannon->unkB7 & 8 && cannon->obj.base.flags & 0x40000) {
-        if (((struct ObjectBase *)cannon->obj.base.unk6C)->unk56 >= gNumHumanPlayers)
+        if (!PortIsHuman(((struct ObjectBase *)cannon->obj.base.unk6C)->unk56))
             return;
         cannon->unkB7 |= 1;
         // The hitbox rect is built but never used; the original code still emits the stores.
@@ -107,7 +108,7 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
         rect[1] = cannon->obj.base.unk39 * 0x100;
         rect[2] = cannon->obj.base.unk3A * 0x100;
         rect[3] = cannon->obj.base.unk3B * 0x100;
-        if (gKirbys[0].base.roomId == roomId && gNumHumanPlayers > 0
+        if (gKirbys[0].base.roomId == roomId && PortIsHuman(0)
             && !(cannon->unkBA & 1)
             && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[0].base)
             && gKirbys[0].base.unk6C == cannon
@@ -119,7 +120,7 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
                 cannon->unkBC = &gKirbys[0];
             }
         }
-        if (gKirbys[1].base.roomId == roomId && gNumHumanPlayers > 1
+        if (gKirbys[1].base.roomId == roomId && PortIsHuman(1)
             && !(cannon2->unkBA & 2)
             && ObjectHitboxesOverlap(&cannon2->obj.base, &gKirbys[1].base)
             && gKirbys[1].base.unk6C == cannon2
@@ -131,7 +132,7 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
                 cannon2->unkBC = &gKirbys[1];
             }
         }
-        if (gKirbys[2].base.roomId == roomId && gNumHumanPlayers > 2
+        if (gKirbys[2].base.roomId == roomId && PortIsHuman(2)
             && !(cannon2->unkBA & 4)
             && ObjectHitboxesOverlap(&cannon2->obj.base, &gKirbys[2].base)
             && gKirbys[2].base.unk6C == cannon2
@@ -143,7 +144,7 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
                 cannon2->unkBC = &gKirbys[2];
             }
         }
-        if (gKirbys[3].base.roomId == roomId && gNumHumanPlayers > 3
+        if (gKirbys[3].base.roomId == roomId && PortIsHuman(3)
             && !(cannon2->unkBA & 8)
             && ObjectHitboxesOverlap(&cannon2->obj.base, &gKirbys[3].base)
             && gKirbys[3].base.unk6C == cannon2

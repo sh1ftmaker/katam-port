@@ -10,6 +10,7 @@ extern "C" {
 #include "malloc_vram.h"
 #include "random.h"
 #include "constants/kirby.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_080A9258(struct Object*);
 static void sub_080A98F4(struct Object*);
@@ -663,7 +664,7 @@ static void sub_080AA618(struct Object* arg0) {
         if (arg0->base.flags & 0x40000 && arg0->base.unk6C) {
             struct Kirby* kirby = arg0->base.unk6C;
             if (kirby->base.header.kind == 0
-                && kirby->base.unk56 < gNumHumanPlayers
+                && PortIsHuman(kirby->base.unk56)
                 && kirby->ability == KIRBY_ABILITY_NORMAL
                 && kirby->hp > 0) {
                 if (kirby->animationIndex == 0x27) {

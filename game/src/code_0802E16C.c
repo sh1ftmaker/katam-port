@@ -11,6 +11,7 @@ extern "C" {
 #include "save.h"
 #include "task.h"
 #include "constants/languages.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_0802E270(struct Unk_0802E16C *);
 static void sub_0802E390(void);
@@ -56,9 +57,9 @@ void sub_0802E16C(void) {
 static void sub_0802E270(struct Unk_0802E16C *var UNUSED) {
     u16 i;
 
-    for (i = gNumHumanPlayers; i < gNumKirbys; ++i)
+    for (i = PortCpuFirst(); i < gNumKirbys; i = PortCpuNext(i))
         gUnk_02038590[i].unk18 = gUnk_082D8D28[i];
-    for (i = 0; i < gNumHumanPlayers; ++i)
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
         gKirbys[i].base.flags |= 0x1000000;
     if (gAIKirbyState < AI_KIRBY_STATE_CUTSCENE) {
         gAIKirbyState = AI_KIRBY_STATE_CUTSCENE;

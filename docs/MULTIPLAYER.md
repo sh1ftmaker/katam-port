@@ -1157,3 +1157,230 @@ The reason the lobby needs 90 settled frames and then a button press is the
 game's own: `multi_08030C94.c:875` waits for `r4->unk20 > 90` and then for
 `r4->unkC & 1`, the player's confirm. A headless run has to press A after the
 lobby settles, which the sequence above does at frame 1100.
+
+---
+
+## 13. Drop-in / drop-out: human slots, the count's 200 readers, devices
+
+Local multiplayer (`platform/localmp.c`) used to fix the number of people at
+the start of play. Now any of Kirby slots 1–3 can become a person, or go back
+to the CPU, at any frame: `human FRAME SLOT ON` in a recording,
+`PORT_LN_EV_HUMAN` in an online session, `PortLmpSetSlotHuman` applied at the
+latch. The host decides *when* from its controllers
+(`platform/input_devices.c`, `web/input_devices.js`).
+
+### The scheme
+
+- `gPortSim->lmp.slots` says **who** is a person (bit per slot, bit 0 always);
+  `gNumHumanPlayers` says **how many** (the bits set, 1..4, never 0).
+- People need not be slots 0..n-1. Player 2 leaving while player 3 stays
+  leaves slot 1 a CPU, slot 2 a person, and the count 2.
+- Readers that use the count as a **number** read it unchanged. Readers that use
+  it as a **set of slots** — `slot < count`, `for (i = 0; i < count; i++)`,
+  `for (i = count; i < 4; i++)` — go through `PortIsHuman`, `PortHumanNext`,
+  `PortCpuFirst`/`PortCpuNext` and `PortSlotOrder` (`port/localmp.h`). Each of
+  these is the original expression whenever the mask is not engaged
+  (`gPortSim->lmp.humans == 0`): every game nobody joined, link play, the
+  demo, the subgames. The goldens show this.
+- Every play start gives slots 1..3 a CPU brain (`sub_080332BC` is always told
+  one human), and the people join right after (`PortLmpStarted`).
+  MULTIPLAYER → LOCAL is therefore "start, then a join". A person's brain
+  waits (`PortLmpBrainWaits`, in `sub_0800EF60`) and is reset
+  (`sub_0800EE04`) when the CPU takes the Kirby back.
+- A boss's HP was set at spawn from `table[count - 1]` (object.c:2081), but its
+  phase thresholds and HP bar read the live count. A count change rescales
+  every live boss's HP in proportion (`RescaleBosses`). Dark Mind's first form
+  is left alone.
+- A joiner away from the group (another room, mid-door, dying) has a bit in
+  `lmp.joining`: its own arrival somewhere does not move the group, and the
+  one-room rule brings it over. If a CPU-only state holds it for two seconds,
+  it is carried anyway.
+- **During the intro** (`gAIKirbyState < NORMAL`) the other Kirbys belong to the
+  story. A join of a Kirby that is between rooms or in the hub waits
+  (`lmp.joining` bits 9–11) until the story lets go. Otherwise the person
+  arrives in the hub and starts the opening cutscene early (seen while
+  testing). The device core prefers slots that can be joined now
+  (`PortLmpSlotJoinable`).
+
+Two other schemes were checked against the readers and rejected:
+
+- **count = highest person + 1, with a CPU in the gap.** The CPU brain assumes
+  every slot below the count is a person (`code_0800ECAC_2.c` 809, 2334–2410:
+  it finds itself as "a person in my room" and never follows anyone). Its
+  brain is never reset on room changes (`kirby.c` 12976). It loses lives,
+  borrows them and counts toward game over. The big doors and the goal star
+  wait for it.
+- **Renumbering.** This changes which Kirby a person is holding, mid-game.
+
+### The readers
+
+Line numbers are at commit 9c41191, before this change. There are 200 reads
+in 44 files.
+
+**Used as a number — unchanged (about 110):**
+
+- **Boss HP at spawn:** object.c 2077, 2081; dark_mind.c 685. Rescaled by
+  `RescaleBosses` on a change, except Dark Mind form 1.
+- **Boss HP bar:** hud.c 852, 854, 987, 989. Reads the live count; consistent
+  because of the rescale.
+- **Half-HP phase thresholds** (`unk80 <= table[row][count-1] >> 1`): these
+  re-read the live count each decision.
+  - dark_meta_knight.c 883–2560 (16)
+  - moley.c 239–667 (8)
+  - king_golem.c 125–506 (7)
+  - dark_mind.c 804, 10558, 10906
+  - wiz.c 216–684 (5)
+  - bombar.c 668–1549 (5)
+  - batafire.c 290–772 (5)
+  - mega_titan.c 383–446 (4)
+  - master_hand.c 212–1585 (4)
+  - kracko.c 432–770 (3)
+  - gobbler.c 275, 307, 1100
+  - bonkers.c 151, 262
+  - phan_phan.c 221
+  - boxy.c 154
+
+  A rise mid-fight can start the enraged phase at once and a fall delays it.
+  One-way latches (dark_meta_knight.c 1454/1459, king_golem.c 153) do not
+  revert. Counts 1–4 stay in bounds; 0 cannot happen.
+- **Dark Mind's mirror tally:** dark_mind.c 8869 (`>= 5*count+5`).
+- **Single-player vs multiplayer:**
+  - kirby.c 10666: final-arena game over when there is 1 person.
+  - kirby.c 10744: the borrow-a-life ghost needs more than 1 person.
+  - code_0800ECAC_2.c 2378: no people means no leader.
+- **Link cable, multiboot, demo, subgames** (the mask is never engaged there):
+  - multi_08030C94.c (16)
+  - multi_08019F28.c (5)
+  - subgame_menu.c 662, 839, 896
+  - subgames.c 3104, 6599, 10052
+  - demo.c 32
+  - level.c 418
+  - in_game_interlude.c 82
+  - code_0814A828.c 296
+  - code_0802E16C.c 129
+  - kirby.c 6487 (demo pad), 6495 (link pad)
+- **Start of play:** code_080332BC.c 49.
+- **Empty loop:** boss_challenge_door.c 129.
+
+**Used as a set of slots — now the mask (76 sites, plus 2 hand-written loops):**
+
+- **Whose pad, whose brain:**
+  - kirby.c 6507: a person's pad or the CPU's output.
+  - code_0800EF60: the brain waits for a person.
+  - kirby.c 12976: the CPU's brain is reset on room arrival.
+- **"Is this Kirby a person":**
+  - Ability stars: ability_objects.c 666; shadow_kirby.c 816;
+    code_0806F780.c 1864, 1867.
+  - CPU-only and person-only trigger zones: cpu_kirby_trigger.c 60, 61.
+  - CPU attacks and ability sharing: object_collision.c 170, 172, 1186, 1200.
+  - Shards: shard.c 210.
+  - Items: bonus.c 141, 373, 397.
+  - Switches: big_small_switch.c 196.
+  - Cannons: kirby_cannon.c 86–105; eight_dir_cannon.c 102–146.
+  - Warp star launch and goal star boarding: warp_star.c 1800, 1928.
+  - Dark Mind's Master sword: dark_mind.c 4454.
+  - The CPU's "near a person" meter: code_0800ECAC_2.c 402.
+  - Answering the phone: code_0800ECAC_2.c 2995.
+  - Placing a call (three copies): kirby.c 7090, 10875, 11171.
+  - Deaths and lives: kirby.c 10633, 10665, 10683.
+  - Ghosts that follow a person: kirby.c 10975, 11066, 13559.
+  - Room arrival: kirby.c 12771 (CPU drops a bonus), 12780 (spawn the room's
+    objects), 12906 (map doors), 12978 (rooms visited and save).
+  - Doors by Up: kirby.c 14928.
+  - The ability roulette: kirby.c 15237.
+  - The pause menu's owner: pause_help.c 172, 252.
+- **Loops over the people:**
+  - The doors that wait for everyone: shard.c 122, 159, 284; special_doors.c
+    197, 218, 225; boss_challenge_door.c 106.
+  - Chests: chest.c 96 (hand-written: the loop also advances a Kirby pointer).
+  - Spawn windows: code_080023A4.c 5946, 6008, 6059, 6147.
+  - Goal star: warp_star.c 1944 and 1958 (bound only: the rider bits are
+    people's), 2003 (waits for every person).
+  - CPU brain: code_0800ECAC_2.c 809, 2334/2338, 2355/2359, 2634/2638, 2756,
+    2778.
+  - All humans dead means game over: kirby.c 10726.
+  - Intro freeze and unfreeze: code_0802E16C.c 61; code_0814A828.c 282.
+- **Loops over the CPUs:**
+  - kirby.c 10672, 10908 (final arena).
+  - code_0802E16C.c 59 (hub destination).
+- **Order matters** (`PortSlotOrder`, people first):
+  - kirby.c 5360, 5439: the enemies' target pick (people first, CPUs only if
+    none are found).
+  - code_0800ECAC_2.c 2380–2410: the CPU's leader pick (the n-th person).
+
+### Devices and players (the host)
+
+A device is keyboard set A, keyboard set B (the arrows and the numpad), the
+touch buttons, or a gamepad. Natively, gamepads come through SDL's game
+controller API, which includes XInput pads, with hot-plug. On the web they
+come through the Gamepad API's standard mapping.
+
+- **Default.** A device that nobody has claimed drives player 1.
+- **Drop in.** Any of these makes the device a player on the next free slot:
+  - Start on a gamepad that is not the one player 1 is using.
+  - Keyboard set B's Start.
+  - Start on a parked device.
+
+  That device stops driving player 1, and the press is swallowed.
+- **Drop out.** Any of these hands the Kirby to the CPU:
+  - The menu calls `PortDevDropOut`.
+  - A pad is unplugged for 180 frames. Back within that time, the player
+    carries on. Later, the pad is parked and Start rejoins.
+- **Reassign.** `PortDevAssign` moves a device to a player, to FOLLOW (player
+  1), to PARKED, or to OFF.
+- **What crosses into the game.** Only the per-player masks (`kp` lines) and
+  the slot events (`human` lines), both recorded.
+
+**Wiring `web/input_devices.js` into `web/shell.html`** (not done here; the
+page is being changed elsewhere):
+
+1. Load the module before the shell script:
+   `<script src="input_devices.js"></script>`. Add the file to whatever copies
+   `web/*.js` into the build or dist. Check the Makefile's `dist` and `pages`
+   rules.
+2. In the Input section, create
+   `var devs = new KatamInputDevices({ sink: KatamInputDevices.moduleSink(Module), log: function (t) { console.log('[devices] ' + t); } });`.
+3. In the `keydown` and `keyup` handlers, call `devs.keyDown(e.code)` and
+   `devs.keyUp(e.code)`. Each returns true for a game key; use that instead of
+   the `KEYMAP` / `KEYMAP_P2` / `lmpInPlay()` test, and still
+   `preventDefault()` on it. Keep `uiKeys` and `typingInAField` in front.
+4. In the touch code, call `devs.setTouch(touchMask)` wherever `touchMask`
+   changes.
+5. Replace `pollPads` and `pushMask` with one requestAnimationFrame loop:
+   `var m = uiOpen ? 0 : devs.poll(); if (m !== lastMask) { lastMask = m; Module._PortSetKeys(m); }`.
+   `poll()` also calls `Module._PortLmpSetHostKeys(p, …)` for players 2–4.
+   While the menu is open, call `devs.poll()` anyway and send zero, so that
+   joins and edges stay current. Delete `readPad`, `padMask`, `KEYMAP_P2` and
+   `lmpInPlay`.
+6. Keep `syncP2` / `_PortLmpSetP2Input` as is: a touch-only device still
+   cannot start MULTIPLAYER → LOCAL.
+7. The exports are already in the Makefile's `PORT_EXPORTS`:
+   `_PortLmpSlotIsHuman`, `_PortLmpRequestHuman`, `_PortLmpCanRequest`,
+   `_PortLmpSlotJoinable`.
+
+Behaviour change on both hosts: Numpad Enter and `;` are keyboard set B's
+Start, so they join instead of being player 1's Start. Enter is still player
+1's Start.
+
+### Online
+
+`PORT_LN_EV_HUMAN` (a = slot, b = 1 joins / 0 leaves) is applied by
+`lmpnet.c`'s `ApplyEvents`, like the other sealed events. The session layer
+is unchanged: host = slot 0, guest = slot 1. Local joins on either device are
+refused while a session is on (`PortLmpCanRequest`). Generalising this means:
+
+- carrying a third and fourth pad in the sealed frames;
+- having the host seal `PORT_LN_EV_HUMAN` when a guest or a local pad joins;
+- extending `PortLnKeyOverride`, which today sets only
+  `PortLmpSetHostKeys(1, …)`.
+
+### Tests
+
+- `tools/netaudit/make_players_recordings.py --rom ROM --shots` plays
+  `players_dropin`, `_boss`, `_rooms`, `_rooms_normal`, `_goal` and `_local`
+  live with fake controllers. These are SDL virtual game controllers plugged,
+  pressed and unplugged on cue (`--devices`). It writes
+  `tests/recordings/players_*.txt` (inputs only) and checks each replay
+  against the live run, frame by frame.
+- `make input-devices-test` runs the web module against fake
+  `navigator.getGamepads` gamepads.

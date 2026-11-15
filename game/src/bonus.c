@@ -13,6 +13,7 @@ extern "C" {
 #include "random.h"
 #include "main.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void BonusAddHpOrBattery(struct Object*);
 static void BonusGiveInvincibility(struct Object*);
@@ -138,7 +139,7 @@ static void sub_08122ED4(struct Object* arg0) {
         struct Kirby* kirby = arg0->base.unk6C;
         if (kirby->base.header.kind == 0) {
             if (ObjectHitboxesOverlap(&arg0->base, &kirby->base) != 0) {
-                if (kirby->base.unk56 < gNumHumanPlayers) {
+                if (PortIsHuman(kirby->base.unk56)) {
                     BonusSetFunc(arg0);
                 }
             }
@@ -370,7 +371,7 @@ static void sub_0812385C(struct Object* arg0) {
         struct Kirby* kirby = arg0->base.unk6C;
         if (kirby->base.header.kind == 0) {
             if (ObjectHitboxesOverlap(&arg0->base, &kirby->base) != 0) {
-                if (kirby->base.unk56 < gNumHumanPlayers) {
+                if (PortIsHuman(kirby->base.unk56)) {
                     BonusSetFunc(arg0);
                 }
                 return;
@@ -394,7 +395,7 @@ static void sub_081238D0(struct Object* arg0) {
 static void sub_081238FC(struct Object* arg0) {
     struct Kirby* kirby = arg0->base.unk6C;
     if (kirby->base.header.kind == 0) {
-        if (kirby->base.unk56 < gNumHumanPlayers) {
+        if (PortIsHuman(kirby->base.unk56)) {
             BonusSetFunc(arg0);
         }
     }

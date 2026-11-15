@@ -12,6 +12,7 @@ extern "C" {
 #include "functions.h"
 #include "kirby.h"
 #include "level.h"
+#include "port/localmp.h"
 
 // In this file
 static void sub_080334E8(void);
@@ -64,6 +65,9 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++) {
         sub_0800ECAC(otherKirbyId, arg2[otherKirbyId], startRoomId);
     }
+    /* PORT: local multiplayer -- the other humans join now that every slot
+     * has its CPU brain (platform/localmp.c, "human slots"). */
+    PortLmpStarted();
 
     sub_080334E8();
     sub_080027A8();

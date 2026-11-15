@@ -10,6 +10,7 @@ extern "C" {
 #include "kirby.h"
 #include "random.h"
 #include "constants/kirby.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 u8 sub_0800EEBC(struct ObjectBase *);
 void sub_0800F044(struct Unk_02038590 *);
@@ -399,7 +400,7 @@ struct Kirby *sub_0800FE50(struct ObjectBase *objBase, s16 *a2) {
     *a2 = SHRT_MAX;
     for (i = 0; i < 4; ++i) {
         if (i != objBase->unk56
-            && gKirbys[i].base.unk56 < gNumHumanPlayers
+            && PortIsHuman(gKirbys[i].base.unk56)
             && gCurLevelInfo[i].currentRoom == gCurLevelInfo[objBase->unk56].currentRoom) {
             dx = objBase->x >> 8 > gKirbys[i].base.x >> 8
                 ? (objBase->x >> 8) - (gKirbys[i].base.x >> 8)
@@ -806,7 +807,7 @@ void sub_080108B8(struct Unk_02038590 *a1) {
 static inline bool32 IsOneOfTheCurrentRooms(u16 roomId) {
     u16 i;
 
-    for (i = 0; i < gNumHumanPlayers; ++i) {
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
         if (roomId == gCurLevelInfo[i].currentRoom)
             return TRUE;
     }
@@ -2331,11 +2332,11 @@ void sub_08013B98(struct Unk_02038590 *a1) {
 void sub_08013C4C(struct Unk_02038590 *a1) {
     u16 i;
 
-    for (i = 0; i < gNumHumanPlayers; ++i) {
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
         if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom)
             break;
     }
-    if (i == gNumHumanPlayers)
+    if (i >= PortHumanEnd())
         a1->unk0[1] = FN(sub_08014928);
     else if (sub_080103BC(a1))
         a1->unk0[1] = FN(sub_080184E8);
@@ -2352,11 +2353,11 @@ void sub_08013C4C(struct Unk_02038590 *a1) {
 void sub_08013D0C(struct Unk_02038590 *a1) {
     u16 i;
 
-    for (i = 0; i < gNumHumanPlayers; ++i) {
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
         if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom)
             break;
     }
-    if (i == gNumHumanPlayers)
+    if (i >= PortHumanEnd())
         a1->unk0[1] = FN(sub_08014928);
     else if (sub_080103BC(a1))
         a1->unk0[1] = FN(sub_080184E8);
@@ -2375,11 +2376,13 @@ struct Kirby *sub_08013DB4(u8 a1) {
     u16 roomId = gCurLevelInfo[a1].currentRoom;
     const struct Unk_08D6CD0C *sl = gUnk_08D6CD0C[roomId];
 
+    /* PORT: human slots -- r2 counts the humans (the r2-th person is slot
+     * PortSlotOrder(r2)); identical with nobody joined (platform/localmp.c). */
     if (!gNumHumanPlayers)
         return NULL;
     for (r2 = 0; r2 < gNumHumanPlayers; ++r2) {
-        if (gCurLevelInfo[r2].currentRoom != 0xFFFF) {
-            const struct Unk_08D6CD0C *ptr = gUnk_08D6CD0C[gCurLevelInfo[r2].currentRoom];
+        if (gCurLevelInfo[PortSlotOrder(r2)].currentRoom != 0xFFFF) {
+            const struct Unk_08D6CD0C *ptr = gUnk_08D6CD0C[gCurLevelInfo[PortSlotOrder(r2)].currentRoom];
 
             if (sl->unk46 == ptr->unk46) break;
         }
@@ -2391,8 +2394,8 @@ struct Kirby *sub_08013DB4(u8 a1) {
         for (r1 &= mask; r1 != 0xFFFF; --r1) {
             while (1) {
                 for (++r2; r2 < gNumHumanPlayers; ++r2) {
-                    if (gCurLevelInfo[r2].currentRoom != 0xFFFF) {
-                        const struct Unk_08D6CD0C *ptr = gUnk_08D6CD0C[gCurLevelInfo[r2].currentRoom];
+                    if (gCurLevelInfo[PortSlotOrder(r2)].currentRoom != 0xFFFF) {
+                        const struct Unk_08D6CD0C *ptr = gUnk_08D6CD0C[gCurLevelInfo[PortSlotOrder(r2)].currentRoom];
 
                         if (sl->unk46 == ptr->unk46) break;
                     }
@@ -2411,7 +2414,7 @@ struct Kirby *sub_08013DB4(u8 a1) {
                 r2 = 0;
         }
     }
-    return gKirbys + r2;
+    return gKirbys + PortSlotOrder(r2);
 }
 
 bool32 sub_08013F48(struct Unk_02038590 *a1, u16 a2) {
@@ -2631,11 +2634,11 @@ bool32 sub_08014454(struct Unk_02038590 *a1) {
                         u16 i;
                         u16 r0 = sub_08014454_helper(a1->unk14->currentRoom);
 
-                        for (i = 0; i < gNumHumanPlayers; ++i) {
+                        for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
                             if (gKirbys[i].base.roomId == gUnk_082DE074[r0][1])
                                 break;
                         }
-                        if (i < gNumHumanPlayers) {
+                        if (i < PortHumanEnd()) {
                             a1->unkA8 = gKirbys + i;
                             a1->flags &= ~0x20;
                             a1->unkAE = gCurLevelInfo[a1->unkA8->base.unk56].currentRoom;
@@ -2753,7 +2756,7 @@ void sub_080149CC(struct Unk_02038590 *a1) {
 void sub_08014A80(struct Unk_02038590 *a1) {
     u16 i;
 
-    for (i = 0; i < gNumHumanPlayers; ++i) {
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
         if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom) {
             a1->unk0[1] = FN(sub_080184DC);
             return;
@@ -2775,7 +2778,7 @@ void sub_08014A80(struct Unk_02038590 *a1) {
 void sub_08014B28(struct Unk_02038590 *a1) {
     u16 i;
 
-    for (i = 0; i < gNumHumanPlayers; ++i) {
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
         if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom) {
             a1->unk0[1] = FN(sub_080184DC);
             return;
@@ -2992,7 +2995,7 @@ static inline bool32 sub_080152B0_helper_2(struct Unk_02038590 *a1) {
 static inline bool32 sub_080152B0_helper(struct Unk_02038590 *a1) {
     struct Kirby *kirby;
 
-    if (gUnk_02021580 < gNumHumanPlayers
+    if (PortIsHuman(gUnk_02021580)
         && (kirby = &gKirbys[gUnk_02021580], gCurLevelInfo[kirby->base.unk56].currentRoom != a1->unk14->currentRoom)
         && !(kirby->base.unkC & 0x10000)
         && (gRoomProps + a1->unk14->currentRoom)->priorityFlags & 0x10)

@@ -13,6 +13,7 @@ extern "C" {
 #include "trig.h"
 #include "treasures.h"
 #include "code_0806F780.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static struct EffectObject *sub_0801C0A8(struct Shard *, u16);
 static void sub_0801C194(void);
@@ -119,7 +120,7 @@ bool32 sub_0801BA18(struct ObjectBase *objBase, bool32 a2)
     u16 i = 0;
     s32 vars[2] = { objBase->x - 0x7800, objBase->y - 0x5000 };
 
-    for (; i < gNumHumanPlayers; ++i)
+    for (; i < PortHumanEnd(); i = PortHumanNext(i))
     {
         struct Kirby *kirby = gKirbys + i;
 
@@ -156,7 +157,7 @@ static bool32 sub_0801BB10(struct Shard *shard)
     u16 i;
     struct LevelInfo *li = gCurLevelInfo + shard->obj.base.unk56;
 
-    for (i = 0; i < gNumHumanPlayers; ++i)
+    for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
     {
         struct Kirby *kirby = gKirbys + i;
 
@@ -207,7 +208,7 @@ static void sub_0801BC28(struct Shard *shard)
     {
         if (((struct Kirby *)shardAlias->obj.base.unk6C)->base.header.kind)
             r2 = FALSE;
-        else if (((struct Kirby *)shardAlias->obj.base.unk6C)->base.unk56 >= gNumHumanPlayers)
+        else if (!PortIsHuman(((struct Kirby *)shardAlias->obj.base.unk6C)->base.unk56))
             r2 = FALSE;
         else
             r2 = TRUE;
@@ -281,7 +282,7 @@ static void sub_0801BE4C(struct Shard *shard) // see sub_0802AE9C
         else
             boolean = FALSE;
         boolean = FALSE;
-        for (i = 0; i < gNumHumanPlayers; ++i)
+        for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
         {
             struct Kirby *kirby = gKirbys + i;
 

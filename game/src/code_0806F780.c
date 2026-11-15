@@ -17,6 +17,7 @@ extern "C" {
 #include "treasures.h"
 #include "bonus.h"
 #include "constants/kirby.h"
+#include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 void sub_08070404(void);
 void sub_08070808(void);
@@ -1861,10 +1862,10 @@ void sub_080720F8(void) {
                 /* PORT-FORK: unk6C can be NULL here (a CPU Kirby with nothing
                  * held).  The console reads the BIOS at 0 and gets no match;
                  * natively page zero is unmapped, so ask first. */
-                if (kirby->base.unk56 >= gNumHumanPlayers && unk6C != NULL) {
+                if (!PortIsHuman(kirby->base.unk56) && unk6C != NULL) {
                     if (unk6C->type == OBJ_ABILITY_STAR_2)
                         objBase->flags &= ~0x200;
-                    if (unk6C->type == OBJ_ABILITY_STAR_1 && unk6C->base.unk56 < gNumHumanPlayers)
+                    if (unk6C->type == OBJ_ABILITY_STAR_1 && PortIsHuman(unk6C->base.unk56))
                         objBase->flags &= ~0x200;
                 }
             }

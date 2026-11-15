@@ -8,6 +8,7 @@ extern "C" {
 #include "functions.h"
 #include "kirby.h"
 #include "constants/kirby.h"
+#include "port/localmp.h"
 
 void sub_0800EF60(void);
 void sub_08013804(struct Unk_02038590 *);
@@ -99,6 +100,10 @@ void sub_0800EF60(void) {
     struct Unk_02038590 *s = &gUnk_02038590[var->unk0];
     struct Kirby *kirby = s->unk40;
 
+    /* PORT: local multiplayer -- a person drives this Kirby now; the brain
+     * waits, and is reset when the CPU takes it back (platform/localmp.c). */
+    if (PortLmpBrainWaits(var->unk0))
+        return;
     if (!Macro_0810B1F4(&s->unk40->base)
         || kirby->base.flags & 0x2000) {
         s->unk9C = s->unk9E;
