@@ -191,3 +191,4 @@ menu_poc _ZL13sCardPalSaved front-end PLAYER CARD's lent OBJ palette lines (kept
 menu_poc _ZL12sCardPalSave front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL13sCardGenShown front-end PLAYER CARD rows drawn at this PortCardGen
 online_ui sRoomsMode front-end HOST GAME's TOGETHER / FREE ROAM choice, read by the page when the game starts (it seals the mode)
+menu_poc _ZL12kBrowseModel front-end BROWSE GAMES list model: its row count follows the fetched list (per device, before any session)
