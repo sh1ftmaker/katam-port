@@ -183,8 +183,7 @@ online_ui sConnecting front-end HOST GAME's still-connecting count the page repo
 # platform/menu_poc.c, the PLAYER CARD screens (platform/player_card.c): front
 # end only -- the card row is unavailable while an online session is on, so no
 # keyframe or image ever sees them.  The scratch is written before every read.
-menu_poc _ZZL12CardBarsPackjE2px scratch written before every read
-menu_poc _ZZL12CardBarsPackjE4half scratch written before every read
+menu_poc _ZZL12CardGridPackjE2px scratch written before every read
 menu_poc _ZZL15CardPreviewPackjE3big scratch written before every read
 menu_poc _ZZL15CardPreviewPackjE3src scratch written before every read
 menu_poc _ZL13sCardPalSaved front-end PLAYER CARD's lent OBJ palette lines (kept and put back)

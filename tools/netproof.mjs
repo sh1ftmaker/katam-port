@@ -63,7 +63,61 @@ function slim(r) {
     return o;
 }
 
+// --- parallel runs (tools/netproof/parallel.mjs) -----------------------------
+// Every run is independent (fresh instances, virtual clock, its own seed), so
+// the sequence of runs main() makes can be split across processes:
+//   --plan FILE           list every run (index, name, size) without running any
+//   --shard I,J,.. --shard-out FILE
+//                         run only those indices, save their results
+//   --merge F1,F2,..      run none: take every run's result from the shard
+//                         files, then compute every gate and the report as usual
+// Outside its own indices a plan/shard process gets a stub result (a proxy
+// that reads as empty/zero), so the gate code runs unchanged and its verdicts
+// are discarded; only --merge (or a plain run) writes the report.
+const PLAN = flag('plan', '');
+const SHARD = flag('shard', '') !== '' ? new Set(flag('shard').split(',').filter(Boolean).map(Number)) : null;
+const SHARD_OUT = flag('shard-out', '');
+const MERGE = flag('merge', '') ? flag('merge').split(',') : null;
+const STUBBED = !!(PLAN || SHARD);
+let runIndex = 0;
+const planned = [], shardRuns = {}, merged = { runs: {}, localisations: [] };
+if (MERGE) for (const f of MERGE) {
+    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    Object.assign(merged.runs, j.runs);
+    merged.localisations.push(...j.localisations);
+}
+function stub() {
+    const p = new Proxy(() => {}, {
+        get(t, k) {
+            if (k === Symbol.toPrimitive) return (hint) => (hint === 'number' ? 0 : '');
+            if (k === Symbol.iterator) return function* () {};
+            if (k === 'then' || k === 'toJSON') return undefined;
+            if (k === 'length') return 0;
+            return p;
+        },
+        apply() { return p; },
+    });
+    return p;
+}
+const runCost = (cfg) => (cfg.durationFrames || 6000) * (1 + (cfg.guests ? cfg.guests.length : 1)) *
+    (cfg.forceRewind ? 2 : 1) * (cfg.kfEvery === 1 ? 2 : 1) * (cfg.rooms ? 1.5 : 1);
+
 async function run(name, cfg, scenarioOpts = {}) {
+    const idx = runIndex++;
+    if (PLAN) planned.push({ i: idx, name, cost: runCost(cfg) });
+    if (MERGE) {
+        const s = merged.runs[idx];
+        if (!s || s.name !== name) throw new Error(`merge: run ${idx} is ${s ? s.name : 'missing'}, expected ${name}`);
+        runs.push(s);
+        return s;
+    }
+    if (STUBBED && !(SHARD && SHARD.has(idx))) { const s = stub(); runs.push(s); return s; }
+    const s = await run1(name, cfg, scenarioOpts);
+    if (SHARD) shardRuns[idx] = s;
+    return s;
+}
+
+async function run1(name, cfg, scenarioOpts = {}) {
     const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600) }, scenarioOpts)));
     const r = await runSession(Object.assign({ name, modulePath: MODULE, rom, scenario: sc }, cfg));
     const s = slim(r);
@@ -370,8 +424,10 @@ async function main() {
     // its owner's card and every name relayed to every device, through a
     // guest's second local player, a link drop and return (the host forgets
     // that device's cards and hears them again after the image), a card
-    // changed mid-game, a leave (the colour goes back to the game's own) and
-    // the host's own second player reusing the slot
+    // changed mid-game (to one by parts: a spray body with feet of its own,
+    // sealed in the same event), a leave (the colour goes back to the game's
+    // own) and the host's own second player reusing the slot (an old
+    // one-colour card)
     if (want('R16')) {
         const B = BOOT_END, verdicts = [], texts = [], briefs = [];
         // together, and in free roam (rooms mode: each device's own game is
@@ -382,12 +438,18 @@ async function main() {
             hostCards: [[0, 0, '1,2,0,0,0,HOSTY'], [0, 1, '2,0,200,80,90,COUCH']],
             hostSeats: [[B + 3000, 1, 1]],
             guests: [
-                { dev: 1, cards: [[0, 0, '1,6,0,0,0,ALICE'], [0, 1, '1,9,0,0,0,AL2'], [B + 1200, 0, '1,10,0,0,0,ALICE']], seats: [[B + 300, 1, 1]] },
+                { dev: 1, cards: [[0, 0, '1,6,0,0,0,ALICE'], [0, 1, '1,9,0,0,0,AL2'], [B + 1200, 0, '2,0,0,0,0,ALICE|2,21']], seats: [[B + 300, 1, 1]] },
                 { dev: 2, cards: [[0, 0, '2,0,120,90,80,BOB']], leave: B + 2400, link: Object.assign({}, HEADLINE, { outages: [[13400, 8000]] }) },
             ] });
         const want0 = ['1000002', '100000a', null, '1000009'], names0 = ['HOSTY', 'ALICE', 'COUCH', 'AL2'];
         const views = [r.cards.host, ...r.cards.guests];
-        const sameAll = views.every((v) => v && v.paint.join() === r.cards.host.paint.join() && v.names.join() === r.cards.host.names.join());
+        // ALICE's parts ("|2,21": 1 + preset): body ORANGE (preset 1, the
+        // spray) and feet TEAL (preset 20, 0x108888: BGR555 0x4622 with
+        // PORT_PAINT_FEET_ON)
+        const feet0 = ['0', 'c622', '0', '0'];
+        const sameAll = views.every((v) => v && v.paint.join() === r.cards.host.paint.join() && v.names.join() === r.cards.host.names.join()
+                                         && v.feet.join() === r.cards.host.feet.join());
+        const feetOk = r.cards.host.feet.join() === feet0.join();
         const p = r.cards.host.paint;
         const paintsOk = p[0] === want0[0] && p[1] === want0[1] && p[3] === want0[3] && /^2[0-9a-f]{6}$/.test(p[2]);
         const namesOk = r.cards.host.names.join() === names0.join();
@@ -397,14 +459,21 @@ async function main() {
         const bob = s2.find((v) => v !== '0');
         const s2ok = !!bob && s2.join(' ').endsWith(`${bob} 0 ${bob} 0 ${p[2]}`) && p[2] !== bob;
         const okRun = r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected * 0.9 && r.host.tel.hostRewinds === 0;
-        verdicts.push(okRun && sameAll && paintsOk && namesOk && s2ok);
+        verdicts.push(okRun && sameAll && paintsOk && namesOk && s2ok && feetOk);
         briefs.push(Object.assign(brief(r), { trace: r.cardTrace, cards: r.cards }));
-        texts.push(`${rooms ? 'free roam' : 'together'}: ${r.compare.equal}/${r.compare.compared} frames identical; at the end every device has paints ${p.join(' ')} and names ${r.cards.host.names.join(' ')} (${sameAll ? 'the same on all ' + views.length : 'NOT the same on every device'}); ` +
+        texts.push(`${rooms ? 'free roam' : 'together'}: ${r.compare.equal}/${r.compare.compared} frames identical; at the end every device has paints ${p.join(' ')} and names ${r.cards.host.names.join(' ')}, feet ${r.cards.host.feet.join(' ')} (${feetOk ? 'ALICE\'s parts' : 'NOT ALICE\'s parts'}) (${sameAll ? 'the same on all ' + views.length : 'NOT the same on every device'}); ` +
                   `slot 2's colour over time ${s2.join(' -> ')} (${s2ok ? 'BOB, the game\'s own while gone, BOB, the game\'s own after the leave, then the host\'s second player' : 'NOT as expected'}); ` +
                   `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}`);
         }
         report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };
     }
+    if (PLAN) { fs.writeFileSync(PLAN, JSON.stringify(planned, null, 1)); log(`planned ${planned.length} runs -> ${PLAN}`); return; }
+    if (SHARD) {
+        fs.writeFileSync(SHARD_OUT, JSON.stringify({ runs: shardRuns, localisations }));
+        log(`shard: ${Object.keys(shardRuns).length} runs -> ${SHARD_OUT}`);
+        return;
+    }
+    if (MERGE) localisations.push(...merged.localisations);
     // R6: authority -- across every run
     if (want('R6')) {
         const all = runs.filter((r) => !r.name.includes('/localise'));

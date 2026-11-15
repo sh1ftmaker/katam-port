@@ -39,7 +39,8 @@
 //           and a pad on that guest joins by Start (the device module's
 //           seat path) and gets that Kirby, drives it, and leaves by holding
 //           Select.  Player cards: every device's names and colours (a
-//           guest's custom colour too) the same on all three pages, through
+//           guest's custom colour, and one by parts: feet of their own) the
+//           same on all three pages, through
 //           joins, the drop, the rejoin and the pad's player; the party HUD
 //           up.  Then leaving without a reload: guest B leaves from its menu
 //           (back to power-on), joins again and is identical; the host ends
@@ -631,24 +632,25 @@ async function seatScript(p, seat, seed) {
 async function slotsOf(p) { return p.ev('katamOnline.slots()'); }
 const screenLive = async (p) => (await frame(p)) - (await p.ev('Module._PortPocScreenLastDraw()')) < 5;
 /* the player cards (platform/player_card.c): set card c from a settings value
- * "MODE,SPRAY,HUE,SAT,VAL,NAME"; read every slot's name and colour as this
- * page has them */
+ * "MODE,SPRAY,HUE,SAT,VAL,NAME[|BODY,FEET]"; read every slot's name and
+ * colour (paint, and feet of their own) as this page has them */
 async function setCard(p, c, v) {
     await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortCardSetJs)'), 60000);
     await p.ev(`(function(){var v=${JSON.stringify(v)},b=Module._malloc(64);for(var i=0;i<v.length;i++)Module.HEAPU8[b+i]=v.charCodeAt(i);Module.HEAPU8[b+v.length]=0;Module._PortCardSetJs(${c},b);Module._free(b);})()`);
 }
 async function cardsOf(p) {
     return p.ev(`({ names: [0,1,2,3].map(function(s){return Module.ccall('PortPlayerName','string',['number'],[s])}),
-                    paint: [0,1,2,3].map(function(s){return (Module._PortCardSlotPaintJs(s)>>>0).toString(16)}) })`);
+                    paint: [0,1,2,3].map(function(s){return (Module._PortCardSlotPaintJs(s)>>>0).toString(16)}),
+                    feet: [0,1,2,3].map(function(s){return (Module._PortCardSlotFeetJs(s)>>>0).toString(16)}) })`);
 }
-const cardsStr = (c) => c.names.map((n, i) => `${n || '-'}:${c.paint[i]}`).join(' ');
+const cardsStr = (c) => c.names.map((n, i) => `${n || '-'}:${c.paint[i]}` + (c.feet[i] !== '0' ? '/' + c.feet[i] : '')).join(' ');
 /* every page has the same names and colours, and they are `want` (by slot:
  * [name, paint] or null = a CPU: no name, the game's own colour) */
 async function cardsCheck(tag, pagesList, want) {
     const all = [];
     for (const p of pagesList) all.push(await cardsOf(p));
     const same = all.every((c) => cardsStr(c) === cardsStr(all[0]));
-    const exp = want.map((w) => (w ? `${w[0]}:${w[1]}` : '-:0')).join(' ');
+    const exp = want.map((w) => (w ? `${w[0]}:${w[1]}` + (w[2] ? '/' + w[2] : '') : '-:0')).join(' ');
     const match = cardsStr(all[0]).split(' ').every((x, i) => {
         const w = exp.split(' ')[i];
         return w.endsWith(':custom') ? x.startsWith(w.split(':')[0] + ':2') : x === w;
@@ -687,7 +689,9 @@ if (CASES.includes('three')) {
     ok('three: host room', !!code, code);
     // guest A through the menus
     const ga = await openPage('guestA', knobs);
-    await setCard(ga, 0, '1,6,0,0,0,ANNA'); await setCard(ga, 1, '1,10,0,0,0,PADDY');
+    // ANNA's card is by parts: body 6 (preset 5, OCEAN: the spray), feet 21
+    // (preset 20, TEAL: BGR555 0x4622 | PORT_PAINT_FEET_ON), sealed in one event
+    await setCard(ga, 0, '2,0,0,0,0,ANNA|6,21'); await setCard(ga, 1, '1,10,0,0,0,PADDY');
     await toGameSelect(ga);
     await toOnline(ga);
     await press(ga, 'DOWN');
@@ -726,7 +730,7 @@ if (CASES.includes('three')) {
     const devOf = (sl, d) => sl.findIndex((x) => x && x.dev === d && x.seat === 0);
     const cw = [null, null, null, null];
     cw[0] = ['HOSTY', '1000002'];
-    cw[devOf(sl0, (await stats(ga)).self)] = ['ANNA', '1000006'];
+    cw[devOf(sl0, (await stats(ga)).self)] = ['ANNA', '1000006', 'c622'];
     cw[devOf(sl0, (await stats(gb)).self)] = ['BOB', 'custom'];
     await cardsCheck('three: cards', [host, ga, gb], cw);
     const base = (await stats(host)).startFrame;
@@ -816,7 +820,7 @@ if (CASES.includes('three')) {
     const padSlot = gj ? gj.findIndex((x) => x && x.dev === aDev && x.seat === 1) : -1;
     const bDev2 = (await stats(gb2)).self, bSlot2 = devOf(await slotsOf(host), bDev2);
     const cw2 = [['HOSTY', '1000002'], null, null, null];
-    cw2[devOf(await slotsOf(host), aDev)] = ['ANNA', '1000006'];
+    cw2[devOf(await slotsOf(host), aDev)] = ['ANNA', '1000006', 'c622'];
     if (padSlot > 0) cw2[padSlot] = ['PADDY', '100000a'];
     if (bSlot2 > 0) cw2[bSlot2] = ['BOB', 'custom'];
     await sleep(1500);
@@ -965,7 +969,7 @@ if (CASES.includes('three')) {
     await sleep(2500);
     const slA = await slotsOf(host);
     const cw3 = [['HOSTY', '1000002'], null, null, null];
-    cw3[devOf(slA, (await stats(ga)).self)] = ['ANNA', '1000006'];
+    cw3[devOf(slA, (await stats(ga)).self)] = ['ANNA', '1000006', 'c622'];
     await cardsCheck('again: cards', [host, ga], cw3);
     const b3 = (await stats(host)).startFrame;
     const play3 = buildPlay(60 * 60, 8, 900);

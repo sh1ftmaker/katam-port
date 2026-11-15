@@ -1,0 +1,277 @@
+#!/usr/bin/env bash
+#
+# full_check.sh -- verify a build: every suite at once, one PASS/FAIL line each.
+#
+#   tools/full_check.sh ROM [--old OLD_NATIVE] [--deep] [--build] [--out DIR]
+#                           [--jobs N] [--only a,b] [--skip a,b] [--list]
+#
+# Runs the suites in the SUITES table below in parallel, inside ONE budget of
+# --jobs N slots (default 12) shared by all of them: a suite starts when its
+# slots are free, in table order (the longest first), and uses at most that many
+# processes itself (a browser page counts as one).  Each suite has its own
+# log directory (DIR/<suite>/, log DIR/<suite>.log) and -- for the browser
+# suites -- its own headless Chromium (own profile, own CDP port) and own room
+# server; one static server serves build/dist and the ROM (from DIR, outside
+# the tree) to all of them.  Servers and browsers are started with
+# `sbg start fc<pid>-...` and exactly those are stopped at the end, also on
+# failure or Ctrl-C.  Builds nothing unless --build (then once: web, dist,
+# node module, native).  Exit status 1 if any suite fails.
+#
+#   --old BIN   also run tests/layout_neutral.sh BIN build/lp64/katam (every
+#               recording); without it that suite is skipped.
+#   --deep      the original long versions: the rig sequential as `make
+#               netproof` runs it (with R11), the browser play at --play 130,
+#               rooms gates and audit as before (they are the same either way).
+#   --only/--skip  suite names (or prefixes ending in '*': --only 'web-*').
+#
+# Ports: servers from 18600-18700, CDP from 19500-19600 (first free ones).
+# ROM-derived output (screenshots, dumps, logs) stays in DIR -- by default
+# ../netproof-eval/fast-tmp/check-<time> next to the checkout.
+#
+# Adding a suite is one line in SUITES:  NAME  SLOTS  NEEDS  COMMAND
+#   SLOTS: processes it may run at once (capped at --jobs); the command gets
+#          it as $W (pass it to the suite's own --jobs)
+#   NEEDS: -    nothing
+#          web  a browser and a room server: the command gets $CDP $BASE
+#               $ROM_URL $RELAY
+#          old  --old was given: the command gets $OLD
+#   In COMMAND: $ROM, $D (this suite's own directory), $ROOT (the checkout,
+#   also the cwd), $W (its slots), $PLAY (browser play seconds:
+#   fast 130, deep 130 -- see below), $DEEP (1 with --deep, else empty), $RIG
+#   (the rig command for this mode).  CPU-bound suites (NEEDS '-' and 'old')
+#   run under `nice -n 10` so the real-time browser suites keep their pace.
+set -uo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT"
+
+SUITES=$(cat <<'EOF'
+# name             slots needs  command                      (longest first)
+web-on-three       3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases three
+web-on-menu        2     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases menu,drop --play $PLAY
+rig                4     -      $RIG --jobs $W --rom "$ROM" --out "$D" --skip-r11
+web-rooms-2        2     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases rooms --rooms-pages 2
+web-dev-lmp        1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases lmp
+audit              3     -      python3 tools/netaudit/matrix.py --rom "$ROM" --eval "$D" --jobs $W --expect tools/netaudit/expected_verdicts.json $AUDIT_DUMPS
+rooms-gates        3     -      node tools/rooms/gates_parallel.mjs --rom "$ROM" --out "$D" --only two,three,four,join,local2,hostlocal2,hint --seeds 1,2,3 --long 2 --jobs $W
+rooms-corrupt      2     -      node tools/rooms/gates_parallel.mjs --rom "$ROM" --out "$D" --only corrupt,pool --seeds 1 --jobs $W
+web-dev-local      1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases local
+web-on-relay       2     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases relay
+web-rooms-3        3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases rooms --rooms-pages 3
+web-dev-hudplaces  1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases hudplaces
+layout-neutral     4     old    LN_JOBS=$(( (W + 1) / 2 )) ROM="$ROM" tests/layout_neutral.sh "$OLD" build/lp64/katam
+regress-wasm       3     -      RP_JOBS=$W tools/regress_par.sh wasm "$ROM"
+regress            3     -      RP_JOBS=$W tools/regress_par.sh native "$ROM"
+web-dev-solo       1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases solo
+web-dev-touch      1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases touch
+web-dev-frontend   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases frontend
+web-on-errors      1     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases errors
+web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases gl
+web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker
+rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
+paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
+lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
+input-devices      1     -      make -s input-devices-test
+netplay            1     -      cd netplay && npm test --silent
+EOF
+)
+
+usage() { sed -n '3,40p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+ROM=""; OLD=""; DEEP=""; BUILD=""; OUT=""; ONLY=""; SKIP=""; LIST=""; JOBS=12
+while [ $# -gt 0 ]; do
+    case $1 in
+        --old) OLD=$(realpath "$2"); shift ;;
+        --deep) DEEP=1 ;;
+        --jobs) JOBS=$2; shift ;;
+        --build) BUILD=1 ;;
+        --out) OUT=$2; shift ;;
+        --only) ONLY=$2; shift ;;
+        --skip) SKIP=$2; shift ;;
+        --list) LIST=1 ;;
+        -h|--help) usage ;;
+        -*) echo "unknown option $1"; usage ;;
+        *) [ -z "$ROM" ] && ROM=$(realpath "$1") || usage ;;
+    esac
+    shift
+done
+if [ -n "$LIST" ]; then echo "$SUITES" | grep -v '^#' | awk '{print $1, $2, $3}'; exit 0; fi
+[ -n "$ROM" ] && [ -f "$ROM" ] || usage
+OUT=$(realpath -m "${OUT:-$ROOT/../netproof-eval/fast-tmp/check-$(date +%Y%m%d-%H%M%S)}")
+case $OUT in "$ROOT"/*) echo "--out must be outside the tree (ROM-derived output)"; exit 2 ;; esac
+mkdir -p "$OUT/status"
+
+# --- the mode -------------------------------------------------------------
+[ "$JOBS" -ge 1 ] 2>/dev/null || { echo "--jobs N, N >= 1"; exit 2; }
+PLAY=130
+if [ -n "$DEEP" ]; then
+    RIG="node tools/netproof.mjs"                 # as `make netproof`: one process (ignores --jobs)
+    AUDIT_DUMPS=""                                # the report's byte-range columns too
+else
+    RIG="node tools/netproof/parallel.mjs"
+    AUDIT_DUMPS="--no-dumps"                      # verdicts only (they are what is checked)
+fi
+export ROM OLD DEEP PLAY RIG ROOT AUDIT_DUMPS
+
+# --- which suites -----------------------------------------------------------
+match() {  # name list -> 0 if name is in the comma list (entries may end in *)
+    local n=$1 IFS=, p
+    for p in $2; do [[ $n == $p ]] && return 0; done
+    return 1
+}
+NAMES=(); NEEDS=(); CMDS=(); SLOTS=()
+while read -r name slots needs cmd; do
+    [ -z "$name" ] || [[ $name == \#* ]] && continue
+    [ -n "$ONLY" ] && ! match "$name" "$ONLY" && continue
+    [ -n "$SKIP" ] && match "$name" "$SKIP" && continue
+    if [ "$needs" = old ] && [ -z "$OLD" ]; then echo "SKIP $name (no --old)" >"$OUT/status/$name.skip"; continue; fi
+    [ "$slots" -gt "$JOBS" ] && slots=$JOBS
+    NAMES+=("$name"); NEEDS+=("$needs"); CMDS+=("$cmd"); SLOTS+=("$slots")
+done <<<"$SUITES"
+[ ${#NAMES[@]} -gt 0 ] || { echo "no suites selected"; exit 2; }
+
+# --- servers and browsers: sbg, by name, stopped on the way out ------------
+TAG=fc$$
+STARTED="$OUT/status/.sbg"
+: >"$STARTED"
+SBG_LOCK="$OUT/status/.sbg.lock"
+sbg_start() {  # name mem cmd... ; records the name for the cleanup
+    local n=$TAG-$1 mem=$2; shift 2
+    echo "$n" >>"$STARTED"
+    sbg start "$n" --mem "$mem" -- "$@" >/dev/null
+}
+sbg_stop() { sbg stop "$TAG-$1" >/dev/null 2>&1 || true; }
+killtree() { local c; for c in $(pgrep -P "$1"); do killtree "$c"; done; kill "$1" 2>/dev/null; }
+cleanup() {
+    trap - EXIT INT TERM
+    local p
+    for p in $(jobs -pr); do killtree "$p"; done
+    while read -r n; do [ -n "$n" ] && sbg stop "$n" >/dev/null 2>&1; done <"$STARTED"
+    wait 2>/dev/null
+}
+trap cleanup EXIT
+trap 'echo "interrupted"; exit 130' INT TERM
+
+PORTS_TAKEN="$OUT/status/.ports"
+: >"$PORTS_TAKEN"
+port_free() {  # lo hi -> the first port nobody listens on and we have not handed out
+    local p
+    (
+        flock 9
+        for p in $(seq "$1" "$2"); do
+            grep -qx "$p" "$PORTS_TAKEN" && continue
+            ss -ltnH "sport = :$p" 2>/dev/null | grep -q . && continue
+            echo "$p" >>"$PORTS_TAKEN"; echo "$p"; exit 0
+        done
+        exit 1
+    ) 9>"$SBG_LOCK"
+}
+wait_http() {  # url seconds
+    local i
+    for i in $(seq 1 $(( $2 * 10 ))); do curl -sf -o /dev/null "$1" && return 0; sleep 0.1; done
+    return 1
+}
+
+# --- build ------------------------------------------------------------------
+T0=$(date +%s%N)
+if [ -n "$BUILD" ]; then
+    echo "building (log $OUT/build.log)"
+    if ! ( set -e
+           source ~/emsdk/emsdk_env.sh >/dev/null 2>&1
+           make -j16 && make dist && make -j16 build/katam-node.js
+           cmake -S . -B build/lp64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKATAM_ALLOW_LP64=ON
+           cmake --build build/lp64 -j16 ) >"$OUT/build.log" 2>&1; then
+        echo "FAIL build ($(tail -3 "$OUT/build.log" | tr '\n' ' '))"; exit 1
+    fi
+fi
+for f in build/dist/index.html build/dist/katam.wasm build/katam-node.js build/lp64/katam; do
+    [ -e "$f" ] || { echo "missing $f -- build first (or --build)"; exit 1; }
+done
+
+# --- the static server (one, read-only, for every browser suite) -----------
+if printf '%s\n' "${NEEDS[@]}" | grep -qx web; then
+    mkdir -p "$OUT/www"
+    ln -sfn "$ROOT/build/dist" "$OUT/www/dist"
+    ln -sfn "$ROM" "$OUT/www/rom.gba"
+    WWW_PORT=$(port_free 18600 18700) || { echo "no free server port"; exit 1; }
+    sbg_start www 2G python3 -m http.server "$WWW_PORT" --bind 127.0.0.1 --directory "$OUT/www"
+    wait_http "http://127.0.0.1:$WWW_PORT/dist/index.html" 20 || { echo "FAIL static server did not come up"; exit 1; }
+    # the served wasm must be this build's
+    cmp -s <(curl -sf "http://127.0.0.1:$WWW_PORT/dist/katam.wasm") build/dist/katam.wasm \
+        || { echo "FAIL the static server does not serve this build's katam.wasm"; exit 1; }
+    export BASE="http://127.0.0.1:$WWW_PORT/dist/" ROM_URL="http://127.0.0.1:$WWW_PORT/rom.gba"
+fi
+
+# --- one suite ---------------------------------------------------------------
+run_suite() {  # index
+    local i=$1 name=${NAMES[$1]} needs=${NEEDS[$1]} cmd=${CMDS[$1]} W=${SLOTS[$1]}
+    export W
+    local D="$OUT/$name" log="$OUT/$name.log" t0 rc=0 pre=()
+    mkdir -p "$D"
+    t0=$(date +%s%N)
+    if [ "$needs" = web ]; then
+        local cdp relay
+        cdp=$(port_free 19500 19600) && relay=$(port_free 18600 18700) || { echo "no free port" >"$log"; rc=1; }
+        if [ $rc = 0 ]; then
+            mkdir -p "$D/profile"
+            sbg_start "$name-relay" 2G node netplay/dev-relay.mjs "$relay"
+            sbg_start "$name-chrome" 6G chromium --headless=new --ignore-gpu-blocklist --use-angle=gl-egl \
+                --remote-debugging-port="$cdp" --user-data-dir="$D/profile" \
+                --autoplay-policy=no-user-gesture-required --no-first-run --no-default-browser-check about:blank
+            if ! wait_http "http://127.0.0.1:$cdp/json/version" 30; then echo "chromium on $cdp did not come up" >"$log"; rc=1; fi
+            if [ $rc = 0 ] && ! (for k in $(seq 1 100); do (exec 3<>/dev/tcp/127.0.0.1/$relay) 2>/dev/null && exit 0; sleep 0.1; done; exit 1); then
+                echo "room server on $relay did not come up" >"$log"; rc=1
+            fi
+        fi
+        if [ $rc = 0 ]; then
+            ( export CDP=$cdp RELAY="http://127.0.0.1:$relay" D; eval "$cmd" ) >"$log" 2>&1 </dev/null
+            rc=$?
+        fi
+        sbg_stop "$name-chrome"; sbg_stop "$name-relay"
+        rm -rf "$D/profile"
+    else
+        ( export D; eval "nice -n 10 bash -c '$cmd'" ) >"$log" 2>&1 </dev/null
+        rc=$?
+    fi
+    echo "$rc $(( ($(date +%s%N) - t0) / 1000000 ))" >"$OUT/status/$name"
+}
+
+echo "full_check: ${#NAMES[@]} suites, $JOBS slots$([ -n "$DEEP" ] && echo ' (deep)'), logs in $OUT"
+# the scheduler: start suites in table order while their slots fit; a line when each ends
+# (in table order; a suite that does not fit yet lets a smaller one behind it start)
+free=$JOBS; done_n=0; STARTED_I=()
+while [ $done_n -lt ${#NAMES[@]} ]; do
+    for i in "${!NAMES[@]}"; do
+        [ -n "${STARTED_I[$i]:-}" ] && continue
+        [ "${SLOTS[$i]}" -le "$free" ] || continue
+        STARTED_I[$i]=1; free=$(( free - SLOTS[i] ))
+        printf '  [%4ds] %-18s start (%d slots, %d free)\n' $(( ($(date +%s%N) - T0) / 1000000000 )) "${NAMES[$i]}" "${SLOTS[$i]}" "$free"
+        run_suite "$i" &
+    done
+    sleep 1
+    for i in "${!NAMES[@]}"; do
+        name=${NAMES[$i]}
+        [ -f "$OUT/status/$name" ] && [ ! -f "$OUT/status/$name.seen" ] || continue
+        touch "$OUT/status/$name.seen"; done_n=$((done_n + 1)); free=$(( free + SLOTS[i] ))
+        read -r rc ms <"$OUT/status/$name"
+        printf '  [%4ds] %-18s %s\n' $(( ($(date +%s%N) - T0) / 1000000000 )) "$name" "$([ "$rc" = 0 ] && echo done || echo "FAILED (rc $rc)")"
+    done
+done
+wait
+
+# --- the summary ---------------------------------------------------------------
+summary() {  # name -> a short line from its log
+    local log="$OUT/$1.log"
+    grep -E '^[0-9]+ (ok|passed), [0-9]+ failed|gates, |runs, [0-9]+ failing|factors, |recordings, |tests? passed|^# (pass|fail)|layout-neutral|NOT layout' "$log" 2>/dev/null | tail -1 | cut -c1-90
+}
+fails=0
+echo
+for name in "${NAMES[@]}"; do
+    read -r rc ms <"$OUT/status/$name"
+    if [ "$rc" = 0 ]; then v=PASS; else v=FAIL; fails=$((fails + 1)); fi
+    printf '%s %-18s %6.1fs  %s\n' "$v" "$name" "$(echo "$ms" | awk '{printf "%.1f", $1/1000}')" "$(summary "$name")"
+    if [ "$rc" != 0 ]; then grep -E 'FAIL|UNEXPECTED|DIVERGED|Error|error' "$OUT/$name.log" | grep -v '^\s*ok' | head -4 | cut -c1-160 | sed 's/^/       /'; fi
+done
+for f in "$OUT"/status/*.skip; do [ -e "$f" ] && cat "$f"; done
+total=$(( ($(date +%s%N) - T0) / 1000000 ))
+printf '%s %d suites, %d failed, %.1fs wall\n' "$([ $fails = 0 ] && echo PASS || echo FAIL)" ${#NAMES[@]} $fails "$(echo $total | awk '{printf "%.1f", $1/1000}')"
+[ $fails = 0 ]

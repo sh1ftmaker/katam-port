@@ -33,6 +33,14 @@
 //             picture on a wide window (opaque), over the picture on a
 //             phone in landscape whose touch pads fill those bars (the
 //             keep-outs), name tags on.
+//   picker    the player card's colour by parts (platform/player_card.c),
+//             at phone size (844x390, touch) and 1440x800: Start Game >
+//             MULTIPLAYER > PLAYER CARD, A on COLOR (the game's own colour
+//             becomes its spray, feet with the body), the grid on BODY (the
+//             Kirby wears the cell under the cursor, A keeps), FEET stepped
+//             off BODY, its grid (B puts it back, then a cell kept), back to
+//             BODY with Right, B out; saved as card0parts; an old one-colour
+//             card reads as it did (OWN, the same paint); then play in it.
 import fs from 'fs';
 import path from 'path';
 
@@ -42,7 +50,7 @@ const CDP_PORT = +flag('cdp', 9363);
 const BASE = flag('base', 'http://127.0.0.1:8963/dist/');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8963/rom.gba');
 const SHOTS = flag('shots', '');
-const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,hudplaces').split(',');
+const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,hudplaces,picker').split(',');
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -713,8 +721,127 @@ async function caseHudPlaces() {
     }
 }
 
+// --------------------------------------------------------------------------
+async function casePicker() {
+    const prof0 = async (p) => (await p.ev('Module.ccall("PortCardSeatProfiles","string",[],[])')).split('\n')[0].split('\t');
+    const edit = (p, w) => p.ev(`Module._PortCardEditJs(${w}) >>> 0`);
+    const presetRgb = { OLIVE: 0x808020 };
+    // the card's cursor down to COLOR: past NAME (the row that takes text)
+    const toColorRow = async (p) => {
+        await waitFrames(p, 30);
+        for (let n = 0; n < 6 && !(await p.ev('Module._PortCardWantsText()')); n++) { await press(p, 'DOWN'); await waitFrames(p, 10); }
+        await press(p, 'DOWN'); await waitFrames(p, 10);
+        return !(await p.ev('Module._PortCardWantsText()'));
+    };
+    // the grid's cursor to `cell` (8 a row): Up/Down to its row, Left/Right to its column
+    const gridTo = async (p, cell) => {
+        for (let n = 0; n < 12 && Math.floor((await edit(p, 3)) / 8) !== Math.floor(cell / 8); n++) { await press(p, 'DOWN', 60, 90); await waitFrames(p, 3); }
+        for (let n = 0; n < 12 && (await edit(p, 3)) % 8 !== cell % 8; n++) { await press(p, 'RIGHT', 60, 90); await waitFrames(p, 3); }
+        return (await edit(p, 3)) === cell;
+    };
+    for (const v of [{ tag: 'phone', w: 844, h: 390, mobile: true, touch: true }, { tag: 'wide', w: 1440, h: 800 }]) {
+        say(`picker (${v.tag}): the player card's colour by parts`);
+        const p = await openPage('pick-' + v.tag, v);
+        await toGameSelect(p);
+        await press(p, 'A'); await waitFrames(p, 60);          // START GAME: the pop-up
+        await press(p, 'DOWN'); await waitFrames(p, 10);
+        await press(p, 'A'); await waitFrames(p, 60);          // MULTIPLAYER
+        await until(() => screenLive(p), 10000);
+        await press(p, 'DOWN'); await waitFrames(p, 8);
+        await press(p, 'DOWN'); await waitFrames(p, 8);
+        await press(p, 'A'); await waitFrames(p, 30);          // PLAYER CARD
+        ok(`${v.tag}: MULTIPLAYER > PLAYER CARD opens the card`, (await pagesModel(p)) === 6);
+        await toColorRow(p);
+        await shot(p, `picker-${v.tag}-01-card.png`);
+        await press(p, 'A'); await waitFrames(p, 30);
+        ok(`${v.tag}: A on COLOR opens the picker (BODY / FEET)`, (await pagesModel(p)) === 7);
+        ok(`${v.tag}: the game's colour came in as its spray (PINK), feet with the body`,
+           (await edit(p, 0)) === 0x01000000 && (await edit(p, 1)) === 0, (await edit(p, 0)).toString(16));
+        await shot(p, `picker-${v.tag}-02-pick.png`);
+        // BODY's grid: the cursor on PINK (cell 8), two Rights: CORAL
+        await press(p, 'A'); await waitFrames(p, 10);
+        ok(`${v.tag}: A on BODY opens the grid on its cell`, (await edit(p, 2)) === 1 && (await edit(p, 3)) === 8);
+        await press(p, 'RIGHT'); await waitFrames(p, 6);
+        await press(p, 'RIGHT'); await waitFrames(p, 6);
+        ok(`${v.tag}: the Kirby wears the cell under the cursor (CORAL)`, (await edit(p, 0)) === 0x02FF8A80,
+           (await edit(p, 0)).toString(16));
+        ok(`${v.tag}: ... not yet kept`, (await prof0(p))[1] === '01000000', (await prof0(p)).join('|'));
+        await shot(p, `picker-${v.tag}-03-grid-body.png`);
+        await press(p, 'DOWN'); await waitFrames(p, 6);        // row 3 of the grid: OLIVE
+        await press(p, 'A'); await waitFrames(p, 10);
+        ok(`${v.tag}: A keeps it: body OLIVE, the grid closed`, (await edit(p, 2)) === 0
+           && (await prof0(p))[1] === (0x02000000 + presetRgb.OLIVE).toString(16).toUpperCase().padStart(8, '0'),
+           (await prof0(p)).join('|'));
+        // FEET: Right steps off BODY onto the first preset (RED)
+        await press(p, 'DOWN'); await waitFrames(p, 8);
+        await press(p, 'RIGHT'); await waitFrames(p, 8);
+        const red = await edit(p, 1);
+        ok(`${v.tag}: Right on FEET: feet of their own (RED)`, red >= 0x8000 && (await prof0(p))[2] === red.toString(16).toUpperCase(),
+           (await prof0(p)).join('|'));
+        await press(p, 'A'); await waitFrames(p, 10);          // the grid on RED (cell 0)
+        await press(p, 'LEFT'); await waitFrames(p, 6);        // GRAPE, wrapped
+        ok(`${v.tag}: the feet follow the cursor (GRAPE)`, (await edit(p, 3)) === 7 && (await edit(p, 1)) !== red);
+        await shot(p, `picker-${v.tag}-04-grid-feet.png`);
+        await press(p, 'B'); await waitFrames(p, 10);
+        ok(`${v.tag}: B puts the feet back (RED)`, (await edit(p, 2)) === 0 && (await edit(p, 1)) === red);
+        await press(p, 'A'); await waitFrames(p, 10);
+        for (let i = 0; i < 3; i++) { await press(p, 'UP'); await waitFrames(p, 5); }   // row 1 of the grid (wraps)
+        for (let i = 0; i < 4; i++) { await press(p, 'RIGHT'); await waitFrames(p, 5); }
+        await press(p, 'A'); await waitFrames(p, 10);          // cell 12: CREAM
+        const cream = await edit(p, 1);
+        ok(`${v.tag}: feet CREAM kept`, (await edit(p, 3)) === 12 && cream !== red && (await prof0(p))[2] === cream.toString(16).toUpperCase(),
+           (await prof0(p)).join('|'));
+        await shot(p, `picker-${v.tag}-05-feet-kept.png`);
+        const store = await p.ev('JSON.stringify(Object.keys(localStorage).map(function(k){return localStorage.getItem(k)}))');
+        ok(`${v.tag}: saved with the settings (card0parts=19,13)`, /card0parts=19,13/.test(store));
+        // Right on FEET until BODY again (13 -> 33 -> 0)
+        for (let i = 0; i < 20; i++) { await press(p, 'RIGHT', 60, 90); await waitFrames(p, 3); }
+        ok(`${v.tag}: FEET back to BODY`, (await edit(p, 1)) === 0 && (await prof0(p)).length === 2, (await prof0(p)).join('|'));
+        for (let i = 0; i < 12; i++) { await press(p, 'LEFT', 60, 90); await waitFrames(p, 3); }   // and CREAM again
+        ok(`${v.tag}: Left from BODY steps onto the presets from the end`, (await edit(p, 1)) !== 0);
+        await press(p, 'B'); await waitFrames(p, 20);
+        ok(`${v.tag}: B: back to the card`, (await pagesModel(p)) === 6);
+        await press(p, 'B'); await waitFrames(p, 20);
+        ok(`${v.tag}: B: the card closed`, (await p.ev('Module._PortCardSub()')) === 0);
+        if (v.tag === 'wide') {
+            // an old one-colour card (as the last build saved it) reads as it did
+            await p.ev(`(function(){var v='2,0,200,80,90,OLD',b=Module._malloc(64);for(var i=0;i<v.length;i++)Module.HEAPU8[b+i]=v.charCodeAt(i);Module.HEAPU8[b+v.length]=0;Module._PortCardSetJs(0,b);Module._free(b);})()`);
+            const old = await prof0(p);
+            ok('an old card: one colour, no feet', old.length === 2 && /^02/.test(old[1]), old.join('|'));
+            await press(p, 'A'); await waitFrames(p, 30);
+            await toColorRow(p);
+            await press(p, 'A'); await waitFrames(p, 30);
+            ok('an old card opens on its own colour (BODY OWN), unchanged', (await pagesModel(p)) === 7
+               && ((await edit(p, 0)) >>> 0).toString(16).toUpperCase().padStart(8, '0') === old[1]);
+            await shot(p, `picker-${v.tag}-06-old-card.png`);
+            // body ORANGE from the grid, feet TEAL: then play in it
+            await press(p, 'A'); await waitFrames(p, 8);
+            await gridTo(p, 1);
+            await press(p, 'A'); await waitFrames(p, 8);
+            await press(p, 'DOWN'); await waitFrames(p, 8);
+            await press(p, 'A'); await waitFrames(p, 8);
+            await gridTo(p, 20);
+            await press(p, 'A'); await waitFrames(p, 8);
+            ok('ORANGE body (the spray) and TEAL feet', (await edit(p, 0)) === 0x0100000A && (await edit(p, 1)) === 0xC622,
+               (await edit(p, 0)).toString(16) + ' ' + (await edit(p, 1)).toString(16));
+            await shot(p, `picker-${v.tag}-07-orange-teal.png`);
+            await press(p, 'B'); await waitFrames(p, 20);
+            await press(p, 'B'); await waitFrames(p, 20);
+            await press(p, 'B'); await waitFrames(p, 40);       // MULTIPLAYER -> Game Select
+            await startPlay(p);
+            await until(async () => ((await p.ev('Module._PortCardSlotFeetJs(0) >>> 0')) === 0xC622), 10000);
+            ok('in play, player 1 wears it: the spray and the feet (a recorded paint)',
+               (await p.ev('Module._PortCardSlotPaintJs(0) >>> 0')) === 0x0100000A && (await p.ev('Module._PortCardSlotFeetJs(0) >>> 0')) === 0xC622);
+            await waitFrames(p, 60);
+            await shot(p, `picker-${v.tag}-08-play.png`);
+        }
+        await p.close();
+    }
+}
+
 for (const c of CASES) {
     try {
+        if (c === 'picker') await casePicker();
         if (c === 'gl') await caseGl();
         else if (c === 'lmp') await caseLmp();
         else if (c === 'replay') await caseReplay();

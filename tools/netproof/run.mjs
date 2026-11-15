@@ -436,6 +436,7 @@ export async function runSession(cfg) {
     // colour (simulation) and name (presentation, relayed by the host)
     const cardView = (inst) => (inst.M._PortCardSlotPaintJs ? {
         paint: [0, 1, 2, 3].map((s) => (inst.M._PortCardSlotPaintJs(s) >>> 0).toString(16)),
+        feet: [0, 1, 2, 3].map((s) => (inst.M._PortCardSlotFeetJs ? inst.M._PortCardSlotFeetJs(s) >>> 0 : 0).toString(16)),
         names: [0, 1, 2, 3].map((s) => inst.cstr(inst.M._PortPlayerName(s))),
     } : null);
     res.cards = { host: cardView(host), guests: G.filter((g) => g.inst && !g.gone).map((g) => Object.assign({ name: g.name }, cardView(g.inst))) };

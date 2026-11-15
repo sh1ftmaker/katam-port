@@ -200,7 +200,7 @@ static int WatchCard(const Member *m)
  * (kirby_paint.c), so the little Kirby matches the big one. */
 static void PaletteOf(int s, int color, u16 out[16])
 {
-    if (!PortPaintHudPaletteOf(PortPaintOfSlot(s), color, out))
+    if (!PortPaintHudPaletteOf(PortPaintOfSlot(s), PortPaintFeetOfSlot(s), color, out))
         memcpy(out, sHudPalettes[color < 18 ? color : 0], 16 * sizeof(u16));
 }
 static int sKeep[PORT_PARTY_KEEPOUTS][4];

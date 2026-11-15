@@ -42,9 +42,16 @@
  *
  * Two, drawn by platform/menu_poc.c's list screen exactly as the ONLINE screens
  * are (platform/online_ui.c is the pattern): CARD (PLAYER, NAME, COLOR) and,
- * behind COLOR's A, PICK (HUE, VIVID, BRIGHT), with a live preview of
- * the Kirby and colour bars drawn beside them.  This file is their model:
- * text, keys, the edited card.  Host memory, front end only. */
+ * behind COLOR's A, PICK: a row per part the game's palette has (BODY, and
+ * FEET -- the game draws the cheeks with the feet's colour; kirby_paint.c
+ * has the study) over a grid of the 32 presets, with a live preview of the
+ * Kirby.  On a row Left/Right step its part through the presets (FEET's
+ * first step is BODY: shaded with the body, as the game's own paints are),
+ * A opens the grid on it: the d-pad moves the cursor and the Kirby wears
+ * the cell under it, A keeps it, B puts back what it was.  B on the rows:
+ * back to the card.  A spray chosen on the CARD screen is the whole Kirby,
+ * feet and all.  This file is their model: text, keys, the edited card.
+ * Host memory, front end only. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,6 +136,8 @@ static void Clamp(struct PortCard *c)
     c->hue %= 360;
     if (c->sat > 100) c->sat = 100;
     if (c->val > 100) c->val = 100;
+    if (c->body > PORT_PAINT_PRESETS) c->body = 0;
+    if (c->feet > PORT_PAINT_PRESETS) c->feet = 0;
 }
 
 const struct PortCard *PortCardGet(int p)
@@ -184,24 +193,6 @@ u32 PortCardHsvRgb(int h, int s, int v)
     return (u32)((r << 16) | (g << 8) | b);
 }
 
-/* 0xRRGGBB -> h 0..359, s and v 0..100 (for opening the picker on a spray). */
-static void RgbHsv(u32 rgb, u16 *h, u8 *s, u8 *v)
-{
-    int r = (int)(rgb >> 16) & 255, g = (int)(rgb >> 8) & 255, b = (int)rgb & 255;
-    int mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
-    int mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
-    int d = mx - mn, hh = 0;
-
-    if (d) {
-        if (mx == r)      hh = (g - b) * 60 / d;
-        else if (mx == g) hh = 120 + (b - r) * 60 / d;
-        else              hh = 240 + (r - g) * 60 / d;
-    }
-    *h = (u16)((hh % 360 + 360) % 360);
-    *s = (u8)(mx ? d * 100 / mx : 0);
-    *v = (u8)(mx * 100 / 255);
-}
-
 static u16 Bgr555(u32 rgb)
 {
     int r = (int)(rgb >> 16) & 255, g = (int)(rgb >> 8) & 255, b = (int)rgb & 255;
@@ -213,14 +204,33 @@ static u32 CardPaintOf(const struct PortCard *c)
 {
     switch (c->mode) {
     case PORT_CARD_SPRAY:  return PortPaintSpray(c->spray);
-    case PORT_CARD_CUSTOM: return PortPaintCustom(PortCardHsvRgb(c->hue, c->sat, c->val));
+    case PORT_CARD_CUSTOM:
+        if (c->body)
+            return PortPaintPresetBody(c->body - 1);
+        return PortPaintCustom(PortCardHsvRgb(c->hue, c->sat, c->val));
     default:               return PORT_PAINT_NONE;
     }
+}
+
+/* The feet go with a card by parts only: a spray (or the game's) is the
+ * whole Kirby. */
+static u32 CardFeetOf(const struct PortCard *c)
+{
+    s32 rgb;
+
+    if (c->mode != PORT_CARD_CUSTOM || !c->feet || (rgb = PortPaintPresetRgb(c->feet - 1)) < 0)
+        return 0;
+    return PortPaintFeetOfRgb((u32)rgb);
 }
 
 u32 PortCardPaint(int p)
 {
     return CardPaintOf(PortCardGet(p));
+}
+
+u32 PortCardFeet(int p)
+{
+    return CardFeetOf(PortCardGet(p));
 }
 
 const char *PortCardShownName(int p)
@@ -244,9 +254,21 @@ int PortCardParseSetting(const char *key, const char *val)
     unsigned mode, spray, hue, sat, v;
     int p, n = 0;
 
-    if (strncmp(key, "card", 4) != 0 || key[4] < '0' || key[4] > '3' || key[5] != '\0')
+    if (strncmp(key, "card", 4) != 0 || key[4] < '0' || key[4] > '3')
         return 0;
     p = key[4] - '0';
+    if (strcmp(key + 5, "parts") == 0) {
+        /* cardNparts=BODY,FEET: after its card line */
+        unsigned b = 0, f = 0;
+
+        if (sscanf(val, "%u,%u", &b, &f) == 2) {
+            sCards[p].body = (u8)(b <= PORT_PAINT_PRESETS ? b : 0);
+            sCards[p].feet = (u8)(f <= PORT_PAINT_PRESETS ? f : 0);
+        }
+        return 1;
+    }
+    if (key[5] != '\0')
+        return 0;
     memset(&c, 0, sizeof c);
     if (sscanf(val, "%u,%u,%u,%u,%u,%n", &mode, &spray, &hue, &sat, &v, &n) < 5)
         return 1;
@@ -270,11 +292,19 @@ int PortCardFormatSettings(char *buf, int size)
         const struct PortCard *c = &sCards[p];
         int w;
 
-        if (c->mode == PORT_CARD_GAME && !c->name[0] && !c->hue && !c->sat && !c->val)
+        if (c->mode == PORT_CARD_GAME && !c->name[0] && !c->hue && !c->sat && !c->val && !c->body
+            && !c->feet)
             continue;   /* untouched: nothing to keep */
         w = snprintf(buf + n, (size_t)(size - n), "card%d=%u,%u,%u,%u,%u,%s\n", p,
                      (unsigned)c->mode, (unsigned)c->spray, (unsigned)c->hue,
                      (unsigned)c->sat, (unsigned)c->val, c->name);
+        if (w < 0 || w >= size - n)
+            break;
+        n += w;
+        if (!c->body && !c->feet)
+            continue;   /* a card from before the parts reads as it always did */
+        w = snprintf(buf + n, (size_t)(size - n), "card%dparts=%u,%u\n", p, (unsigned)c->body,
+                     (unsigned)c->feet);
         if (w < 0 || w >= size - n)
             break;
         n += w;
@@ -354,26 +384,38 @@ CARD_EXPORT void PortCardSetTagsOn(int on)
 
 /* --- online hand-off ------------------------------------------------------------ */
 
+/* Card p's profile: "NAME\tPAINT8", and "\tFEET4" when it has feet. */
+static int ProfileOf(char *buf, size_t size, int p)
+{
+    u32 feet = PortCardFeet(p);
+
+    if (feet)
+        return snprintf(buf, size, "%s\t%08X\t%04X", sCards[p].name, (unsigned)PortCardPaint(p),
+                        (unsigned)feet);
+    return snprintf(buf, size, "%s\t%08X", sCards[p].name, (unsigned)PortCardPaint(p));
+}
+
 CARD_EXPORT const char *PortCardProfileString(void)
 {
-    static char buf[PORT_CARD_NAME_MAX + 16];
+    static char buf[PORT_CARD_NAME_MAX + 24];
 
-    snprintf(buf, sizeof(buf), "%s\t%08X", sCards[0].name, (unsigned)PortCardPaint(0));
+    ProfileOf(buf, sizeof buf, 0);
     return buf;
 }
 
-CARD_EXPORT int PortCardHostApplyPaint(int slot, u32 paint)
+CARD_EXPORT int PortCardHostApplyPaint(int slot, u32 paint, u32 feet)
 {
-    if (!gPortLnOn || PortLnRole() != PORT_LN_HOST || slot < 0 || slot > 3 || !PortPaintValid(paint))
+    if (!gPortLnOn || PortLnRole() != PORT_LN_HOST || slot < 0 || slot > 3 || !PortPaintValid(paint)
+        || !PortPaintFeetValid(feet))
         return -1;
-    return PortLnEvent(PORT_LN_EV_PAINT, slot, (int)paint, 0, 0);
+    return PortLnEvent(PORT_LN_EV_PAINT, slot, (int)paint, (int)feet, 0);
 }
 
 CARD_EXPORT int PortCardHostApplyProfile(int slot, const char *profile)
 {
     char name[PORT_CARD_NAME_MAX + 1];
     const char *tab;
-    unsigned paint = 0;
+    unsigned paint = 0, feet = 0;
     size_t n;
 
     if (profile == NULL || (tab = strchr(profile, '\t')) == NULL)
@@ -383,10 +425,10 @@ CARD_EXPORT int PortCardHostApplyProfile(int slot, const char *profile)
         n = PORT_CARD_NAME_MAX;
     memcpy(name, profile, n);
     name[n] = '\0';
-    if (sscanf(tab + 1, "%x", &paint) != 1)
+    if (sscanf(tab + 1, "%x\t%x", &paint, &feet) < 1)
         return -1;
     PortCardSetSlotName(slot, name);
-    return PortCardHostApplyPaint(slot, paint);
+    return PortCardHostApplyPaint(slot, paint, feet);
 }
 
 /* --- online: every slot's card, through the host ----------------------------------
@@ -405,17 +447,18 @@ static void Changed(void);
 
 #define PROF_OWNERS (PORT_LN_MAX_DEV * 4)
 static char sProfName[PROF_OWNERS][PORT_CARD_NAME_MAX + 1];
-static u32 sProfPaint[PROF_OWNERS];
+static u32 sProfPaint[PROF_OWNERS], sProfFeet[PROF_OWNERS];
 
-/* One profile ("NAME\tPAINT8"), the paint 0 if it is not one. */
-static void ParseProfile(const char *pr, char name[PORT_CARD_NAME_MAX + 1], u32 *paint)
+/* One profile ("NAME\tPAINT8[\tFEET4]"), the paint 0 if it is not one. */
+static void ParseProfile(const char *pr, char name[PORT_CARD_NAME_MAX + 1], u32 *paint, u32 *feet)
 {
     const char *tab = pr ? strchr(pr, '\t') : NULL;
-    unsigned v = 0;
+    unsigned v = 0, f = 0;
     size_t n;
 
     name[0] = '\0';
     *paint = PORT_PAINT_NONE;
+    *feet = 0;
     if (tab == NULL)
         return;
     n = (size_t)(tab - pr);
@@ -424,18 +467,22 @@ static void ParseProfile(const char *pr, char name[PORT_CARD_NAME_MAX + 1], u32 
     memcpy(name, pr, n);
     name[n] = '\0';
     CleanName(name);
-    if (sscanf(tab + 1, "%8x", &v) == 1 && PortPaintValid(v))
+    if (sscanf(tab + 1, "%8x\t%4x", &v, &f) >= 1 && PortPaintValid(v)) {
         *paint = v;
+        *feet = v != PORT_PAINT_NONE && PortPaintFeetValid(f) ? f : 0;
+    }
 }
 
 CARD_EXPORT const char *PortCardSeatProfiles(void)
 {
-    static char buf[4 * (PORT_CARD_NAME_MAX + 12)];
+    static char buf[4 * (PORT_CARD_NAME_MAX + 18)];
     int s, n = 0;
 
-    for (s = 0; s < 4; s++)
-        n += snprintf(buf + n, sizeof(buf) - (size_t)n, "%s%s\t%08X", s ? "\n" : "", sCards[s].name,
-                      (unsigned)PortCardPaint(s));
+    for (s = 0; s < 4; s++) {
+        if (s)
+            buf[n++] = '\n';
+        n += ProfileOf(buf + n, sizeof(buf) - (size_t)n, s);
+    }
     return buf;
 }
 
@@ -447,7 +494,7 @@ CARD_EXPORT void PortCardHostSetProfiles(int dev, const char *profiles)
     if (dev < 1 || dev >= PORT_LN_MAX_DEV || profiles == NULL)
         return;
     for (s = 0; s < 4; s++) {
-        char one[PORT_CARD_NAME_MAX + 16];
+        char one[PORT_CARD_NAME_MAX + 24];
         const char *nl = p ? strchr(p, '\n') : NULL;
         size_t n = p ? (nl ? (size_t)(nl - p) : strlen(p)) : 0;
 
@@ -456,7 +503,7 @@ CARD_EXPORT void PortCardHostSetProfiles(int dev, const char *profiles)
         if (p)
             memcpy(one, p, n);
         one[n] = '\0';
-        ParseProfile(one, sProfName[dev * 4 + s], &sProfPaint[dev * 4 + s]);
+        ParseProfile(one, sProfName[dev * 4 + s], &sProfPaint[dev * 4 + s], &sProfFeet[dev * 4 + s]);
         p = nl ? nl + 1 : NULL;
     }
 }
@@ -467,17 +514,20 @@ CARD_EXPORT void PortCardHostDropDevice(int dev)
         return;
     memset(sProfName[dev * 4], 0, sizeof(sProfName[0]) * 4);
     memset(&sProfPaint[dev * 4], 0, sizeof(sProfPaint[0]) * 4);
+    memset(&sProfFeet[dev * 4], 0, sizeof(sProfFeet[0]) * 4);
 }
 
 /* Host: what slot s's owner's card says (the host's own seats: its cards). */
-static u32 OwnerPaint(int own, const char **name)
+static u32 OwnerPaint(int own, const char **name, u32 *feet)
 {
+    *feet = 0;
     if (own < 0) {
         *name = "";
         return PORT_PAINT_NONE;
     }
     if (own < 4) {
         *name = sCards[own].name;
+        *feet = PortCardFeet(own);
         return PortCardPaint(own);
     }
     if (own >= PROF_OWNERS) {
@@ -485,6 +535,7 @@ static u32 OwnerPaint(int own, const char **name)
         return PORT_PAINT_NONE;
     }
     *name = sProfName[own];
+    *feet = sProfFeet[own];
     return sProfPaint[own];
 }
 
@@ -527,21 +578,39 @@ CARD_EXPORT void PortCardSessionEnd(void)
         PortCardSetSlotName(s, NULL);
     memset(sProfName, 0, sizeof(sProfName));
     memset(sProfPaint, 0, sizeof(sProfPaint));
+    memset(sProfFeet, 0, sizeof(sProfFeet));
 }
 
-/* Tests: slot s's paint as the simulation has it. */
+/* Tests: the derivation's unit checks (kirby_paint.c), failures. */
+CARD_EXPORT int PortCardPaintSelfTestJs(void) { return PortPaintSelfTest(); }
+
+/* Tests: slot s's paint and feet as the simulation has them. */
 CARD_EXPORT u32 PortCardSlotPaintJs(int s) { return PortPaintOfSlot(s); }
+CARD_EXPORT u32 PortCardSlotFeetJs(int s) { return PortPaintFeetOfSlot(s); }
 
 /* Tests and the console: set card p from a settings value
- * ("MODE,SPRAY,HUE,SAT,VAL,NAME"), not saved. */
+ * ("MODE,SPRAY,HUE,SAT,VAL,NAME", then "|BODY,FEET" for its parts), not
+ * saved. */
 CARD_EXPORT int PortCardSetJs(int p, const char *val)
 {
-    char key[6] = "card0";
+    char key[11] = "card0", one[64];
+    const char *bar;
+    size_t n;
 
     if (p < 0 || p >= PORT_CARD_PLAYERS || val == NULL)
         return 0;
     key[4] = (char)('0' + p);
-    PortCardParseSetting(key, val);
+    bar = strchr(val, '|');
+    n = bar ? (size_t)(bar - val) : strlen(val);
+    if (n >= sizeof one)
+        n = sizeof one - 1;
+    memcpy(one, val, n);
+    one[n] = '\0';
+    PortCardParseSetting(key, one);
+    if (bar) {
+        snprintf(key + 5, sizeof key - 5, "parts");
+        PortCardParseSetting(key, bar + 1);
+    }
     Changed();
     return 1;
 }
@@ -551,27 +620,43 @@ CARD_EXPORT int PortCardSetJs(int p, const char *val)
 static int sEditing;
 /* What was asked of the simulation and when, so a paint waiting for its
  * latch is not asked for again every frame. */
-static u32 sAsked[4], sAskedAt[4];
+static u32 sAsked[4], sAskedFeet[4], sAskedAt[4];
 static int sAskedValid[4];
 
-static void Ask(int s, u32 want)
+static void Ask(int s, u32 want, u32 feet)
 {
     u32 f;
 
+    if (want == PORT_PAINT_NONE)
+        feet = 0;
     if (gPortLnOn) {
-        int r = PortLnEvent(PORT_LN_EV_PAINT, s, (int)want, 0, 0);
+        int r = PortLnEvent(PORT_LN_EV_PAINT, s, (int)want, (int)feet, 0);
 
         if (r < 0)
             return;
         f = (u32)r;
     } else {
-        f = PortInputLogSchedulePaint((u8)s, want);
+        f = PortInputLogSchedulePaint((u8)s, want, feet);
         if (f == 0 && PortFrameNumber() > 1)
             return;
     }
     sAsked[s] = want;
+    sAskedFeet[s] = feet;
     sAskedAt[s] = f;
     sAskedValid[s] = 1;
+}
+
+/* Does slot s wear (want, feet) already, or is it on its way? */
+static int Worn(int s, u32 want, u32 feet)
+{
+    if (want == PORT_PAINT_NONE)
+        feet = 0;
+    if (PortPaintOfSlot(s) == want && PortPaintFeetOfSlot(s) == feet) {
+        sAskedValid[s] = 0;
+        return 1;
+    }
+    return sAskedValid[s] && sAsked[s] == want && sAskedFeet[s] == feet
+        && PortFrameNumber() <= sAskedAt[s] + 2;
 }
 
 void PortCardHostFrame(void)
@@ -586,6 +671,19 @@ void PortCardHostFrame(void)
         if (sheet)
             PortCardDebugSheet();
     }
+    {
+        /* KATAM_PAINT_SELFTEST=1: the derivation's unit checks once the ROM
+         * is up, then exit (status = failures) */
+        static int test = -1;
+
+        if (test < 0)
+            test = getenv("KATAM_PAINT_SELFTEST") != NULL;
+        if (test && gSpriteTables != NULL) {
+            int fails = PortPaintSelfTest();
+
+            exit(fails ? 1 : 0);
+        }
+    }
     if ((sEditing && !gPortLnOn) || PortInputLogReplaying() || PortRbActive() || PortNetActive() || PortSeatActive())
         return;
     if (gPortLnOn) {
@@ -596,40 +694,32 @@ void PortCardHostFrame(void)
         for (s = 0; s < 4; s++) {
             const char *name;
             int own = PortLnSlotOwner(s);
-            u32 want = OwnerPaint(own, &name);
+            u32 feet, want = OwnerPaint(own, &name, &feet);
 
             if (strcmp(PortPlayerName(s), name) != 0)
                 PortCardSetSlotName(s, name);
             if (sEditing && own >= 0 && own < 4)
                 continue;       /* the host's own card is being edited */
-            if (PortPaintOfSlot(s) == want) {
-                sAskedValid[s] = 0;
-                continue;
-            }
-            if (sAskedValid[s] && sAsked[s] == want && PortFrameNumber() <= sAskedAt[s] + 2)
-                continue;
-            Ask(s, want);
+            if (!Worn(s, want, feet))
+                Ask(s, want, feet);
         }
         return;
     }
     n = 4;
     for (s = 0; s < n; s++) {
-        u32 want = (s == 0 || PortLmpSlotIsHuman(s)) ? PortCardPaint(s) : PORT_PAINT_NONE;
+        int person = s == 0 || PortLmpSlotIsHuman(s);
+        u32 want = person ? PortCardPaint(s) : PORT_PAINT_NONE;
+        u32 feet = person ? PortCardFeet(s) : 0;
 
-        if (PortPaintOfSlot(s) == want) {
-            sAskedValid[s] = 0;
-            continue;
-        }
-        if (sAskedValid[s] && sAsked[s] == want && PortFrameNumber() <= sAskedAt[s] + 2)
-            continue;       /* on its way */
-        Ask(s, want);
+        if (!Worn(s, want, feet))
+            Ask(s, want, feet);
     }
 }
 
 /* --- the screens' model ------------------------------------------------------- */
 
 enum { R_PLAYER, R_NAME, R_COLOR };
-enum { R_HUE, R_SAT, R_VAL };
+enum { R_BODY, R_FEET };
 
 static int sSub, sPlayer, sFixed, sNamePos;
 /* The NAME row's typing state: entered with A on the row, left with Start
@@ -642,8 +732,10 @@ static char sTypedFrom[PORT_CARD_NAME_MAX + 1];   /* the name as typing began */
 static struct PortCard sEdit;       /* the card being edited                */
 static u32 sGen = 1;
 
-#define HUE_STEP 6
-#define SV_STEP  5
+/* The PICK screen's grid: open (the d-pad is its cursor), the cell under
+ * the cursor, and the part as it was when the grid opened (B puts it back). */
+static int sGridOpen, sCell;
+static struct PortCard sGridFrom;
 
 static void Changed(void)
 {
@@ -653,6 +745,7 @@ static void Changed(void)
 static void Load(int p)
 {
     sTyping = 0;
+    sGridOpen = 0;
     sPlayer = p;
     sEdit = sCards[p];
     sNamePos = (int)strlen(sEdit.name);
@@ -687,6 +780,9 @@ CARD_EXPORT void PortPlayerCardOpen(int p, int fixed)
 
 CARD_EXPORT void PortPlayerCardClose(void)
 {
+    if (sGridOpen)
+        sEdit = sGridFrom;      /* a cell only looked at is not kept */
+    sGridOpen = 0;
     if (sSub != PORT_CARD_SUB_NONE)
         Store();
     sSub = PORT_CARD_SUB_NONE;
@@ -704,10 +800,19 @@ const char *PortCardHeader(int sub)
     return sub == PORT_CARD_SUB_PICK ? "COLOR" : "PLAYER CARD";
 }
 
+/* The preset a card's part is (0..31), -1 for none: a feet as the body,
+ * an old card's own colour. */
+static int PartPreset(const struct PortCard *c, int row)
+{
+    if (row == R_FEET)
+        return c->feet ? c->feet - 1 : -1;
+    return c->body ? c->body - 1 : -1;
+}
+
 const char *PortCardRowName(int sub, int row)
 {
     if (sub == PORT_CARD_SUB_PICK)
-        return row == R_HUE ? "HUE" : row == R_SAT ? "VIVID" : "BRIGHT";
+        return row == R_BODY ? "BODY" : "FEET";
     return row == R_PLAYER ? "PLAYER" : row == R_NAME ? "NAME" : "COLOR";
 }
 
@@ -724,8 +829,10 @@ void PortCardRowValue(int sub, int row, int selected, char *buf, int size)
 {
     buf[0] = '\0';
     if (sub == PORT_CARD_SUB_PICK) {
-        /* the bars say it (platform/menu_poc.c draws them in the value's place) */
-        (void)selected;
+        int k = PartPreset(&sEdit, row);
+        const char *n = k >= 0 ? PortPaintPresetName(k) : row == R_FEET ? "BODY" : "OWN";
+
+        snprintf(buf, size, selected && !sGridOpen ? "<%s>" : "%s", n);
         return;
     }
     switch (row) {
@@ -763,11 +870,13 @@ void PortCardRowValue(int sub, int row, int selected, char *buf, int size)
 const char *PortCardRowDesc(int sub, int row)
 {
     if (sub == PORT_CARD_SUB_PICK) {
-        switch (row) {
-        case R_HUE: return "LEFT RIGHT CHANGE THE COLOR";
-        case R_SAT: return "FROM GRAY TO VIVID";
-        default:    return "FROM DARK TO BRIGHT";
-        }
+        int odd = (gPortSim->frame.frameCount / 120) & 1;
+
+        if (sGridOpen)
+            return odd ? "B PUTS IT BACK" : "PICK A COLOR - A KEEPS IT";
+        if (row == R_BODY)
+            return odd ? "LEFT RIGHT STEP THROUGH" : "A PICKS FROM THE COLORS";
+        return odd ? "BODY - SHADED LIKE THE BODY" : "THE FEET AND THE CHEEKS";
     }
     switch (row) {
     case R_PLAYER: return sFixed ? "WHOSE CARD THIS IS" : "LEFT RIGHT PICK A PLAYER";
@@ -779,7 +888,7 @@ const char *PortCardRowDesc(int sub, int row)
                                                       : "TYPE OR PICK - START DONE";
     default:
         return sEdit.mode == PORT_CARD_GAME ? "THE GAMES OWN SPRAY PAINT"
-             : "A PICKS ANY COLOR";
+             : "A PICKS BODY AND FEET";
     }
 }
 
@@ -827,21 +936,88 @@ static void ColorStep(int dir)
     }
 }
 
-/* The picker opens on the colour shown now. */
+/* The preset whose colour is nearest rgb (for a cursor with no cell of its
+ * own to start on). */
+static int NearestPreset(u32 rgb)
+{
+    int i, best = 0;
+    long bestD = -1;
+
+    for (i = 0; i < PORT_PAINT_PRESETS; i++) {
+        s32 c = PortPaintPresetRgb(i);
+        long dr, dg, db, d;
+
+        if (c < 0)
+            continue;
+        dr = (long)((c >> 16) & 255) - (long)((rgb >> 16) & 255);
+        dg = (long)((c >> 8) & 255) - (long)((rgb >> 8) & 255);
+        db = (long)(c & 255) - (long)(rgb & 255);
+        d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+        if (bestD < 0 || d < bestD) {
+            best = i;
+            bestD = d;
+        }
+    }
+    return best;
+}
+
+/* The preset that is spray k (every spray has one). */
+static int SprayPreset(int k)
+{
+    int i;
+
+    for (i = 0; i < PORT_PAINT_PRESETS; i++)
+        if (PortPaintPresetBody(i) == PortPaintSpray(k))
+            return i;
+    return 0;
+}
+
+/* The picker opens on the colour shown now: a spray (or the game's own,
+ * the slot's spray) is its preset, feet and all; a card by parts as it is. */
 static void PickFromCurrent(void)
 {
-    s32 rgb = -1;
-
-    if (sEdit.mode == PORT_CARD_SPRAY)
-        rgb = PortPaintSprayRgb(sEdit.spray);
-    else if (sEdit.mode == PORT_CARD_GAME)
-        rgb = PortPaintSprayRgb(sPlayer);
-    if (rgb >= 0)
-        RgbHsv((u32)rgb, &sEdit.hue, &sEdit.sat, &sEdit.val);
+    if (sEdit.mode == PORT_CARD_SPRAY || sEdit.mode == PORT_CARD_GAME) {
+        sEdit.body = (u8)(1 + SprayPreset(sEdit.mode == PORT_CARD_SPRAY ? sEdit.spray
+                                                                       : sPlayer % PORT_PAINT_COLORS));
+        sEdit.feet = 0;
+    }
     sEdit.mode = PORT_CARD_CUSTOM;
 }
 
-static int Clamp100(int v) { return v < 0 ? 0 : v > 100 ? 100 : v; }
+/* Row `row`'s part steps through its choices: the presets, and for the
+ * feet first "as the body". */
+static void PartStep(int row, int dir)
+{
+    if (row == R_FEET) {
+        sEdit.feet = (u8)((sEdit.feet + dir + PORT_PAINT_PRESETS + 1) % (PORT_PAINT_PRESETS + 1));
+    } else if (sEdit.body == 0) {
+        /* an old card's own colour: the first step is to the preset nearest it */
+        sEdit.body = (u8)(1 + NearestPreset(CardPaintOf(&sEdit) & 0xFFFFFFu));
+    } else {
+        sEdit.body = (u8)(1 + (sEdit.body - 1 + dir + PORT_PAINT_PRESETS) % PORT_PAINT_PRESETS);
+    }
+    sEdit.mode = PORT_CARD_CUSTOM;
+}
+
+static void GridPut(int row)
+{
+    if (row == R_FEET)
+        sEdit.feet = (u8)(1 + sCell);
+    else
+        sEdit.body = (u8)(1 + sCell);
+    sEdit.mode = PORT_CARD_CUSTOM;
+}
+
+static void GridOpen(int row)
+{
+    int k = PartPreset(&sEdit, row);
+
+    if (k < 0)      /* no cell of its own: start on the body's, or the nearest */
+        k = sEdit.body ? sEdit.body - 1 : NearestPreset(CardPaintOf(&sEdit) & 0xFFFFFFu);
+    sCell = k;
+    sGridFrom = sEdit;
+    sGridOpen = 1;
+}
 
 CARD_EXPORT int PortCardKey(int *row, unsigned key)
 {
@@ -928,7 +1104,8 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
                     PickFromCurrent();
                 Store();
                 sSub = PORT_CARD_SUB_PICK;
-                *row = R_HUE;
+                sGridOpen = 0;
+                *row = R_BODY;
                 Changed();
                 return PORT_CARD_K_SELECT;
             }
@@ -937,28 +1114,52 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
         return PORT_CARD_K_NONE;
 
     case PORT_CARD_SUB_PICK:
+        if (key == PORT_CARD_KEY_START)
+            key = 1;
+        if (sGridOpen) {
+            int c = sCell % PORT_PAINT_PRESET_COLS, r = sCell / PORT_PAINT_PRESET_COLS;
+            const int rows = PORT_PAINT_PRESETS / PORT_PAINT_PRESET_COLS;
+
+            switch (key) {
+            case 1:             /* keep it */
+                sGridOpen = 0;
+                Store();
+                return PORT_CARD_K_SELECT;
+            case 2:             /* put back what it was */
+                sEdit = sGridFrom;
+                sGridOpen = 0;
+                Store();
+                return PORT_CARD_K_BACK;
+            case 3: r = (r + rows - 1) % rows; break;
+            case 4: r = (r + 1) % rows; break;
+            case 5: c = (c + PORT_PAINT_PRESET_COLS - 1) % PORT_PAINT_PRESET_COLS; break;
+            case 6: c = (c + 1) % PORT_PAINT_PRESET_COLS; break;
+            default: return PORT_CARD_K_NONE;
+            }
+            sCell = r * PORT_PAINT_PRESET_COLS + c;
+            GridPut(*row);
+            Changed();          /* the preview wears it; saved when kept */
+            return PORT_CARD_K_CURSOR;
+        }
         if (key == 3 || key == 4) {
-            *row = (*row + (key == 4 ? 1 : PORT_CARD_ROWS - 1)) % PORT_CARD_ROWS;
+            *row = (*row + (key == 4 ? 1 : PORT_CARD_PICK_ROWS - 1)) % PORT_CARD_PICK_ROWS;
             Changed();
             return PORT_CARD_K_CURSOR;
         }
-        if (key == 2 || key == 1) {
+        if (key == 2) {
             Store();
             sSub = PORT_CARD_SUB_CARD;
             *row = R_COLOR;
             Changed();
-            return key == 1 ? PORT_CARD_K_SELECT : PORT_CARD_K_BACK;
+            return PORT_CARD_K_BACK;
+        }
+        if (key == 1) {
+            GridOpen(*row);
+            Changed();
+            return PORT_CARD_K_SELECT;
         }
         if (key == 5 || key == 6) {
-            int d = key == 6 ? 1 : -1;
-
-            if (*row == R_HUE)
-                sEdit.hue = (u16)((sEdit.hue + d * HUE_STEP + 360) % 360);
-            else if (*row == R_SAT)
-                sEdit.sat = (u8)Clamp100(sEdit.sat + d * SV_STEP);
-            else
-                sEdit.val = (u8)Clamp100(sEdit.val + d * SV_STEP);
-            sEdit.mode = PORT_CARD_CUSTOM;
+            PartStep(*row, key == 6 ? 1 : -1);
             Store();
             return PORT_CARD_K_CURSOR;
         }
@@ -969,23 +1170,44 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
 
 int PortCardPreviewPalette(u16 out[16])
 {
-    return PortPaintBodyPalette(CardPaintOf(&sEdit), sPlayer, out);
+    return PortPaintBodyPalette(CardPaintOf(&sEdit), CardFeetOf(&sEdit), sPlayer, out);
 }
 
-int PortCardBar(int row, u16 out[13])
+static u16 Bgr555Of(s32 rgb)
 {
-    int i, cur;
+    return rgb < 0 ? 0 : Bgr555((u32)rgb);
+}
 
-    for (i = 0; i < 13; i++) {
-        int h = sEdit.hue, s = sEdit.sat, v = sEdit.val;
+int PortCardGrid(int row, u16 out[], int *open)
+{
+    int i;
 
-        if (row == R_HUE)      { h = i * 360 / 13; s = s < 40 ? 60 : s; v = v < 50 ? 90 : v; }
-        else if (row == R_SAT) s = i * 100 / 12;
-        else                   v = i * 100 / 12;
-        out[i] = Bgr555(PortCardHsvRgb(h, s, v));
+    for (i = 0; i < PORT_PAINT_PRESETS; i++)
+        out[i] = Bgr555Of(PortPaintPresetRgb(i));
+    if (open)
+        *open = sGridOpen;
+    return sGridOpen ? sCell : PartPreset(&sEdit, row);
+}
+
+u16 PortCardPartColor(int row)
+{
+    u16 pal[16];
+
+    if (!PortCardPreviewPalette(pal))
+        return 0;
+    return row == R_FEET ? pal[9] : pal[3];     /* the feet's light shade, the body's fill */
+}
+
+/* Tests: the card being edited -- 0 its paint, 1 its feet, 2 the grid open,
+ * 3 the grid's cursor. */
+CARD_EXPORT u32 PortCardEditJs(int what)
+{
+    switch (what) {
+    case 0:  return CardPaintOf(&sEdit);
+    case 1:  return CardFeetOf(&sEdit);
+    case 2:  return (u32)sGridOpen;
+    default: return (u32)sCell;
     }
-    cur = row == R_HUE ? (sEdit.hue * 13 / 360) : (row == R_SAT ? sEdit.sat : sEdit.val) * 12 / 100;
-    return cur < 0 ? 0 : cur > 12 ? 12 : cur;
 }
 
 /* --- typed names (the web page) ------------------------------------------------- */
@@ -1068,7 +1290,7 @@ void PortCardDebugSheet(void)
 {
     static int done;
     /* the sprays, then a sweep of custom colours */
-    enum { CELL = 40, COLS = 14, ROWS_ = 8 };
+    enum { CELL = 40, COLS = 14, ROWS_ = 11 };
     static u32 img[CELL * COLS * CELL * ROWS_];
     u8 px[64 * 64];
     int fw, fh = 0, r, c;
@@ -1082,7 +1304,7 @@ void PortCardDebugSheet(void)
     for (r = 0; r < ROWS_; r++)
         for (c = 0; c < COLS; c++) {
             u16 pal[16];
-            u32 v;
+            u32 v, feet = 0;
             int x, y, i;
 
             if (r == 0)
@@ -1095,9 +1317,14 @@ void PortCardDebugSheet(void)
                 v = PortPaintCustom((u32)PortPaintSprayRgb(c));
             else if (r == 6)      /* very dark */
                 v = PortPaintCustom(PortCardHsvRgb(c * 360 / COLS, 90, 30));
-            else                  /* pastels */
+            else if (r == 7)      /* pastels */
                 v = PortPaintCustom(PortCardHsvRgb(c * 360 / COLS, 20, 100));
-            if (!PortPaintBodyPalette(v, 0, pal))
+            else {                /* feet of their own: the presets on a pink spray, a */
+                v = r == 8 ? PortPaintSpray(0)      /* custom blue, a preset grey   */
+                  : r == 9 ? PortPaintCustom(0x3060E0) : PortPaintPresetBody(29);
+                feet = PortPaintFeetOfRgb((u32)PortPaintPresetRgb((c + (r - 8) * 9) % PORT_PAINT_PRESETS));
+            }
+            if (!PortPaintBodyPalette(v, feet, 0, pal))
                 continue;
             /* the palette as a strip on top, then the Kirby */
             for (i = 0; i < 16; i++)

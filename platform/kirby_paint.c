@@ -58,7 +58,22 @@
  *               shadow the darkest.
  *
  * Entries all sprays share (outline, eyes, shine) are kept.  A colour equal to
- * a template's fill gives that template exactly.  Inputs are the ROM in hand
+ * a template's fill gives that template exactly.
+ *
+ * --- the parts: body and feet ---------------------------------------------------
+ *
+ * What the game's own palette lets a player colour apart.  Drawn with anim
+ * 0x15's sixteen, a Kirby is: the body, 2..8 -- and the eyes, which are drawn
+ * in the body's own darkest shades (6, 7, 8) with the outline (1) and the
+ * shine (15); the feet, 9..11 -- and the cheeks: the blush is entry 9, the
+ * feet's light shade, in every frame (the shine on the feet is 15 again);
+ * and 12..14, which no frame of the Kirby draws and the ability hats lend.
+ * So there are two parts and no more: a "face" colour of its own would need
+ * an entry the game has not got.  A feet colour (paintFeet, BGR555) shades
+ * 9..11 from the template's own feet, 9 to the colour, the way the body is
+ * shaded from its fill; the HUD's row has one feet entry, 4, shaded the same.
+ * The UFO's saucer has no feet and keeps the body's tint.  No feet colour:
+ * the feet move with the body, byte for byte as before.  Inputs are the ROM in hand
  * and the paint; every device computes the same bytes, wasm and native alike.
  * Nothing here is cached: the work is a few hundred integer operations a load.
  *
@@ -87,6 +102,9 @@ extern const struct AnimInfo gUnk_08350A3C[];
 
 #define BODY_ANIM   0x15        /* the Kirby colour animation, variant = colour */
 #define FILL        3           /* its fill entry                               */
+#define FEET0       9           /* its feet: 9 (also the cheeks) .. 11          */
+#define FEET1       11
+#define HUD_FEET    4           /* the HUD row's feet entry                     */
 #define UFO_ABILITY KIRBY_ABILITY_UFO
 
 #define P (gPortSim->game)
@@ -302,19 +320,40 @@ s32 PortPaintSprayRgb(int i)
  * entries shaded to rgb, into out: every entry that differs between the
  * templates moves the way the template's body fill must move.  0 if the ROM
  * disagrees. */
-static int DeriveFam(const u16 *const fam[PORT_PAINT_COLORS], int t, u32 rgb, u16 *out, u32 num)
+/* Which entries of a family are the feet: f0..f1, shaded from entry f0. */
+struct FeetAt { u8 f0, f1; };
+static const struct FeetAt kKirbyFeet = { FEET0, FEET1 };
+static const struct FeetAt kHudFeet = { HUD_FEET, HUD_FEET };
+static const struct FeetAt kNoFeet = { 16, 0 };
+
+/* The same with the parts: the body kept as template t has it (`keep`, a
+ * spray) or shaded to rgb, and, when `feet` (PORT_PAINT_FEET_ON | BGR555),
+ * the feet entries shaded from the template's own feet to that colour. */
+static int DeriveParts(const u16 *const fam[PORT_PAINT_COLORS], int t, int keep, u32 rgb, u32 feet,
+                       struct FeetAt fa, u16 *out, u32 num)
 {
     const u16 *body = VariantPalette(BODY_ANIM, (u16)t);
     int r = (int)(rgb >> 16) & 255, g = (int)(rgb >> 8) & 255, b = (int)rgb & 255;
+    int fr = 0, fg = 0, fb = 0;
     u32 i;
     int k;
 
     if (body == NULL || num > 16 || t < 0 || t >= PORT_PAINT_COLORS)
         return 0;
+    if (feet)
+        Rgb555((u16)feet, &fr, &fg, &fb);
     for (i = 0; i < num; i++) {
         u16 e = fam[t][i];
         int varies = 0;
 
+        if (i != 0 && feet && i >= fa.f0 && i <= fa.f1) {
+            out[i] = Shade(e, fam[t][fa.f0], fr, fg, fb);
+            continue;
+        }
+        if (keep) {
+            out[i] = e;
+            continue;
+        }
         for (k = 0; k < PORT_PAINT_COLORS && !varies; k++)
             varies = IsTemplate(k) && fam[k][i] != fam[0][i];
         /* entry 0 is transparent: never drawn, kept */
@@ -323,10 +362,12 @@ static int DeriveFam(const u16 *const fam[PORT_PAINT_COLORS], int t, u32 rgb, u1
     return 1;
 }
 
+
 /* A family's palette (anim, variants base..base+13) for template t, its first
  * num entries (what the palette command copies), shaded to rgb, into out.
  * 0 if the ROM disagrees. */
-static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
+static int Derive(u16 anim, u16 base, int t, int keep, u32 rgb, u32 feet, struct FeetAt fa,
+                  u16 *out, u32 num)
 {
     const u16 *fam[PORT_PAINT_COLORS];
     int k;
@@ -334,7 +375,7 @@ static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
     for (k = 0; k < PORT_PAINT_COLORS; k++)
         if ((fam[k] = VariantPalette(anim, (u16)(base + k))) == NULL)
             return 0;
-    return DeriveFam(fam, t, rgb, out, num);
+    return DeriveParts(fam, t, keep, rgb, feet, fa, out, num);
 }
 
 /* --- the HUD's palette ---------------------------------------------------------
@@ -344,34 +385,43 @@ static int Derive(u16 anim, u16 base, int t, u32 rgb, u16 *out, u32 num)
  * same family shape as the Kirby's, so a colour shades it the same way. */
 extern const u16 sHudPalettes[18][16];      /* game/src/hud.c */
 
-int PortPaintHudPaletteOf(u32 v, int color, u16 out[16])
+int PortPaintFeetValid(u32 feet)
+{
+    return feet == 0 || (feet & ~0xFFFFu) == 0 && (feet & PORT_PAINT_FEET_ON) != 0;
+}
+
+int PortPaintHudPaletteOf(u32 v, u32 feet, int color, u16 out[16])
 {
     const u16 *fam[PORT_PAINT_COLORS];
-    int k, t;
+    int k, t, spray = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_SPRAY;
 
-    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM) {
-        t = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_SPRAY ? PortPaintTemplate(v) : color;
+    if (!PortPaintFeetValid(feet))
+        feet = 0;
+    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM && !(spray && feet)) {
+        t = spray ? PortPaintTemplate(v) : color;
         if (t < 0 || t >= 18)
             return 0;
         memcpy(out, sHudPalettes[t], 16 * sizeof(u16));
         return 1;
     }
-    t = Nearest(v & 0xFFFFFFu);
+    t = PortPaintTemplate(v);
     for (k = 0; k < PORT_PAINT_COLORS; k++)
         fam[k] = sHudPalettes[k];
-    return t >= 0 && DeriveFam(fam, t, v & 0xFFFFFFu, out, 16);
+    return t >= 0 && DeriveParts(fam, t, spray, v & 0xFFFFFFu, feet, kHudFeet, out, 16);
 }
 
-int PortPaintBodyPalette(u32 v, int fallback, u16 out[16])
+int PortPaintBodyPalette(u32 v, u32 feet, int fallback, u16 out[16])
 {
     const u16 *p;
-    int t;
+    int t, spray = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_SPRAY;
 
-    if ((v & PORT_PAINT_KIND_MASK) == PORT_PAINT_CUSTOM) {
-        t = Nearest(v & 0xFFFFFFu);
-        return t >= 0 && Derive(BODY_ANIM, 0, t, v & 0xFFFFFFu, out, 16);
+    if (!PortPaintFeetValid(feet))
+        feet = 0;
+    if ((v & PORT_PAINT_KIND_MASK) == PORT_PAINT_CUSTOM || (spray && feet)) {
+        t = PortPaintTemplate(v);
+        return t >= 0 && Derive(BODY_ANIM, 0, t, spray, v & 0xFFFFFFu, feet, kKirbyFeet, out, 16);
     }
-    t = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_SPRAY ? PortPaintTemplate(v) : fallback;
+    t = spray ? PortPaintTemplate(v) : fallback;
     if (t < 0 || t >= PORT_PAINT_COLORS || (p = VariantPalette(BODY_ANIM, (u16)t)) == NULL)
         return 0;
     memcpy(out, p, 16 * sizeof(u16));
@@ -386,15 +436,18 @@ static int Paintable(void)
     return !(gUnk_0203AD10 & 0x12);
 }
 
-void PortPaintSetSlot(int slot, u32 v)
+void PortPaintSetSlot(int slot, u32 v, u32 feet)
 {
     int s;
 
-    if (slot < 0 || slot > 3 || !PortPaintValid(v))
+    if (slot < 0 || slot > 3 || !PortPaintValid(v) || !PortPaintFeetValid(feet))
         return;
-    if (P.paint[slot] == v)
+    if (v == PORT_PAINT_NONE)
+        feet = 0;           /* feet of their own go with a body paint */
+    if (P.paint[slot] == v && P.paintFeet[slot] == feet)
         return;
     P.paint[slot] = v;
+    P.paintFeet[slot] = (u16)feet;
     P.paintDirty |= (u8)(1u << slot);
     P.paintOn = 0;
     for (s = 0; s < 4; s++)
@@ -403,13 +456,18 @@ void PortPaintSetSlot(int slot, u32 v)
     /* Nobody painting any more: paintDirty still has the Kirbys whose own
      * colour must come back (PortPaintTickSlow, or a new Kirby's init); then
      * the bytes are all zero again. */
-    PortLog("[katam-port] paint: f%u slot %d = %08X", (unsigned)gPortSim->frame.frameCount,
-            slot, (unsigned)v);
+    PortLog("[katam-port] paint: f%u slot %d = %08X feet %04X", (unsigned)gPortSim->frame.frameCount,
+            slot, (unsigned)v, (unsigned)feet);
 }
 
 u32 PortPaintOfSlot(int slot)
 {
     return slot >= 0 && slot < 4 ? P.paint[slot] : 0;
+}
+
+u32 PortPaintFeetOfSlot(int slot)
+{
+    return slot >= 0 && slot < 4 ? P.paintFeet[slot] : 0;
 }
 
 /* The game's own choice for slot s (sub_0803EA90). */
@@ -457,9 +515,9 @@ const u16 *PortPaintHudPaletteSlow(u8 color, u16 *buf)
     if (s >= 4 || !Paintable() || color >= PORT_PAINT_COLORS)
         return sHudPalettes[color];
     v = P.paint[s];
-    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM || gKirbys[s].color != color)
+    if (((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM && !P.paintFeet[s]) || gKirbys[s].color != color)
         return sHudPalettes[color];
-    if (!PortPaintHudPaletteOf(v, color, buf))
+    if (!PortPaintHudPaletteOf(v, P.paintFeet[s], color, buf))
         return sHudPalettes[color];
     return buf;
 }
@@ -485,25 +543,211 @@ void PortPaintHudTickSlow(void)
 const u16 *PortPaintPaletteSlow(const struct Sprite *sp, const u16 *rom, u16 *buf, u32 num, u32 off)
 {
     u8 s = sp->palId;
-    u32 v;
-    int t;
+    u32 v, feet;
+    int t, custom;
 
     (void)off;      /* the command copies from the line's start, to off */
     if (s >= 4 || !Paintable())
         return rom;
     v = P.paint[s];
-    if ((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM)
+    custom = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_CUSTOM;
+    feet = P.paintFeet[s];
+    if (!custom && !feet)
         return rom;
     t = gKirbys[s].color;
     if (sp->animId == BODY_ANIM && sp->variant == t) {
-        if (Derive(BODY_ANIM, 0, t, v & 0xFFFFFFu, buf, num))
+        if (Derive(BODY_ANIM, 0, t, !custom, v & 0xFFFFFFu, feet, kKirbyFeet, buf, num))
             return buf;
-    } else if (sp->animId == gUnk_08350A3C[UFO_ABILITY].animId
+    } else if (custom && sp->animId == gUnk_08350A3C[UFO_ABILITY].animId
                && sp->variant == gUnk_08350A3C[UFO_ABILITY].variant + t) {
-        if (Derive(sp->animId, gUnk_08350A3C[UFO_ABILITY].variant, t, v & 0xFFFFFFu, buf, num))
+        if (Derive(sp->animId, gUnk_08350A3C[UFO_ABILITY].variant, t, 0, v & 0xFFFFFFu, 0, kNoFeet,
+                   buf, num))
             return buf;
     }
     return rom;
+}
+
+/* --- the presets ------------------------------------------------------------------
+ *
+ * The picker's grid, 8 x 4, the same for every part.  Row by row: the game's
+ * own vivid sprays as a hue wheel; soft colours (Pink and Cherry, then ours);
+ * deep ones; then three bright extras and the neutrals from white to black.
+ * A spray is named by its index and its colour read from the ROM in hand; the
+ * rest are our own RGB.  Every spray is here, so a card on any spray has a
+ * cell. */
+static const struct { s8 spray; u32 rgb; char name[10]; } kPresets[PORT_PAINT_PRESETS] = {
+    {  2, 0, "RED" },        { 10, 0, "ORANGE" },    {  1, 0, "YELLOW" },  {  3, 0, "GREEN" },
+    {  9, 0, "EMERALD" },    {  6, 0, "OCEAN" },     {  7, 0, "SAPPHIRE" }, { 8, 0, "GRAPE" },
+    {  0, 0, "PINK" },       { 12, 0, "CHERRY" },    { -1, 0xFF8A80, "CORAL" },
+    { -1, 0xFFC896, "PEACH" }, { -1, 0xFFF0A0, "CREAM" }, { -1, 0xB4F0B4, "MINT" },
+    { -1, 0xA0D4FF, "SKY" }, { -1, 0xD4B4FF, "LILAC" },
+    { -1, 0xA01830, "CRIMSON" }, { 11, 0, "CHOCOLATE" }, { -1, 0x808020, "OLIVE" },
+    { -1, 0x207838, "FOREST" }, { -1, 0x108888, "TEAL" }, { -1, 0x202880, "NAVY" },
+    { -1, 0x4A2898, "INDIGO" }, { -1, 0x802070, "PLUM" },
+    { -1, 0xFF40C0, "MAGENTA" }, { -1, 0xE8B020, "GOLD" }, { -1, 0x40E0D0, "AQUA" },
+    {  4, 0, "SNOW" },       { 13, 0, "CHALK" },     {  5, 0, "CARBON" },
+    { -1, 0x404048, "CHARCOAL" }, { -1, 0x202020, "BLACK" },
+};
+
+u32 PortPaintPresetBody(int i)
+{
+    if (i < 0 || i >= PORT_PAINT_PRESETS)
+        return PORT_PAINT_NONE;
+    if (kPresets[i].spray >= 0)
+        return PortPaintSpray(kPresets[i].spray);
+    return PortPaintCustom(kPresets[i].rgb);
+}
+
+s32 PortPaintPresetRgb(int i)
+{
+    if (i < 0 || i >= PORT_PAINT_PRESETS)
+        return -1;
+    if (kPresets[i].spray >= 0)
+        return PortPaintSprayRgb(kPresets[i].spray);
+    return (s32)kPresets[i].rgb;
+}
+
+const char *PortPaintPresetName(int i)
+{
+    return i >= 0 && i < PORT_PAINT_PRESETS ? kPresets[i].name : "";
+}
+
+u32 PortPaintFeetOfRgb(u32 rgb)
+{
+    return PortPaintFeet555(To555((int)(rgb >> 16) & 255, (int)(rgb >> 8) & 255, (int)rgb & 255));
+}
+
+/* --- unit checks -------------------------------------------------------------------- */
+
+static int Near555(u16 a, u16 b)
+{
+    int k;
+
+    for (k = 0; k < 15; k += 5) {
+        int d = (int)((a >> k) & 31) - (int)((b >> k) & 31);
+
+        if (d < -1 || d > 1)
+            return 0;
+    }
+    return 1;
+}
+
+int PortPaintSelfTest(void)
+{
+    /* FNV-1a over what the one-colour derivation gave before the parts
+     * (recorded from fd72fc2 with the English ROM): 4096 custom colours, the
+     * fourteen sprays and none, each as the Kirby's palette and the HUD's. */
+    const u32 kOldDigest = 0x56B59CB5u;
+    u32 h = 2166136261u;
+    u16 pal[16], ref[16], hud[16], hudRef[16];
+    int i, k, c, fail = 0, checks = 0;
+
+    if (VariantPalette(BODY_ANIM, 0) == NULL) {
+        PortLog("[paint-test] no ROM palettes");
+        return 1;
+    }
+    memset(pal, 0, sizeof pal);
+    for (i = 0; i < 4096 + 14 + 1; i++) {
+        u32 v = i < 4096 ? PortPaintCustom(((u32)((i >> 8) & 15) * 17 << 16) | ((u32)((i >> 4) & 15) * 17 << 8)
+                                           | (u32)(i & 15) * 17)
+              : i < 4110 ? PortPaintSpray(i - 4096) : 0;
+
+        for (c = 0; c < 2; c++) {
+            int ok = c == 0 ? PortPaintBodyPalette(v, 0, 2, pal) : PortPaintHudPaletteOf(v, 0, 3, pal);
+
+            h = (h ^ (u32)ok) * 16777619u;
+            for (k = 0; k < 16; k++)
+                h = (h ^ pal[k]) * 16777619u;
+        }
+        h = (h ^ (u32)PortPaintTemplate(v)) * 16777619u;
+    }
+    checks++;
+    if (h != kOldDigest) {
+        PortLog("[paint-test] FAIL one-colour palettes changed: digest %08X, was %08X", (unsigned)h,
+                (unsigned)kOldDigest);
+        fail++;
+    }
+
+    /* Every preset: a valid body paint and a colour; the sprays are theirs. */
+    for (i = 0; i < PORT_PAINT_PRESETS; i++) {
+        checks++;
+        if (!PortPaintValid(PortPaintPresetBody(i)) || PortPaintPresetBody(i) == PORT_PAINT_NONE
+            || PortPaintPresetRgb(i) < 0 || !PortPaintPresetName(i)[0]
+            || (kPresets[i].spray >= 0 && PortPaintPresetRgb(i) != PortPaintSprayRgb(kPresets[i].spray))) {
+            PortLog("[paint-test] FAIL preset %d", i);
+            fail++;
+        }
+    }
+    for (k = 0; k < PORT_PAINT_COLORS; k++) {
+        int found = 0;
+
+        for (i = 0; i < PORT_PAINT_PRESETS; i++)
+            found |= PortPaintPresetBody(i) == PortPaintSpray(k);
+        checks++;
+        if (!found) {
+            PortLog("[paint-test] FAIL spray %d is not in the grid", k);
+            fail++;
+        }
+    }
+
+    /* The feet: every body preset with every feet preset.  Only 9..11 (the
+     * Kirby) and 4 (the HUD) move; 9 and 4 are the feet colour itself; a
+     * spray body keeps the spray's every other entry. */
+    for (i = 0; i < PORT_PAINT_PRESETS; i++) {
+        u32 v = PortPaintPresetBody(i);
+
+        if (!PortPaintBodyPalette(v, 0, 0, ref) || !PortPaintHudPaletteOf(v, 0, 0, hudRef)) {
+            PortLog("[paint-test] FAIL preset %d: no palette", i);
+            fail++;
+            continue;
+        }
+        for (c = 0; c < PORT_PAINT_PRESETS; c++) {
+            u32 feet = PortPaintFeetOfRgb((u32)PortPaintPresetRgb(c));
+            int bad = 0;
+
+            checks++;
+            if (!PortPaintBodyPalette(v, feet, 0, pal) || !PortPaintHudPaletteOf(v, feet, 0, hud)) {
+                bad = 1;
+            } else {
+                for (k = 0; k < 16; k++) {
+                    if ((k >= FEET0 && k <= FEET1) != 0) {
+                        if (k == FEET0 && !Near555(pal[k], (u16)(feet & 0x7FFF)))
+                            bad |= 2;
+                    } else if (pal[k] != ref[k]) {
+                        bad |= 4;
+                    }
+                    if (k == HUD_FEET) {
+                        if (!Near555((u16)(hud[k] & 0x7FFF), (u16)(feet & 0x7FFF)))
+                            bad |= 8;
+                    } else if (hud[k] != hudRef[k]) {
+                        bad |= 16;
+                    }
+                }
+            }
+            if (bad) {
+                PortLog("[paint-test] FAIL body %s feet %s: %d (9 = %04X want %04X)", kPresets[i].name,
+                        kPresets[c].name, bad, (unsigned)pal[FEET0], (unsigned)(feet & 0x7FFF));
+                fail++;
+            }
+        }
+    }
+
+    /* Values an event may carry. */
+    checks++;
+    if (!PortPaintFeetValid(0) || !PortPaintFeetValid(0x8000) || !PortPaintFeetValid(0xFFFF)
+        || PortPaintFeetValid(0x7FFF) || PortPaintFeetValid(0x18000)) {
+        PortLog("[paint-test] FAIL feet values");
+        fail++;
+    }
+    /* None + feet: the feet are ignored (no body paint, no parts). */
+    checks++;
+    if (!PortPaintBodyPalette(PORT_PAINT_NONE, 0x801F, 5, pal) || !PortPaintBodyPalette(PortPaintSpray(5), 0, 0, ref)
+        || memcmp(pal, ref, sizeof pal) != 0) {
+        PortLog("[paint-test] FAIL none + feet");
+        fail++;
+    }
+    PortLog("[paint-test] %d checks, %d failed", checks, fail);
+    return fail;
 }
 
 #ifdef __cplusplus

@@ -84,6 +84,7 @@
 #include "port/players_ui.h"
 #include "port/backend.h"     /* PortFrameNumber (tests) */
 #include "port/player_card.h"
+#include "port/kirby_paint.h"     /* the presets' grid */
 #include "port/simblock.h"
 #include "port/inputlog.h"   /* PortInputLogReplaying */
 #include "ui/settings.h"
@@ -2156,7 +2157,7 @@ static const struct PocModel kCardModel = {
     NULL, 0, PORT_CARD_SUB_CARD,
 };
 static const struct PocModel kPickModel = {
-    PORT_CARD_ROWS, "COLOR", CardName, CardValue, CardDesc, MpStep, CardUnavailable, 0,
+    PORT_CARD_PICK_ROWS, "COLOR", CardName, CardValue, CardDesc, MpStep, CardUnavailable, 0,
     NULL, 0, PORT_CARD_SUB_PICK,
 };
 
@@ -2320,26 +2321,39 @@ static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
 }
 
 /* --- the player card's extras: a Kirby in the card's colour, and the
- * picker's bars ----------------------------------------------------------------
+ * picker's grid --------------------------------------------------------------
  *
  * In the MULTIPLAYER screen's block, after the most its three-row screens
  * use.  The Kirby is the standing frame (anim 0, variant 0) decoded from
  * the sprite tables like the banners are, drawn at twice its size; its
  * palette line is the card's derived palette (platform/kirby_paint.c), the
- * same bytes the game will load, rewritten every frame.  Each bar is 13
- * swatches across the range of its row at the other two values, the current
- * one framed.  Four OBJ palette lines the front end does not use here, kept
- * and put back around the card screens. */
+ * same bytes the game will load, rewritten every frame.  The PICK screen
+ * puts the Kirby to the right and the presets' grid (8 x 4) to the left:
+ * each cell an 8 x 8 object of one solid tile, the cell of the row's part
+ * framed (white while the grid is open and the d-pad moves it, grey when
+ * not), and a swatch of each part's colour at its row's end.  Four OBJ
+ * palette lines the front end does not use here, kept and put back around
+ * the card screens: 10 and 11 the first 30 presets, 12 the last two, the
+ * swatches and the frames' colours, 13 the Kirby. */
 #define MP_TILES         ((PORT_CARD_ROWS * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES)
 #define CARD_PREV_TILES  64             /* 64 x 64                           */
-#define CARD_BAR_TILES   8              /* 64 x 8: two 32 x 8 objects        */
-#define CARD_EXTRA_TILES (CARD_PREV_TILES + PORT_CARD_ROWS * CARD_BAR_TILES)
-#define PAL_BAR0         10             /* 10, 11, 12: the bars              */
+#define CARD_SOLID_TILES 15             /* tile k-1: every pixel colour k    */
+#define CARD_FRAME_TILES 4              /* 16 x 16: a frame, two of them     */
+#define CARD_EXTRA_TILES (CARD_PREV_TILES + CARD_SOLID_TILES + 2 * CARD_FRAME_TILES)
+#define PAL_BAR0         10             /* 10, 11, 12: the grid, swatches    */
 #define PAL_PREVIEW      13
 #define CARD_PAL_LINES   4
 #define CARD_PREV_X      (DISPLAY_WIDTH / 2 - 32)
 #define CARD_PREV_Y      88
-#define CARD_BAR_X       (ROW_FRAME_X + 120)
+#define PICK_PREV_X      (DISPLAY_WIDTH / 2 + 26)
+#define PICK_PREV_Y      70
+#define GRID_X           (DISPLAY_WIDTH / 2 - 96)
+#define GRID_Y           78
+#define GRID_PITCH       11
+#define SWATCH_X         (ROW_FRAME_X + ROW_VALUE_X1 + 4)
+#define C_SWATCH0        3              /* line 12: 3 the body's, 4 the feet's */
+#define C_FRAME_ON       14
+#define C_FRAME_OFF      15
 
 static s32 RowFrameY(int row);
 
@@ -2398,71 +2412,74 @@ static void CardPreviewPack(u32 tiles)
     PackObj(big, 64, 64, CardExtraVram(tiles));
 }
 
-static void CardBarsPack(u32 tiles)
+static u32 CardSolidVram(u32 tiles, int k)      /* k = 1..15 */
 {
-    static u8 px[64 * 8];
-    int r, i, x, y;
+    return CardExtraVram(tiles) + (CARD_PREV_TILES + k - 1) * 32;
+}
 
-    for (r = 0; r < PORT_CARD_ROWS; r++) {
-        u16 cols[13];
-        int cur = PortCardBar(r, cols);
+static u32 CardFrameVram(u32 tiles, int on)
+{
+    return CardExtraVram(tiles) + (CARD_PREV_TILES + CARD_SOLID_TILES + (on ? 0 : CARD_FRAME_TILES)) * 32;
+}
+
+/* The grid's tiles: fifteen solid ones and the two frames (12 x 12 squares
+ * in a 16 x 16 object, so a frame drawn 2 px up and left of a cell rings it
+ * in the gap between cells). */
+static void CardGridPack(u32 tiles)
+{
+    static u8 px[16 * 16];
+    int k, on, i;
+
+    for (k = 1; k <= CARD_SOLID_TILES; k++) {
+        memset(px, k, 64);
+        PackObj(px, 8, 8, CardSolidVram(tiles, k));
+    }
+    for (on = 0; on < 2; on++) {
+        u8 c = (u8)(on ? C_FRAME_ON : C_FRAME_OFF);
 
         memset(px, 0, sizeof(px));
-        for (x = 0; x < 64; x++)
-            px[x] = px[7 * 64 + x] = 15;
-        for (y = 0; y < 8; y++)
-            px[y * 64] = px[y * 64 + 63] = 15;
-        for (i = 0; i < 13; i++) {
-            int x0 = 1 + i * 62 / 13, x1 = 1 + (i + 1) * 62 / 13;
-
-            for (y = 1; y < 7; y++)
-                for (x = x0; x < x1; x++)
-                    px[y * 64 + x] = (u8)(1 + i);
-            if (i == cur)
-                for (x = x0 - 1; x <= x1 && x < 63; x++) {
-                    px[0 * 64 + (x < 0 ? 0 : x)] = 14;
-                    px[7 * 64 + (x < 0 ? 0 : x)] = 14;
-                }
-        }
-        /* a 64 x 8 bar as two 32 x 8 objects' tiles */
-        {
-            static u8 half[32 * 8];
-            int part;
-
-            for (part = 0; part < 2; part++) {
-                for (y = 0; y < 8; y++)
-                    memcpy(&half[y * 32], &px[y * 64 + part * 32], 32);
-                PackObj(half, 32, 8, CardExtraVram(tiles) + (CARD_PREV_TILES + r * CARD_BAR_TILES + part * 4) * 32);
-            }
-        }
+        for (i = 0; i < 12; i++)
+            px[i] = px[11 * 16 + i] = px[i * 16] = px[i * 16 + 11] = c;
+        PackObj(px, 16, 16, CardFrameVram(tiles, on));
     }
 }
 
 /* Every frame: the palettes (cheap), then the objects -- before the rows,
- * so the bars are drawn over the rows' banners. */
-static void CardExtrasDraw(u32 tiles, int slide, u8 layer)
+ * so the swatches are drawn over the rows' banners, and the frame before
+ * the cells, so it is over them. */
+static void CardExtrasDraw(u32 tiles, int slide, u8 layer, int row)
 {
     u16 pal[16];
-    int r, i;
+    int i, pick = sModel->card == PORT_CARD_SUB_PICK;
 
+    if (pick) {
+        u16 cols[PORT_PAINT_PRESETS];
+        int open = 0, cell = PortCardGrid(row, cols, &open), r;
+
+        for (i = 0; i < PORT_PAINT_PRESETS; i++)
+            gObjPalette[(PAL_BAR0 + i / 15) * 16 + 1 + i % 15] = cols[i];
+        for (r = 0; r < PORT_CARD_PICK_ROWS; r++)
+            gObjPalette[(PAL_BAR0 + 2) * 16 + C_SWATCH0 + r] = PortCardPartColor(r);
+        gObjPalette[(PAL_BAR0 + 2) * 16 + C_FRAME_ON] = 0x7FFF;
+        gObjPalette[(PAL_BAR0 + 2) * 16 + C_FRAME_OFF] = 0x4E73;
+        if (cell >= 0)
+            PutObj(layer, GRID_X + (cell % PORT_PAINT_PRESET_COLS) * GRID_PITCH - 2 + slide,
+                   GRID_Y + (cell / PORT_PAINT_PRESET_COLS) * GRID_PITCH - 2, 0, 1,
+                   CardFrameVram(tiles, open), PAL_BAR0 + 2);
+        for (i = 0; i < PORT_PAINT_PRESETS; i++)
+            PutObj(layer, GRID_X + (i % PORT_PAINT_PRESET_COLS) * GRID_PITCH + slide,
+                   GRID_Y + (i / PORT_PAINT_PRESET_COLS) * GRID_PITCH, 0, 0,
+                   CardSolidVram(tiles, 1 + i % 15), PAL_BAR0 + i / 15);
+        for (r = 0; r < PORT_CARD_PICK_ROWS; r++)
+            PutObj(layer, SWATCH_X + slide, RowFrameY(r) + 5, 0, 0, CardSolidVram(tiles, C_SWATCH0 + r),
+                   PAL_BAR0 + 2);
+    }
     if (PortCardPreviewPalette(pal)) {
         for (i = 1; i < 16; i++)
             gObjPalette[PAL_PREVIEW * 16 + i] = pal[i];
-        PutObj(layer, CARD_PREV_X + slide, CARD_PREV_Y, 0, 3, CardExtraVram(tiles), PAL_PREVIEW);
+        PutObj(layer, (pick ? PICK_PREV_X : CARD_PREV_X) + slide, pick ? PICK_PREV_Y : CARD_PREV_Y, 0, 3,
+               CardExtraVram(tiles), PAL_PREVIEW);
     }
-    if (sModel->card == PORT_CARD_SUB_PICK)
-        for (r = 0; r < PORT_CARD_ROWS; r++) {
-            u16 cols[13];
-            u32 v = CardExtraVram(tiles) + (CARD_PREV_TILES + r * CARD_BAR_TILES) * 32;
-
-            PortCardBar(r, cols);
-            for (i = 0; i < 13; i++)
-                gObjPalette[(PAL_BAR0 + r) * 16 + 1 + i] = cols[i];
-            gObjPalette[(PAL_BAR0 + r) * 16 + 14] = 0x7FFF;
-            gObjPalette[(PAL_BAR0 + r) * 16 + 15] = 0x0000;
-            PutObj(layer, CARD_BAR_X + slide, RowFrameY(r) + 8, 1, 1, v, PAL_BAR0 + r);
-            PutObj(layer, CARD_BAR_X + 32 + slide, RowFrameY(r) + 8, 1, 1, v + 4 * 32, PAL_BAR0 + r);
-        }
     gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
 }
 
@@ -2475,7 +2492,7 @@ static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblV
     CardPalettesKeep(m->card != 0);
     if (m->card) {
         CardPreviewPack(tiles);
-        CardBarsPack(tiles);
+        CardGridPack(tiles);
         sCardGenShown = PortCardGen();
         PortCardNoteRow(row);
     }
@@ -2561,14 +2578,13 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
 
     sLastDrawFrame = PortFrameNumber();
     /* the player card: its rows follow every edit (keys, letters the web
-     * page types), and its Kirby and bars are drawn first (on top) */
+     * page types), and its Kirby and grid are drawn first (on top) */
     if (sModel->card && PortCardGen() != sCardGenShown) {
         sCardGenShown = PortCardGen();
         DrawRows(tiles, row);
-        CardBarsPack(tiles);
     }
     if (sModel->card)
-        CardExtrasDraw(tiles, slide, layer);
+        CardExtrasDraw(tiles, slide, layer, row);
 
     /* the header slides in from the left as the game's (unkC) do */
     DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(tiles), HEAD_COLS,
@@ -2652,7 +2668,6 @@ static int CardScreenInput(u32 tiles, u8 *row, unsigned key)
     }
     sCardGenShown = PortCardGen();
     DrawRows(tiles, r);
-    CardBarsPack(tiles);
     sDescShown = sModel->desc(r);
     BuildDesc(sDescShown, SetDescVram(tiles));
     return act == PORT_CARD_K_CURSOR ? PORT_POC_IN_CURSOR : PORT_POC_IN_VALUE;
@@ -2935,8 +2950,6 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
         (void)r;
         sCardGenShown = PortCardGen();
         DrawRows(a1->unk3A8.tilesVram, row);
-        if (sModel->card)
-            CardBarsPack(a1->unk3A8.tilesVram);
         sDescShown = sModel->desc(row);
         BuildDesc(sDescShown, SetDescVram(a1->unk3A8.tilesVram));
     }

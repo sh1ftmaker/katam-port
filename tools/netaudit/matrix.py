@@ -3,7 +3,8 @@
 inputs, can make two devices' game memory differ?
 
     python3 tools/netaudit/matrix.py [--rom ROM] [--eval DIR] [--jobs N]
-                                     [--only ID,ID] [--no-build-check]
+                                     [--only ID,ID] [--no-build-check] [--no-dumps]
+                                     [--expect FILE] [--write-expect FILE]
 
 Every run replays one recording through one "device" and logs, per frame, the
 raw whole-image hashes platform/audit.c takes at the top of the frame (the
@@ -487,6 +488,11 @@ def main():
     ap.add_argument('--jobs', type=int, default=max(2, min(12, (os.cpu_count() or 4) // 2)))
     ap.add_argument('--only', default='')
     ap.add_argument('--save', default='', help='a played 64 KiB save for the sram factor')
+    ap.add_argument('--expect', default='', help='JSON {factor id: verdict}: exit 1 when a verdict differs '
+                    '(tools/netaudit/expected_verdicts.json; --write-expect FILE writes one from this run)')
+    ap.add_argument('--write-expect', default='')
+    ap.add_argument('--no-dumps', action='store_true', help='skip pass 2 (raw dumps at the first differing '
+                    'frame, for the report\'s symbol columns): verdicts and first frames only')
     a = ap.parse_args()
     t0 = time.time()
     C.rom = Path(a.rom)
@@ -523,9 +529,11 @@ def main():
         if j:
             key = (json.dumps(fix(x['base']), sort_keys=True, default=str), j['frame'])
             donors.setdefault(key, []).append(x)
+    donor_jobs = [('donor%02d-%d' % (i, fr), fix(xs[0]['base']), [fr]) for i, ((bk, fr), xs) in enumerate(donors.items())]
+    with cf.ThreadPoolExecutor(a.jobs) as pool:
+        list(pool.map(lambda j: run(*j), donor_jobs))
     for i, ((bk, fr), xs) in enumerate(donors.items()):
         name = 'donor%02d-%d' % (i, fr)
-        run(name, fix(xs[0]['base']), [fr])
         img = C.tmp / name / 'dumps' / ('%d.kaud' % fr)
         for x in xs:
             j = dict(x['var']['join'])
@@ -575,7 +583,8 @@ def main():
             if last not in fr:
                 fr.append(last)
             x['dump_frames'] = fr
-            redo.append(x)
+            if not a.no_dumps:
+                redo.append(x)
     dumpjobs = {}
     for x in redo:
         for side in ('base', 'var'):
@@ -613,6 +622,21 @@ def main():
     import report
     report.write(ev, F, meta, secs, ROOT)
     print('wrote %s/AUDIT-REPORT.md in %.0f s' % (ev, secs))
+    got = {x['id']: x['verdict'] for x in F}
+    if a.write_expect:
+        Path(a.write_expect).write_text(json.dumps(got, indent=1) + '\n')
+    bad = [k for k, v in got.items() if v == 'FAILED']
+    if a.expect:
+        want = json.loads(Path(a.expect).read_text())
+        for k in sorted(set(want) | set(got)):
+            if a.only and k not in got:
+                continue
+            if want.get(k) != got.get(k):
+                bad.append(k)
+                print('UNEXPECTED %s: %s, expected %s' % (k, got.get(k, 'not run'), want.get(k, 'no expectation')))
+        print('%d factors, %d as expected' % (len(got), len(got) - len(bad)))
+    if bad:
+        sys.exit(1)
 
 
 if __name__ == '__main__':
