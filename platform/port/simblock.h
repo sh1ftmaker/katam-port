@@ -110,7 +110,14 @@ struct PortSimGame {            /* 0x70 */
     u32 hblankIntrs[4];         /* gHBlankIntrs: PTR32_TD(HBlankFunc)[4]     */
     u8  inputRecorder[12];      /* gInputRecorder: struct InputRecorder      */
     u32 tapeBuffer;             /* input_recorder.c sTapeBuffer: EWRAM addr  */
-    u32 reserved[8];
+    /* Player-card paint (platform/kirby_paint.c): each Kirby slot's colour,
+     * PORT_PAINT_* (0 = the game's own).  Was spare; all zero until someone
+     * paints, so the hash of a run without it is the hash it always was. */
+    u32 paint[4];
+    u8  paintOn;                /* nonzero while any slot's paint is set     */
+    u8  paintDirty;             /* slots whose palette must be reloaded      */
+    u16 paintPad;
+    u32 reserved[3];
 };                              /* 0x40 */
 
 /* The timeline's derived state: which peer drives each Kirby slot, how many

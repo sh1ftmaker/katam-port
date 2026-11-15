@@ -1,0 +1,139 @@
+#ifndef GUARD_PORT_PLAYER_CARD_H
+#define GUARD_PORT_PLAYER_CARD_H
+/* The player card: a name and a Kirby colour per player, kept with the
+ * device's settings, and the in-game screens that edit it (Start Game >
+ * MULTIPLAYER > PLAYER CARD).  platform/player_card.c has the design.
+ *
+ * Device state only.  Nothing here is simulation state or is read by the
+ * simulation: a colour reaches the game as a recorded, frame-stamped paint
+ * (port/kirby_paint.h) that this file schedules; a name never reaches it. */
+
+#include "gba/types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define PORT_CARD_PLAYERS  4
+#define PORT_CARD_NAME_MAX 8        /* characters; A-Z 0-9 space - . ! */
+
+/* How a card's colour is chosen. */
+#define PORT_CARD_GAME   0          /* the game's own (spray paint / slot)     */
+#define PORT_CARD_SPRAY  1          /* one of the game's fourteen              */
+#define PORT_CARD_CUSTOM 2          /* any colour: hue / saturation / value    */
+
+struct PortCard {
+    char name[PORT_CARD_NAME_MAX + 1];  /* "" = no name (shown as P1..P4)  */
+    u8   mode;                          /* PORT_CARD_*                       */
+    u8   spray;                         /* 0..13 while mode is SPRAY         */
+    u16  hue;                           /* 0..359 } while mode is CUSTOM     */
+    u8   sat, val;                      /* 0..100 }                          */
+};
+
+/* --- the cards (player p = 0..3; card 0 is this device's own profile) ----- */
+const struct PortCard *PortCardGet(int p);
+void PortCardSet(int p, const struct PortCard *c);  /* clamps, saves         */
+/* The paint value (port/kirby_paint.h) a card stands for; 0 = the game's. */
+u32  PortCardPaint(int p);
+/* A card's name as shown: its name, or "P1".."P4". */
+const char *PortCardShownName(int p);
+/* 0xRRGGBB of a custom colour (h 0..359, s and v 0..100). */
+u32  PortCardHsvRgb(int h, int s, int v);
+
+/* --- settings (platform/ui/settings.c) ------------------------------------- */
+/* A settings line card0..card3; 1 if it was one of ours. */
+int  PortCardParseSetting(const char *key, const char *val);
+/* Our lines, appended to the settings text; returns the bytes written. */
+int  PortCardFormatSettings(char *buf, int size);
+
+/* --- names on this device (presentation: the party HUD, name tags) --------
+ * Slot s's (0..3) name for the screen, "" when nobody should be named (a CPU
+ * Kirby).  Locally a human slot shows its card's name; online the session
+ * layer says who is in which slot (PortCardSetSlotName).  Never simulation
+ * state: draw it, do not feed it to the game. */
+const char *PortPlayerName(int slot);
+/* The colour to draw slot s's name in (0xRRGGBB): the Kirby's body fill. */
+u32  PortPlayerColor(int slot);
+/* Where a name tag over slot s's Kirby goes: the top of its head in world
+ * pixels (*x, *y) and its room; 0 when it should not be tagged (no name, not
+ * alive, between rooms, not in the local player's room, tags off).  Read
+ * from game memory, never written: the renderer projects it. */
+int  PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room);
+/* Online: slot s is `name` on this device (NULL / "" clears it). */
+void PortCardSetSlotName(int slot, const char *name);
+/* Name tags over the Kirbys (web page / renderer): on by default. */
+int  PortCardTagsOn(void);
+void PortCardSetTagsOn(int on);
+
+/* --- online hand-off (the session layer: web/online.js, web/ln_session.js) --
+ * "Send this device's profile to the host": the profile as a short string,
+ * NAME then a tab then the paint as 8 hex digits ("KIRBY\t02FF80C0"); the
+ * page sends it and the host turns it into the two calls below. */
+const char *PortCardProfileString(void);
+/* Host: apply slot s's paint as a sealed event at the next frame it seals
+ * (PORT_LN_EV_PAINT); returns that frame, -1 when not the host of a session
+ * or the value is not a paint.  Every device then applies it at that frame. */
+int  PortCardHostApplyPaint(int slot, u32 paint);
+/* Host: the same from a profile string (paint part); also names the slot. */
+int  PortCardHostApplyProfile(int slot, const char *profile);
+
+/* --- the host's frame hook (platform/main.c, before the latch) -------------
+ * Local play: a human slot wears its card (slot 0 from the start, the
+ * others from the frame they join), a CPU slot the game's colour -- scheduled
+ * as `paint` lines at the next latch whenever the simulation's paint
+ * differs.  Online host: its own slot likewise, as session events.  Nothing
+ * while replaying, while a guest, under rollback / netsim / seats, or while a
+ * card is being edited (the change is put on when the card closes). */
+void PortCardHostFrame(void);
+
+/* --- the card screens (the front end's MULTIPLAYER screen draws them; a
+ * players page or the pause menu can too) --------------------------------- */
+#define PORT_CARD_SUB_NONE 0
+#define PORT_CARD_SUB_CARD 1        /* PLAYER / NAME / COLOR                  */
+#define PORT_CARD_SUB_PICK 2        /* HUE / VIVID / BRIGHT (h, s, v)         */
+#define PORT_CARD_ROWS     3
+
+/* Open player p's card (0..3); `fixed` hides the PLAYER row's choice (a
+ * caller that already knows whose card it is).  The screens below are then
+ * PortCardSub() != NONE until a B on the CARD screen closes them. */
+void PortPlayerCardOpen(int p, int fixed);
+void PortPlayerCardClose(void);
+int  PortCardSub(void);
+int  PortCardPlayer(void);
+u32  PortCardGen(void);                 /* changes when anything shown does */
+const char *PortCardHeader(int sub);
+const char *PortCardRowName(int sub, int row);
+void PortCardRowValue(int sub, int row, int selected, char *buf, int size);
+const char *PortCardRowDesc(int sub, int row);
+/* One key (sub_0813B484's: 1 A, 2 B, 3 up, 4 down, 5 left, 6 right) on a
+ * card screen; *row the cursor.  PORT_CARD_K_*; PortCardSub() may change. */
+#define PORT_CARD_K_NONE   0
+#define PORT_CARD_K_QUIET  1
+#define PORT_CARD_K_CURSOR 2
+#define PORT_CARD_K_SELECT 3
+#define PORT_CARD_K_BACK   4
+#define PORT_CARD_K_CLOSE  5        /* B on the CARD screen: it is closed     */
+int  PortCardKey(int *row, unsigned key);
+/* The edited card's body palette (16 BGR555), for a preview. */
+int  PortCardPreviewPalette(u16 out[16]);
+/* A picker row's bar: 13 BGR555 colours across its range at the current
+ * other two values, and where the current value sits (0..12). */
+int  PortCardBar(int row, u16 out[13]);
+/* The edited name with the cursor: is the NAME row taking typed letters
+ * (the web page sends a keyboard's or a phone keyboard's letters here). */
+int  PortCardWantsText(void);
+/* The screen's row cursor, as the screen's code moved it (for the above). */
+void PortCardNoteRow(int row);
+void PortCardTypeChar(int c);           /* a letter; 8 = backspace          */
+void PortCardSetNameJs(const char *name);
+const char *PortCardNameJs(void);
+
+/* Native debugging: KATAM_PAINT_SHEET=out.png writes a sheet of the derived
+ * palettes and a standing Kirby in each (ROM-derived: keep it out of the
+ * repository). */
+void PortCardDebugSheet(void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* GUARD_PORT_PLAYER_CARD_H */

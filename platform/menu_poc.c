@@ -77,6 +77,7 @@
 #include "port/menu_poc.h"
 #include "port/localmp.h"
 #include "port/online_ui.h"
+#include "port/player_card.h"
 #include "port/simblock.h"
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
@@ -140,6 +141,7 @@ typedef char PauseObjFits[PORT_POC_PAUSE_CURSOR_VRAM + 0x10 * 32
                           <= PORT_POC_PAUSE_OBJ_VRAM + PORT_POC_PAUSE_OBJ_BYTES ? 1 : -1];
 
 static int sOn = -1;
+static void CardPalettesKeep(int on);   /* the player card's lent palette lines */
 /* KATAM_MENU_POC=2: as 1, but never cut letters from the game's pictures --
  * what a language other than English gets (for testing the fallback). */
 static int sNoCuts;
@@ -281,6 +283,15 @@ static int DecodeSpriteFrame(u16 animId, u8 variant, u8 *px, int cw, int ch,
     *offX = a->offsetX;
     *offY = a->offsetY;
     return fw;
+}
+
+/* The same, for the player card's preview and debug sheet
+ * (platform/player_card.c; port/menu_poc.h). */
+int PortPocDecodeFrame(u16 animId, u8 variant, u8 *px, int cw, int ch, int *h)
+{
+    s16 ox, oy;
+
+    return DecodeSpriteFrame(animId, variant, px, cw, ch, h, &ox, &oy);
 }
 
 /* A two-row BG picture (gUnk_082D7850[idx]: a description line) into px,
@@ -777,6 +788,7 @@ void PortMenuPocFree(struct Unk_08138D64 *a1)
 {
     if (!PortMenuPoc())
         return;
+    CardPalettesKeep(0);
     if (sOwner == a1) {
         if (a1->unk3A8.tilesVram && VramOk(a1->unk3A8.tilesVram))
             VramFree(a1->unk3A8.tilesVram);
@@ -1051,6 +1063,8 @@ struct PocModel {
     /* an ONLINE sub-screen (platform/online_ui.c draws its text): its
      * PORT_OUI_SUB_*, 0 for the others */
     int oui;
+    /* a player card screen (platform/player_card.c): its PORT_CARD_SUB_* */
+    int card;
 };
 
 static const char *SetName(int row) { return kRowName[row]; }
@@ -1066,15 +1080,20 @@ static const struct PocModel kSettingsModel = {
  * ONLINE (two devices, platform/online_ui.c and web/online.js).  In an
  * online session, should the game ever come back here, nothing that depends
  * on the device: both rows dimmed, fixed text. */
-static const char *MpName(int row) { return row == 0 ? "LOCAL" : "ONLINE"; }
+static const char *MpName(int row) { return row == 0 ? "LOCAL" : row == 1 ? "ONLINE" : "PLAYER CARD"; }
 static void MpValue(int row, char *buf, int size)
 {
-    snprintf(buf, size, "%s", row == 0 ? "2 PLAYERS" : "INTERNET");
+    if (row == PORT_MENU_POC_MP_CARD)   /* online: nothing device-dependent */
+        snprintf(buf, size, "%s", gPortLnOn ? "" : PortCardShownName(0));
+    else
+        snprintf(buf, size, "%s", row == 0 ? "2 PLAYERS" : "INTERNET");
 }
 static const char *MpDesc(int row)
 {
     if (gPortLnOn)
         return "IN AN ONLINE GAME";
+    if (row == PORT_MENU_POC_MP_CARD)
+        return "YOUR NAME AND KIRBY COLOR";
     if (row != 0)
         return "PLAY WITH A FRIEND ONLINE";
     if (!PortLmpP2InputAvailable())
@@ -1092,7 +1111,7 @@ static int MpUnavailable(int row)
 }
 
 static const struct PocModel kMpModel = {
-    2, "MULTIPLAYER", MpName, MpValue, MpDesc, MpStep, MpUnavailable,
+    3, "MULTIPLAYER", MpName, MpValue, MpDesc, MpStep, MpUnavailable,
 };
 
 /* ONLINE > HOST GAME / JOIN GAME, and the two screens behind them: the
@@ -1113,12 +1132,29 @@ static const struct PocModel kJoinModel = {
     2, "JOIN GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_JOIN,
 };
 
+/* PLAYER CARD and its colour picker (platform/player_card.c), on the same
+ * tiles, with the Kirby preview and the picker's bars beside them. */
+static const char *CardName(int row) { return PortCardRowName(sModel->card, row); }
+static void CardValue(int row, char *buf, int size) { PortCardRowValue(sModel->card, row, 0, buf, size); }
+static const char *CardDesc(int row) { return PortCardRowDesc(sModel->card, row); }
+
+static const struct PocModel kCardModel = {
+    PORT_CARD_ROWS, "PLAYER CARD", CardName, CardValue, CardDesc, MpStep, SetUnavailable, 0,
+    PORT_CARD_SUB_CARD,
+};
+static const struct PocModel kPickModel = {
+    PORT_CARD_ROWS, "COLOR", CardName, CardValue, CardDesc, MpStep, SetUnavailable, 0,
+    PORT_CARD_SUB_PICK,
+};
+
 static const char *sDescShown;      /* what the screen's description holds */
 static u32 sOuiGenShown;            /* PortOuiGen() the rows were drawn at */
+static u32 sCardGenShown;           /* PortCardGen() the same              */
 
 /* The models, numbered for the host state an online image carries. */
 static const struct PocModel *const kModels[] = {
     &kSettingsModel, &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel,
+    &kCardModel, &kPickModel,
 };
 
 /* --- the screen itself, shared by the front end and the pause page ----------
@@ -1177,6 +1213,8 @@ static void DrawRowTiles(u32 tiles, int row, int selected)
     CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, sModel->name(row), LBL_FILL, LBL_EDGE);
     if (sModel->oui)
         PortOuiRowValue(sModel->oui, row, selected, val, sizeof(val));
+    else if (sModel->card)
+        PortCardRowValue(sModel->card, row, selected, val, sizeof(val));
     else
         sModel->value(row, val, sizeof(val));
     /* the selected row's value between arrows, where they fit (and where
@@ -1216,11 +1254,166 @@ static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
     PackPic(px, HEAD_COLS, HeadVram(tiles));
 }
 
+/* --- the player card's extras: a Kirby in the card's colour, and the
+ * picker's bars ----------------------------------------------------------------
+ *
+ * In the MULTIPLAYER screen's block, after the most its three-row screens
+ * use.  The Kirby is the standing frame (anim 0, variant 0) decoded from
+ * the sprite tables like the banners are, drawn at twice its size; its
+ * palette line is the card's derived palette (platform/kirby_paint.c), the
+ * same bytes the game will load, rewritten every frame.  Each bar is 13
+ * swatches across the range of its row at the other two values, the current
+ * one framed.  Four OBJ palette lines the front end does not use here, kept
+ * and put back around the card screens. */
+#define MP_TILES         ((PORT_CARD_ROWS * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES)
+#define CARD_PREV_TILES  64             /* 64 x 64                           */
+#define CARD_BAR_TILES   8              /* 64 x 8: two 32 x 8 objects        */
+#define CARD_EXTRA_TILES (CARD_PREV_TILES + PORT_CARD_ROWS * CARD_BAR_TILES)
+#define PAL_BAR0         10             /* 10, 11, 12: the bars              */
+#define PAL_PREVIEW      13
+#define CARD_PAL_LINES   4
+#define CARD_PREV_X      (DISPLAY_WIDTH / 2 - 32)
+#define CARD_PREV_Y      88
+#define CARD_BAR_X       (ROW_FRAME_X + 120)
+
+static s32 RowFrameY(int row);
+
+static u16 sCardPalSave[CARD_PAL_LINES * 16];
+static int sCardPalSaved;
+
+static u32 CardExtraVram(u32 tiles)
+{
+    return tiles + MP_TILES * 32;
+}
+
+static void CardPalettesKeep(int on)
+{
+    if (on && !sCardPalSaved) {
+        memcpy(sCardPalSave, &gObjPalette[PAL_BAR0 * 16], sizeof(sCardPalSave));
+        sCardPalSaved = 1;
+    } else if (!on && sCardPalSaved) {
+        memcpy(&gObjPalette[PAL_BAR0 * 16], sCardPalSave, sizeof(sCardPalSave));
+        sCardPalSaved = 0;
+        gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+    }
+}
+
+/* Pack a w x h canvas (w, h multiples of 8) as one object's 1D tiles. */
+static void PackObj(const u8 *px, int w, int h, u32 vram)
+{
+    u8 *dst = (u8 *)(uintptr_t)vram;
+    int ty, tx, y, x;
+
+    for (ty = 0; ty < h / 8; ty++)
+        for (tx = 0; tx < w / 8; tx++)
+            for (y = 0; y < 8; y++)
+                for (x = 0; x < 8; x += 2) {
+                    int sx = tx * 8 + x, sy = ty * 8 + y;
+
+                    *dst++ = (u8)(px[sy * w + sx] | (px[sy * w + sx + 1] << 4));
+                }
+}
+
+static void CardPreviewPack(u32 tiles)
+{
+    static u8 src[32 * 32];
+    static u8 big[64 * 64];
+    int fw, fh = 0, x, y, ox, oy;
+
+    memset(big, 0, sizeof(big));
+    fw = PortPocDecodeFrame(0, 0, src, 32, 32, &fh);
+    if (fw > 0) {
+        ox = (64 - 2 * fw) / 2;
+        oy = 64 - 2 * fh;
+        for (y = 0; y < 2 * fh; y++)
+            for (x = 0; x < 2 * fw; x++)
+                if (ox + x >= 0 && ox + x < 64 && oy + y >= 0)
+                    big[(oy + y) * 64 + ox + x] = src[(y / 2) * 32 + x / 2];
+    }
+    PackObj(big, 64, 64, CardExtraVram(tiles));
+}
+
+static void CardBarsPack(u32 tiles)
+{
+    static u8 px[64 * 8];
+    int r, i, x, y;
+
+    for (r = 0; r < PORT_CARD_ROWS; r++) {
+        u16 cols[13];
+        int cur = PortCardBar(r, cols);
+
+        memset(px, 0, sizeof(px));
+        for (x = 0; x < 64; x++)
+            px[x] = px[7 * 64 + x] = 15;
+        for (y = 0; y < 8; y++)
+            px[y * 64] = px[y * 64 + 63] = 15;
+        for (i = 0; i < 13; i++) {
+            int x0 = 1 + i * 62 / 13, x1 = 1 + (i + 1) * 62 / 13;
+
+            for (y = 1; y < 7; y++)
+                for (x = x0; x < x1; x++)
+                    px[y * 64 + x] = (u8)(1 + i);
+            if (i == cur)
+                for (x = x0 - 1; x <= x1 && x < 63; x++) {
+                    px[0 * 64 + (x < 0 ? 0 : x)] = 14;
+                    px[7 * 64 + (x < 0 ? 0 : x)] = 14;
+                }
+        }
+        /* a 64 x 8 bar as two 32 x 8 objects' tiles */
+        {
+            static u8 half[32 * 8];
+            int part;
+
+            for (part = 0; part < 2; part++) {
+                for (y = 0; y < 8; y++)
+                    memcpy(&half[y * 32], &px[y * 64 + part * 32], 32);
+                PackObj(half, 32, 8, CardExtraVram(tiles) + (CARD_PREV_TILES + r * CARD_BAR_TILES + part * 4) * 32);
+            }
+        }
+    }
+}
+
+/* Every frame: the palettes (cheap), then the objects -- before the rows,
+ * so the bars are drawn over the rows' banners. */
+static void CardExtrasDraw(u32 tiles, int slide, u8 layer)
+{
+    u16 pal[16];
+    int r, i;
+
+    if (PortCardPreviewPalette(pal)) {
+        for (i = 1; i < 16; i++)
+            gObjPalette[PAL_PREVIEW * 16 + i] = pal[i];
+        PutObj(layer, CARD_PREV_X + slide, CARD_PREV_Y, 0, 3, CardExtraVram(tiles), PAL_PREVIEW);
+    }
+    if (sModel->card == PORT_CARD_SUB_PICK)
+        for (r = 0; r < PORT_CARD_ROWS; r++) {
+            u16 cols[13];
+            u32 v = CardExtraVram(tiles) + (CARD_PREV_TILES + r * CARD_BAR_TILES) * 32;
+
+            PortCardBar(r, cols);
+            for (i = 0; i < 13; i++)
+                gObjPalette[(PAL_BAR0 + r) * 16 + 1 + i] = cols[i];
+            gObjPalette[(PAL_BAR0 + r) * 16 + 14] = 0x7FFF;
+            gObjPalette[(PAL_BAR0 + r) * 16 + 15] = 0x0000;
+            PutObj(layer, CARD_BAR_X + slide, RowFrameY(r) + 8, 1, 1, v, PAL_BAR0 + r);
+            PutObj(layer, CARD_BAR_X + 32 + slide, RowFrameY(r) + 8, 1, 1, v + 4 * 32, PAL_BAR0 + r);
+        }
+    gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+}
+
 static void ModelBuild(const struct PocModel *m, u32 tiles, u16 lblAnim, u8 lblVariant,
                        u16 hdrAnim, u8 hdrVariant, int row)
 {
     int r;
 
+    /* the card screens' palette lines are lent, not taken */
+    CardPalettesKeep(m->card != 0);
+    if (m->card) {
+        CardPreviewPack(tiles);
+        CardBarsPack(tiles);
+        sCardGenShown = PortCardGen();
+        PortCardNoteRow(row);
+    }
     sModel = m;
     sOuiGenShown = PortOuiGen();
     LoadSources();
@@ -1259,6 +1452,17 @@ int PortPocScreenCursorX(void)
 void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
 {
     int r;
+
+    /* the player card: its rows follow every edit (keys, letters the web
+     * page types), and its Kirby and bars are drawn first (on top) */
+    if (sModel->card && PortCardGen() != sCardGenShown) {
+        sCardGenShown = PortCardGen();
+        for (r = 0; r < sModel->rows; r++)
+            DrawRowTiles(tiles, r, r == row);
+        CardBarsPack(tiles);
+    }
+    if (sModel->card)
+        CardExtrasDraw(tiles, slide, layer);
 
     /* the header slides in from the left as the game's (unkC) do */
     DrawPic(layer, -sHdrOffX - slide * 0x9C / 0xD0, -sHdrOffY, HeadVram(tiles), HEAD_COLS,
@@ -1364,12 +1568,14 @@ int PortMenuPocMpOpen(struct Unk_08138D64 *a1)
 
     PortMenuPocFree(a1);
     a1->unk3A6 = 0;
-    v = VramMalloc((kMpModel.rows * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES);
+    v = VramMalloc(MP_TILES + CARD_EXTRA_TILES);
     if (!VramOk(v))
         return 0;
     a1->unk3A8.tilesVram = v;
     sOwner = a1;
     PortOuiReset();
+    if (PortCardSub() != PORT_CARD_SUB_NONE)
+        PortPlayerCardClose();
     ModelBuild(&kMpModel, v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
                a1->unkC.animId, a1->unkC.variant + 1, 0);
     PortMenuPocBlankBanner();
@@ -1380,24 +1586,55 @@ int PortMenuPocMpOpen(struct Unk_08138D64 *a1)
  * (platform/online_ui.c): PORT_OUI_K_NONE leaves it to the screen's own
  * handling.  A change of sub-screen rebuilds the screen in place, with the
  * same two rows' tiles. */
-int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
+/* Which of the MULTIPLAYER screen's models is up: a card screen, an ONLINE
+ * screen, or the MULTIPLAYER choice itself. */
+static const struct PocModel *MpScreenModel(void)
 {
     static const struct PocModel *const kSub[] = { &kMpModel, &kOnlineModel, &kHostModel, &kJoinModel };
-    int row = a1->unk3A6, sub0 = PortOuiSub(), act, r;
+
+    if (PortCardSub() == PORT_CARD_SUB_CARD)
+        return &kCardModel;
+    if (PortCardSub() == PORT_CARD_SUB_PICK)
+        return &kPickModel;
+    return kSub[PortOuiSub() & 3];
+}
+
+int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
+{
+    int row = a1->unk3A6, act, r;
 
     if (!PortMenuPoc() || sOwner != a1 || !a1->unk3A8.tilesVram || gPortLnOn)
         return PORT_OUI_K_NONE;
-    act = PortOuiKey(&row, key);
+    if (PortCardSub() != PORT_CARD_SUB_NONE) {
+        /* PLAYER CARD: every key is the card's (platform/player_card.c) */
+        switch (PortCardKey(&row, key)) {
+        case PORT_CARD_K_CURSOR: act = PORT_OUI_K_CURSOR; break;
+        case PORT_CARD_K_SELECT: act = PORT_OUI_K_SELECT; break;
+        case PORT_CARD_K_BACK:   act = PORT_OUI_K_BACK; break;
+        case PORT_CARD_K_CLOSE:  act = PORT_OUI_K_BACK; row = PORT_MENU_POC_MP_CARD; break;
+        default:                 act = PORT_OUI_K_QUIET; break;
+        }
+    } else if (PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_CARD) {
+        PortPlayerCardOpen(0, 0);
+        row = 1;                /* on NAME: the PLAYER row is for P2..P4 */
+        act = PORT_OUI_K_SELECT;
+    } else {
+        act = PortOuiKey(&row, key);
+    }
     if (act == PORT_OUI_K_NONE)
         return act;
     a1->unk3A6 = (u8)row;
-    if (PortOuiSub() != sub0) {
-        ModelBuild(kSub[PortOuiSub() & 3], a1->unk3A8.tilesVram, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+    PortCardNoteRow(row);
+    if (MpScreenModel() != sModel) {
+        ModelBuild(MpScreenModel(), a1->unk3A8.tilesVram, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
                    a1->unkC.animId, a1->unkC.variant + 1, row);
     } else {
         sOuiGenShown = PortOuiGen();
+        sCardGenShown = PortCardGen();
         for (r = 0; r < sModel->rows; r++)
             DrawRowTiles(a1->unk3A8.tilesVram, r, r == row);
+        if (sModel->card)
+            CardBarsPack(a1->unk3A8.tilesVram);
         sDescShown = sModel->desc(row);
         BuildDesc(sDescShown, SetDescVram(a1->unk3A8.tilesVram));
     }
@@ -1406,7 +1643,7 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
 
 int PortMenuPocMpBusy(void)
 {
-    return PortOuiBusy();
+    return PortOuiBusy() || PortCardSub() != PORT_CARD_SUB_NONE;
 }
 
 void PortMenuPocMpStarted(void)
