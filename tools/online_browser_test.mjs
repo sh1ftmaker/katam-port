@@ -474,6 +474,12 @@ if (CASES.includes('menu')) {
         await sleep(1500);
         await shot(guest2, 'd-03-rejoined-guest.png');
         await shot(host, 'd-03-rejoined-host.png');
+        // the "getting the game" banner must not outlive the join, and the
+        // guest must not start far further ahead than it ends up (it used to
+        // take about 15 s to come down, one frame a second)
+        await sleep(3500);
+        const early = await stats(guest2);
+        ok('invite banner is gone once the guest is in the game', !early.banner, String(early.banner));
         const g2 = await stats(guest2);
         const rest = buildPlay(4000, 2, 100000);
         await setScript(guest2, rest.k2, g2.frame, []);
@@ -484,6 +490,7 @@ if (CASES.includes('menu')) {
         const gs2 = await snapStats('guest2', guest2);
         results.drop = { guest: gs2, compare: { ...cmp2, run: undefined, reset: undefined } };
         ok('rejoined guest identical to the host', cmp2.compared > 40 && cmp2.mismatched === 0, `${cmp2.equal}/${cmp2.compared}; repairs ${gs2.repairs}`);
+        ok('guest lead settled within 5 s of joining', Math.abs(early.lead - gs2.lead) <= 4, `lead ${early.lead} five seconds in, ${gs2.lead} at the end`);
         // the host goes away: the guest is told
         await host.close();
         delete pages.host;

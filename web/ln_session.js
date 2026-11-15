@@ -211,6 +211,7 @@
         this.hostP = -1; this.recvAt = 0; this.hostAck = 0;
         this.rtt = null; this.rtts = [];
         this.lastAdj = -1e9; this.goodSince = null;
+        this.settling = false; this.settleUntil = -1e9; this.heldLast = false;
         this.repairInFlight = 0; this.repairAt = 0;
         this.joined = false; this.lastLocal = -1; this.keyRing = new Uint16Array(4096); this.offs = [];
         this.st = { packets: 0, recs: 0, holds: 0, skips: 0, skipFrames: 0, bursts: 0, burstFrames: 0, capHolds: 0,
@@ -247,16 +248,28 @@
         this.adapt(t, m.marginMin);
     };
     // Margin (frames of slack the guest's inputs should arrive with): up at
-    // once when the host saw late inputs, down slowly when it has slack.
+    // once when the host saw late inputs, down when it has slack -- by half
+    // the spare slack at a time, so an inflated margin is gone in a few
+    // seconds instead of one frame a second.
+    //
+    // Not while settling after an image: the inputs a guest sends while it is
+    // still catching up to the host are late by construction, and the host
+    // reports the worst of its last second.  Counting those raised the margin
+    // by about 16 frames at every join, which then took 15 s to decay.
     GuestSession.prototype.adapt = function (t, mmin) {
         if (mmin === 127) return;
-        if (mmin < this.o.marginMin && t - this.lastAdj > 250) {
-            this.margin = Math.min(this.o.marginMax, this.margin + Math.min(4, this.o.marginMin - mmin));
-            this.lastAdj = t; this.goodSince = null; this.st.marginUps++;
+        if (mmin < this.o.marginMin) {
+            if (this.settling || t < this.settleUntil) return;
+            if (t - this.lastAdj > 250) {
+                this.margin = Math.min(this.o.marginMax, this.margin + Math.min(4, this.o.marginMin - mmin));
+                this.lastAdj = t; this.goodSince = null; this.st.marginUps++;
+            }
         } else if (mmin > this.o.marginMin + 2) {
             if (this.goodSince === null) this.goodSince = t;
             if (t - this.goodSince > 1000 && t - this.lastAdj > 500 && this.margin > this.o.marginInit) {
-                this.margin--; this.lastAdj = t; this.goodSince = t; this.st.marginDowns++;
+                var step = Math.max(1, Math.floor((mmin - (this.o.marginMin + 2)) / 2));
+                this.margin = Math.max(this.o.marginInit, this.margin - step);
+                this.lastAdj = t; this.goodSince = t; this.st.marginDowns++;
             }
         } else this.goodSince = null;
     };
@@ -271,6 +284,7 @@
         this.repairInFlight = 0;
         this.joined = true;
         this.imagePending = true;   // applied at the next frame top: run exactly one frame first
+        this.settling = true;       // catching up to the host: lateness now is not the link's
         if (this.st.firstImageAt === null) this.st.firstImageAt = this.clock();
     };
     // How many frames to simulate on this vsync.
@@ -292,7 +306,18 @@
         var n = nominal;
         if (diff > 8) { n = Math.min(Math.ceil(diff) + nominal - 1, this.o.burstMax); this.st.bursts++; this.st.burstFrames += n - nominal; }
         else if (diff >= 2.5) { n = nominal + 1; this.st.skips++; this.st.skipFrames++; }
-        else if (diff <= -2.5) { n = nominal - 1; this.st.holds++; }
+        else if (diff <= -2.5) {
+            // a little ahead: half speed (every other vsync) rather than a
+            // freeze; far ahead (the host stalled): stop
+            if (nominal > 1 || diff <= -6 || !this.heldLast) { n = nominal - 1; this.st.holds++; this.heldLast = true; }
+            else this.heldLast = false;
+        }
+        if (diff > -2.5) this.heldLast = false;
+        // caught up after an image: the host's report still holds that second
+        if (this.settling && diff > -2.5 && diff < 2.5) {
+            this.settling = false;
+            this.settleUntil = t + 1500 + (this.rtt === null ? 0 : this.rtt);
+        }
         // never predict further than the history can rewind
         var cap = this.o.leadCap === null || this.o.leadCap === undefined ? 120 : this.o.leadCap;
         var lead = (P + n) - tel.sealedUpTo;
