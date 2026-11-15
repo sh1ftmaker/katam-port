@@ -81,6 +81,7 @@
 #include "port/menu_poc.h"
 #include "port/localmp.h"
 #include "port/online_ui.h"
+#include "port/online_browse.h"     /* server browser */
 #include "port/players_ui.h"
 #include "port/backend.h"     /* PortFrameNumber (tests) */
 #include "port/player_card.h"
@@ -559,6 +560,7 @@ static const struct CellGlyph kCell[] = {
     { '>', { "  ", "# ", "##", "# ", "  " } },   /* labels' bullet      */
     { 'v', { "   ", "   ", "###", " # ", "   " } },  /* more rows below     */
     { '^', { "   ", " # ", "###", "   ", "   " } },  /* more rows above     */
+    { '*', { " # ", "# #", "###", "###", "###" } },  /* server browser: a padlock */
 };
 
 static const struct CellGlyph *CellFind(char c)
@@ -1045,23 +1047,11 @@ static int BorderIndexOf(const PortSettings *s)
     return 4;
 }
 
-/* --- STUBS: the other agent's queries (platform/ui/settings.h, branch of
- * hudfix-wt), with their exact signatures.  Weak, so the real ones replace
- * them on merge; delete these then.
+/* The display queries (platform/ui/settings.h, present.c):
  *   PortDisplayOptionsAvailable: 0 while the page draws on its 2D canvas,
  *     where the picture options do nothing.
  *   PortDisplayStatus: five lines ("BUILD: ...", "RENDERER: ...", "WEBGL2:
  *     ...", "GPU: ...", "SETTINGS: ..."), '\n' between them. */
-__attribute__((weak)) int PortDisplayOptionsAvailable(void)
-{
-    return 1;                       /* STUB(display-fallback) */
-}
-
-__attribute__((weak)) const char *PortDisplayStatus(void)
-{
-    return "";                      /* STUB(graphics-status) */
-}
-
 static int PocDisplayFallback(void)
 {
     return !PortDisplayOptionsAvailable();
@@ -2135,13 +2125,22 @@ static const char *OuiDesc(int row) { return PortOuiRowDesc(sModel->oui, row); }
 static int OuiUnavailable(int row) { return PortOuiRowUnavailable(sModel->oui, row); }
 
 static const struct PocModel kOnlineModel = {
-    2, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
+    3 /* server browser: + BROWSE GAMES */, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
 };
 static const struct PocModel kHostModel = {
-    2, "HOST GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_HOST,
+    4 /* server browser: + GAME, PASS */, "HOST GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_HOST,
 };
 static const struct PocModel kJoinModel = {
     2, "JOIN GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_JOIN,
+};
+/* server browser (platform/online_browse.c): the public list, as many rows
+ * as it has games up to PORT_OBR_VIS (OuiFollow keeps `rows` in step), and
+ * a locked game's PASSWORD screen */
+static struct PocModel kBrowseModel = {
+    1, "OPEN GAMES", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_BROWSE,
+};
+static const struct PocModel kPassModel = {
+    2, "PASSWORD", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_PASS,
 };
 
 /* PLAYER CARD and its colour picker (platform/player_card.c), on the same
@@ -2171,6 +2170,8 @@ static const struct PocModel *const kModels[] = {
     /* 9.. the pause page's top level, the sections, NO / YES, PLAYING */
     &kTopPauseModel, &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced,
     &kConfirmModel,
+    /* 17, 18: the server browser's */
+    &kBrowseModel, &kPassModel,     /* server browser */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -2334,6 +2335,10 @@ static void DrawHeadTiles(u32 tiles, u16 hdrAnim, u8 hdrVariant)
 #define CARD_PREV_TILES  64             /* 64 x 64                           */
 #define CARD_BAR_TILES   8              /* 64 x 8: two 32 x 8 objects        */
 #define CARD_EXTRA_TILES (CARD_PREV_TILES + PORT_CARD_ROWS * CARD_BAR_TILES)
+/* server browser: HOST GAME and the public list have four rows; the fourth
+ * row's tiles fit in the card's extras, which those screens do not draw */
+typedef char ObrRowsFit[(PORT_OBR_VIS * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES
+                        <= MP_TILES + CARD_EXTRA_TILES ? 1 : -1];
 #define PAL_BAR0         10             /* 10, 11, 12: the bars              */
 #define PAL_PREVIEW      13
 #define CARD_PAL_LINES   4
@@ -2898,7 +2903,40 @@ static const struct PocModel *MpScreenModel(void)
         return &kCardModel;
     if (PortCardSub() == PORT_CARD_SUB_PICK)
         return &kPickModel;
+    if (PortOuiSub() == PORT_OUI_SUB_BROWSE)    /* server browser */
+        return &kBrowseModel;
+    if (PortOuiSub() == PORT_OUI_SUB_PASS)
+        return &kPassModel;
     return kSub[PortOuiSub() & 3];
+}
+
+/* server browser: the ONLINE screens follow the page between keys too -- a
+ * locked game's PASSWORD screen opens by itself, and the public list grows,
+ * shrinks and keeps its cursor on the game it was on as it refreshes. */
+static void OuiFollow(struct Unk_08138D64 *a1)
+{
+    const struct PocModel *m;
+    int row, rows;
+
+    if (!sModel->oui || gPortLnOn || PortCardSub() != PORT_CARD_SUB_NONE)
+        return;
+    m = MpScreenModel();
+    row = PortObrFollowRow(PortOuiSub(), a1->unk3A6);
+    rows = PortObrRows();
+    if (m == sModel && row == a1->unk3A6 && (m != &kBrowseModel || rows == kBrowseModel.rows))
+        return;
+    a1->unk3A6 = (u8)row;
+    if (m != sModel || (m == &kBrowseModel && rows != kBrowseModel.rows)) {
+        kBrowseModel.rows = rows;
+        ModelBuild(m, a1->unk3A8.tilesVram, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+                   a1->unkC.animId, a1->unkC.variant + 1, row);
+    } else {
+        sOuiGenShown = PortOuiGen();
+        DrawRows(a1->unk3A8.tilesVram, row);
+        sDescShown = sModel->desc(row);
+        BuildDesc(sDescShown, SetDescVram(a1->unk3A8.tilesVram));
+    }
+    a1->unk28C.y = PortMenuPocSettingsCursorY(a1);
 }
 
 int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
@@ -2981,6 +3019,7 @@ void PortMenuPocSettingsDraw(struct Unk_08138D64 *a1, int slide)
 {
     if (sOwner != a1 || !a1->unk3A8.tilesVram)
         return;
+    OuiFollow(a1);                  /* server browser */
     PortPocScreenDraw(a1->unk3A8.tilesVram, a1->unk3A6, slide, 0x10);  /* Game Select's rows' layer */
 }
 

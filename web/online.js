@@ -45,6 +45,7 @@
     'use strict';
     var Net = window.KatamNet, LS = window.KatamLnSession;
     if (!Net || !LS) return;
+    var KB = window.KatamBrowse || null;       /* server browser: web/online_browse.js */
     var M = window.Module;
     var q = new URLSearchParams(location.search);
     /* ?netserver=<base>: another room server (netplay/dev-relay.mjs, a
@@ -623,6 +624,7 @@
             if (gen !== S.gen) return;
             if (!x.r.code) { log('no room: ' + Net.explainError(x.r)); ui(UI.H_NOSERVER); S.phase = 'failed'; return; }
             S.code = x.r.code;
+            if (KB) KB.hosting(S.code, x.r.resume, function () { return 1 + readyCount(); });   /* server browser */
             var net = S.net = Net.connect({ base: BASE, code: S.code, hello: hello(x.v), log: log });
             S.ver = x.v;
             net.on('welcome', function () {
@@ -654,8 +656,14 @@
         return -1;
     }
 
-    function hostSignal(m) {
+    function hostSignal(m, pwOk) {
         var d = m.data || {};
+        /* server browser: a password's answer; a locked game challenges a `hi` */
+        if (KB && d.k === 'pwr') {
+            var net0 = S.net;
+            KB.verify(m, d, net0, function (mm) { if (S.net === net0 && S.role === 'host') hostSignal(mm, true); });
+            return;
+        }
         if (d.k === 'hi') {
             var v = S.ver;
             if (d.sim !== v.sim || d.rom !== v.rom) {
@@ -669,6 +677,7 @@
                 S.net.send({ t: 'signal', to: m.from, data: { k: 'removed', sid: d.sid } });
                 return;
             }
+            if (KB && !pwOk && KB.gate(m, d, S.net)) return;      /* server browser */
             var old = S.peers[m.from];
             if (old) dropPeer(old, false);                 /* the same member again: a fresh link */
             /* a tab that was here before (and whose link is dead) comes back as itself */
@@ -812,6 +821,21 @@
             net.on('signal', function (m) {
                 if (gen !== S.gen || m.from !== S.hostMid) return;
                 var d = m.data || {};
+                /* server browser: a locked game asks for its password (web/online_browse.js) */
+                if (KB && (d.k === 'pw' || d.k === 'pwbad' || d.k === 'pwlock')) {
+                    if (d.sid !== S.pendingSid || S.peer) return;
+                    clearTimeout(hiTimer);
+                    if (d.k === 'pwlock') return joinFail(KB.UI.J_PWLOCK, 'Too many wrong passwords: the host stopped answering.');
+                    KB.onChallenge(d, code, !!S.invite, function (h) {
+                        if (gen !== S.gen || S.peer) return;
+                        net.send({ t: 'signal', to: net.host, data: { k: 'pwr', sid: d.sid, h: h } });
+                        ui(UI.J_CONNECTING);
+                        hiTimer = setTimeout(function () {
+                            if (gen === S.gen && !S.peer) joinFail(UI.J_FAILED, 'The host does not answer. Try again.');
+                        }, 10000);
+                    });
+                    return;
+                }
                 if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game is full: four players.'); }
                 if (d.k === 'removed') {
                     clearTimeout(hiTimer);
@@ -976,6 +1000,7 @@
     }
 
     function reset() {
+        if (KB) KB.ended();                     /* server browser: off the list */
         S.gen = (S.gen || 0) + 1;
         if (S.peer) { S.peer.link.close(true); S.peer = null; }
         if (S.net) { try { S.net.leave(); } catch (e) { /* gone */ } S.net = null; }
@@ -1193,6 +1218,7 @@
         requestSlot: requestSlot, slots: slotsNow,
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },
+        cancelJoin: joinCancel,                 /* server browser: the password box's Cancel */
         invite: function () { return S.code ? inviteLink() : null; },
         _S: S,
     };

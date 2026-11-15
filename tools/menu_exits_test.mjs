@@ -200,7 +200,7 @@ async function startPlay(p) {
 
 const XBOX = 'Xbox 360 Controller (XInput STANDARD GAMEPAD)';
 const XONE = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
-const M = { TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
+const M = { BROWSE: 17, PASS: 18, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
             PAUSE_TOP: 9, DISPLAY: 10, SOUND: 11, SEC_PLAYERS: 12, SEC_ONLINE: 13, GAME: 14, ADVANCED: 15, CONFIRM: 16 };
 const SECTIONS = ['DISPLAY', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED'];
 const ouiScreen = (p) => p.ev('Module._PortOuiScreen()');
@@ -353,6 +353,33 @@ async function caseJoinMessage() {
     await step(p, 'B', 20);
     ok('B on the message: ONLINE', (await pagesModel(p)) === M.ONLINE);
     row('JOIN GAME', 'NO SUCH GAME / FULL / OTHER BUILD / OTHER ROM / FAILED / HOST LEFT / REMOVED', 'ONLINE', '= A (join again)', 'nothing');
+    // BROWSE GAMES (the server browser): B back to ONLINE on its row
+    await step(p, 'DOWN', 10); await step(p, 'A', 40);     // ONLINE row 2: BROWSE GAMES
+    ok('BROWSE GAMES is up', ((await ouiScreen(p)) >> 8) === 4, String(await ouiScreen(p)));
+    await shot(p, 'browse-list.png');
+    await step(p, 'B', 20);
+    ok('B on BROWSE GAMES: ONLINE', ((await ouiScreen(p)) >> 8) === 1 && (await pagesModel(p)) === M.ONLINE);
+    row('BROWSE GAMES', 'the list (or its message)', 'ONLINE', '= A (join that game)', 'nothing');
+    // HOST GAME's PASS row: typing finished with Start, cancelled with B
+    for (let i = 0; i < 2; i++) await step(p, 'UP', 10);  // HOST GAME
+    await step(p, 'A', 40);
+    for (let i = 0; i < 3; i++) await step(p, 'DOWN', 10); // PASS (row 3)
+    const pass = () => p.ev('Module.ccall("PortObrHostPassJs","string",[],[])');
+    const p0 = await pass();
+    await step(p, 'A', 10);                                 // typing
+    ok('HOST GAME > PASS: A starts typing', (await p.ev('Module._PortObrTyping()')) !== 0);
+    await step(p, 'RIGHT', 10);
+    ok('... Right picks a letter', (await pass()) !== p0, JSON.stringify(await pass()));
+    for (let i = 0; i < 9 && (await p.ev('Module._PortObrTyping()')); i++) await step(p, 'B', 8);
+    ok('... B at the first letter cancels (the password as it was)', (await pass()) === p0 && (await pagesModel(p)) === M.HOST);
+    await step(p, 'A', 10); await step(p, 'RIGHT', 10);
+    const p1 = await pass();
+    await step(p, 'START', 10);
+    ok('... Start finishes typing, kept', (await p.ev('Module._PortObrTyping()')) === 0 && (await pass()) === p1 && (await pagesModel(p)) === M.HOST);
+    row('HOST GAME > PASS / PASSWORD screen', 'typing a password', 'a letter back; at the first: cancel', 'done (kept)', 'nothing');
+    await step(p, 'B', 30);
+    ok('B on HOST GAME: ONLINE', (await pagesModel(p)) === M.ONLINE);
+    row('PASSWORD (a locked game)', 'asking / WRONG / LOCKED', 'JOIN GAME (cancels)', '= A', 'nothing');
     await p.close();
 }
 

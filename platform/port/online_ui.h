@@ -22,6 +22,9 @@ extern "C" {
 #define PORT_OUI_SUB_ONLINE 1   /* HOST GAME / JOIN GAME                   */
 #define PORT_OUI_SUB_HOST   2   /* CODE / START                            */
 #define PORT_OUI_SUB_JOIN   3   /* CODE / JOIN                             */
+/* server browser (platform/online_browse.c) */
+#define PORT_OUI_SUB_BROWSE 4   /* the public games                        */
+#define PORT_OUI_SUB_PASS   5   /* PASSWORD / JOIN: a locked game's        */
 
 /* States, set by the page (PortOuiSet). */
 enum {
@@ -32,6 +35,8 @@ enum {
     PORT_OUI_J_NOGAME, PORT_OUI_J_FULL, PORT_OUI_J_BUILD, PORT_OUI_J_ROM,
     PORT_OUI_J_FAILED, PORT_OUI_J_HOSTLEFT,
     PORT_OUI_J_REMOVED,     /* the host removed this device (a kick) */
+    /* server browser: a locked game asks (web/online_browse.js) */
+    PORT_OUI_J_PASSWORD, PORT_OUI_J_PWBAD, PORT_OUI_J_PWLOCK,
     PORT_OUI_STATES
 };
 
@@ -87,6 +92,11 @@ int  PortOuiBusy(void);
 
 /* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode, the default). */
 int PortOuiRoomsMode(void);
+
+/* server browser (platform/online_browse.c): something it shows changed;
+ * join the game with this code through JOIN GAME's states. */
+void PortOuiChanged(void);
+void PortOuiJoinWith(const char code[4]);
 
 #ifdef __cplusplus
 }

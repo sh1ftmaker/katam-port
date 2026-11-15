@@ -802,7 +802,7 @@ dist: all
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
 	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
-	@cp $(OUT)/ln_session.js $(OUT)/online.js $(DIST)/
+	@cp $(OUT)/ln_session.js $(OUT)/online.js $(OUT)/online_browse.js $(DIST)/
 	@cp $(OUT)/input_devices.js $(DIST)/
 	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h
 	@python3 tools/stamp_build.py --dir $(DIST) \

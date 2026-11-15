@@ -4,6 +4,7 @@
  * same four hooks pointing somewhere else.  The bodies are unchanged.
  */
 
+#include <stdio.h>
 #include <string.h>
 
 #include <emscripten.h>
@@ -16,6 +17,7 @@
 #include "port/audio.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
+#include "ui/party_hud.h"
 
 /* EM_JS bodies below call UTF8ToString.  emscripten 3.1.5x stopped linking
  * the runtime helpers in by default; without this the node build traps on
@@ -43,6 +45,84 @@ static int sGl;
 EM_JS(int, PortWebHaveGlCanvas, (void), {
     return Module.portGl ? 1 : 0;
 });
+
+/* What the page's probe found (web/shell.html glProbe) and the build the
+ * page says it is, for the status line (present.c PortDisplayStatus). */
+EM_JS(void, PortWebProbeInfo, (int *webgl2, char *gpu, int gpuSize, char *why, int whySize,
+                               char *build, int buildSize), {
+    var p = Module.portGlProbe || {}, b = '';
+    try {
+        var m = document.querySelector('meta[name="katam-build"]');
+        b = m ? m.getAttribute('content') : '';
+        if (!b) { var el = document.getElementById('buildlabel'); b = el ? el.textContent : ''; }
+    } catch (e) { b = ''; }
+    HEAP32[webgl2 >> 2] = p.webgl2 ? 1 : 0;
+    stringToUTF8(String(p.gpu || ''), gpu, gpuSize);
+    stringToUTF8(String(p.why || ''), why, whySize);
+    stringToUTF8(String(b || 'dev'), build, buildSize);
+});
+
+static void HostInfo(const char *why2d)
+{
+    int webgl2 = 0;
+    char gpu[96], why[96], build[64];
+
+    PortWebProbeInfo(&webgl2, gpu, sizeof(gpu), why, sizeof(why), build, sizeof(build));
+    PortDisplaySetHostInfo(webgl2, gpu, why2d && why2d[0] ? why2d : why, build);
+}
+
+/* The status, once at start, to the console and the page log: one line per
+ * field, so a bug report has it (and window.katamStatus() gives it again). */
+static void LogStatus(void)
+{
+    char line[160];
+    const char *s = PortDisplayStatus(), *e;
+
+    while (*s) {
+        size_t n;
+
+        e = strchr(s, '\n');
+        n = e ? (size_t)(e - s) : strlen(s);
+        if (n >= sizeof(line) - 20) n = sizeof(line) - 21;
+        memcpy(line, s, n);
+        line[n] = '\0';
+        PortLog("[katam-port] status: %s", line);
+        s += e ? n + 1 : n;
+        if (e && *s == '\n') s++;
+    }
+}
+
+/* The 2D canvas: say so on the page, once (web/shell.html). */
+static void SimpleDisplay(const char *why)
+{
+    HostInfo(why);
+    EM_ASM({
+        if (Module.portGlFailed) Module.portGlFailed(UTF8ToString($0));
+        if (Module.portSimpleDisplay) Module.portSimpleDisplay(UTF8ToString($0));
+    }, why);
+}
+
+EMSCRIPTEN_KEEPALIVE const char *PortDisplayStatusJs(void) { return PortDisplayStatus(); }
+EMSCRIPTEN_KEEPALIVE void PortDisplayNoteContextLostJs(int lost) { PortDisplayNoteContextLost(lost); }
+
+/* Tests (tools/hud_sweep_test.mjs): "key=value" lines over the current
+ * settings, applied and saved as a menu change would be; and the settings
+ * as saved.  Never called by the page itself. */
+EMSCRIPTEN_KEEPALIVE void PortSettingsSetJs(const char *text)
+{
+    char buf[1100];
+
+    snprintf(buf, sizeof(buf), "schema=%d\n%s", PORT_SETTINGS_SCHEMA, text ? text : "");
+    PortSettingsParse(&gPortSettings, buf);
+    PortSettingsChanged();
+}
+EMSCRIPTEN_KEEPALIVE const char *PortSettingsTextJs(void)
+{
+    static char buf[1024];
+
+    PortSettingsFormat(&gPortSettings, buf, sizeof(buf));
+    return buf;
+}
 
 /* -1: no override, else PS_RENDER_*. */
 EM_JS(int, PortWebRendererParam, (void), {
@@ -104,16 +184,25 @@ static void PortWebGlInit(void)
     attr.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
     ctx = emscripten_webgl_create_context("#gpu-screen", &attr);
     if (ctx <= 0) {
+        char why[48];
+
         PortError("[katam-port] no WebGL2 context (%d) -- 2D canvas, no settings menu",
                   (int)ctx);
-        EM_ASM({ if (Module.portGlFailed) Module.portGlFailed(); });
+        snprintf(why, sizeof(why), "WebGL2 context creation failed (%d)", (int)ctx);
+        SimpleDisplay(why);
         return;
     }
     emscripten_webgl_make_context_current(ctx);
     gpuOk = GlrInit(NULL, 1);
     if (!gpuOk) {
         PortError("[katam-port] gpu: renderer did not start -- 2D canvas, no settings menu");
-        EM_ASM({ if (Module.portGlFailed) Module.portGlFailed(); });
+        {
+            char why[96];
+
+            snprintf(why, sizeof(why), "the GPU renderer did not start (%s)",
+                     GlrInitError()[0] ? GlrInitError() : "no error text");
+            SimpleDisplay(why);
+        }
         return;
     }
     sGl = 1;
@@ -135,12 +224,33 @@ void PortHostInit(int argc, char **argv)
     PortSettingsDefaults(&gPortSettings);
     PortWebLoadSettings(buf, sizeof(buf));
     PortSettingsParse(&gPortSettings, buf);
+    {
+        int was, migrated;
+
+        PortSettingsParseInfo(&was, &migrated);
+        if (migrated) {
+            /* An older build's settings: kept the cards and the volume,
+             * the rest is back to the defaults -- written now, so it
+             * happens once (settings.h). */
+            char out[1024];
+
+            PortSettingsClamp(&gPortSettings);
+            PortSettingsFormat(&gPortSettings, out, sizeof(out));
+            PortHostSaveSettings(out);
+            PortLog("[katam-port] settings from an older build: reset to the defaults "
+                    "(player cards and volume kept)");
+        }
+    }
     r = PortWebRendererParam();
     if (r >= 0)
         gPortSettings.renderer = r;
     PortSettingsApplyEarly();
+    HostInfo("");
     if (PortWebHaveGlCanvas())
         PortWebGlInit();
+    else
+        SimpleDisplay("");
+    LogStatus();
 }
 
 /* The menu's Game / Online / Randomizer / Advanced pages: the page owns
@@ -418,11 +528,22 @@ static void Show(const u32 *pixels, int w, int h, int fresh)
         PortShowAgain(info[0], info[1], dpr, emscripten_get_now());
 }
 
+/* The 2D canvas (no WebGL2): the party HUD blended into a copy of the
+ * picture -- never into the framebuffer itself, which the determinism
+ * harness hashes (platform/ui/party_hud.c PortPartyHudDrawSoft). */
+static u32 sSoft[240 * 160];
+
 void PortBlitFramebuffer(const u32 *pixels, int w, int h)
 {
     if (sGl) {
         Show(pixels, w, h, 1);
         PortWebPresent(pixels, 0, 0);       /* the page's frame counter */
+        return;
+    }
+    if (pixels != NULL && w == 240 && h == 160 && PortPartyHudSoftSample()) {
+        memcpy(sSoft, pixels, sizeof(sSoft));
+        PortPartyHudDrawSoft(sSoft, w, h);
+        PortWebPresent(sSoft, w, h);
         return;
     }
     PortWebPresent(pixels, w, h);

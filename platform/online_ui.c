@@ -11,6 +11,7 @@
 #include "global.h"
 #include "port/lmpnet.h"
 #include "port/online_ui.h"
+#include "port/online_browse.h"     /* server browser */
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,8 +59,17 @@ void PortOuiSet(int state, int c0, int c1, int c2, int c3)
         sCode[0] = (char)c0; sCode[1] = (char)c1; sCode[2] = (char)c2; sCode[3] = (char)c3;
         sCode[4] = '\0';
     }
+    /* server browser: a locked game's password screen opens by itself */
+    if ((state == PORT_OUI_J_PASSWORD || state == PORT_OUI_J_PWBAD)
+        && (sSub == PORT_OUI_SUB_JOIN || sSub == PORT_OUI_SUB_PASS)) {
+        sSub = PORT_OUI_SUB_PASS;
+        PortObrPassOpened();
+    }
     sGen++;
 }
+
+/* server browser */
+void PortOuiChanged(void) { sGen++; }
 
 void PortOuiSetPlayers(int players, int connecting)
 {
@@ -103,6 +113,8 @@ void PortOuiReset(void)
 {
     if (sSub == PORT_OUI_SUB_HOST)
         Push(PORT_OUI_EV_HOST_CLOSE);
+    if (sSub == PORT_OUI_SUB_PASS)              /* server browser */
+        Push(PORT_OUI_EV_JOIN_CANCEL);
     sSub = PORT_OUI_SUB_MP;
     sGen++;
 }
@@ -121,6 +133,11 @@ const char *PortOuiHeader(int sub)
 
 const char *PortOuiRowName(int sub, int row)
 {
+    /* server browser */
+    if (sub == PORT_OUI_SUB_ONLINE && row == 2)
+        return "BROWSE GAMES";
+    if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
+        return PortObrRowName(sub, row);
     switch (sub) {
     case PORT_OUI_SUB_ONLINE: return row == 0 ? "HOST GAME" : "JOIN GAME";
     case PORT_OUI_SUB_HOST:   return row == 0 ? "CODE" : "START";
@@ -145,6 +162,11 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
     const char *v = "";
 
     buf[0] = '\0';
+    /* server browser */
+    if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2)) {
+        PortObrRowValue(sub, row, selected, buf, size);
+        return;
+    }
     if (sub == PORT_OUI_SUB_HOST) {
         if (row == 0) {
             v = sState == PORT_OUI_H_CREATING ? "...." : HostHasRoom() ? sCode : "----";
@@ -208,6 +230,11 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
  * with others is drawn in the fallback font. */
 const char *PortOuiRowDesc(int sub, int row)
 {
+    /* server browser */
+    if (sub == PORT_OUI_SUB_ONLINE && row == 2)
+        return "FIND A PUBLIC GAME TO JOIN";
+    if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
+        return PortObrRowDesc(sub, row);
     if (sub == PORT_OUI_SUB_ONLINE)
         return row == 0 ? "MAKE A CODE FOR A FRIEND" : "ENTER A FRIENDS CODE";
     if (sub == PORT_OUI_SUB_HOST) {
@@ -251,6 +278,8 @@ int PortOuiRowUnavailable(int sub, int row)
 {
     if (gPortLnOn)
         return 1;
+    if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
+        return PortObrRowUnavailable(sub, row);     /* server browser */
     if (sub == PORT_OUI_SUB_HOST && row == 1)
         return !HostHasRoom();
     if (sub == PORT_OUI_SUB_JOIN && row == 1)
@@ -279,8 +308,24 @@ static void JoinStart(int *row)
     Push(PORT_OUI_EV_JOIN);
 }
 
+/* server browser: JOIN GAME with this code, as if typed and joined */
+void PortOuiJoinWith(const char code[4])
+{
+    int i, k;
+
+    for (i = 0; i < 4; i++) {
+        for (k = 0; k < NALPHA && kAlpha[k] != code[i]; k++)
+            ;
+        sJoin[i] = k < NALPHA ? k : 0;
+    }
+    Go(PORT_OUI_SUB_JOIN);
+}
+
 int PortOuiKey(int *row, unsigned key)
 {
+    int act;            /* server browser */
+    char code[4];
+
     if (gPortLnOn)
         return PORT_OUI_K_NONE;
     switch (sSub) {
@@ -300,7 +345,10 @@ int PortOuiKey(int *row, unsigned key)
         }
         if (key != 1)
             return PORT_OUI_K_NONE;
-        if (*row == 0) {
+        if (*row == 2) {                    /* server browser */
+            Go(PORT_OUI_SUB_BROWSE);
+            PortObrOpen();
+        } else if (*row == 0) {
             Go(PORT_OUI_SUB_HOST);
             sState = PORT_OUI_H_CREATING;
             Push(PORT_OUI_EV_HOST_OPEN);
@@ -313,6 +361,9 @@ int PortOuiKey(int *row, unsigned key)
         return PORT_OUI_K_SELECT;
 
     case PORT_OUI_SUB_HOST:
+        /* server browser: GAME (PRIVATE / PUBLIC) and PASSWORD */
+        if (*row >= 2 && (act = PortObrHostKey(row, key)) != PORT_OUI_K_NONE)
+            return act;
         if (key == 2) {
             Push(PORT_OUI_EV_HOST_CLOSE);
             sState = PORT_OUI_IDLE;
@@ -327,7 +378,7 @@ int PortOuiKey(int *row, unsigned key)
             sGen++;
             return PORT_OUI_K_CURSOR;
         }
-        if (key != 1)
+        if (key != 1 || *row >= 2)          /* server browser: rows 2, 3 */
             return PORT_OUI_K_NONE;
         if (*row == 0) {
             if (!HostHasRoom())
@@ -392,6 +443,29 @@ int PortOuiKey(int *row, unsigned key)
             return PORT_OUI_K_BACK;
         }
         return key == 5 || key == 6 ? PORT_OUI_K_QUIET : PORT_OUI_K_NONE;
+
+    /* server browser (platform/online_browse.c) */
+    case PORT_OUI_SUB_BROWSE:
+        act = PortObrBrowseKey(row, key, code);
+        if (act == PORT_OUI_K_BACK) {
+            Go(PORT_OUI_SUB_ONLINE);
+            *row = 2;
+        } else if (act == PORT_OUI_K_SELECT) {
+            PortOuiJoinWith(code);          /* JOIN GAME's states from here */
+            JoinStart(row);
+        }
+        return act;
+    case PORT_OUI_SUB_PASS:
+        act = PortObrPassKey(row, key, sState);
+        if (act == PORT_OUI_K_BACK) {       /* cancel: back to JOIN GAME */
+            if (JoinBusy() || sState == PORT_OUI_J_PASSWORD || sState == PORT_OUI_J_PWBAD)
+                Push(PORT_OUI_EV_JOIN_CANCEL);
+            sState = PORT_OUI_IDLE;
+            Go(PORT_OUI_SUB_JOIN);
+            sJoinPos = 3;
+            *row = 0;
+        }
+        return act;
     }
     return PORT_OUI_K_NONE;
 }

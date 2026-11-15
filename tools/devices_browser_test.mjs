@@ -670,7 +670,9 @@ async function caseHudPlaces() {
     for (const v of [{ tag: 'wide', w: 1440, h: 640, settings: 'aspect=1\nnametags=1\n' },
                      { tag: 'phone', w: 844, h: 390, mobile: true, touch: true, settings: 'nametags=1\n' }]) {
         say(`hudplaces: ${v.tag} ${v.w}x${v.h}`);
-        const early = `try{localStorage.setItem('katam.settings',${JSON.stringify(v.settings)})}catch(e){}`;
+        // (schema=2: settings without it are an older build's and are reset
+        // on load -- platform/ui/settings.h)
+        const early = `try{localStorage.setItem('katam.settings',${JSON.stringify('schema=2\n' + v.settings)})}catch(e){}`;
         const p = await openPage('hud-' + v.tag, { w: v.w, h: v.h, mobile: !!v.mobile, touch: !!v.touch, early });
         await toGameSelect(p);
         await startPlay(p);

@@ -57,8 +57,21 @@ typedef struct PortSettings {
 extern PortSettings gPortSettings;
 
 void PortSettingsDefaults(PortSettings *s);
-/* Apply "key=value" lines over *s; unknown keys and bad values are skipped. */
+/* Apply "key=value" lines over *s; unknown keys and bad values are skipped.
+ *
+ * Schema: the text carries "schema=N".  Text from an older schema (no line,
+ * or a smaller N -- every build before 2026-11-15) is migrated once: only
+ * the player cards ("cardN=") and the volume ("volume=", "mute=") are kept,
+ * everything else starts from the defaults.  Older builds' gear menu set
+ * things the in-game menu never shows (dynamic zoom, the HUD's size and
+ * anchoring, interpolation, the menu size...), and those must not linger
+ * where nobody can see or undo them.  PortSettingsParseInfo says what the
+ * last parse found; the host saves straight away after a migration. */
+#define PORT_SETTINGS_SCHEMA 2
 void PortSettingsParse(PortSettings *s, const char *text);
+/* The last PortSettingsParse: the schema the text had (0: none -- an older
+ * build, or nothing stored), and whether it was migrated (1) or kept. */
+void PortSettingsParseInfo(int *storedSchema, int *migrated);
 /* Returns the length written (always NUL-terminated). */
 int PortSettingsFormat(const PortSettings *s, char *buf, int size);
 void PortSettingsClamp(PortSettings *s);
@@ -96,6 +109,30 @@ double PortLayoutHudScale(const PortSettings *s, int fbW, int fbH, const int wor
  * objects popping in. */
 #define PORT_SPAWN_MARGIN 48
 int PortLayoutPastSpawnMargin(int viewW, int viewH);
+
+/* --- what the picture runs on (platform/ui/present.c) -----------------------
+ *
+ * PortDisplayOptionsAvailable: 1 when the display options (GRAPHICS, SCREEN,
+ * ZOOM, CAMERA, PIXELS) do something on this device, 0 when they cannot --
+ * the web page fell back to its 2D canvas (no WebGL2, or the GPU renderer
+ * did not start): there the picture is the GBA's 240x160, drawn by the
+ * page, whatever the settings say.  The party HUD, name tags and the
+ * volume work either way.  For the menus: show those rows as unavailable.
+ *
+ * PortDisplayStatus: one short line for a bug report -- the build, the
+ * renderer in use (GPU / CLASSIC / 2D FALLBACK and why), WebGL2 yes/no and
+ * the GPU, the settings schema and whether stored settings were migrated.
+ * Plain ASCII, upper case, a few "WHAT: VALUE" lines separated by '\n'
+ * (each under 40 characters except the GPU's name, which is cut to fit);
+ * static storage, valid until the next call. */
+int PortDisplayOptionsAvailable(void);
+const char *PortDisplayStatus(void);
+/* The host's half of the status, set before the first frame (host_web.c;
+ * the native host leaves it and the GL renderer's own description is used).
+ * Strings are copied. */
+void PortDisplaySetHostInfo(int webgl2, const char *gpu, const char *why2d, const char *build);
+/* The host: the GL context was lost (the picture has stopped). */
+void PortDisplayNoteContextLost(int lost);
 
 #ifdef __cplusplus
 }
