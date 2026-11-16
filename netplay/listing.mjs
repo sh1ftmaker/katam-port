@@ -8,9 +8,9 @@
 //   code     the room's 4-letter code (what a joiner needs)
 //   name     the host's player-card name, sanitised (sanitizeName)
 //   n        players in the game, 1..max, as the host reports it
-//   max      the people the game holds: 4, or 8 in an 8-player game (the
+//   max      the people the game holds: 4, or 16 in a 16-player game (the
 //            host says; 4..16, else 4)
-//   mod      the module it runs on, '16' for the 16-Kirby one (8-player
+//   mod      the module it runs on, '16' for the 16-Kirby one (16-player
 //            games: a joiner's page loads it first), absent otherwise
 //   mode     'together' | 'roam'
 //   locked   whether the host set a password (the password itself never

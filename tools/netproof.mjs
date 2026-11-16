@@ -16,7 +16,7 @@
 // R14 the link matrix on three devices, R15 feel per guest for 2/3/4 devices,
 // R16 player cards online (colours and names through joins, leaves, repairs).
 //
-// More devices (a wide module: KATAM_MAX_KIRBYS 8 or 16, eight seats):
+// More devices (a wide module: KATAM_MAX_KIRBYS 8 or 16, its seats: 8 or 16):
 //   --devices N     every gate that runs two devices (R0-R5, R12) runs N
 //                   instead (guest 1 is the one measured; guests 2..N-1 play
 //                   beside it), and R13 / R16 add N-device variants (churn, a
@@ -73,7 +73,7 @@ const probe = await createInstance({ modulePath: MODULE, rom, name: 'probe' });
 const SLOTS = probe.M._PortLnSlots ? probe.M._PortLnSlots() : 4;
 const MAXDEV = probe.M._PortLnMaxDevices ? probe.M._PortLnMaxDevices() : 4;
 const KIRBY = kirbyAddrOf(SLOTS);
-const SEATS = +flag('seats', SLOTS > 4 ? Math.min(8, SLOTS) : 4);
+const SEATS = +flag('seats', SLOTS > 4 ? Math.min(16, SLOTS) : 4);
 const DEVICES = Math.min(+flag('devices', 2), MAXDEV, SEATS);
 const R15_N = flag('r15', '2,3,4').split(',').map(Number).filter((n) => n >= 2 && n <= Math.min(MAXDEV, SEATS));
 const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
@@ -81,7 +81,7 @@ const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
 // module (what web/online.js uses: its heap is 256 MiB, Makefile)
 const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 32 : 24);
 // a wide module's Kirby count at power-on (run.mjs c.kirbys): the seats, so
-// eight people have eight Kirbys from the start, as an 8-player game whose
+// every seat has its Kirby from the start, as a full game whose
 // count has risen (R13-N "count rising" starts at 4 instead)
 const KIRBYS = +flag('kirbys', SLOTS > 4 ? SEATS : 0) || null;
 // The scenario's save is early in the story (gAIKirbyState 100).  Joins past

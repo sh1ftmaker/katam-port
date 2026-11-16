@@ -146,12 +146,16 @@
 /* The pause area map's and world map's Kirby markers (pause_area_map.c,
  * pause_world_map.c).  The console's maps keep four, one per Kirby, each
  * with 256 bytes of OBJ tiles at 0x06013800 + i * 0x100.  With more Kirby
- * slots they keep up to eight, at 0x06013800 .. 0x06014000 (where the
- * game's own OBJ VRAM heap starts, gVramHeapStartAddr): every Kirby while
- * there are eight or fewer, otherwise the pauser, the screen's own player,
- * the other people and then CPU Kirbys, lowest slot first, eight in all. */
+ * slots there is a marker for every Kirby, but OBJ tiles for eight only
+ * (0x06013800 .. 0x06014000, where the game's own OBJ VRAM heap starts,
+ * gVramHeapStartAddr): markers whose Kirbys have the same ability share a
+ * tile slot (they are made in the same frame and animate in step, so they
+ * write the same frames there).  Past eight abilities on the map, the
+ * pauser, the screen's own player, the other people and then CPU Kirbys
+ * come first, lowest slot first (PortWideMapMarkers). */
 #if KATAM_KIRBYS > 4
-#define KATAM_MAP_MARKERS (KATAM_KIRBYS < 8 ? KATAM_KIRBYS : 8)
+#define KATAM_MAP_MARKERS      KATAM_KIRBYS
+#define KATAM_MAP_MARKER_TILES (KATAM_KIRBYS < 8 ? KATAM_KIRBYS : 8)
 #else
 #define KATAM_MAP_MARKERS 4
 #endif
@@ -418,8 +422,9 @@ void PortWideRideAdd(const void *star, u32 i);
 void PortWideRideClear(const void *star);
 
 /* The pause maps' Kirby markers (KATAM_MAP_MARKERS above): fills out[] with
- * the Kirbys that get one, lowest slot first, and returns how many. */
-u8   PortWideMapMarkers(u8 *out);
+ * the Kirbys that get one, lowest slot first, and tile[] with each one's
+ * tile slot (0 .. KATAM_MAP_MARKER_TILES - 1), and returns how many. */
+u8   PortWideMapMarkers(u8 *out, u8 *tile);
 
 /* Kirbys 4..'s sprite memory (platform/wide_sprites.c). */
 static inline u32 PortWideOamTiles(u32 v)

@@ -200,7 +200,9 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
                     return;
                 }
                 if (sPlayers <= 1 && !sConnecting) { v = "ALONE"; break; }
-                snprintf(buf, size, "PLAYERS %d/%d%s", sPlayers, PortOuiSeats(), sConnecting ? " +" : "");
+                /* (two-digit counts: "PLAYERS 16/16" runs into START) */
+                snprintf(buf, size, PortOuiSeats() > 9 ? "%d OF %d%s" : "PLAYERS %d/%d%s",
+                         sPlayers, PortOuiSeats(), sConnecting ? " +" : "");
                 return;
             case PORT_OUI_H_NOSERVER: v = "OFFLINE"; break;
             default:                  v = ""; break;
@@ -272,13 +274,23 @@ const char *PortOuiRowDesc(int sub, int row)
         case PORT_OUI_H_JOINING:  return "A PLAYER IS CONNECTING";
         case PORT_OUI_H_READY:
             if (row == 0) {
-                static char line[40];
+                /* two buffers, the new text in the other one: the screen
+                 * redraws a description when its pointer changes
+                 * (menu_poc.c sDescShown), so a count that changed in place
+                 * stayed as it was first drawn (TWO PLAYERS with sixteen in) */
+                static char line[2][40];
+                static int cur;
+                char next[40];
 
                 if (sPlayers >= PortOuiSeats())
-                    snprintf(line, sizeof(line), "%s PLAYERS - THE GAME IS FULL", Count(sPlayers));
+                    snprintf(next, sizeof(next), "%s PLAYERS - THE GAME IS FULL", Count(sPlayers));
                 else
-                    snprintf(line, sizeof(line), "%s PLAYERS ARE HERE", Count(sPlayers < 2 ? 2 : sPlayers));
-                return line;
+                    snprintf(next, sizeof(next), "%s PLAYERS ARE HERE", Count(sPlayers < 2 ? 2 : sPlayers));
+                if (strcmp(next, line[cur]) != 0) {
+                    cur ^= 1;
+                    memcpy(line[cur], next, sizeof(next));
+                }
+                return line[cur];
             }
             return sRoomsMode ? "EACH PLAYS ON - MEET BY PHONE" : "PRESS A TO PLAY TOGETHER";
         default:

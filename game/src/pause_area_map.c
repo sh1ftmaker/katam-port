@@ -156,6 +156,7 @@ struct AreaMap {
      * kirbySprites[m] and abilityAccessories[m] show Kirby markerKirby[m];
      * roomInfos stays one per Kirby. */
     u8 markerKirby[KATAM_MAP_MARKERS];
+    u8 markerTile[KATAM_MAP_MARKERS];   /* its OBJ tile slot (shared by an ability) */
     u8 numMarkers;
 #endif
 }; /* size = 0x714 */
@@ -2578,9 +2579,11 @@ static const struct AnimInfo gUnk_083639a0[NUM_LANGUAGES][10] UNUSED = {
  */
 #if KATAM_KIRBYS > 4
 /* PORT: markers 4..7 (port/wide.h KATAM_MAP_MARKERS) between the console's
- * four: the middles of the room's edges. */
-static const u8 sAreaMapNormalRoomKirbyOffsets[] = {2, 2, 14, 2, 2, 14, 14, 14, 8, 2, 2, 8, 14, 8, 8, 14};
-static const u8 sAreaMapBigRoomKirbyOffsets[] = {8, 12, 24, 12, 8, 28, 24, 28, 16, 12, 8, 20, 24, 20, 16, 28};
+ * four: the middles of the room's edges; 8..15 an inner ring. */
+static const u8 sAreaMapNormalRoomKirbyOffsets[] = {2, 2, 14, 2, 2, 14, 14, 14, 8, 2, 2, 8, 14, 8, 8, 14,
+                                                    5, 5, 11, 5, 5, 11, 11, 11, 8, 5, 5, 8, 11, 8, 8, 11};
+static const u8 sAreaMapBigRoomKirbyOffsets[] = {8, 12, 24, 12, 8, 28, 24, 28, 16, 12, 8, 20, 24, 20, 16, 28,
+                                                 12, 16, 20, 16, 12, 24, 20, 24, 16, 16, 12, 20, 20, 20, 16, 24};
 #else
 static const u8 sAreaMapNormalRoomKirbyOffsets[] = {2, 2, 14, 2, 2, 14, 14, 14};
 static const u8 sAreaMapBigRoomKirbyOffsets[] = {8, 12, 24, 12, 8, 28, 24, 28};
@@ -2711,20 +2714,21 @@ inline void UNUSED MapDisableUIElementsThunk(enum MapDisableUI element) {
  * console's playerId; the wide build's Kirbys 4.. draw with their own
  * palettes (port/wide.h KATAM_KIRBY_PAL; 0x40000: the sprite loads none). */
 #if KATAM_KIRBYS > 4
-static void AreaMapKirbySpritesInit(struct Sprite* kirby, struct Sprite* abilityAccessory, u8 playerId, u8 marker) {
+/* (`tile`: the marker's tile slot, port/wide.h KATAM_MAP_MARKER_TILES) */
+static void AreaMapKirbySpritesInit(struct Sprite* kirby, struct Sprite* abilityAccessory, u8 playerId, u8 marker, u8 tile) {
 #else
 static void AreaMapKirbySpritesInit(struct Sprite* kirby, struct Sprite* abilityAccessory, u8 playerId) {
-    u8 marker = playerId;
+    u8 marker = playerId, tile = playerId;
 #endif
     u16 r5 = marker * 2 + 0xa;  // priority?
     if (playerId == gLocalPlayerId) {
         r5 = 0x8;
     }
 
-    SpriteInitNoPointer2(kirby, (u32)OBJ_VRAM0 + 0x3800 + marker * 0x100, (r5 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
+    SpriteInitNoPointer2(kirby, (u32)OBJ_VRAM0 + 0x3800 + tile * 0x100, (r5 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
                          gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL(playerId), 0, 0, 0x41000);
 
-    SpriteInitNoPointer2(abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + marker * 0x100, r5 << 6, gUnk_08350B30[gKirbys[playerId].ability].animId,
+    SpriteInitNoPointer2(abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + tile * 0x100, r5 << 6, gUnk_08350B30[gKirbys[playerId].ability].animId,
                          gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL2(playerId), 0, 0, 0x41000);
 }
 
@@ -2775,7 +2779,7 @@ static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
         }
         areamap->roomInfos[playerId] = roomInfo;
     }
-    areamap->numMarkers = PortWideMapMarkers(areamap->markerKirby);
+    areamap->numMarkers = PortWideMapMarkers(areamap->markerKirby, areamap->markerTile);
     for (m = 0; m < areamap->numMarkers; m++) {
         const struct AreaMapRoomInfo* roomInfo = areamap->roomInfos[areamap->markerKirby[m]];
         if (roomInfo) {
@@ -2817,7 +2821,7 @@ static void AreaMapDrawKirbysInRoom(struct AreaMap* areamap) {
     for (marker = 0; marker < AREAMAP_NUM_MARKERS(areamap); marker++) {
         u8 xOffset, yOffset;  // offsets from room coordinates for 4 kirbys to be drawn without overlap in one room
         u32 playerId = AREAMAP_MARKER_KIRBY(areamap, marker);
-        /* PORT: the spot in the room: the console's Kirby i's, or marker m's of eight */
+        /* PORT: the spot in the room: the console's Kirby i's, or marker m's of sixteen */
         u32 spot = KATAM_KIRBYS > 4 ? marker : KATAM_ROM_ROW(playerId);
         struct AreaMapSprite* kirby = areamap->kirbySprites + marker;
         struct AreaMapSprite* abilityAccessory = areamap->abilityAccessories + marker;
@@ -3220,7 +3224,8 @@ void CreateAreaMap(void) {
     AreaMapBGInit(areamap);
 #if KATAM_KIRBYS > 4
     for (id = 0; id < areamap->numMarkers; id++) {  // marker; PORT: port/wide.h KATAM_MAP_MARKERS
-        AreaMapKirbySpritesInit(&areamap->kirbySprites[id].sprite, &areamap->abilityAccessories[id].sprite, areamap->markerKirby[id], id);
+        AreaMapKirbySpritesInit(&areamap->kirbySprites[id].sprite, &areamap->abilityAccessories[id].sprite, areamap->markerKirby[id], id,
+                                areamap->markerTile[id]);
     }
 #else
     for (id = 0; id < KATAM_HUD_KIRBYS; id++) {  // playerId; PORT: port/wide.h

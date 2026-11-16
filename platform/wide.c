@@ -493,9 +493,6 @@ static void Remove(u8 i)
             (unsigned)gNumTasks);
 }
 
-/* The pause maps' Kirby markers (port/wide.h KATAM_MAP_MARKERS): every
- * Kirby while they fit; otherwise the pauser, this screen's own player, the
- * other people, then CPU Kirbys, each lowest slot first.  Listed by slot. */
 /* Star riders past the u8 mask (port/wide.h struct PortWideRide). */
 static u32 RideAddr(const void *star)
 {
@@ -527,9 +524,17 @@ void PortWideRideClear(const void *star)
             gPortSim->ridew.obj[i] = 0;
 }
 
-u8 PortWideMapMarkers(u8 *out)
+/* The pause maps' Kirby markers (port/wide.h KATAM_MAP_MARKERS): every
+ * Kirby, a tile slot per ability (Kirbys with the same ability share one:
+ * their markers animate in step).  While there are more abilities than
+ * KATAM_MAP_MARKER_TILES, the pauser, this screen's own player, the other
+ * people, then CPU Kirbys get theirs first, each lowest slot first; a Kirby
+ * whose ability finds no slot has no marker.  Listed by slot. */
+u8 PortWideMapMarkers(u8 *out, u8 *tile)
 {
     u32 n = gNumKirbys < K ? gNumKirbys : K, taken = 0, s, m = 0;
+    u8 slotOf[K], ability[KATAM_MAP_MARKER_TILES];
+    u32 tiles = 0, t;
     int pass;
 
     for (pass = 0; pass < 4; pass++)
@@ -538,14 +543,26 @@ u8 PortWideMapMarkers(u8 *out)
                      : pass == 1 ? s == gLocalPlayerId
                      : pass == 2 ? PortIsHuman(s) : 1;
 
-            if (want && !((taken >> s) & 1)) {
-                taken |= 1u << s;
-                m++;
+            if (!want || ((taken >> s) & 1))
+                continue;
+            for (t = 0; t < tiles && ability[t] != gKirbys[s].ability; t++)
+                ;
+            if (t == tiles) {
+                if (tiles == KATAM_MAP_MARKER_TILES)
+                    continue;           /* no tiles left for this ability */
+                ability[tiles++] = gKirbys[s].ability;
             }
+            slotOf[s] = (u8)t;
+            taken |= 1u << s;
+            m++;
         }
     for (s = 0, m = 0; s < n; s++)
-        if ((taken >> s) & 1)
+        if ((taken >> s) & 1) {
+            tile[m] = slotOf[s];
             out[m++] = (u8)s;
+        }
+    PortLog("[katam-port] wide: f%u map markers: %u of %u Kirbys, %u tile slots",
+            (unsigned)gPortSim->frame.frameCount, (unsigned)m, (unsigned)n, (unsigned)tiles);
     return (u8)m;
 }
 
