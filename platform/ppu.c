@@ -1011,7 +1011,10 @@ void PortRenderFrame(void)
          * counts on them firing whether or not anyone is looking. */
         /* The render list's per-line table: this line's registers as the
          * display sees them, after the previous HBlank's effects. */
-        if (gPortRlEnabled)
+        /* (Not the quiet live frame after the pause overlay's fork, nor a
+         * fork frame that is not shown: the list presented is the other
+         * game's, built from its own lines -- platform/lmpnet.c.) */
+        if (gPortRlEnabled && !PortLnOverlayQuiet() && !PortLnOverlayHidden())
             PortRlCaptureLine(line, sAffineX[0], sAffineY[0], sAffineX[1], sAffineY[1]);
         if (render && line >= topLine && line < bottomLine)
             RenderScanline(line);
