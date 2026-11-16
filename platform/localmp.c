@@ -594,6 +594,7 @@ int PortLmpInPlay(void)
 /* --- human slots ----------------------------------------------------------- */
 
 static int InRoom(const struct Kirby *k);
+static int Movable(const struct Kirby *k);
 
 /* Slot s's CPU brain task (sub_0800ECAC: priority 0x2100 | slot). */
 static struct Task *Brain(u8 s)
@@ -800,11 +801,46 @@ static int JoinReady(u8 s)
     return !Scripted(s);
 }
 
+#if KATAM_WIDE
+/* The wide build: a held join of slot 4.. whose Kirby the opening has parked
+ * in the hub (Scripted).  In the opening (below NORMAL) the CPU Kirbys walk
+ * to the hub 0x321 and wait there for the opening cutscene once player 1
+ * leaves the tutorial -- in a game whose player 1 was warped on (the online
+ * rig, the browser tests) or is still in the tutorial they wait there until
+ * NORMAL, so the join would wait as long.  Kirbys 1..3 are the story's own
+ * (they arrive in the cutscene, and their joins keep waiting, as in the
+ * default build); Kirbys 4.. are not in it, so theirs is carried to player 1
+ * (the respawn route, as the live count brings a Kirby) and joins once it has
+ * arrived, a person never standing in the hub.  Not while player 1 is in the
+ * hub itself, a pause or an in-game interlude: the opening's own moment. */
+static void FetchFromHub(u8 s)
+{
+    struct Kirby *k = &gKirbys[s];
+    const struct Kirby *p1 = &gKirbys[0];
+
+    if (s < 4 || s >= gNumKirbys || gAIKirbyState >= AI_KIRBY_STATE_NORMAL)
+        return;
+    if (k->base.roomId != 0x321 || !Movable(k))
+        return;
+    if (!InRoom(p1) || p1->base.roomId == 0x321 || gUnk_03000510.unk4 != 0
+        || gInGameInterludeTask != NULL || (gMainFlags & 0x400))
+        return;
+    PortLog("[katam-port] localmp: f%u player %u's Kirby is in the hub for the opening: brought to player 1",
+            (unsigned)gPortSim->frame.frameCount, (unsigned)s + 1);
+    PortLmpCarryTo(k, p1);
+}
+#endif
+
 /* Joins waiting for the story to let go of the Kirby, or for it to exist. */
 static void Waiting(void)
 {
     int s;
 
+#if KATAM_WIDE
+    for (s = 4; s < NS; s++)
+        if ((PortLmpWaiting() & (1u << s)) && !JoinReady((u8)s))
+            FetchFromHub((u8)s);
+#endif
     for (s = 1; s < NS; s++)
         if ((PortLmpWaiting() & (1u << s)) && JoinReady((u8)s)) {
             u32 old = PortLmpSlots() ? PortLmpSlots() : 1;
