@@ -409,3 +409,15 @@ cannons). Checked and safe (already widened, or provably 0..3):
   source's "TODO: UB" marks).
 - With an ASan+UBSan katam16 built with `-DKATAM_ROM_CHECK=ON`, all three
   plus the 19 recordings report nothing new.
+
+### Gates run at 44b3200
+
+| gate | result |
+|---|---|
+| ASan+UBSan katam16 with `KATAM_ROM_CHECK`: the 19 recordings at 16 Kirbys | 19/19 finish, 0 NEW sanitizer reports (65 known, 37 `gCurLevelInfo[0xFF]`), no rom-check report, no sprite turned away |
+| the same, default build (calibration) | 0 NEW, no rom-check report |
+| `tests/wide_abilities.sh`, `tests/wide_stars.sh`, `tests/wide_lwarp.sh` (sanitizer build) | PASS (wide_stars and wide_abilities failed before the fixes) |
+| `tests/layout_neutral.sh` 38daa09 vs this branch | 19/19 layout-neutral |
+| `tests/wide_w0.sh` (W0) | PASS 19/19, 120,641 frames identical, 304 dumps equal up to layout |
+| `make regress` (native) | as baseline (aim's sim@3318: the known build-directory effect) |
+| full_check: rig, rig-r16, rig-pause, rig-lwarp, web-on-eight, wide-stars, lint | 7 PASS |
