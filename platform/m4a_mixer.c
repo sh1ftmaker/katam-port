@@ -1190,8 +1190,9 @@ void PortMixerRender(struct SoundInfo *soundInfo)
 
         /* Rooms mode: an online guest's canonical shadow (platform/lmpnet.c)
          * is heard by nobody, and the live timeline's block staged before it
-         * ran is still to be handed over: the channels advance, nothing else. */
-        if (PortLnCanonRunning()) {
+         * ran is still to be handed over: the channels advance, nothing else.
+         * The same for the pause overlay's fork (its own private game). */
+        if (PortLnShadowRunning()) {
             sStateOnly = 1;
             for (ch = 0; ch < soundInfo->maxChans; ch++)
                 MixChannel(soundInfo, &soundInfo->chans[ch], frames, sAccR, sAccL);

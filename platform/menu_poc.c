@@ -1421,6 +1421,19 @@ static const char *SessionCode(void)
     return code;
 }
 
+/* Is the page drawn from the session's copies, and does an edit go through
+ * the session's edit request?  In a session -- except on this device's own
+ * pause overlay (platform/lmpnet.c "the pause overlay"), which runs on a
+ * private copy of the game no other device sees: there the page is this
+ * device's, as outside a session, and an edit is carried out on it at the
+ * next live frame.  What a session forbids (the rows dimmed NOT DURING AN
+ * ONLINE GAME) stays forbidden on the overlay too: those tests stay
+ * gPortLnOn. */
+static int PocShared(void)
+{
+    return gPortLnOn && !PortLnOverlayRunning();
+}
+
 /* The player whose pause menu this is (the simulation's: gUnk_0203AD50). */
 static int Pauser(void)
 {
@@ -1433,7 +1446,7 @@ static const PortSettings *Shown(void)
 {
     static PortSettings copy;
 
-    if (!gPortLnOn)
+    if (!PocShared())
         return &gPortSettings;
     if (!(sSlotSetOn & (1u << Pauser())))
         return NULL;
@@ -2051,6 +2064,10 @@ void PortPocSessionEditApply(int item, int dir)
  * into the session's edit request for the pausing player's device. */
 static void ItemDo(int it, int dir)
 {
+    if (gPortLnOn && !PocShared()) {
+        PortLnOverlayEdit(it, dir);     /* this device's own pause overlay */
+        return;
+    }
     if (gPortLnOn) {
         u8 *c = PORT_SIM_LNSET;
 
@@ -2142,7 +2159,7 @@ static int ExtUnavailable(int row)
 {
     const struct PortPocRows *x = sModel->ext;
 
-    if (gPortLnOn && (ExtOnline(x, row) < 0 || !(sSlotSetOn & (1u << Pauser()))))
+    if (gPortLnOn && (ExtOnline(x, row) < 0 || (PocShared() && !(sSlotSetOn & (1u << Pauser())))))
         return 1;
     return x->available ? !x->available(row) : 0;
 }
@@ -2162,7 +2179,7 @@ static void ExtValue(int row, char *buf, int size)
     int o = ExtOnline(x, row);
 
     buf[0] = '\0';
-    if (!gPortLnOn) {
+    if (!PocShared()) {
         x->value(row, buf, size);
         return;
     }
@@ -2189,7 +2206,7 @@ static const PortSettings *LightSettings(int *host)
     u32 x;
     int st;
 
-    if (!gPortLnOn) {
+    if (!PocShared()) {
         *host = LightOptHost();
         return &gPortSettings;
     }
@@ -2288,6 +2305,10 @@ static u32 SecGen(void)
     if (gPortLnOn) {
         const u8 *c = PORT_SIM_LNSET;
 
+        /* the overlay draws this device's own (an edit from it lands a
+         * frame later: PortLnOverlayEdit) */
+        if (!PocShared())
+            g = g * 31u + PocPack(&gPortSettings) + PortPocSettingsExtWord() * 7u;
         for (s = 0; s < POC_SLOTS; s++)
             g = g * 31u + ((sSlotSetOn >> s) & 1u ? sSlotSet[s] + sSlotExt[s] * 7u : 0x5A5Au)
                 + (u32)(PortLnSlotOwner(s) + 1);
@@ -3719,7 +3740,19 @@ void PortPocHostStateSave(u8 *dest)
     memcpy(h->rowBanner, sRowBanner, sizeof(sRowBanner));
 }
 
+static void HostStateLoad(const u8 *src, int copies);
+
 void PortPocHostStateLoad(const u8 *src)
+{
+    HostStateLoad(src, 1);
+}
+
+void PortPocHostStateLoadOwn(const u8 *src)
+{
+    HostStateLoad(src, 0);
+}
+
+static void HostStateLoad(const u8 *src, int copies)
 {
     const struct PocHostState *h = (const struct PocHostState *)src;
 
@@ -3732,13 +3765,15 @@ void PortPocHostStateLoad(const u8 *src)
     sLblOffX = h->lblOffX; sLblOffY = h->lblOffY; sHdrOffX = h->hdrOffX; sHdrOffY = h->hdrOffY;
     sDescLine = h->descLine;
     sOuiGenShown = h->genShown;
-    memcpy(sSlotSet, h->slotSet, sizeof sSlotSet);
-    memcpy(sSlotExt, h->slotExt, sizeof sSlotExt);
-    sSlotSetOn = h->slotSetOn;
+    if (copies) {
+        memcpy(sSlotSet, h->slotSet, sizeof sSlotSet);
+        memcpy(sSlotExt, h->slotExt, sizeof sSlotExt);
+        sSlotSetOn = h->slotSetOn;
+        memcpy(sSlotName, h->slotName, sizeof sSlotName);
+    }
     sConfirmItem = h->confirmItem;
     sConfirmArg = h->confirmArg;
     sConfirmRow = h->confirmRow;
-    memcpy(sSlotName, h->slotName, sizeof sSlotName);
     sPauseScreen = h->pauseScreen;
     sHelpSaved = h->helpSaved;
     memcpy(sHelpSave, h->helpSave, sizeof sHelpSave);

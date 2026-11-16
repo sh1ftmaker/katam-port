@@ -1332,7 +1332,7 @@ static void ReviewSettle(void)
     const u16 *src = (const u16 *)(const void *)&gSourcePalettes;
     int i;
 
-    if (!sSettle || PortLnCanonRunning() || gPortSim->frame.frameCount < sSettleAt || (gMainFlags & 0x400))
+    if (!sSettle || PortLnShadowRunning() || gPortSim->frame.frameCount < sSettleAt || (gMainFlags & 0x400))
         return;
     for (i = 0; i < 8; i++)
         if (gPaletteEffectManager.unk80[i] != NULL)
@@ -1393,7 +1393,7 @@ void PortLmpReview(void)
     u16 room;
     const u16 *fg, *bg;
 
-    if (!ROOMS() || sView < 0 || !Active() || gLocalPlayerId == v || PortLnCanonRunning())
+    if (!ROOMS() || sView < 0 || !Active() || gLocalPlayerId == v || PortLnShadowRunning())
         return;
     if (!ReviewReady(v)) {
         sReviewWaits++;
@@ -1874,7 +1874,7 @@ void PortLmpFrame(void)
         gPortSim->view.lmpRooms = 1;
     if (sRoomsAt != 0xFFFFFFFFu && !ROOMS() && !PortLnActive() && gPortSim->frame.frameCount >= sRoomsAt)
         gPortSim->view.lmpRooms = 1;
-    if (ROOMS())
+    if (ROOMS() && !PortLnOverlayRunning())     /* (the pause overlay's fork is no timeline) */
         Digest();
     {
         /* Testing the re-view natively: KATAM_LOCAL_MP_VIEW_AT=F:k makes this
