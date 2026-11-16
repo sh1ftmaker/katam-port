@@ -14,5 +14,5 @@
 # module (online_browser_test --cases smoke: HOST GAME, JOIN GAME by code,
 # 8 invite links, 8 s of play with every frame compared, a pause opened and
 # closed by a player past the eighth).  About 60 s wall on this machine.
-# tools/full_check.sh is the deep check (43 suites, ~30 min).
+# tools/full_check.sh is the deep check (44 suites, ~30 min).
 exec "$(cd "$(dirname "$0")" && pwd)/full_check.sh" --smoke "$@"

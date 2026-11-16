@@ -78,6 +78,7 @@
 #include "port/rollback.h"
 #include "port/localmp.h"
 #include "port/inputlog.h"
+#include "port/cpu_ai.h"
 #include "port/lmpnet.h"
 #include "port/audio_ear.h"
 #include "port/kirby_paint.h"
@@ -1577,6 +1578,9 @@ static void ApplyEvents(u32 f)
 #if KATAM_WIDE
             PortWideSetTarget(v->a);
 #endif
+            break;
+        case PORT_LN_EV_CPUAI:
+            PortCpuAiApply((u32)v->a);      /* port/cpu_ai.h */
             break;
         case PORT_LN_EV_POKE:
             if (((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)

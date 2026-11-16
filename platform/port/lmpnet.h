@@ -68,6 +68,10 @@ extern "C" {
                                 * need no event of their own: a seat past the
                                 * count is an ordinary EV_HUMAN, held in the
                                 * simulation until its Kirby has been made */
+#define PORT_LN_EV_CPUAI  11   /* a=the CPU Kirbys' modes, 2 bits per slot
+                                * (port/cpu_ai.h): the host's CPU AI
+                                * setting, sealed whenever it differs from
+                                * the session's                              */
 
 /* --- slots, devices, seats -------------------------------------------------
  * PORT_LN_SLOTS Kirby slots (4; the wide build: one per Kirby slot,

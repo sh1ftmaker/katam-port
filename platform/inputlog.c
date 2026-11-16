@@ -7,6 +7,7 @@
  * in the frame.
  */
 
+#include "port/cpu_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,6 +100,36 @@ static void AddPaint(u32 frame, u8 slot, u32 value, u32 feet)
     sPaints[i].value = value;
     sPaints[i].feet = feet;
     sNumPaints++;
+}
+
+/* CPU AI modes (port/cpu_ai.h): from the latch of FRAME every CPU Kirby's
+ * mode is WORD (2 bits per slot, hex).  `cpuai FRAME WORD` in the file.
+ * Kept sorted by frame. */
+struct CpuAiEv { u32 frame, word; };
+static struct CpuAiEv *sCpuAis;
+static u32 sNumCpuAis, sCpuAisCap;
+
+static void AddCpuAi(u32 frame, u32 word)
+{
+    u32 i;
+
+    if (sNumCpuAis == sCpuAisCap) {
+        u32 cap = sCpuAisCap ? sCpuAisCap * 2 : 8;
+        struct CpuAiEv *e = (struct CpuAiEv *)realloc(sCpuAis, cap * sizeof *e);
+
+        if (e == NULL)
+            return;
+        sCpuAis = e;
+        sCpuAisCap = cap;
+    }
+    i = sNumCpuAis;
+    while (i > 0 && sCpuAis[i - 1].frame > frame) {
+        sCpuAis[i] = sCpuAis[i - 1];
+        i--;
+    }
+    sCpuAis[i].frame = frame;
+    sCpuAis[i].word = word;
+    sNumCpuAis++;
 }
 
 /* Tests only: `poke16 FRAME ADDR VALUE` writes a halfword of EWRAM at the
@@ -328,6 +359,7 @@ long PortInputLogLoad(const char *text, u32 len)
     sNumPaints = 0;
     sNumPokes = 0;
     sNumAbilities = 0;
+    sNumCpuAis = 0;
 
     while (p < end) {
         char line[160];
@@ -397,6 +429,8 @@ long PortInputLogLoad(const char *text, u32 len)
                 return -1;
             }
             AddHuman(a, KIRBYS_EV, (u8)b);
+        } else if (sscanf(line, "cpuai %u %x", &a, &b) == 2) {
+            AddCpuAi(a, b & ~3u);       /* port/cpu_ai.h; slot 0 is a person */
         } else if (sscanf(line, "paint %u %u %x", &a, &b, &c) == 3) {
             if (sscanf(line, "paint %*u %*u %*x %x", &d) != 1)
                 d = 0;
@@ -502,7 +536,7 @@ char *PortInputLogSerialize(u32 *outLen)
 {
     size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48
                + (size_t)sNumViews * 32 + (size_t)sNumHumans * 32
-               + (size_t)sNumPaints * 40, len = 0;
+               + (size_t)sNumPaints * 40 + (size_t)sNumCpuAis * 32, len = 0;
     char *s = (char *)malloc(cap);
     u32 f, w = 0, v = 0, hu = 0, pa = 0;
     int have = 0;
@@ -600,6 +634,12 @@ char *PortInputLogSerialize(u32 *outLen)
             EMIT("poke16 %u %X %X\n", (unsigned)sPokes[q].frame, (unsigned)sPokes[q].addr,
                  (unsigned)sPokes[q].value);
     }
+    {
+        u32 q;
+
+        for (q = 0; q < sNumCpuAis && cap - len >= 64; q++)
+            EMIT("cpuai %u %08X\n", (unsigned)sCpuAis[q].frame, (unsigned)sCpuAis[q].word);
+    }
     while (pa < sNumPaints) {
         if (cap - len < 64) break;
         if (sPaints[pa].feet)
@@ -659,6 +699,16 @@ u32 PortInputLogScheduleKirbys(u8 n)
     if (sReplaying || n < 4 || n > 16)
         return 0;
     AddHuman(frame, KIRBYS_EV, n);
+    return frame;
+}
+
+u32 PortInputLogScheduleCpuAi(u32 word)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying)
+        return 0;
+    AddCpuAi(frame, word & ~3u);
     return frame;
 }
 
@@ -1008,6 +1058,11 @@ void PortInputLogLatch(u32 frame, u16 *keys)
             } else
                 PortLmpSetSlotHuman(sHumans[i].slot, sHumans[i].on);
         }
+
+    /* CPU AI modes (port/cpu_ai.h), the same way. */
+    for (i = 0; i < sNumCpuAis; i++)
+        if (sCpuAis[i].frame == frame)
+            PortCpuAiApply(sCpuAis[i].word);
 
     /* Player-card paint (platform/kirby_paint.c), the same way. */
     for (i = 0; i < sNumPaints; i++)
