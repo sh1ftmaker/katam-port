@@ -78,6 +78,7 @@ web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --
 web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
 web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker
 rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
+rig-pause          2     -      node tools/netproof/pause_test.mjs --rom "$ROM"
 paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
@@ -187,6 +188,7 @@ if [ -n "$BUILD" ]; then
     if ! ( set -e
            source ~/emsdk/emsdk_env.sh >/dev/null 2>&1
            make -j16 && make dist && make -j16 build/katam-node.js
+           make -j16 BUILD=build/w16 KATAM_MAX_KIRBYS=16 build/w16/katam-node.js   # rig-pause's 16-Kirby case
            cmake -S . -B build/lp64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKATAM_ALLOW_LP64=ON
            cmake --build build/lp64 -j16 ) >"$OUT/build.log" 2>&1; then
         echo "FAIL build ($(tail -3 "$OUT/build.log" | tr '\n' ' '))"; exit 1

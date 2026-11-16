@@ -22,7 +22,7 @@ export function engineOf(inst) {
     const M = inst.M;
     return L.wideCalls(M, L.cardCalls(M, {
         frame: () => M._PortFrameNumber(),
-        localInput: (f, k, seat = 0) => M._PortLnLocalInputSeat(f, seat, k),
+        localInput: (f, k, seat = 0) => M._PortLnLocalInputSeat(f, seat, k) >>> 0,
         remoteInput: (f, k, dev = 1, seat = 0) => M._PortLnRemoteInputSeat(f, dev, seat, k),
         sealedGet: (f) => inst.sealedGet(f),
         sealedEvent: (f, e) => M._PortLnSealedEvent(f, e[0], e[1], e[2], e[3], e[4]),

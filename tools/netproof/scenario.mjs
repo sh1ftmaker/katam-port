@@ -92,11 +92,19 @@ export function human(seed, opts = {}) {
 
 // A reactive pause bot: open the pause menu, walk the Select cycle to the
 // SETTINGS page (menuId 8), change a value and change it back, leave with B.
-function pauseBot(at, seedKeys) {
+// Online the pause menu is the device's own overlay (platform/lmpnet.c "the
+// pause overlay"): what it shows is obs.ovl's, not the shared game's.
+function pauseView(obs) {
+    if (obs && obs.ovl && obs.ovl.state)
+        return { interlude: obs.ovl.state === 2 ? 1 : 0, menuId: obs.ovl.menuId };
+    return { interlude: obs ? obs.interlude : 0, menuId: obs ? obs.menuId : -1 };
+}
+export function pauseBot(at, seedKeys) {
     let state = 'idle', t = 0, selects = 0, lastPress = -100;
     const tap = (f, k) => { lastPress = f; return k; };
-    return (f, obs) => {
+    return (f, o) => {
         if (f < at || state === 'done') return null;
+        const obs = pauseView(o);
         if (f - lastPress < 14) return f - lastPress < 6 ? seedKeys : 0;   // hold a tap 6 frames, then release
         switch (state) {
         case 'idle': state = 'opening'; t = f; seedKeys = KEY.START; return tap(f, KEY.START);
