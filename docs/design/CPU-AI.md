@@ -30,6 +30,16 @@ ignores its mode (the brain waits while a person drives it).
 
 Common to the three new modes:
 
+- **Routes over door groups** (`CPU-HINTS.md`): the route is a breadth
+  first search over (room, door group) states, not over rooms.  A room's
+  doors fall into groups that reach one another (the collision map flooded
+  from each door, blocks the Kirby's ability breaks counted open); entering
+  by a door puts the Kirby in the group of its arrival cell, and only that
+  group's doors lead on.  In its own room the Kirby's live map is flooded
+  from where it is, so it never chooses a door it cannot get to (room 709,
+  three sealed chambers: before, all three Kirbys aimed at the upper-left
+  door; now each takes its own chamber's door).  Rooms joined by their edges
+  rather than by door tiles are not in the graph (as before).
 - **Door use**: the Kirby walks (nav graph first, then 5 s turns of steering
   straight at the door when the graph stops getting it nearer) to the door
   tile it chose, and within one tile of it takes the door with
@@ -99,7 +109,7 @@ beat it, take its mirror shard (8 in all), then the final area and bosses.
 |---|---|
 | walk room to room toward a goal | yes (door graph routing + nav graph) -- draft quality |
 | know where the bosses are | partly: the stock brain's eight `gCpuLinkedRooms` pairs (boss-door room -> boss room) |
-| know which doors are open | partly: only door tiles present in the room now; doors behind breakable blocks, switches, or ability gates are found by failing (30 s) |
+| know which doors are open | partly: door tiles present in the room now, and door groups (which doors a Kirby can reach from where it is or enters, with the blocks its ability breaks); doors behind switches, objects (sliding doors, triggerable walls) or ability gates it does not have are found by failing (30 s) |
 | press big switches | no |
 | use the right ability for an obstacle (hammer stakes, fuse lines, bomb blocks) | no (stock: block breaking only if it already has a fitting ability) |
 | fight a boss with a plan | no boss routine: stock attack scan, goal on the boss |

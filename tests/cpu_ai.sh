@@ -13,6 +13,11 @@
 #            player's room at the end.  Run twice: identical hash logs.
 #   classic  the same without the line: no mode ever runs (no brain notes)
 #            -- the stock brain, as every older recording.
+#   groups   door groups (docs/design/CPU-HINTS.md): all EXPLORER, Kirbys 2..4
+#            warped at frame 1500 into room 709's three sealed chambers (the
+#            arrival cells of its doors from 707, 704 and 702).  Each must
+#            choose, and walk through within 10 s, the one door of its own
+#            chamber (before door groups all three aimed at 707's door).
 # Needs ROM=/path/to/rom.gba.
 set -uo pipefail
 
@@ -21,7 +26,7 @@ ROM=${ROM:?set ROM=/path/to/rom.gba}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-rec() {  # name word
+rec() {  # name word [extra lines]
     {
         echo "katam-input 1"
         echo "frames 12000"
@@ -34,11 +39,16 @@ rec() {  # name word
         [ "$m" != 0 ] && echo "k 1300 0"
         [ "$2" != 0 ] && echo "cpuai 1300 $2"
         echo "warp 1400 0 801 24 12"
+        [ -n "${3:-}" ] && printf '%s\n' "$3"
         echo "end"
     } >"$TMP/$1.txt"
 }
 rec mix E79E79E4
 rec classic 0
+rec groups AAAAAAA8 "warp 1500 1 709 3 4
+warp 1500 2 709 14 4
+warp 1500 3 709 3 9"
+sed -i 's/^frames 12000/frames 2200/' "$TMP/groups.txt"
 
 run() {  # rec out
     local d; d=$(mktemp -d -p "$TMP")
@@ -46,7 +56,7 @@ run() {  # rec out
         SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
         setarch -R "$BIN" --no-audio --turbo --replay "$TMP/$1.txt" --hash-log "$TMP/$2.hash" "$ROM" >"$TMP/$2.log" 2>&1
 }
-run mix mix & run mix mix2 & run classic classic &
+run mix mix & run mix mix2 & run classic classic & run groups groups &
 wait
 
 status=0
@@ -69,5 +79,12 @@ fi
 n=$(grep -c "\[cpuai\] f[0-9]* k[0-9]" "$TMP/classic.log")
 [ "$n" = 0 ] && ok "classic: no mode ran" || fail "classic: $n brain notes (a mode ran)"
 grep -q "\[cpuai\] f[0-9]* modes" "$TMP/classic.log" && fail "classic: the modes word changed"
+for kd in 1:707 2:704 3:702; do
+    k=${kd%:*} d=${kd#*:}
+    first=$(grep "\[cpuai\] f[0-9]* k$k door 709 " "$TMP/groups.log" | head -1 | awk '{print $6}')
+    thr=$(grep -c "\[cpuai\] f1[5-9][0-9][0-9] k$k through 709 $d " "$TMP/groups.log")
+    [ "$first" = "$d" ] && [ "$thr" -ge 1 ] && ok "groups: Kirby $((k + 1)) in 709 took its own chamber's door (to $d)" \
+        || fail "groups: Kirby $((k + 1)) in 709 chose ${first:-nothing} (want $d), through by f1999: $thr"
+done
 [ $status = 0 ] && echo "CPU AI PASS" || echo "CPU AI FAIL"
 exit $status

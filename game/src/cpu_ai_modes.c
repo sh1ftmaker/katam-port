@@ -158,117 +158,382 @@ static bool32 Wanted(int want, u16 room, u16 target)
     }
 }
 
-/* The rooms the door tiles of the Kirby's room lead to now (up to 16). */
-static int DoorsHere(struct CpuBrain *brain, u16 *out)
+/* --- room hints: door groups --------------------------------------------
+ *
+ * A room's doors do not all reach one another: room 709 (Moonlight
+ * Mansion) is three sealed chambers with one door each.  The game's own CPU
+ * hints (the nav graph's next-hop table, docs/design/CPU-HINTS.md) know some
+ * of this but are wrong in places (709's graph links the lower chamber to
+ * the upper right one through solid floor), so the groups come from the
+ * room's collision map: the cells a floating Kirby can pass (not solid, not
+ * a Mini-only gap; a breakable block passable when the Kirby's ability
+ * breaks its level), flooded from each door.  Entering a room by a door puts
+ * the Kirby in the group of the cell it arrives at, and only that group's
+ * doors lead on, so the route runs over (room, door group) states.
+ *
+ * The door records are the solidity map's tag-3 cell records (door cell ->
+ * destination room and arrival cell, docs/naming/room-tables.md); the
+ * arrival cell is (unk0A - 1, unk0B - 1), the +1 sub_080551FC's callers
+ * add.  Per tier of block breaking, every record's group (the index, in its
+ * room, of the first door of its group) and the group its arrival cell is in
+ * are computed once from the ROM maps and kept: a pure function of the
+ * loaded game data, the same on every device (tests/sim_state_allowlist.txt,
+ * rom-cache).  The Kirby's own room uses its live map instead (blocks
+ * already broken are open). */
+
+#define HINT_RECS    1024
+#define HINT_TIERS   4          /* breaks: nothing, level <= 1, <= 2, <= 3 */
+#define HINT_CELLS   1950       /* sizeof gUnk_02024ED0[0] */
+#define HINT_POCKET  0xFE       /* arrival in a part of the room with no door */
+#define NO_REC       0xFFFF
+
+static const struct Unk_0888562C_3 *sHintRec[HINT_RECS];
+static u16 sHintRoom[HINT_RECS];
+static u16 sHintFirst[MAX_ROOMS];   /* first record of the room, + 1; 0 none */
+static u8  sHintCount[MAX_ROOMS];
+static u16 sHintTotal;
+static u8  sHintGroup[HINT_TIERS][HINT_RECS];
+static u8  sHintArrive[HINT_TIERS][HINT_RECS];
+static u8  sHintBuilt;              /* bit 0: the index; bit 1 + t: tier t */
+static uintptr_t sHintSig;
+static u8  sHintCells[HINT_CELLS];  /* scratch, written before every read */
+static u8  sHintLab[HINT_CELLS];    /* scratch */
+static u16 sHintQueue[HINT_CELLS];  /* scratch */
+
+/* The highest breakable level the stock brain's block breaking
+ * (gCpuBreakBlockChecks) handles for an ability, as a tier. */
+static int AbilityTier(u8 ability)
 {
-    struct LevelInfo *li = brain->levelInfo;
-    u8 slot = brain->kirby->base.unk56;
-    u16 w = li->roomWidth >> 4, h = li->roomHeight >> 4, x, y;
-    int n = 0, i;
-
-    for (y = 0; y < h && y < 0x100; y++)
-        for (x = 0; x < w && x < 0x100; x++)
-            if (gCollisionAttributes[sub_08002434(li, x, y)] & 0x4000) {
-                struct Unk_0888562C_3 *p = sub_080025AC(slot, x, y).pat3;
-
-                if (p == NULL)
-                    continue;
-                for (i = 0; i < n && out[i] != p->unk08; i++)
-                    ;
-                if (i == n && n < 16)
-                    out[n++] = p->unk08;
-            }
-    return n;
+    switch (ability) {
+    case KIRBY_ABILITY_MINI:
+        return 0;
+    case KIRBY_ABILITY_BURNING: case KIRBY_ABILITY_WHEEL: case KIRBY_ABILITY_STONE:
+    case KIRBY_ABILITY_MISSILE:
+        return 2;
+    case KIRBY_ABILITY_HAMMER: case KIRBY_ABILITY_MASTER:
+        return 3;
+    default:
+        return 1;
+    }
 }
 
-/* Breadth first over the door lists from `from`: the first room of the
- * shortest route to a room that is wanted (not `from` itself).  NO_ROOM
- * when none is reachable.  Doors this brain gave up on are left out. */
-static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 avoid)
+/* A cell a floating Kirby can pass, breaking blocks up to `tier`. */
+static bool32 Passable(u32 a, int tier)
 {
-    u16 parent[MAX_ROOMS];
-    u16 queue[300];
-    u16 here[16];
-    u16 head = 0, tail = 0, r, i;
-    int nhere, j;
+    if (a & 0x400)                      /* Mini-only gap */
+        return FALSE;
+    if (a & 0x1000)                     /* breakable, level 0..4 */
+        return tier > 0 && (int)((a >> 20) & 0xF) <= tier;
+    if ((a & 0x240) == 0x240)           /* solid until a chain explosion */
+        return tier >= 1;
+    return !(a & 0x200);
+}
 
-    if (DoorList(from) == NULL)
-        return NO_ROOM;
-    nhere = DoorsHere(brain, here);
-    for (i = 0; i < MAX_ROOMS; i++)
-        parent[i] = NO_ROOM;
-    parent[from] = from;
-    queue[tail++] = from;
-    while (head < tail) {
-        const struct Unk_08930E00_2 *e;
+static const struct Unk_0888562C_3 *RoomRecords(u16 room)
+{
+    const struct SolidityMap *sm;
 
-        r = queue[head++];
-        if (r != from && Wanted(want, r, target)) {
-            while (parent[r] != from)
-                r = parent[r];
-            return r;
+    if (room >= MAX_ROOMS || DoorList(room) == NULL)
+        return NULL;
+    sm = gSolidityMaps[gRoomProps[room].solidityMapIdx];
+    return sm != NULL ? sm->unk4.pat3 : NULL;
+}
+
+static uintptr_t HintSig(void)
+{
+    uintptr_t sig = (uintptr_t)(const void *)gSolidityMaps;
+    u16 r;
+
+    for (r = 0; r < MAX_ROOMS; r++)
+        if (DoorList(r) != NULL) {
+            const struct SolidityMap *sm = gSolidityMaps[gRoomProps[r].solidityMapIdx];
+
+            sig = sig * 31 + (uintptr_t)(const void *)sm + r;
+            if (sm != NULL)
+                sig ^= (uintptr_t)(const void *)sm->unk0;
         }
-        for (e = DoorList(r); e != NULL && e->unk00 != 0 && e->unk01 != 0; e = NEXT_ENTRY(e)) {
-            u16 d = e->unk04;
+    return sig;
+}
 
-            if (e->unk00 != 2 || d >= MAX_ROOMS || parent[d] != NO_ROOM || DoorList(d) == NULL)
-                continue;
-            if (Blocked(brain, r, d))
-                continue;
-            if (r == from && d == avoid)
-                continue;
-            if (r == from) {            /* the first step: a door this room shows now */
-                for (j = 0; j < nhere && here[j] != d; j++)
-                    ;
-                if (j == nhere)
-                    continue;
+static void HintIndex(void)
+{
+    u16 r;
+
+    sHintTotal = 0;
+    for (r = 0; r < MAX_ROOMS; r++) {
+        const struct Unk_0888562C_3 *p = RoomRecords(r);
+        int n = 0, guard;
+
+        sHintFirst[r] = 0;
+        sHintCount[r] = 0;
+        if (p == NULL)
+            continue;
+        for (guard = 0; guard < 512 && p->unk00 != 0 && p->unk04 != 0; guard++) {
+            if (p->unk00 == 3 && sHintTotal < HINT_RECS && n < 0xFD) {
+                if (!n)
+                    sHintFirst[r] = sHintTotal + 1;
+                sHintRec[sHintTotal] = p;
+                sHintRoom[sHintTotal] = r;
+                sHintTotal++;
+                n++;
             }
-            parent[d] = r;
-            if (tail < ARRAY_COUNT(queue))
-                queue[tail++] = d;
+            p = (const struct Unk_0888562C_3 *)(const void *)((const u8 *)p + p->unk04);
+        }
+        sHintCount[r] = (u8)n;
+    }
+}
+
+/* Flood `lab` (0xFF = not reached) with `mark` from cell `start` over the
+ * map `cells` (w x h), passable at `tier`.  Returns the cells reached. */
+static int Flood(const u8 *cells, int w, int h, int start, u8 mark, int tier, u8 *lab)
+{
+    int head = 0, tail = 0;
+
+    if (start < 0 || start >= w * h || lab[start] != 0xFF)
+        return 0;
+    lab[start] = mark;
+    sHintQueue[tail++] = (u16)start;
+    while (head < tail) {
+        int i = sHintQueue[head++], x = i % w, y = i / w, k;
+        static const s8 dx[4] = { 1, -1, 0, 0 }, dy[4] = { 0, 0, 1, -1 };
+
+        for (k = 0; k < 4; k++) {
+            int nx = x + dx[k], ny = y + dy[k], j;
+
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+                continue;
+            j = ny * w + nx;
+            if (lab[j] == 0xFF && Passable(gCollisionAttributes[cells[j]], tier)) {
+                lab[j] = mark;
+                sHintQueue[tail++] = (u16)j;
+            }
         }
     }
-    return NO_ROOM;
+    return tail;
+}
+
+/* Room `r`'s ROM collision map into sHintCells; FALSE if it does not fit. */
+static bool32 RomCells(u16 r, int *w, int *h)
+{
+    const struct SolidityMap *sm = gSolidityMaps[gRoomProps[r].solidityMapIdx];
+    const struct RoomTiledBG *fg = gForegroundTilemaps[gRoomProps[r].mapDataIdx];
+    const u8 *src;
+    u32 size;
+
+    if (sm == NULL || fg == NULL || sm->unk0 == NULL)
+        return FALSE;
+    src = (const u8 *)(const void *)sm->unk0;
+    size = (u32)src[1] | ((u32)src[2] << 8) | ((u32)src[3] << 16);
+    *w = fg->width / 2;
+    *h = fg->height / 2;
+    if ((src[0] & 0xF0) != 0x30 || size > HINT_CELLS || (u32)(*w * *h) > size || *w <= 0)
+        return FALSE;
+    RLUnCompWram(src, sHintCells);
+    return TRUE;
+}
+
+static void HintTier(int t)
+{
+    u16 r, s;
+
+    for (s = 0; s < sHintTotal; s++) {
+        sHintGroup[t][s] = 0xFF;
+        sHintArrive[t][s] = HINT_POCKET;
+    }
+    for (r = 0; r < MAX_ROOMS; r++) {
+        int w, h, i;
+        u16 f = sHintFirst[r];
+
+        if (!f || !RomCells(r, &w, &h))
+            continue;
+        f--;
+        memset(sHintLab, 0xFF, sizeof(sHintLab));
+        for (i = 0; i < sHintCount[r]; i++) {
+            const struct Unk_0888562C_3 *p = sHintRec[f + i];
+            int c = p->unk03 * w + p->unk02;
+
+            if (c >= w * h || !Passable(gCollisionAttributes[sHintCells[c]], t))
+                continue;               /* off the map, or covered (a block on it) */
+            if (sHintLab[c] == 0xFF)    /* a new group: this door is its first */
+                Flood(sHintCells, w, h, c, (u8)i, t, sHintLab);
+            sHintGroup[t][f + i] = sHintLab[c];
+        }
+        /* where the doors into this room deliver */
+        for (s = 0; s < sHintTotal; s++) {
+            const struct Unk_0888562C_3 *p = sHintRec[s];
+            int x = p->unk0A - 1, y = p->unk0B - 1;
+
+            if (p->unk08 != r || x < 0 || y < 0 || x >= w || y >= h)
+                continue;
+            if (sHintLab[y * w + x] < 0xFE)
+                sHintArrive[t][s] = sHintLab[y * w + x];
+        }
+    }
+}
+
+static void HintEnsure(int t)
+{
+    uintptr_t sig = HintSig();
+
+    if (!(sHintBuilt & 1) || sig != sHintSig) {
+        sHintBuilt = 0;
+        sHintSig = sig;
+        HintIndex();
+        sHintBuilt = 1;
+    }
+    if (!(sHintBuilt & (2 << t))) {
+        HintTier(t);
+        sHintBuilt |= (u8)(2 << t);
+    }
+}
+
+/* The doors of the Kirby's room it can reach now (its live map, from its
+ * cell): sHintLab holds 0 at reached cells.  FALSE if it is nowhere sane. */
+static bool32 LiveReach(struct CpuBrain *brain, int t)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    const u8 *cells = gUnk_02024ED0[li->unk65E];
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
+    int kx = brain->kirby->base.x >> 12, ky = brain->kirby->base.y >> 12, k;
+    static const s8 ox[5] = { 0, 0, 0, -1, 1 }, oy[5] = { 0, -1, 1, 0, 0 };
+
+    if (w <= 0 || h <= 0 || w * h > HINT_CELLS)
+        return FALSE;
+    memset(sHintLab, 0xFF, sizeof(sHintLab));
+    for (k = 0; k < 5; k++) {          /* its cell, else one beside it */
+        int x = kx + ox[k], y = ky + oy[k];
+
+        if (x < 0 || y < 0 || x >= w || y >= h)
+            continue;
+        if (Passable(gCollisionAttributes[cells[y * w + x]], t)) {
+            Flood(cells, w, h, y * w + x, 0, t, sHintLab);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/* A door record of the Kirby's room it can use now: the door tile is in the
+ * live map (not behind a switch, a wall, an object) and it can get there. */
+static bool32 DoorOpenHere(struct CpuBrain *brain, const struct Unk_0888562C_3 *p)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, c = p->unk03 * w + p->unk02, k;
+    u8 v;
+
+    if (p->unk02 >= w || p->unk03 >= h)
+        return FALSE;
+    v = gUnk_02024ED0[li->unk65E][c];
+    if (v != p->unk01 || !(gCollisionAttributes[v] & 0x4000))
+        return FALSE;
+    if (sHintLab[c] == 0)
+        return TRUE;
+    for (k = 0; k < 4; k++) {          /* reached beside it */
+        int x = p->unk02 + (k == 0) - (k == 1), y = p->unk03 + (k == 2) - (k == 3);
+
+        if (x >= 0 && y >= 0 && x < w && y < h && sHintLab[y * w + x] == 0)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* Breadth first over (room, door group) from the Kirby's place: the door
+ * record (sHintRec index) of the first door of the shortest route to a room
+ * that is wanted (not `from` itself).  NO_REC when none is reachable.  Doors
+ * this brain gave up on are left out, and the first step not through a door
+ * back to `avoid`. */
+static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 avoid)
+{
+    u16 first[HINT_RECS];               /* per state (its group's first record) */
+    u16 queue[HINT_RECS];
+    u16 head = 0, tail = 0, f, i, s;
+    int t = AbilityTier(brain->kirby->ability);
+    s32 kx = brain->kirby->base.x >> 12, ky = brain->kirby->base.y >> 12;
+    u8 used[256];
+    int n;
+
+    if (DoorList(from) == NULL)
+        return NO_REC;
+    HintEnsure(t);
+    if (!sHintFirst[from] || !LiveReach(brain, t))
+        return NO_REC;
+    for (i = 0; i < sHintTotal; i++)
+        first[i] = NO_REC;
+    f = sHintFirst[from] - 1;
+    n = sHintCount[from];
+    memset(used, 0, sizeof(used));
+    /* the first step: the doors it can reach now, nearest first */
+    for (;;) {
+        u32 best = 0xFFFFFFFF;
+        int bi = -1;
+
+        for (i = 0; i < n; i++) {
+            const struct Unk_0888562C_3 *p = sHintRec[f + i];
+            s32 dx = p->unk02 - kx, dy = p->unk03 - ky;
+            u32 d = (u32)(dx * dx + dy * dy);
+
+            if (!used[i] && d < best) {
+                best = d;
+                bi = i;
+            }
+        }
+        if (bi < 0)
+            break;
+        used[bi] = 1;
+        {
+            const struct Unk_0888562C_3 *p = sHintRec[f + bi];
+            u16 d = p->unk08, df;
+            u8 a = sHintArrive[t][f + bi];
+
+            if (d >= MAX_ROOMS || DoorList(d) == NULL || d == avoid || Blocked(brain, from, d)
+                || !DoorOpenHere(brain, p))
+                continue;
+            if (d != from && Wanted(want, d, target))
+                return f + bi;
+            if (a >= HINT_POCKET || !sHintFirst[d])
+                continue;
+            df = sHintFirst[d] - 1;
+            s = df + a;
+            if (first[s] == NO_REC) {
+                first[s] = f + bi;
+                queue[tail++] = s;
+            }
+        }
+    }
+    while (head < tail) {
+        u16 g = queue[head++], r = sHintRoom[g], rf = sHintFirst[r] - 1;
+        u8 grp = (u8)(g - rf);
+
+        for (i = 0; i < sHintCount[r]; i++) {
+            const struct Unk_0888562C_3 *p = sHintRec[rf + i];
+            u16 d = p->unk08;
+            u8 a;
+
+            if (sHintGroup[t][rf + i] != grp || d >= MAX_ROOMS || DoorList(d) == NULL
+                || Blocked(brain, r, d))
+                continue;
+            if (d != from && Wanted(want, d, target))
+                return first[g];
+            a = sHintArrive[t][rf + i];
+            if (a >= HINT_POCKET || !sHintFirst[d])
+                continue;
+            s = sHintFirst[d] - 1 + a;
+            if (first[s] == NO_REC && tail < HINT_RECS) {
+                first[s] = first[g];
+                queue[tail++] = s;
+            }
+        }
+    }
+    return NO_REC;
 }
 
 /* Not straight back where it came from unless nothing else leads there
- * (two rooms each other's way to a goal ping-pong otherwise: the door
- * tiles of only the room it is in are known). */
+ * (two rooms each other's way to a goal ping-pong otherwise). */
 static u16 Route(struct CpuBrain *brain, u16 from, int want, u16 target)
 {
-    u16 hop = PREV(brain) ? RouteEx(brain, from, want, target, (u16)(PREV(brain) - 1)) : NO_ROOM;
+    u16 j = PREV(brain) ? RouteEx(brain, from, want, target, (u16)(PREV(brain) - 1)) : NO_REC;
 
-    return hop != NO_ROOM ? hop : RouteEx(brain, from, want, target, NO_ROOM);
-}
-
-/* The door tile in the Kirby's room that leads to `dest`, nearest the
- * Kirby.  FALSE if there is none (a door the list has but the room does
- * not show yet: behind a switch, a wall, an object). */
-static bool32 FindDoorTile(struct CpuBrain *brain, u16 dest, u8 *ox, u8 *oy)
-{
-    struct LevelInfo *li = brain->levelInfo;
-    u8 slot = brain->kirby->base.unk56;
-    u16 w = li->roomWidth >> 4, h = li->roomHeight >> 4, x, y;
-    s32 kx = brain->kirby->base.x >> 12, ky = brain->kirby->base.y >> 12;
-    u32 best = 0xFFFFFFFF;
-
-    for (y = 0; y < h && y < 0x100; y++)
-        for (x = 0; x < w && x < 0x100; x++) {
-            if (gCollisionAttributes[sub_08002434(li, x, y)] & 0x4000) {
-                struct Unk_0888562C_3 *p = sub_080025AC(slot, x, y).pat3;
-
-                if (p != NULL && p->unk08 == dest) {
-                    u32 d = (u32)((x - kx) * (x - kx) + (y - ky) * (y - ky));
-
-                    if (d < best) {
-                        best = d;
-                        *ox = (u8)x;
-                        *oy = (u8)y;
-                    }
-                }
-            }
-        }
-    return best != 0xFFFFFFFF;
+    return j != NO_REC ? j : RouteEx(brain, from, want, target, NO_ROOM);
 }
 
 /* --- steering ------------------------------------------------------------- */
@@ -392,27 +657,31 @@ static struct Kirby *Ward(struct CpuBrain *brain)
     return best != NULL ? best : any;
 }
 
-/* Walk to the door toward `dest` (the first room of a route) and through
- * it.  FALSE if this room shows no such door (it is then given up). */
-static bool32 HeadFor(struct CpuBrain *brain, u16 dest)
+/* Choose door record `j` (sHintRec) of the Kirby's room. */
+static void SetDoor(struct CpuBrain *brain, u16 j)
+{
+    struct CpuAiState *st = ST(brain);
+    const struct Unk_0888562C_3 *p = sHintRec[j];
+
+    st->dest = p->unk08;
+    st->doorX = p->unk02;
+    st->doorY = p->unk03;
+    st->destFrames = 0;
+    PR(brain)->best = 0;
+    PR(brain)->stall = 0;
+    PortCpuAiNote(brain->kirby->base.unk56, "door", brain->levelInfo->currentRoom, st->dest,
+                  st->doorX | (st->doorY << 8));
+}
+
+/* Walk to the chosen door (st->dest, st->doorX/Y) and through it.  FALSE
+ * when it has taken too long (the door is then given up). */
+static bool32 HeadFor(struct CpuBrain *brain)
 {
     struct CpuAiState *st = ST(brain);
     struct Kirby *k = brain->kirby;
-    u16 room = brain->levelInfo->currentRoom;
+    u16 room = brain->levelInfo->currentRoom, dest = st->dest;
     s32 kx, ky;
 
-    if (st->dest != dest) {
-        if (!FindDoorTile(brain, dest, &st->doorX, &st->doorY)) {
-            Block(brain, room, dest);
-            st->dest = NO_ROOM;
-            return FALSE;
-        }
-        st->dest = dest;
-        st->destFrames = 0;
-        PR(brain)->best = 0;
-        PR(brain)->stall = 0;
-        PortCpuAiNote(k->base.unk56, "door", room, dest, st->doorX | (st->doorY << 8));
-    }
     if (++st->destFrames > DOOR_GIVEUP) {
         Block(brain, room, dest);
         st->dest = NO_ROOM;
@@ -472,7 +741,6 @@ static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
 {
     struct CpuAiState *st = ST(brain);
     u16 room = brain->levelInfo->currentRoom;
-    u16 hop;
     int tries;
 
     if (st->dest == NO_ROUTE) {         /* nothing last time: ask again now and then */
@@ -481,18 +749,18 @@ static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
         st->dest = NO_ROOM;
     }
     for (tries = 0; tries < 3; tries++) {
-        if (st->dest != NO_ROOM && st->dest != 0) {
-            hop = st->dest;
-        } else {
-            hop = Route(brain, room, want, target);
-            if (hop == NO_ROOM && want2 >= 0)
-                hop = Route(brain, room, want2, target);
+        if (st->dest == NO_ROOM || st->dest == 0) {
+            u16 j = Route(brain, room, want, target);
+
+            if (j == NO_REC && want2 >= 0)
+                j = Route(brain, room, want2, target);
+            if (j == NO_REC) {
+                st->dest = NO_ROUTE;
+                return FALSE;
+            }
+            SetDoor(brain, j);
         }
-        if (hop == NO_ROOM) {
-            st->dest = NO_ROUTE;
-            return FALSE;
-        }
-        if (HeadFor(brain, hop))
+        if (HeadFor(brain))
             return TRUE;
     }
     return FALSE;
@@ -517,7 +785,8 @@ static bool32 GoalBodyguard(struct CpuBrain *brain)
     /* another room: walk there, door by door; warp (as the stock brain
      * does off-screen) once a room has held it for a minute */
     if (st->roomFrames > ROOM_GIVEUP / 3) {
-        u16 hop = Route(brain, room, WANT_ROOM, gCurLevelInfo[ward->base.unk56].currentRoom);
+        u16 j = Route(brain, room, WANT_ROOM, gCurLevelInfo[ward->base.unk56].currentRoom);
+        u16 hop = j != NO_REC ? sHintRec[j]->unk08 : NO_ROOM;
 
         if (CpuWarpToRoom(brain, hop != NO_ROOM ? hop : gCurLevelInfo[ward->base.unk56].currentRoom)) {
             PortCpuAiNote(brain->kirby->base.unk56, "warp", room, hop, 0);
@@ -582,6 +851,20 @@ void CpuAiDumpGraph(void)
         for (; e->unk00 != 0 && e->unk01 != 0; e = NEXT_ENTRY(e))
             if (e->unk00 == 2)
                 PortCpuAiNote(-1, "graph-door", r, e->unk04, e->unk06 | (e->unk07 << 8));
+    }
+    if (PortCpuAiLogOn() > 2) {         /* KATAM_CPUAI_LOG=3: the door groups too */
+        int t;
+        u16 j;
+
+        for (t = 0; t < HINT_TIERS; t++)
+            HintEnsure(t);
+        for (j = 0; j < sHintTotal; j++) {
+            const struct Unk_0888562C_3 *p = sHintRec[j];
+
+            PortCpuAiNote(-1, "hint-door", sHintRoom[j] | (p->unk08 << 16), p->unk02 | (p->unk03 << 8),
+                          sHintGroup[0][j] | (sHintGroup[1][j] << 8) | (sHintGroup[3][j] << 16)
+                          | (sHintArrive[1][j] << 24));
+        }
     }
 }
 
