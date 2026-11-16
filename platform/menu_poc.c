@@ -947,6 +947,8 @@ enum {
     /* not a row: the NO / YES screen before the page reloads with the other
      * module (CPU KIRBYS on the default module, the web page) */
     IT_KIRBYS_GO,
+    /* PLAYERS: the player card (its row is the section's last) */
+    IT_CARD,
     IT_COUNT
 };
 
@@ -960,6 +962,7 @@ enum {
     K_OPEN,         /* A opens a page (PLAYERS)                             */
     K_INFO,         /* shown only                                           */
     K_PLAYER,       /* a Kirby in the online game: the host's A removes it  */
+    K_CARD,         /* A opens a player card (platform/player_card.c)       */
 };
 
 struct ItemDef {
@@ -1067,6 +1070,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_REMOVE4]     = { "REMOVE 4", K_ACTION, "" },
     [IT_KICK]        = { "REMOVE", K_CONFIRM, "" },
     [IT_KIRBYS_GO]   = { "CPU KIRBYS", K_CONFIRM, "" },
+    [IT_CARD]        = { "PLAYER CARD", K_CARD, "YOUR NAME AND KIRBY COLOR" },
 };
 
 /* The sections' items.  Per build: the page's actions on the web, VSYNC
@@ -1091,6 +1095,7 @@ static const u8 kPlayersItems[] = {
 #ifdef __EMSCRIPTEN__
     IT_TOUCH,
 #endif
+    IT_CARD,
 };
 static const u8 kOnlineItems[] = {
     IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT0 + 1, IT_SLOT0 + 2, IT_SLOT0 + 3,
@@ -1352,7 +1357,9 @@ void PortPocSlotSettingsSet(int slot, u32 word, u32 ext)
     sSlotSetOn |= (PocSlotMask)(1u << slot);
 }
 
-/* A sealed PORT_LN_EV_NAME, and what the host compares before sealing. */
+/* A sealed PORT_LN_EV_NAME, and what the host compares before sealing.
+ * The letters came from another device: made drawable here (the same on
+ * every device -- PortCardCleanName is a pure function of them). */
 void PortPocSlotNameSet(int slot, u32 lo, u32 hi)
 {
     int i;
@@ -1368,6 +1375,12 @@ void PortPocSlotNameSet(int slot, u32 lo, u32 hi)
             break;
     }
     sSlotName[slot][i < PORT_CARD_NAME_MAX ? i : PORT_CARD_NAME_MAX] = '\0';
+    PortCardCleanName(sSlotName[slot]);
+}
+
+const char *PortPocSlotName(int slot)
+{
+    return slot >= 0 && slot < POC_SLOTS ? sSlotName[slot] : "";
 }
 
 void PortPocNameWords(const char *name, u32 *lo, u32 *hi)
@@ -1746,6 +1759,8 @@ static const char *KirbysDesc(int it)
     }
 }
 
+static int CardOfPauser(void);
+
 static void ItemValue(int it, char *buf, int size)
 {
     const PortSettings *s = Shown();
@@ -1784,6 +1799,9 @@ static void ItemValue(int it, char *buf, int size)
     case IT_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
     case IT_TAGS:      OnOff(buf, size, s->nameTags); break;
     case IT_PLAYERS:   PortPuiSummary(buf, size); break;
+    case IT_CARD:      /* (device state: never on a shared page) */
+        if (CardOfPauser() >= 0) snprintf(buf, size, "%s", PortCardShownName(CardOfPauser()));
+        break;
     case IT_KIRBYS:    if (!gPortLnOn) snprintf(buf, size, "%d", gPortSettings.kirbys - 1); break;
     /* the page's own state: per device, so never shown in a session */
     case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
@@ -1862,6 +1880,8 @@ static const char *ItemWhyNot(int it)
     }
     if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4)
         return KirbysWhyNot(it);
+    if (it == IT_CARD && CardOfPauser() < 0)
+        return gPortLnOn ? "NOT DURING AN ONLINE GAME" : "NO CARD FOR THIS PLAYER";
     /* the CLASSIC renderer draws the GBA's 240 x 160 only: the view's
      * shape, zoom and camera are the ENHANCED renderer's (GRAPHICS stays
      * live to switch back).  In a session: the pausing player's setting. */
@@ -1920,6 +1940,8 @@ static const char *ItemDesc(int it)
         return KirbysDesc(it);
     case IT_TOUCH:
         return TouchDesc();
+    case IT_CARD:
+        return gPortLnOn ? "EVERYONE SEES IT AS YOU GO" : kItem[it].desc;
     case IT_MODE:
         return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
     case IT_SLOT0 ... IT_SLOT_LAST: {
@@ -2472,6 +2494,21 @@ static const struct PocModel *ItemHome(int it, int *row)
 
 /* The top level up now or last: the pause page's when it is the pause page. */
 static int sPauseScreen;
+
+/* SETTINGS > PLAYERS > PLAYER CARD: whose card it opens.  The front end's
+ * SETTINGS: card 0 (its PLAYER row picks P1..P4, as MULTIPLAYER's does).
+ * The pause page: the pausing player's own -- locally slot s wears card s
+ * (each seat edits its own, as on the PLAYERS page); on this device's pause
+ * overlay online, the card of the seat that paused (a device's seat s wears
+ * card s).  -1: none (a shared pause in a session, a Kirby 5.. locally). */
+static int CardOfPauser(void)
+{
+    if (gPortLnOn)
+        return PocShared() ? -1 : PortLnOverlaySeat();
+    if (!sPauseScreen)
+        return 0;
+    return Pauser() < PORT_CARD_PLAYERS ? Pauser() : -1;
+}
 
 static const struct PocModel *TopModel(void)
 {
@@ -3090,6 +3127,9 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
 }
 
 static int CardFromPlayers(int slot);
+/* Where B on a card goes: the PLAYERS page (0), or SETTINGS > PLAYERS'
+ * PLAYER CARD row (1). */
+static int sCardFromSection;
 
 /* SETTINGS -> PLAYERS and back, in place, with the same tiles (and PLAYERS
  * -> a player's card and back). */
@@ -3111,7 +3151,19 @@ static int CardFromPlayers(int slot)
     if (gPortLnOn || slot < 0 || slot >= PORT_CARD_PLAYERS)
         return 0;
     PortPlayerCardOpen(slot, 1);
+    sCardFromSection = 0;
     return 1;
+}
+
+/* The PLAYERS section's row of item `it`. */
+static int PlayersRowOf(int it)
+{
+    int r;
+
+    for (r = 0; r < (int)ARRAY_COUNT(kPlayersItems); r++)
+        if (kPlayersItems[r] == it)
+            return r;
+    return 0;
 }
 
 /* A key on a card screen opened from PLAYERS (the shared screen: Game
@@ -3125,6 +3177,12 @@ static int CardScreenInput(u32 tiles, u8 *row, unsigned key)
     case PORT_CARD_K_QUIET:
         return key == 2 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
     case PORT_CARD_K_CLOSE:     /* back to PLAYERS, on that player's row */
+        if (sCardFromSection) { /* ... or to the section's PLAYER CARD row */
+            sCardFromSection = 0;
+            *row = (u8)PlayersRowOf(IT_CARD);
+            SwapModel(tiles, &kSecPlayers, *row);
+            return PORT_POC_IN_SCREEN;
+        }
         *row = (u8)PortCardPlayer();
         SwapModel(tiles, &kPlayersModel, *row);
         return PORT_POC_IN_SCREEN;
@@ -3215,6 +3273,21 @@ static int ItemKey(u32 tiles, u8 *row, unsigned key)
          * device); otherwise the controllers */
         SwapModel(tiles, gPortLnOn ? &kLnPlayersModel : &kPlayersModel, 0);
         return PORT_POC_IN_SCREEN;
+    case K_CARD: {
+        /* this player's own card, in place (on the pause page and online the
+         * PLAYER row is fixed: a player edits only their own) */
+        int c = CardOfPauser();
+
+        if (key != 1)
+            return PORT_POC_IN_NONE;
+        if (c < 0)
+            return PORT_POC_IN_REFUSED;
+        PortPlayerCardOpen(c, sPauseScreen || gPortLnOn);
+        sCardFromSection = 1;
+        *row = 1;               /* NAME */
+        SwapModel(tiles, &kCardModel, *row);
+        return PORT_POC_IN_SCREEN;
+    }
     case K_PLAYER: {
         int slot = RowSlot(it - IT_SLOT0);
 
@@ -3389,6 +3462,18 @@ int PortMenuPocMpOpen(struct Unk_08138D64 *a1)
     PortOuiReset();
     if (PortCardSub() != PORT_CARD_SUB_NONE)
         PortPlayerCardClose();
+    {
+        char code[4];
+
+        /* an invite link: the visitor's card first, on JOIN */
+        if (PortOuiInviteCard(code)) {
+            PortPlayerCardOpenInvite(code);
+            ModelBuild(&kCardModel, v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
+                       a1->unkC.animId, a1->unkC.variant + 1, 0);
+            PortMenuPocBlankBanner();
+            return 1;
+        }
+    }
     ModelBuild(&kMpModel, v, a1->unk2DC[3].animId, a1->unk2DC[3].variant,
                a1->unkC.animId, a1->unkC.variant + 1, 0);
     PortMenuPocBlankBanner();
@@ -3457,7 +3542,16 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
         case PORT_CARD_K_CURSOR: act = PORT_OUI_K_CURSOR; break;
         case PORT_CARD_K_SELECT: act = PORT_OUI_K_SELECT; break;
         case PORT_CARD_K_BACK:   act = PORT_OUI_K_BACK; break;
-        case PORT_CARD_K_CLOSE:  act = PORT_OUI_K_BACK; row = PORT_MENU_POC_MP_CARD; break;
+        case PORT_CARD_K_CLOSE:
+            act = PORT_OUI_K_BACK;
+            row = PORT_MENU_POC_MP_CARD;
+            if (PortOuiSub() == PORT_OUI_SUB_ONLINE)
+                PortOuiInviteCancel(&row);      /* an invite's: ONLINE */
+            break;
+        case PORT_CARD_K_JOIN:   /* an invite's: JOIN GAME joins its code */
+            act = PORT_OUI_K_SELECT;
+            PortOuiInviteGo(&row);
+            break;
         default:                 act = PORT_OUI_K_QUIET; break;
         }
     } else if (PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_CARD) {

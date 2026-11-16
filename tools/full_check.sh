@@ -71,7 +71,7 @@ web-dev-touchset   1     web    node tools/devices_browser_test.mjs --cdp $CDP -
 web-dev-frontend   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases frontend
 web-on-errors      1     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases errors
 web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases gl
-web-menu-exits-a   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases front,joinmsg
+web-menu-exits-a   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases front,joinmsg,cards
 web-menu-exits-b   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases pause
 web-menu-exits-c   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases local,phone,wide
 web-menu-exits-d   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases kirbys
@@ -79,6 +79,7 @@ web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --
 web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
 web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker
 rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
+rig-r16w           2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11 --module build/w16/katam-node.js
 rig-pause          2     -      node tools/netproof/pause_test.mjs --rom "$ROM"
 rig-lwarp          1     -      node tools/netproof/lwarp_test.mjs --rom "$ROM"
 wide-stars         2     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide_stars.sh build/w16n/katam

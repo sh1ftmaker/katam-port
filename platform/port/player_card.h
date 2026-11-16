@@ -70,6 +70,10 @@ u32  PortPlayerColor(int slot);
  * reads PortPlayerName, or "nP" for a person without a name.  Read
  * from game memory, never written: the renderer projects it. */
 int  PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room);
+/* A name as every screen may draw it (in place): A-Z 0-9 space - . ! (a-z
+ * made capitals, anything else a space), no leading or trailing spaces, at
+ * most PORT_CARD_NAME_MAX.  Names from other devices go through it. */
+void PortCardCleanName(char *name);
 /* Online: slot s is `name` on this device (NULL / "" clears it). */
 void PortCardSetSlotName(int slot, const char *name);
 /* Name tags over the Kirbys (drawn by ui/party_hud.c): the device setting
@@ -115,9 +119,11 @@ int  PortCardSetJs(int p, const char *val);
  * Local play: a human slot wears its card (slot 0 from the start, the
  * others from the frame they join), a CPU slot the game's colour -- scheduled
  * as `paint` lines at the next latch whenever the simulation's paint
- * differs.  Online host: its own slot likewise, as session events.  Nothing
- * while replaying, while a guest, under rollback / netsim / seats, or while a
- * card is being edited (the change is put on when the card closes). */
+ * differs.  Online host: every slot from its owner's card, as session
+ * events (a card edited on a pause overlay goes on live).  Nothing while
+ * replaying, while a guest, under rollback / netsim / seats, or -- locally --
+ * while a card is being edited (the change is put on when the card closes).
+ * A card edited on the pause overlay is saved here, at the live frame. */
 void PortCardHostFrame(void);
 
 /* --- the card screens (the front end's MULTIPLAYER screen draws them; a
@@ -132,6 +138,12 @@ void PortCardHostFrame(void);
  * caller that already knows whose card it is).  The screens below are then
  * PortCardSub() != NONE until a B on the CARD screen closes them. */
 void PortPlayerCardOpen(int p, int fixed);
+/* An invite link's first screen (platform/online_ui.c): this device's own
+ * card (0), its first row JOIN with the game's code (4 letters) in place of
+ * PLAYER; A on it closes the card (kept) and PortCardKey says
+ * PORT_CARD_K_JOIN.  The cursor starts on JOIN: one press goes on. */
+void PortPlayerCardOpenInvite(const char code[4]);
+int  PortCardInvite(void);              /* the card open is an invite's   */
 void PortPlayerCardClose(void);
 int  PortCardSub(void);
 int  PortCardPlayer(void);
@@ -148,6 +160,8 @@ const char *PortCardRowDesc(int sub, int row);
 #define PORT_CARD_K_SELECT 3
 #define PORT_CARD_K_BACK   4
 #define PORT_CARD_K_CLOSE  5        /* B on the CARD screen: it is closed     */
+#define PORT_CARD_K_JOIN   6        /* an invite's card: A on JOIN -- closed,
+                                     * kept, the caller joins the game        */
 int  PortCardKey(int *row, unsigned key);
 #define PORT_CARD_KEY_START 7   /* Start without A (PortCardKey works it out) */
 /* The edited card's body palette (16 BGR555), for a preview. */

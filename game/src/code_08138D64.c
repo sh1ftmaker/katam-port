@@ -2952,6 +2952,15 @@ static void PortPocGameSelectInput(struct Unk_08138D64 *a1) {
     struct Sprite *sprite;
     const u8 last = PORT_MENU_POC_SETTINGS;
 
+    /* an invite link: straight on to MULTIPLAYER (as its pop-up row goes),
+     * whose screen opens on the visitor's player card (platform/online_ui.c) */
+    if (PortOuiInviteTake()) {
+        m4aSongNumStart(SE_MAIN_MENU_SELECT);
+        a1->unk2 = PORT_MENU_POC_MP_SCREEN;
+        a1->unk9CC = FN(sub_0814273C);
+        a1->unk9D0 = FN(PortPocMpEnter);
+        return;
+    }
     a1->unk3A5 = a1->unk3A4;
     switch (sub_0813B484()) {
     case 0:

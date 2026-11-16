@@ -56,6 +56,11 @@ enum {
  * on the ordinary one (8-player games run on the 16-Kirby module), 4 PLAYER
  * GAMES on that one (web/online.js otherModule) */
 #define PORT_OUI_EV_OTHER_MODULE 7
+/* An invite link's card (PortOuiInvite): B on it -- the invite is put
+ * away, the ONLINE screen is up; or the front end could not be reached (the
+ * page joins as it did before the card: in the background) */
+#define PORT_OUI_EV_INVITE_CANCEL 8
+#define PORT_OUI_EV_INVITE_DIRECT 9
 /* ONLINE's rows: HOST GAME, JOIN GAME, BROWSE GAMES, the other module */
 #define PORT_OUI_ROW_OTHER_MODULE 3
 /* the people a game holds: 8 on the 16-Kirby module (EXPERIMENTAL), else 4 */
@@ -97,6 +102,24 @@ int  PortOuiKey(int *row, unsigned key);
 void PortOuiFadeDone(void);
 /* Is the screen busy with the network (the idle timeout must not fire)? */
 int  PortOuiBusy(void);
+
+/* --- invite links (web/online.js ?join=CODE) ---------------------------------
+ * The first screen a visitor by an invite link sees is their player card:
+ * PortOuiInvite (the page, once the game runs) has the front end go there by
+ * itself -- A pressed for them from power-on to Game Select
+ * (PortOuiInviteKeys, at the key latch), then straight to MULTIPLAYER
+ * (PortOuiInviteTake, Game Select's input step) with the card open on JOIN
+ * (PortOuiInviteCard, as the screen is built).  A on JOIN: the JOIN GAME
+ * screen joins that code (PORT_OUI_EV_JOIN; a locked game's PASSWORD
+ * screen after it); B: the ONLINE screen (PORT_OUI_EV_INVITE_CANCEL).
+ * Front-end state only, never in a session. */
+void PortOuiInvite(int c0, int c1, int c2, int c3);
+int  PortOuiInviteKeys(u16 *keys);      /* 1: *keys are the invite's       */
+int  PortOuiInviteTake(void);           /* Game Select: 1 = to MULTIPLAYER */
+int  PortOuiInviteCard(char code[4]);   /* MULTIPLAYER built: 1 = the card */
+int  PortOuiInviteState(void);          /* tests: 0 none, 1 going, 2, 3 up */
+void PortOuiInviteGo(int *row);         /* A on JOIN: JOIN GAME joins      */
+void PortOuiInviteCancel(int *row);     /* B on the card: ONLINE           */
 
 /* HOST GAME's mode: 0 = TOGETHER, 1 = FREE ROAM (rooms mode, the default). */
 int PortOuiRoomsMode(void);

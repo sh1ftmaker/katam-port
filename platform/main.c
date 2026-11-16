@@ -50,6 +50,7 @@
 #include "port/simblock.h"
 #include "port/netsim.h"
 #include "port/localmp.h"
+#include "port/online_ui.h"
 #include "render/render_list.h"
 #include "gba/gba.h"
 #include "main.h"
@@ -362,6 +363,10 @@ static void UpdateKeyInput(int frameLatch)
     /* The playtest boot (platform/playtest.c): the keys that get from
      * power-on to gameplay, until the warp into the room under test. */
     if (frameLatch && PortPlaytestKeyOverride(sFrameCount, &keys))
+        sKeysDown = keys;
+    /* An invite link (platform/online_ui.c): from power-on to Game Select
+     * by itself, so the visitor's first screen is their player card. */
+    if (frameLatch && PortOuiInviteKeys(&keys))
         sKeysDown = keys;
     /* The recorder and the replayer (platform/inputlog.c) see the frame's
      * final keys, after rollback and seats.  Not the call main() makes before

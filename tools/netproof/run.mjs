@@ -20,13 +20,16 @@
 //   rate, drift, freezes   as c.guest
 //   cards      [[frame, card, value], ...] player-card changes on that device
 //              (card 0..3 = seat 0..3; value "MODE,SPRAY,HUE,SAT,VAL,NAME",
-//              platform/player_card.c PortCardSetJs), by its own frame
+//              platform/player_card.c PortCardSetJs), by its own frame -- what
+//              an edit on its pause overlay's PLAYER CARD does (a rejoining
+//              instance has them again: its saved card)
 // c.hostSeats: [[frame, seat, on], ...] local joins / leaves on the host.
 // c.rooms: the host seals rooms mode (PORT_LN_EV_ROOMS) at the session's
 // first frame: players in different rooms, each device on its own screen
 // (tools/rooms/gates.mjs).  c.onHostFrame(host, f) / c.onGuestTick(g) are
 // its observers; sc.pad(dev, seat), when a scenario has it, gives the pads.
-// c.hostCards: the host's card changes, likewise.
+// c.hostCards: the host's card changes, likewise.  c.cardSlots: res.cards
+// covers that many slots (default 4).
 // c.presentChecks: every device builds the GPU renderer's list each presented
 // frame (no GPU needed) and res.present has its present checks
 // (platform/render/rl_build.c PortRlPresentStats): a frame built from another
@@ -473,10 +476,12 @@ export async function runSession(cfg) {
     res.seatWaits = hub.st.seatWaits;
     // the player cards at the end: each live device's view of every slot's
     // colour (simulation) and name (presentation, relayed by the host)
+    // (c.cardSlots: that many slots, default the first four)
+    const cardSlots = Array.from({ length: c.cardSlots || 4 }, (_, s) => s);
     const cardView = (inst) => (inst.M._PortCardSlotPaintJs ? {
-        paint: [0, 1, 2, 3].map((s) => (inst.M._PortCardSlotPaintJs(s) >>> 0).toString(16)),
-        feet: [0, 1, 2, 3].map((s) => (inst.M._PortCardSlotFeetJs ? inst.M._PortCardSlotFeetJs(s) >>> 0 : 0).toString(16)),
-        names: [0, 1, 2, 3].map((s) => inst.cstr(inst.M._PortPlayerName(s))),
+        paint: cardSlots.map((s) => (inst.M._PortCardSlotPaintJs(s) >>> 0).toString(16)),
+        feet: cardSlots.map((s) => (inst.M._PortCardSlotFeetJs ? inst.M._PortCardSlotFeetJs(s) >>> 0 : 0).toString(16)),
+        names: cardSlots.map((s) => inst.cstr(inst.M._PortPlayerName(s))),
     } : null);
     res.cards = { host: cardView(host), guests: G.filter((g) => g.inst && !g.gone).map((g) => Object.assign({ name: g.name }, cardView(g.inst))) };
     res.wallSec = +((performance.now() - t0wall) / 1000).toFixed(1);

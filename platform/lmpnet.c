@@ -2312,6 +2312,7 @@ static int OvlSlotInPlay(int s)
 }
 
 int PortLnOverlayRunning(void) { return gPortLnOn && sOvlRun; }
+int PortLnOverlaySeat(void) { return gPortLnOn && sOvl != OVL_CLOSED && sOvlSeat >= 0 ? sOvlSeat : -1; }
 int PortLnOverlayQuiet(void) { return gPortLnOn && sOvlQuiet; }
 int PortLnOverlayHidden(void) { return gPortLnOn && sOvlRun && !sOvlShown; }
 /* --- memory: what a session may still take -----------------------------------
