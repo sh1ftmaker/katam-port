@@ -6799,9 +6799,16 @@ void sub_0803F790(struct Kirby *kirby)
         {
             if (kirby->base.roomId != 0x397)
             {
-                r7->variant = gUnk_02021590[kirby->base.unk56][kirby->animationIndex].variant + kirby->base.unk56;
+                /* PORT: the warp-star ride's per-player variants -- four of
+                 * them, one per console player (ROM data: the ability hats'
+                 * animations have exactly 4, Kirby's own 8, of which 4..7 are
+                 * other stars).  Kirby 4..'s `+ unk56` ran past them into the
+                 * next animation's data: garbage command pointers, and the
+                 * page's wasm trapped (port/wide.h KATAM_ROM_ROW, the
+                 * console row its palette lines mirror). */
+                r7->variant = gUnk_02021590[kirby->base.unk56][kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56);
                 if (gUnk_08D60FDC[kirby->ability] && kirby->ability != KIRBY_ABILITY_NORMAL)
-                    r6->variant = gUnk_08D60FDC[kirby->ability][kirby->animationIndex].variant + kirby->base.unk56;
+                    r6->variant = gUnk_08D60FDC[kirby->ability][kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56);
             }
             else
                 r7->variant = 5;
