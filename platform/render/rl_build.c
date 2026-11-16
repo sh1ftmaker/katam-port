@@ -191,6 +191,74 @@ static int IsHudSprite(const struct Sprite *sprite)
         && p < base + sizeof(struct GameplayHud);
 }
 
+/* --- a sprite whose data is not the ROM's -------------------------------
+ *
+ * Everything DisplaySprite and PortRlEmitSprite read through a struct Sprite
+ * -- the frame's attributes, its OAM subframes, a full frame's tile list and
+ * tiles -- is ROM data, chosen by the sprite's animId and the frame index
+ * (unk4) its animation left.  A sprite whose animation ran off its own data
+ * (an animId or variant the ROM does not have: the wide build's warp-star
+ * ride for Kirbys 4.. did, kirby.c sub_0803F790) holds an index into whatever
+ * follows, and the reads land anywhere -- past the wasm memory, a trap that
+ * ends the session for everyone.  Such a sprite is not drawn: the wrap below
+ * skips both the render list's copy and the game's own DisplaySprite (whose
+ * only effects are OAM and the tile queue -- presentation), and says so once.
+ * The decision reads only the sprite and the ROM, so every device makes the
+ * same one.  A safety net, not a fix: the sprite is still wrong. */
+static u32 sBadSprites;
+
+static int RomSpan(const void *p, u32 n)
+{
+    uintptr_t a = (uintptr_t)p;
+
+    return a >= GBA_ROM_BASE && a - GBA_ROM_BASE <= gPortRomSize
+        && n <= gPortRomSize - (u32)(a - GBA_ROM_BASE);
+}
+
+/* ROM or the console's RAM: a full frame's tile list is a RAM table
+ * (gSpriteTables->unk18 is IWRAM), its tiles ROM. */
+static int GbaSpan(const void *p, u32 n)
+{
+    uintptr_t a = (uintptr_t)p;
+
+    if (RomSpan(p, n))
+        return 1;
+    if (a >= GBA_EWRAM_BASE && a - GBA_EWRAM_BASE <= GBA_EWRAM_SIZE && n <= GBA_EWRAM_SIZE - (u32)(a - GBA_EWRAM_BASE))
+        return 1;
+    return a >= GBA_IWRAM_BASE && a - GBA_IWRAM_BASE <= GBA_IWRAM_SIZE && n <= GBA_IWRAM_SIZE - (u32)(a - GBA_IWRAM_BASE);
+}
+
+/* NULL if the frame the sprite shows is the ROM's, else what is not. */
+static const char *BadFrame(const struct Sprite *sprite)
+{
+    union SpriteAttributes a;
+
+    if (sprite->unk4 == -1)
+        return NULL;                            /* nothing to show */
+    if (!RomSpan(&gSpriteTables->attrs[sprite->animId], sizeof gSpriteTables->attrs[0])
+        || !RomSpan(&gSpriteTables->oamData[sprite->animId], sizeof gSpriteTables->oamData[0]))
+        return "animation";
+    if (!(sprite->unk4 >> 28))
+        a.sub = &gSpriteTables->attrs[sprite->animId].sub[sprite->unk4];
+    else
+        a.full = &gSpriteTables->attrs[sprite->animId].full[sprite->unk4];
+    if (!RomSpan(a.sub, (sprite->unk4 >> 28) ? sizeof *a.full : sizeof *a.sub))
+        return "frame";
+    if (!RomSpan(&gSpriteTables->oamData[sprite->animId][3 * (a.sub->bitfield & 0x3FFF)],
+                 6u * a.sub->numSubframes))
+        return "subframes";
+    return NULL;
+}
+
+static void BadSprite(const struct Sprite *sprite, const char *what)
+{
+    if (sBadSprites++ == 0)
+        PortLog("[katam-port] sprite %08X not drawn -- its %s is not the game's data "
+                "(animId %u variant %u frame %08X); said once",
+                (unsigned)(uintptr_t)sprite, what, (unsigned)sprite->animId,
+                (unsigned)sprite->variant, (unsigned)sprite->unk4);
+}
+
 /* The tiles a "full" sprite frame wants uploaded, as bg.c-style patches into
  * a renderer-side copy of OBJ VRAM.  The game uploads them only for a sprite
  * that passed its own on-screen test, so a sprite in the widened margin would
@@ -206,6 +274,10 @@ static void EmitTilePatches(const struct Sprite *sprite, union SpriteAttributes 
     idx = spriteAttrs.full->unkC & 0xFFFFFF;
     count = spriteAttrs.full->unkC >> 24;
     list = gSpriteTables->unk18 + idx;
+    if (!GbaSpan(list, 4u * (count ? count : 1))) {
+        BadSprite(sprite, "tile list");
+        return;
+    }
     if (list[0] >= 0) {
         tile = 0x20;
         const void *v = gSpriteTables->tiles4bpp;
@@ -224,6 +296,11 @@ static void EmitTilePatches(const struct Sprite *sprite, union SpriteAttributes 
 #endif
     if (dst < 0x06010000 || dst >= 0x06018000)
         return;
+    for (i = 0; i < count; i++)
+        if (!GbaSpan(base + list[i] * tile, tile)) {
+            BadSprite(sprite, "tiles");
+            return;
+        }
     runLen = tile;
     run = base + list[0] * tile;
     for (i = 1; i <= count; i++) {
@@ -268,6 +345,14 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         return;
     hud = IsHudSprite(sprite);
 
+    {
+        const char *why = BadFrame(sprite);     /* ROM data, or not drawn */
+
+        if (why != NULL) {
+            BadSprite(sprite, why);
+            return;
+        }
+    }
     if (!(sprite->unk4 >> 28))
         spriteAttrs.sub = &gSpriteTables->attrs[sprite->animId].sub[sprite->unk4];
     else
@@ -2049,12 +2134,24 @@ void __real_DrawToOamBuffer(void);
 
 void __wrap_DisplaySprite(struct Sprite *sprite)
 {
+    const char *why = BadFrame(sprite);         /* not the ROM's: not drawn */
+
+    if (why != NULL) {
+        BadSprite(sprite, why);
+        return;
+    }
     PortRlEmitSprite(sprite, 0);
     __real_DisplaySprite(sprite);
 }
 
 void __wrap_sub_081564D8(struct Sprite *sprite)
 {
+    const char *why = BadFrame(sprite);
+
+    if (why != NULL) {
+        BadSprite(sprite, why);
+        return;
+    }
     PortRlEmitSprite(sprite, 1);
     __real_sub_081564D8(sprite);
 }

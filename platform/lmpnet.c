@@ -1557,7 +1557,11 @@ static void ApplyEvents(u32 f)
 #endif
             break;
         case PORT_LN_EV_POKE:
-            if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
+            if (((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
+#if KATAM_WIDE
+                || PortWideIsArea((u32)v->a, 1)     /* a Kirby 4.. (tests) */
+#endif
+                )
                 *(u8 *)(uintptr_t)(u32)v->a = (u8)v->b;
             break;
         default:

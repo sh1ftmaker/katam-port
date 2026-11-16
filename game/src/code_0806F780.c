@@ -2996,7 +2996,7 @@ void sub_080753CC(void) {
                     sprite->animId = gUnk_0834FF14[kirby->animationIndex].animId;
                     sprite->variant = gUnk_0834FF14[kirby->animationIndex].variant;
                     if (kirby->animationIndex == 0x5A)
-                        sprite->variant = gUnk_0834FF14[kirby->animationIndex].variant + kirby->base.unk56;
+                        sprite->variant = gUnk_0834FF14[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
                     switch (kirby->animationIndex) {
                     case 0x68:
                     case 0x69:
@@ -3176,7 +3176,7 @@ void sub_08075EDC(void) {
                     sprite->animId = gUnk_083500D8[kirby->animationIndex].animId;
                     sprite->variant = gUnk_083500D8[kirby->animationIndex].variant;
                     if (kirby->animationIndex == 0x5A)
-                        sprite->variant = gUnk_083500D8[kirby->animationIndex].variant + kirby->base.unk56;
+                        sprite->variant = gUnk_083500D8[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
                     if (kirby->animationIndex == 0x2E) {
                         sprite->variant = gUnk_08350DC6[kirby->base.counter];
                         objBase->sprite.unk1C = 0x10;
@@ -3397,7 +3397,7 @@ void sub_08076B84(void) {
                     sprite->animId = gUnk_083502C0[kirby->animationIndex].animId;
                     sprite->variant = gUnk_083502C0[kirby->animationIndex].variant;
                     if (kirby->animationIndex == 0x5A)
-                        sprite->variant = gUnk_083502C0[kirby->animationIndex].variant + kirby->base.unk56;
+                        sprite->variant = gUnk_083502C0[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
                     if (kirby->animationIndex == 0x67) {
                         objBase->unk64 = 0x1E0;
                         objBase->unk66 = 0x1E0;
@@ -3548,7 +3548,7 @@ void sub_08077574(void) {
                     sprite->animId = gUnk_08350474[kirby->animationIndex].animId;
                     sprite->variant = gUnk_08350474[kirby->animationIndex].variant;
                     if (kirby->animationIndex == 0x5A)
-                        sprite->variant = gUnk_08350474[kirby->animationIndex].variant + kirby->base.unk56;
+                        sprite->variant = gUnk_08350474[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
                     if (kirby->animationIndex == 0x34 || kirby->animationIndex == 0x43) {
                         objBase->unk64 = 0x1E0;
                         objBase->unk66 = 0;
@@ -3669,7 +3669,7 @@ void sub_08077D84(void) {
         sprite->animId = gUnk_0834FBCC[kirby->animationIndex].animId;
         sprite->variant = gUnk_0834FBCC[kirby->animationIndex].variant;
         if (kirby->animationIndex == 0x5A)
-            sprite->variant = gUnk_0834FBCC[kirby->animationIndex].variant + kirby->base.unk56;
+            sprite->variant = gUnk_0834FBCC[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
         if (effectObject->unk8 & 1 && !(kirby->base.flags & 0x40)) {
             if (!(kirby->base.unk58 & 2))
                 effectObject->unk8 &= ~1;
@@ -3756,7 +3756,7 @@ void sub_08078314(void) {
         sprite->animId = gUnk_0834FD70[kirby->animationIndex].animId;
         sprite->variant = gUnk_0834FD70[kirby->animationIndex].variant;
         if (kirby->animationIndex == 0x5A)
-            sprite->variant = gUnk_0834FD70[kirby->animationIndex].variant + kirby->base.unk56;
+            sprite->variant = gUnk_0834FD70[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
         if (effectObject->unk8 & 1 && !(kirby->base.flags & 0x40)) {
             if (!(kirby->base.unk58 & 2))
                 effectObject->unk8 &= ~1;

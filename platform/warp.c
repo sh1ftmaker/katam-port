@@ -211,6 +211,15 @@ void PortWarpReport(void)
     if (gPortWarpCount)
         PortLog("[katam-port] at exit: player 0 in room %u, hp %d",
                 (unsigned)gCurLevelInfo[0].currentRoom, (int)gKirbys[0].hp);
+    /* and every other player a warp moved, so a test of one of them (a wide
+     * build's Kirby 4.., tests/wide_lwarp.sh) can say where it ended */
+    if (gPortWarpCount) {
+        u32 i;
+
+        for (i = 1; i < gNumKirbys && i < KATAM_KIRBYS; i++)
+            PortLog("[katam-port] at exit: player %u in room %u, hp %d", (unsigned)i,
+                    (unsigned)gKirbys[i].base.roomId, (int)gKirbys[i].hp);
+    }
     Res_LogNewRoomProgress();
 }
 

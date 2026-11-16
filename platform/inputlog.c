@@ -952,8 +952,12 @@ void PortInputLogLatch(u32 frame, u16 *keys)
     }
 
     for (i = 0; i < sNumPokes; i++)
-        if (sPokes[i].frame == frame && sPokes[i].addr >= GBA_EWRAM_BASE
-            && sPokes[i].addr + 2 <= GBA_EWRAM_BASE + GBA_EWRAM_SIZE) {
+        if (sPokes[i].frame == frame
+            && ((sPokes[i].addr >= GBA_EWRAM_BASE && sPokes[i].addr + 2 <= GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
+#if KATAM_WIDE
+                || PortWideIsArea(sPokes[i].addr, 2)    /* a Kirby 4.. */
+#endif
+                )) {
             u8 *m = (u8 *)(uintptr_t)sPokes[i].addr;
 
             m[0] = (u8)sPokes[i].value;

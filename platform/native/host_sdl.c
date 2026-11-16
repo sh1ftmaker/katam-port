@@ -1577,6 +1577,15 @@ static void OpenWindow(void)
                 SDL_GetCurrentVideoDriver(), info.name,
                 (info.flags & SDL_RENDERER_ACCELERATED) ? " (accelerated)" : "");
     }
+    /* KATAM_RL_HEADLESS=1: build the GPU renderer's render list (platform/
+     * render/rl_build.c) without a GL window, as the web page's ENHANCED
+     * renderer does -- so a headless run (an ASan build, tests/wide_lwarp.sh)
+     * goes through the same sprite path.  Presentation only: the
+     * simulation is the same either way. */
+    if (getenv("KATAM_RL_HEADLESS") != NULL && atoi(getenv("KATAM_RL_HEADLESS")) != 0) {
+        PortRlSetEnabled(1);
+        PortLog("[katam-port] render list built headless (KATAM_RL_HEADLESS)");
+    }
 }
 
 /* --- ROM loading ---------------------------------------------------------- */
