@@ -23,6 +23,13 @@
 #               netproof` runs it (with R11), the browser play at --play 130,
 #               rooms gates and audit as before (they are the same either way).
 #   --only/--skip  suite names (or prefixes ending in '*': --only 'web-*').
+#   --smoke     the one-minute check instead (tools/smoke.sh): SMOKE_SUITES
+#               below -- the 4-Kirby recordings native and wasm, a 16-device
+#               online session in node, host-away grace on 4 and 8 devices,
+#               the wide blocks run, lint, and one browser session of 10 tabs
+#               on the default module (HOST GAME, JOIN GAME by code, 8 invite
+#               links, play, a pause opened and closed); --jobs 32, about
+#               60 s wall with the artefacts already built.
 #
 # Ports: servers from 18600-18700, CDP from 19500-19600 (first free ones).
 # ROM-derived output (screenshots, dumps, logs) stays in DIR -- by default
@@ -100,11 +107,28 @@ input-devices      1     -      make -s input-devices-test
 netplay            1     -      cd netplay && npm test --silent
 EOF
 )
+# --smoke (tools/smoke.sh): the one-minute check -- the highest-value paths,
+# each cut short, all at once (default --jobs 32, browser play 8 s)
+SMOKE_SUITES=$(cat <<'EOF'
+# name             slots needs  command                      (longest first)
+web-smoke          10    web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases smoke --mod default --play $PLAY --smoke-tabs 10
+rig-hostaway       2     -      node tools/netproof/hostaway_test.mjs --rom "$ROM" --jobs $W --out "$D" --only '4dev-together-cut5,8dev-freeroam-cut5'
+regress-wasm       7     -      RP_JOBS=$W tools/regress_par.sh wasm "$ROM"
+regress            7     -      RP_JOBS=$W tools/regress_par.sh native "$ROM"
+rig-sixteen        1     -      node tools/netproof/sixteen_test.mjs --rom "$ROM" --cases freeroam --frames 900
+lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
+wide-blocks        2     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide_blocks.sh build/w16n/katam
+netplay            1     -      cd netplay && npm test --silent
+wire               1     -      node tools/ln_wire_test.cjs
+input-devices      1     -      make -s input-devices-test
+EOF
+)
 
-usage() { sed -n '3,40p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
-ROM=""; OLD=""; DEEP=""; BUILD=""; OUT=""; ONLY=""; SKIP=""; LIST=""; JOBS=12
+usage() { sed -n '3,47p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+ROM=""; OLD=""; DEEP=""; BUILD=""; OUT=""; ONLY=""; SKIP=""; LIST=""; JOBS=""; SMOKE=""
 while [ $# -gt 0 ]; do
     case $1 in
+        --smoke) SMOKE=1 ;;
         --old) OLD=$(realpath "$2"); shift ;;
         --deep) DEEP=1 ;;
         --jobs) JOBS=$2; shift ;;
@@ -119,15 +143,17 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+if [ -n "$SMOKE" ]; then SUITES=$SMOKE_SUITES; JOBS=${JOBS:-32}; else JOBS=${JOBS:-12}; fi
 if [ -n "$LIST" ]; then echo "$SUITES" | grep -v '^#' | awk '{print $1, $2, $3}'; exit 0; fi
 [ -n "$ROM" ] && [ -f "$ROM" ] || usage
-OUT=$(realpath -m "${OUT:-$ROOT/../netproof-eval/fast-tmp/check-$(date +%Y%m%d-%H%M%S)}")
+OUT=$(realpath -m "${OUT:-$ROOT/../netproof-eval/fast-tmp/$([ -n "$SMOKE" ] && echo smoke || echo check)-$(date +%Y%m%d-%H%M%S)}")
 case $OUT in "$ROOT"/*) echo "--out must be outside the tree (ROM-derived output)"; exit 2 ;; esac
 mkdir -p "$OUT/status"
 
 # --- the mode -------------------------------------------------------------
 [ "$JOBS" -ge 1 ] 2>/dev/null || { echo "--jobs N, N >= 1"; exit 2; }
 PLAY=130
+[ -n "$SMOKE" ] && PLAY=8
 if [ -n "$DEEP" ]; then
     RIG="node tools/netproof.mjs"                 # as `make netproof`: one process (ignores --jobs)
     AUDIT_DUMPS=""                                # the report's byte-range columns too

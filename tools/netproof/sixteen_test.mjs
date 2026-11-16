@@ -73,5 +73,5 @@ for (const mode of CASES) {
     console.log(`  info ${tag}: per guest rewinds/min ${r.guests.map((g) => g.feel.rewindsPerMin).join(' ')}; replayed frames/s ${r.guests.map((g) => g.feel.replayedFramesPerSec).join(' ')}; ` +
                 `images ${r.guestTels.map((t) => t.imagesLoaded).join(' ')}`);
 }
-console.log(`sixteen: ${pass} ok, ${fail} FAIL`);
+console.log(`${pass} passed, ${fail} failed (sixteen)`);
 process.exit(fail ? 1 : 0);
