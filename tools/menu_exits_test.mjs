@@ -527,9 +527,10 @@ async function casePause() {
 /* SETTINGS > EXPERIMENTAL > CPU KIRBYS: on the ordinary module more than 3
  * asks (NO / YES) and YES reloads the page with the 16-Kirby module
  * (katam16.js); there a new game starts with that many Kirbys, ADD 4 /
- * REMOVE 4 in the pause change them in the running game, multiplayer is
- * unavailable, and back at 3 the next load is the ordinary module with the
- * same save.  An invite link on the 16-Kirby module is not followed. */
+ * REMOVE 4 in the pause change them in the running game, LOCAL multiplayer
+ * is unavailable (ONLINE is its 8-player games), and back at 3 the next load
+ * is the ordinary module with the same save.  An invite link on the 16-Kirby
+ * module is followed (web/online.js: a game on the other module reloads). */
 async function caseKirbys() {
     say('kirbys: EXPERIMENTAL > CPU KIRBYS, the 16-Kirby module');
     const p = await openPage('kirbys');
@@ -564,7 +565,7 @@ async function caseKirbys() {
     await step(p, 'UP', 8);
     await shot(p, 'kirbys-16-cpu-row.png');
     await step(p, 'B'); await step(p, 'B', 40);                  // Game Select
-    // MULTIPLAYER: both rows unavailable
+    // MULTIPLAYER: LOCAL unavailable, ONLINE its 8-player games
     await step(p, 'UP', 8); for (let i = 0; i < 3; i++) await step(p, 'UP', 8);   // START GAME
     await press(p, 'A'); await waitFrames(p, 60); await press(p, 'DOWN'); await waitFrames(p, 20);
     await press(p, 'A'); await waitFrames(p, 80);                // the MULTIPLAYER screen
@@ -572,9 +573,10 @@ async function caseKirbys() {
     ok('... LOCAL unavailable', (await p.ev('Module._PortMenuPocRowAvailable ? Module._PortMenuPocRowAvailable(0) : 0')) === 0);
     await shot(p, 'kirbys-mp-local-unavailable.png');
     await press(p, 'DOWN'); await waitFrames(p, 20);
-    await shot(p, 'kirbys-mp-online-unavailable.png');
+    await shot(p, 'kirbys-mp-online-8.png');
     await press(p, 'A'); await waitFrames(p, 40);
-    ok('... ONLINE: A does nothing', (await pagesModel(p)) === M.MP);
+    ok('... ONLINE: A opens it (8-player games)', (await pagesModel(p)) !== M.MP && ((await p.ev('Module._PortOuiScreen()')) >> 8) === 1);
+    await press(p, 'B'); await waitFrames(p, 40);
     await press(p, 'B'); await waitFrames(p, 60); await press(p, 'B'); await waitFrames(p, 60);
     // a new game: you and 15 CPU Kirbys
     await startPlay(p);
@@ -625,9 +627,9 @@ async function caseKirbys() {
         early: `try{if(!/kirbys=/.test(localStorage.getItem('katam.settings')||''))localStorage.setItem('katam.settings','schema=2\\nkirbys=16\\n')}catch(e){}` });
     await until(() => q.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 120)'), 60000);
     await sleep(3000);
-    await shot(q, 'kirbys-invite-ignored.png');
-    ok('invite link on the 16-Kirby module: not followed', (await q.ev('!!window.KATAM_KIRBYS16 && !(window.katamOnline && window.katamOnline.role && window.katamOnline.role())'))
-       && (await q.ev('document.getElementById("curtain").className')).indexOf('is-invite-bad') >= 0,
+    await shot(q, 'kirbys-invite-followed.png');
+    ok('invite link on the 16-Kirby module: followed (no such game here)', (await q.ev('!!window.KATAM_KIRBYS16 && !!(window.katamOnline && window.katamOnline.role && window.katamOnline.role() === "guest")'))
+       && (await q.ev('document.getElementById("curtain").className')).indexOf('is-invite-bad') < 0,
        await q.ev('document.getElementById("curtain").className'));
     await q.close();
 }
