@@ -430,3 +430,17 @@ In the browser, `online_browser_test.mjs --cases eight --eight-tabs 12`
 (12 tabs on the 16-Kirby page: 11 people at the start, the 12th joining
 mid-game into a Kirby made for it, CPU KIRBYS 13): 108 ok, 0 failed; every
 guest's compared frames identical, largest sealed packet 607 B.
+
+**Fit and finish for 9..16 (same branch, later).**  A guest stages up to
+255 sealed events a frame in the wide build (was 16: at a 16-player
+session's first frame the settings copies and names of everyone with a card
+are more, and the guest dropped the rest -- an RG_HOST mismatch and a
+repair image on every guest; the 4-Kirby build keeps 16).  The pause maps
+mark every Kirby (ONE-WORLD-16.md, the markers row).  HOST GAME's START row
+says "n OF 16" and its count description follows the players.  The pause
+ONLINE list has a row per slot, and REMOVE works on any of them.
+`tools/smoke.sh` (the one-minute check; `tools/full_check.sh --smoke`) runs
+a 10-tab browser session with cards on the default module, through the
+host's ONLINE list to the last player's row and REMOVE.  Left as it is, on
+purpose: the engine's telemetry lists slots 4..7's owners only, and
+`--smoke-tabs 16` (61 s alone) is not the smoke default.
