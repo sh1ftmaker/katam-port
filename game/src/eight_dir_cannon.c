@@ -87,15 +87,31 @@ void *CreateEightDirCannon(struct ObjectTemplate *arg0, u8 arg1) {
  * one recorded" flag, so with more than four Kirbys that loop launched
  * Kirby 4 from wherever it was whenever anyone fired.  With more than four:
  * Kirbys 4..11 have their own bits in unkBB (a byte the game never uses; the
- * layout is fixed, port/gba_layout.h), checked after 0..3 in the same way.
- * Only people get in, and people are slots 0..7 (port/localmp.h).  Without
+ * layout is fixed, port/gba_layout.h), checked after 0..3 in the same way,
+ * and 12..15 are kept beside the cannon (below).  Only people get in.  Without
  * more than four Kirbys, EDC_IN is the console's expression and the blocks
  * are compiled out. */
-#if KATAM_KIRBYS > 4
+#if KATAM_KIRBYS > 12
+/* Kirbys 12..15, past unkBB's eight bits, in the wide build's table of riders
+ * kept beside an object (port/wide.h struct PortWideRide, as warp_star.c):
+ * before, a person 13..16 could not get in (ONE-WORLD-16.md "Slot audit"). */
+#define EDC_WIDE_MAX 16
+#define EDC_HI_IN(c, i)   ((PortWideRideMask((c), 0) >> (i)) & 1)
+#define EDC_HI_ADD(c, i)  PortWideRideAdd((c), (i))
+#define EDC_HI_ANY(c)     (PortWideRideMask((c), 0) != 0)
+#define EDC_WIDE_RESET(c) do { (c)->unkBB = 0; PortWideRideClear(c); } while (0)
+#elif KATAM_KIRBYS > 4
 #define EDC_WIDE_MAX 12
-#define EDC_IN(c, i) ((i) < 4 ? ((c)->unkBA >> (i)) & 1 \
-                      : (i) < EDC_WIDE_MAX ? ((c)->unkBB >> ((i) - 4)) & 1 : 0)
+#define EDC_HI_IN(c, i)   0
+#define EDC_HI_ADD(c, i)  ((void)0)
+#define EDC_HI_ANY(c)     0
 #define EDC_WIDE_RESET(c) ((c)->unkBB = 0)
+#endif
+#if KATAM_KIRBYS > 4
+#define EDC_IN(c, i) ((i) < 4 ? ((c)->unkBA >> (i)) & 1 \
+                      : (i) < 12 ? ((c)->unkBB >> ((i) - 4)) & 1 : EDC_HI_IN((c), (i)))
+#define EDC_BIT(c, k)     ((k) < 12 ? ((c)->unkBB >> ((k) - 4)) & 1 : EDC_HI_IN((c), (k)))
+#define EDC_SET(c, k)     do { if ((k) < 12) (c)->unkBB |= 1 << ((k) - 4); else EDC_HI_ADD((c), (k)); } while (0)
 #else
 #define EDC_IN(c, i) (((c)->unkBA >> (i)) & 1)
 #define EDC_WIDE_RESET(c) ((void)0)
@@ -183,19 +199,19 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
 
             for (k = 4; k < gNumKirbys && k < EDC_WIDE_MAX; ++k)
                 if (gKirbys[k].base.roomId == roomId && PortIsHuman(k)
-                    && !((cannon2->unkBB >> (k - 4)) & 1)
+                    && !EDC_BIT(cannon2, k)
                     && ObjectHitboxesOverlap(&cannon2->obj.base, &gKirbys[k].base)
                     && gKirbys[k].base.unk6C == cannon2
                     && sub_08051C40(&gKirbys[k])) {
                     CreateEffectObject(&cannon2->obj.base, 0, 0x2A8, 7);
-                    cannon2->unkBB |= 1 << (k - 4);
+                    EDC_SET(cannon2, k);
                     if (!(cannon2->unkBA & 0x10)) {
                         cannon2->unkBA |= 0x10;
                         cannon2->unkBC = &gKirbys[k];
                     }
                 }
         }
-        if (!cannon2->unkBA && !cannon2->unkBB)
+        if (!cannon2->unkBA && !cannon2->unkBB && !EDC_HI_ANY(cannon2))
             cannon2->unkB7 &= ~1;
 #else
         if (!cannon2->unkBA)

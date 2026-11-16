@@ -274,6 +274,9 @@ void PortRandoReport(void);
 void PortWarp(u8 playerId, u16 room, u8 cellX, u8 cellY);
 void PortWarpPoll(void);
 void PortWarpReport(void);
+/* Tests only (a recording's `ability FRAME SLOT N`, platform/inputlog.c):
+ * Kirby SLOT gets copy ability N as the game gives one (platform/warp.c). */
+void PortTestGiveAbility(u8 slot, u8 ability);
 
 /* The playtest boot (platform/playtest.c): drive the keys from power-on to
  * gameplay (the regression recordings' boot: A+Right taps from frame 120),

@@ -231,6 +231,7 @@ void PortWideInit(void)
             SF("lmpw.dev", lmpw.dev);
             SF("lmpw", lmpw);
             SF("paintw", paintw);
+            SF("ridew", ridew);
             SF("wideCtl", wideCtl);
             SF("lmp.slots", lmp.slots);
             SF("lmp.joining", lmp.joining);
@@ -495,6 +496,37 @@ static void Remove(u8 i)
 /* The pause maps' Kirby markers (port/wide.h KATAM_MAP_MARKERS): every
  * Kirby while they fit; otherwise the pauser, this screen's own player, the
  * other people, then CPU Kirbys, each lowest slot first.  Listed by slot. */
+/* Star riders past the u8 mask (port/wide.h struct PortWideRide). */
+static u32 RideAddr(const void *star)
+{
+    return (u32)(uintptr_t)star;
+}
+
+u32 PortWideRideMask(const void *star, u32 lo)
+{
+    u32 i, a = RideAddr(star);
+
+    for (i = 8; i < KATAM_KIRBYS; i++)
+        if (gPortSim->ridew.obj[i] == a)
+            lo |= 1u << i;
+    return lo;
+}
+
+void PortWideRideAdd(const void *star, u32 i)
+{
+    if (i >= 8 && i < KATAM_KIRBYS)
+        gPortSim->ridew.obj[i] = RideAddr(star);
+}
+
+void PortWideRideClear(const void *star)
+{
+    u32 i, a = RideAddr(star);
+
+    for (i = 8; i < KATAM_KIRBYS; i++)
+        if (gPortSim->ridew.obj[i] == a)
+            gPortSim->ridew.obj[i] = 0;
+}
+
 u8 PortWideMapMarkers(u8 *out)
 {
     u32 n = gNumKirbys < K ? gNumKirbys : K, taken = 0, s, m = 0;

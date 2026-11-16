@@ -16,6 +16,24 @@ extern "C" {
 #include "code_0806F780.h"
 #include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
+/* PORT: StarShared.unkB5 is the riders' mask, one bit a Kirby, in a u8: it
+ * holds Kirbys 0..7.  A Kirby 8.. that boarded was in no mask, so a level
+ * warp star never released it (sub_0800DCC0) -- it stayed in the ride where
+ * it boarded -- and the goal star never counted, moved or released it
+ * (ONE-WORLD-16.md "Slot audit").  With more than eight Kirbys those riders
+ * are kept beside the star (port/wide.h struct PortWideRide) and STAR_MASK is
+ * the whole mask; otherwise these are the console's expressions. */
+#if KATAM_KIRBYS > 8
+#define STAR_MASK(ss)    PortWideRideMask((ss), (ss)->unkB5)
+#define STAR_ADD(ss, i)  do { if ((i) < 8) (ss)->unkB5 |= 1 << (i); else PortWideRideAdd((ss), (i)); } while (0)
+#define STAR_RESET(ss)   do { (ss)->unkB5 = 0; PortWideRideClear(ss); } while (0)
+#else
+#define STAR_MASK(ss)    ((ss)->unkB5)
+#define STAR_ADD(ss, i)  ((ss)->unkB5 |= 1 << (i))
+#define STAR_RESET(ss)   ((ss)->unkB5 = 0)
+#endif
+
+
 static void sub_0800C270(struct WarpStar *);
 static void sub_0800C6E8(struct GoalStar *);
 static void sub_0800C89C(struct GoalStar *);
@@ -1742,7 +1760,7 @@ void *CreateWarpStar(struct ObjectTemplate *template_, u8 a2)
     ws->unk0.unkB8 = 0;
     ws->unk0.unkBA = 0;
     ws->unk0.unkB4 = template_->subtype1;
-    ws->unk0.unkB5 = 0;
+    STAR_RESET(&ws->unk0);
     ws->unkBE = template_->unk1E;
     ws->unkC0 = template_->unk1A;
     ws->unkC2 = template_->unk1C;
@@ -1769,7 +1787,7 @@ void *CreateGoalStar(struct ObjectTemplate *template_, u8 a2)
     gs->unk0.unkB8 = 0;
     gs->unk0.unkBA = 0;
     gs->unk0.unkB4 = template_->subtype1;
-    gs->unk0.unkB5 = 0;
+    STAR_RESET(&gs->unk0);
     gs->unk0.obj.base.flags |= 0x221C140;
     gs->unk0.obj.base.unk68 &= ~7;
     gs->unk0.obj.base.unk5C = ~0x80;
@@ -1811,7 +1829,7 @@ static bool32 sub_0800C084(struct WarpStar *ws, bool32 a2)
         && (!a2 || PortIsHuman(kirby2->base.unk56))
         && sub_080525C0(kirby2))
     {
-        ws->unk0.unkB5 |= 1 << kirby2->base.unk56;
+        STAR_ADD(&ws->unk0, kirby2->base.unk56);
         kirby = (struct Kirby *)ws->unk0.obj.base.unk6C;
         gCurLevelInfo[kirby->base.unk56].unk1EC = 0;
         kirby->roomId = ws->unkBE;
@@ -1893,7 +1911,7 @@ static void sub_0800C270(struct WarpStar *ws)
     if (sub_0800C084(ws, FALSE))
         CreateEffectObject(&ws->unk0.obj.base, 0, 0x292, 0);
     for (i = 0; i < gNumKirbys; ++i)
-        if ((ws->unk0.unkB5 >> i) & 1 && gCurLevelInfo[i].unk1EC == 1)
+        if ((STAR_MASK(&ws->unk0) >> i) & 1 && gCurLevelInfo[i].unk1EC == 1)
             gCurLevelInfo[i].unk1EC = 2;
     a[0] = ws->unk0.obj.objTemplate->x * 0x100;
     ws->unk0.obj.base.x = ws->unk0.obj.objTemplate->x * 0x100;
@@ -1936,7 +1954,7 @@ static void sub_0800C270(struct WarpStar *ws)
  * structure (its layout is fixed, port/gba_layout.h), so riders 0..3 stay in
  * unkBE and rider k >= 4 is the k-th set bit of unkB5, which does not change
  * between the list being made (sub_0800C42C) and the star being reset.
- * unkB5 is a u8: people in slots 0..7, as the human mask (port/localmp.h).
+ * (STAR_MASK above: the riders 8.. are kept beside the star.)
  * Without more than four Kirbys these are the console's unkBE reads and
  * writes. */
 #if KATAM_KIRBYS > 4
@@ -1946,8 +1964,8 @@ static u8 GsRider(const struct GoalStar *gs, u16 k)
 
     if (k < 4)
         return gs->unkBE[k];
-    for (i = 0; i < 8; ++i)
-        if (((gs->unk0.unkB5 >> i) & 1) && n++ == k)
+    for (i = 0; i < gNumKirbys; ++i)
+        if (((STAR_MASK(&gs->unk0) >> i) & 1) && n++ == k)
             return (u8)i;
     return gs->unkBE[0];
 }
@@ -1967,7 +1985,7 @@ static bool32 sub_0800C3BC(struct GoalStar *gs)
         && PortIsHuman(kirby2->base.unk56)
         && sub_080525C0(kirby2))
     {
-        gs->unk0.unkB5 |= 1 << kirby2->base.unk56;
+        STAR_ADD(&gs->unk0, kirby2->base.unk56);
         kirby = (struct Kirby *)gs->unk0.obj.base.unk6C;
         gCurLevelInfo[kirby->base.unk56].unk1EC = 2;
 
@@ -1981,7 +1999,7 @@ static bool32 sub_0800C3BC(struct GoalStar *gs)
     u16 _j = 0, _k; \
  \
     for (_k = 0; _k < PortHumanEnd(); ++_k) \
-        if (((gs)->unk0.unkB5 >> _k) & 1) \
+        if ((STAR_MASK(&(gs)->unk0) >> _k) & 1) \
             ++_j; \
     _j; \
 })
@@ -1996,7 +2014,7 @@ static void sub_0800C42C(struct GoalStar *gs)
     {
         for (; i < PortHumanEnd(); ++i)
         {
-            if ((gs->unk0.unkB5 >> i) & 1)
+            if ((STAR_MASK(&gs->unk0) >> i) & 1)
             {
                 GS_SET_RIDER(gs, k, i);
                 ++i;
@@ -2635,7 +2653,7 @@ void nullsub_102(struct GoalStar *gs)
 static void sub_0800DC5C(struct WarpStar *ws)
 {
     ws->unk0.unkBA = 0;
-    ws->unk0.unkB5 = 0;
+    STAR_RESET(&ws->unk0);
     ws->unk0.obj.unk78 = FN(sub_0800C124);
 }
 
@@ -2650,7 +2668,7 @@ static void sub_0800DC8C(struct GoalStar *gs)
     gs->unk0.unkB6 = 0;
     gs->unk0.unkB8 = 0;
     gs->unk0.unkBA = 0;
-    gs->unk0.unkB5 = 0;
+    STAR_RESET(&gs->unk0);
     gs->unk0.obj.unk78 = FN(sub_0800C558);
 }
 
@@ -2667,7 +2685,7 @@ static void sub_0800DCC0(struct WarpStar *ws)
 
     for (i = 0; i < gNumKirbys; ++i)
     {
-        if ((wsAlias->unk0.unkB5 >> i) & 1)
+        if ((STAR_MASK(&wsAlias->unk0) >> i) & 1)
         {
             gCurLevelInfo[i].unk1EC = 0;
             sub_080531B4(&gKirbys[i], gUnk_08D60A84[wsAlias->unk0.unkB4]);
@@ -2808,7 +2826,7 @@ static void sub_0800E02C(struct WarpStar *ws)
 
     for (i = 0; i < gNumKirbys; ++i)
     {
-        if ((wsAlias->unk0.unkB5 >> i) & 1
+        if ((STAR_MASK(&wsAlias->unk0) >> i) & 1
             && gKirbys[i].animationIndex == 90)
         {
             b = FALSE;

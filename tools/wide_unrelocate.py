@@ -56,8 +56,8 @@ def map_back_fields(sim, simb, F):
     The wide build leaves those fields zero.  Nothing is masked: a value the
     four-slot fields cannot hold is an error.  Not mapped (no counterpart in
     the default build, and outside its sim block's length, so never compared
-    there): wideCtl (the live Kirby count) and paintw (paint for Kirbys 4..:
-    at N = 4 it holds nothing, checked zero)."""
+    there): wideCtl (the live Kirby count), paintw (paint for Kirbys 4..)
+    and ridew (star riders 8..): at N = 4 these two hold nothing, checked zero."""
     def rd(name, i=0, size=None):
         off, sz = F[name]
         return int.from_bytes(sim[off:off + (size or sz)], 'little') if size is None else \
@@ -96,6 +96,10 @@ def map_back_fields(sim, simb, F):
         off, sz = F['paintw']
         if any(sim[off:off + sz]):
             return 'paintw is not zero at N = 4'
+    if 'ridew' in F:
+        off, sz = F['ridew']
+        if any(sim[off:off + sz]):
+            return 'ridew is not zero at N = 4'
     lmpdev = 0
     for s in range(4):
         if devset >> s & 1:

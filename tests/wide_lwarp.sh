@@ -71,7 +71,11 @@ fail() { echo "FAIL $*"; status=1; }
 for r in a b; do
     grep -q "wide: kirbys 16" "$TMP/$r.log" || fail "run $r: not a 16-Kirby build or did not finish: $(tail -2 "$TMP/$r.log" | tr '\n' ' ')"
     grep -q "render list built headless" "$TMP/$r.log" || fail "run $r: the render list was not built"
-    grep -qE "ERROR: AddressSanitizer|runtime error:|Segmentation" "$TMP/$r.log" && fail "run $r: $(grep -m1 -E 'ERROR: AddressSanitizer|runtime error:|Segmentation' "$TMP/$r.log")"
+    grep -q "Segmentation\|SEGV" "$TMP/$r.log" && fail "run $r: $(grep -m1 'Segmentation\|SEGV' "$TMP/$r.log")"
+    if grep -qE "ERROR: AddressSanitizer|runtime error:" "$TMP/$r.log"; then   # less the console's own UB
+        c=$(python3 "$(dirname "$0")/../tools/wide_sanclass.py" "$TMP/$r.log") || fail "run $r: sanitizer: $(echo "$c" | head -3 | tr '\n' ' ')"
+    fi
+    grep -q "rom-check: animation" "$TMP/$r.log" && fail "run $r: $(grep -m1 'rom-check: animation' "$TMP/$r.log")"
     grep -q " not drawn -- " "$TMP/$r.log" && fail "run $r: $(grep -m1 ' not drawn -- ' "$TMP/$r.log")"
 done
 while read -r s a room x y; do

@@ -574,14 +574,22 @@ struct Unk_03000510 {
      * one bit per Kirby, with the game's global 0x10 flag moved to bit 15
      * (FREEZE_ALL below). */
     u8 unk0[KATAM_KIRBYS];
+#if KATAM_KIRBYS < 16
     u16 unk4;
+#else
+    u32 unk4;   /* PORT: sixteen Kirbys and FREEZE_ALL do not fit a u16 */
+#endif
 #endif
 };
 /* The freeze mask's "everyone" bit (set only by two unused functions). */
 #if KATAM_KIRBYS <= 4
 #define FREEZE_ALL 0x10
-#else
+#elif KATAM_KIRBYS < 16
 #define FREEZE_ALL 0x8000
+#else
+/* PORT: bit 15 is Kirby 15's: as FREEZE_ALL, Kirby 15 frozen (anyone's
+ * freeze in its room) froze every room (ONE-WORLD-16.md "Slot audit"). */
+#define FREEZE_ALL 0x10000
 #endif
 
 struct Unk_08930E00_1 {
