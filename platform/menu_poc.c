@@ -3507,7 +3507,7 @@ struct PocHostState {
     u32 genShown;                   /* sOuiGenShown                       */
     u32 slotSet[4];                 /* online: each slot's settings copy  */
     u16 slotExt[4];
-    u8  slotSetOn, confirmItem, pauseScreen, helpSaved, confirmArg;
+    u8  slotSetOn, confirmItem, pauseScreen, helpSaved, confirmArg, confirmRow;
     char slotName[4][PORT_CARD_NAME_MAX + 1];
     u8  helpSave[PORT_POC_HELP_BYTES];  /* under the pause help page's line */
     u8  objSave[PORT_POC_PAUSE_OBJ_BYTES];
@@ -3544,6 +3544,7 @@ void PortPocHostStateSave(u8 *dest)
     h->slotSetOn = sSlotSetOn;
     h->confirmItem = sConfirmItem;
     h->confirmArg = sConfirmArg;
+    h->confirmRow = sConfirmRow;
     memcpy(h->slotName, sSlotName, sizeof sSlotName);
     h->pauseScreen = (u8)sPauseScreen;
     h->helpSaved = (u8)sHelpSaved;
@@ -3570,6 +3571,7 @@ void PortPocHostStateLoad(const u8 *src)
     sSlotSetOn = h->slotSetOn;
     sConfirmItem = h->confirmItem;
     sConfirmArg = h->confirmArg;
+    sConfirmRow = h->confirmRow;
     memcpy(sSlotName, h->slotName, sizeof sSlotName);
     sPauseScreen = h->pauseScreen;
     sHelpSaved = h->helpSaved;

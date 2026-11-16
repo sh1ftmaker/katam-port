@@ -197,6 +197,9 @@ menu_poc _ZL10sSlotSetOn host-state which slots have a copy; carried by PortPocH
 menu_poc _ZL9sSlotName host-state each slot's sealed name (PORT_LN_EV_NAME); carried by PortPocHostStateSave
 menu_poc _ZL12sConfirmItem host-state what the NO / YES screen asks about; carried by PortPocHostStateSave
 menu_poc _ZL11sConfirmArg host-state the slot REMOVE asks about; carried by PortPocHostStateSave
+menu_poc _ZL11sConfirmRow host-state the row CPU KIRBYS' NO / YES screen goes back to; carried by PortPocHostStateSave
+menu_poc _ZZL10KirbysDesciE4flip scratch description text, written before every read
+menu_poc _ZZL10KirbysDesciE4line scratch description text, written before every read
 menu_poc _ZL12sPauseScreen host-state the pause page's top level (MAIN MENU) or the front end's; carried by PortPocHostStateSave
 menu_poc _ZL10sHelpSaved host-state the help page's code line saved its tiles; carried by PortPocHostStateSave
 menu_poc _ZL9sHelpSave host-state OBJ tiles under the help page's code line; carried by PortPocHostStateSave
