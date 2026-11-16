@@ -174,10 +174,27 @@ with 150 ms bursts and under 30% loss, with a no-retransmit ablation.
 
 ## Modules
 
-8-player games run on the existing 16-Kirby module (katam16.wasm); see the
-branch report for the w8-vs-16 numbers.  Its keyframes are 940 KiB: 24 do
-not fit its 192 MiB heap (PortLnStart or the image buffer fails), so the
-page (and the rig, `--kf-count`) keep 16 there: 240 frames of history.
+8-player games run on the existing 16-Kirby module (katam16.wasm).  Its
+keyframes are 940 KiB: 24 do not fit its 192 MiB heap (PortLnStart or the
+image buffer fails, node and browser alike), so the page (and the rig,
+`--kf-count`) keep 16 there: 240 frames of history.
+
+Measured (rig, wasm in node, the same 8-device session on both, 8 Kirbys in
+play, 16 keyframes, under the same load):
+
+| | w8 (KATAM_MAX_KIRBYS=8) | katam16 |
+|---|---|---|
+| snapshot / join image raw | 725 KB | 963 KB |
+| join image deflated | 56.5 KB | 57.2 KB |
+| replay, per replayed frame | 146 us | 190 us (+30%) |
+| hash (every 16th frame) | 134 us | 171 us (+27%) |
+| keyframe save / restore | 20 / 43 us | 27 / 56 us |
+| sim, per frame | 10.9 us | 12.7 us |
+| history in 192 MiB | 24 keyframes (360 f) fit | 16 (240 f) |
+| replay CPU per guest, 8 people @120 ms (736 replayed f/s) | 10.7% of a core | 14.0% |
+
+Rewinds, depth, bandwidth and the game itself were identical between the
+two (the same rewinds/min to the decimal).
 
 The sim id names the module (`KATAM_SIM16` = `KATAM_SIM` + `.k` + the
 16-Kirby wasm's id; tools/stamp_build.py).  A joiner on the other module
