@@ -29,6 +29,12 @@
 //             the pad's Start pauses, nobody joins.
 //   touch     a phone-shaped viewport, touch only: touch drives player 1,
 //             its Start never joins.
+//   touchset  SETTINGS > PLAYERS > TOUCH PADS (AUTO / ON / OFF): a desktop
+//             window, wide or narrow, starts without the pads, a phone with
+//             them; the row changes them at once, saved in katam.settings
+//             ("touch=N") and kept over a reload, on the 16-Kirby module too;
+//             a phone set to OFF (by its own pads) gets them back from a
+//             finger on the picture, the setting left as it was.
 //   hudplaces where the party HUD's cards go: in the bar beside a 3:2
 //             picture on a wide window (opaque), over the picture on a
 //             phone in landscape whose touch pads fill those bars (the
@@ -50,7 +56,7 @@ const CDP_PORT = +flag('cdp', 9363);
 const BASE = flag('base', 'http://127.0.0.1:8963/dist/');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8963/rom.gba');
 const SHOTS = flag('shots', '');
-const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,hudplaces,picker').split(',');
+const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,touchset,hudplaces,picker').split(',');
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let pass = 0, fail = 0;
@@ -615,6 +621,105 @@ async function caseTouch() {
     await p.close();
 }
 
+async function caseTouchSet() {
+    const padsUp = (p) => p.ev(`(function(){var t=document.getElementById('touch');return document.body.classList.contains('touch-on')&&getComputedStyle(t).display!=='none'})()`);
+    const saved = (p) => p.ev(`(function(){var m=/(?:^|\\n)touch=(\\d)/.exec(localStorage.getItem('katam.settings')||'');return m?+m[1]:-1})()`);
+    const inGame = (p) => p.ev(`(function(){var m=/(?:^|\\n)touch=(\\d)/.exec(Module.ccall('PortSettingsTextJs','string',[],[])||'');return m?+m[1]:-1})()`);
+    const ready = async (p) => {
+        await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30 && document.body.classList.contains("rom-ready"))'), 60000);
+        await sleep(300);
+    };
+
+    say('touchset: desktop windows, wide and narrow (no touch screen): no pads');
+    for (const v of [{ tag: 'wide', w: 1440, h: 800 }, { tag: 'narrow', w: 600, h: 800 }]) {
+        const p = await openPage('ts-desk-' + v.tag, { w: v.w, h: v.h });
+        await ready(p);
+        ok(`${v.tag} desktop (${v.w}x${v.h}): the pads are hidden by default`, !(await padsUp(p)));
+        ok(`${v.tag} desktop: the mode is AUTO`, (await p.ev('Module._shell.touch.mode()')) === 0);
+        if (v.tag === 'narrow') { await p.close(); continue; }
+
+        await toGameSelect(p);
+        await toSettingsPlayers(p);
+        for (let i = 0; i < 3; i++) { await press(p, 'DOWN'); await waitFrames(p, 8); }   // TOUCH PADS
+        await press(p, 'A'); await waitFrames(p, 10);
+        ok('A: ON -- the pads come up at once, saved touch=1', (await padsUp(p)) && (await saved(p)) === 1 && (await inGame(p)) === 1);
+        await shot(p, 'touchset-01-desktop-on.png');
+        await press(p, 'A'); await waitFrames(p, 10);
+        ok('A: OFF -- gone, saved touch=2', !(await padsUp(p)) && (await saved(p)) === 2);
+        await press(p, 'A'); await waitFrames(p, 10);
+        ok('A: AUTO -- still none on a desktop, saved touch=0', !(await padsUp(p)) && (await saved(p)) === 0);
+        await press(p, 'LEFT'); await waitFrames(p, 10);
+        await press(p, 'LEFT'); await waitFrames(p, 10);
+        ok('Left twice: OFF then ON', (await padsUp(p)) && (await saved(p)) === 1);
+        await p.s('Page.reload', {});
+        await sleep(500);
+        await ready(p);
+        ok('after a reload: still ON (the pads are up, the game says touch=1)',
+           (await padsUp(p)) && (await inGame(p)) === 1 && (await p.ev('Module._shell.touch.mode()')) === 1);
+        ok('the old page key is gone', (await p.ev('localStorage.getItem("katam.touchControls")')) === null);
+        await p.close();
+    }
+
+    say('touchset: the 16-Kirby module reads the same setting');
+    {
+        const early = `try{if(!sessionStorage.getItem('ts16')){sessionStorage.setItem('ts16','1');localStorage.setItem('katam.settings','schema=2\\nkirbys=8\\ntouch=1\\n');}}catch(e){}`;
+        const p = await openPage('ts-wide16', { w: 1440, h: 800, early });
+        await ready(p);
+        ok('katam16 with touch=1 saved: the pads are up on a desktop',
+           (await p.ev('!!window.KATAM_KIRBYS16')) && (await padsUp(p)), 'wide ' + (await p.ev('!!window.KATAM_KIRBYS16')));
+        await p.ev(`Module.ccall('PortSettingsSetJs', null, ['string'], ['touch=2'])`);
+        await sleep(200);
+        ok('katam16: a change in the game applies live', !(await padsUp(p)) && (await saved(p)) === 2);
+        await p.close();
+    }
+
+    say('touchset: a phone (touch only): pads by default; OFF from its own pads, and the way back');
+    {
+        const p = await openPage('ts-phone', { w: 390, h: 844, mobile: true, touch: true });
+        await ready(p);
+        ok('phone: the pads are up by default (AUTO)', (await padsUp(p)) && (await p.ev('Module._shell.touch.mode()')) === 0);
+        await until(async () => (await frame(p)) >= 400, 60000, 30);
+        const at = async (sel) => p.ev(`(function(){var r=document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+        const tap = async (sel, holdMs = 110) => {
+            const r = await at(sel);
+            await p.s('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x, y: r.y, id: 1 }] });
+            await sleep(holdMs);
+            await p.s('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            await sleep(120);
+        };
+        const DOWN = '#dpad [data-seg="down"]';
+        await tap('#tb-start'); await waitFrames(p, 100);
+        await tap('#tb-start'); await waitFrames(p, 100);
+        await tap('#tb-a'); await waitFrames(p, 100);              // Game Select
+        for (let i = 0; i < 4; i++) { await tap(DOWN); await waitFrames(p, 8); }
+        await tap('#tb-a');
+        await until(() => screenLive(p), 10000);
+        await waitFrames(p, 30);
+        await tap(DOWN); await waitFrames(p, 10);
+        await tap(DOWN); await waitFrames(p, 10);
+        await tap('#tb-a'); await waitFrames(p, 20);               // PLAYERS
+        for (let i = 0; i < 3; i++) { await tap(DOWN); await waitFrames(p, 8); }   // TOUCH PADS
+        await tap('#tb-a'); await waitFrames(p, 10);               // ON
+        ok('phone: A -- ON, still up, saved touch=1', (await padsUp(p)) && (await saved(p)) === 1);
+        await tap('#tb-a'); await waitFrames(p, 10);               // OFF
+        ok('phone: A -- OFF, the pads are gone, saved touch=2', !(await padsUp(p)) && (await saved(p)) === 2);
+        await shot(p, 'touchset-02-phone-off.png');
+        const model = await pagesModel(p);
+        const c = await p.ev(`(function(){var r=document.getElementById('screen-wrap').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/3}})()`);
+        await p.s('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: c.x, y: c.y, id: 1 }] });
+        await sleep(120);
+        await p.s('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await sleep(300);
+        ok('phone, OFF: a finger on the picture brings the pads back', await padsUp(p));
+        ok('... for this visit: the saved setting is still OFF', (await saved(p)) === 2 && (await inGame(p)) === 2);
+        ok('... and that touch pressed nothing (the menu is where it was)', (await pagesModel(p)) === model && (await screenLive(p)));
+        await shot(p, 'touchset-03-phone-back.png');
+        await tap('#tb-a'); await waitFrames(p, 10);               // AUTO
+        ok('phone: A -- AUTO, the pads stay, saved touch=0', (await padsUp(p)) && (await saved(p)) === 0);
+        await p.close();
+    }
+}
+
 // The renderer the page really uses: WebGL2 (Module.portGl), not the 2D
 // fallback a Chromium without GL gives.
 async function caseGl() {
@@ -851,6 +956,7 @@ for (const c of CASES) {
         else if (c === 'local') await caseLocal();
         else if (c === 'solo') await caseSolo();
         else if (c === 'touch') await caseTouch();
+        else if (c === 'touchset') await caseTouchSet();
         else if (c === 'hudplaces') await caseHudPlaces();
     } catch (e) {
         ok(`case ${c} ran to the end`, false, e.message);

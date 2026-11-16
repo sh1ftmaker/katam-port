@@ -44,6 +44,7 @@ void PortSettingsDefaults(PortSettings *s)
     s->lightOn = 0;     /* off unless the player turns it on */
     LightDefaults(s);
     s->kirbys = 4;      /* the game as it is */
+    s->touch = PS_TOUCH_AUTO;
 }
 
 /* The lighting settings saved by a build before LIGHT_SETTINGS_VER are
@@ -108,6 +109,7 @@ void PortSettingsClamp(PortSettings *s)
     s->partyHud = ClampI(s->partyHud, 0, PS_PARTY_HELPERS);
     s->nameTags = !!s->nameTags;
     s->kirbys = ClampI(s->kirbys, 4, 16);
+    s->touch = ClampI(s->touch, 0, PS_TOUCH_COUNT - 1);
     s->lightOn = !!s->lightOn;
     s->lightMode = ClampI(s->lightMode, 0, 2);
     s->lightStrength = ClampF(s->lightStrength, 0.0f, 3.0f);
@@ -219,6 +221,9 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("partyhud", partyHud)
                 INT_KEY("nametags", nameTags)
                 INT_KEY("kirbys", kirbys)
+                /* (the page's older "katam.touchControls" key is not read:
+                 * everyone starts from AUTO once -- web/shell.html) */
+                INT_KEY("touch", touch)
                 /* "lighton": the switch.  Not the old /lighting/ page's
                  * "light" (that page shares the site's storage, and there
                  * -1 meant on by the page's default): it is ignored, so
@@ -280,8 +285,8 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
-        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags=%d\nkirbys=%d\n",
-                      s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys);
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags=%d\nkirbys=%d\ntouch=%d\n",
+                      s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch);
     if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);
     if (n >= 0 && n < size)

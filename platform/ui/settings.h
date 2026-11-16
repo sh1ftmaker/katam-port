@@ -30,6 +30,7 @@ enum { PS_ASPECT_AUTO = 0, PS_ASPECT_3_2, PS_ASPECT_4_3, PS_ASPECT_16_10,
 enum { PS_SCALE_INTEGER = 0, PS_SCALE_FIT, PS_SCALE_SMOOTH, PS_SCALE_COUNT };
 enum { PS_HUD_CORNERS = 0, PS_HUD_STRIP };
 enum { PS_PARTY_OFF = 0, PS_PARTY_PLAYERS, PS_PARTY_HELPERS };
+enum { PS_TOUCH_AUTO = 0, PS_TOUCH_ON, PS_TOUCH_OFF, PS_TOUCH_COUNT };
 #define PS_HUD_SCALE_MAX 8
 
 typedef struct PortSettings {
@@ -77,6 +78,12 @@ typedef struct PortSettings {
      * to 4 takes a reload; inside the wide module it applies live.  Per
      * device, never online (the wide module has no multiplayer). */
     int kirbys;
+    /* PLAYERS > TOUCH PADS (platform/menu_poc.c): the web page's on-screen
+     * buttons -- PS_TOUCH_AUTO (the default: shown on a touch-first phone or
+     * tablet, web/shell.html touchFirst), _ON, _OFF.  The page reads it
+     * ("touch=N") from the saved text; nothing native looks at it.  A key
+     * added without a schema bump: absent means AUTO. */
+    int touch;
 } PortSettings;
 
 extern PortSettings gPortSettings;

@@ -4310,7 +4310,6 @@ var Module = (function () {
   // Showing and hiding the pads, and the sheet
   //--------------------------------------------------------------------
 
-  var LS_TOUCH_KEY = 'katam.touchControls';
   var touchOn = false;
 
   // The picture always has the window, and the page's own controls are in
@@ -4349,31 +4348,113 @@ var Module = (function () {
     if (e.key === 'Escape' && sheetOpen()) { e.preventDefault(); setSheet(false); }
   });
 
-  function setTouch(on, remember) {
+  function setTouch(on) {
     touchOn = !!on;
     body.classList.toggle('touch-on', touchOn);
     toggleBtn.textContent = 'Touch controls: ' + (touchOn ? 'on' : 'off');
     toggleBtn.setAttribute('aria-pressed', touchOn ? 'true' : 'false');
     if (!touchOn) releaseAllTouch();           // never leave a pad stuck down
-    if (remember) lsSet(LS_TOUCH_KEY, touchOn ? '1' : '0');
     syncMode();                                // the reserved band changes the stage
     setTimeout(measurePads, 0);                // after the layout settles
   }
 
-  function touchWanted() {
-    var saved = lsGet(LS_TOUCH_KEY);
-    if (saved === '1' || saved === '0') return saved === '1';
-    // A coarse pointer means fingers; the width test catches the small
-    // screens whose browser insists it has a mouse anyway.
-    var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    return !!coarse || window.innerWidth < 820;
+  //--------------------------------------------------------------------
+  // Whether the pads are up: SETTINGS > PLAYERS > TOUCH PADS
+  //
+  // The setting is the game's (gPortSettings.touch, platform/ui/settings.h),
+  // saved with the others in katam.settings as "touch=N": 0 AUTO (the
+  // default), 1 ON, 2 OFF.  The page reads it from there at load and again
+  // whenever the game saves (Module.portSettingsSaved, host_web.c), so a
+  // change in the menu applies at once, on either module.
+  //
+  // AUTO shows the pads on a touch-first device only.  It used to be
+  // "a coarse pointer, or a window under 820 px wide", and the width half
+  // put the pads on every desktop window made narrow -- six tiled Chrome
+  // windows on a Mac all had them.  Now: the device has a touch screen
+  // (maxTouchPoints) and its main pointer is a finger -- coarse and unable
+  // to hover -- or it has no fine pointer at all.  A Mac (no touch points),
+  // a touch-screen laptop (its main pointer is the trackpad or mouse) and
+  // an iPad with a trackpad attached (likewise) all start without them.
+  //
+  // The way back, so nobody is locked out: with the pads hidden (AUTO on a
+  // device that did not look touch-first, or OFF), a finger on the game
+  // brings them up for this visit -- unless a key or a gamepad has been
+  // used, which is input enough to reach the menu.  The saved setting is
+  // left as it is; the menu row shows AUTO/ON/OFF and changing it there
+  // starts over from what it says.
+  //--------------------------------------------------------------------
+  var TOUCH_AUTO = 0, TOUCH_ON = 1, TOUCH_OFF = 2;
+  var touchMode = TOUCH_AUTO;
+  var touchWoke = false;                       // the way back, this visit
+
+  function touchModeOf(text) {
+    var m = /(?:^|\n)touch=(\d+)/.exec(text || '');
+    var n = m ? parseInt(m[1], 10) : TOUCH_AUTO;
+    return n === TOUCH_ON || n === TOUCH_OFF ? n : TOUCH_AUTO;
   }
 
-  toggleBtn.addEventListener('click', function () { setTouch(!touchOn, true); });
+  function touchFirst() {
+    function mq(q) { try { return !!(window.matchMedia && window.matchMedia(q).matches); } catch (e) { return false; } }
+    var points = navigator.maxTouchPoints || 0;
+    if (points < 1 && !('ontouchstart' in window)) return false;
+    return (mq('(pointer: coarse)') && mq('(hover: none)'))
+        || (mq('(any-pointer: coarse)') && !mq('(any-pointer: fine)'));
+  }
+
+  function touchWanted() {
+    if (touchMode === TOUCH_ON) return true;
+    if (touchMode === TOUCH_OFF) return touchWoke;
+    return touchWoke || touchFirst();
+  }
+
+  function applyTouch() {
+    var on = touchWanted();
+    if (on !== touchOn) setTouch(on);
+  }
+
+  function setTouchMode(mode) {
+    touchMode = mode;
+    touchWoke = false;
+    applyTouch();
+  }
+
+  // Every save of the game's settings (the menu, DEFAULTS, a migration).
+  Module.portSettingsSaved = function (text) {
+    var m = touchModeOf(text);
+    if (m !== touchMode) setTouchMode(m);
+  };
+
+  // The sheet's button and the dev overlay's: ON or OFF, saved through the
+  // game so the menu row agrees (before the runtime is up: this visit only).
+  function forceTouch(on) {
+    var m = on ? TOUCH_ON : TOUCH_OFF;
+    if (Module.portRuntimeUp) {
+      try { Module.ccall('PortSettingsSetJs', null, ['string'], ['touch=' + m]); } catch (e) { /* below */ }
+    }
+    if (touchMode !== m) setTouchMode(m);
+  }
+
+  // The way back.  Capture phase, so it sees the finger before anything
+  // else does; the pads come up a turn later, so this touch never presses
+  // one by landing where it now appears.
+  window.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'touch' || touchOn || sawKey || padsSeen > 0) return;
+    if (!body.classList.contains('rom-ready') || body.classList.contains('crashed')
+        || body.classList.contains('sheet-open') || !overStage(e.target)) return;
+    touchWoke = true;
+    setTimeout(function () {
+      applyTouch();
+      if (touchOn && touchMode === TOUCH_OFF)
+        note('Touch controls are back for now. SETTINGS > PLAYERS > TOUCH PADS turns them off.', 'ok');
+    }, 0);
+  }, true);
+
+  toggleBtn.addEventListener('click', function () { forceTouch(!touchOn); });
 
   shell.touch = {
     on: function () { return touchOn; },
-    toggle: function () { setTouch(!touchOn, true); }
+    mode: function () { return touchMode; },
+    toggle: function () { forceTouch(!touchOn); }
   };
 
   //--------------------------------------------------------------------
@@ -4420,7 +4501,11 @@ var Module = (function () {
   document.addEventListener('fullscreenchange', syncFs);
   document.addEventListener('webkitfullscreenchange', syncFs);
 
-  setTouch(touchWanted(), false);
+  // The page's own key before the setting: dropped, so everyone starts
+  // from AUTO once (a desktop that had the pads keeps them no longer).
+  try { localStorage.removeItem('katam.touchControls'); } catch (e) { /* ignore */ }
+  touchMode = touchModeOf(lsGet('katam.settings'));
+  setTouch(touchWanted());
   syncMode();
   syncFs();
 

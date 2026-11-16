@@ -1484,6 +1484,16 @@ static int Web(void)
 
 static void OnOff(char *buf, int size, int on) { snprintf(buf, size, "%s", on ? "ON" : "OFF"); }
 
+/* PLAYERS > TOUCH PADS: gPortSettings.touch (PS_TOUCH_*), this device's
+ * own; the page shows or hides its pads from the saved text (shell.html). */
+static const char *const kTouchName[PS_TOUCH_COUNT] = { "AUTO", "ON", "OFF" };
+static const char *TouchDesc(void)
+{
+    if (gPortLnOn || gPortSettings.touch != PS_TOUCH_AUTO)
+        return kItem[IT_TOUCH].desc;
+    return HostOn("touch") ? "AUTO - SHOWN ON THIS DEVICE" : "AUTO - ON PHONES AND TABLETS";
+}
+
 static void Drawable(char *s, int max);
 
 /* --- the ONLINE list: who plays each Kirby ----------------------------------------
@@ -1764,7 +1774,7 @@ static void ItemValue(int it, char *buf, int size)
     case IT_KIRBYS:    if (!gPortLnOn) snprintf(buf, size, "%d", gPortSettings.kirbys - 1); break;
     /* the page's own state: per device, so never shown in a session */
     case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
-    case IT_TOUCH:      if (!gPortLnOn) OnOff(buf, size, HostOn("touch")); break;
+    case IT_TOUCH:      if (!gPortLnOn) snprintf(buf, size, "%s", kTouchName[gPortSettings.touch]); break;
     case IT_DIAG:       if (!gPortLnOn) OnOff(buf, size, HostOn("diag")); break;
     case IT_RANDO: case IT_SEED: case IT_SIZES: case IT_ABIL: {
         unsigned v[4];
@@ -1895,6 +1905,8 @@ static const char *ItemDesc(int it)
         return gPortLnOn ? "CODE MODE AND PLAYERS" : "NOT IN AN ONLINE GAME";
     case IT_KIRBYS: case IT_ADD4: case IT_REMOVE4:
         return KirbysDesc(it);
+    case IT_TOUCH:
+        return TouchDesc();
     case IT_MODE:
         return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
     case IT_SLOT0 ... IT_SLOT_LAST: {
@@ -1996,7 +2008,13 @@ static void ItemApply(int it, int dir)
     }
     switch (it) {
     case IT_FULLSCREEN: HostAct("fullscreen", 0); break;
-    case IT_TOUCH:      HostAct("touch", 0); break;
+    case IT_TOUCH:                      /* AUTO / ON / OFF, saved */
+        if (PortInputLogReplaying())
+            break;
+        gPortSettings.touch = (gPortSettings.touch + (dir < 0 ? -1 : 1) + PS_TOUCH_COUNT) % PS_TOUCH_COUNT;
+        PortSettingsClamp(&gPortSettings);
+        PortSettingsChanged();          /* the page hears of it as it is saved */
+        break;
     case IT_DIAG:       HostAct("diag", 0); break;
     case IT_COPYLOG:    HostAct("log.copy", 0); break;
     case IT_EXPORT:     HostAct("save.export", 0); break;

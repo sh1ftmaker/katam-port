@@ -155,8 +155,11 @@ EM_JS(void, PortWebLoadSettings, (char *buf, int size), {
 
 void PortHostSaveSettings(const char *text)
 {
+    /* and the page hears of it: its touch pads follow "touch=" (shell.html) */
     EM_ASM({
-        try { localStorage.setItem('katam.settings', UTF8ToString($0)); } catch (e) {}
+        var t = UTF8ToString($0);
+        try { localStorage.setItem('katam.settings', t); } catch (e) {}
+        if (Module.portSettingsSaved) { try { Module.portSettingsSaved(t); } catch (e) {} }
     }, text);
 }
 
