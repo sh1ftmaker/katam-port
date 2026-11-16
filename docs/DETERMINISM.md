@@ -221,7 +221,7 @@ to stop being host addresses: netplay-v2 R6 (`design/NETPLAY-V2.md`).
 
 ### Unsequenced RNG: `make lint-determinism`
 
-`warp_sweep` used to diverge at frame 3132, in room 415, `sub_0801617C`:
+`warp_sweep` used to diverge at frame 3132, in room 415, `CpuActJumpRise`:
 
     a1->unkE8 = (Rand16() & 7) + 0xF + (Rand16() & 0xF);
 

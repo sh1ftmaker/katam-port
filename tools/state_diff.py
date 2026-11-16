@@ -210,7 +210,7 @@ def main():
                     fnptr += 1
                 else:
                     # Both are function pointers but the names differ: the
-                    # linker folded identical bodies (nullsub_103 and
+                    # linker folded identical bodies (CpuBrainTaskDestroy and
                     # nullsub_12 are both `{}`) and one table slot or one
                     # address serves several names.
                     folded += 1

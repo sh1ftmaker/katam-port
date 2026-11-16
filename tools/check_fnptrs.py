@@ -770,7 +770,7 @@ RE_ASSIGN = re.compile(
 
 RE_CALL = re.compile(r'\b(?P<name>\w+)\s*\((?P<args>' + PARAMS + r')\)')
 
-# `void (*const gUnk_082DDEF0[])(struct Unk_02038590 *) = {`,
+# `void (*const gCpuTargetScansLand[])(struct CpuBrain *) = {`,
 # `static const TaskMain sTable[] = {`, and struct tables whose members are
 # filled in by name (`.unk8 = sub_08146D80,`), which is how intro.c builds its
 # state tables.

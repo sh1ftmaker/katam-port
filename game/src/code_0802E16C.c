@@ -58,7 +58,7 @@ static void sub_0802E270(struct Unk_0802E16C *var UNUSED) {
     u16 i;
 
     for (i = PortCpuFirst(); i < gNumKirbys; i = PortCpuNext(i))
-        gUnk_02038590[i].unk18 = gUnk_082D8D28[KATAM_ROM_ROW(i)];
+        gUnk_02038590[i].homeRoom = gUnk_082D8D28[KATAM_ROM_ROW(i)];
     for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i))
         gKirbys[i].base.flags |= 0x1000000;
     if (gAIKirbyState < AI_KIRBY_STATE_CUTSCENE) {

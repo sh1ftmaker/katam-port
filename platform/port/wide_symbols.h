@@ -52,7 +52,7 @@
 #undef gUnk_020382D0
 #define gUnk_020382D0 (*(struct Unk_020382D0 *)WIDE_AT(WIDE_OFF_INPUT))
 #undef gUnk_02038590
-#define gUnk_02038590 (*(struct Unk_02038590 (*)[WIDE_K])WIDE_AT(WIDE_OFF_BRAINS))
+#define gUnk_02038590 (*(struct CpuBrain (*)[WIDE_K])WIDE_AT(WIDE_OFF_BRAINS))
 #undef gPauseMenus
 #define gPauseMenus (*(struct PauseMenu (*)[WIDE_K])WIDE_AT(WIDE_OFF_PAUSE))
 #undef gUnk_03000510

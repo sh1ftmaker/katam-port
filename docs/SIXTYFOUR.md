@@ -157,7 +157,7 @@ LP64 build. A 64-bit host now produces the same picture as the 32-bit one, from
 structures laid out the way a 32-bit console laid them out.
 
 What did *not* work at the time of writing was the play path: mashing into a
-level died in `sub_08010590` on an object-list walk. That was traced to the ROM
+level died in `CpuFindTarget` on an object-list walk. That was traced to the ROM
 function-pointer patcher having been silently disabled by the narrowing (commit
 `6448212`), and the two bugs in the section at the top of this file. All of it
 now runs; the paragraph is kept because the sentence after it — "this is a
