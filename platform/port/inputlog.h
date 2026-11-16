@@ -70,6 +70,9 @@ u32  PortInputLogScheduleHuman(u8 slot, u8 on);
 u32  PortInputLogScheduleKirbys(u8 n);
 /* CPU AI modes (port/cpu_ai.h), 2 bits per Kirby slot: `cpuai FRAME WORD`. */
 u32  PortInputLogScheduleCpuAi(u32 word);
+/* A planner directive (port/cpu_ai.h): `cpugoal FRAME SLOT KIND A B C SECS`,
+ * for the next latch.  Returns the frame (0 while replaying). */
+u32  PortInputLogScheduleCpuGoal(u8 slot, int kind, u32 a, u32 b, u32 c, u32 secs);
 /* A player card's colour: Kirby slot `slot` (0..3) wears paint `value`
  * and feet `feet` (port/kirby_paint.h) from the next latch, recorded as
  * `paint FRAME SLOT VALUE [FEET]`.  Returns the frame, 0 when replaying or

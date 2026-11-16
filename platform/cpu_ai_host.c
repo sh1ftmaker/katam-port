@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "global.h"
 #include "port/port.h"
@@ -151,4 +152,49 @@ void PortCpuAiNote(int slot, const char *what, int a, int b, int c)
     if (!PortCpuAiLogOn())
         return;
     PortLog("[cpuai] f%u k%d %s %d %d %d", (unsigned)gPortSim->frame.frameCount, slot, what, a, b, c);
+}
+
+/* --- planner directives (port/cpu_ai.h, docs/design/CPU-HAIKU.md) ------- */
+
+static const char *const kGoalNames[PORT_CPUGOAL_KINDS] = {
+    "cancel", "goto_room", "goto_door", "goto_xy", "follow", "explore", "fight", "food", "wait", "auto",
+};
+
+const char *PortCpuGoalName(int kind)
+{
+    return kind >= 0 && kind < PORT_CPUGOAL_KINDS ? kGoalNames[kind] : "?";
+}
+
+int PortCpuGoalKindOf(const char *name)
+{
+    int k;
+
+    for (k = 0; k < PORT_CPUGOAL_KINDS; k++)
+        if (strcmp(name, kGoalNames[k]) == 0)
+            return k;
+    return -1;
+}
+
+const char *PortCpuGoalStatusName(int status)
+{
+    static const char *const kSt[] = { "none", "running", "done", "failed", "timeout" };
+
+    return status >= 0 && status <= PORT_CPUGOAL_ST_TIMEOUT ? kSt[status] : "?";
+}
+
+const char *PortCpuGoalWhyName(int why)
+{
+    static const char *const kWhy[PORT_CPUGOAL_WHY_COUNT] = {
+        "ok", "time", "no_route", "gave_up_door", "left_room", "no_door", "nothing_here", "bad_target",
+    };
+
+    return why >= 0 && why < PORT_CPUGOAL_WHY_COUNT ? kWhy[why] : "?";
+}
+
+/* The latch (platform/inputlog.c; online, later, a sealed event). */
+void PortCpuGoalApply(u32 slot, int kind, u32 a, u32 b, u32 c, u32 secs)
+{
+    PortLog("[cpugoal] f%u k%u %s %u %u %u %us", (unsigned)gPortSim->frame.frameCount, (unsigned)slot,
+            PortCpuGoalName(kind), (unsigned)a, (unsigned)b, (unsigned)c, (unsigned)secs);
+    CpuAiDirect(slot, kind, a, b, c, secs);
 }

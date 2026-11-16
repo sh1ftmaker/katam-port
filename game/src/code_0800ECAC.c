@@ -18,6 +18,7 @@ void CpuBrainTaskDestroy(struct Task *);
 void CpuGoalNone(struct CpuBrain *);
 void CpuSenseNone(struct CpuBrain *);
 bool32 CpuAiGoal(struct CpuBrain *);
+bool32 CpuAiWants(struct CpuBrain *);
 
 void CpuBrainCreate(u8 slot, u16 startRoom, u16 homeRoom) {
     struct CpuBrain *brain = &gUnk_02038590[slot];
@@ -117,8 +118,9 @@ void CpuBrainTask(void) {
             && kirby->animationIndex != 0x5A) {
             CALL(brain->layers[CPU_LAYER_SCRIPT])(brain);
             /* PORT: CPU AI modes (game/src/cpu_ai_modes.c, port/cpu_ai.h):
-             * all zero -- every Kirby CLASSIC -- is the stock brain. */
-            if (!gPortSim->game.reserved[0] || !CpuAiGoal(brain))
+             * all zero -- every Kirby CLASSIC, and no planner directive
+             * ever (docs/design/CPU-HAIKU.md) -- is the stock brain. */
+            if (!CpuAiWants(brain) || !CpuAiGoal(brain))
                 CALL(brain->layers[CPU_LAYER_GOAL])(brain);
             CALL(brain->layers[CPU_LAYER_SENSE])(brain);
             CALL(brain->layers[CPU_LAYER_ACTION])(brain);
