@@ -610,6 +610,8 @@ static u32 sKpFrames, sKpPieces, sKpBad, sKpMaxOn, sKpMaxOnFrame, sKpOamPeak, sK
 static u32 sKpOnHist[17], sKpOnFirst[17], sKpOamDropped, sKpOamDropFrames;
 static u32 sKpSpreadMax, sKpSpreadFrame;    /* Kirbys on screen 24 px apart */
 static u32 sKpAbilMax, sKpAbilFrame;        /* Kirbys 4.. on screen with an ability */
+static u32 sKpGhost, sKpGhostSlots;         /* sprites of Kirbys in another room */
+static u32 sKpLastSeen;                     /* Kirbys on the screen, the last frame */
 
 static void KirbyProbe(void)
 {
@@ -633,6 +635,11 @@ static void KirbyProbe(void)
         else if (o == (uintptr_t)&gKirbys[k].sprites[1]) part = 1;
         else continue;
         sKpPieces++;
+        /* drawn while in another room than the screen's player (a "ghost") */
+        if (!SpriteHidden(p->s.attr0) && gKirbys[k].base.roomId != gKirbys[gLocalPlayerId].base.roomId) {
+            sKpGhost++;
+            sKpGhostSlots |= 1u << k;
+        }
         /* the tile number the GPU reads, and the palette line */
         tile = p->s.tileX ? p->s.tileX : (u32)(p->s.attr2 & 0x3FF);
         line = (u32)p->s.palHi * 16u + ((p->s.attr2 >> 12) & 15u);
@@ -699,6 +706,7 @@ static void KirbyProbe(void)
         sKpSpreadMax = spread;
         sKpSpreadFrame = PortFrameNumber();
     }
+    sKpLastSeen = seen;
     if (oam > sKpOamPeak) sKpOamPeak = oam;
     if (oam >= 128) sKpOamFull++;
     sKpOamDropped += dropped;
@@ -721,6 +729,9 @@ void PortRlReportPopIn(void)
                 "most Kirbys 4.. on screen with an ability %u (frame %u)",
                 (unsigned)sKpSpreadMax, (unsigned)sKpSpreadFrame, (unsigned)sKpAbilMax,
                 (unsigned)sKpAbilFrame);
+        PortLog("[katam-port] kirby probe: sprites of Kirbys in another room than the screen's "
+                "player %u (Kirbys mask 0x%X); on the screen the last frame: mask 0x%X", (unsigned)sKpGhost,
+                (unsigned)sKpGhostSlots, (unsigned)sKpLastSeen);
         for (i = 1; i <= 16; i++)
             if (sKpOnHist[i])
                 PortLog("[katam-port] kirby probe:   %2u on screen: %u frames, first at %u",
