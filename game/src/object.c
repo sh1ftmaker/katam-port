@@ -16,6 +16,7 @@ extern "C" {
 #include "random.h"
 #include "shadow_kirby.h"
 #include "constants/kirby.h"
+#include "star_stone_block.h"   /* PORT: PORT_STAR_STONE_CONTACT_CLEAR */
 
 static void sub_0809A630(struct Object *);
 static void sub_0809A7A4(void);
@@ -322,6 +323,7 @@ void ObjectMain(void) {
                 obj->base.unkC &= ~0x20;
                 obj->base.flags &= ~0x40000;
                 obj->unk90 = 0;
+                PORT_STAR_STONE_CONTACT_CLEAR(obj);   /* PORT: Kirbys 4.. */
                 if (obj->type == OBJ_DARK_MIND_MIRROR) {
                     sub_081111C4((void *)obj);
                 }
@@ -2060,6 +2062,7 @@ void InitObject(struct Object* arg0, struct ObjectTemplate* arg1, u8 arg2) {
     arg0->kirbyAbility = gUnk_08351648[arg0->type].kirbyAbility;
     arg0->unk86 = 0;
     arg0->unk90 = 0;
+    PORT_STAR_STONE_CONTACT_CLEAR(arg0);   /* PORT: Kirbys 4.. (task memory is not cleared) */
     arg0->unk91 = 0;
     arg0->unk92 = 0;
     arg0->unk93 = 0;

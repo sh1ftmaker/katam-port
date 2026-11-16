@@ -57,6 +57,11 @@ static void sub_0811EA60(struct StarStoneBlock *block, u32 playerId)
     blockRect[1] = (block->obj.base.y >> 8) + block->obj.base.unk3D;
     blockRect[2] = (block->obj.base.x >> 8) + block->obj.base.unk3E + 4;
     blockRect[3] = (block->obj.base.y >> 8) + block->obj.base.unk3F;
+#if KATAM_KIRBYS > 4
+    if (playerId >= 4)   /* PORT: Kirbys 4.. (star_stone_block.h) */
+        contact = (block->portContactHi >> ((playerId - 4) * 2)) & 3;
+    else
+#endif
     contact = (block->obj.unk90 & (3 << (playerId * 2))) >> (playerId * 2);
     if (contact & 3) {
         if (gKirbys[playerId].base.unk74 == &block->obj.base)
@@ -109,6 +114,17 @@ void sub_0811EC80(struct StarStoneBlock *block)
     sub_0811EA60(block, 1);
     sub_0811EA60(block, 2);
     sub_0811EA60(block, 3);
+#if KATAM_KIRBYS > 4
+    /* PORT: every Kirby counts, as 0..3 do (one push, two for the stronger
+     * contact, opposite sides cancel; unkE1 unchanged; at most 2 * 16 = 32
+     * in the s8 unkE0).  ONE-WORLD-16.md "Slot audit". */
+    {
+        u32 i;
+
+        for (i = 4; i < gNumKirbys; i++)
+            sub_0811EA60(block, i);
+    }
+#endif
     if (obj->base.unk62 & 1)
         block->unkE3 |= 0x10;
     if (obj->base.unk62 & 2)
