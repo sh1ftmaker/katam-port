@@ -287,7 +287,7 @@ static void sub_080C96EC(struct Object *batafire)
         ++batafire->unk9E;
         if (Rand16() & 1
             || batafire->subtype
-            || batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1
+            || batafire->unk80 <= gUnk_08351530[3][KATAM_HUMANS_ROW] >> 1
             || batafire->unk9E > 1)
         {
             if (batafire->unk85 < 4)
@@ -359,7 +359,7 @@ static void sub_080C9900(struct Object *batafire)
         if (Rand16() & 1
             || batafire->subtype
             || batafire->unk9E > 1
-            || batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1)
+            || batafire->unk80 <= gUnk_08351530[3][KATAM_HUMANS_ROW] >> 1)
         {
             if (batafire->unk85 < 4)
             {
@@ -477,7 +477,7 @@ static void sub_080C9D1C(struct Object *batafire)
     if (Rand16() & 1)
     {
         ObjectSetFunc(batafire, 0, FN(sub_080C9E70));
-        if (batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1)
+        if (batafire->unk80 <= gUnk_08351530[3][KATAM_HUMANS_ROW] >> 1)
             r = Rand16() & 1;
         if (batafire->subtype || r)
             batafire->unk78 = FN(sub_080CA0A4);
@@ -485,7 +485,7 @@ static void sub_080C9D1C(struct Object *batafire)
     else
     {
         ObjectSetFunc(batafire, 0, FN(sub_080CA2D8));
-        if (batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1)
+        if (batafire->unk80 <= gUnk_08351530[3][KATAM_HUMANS_ROW] >> 1)
         {
             r = !(Rand16() & 3);
         }
@@ -769,7 +769,7 @@ static void sub_080CA8FC(struct Object *batafire)
     batafire->unk85 = 0x10;
     batafire->unk9E = Rand16() & 0xF;
     if (batafire->subtype
-        || (batafire->unk80 <= gUnk_08351530[3][gNumHumanPlayers - 1] >> 1 && Rand16() & 1))
+        || (batafire->unk80 <= gUnk_08351530[3][KATAM_HUMANS_ROW] >> 1 && Rand16() & 1))
         batafire->base.counter = 0x8C;
     else
         batafire->base.counter = 0x5A;

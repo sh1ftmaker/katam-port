@@ -148,7 +148,7 @@ void BonkersStartIdle(struct Object *arg0) {
     arg0->base.xspeed = 0;
     arg0->base.yspeed = 0;
     arg0->base.counter = 0x1e;
-    if (arg0->unk80 <= (gUnk_08351530[1][gNumHumanPlayers - 1] >> 1)) {
+    if (arg0->unk80 <= (gUnk_08351530[1][KATAM_HUMANS_ROW] >> 1)) {
         arg0->base.counter = 0xf;
     }
     arg0->unk85 = 0;
@@ -259,7 +259,7 @@ static void BonkersStartRunning(struct Object *arg0) {
             }
         }
     }
-    if (arg0->unk80 <= (gUnk_08351530[1][gNumHumanPlayers - 1] >> 1)) {
+    if (arg0->unk80 <= (gUnk_08351530[1][KATAM_HUMANS_ROW] >> 1)) {
         if (Rand16() % 2) {
             arg0->base.xspeed = 0x200;
         }

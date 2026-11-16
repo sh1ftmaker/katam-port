@@ -20,6 +20,57 @@ static void sub_0811D508(struct Object *);
 static void sub_0811D68C(struct Object *);
 static void sub_0811DB48(struct Object *, s32);
 
+/* PORT: the "everyone inside" scroll locks (sub_0811CEF4, sub_0811D158)
+ * close when Kirbys 0..3 are all in the room and inside the rectangle.  With
+ * more than four Kirbys, the people among Kirbys 4.. are waited for as well,
+ * so the lock does not close its camera on a person still outside it (the
+ * lock sets every Kirby's camera bounds).  CPU Kirbys 4.. are not waited for,
+ * as before (ONE-WORLD-16.md §5).  Human slots past 3 come from the widened
+ * PortIsHuman (port/localmp.h).  Without more than four Kirbys these are
+ * TRUE and nothing, and the code is the console's. */
+#if KATAM_KIRBYS > 4
+#include "port/localmp.h"
+
+static bool32 WideLockRoom(u16 roomId)
+{
+    u16 k;
+
+    for (k = 4; k < gNumKirbys; ++k)
+        if (PortIsHuman(k) && gKirbys[k].base.roomId != roomId)
+            return FALSE;
+    return TRUE;
+}
+
+static bool32 WideLockInside(struct Object *scrollLock)
+{
+    u16 k;
+
+    for (k = 4; k < gNumKirbys; ++k)
+        if (PortIsHuman(k) && !ObjectOriginOverlapsRectAtObject(&gKirbys[k].base, scrollLock))
+            return FALSE;
+    return TRUE;
+}
+
+/* The console clears the camera mode of Kirbys 0..3 once as the lock closes
+ * (the unk4 bits 0..3, set and cleared together); the same once for 4.. --
+ * called before bit 0 is set. */
+static void WideLockCamera(u32 unk4)
+{
+    u16 k;
+
+    if (!(unk4 & 1))
+        for (k = 4; k < gNumKirbys; ++k)
+            gCurLevelInfo[k].unk1EC = 0;
+}
+#define WIDE_LOCK_ROOM(roomId)  WideLockRoom(roomId)
+#define WIDE_LOCK_INSIDE(lock)  WideLockInside(lock)
+#define WIDE_LOCK_CAMERA(unk4)  WideLockCamera(unk4)
+#else
+#define WIDE_LOCK_ROOM(roomId)  TRUE
+#define WIDE_LOCK_INSIDE(lock)  TRUE
+#define WIDE_LOCK_CAMERA(unk4)  do { } while (0)
+#endif
+
 extern const struct AnimInfo gUnk_08357C60[] = {
     { 0x2D1, 2, 0 },
 };
@@ -277,13 +328,16 @@ static void sub_0811CEF4(struct Object *scrollLock)
     if (gKirbys[0].base.roomId == roomId
         && gKirbys[1].base.roomId == gKirbys[0].base.roomId
         && gKirbys[2].base.roomId == gKirbys[1].base.roomId
-        && gKirbys[3].base.roomId == gKirbys[2].base.roomId)
+        && gKirbys[3].base.roomId == gKirbys[2].base.roomId
+        && WIDE_LOCK_ROOM(roomId))
     {
         if (ObjectOriginOverlapsRectAtObject(&gKirbys[0].base, scrollLock)
             && ObjectOriginOverlapsRectAtObject(&gKirbys[1].base, scrollLock)
             && ObjectOriginOverlapsRectAtObject(&gKirbys[2].base, scrollLock)
-            && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock))
+            && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock)
+            && WIDE_LOCK_INSIDE(scrollLock))
         {
+            WIDE_LOCK_CAMERA(p->unk4);
             if (!(p->unk4 & 1))
             {
                 p->unk4 |= 1;
@@ -339,13 +393,16 @@ static void sub_0811D158(struct Object *scrollLock)
         if (gKirbys[0].base.roomId == roomId
             && gKirbys[1].base.roomId == gKirbys[0].base.roomId
             && gKirbys[2].base.roomId == gKirbys[1].base.roomId
-            && gKirbys[3].base.roomId == gKirbys[2].base.roomId)
+            && gKirbys[3].base.roomId == gKirbys[2].base.roomId
+            && WIDE_LOCK_ROOM(roomId))
         {
             if (ObjectOriginOverlapsRectAtObject(&gKirbys[0].base, scrollLock)
                 && ObjectOriginOverlapsRectAtObject(&gKirbys[1].base, scrollLock)
                 && ObjectOriginOverlapsRectAtObject(&gKirbys[2].base, scrollLock)
-                && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock))
+                && ObjectOriginOverlapsRectAtObject(&gKirbys[3].base, scrollLock)
+                && WIDE_LOCK_INSIDE(scrollLock))
             {
+                WIDE_LOCK_CAMERA(p->unk0.unk4);
                 if (!(p->unk0.unk4 & 1))
                 {
                     p->unk0.unk4 |= 1;

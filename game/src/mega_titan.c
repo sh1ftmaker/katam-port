@@ -380,7 +380,7 @@ static void sub_080EDD0C(struct MegaTitan *mt)
             mt->obj.base.flags &= ~1;
         if (!--mt->obj.base.counter)
         {
-            if (mt->obj.unk80 <= gUnk_08351530[0x13][gNumHumanPlayers - 1] >> 1)
+            if (mt->obj.unk80 <= gUnk_08351530[0x13][KATAM_HUMANS_ROW] >> 1)
             {
                 if (Rand16() & 1)
                     mt2->unkC4 = (Rand16() & 3) + 1;
@@ -403,7 +403,7 @@ static void sub_080EDD0C(struct MegaTitan *mt)
     }
     if (mt->obj.unk9F)
     {
-        if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][gNumHumanPlayers - 1] >> 1)
+        if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][KATAM_HUMANS_ROW] >> 1)
         {
             mt->obj.base.xspeed += 4;
             if (mt->obj.base.xspeed > 0x80)
@@ -418,7 +418,7 @@ static void sub_080EDD0C(struct MegaTitan *mt)
     }
     else
     {
-        if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][gNumHumanPlayers - 1] >> 1)
+        if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][KATAM_HUMANS_ROW] >> 1)
         {
             mt->obj.base.xspeed -= 4;
             if (mt->obj.base.xspeed < -0x80)
@@ -443,7 +443,7 @@ static void sub_080EDD0C(struct MegaTitan *mt)
         if (mt->obj.base.yspeed > 0x120)
             mt->obj.base.yspeed = 0x120;
     }
-    if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][gNumHumanPlayers - 1] >> 1)
+    if (mt->obj.subtype || mt->obj.unk80 < gUnk_08351530[0x13][KATAM_HUMANS_ROW] >> 1)
     {
         if (mt->obj.base.x < 0x4400)
         {

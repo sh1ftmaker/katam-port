@@ -272,7 +272,7 @@ static void sub_080E41D0(struct Gobbler *gobbler)
                 r3 = TRUE;
         }
         if (!r3) r7 = 0;
-        if (gobbler->obj.unk80 <= gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1
+        if (gobbler->obj.unk80 <= gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1
             && !gobbler2->unkC0 && !gobbler2->unkC1)
             ++gobbler2->unkC2;
         r1 = Rand16() & 0xF;
@@ -304,7 +304,7 @@ void sub_080E43B4(struct Gobbler *gobbler)
         gobbler->obj.base.flags &= ~0x200;
         gobbler->obj.base.flags |= 0x40;
         gobbler->obj.base.yspeed = 0;
-        if (gobbler->obj.subtype || gobbler->obj.unk80 <= gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (gobbler->obj.subtype || gobbler->obj.unk80 <= gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
             gobbler->obj.base.counter = (Rand16() & 0xF) + 0x18;
         else
             gobbler->obj.base.counter = (Rand16() & 0xF) + 0x40;
@@ -1097,7 +1097,7 @@ static void sub_080E5554(struct Gobbler *gobbler)
     gobbler->obj.base.yspeed = 0;
     PlaySfx(&gobbler->obj.base, SE_GOBBLER_DASH_ATTACK);
     gobbler->obj.unk85 = 0;
-    if (gobbler->obj.unk85 <= gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+    if (gobbler->obj.unk85 <= gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
         gobbler->obj.unk85 = 1;
     else if ((gobbler->obj.kirby3
         && (gobbler->obj.kirby3->ability == KIRBY_ABILITY_SWORD

@@ -1719,6 +1719,16 @@ static const s16 gUnk_082DDE5C[][4] = {
 
 static const u16 gUnk_082DDE7C[] = { 0x12C, 0x258, 0x384, 0 };
 
+/* PORT: the goal star's riders spread out by gUnk_082DDE5C[riders - 1][i],
+ * a table for one to four.  More than four people aboard (only with more
+ * than four Kirbys) use the four-rider row, rider i at the place of rider
+ * i & 3; the console's read otherwise. */
+#if KATAM_KIRBYS > 4
+#define KATAM_GS_SPREAD(n, i) gUnk_082DDE5C[KATAM_MIN4(n) - 1][(n) > 4 ? (i) & 3 : (i)]
+#else
+#define KATAM_GS_SPREAD(n, i) gUnk_082DDE5C[(n) - 1][i]
+#endif
+
 /* PORT: replaced by port/rom_data.h -- extern const struct Unk_08353510 *const gUnk_08D60A84[]; */
 /* PORT: replaced by port/rom_data.h -- extern const struct GoalStar_D4 *const gUnk_08D60AA0[]; */
 
@@ -1920,6 +1930,34 @@ static void sub_0800C270(struct WarpStar *ws)
     }
 }
 
+/* PORT: the goal star's riders.  The console lists them in unkBE[4] (the
+ * people aboard, from the unkB5 mask, in slot order).  With more than four
+ * Kirbys there can be more than four people aboard and no room in the
+ * structure (its layout is fixed, port/gba_layout.h), so riders 0..3 stay in
+ * unkBE and rider k >= 4 is the k-th set bit of unkB5, which does not change
+ * between the list being made (sub_0800C42C) and the star being reset.
+ * unkB5 is a u8: people in slots 0..7, as the human mask (port/localmp.h).
+ * Without more than four Kirbys these are the console's unkBE reads and
+ * writes. */
+#if KATAM_KIRBYS > 4
+static u8 GsRider(const struct GoalStar *gs, u16 k)
+{
+    u16 i, n = 0;
+
+    if (k < 4)
+        return gs->unkBE[k];
+    for (i = 0; i < 8; ++i)
+        if (((gs->unk0.unkB5 >> i) & 1) && n++ == k)
+            return (u8)i;
+    return gs->unkBE[0];
+}
+#define GS_RIDER(gs, k) GsRider((gs), (k))
+#define GS_SET_RIDER(gs, k, i) do { if ((k) < 4) (gs)->unkBE[k] = (i); } while (0)
+#else
+#define GS_RIDER(gs, k) ((gs)->unkBE[k])
+#define GS_SET_RIDER(gs, k, i) ((gs)->unkBE[k] = (i))
+#endif
+
 static bool32 sub_0800C3BC(struct GoalStar *gs)
 {
     struct Kirby *kirby, *kirby2;
@@ -1960,7 +1998,7 @@ static void sub_0800C42C(struct GoalStar *gs)
         {
             if ((gs->unk0.unkB5 >> i) & 1)
             {
-                gs->unkBE[k] = i;
+                GS_SET_RIDER(gs, k, i);
                 ++i;
                 break;
             }
@@ -1976,7 +2014,7 @@ static bool32 sub_0800C4D0(struct GoalStar *gs)
 
     for (i = 0; i < gs->unkC2; ++i)
     {
-        li = gCurLevelInfo + gs->unkBE[i];
+        li = gCurLevelInfo + GS_RIDER(gs, i);
         li->viewportModY_46 = -gs->unkC8 >> 8;
     }
     gs->unkC4 += 0xA00;
@@ -2069,10 +2107,11 @@ static void sub_0800C6E8(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         sub_080528E4(kirby);
-        kirby->base.xspeed = gUnk_082DDE5C[gsAlias->unkC2 - 1][i];
+        /* PORT: KATAM_GS_SPREAD: the riders' spread is a table for 1..4. */
+        kirby->base.xspeed = KATAM_GS_SPREAD(gsAlias->unkC2, i);
         kirby->base.yspeed = 0;
     }
     if (gsAlias->unkC2 == 1)
@@ -2096,7 +2135,7 @@ static void sub_0800C89C(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         if (kirby->base.xspeed > 0)
         {
@@ -2124,19 +2163,19 @@ static void sub_0800C918(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         kirby->base.yspeed += 4;
         kirby->base.yspeed = (kirby->base.yspeed >= -0x800
             ? (kirby->base.yspeed <= 0x800 ? kirby->base.yspeed : 0x800)
             : -0x800);
     }
-    if (gKirbys[gsAlias->unkBE[0]].base.yspeed >= 0)
+    if (gKirbys[GS_RIDER(gsAlias, 0)].base.yspeed >= 0)
     {
         PlaySfx(&gs->unk0.obj.base, SE_SUBGAME_WAVE_RIDE_JUMP);
         for (i = 0; i < gsAlias->unkC2; ++i)
         {
-            struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+            struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
             sub_0800D6C0(gs, kirby->base.x, kirby->base.y + 0x1000);
             kirby->base.yspeed = 0x400;
@@ -2152,14 +2191,14 @@ static void sub_0800CA84(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         kirby->base.yspeed += 4;
         kirby->base.yspeed = (kirby->base.yspeed >= -0x800
             ? (kirby->base.yspeed <= 0x800 ? kirby->base.yspeed : 0x800)
             : -0x800);
     }
-    if (gKirbys[gsAlias->unkBE[0]].base.y < 0x46000)
+    if (gKirbys[GS_RIDER(gsAlias, 0)].base.y < 0x46000)
     {
         if ((gsAlias->unk0.unkB5 >> gLocalPlayerId) & 1)
             CreatePaletteFadeToWhite(gLocalPlayerId);
@@ -2175,7 +2214,7 @@ static void sub_0800CB54(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         kirby->base.yspeed += 4;
         kirby->base.yspeed = (kirby->base.yspeed >= -0x800
@@ -2195,8 +2234,8 @@ static void sub_0800CBF0(struct GoalStar *gs)
         sub_0800D9E8(gs, 0xA4, 0x94);
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
-        struct LevelInfo *li = gCurLevelInfo + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
+        struct LevelInfo *li = gCurLevelInfo + GS_RIDER(gsAlias, i);
 
         sub_08052BB4(kirby);
         kirby->base.y = 0x30000;
@@ -2300,7 +2339,7 @@ static void sub_0800D0EC(struct GoalStar *gs)
     {
         for (i = 0; i < gsAlias->unkC2; ++i)
         {
-            struct LevelInfo *li = gCurLevelInfo + gsAlias->unkBE[i];
+            struct LevelInfo *li = gCurLevelInfo + GS_RIDER(gsAlias, i);
 
             li->viewportPosition.y -= gsAlias->unkC8;
             li->viewportModY_46 = 0;
@@ -2320,8 +2359,8 @@ static void sub_0800D194(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
-        struct LevelInfo *li = gCurLevelInfo + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
+        struct LevelInfo *li = gCurLevelInfo + GS_RIDER(gsAlias, i);
 
         li->viewportPosition.y -= 0xA00;
         kirby->base.yspeed = 0xA00;
@@ -2335,7 +2374,7 @@ static void sub_0800D194(struct GoalStar *gs)
             li->unk1EC = 1;
         }
     }
-    if (gCurLevelInfo[gsAlias->unkBE[0]].viewportPosition.y <= 0x5800)
+    if (gCurLevelInfo[GS_RIDER(gsAlias, 0)].viewportPosition.y <= 0x5800)
         gs->unk0.obj.unk78 = FN(sub_0800D264);
 }
 
@@ -2346,7 +2385,7 @@ static void sub_0800D264(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         if (kirby->base.y > 0x3800)
             kirby->base.yspeed = 0xA00;
@@ -2377,7 +2416,7 @@ static void sub_0800D2E0(struct GoalStar *gs)
             r = Rand16() & 1;
         for (i = 0; i < gsAlias->unkC2; ++i)
         {
-            struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+            struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
             sub_0804BD98(kirby, var, gsAlias->unkC2, r, 0, kirby->base.y >> 12);
             ++var;
@@ -2644,7 +2683,7 @@ static void sub_0800DD40(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         kirby->base.xspeed = 0;
         kirby->base.yspeed = -0x180;
@@ -2665,7 +2704,7 @@ static void sub_0800DDB8(struct GoalStar *gs)
     sub_0800C4D0(gs);
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         sub_080528E4(kirby);
         kirby->base.xspeed = 0;
@@ -2681,7 +2720,7 @@ static void sub_0800DE20(struct GoalStar *gs)
 
     for (i = 0; i < gsAlias->unkC2; ++i)
     {
-        struct Kirby *kirby = gKirbys + gsAlias->unkBE[i];
+        struct Kirby *kirby = gKirbys + GS_RIDER(gsAlias, i);
 
         if (kirby->base.roomId == gs->unk0.obj.base.roomId)
             break;

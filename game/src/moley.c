@@ -236,7 +236,7 @@ static void sub_080EB700(struct Moley *moley)
     s8 r1;
     u8 r4 = 3, r5 = 3, r6 = 3, sb = 2, ip = 2, r8 = 3;
 
-    if (moley->obj.unk80 > gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+    if (moley->obj.unk80 > gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
     {
         r4 = 4;
         r5 = 4;
@@ -495,7 +495,7 @@ static void sub_080EBF34(struct Moley *moley)
     moley->obj.base.flags &= ~0x400;
     moley->obj.base.flags &= ~0x200;
     moley->obj.base.flags &= ~2;
-    if (moley->obj.subtype || moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+    if (moley->obj.subtype || moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
     {
         if (Rand16() & 1)
             moley->obj.base.counter = 0x18;
@@ -509,7 +509,7 @@ static void sub_080EBF34(struct Moley *moley)
         else
             moley->obj.base.counter = 0x18;
     }
-    if (moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+    if (moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
         moley->obj.base.counter >>= 1;
     ++moley->obj.unk85;
 }
@@ -520,20 +520,20 @@ static void sub_080EC040(struct Moley *moley)
     u16 r;
     struct Moley *moley2 = moley;
 
-    if (moley->obj.subtype || moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+    if (moley->obj.subtype || moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
         var = 3;
     if (moley2->unkB6 > var)
     {
         if (moley->obj.subtype)
         {
-            if (moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+            if (moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
                 r = Rand16() & 1;
             else
                 r = RandLessThan3();
         }
         else
         {
-            if (moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+            if (moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
                 r = RandLessThan3();
             else
                 r = Rand16() & 3;
@@ -583,7 +583,7 @@ static void sub_080EC1F4(struct Moley *moley)
         else
             moley->obj.base.counter = 0x18;
     }
-    if (moley->obj.unk80 <= gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+    if (moley->obj.unk80 <= gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
         moley->obj.base.counter >>= 1;
     sub_080EC650(moley, 0, moley->obj.objTemplate->subtype2);
     moley2->unkB4 = 1;
@@ -664,7 +664,7 @@ static void sub_080EC44C(struct Moley *moley)
         {
             u32 var = 8;
 
-            if (moley->obj.subtype && moley->obj.unk80 < gUnk_08351530[0x12][gNumHumanPlayers - 1] >> 1)
+            if (moley->obj.subtype && moley->obj.unk80 < gUnk_08351530[0x12][KATAM_HUMANS_ROW] >> 1)
                 var = 0xC;
             if (moley2->unkB5 < var)
                 sub_080EC3B8(moley);

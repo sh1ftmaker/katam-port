@@ -858,9 +858,9 @@ struct GameplayHud *TryTrackHudEnemy(struct Object *object)
     tracked = hud->unk1C;
     if (ObjType38To52(tracked)) {
         if (tracked->type == OBJ_DARK_MIND_FORM_1)
-            scaledHp = tracked->unk80 * gUnk_08351628[tracked->subtype][gNumHumanPlayers - 1];
+            scaledHp = tracked->unk80 * gUnk_08351628[tracked->subtype][KATAM_HUMANS_ROW];
         else
-            scaledHp = tracked->unk80 * gUnk_08351458[ObjTypeAltIdx(tracked)][gNumHumanPlayers - 1];
+            scaledHp = tracked->unk80 * gUnk_08351458[ObjTypeAltIdx(tracked)][KATAM_HUMANS_ROW];
         hud->unkA = scaledHp >> 8;
         if (scaledHp & 0xFF)
             hud->unkA++;
@@ -993,9 +993,9 @@ static void UpdateTrackedHudEnemy(struct GameplayHud *hud)
         s16 scaledHp;
         if (ObjType38To52(object)) {
             if (object->type == OBJ_DARK_MIND_FORM_1)
-                scaledHp = object->unk80 * gUnk_08351628[object->subtype][gNumHumanPlayers - 1];
+                scaledHp = object->unk80 * gUnk_08351628[object->subtype][KATAM_HUMANS_ROW];
             else
-                scaledHp = object->unk80 * gUnk_08351458[ObjTypeAltIdx(object)][gNumHumanPlayers - 1];
+                scaledHp = object->unk80 * gUnk_08351458[ObjTypeAltIdx(object)][KATAM_HUMANS_ROW];
             hud->unkA = scaledHp >> 8;
             if (scaledHp & 0xFF)
                 hud->unkA++;

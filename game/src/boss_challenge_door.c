@@ -130,7 +130,9 @@ static void sub_08118D80(struct BossChallengeDoor *door) {
         for (j = 0; j < gNumHumanPlayers; j++)
             ;
         tmp = (*GetStateSlot(STATE_SLOT_SESSION, 9, EWRAM_MIRROR_U8(&gCurLevelInfo[door->obj.base.unk56].unk65E)) & 0xF0000) >> 16;
-        for (i = 0; i < 4; i++) {
+        /* PORT: KATAM_LIVE_KIRBYS (global.h): every Kirby in the room goes
+         * through the door, not the first four only. */
+        for (i = 0; i < KATAM_LIVE_KIRBYS; i++) {
             struct Kirby *kirby = &gKirbys[i];
             if (kirby->hp <= 0)
                 continue;

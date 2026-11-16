@@ -234,13 +234,18 @@ static void sub_0801BC28(struct Shard *shard)
 
 static void sub_0801BD68(struct Shard *shard)
 {
-    u8 array[4];
+    u8 array[KATAM_KIRBYS];
     struct Shard *shardAlias = shard;
     u8 count = 0;
     u16 roomId = shard->obj.base.roomId;
     u16 i;
 
-    for (i = 0; i < 4; ++i)
+    /* PORT: KATAM_LIVE_KIRBYS (global.h).  The shard's dance ends with the
+     * dancer's trip back to the hub (sub_0804C614), so a Kirby past the
+     * fourth must dance too or be left in the room.  unkE0 is a u16: one bit
+     * each for up to 16.  With more than four in the room the dance uses the
+     * game's own any-count formation (sub_0804BD98's default case). */
+    for (i = 0; i < KATAM_LIVE_KIRBYS; ++i)
     {
         struct Kirby *kirby = gKirbys + i;
         if (roomId == kirby->base.roomId)
@@ -249,7 +254,7 @@ static void sub_0801BD68(struct Shard *shard)
             ++count;
         }
     }
-    for (i = 0; i < 4; ++i)
+    for (i = 0; i < KATAM_LIVE_KIRBYS; ++i)
     {
         struct Kirby *kirby = gKirbys + i;
 
