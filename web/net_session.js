@@ -185,7 +185,8 @@
     /* --- the connection ------------------------------------------------------- */
 
     /* opts: { base, code, hello: {sim, rom, content, name, platform, view,
-     *         caps, want, create}, identity?, log?, WebSocket? } */
+     *         caps, want, create}, identity?, log?, WebSocket?, maxRetryMs?
+     *         (the reconnect backoff's ceiling, default 5000) } */
     function connect(opts) {
         var log = opts.log || function () {};
         var WS = opts.WebSocket || (typeof WebSocket !== 'undefined' ? WebSocket : null);
@@ -197,6 +198,11 @@
         var fatal = null;
         var pingTimer = null;
         var transfers = {};          /* id -> {count, got, parts, meta} */
+        /* tests (web/online.js katamOnline._cut): until then the network is
+         * gone -- the socket closed, nothing sent or heard, every reconnect
+         * attempt failing as it would offline */
+        var cutUntil = 0;
+        function cutNow() { return cutUntil && Date.now() < cutUntil; }
         var self = {
             code: opts.code,
             identity: opts.identity || randomHex(16),
@@ -220,7 +226,7 @@
         }
 
         function tx(data) {
-            if (!sock || sock.readyState !== 1) return false;
+            if (!sock || sock.readyState !== 1 || cutNow()) return false;
             self.bytesUp += data.length || data.byteLength || 0;
             sock.send(data);
             return true;
@@ -228,9 +234,22 @@
 
         function json(o) { return tx(JSON.stringify(o)); }
 
+        var retryTimer = 0;
+        function retry() {
+            var delay = Math.min(opts.maxRetryMs || 5000, 300 << Math.min(attempts, 4));
+            attempts++;
+            self.reconnects++;
+            return delay;
+        }
         function open() {
             self.state = 'connecting';
             emit('state', self.state);
+            if (cutNow()) {             /* (tests) offline: this attempt fails */
+                self.state = 'lost';
+                emit('state', self.state);
+                retryTimer = setTimeout(function () { retryTimer = 0; if (!closed) open(); }, retry());
+                return;
+            }
             sock = new WS(url());
             sock.binaryType = 'arraybuffer';
             sock.onopen = function () {
@@ -254,11 +273,9 @@
                 }
                 self.state = 'lost';
                 emit('state', self.state);
-                var delay = Math.min(5000, 300 << Math.min(attempts, 4));
-                attempts++;
-                self.reconnects++;
+                var delay = retry();
                 log('[net] connection lost (' + (ev && ev.code) + ') -- retrying in ' + delay + ' ms');
-                setTimeout(function () { if (!closed) open(); }, delay);
+                retryTimer = setTimeout(function () { retryTimer = 0; if (!closed) open(); }, delay);
             };
             sock.onerror = function () { /* onclose follows */ };
         }
@@ -266,6 +283,7 @@
         function ping() { json({ t: 'ping', c: Date.now(), rtt: self.rtt }); }
 
         function onMessage(e) {
+            if (cutNow()) return;
             if (typeof e.data === 'string') {
                 self.bytesDown += e.data.length;
                 var m;
@@ -391,6 +409,17 @@
             closed = true;
             json({ t: 'leave' });
             try { sock.close(); } catch (e) { /* gone */ }
+        };
+        /* the network is back (the browser's 'online'): a pending reconnect now */
+        self.wake = function () {
+            if (!retryTimer || closed || fatal) return;
+            clearTimeout(retryTimer); retryTimer = 0;
+            open();
+        };
+        /* tests: the network away for ms (the socket drops at once) */
+        self.cut = function (ms) {
+            cutUntil = Date.now() + ms;
+            if (sock && sock.readyState <= 1) { try { sock.close(); } catch (e) { /* gone */ } }
         };
         self.close = function () {
             closed = true;

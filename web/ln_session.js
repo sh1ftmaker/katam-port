@@ -639,6 +639,88 @@
             }
     };
 
+    // --- liveness: what each side does when the other goes quiet ----------------
+    // The page's timers (web/online.js) and the rig's (tools/netproof/run.mjs
+    // with c.liveness) are these, so the rig tests the rules that ship.  Times
+    // in ms on the caller's clock; "heard" is the last time anything at all
+    // came from that device (a datagram, a reliable message, a ping).
+    //
+    //   holdMs   every seated guest quiet this long at once (or the browser
+    //            says it is offline): the host's own network, most likely --
+    //            the host holds its game (no frames on stale keys) and keeps
+    //            every guest, Kirby and all, for the grace
+    //   deadMs   one guest quiet this long while others are heard: its Kirbys
+    //            to the CPU, its device id (and the link) kept ...
+    //   graceMs  ... until this long since it was last heard: then it is
+    //            forgotten.  Back before that: in again with a join image.
+    //            Also the end of a host hold (everyone is let go) and of a
+    //            guest's wait for the host (it gives up: HOST LEFT).
+    //   waitMs   a guest shows WAITING FOR HOST after this much quiet; the
+    //            countdown is what is left of graceMs (0:30 when it appears)
+    //   backMs   an away guest heard within this is back
+    var LIVE = { holdMs: 1000, deadMs: 6000, waitMs: 3000, graceMs: 33000, backMs: 1500 };
+    function HostLiveness(opts) {
+        this.o = assign({}, LIVE, opts || {});
+        this.holdAt = 0; this.holdEnd = -Infinity;
+        this.st = { holds: 0, holdMs: 0, longestHoldMs: 0, cpu: 0, back: 0, gone: 0, expired: 0 };
+    }
+    // peers: [{ id, heard, seated (in the hub, its Kirbys its own), awayAt
+    // (when its Kirbys went to the CPU; 0: never) }].  Returns what to do now:
+    // { hold, left (ms of grace left while holding), cpu: [ids], back: [ids],
+    // gone: [ids] }.
+    HostLiveness.prototype.step = function (t, peers, offline) {
+        var o = this.o, self = this, out = { hold: false, left: 0, cpu: [], back: [], gone: [] }, i, p;
+        // quiet for the one-guest rules: never counted through a hold (after
+        // the host's own outage, a guest slower to come back is not dropped
+        // for the time the host was away)
+        var quiet = function (q) { return t - Math.max(q.heard, self.holdEnd); };
+        var seated = peers.filter(function (q) { return q.seated; });
+        var allQuiet = seated.length > 0 && seated.every(function (q) { return t - q.heard > o.holdMs; });
+        if (allQuiet || (offline && seated.length)) {
+            if (!this.holdAt) { this.holdAt = t; this.st.holds++; }
+            var last = -Infinity;
+            for (i = 0; i < seated.length; i++) last = Math.max(last, seated[i].heard);
+            out.hold = true;
+            out.left = o.graceMs - (t - last);
+            if (out.left < 0) {
+                // nobody came back in time: let them all go, play on alone
+                for (i = 0; i < seated.length; i++) out.gone.push(seated[i].id);
+                this.st.expired++;
+                out.hold = false;
+                this.endHold(t);
+            }
+        } else if (this.holdAt) this.endHold(t);
+        if (out.hold) return out;
+        for (i = 0; i < peers.length; i++) {
+            p = peers[i];
+            if (out.gone.indexOf(p.id) >= 0) continue;
+            if (p.seated) {
+                if (quiet(p) > o.deadMs) { out.cpu.push(p.id); this.st.cpu++; }
+            } else if (p.awayAt) {
+                if (p.heard > p.awayAt && t - p.heard < o.backMs) { out.back.push(p.id); this.st.back++; }
+                else if (quiet(p) > o.graceMs) { out.gone.push(p.id); this.st.gone++; }
+            }
+        }
+        return out;
+    };
+    HostLiveness.prototype.endHold = function (t) {
+        var d = t - this.holdAt;
+        this.st.holdMs += d;
+        if (d > this.st.longestHoldMs) this.st.longestHoldMs = d;
+        this.holdAt = 0; this.holdEnd = t;
+    };
+    HostLiveness.prototype.holding = function () { return !!this.holdAt; };
+    // The guest's: the host last heard at `heard`.
+    function guestWait(t, heard, opts) {
+        var o = opts ? assign({}, LIVE, opts) : LIVE, q = t - heard;
+        return { quiet: q, show: q > o.waitMs, left: o.graceMs - q, gone: q > o.graceMs };
+    }
+    // "0:30": a countdown's whole seconds left (rounded up), as the game shows it
+    function countdown(ms) {
+        var s = Math.max(0, Math.min(99 * 60, Math.ceil(ms / 1000)));
+        return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+    }
+
     // --- an engine adapter over a running module (the page) ----------------------
     // tools/netproof/instance.mjs has the rig's own; this is the same calls.
     function cstr(M, p) {
@@ -767,5 +849,6 @@
         HostSession: HostSession, GuestSession: GuestSession, HostHub: HostHub,
         encInput: encInput, decInput: decInput, encSealed: encSealed, decSealed: decSealed,
         engineOfModule: engineOfModule, cardCalls: cardCalls, wideCalls: wideCalls, recBytes: recBytes, recKeys: recKeys,
+        LIVE: LIVE, HostLiveness: HostLiveness, guestWait: guestWait, countdown: countdown,
     };
 }));

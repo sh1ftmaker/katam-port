@@ -32,9 +32,20 @@
  * (Module._PortSetKeys), 1..3 = the pads given to
  * Module._PortLmpSetHostKeys(seat, mask).  The host decides which Kirby
  * (platform/lmpnet.c PortLnSeatRequest); every device applies it on the
- * same sealed frame.  A guest leaving, or its link going quiet for 6 s,
- * hands its Kirbys to the CPU; back with the same code (the same tab, or a
- * reload of it), it gets a Kirby again -- the one it had, if still free.
+ * same sealed frame.  A guest leaving, or its link going quiet for 6 s
+ * while the others are heard, hands its Kirbys to the CPU; its link heard
+ * again within 33 s it is back in (a join image), and back with the same
+ * code (the same tab, or a reload of it) it gets a Kirby again -- the one it
+ * had, if still free.
+ *
+ * Bad internet for a bit (web/ln_session.js LIVE, the rig's rules too): a
+ * guest that hears nothing from the host holds -- the game shows WAITING
+ * FOR HOST 0:30, composed from the ROM like the ONLINE screens' messages --
+ * and goes on by itself when the host is heard again; after the countdown
+ * it ends as when the host leaves.  A host whose every guest goes quiet at
+ * once (its own connection, most likely) holds its game too (RECONNECTING
+ * 0:30) and keeps everyone.  A host that closes its tab says bye: that ends
+ * the game for everyone at once, as before.
  *
  * Modules.  8-player games run on the 16-Kirby module (katam16.wasm, the
  * page's default: web/shell.html); 4-player games on the 4-Kirby one
@@ -84,6 +95,23 @@
      * tools/netproof.mjs --kf-count runs the rig the same) */
     function kfCount() { return up() && M._PortLnSlots && M._PortLnSlots() > 8 ? 16 : KF_COUNT; }
     var P2P_WAIT_MS = 5000, DEAD_MS = 6000, PING_MS = 1000;
+    /* Liveness (web/ln_session.js LIVE, the rig's rules too): a quiet host is
+     * waited for (WAITING FOR HOST 0:30) instead of given up on; a host whose
+     * every guest goes quiet holds its game (RECONNECTING 0:30) and keeps
+     * them; one quiet guest's Kirbys go to the CPU at 6 s and come back to it
+     * if it returns within the grace.  A host that closes its tab says bye:
+     * that still ends the game for everyone at once. */
+    var LIVE = LS.LIVE;
+    /* relay messages sent while the room socket is down: kept (in order) for
+     * when it is back, up to this many (an image is ~30); past it, dropped --
+     * the guest asks for a repair image */
+    var SIGQ_MAX = 400;
+    /* a link that fell back to the relay tries the direct path again: an
+     * ICE restart (or a new peer connection), after this long, doubling */
+    var HEAL_MS = 4000, HEAL_MAX_MS = 30000;
+    /* the room socket's reconnect backoff ceiling: back within 2 s of the
+     * network (the relay and the signalling of a new direct path need it) */
+    var RETRY_MS = 2000;
     var ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
     var RELAY_CHUNK = 24 * 1024, DC_CHUNK = 16 * 1024;
     var CONTENT = 'lmpnet1';
@@ -120,7 +148,14 @@
         startedAt: 0, lastView: -1, invite: null,
         uiState: 0, banner: null,
         stats: { relayIn: 0, relayOut: 0, p2pIn: 0, p2pOut: 0, bytesIn: 0, bytesOut: 0, dropped: 0,
-                 joins: 0, guestDrops: 0, imagesSent: 0, imagesIn: 0, slotChanges: 0, refusedFull: 0 },
+                 joins: 0, guestDrops: 0, imagesSent: 0, imagesIn: 0, slotChanges: 0, refusedFull: 0,
+                 /* liveness: relay messages kept while the room socket was down (and
+                  * dropped past the bound), returns to the direct path, ICE
+                  * restarts / new peer connections, host holds, waits for the host,
+                  * guests back to their seat, misrouted joiners redirected */
+                 sigQueued: 0, sigQDropped: 0, directAgain: 0, iceRestarts: 0, newPcs: 0,
+                 holds: 0, holdMs: 0, hostWaits: 0, hostWaitMs: 0, backToSeat: 0, redirected: 0 },
+        hold: false, holdLeft: 0, notice: null, cutUntil: 0, lastAfter: 0, live: null,
     };
     /* The 16-Kirby module (web/shell.html; it may have fallen back to the
      * ordinary one, so asked each time): its games hold 8 people */
@@ -177,6 +212,56 @@
         el.textContent = text;
         el.style.display = 'block';
         if (ms) S.bannerTimer = setTimeout(function () { el.style.display = 'none'; S.banner = null; }, ms);
+    }
+
+    /* --- the game's own notice over the picture: WAITING FOR HOST 0:30 -------
+     * Composed by the game at run time from the player's ROM -- the menus'
+     * banner and lettering, as the ONLINE screens' messages are
+     * (platform/online_notice.c, platform/menu_poc.c) -- and put on a canvas
+     * over the picture: it is there while the game holds (no frames, nothing
+     * presented).  A build without it: the page's banner says the same. */
+    var noticeBuf = 0;
+    function gameNotice(text) {
+        text = text || null;
+        if (text === S.notice) return;
+        S.notice = text;
+        var el = document.getElementById('lnnotice');
+        if (!text) {
+            if (el) el.style.display = 'none';
+            if (S.noticeBanner) { S.noticeBanner = false; banner(null); }
+            return;
+        }
+        var w = 0, h = 0, i;
+        if (up() && M._PortOnlineNoticeBuild) {
+            if (!noticeBuf) noticeBuf = M._malloc(64);
+            for (i = 0; i < text.length && i < 63; i++) M.HEAPU8[noticeBuf + i] = text.charCodeAt(i) & 0x7F;
+            M.HEAPU8[noticeBuf + i] = 0;
+            w = M._PortOnlineNoticeBuild(noticeBuf);
+            h = w > 0 ? M._PortOnlineNoticeHeight() : 0;
+        }
+        if (w <= 0 || h <= 0) { banner(text, 0); S.noticeBanner = true; return; }
+        if (!el) {
+            el = document.createElement('canvas');
+            el.id = 'lnnotice';
+            el.style.cssText = 'position:fixed;z-index:69;pointer-events:none;image-rendering:pixelated;display:none';
+            document.body.appendChild(el);
+        }
+        el.width = w; el.height = h;
+        var ctx = el.getContext('2d'), img = ctx.createImageData(w, h), px = M._PortOnlineNoticePixels();
+        img.data.set(M.HEAPU8.subarray(px, px + w * h * 4));
+        ctx.putImageData(img, 0, 0);
+        /* centred on the picture, at its scale (in half steps) */
+        var r = null;
+        [M.portGlCanvas, document.getElementById('screen')].forEach(function (c) {
+            var b = c && c.getBoundingClientRect ? c.getBoundingClientRect() : null;
+            if (!r && b && b.width > 40 && b.height > 40) r = b;
+        });
+        r = r || { left: 0, top: 0, width: innerWidth, height: innerHeight };
+        var sc = Math.max(1, Math.floor(Math.min(r.width / 240, r.height / 160) * 2) / 2);
+        el.style.width = w * sc + 'px'; el.style.height = h * sc + 'px';
+        el.style.left = Math.round(r.left + (r.width - w * sc) / 2) + 'px';
+        el.style.top = Math.round(r.top + (r.height - h * sc) / 2) + 'px';
+        el.style.display = 'block';
     }
 
     /* --- versions: the room's hello gate, re-checked peer to peer ------------ */
@@ -284,6 +369,7 @@
         this.onDatagram = null; this.onReliable = null; this.onDecided = null;
         this.img = { dc: null, relay: null };
         this.iceQ = []; this.haveRemote = false;
+        this.sigQ = []; this.wasP2p = false; this.healAt = 0; this.healMs = HEAL_MS; this.forced = !!(KNOB.relay || forceRelay);
         this.pingTimer = setInterval(function () { self.ping(); }, PING_MS);
         /* decided a turn later: the caller sets onDecided after this returns */
         if (KNOB.relay || forceRelay) { setTimeout(function () { self.decide('relay (forced)'); }, 0); return; }
@@ -302,10 +388,30 @@
         log('link: ' + why);
         if (this.onDecided) this.onDecided();
     };
+    /* Over the room.  While its socket is down (net_session.js reconnects
+     * with the same identity, so the same member id), what is sent is kept
+     * in order and goes when it is back -- all but datagrams, whose next
+     * packet says the same and more. */
     Link.prototype.sig = function (d) {
         d.sid = this.sid;
         S.stats.relayOut++;
-        this.net.send({ t: 'signal', to: this.mid, data: d });
+        if (this.sigQ.length) this.flush();
+        if (!this.sigQ.length && this.net.send({ t: 'signal', to: this.mid, data: d })) return;
+        if (d.k === 'd' || this.closed && d.k !== 'bye') return;
+        if (this.sigQ.length >= SIGQ_MAX) {
+            S.stats.sigQDropped += this.sigQ.length;
+            log('relay: ' + this.sigQ.length + ' messages kept for the room are too many -- dropped');
+            this.sigQ = [];
+        }
+        this.sigQ.push(d);
+        S.stats.sigQueued++;
+    };
+    Link.prototype.flush = function () {
+        while (this.sigQ.length) {
+            if (!this.net.send({ t: 'signal', to: this.mid, data: this.sigQ[0] })) return false;
+            this.sigQ.shift();
+        }
+        return true;
     };
     Link.prototype.startP2p = function () {
         var self = this;
@@ -322,12 +428,14 @@
         this.dcR.onmessage = function (e) { self.recvReliable(e.data, 'p2p'); };
         pc.onicecandidate = function (e) { if (e.candidate) self.sig({ k: 'ice', c: e.candidate.toJSON() }); };
         pc.onconnectionstatechange = function () {
+            if (pc !== self.pc) return;
             var st = pc.connectionState;
+            if (st === 'connected') self.direct();
             if (st === 'failed' || st === 'closed') self.lost('peer connection ' + st);
             else if (st === 'disconnected') {
                 clearTimeout(self.discTimer);
                 self.discTimer = setTimeout(function () {
-                    if (pc.connectionState === 'disconnected') self.lost('peer connection disconnected');
+                    if (pc === self.pc && pc.connectionState === 'disconnected') self.lost('peer connection disconnected');
                 }, 2500);
             }
         };
@@ -340,22 +448,82 @@
     Link.prototype.checkOpen = function () {
         if (this.closed || !this.dcU || !this.dcR) return;
         if (this.dcU.readyState === 'open' && this.dcR.readyState === 'open' && !this.p2p) {
-            this.p2p = true;
+            if (this.decided) { this.direct(); return; }
+            this.p2p = true; this.wasP2p = true;
             log('link: direct (WebRTC data channels open)');
             this.decide('p2p');
         }
     };
+    /* Back to the direct path after a fall back to the relay: the peer
+     * connection is up again (an ICE restart, a new one, or a blip it rode
+     * out) and both channels are open. */
+    Link.prototype.direct = function () {
+        if (this.closed || this.p2p || !this.decided || !this.pc || this.cut()) return;
+        if (this.pc.connectionState !== 'connected' || !this.dcU || !this.dcR
+            || this.dcU.readyState !== 'open' || this.dcR.readyState !== 'open') return;
+        this.p2p = true; this.wasP2p = true; this.healMs = HEAL_MS;
+        S.stats.directAgain++;
+        log('link: direct again');
+    };
+    /* (the cut test knob, katamOnline._cut: this page's network is gone) */
+    Link.prototype.cut = function () { return S.cutUntil && nowMs() < S.cutUntil; };
+    /* A link that was direct and fell back: now and then, while the room is
+     * there to signal it, try the direct path again.  The guest offers (it
+     * always does): an ICE restart on the same peer connection while its
+     * channels are open, else a new peer connection on both sides (the
+     * host's Link makes its own on 'repc'); the session never notices. */
+    Link.prototype.heal = function () {
+        var t = nowMs();
+        if (!this.guest || this.closed || this.p2p || !this.wasP2p || this.forced || this.cut()) return;
+        /* (only while the host hears us over the relay: an offer it cannot get is wasted) */
+        if (this.net.state !== 'open' || this.quiet() > 2000 || t - this.healAt < this.healMs) return;
+        this.healAt = t;
+        this.healMs = Math.min(HEAL_MAX_MS, this.healMs * 2);
+        var pc = this.pc, self = this;
+        if (pc && pc.connectionState !== 'closed' && pc.signalingState === 'stable' && this.dcU && this.dcU.readyState === 'open'
+            && this.dcR && this.dcR.readyState === 'open' && pc.restartIce) {
+            S.stats.iceRestarts++;
+            log('link: trying the direct path again (ICE restart)');
+            try { pc.restartIce(); } catch (e) { /* the offer below says it */ }
+            pc.createOffer({ iceRestart: true }).then(function (o) { return pc.setLocalDescription(o); })
+                .then(function () { if (pc === self.pc) self.sig({ k: 'sdp', d: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } }); })
+                .catch(function (e) { log('ICE restart failed: ' + e.message); });
+            return;
+        }
+        S.stats.newPcs++;
+        log('link: trying the direct path again (a new peer connection)');
+        this.sig({ k: 'repc' });
+        this.repc();
+    };
+    /* a new peer connection in place of the old one: same link, same sid */
+    Link.prototype.repc = function () {
+        var old = this.pc;
+        this.pc = null;
+        if (old) {
+            old.onconnectionstatechange = null; old.onicecandidate = null;
+            [this.dcU, this.dcR].forEach(function (dc) { if (dc) { dc.onclose = null; dc.onopen = null; dc.onmessage = null; } });
+            try { old.close(); } catch (e) { /* gone */ }
+        }
+        clearTimeout(this.discTimer);
+        this.dcU = this.dcR = null; this.iceQ = []; this.haveRemote = false;
+        this.p2p = false;
+        try { this.startP2p(); } catch (e) { log('WebRTC unavailable: ' + e.message); }
+    };
     Link.prototype.lost = function (why) {
         if (!this.p2p && this.decided) return;
-        if (this.p2p) log('link: direct path lost (' + why + ') -- the relay carries it now');
+        if (this.p2p) { log('link: direct path lost (' + why + ') -- the relay carries it now'); this.healAt = nowMs(); }
         this.p2p = false;
         this.decide('relay (' + why + ')');
     };
     Link.prototype.signal = function (d) {
         var self = this, pc = this.pc;
+        if (this.cut()) return;
         this.lastRecv = nowMs();
         S.stats.relayIn++;
         switch (d.k) {
+        case 'repc':                /* the guest makes a new peer connection: so do we */
+            if (!this.guest && !this.forced) { S.stats.newPcs++; this.repc(); }
+            return;
         case 'sdp':
             if (!pc) return;
             pc.setRemoteDescription(d.d).then(function () {
@@ -391,6 +559,7 @@
         if (KNOB.loss && Math.random() < KNOB.loss) { S.stats.dropped++; return; }
         var d = KNOB.lag + Math.random() * KNOB.jitter;
         S.stats.bytesOut += bytes.length; this.bOut += bytes.length;
+        if (this.cut()) return;
         this.later(d, function () {
             if (self.closed) return;
             if (self.p2p && self.dcU.readyState === 'open') {
@@ -403,12 +572,14 @@
     Link.prototype.reliable = function (msg) {
         var self = this, t = nowMs();
         if (this.closed) return;
-        var at = Math.max(this.relNext, t + KNOB.lag);
+        /* cut (the test knob): a direct path's reliable channel delivers it
+         * once the network is back, as SCTP would */
+        var at = Math.max(this.relNext, t + KNOB.lag, this.cut() && this.p2p ? S.cutUntil + KNOB.lag : 0);
         this.relNext = at;
         this.later(at - t, function () { if (!self.closed) self.sendReliableNow(msg); });
     };
     Link.prototype.sendReliableNow = function (msg) {
-        var p2p = this.p2p && this.dcR.readyState === 'open';
+        var p2p = this.p2p && this.dcR && this.dcR.readyState === 'open';
         if (msg.t === 'image') {
             var comp = msg.comp, size = p2p ? DC_CHUNK : RELAY_CHUNK, n = Math.max(1, Math.ceil(comp.length / size));
             var hdr = { t: 'image', F: msg.F, raw: msg.raw, reason: msg.reason, len: comp.length, n: n, dev: msg.dev };
@@ -433,12 +604,18 @@
         this.sig({ k: 'r', m: msg });
     };
     Link.prototype.recvDatagram = function (bytes, via) {
+        if (this.cut()) return;
         this.lastRecv = nowMs();
         S.stats.bytesIn += bytes.length; this.bIn += bytes.length;
         if (via === 'p2p') S.stats.p2pIn++;
         if (this.onDatagram) this.onDatagram(bytes);
     };
     Link.prototype.recvReliable = function (data, via) {
+        var self = this;
+        if (this.cut()) {           /* (the cut knob) the reliable channel delivers it later */
+            if (via === 'p2p') setTimeout(function () { self.recvReliable(data, via); }, S.cutUntil - nowMs() + 1);
+            return;
+        }
         this.lastRecv = nowMs();
         if (via === 'p2p') S.stats.p2pIn++;
         if (typeof data !== 'string' && !(data && data.t)) { this.recvChunk(new Uint8Array(data), via); return; }
@@ -463,11 +640,16 @@
         S.stats.imagesIn++;
         if (this.onReliable) this.onReliable({ t: 'image', F: im.hdr.F, raw: im.hdr.raw, reason: im.hdr.reason, comp: comp, dev: im.hdr.dev });
     };
-    Link.prototype.ping = function () { if (!this.closed) this.reliable({ t: 'ping', c: nowMs() }); };
+    Link.prototype.ping = function () { if (!this.closed && !this.cut()) this.reliable({ t: 'ping', c: nowMs() }); };
+    Link.prototype.quiet = function () { return nowMs() - this.lastRecv; };
     Link.prototype.dead = function () { return nowMs() - this.lastRecv > DEAD_MS; };
     Link.prototype.close = function (bye) {
         if (this.closed) return;
-        if (bye) { try { this.sig({ k: 'bye' }); } catch (e) { /* gone */ } }
+        if (bye) {
+            try { this.sig({ k: 'bye' }); } catch (e) { /* gone */ }
+            /* and over the direct path, which may be there when the room is not */
+            try { if (this.p2p && this.dcR && this.dcR.readyState === 'open') this.dcR.send(JSON.stringify({ t: 'bye' })); } catch (e) { /* gone */ }
+        }
         this.closed = true;
         clearInterval(this.pingTimer); clearTimeout(this.decideTimer); clearTimeout(this.discTimer);
         try { if (this.pc) this.pc.close(); } catch (e) { /* gone */ }
@@ -563,6 +745,7 @@
         on: false, burst: 0,
         /* after the frames of a tick: start the session if it is due, send */
         after: function () {
+            S.lastAfter = nowMs();
             if (!S.session && S.startWanted) startEngine();
             drain();
             if (!S.session) return;
@@ -591,8 +774,12 @@
             drain();
             if (!S.session) return 0;
             var k = dueTicks(t);
+            /* held (the host: every guest quiet) or waiting for the host: no
+             * frames, but the session keeps sending, so whichever side comes
+             * back is heard at once */
+            if ((S.hold || S.phase === 'hostwait') && nowMs() - S.lastAfter > 50) ln.after();
             if (!k) return 0;
-            if (S.role === 'host') return Math.min(k, 3);
+            if (S.role === 'host') return S.hold ? 0 : Math.min(k, 3);
             if (!S.gs) return 0;
             if (S.phase === 'hostleft') return 0;
             return S.gs.framesToRun(k);
@@ -626,6 +813,7 @@
             return;
         }
         S.session = true;
+        S.live = null; S.hold = false;
         S.startedAt = nowMs();
         S.startFrame = M._PortFrameNumber();
         S.t0 = 0;
@@ -706,24 +894,51 @@
             S.code = x.r.code;
             if (KB) KB.hosting(S.code, x.r.resume, function () { return 1 + readyCount(); },   /* server browser */
                                { max: seats(), mod: wide() ? '16' : null });
-            var net = S.net = Net.connect({ base: BASE, code: S.code, hello: hello(x.v), log: log });
             S.ver = x.v;
-            net.on('welcome', function () {
-                if (gen !== S.gen) return;
-                log('hosting ' + S.code);
-                hostUi();
-            });
-            net.on('error', function (e) {
-                log('room: ' + Net.explainError(e));
-                if (!S.session) ui(UI.H_NOSERVER);
-            });
-            net.on('signal', hostSignal);
-            net.on('roster', function (m) {
-                forPeers(function (p) {
-                    var here = m.members.some(function (x) { return x.mid === p.mid && x.connected; });
-                    if (!here && p.ready && nowMs() - p.at > 3000) guestGone(p, 'left the room');
-                });
-            });
+            hostRoom(gen, x.v);
+        });
+    }
+
+    /* This tab's identity in the room of `code` (sessionStorage): every
+     * connection to it is the same member, so a reconnect -- the socket's
+     * own, or a new one below -- keeps the member id the guests signal to. */
+    function hostIdentity(code) {
+        var key = 'katamLnId:' + code, id = null;
+        try {
+            id = sessionStorage.getItem(key);
+            if (!id) { id = Net.randomHex(16); sessionStorage.setItem(key, id); }
+        } catch (e) { id = null; }
+        return id || undefined;
+    }
+    function hostRoom(gen, v) {
+        var net = S.net = Net.connect({ base: BASE, code: S.code, hello: hello(v), log: log, identity: hostIdentity(S.code), maxRetryMs: RETRY_MS });
+        forPeers(function (p) { p.link.net = net; });
+        net.on('welcome', function () {
+            if (gen !== S.gen || net !== S.net) return;
+            log('hosting ' + S.code);
+            hostUi();
+            forPeers(function (p) { p.link.flush(); });     /* what the relay kept meanwhile */
+        });
+        net.on('error', function (e) {
+            log('room: ' + Net.explainError(e));
+            if (!S.session) ui(UI.H_NOSERVER);
+        });
+        /* in play the room is how a guest's relay and a joiner reach us: a
+         * connection the room closed for good (not for another tab or a
+         * version) is made again, as the same member */
+        net.on('state', function (st, fatal) {
+            if (gen !== S.gen || net !== S.net || st !== 'closed' || !fatal || !S.session) return;
+            if (/^(replaced|kicked|version|locked|full|malformed)$/.test(fatal.code || '')) return;
+            log('room: closed (' + (fatal.code || '?') + ') -- connecting again');
+            setTimeout(function () { if (gen === S.gen && net === S.net && S.session) hostRoom(gen, v); }, 3000);
+        });
+        net.on('signal', hostSignal);
+        /* a guest gone from the room (it left; or the room forgot it): gone
+         * once its link is quiet too.  Only away from the room (its socket
+         * reconnecting) is not gone: the liveness rules go by its link. */
+        net.on('roster', function (m) {
+            if (net !== S.net) return;
+            forPeers(function (p) { p.inRoom = m.members.some(function (x) { return x.mid === p.mid; }); });
         });
     }
 
@@ -878,8 +1093,22 @@
             if (gen !== S.gen) return;
             if (r.status === 404) return joinFail(UI.J_NOGAME, 'No game with the code ' + code + '. Check the letters.');
             if (r.status !== 200) return joinFail(UI.J_FAILED, 'Could not reach the game server. Try again.');
-            var net = S.net = Net.connect({ base: BASE, code: code, hello: hello(S.ver), log: log });
+            var net = S.net = Net.connect({ base: BASE, code: code, hello: hello(S.ver), log: log, maxRetryMs: RETRY_MS });
             var hiTimer = 0;
+            /* hi to the host, S.hostMid (the room's host, or where a guest
+             * the room took for it sent us) */
+            var sendHi = function () {
+                var sid = rid(), mem = net.roster ? net.roster.members.filter(function (x) { return x.mid === S.hostMid; })[0] : null;
+                net.send({ t: 'signal', to: S.hostMid, data: { k: 'hi', sid: sid, sim: S.ver.sim, rom: S.ver.rom, relay: KNOB.relay, tok: TOK } });
+                S.pendingSid = sid;
+                S.hiWhileAway = !!(mem && !mem.connected);
+                clearTimeout(hiTimer);
+                hiTimer = setTimeout(function () {
+                    if (gen !== S.gen || S.peer) return;
+                    if (S.hiWhileAway) joinFail(UI.J_FAILED, 'The host\'s connection is down. Try again in a moment.');
+                    else joinFail(UI.J_FAILED, 'The host does not answer. Try again.');
+                }, 10000);
+            };
             net.on('error', function (e) {
                 if (gen !== S.gen) return;
                 if (e.code === 'version' && e.field === 'rom') return joinFail(UI.J_ROM, 'Your ROM is not the same as the host\'s.');
@@ -892,25 +1121,57 @@
                 joinFail(UI.J_FAILED, Net.explainError(e));
             });
             net.on('welcome', function (w, again) {
-                if (gen !== S.gen || again && S.peer) return;
-                var sid = rid();
-                S.hostMid = net.host;
-                net.send({ t: 'signal', to: net.host, data: { k: 'hi', sid: sid, sim: S.ver.sim, rom: S.ver.rom, relay: KNOB.relay, tok: TOK } });
-                S.pendingSid = sid;
-                clearTimeout(hiTimer);
-                hiTimer = setTimeout(function () {
-                    if (gen === S.gen && !S.peer) joinFail(UI.J_FAILED, 'The host does not answer. Try again.');
-                }, 10000);
+                if (gen !== S.gen) return;
+                if (again && S.peer) { S.peer.link.flush(); return; }      /* what the relay kept meanwhile */
+                if (again && S.pendingSid) return;
+                S.hostMid = net.host; S.redirects = 0;
+                /* the room made this tab its host: the host has been away a while */
+                if (S.hostMid === net.mid) return joinFail(UI.J_FAILED, 'The host\'s connection is down. Try again in a moment.');
+                sendHi();
             });
             net.on('roster', function (m) {
-                if (gen !== S.gen || !S.peer) return;
+                if (gen !== S.gen) return;
                 var host = m.members.filter(function (x) { return x.mid === S.hostMid; })[0];
+                if (!S.peer) {
+                    /* asked while the host's socket was away: again when it is back */
+                    if (S.pendingSid && S.hiWhileAway && host && host.connected) { log('join: the host is back in the room -- asking again'); sendHi(); }
+                    return;
+                }
+                /* the host's socket away from the room says nothing of its link
+                 * (the liveness rules go by that); gone from the room (its tab
+                 * closed: it left) does, once the link is quiet too */
+                S.hostInRoom = !!host;
                 if (host && !host.connected) S.hostAwayAt = S.hostAwayAt || nowMs();
                 else S.hostAwayAt = 0;
             });
             net.on('signal', function (m) {
-                if (gen !== S.gen || m.from !== S.hostMid) return;
+                if (gen !== S.gen) return;
                 var d = m.data || {};
+                /* a joiner sent its hi here: the room gave this guest the host
+                 * role (its rule after the host's socket was away 10 s, which
+                 * it keeps when the host is back) -- send it to the host, or
+                 * say there is none (gone from the room: its tab closed) */
+                if (d.k === 'hi' && m.from !== net.mid && m.from !== S.hostMid) {
+                    if (!S.peer) return;
+                    S.stats.redirected++;
+                    var live = S.hostMid >= 0 && S.hostInRoom !== false;
+                    net.send({ t: 'signal', to: m.from, data: live ? { k: 'host', sid: d.sid, mid: S.hostMid } : { k: 'nohost', sid: d.sid } });
+                    return;
+                }
+                if (m.from !== S.hostMid) return;
+                /* we were that joiner: try the member it named (twice at most) */
+                if (d.k === 'host' || d.k === 'nohost') {
+                    if (d.sid !== S.pendingSid || S.peer) return;
+                    clearTimeout(hiTimer);
+                    if (d.k === 'nohost') return joinFail(UI.J_HOSTLEFT, 'The host has left this game.');
+                    S.redirects = (S.redirects || 0) + 1;
+                    if (S.redirects > 2 || typeof d.mid !== 'number' || d.mid === S.hostMid || d.mid === net.mid)
+                        return joinFail(UI.J_FAILED, 'Could not reach the host. Try again.');
+                    log('join: member ' + S.hostMid + ' is a guest; the host is member ' + d.mid);
+                    S.hostMid = d.mid;
+                    sendHi();
+                    return;
+                }
                 /* server browser: a locked game asks for its password (web/online_browse.js) */
                 if (KB && (d.k === 'pw' || d.k === 'pwbad' || d.k === 'pwlock')) {
                     if (d.sid !== S.pendingSid || S.peer) return;
@@ -918,7 +1179,7 @@
                     if (d.k === 'pwlock') return joinFail(KB.UI.J_PWLOCK, 'Too many wrong passwords: the host stopped answering.');
                     KB.onChallenge(d, code, !!S.invite, function (h) {
                         if (gen !== S.gen || S.peer) return;
-                        net.send({ t: 'signal', to: net.host, data: { k: 'pwr', sid: d.sid, h: h } });
+                        net.send({ t: 'signal', to: S.hostMid, data: { k: 'pwr', sid: d.sid, h: h } });
                         ui(UI.J_CONNECTING);
                         hiTimer = setTimeout(function () {
                             if (gen === S.gen && !S.peer) joinFail(UI.J_FAILED, 'The host does not answer. Try again.');
@@ -986,13 +1247,18 @@
         };
     }
 
-    function hostGone(why) {
+    /* bye: say so to the host (a guest that gave up waiting: kept by the
+     * relay until the room is back, so a host that returns lets it go) */
+    function hostGone(why, bye) {
         if (S.phase === 'hostleft') return;
         log('the host ' + why);
+        var waited = S.phase === 'hostwait';
         S.phase = 'hostleft';
-        if (S.peer) { S.peer.link.close(false); }
+        gameNotice(null);
+        if (S.peer) { S.peer.link.close(!!bye); }
         if (S.session) {
-            banner('The host left the game. Press A or Start to go back to the title.', 0);
+            banner(waited || bye ? 'The host did not come back. Press A or Start to go back to the title.'
+                   : 'The host left the game. Press A or Start to go back to the title.', 0);
             leaveButton(true);
             padExit();
         }
@@ -1027,7 +1293,7 @@
                 'padding:8px 18px;border-radius:12px;border:3px solid #f8d850;background:#f8d850;color:#181040;' +
                 'font:bold 15px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;' +
                 'box-shadow:0 4px 0 rgba(0,0,0,.35);cursor:pointer';
-            b.addEventListener('click', function () { leave('the host had left'); });
+            b.addEventListener('click', function () { leave(S.phase === 'hostwait' ? 'did not wait for the host' : 'the host had left'); });
             document.body.appendChild(b);
         }
         if (b) b.style.display = on ? 'block' : 'none';
@@ -1038,7 +1304,7 @@
         log((was === 'host' ? 'ending the online game' : 'leaving the online game') + (why ? ' (' + why + ')' : ''));
         reset();                                /* links closed with a bye, the room left */
         S.inbox = []; S.startWanted = false; S.accept = false; S.gs = null; S.hub = null; S.eng = S.eng || null;
-        S.owners = noOwners(); S.myDev = null; S.hostAwayAt = 0; S.tokDev = {};
+        S.owners = noOwners(); S.myDev = null; S.hostAwayAt = 0; S.hostInRoom = undefined; S.tokDev = {};
         if (inGame) {
             S.session = false;
             ln.on = false; ln.burst = 0;
@@ -1101,6 +1367,8 @@
         S.peers = {};
         S.role = null; S.phase = 'idle'; S.code = null; S.hub = null; S.pendingSid = null;
         S.banned = {};
+        S.live = null; S.hold = false; S.holdLeft = 0;
+        gameNotice(null);
     }
 
     /* The page again on the other module, at the title (the game restarts):
@@ -1156,18 +1424,93 @@
             }
         }
     }
-    setInterval(function () {
-        if (S.role === 'host') forPeers(function (p) { if (p.link.dead()) guestGone(p, 'stopped answering'); });
-        if (S.role === 'guest' && S.peer && S.phase !== 'hostleft' && S.phase !== 'failed') {
-            if (S.peer.link.dead() || (S.hostAwayAt && nowMs() - S.hostAwayAt > 3000)) hostGone('stopped answering');
+    /* --- liveness (web/ln_session.js LIVE: the rig runs the same rules) ------ */
+    function setHold(on, left) {
+        var t = nowMs();
+        if (on && !S.hold) {
+            S.hold = true; S.holdAt = t; S.stats.holds++;
+            log('every guest is quiet: holding the game (this connection?)');
+        } else if (!on && S.hold) {
+            S.hold = false; S.stats.holdMs += Math.round(t - S.holdAt);
+            log('heard from a guest again after ' + Math.round(t - S.holdAt) + ' ms: playing on');
         }
-    }, 500);
+        S.holdLeft = on ? Math.round(left) : 0;
+        gameNotice(on && left <= LIVE.graceMs - LIVE.waitMs ? 'RECONNECTING ' + LS.countdown(left) : null);
+    }
+    function hostLiveness(t) {
+        forPeers(function (p) {
+            if (p.link.sigQ.length) p.link.flush();
+            p.link.direct();
+            /* not in the game (connecting, or before the start): quiet 6 s is gone, as ever */
+            if (!S.session || !p.ready) { if (p.link.dead()) guestGone(p, 'stopped answering'); }
+            else if (p.inRoom === false && p.link.quiet() > 2000) guestGone(p, 'left the room');
+        });
+        if (!S.session || !S.hub) { if (S.hold) setHold(false, 0); return; }
+        var live = S.live || (S.live = new LS.HostLiveness());
+        var ps = peerList().filter(function (p) { return p.ready; }).map(function (p) {
+            return { id: p.mid, heard: p.link.lastRecv, seated: !!S.hub.get(p.dev), awayAt: p.awayAt || 0 };
+        });
+        var L = live.step(t, ps, navigator.onLine === false);
+        L.cpu.forEach(function (mid) {
+            var p = S.peers[mid];
+            if (!p) return;
+            log('device ' + p.dev + ' is quiet: its Kirbys to the CPU, its place kept ' + Math.round(LIVE.graceMs / 1000) + ' s');
+            if (S.hub.get(p.dev)) S.hub.remove(p.dev);
+            p.awayAt = t;
+            S.stats.guestDrops++;
+        });
+        L.back.forEach(function (mid) {
+            var p = S.peers[mid];
+            if (!p) return;
+            log('device ' + p.dev + ' is back');
+            p.awayAt = 0;
+            S.stats.backToSeat++;
+            addToHub(p);
+        });
+        L.gone.forEach(function (mid) { if (S.peers[mid]) guestGone(S.peers[mid], 'did not come back'); });
+        setHold(L.hold, L.left);
+    }
+    function guestLiveness(t) {
+        if (!S.peer || S.phase === 'hostleft' || S.phase === 'failed') return;
+        var link = S.peer.link;
+        if (link.sigQ.length) link.flush();
+        link.direct(); link.heal();
+        /* the host left the room (its tab closed) and its link is quiet: now */
+        if (S.hostInRoom === false && link.quiet() > 2000) { hostGone('closed the game'); return; }
+        /* before the start: quiet 6 s is gone, as ever (the host's rule for
+         * a guest in its lobby too) */
+        if (!S.session) { if (link.dead()) hostGone('stopped answering'); return; }
+        var w = LS.guestWait(t, link.lastRecv);
+        if (w.gone) { hostGone('did not come back in ' + Math.round((LIVE.graceMs - LIVE.waitMs) / 1000) + ' s', true); return; }
+        if (w.show) {
+            if (S.phase !== 'hostwait') {
+                S.phase = 'hostwait'; S.waitAt = t; S.stats.hostWaits++;
+                log('the host is quiet: waiting for it');
+                leaveButton(true);   /* leaving early: the usual way */
+            }
+            gameNotice('WAITING FOR HOST ' + LS.countdown(w.left));
+        } else if (S.phase === 'hostwait') {
+            S.phase = 'playing'; S.stats.hostWaitMs += Math.round(t - S.waitAt);
+            log('the host is back after ' + Math.round(t - S.waitAt) + ' ms of waiting');
+            gameNotice(null);
+            leaveButton(false);
+        }
+    }
+    setInterval(function () {
+        var t = nowMs();
+        try {
+            if (S.role === 'host') hostLiveness(t);
+            else if (S.role === 'guest') guestLiveness(t);
+        } catch (e) { log('liveness: ' + (e.stack || e)); }
+    }, 250);
 
     var present = M.portPresent;
     M.portPresent = function (ptr, w, h) {
         if (present) present(ptr, w, h);
         try { poll(); } catch (e) { log('poll: ' + (e.stack || e)); }
     };
+    /* the network is back: the room socket now, not at its next retry */
+    window.addEventListener('online', function () { if (S.net && S.net.wake) S.net.wake(); });
     window.addEventListener('pagehide', function () {
         if (S.peer) S.peer.link.close(true);
         forPeers(function (p) { p.link.close(true); });
@@ -1218,7 +1561,8 @@
         var o = { dev: p.dev, ready: p.ready, slots: slots, path: l.path(), dcOpen: !!l.p2p,
                   linkRttMs: l.rtt !== null ? Math.round(l.rtt) : null, bytesIn: l.bIn, bytesOut: l.bOut, silentMs: Math.round(nowMs() - l.lastRecv),
                   /* per peer, since it connected: what this host sends it and hears from it */
-                  upBps: Math.round(l.bOut / secs), downBps: Math.round(l.bIn / secs) };
+                  upBps: Math.round(l.bOut / secs), downBps: Math.round(l.bIn / secs),
+                  away: !!p.awayAt, sigQ: l.sigQ.length };
         if (hs) {
             o.inputsIn = hs.st.inputsIn; o.images = hs.st.images; o.repairReqs = hs.st.repairReqs;
             o.lastImageBytes = hs.st.imageComp; o.seatReqs = hs.st.seatReqs || 0; o.seatFull = hs.st.seatFull || 0;
@@ -1246,6 +1590,9 @@
             screen: up() ? M._PortOuiScreen() : 0,
             slots: slotsNow(), self: S.session && M._PortLnSelf ? M._PortLnSelf() : (S.role === 'host' ? 0 : S.myDev || null),
             module: modName(), seats: seats(), kirbys: up() && M._PortPocKirbysNow ? M._PortPocKirbysNow() : null,
+            /* liveness: the host holding (ms of grace left), the notice over the picture */
+            hold: S.hold, holdLeftMs: S.holdLeft, notice: S.notice, liveness: S.live ? S.live.st : null,
+            sigQ: link ? link.sigQ.length : 0, quietMs: link ? Math.round(link.quiet()) : null,
         };
         o.players = o.slots.filter(Boolean).length;
         if (S.role === 'host') {
@@ -1376,6 +1723,24 @@
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },
         cancelJoin: joinCancel,                 /* server browser: the password box's Cancel */
+        /* tests: this page's network gone for ms -- every link's sends and
+         * receives and the room socket (closed, every reconnect failing).
+         * Chrome's offline emulation does not cut WebRTC.  A direct path is
+         * given up 3.5 s in, its peer connection closed, as a real cut that
+         * long ends it; afterwards the guest makes a new one. */
+        _cut: function (ms) {
+            ms = Math.max(0, +ms || 0);
+            S.cutUntil = nowMs() + ms;
+            if (S.net && S.net.cut) S.net.cut(ms);
+            log('test: the network is cut for ' + ms + ' ms');
+            if (ms > 3500) setTimeout(function () {
+                var ls = [];
+                if (S.peer) ls.push(S.peer.link);
+                forPeers(function (p) { ls.push(p.link); });
+                ls.forEach(function (l) { if (l.p2p) { l.lost('cut'); try { l.pc.close(); } catch (e) { /* gone */ } } });
+            }, 3500);
+            return true;
+        },
         invite: function () { return S.code ? inviteLink() : null; },
         /* tests: an invite link's player card -- 0 none, 1 on the way, 3 up */
         inviteCard: function () { return up() && M._PortOuiInviteState ? M._PortOuiInviteState() : 0; },

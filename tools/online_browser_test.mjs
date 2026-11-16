@@ -81,6 +81,22 @@
 //           comes back by its invite link in the same tab to its own Kirby;
 //           the status line says players n/8; telemetry (bytes/s, rewinds/s
 //           and depth per device, retransmits, seat wait) to the results.
+//   hostblip  the host's network cut for a while (not in the default list):
+//           host + two guests, TOGETHER, play; guest B opens its pause
+//           overlay; the host page's network is cut (katamOnline._cut: every
+//           link and the room socket -- Chrome's offline emulation does not
+//           cut WebRTC) for --blip-secs (14): both guests show WAITING FOR
+//           HOST with a countdown (the game's picture, composed from the ROM,
+//           over the page), the host holds its game and says RECONNECTING,
+//           no frames run; the host's name changes meanwhile (its 'names'
+//           message is kept until the network is back); a fourth page asks
+//           to join after the room has handed its host role to a guest (10 s
+//           in) and is sent on to the host; when the cut ends everyone
+//           resumes by itself, in step within 5 s, guest B's overlay still up
+//           (and closes), the joiner in, no Kirby to the CPU, every compared
+//           frame identical, at most one repair per guest; on the direct path
+//           the links go direct again (a new peer connection).  --blip-paths
+//           direct,relay (?netrelay=1: the relay only).
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
@@ -2095,11 +2111,152 @@ if (CASES.includes('eight')) {
     await host.close();
 }
 
+// --- hostblip: the host's network cut for a while (web/online.js liveness) -------
+if (CASES.includes('hostblip')) {
+    const CUT = +flag('blip-secs', 14);
+    const R = results.hostblip = {};
+    for (const via of flag('blip-paths', 'direct,relay').split(',')) {
+        const tag = 'blip-' + via, r = R[via] = {};
+        say(`# hostblip (${via}): the host's network cut ${CUT} s; a joiner asks meanwhile`);
+        const k = Object.assign(via === 'relay' ? { netrelay: '1' } : {}, knobs);
+        const host = await openPage('host', k);
+        const code = await hostToWaiting(host, tag);
+        ok(`${tag}: host room`, !!code, code);
+        const ga = await openPage('guestA', Object.assign({ join: code }, k));
+        const gb = await openPage('guestB', Object.assign({ join: code }, k));
+        const gc = await openPage('guestC', k);          // the joiner, later
+        for (const g of [ga, gb]) ok(`${tag}: ${g.name} connected and waits`, !!(await until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 60000)));
+        await setCard(host, 0, '1,2,0,0,0,HOSTY');
+        ok(`${tag}: session started`, !!(await startHost(host, tag, 0)));
+        for (const g of [ga, gb]) ok(`${tag}: ${g.name} took the image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 40000)));
+        const base = (await stats(host)).startFrame;
+        const play = buildPlay(60 * 240, 5, 100000);
+        await setScript(host, play.k1, base, []);
+        await setScript(ga, play.k2, base, []);
+        await setScript(gb, buildPlay(60 * 240, 6, 100000).k2, base, []);
+        const cmpA = makeComparer(host, ga), cmpB = makeComparer(host, gb);
+        await playMany(host, [ga, gb], 12, [cmpA, cmpB], tag + '-pre');
+        const pre = await Promise.all([ga, gb].map(stats));
+        if (via === 'direct') ok(`${tag}: both guests on the direct path`, pre.every((x) => x.path === 'p2p'), pre.map((x) => x.path).join(','));
+        else ok(`${tag}: both guests on the relay`, pre.every((x) => x.path === 'relay'), pre.map((x) => x.path).join(','));
+        // guest B's own pause overlay is up through the wait (its scripted
+        // pad off meanwhile: B would back out of SETTINGS)
+        await gb.ev('window.__script = null; Module._PortSetKeys(0); true');
+        for (let i = 0; i < 6 && (await ovlOf(gb)).st !== 2; i++) { await press(gb, 'START'); await waitFrames(gb, 60); }
+        ok(`${tag}: guest B's pause overlay is up`, (await ovlOf(gb)).st === 2);
+        await until(() => gc.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 40)'), 60000);
+        // --- the cut
+        const cut0 = Date.now();
+        await host.ev(`katamOnline._cut(${CUT * 1000})`);
+        const wa = await until(async () => { const st = await stats(ga); return st && st.phase === 'hostwait' && /^WAITING FOR HOST 0:[0-3]\d$/.test(st.notice || '') ? st : null; }, 7000, 100);
+        r.waitShownAfterMs = Date.now() - cut0;
+        ok(`${tag}: guest A waits for the host, with a countdown`, !!wa, wa ? `${wa.notice} after ${r.waitShownAfterMs} ms` : '');
+        const wb = await until(async () => { const st = await stats(gb); return st && st.phase === 'hostwait' && /^WAITING FOR HOST/.test(st.notice || '') ? st : null; }, 3000, 100);
+        ok(`${tag}: guest B too (its overlay up)`, !!wb);
+        const nv = await ga.ev(`(function(){var e=document.getElementById('lnnotice');return e&&e.style.display==='block'?[e.width,e.height,!!Module._PortOnlineNoticeHeight()]:null})()`);
+        ok(`${tag}: the notice is the game's own picture (composed from the ROM) over the page`, !!nv && nv[1] === 24 && nv[0] > 150 && nv[2], JSON.stringify(nv));
+        await shot(ga, `${tag}-guestA-waiting.png`);
+        const hh = await until(async () => { const st = await stats(host); return st && st.hold && /^RECONNECTING 0:\d\d$/.test(st.notice || '') ? st : null; }, 6000, 100);
+        ok(`${tag}: the host holds its game and says RECONNECTING`, !!hh, hh ? hh.notice : JSON.stringify(await stats(host)).slice(0, 300));
+        await shot(host, `${tag}-host-reconnecting.png`);
+        {
+            const f0 = await Promise.all([host, ga, gb].map(frame));
+            await sleep(1500);
+            const f1 = await Promise.all([host, ga, gb].map(frame));
+            ok(`${tag}: no frames run while held`, f1.every((f, i) => f - f0[i] <= 2), JSON.stringify([f0, f1]));
+            const n0 = +((wa && wa.notice) || '').slice(-2), n1 = +((await stats(ga)).notice || '').slice(-2);
+            ok(`${tag}: the countdown counts down`, n1 < n0, `${n0} -> ${n1}`);
+        }
+        // the host's name changes while it is cut off: sent when the network is back
+        await setCard(host, 0, '1,2,0,0,0,BLIPPY');
+        // a joiner after the room handed its host role to a guest (10 s without the host's socket)
+        await sleep(Math.max(0, 10800 - (Date.now() - cut0)));
+        await gc.ev(`katamOnline.join(${JSON.stringify(code)})`);
+        await sleep(Math.max(0, CUT * 1000 - (Date.now() - cut0)));
+        const tEnd = Date.now();
+        const backOf = async (g) => until(async () => {
+            const st = await stats(g), h = await stats(host);
+            return st && st.phase === 'playing' && !st.notice && !h.hold && Math.abs(st.frame - h.frame) < 30 ? Date.now() - tEnd : null;
+        }, 20000, 100);
+        r.backMs = [await backOf(ga), await backOf(gb)];
+        ok(`${tag}: both guests resume by themselves, in step within 5 s of the network`, r.backMs.every((x) => x !== false && x <= 5000), JSON.stringify(r.backMs));
+        ok(`${tag}: the host plays on`, !(await stats(host)).hold && !(await stats(host)).notice);
+        {
+            const f0 = await Promise.all([host, ga, gb].map(frame));
+            await sleep(2000);
+            const f1 = await Promise.all([host, ga, gb].map(frame));
+            ok(`${tag}: frames advance everywhere again`, f1.every((f, i) => f - f0[i] > 60), JSON.stringify([f0, f1]));
+        }
+        ok(`${tag}: guest B's pause overlay is still up`, (await ovlOf(gb)).st === 2);
+        await press(gb, 'START'); await waitFrames(gb, 60);
+        if ((await ovlOf(gb)).st) { await press(gb, 'START'); await waitFrames(gb, 60); }
+        ok(`${tag}: and closes with its START`, !(await ovlOf(gb)).st);
+        await setScript(gb, buildPlay(60 * 240, 6, 100000).k2, base, []);
+        const jc = await until(async () => { const st = await stats(gc); return st && st.session && st.joined ? st : null; }, 45000, 300);
+        const redirected = (await stats(ga)).net.redirected + (await stats(gb)).net.redirected;
+        r.redirected = redirected;
+        ok(`${tag}: the joiner who asked during the outage is in`, !!jc, `redirected by a guest: ${redirected}`);
+        const sl = await slotsOf(host);
+        ok(`${tag}: nobody's Kirby went to the CPU`, sl.filter(Boolean).length >= 3, slotsStr(sl));
+        ok(`${tag}: the host's name sent during the cut arrived`, (await cardsOf(ga)).names[0] === 'BLIPPY', (await cardsOf(ga)).names.join(','));
+        await playMany(host, [ga, gb], 12, [cmpA, cmpB], tag + '-post');
+        for (const [g, c] of [[ga, cmpA], [gb, cmpB]]) {
+            await c.run();
+            const st = await stats(g);
+            ok(`${tag}: ${g.name} identical to the host`, c.compared > 30 && c.mismatched === 0, `${c.equal}/${c.compared}; repairs ${st.repairs}`);
+            ok(`${tag}: ${g.name} at most one repair`, st.repairs <= 1, String(st.repairs));
+        }
+        const hs = await stats(host);
+        r.host = { net: hs.net, liveness: hs.liveness };
+        if (via === 'direct') {
+            const dir = await until(async () => { const a = await stats(ga), b = await stats(gb); return a.path === 'p2p' && b.path === 'p2p' ? [a, b] : null; }, 60000, 500);
+            ok(`${tag}: the links go direct again`, !!dir, dir ? dir.map((x) => `newPcs ${x.net.newPcs} iceRestarts ${x.net.iceRestarts} directAgain ${x.net.directAgain}`).join('; ')
+               : JSON.stringify((await Promise.all([ga, gb].map(stats))).map((x) => [x.path, x.net.newPcs, x.net.iceRestarts])));
+        } else ok(`${tag}: the relay kept the host's messages while its socket was down`, hs.net.sigQueued > 0, `kept ${hs.net.sigQueued}, dropped ${hs.net.sigQDropped}`);
+        if (via === 'direct') {
+            // one guest's own network (the others fine): the host plays on;
+            // its Kirby to the CPU at 6 s, its place kept; back with an image
+            const devA = (await stats(ga)).self, slA = (await slotsOf(host)).findIndex((x) => x && x.dev === devA);
+            const imgA = (await stats(ga)).imagesLoaded;
+            const c0 = Date.now();
+            await ga.ev('katamOnline._cut(10000)');
+            let held = false, cpuAt = null, waited = false;
+            while (Date.now() - c0 < 10000) {
+                const h = await stats(host), a = await stats(ga), sl = await slotsOf(host);
+                if (h.hold) held = true;
+                if (a.phase === 'hostwait') waited = true;
+                if (cpuAt === null && !sl[slA]) cpuAt = Date.now() - c0;
+                await sleep(400);
+            }
+            ok(`one guest cut: the host never holds (the other guest is heard)`, !held);
+            ok(`one guest cut: guest A waits for the host meanwhile`, waited);
+            ok(`one guest cut: its Kirby to the CPU at about 6 s`, cpuAt !== null && cpuAt > 5000 && cpuAt < 8500, `${cpuAt} ms`);
+            const t1 = Date.now();
+            const backA = await until(async () => {
+                const sl = await slotsOf(host), a = await stats(ga), h = await stats(host);
+                return sl[slA] && sl[slA].dev === devA && a.phase === 'playing' && Math.abs(a.frame - h.frame) < 30 ? Date.now() - t1 : null;
+            }, 15000, 200);
+            r.oneGuestBackMs = backA; r.oneGuestCpuMs = cpuAt;
+            ok(`one guest cut: back to its own Kirby when its network is back`, backA !== false && backA <= 5000, `${backA} ms`);
+            ok(`one guest cut: with one image`, (await stats(ga)).imagesLoaded === imgA + 1, `${imgA} -> ${(await stats(ga)).imagesLoaded}`);
+            cmpA.reset();
+            await playMany(host, [ga, gb], 8, [cmpA, cmpB], tag + '-one');
+            await cmpA.run();
+            ok(`one guest cut: guest A identical to the host afterwards`, cmpA.compared > 10 && cmpA.mismatched === 0, `${cmpA.equal}/${cmpA.compared}`);
+        }
+        r.guests = (await Promise.all([ga, gb].map(stats))).map((x) => ({ path: x.path, net: x.net, repairs: x.repairs }));
+        say(`${tag}: ` + JSON.stringify(r));
+        for (const p of [ga, gb, gc]) await p.close();
+        await host.close();
+    }
+}
+
 if (inviteCards.length) {
     results.inviteCards = inviteCards;
     ok(`every invite link's first screen was the player card, and one A on JOIN went on (${inviteCards.length})`,
        inviteCards.every((x) => x.up && x.joined), JSON.stringify(inviteCards));
 }
+
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));
 console.log(`\n${pass} ok, ${fail} failed (${((Date.now() - T0) / 1000).toFixed(0)} s)`);
 for (const p of Object.values(pages)) { try { await p.close(); } catch (e) { /* gone */ } }

@@ -3902,3 +3902,79 @@ void PortPocHostStateRebuild(void)
     if (PortMenuPoc())
         LoadSources();
 }
+
+/* --- an online notice over the play picture (platform/online_notice.c) ---------
+ *
+ * "WAITING FOR HOST 0:30": the settings rows' banner (the ERASE A FILE
+ * label in the game's language, its lettering cleared), widened to the text
+ * by repeating a plain column, the text in the label lettering's colour
+ * indices (the fallback font: the notice has digits and a colon), into px
+ * (stride w, PIC_H rows); and in pal the label's own colours from the ROM
+ * (its animation's palette command).  Host memory only: neither the game's
+ * video nor this file's decoded sources nor anything a session saves or
+ * hashes is touched (DecodeSpriteFrame with offsets of our own, not
+ * ClearedBanner's).  Returns the width used; 0 if the picture is not the
+ * shape this file expects or it does not fit w. */
+#include "pause_settings.h"         /* PortPocPauseMenuArt */
+int PortPocNoticeCompose(const char *s, u8 *px, int w, int h, u16 pal[16]);
+
+int PortPocNoticeCompose(const char *s, u8 *px, int w, int h, u16 pal[16])
+{
+    static u8 src[PIC_H * 240];
+    static const u8 kCmdWords[13] = { 0, 3, 3, 2, 1, 2, 3, 2, 3, 2, 4, 2, 2 };
+    u16 anim, hdrAnim;
+    u8 variant, hdrVariant;
+    const s32 *cmd;
+    s16 ox, oy;
+    int fh, fw, tw, extra, width, x, y, n, found = 0;
+
+    if (h < PIC_H)
+        return 0;
+    PortPocPauseMenuArt(&anim, &variant, &hdrAnim, &hdrVariant);
+    fw = DecodeSpriteFrame(anim, variant, src, 240, PIC_H, &fh, &ox, &oy);
+    if (fw != LBL_W || fh != LBL_H)
+        return 0;
+    for (y = 0; y < PIC_H; y++) {
+        u8 bg = src[y * 240 + LBL_BG_X];
+
+        if (bg != 2 && bg != 3)
+            continue;
+        for (x = LBL_TEXT_X0; x < LBL_TEXT_X1; x++)
+            if (src[y * 240 + x] == LBL_FILL || src[y * 240 + x] == LBL_EDGE)
+                src[y * 240 + x] = bg;
+    }
+    tw = CellWidth(s);
+    extra = LBL_TEXT_LEFT + tw + 4 - LBL_TEXT_X1;
+    if (extra < 0)
+        extra = 0;
+    width = LBL_W + extra;
+    if (width > w)
+        return 0;
+    memset(px, 0, (size_t)w * PIC_H);
+    for (y = 0; y < PIC_H; y++)
+        for (x = 0; x < width; x++) {
+            int sx = x < ROW_WIDEN_AT ? x : x < ROW_WIDEN_AT + extra ? ROW_WIDEN_AT : x - extra;
+
+            px[y * w + x] = src[y * 240 + sx];
+        }
+    CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, s, LBL_FILL, LBL_EDGE);
+    /* the colours: the label's palette command (AnimCmd_GetPalette) */
+    memset(pal, 0, 16 * sizeof(u16));
+    cmd = gSpriteTables->anims[anim][variant].words;
+    for (n = 0; n < 64 && !found; n++) {
+        s32 c = cmd[0];
+
+        if (c >= 0 || -c >= 13 || kCmdWords[-c] == 0 || c == -3)
+            break;
+        if (c == -2) {
+            u32 cnt = (u32)cmd[2] & 0xFFFF, off = (u32)cmd[2] >> 16, i;
+            const u16 *p = gSpriteTables->palette + 0x10 * cmd[1];
+
+            for (i = 0; i < cnt && off + i < 16; i++)
+                pal[off + i] = p[i];
+            found = 1;
+        }
+        cmd += kCmdWords[-c];
+    }
+    return found ? width : 0;
+}

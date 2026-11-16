@@ -130,6 +130,7 @@ menu_poc _ZL6sOwner host-state front-end screen owner; carried by PortPocHostSta
 menu_poc _ZL11sGsDescWant host-state Game Select description; carried by PortPocHostStateSave
 menu_poc _ZL12sGsDescShown host-state Game Select description; carried by PortPocHostStateSave
 menu_poc _ZL10sRowBanner host-state widened banner; carried by PortPocHostStateSave
+menu_poc _ZZ20PortPocNoticeComposePKcPhiiPtE3src presentation the online notice's decoded banner (platform/online_notice.c): scratch rebuilt from the ROM for each notice, read by the page only
 menu_poc _ZL8sLblOffX host-state decoded label geometry; carried by PortPocHostStateSave
 menu_poc _ZL8sLblOffY host-state decoded label geometry; carried by PortPocHostStateSave
 menu_poc _ZL8sHdrOffX host-state decoded header geometry; carried by PortPocHostStateSave
