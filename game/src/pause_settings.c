@@ -203,7 +203,10 @@ static void PauseSettingsDraw(struct PauseSettings *ps) {
  * gPauseMenus[gLocalPlayerId]); when that is player 2 -- on this screen, or
  * online on the far side of the network -- their held keys get the same
  * repeat GetInput gives player 1's, here.  Off local multiplayer, or with
- * player 1 paused, this is gRepeatedKeys exactly as before. */
+ * player 1 paused, this is gRepeatedKeys exactly as before.  (It used to ask
+ * whether the pauser was the screen's own player, gLocalPlayerId: in FREE
+ * ROAM that is true on the pauser's own screen, which then moved with
+ * player 1's pad -- the console's -- instead of the pauser's.) */
 static u16 PauseSettingsRepeat(struct PauseSettings *ps, const struct PauseMenu *menu) {
     u16 held = menu->heldKeys, rep = (held ^ ps->padPrev) & held;
     s32 i;
@@ -219,7 +222,7 @@ static u16 PauseSettingsRepeat(struct PauseSettings *ps, const struct PauseMenu 
         }
     }
     ps->padPrev = held;
-    return PortLmpViewer() != gLocalPlayerId ? rep : gRepeatedKeys;
+    return PortLmpHumanSlot(gUnk_0203AD50) ? rep : gRepeatedKeys;
 }
 
 /* The pad as Game Select's sub_0813B484 reads it, A only (Start is the pause

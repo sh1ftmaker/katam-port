@@ -226,7 +226,7 @@ nothing is shared or overwritten.
 | Scroll lock fires when Kirbys 0..3 are all inside | `scroll_lock.c:277` | unchanged: Kirbys 4.. are ignored | locks for 16? |
 | Shards and other 4-wide loops (`i < 4`) | `shard.c` and others | Kirbys 4.. cannot collect shards | who can pick up what |
 | Lives, borrowing, game over | `kirby.c` | unchanged (humans only) | game over for 16 people at once? |
-| Pause freezes the pauser's room | freeze mask | widened. One pauser still freezes the whole room | may one of 16 freeze the room? |
+| Pause freezes the pauser's room | freeze mask | widened. Offline one pauser still freezes the whole room; **online pause is each device's own** (EIGHT-SEATS-ENGINE.md "Pause per device"): the shared world never pauses | - |
 | Palette effects: door fades per Kirby | `palette_effects.c` | each Kirby gets its own slot (N + 4) | none |
 | CPU brains: a stone-ability brain with no target | `code_0800ECAC_2.c` | treated as "far" (the console reads BIOS through NULL) | none |
 

@@ -101,10 +101,45 @@ int  PortLnCanonRunning(void);
 void PortLnSetCanonBatch(int frames);
 int  PortLnCanonPoke(u32 addr, u32 xorMask);     /* tests */
 
+/* The pause menu online is this device's own (lmpnet.c "the pause overlay"):
+ * START in play opens it on this device only, over a private copy of the
+ * game (the OVERLAY FORK) that runs the game's own pause screens with this
+ * device's pad, while the shared game runs on behind it.
+ *   PortLnOverlayRunning  the fork is the state in memory now (one frame of
+ *                         it each frame while open: never drawn as the
+ *                         game, never heard, never part of the session)
+ *   PortLnOverlayQuiet    the live frame after it: simulated, presented
+ *                         with the fork's picture (no composition of its own)
+ *   PortLnOverlayOpen     this device shows its pause overlay (0 closed, 1
+ *                         opening, 2 open)
+ *   PortLnShadowRunning   the canonical shadow or the fork: nothing of this
+ *                         device's (sound, telemetry, digests) may come from it */
+int  PortLnOverlayRunning(void);
+int  PortLnOverlayQuiet(void);
+/* the fork runs but is not the picture (its pause has not begun yet) */
+int  PortLnOverlayHidden(void);
+int  PortLnOverlayOpen(void);
+int  PortLnShadowRunning(void);
+/* menu_poc.c: an edit made on the overlay's SETTINGS page, carried out on
+ * this device at the next live frame (as a final frame's edit is). */
+void PortLnOverlayEdit(int item, int dir);
+/* Tests: the overlay as of its last frame -- [0] state (0/1/2), [1] seat,
+ * [2] slot, [3] the fork's pauser, [4] its pause page (gPauseMenus[].menuId),
+ * [5] the SETTINGS page's row (-1 off it), [6] the settings model
+ * (PortPocScreenModel), [7] the fork's frame, [8] opens, [9] closes, [10]
+ * refused (START where the fork could not pause), [11] fork frames run,
+ * [12] the help page's room line up (PortPocHelpLineShown), [13] the
+ * settings word its page shows (PortPocShownWord: this device's own).
+ * Returns the words written (14). */
+int  PortLnOverlayObserve(s32 *out);
+
 /* --- inputs ------------------------------------------------------------- */
 void PortLnLocalInput(u32 frame, u16 keys);          /* own seat 0's pad      */
 void PortLnRemoteInput(u32 frame, u16 keys);         /* host: device 1 seat 0 */
-void PortLnLocalInputSeat(u32 frame, int seat, u16 keys);
+/* Returns the keys that go into the session for that seat (what a guest
+ * sends): the pad, less START in play and while this device's pause overlay
+ * has the seat (lmpnet.c "the pause overlay"). */
+u32  PortLnLocalInputSeat(u32 frame, int seat, u16 keys);
 void PortLnRemoteInputSeat(u32 frame, int dev, int seat, u16 keys); /* host */
 int  PortLnEvent(int type, int a, int b, int c, int d); /* host: at next latch */
 

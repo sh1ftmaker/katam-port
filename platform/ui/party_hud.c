@@ -365,6 +365,10 @@ static int HudShowing(void)
         return 0;
     if (gGameplayHudTask == NULL)
         return 0;
+    /* this device's pause overlay is up (platform/lmpnet.c): the picture is
+     * its pause screen, whatever the game behind it shows */
+    if (PortLnOverlayOpen() == 2)
+        return 0;
     return 1;
 }
 

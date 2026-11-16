@@ -44,6 +44,7 @@
 #include "gba/gba.h"
 #include "main.h"
 #include "render/render_list.h"
+#include "port/lmpnet.h"   /* PortLnOverlayQuiet */
 
 /* C linkage for the 64-bit builds.
  *
@@ -948,7 +949,7 @@ void PortPpuStateLoad(const void *src)
  * picture. */
 static void RenderOffScreenLines(int from, int to)
 {
-    int render = PortRenderEnabled() && gPortPpuCompose;
+    int render = PortRenderEnabled() && gPortPpuCompose && !PortLnOverlayQuiet() && !PortLnOverlayHidden();
     int line;
 
     for (line = from; line < to; line++) {
@@ -975,7 +976,7 @@ static void RenderOffScreenLines(int from, int to)
  */
 void PortRenderFrame(void)
 {
-    int render = PortRenderEnabled() && gPortPpuCompose;
+    int render = PortRenderEnabled() && gPortPpuCompose && !PortLnOverlayQuiet() && !PortLnOverlayHidden();
     int line;
     int topLine = gPortViewY;
     int bottomLine = gPortViewY + gPortViewH;

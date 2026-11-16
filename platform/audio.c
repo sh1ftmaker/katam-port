@@ -463,8 +463,9 @@ static void CanonVSync(struct SoundInfo *soundInfo)
     u64 t0;
 
     /* Rooms mode: an online guest's canonical shadow runs inside one of the
-     * live frames; the live block waits for that frame (platform/lmpnet.c). */
-    if (PortLnCanonRunning())
+     * live frames; the live block waits for that frame (platform/lmpnet.c).
+     * So does the pause overlay's fork, between two live frames. */
+    if (PortLnShadowRunning())
         return;
     if (SoundInfoLive(soundInfo))
         have = PortMixerTakeBlock(&block);

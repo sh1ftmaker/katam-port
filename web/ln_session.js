@@ -499,7 +499,12 @@
         var o = (f & 4095) * 4;
         for (var s = 0; s < 4; s++) {
             var k = typeof keys === 'number' ? (s === 0 ? keys : 0) : (keys[s] || 0);
-            if (s === 0 || typeof keys !== 'number') this.e.localInput(f, k, s);
+            /* what goes to the host is what the engine took: no START in
+             * play, nothing while this device's pause overlay has the seat */
+            if (s === 0 || typeof keys !== 'number') {
+                var k2 = this.e.localInput(f, k, s);
+                if (typeof k2 === 'number') k = k2;
+            }
             this.keyRing[o + s] = k;
         }
         this.lastLocal = f;
@@ -711,7 +716,7 @@
         function s32(i) { return M.HEAP32[(scratch >> 2) + i]; }
         var eng = {
             frame: function () { return M._PortFrameNumber(); },
-            localInput: function (f, k, seat) { M._PortLnLocalInputSeat(f, seat | 0, k); },
+            localInput: function (f, k, seat) { return M._PortLnLocalInputSeat(f, seat | 0, k) >>> 0; },
             remoteInput: function (f, k, dev, seat) { M._PortLnRemoteInputSeat(f, dev === undefined ? 1 : dev, seat | 0, k); },
             sealedGet: function (f) {
                 if (!M._PortLnSealedGet(f, scratch)) return null;

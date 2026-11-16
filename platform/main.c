@@ -345,6 +345,20 @@ static void UpdateKeyInput(int frameLatch)
      * session timeline (platform/lmpnet.c).  0 unless a session is on. */
     if (frameLatch && PortLnKeyOverride(&keys))
         sKeysDown = keys;
+    /* The pause overlay's fork (platform/lmpnet.c): its own pad, never the
+     * playtest's, never recorded -- it is no frame of the game's. */
+    if (frameLatch && PortLnOverlayRunning()) {
+        u16 kp[PORT_LMP_SLOTS];
+        int q;
+
+        /* the other slots' pads, as PortInputLogLatch latches them */
+        kp[0] = 0;
+        for (q = 1; q < PORT_LMP_SLOTS; q++)
+            kp[q] = PortLmpLatchKeys(q);
+        PortLmpLatch(kp);
+        *(vu16 *)(GBA_IO_BASE + REG_OFFSET_KEYINPUT) = (~sKeysDown) & 0x03FF;
+        return;
+    }
     /* The playtest boot (platform/playtest.c): the keys that get from
      * power-on to gameplay, until the warp into the room under test. */
     if (frameLatch && PortPlaytestKeyOverride(sFrameCount, &keys))
@@ -901,7 +915,7 @@ int PortRenderEnabled(void)
 
 void PortPresentFrame(void)
 {
-    int render;
+    int render, fork;
 
     /* First, before anything else in the frame.  A rollback restores the GBA
      * map here, which is only safe because the stack at this point holds
@@ -912,13 +926,19 @@ void PortPresentFrame(void)
     /* Online local multiplayer (platform/lmpnet.c): rewinds, keyframes,
      * image loads and the per-frame hash.  Returns at once unless on. */
     PortLnFrame();
-    PortLnHomeFrame();      /* the power-on picture a session is left to */
+    /* The pause overlay's fork runs this frame (platform/lmpnet.c): drawn,
+     * not presented, nothing of it traced, recorded or sent. */
+    fork = PortLnOverlayRunning();
+    if (!fork)
+        PortLnHomeFrame();  /* the power-on picture a session is left to */
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 
     render = PortRenderEnabled();
-    PortStateTrace();
-    PortInputLogFrameStart(sFrameCount);
+    if (!fork) {
+        PortStateTrace();
+        PortInputLogFrameStart(sFrameCount);
+    }
     vu16 *dispstat = (vu16 *)(GBA_IO_BASE + REG_OFFSET_DISPSTAT);
 
     /* Settle the view before drawing with it, so the rectangle the PPU uses
@@ -938,7 +958,8 @@ void PortPresentFrame(void)
     /* ...and the GPU renderer's list of the same frame, taken at the same
      * moment: after the scan, before the VBlank handler can touch anything.
      * Presentation only -- it reads, and the host draws it at the blit. */
-    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp() && !PortLnCatchingUp())
+    if (gPortRlEnabled && !PortRbCatchingUp() && !PortNetCatchingUp() && !PortLnCatchingUp()
+        && !PortLnOverlayQuiet() && !PortLnOverlayHidden())   /* (the quiet live frame shows the fork's list) */
         PortRlBuildFrame();
 
     /* Enter VBlank: run the flush DMAs, then the game's VBlank handler.
@@ -977,7 +998,9 @@ void PortPresentFrame(void)
      * milliseconds of simulation.  The host's own per-frame work (input
      * polling, frame counting, MASH scripts) does not run for caught-up
      * frames, which is correct: their input comes from the timeline. */
-    if (PortRbCatchingUp() || PortNetCatchingUp() || PortLnCatchingUp()) {
+    if (fork) {
+        ;                   /* the quiet live frame that follows presents it */
+    } else if (PortRbCatchingUp() || PortNetCatchingUp() || PortLnCatchingUp()) {
         if ((sFrameCount & 0x3FF) == 0)
             PortAwaitYield();
     } else {
@@ -1027,14 +1050,16 @@ void PortPresentFrame(void)
     /* The player cards (platform/player_card.c): a colour a slot should wear
      * and does not yet is scheduled for the latch below, as a recorded
      * input.  Host side: it reads the simulation and writes nothing to it. */
-    PortCardHostFrame();
+    if (!fork)
+        PortCardHostFrame();
     UpdateKeyInput(1);
     sFrameCount++;
 
     /* A queued warp is delivered here rather than at the moment it is asked
      * for, because a scripted run counts frames and cannot know which frame
      * the level appears on.  Returns immediately unless one is queued. */
-    PortWarpPoll();
+    if (!fork)
+        PortWarpPoll();
     /* Local multiplayer: everyone into one room, stragglers to player 1
      * (platform/localmp.c).  Returns at once unless it is on. */
     PortLmpFrame();

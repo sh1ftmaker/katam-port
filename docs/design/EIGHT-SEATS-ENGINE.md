@@ -260,3 +260,94 @@ seals NORMAL as before).
 **W0.**  `tools/wide_unrelocate.py` maps the human-slot layer's fields
 (`gPortSim->lmpw`) back into the default build's four-slot fields, from
 `simfield` lines in the KATAM_WIDE_MAP file; nothing is masked.  19/19.
+
+# Pause per device (branch `six-pause`)
+
+**What went wrong.**  The pause is the game's, one for the shared world: a
+Kirby's START (`kirby.c` the pressed edge `unk11A & 8`, then
+`StartInGameInterlude`, gUnk_0203AD50 = that Kirby) pauses everyone, and the
+pause screens read a mixture of pads.  `pause_help.c PauseMenuFetchInputs`
+gives the pauser's pad to the pauser's menu and to the screen's player's
+(gLocalPlayerId), the console's pad to every other menu -- online that is
+slot 0's column (`lmpnet.c PortLnKeyOverride: *keys = k[0]`), the host's --
+and Select / L / R are taken from all menus at once.  On the SETTINGS page
+the cursor (`pause_settings.c PauseSettingsRepeat`) took gRepeatedKeys, the
+console's pad again, whenever the pauser was the screen's own player
+(`PortLmpViewer() == gLocalPlayerId`): in FREE ROAM (the default) that is
+exactly the pauser's own device, where the cursor then followed the host's
+d-pad while on every other device it followed the pauser's.  Hence what was
+seen with six tabs: everyone paused, the pauser moved the others' menus, the
+host moved the pauser's, the host's pause moved everyone's.  Nothing here is
+wide-only: the 4-Kirby module behaves the same (any guest that pauses in
+FREE ROAM).
+
+**What it is now.**  Online, START in play never reaches the session and
+opens a pause OVERLAY on that device only (`lmpnet.c` "the pause overlay"):
+
+- In play (`PauseInPlay`: the gameplay HUD's task, no in-game interlude, not
+  the demo) START is taken out of what a device sends for its seats
+  (`PortLnLocalInputSeat` returns the keys that go to the session;
+  `web/ln_session.js` sends those) and out of every key the host seals
+  (and the guests predict).  The shared world therefore never pauses; no
+  game code changed for that.
+- START on a seat opens the overlay: at the next frame top the live state is
+  copied into a private FORK, and from then on each frame runs one frame of
+  the fork after the live frame's top -- this device's pad on its own Kirby,
+  every other slot's keys 0, so the game's own pause opens there with this
+  player as the pauser and its own screens (help, area map, world map with
+  every marker, SETTINGS with ONLINE, the list and REMOVE, MAIN MENU) run
+  exactly as offline.  The fork frame is composed (both renderers) but not
+  presented; the live frame that follows runs quiet (simulated, not
+  composed: `ppu.c`, the render list) and presents the fork's picture.
+  Pacing, audio and everything the page calls between frames see the live
+  state.
+- While it is up the seat sends 0s: its Kirby stands in the shared game.
+  When the fork's pause closes (B / START / leaving, as the game has it) the
+  overlay goes, and the buttons still held are kept back until released.
+- Device state only: the fork is never in a keyframe, an image or a hash; a
+  rewind, a repair or a join image leaves it as it is.  Its buffers hold the
+  snapshot and the menus' host state (`menu_poc.c` keeps the fork's screen
+  state and shows the session's copies -- names, settings -- as they are
+  now: `PortPocHostStateLoadOwn`); the slot table is never swapped.
+- The SETTINGS page on the overlay draws this device's own settings and
+  carries an edit out on this device at the next live frame
+  (`PortLnOverlayEdit`), where the shared pause wrote the session's edit
+  request and carried it out from the final frame; the copies other devices
+  hold follow through `PORT_LN_EV_PSET` as before.  What a session forbids
+  (rows dimmed NOT DURING AN ONLINE GAME) stays forbidden.  REMOVE and MAIN
+  MENU are the page's own actions (`online.kick`, `online.leave`), deferred
+  by the page to its next turn, so they run with the live state in memory.
+- The fork's sound is never heard (state only, as the canonical shadow's:
+  `PortLnShadowRunning`); its frames reach no digest, no telemetry of the
+  session, no input log, no warp queue.  The party HUD and the name tags
+  hide while the overlay is up.
+
+What a player notices: their pause no longer stops anyone, nobody else's
+stops them; the world goes on behind their menu (their Kirby standing); the
+maps show where everyone was when they paused; the pause screens' own sound
+effects are not heard online (the game's are); and a press of START during
+play reaches nothing but the overlay (the host's START used to skip a few
+prompts that also take A or B).  Offline and local multiplayer are as they
+were.  Fixed on the way, everywhere: the SETTINGS cursor reads the pauser's
+pad whenever the pauser is another person on the console
+(`PortLmpHumanSlot(gUnk_0203AD50)`), not "unless the pauser is the screen's
+player" -- local FREE ROAM had the same fault.
+
+Telemetry (`ovl*` at the end of the block): state, seat, opens, closes,
+refused (START where the fork could not pause: a door, a cutscene), fork
+frames, edits, the swap's cost (about 30 us per swap on the 4-Kirby module in
+node), STARTs kept out of the session.  `PortLnOverlayObserve` for tests.
+
+Until the fork's pause has begun (a START it cannot pause on: a door, a
+cutscene -- refused after 24 frames) the live picture stays; the overlay
+ends as the pause screens go (the white before the game fades back), and
+the live game is shown from there.
+
+Checked: `tools/netproof/pause_test.mjs` (full_check suite `rig-pause`; both modules: guests and the host
+pausing alone and two at once, slots 4 and 5 on the 16-Kirby module, pages
+and cursors moved only by their own pads while others mash, rollbacks every
+37 frames and a repair image under an open overlay, sealed keys idle while
+up, no START ever sealed, every final frame identical); the browser cases
+`exits`, `three`, `rooms`, `eight` rewritten for per-device pause; the
+rig's pause bot reads the overlay; regress and layout-neutral against main
+unchanged (sim column identical).

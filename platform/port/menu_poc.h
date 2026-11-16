@@ -96,6 +96,10 @@ void PortPocNameWords(const char *name, u32 *lo, u32 *hi);
 u32  PortPocHostStateSize(void);
 void PortPocHostStateSave(u8 *dest);
 void PortPocHostStateLoad(const u8 *src);
+/* The same, but the session's copies (each slot's settings and name) are
+ * left as they are: the pause overlay's fork (platform/lmpnet.c) keeps its
+ * own screen state and shows the session's copies as they are now. */
+void PortPocHostStateLoadOwn(const u8 *src);
 void PortPocHostStateRebuild(void);
 
 /* --- Game Select's fifth entry -------------------------------------------- */
@@ -200,6 +204,9 @@ int PortPocScreenSub(void);
  * DISPLAY SOUND PLAYERS ONLINE GAME ADVANCED, 16 NO / YES, 17 PLAYING). */
 u32 PortPocScreenLastDraw(void);
 int PortPocScreenModel(void);
+/* Tests: the help page's room line is up; the settings word the page shows. */
+int PortPocHelpLineShown(void);
+u32 PortPocShownWord(void);
 int PortPocScreenCursorY(int row);
 int PortPocScreenCursorX(void);
 

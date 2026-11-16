@@ -132,7 +132,19 @@ function api(inst) {
             const o = []; for (let i = 0; i < 16; i++) o.push(s32(i));
             return { interlude: o[0], pauser: o[1], menuId: o[2], numHumans: o[3], lmpHumans: o[4],
                      battery: [o[5], o[6]], lives: [o[7], o[8]], ability: [o[9], o[10]],
-                     groupRoom: o[11], room: o[12], localPlayer: o[13], rng: o[14] >>> 0, modeFlags: o[15] >>> 0 };
+                     groupRoom: o[11], room: o[12], localPlayer: o[13], rng: o[14] >>> 0, modeFlags: o[15] >>> 0,
+                     ovl: this.overlay() };
+        },
+        // this device's pause overlay (platform/lmpnet.c "the pause overlay"):
+        // state 0 closed / 1 opening / 2 open, its seat and slot, the fork's
+        // pauser, pause page (menuId), SETTINGS row and model, fork frame;
+        // counts of opens, closes, refusals, fork frames
+        overlay() {
+            if (!M._PortLnOverlayObserve) return null;
+            M._PortLnOverlayObserve(scratch);
+            const o = []; for (let i = 0; i < 14; i++) o.push(s32(i));
+            return { state: o[0], seat: o[1], slot: o[2], pauser: o[3], menuId: o[4], row: o[5], model: o[6], forkFrame: o[7],
+                     opens: o[8], closes: o[9], refused: o[10], frames: o[11], helpLine: o[12], shownWord: o[13] >>> 0 };
         },
         findEnemy() {
             if (!M._PortLnFindEnemy(scratch)) return null;

@@ -84,6 +84,8 @@
 #include "port/menu_poc.h"
 #include "port/player_card.h"
 #include "pause_help.h"
+#include "in_game_interlude.h"
+#include "port/fnid.h"
 #include "task.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -146,7 +148,14 @@ typedef u16 LnSeatMask;
     X(mispredOther) X(ownSlots) \
     X(rooms) X(canonFrame) X(canonRuns) X(canonFrames) X(canonUsSum) X(canonUsMax) X(canonSwapUsSum) \
     X(digCompared) X(digEqual) X(digMismatch) X(digFirstMismatch) X(digUpTo) X(persRepairs) X(view) \
-    LN_TELEMETRY_WIDE(X)
+    LN_TELEMETRY_WIDE(X) LN_TELEMETRY_OVL(X)
+/* The pause overlay (last, so every field above keeps its place): its state
+ * now (0 closed, 1 opening, 2 open), the seat that opened it, how often it
+ * opened, closed and was refused (the fork could not pause there), fork
+ * frames run, edits carried out from it, the swap's cost, and the STARTs in
+ * play kept out of the session (sealed: host; this device's pads: all). */
+#define LN_TELEMETRY_OVL(X) X(ovlState) X(ovlSeat) X(ovlOpens) X(ovlCloses) X(ovlRefused) X(ovlFrames) \
+    X(ovlEdits) X(ovlSwapUsSum) X(ovlSwapUsMax) X(ovlStartsStripped) X(ovlStartsLocal)
 /* The wide build: slots 4..7's owners and the guest devices past 3 (slots 8..
  * are not in the telemetry). */
 #if KATAM_WIDE
@@ -338,6 +347,20 @@ static u32 NowF(void) { return sCanonRun ? sCanonP : PortFrameNumber(); }
 static void RoomsDevices(void);
 static void RoomsSetView(void);
 static void CanonAdopt(void);
+/* The pause overlay (below, "the pause overlay"): */
+enum { OVL_CLOSED, OVL_OPENING, OVL_OPEN };
+static int sOvl;                  /* OVL_*                                   */
+static int sOvlRun, sOvlQuiet;    /* the fork is in memory; the live frame after it */
+static int sOvlShown;             /* the fork's frame is the picture (else the live one is) */
+static u16 OvlLocalKeys(int seat, u16 raw);
+static void OvlForkKeys(u16 *k);
+static void OvlForkTop(void);
+static void OvlForkIn(void);
+static void OvlStop(void);
+static int PauseInPlay(void);
+/* Nothing of this device's may come from the state in memory now: the
+ * canonical shadow's or the overlay fork's. */
+#define SHADOW() (sCanonRun || sOvlRun)
 static int  PersRepair(void);
 
 static u8 *sImg;  static u32 sImgBytes, sImgFrame1;  static int sImgReq;
@@ -649,6 +672,7 @@ u32 PortLnSealedFrontier(void) { return sSealedUpTo; }
 
 void PortLnStop(void)
 {
+    OvlStop();
     if (sCatch)
         PortSetRenderEnabled(sRenderWas);
     free(sKf); sKf = NULL;
@@ -730,6 +754,7 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     T.lastMismatch = NONE;
     T.repairFrame = NONE;
     T.dumpFrame = NONE;
+    T.ovlSeat = 0xFFFFFFFFu;
     sFloor = f;
     sSealedUpTo = f;
     sVerify = f;
@@ -774,17 +799,20 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
 }
 
 /* --- inputs ------------------------------------------------------------------- */
-void PortLnLocalInputSeat(u32 f, int seat, u16 keys)
+u32 PortLnLocalInputSeat(u32 f, int seat, u16 keys)
 {
     struct Ent *e;
 
     if (!gPortLnOn || seat < 0 || seat > 3)
-        return;
+        return keys & 0x03FF;
     e = Claim(f);
-    e->lk[seat] = keys & 0x03FF;
+    /* START in play is this device's pause overlay, never the session's; the
+     * overlay's seat is idle in the session while it is up */
+    e->lk[seat] = OvlLocalKeys(seat, (u16)(keys & 0x03FF));
     if (seat == 0 && !(e->lm & 1))
         T.localFrames++;
     e->lm |= (u8)(1u << seat);
+    return e->lk[seat];
 }
 
 void PortLnLocalInput(u32 f, u16 keys) { PortLnLocalInputSeat(f, 0, keys); }
@@ -1367,7 +1395,7 @@ void PortLnNoteSoundSlow(u32 id, const void *mplayInfo)
 {
     struct Ent *e;
 
-    if (sCanonRun)
+    if (SHADOW())
         return;             /* the canonical shadow is heard by nobody */
     /* The guest's speakers (platform/audio_ear.c): which player, which slot. */
     PortEarNoteStart(sCurLatch, mplayInfo, id);
@@ -1383,7 +1411,7 @@ void PortLnNoteSoundSlow(u32 id, const void *mplayInfo)
 void PortLnNoteSramWriteSlow(u32 bytes)
 {
     (void)bytes;
-    if (sCanonRun)
+    if (SHADOW())
         return;
     T.sramWrites++;
     if (sCatch)
@@ -1395,7 +1423,7 @@ void PortLnNoteSramWriteSlow(u32 bytes)
 void PortLnNoteSettingSlow(int row)
 {
     (void)row;
-    if (sCanonRun)
+    if (SHADOW())
         return;
     T.settingsApplied++;
     if (sCatch)
@@ -1411,7 +1439,7 @@ void PortLnNoteSettingSlow(int row)
  * same game state either way. */
 int PortLnAudioMuted(void)
 {
-    if (sCanonRun)
+    if (SHADOW())
         return 1;
     return gPortLnOn && sCatch && !(sFlags & PORT_LN_F_NO_AUDIO_CU)
         && PortFrameNumber() < sCatchTo;
@@ -1419,7 +1447,7 @@ int PortLnAudioMuted(void)
 
 int PortLnMuteAudio(void)
 {
-    if (sCanonRun)
+    if (SHADOW())
         return 1;
     if (!gPortLnOn || !sCatch || (sFlags & PORT_LN_F_NO_AUDIO_CU))
         return 0;
@@ -1559,6 +1587,14 @@ int PortLnKeyOverride(u16 *keys)
         PortLmpSetSessionKeys(k);
         return 1;
     }
+    if (sOvlRun) {
+        /* The overlay fork: this device's pad on its pauser's Kirby only --
+         * no events, no records, no session (the pause overlay, below). */
+        OvlForkKeys(k);
+        *keys = k[0];
+        PortLmpSetSessionKeys(k);
+        return 1;
+    }
     e = Claim(f);
     T.latches++;
     /* This frame's events first: a slot changing hands takes this frame's
@@ -1571,6 +1607,9 @@ int PortLnKeyOverride(u16 *keys)
     memcpy(e->own, sOwn, sizeof e->own);
     if (sRole == PORT_LN_HOST) {
         int ontime1 = 0;
+        /* START in play pauses nobody but its own device (the pause
+         * overlay): never sealed, whatever a pad sent */
+        u16 strip = PauseInPlay() ? (u16)START_BUTTON : 0;
 
         for (s = 0; s < NSL; s++) {
             u8 o = sOwn[s];
@@ -1594,6 +1633,10 @@ int PortLnKeyOverride(u16 *keys)
                 if (ontime) { T.hostKeyOnTime++; if (dev == 1) T.d1KeyOnTime++; else if (dev == 2) T.d2KeyOnTime++; else T.d3KeyOnTime++; }
                 else { T.hostKeyMissing++; if (dev == 1) T.d1KeyMissing++; else if (dev == 2) T.d2KeyMissing++; else T.d3KeyMissing++; }
             }
+            if (k[s] & strip) {
+                k[s] &= (u16)~strip;
+                T.ovlStartsStripped++;
+            }
             e->sk[s] = k[s];
             sLastSealedK[s] = k[s];
             sLastSealedOwn[s] = o;
@@ -1606,6 +1649,9 @@ int PortLnKeyOverride(u16 *keys)
     } else if (e->flags & E_SEALED) {
         memcpy(k, e->sk, sizeof k);
     } else {
+        /* the host's rule, predicted (no START in play is ever sealed) */
+        u16 strip = PauseInPlay() ? (u16)START_BUTTON : 0;
+
         for (s = 0; s < NSL; s++) {
             u8 o = sOwn[s];
             int seat = OwnSeat(o);
@@ -1616,6 +1662,7 @@ int PortLnKeyOverride(u16 *keys)
                 k[s] = (e->lm & (1u << seat)) ? e->lk[seat] : sLastLocal[seat];
             else
                 k[s] = PredictSlot(f, s);
+            k[s] &= (u16)~strip;
         }
         T.predictedFrames++;
     }
@@ -2166,6 +2213,345 @@ static int PersRepair(void)
     return 1;
 }
 
+/* --- the pause overlay: this device's own pause menu ---------------------------
+ *
+ * The game pauses the world for everyone: a Kirby's START (kirby.c, the
+ * pressed edge in unk11A) opens the in-game interlude with gUnk_0203AD50 =
+ * that Kirby, and the pause screens then read every player's menu
+ * (pause_help.c PauseMenuFetchInputs).  In one shared simulation that is
+ * one pause for the whole session, driven by a mixture of pads: the
+ * pauser's (their menu and the screen's player's, gLocalPlayerId), the
+ * console's for every other menu -- online, slot 0's column, the host's --
+ * and Select / L / R from all of them; the SETTINGS page's cursor read
+ * gRepeatedKeys (the host's pad again) wherever the pauser was the screen's
+ * own player, as on the pauser's own device in FREE ROAM.
+ *
+ * So online, pause is not the session's.  START in play (PauseInPlay) is
+ * kept out of the session -- this device never sends it, the host never
+ * seals it (nor the guests predict it), so the shared game never pauses --
+ * and it opens this device's OVERLAY instead: a private copy of the game
+ * (the FORK), taken from the live state at the next frame top, in which this
+ * device's player presses START and the game's own pause screens run --
+ * help, area map, world map (every marker), SETTINGS with ONLINE, REMOVE
+ * and MAIN MENU -- driven by this device's pad alone (every other slot's
+ * keys are 0 there).  While it is up the live game goes on as before, every
+ * frame, and this device's seat sends no keys (its Kirby stands, as a CPU
+ * would not: idle).  When the fork's pause closes (B / START, or leaving),
+ * the overlay is gone and the keys still held are kept back until released.
+ *
+ * Each frame while it is up: the live frame top as ever (rewinds, keyframes,
+ * the shadow, hashes), then the fork is swapped in (OvlForkIn) and runs one
+ * frame -- drawn, never blitted, never heard, nothing of it recorded or
+ * sealed (main.c: no presents, no input log; the sound engine advances
+ * state only, as for the canonical shadow) -- and at its top it is swapped
+ * out again (OvlForkTop) and the live frame runs quiet: simulated as ever,
+ * nothing composed (ppu.c, the render list), presented with the fork's
+ * picture, paced and heard as the live game.  The page's own calls (pads,
+ * packets, telemetry) all come between frames, with the live state in memory.
+ *
+ * The fork is device state only: never in a keyframe, an image or a hash,
+ * so a rewind or an image load leaves it as it is, and nothing in it can
+ * reach another device.  Its buffers: the snapshot and the menus' host state
+ * (menu_poc.c; the fork keeps its own screen state, and shows the session's
+ * copies -- names, settings -- as they are now: PortPocHostStateLoadOwn).
+ * The slot table (sOwn) is never swapped: the live one is the truth.  An
+ * edit on its SETTINGS page is carried out on this device at the next live
+ * frame (PortLnOverlayEdit; outside a session it would be at once, inside the
+ * shared pause from its final frame), and its settings travel as they do for
+ * any edit (PORT_LN_EV_PSET).
+ *
+ * What it cannot do: stop the world.  The maps show where everyone was when
+ * the overlay opened (the fork's world stands still from then); the pause
+ * screens' sounds are not heard (the live game's are); a player paused for a
+ * minute is a minute behind, as an idle player is. */
+#define OVL_TRY_FRAMES 24         /* START edges into the fork until it pauses */
+static u8 *sOvlFork, *sOvlLive;   /* the fork's state; the live's while it runs */
+static int sOvlForkValid;
+static int sOvlSeat = -1, sOvlSlot = -1;
+static u16 sOvlPad, sOvlMask;     /* the seat's pad now; keys held at the open */
+static u16 sOvlPrev[4], sOvlRelease[4];
+static u32 sOvlFrames;            /* fork frames since this overlay opened */
+static int sOvlInject;            /* a START edge for the fork's next latch */
+static int sOvlMenu, sOvlSawMenu; /* the pause screens' task is up / has been */
+static s32 sOvlObs[8];            /* as of the fork's last top (PortLnOverlayObserve) */
+static struct { s16 it; s8 dir; } sOvlEd[8];
+static int sOvlEdN;
+
+/* Play, where a person's START is the pause: the gameplay HUD's task, no
+ * interlude (CanStartInGameInterlude), not the attract demo. */
+static int PauseInPlay(void)
+{
+    return gGameplayHudTask != NULL && CanStartInGameInterlude() && !(gUnk_0203AD10 & 0x10);
+}
+
+static int OvlSlotInPlay(int s)
+{
+    if (s < 0 || s >= NSL)
+        return 0;
+#if KATAM_WIDE
+    if (s >= gNumKirbys)
+        return 0;
+#endif
+    return s == 0 || PortLmpSlotPerson(s);
+}
+
+int PortLnOverlayRunning(void) { return gPortLnOn && sOvlRun; }
+int PortLnOverlayQuiet(void) { return gPortLnOn && sOvlQuiet; }
+int PortLnOverlayHidden(void) { return gPortLnOn && sOvlRun && !sOvlShown; }
+LN_EXPORT int PortLnOverlayOpen(void) { return gPortLnOn ? sOvl : 0; }
+int PortLnShadowRunning(void) { return gPortLnOn && SHADOW(); }
+
+static u32 OvlBytes(void)
+{
+    return sSnapBytes + PortLnExtrasSize();
+}
+
+static int OvlBuffers(void)
+{
+    if (sOvlFork == NULL)
+        sOvlFork = (u8 *)malloc(OvlBytes());
+    if (sOvlLive == NULL)
+        sOvlLive = (u8 *)malloc(OvlBytes());
+    return sOvlFork != NULL && sOvlLive != NULL;
+}
+
+static void OvlSave(u8 *d)
+{
+    PortRbSnapshotSave(d);
+    PortLnExtrasSave(d + sSnapBytes);
+}
+
+static void OvlClose(int why)
+{
+    if (sOvl == OVL_CLOSED)
+        return;
+    /* what the seat holds now (the B or START that closed it) stays out of
+     * the game until it is let go */
+    if (sOvlSeat >= 0 && sOvlSeat < 4)
+        sOvlRelease[sOvlSeat] = sOvlPad;
+    PortLog("[katam-port] lmpnet: f%u pause overlay %s (seat %d, slot %d, %u fork frames)",
+            (unsigned)PortFrameNumber(), why == 0 ? "closed" : why == 1 ? "refused (no pause here)" : "lost (no memory)",
+            sOvlSeat, sOvlSlot, (unsigned)sOvlFrames);
+    if (why == 0) T.ovlCloses++;
+    else T.ovlRefused++;
+    sOvl = OVL_CLOSED;
+    sOvlForkValid = 0;
+    sOvlSeat = sOvlSlot = -1;
+    sOvlInject = 0;
+    sOvlEdN = 0;
+    T.ovlState = OVL_CLOSED;
+    T.ovlSeat = 0xFFFFFFFFu;
+}
+
+/* PortLnStop: nothing of the overlay outlives the session. */
+static void OvlStop(void)
+{
+    if (sOvlRun && sOvlLive != NULL) {
+        PortRbSnapshotLoad(sOvlLive);
+        PortLnExtrasLoad(sOvlLive + sSnapBytes, PortLnExtrasSize());
+    }
+    sOvlRun = sOvlQuiet = sOvlShown = 0;
+    sOvl = OVL_CLOSED;
+    sOvlForkValid = 0;
+    sOvlSeat = sOvlSlot = -1;
+    sOvlInject = 0;
+    sOvlEdN = 0;
+    memset(sOvlPrev, 0, sizeof sOvlPrev);
+    memset(sOvlRelease, 0, sizeof sOvlRelease);
+    memset(sOvlObs, 0, sizeof sOvlObs);
+    free(sOvlFork); sOvlFork = NULL;
+    free(sOvlLive); sOvlLive = NULL;
+}
+
+/* A seat's pad, as it goes into the session (PortLnLocalInputSeat). */
+static u16 OvlLocalKeys(int seat, u16 raw)
+{
+    u16 prev = sOvlPrev[seat], k;
+    int slot;
+
+    sOvlPrev[seat] = raw;
+    if (sOvl != OVL_CLOSED && seat == sOvlSeat) {
+        sOvlPad = raw;              /* the overlay's, not the game's */
+        return 0;
+    }
+    k = (u16)(raw & ~sOvlRelease[seat]);
+    sOvlRelease[seat] &= raw;
+    if (!PauseInPlay() || !(k & START_BUTTON))
+        return k;
+    T.ovlStartsLocal++;
+    k &= (u16)~START_BUTTON;
+    if (!(prev & START_BUTTON) && sOvl == OVL_CLOSED && !sOvlRun
+        && OvlSlotInPlay(slot = PortLnSeatSlot(sSelf, seat)) && OvlBuffers()) {
+        sOvl = OVL_OPENING;
+        sOvlSeat = seat;
+        sOvlSlot = slot;
+        sOvlPad = raw;
+        sOvlMask = raw;             /* held at the open: not the menu's until let go */
+        sOvlInject = 1;
+        sOvlFrames = 0;
+        sOvlForkValid = 0;
+        sOvlSawMenu = 0;
+        sOvlEdN = 0;
+        T.ovlState = OVL_OPENING;
+        T.ovlSeat = (u32)seat;
+        PortLog("[katam-port] lmpnet: f%u pause overlay: seat %d (slot %d) pressed START",
+                (unsigned)PortFrameNumber(), seat, slot);
+        return 0;
+    }
+    return k;
+}
+
+/* The fork's latch: this device's pad on its player's Kirby, nothing else. */
+static void OvlForkKeys(u16 *k)
+{
+    u16 pad;
+
+    memset(k, 0, sizeof(u16) * NSL);
+    if (sOvlInject) {
+        pad = START_BUTTON;         /* the press that pauses the fork */
+        sOvlInject = 0;
+    } else {
+        pad = (u16)(sOvlPad & ~sOvlMask);
+    }
+    sOvlMask &= sOvlPad;
+    if (sOvlSlot >= 0 && sOvlSlot < NSL)
+        k[sOvlSlot] = pad;
+}
+
+/* menu_poc.c: an edit on the overlay's page, for the next live frame. */
+void PortLnOverlayEdit(int item, int dir)
+{
+    if (!sOvlRun || sOvlEdN >= (int)(sizeof sOvlEd / sizeof sOvlEd[0]))
+        return;
+    sOvlEd[sOvlEdN].it = (s16)item;
+    sOvlEd[sOvlEdN].dir = (s8)dir;
+    sOvlEdN++;
+}
+
+/* What the fork shows, read while it is in memory: [0] its in-game
+ * interlude is on (the pause, from the fade out of the game to the fade back
+ * in), [1] who paused, [2] the page, [3] the SETTINGS row, [4] the settings
+ * model, [5] the fork's frame. */
+static void OvlObserveFork(void)
+{
+    int i;
+    u8 p = gUnk_0203AD50;
+
+    sOvlObs[0] = gInGameInterludeTask != NULL;
+    sOvlMenu = 0;
+    for (i = 0; i < MAX_TASK_NUM; i++)
+        if ((u32)(uintptr_t)gTasks[i].main == FNID_PauseMenuMain) {
+            sOvlMenu = 1;
+            break;
+        }
+    sOvlObs[1] = p;
+    sOvlObs[2] = p < KATAM_KIRBYS ? gPauseMenus[p].menuId : -1;
+    sOvlObs[3] = -1;
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        const struct Task *t = &gTasks[i];
+
+        if ((u32)(uintptr_t)t->main == FNID_PauseSettingsMain && t->structOffset && !(t->flags & TASK_USE_EWRAM)) {
+            sOvlObs[3] = *(const u8 *)((uintptr_t)IWRAM_START + t->structOffset + 0x28);   /* PauseSettings.row */
+            break;
+        }
+    }
+    sOvlObs[4] = PortPocScreenModel();
+    sOvlObs[5] = (s32)PortFrameNumber();
+    sOvlObs[6] = PortPocHelpLineShown();
+    sOvlObs[7] = (s32)PortPocShownWord();
+}
+
+/* The live frame top, done: the fork in. */
+static void OvlForkIn(void)
+{
+    u64 t0 = MICROS(), dt;
+
+    if (!OvlBuffers()) {
+        OvlClose(2);
+        return;
+    }
+    OvlSave(sOvlLive);
+    if (sOvlForkValid) {
+        PortRbSnapshotLoad(sOvlFork);
+        PortPocHostStateLoadOwn(sOvlFork + sSnapBytes);
+    }
+    sOvlForkValid = 1;          /* (the first frame: the live state as it is) */
+    sOvlRun = 1;
+    /* Until its pause has begun the fork is not shown: a START the fork
+     * cannot pause on (a door, a cutscene) leaves the picture alone. */
+    sOvlShown = sOvl == OVL_OPEN;
+    dt = MICROS() - t0;
+    T.ovlSwapUsSum += (u32)dt;
+    if (dt > T.ovlSwapUsMax) T.ovlSwapUsMax = (u32)dt;
+}
+
+/* The fork's top: the fork out, the live state back at its own top (whose
+ * work is done), the quiet live frame next. */
+static void OvlForkTop(void)
+{
+    u64 t0 = MICROS(), dt;
+    int up, i, n;
+
+    OvlObserveFork();
+    up = sOvlObs[0] && sOvlObs[1] == sOvlSlot;
+    OvlSave(sOvlFork);
+    PortRbSnapshotLoad(sOvlLive);
+    PortLnExtrasLoad(sOvlLive + sSnapBytes, PortLnExtrasSize());
+    sOvlRun = 0;
+    sOvlQuiet = sOvlShown;
+    sOvlFrames++;
+    T.ovlFrames++;
+    dt = MICROS() - t0;
+    T.ovlSwapUsSum += (u32)dt;
+    if (dt > T.ovlSwapUsMax) T.ovlSwapUsMax = (u32)dt;
+    /* its page's edits, here, with the live state in memory */
+    n = sOvlEdN;
+    sOvlEdN = 0;
+    for (i = 0; i < n; i++) {
+        PortLog("[katam-port] lmpnet: f%u pause overlay: SETTINGS edit, item %d step %d",
+                (unsigned)PortFrameNumber(), sOvlEd[i].it, sOvlEd[i].dir);
+        PortPocSessionEditApply(sOvlEd[i].it, sOvlEd[i].dir);
+        T.ovlEdits++;
+    }
+    if (sOvl == OVL_OPENING) {
+        if (up) {
+            sOvl = OVL_OPEN;
+            T.ovlState = OVL_OPEN;
+            T.ovlOpens++;
+        } else if (sOvlFrames >= OVL_TRY_FRAMES) {
+            OvlClose(1);
+        } else {
+            sOvlInject = !(sOvlFrames & 1);     /* press again, released between */
+        }
+    } else if (sOvl == OVL_OPEN) {
+        /* closed: the pause screens gone (the game back behind a white
+         * screen: the live game is shown from here), or the interlude */
+        if (sOvlMenu)
+            sOvlSawMenu = 1;
+        if (!up || (sOvlSawMenu && !sOvlMenu))
+            OvlClose(0);
+    }
+}
+
+LN_EXPORT int PortLnOverlayObserve(s32 *out)
+{
+    out[0] = gPortLnOn ? sOvl : 0;
+    out[1] = sOvlSeat;
+    out[2] = sOvlSlot;
+    out[3] = sOvlObs[1];
+    out[4] = sOvlObs[2];
+    out[5] = sOvlObs[3];
+    out[6] = sOvlObs[4];
+    out[7] = sOvlObs[5];
+    out[8] = (s32)T.ovlOpens;
+    out[9] = (s32)T.ovlCloses;
+    out[10] = (s32)T.ovlRefused;
+    out[11] = (s32)T.ovlFrames;
+    out[12] = sOvlObs[6];
+    out[13] = sOvlObs[7];
+    return 14;
+}
+
 /* --- the frame top ----------------------------------------------------------- */
 
 /* The pause page's edit request in a final frame (port/simblock.h
@@ -2264,6 +2650,11 @@ void PortLnFrame(void)
     if (!gPortLnOn)
         return;
     t0 = MICROS();
+    if (sOvlRun) {
+        OvlForkTop();           /* the overlay fork's top: the live state back */
+        return;
+    }
+    sOvlQuiet = 0;
     if (sCanonRun) {
         if (CanonTopRun())
             return;             /* the canonical shadow's top (rooms mode) */
@@ -2370,6 +2761,10 @@ void PortLnFrame(void)
 
         if (!sCatch && dt > T.topUsMax) T.topUsMax = (u32)dt;
     }
+    /* This device's pause overlay: the frame presented now is the fork's
+     * (the live frame follows it, quiet) */
+    if (sOvl != OVL_CLOSED && !sCatch && !sCanonRun)
+        OvlForkIn();
 }
 
 void PortLnDumpAt(u32 f) { sDumpAt = f; sDumpReady = 0; }

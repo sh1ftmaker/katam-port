@@ -659,6 +659,15 @@ async function seatScript(p, seat, seed) {
 }
 async function slotsOf(p) { return p.ev('katamOnline.slots()'); }
 const screenLive = async (p) => (await frame(p)) - (await p.ev('Module._PortPocScreenLastDraw()')) < 5;
+/* This device's pause overlay (platform/lmpnet.c "the pause overlay": online
+ * the pause menu is each device's own, over a private copy of the game):
+ * st 0 closed / 1 opening / 2 open, the fork's pauser, page (menuId), the
+ * SETTINGS row and model, the help page's room line, the settings word its
+ * page shows, fork frames run. */
+const ovlOf = (p) => p.ev(`(function(){var q=Module._malloc(64),n=Module._PortLnOverlayObserve?Module._PortLnOverlayObserve(q):0,H=Module.HEAP32,b=q>>2;
+    var r={st:n?H[b]:0,pauser:H[b+3],menu:H[b+4],row:H[b+5],model:H[b+6],help:H[b+12],shown:H[b+13]>>>0,frames:H[b+11]};Module._free(q);return r})()`);
+/* the screen's settings model: the overlay's while it is up */
+const modelNow = async (p) => { const o = await ovlOf(p); return o.st ? o.model : p.ev('Module._PortPocScreenModel()'); };
 /* the player cards (platform/player_card.c): set card c from a settings value
  * "MODE,SPRAY,HUE,SAT,VAL,NAME[|BODY,FEET]"; read every slot's name and
  * colour (paint, and feet of their own) as this page has them */
@@ -854,8 +863,8 @@ if (CASES.includes('three')) {
     await sleep(1500);
     await cardsCheck('three: four players\' cards', [host, ga, gb2], cw2);
     // the PLAYERS page in a session (pause > SETTINGS > PLAYERS): who plays
-    // each Kirby, read only, drawn the same on every device (the comparers
-    // below cover these frames)
+    // each Kirby, read only, on the host's own pause overlay (the guests'
+    // games run on, untouched: the comparers below cover these frames)
     await host.ev('window.__scriptSaved = window.__script; window.__script = null; Module._PortSetKeys(0)');
     await waitFrames(host, 10);
     await press(host, 'START'); await waitFrames(host, 60);
@@ -883,14 +892,16 @@ if (CASES.includes('three')) {
     await press(host, 'UP'); await waitFrames(host, 10);          // PLAYERS
     await press(host, 'A'); await waitFrames(host, 40);
     await sleep(1500);
-    const models = [await host.ev('Module._PortPocScreenModel()'), await ga.ev('Module._PortPocScreenModel()'), await gb2.ev('Module._PortPocScreenModel()')];
-    ok('session: PLAYERS opens the read-only page on every device', models.every((m) => m === 8), JSON.stringify(models));
+    const ovs = [await ovlOf(host), await ovlOf(ga), await ovlOf(gb2)];
+    ok('session: PLAYERS opens the read-only page on the host\'s overlay only', ovs[0].st === 2 && ovs[0].model === 8 && !ovs[1].st && !ovs[2].st,
+       JSON.stringify(ovs.map((o) => [o.st, o.model])));
     await shot(host, 't-09d-host-session-players.png'); await shot(ga, 't-09d-guestA-session-players.png'); await shot(gb2, 't-09d-guestB-session-players.png');
     await press(host, 'B'); await waitFrames(host, 30);
-    ok('session: B goes back to the PLAYERS section', (await host.ev('Module._PortPocScreenModel()')) === 12);
+    ok('session: B goes back to the PLAYERS section', (await modelNow(host)) === 12);
     await press(host, 'B'); await waitFrames(host, 30);
-    ok('session: B again: SETTINGS', (await host.ev('Module._PortPocScreenModel()')) === 9);
+    ok('session: B again: SETTINGS', (await modelNow(host)) === 9);
     await press(host, 'START'); await waitFrames(host, 60);
+    ok('session: the host\'s Start closes its overlay', !(await ovlOf(host)).st);
     await host.ev('window.__script = window.__scriptSaved');
     await playMany(host, [ga, gb2], 40, [cA, cB2], 't-play4', [20]);
     // the pad's player leaves by holding Select (two seconds): the CPU, the game's colour
@@ -1012,21 +1023,29 @@ if (CASES.includes('three')) {
 }
 
 // --- exits: the pause menus in an online game, per-device settings, REMOVE ----------
-//   Three pages, TOGETHER.  The room code in session state and on the help
-//   page; B / Start / Select as the pauser and as the others; per-device
-//   settings (the owner's four cases: a guest's ZOOM and CAMERA edits are
-//   its own, the host's page then shows the host's values and each press
-//   changes the host by one step; an edit rewound on the guest is applied
-//   once); the host REMOVEs guest B (its title, the CPU, refused when it
-//   comes back, a new guest still welcome); guest A's LEAVE GAME; the host's
-//   END GAME, and the remaining guest's pad takes it to the title.
+//   Three pages, TOGETHER.  Online the pause menu is each device's own
+//   overlay (platform/lmpnet.c "the pause overlay"): the shared game never
+//   pauses.  The room code in session state and on the pauser's help page;
+//   B / Start / Select as the pauser and as the others (the others' do
+//   nothing to it: they play on); per-device settings (the owner's four
+//   cases: a guest's ZOOM and CAMERA edits are its own, the host's page then
+//   shows the host's values and each press changes the host by one step; an
+//   edit rewound on the guest is applied once); the host REMOVEs guest B (its
+//   title, the CPU, refused when it comes back, a new guest still welcome);
+//   guest A's LEAVE GAME; the host's END GAME, and the remaining guest's pad
+//   takes it to the title.
 const SIM_LNSET = 0x02040014;
 const lnset = (p) => p.ev(`Array.from(Module.HEAPU8.subarray(${SIM_LNSET}, ${SIM_LNSET + 12}))`);
-const pauseOf = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
+/* paused: this device's overlay is up; live: the shared game's own pause
+ * (never, online); menu: the overlay's page */
+const livePause = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
     var r={paused:Module.HEAP32[q>>2],pauser:Module.HEAP32[(q>>2)+1],menu:Module.HEAP32[(q>>2)+2]};Module._free(q);return r})()`);
-const modelOf = (p) => p.ev('Module._PortPocScreenModel()');
+const pauseOf = async (p) => {
+    const o = await ovlOf(p), l = await livePause(p);
+    return { paused: o.st === 2 ? 1 : 0, live: l.paused, pauser: o.st ? o.pauser : l.pauser, menu: o.st ? o.menu : l.menu };
+};
+const modelOf = modelNow;
 const word = (p) => p.ev('Module._PortPocSettingsWord() >>> 0');
-const shownWord = (p) => p.ev('Module._PortPocShownWord() >>> 0');
 const zoomIdx = (w) => (w >>> 4) & 7, camOf = (w) => (w >>> 7) & 1;
 if (CASES.includes('exits')) {
     say('# exits: the pause menus online, per-device settings, REMOVE, LEAVE / END GAME');
@@ -1064,19 +1083,28 @@ if (CASES.includes('exits')) {
     const codeIn = (b) => String.fromCharCode(b[6], b[7], b[8], b[9]);
     ok('exits: the room code is session state on every page', sets.every((b) => b[0] === 2 && b[5] === 1 && codeIn(b) === code), JSON.stringify(sets.map(codeIn)));
     const cmpA = makeComparer(host, ga), cmpB = makeComparer(host, gb);
-    // --- guest A pauses: the help page with the code
+    // --- guest A pauses: its own overlay, the help page with the code
     await pauseNow(ga);
     const pz = await Promise.all(all.map(pauseOf));
-    ok('exits: guest A pauses the game for everyone', pz.every((x) => x.paused === 1), JSON.stringify(pz));
-    ok('exits: the help page shows the room line on every page', (await Promise.all(all.map((p) => p.ev('Module._PortPocHelpLineShown()')))).every((v) => v === 1));
-    await shot(ga, 'x-01-guestA-help-code.png'); await shot(host, 'x-01-host-help-code.png');
+    ok('exits: guest A\'s pause is its own: only guest A shows it, no game paused',
+       pz[0].paused === 0 && pz[1].paused === 1 && pz[2].paused === 0 && pz.every((x) => x.live === 0), JSON.stringify(pz));
+    {
+        const f0 = await Promise.all(all.map(frame));
+        await sleep(1500);
+        const f1 = await Promise.all(all.map(frame));
+        ok('exits: everyone\'s game runs on behind guest A\'s pause', f1.every((f, i) => f - f0[i] > 50), JSON.stringify([f0, f1]));
+    }
+    ok('exits: the help page shows the room line on guest A\'s overlay', (await ovlOf(ga)).help === 1);
+    await shot(ga, 'x-01-guestA-help-code.png'); await shot(host, 'x-01-host-plays-on.png');
+    const am0 = (await pauseOf(ga)).menu;
     await step(host, 'B', 30);
-    ok('exits: the host\'s B does not close guest A\'s pause', (await pauseOf(host)).paused === 1);
-    await step(host, 'SELECT', 80);
-    ok('exits: the host\'s Select turns the page (any player\'s, as the game has it)', (await pauseOf(host)).menu !== 1);
+    ok('exits: the host\'s B does not close guest A\'s pause', (await pauseOf(ga)).paused === 1);
+    await step(host, 'SELECT', 80); await step(gb, 'SELECT', 80);
+    ok('exits: the host\'s and guest B\'s Select do not turn guest A\'s page', (await pauseOf(ga)).menu === am0 && !(await ovlOf(host)).st,
+       `${am0} -> ${(await pauseOf(ga)).menu}`);
     for (let i = 0; i < 5 && (await pauseOf(ga)).menu !== 8; i++) await step(ga, 'SELECT', 80);
-    ok('exits: guest A on SETTINGS', (await modelOf(ga)) === 9 && (await modelOf(host)) === 9);
-    table.push(['Pause, online (TOGETHER)', 'the other players', 'nothing', 'nothing', 'next page']);
+    ok('exits: guest A on SETTINGS, nobody else', (await modelOf(ga)) === 9 && !(await ovlOf(host)).st && !(await ovlOf(gb)).st);
+    table.push(['Pause, online (its own)', 'the other players', 'nothing (they play)', 'nothing (they play)', 'nothing (they play)']);
     // --- SETTINGS > ONLINE on guest A: the code and the list, read only
     for (let i = 0; i < 3; i++) await step(ga, 'DOWN', 10);
     await step(ga, 'A', 30);
@@ -1097,8 +1125,8 @@ if (CASES.includes('exits')) {
     let h1 = await word(host), a1 = await word(ga);
     ok('case 1: guest A\'s ZOOM Right: guest A one step, the host unchanged',
        zoomIdx(a1) === Math.min(6, zoomIdx(a0) + 1) && zoomIdx(h1) === zoomIdx(h0), `A ${zoomIdx(a0)}->${zoomIdx(a1)}, host ${zoomIdx(h0)}->${zoomIdx(h1)}`);
-    ok('case 1: every page shows guest A\'s value', (await Promise.all(all.map(shownWord))).every((w) => zoomIdx(w) === zoomIdx(a1)));
-    await shot(ga, 'x-03-guestA-zoom.png'); await shot(host, 'x-03-host-sees-guestA-zoom.png');
+    ok('case 1: guest A\'s page shows guest A\'s own value', zoomIdx((await ovlOf(ga)).shown) === zoomIdx(a1), `${zoomIdx((await ovlOf(ga)).shown)}`);
+    await shot(ga, 'x-03-guestA-zoom.png'); await shot(host, 'x-03-host-plays-on.png');
     // an edit rewound on the guest is still applied once
     await ga.ev('Module._PortLnForceRewind(40)'); await sleep(1500);
     ok('exits: a rewind over guest A\'s edit does not apply it again', zoomIdx(await word(ga)) === zoomIdx(a1), `${zoomIdx(await word(ga))}`);
@@ -1123,13 +1151,13 @@ if (CASES.includes('exits')) {
     await step(ga, 'LEFT', 30); await sleep(1500);
     ok('exits: ... and Left turns guest A\'s off again', (await lon(ga)) === 0);
     await step(ga, 'START', 60);
-    ok('exits: guest A\'s Start (in a section) closes the pause', (await pauseOf(host)).paused === 0);
+    ok('exits: guest A\'s Start (in a section) closes its pause', !!(await until(async () => !(await ovlOf(ga)).st, 4000)));
     table.push(['Pause, online', 'the pauser, in a section', 'SETTINGS', 'close the pause', 'next page']);
     // --- the host pauses: its own values; each press one step
     ok('exits: the host pauses', await pauseNow(host) && await toSettings(host));
     await step(host, 'A', 30); await step(host, 'DOWN', 10); await step(host, 'DOWN', 10);   // DISPLAY > ZOOM
     await sleep(800);
-    const sh = await shownWord(host), hz = zoomIdx(await word(host));
+    const sh = (await ovlOf(host)).shown, hz = zoomIdx(await word(host));
     ok('case 2: the host\'s page shows the host\'s own ZOOM', zoomIdx(sh) === hz && zoomIdx(sh) !== zoomIdx(await word(ga)), `shown ${zoomIdx(sh)}, host ${hz}, A ${zoomIdx(await word(ga))}`);
     await shot(host, 'x-04-host-own-zoom.png');
     await step(host, 'RIGHT', 30); await sleep(800);
@@ -1138,7 +1166,7 @@ if (CASES.includes('exits')) {
     for (let i = 0; i < 3; i++) {
         const c0 = camOf(await word(host));
         await step(host, 'RIGHT', 30); await sleep(800);
-        ok(`case 4: CAMERA Right #${i + 1} toggles the host's own`, camOf(await word(host)) !== c0 && camOf(await shownWord(host)) === camOf(await word(host)));
+        ok(`case 4: CAMERA Right #${i + 1} toggles the host's own`, camOf(await word(host)) !== c0 && camOf((await ovlOf(host)).shown) === camOf(await word(host)));
     }
     await step(host, 'LEFT', 30); await sleep(500);                // (back to where it was, odd count)
     await step(host, 'UP', 10); await step(host, 'UP', 10); await step(host, 'LEFT', 30);   // ZOOM back
@@ -1149,7 +1177,7 @@ if (CASES.includes('exits')) {
     for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // row 4: guest 2's Kirby
     await step(host, 'A', 30);
     ok('exits: the host\'s A on a guest\'s row asks (NO / YES)', (await modelOf(host)) === 16);
-    await shot(host, 'x-05-host-remove-confirm.png'); await shot(ga, 'x-05-guestA-sees-remove-confirm.png');
+    await shot(host, 'x-05-host-remove-confirm.png'); await shot(ga, 'x-05-guestA-plays-on.png');
     await step(host, 'B', 30);
     ok('exits: B on REMOVE: back to the list', (await modelOf(host)) === 13);
     await step(host, 'A', 30); await step(host, 'DOWN', 10);
@@ -1163,7 +1191,7 @@ if (CASES.includes('exits')) {
     const bCpu = await until(async () => { const sl = await slotsOf(host); return bSlot > 0 && !sl[bSlot]; }, 15000);
     ok('REMOVE: guest B\'s Kirby is the CPU', !!bCpu, String(bSlot));
     await step(host, 'START', 60);
-    ok('exits: the host\'s Start closes the pause after REMOVE', (await pauseOf(host)).paused === 0);
+    ok('exits: the host\'s Start closes its pause after REMOVE', !!(await until(async () => !(await ovlOf(host)).st, 4000)));
     await sleep(2000);
     await cmpA.run();
     ok('REMOVE: guest A still identical to the host', cmpA.mismatched === 0 && cmpA.compared > 5, `${cmpA.equal}/${cmpA.compared}`);
@@ -1185,10 +1213,13 @@ if (CASES.includes('exits')) {
     const aOut = await until(async () => { const s2 = await stats(ga); return s2 && !s2.session && (await ga.ev('Module._PortLnHomeLoads()')) === 1; }, 15000);
     ok('LEAVE GAME: guest A leaves, its game at the title', !!aOut);
     await sleep(1500);
-    ok('LEAVE GAME: the others are still paused (guest A was the pauser)', (await pauseOf(host)).paused === 1);
-    await step(host, 'START', 60);
-    ok('LEAVE GAME: the host can close the pause the leaver left open', (await pauseOf(host)).paused === 0);
-    table.push(['Pause, online', 'the pauser left / was removed', 'n/a', 'the host closes it', 'next page']);
+    {
+        const hp = await pauseOf(host), f0 = await frame(host);
+        await sleep(1000);
+        ok('LEAVE GAME: nothing is left paused behind guest A (the host plays on)', hp.paused === 0 && hp.live === 0 && (await frame(host)) - f0 > 30,
+           JSON.stringify(hp));
+    }
+    table.push(['Pause, online', 'the pauser left / was removed', 'n/a', 'nothing to close', 'n/a']);
     // --- the host: END GAME
     ok('exits: the host pauses again', await pauseNow(host) && await toSettings(host));
     await step(host, 'UP', 10); await step(host, 'A', 30);
@@ -1283,27 +1314,31 @@ for (const nPages of (flag('rooms-pages', '2,3')).split(',').map(Number)) {
     R.afterCall = met;
     ok(`${tag}: the host's call brought everyone to the host's room`, met[0].rooms.slice(0, nPages).every((r) => r === met[0].rooms[0]), JSON.stringify(met[0].rooms));
     ok(`${tag}: each page still shows its own player`, met.every((sc, i) => sc.lp === i && sc.room === sc.kroom), JSON.stringify(met.map((x) => [x.lp, x.room, x.kroom])));
-    // the pause menu, opened from each page in turn (START, then START again)
+    // the pause menu, opened from each page in turn (START, then START
+    // again): each device's own overlay (platform/lmpnet.c "the pause
+    // overlay"), over its own player's room; nobody else's game pauses
     R.pause = [];
     for (let i = 0; i < all.length; i++) {
         const p = all[i], f0 = await frame(p), K = new Array(400).fill(0);
         for (let j = 0; j < 6; j++) { K[20 + j] = KEY.START; }
         await setScript(p, K, f0, []);
-        const paused = await until(async () => (await screenOf(host)).paused === 1, 10000);
+        const paused = await until(async () => (await ovlOf(p)).st === 2, 10000);
         await sleep(1500);
         const shotsNow = [];
-        for (const q of all) { await shot(q, `${tag}-04-pause-by-${p.name}-on-${q.name}.png`); shotsNow.push(await screenOf(q)); }
+        for (const q of all) { await shot(q, `${tag}-04-pause-by-${p.name}-on-${q.name}.png`); shotsNow.push(Object.assign(await screenOf(q), { ovl: (await ovlOf(q)).st })); }
         R.pause.push({ by: p.name, paused: !!paused, screens: shotsNow });
-        ok(`${tag}: ${p.name} pauses the game for everyone`, !!paused && shotsNow.every((x) => x.paused === 1));
+        ok(`${tag}: ${p.name} pauses on its own page only (no game paused)`, !!paused
+           && shotsNow.every((x, j) => x.paused === 0 && x.ovl === (j === i ? 2 : 0)), JSON.stringify(shotsNow.map((x) => [x.paused, x.ovl])));
+        ok(`${tag}: ${p.name}'s overlay is its own player's pause`, (await ovlOf(p)).pauser === i, String((await ovlOf(p)).pauser));
         const f1 = await frame(p), K2 = new Array(400).fill(0);
         for (let j = 0; j < 6; j++) K2[10 + j] = KEY.START;
         await setScript(p, K2, f1, []);
-        let resumed = await until(async () => (await screenOf(host)).paused === 0, 6000);
+        let resumed = await until(async () => (await ovlOf(p)).st === 0, 6000);
         if (!resumed) {
             const f2 = await frame(p), K3 = new Array(400).fill(0);
             for (let j = 0; j < 6; j++) K3[10 + j] = KEY.B;
             await setScript(p, K3, f2, []);
-            resumed = await until(async () => (await screenOf(host)).paused === 0, 8000);
+            resumed = await until(async () => (await ovlOf(p)).st === 0, 8000);
         }
         ok(`${tag}: ${p.name} closes the pause menu`, !!resumed);
         await sleep(800);
@@ -1676,6 +1711,85 @@ if (CASES.includes('eight')) {
     await playMany(host, G, 45, cmps, 'e-play', [20]);
     for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight: ${G[i].name} identical to the host`, c.compared > 50 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
     R.steps.push({ step: `play${NT - 1}`, host: await stats(host), guests: await Promise.all(G.map(stats)) });
+    // --- the pause menu is each device's own (platform/lmpnet.c "the pause
+    // overlay"): a guest whose Kirby is slot 4.. pauses, then another one at
+    // the same time; the others play on; rewinds under the overlay; the host
+    // pauses and its ONLINE list scrolls to the eighth player
+    {
+        const sl = await slotsOf(host), slotOfPage = async (g) => { const me = (await stats(g)).self; return sl.findIndex((x) => x && x.dev === me && x.seat === 0); };
+        const gs = [];
+        for (const g of G) gs.push({ g, slot: await slotOfPage(g) });
+        const hi = gs.find((x) => x.slot >= 4), lo = gs.find((x) => x.slot >= 1 && x.slot < 4);
+        ok('eight/pause: a guest plays slot 4.. and another one slot 1..3', !!hi && !!lo, JSON.stringify(gs.map((x) => [x.g.name, x.slot])));
+        if (hi && lo) {
+            const others = [host, ...G].filter((p) => p !== hi.g && p !== lo.g);
+            const hands = async (p) => p.ev('window.__script = null; Module._PortSetKeys(0)');
+            const openOn = async (p) => {
+                for (let i = 0; i < 5; i++) {
+                    if ((await ovlOf(p)).st === 2) return true;
+                    await press(p, 'START'); await waitFrames(p, 60);
+                }
+                return (await ovlOf(p)).st === 2;
+            };
+            const kxy = (p, s) => p.ev(`(function(){var q=Module._malloc(32);Module._PortLnKirby(${s},q);var r=[Module.HEAP32[q>>2],Module.HEAP32[(q>>2)+1]];Module._free(q);return r.join(',')})()`);
+            await hands(hi.g); await hands(lo.g); await waitFrames(hi.g, 20);
+            ok(`eight/pause: ${hi.g.name} (slot ${hi.slot}) opens its pause menu`, await openOn(hi.g));
+            ok(`eight/pause: its fork paused for its own Kirby (slot ${hi.slot})`, (await ovlOf(hi.g)).pauser === hi.slot, String((await ovlOf(hi.g)).pauser));
+            const ov = await Promise.all(others.map(ovlOf)), lp = await Promise.all([host, ...G].map((p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);var r=Module.HEAP32[q>>2];Module._free(q);return r})()`)));
+            ok('eight/pause: nobody else shows it, no game paused', ov.every((o) => !o.st) && lp.every((v) => !v), JSON.stringify([ov.map((o) => o.st), lp]));
+            const runner = gs.find((x) => x !== hi && x !== lo) || lo;
+            const f0 = await Promise.all(others.map(frame)), k0 = await kxy(host, runner.slot);
+            await sleep(2000);
+            const f1 = await Promise.all(others.map(frame)), k1 = await kxy(host, runner.slot);
+            ok('eight/pause: everyone else\'s game runs on (frames)', f1.every((f, i) => f - f0[i] > 60), JSON.stringify([f0, f1]));
+            ok(`eight/pause: ... and a playing Kirby (slot ${runner.slot}) moves`, k0 !== k1, `${k0} -> ${k1}`);
+            await shot(hi.g, 'e-05-pause-slot4-own.png'); await shot(host, 'e-05-host-plays-on.png');
+            const m0 = (await ovlOf(hi.g)).menu;
+            await press(lo.g, 'SELECT'); await waitFrames(lo.g, 40);
+            ok('eight/pause: another device\'s Select (in its game) does not turn the page', (await ovlOf(hi.g)).menu === m0, `${m0} -> ${(await ovlOf(hi.g)).menu}`);
+            for (let i = 0; i < 5 && (await ovlOf(hi.g)).menu !== 8; i++) { await press(hi.g, 'SELECT'); await waitFrames(hi.g, 80); }
+            ok(`eight/pause: ${hi.g.name}'s own Select reaches SETTINGS`, (await ovlOf(hi.g)).menu === 8 && (await ovlOf(hi.g)).model === 9);
+            // a second device pauses at the same time; each pad drives its own
+            ok(`eight/pause: ${lo.g.name} (slot ${lo.slot}) pauses as well`, await openOn(lo.g));
+            const l0 = (await ovlOf(lo.g)).menu, r0 = (await ovlOf(hi.g)).row;
+            await press(lo.g, 'SELECT'); await waitFrames(lo.g, 80);
+            await press(hi.g, 'DOWN'); await waitFrames(hi.g, 20);
+            const a = await ovlOf(hi.g), b = await ovlOf(lo.g);
+            ok('eight/pause: two overlays at once, each moved by its own pad', a.st === 2 && b.st === 2 && a.menu === 8 && a.row === (r0 + 1) % 8 && b.menu !== l0,
+               JSON.stringify([[a.menu, r0, a.row], [l0, b.menu]]));
+            // rewinds (forced, as a late packet makes them) under the overlay
+            const before = await ovlOf(hi.g);
+            for (let i = 0; i < 3; i++) { await hi.g.ev('Module._PortLnForceRewind(90)'); await waitFrames(hi.g, 25); }
+            const after = await ovlOf(hi.g), rw = (await stats(hi.g)).rewinds;
+            ok('eight/pause: rewinds leave the overlay as it was (page, row, screen)', after.st === 2 && after.menu === before.menu && after.row === before.row
+               && after.model === before.model && after.frames > before.frames, JSON.stringify({ before, after, rw }));
+            await shot(hi.g, 'e-06-pause-slot4-settings.png'); await shot(lo.g, 'e-06-pause-second.png');
+            await press(hi.g, 'START'); await press(lo.g, 'B');
+            const closedBoth = await until(async () => !(await ovlOf(hi.g)).st && !(await ovlOf(lo.g)).st, 8000);
+            ok('eight/pause: Start and B close them', !!closedBoth);
+            await setScript(hi.g, buildPlay(frames, 51, 100000).k2, await frame(hi.g), []);
+            await setScript(lo.g, buildPlay(frames, 52, 100000).k2, await frame(lo.g), []);
+            await waitFrames(hi.g, 120);
+            // the host pauses: its list scrolls to the eighth player
+            const hostScript = await host.ev('window.__scriptSaved = window.__script; true');
+            await hands(host); await waitFrames(host, 20);
+            ok('eight/pause: the host opens its pause menu', !!hostScript && await openOn(host));
+            const gov = await Promise.all(G.map(ovlOf));
+            ok('eight/pause: no guest shows it', gov.every((o) => !o.st), JSON.stringify(gov.map((o) => o.st)));
+            for (let i = 0; i < 5 && (await ovlOf(host)).menu !== 8; i++) { await press(host, 'SELECT'); await waitFrames(host, 80); }
+            for (let i = 0; i < 3; i++) { await press(host, 'DOWN'); await waitFrames(host, 10); }   // ONLINE
+            await press(host, 'A'); await waitFrames(host, 30);
+            for (let i = 0; i < 9; i++) { await press(host, 'DOWN'); await waitFrames(host, 10); }   // to the eighth player's row
+            const hl = await ovlOf(host);
+            ok('eight/pause: the host\'s ONLINE list scrolls to the eighth player', hl.model === 13 && hl.row === 9, JSON.stringify(hl));
+            await shot(host, 'e-07-host-online-list-8.png');
+            await press(host, 'START');
+            ok('eight/pause: the host\'s Start closes it', !!(await until(async () => !(await ovlOf(host)).st, 6000)));
+            await host.ev('window.__script = window.__scriptSaved');
+            await playMany(host, G, 10, cmps, 'e-play-pause', [5]);
+            for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight/pause: ${G[i].name} identical to the host through the pauses`, c.mismatched === 0, `${c.equal}/${c.compared}`); }
+        }
+    }
     // the last tab joins mid-game: a seat past the live count (4 Kirbys
     // until people needed more; the engine makes the Kirby, then seats it)
     const kBefore = await host.ev('Module._PortPocKirbysNow()');
