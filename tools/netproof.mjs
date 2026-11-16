@@ -78,6 +78,10 @@ const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
 // module (what web/online.js uses: 24 of its 940 KiB keyframes do not fit
 // its 192 MiB heap beside the rest)
 const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 16 : 24);
+// a wide module's Kirby count at power-on (run.mjs c.kirbys): the seats, so
+// eight people have eight Kirbys from the start, as an 8-player game whose
+// count has risen (R13-N "count rising" starts at 4 instead)
+const KIRBYS = +flag('kirbys', SLOTS > 4 ? SEATS : 0) || null;
 const MAXPKT = +flag('max-packet', COPIES ? 1100 : 0);
 const HOST_OPTS = COPIES ? { copies: COPIES, maxPacketBytes: MAXPKT } : (MAXPKT ? { maxPacketBytes: MAXPKT } : {});
 // Kirbys 5.. must not pause (run.mjs pauseSlots: the pause area map traps
@@ -155,7 +159,8 @@ async function run(name, cfg, scenarioOpts = {}) {
 
 async function run1(name, cfg, scenarioOpts = {}) {
     const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600), kirbyAddr: KIRBY }, scenarioOpts)));
-    cfg = Object.assign({}, cfg, { seats: cfg.seats || SEATS, hostOpts: Object.assign({}, HOST_OPTS, cfg.hostOpts || {}), kfCount: cfg.kfCount || KF_COUNT,
+    cfg = Object.assign({}, cfg, { seats: cfg.seats || SEATS, hostOpts: Object.assign({}, HOST_OPTS, cfg.hostOpts || {}),
+                                   kfCount: Math.min(cfg.kfCount || KF_COUNT, KF_COUNT), kirbys: cfg.kirbys ?? KIRBYS,
                                    pauseSlots: cfg.pauseSlots ?? PAUSE_SLOTS });
     const r = await runSession(Object.assign({ name, modulePath: MODULE, rom, scenario: sc }, cfg));
     const s = slim(r);
@@ -205,7 +210,7 @@ const FREE = (SCRIPTED + 300) * PERIOD;   // ms after the session start: free pl
 const HEADLINE = L(120, 30, 0.02, { reorder: 0.02, reorderMs: 30, dup: 0.01 });
 
 const report = { started: new Date().toISOString(), rom: path.basename(ROM), module: MODULE, quick: QUICK, gates: {}, notes: [],
-                 slots: SLOTS, maxDevices: MAXDEV, seats: SEATS, devices: DEVICES, copies: COPIES, maxPacket: MAXPKT, kirbyAddr: '0x' + KIRBY.toString(16), kfCount: KF_COUNT };
+                 slots: SLOTS, maxDevices: MAXDEV, seats: SEATS, devices: DEVICES, copies: COPIES, maxPacket: MAXPKT, kirbyAddr: '0x' + KIRBY.toString(16), kfCount: KF_COUNT, kirbys: KIRBYS };
 
 // ---------------------------------------------------------------------------
 async function main() {
@@ -421,7 +426,7 @@ async function main() {
         const churnOk = ch.some((x) => x.what === 'dead') && ch.some((x) => x.why === 'back') && ch.some((x) => x.what === 'bye')
             && ch.some((x) => x.what === 'admit' && x.slot === -1) && churn.host.tel.seatFull > 0 && churn.coverage.humansMax === 4;
         // --- N devices (a wide module, eight seats) ---
-        const wide = [];
+        const wide = [], nCountTrace = [];
         let wideOk = true, wideText = '';
         if (DEVICES > 4) {
             const N = DEVICES;
@@ -453,11 +458,26 @@ async function main() {
                 guests: guestsN(N).map((g) => (g.dev === 1 ? Object.assign(g, { leave: B + 1500, rejoin: B + 2600 }) : g.dev === 2 ? Object.assign(g, { leave: B + 1200, rejoin: B + 2000 }) : g)) });
             const nAdm = nReuse.churn.filter((x) => x.what === 'admit' && x.why === 'hi');
             const nReuseOk = nAdm.length === 2 && nAdm[0].dev === 2 && nAdm[0].slot === 2 && nAdm[1].dev === 1 && nAdm[1].slot === 1;
-            wide.push(nRun, nRew, nTwo, nChurn, nReuse);
-            wideOk = wide.every(okRun) && nChurnOk && nReuseOk && nRun.coverage.humansMax === N && nTwo.coverage.humansMax === nl + 1;
+            // the live count: 4 Kirbys at power-on (CPU KIRBYS 3), people
+            // past them get Kirbys made in play; the host's setting to 6
+            // (sealed EV_KIRBYS) and back; three guests leave, so the count
+            // shrinks to the setting -- never below a person's Kirby
+            const nCount = await run(`R13-${N} count rising: 4 Kirbys at power-on, ${N} people, CPU KIRBYS 6 then 4, three leave @120ms`, { link: HEADLINE, durationFrames: QUICK ? 6000 : 9000,
+                kirbys: 4, storyNormal: true,
+                guests: guestsN(N).map((g, i) => Object.assign(g, { join: B + 200 + 300 * i }, g.dev >= N - 3 ? { leave: B + 4500 + 100 * (g.dev - N + 3) } : {})),
+                onHostFrame: (h, f) => {
+                    if (f === B + 3000) h.M._PortLnEvent(10, 6, 0, 0, 0);
+                    if (f === B + 4000) h.M._PortLnEvent(10, 4, 0, 0, 0);
+                } });
+            nCountTrace.push(...(nCount.kirbysTrace || []));
+            const peakK = Math.max(...nCountTrace.map((x) => x[1]));
+            const nCountOk = okRun(nCount) && peakK >= N && nCount.kirbysEnd === Math.max(4, N - 3) && nCount.coverage.humansMax === N;
+            wide.push(nRun, nRew, nTwo, nChurn, nReuse, nCount);
+            wideOk = wide.every(okRun) && nChurnOk && nReuseOk && nCountOk && nRun.coverage.humansMax === N && nTwo.coverage.humansMax === nl + 1;
+            const countText = `; count rising ${nCountOk ? 'ok' : 'NOT ok'}: Kirbys over time ${nCountTrace.map((x) => `f${x[0]}:${x[1]}`).join(' ')}, at the end ${nCount.kirbysEnd} (want ${Math.max(4, N - 3)}), seat waits ${JSON.stringify(nCount.seatWaits || [])}`;
             rs.push(...wide);
             wideText = `; ${N} devices: churn ${nChurnOk ? 'ok' : 'NOT ok'} (${nCh.map((x) => `${x.what}${x.why ? '(' + x.why + ')' : ''} dev ${x.dev}${x.slot !== undefined ? ' slot ' + x.slot : ''}${x.seat !== undefined ? ' seat ' + x.seat : ''} @f${x.f}`).join(', ')}; refused while full ${nChurn.host.tel.seatFull}; most people ${nChurn.coverage.humansMax}), ` +
-                `slot reuse ${nAdm.map((x) => `device ${x.dev} back -> slot ${x.slot}`).join(', ')} (${nReuseOk ? 'each its own' : 'NOT its own'}); seat waits ${JSON.stringify(nChurn.seatWaits || [])}`;
+                `slot reuse ${nAdm.map((x) => `device ${x.dev} back -> slot ${x.slot}`).join(', ')} (${nReuseOk ? 'each its own' : 'NOT its own'}); seat waits ${JSON.stringify(nChurn.seatWaits || [])}` + countText;
         }
         const owners = (r) => r.owners.map((o) => (o < 0 ? 'cpu' : `${o >> 2}.${o & 3}`)).join(' ');
         report.gates.R13 = {
@@ -787,7 +807,7 @@ function markdown(R) {
     let s = `# Online local multiplayer: proof-of-concept rig report\n\n`;
     s += `Generated by \`node tools/netproof.mjs\` (${R.quick ? 'QUICK mode' : 'full'}) on ${R.finished}, ${R.wallSec} s wall. ROM: the player's own (${R.rom}); module ${path.relative(ROOT, R.module)}.\n`;
     s += `Every number below is measured by this run on a virtual clock (seeded, reproducible); nothing is cited.\n\n`;
-    s += `Module: ${R.slots} Kirby slots, ${R.maxDevices} devices; room seats ${R.seats}; ${R.kfCount} keyframes; two-device gates run with ${R.devices} devices; sealed-stream redundancy ${R.copies ? R.copies + ' copies, then on the ack timeout' : 'until acked'}${R.maxPacket ? ', packets at most ' + R.maxPacket + ' B' : ''}; Kirby array ${R.kirbyAddr}.\n\n## Gates\n\n`;
+    s += `Module: ${R.slots} Kirby slots, ${R.maxDevices} devices; room seats ${R.seats}; ${R.kfCount} keyframes; ${R.kirbys ? R.kirbys + ' Kirbys at power-on; ' : ''}two-device gates run with ${R.devices} devices; sealed-stream redundancy ${R.copies ? R.copies + ' copies, then on the ack timeout' : 'until acked'}${R.maxPacket ? ', packets at most ' + R.maxPacket + ' B' : ''}; Kirby array ${R.kirbyAddr}.\n\n## Gates\n\n`;
     s += md(Object.entries(R.gates), [['gate', ([g]) => g], ['verdict', ([, v]) => `**${v.verdict}**`], ['numbers', ([, v]) => (v.text || '').replace(/\|/g, '/')]]);
     if (R.gates.R2) {
         s += `\n## R2 runs\n\n`;

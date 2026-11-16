@@ -568,7 +568,8 @@
                     banner(mine > 0 ? 'You are ' + slotName(mine) : 'You are in - waiting for a free Kirby', 2500);
                 }
                 /* seat wait (telemetry): from the host's yes to this device's Kirby playing */
-                if (S.accept && S.seatWaitFrom && M._PortLnSeatSlot(M._PortLnSelf(), 0) > 0) {
+                var sl = S.accept && S.seatWaitFrom ? M._PortLnSeatSlot(M._PortLnSelf(), 0) : -1;
+                if (sl > 0 && (!M._PortPocKirbysNow || M._PortPocKirbysNow() > sl)) {
                     S.stats.seatWaitMs = Math.round(nowMs() - S.seatWaitFrom);
                     S.seatWaitFrom = 0;
                 }

@@ -137,3 +137,60 @@ at the end of the block. Everything else keeps its name and position.
   16 gates, none FAIL.
 - **The w8 module under today's 4-wide rig** (scratch copy reading the Kirby
   address from the environment): 16 gates, none FAIL.
+
+# Stages 2 and 3: the wire, the hub, the page (branch `eight-wire`)
+
+## The sealed record on the wire (web/ln_session.js)
+
+Per frame: `u8 flags`, `[u8 nev]`, `[u8 mask 4..11]`, `[u8 mask 12..19]`,
+`u16` keys of every listed slot in slot order, `[u32 lo, u32 hi]`,
+`nev x 17` bytes of events.  Flags: bits 0-3 slots 0..3 have keys, bit 4
+hashed, bit 5 events, **bit 6** the mask byte for slots 4..11 follows, **bit
+7** the one for slots 12..19.  A slot with no key pressed is not listed, so
+a record whose slots 4.. are idle -- every record of the 4-Kirby module --
+is the same bytes as before bits 6 and 7 meant anything
+(`tools/ln_wire_test.cjs` checks this against a copy of the old encoder, and
+round-trips 8- and 16-slot records).  Eight held pads: 18 B a record.
+
+On a module with more than 4 slots the engine adapter (`wideCalls`, shared
+by the page and the rig) reads `PortLnSealedGetN` and writes
+`PortLnSealedN`; the 4-Kirby module keeps `PortLnSealedGet` /
+`PortLnSealed4`.  `HostHub` calls `PortLnSetSeatSlots(seats)` (the room's:
+8 in an 8-player game) and numbers devices 1 .. min(seats,
+`PortLnMaxDevices`) - 1.
+
+## Bounded redundancy (HostSession opts.copies, opts.maxPacketBytes)
+
+`copies: 0` (the 4-Kirby module, unchanged): every record from the guest's
+ack on, in every packet, until acked.  `copies: 4` (8-player games): each
+record in 4 consecutive packets, then not again unless the guest's ack (its
+contiguous sealed frontier, in every input packet: the NACK) is still on it
+one retransmit timeout after its last copy; then everything from the ack
+goes again (up to 64 records / `maxPacketBytes` 1100 B) and the timeout
+doubles until the ack moves.  Timeout: srtt + 4 rttvar + 2 frames of the
+ack's round trip, 60..1000 ms, Karn's rule.  Until a guest acks its join or
+repair image the old rule holds.  Rig gate R17 proves it under 10% loss
+with 150 ms bursts and under 30% loss, with a no-retransmit ablation.
+
+## Modules
+
+8-player games run on the existing 16-Kirby module (katam16.wasm); see the
+branch report for the w8-vs-16 numbers.  Its keyframes are 940 KiB: 24 do
+not fit its 192 MiB heap (PortLnStart or the image buffer fails), so the
+page (and the rig, `--kf-count`) keep 16 there: 240 frames of history.
+
+The sim id names the module (`KATAM_SIM16` = `KATAM_SIM` + `.k` + the
+16-Kirby wasm's id; tools/stamp_build.py).  A joiner on the other module
+reloads into it with `?mod=16&join=CODE` (or `?mod=4`), once per code a
+minute, when the invite link (`mod=16`), the public list (`mod`), the
+room's version gate (`error version sim`, whose `room` is the other
+module's id) or the host (`bad` with `mod`) says so.
+
+## Menus
+
+ONLINE has a fourth row (platform/online_ui.c `PORT_OUI_ROW_OTHER_MODULE`):
+HOST 8 PLAYERS on the ordinary module, 4 PLAYER GAMES on the 16-Kirby one;
+A pushes `PORT_OUI_EV_OTHER_MODULE` and the page reloads on the other module
+(`katamOnline.otherModule()` is the same from JS).  On the 16-Kirby module
+MULTIPLAYER > ONLINE is open (its games hold 8: `PortOuiSeats()`); LOCAL
+stays refused there.

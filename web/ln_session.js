@@ -612,7 +612,8 @@
             if (hs.slot < 0) hs.slot = this.e.freeSlots() > 0 ? this.e.seatRequest(hs.dev, 0, 1) : -1;
             // seat wait: from its arrival to its Kirby playing (a slot past the
             // live count waits for its Kirby to be made)
-            if (hs.seatedAt === null && hs.slot >= 0 && this.e.slotOwner && this.e.slotOwner(hs.slot) === hs.dev * 4) {
+            if (hs.seatedAt === null && hs.slot >= 0 && this.e.slotOwner && this.e.slotOwner(hs.slot) === hs.dev * 4
+                && (!this.e.kirbysNow || this.e.kirbysNow() > hs.slot)) {
                 hs.seatedAt = this.clock();
                 hs.st.seatWaitMs = Math.round(hs.seatedAt - hs.addedAt);
                 hs.st.seatSlot = hs.slot;
@@ -679,6 +680,8 @@
         var n = M._PortLnSlots();
         eng.slots = function () { return n; };
         eng.maxDevices = function () { return M._PortLnMaxDevices ? M._PortLnMaxDevices() : 4; };
+        // the Kirbys in play (a seat past them waits for its Kirby to be made)
+        if (M._PortPocKirbysNow) eng.kirbysNow = function () { return M._PortPocKirbysNow(); };
         if (M._PortLnSetSeatSlots) eng.setSeatSlots = function (k) { return M._PortLnSetSeatSlots(k); };
         if (n <= 4 || !M._PortLnSealedGetN || !M._PortLnSealedN) return eng;
         var wb = M._malloc(4 * (12 + n)), kb = M._malloc(2 * n);

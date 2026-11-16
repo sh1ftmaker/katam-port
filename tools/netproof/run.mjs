@@ -32,6 +32,11 @@
 // map, which keeps four players (game/src/pause_area_map.c indexes its
 // kirbySprites[4] by the pauser) and traps: a known stage-4/5 gap, not the
 // netcode's.  Default: no limit.
+// c.kirbys: a wide module's Kirby count at power-on (Module.portKirbys, the
+// page's CPU KIRBYS setting + 1; platform/web/host_web.c); without it a wide
+// module runs all its slots (16 on katam16).  c.storyNormal: the host seals
+// gAIKirbyState = NORMAL at the session's first frame, so the live count may
+// change in play (platform/wide.c CanChange: not before that story stage).
 import { createInstance } from './instance.mjs';
 import { Scheduler, Link } from './link.mjs';
 import { HostHub, GuestSession, engineOf, PERIOD } from './session.mjs';
@@ -54,12 +59,13 @@ export async function runSession(cfg) {
         seed: 1, link: {}, host: {}, guest: {}, kfEvery: 15, kfCount: 24, flags: 0,
         startFrame: BOOT_END, joinFrame: null, durationFrames: 6000, forceRewind: null,
         corrupt: [], lockstep: false, renderGuest: false, dumpAt: null, maxWallMs: 30 * 60 * 1000,
-        guests: null, hostSeats: [], hostCards: [], deadMs: DEAD_MS, pauseSlots: Infinity,
+        guests: null, hostSeats: [], hostCards: [], deadMs: DEAD_MS, pauseSlots: Infinity, kirbys: null, storyNormal: false,
     }, cfg);
+    const withKirbys = (pre) => (c.kirbys ? (Mod) => { Mod.portKirbys = c.kirbys; if (pre) pre(Mod); } : pre);
     const hostCfg = Object.assign({ rate: 60, drift: 0, freezes: [] }, c.host);
     const sc = c.scenario;
     const wall0 = performance.now();
-    const res = { name: c.name, cfg: summaryCfg(c), events: [], coverage: {}, mismatches: [], corrupt: [], churn: [] };
+    const res = { name: c.name, cfg: summaryCfg(c), events: [], coverage: {}, mismatches: [], corrupt: [], churn: [], kirbysTrace: [] };
 
     // --- host: boots alone through the menus, local-multiplayer on ---
     // menus: 'session' (default: off for the boot, on from the session start, so
@@ -67,7 +73,7 @@ export async function runSession(cfg) {
     const menus = c.menus || sc.menus || 'session';
     let bootT = 0, hostClockF = () => bootT;
     const host = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'host', menus: menus === 'boot' ? 1 : 0,
-                                        audio: c.hostAudio || null, clock: () => hostClockF(), modulePre: c.hostModulePre || null });
+                                        audio: c.hostAudio || null, clock: () => hostClockF(), modulePre: withKirbys(c.hostModulePre || null) });
     if (c.hostPre) c.hostPre(host);
     host.M._PortLmpSetHumans(sc.localmp || 2);
     for (const e of sc.events) if (e.f < c.startFrame) {
@@ -88,6 +94,7 @@ export async function runSession(cfg) {
         throw new Error('host PortLnStart failed');
     host.M._PortLmpSetHostKeys(1, 0);
     if (c.rooms) host.M._PortLnEvent(7, 1, 0, 0, 0);
+    if (c.storyNormal) { host.M._PortLnEvent(4, 0x0203AD2C, 0x2C, 0, 0); host.M._PortLnEvent(4, 0x0203AD2D, 0x01, 0, 0); }   // gAIKirbyState 300
     const S = host.frame();
     const joinFrame = c.joinFrame ?? S;
     const endFrame = S + c.durationFrames;
@@ -128,7 +135,7 @@ export async function runSession(cfg) {
     async function startGuest(g) {
         g.inst = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: g.name, render: c.renderGuest && g.dev === 1,
                                         audio: (g.dev === 1 ? c.guestAudio : c.guestAudioN) || null, clock: () => sch.now * (1 + g.cfg.drift),
-                                        modulePre: c.guestModulePre || null });
+                                        modulePre: withKirbys(c.guestModulePre || null) });
         if (c.guestPre) c.guestPre(g.inst, g.dev);
         if (!g.inst.M._PortLnStart(2, c.kfEvery, c.kfCount, c.guestFlags ?? (c.flags | F_HASH_EVERY)))
             throw new Error('guest PortLnStart failed (memory for keyframes?)');
@@ -350,6 +357,10 @@ export async function runSession(cfg) {
                 if (pt !== lastCardTrace) { lastCardTrace = pt; res.cardTrace.push({ f: host.frame(), v: pt }); }
             }
             observeHost();
+            if (host.M._PortPocKirbysNow) {        // the live Kirby count, as it changes
+                const k = host.M._PortPocKirbysNow();
+                if (!res.kirbysTrace.length || res.kirbysTrace[res.kirbysTrace.length - 1][1] !== k) res.kirbysTrace.push([host.frame(), k]);
+            }
             if (c.onHostFrame) c.onHostFrame(host, host.frame());
             if (host.frame() >= endFrame + 240) done = true;
         }
@@ -450,6 +461,7 @@ export async function runSession(cfg) {
     res.audio = { host: host.audioStats(), guest: G[0] && G[0].inst ? G[0].inst.audioStats() : null };
     res.coverage = Object.assign({}, cov, { rooms: [...cov.rooms].sort((a, b) => a - b), abilities: [...cov.abilities] });
     res.owners = Array.from({ length: seats }, (_, s) => host.M._PortLnSlotOwner(s));
+    res.kirbysEnd = host.M._PortPocKirbysNow ? host.M._PortPocKirbysNow() : null;
     res.seats = seats;
     res.seatWaits = hub.st.seatWaits;
     // the player cards at the end: each live device's view of every slot's
