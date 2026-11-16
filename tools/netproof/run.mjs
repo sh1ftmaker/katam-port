@@ -28,15 +28,15 @@
 // its observers; sc.pad(dev, seat), when a scenario has it, gives the pads.
 // c.hostCards: the host's card changes, likewise.
 // c.pauseSlots: only players in slots below this press START (the others'
-// START is masked).  Kirbys 5.. opening the pause menu reach the pause area
-// map, which keeps four players (game/src/pause_area_map.c indexes its
-// kirbySprites[4] by the pauser) and traps: a known stage-4/5 gap, not the
-// netcode's.  Default: no limit.
+// START is masked).  Default: no limit (players 5.. pause like 1..4 since the
+// pause screens and maps took them: port/wide.h KATAM_PAUSE_MENUS; before
+// that the area map trapped for them).
 // c.kirbys: a wide module's Kirby count at power-on (Module.portKirbys, the
 // page's CPU KIRBYS setting + 1; platform/web/host_web.c); without it a wide
 // module runs all its slots (16 on katam16).  c.storyNormal: the host seals
-// gAIKirbyState = NORMAL at the session's first frame, so the live count may
-// change in play (platform/wide.c CanChange: not before that story stage).
+// gAIKirbyState = NORMAL at the session's first frame, as for a game past the
+// tutorial (the live count changes in the opening too, except while its
+// cutscenes play: platform/wide.c OpeningHolds).
 import { createInstance } from './instance.mjs';
 import { Scheduler, Link } from './link.mjs';
 import { HostHub, GuestSession, engineOf, PERIOD } from './session.mjs';

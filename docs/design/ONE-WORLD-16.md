@@ -214,7 +214,8 @@ nothing is shared or overwritten.
 |---|---|---|---|
 | Colours and sprite memory: the console has 4 Kirby palette pairs and 4 × 2 KiB of OBJ VRAM | `KATAM_KIRBY_TILES` / `KATAM_KIRBY_PAL`, `platform/wide_sprites.c` | **Done (GPU renderer).** Kirbys 4.. have their own 2 KiB of tiles and two palette lines in the sim block (`WIDE_OFF_OBJX`); the render list's sprite hook hands the GPU the real tile and line (`RlSprite.tileX` / `palHi`). OAM still says slot *i* & 3, so the classic (PPU) renderer shows that placeholder past 4. Kirby *i* wears the spray colour of its own `color` (no player-card paint past 4) | colours beyond the sprays; PPU fallback stays a placeholder |
 | Four-row ROM tables: spawn offsets, respawn rooms, CPU path data, pause-map offsets, colour per player | 41 sites, `KATAM_ROM_ROW` | Kirby *i* uses row *i* & 3 | where 16 players spawn and respawn |
-| The console HUD keeps sprites for 4; the pause area map keeps markers for 4 | `hud.c`, `pause_area_map.c` | shows Kirbys 0..3 only | HUD for 16 (the port's party HUD) |
+| The console HUD keeps sprites for 4 | `hud.c` | shows Kirbys 0..3 only | HUD for 16 (the port's party HUD) |
+| The pause maps' Kirby markers (the console keeps 4) | `pause_area_map.c`, `pause_world_map.c`, `KATAM_MAP_MARKERS` | **Done.** Up to 8 markers (OBJ tiles 0x3800..0x4000, below the VRAM heap): every Kirby while there are 8 or fewer, else the pauser, the screen's player, the people, then CPUs. Area map: markers 4..7 at the middles of a room's edges; world map: Kirby *i* at the ROM's spot for *i* & 3, 6 px right. The pause menus visit every Kirby in play (`KATAM_PAUSE_MENUS`), so players 5.. pause, turn pages and close | markers for 9..16 |
 | Kirby-on-Kirby contact (standing on heads, sharing food) is 4 bits per Kirby in a u16 and a u8 mask | `object_collision.c` | only Kirbys 0..3 interact. The rest pass through each other | should 16 Kirbys stack, push, share food? |
 | Screen shake: 4 rooms at once | `code_0806F780.c` | at most 4 rooms shake | none (cosmetic) |
 | Collision lists: 32 objects per kind per room, unchecked | `code_0806F780.c` | past 31 an object skips collision that frame (counted; never reached in the soaks: peak 12) | none, if a real bound is added |
@@ -278,8 +279,9 @@ experimental settings section."*
 - **Live count (wide build only, `platform/wide.c` "The live count").**
   `gPortSim->wideCtl.target` is simulation state, set by a frame-stamped
   input (`kirbys FRAME N` in a recording; the host schedules it). Once a
-  frame, in ordinary story play (not the title, demo, intro walk, a pause, a
-  door), one Kirby joins (made as the play start makes one, its brain, then
+  frame, in story play (not the title, demo, a pause, a door, nor the
+  opening's cutscenes: `OpeningHolds`, below NORMAL an in-game interlude or
+  player 1 in the hub), one Kirby joins (made as the play start makes one, its brain, then
   the respawn route to player 1) or leaves (the last one: carried to
   player 1 unless it shares a room with a Kirby that stays, then its owned
   objects and its two tasks destroyed, `gNumKirbys` down). Play starts with

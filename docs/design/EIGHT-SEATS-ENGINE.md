@@ -222,3 +222,41 @@ A pushes `PORT_OUI_EV_OTHER_MODULE` and the page reloads on the other module
 (`katamOnline.otherModule()` is the same from JS).  On the 16-Kirby module
 MULTIPLAYER > ONLINE is open (its games hold 8: `PortOuiSeats()`); LOCAL
 stays refused there.
+
+# Before publishing: pause, the opening, W0 (branch `eight-fix`)
+
+**Players 5..16 pause.**  START by a player in slot 4.. trapped: the area
+map read `roomInfos[pauser]` from an array of four (a NULL or garbage
+room info).  Behind it, the pause menus (`gPauseMenus`, one per Kirby in
+the wide area) were set up, read and closed for 0..3 only, so such a pauser
+could not close the pause, and a screen whose own player is 5.. (rooms
+mode) had no menu to turn pages with.  Now `KATAM_PAUSE_MENUS` (port/wide.h)
+makes the pause screens' loops visit every Kirby in play, and the area and
+world maps keep `KATAM_MAP_MARKERS` (8) markers: every Kirby up to eight,
+else the pauser, the screen's own player, the other people, then CPU Kirbys
+(`PortWideMapMarkers`).  On the area map markers 4..7 stand at the middles
+of a room's edges (the console's four at its corners), each in its Kirby's
+own colours (GPU renderer); on the world map Kirby i stands at the ROM's
+spot for i & 3, 6 px to the right.  4 at N = 4: the default build and W0
+are the console's code.  The rig no longer masks START for slots 4..
+(`--pause-mask` brings the mask back).
+
+**The opening.**  The live count used to change only from NORMAL (300).  It
+now changes in the opening too, except while the opening's cutscenes play
+(`platform/wide.c OpeningHolds`: an in-game interlude, or player 1 in the
+hub 0x321 below NORMAL); a Kirby made then is made as the start makes
+Kirbys 1..3 and copies player 1 in the tutorial.  A seat past the count on a
+fresh file is given within a second (browser `eight`: about 300 ms at story
+stage 100), and CPU KIRBYS changes the count on a fresh file.  A second hold
+sat behind it: once player 1 leaves the tutorial the CPU Kirbys walk to the
+hub and wait there for the opening cutscene, and a join of a Kirby in the
+hub waits ("the story has it", `localmp.c Scripted`) -- with player 1 warped
+on, until NORMAL.  Kirbys 1..3 are the story's and keep that rule (as in the
+default build); a held join of slot 4.. now has its Kirby carried from the
+hub to player 1 and goes ahead once it arrives (`FetchFromHub`: about 10
+frames).  The rig leaves the scenario's story stage alone (`--story-normal`
+seals NORMAL as before).
+
+**W0.**  `tools/wide_unrelocate.py` maps the human-slot layer's fields
+(`gPortSim->lmpw`) back into the default build's four-slot fields, from
+`simfield` lines in the KATAM_WIDE_MAP file; nothing is masked.  19/19.

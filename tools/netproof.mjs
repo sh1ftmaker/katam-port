@@ -29,6 +29,9 @@
 //                   the 4-Kirby one (what the page does)
 //   --max-packet B  no sealed packet larger than B bytes (default 1100 with
 //                   --copies, else none)
+//   --story-normal  the host seals gAIKirbyState NORMAL at the session's
+//                   first frame (default: the scenario's early story stage)
+//   --pause-mask    players 5.. do not press START (default: everyone may)
 // The Kirby address the scenario pokes comes from the module (its slot
 // count: scenario.mjs kirbyAddrOf), or KATAM_KIRBY_ADDR.
 import fs from 'fs';
@@ -82,19 +85,21 @@ const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 16 : 24);
 // eight people have eight Kirbys from the start, as an 8-player game whose
 // count has risen (R13-N "count rising" starts at 4 instead)
 const KIRBYS = +flag('kirbys', SLOTS > 4 ? SEATS : 0) || null;
-// The scenario's save is early in the story (gAIKirbyState 100): there a
-// person joining mid-game into slot 4.. is held until "that Kirby is with
-// player 1", and Kirbys are made in play only from NORMAL (300) on
-// (platform/localmp.c, platform/wide.c CanChange).  On a wide module the
-// host seals NORMAL at the session's first frame (run.mjs storyNormal), as
-// for a game past the tutorial; --early-story leaves it (joins past slot 3
-// then wait, identically on every device)
-const STORY_NORMAL = SLOTS > 4 && !has('early-story');
+// The scenario's save is early in the story (gAIKirbyState 100).  Joins past
+// slot 3 and the live count work there as in the rest of the game (platform/
+// wide.c OpeningHolds: only the opening's cutscenes hold them; localmp.c
+// FetchFromHub: a Kirby 4.. the opening parked in the hub is brought to
+// player 1 for its join), so the story is left as it is.  --story-normal seals NORMAL (300) at the session's first
+// frame (run.mjs storyNormal), as for a game past the tutorial (the old
+// default on a wide module; --early-story, its opposite, is still accepted)
+const STORY_NORMAL = SLOTS > 4 && has('story-normal');
 const MAXPKT = +flag('max-packet', COPIES ? 1100 : 0);
 const HOST_OPTS = COPIES ? { copies: COPIES, maxPacketBytes: MAXPKT } : (MAXPKT ? { maxPacketBytes: MAXPKT } : {});
-// Kirbys 5.. must not pause (run.mjs pauseSlots: the pause area map traps
-// for them -- not the netcode's); --pause-all lets them
-const PAUSE_SLOTS = has('pause-all') || SLOTS <= 4 ? Infinity : 4;
+// Every player may pause (the pause screens and maps take players 5..16:
+// port/wide.h KATAM_PAUSE_MENUS, KATAM_MAP_MARKERS).  --pause-mask brings
+// back the old START mask for slots 4.. (run.mjs pauseSlots); --pause-all,
+// its opposite, is still accepted
+const PAUSE_SLOTS = has('pause-mask') && SLOTS > 4 ? 4 : Infinity;
 const guestsN = (n, extra = {}) => Array.from({ length: n - 1 }, (_, i) => Object.assign({ dev: i + 1 }, extra));
 const SCRIPTED = SCRIPTED_END - BOOT_END;          // frames of scripted scenario after the session starts
 const MATRIX_FRAMES = QUICK ? SCRIPTED + 1800 : SCRIPTED + 3600;
