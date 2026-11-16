@@ -119,6 +119,26 @@ static void AddPoke(u32 frame, u32 addr, u16 value)
     }
 }
 
+/* Tests only: `ability FRAME SLOT N` gives Kirby SLOT copy ability N at the
+ * latch of FRAME the way the game does when it ends an ability change (the
+ * ability's animation tables and palette, PortTestGiveAbility in warp.c) --
+ * a poke of the ability byte alone leaves the normal Kirby's tables, which
+ * the ability's code then indexes with its own variants.  Recorded only by
+ * hand-written recordings (tests/wide_abilities.sh). */
+struct AbilityEv { u32 frame; u8 slot, ability; };
+static struct AbilityEv sAbilities[96];
+static u32 sNumAbilities;
+
+static void AddAbility(u32 frame, u8 slot, u8 ability)
+{
+    if (sNumAbilities < sizeof sAbilities / sizeof sAbilities[0]) {
+        sAbilities[sNumAbilities].frame = frame;
+        sAbilities[sNumAbilities].slot = slot;
+        sAbilities[sNumAbilities].ability = ability;
+        sNumAbilities++;
+    }
+}
+
 static void AddHuman(u32 frame, u8 slot, u8 on)
 {
     u32 i;
@@ -307,6 +327,7 @@ long PortInputLogLoad(const char *text, u32 len)
     sNumHumans = 0;
     sNumPaints = 0;
     sNumPokes = 0;
+    sNumAbilities = 0;
 
     while (p < end) {
         char line[160];
@@ -356,6 +377,12 @@ long PortInputLogLoad(const char *text, u32 len)
             sKeys[last++] = mask;
         } else if (sscanf(line, "poke16 %u %x %x", &a, &b, &c) == 3) {
             AddPoke(a, b, (u16)c);
+        } else if (sscanf(line, "ability %u %u %u", &a, &b, &c) == 3) {
+            if (b >= KATAM_KIRBYS || c > 26) {
+                PortError("[katam-port] replay: bad ability line: %s", line);
+                return -1;
+            }
+            AddAbility(a, (u8)b, (u8)c);
         } else if (sscanf(line, "human %u %u %u", &a, &b, &c) == 3) {
             if (b < 1 || b >= LP || c > 1) {
                 PortError("[katam-port] replay: bad human line: %s", line);
@@ -965,6 +992,10 @@ void PortInputLogLatch(u32 frame, u16 *keys)
             PortLog("[katam-port] poke16: f%u %08X = %04X", (unsigned)frame,
                     (unsigned)sPokes[i].addr, (unsigned)sPokes[i].value);
         }
+
+    for (i = 0; i < sNumAbilities; i++)
+        if (sAbilities[i].frame == frame)
+            PortTestGiveAbility(sAbilities[i].slot, sAbilities[i].ability);
 
     /* Slots changing hands this frame (drop in / drop out), before the pads
      * so a joiner's keys count from the frame they joined. */

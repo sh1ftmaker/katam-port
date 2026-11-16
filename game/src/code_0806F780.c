@@ -939,6 +939,14 @@ void RequestScreenShake(u16 a1, struct ObjectBase *a2) {
                 else if (!Macro_0806FE64(v3, 3))
                     v10 = 3;
             }
+#if KATAM_WIDE
+            /* PORT: four shaking rooms at once, all with a Kirby in them, and
+             * a fifth asks: unk0[-1], eight bytes before the task's struct
+             * (ONE-WORLD-16.md "Slot audit").  Four Kirbys cannot be in five
+             * rooms; more can.  The fifth room does not shake. */
+            if (v10 < 0)
+                return;
+#endif
             v6 = &v3->unk0[v10];
             v6->unk6 = a1;
             v6->flags = 0x100;
@@ -1947,7 +1955,12 @@ void sub_080724C4(void) {
             objBase->y = kirby->base.y;
             if (objBase->flags & 0xC0000) {
                 unk6C = objBase->unk6C;
-                if (unk6C->base.header.kind != 1
+                /* PORT-FORK: NULL when the inhale took a block tile
+                 * (object_collision.c sets 0x80000 with no object).  The
+                 * console reads the BIOS at 0 and wasm reads 0: neither is a
+                 * kind of 1, so the test below is true; natively page zero is
+                 * unmapped (as sub_080720F8 above). */
+                if (unk6C == NULL || unk6C->base.header.kind != 1
                     || (unk6C->type != OBJ_ABILITY_STAR_1 && unk6C->type != OBJ_ABILITY_STAR_2))
                     objBase->flags |= 0x200;
             }
@@ -3129,6 +3142,14 @@ void sub_08075DB0(struct Kirby *kirby) {
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
+/* PORT-FORK: the Master sword's hat rows, by Kirby's animation (0..0xB8).
+ * The ROM's table runs on past gUnk_083500D8's 54 rows into gUnk_083501B0
+ * (0x083500D8 + 54 * 4 = 0x083501B0), which the code reads -- the warp-star
+ * ride is row 0x5A; the port's tables are separate arrays, so it read past
+ * the end into whatever the linker put there (ASan, tests/wide_abilities.sh;
+ * the same with the console's own Kirbys 1..3).  As ROM_NEXT_ROW above. */
+#define MASTER_HAT_ROW(i) ((i) < 54 ? gUnk_083500D8[i] : gUnk_083501B0[(i) - 54])
+
 void sub_08075EDC(void) {
     struct ObjectBase *tmp = TaskGetStructPtr(gCurTask), *objBase = tmp;
     struct Sprite *sprite = &objBase->sprite;
@@ -3172,11 +3193,11 @@ void sub_08075EDC(void) {
                     }
                 }
             } else {
-                if (sprite->animId != gUnk_083500D8[kirby->animationIndex].animId || sprite->variant != gUnk_083500D8[kirby->animationIndex].variant) {
-                    sprite->animId = gUnk_083500D8[kirby->animationIndex].animId;
-                    sprite->variant = gUnk_083500D8[kirby->animationIndex].variant;
+                if (sprite->animId != MASTER_HAT_ROW(kirby->animationIndex).animId || sprite->variant != MASTER_HAT_ROW(kirby->animationIndex).variant) {
+                    sprite->animId = MASTER_HAT_ROW(kirby->animationIndex).animId;
+                    sprite->variant = MASTER_HAT_ROW(kirby->animationIndex).variant;
                     if (kirby->animationIndex == 0x5A)
-                        sprite->variant = gUnk_083500D8[kirby->animationIndex].variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
+                        sprite->variant = MASTER_HAT_ROW(kirby->animationIndex).variant + KATAM_ROM_ROW(kirby->base.unk56); /* PORT: four per-player variants; Kirbys 4.. (kirby.c sub_0803F790) */
                     if (kirby->animationIndex == 0x2E) {
                         sprite->variant = gUnk_08350DC6[kirby->base.counter];
                         objBase->sprite.unk1C = 0x10;
@@ -9650,7 +9671,11 @@ struct Unk_0808859C {
     u16 roomId;
     u16 unk2;
     s16 unk4;
+#if KATAM_KIRBYS > 8
+    u16 unk6;   /* PORT: a bit a Kirby; the u8 lost 8.., which were sent again every frame */
+#else
     u8 unk6;
+#endif
 }; /* size = 0x8 */
 
 void sub_0808781C(void) {

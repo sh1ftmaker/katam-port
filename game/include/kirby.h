@@ -164,6 +164,7 @@ extern const struct AnimInfo gUnk_0834FBCC[];
 extern const struct AnimInfo gUnk_0834FD70[];
 extern const struct AnimInfo gUnk_0834FF14[];
 extern const struct AnimInfo gUnk_083500D8[];
+extern const struct AnimInfo gUnk_083501B0[];  /* PORT-FORK: gUnk_083500D8's rows 54.. (code_0806F780.c MASTER_HAT_ROW) */
 extern const struct AnimInfo gUnk_083502C0[];
 extern const struct AnimInfo gUnk_08350474[];
 extern const struct AnimInfo gUnk_08350620[];

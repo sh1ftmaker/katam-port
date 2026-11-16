@@ -191,6 +191,21 @@
 #define KATAM_ROM_ROW(i) (i)
 #endif
 
+/* KATAM_ROM_CHECK (a debug build, platform/rom_check.c): every place the
+ * game interprets a sprite's animation (sprite.c) first checks its variant
+ * against the ROM's count for that animation and reports one past it.
+ * Nothing in any other build. */
+#ifdef KATAM_ROM_CHECK
+struct Sprite;
+#ifdef __cplusplus
+extern "C"
+#endif
+void PortRomCheckAnim(const struct Sprite *sprite, int site);
+#define PORT_ROM_CHECK_ANIM(sprite, site) PortRomCheckAnim((sprite), (site))
+#else
+#define PORT_ROM_CHECK_ANIM(sprite, site) ((void)0)
+#endif
+
 #if KATAM_WIDE
 
 /* Sizes of the console structures, asserted against the real types in
@@ -207,8 +222,9 @@
 /* struct Unk_020382D0 with every inner [4] widened (main.h). */
 #define WIDE_SZ_INPUT      (((8u + 6u * KATAM_KIRBYS + 0x80u + 0x80u * KATAM_KIRBYS \
                               + 3u * KATAM_KIRBYS + 2u) + 3u) & ~3u)
-/* struct Unk_03000510 widened: u8 unk0[N], then the mask (u8 at 4, u16 above). */
-#define WIDE_SZ_FREEZE     (KATAM_KIRBYS <= 4 ? 5u : (KATAM_KIRBYS + 2u))
+/* struct Unk_03000510 widened: u8 unk0[N], then the mask (u8 at 4, u16 above,
+ * u32 at 16: data.h FREEZE_ALL). */
+#define WIDE_SZ_FREEZE     (KATAM_KIRBYS <= 4 ? 5u : KATAM_KIRBYS < 16 ? (KATAM_KIRBYS + 2u) : (KATAM_KIRBYS + 4u))
 
 #define WIDE_AL(x) (((x) + 0xFFu) & ~0xFFu)
 
@@ -314,6 +330,19 @@ struct PortWidePaint {
     u32 dirty;                   /* bit s: slot s's palette to reload         */
 };
 
+/* Riders past an object's rider mask, which is a bit a Kirby in a structure
+ * whose layout is fixed: the level warp star's and the goal star's
+ * StarShared.unkB5 (a u8: Kirbys 8.., warp_star.c) and the eight-direction
+ * cannon's unkBA/unkBB (Kirbys 12.., eight_dir_cannon.c).  Such a Kirby i is
+ * listed here instead: obj[i] is the object's GBA address, 0 for none (a
+ * Kirby rides one thing at a time); the object's reset clears its entries.
+ * Simulation state, after paintw in the padding before the wide area.
+ * Entries 0..7 unused (zero at N = 4, so W0 is unchanged).  platform/wide.c
+ * PortWideRide*. */
+struct PortWideRide {
+    u32 obj[KATAM_KIRBYS];
+};
+
 #endif /* KATAM_WIDE */
 
 /* The human-slot layer's width (port/localmp.h, platform/lmpnet.c): a slot
@@ -380,6 +409,13 @@ void PortWideSetTarget(int n);
 int  PortWideTarget(void);
 u8   PortWideStartKirbys(void);
 void PortWideFrame(void);
+
+/* An object's rider mask with the riders its own bits cannot hold (struct
+ * PortWideRide): `lo` | bit i for each Kirby i >= 8 listed on `star`; Add
+ * lists Kirby i (>= 8) on it, Clear unlists everyone on it. */
+u32  PortWideRideMask(const void *star, u32 lo);
+void PortWideRideAdd(const void *star, u32 i);
+void PortWideRideClear(const void *star);
 
 /* The pause maps' Kirby markers (KATAM_MAP_MARKERS above): fills out[] with
  * the Kirbys that get one, lowest slot first, and returns how many. */

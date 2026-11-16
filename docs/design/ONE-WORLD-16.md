@@ -302,3 +302,122 @@ experimental settings section."*
   netplay links and `?localmp` not followed.
 - **Native**: the default build shows the rows as needing the 16-Kirby
   build; a wide native build applies the setting (or `KATAM_KIRBYS=N`).
+
+## 9. Slot audit: reads and writes that only hold for Kirbys 0..3 (2026-11-16, branch `six-audit`)
+
+A 7-player session trapped on the warp-star ride: `variant + unk56` into an
+animation with four variants (fixed in d1d531e, §5). This section is the
+search for the rest of that family across `game/src` and the platform
+code that mirrors per-player state.
+
+**Method.**
+- *Static.* A taint sweep over `game/src`. Sources: `unk56`,
+  `gLocalPlayerId`, `kirby - gKirbys`, `playerId`/`kirbyIdx` parameters, and
+  loop counters over `gNumKirbys`/`KATAM_KIRBYS`/`PortHumanEnd()`. Sinks:
+  subscripts of tables that are not widened, shifts, and sprite fields
+  (`variant`, `animId`, `palId`, `unk14`, `tilesVram`). The sweep produced
+  253 rows plus 86 callees that take a slot argument. Every row was read and
+  classified; the scripts and their output are in the scratch directory,
+  outside the tree.
+- *Dynamic.* ASan + UBSan (`-fsanitize=address,undefined,bounds-strict`)
+  native katam16 builds, and a new debug option `-DKATAM_ROM_CHECK=ON`
+  (`platform/rom_check.c`, `PORT_ROM_CHECK_ANIM` at the 8 places
+  `sprite.c` interprets an animation). The ROM is one mapped buffer, so
+  ASan cannot see a read past an animation's variants. This check counts
+  each animation's variants from the loaded ROM and reports, with a stack,
+  the first interpretation of each (animId, variant) pair past that count.
+  It was calibrated on the default build: the 19 recordings make no report.
+- *Drivers.* The 19 recordings at 16 Kirbys; `tests/wide_lwarp.sh`; and two
+  new generated suites with 16 local players in rooms mode:
+  - `tests/wide_abilities.sh`: all 26 abilities held by Kirbys 4..15. Each
+    is given by a new test input, `ability FRAME SLOT N` (inputlog.c, then
+    warp.c `PortTestGiveAbility`), which gives the ability as the game
+    does. Each Kirby taps and holds B, uses B with every direction, jumps
+    and attacks, slides, walks and flies. It drops the ability (Select) and
+    swallows what is near. Some Kirbys are on 1 HP, so they die and come
+    back. In the last phase some press R (the cell phone) and L (the warp
+    star home).
+  - `tests/wide_stars.sh`: the level warp star for Kirbys 5, 7, 9, 12 and
+    15 (15 with the Master sword), and the L star home with the Master
+    sword.
+  - Scenario runs for the goal star (rooms 980..982) and both cannons
+    (rooms 126 and 503).
+
+### Findings
+
+Slots: the Kirbys the bug affects. "Exercised": how the site was reached at
+run time; "read" means it was found and checked by reading only.
+
+| site | class | slots | consequence | status | exercised |
+|---|---|---|---|---|---|
+| `code_0806F780.c` RequestScreenShake (~:947) | RAM array of 4 indexed past its end | any, with Kirbys in 5+ rooms | four rooms shake and a fifth asks: `unk0[-1]`, an 8-byte write before the task's struct (IWRAM heap) | **fixed** (wide only): the fifth room does not shake (the §5 placeholder, now safe) | wide_abilities: UBSan `index -1`, then a NULL Kirby in a CPU brain. Clean after the fix |
+| `warp_star.c` StarShared.unkB5 (`STAR_MASK`/`STAR_ADD`/`STAR_RESET`) | u8 bitmask, bit = slot | 8..15 | a level warp star never released a rider 8..15: it stayed in the star's room. The goal star never counted, moved or released such a rider | **fixed** (KATAM_KIRBYS > 8): riders 8.. kept beside the object (`struct PortWideRide`, sim state in the wide padding; zero at N = 4) | wide_stars: before the fix 9, 12 and 15 stayed in room 142; after it they reach 195. Goal star: read (see below) |
+| `eight_dir_cannon.c` EDC_IN (`EDC_HI_*`) | 8+4 bits for 16 Kirbys | 12..15 | people 13..16 could not get in an eight-direction cannon (cannons are on the way forward) | **fixed** (KATAM_KIRBYS > 12): the same side table | scenario (room 503): sanitizer-clean. The launch itself is read only |
+| `code_0806F780.c` struct Unk_0808859C.unk6, sub_0808781C (~:9675) | u8 bitmask, bit = slot | 8..15 | the room-wide send after a boss or cutscene (`sub_0808859C`) never marked Kirbys 8..15 as sent, so it sent them again every frame they stayed | **fixed** (KATAM_KIRBYS > 8): u16 in the struct's padding byte (size unchanged) | read |
+| `scroll_lock.c` unk4 per-Kirby bits (`SL_IN`/`SL_CAM`) | bitmask aliasing | 4..15 | Kirby i ≥ 4's "inside" bit was Kirby i−4's "camera taken" bit, and its camera bit was Kirby i+4's inside bit: one Kirby's entry skipped another's camera setup | **fixed** (KATAM_KIRBYS > 4): Kirbys 4.. use the unused `filler40` (bit i inside, bit 16+i camera) | the 19 recordings (sanitizer only; there is no behaviour check) |
+| `data.h` FREEZE_ALL = 0x8000 | bitmask collision | 15 (N = 16) | bit 15 was both Kirby 15's freeze bit and "everyone": any freeze in Kirby 15's room froze every room's objects | **fixed** (N = 16 only): the mask is a u32 and FREEZE_ALL is 0x10000 (`WIDE_SZ_FREEZE`; the wide area's offsets do not move) | read; the 19 recordings stay clean |
+| `code_0806F780.c` sub_080724C4 (~:1963) | NULL read (not slot-specific) | all, default build too | the inhale hitbox takes a block tile (flag 0x80000 with no object) and reads `unk6C->kind`. The console reads BIOS and wasm reads 0, so neither matches; native segfaulted | **fixed**: a NULL check with the same outcome | wide_abilities (segfault before), and the console's Kirbys 1..3 on the default build |
+| `code_0806F780.c` sub_08075EDC, `MASTER_HAT_ROW` | ROM table read past a C array (not slot-specific) | all, default build too | the Master sword hat indexes gUnk_083500D8 (54 rows) by animation up to 0xB8; in ROM the table runs on into gUnk_083501B0, and the ride is row 0x5A. The port read past the array, into another global | **fixed**: rows 54.. come from gUnk_083501B0, as the ROM | wide_abilities and wide_stars (Master sword riding). ASan global-buffer-overflow before; also with Kirbys 1..3 on the default build |
+| `object_collision.c:214-218` Object.unk90 | u8, 2 bits a slot | 4..15 | Kirbys 4.. never register contact; star stone blocks (`star_stone_block.c:108-111`, 0..3 only) are pushed by 0..3 only | not fixed (rule: who pushes blocks) | read |
+| `kirby.c:6129` Macro_0803E920 | OAM layer by slot | 4..15 | layers 20..31 (others' Kirbys are 16..19): draw order against effects and HUD differs | not fixed (cosmetic) | the 19 recordings |
+| `kirby.c:11389,11415` | speed by slot | 11..15 (7..15 for the second) | the spread after an explosion reverses direction for high slots | not fixed (cosmetic) | read |
+| `code_0800ECAC_2.c:2518` | `(slot + 1) & 3` | 4..15 | a CPU's partner is a Kirby among 0..3 | not fixed (AI quality) | the 19 recordings |
+| `kirby.c` sub_0803F790 and 6 hats (d1d531e) | 4 per-player star variants | 4..15 | Kirby i rides star i & 3 | placeholder (§5) | wide_lwarp, wide_stars |
+| `kirby.c:16334` (stone, `(counter >> 5) + 3` into row 0x34) on the normal Kirby's table (animation 202, 3 variants) | ROM variant past its count (not slot-specific) | all | rom-check report; the console's own Kirbys 1..3 on the default build make the same one with the same moves. It is likely the test's sudden ability change (the stone's code on a table that is not the stone's) | not fixed: allowed by name in wide_abilities | wide_abilities, default-build control |
+
+The fixes add no new placeholders. Everything above that needs a rule is
+already in §5 (Kirby-on-Kirby contact, star colours, HUD, scroll lock,
+cannons). Checked and safe (already widened, or provably 0..3):
+- the pause maps (`KATAM_MAP_MARKERS`);
+- the HUD (`KATAM_HUD_KIRBYS`);
+- palettes and tiles (`KATAM_KIRBY_PAL`/`TILES`, the 41 `KATAM_ROM_ROW`
+  sites, the palette-effect slots);
+- `kirby_cannon.c` (u16, every Kirby);
+- the 74 boss rows;
+- the cutscene triggers (loops of 4 over arrays of 4);
+- the sound macros (`gLocalPlayerId` only);
+- link play, the demo and the sub-games (four at most);
+- `input_devices.c` (players 0..3 by construction);
+- `netsim.c` (4 by loop bound).
+
+### Not exercised at run time
+
+- The goal star with 9+ riders. Generated runs with 7+ Kirbys warped onto
+  it leave some standing beside it, so it never departs; with up to 5
+  Kirbys it works. The rider-mask fix is the same code as the level warp
+  star's (which is exercised).
+- The room-wide send after a boss (`sub_0808781C`). No recording or
+  scenario beats a boss with Kirbys 8.. alive and outside a door.
+- FREEZE_ALL at Kirby 15. Only the 19 recordings and the scenarios run over
+  it; there is no targeted freeze in Kirby 15's room with a check elsewhere.
+- What the eight-direction cannon does for 13..16 after they get in, and
+  what the scroll lock's camera does for 4..15. Both were sanitizer-clean
+  only.
+- Mirrors, doors and bosses with Kirbys 4.. as *people*. The recordings
+  cover them with CPU Kirbys 4..15 (card_boss, players_boss, warp_sweep).
+- Online 8 humans: the rig suites (rig, rig-lwarp, rig-pause, rig-r16,
+  web-on-eight) ran as regressions, with no new 8-human scenario.
+
+### Gates for this class
+
+- `tests/wide_abilities.sh` (all abilities, Kirbys 4..15).
+- `tests/wide_stars.sh` (warp star riders 8.., Master sword; wired into
+  `tools/full_check.sh` as `wide-stars`, building `build/w16n` with
+  `tools/wide_native.sh`).
+- `tests/wide_lwarp.sh` (now sanitizer-aware: it classifies with
+  `tools/wide_sanclass.py`, which also learned upper-case file names and the
+  source's "TODO: UB" marks).
+- With an ASan+UBSan katam16 built with `-DKATAM_ROM_CHECK=ON`, all three
+  plus the 19 recordings report nothing new.
+
+### Gates run at 44b3200
+
+| gate | result |
+|---|---|
+| ASan+UBSan katam16 with `KATAM_ROM_CHECK`: the 19 recordings at 16 Kirbys | 19/19 finish, 0 NEW sanitizer reports (65 known, 37 `gCurLevelInfo[0xFF]`), no rom-check report, no sprite turned away |
+| the same, default build (calibration) | 0 NEW, no rom-check report |
+| `tests/wide_abilities.sh`, `tests/wide_stars.sh`, `tests/wide_lwarp.sh` (sanitizer build) | PASS (wide_stars and wide_abilities failed before the fixes) |
+| `tests/layout_neutral.sh` 38daa09 vs this branch | 19/19 layout-neutral |
+| `tests/wide_w0.sh` (W0) | PASS 19/19, 120,641 frames identical, 304 dumps equal up to layout |
+| `make regress` (native) | as baseline (aim's sim@3318: the known build-directory effect) |
+| full_check: rig, rig-r16, rig-pause, rig-lwarp, web-on-eight, wide-stars, lint | 7 PASS |

@@ -403,6 +403,14 @@ target_compile_definitions(katam PRIVATE PORTABLE NONMATCHING MODERN=1)
 
 set(FORCE_INCLUDES port/prelude.h port/ram_symbols.h port/rom_data.h)
 
+# Debug: check the game's animation-table reads (platform/rom_check.c,
+# port/wide.h PORT_ROM_CHECK_ANIM).  Off in every shipped build.
+option(KATAM_ROM_CHECK "debug: report sprite variants past the ROM's count" OFF)
+if(KATAM_ROM_CHECK)
+  target_compile_definitions(katam PRIVATE KATAM_ROM_CHECK=1)
+  message(STATUS "KATAM_ROM_CHECK: animation variants are checked against the ROM")
+endif()
+
 # More than four Kirbys in one world (docs/design/ONE-WORLD-16.md): unset is
 # the game as it always was; 4..16 moves the per-player tables into the port
 # sim block (platform/port/wide.h) and sizes them for that many Kirbys.  Use a

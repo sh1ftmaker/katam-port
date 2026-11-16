@@ -71,6 +71,29 @@ static void WideLockCamera(u32 unk4)
 #define WIDE_LOCK_CAMERA(unk4)  do { } while (0)
 #endif
 
+/* PORT: the per-Kirby bits of unk4: bit i "inside the rectangle" and bit
+ * 4 + i "camera bounds taken" (sub_0811C7D0), for Kirbys 0..3.  Kirby 4..'s
+ * `1 << i` landed on Kirby i - 4's camera bit and its `0x10 << i` on Kirby
+ * i + 4's inside bit: one Kirby's entry skipped another's camera set-up
+ * (ONE-WORLD-16.md "Slot audit").  With more than four Kirbys, Kirbys 4..
+ * keep theirs in filler40, which the game never uses: bit i inside, bit
+ * 16 + i camera.  Otherwise these are the console's expressions. */
+#if KATAM_KIRBYS > 4
+#define SL_IN(s, i)       ((i) < 4 ? (s)->unk4 & (1u << (i)) : (u32)(s)->filler40 & (1u << (i)))
+#define SL_IN_SET(s, i)   do { if ((i) < 4) (s)->unk4 |= 1u << (i); else (s)->filler40 |= 1u << (i); } while (0)
+#define SL_IN_CLR(s, i)   do { if ((i) < 4) (s)->unk4 &= ~(1u << (i)); else (s)->filler40 &= ~(1u << (i)); } while (0)
+#define SL_CAM(s, i)      ((i) < 4 ? (s)->unk4 & (0x10u << (i)) : (u32)(s)->filler40 & (0x10000u << (i)))
+#define SL_CAM_SET(s, i)  do { if ((i) < 4) (s)->unk4 |= 0x10u << (i); else (s)->filler40 |= 0x10000u << (i); } while (0)
+#define SL_CAM_CLR(s, i)  do { if ((i) < 4) (s)->unk4 &= ~(0x10u << (i)); else (s)->filler40 &= ~(0x10000u << (i)); } while (0)
+#else
+#define SL_IN(s, i)       ((s)->unk4 & (1 << (i)))
+#define SL_IN_SET(s, i)   ((s)->unk4 |= 1 << (i))
+#define SL_IN_CLR(s, i)   ((s)->unk4 &= ~(1 << (i)))
+#define SL_CAM(s, i)      ((s)->unk4 & (0x10 << (i)))
+#define SL_CAM_SET(s, i)  ((s)->unk4 |= 0x10 << (i))
+#define SL_CAM_CLR(s, i)  ((s)->unk4 &= ~(0x10 << (i)))
+#endif
+
 extern const struct AnimInfo gUnk_08357C60[] = {
     { 0x2D1, 2, 0 },
 };
@@ -91,9 +114,9 @@ static void sub_0811C7D0(struct Unk_0811C9D4_0 *scr, u8 a2, u16 a3)
         gCurLevelInfo[a2].unk_S32Vec2_74.x = scr->unk10;
         gCurLevelInfo[a2].unk_S32Vec2_6C.y = scr->unkC;
         gCurLevelInfo[a2].unk_S32Vec2_74.y = scr->unk14;
-        if (!(scr->unk4 & (0x10 << a2)))
+        if (!SL_CAM(scr, a2))
         {
-            scr->unk4 |= 0x10 << a2;
+            SL_CAM_SET(scr, a2);
             gCurLevelInfo[a2].unk90 = scr->unk8;
             gCurLevelInfo[a2].unk94 = scr->unkC;
             gCurLevelInfo[a2].unk98 = scr->unk10;
@@ -106,8 +129,8 @@ static void sub_0811C7D0(struct Unk_0811C9D4_0 *scr, u8 a2, u16 a3)
 
 static void sub_0811C8BC(struct Unk_0811C9D4_0 *scr, u8 a2, u16 a3 __attribute__((unused)))
 {
-    if (!(scr->unk4 & (0x10 << a2))) {
-        scr->unk4 |= 0x10 << a2;
+    if (!SL_CAM(scr, a2)) {
+        SL_CAM_SET(scr, a2);
         if (scr->unk10 - scr->unk8 >= 0xF000)
         {
             if (gCurLevelInfo[a2].unk_S32Vec2_6C.x <= gCurLevelInfo[a2].viewportPosition.x - 0x800)
@@ -518,20 +541,20 @@ static void sub_0811D508(struct Object *scrollLock)
             {
                 if (!(gKirbys[i].base.unkC & 0x8000))
                 {
-                    if (!(p->unk4 & (1 << i)))
+                    if (!SL_IN(p, i))
                     {
-                        p->unk4 |= 1 << i;
+                        SL_IN_SET(p, i);
                         gCurLevelInfo[i].unk1EC = 0;
                     }
                     sub_0811C7D0(p, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
                 }
             }
             else
-                p->unk4 &= ~(1 << i);
+                SL_IN_CLR(p, i);
             if (gKirbys[i].hp <= 0)
             {
                 sub_0811DB48(scrollLock, i);
-                p->unk4 &= ~(0x10 << i);
+                SL_CAM_CLR(p, i);
             }
             if (scrollLock->objTemplate->unk4)
             {
@@ -546,8 +569,8 @@ static void sub_0811D508(struct Object *scrollLock)
         }
         else
         {
-            p->unk4 &= ~(0x10 << i);
-            p->unk4 &= ~(1 << i);
+            SL_CAM_CLR(p, i);
+            SL_IN_CLR(p, i);
         }
     }
     ++scrollLock->base.counter;
@@ -570,9 +593,9 @@ static void sub_0811D68C(struct Object *scrollLock)
                 {
                     if (!(gKirbys[i].base.unkC & 0x8000))
                     {
-                        if (!(p->unk0.unk4 & (1 << i)))
+                        if (!SL_IN(&p->unk0, i))
                         {
-                            p->unk0.unk4 |= 1 << i;
+                            SL_IN_SET(&p->unk0, i);
                             gCurLevelInfo[i].unk1EC = 0;
                         }
                         sub_0811C7D0(&p->unk0, gKirbys[i].base.unk56, scrollLock->objTemplate->unk22);
@@ -580,7 +603,7 @@ static void sub_0811D68C(struct Object *scrollLock)
                     }
                 }
                 else
-                    p->unk0.unk4 &= ~(1 << i);
+                    SL_IN_CLR(&p->unk0, i);
                 if (gKirbys[i].hp <= 0)
                     sub_0811DB48(scrollLock, i);
                 if (scrollLock->objTemplate->unk4)
@@ -595,7 +618,7 @@ static void sub_0811D68C(struct Object *scrollLock)
                 }
             }
             else
-                p->unk0.unk4 &= ~(1 << i);
+                SL_IN_CLR(&p->unk0, i);
         }
     }
     else

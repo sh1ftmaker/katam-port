@@ -12,6 +12,7 @@ Every report is one of:
   NEW        anything else: an out-of-bounds access the wide build introduced.
 Prints the counts and PASS when there are no NEW reports.
 """
+import os
 import re
 import sys
 
@@ -31,7 +32,23 @@ KNOWN = {
     'game/src/kirby.c:23883': 'marked "TODO: UB: out-of-bounds read" in the source',
     'game/src/kirby.c:23884': 'marked "TODO: UB: out-of-bounds read" in the source',
 }
-loc_re = re.compile(r'(game/src/[a-z0-9_]+\.c:\d+)')
+loc_re = re.compile(r'(game/src/[A-Za-z0-9_]+\.c:\d+)')
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_src = {}
+
+
+def marked_ub(loc):
+    """The source marks the line (or the loop above it) as the console's own
+    out-of-bounds read: 'TODO: UB' within the three lines above it.  Keeps the
+    known list right when an edit elsewhere in the file moves the lines."""
+    path, line = loc.rsplit(':', 1)
+    if path not in _src:
+        try:
+            _src[path] = open(os.path.join(ROOT, path), errors='replace').read().split('\n')
+        except OSError:
+            _src[path] = []
+    n = int(line)
+    return any('TODO: UB' in ln for ln in _src[path][max(0, n - 4):n])
 
 
 def main():
@@ -46,7 +63,7 @@ def main():
                 what = ln.split('runtime error:')[1].strip()
             elif 'ERROR: AddressSanitizer' in ln:
                 loc = '?'
-                for nxt in lines[i + 1:i + 6]:
+                for nxt in lines[i + 1:i + 16]:
                     if '#0 ' in nxt:
                         m = loc_re.search(nxt)
                         loc = m.group(1) if m else '?'
@@ -54,7 +71,7 @@ def main():
                 what = ln.split('ERROR: AddressSanitizer:')[1].split(' on ')[0].strip()
             else:
                 continue
-            if loc in KNOWN:
+            if loc in KNOWN or (loc != '?' and marked_ub(loc)):
                 counts['known'] += 1
             elif re.search(r"index 255 out of bounds for type 'LevelInfo \[\d+\]'", what):
                 counts['owner-ff'] += 1

@@ -36,7 +36,7 @@ s32 sub_08153D78(struct Sprite *sprite) {
         const union AnimCmd *base;
 
         base = gSpriteTables->anims[sprite->animId];
-        next = base[sprite->variant];
+        next = base[(PORT_ROM_CHECK_ANIM(sprite, 39), sprite->variant)];
         for (current.words = &next.words[sprite->animCursor];
             // for whateverr command, cmdId is always the first field
             current.getTiles->cmdId < 0;
@@ -45,7 +45,7 @@ s32 sub_08153D78(struct Sprite *sprite) {
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
-                newCursor = base[sprite->variant];
+                newCursor = base[(PORT_ROM_CHECK_ANIM(sprite, 48), sprite->variant)];
                 sprite->animCursor = 0;
                 next = newCursor;
             }
@@ -75,7 +75,7 @@ s32 sub_08153E6C(struct Sprite *sprite, s32 r6) {
     sprite->unk8 &= ~0x4000;
 
     base = gSpriteTables->anims[sprite->animId];
-    next = base[sprite->variant];
+    next = base[(PORT_ROM_CHECK_ANIM(sprite, 78), sprite->variant)];
     while (r6 >= 0) {
         for (current.words = &next.words[sprite->animCursor];
             // for whateverr command, cmdId is always the first field
@@ -88,7 +88,7 @@ s32 sub_08153E6C(struct Sprite *sprite, s32 r6) {
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
-                newCursor = base[sprite->variant];
+                newCursor = base[(PORT_ROM_CHECK_ANIM(sprite, 91), sprite->variant)];
                 sprite->animCursor = 0;
                 next = newCursor;
             }
@@ -782,7 +782,7 @@ s32 sub_08155128(struct Sprite *sprite) {
         const union AnimCmd *base;
 
         base = gSpriteTables->anims[sprite->animId];
-        next = base[sprite->variant];
+        next = base[(PORT_ROM_CHECK_ANIM(sprite, 785), sprite->variant)];
         for (current.words = &next.words[sprite->animCursor];
             // for whateverr command, cmdId is always the first field
             current.getTiles->cmdId < 0;
@@ -791,7 +791,7 @@ s32 sub_08155128(struct Sprite *sprite) {
             if (ret != 1) {
                 if (ret != -1) return ret;
                 base = gSpriteTables->anims[sprite->animId];
-                newCursor = base[sprite->variant];
+                newCursor = base[(PORT_ROM_CHECK_ANIM(sprite, 794), sprite->variant)];
                 sprite->animCursor = 0;
                 next = newCursor;
             }
@@ -824,7 +824,7 @@ s32 sub_0815521C(struct Sprite *sprite, u16 frames) {
     sprite->unk8 &= ~0x4000;
 
     base = gSpriteTables->anims[sprite->animId];
-    next = base[sprite->variant];
+    next = base[(PORT_ROM_CHECK_ANIM(sprite, 827), sprite->variant)];
     while (r6 >= 0) {
         for (current.words = &next.words[sprite->animCursor];
             current.getTiles->cmdId < 0;
@@ -839,7 +839,7 @@ s32 sub_0815521C(struct Sprite *sprite, u16 frames) {
             if (ret != 1) {
                 if (ret == -1) {
                     base = gSpriteTables->anims[sprite->animId];
-                    newCursor = base[sprite->variant];
+                    newCursor = base[(PORT_ROM_CHECK_ANIM(sprite, 842), sprite->variant)];
                     sprite->animCursor = 0;
                     next = newCursor;
                 } else {

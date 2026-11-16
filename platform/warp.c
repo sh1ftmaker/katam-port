@@ -57,6 +57,7 @@
 #include "global.h"
 #include "data.h"
 #include "kirby.h"
+#include "constants/kirby.h"
 #include "port/port.h"
 #include "port/simblock.h"
 
@@ -197,6 +198,26 @@ void PortWarpPoll(void)
         return;
     sPending = FALSE;
     Deliver(sPendingPlayer, sPendingRoom, sPendingX, sPendingY);
+}
+
+void sub_0806EFF8(struct Kirby *);
+void sub_0806F288(struct Kirby *);
+
+void PortTestGiveAbility(u8 slot, u8 ability)
+{
+    struct Kirby *kirby;
+
+    if (slot >= gNumKirbys || ability >= KIRBY_ABILITY_COUNT) {
+        PortLog("[katam-port] ability: player %u does not exist", (unsigned)slot);
+        return;
+    }
+    kirby = &gKirbys[slot];
+    /* as kirby.c sub_0804C614 ends an ability change */
+    kirby->ability = ability;
+    sub_0806F260(kirby);
+    sub_0806EFF8(kirby);
+    sub_0806F288(kirby);
+    PortLog("[katam-port] ability: player %u -> %u", (unsigned)slot, (unsigned)ability);
 }
 
 void PortWarpReport(void)
