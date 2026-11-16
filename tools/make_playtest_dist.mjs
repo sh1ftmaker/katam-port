@@ -64,6 +64,8 @@ if (shim < 0) { console.error('make_playtest_dist: no locateFile shim in index.h
 const tag = `<script>window.KATAM_PT_LIB="katam-${libId}/lib/";window.KATAM_PT_DATA="data.json?v=${sha(dataText)}";</script>`
   + `<script src="playtest.js?v=${jsId}" data-css="${cssId}"></script>`;
 html = html.slice(0, shim) + tag + html.slice(shim);
+// the 4-Kirby module (the page's first script reads this; the 16-Kirby one is the default)
+html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<script>window.KATAM_PT=1;</script>');
 html = html.replace(/<title>[^<]*<\/title>/, '<title>KATAM room playtest</title>');
 html = html.replace(/(<meta name="katam-build" content=")([^"]*)"/, '$1$2 playtest"');
 fs.writeFileSync(`${out}/index.html`, html);

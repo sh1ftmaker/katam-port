@@ -3,25 +3,32 @@
 <head>
 <meta charset="utf-8">
 <script>
-// EXPERIMENTAL > CPU KIRBYS (platform/menu_poc.c): more than 4 Kirbys in all
-// needs the game's second module, katam16.js / katam16.wasm (the same game
-// built with KATAM_MAX_KIRBYS=16; port/wide.h).  Which one this visit runs
-// is decided here, from the saved setting ("kirbys=N" in katam.settings), so
-// the scripts below know before they start.  The 16-Kirby module is also
-// the one 8-player online games run on (web/online.js: a room names its
-// module, and a page on the other one reloads into it): ?mod=16 runs it this
-// visit whatever the setting (an 8-player game's invite link has it), and
-// ?mod=4 -- or ?kirbys=4 -- the ordinary one.  Local multiplayer stays off
-// in the 16-Kirby module.  The module itself is loaded last (the loader at
-// the end of the page).
+// The game has two modules: katam16.js / katam16.wasm (the game built with
+// KATAM_MAX_KIRBYS=16; port/wide.h), the default -- 4 Kirbys (3 CPU) unless
+// SETTINGS > EXPERIMENTAL > CPU KIRBYS says more, 8-player online games,
+// local multiplayer -- and katam.js / katam.wasm, the 4-Kirby module, which
+// only 4-player online games need (web/online.js: a room names its module,
+// and a page on the other one reloads into it).  Which one this visit runs
+// is decided here, so the scripts below know before they start: ?mod=4 (or
+// ?kirbys=4) the 4-Kirby module -- bookmark it to keep it -- else the
+// 16-Kirby one.  The parked developer netplay flags (?room=, ?world=,
+// ?online=1: web/lobby.js and the v1 hookup below) and the room playtest
+// page (KATAM_PT, tools/make_playtest_dist.mjs) run the 4-Kirby module too.
+// The Kirby count is the saved setting ("kirbys=N" in katam.settings).  The
+// module itself is loaded last (the loader at the end of the page).
 (function () {
-  var n = 4, q = null, mod = null;
+  var n = 4, q = null, mod = null, dev = false;
   try { var m = /(?:^|\n)kirbys=(\d+)/.exec(localStorage.getItem('katam.settings') || ''); if (m) n = parseInt(m[1], 10); } catch (e) { n = 4; }
-  try { var u = new URLSearchParams(location.search); q = u.get('kirbys'); mod = u.get('mod'); } catch (e) { q = null; }
-  if (q === '4' || mod === '4') n = 4;
+  try {
+    var u = new URLSearchParams(location.search);
+    q = u.get('kirbys'); mod = u.get('mod');
+    dev = !!(u.get('room') || u.get('world') || u.get('online'));
+  } catch (e) { q = null; }
   if (!(n >= 4 && n <= 16)) n = 4;
+  var four = q === '4' || mod === '4' || (dev && mod !== '16') || !!window.KATAM_PT;
+  if (four) n = 4;
   window.KATAM_KIRBYS = n;
-  window.KATAM_KIRBYS16 = n > 4 || mod === '16';
+  window.KATAM_KIRBYS16 = !four;
 })();
 </script>
 <!-- viewport-fit=cover puts the page under the notch and the home indicator,
@@ -2155,9 +2162,7 @@ var Module = (function () {
       // the normal way in is Start Game > MULTIPLAYER > LOCAL).  Before
       // main(), so the first game counts.
       var lmpN = parseInt(new URLSearchParams(location.search).get('localmp'), 10);
-      if (lmpN >= 2 && window.KATAM_KIRBYS16) {
-        log('?localmp ignored: the 16-Kirby module has no local multiplayer (SETTINGS > EXPERIMENTAL > CPU KIRBYS 3)', 'warn');
-      } else if (lmpN >= 2 && Module._PortLmpSetHumans) {
+      if (lmpN >= 2 && Module._PortLmpSetHumans) {
         Module._PortLmpSetHumans(lmpN);
         log('local multiplayer: ' + lmpN + ' players (P2: arrows + numpad)', 'ok');
       }
@@ -4971,7 +4976,8 @@ var Module = (function () {
   // handler, where the game is dead and the player is about to reload.
   shell.flushSave = function () { flush(); };
   // ... and call back once it is in storage (or after 4 s whatever happens):
-  // the page is about to reload (EXPERIMENTAL > CPU KIRBYS).
+  // the page is about to reload (EXPERIMENTAL > CPU KIRBYS on the 4-Kirby
+  // module).
   shell.saveSettle = function (cb) {
     var t0 = Date.now(), done = false;
     function end() { if (!done) { done = true; cb(); } }
@@ -5205,8 +5211,8 @@ var Module = (function () {
   var relay = q.get('relay')
       || ((q.get('room') || q.get('world')) ? DEFAULT_RELAY : null);
   if (!relay) return;
-  if (window.KATAM_KIRBYS16) {   /* the 16-Kirby module: no netplay (top of the page) */
-    console.log('netplay link ignored: the 16-Kirby module has no multiplayer');
+  if (window.KATAM_KIRBYS16) {   /* the 16-Kirby module: not this netplay (top of the page) */
+    console.log('netplay link ignored: this netplay runs on the 4-Kirby module (add ?mod=4)');
     return;
   }
   relay = relay.replace(/\/+$/, '');
@@ -5413,14 +5419,20 @@ var Module = (function () {
     'online.leave': function () { later(function () { if (window.katamOnline) window.katamOnline.leave('from the menu'); }); },
     // the host's SETTINGS > ONLINE list: remove the device playing slot n
     'online.kick': function (n) { later(function () { if (window.katamOnline) window.katamOnline.kick(n); }); },
-    // EXPERIMENTAL > CPU KIRBYS on the ordinary module: more than 4 Kirbys
-    // is the other module, so the page starts again (the setting is saved
-    // already; the top of the page reads it).  The save is written first.
+    // EXPERIMENTAL > CPU KIRBYS on the 4-Kirby module (?mod=4): more than
+    // 4 Kirbys is the 16-Kirby module, so the page starts again on it -- the
+    // same address without ?mod=4 / ?kirbys=4 (the setting is saved already;
+    // the top of the page reads it).  The save is written first.
     'kirbys.restart': function (n) {
-      shell.note('Restarting with ' + n + ' Kirbys (experimental)…', 'ok');
-      if (shell.saveSettle) { try { shell.saveSettle(function () { location.reload(); }); return; } catch (e) { /* below */ } }
+      shell.note('Restarting with ' + n + ' Kirbys…', 'ok');
+      var go = function () {
+        var u = new URL(location.href);
+        ['mod', 'kirbys'].forEach(function (k) { u.searchParams.delete(k); });
+        if (u.toString() === location.href) location.reload(); else location.href = u.toString();
+      };
+      if (shell.saveSettle) { try { shell.saveSettle(go); return; } catch (e) { /* below */ } }
       if (shell.flushSave) { try { shell.flushSave(); } catch (e) { /* never block */ } }
-      setTimeout(function () { location.reload(); }, 600);
+      setTimeout(go, 600);
     },
     'reset':       function () {
       shell.note('Restarting…', 'ok');
@@ -5455,9 +5467,10 @@ var Module = (function () {
 </script>
 
 <!-- The game module.  emcc puts its loader tag (katam.js) here; it is kept
-     in a template, not run, and the script below starts katam.js or, with
-     more than 4 Kirbys (KATAM_KIRBYS16, the top of the page), katam16.js --
-     falling back to katam.js should that one not load.  The build stamp's
+     in a template, not run, and the script below starts katam16.js -- the
+     default (KATAM_KIRBYS16, the top of the page) -- falling back to
+     katam.js should that one not load, or katam.js for ?mod=4.  One module
+     is downloaded, never both.  The build stamp's
      Module.locateFile shim (tools/stamp_build.py) sits before this and names
      both wasm files' versions; KATAM_VER the second loader's. -->
 <template id="katamloader">{{{ SCRIPT }}}</template>
@@ -5472,20 +5485,21 @@ var Module = (function () {
     s.src = u;
     s.async = true;
     if (fallback) s.onerror = function () {
-      log('the 16-Kirby module (' + u + ') did not load: playing with 4 Kirbys this time', 'warn');
+      log('the 16-Kirby module (' + u + ') did not load: the 4-Kirby module this time', 'warn');
       window.KATAM_KIRBYS16 = false;
       delete Module.portKirbys;
       load(fallback, null);
     };
     document.body.appendChild(s);
   }
-  if (window.KATAM_PT_LIB) window.KATAM_KIRBYS16 = false;   /* the room playtest page: the ordinary module */
+  if (window.KATAM_PT_LIB) window.KATAM_KIRBYS16 = false;   /* the room playtest page: the 4-Kirby module (KATAM_PT at the top too) */
   if (window.KATAM_KIRBYS16) {
     var v = (window.KATAM_VER || {})['katam16.js'];
     Module.portKirbys = window.KATAM_KIRBYS;               /* host_web.c, the live count */
-    log('EXPERIMENTAL: ' + window.KATAM_KIRBYS + ' Kirbys, the 16-Kirby module (8-player online; no local multiplayer)', 'ok');
+    log('module: katam16, ' + window.KATAM_KIRBYS + ' Kirbys (up to 16; 8-player online; ?mod=4 for the 4-Kirby module)', 'ok');
     load('katam16.js' + (v ? '?v=' + v : ''), src);
   } else {
+    log('module: katam, the 4-Kirby module (?mod=4; 4-player online games)', 'ok');
     load(src, null);
   }
 })();

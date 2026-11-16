@@ -37,6 +37,10 @@
 #          web2 as web, plus a second room server without the public game
 #               list (--no-public), as $RELAY_OLD (the server browser's case)
 #          old  --old was given: the command gets $OLD
+#   Modules: the browser suites run the 4-Kirby module (?mod=4) unless the
+#   line says --mod 16 or --mod default (no ?mod: the page's default, the
+#   16-Kirby module) or the case names its own -- web-*-default and
+#   web-menu-exits-e test the default page, web-on-eight the 8-player games.
 #   In COMMAND: $ROM, $D (this suite's own directory), $ROOT (the checkout,
 #   also the cwd), $W (its slots), $PLAY (browser play seconds:
 #   fast 130, deep 130 -- see below), $DEEP (1 with --deep, else empty), $RIG
@@ -78,6 +82,9 @@ web-menu-exits-d   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base
 web-on-exits       4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases exits --play 30
 web-on-browse      3     web2   node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --relay-old $RELAY_OLD --shots "$D" --cases browse
 web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases picker
+web-dev-default    1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases solo,lmp,local --mod default
+web-menu-exits-e   1     web    node tools/menu_exits_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases default,local --mod default
+web-on-default     3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases default
 rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
 rig-r16w           2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11 --module build/w16/katam-node.js
 rig-pause          2     -      node tools/netproof/pause_test.mjs --rom "$ROM"

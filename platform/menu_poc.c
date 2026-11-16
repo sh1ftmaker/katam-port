@@ -1640,8 +1640,10 @@ static void Drawable(char *s, int max)
  * count").  The default build has four Kirby slots: on the web a count
  * above 4 asks first (NO / YES), then the page reloads with the wide module
  * (web/shell.html "kirbys.restart"); natively it needs a wide build.  Never
- * online, never in a local two-player game (the netcode is built for four;
- * the wide module has neither). */
+ * during an online game (the host's EV_KIRBYS changes it there); in a local
+ * multiplayer game on the wide build live as alone (the count never goes
+ * below a person: platform/localmp.c), on the default build not at all (it
+ * would restart the game). */
 static int KirbysMax(void)
 {
     return KATAM_WIDE ? PortWideMax() : 16;
@@ -1748,7 +1750,7 @@ static const char *KirbysDesc(int it)
         else if (n > 4)
             snprintf(l, 32, "%d IN ALL - EXPERIMENTAL", n);
         else
-            snprintf(l, 32, "4 IN ALL - RELOAD FOR ONLINE");
+            snprintf(l, 32, "4 IN ALL - RIGHT ADDS MORE");
         return l;
     case IT_ADD4:
         return KirbysRestart(KirbysNext(it, 1)) ? "4 MORE - THE GAME RESTARTS" : "4 MORE CPU KIRBYS";
@@ -2587,12 +2589,10 @@ static const char *MpDesc(int row)
 {
     if (gPortLnOn)
         return "IN AN ONLINE GAME";
-    /* the wide module (more than 4 Kirbys): no local multiplayer; online is
-     * its 8-player games (platform/online_ui.c PortOuiSeats) */
-    if (KATAM_WIDE && row == 0)
-        return "SET CPU KIRBYS TO 3 FIRST";
+    /* the wide module (the web page's default): online is its 8-player
+     * games (platform/online_ui.c PortOuiSeats) */
     if (KATAM_WIDE && row == PORT_MENU_POC_MP_ONLINE)
-        return "UP TO EIGHT ONLINE - EXPERIMENTAL";
+        return "PLAY WITH UP TO EIGHT ONLINE";
     if (row == PORT_MENU_POC_MP_CARD)
         return "YOUR NAME AND KIRBY COLOR";
     if (row != 0)
@@ -2607,8 +2607,6 @@ static int MpStep(int row, int dir) { (void)row; (void)dir; return 0; }
 static int MpUnavailable(int row)
 {
     if (gPortLnOn)
-        return 1;
-    if (KATAM_WIDE && row == 0)
         return 1;
     return row == 0 && !PortLmpP2InputAvailable();
 }
@@ -3589,7 +3587,11 @@ void PortMenuPocMpStarted(void)
     PortOuiFadeDone();
 }
 
-/* Is row `row` of the screen up now available (A does something)? */
+/* Is row `row` of the screen up now available (A does something)?  Read
+ * only (also the page's browser tests). */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
 int PortMenuPocRowAvailable(int row)
 {
     return !sModel->unavailable(row);

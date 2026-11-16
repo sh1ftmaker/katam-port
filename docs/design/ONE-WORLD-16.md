@@ -289,7 +289,10 @@ experimental settings section."*
   the target (at least 4). Joins wait for room in the task pool (12 slots
   of headroom). Kirby i >= 4 wears the colour of Kirby i & 3 (they share a
   palette).
-- **Web.** The default module stays the 4-Kirby build. `make dist` builds a
+- **Web.** (Since 2026-11-16 the 16-Kirby module is the page's default,
+  with local multiplayer; `?mod=4` is the 4-Kirby one --
+  EIGHT-SEATS-ENGINE.md "The default module".  As first shipped:) The
+  default module stays the 4-Kirby build. `make dist` builds a
   second module, `katam16.js` / `katam16.wasm` (`make web16`,
   KATAM_MAX_KIRBYS=16), and the page loads it when `kirbys` > 4. From the
   ordinary module, a change above 3 asks (NO / YES), writes the save and
