@@ -182,14 +182,20 @@ online_ui sPlayers front-end HOST GAME's player count the page reports
 online_ui sConnecting front-end HOST GAME's still-connecting count the page reports
 online_ui _ZZ14PortOuiRowDescE4line scratch HOST GAME's "n PLAYERS" line, written before every read
 # platform/menu_poc.c, the PLAYER CARD screens (platform/player_card.c): front
-# end only -- the card row is unavailable while an online session is on, so no
-# keyframe or image ever sees them.  The scratch is written before every read.
+# end, and in an online session only on this device's pause overlay (its
+# private fork, platform/lmpnet.c: never in a keyframe, an image or a hash) --
+# the card row is unavailable on a shared page.  The scratch is written before
+# every read.
 menu_poc _ZZL12CardGridPackjE2px scratch written before every read
 menu_poc _ZZL15CardPreviewPackjE3big scratch written before every read
 menu_poc _ZZL15CardPreviewPackjE3src scratch written before every read
 menu_poc _ZL13sCardPalSaved front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL12sCardPalSave front-end PLAYER CARD's lent OBJ palette lines (kept and put back)
 menu_poc _ZL13sCardGenShown front-end PLAYER CARD rows drawn at this PortCardGen
+menu_poc _ZL16sCardFromSection front-end where B on a PLAYER CARD goes (the PLAYERS page or SETTINGS > PLAYERS' row)
+online_ui sInvite front-end an invite link's way to its player card (PortOuiInvite: the keys to Game Select, the card)
+online_ui sInviteCode front-end an invite link's game code, for its card's JOIN row
+online_ui sInviteFrames front-end frames spent getting an invite link to its card (it gives up after a minute)
 online_ui sRoomsMode front-end HOST GAME's TOGETHER / FREE ROAM choice, read by the page when the game starts (it seals the mode)
 # the SETTINGS sections and the online pause pages (menu-sections)
 menu_poc _ZL8sSlotSet host-state each slot's settings copy (sealed PORT_LN_EV_PSET); carried by PortPocHostStateSave

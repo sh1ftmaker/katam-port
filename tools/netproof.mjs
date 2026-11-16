@@ -627,6 +627,37 @@ async function main() {
                   `presented frames from another screen's or frame's commit ${[pr.host, ...pr.guests].filter(Boolean).map((x) => `${x.foreign}/${x.stale}${x.lastBad ? "@" + x.lastBad : ""}`).join(' ')} of ${pr.host ? pr.host.builds : 0}` +
                   `${rooms ? `, shadow runs ${pr.guests.map((x) => x.canonRuns).join('/')}` : ''} (${prOk ? 'every device its own picture' : 'NOT every device its own picture'})`);
         }
+        // a wide module (eight seats): live card edits mid-game by a guest in
+        // slot 1 and by one in a slot past the fourth, under forced rewinds;
+        // the slot-5 guest leaves and comes back (a fresh instance: its saved
+        // card again) -- every device sees both, every frame identical
+        if (SLOTS > 4) {
+            const n = Math.max(6, Math.min(DEVICES, SEATS));
+            const late = n - 1;               // the last guest: a slot past the fourth
+            const r = await run(`R16 cards, ${n} devices: live edits in slot 1 and slot ${late}, rewinds, a leave and rejoin @120ms`, {
+                link: HEADLINE, durationFrames: QUICK ? 3600 : 4400, cardSlots: Math.min(SLOTS, 8),
+                forceRewind: { every: 53, depth: 40 },
+                hostCards: [[0, 0, '1,2,0,0,0,HOSTY']],
+                guests: guestsN(n).map((g) => Object.assign(g, { join: B + 60 * g.dev,
+                    cards: g.dev === 1 ? [[0, 0, '1,6,0,0,0,ALICE'], [B + 1200, 0, '1,9,0,0,0,ALICE2']]
+                         : g.dev === late ? [[0, 0, '1,3,0,0,0,FIFTH'], [B + 1500, 0, '2,0,0,0,0,LATE|5,12']]
+                         : [[0, 0, `1,${(g.dev + 7) % 14},0,0,0,G${g.dev}`]] },
+                    g.dev === late ? { leave: B + 2100, rejoin: B + 2700 } : {})) });
+            const slotOf = (dev) => r.owners.findIndex((o) => o >= 0 && (o >> 2) === dev && (o & 3) === 0);
+            const s1 = slotOf(1), sl = slotOf(late), h = r.cards.host;
+            const views = [h, ...r.cards.guests];
+            const sameAll = views.length >= n && views.every((v) => v && v.paint.join() === h.paint.join() && v.names.join() === h.names.join()
+                                                         && v.feet.join() === h.feet.join());
+            const aliceOk = s1 >= 0 && h.paint[s1] === '1000009' && h.names[s1] === 'ALICE2';
+            // (LATE's parts: body preset 4 -- a spray's own -- and feet of their own)
+            const lateOk = sl >= 4 && h.names[sl] === 'LATE' && h.paint[sl] !== '0' && h.paint[sl] !== '1000003' && h.feet[sl] !== '0';
+            const okRun = r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected * 0.9 && r.host.tel.hostRewinds === 0;
+            verdicts.push(okRun && sameAll && aliceOk && lateOk);
+            briefs.push(Object.assign(brief(r), { cards: r.cards, owners: r.owners }));
+            texts.push(`${n} devices (wide): ${r.compare.equal}/${r.compare.compared} frames identical under forced rewinds; slot ${s1} ${aliceOk ? 'ALICE2 (her live edit)' : 'NOT ALICE2'}, ` +
+                       `slot ${sl} ${lateOk ? 'LATE by parts (the live edit, kept through a leave and rejoin)' : 'NOT LATE\'s parts'} (${h.paint[sl]}/${h.feet[sl]} ${h.names[sl]}); ` +
+                       `every device the same: ${sameAll ? 'yes, ' + views.length : 'NO'}; names ${h.names.join(' ')}`);
+        }
         report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };
     }
     // R17: bounded redundancy (--copies K) under loss: each sealed record K

@@ -9,11 +9,14 @@
 //
 //   node tools/menu_exits_test.mjs --cdp 19371 --base http://127.0.0.1:18961/dist/
 //        --rom-url http://127.0.0.1:18961/rom.gba --shots DIR
-//        [--cases front,joinmsg,pause,local,phone,wide,kirbys] [--relay http://127.0.0.1:18821]
+//        [--cases front,joinmsg,cards,pause,local,phone,wide,kirbys] [--relay http://127.0.0.1:18821]
 //
 // Needs a Chromium already listening on --cdp with its own profile (never the
 // shared one), a static server for the dist and a ROM you own (served from
-// outside the tree), and for `joinmsg` a room server (netplay/dev-relay.mjs).
+// outside the tree), and for `joinmsg` and `cards` a room server
+// (netplay/dev-relay.mjs).  `cards`: an invite link's first screen (the
+// visitor's player card: B to ONLINE, A joins), and SETTINGS > PLAYERS >
+// PLAYER CARD on the pause page (the card kept, the Kirby wearing it).
 // Screenshots are ROM-derived: write them outside the tree.  At the end it
 // prints the exits table it walked.
 import fs from 'fs';
@@ -415,6 +418,83 @@ async function caseJoinMessage() {
     await p.close();
 }
 
+/* An invite link (?join=CODE): once the ROM is in, the game goes by itself
+ * to the visitor's player card -- JOIN on top with the code, their name and
+ * colour below -- and nothing is joined until A on JOIN; B there is the
+ * ONLINE screen (the card kept).  Then SETTINGS > PLAYERS > PLAYER CARD on
+ * the pause page: the pauser's own card, B back to its row, the colour on
+ * the Kirby once the pause closes, the card saved. */
+async function caseCards() {
+    say('cards: an invite link\'s first screen; PLAYER CARD in the pause');
+    const extra = Object.assign({ join: 'BCDF' }, RELAY ? { netserver: RELAY } : {});
+    /* (up as the screen slides in: its keys from the frame it is in) */
+    const inviteUp = async (q) => (await q.ev('katamOnline.inviteCard()')) === 3 && (await pagesModel(q)) === M.CARD
+        && (await q.ev('Module._PortCardSub()')) === 1 && (await screenLive(q)) && !!(await waitFrames(q, 12) || 1);
+    const role = (q) => q.ev('katamOnline.role()');
+    const p = await openPage('cards-invite', { extra });
+    await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
+    const f0 = await frame(p);
+    const up = await until(() => inviteUp(p), 60000);
+    ok('invite link: the first screen is the visitor\'s player card', !!up, `after ${(await frame(p)) - f0} frames`);
+    ok('... nothing joined yet', (await role(p)) === null);
+    await shot(p, 'cards-invite-card.png');
+    await step(p, 'DOWN', 10);                                  // NAME
+    await p.ev('Module.ccall("PortCardSetNameJs",null,["string"],["VISITOR"])');
+    await step(p, 'UP', 10);                                    // JOIN
+    await step(p, 'B', 30);
+    ok('B on the invite\'s card: ONLINE, not joined, the name kept',
+       (await pagesModel(p)) === M.ONLINE && (await role(p)) === null && (await p.ev('katamOnline.inviteCard()')) === 0
+       && (await p.ev('Module.ccall("PortCardNameJs","string",[],[])')) === 'VISITOR',
+       `model ${await pagesModel(p)} role ${await role(p)}`);
+    ok('... and saved', /card0=0,[0-9,]*VISITOR/.test(await p.ev("localStorage.getItem('katam.settings')||''")));
+    await step(p, 'B', 30);
+    ok('... B again: MULTIPLAYER', (await pagesModel(p)) === M.MP);
+    row('Invite link\'s PLAYER CARD', 'JOIN / NAME / COLOR', 'ONLINE (the invite put away)', '= A (JOIN on its row)', 'nothing');
+    await p.close();
+    const q = await openPage('cards-invite-join', { extra });
+    ok('another visit: the card again', !!(await until(() => inviteUp(q), 60000)));
+    await step(q, 'A', 30);
+    ok('A on JOIN: JOIN GAME joins the code', (await pagesModel(q)) === M.JOIN && (await role(q)) === 'guest');
+    const st = await until(async () => (await ouiScreen(q)) === 3 * 256 + 9, 15000);
+    ok('... NO SUCH GAME (nobody hosts it)', !!st, String(await ouiScreen(q)));
+    await shot(q, 'cards-invite-joined.png');
+    await q.close();
+    // the pause: SETTINGS > PLAYERS > PLAYER CARD
+    const r = await openPage('cards-pause');
+    await toGameSelect(r);
+    await startPlay(r);
+    const open = async () => {
+        for (let i = 0; i < 5; i++) {
+            await step(r, 'START', 70);
+            if ((await pauseState(r)).paused === 1) return true;
+            await waitFrames(r, 30);
+        }
+        return false;
+    };
+    const toSettings = async () => {
+        for (let i = 0; i < 6 && (await pauseState(r)).menu !== MENU.SETTINGS; i++) await step(r, 'SELECT', 70);
+        return (await pagesModel(r)) === M.PAUSE_TOP;
+    };
+    ok('pause, SETTINGS', (await open()) && (await toSettings()));
+    await step(r, 'DOWN', 8); await step(r, 'DOWN', 8); await step(r, 'A');   // PLAYERS
+    await step(r, 'UP', 10);                                    // (wraps) its last row: PLAYER CARD
+    await step(r, 'A', 20);
+    ok('PLAYERS > PLAYER CARD: the card, on NAME', (await pagesModel(r)) === M.CARD && (await r.ev('Module._PortCardSub()')) === 1);
+    await r.ev('Module.ccall("PortCardSetNameJs",null,["string"],["PAUSER"])');
+    await step(r, 'DOWN', 10); await step(r, 'RIGHT', 10);       // COLOR: the first spray
+    await shot(r, 'cards-pause-card.png');
+    await step(r, 'B', 20);
+    ok('B on it: the PLAYERS section, still paused', (await pagesModel(r)) === M.SEC_PLAYERS && (await pauseState(r)).paused === 1);
+    await step(r, 'START', 40);
+    const painted = await until(async () => (await r.ev('Module._PortCardSlotPaintJs(0) >>> 0')) !== 0, 5000);
+    ok('the pause closed: player 1 wears the card\'s colour', !!painted, String(await r.ev('Module._PortCardSlotPaintJs(0) >>> 0')));
+    ok('... and the card is saved', /card0=1,0,[0-9,]*PAUSER/.test(await r.ev("localStorage.getItem('katam.settings')||''")),
+       await r.ev("(localStorage.getItem('katam.settings')||'').split('\\n').filter(function(l){return /^card0/.test(l)}).join(' ')"));
+    await shot(r, 'cards-pause-played.png');
+    row('Pause SETTINGS > PLAYERS > PLAYER CARD', 'name / colour (the pauser\'s own)', 'the PLAYERS section', 'close the pause (kept)', 'next page');
+    await r.close();
+}
+
 /* The pause menu, alone: every page, the SETTINGS sections, NO / YES, the
  * PLAYERS page and a card from it; MAIN MENU twice, a new game between. */
 async function casePause() {
@@ -630,6 +710,9 @@ async function caseKirbys() {
     const q = await openPage('kirbys-invite', { extra: { join: 'BCDF' },
         early: `try{if(!/kirbys=/.test(localStorage.getItem('katam.settings')||''))localStorage.setItem('katam.settings','schema=2\\nkirbys=16\\n')}catch(e){}` });
     await until(() => q.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 120)'), 60000);
+    // (the visitor's player card first: A on its JOIN row goes on)
+    ok('invite link on the 16-Kirby module: the player card first', !!(await until(async () => (await q.ev('katamOnline.inviteCard()')) === 3 && (await screenLive(q)), 60000)));
+    await waitFrames(q, 12); await step(q, 'A', 30);
     await sleep(3000);
     await shot(q, 'kirbys-invite-followed.png');
     ok('invite link on the 16-Kirby module: followed (no such game here)', (await q.ev('!!window.KATAM_KIRBYS16 && !!(window.katamOnline && window.katamOnline.role && window.katamOnline.role() === "guest")'))
@@ -734,6 +817,7 @@ for (const c of CASES) {
     try {
         if (c === 'front') await caseFront();
         else if (c === 'joinmsg') await caseJoinMessage();
+        else if (c === 'cards') await caseCards();
         else if (c === 'pause') await casePause();
         else if (c === 'local') await caseLocal();
         else if (c === 'kirbys') await caseKirbys();

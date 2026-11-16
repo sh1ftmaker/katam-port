@@ -174,7 +174,32 @@ async function openPage(name, extra, w = 960, h = 640) {
     await s('Page.addScriptToEvaluateOnNewDocument', { source: PAD_HOOK });
     if (has('noaudio')) await s('Page.addScriptToEvaluateOnNewDocument', { source: NOAUDIO_HOOK });
     await s('Page.navigate', { url: pageUrl(extra) });
+    if (extra && extra.join) inviteContinue(p);
     return p;
+}
+
+/* An invite link (?join=CODE): the visitor's first screen is their player
+ * card (platform/online_ui.c PortOuiInvite) and nothing is joined until A on
+ * its JOIN row -- pressed here, as the visitor would, for every page opened
+ * (or navigated) by one; when it came up is kept for the summary.  A page
+ * reloaded into the other module for that join must not show it again
+ * (web/online.js hop). */
+const inviteCards = [];
+async function inviteContinue(p) {
+    const t0 = Date.now();
+    const rec = { page: p.name, up: false };
+    inviteCards.push(rec);
+    try {
+        const live = async () => (await p.ev('window.katamOnline && katamOnline.inviteCard ? katamOnline.inviteCard() : 0')) === 3
+            && (await p.ev('Module._PortCardSub()')) === 1
+            && (await frame(p)) - (await p.ev('Module._PortPocScreenLastDraw()')) < 5;
+        if (!(await until(live, 90000, 150))) return false;
+        rec.up = true; rec.ms = Date.now() - t0; rec.frame = await frame(p);
+        await waitFrames(p, 12);                    // (its keys from the frame it is in)
+        for (let i = 0; i < 4 && (await p.ev('katamOnline.inviteCard()')) === 3; i++) { await press(p, 'A'); await waitFrames(p, 20); }
+        rec.joined = (await p.ev('katamOnline.inviteCard()')) === 0;
+        return rec.joined;
+    } catch (e) { rec.error = String(e.message || e); return false; }
 }
 
 // --noaudio: no audio device at all in either page (as the node rig runs):
@@ -738,6 +763,35 @@ async function cardsCheck(tag, pagesList, want) {
     ok(`${tag}: names and colours as the cards say`, match, `${cardsStr(all[0])} vs ${exp}`);
     return all[0];
 }
+/* slot s's colour, feet and name as page p has them */
+const cardAt = (p, s) => p.ev(`[(Module._PortCardSlotPaintJs(${s})>>>0).toString(16),(Module._PortCardSlotFeetJs(${s})>>>0).toString(16),Module.ccall('PortPlayerName','string',['number'],[${s}])].join('/')`);
+/* A live edit of a player's own card (SETTINGS > PLAYERS > PLAYER CARD on its
+ * pause overlay, up on SETTINGS' top level): a new name and two steps of
+ * COLOR, then -- the card still open -- every watcher has the colour the
+ * card shows and the name, through forced rewinds on the editor; B back to
+ * the PLAYERS section, B to SETTINGS.  Returns what the watchers saw. */
+async function liveCardEdit(tag, gp, slot, watchers, name) {
+    for (let i = 0; i < 8 && (await ovlOf(gp)).row !== 2; i++) { await press(gp, (await ovlOf(gp)).row > 2 ? 'UP' : 'DOWN'); await waitFrames(gp, 10); }
+    await press(gp, 'A'); await waitFrames(gp, 20);              // the PLAYERS section
+    await press(gp, 'UP'); await waitFrames(gp, 10);             // (wraps) its last row: PLAYER CARD
+    await press(gp, 'A'); await waitFrames(gp, 20);
+    ok(`${tag}: SETTINGS > PLAYERS > PLAYER CARD opens its own card on its pause overlay`, (await modelNow(gp)) === 6 && (await gp.ev('Module._PortCardSub()')) === 1,
+       `model ${await modelNow(gp)}`);
+    await gp.ev(`Module.ccall("PortCardSetNameJs",null,["string"],[${JSON.stringify(name)}])`);
+    await press(gp, 'DOWN'); await waitFrames(gp, 10);           // COLOR
+    await press(gp, 'RIGHT'); await waitFrames(gp, 10); await press(gp, 'RIGHT'); await waitFrames(gp, 10);
+    const want = (await gp.ev('Module._PortCardEditJs(0) >>> 0')).toString(16) + '/' + (await gp.ev('Module._PortCardEditJs(1) >>> 0')).toString(16) + '/' + name;
+    for (let i = 0; i < 2; i++) { await gp.ev('Module._PortLnForceRewind(60)'); await waitFrames(gp, 20); }
+    const seen = await until(async () => { const v = await Promise.all([gp, ...watchers].map((w) => cardAt(w, slot))); return v.every((x) => x === want) ? v : null; }, 12000);
+    ok(`${tag}: its new colour and name on every device while its card is still open (slot ${slot})`, !!seen && (await ovlOf(gp)).st === 2,
+       `want ${want}, have ${(await Promise.all([gp, ...watchers].map((w) => cardAt(w, slot)))).join(' ')}`);
+    await shot(gp, `${tag.replace(/\W+/g, '-')}-card.png`); await shot(watchers[0], `${tag.replace(/\W+/g, '-')}-watcher.png`);
+    await press(gp, 'B'); await waitFrames(gp, 20);
+    ok(`${tag}: B back to the PLAYERS section`, (await modelNow(gp)) === 12);
+    await press(gp, 'B'); await waitFrames(gp, 20);
+    ok(`${tag}: ... and saved on that device`, new RegExp('card0=[0-9,]*' + name).test(await gp.ev("localStorage.getItem('katam.settings')||''")));
+    return seen;
+}
 const slotsStr = (sl) => sl.map((x, i) => `P${i + 1}:` + (x ? `${x.dev}.${x.seat}` : 'cpu')).join(' ');
 async function playMany(host, guests, secs, cmps, tag, shotsAt = []) {
     const t0 = Date.now();
@@ -945,6 +999,22 @@ if (CASES.includes('three')) {
     await press(host, 'START'); await waitFrames(host, 60);
     ok('session: the host\'s Start closes its overlay', !(await ovlOf(host)).st);
     await host.ev('window.__script = window.__scriptSaved');
+    // guest A edits its own card live, from its pause overlay (slot 1..3):
+    // the host and guest B see it (the comparers run on through it)
+    {
+        const aSlot = devOf(await slotsOf(host), aDev);
+        await ga.ev('window.__scriptSaved = window.__script; window.__script = null; Module._PortSetKeys(0)');
+        await waitFrames(ga, 10);
+        for (let i = 0; i < 5 && (await ovlOf(ga)).st !== 2; i++) { await press(ga, 'START'); await waitFrames(ga, 60); }
+        for (let i = 0; i < 5 && (await ovlOf(ga)).model !== 9; i++) { await press(ga, 'SELECT'); await waitFrames(ga, 70); }
+        ok('live card: guest A\'s pause overlay on SETTINGS', (await ovlOf(ga)).st === 2 && (await ovlOf(ga)).model === 9);
+        await liveCardEdit('live card: guest A', ga, aSlot, [host, gb2], 'ANNIE');
+        await press(ga, 'START'); await waitFrames(ga, 60);
+        ok('live card: guest A\'s Start closes its overlay', !(await ovlOf(ga)).st);
+        await ga.ev('window.__script = window.__scriptSaved');
+        await setCard(ga, 0, '2,0,0,0,0,ANNA|6,21');                 // ANNA again (the checks below)
+        ok('live card: ... and back to ANNA everywhere', !!(await until(async () => (await cardAt(gb2, aSlot)) === '1000006/c622/ANNA', 10000)));
+    }
     await playMany(host, [ga, gb2], 40, [cA, cB2], 't-play4', [20]);
     // the pad's player leaves by holding Select (two seconds): the CPU, the game's colour
     await ga.ev('__padSet(0, [8])'); await sleep(3000); await ga.ev('__padSet(0, [])');
@@ -1830,6 +1900,8 @@ if (CASES.includes('eight')) {
             ok('eight/pause: rewinds leave the overlay as it was (page, row, screen)', after.st === 2 && after.menu === before.menu && after.row === before.row
                && after.model === before.model && after.frames > before.frames, JSON.stringify({ before, after, rw }));
             await shot(hi.g, 'e-06-pause-slot4-settings.png'); await shot(lo.g, 'e-06-pause-second.png');
+            // a live edit of its own card from there (a slot past the fourth)
+            await liveCardEdit(`eight/live card: ${hi.g.name}`, hi.g, hi.slot, others.concat([lo.g]), 'HIGH' + hi.slot);
             await press(hi.g, 'START'); await press(lo.g, 'B');
             const closedBoth = await until(async () => !(await ovlOf(hi.g)).st && !(await ovlOf(lo.g)).st, 8000);
             ok('eight/pause: Start and B close them', !!closedBoth);
@@ -1865,9 +1937,19 @@ if (CASES.includes('eight')) {
     // the last tab joins mid-game: a seat past the live count (4 Kirbys
     // until people needed more; the engine makes the Kirby, then seats it)
     const kBefore = await host.ev('Module._PortPocKirbysNow()');
-    const gl = await openPage('guest' + (NT - 1), Object.assign({ join: code }, k16));
+    // (by an invite link opened on the ORDINARY module: its player card
+    // first, then JOIN reloads the page into the 16-Kirby module, which joins
+    // without the card again)
+    const gl = await openPage('guest' + (NT - 1), Object.assign({ join: code, mod: '4' }, knobs));
     await setCard(gl, 0, '1,12,0,0,0,LATE');
-    const inL = await until(async () => { const st = await stats(gl); return st && st.session && st.joined; }, 60000);
+    const inL = await until(async () => { const st = await stats(gl); return st && st.session && st.joined; }, 90000);
+    {
+        const rec = inviteCards.find((x) => x.page === gl.name);
+        ok(`eight: tab ${NT} (an invite link on the ordinary module): its card first, then the page reloads into the 16-Kirby module and joins without it`,
+           !!rec && rec.up && (await gl.ev('katamOnline.module()')) === '16' && !(await gl.ev('katamOnline._S.stats.inviteCards || 0'))
+           && /mod=16/.test(await gl.ev('location.search')),
+           `${JSON.stringify(rec)} module ${await gl.ev('katamOnline.module()')} cards here ${await gl.ev('katamOnline._S.stats.inviteCards || 0')}`);
+    }
     await glCheck(gl);
     ok(`eight: tab ${NT} joins mid-game`, !!inL);
     // its seat is past the live count: the engine holds the join until its
@@ -1913,6 +1995,7 @@ if (CASES.includes('eight')) {
     await host.ev('window.__script = window.__scriptSaved');
     await sleep(1500);
     await g2.s('Page.navigate', { url: pageUrl(Object.assign({ join: code }, k16)) });
+    inviteContinue(g2);
     const back2 = await until(async () => { const st = await stats(g2); return st && st.session && st.joined && st.accept !== false ? st : null; }, 60000);
     await sleep(3000);
     const sl2 = await slotsOf(host);
@@ -1937,6 +2020,11 @@ if (CASES.includes('eight')) {
     await host.close();
 }
 
+if (inviteCards.length) {
+    results.inviteCards = inviteCards;
+    ok(`every invite link's first screen was the player card, and one A on JOIN went on (${inviteCards.length})`,
+       inviteCards.every((x) => x.up && x.joined), JSON.stringify(inviteCards));
+}
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));
 console.log(`\n${pass} ok, ${fail} failed (${((Date.now() - T0) / 1000).toFixed(0)} s)`);
 for (const p of Object.values(pages)) { try { await p.close(); } catch (e) { /* gone */ } }

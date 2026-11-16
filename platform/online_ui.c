@@ -513,6 +513,93 @@ int PortOuiKey(int *row, unsigned key)
     return PORT_OUI_K_NONE;
 }
 
+/* --- invite links ----------------------------------------------------------- */
+
+/* 0 none; 1 on the way to Game Select (A pressed for the visitor); 2 Game
+ * Select has gone to MULTIPLAYER; 3 the card is up. */
+static int sInvite;
+static char sInviteCode[4];
+static u32 sInviteFrames;
+#define INVITE_GIVE_UP 3600     /* frames (a minute) to reach Game Select */
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#define OUI_EXPORT EMSCRIPTEN_KEEPALIVE
+#else
+#define OUI_EXPORT
+#endif
+
+OUI_EXPORT void PortOuiInvite(int c0, int c1, int c2, int c3)
+{
+    const int c[4] = { c0, c1, c2, c3 };
+    int i;
+
+    if (gPortLnOn)
+        return;
+    for (i = 0; i < 4; i++) {
+        if (c[i] <= 0 || strchr(kAlpha, c[i]) == NULL)
+            return;             /* not a code (the page checked it too) */
+        sInviteCode[i] = (char)c[i];
+    }
+    sInvite = 1;
+    sInviteFrames = 0;
+    sGen++;
+}
+
+OUI_EXPORT int PortOuiInviteState(void) { return sInvite; }
+
+/* At the key latch, before the recorder: from power-on (the intro, the
+ * title, the file screen) to Game Select, A taps for the visitor -- what
+ * they would press -- until Game Select takes the invite.  Their own keys
+ * wait till then. */
+int PortOuiInviteKeys(u16 *keys)
+{
+    if (sInvite != 1)
+        return 0;
+    if (gPortLnOn || ++sInviteFrames > INVITE_GIVE_UP) {
+        sInvite = 0;
+        if (!gPortLnOn)
+            Push(PORT_OUI_EV_INVITE_DIRECT);    /* join as before the card */
+        return 0;
+    }
+    *keys = (sInviteFrames % 24) < 4 ? 0x001 : 0;  /* A */
+    return 1;
+}
+
+int PortOuiInviteTake(void)
+{
+    if (sInvite != 1 || gPortLnOn)
+        return 0;
+    sInvite = 2;
+    return 1;
+}
+
+int PortOuiInviteCard(char code[4])
+{
+    if (sInvite != 2 || gPortLnOn)
+        return 0;
+    sInvite = 3;
+    memcpy(code, sInviteCode, 4);
+    Go(PORT_OUI_SUB_ONLINE);    /* under the card: what B goes back to */
+    return 1;
+}
+
+void PortOuiInviteGo(int *row)
+{
+    sInvite = 0;
+    PortOuiJoinWith(sInviteCode);
+    JoinStart(row);
+}
+
+void PortOuiInviteCancel(int *row)
+{
+    sInvite = 0;
+    sState = PORT_OUI_IDLE;
+    Go(PORT_OUI_SUB_ONLINE);
+    *row = 1;                   /* JOIN GAME */
+    Push(PORT_OUI_EV_INVITE_CANCEL);
+}
+
 void PortOuiFadeDone(void)
 {
     if (sStartPending) {

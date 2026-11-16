@@ -25,13 +25,24 @@
  *   local:   slot 0 wears card 0 from the start; slot s (1..3) wears card s
  *            from the frame it becomes a person, and the game's colour again
  *            when the CPU takes it back.
- *   online:  the session layer carries profiles (PortCardProfileString on
- *            the guest, PortCardHostApplyProfile on the host) and names the
- *            slots (PortCardSetSlotName); this file only keeps the host's
- *            own slot 0 in step.
+ *   online:  the session layer carries profiles (PortCardSeatProfiles on
+ *            every device, PortCardHostSetProfiles on the host) and the host
+ *            seals every slot's paint (PORT_LN_EV_PAINT) and name
+ *            (PORT_LN_EV_NAME, with the menus); a guest names its Kirbys
+ *            from the sealed names (else the host's relayed ones).  Names
+ *            from another device are cleaned on arrival (PortCardCleanName).
  *
- * While a card is open for editing nothing is scheduled: the picker's every
- * step would otherwise be an event; the result goes in when the card closes.
+ * Locally, while a card is open for editing nothing is scheduled (the game
+ * is paused under it anyway); the result goes in when the card closes.
+ * Online a card is edited live -- SETTINGS > PLAYERS > PLAYER CARD on this
+ * device's pause overlay, which only ever opens the overlay seat's own card:
+ * every step that changes it (a colour step, a letter; not the grid's cursor,
+ * which is kept only on A) reaches the host as a profile and is sealed, for
+ * every device at the same frame, while the player is still on the card.
+ *
+ * An invite link's first screen is this device's card, with JOIN on top
+ * (PortPlayerCardOpenInvite; platform/online_ui.c brings the front end
+ * there).
  *
  * --- names --------------------------------------------------------------------
  *
@@ -132,6 +143,15 @@ static void CleanName(char *n)
         n[--len] = '\0';
 }
 
+CARD_EXPORT void PortCardCleanName(char *name)
+{
+    if (name == NULL)
+        return;
+    if (strlen(name) > PORT_CARD_NAME_MAX)
+        name[PORT_CARD_NAME_MAX] = '\0';
+    CleanName(name);
+}
+
 static void Clamp(struct PortCard *c)
 {
     c->name[PORT_CARD_NAME_MAX] = '\0';
@@ -152,8 +172,19 @@ const struct PortCard *PortCardGet(int p)
     return &sCards[p >= 0 && p < PORT_CARD_PLAYERS ? p : 0];
 }
 
+/* An edit on the pause overlay (platform/lmpnet.c "the pause overlay") is
+ * made while the overlay's private copy of the game is in memory: it is saved
+ * at the next live frame (PortCardHostFrame), as the page's other edits are
+ * carried out there (PortLnOverlayEdit). */
+static int sSavePending;
+
 static void Save(void)
 {
+    if (PortLnOverlayRunning()) {
+        sSavePending = 1;
+        return;
+    }
+    sSavePending = 0;
     PortSettingsChanged();      /* formats the settings, ours included, and saves */
 }
 
@@ -325,6 +356,12 @@ CARD_EXPORT const char *PortPlayerName(int slot)
 {
     if (slot < 0 || slot >= CARD_SLOTS)
         return "";
+    /* online, a guest with the menus: the names the host sealed
+     * (PORT_LN_EV_NAME), so every device shows a name from the same frame
+     * on, through rewinds and images; else (none sealed: a host without
+     * the menus) the host's relayed names */
+    if (gPortLnOn && PortLnRole() == PORT_LN_GUEST && PortMenuPoc() && PortPocSlotName(slot)[0])
+        return PortPocSlotName(slot);
     if (sSlotNamed[slot])
         return sSlotName[slot];
     if (gPortLnOn)
@@ -451,6 +488,7 @@ CARD_EXPORT int PortCardHostApplyProfile(int slot, const char *profile)
  * host, PortCardSetSlotNames on each guest).  Names never reach game memory. */
 
 static void Changed(void);
+static void EditFollows(int p);
 
 #define PROF_OWNERS (PORT_LN_MAX_DEV * 4)
 static char sProfName[PROF_OWNERS][PORT_CARD_NAME_MAX + 1];
@@ -618,6 +656,7 @@ CARD_EXPORT int PortCardSetJs(int p, const char *val)
         snprintf(key + 5, sizeof key - 5, "parts");
         PortCardParseSetting(key, bar + 1);
     }
+    EditFollows(p);
     Changed();
     return 1;
 }
@@ -691,6 +730,8 @@ void PortCardHostFrame(void)
             exit(fails ? 1 : 0);
         }
     }
+    if (sSavePending && !PortLnOverlayRunning())
+        Save();                 /* an edit on the pause overlay, saved now */
     if ((sEditing && !gPortLnOn) || PortInputLogReplaying() || PortRbActive() || PortNetActive() || PortSeatActive())
         return;
     if (gPortLnOn) {
@@ -707,8 +748,9 @@ void PortCardHostFrame(void)
                 PortCardSetSlotName(s, name);
             if (s >= PAINT_SLOTS)
                 continue;       /* names only: paint is four slots wide */
-            if (sEditing && own >= 0 && own < 4)
-                continue;       /* the host's own card is being edited */
+            /* (a card being edited on the host's pause overlay goes on
+             * live, a step at a time, as a guest's does: each step that
+             * changes the card is one sealed event) */
             if (!Worn(s, want, feet))
                 Ask(s, want, feet);
         }
@@ -731,6 +773,9 @@ enum { R_PLAYER, R_NAME, R_COLOR };
 enum { R_BODY, R_FEET };
 
 static int sSub, sPlayer, sFixed, sNamePos;
+/* An invite link's card (PortPlayerCardOpenInvite): row 0 is JOIN. */
+static int sInvite;
+static char sInviteCode[5];
 /* The NAME row's typing state: entered with A on the row, left with Start
  * (Enter on a keyboard), Escape, B at the first letter, Up/Down, or A past
  * the last letter.  Only while it is on do Left/Right pick letters and does
@@ -749,6 +794,14 @@ static struct PortCard sGridFrom;
 static void Changed(void)
 {
     sGen++;
+}
+
+/* Card p was set from outside the screens (PortCardSetJs): if it is the one
+ * open, the screen shows -- and on closing keeps -- the new card. */
+static void EditFollows(int p)
+{
+    if (sSub != PORT_CARD_SUB_NONE && sPlayer == p)
+        sEdit = sCards[p];
 }
 
 static void Load(int p)
@@ -787,6 +840,17 @@ CARD_EXPORT void PortPlayerCardOpen(int p, int fixed)
     Changed();
 }
 
+/* The invite's card: this device's own, the cursor on JOIN (row 0). */
+void PortPlayerCardOpenInvite(const char code[4])
+{
+    PortPlayerCardOpen(0, 1);
+    memcpy(sInviteCode, code, 4);
+    sInviteCode[4] = '\0';
+    sInvite = 1;
+}
+
+int PortCardInvite(void) { return sSub != PORT_CARD_SUB_NONE && sInvite; }
+
 CARD_EXPORT void PortPlayerCardClose(void)
 {
     if (sGridOpen)
@@ -797,6 +861,7 @@ CARD_EXPORT void PortPlayerCardClose(void)
     sSub = PORT_CARD_SUB_NONE;
     sEditing = 0;
     sTyping = 0;
+    sInvite = 0;
     Changed();
 }
 
@@ -822,6 +887,8 @@ const char *PortCardRowName(int sub, int row)
 {
     if (sub == PORT_CARD_SUB_PICK)
         return row == R_BODY ? "BODY" : "FEET";
+    if (row == R_PLAYER && sInvite)
+        return "JOIN GAME";
     return row == R_PLAYER ? "PLAYER" : row == R_NAME ? "NAME" : "COLOR";
 }
 
@@ -846,7 +913,10 @@ void PortCardRowValue(int sub, int row, int selected, char *buf, int size)
     }
     switch (row) {
     case R_PLAYER:
-        snprintf(buf, size, selected && !sFixed ? "<P%d>" : "P%d", sPlayer + 1);
+        if (sInvite)
+            snprintf(buf, size, "%s", sInviteCode);     /* the game's code */
+        else
+            snprintf(buf, size, selected && !sFixed ? "<P%d>" : "P%d", sPlayer + 1);
         break;
     case R_NAME: {
         /* the letters so far, the one being picked between arrows */
@@ -888,7 +958,10 @@ const char *PortCardRowDesc(int sub, int row)
         return odd ? "BODY - SHADED LIKE THE BODY" : "THE FEET AND THE CHEEKS";
     }
     switch (row) {
-    case R_PLAYER: return sFixed ? "WHOSE CARD THIS IS" : "LEFT RIGHT PICK A PLAYER";
+    case R_PLAYER:
+        if (sInvite)    /* alternate: what A does, and what the card is for */
+            return (gPortSim->frame.frameCount / 120) & 1 ? "B - NOT NOW" : "A JOINS - YOUR CARD BELOW";
+        return sFixed ? "WHOSE CARD THIS IS" : "LEFT RIGHT PICK A PLAYER";
     case R_NAME:
         if (!sTyping)
             return "A TO TYPE A NAME";
@@ -1067,6 +1140,12 @@ CARD_EXPORT int PortCardKey(int *row, unsigned key)
         }
         switch (*row) {
         case R_PLAYER:
+            if (sInvite) {
+                if (key != 1)
+                    return PORT_CARD_K_QUIET;
+                PortPlayerCardClose();  /* kept (saved): then the join */
+                return PORT_CARD_K_JOIN;
+            }
             if (sFixed || (key != 5 && key != 6 && key != 1))
                 return key == 1 ? PORT_CARD_K_BACK : PORT_CARD_K_QUIET;
             Store();

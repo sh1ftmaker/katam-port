@@ -119,6 +119,9 @@ int  PortLnOverlayQuiet(void);
 /* the fork runs but is not the picture (its pause has not begun yet) */
 int  PortLnOverlayHidden(void);
 int  PortLnOverlayOpen(void);
+/* the seat (0..3) of this device whose overlay is up, -1 none: its player
+ * card is the one its SETTINGS > PLAYERS > PLAYER CARD edits */
+int  PortLnOverlaySeat(void);
 int  PortLnShadowRunning(void);
 /* menu_poc.c: an edit made on the overlay's SETTINGS page, carried out on
  * this device at the next live frame (as a final frame's edit is). */

@@ -91,6 +91,9 @@ struct PortPocRows {
 /* Each slot's player's name for the ONLINE list (sealed PORT_LN_EV_NAME). */
 void PortPocSlotNameSet(int slot, u32 lo, u32 hi);
 int  PortPocSlotNameSame(int slot, const char *name);
+/* slot's name as sealed ("" none / not a slot): what a guest draws over its
+ * Kirby and on its HUD card (port/player_card.h PortPlayerName). */
+const char *PortPocSlotName(int slot);
 void PortPocNameWords(const char *name, u32 *lo, u32 *hi);
 /* Online: the page's host state, carried with keyframes and images. */
 u32  PortPocHostStateSize(void);
