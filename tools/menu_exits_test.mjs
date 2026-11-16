@@ -23,6 +23,11 @@ const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 ? argv[i + 1] : d; };
 const CDP_PORT = +flag('cdp', 9363);
 const BASE = flag('base', 'http://127.0.0.1:8963/dist/');
+// --mod 4 | 16 | default: the module every page loads unless a case names its
+// own (extra `mod`; null = none, the page's default).  4 (?mod=4, the 4-Kirby
+// module) unless given: the 16-Kirby module is the page's default, so a suite
+// meant for it says --mod 16 or default (tools/full_check.sh).
+const MOD = flag('mod', '4');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8963/rom.gba');
 const SHOTS = flag('shots', '');
 const CASES = flag('cases', 'front,joinmsg,pause,local,phone,wide').split(',');
@@ -122,7 +127,8 @@ async function openPage(name, { w = 960, h = 640, mobile = false, touch = false,
     if (early) await s('Page.addScriptToEvaluateOnNewDocument', { source: early });
     const u = new URL(BASE + 'index.html');
     u.searchParams.set('rom', ROM_URL);
-    for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
+    const ex = Object.assign(MOD === 'default' ? {} : { mod: MOD }, extra);
+    for (const [k, v] of Object.entries(ex)) if (v !== null && v !== undefined) u.searchParams.set(k, v);
     await s('Page.navigate', { url: u.toString() });
     return p;
 }
@@ -535,8 +541,8 @@ async function casePause() {
  * is the ordinary module with the same save.  An invite link on the 16-Kirby
  * module is followed (web/online.js: a game on the other module reloads). */
 async function caseKirbys() {
-    say('kirbys: EXPERIMENTAL > CPU KIRBYS, the 16-Kirby module');
-    const p = await openPage('kirbys');
+    say('kirbys: EXPERIMENTAL > CPU KIRBYS, from the 4-Kirby module (?mod=4) to the 16-Kirby one');
+    const p = await openPage('kirbys', { extra: { mod: '4' } });
     const now = () => p.ev('Module._PortPocKirbysNow()');
     const max = () => p.ev('Module._PortPocKirbysMax()');
     const toExperimental = async () => {            // Game Select -> SETTINGS > EXPERIMENTAL
@@ -559,7 +565,8 @@ async function caseKirbys() {
     const reloaded = await until(async () => { try { return (await p.ev('!!window.KATAM_KIRBYS16 && !!(window.Module && Module.portRuntimeUp)')) && (await frame(p)) < f0; } catch (e) { return false; } }, 60000, 250);
     ok('YES: the page reloads with the 16-Kirby module, 8 Kirbys saved', !!reloaded && (await max()) === 16 && (await kirbysSetting(p)) === 8,
        `max ${await max().catch(() => '?')}, setting ${await kirbysSetting(p).catch(() => '?')}`);
-    ok('... no local drop-in there', (await p.ev('Module._PortLmpCanRequest()')) === 0);
+    ok('... at the page\'s own address (?mod=4 gone)', !/[?&](mod|kirbys)=/.test(await p.ev('location.search')), await p.ev('location.search'));
+    ok('... local drop-in there too', (await p.ev('Module._PortLmpCanRequest()')) === 1);
     await toGameSelect(p);
     ok('16-Kirby module: SETTINGS > EXPERIMENTAL', await toExperimental());
     await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);          // ADD 4
@@ -568,13 +575,13 @@ async function caseKirbys() {
     await step(p, 'UP', 8);
     await shot(p, 'kirbys-16-cpu-row.png');
     await step(p, 'B'); await step(p, 'B', 40);                  // Game Select
-    // MULTIPLAYER: LOCAL unavailable, ONLINE its 8-player games
+    // MULTIPLAYER: LOCAL available, ONLINE its 8-player games
     await step(p, 'UP', 8); for (let i = 0; i < 3; i++) await step(p, 'UP', 8);   // START GAME
     await press(p, 'A'); await waitFrames(p, 60); await press(p, 'DOWN'); await waitFrames(p, 20);
     await press(p, 'A'); await waitFrames(p, 80);                // the MULTIPLAYER screen
     ok('MULTIPLAYER screen up', (await pagesModel(p)) === M.MP);
-    ok('... LOCAL unavailable', (await p.ev('Module._PortMenuPocRowAvailable ? Module._PortMenuPocRowAvailable(0) : 0')) === 0);
-    await shot(p, 'kirbys-mp-local-unavailable.png');
+    ok('... LOCAL available', (await p.ev('Module._PortMenuPocRowAvailable(0)')) === 1);
+    await shot(p, 'kirbys-mp-local.png');
     await press(p, 'DOWN'); await waitFrames(p, 20);
     await shot(p, 'kirbys-mp-online-8.png');
     await press(p, 'A'); await waitFrames(p, 40);
@@ -622,12 +629,22 @@ async function caseKirbys() {
     const sum16 = await p.ev(sramSum);
     await p.s('Page.reload', {});
     await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
-    ok('the next load at 4 in all: the ordinary module', !(await p.ev('!!window.KATAM_KIRBYS16')) && (await max()) === 4);
+    ok('the next load at 4 in all: still the 16-Kirby module (the default), 4 Kirbys', (await p.ev('!!window.KATAM_KIRBYS16')) && (await max()) === 16
+       && (await p.ev('window.KATAM_KIRBYS')) === 4);
+    // ?mod=4: the 4-Kirby module, the same save memory
+    {
+        const u = new URL(await p.ev('location.href'));
+        u.searchParams.set('mod', '4');
+        await p.s('Page.navigate', { url: u.toString() });
+        await sleep(500);
+    }
+    await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
+    ok('?mod=4: the 4-Kirby module', !(await p.ev('!!window.KATAM_KIRBYS16')) && (await max()) === 4);
     await toGameSelect(p);
     ok('... with the same save memory as the 16-Kirby module left', (await p.ev(sramSum)) === sum16, `${sum16} vs ${await p.ev(sramSum)}`);
     await p.close();
     // an invite link on the 16-Kirby module
-    const q = await openPage('kirbys-invite', { extra: { join: 'BCDF' },
+    const q = await openPage('kirbys-invite', { extra: { join: 'BCDF', mod: null },
         early: `try{if(!/kirbys=/.test(localStorage.getItem('katam.settings')||''))localStorage.setItem('katam.settings','schema=2\\nkirbys=16\\n')}catch(e){}` });
     await until(() => q.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 120)'), 60000);
     await sleep(3000);
@@ -635,6 +652,79 @@ async function caseKirbys() {
     ok('invite link on the 16-Kirby module: followed (no such game here)', (await q.ev('!!window.KATAM_KIRBYS16 && !!(window.katamOnline && window.katamOnline.role && window.katamOnline.role() === "guest")'))
        && (await q.ev('document.getElementById("curtain").className')).indexOf('is-invite-bad') < 0,
        await q.ev('document.getElementById("curtain").className'));
+    await q.close();
+}
+
+/* The page's default: a fresh profile and no ?mod -- the 16-Kirby module at
+ * 4 Kirbys, one module fetched; LOCAL works there; ONLINE > HOST 4 PLAYERS
+ * reloads into the 4-Kirby module and HOST 8 PLAYERS back; ?mod=4 is the
+ * 4-Kirby module. */
+const pageLog = (p) => p.ev('Array.from(document.querySelectorAll("#log > div")).map(function(e){return e.textContent})');
+const fetchedWasm = (p) => p.ev(`performance.getEntriesByType('resource').map(function(r){return r.name}).filter(function(n){return /katam(16)?\\.wasm/.test(n)}).map(function(n){return n.replace(/^.*\\/|\\?.*$/g,'')})`);
+async function caseDefault() {
+    say('default: a fresh profile, no ?mod');
+    const p = await openPage('default', { extra: { mod: null } });
+    await toGameSelect(p);
+    ok('default: the 16-Kirby module, 4 Kirbys', (await p.ev('!!window.KATAM_KIRBYS16')) && (await p.ev('Module._PortPocKirbysMax()')) === 16
+       && (await p.ev('window.KATAM_KIRBYS')) === 4);
+    ok('default: one module downloaded (katam16.wasm)', JSON.stringify(await fetchedWasm(p)) === '["katam16.wasm"]', JSON.stringify(await fetchedWasm(p)));
+    {
+        const L = await pageLog(p);
+        ok('default: the page log names the module (no EXPERIMENTAL)', L.some((t) => /^module: katam16, 4 Kirbys/.test(t))
+           && !L.some((t) => /EXPERIMENTAL/.test(t)), L.filter((t) => /module|EXPERIMENTAL/.test(t)).join(' | '));
+    }
+    ok('default: online games here hold 8', (await p.ev('katamOnline.module()')) === '16' && (await p.ev('katamOnline.seats()')) === 8);
+    // MULTIPLAYER > LOCAL: a two-player game, 4 Kirbys
+    await step(p, 'A', 60); await step(p, 'DOWN'); await step(p, 'A', 80);
+    ok('default: MULTIPLAYER, LOCAL available', (await pagesModel(p)) === M.MP && (await p.ev('Module._PortMenuPocRowAvailable(0)')) === 1);
+    await shot(p, 'default-mp.png');
+    // ONLINE (row 1): its fourth row reloads into the 4-Kirby module
+    await step(p, 'DOWN'); await step(p, 'A', 30);
+    ok('default: ONLINE is up', (await pagesModel(p)) === M.ONLINE);
+    for (let i = 0; i < 3; i++) await step(p, 'DOWN', 8);
+    await shot(p, 'default-online-host4.png');
+    await step(p, 'B', 30); await step(p, 'UP', 8);             // MULTIPLAYER, LOCAL
+    await press(p, 'A');
+    const inPlay = await until(() => p.ev('Module._PortLmpInPlay()'), 60000, 200);
+    await waitFrames(p, 60);
+    ok('default: LOCAL starts a two-player game', !!inPlay && JSON.stringify(await humans(p)) === '[1,1,0,0]', JSON.stringify(await humans(p)));
+    ok('default: ... with 4 Kirbys', (await p.ev('Module._PortPocKirbysNow()')) === 4);
+    await keyHold(p, 'ARROWDOWN', true); await waitFrames(p, 4);
+    const k2 = await p.ev('katamDevices.playerKeys(1)');
+    await keyHold(p, 'ARROWDOWN', false);
+    ok('default: player 2\'s keys (the arrows) reach player 2', (k2 & 128) === 128, String(k2));
+    await waitFrames(p, 120);
+    await shot(p, 'default-local-two.png');
+    await p.close();
+
+    // ONLINE > HOST 4 PLAYERS: the page again on the 4-Kirby module, and HOST 8 PLAYERS back
+    const r = await openPage('default-hop', { extra: { mod: null } });
+    await toGameSelect(r);
+    const toOnlineRow3 = async () => {
+        await step(r, 'A', 60); await step(r, 'DOWN'); await step(r, 'A', 80);
+        await step(r, 'DOWN'); await step(r, 'A', 30);
+        for (let i = 0; i < 3; i++) await step(r, 'DOWN', 8);
+        return (await pagesModel(r)) === M.ONLINE;
+    };
+    ok('default: ONLINE, fourth row', await toOnlineRow3());
+    await press(r, 'A');
+    const hopped4 = await until(async () => { try { return /[?&]mod=4\b/.test(await r.ev('location.search')) && !(await r.ev('!!window.KATAM_KIRBYS16')) && (await r.ev('!!(Module.portRuntimeUp && Module._PortFrameNumber() > 30)')); } catch (e) { return false; } }, 60000, 250);
+    ok('default: HOST 4 PLAYERS reloads into the 4-Kirby module (?mod=4)', !!hopped4, await r.ev('location.search').catch(() => '?'));
+    ok('... where online games hold 4', (await r.ev('katamOnline.seats()')) === 4);
+    await toGameSelect(r);
+    ok('4-Kirby module: ONLINE, fourth row', await toOnlineRow3());
+    await shot(r, 'mod4-online-host8.png');
+    await press(r, 'A');
+    const hopped16 = await until(async () => { try { return /[?&]mod=16\b/.test(await r.ev('location.search')) && (await r.ev('!!window.KATAM_KIRBYS16')) && (await r.ev('!!(Module.portRuntimeUp && Module._PortFrameNumber() > 30)')); } catch (e) { return false; } }, 60000, 250);
+    ok('4-Kirby module: HOST 8 PLAYERS reloads into the 16-Kirby module', !!hopped16, await r.ev('location.search').catch(() => '?'));
+    await r.close();
+
+    // ?mod=4: the 4-Kirby module, its wasm only
+    const q = await openPage('mod4', { extra: { mod: '4' } });
+    await until(() => q.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
+    ok('?mod=4: the 4-Kirby module, katam.wasm only', !(await q.ev('!!window.KATAM_KIRBYS16')) && (await q.ev('Module._PortPocKirbysMax()')) === 4
+       && JSON.stringify(await fetchedWasm(q)) === '["katam.wasm"]', JSON.stringify(await fetchedWasm(q)));
+    ok('?mod=4: the page log names it', (await pageLog(q)).some((t) => /^module: katam, the 4-Kirby module/.test(t)));
     await q.close();
 }
 
@@ -736,6 +826,7 @@ for (const c of CASES) {
         else if (c === 'joinmsg') await caseJoinMessage();
         else if (c === 'pause') await casePause();
         else if (c === 'local') await caseLocal();
+        else if (c === 'default') await caseDefault();
         else if (c === 'kirbys') await caseKirbys();
         else if (c === 'phone') await caseLooks('phone', { w: 390, h: 844, mobile: true, touch: true });
         else if (c === 'wide') await caseLooks('wide', { w: 1440, h: 800 });

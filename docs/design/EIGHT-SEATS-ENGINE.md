@@ -217,11 +217,22 @@ module's id) or the host (`bad` with `mod`) says so.
 ## Menus
 
 ONLINE has a fourth row (platform/online_ui.c `PORT_OUI_ROW_OTHER_MODULE`):
-HOST 8 PLAYERS on the ordinary module, 4 PLAYER GAMES on the 16-Kirby one;
-A pushes `PORT_OUI_EV_OTHER_MODULE` and the page reloads on the other module
-(`katamOnline.otherModule()` is the same from JS).  On the 16-Kirby module
-MULTIPLAYER > ONLINE is open (its games hold 8: `PortOuiSeats()`); LOCAL
-stays refused there.
+HOST 8 PLAYERS on the 4-Kirby module, HOST 4 PLAYERS ("LIGHTER ON PHONES")
+on the 16-Kirby one; A pushes `PORT_OUI_EV_OTHER_MODULE` and the page
+reloads on the other module (`katamOnline.otherModule()` is the same from
+JS).  On the 16-Kirby module MULTIPLAYER > ONLINE is open (its games hold 8:
+`PortOuiSeats()`).
+
+**The default module (2026-11-16).**  The page loads the 16-Kirby module
+unless `?mod=4` (or `?kirbys=4`, the parked `?room=` / `?world=` /
+`?online=1` flags, the room playtest page): a fresh visitor gets katam16 at
+4 Kirbys, hosts 8-seat rooms, and has LOCAL multiplayer there (the wide
+build's human-slot layer already carried online seats; the refusal was
+only untested -- `devices_browser_test --cases solo,lmp,local --mod default`
+and `menu_exits_test --cases default,local --mod default` now run it).  A
+4-player room's invite link names `mod=4`; the public list's games without
+`mod` are 4-Kirby module games (web/online_browse.js `modOf`).  CPU KIRBYS
+on `?mod=4` above 3 reloads to the page's address without `?mod`.
 
 # Before publishing: pause, the opening, W0 (branch `eight-fix`)
 

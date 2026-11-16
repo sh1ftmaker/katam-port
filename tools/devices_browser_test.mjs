@@ -54,6 +54,11 @@ const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 ? argv[i + 1] : d; };
 const CDP_PORT = +flag('cdp', 9363);
 const BASE = flag('base', 'http://127.0.0.1:8963/dist/');
+// --mod 4 | 16 | default: the module every page loads unless a case names its
+// own (extra `mod`; null = none, the page's default).  4 (?mod=4, the 4-Kirby
+// module) unless given: the 16-Kirby module is the page's default, so a suite
+// meant for it says --mod 16 or default (tools/full_check.sh).
+const MOD = flag('mod', '4');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8963/rom.gba');
 const SHOTS = flag('shots', '');
 const CASES = flag('cases', 'gl,lmp,frontend,local,solo,touch,touchset,hudplaces,picker').split(',');
@@ -153,7 +158,8 @@ async function openPage(name, { w = 960, h = 640, mobile = false, touch = false,
     if (early) await s('Page.addScriptToEvaluateOnNewDocument', { source: early });
     const u = new URL(BASE + 'index.html');
     u.searchParams.set('rom', ROM_URL);
-    for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
+    const ex = Object.assign(MOD === 'default' ? {} : { mod: MOD }, extra);
+    for (const [k, v] of Object.entries(ex)) if (v !== null && v !== undefined) u.searchParams.set(k, v);
     await s('Page.navigate', { url: u.toString() });
     return p;
 }
@@ -549,7 +555,12 @@ async function caseSolo() {
     say('solo: one person, a keyboard and a pad');
     const p = await openPage('solo');
     await toGameSelect(p);
+    // the module asked for: ?mod=4 the 4-Kirby one, else (the default) the 16-Kirby one
+    const k16 = await p.ev('!!window.KATAM_KIRBYS16');
+    ok(`the page runs ${MOD === '4' ? 'the 4-Kirby module (?mod=4)' : 'the 16-Kirby module (--mod ' + MOD + ')'}`,
+       k16 === (MOD !== '4') && (await p.ev('Module._PortPocKirbysMax()')) === (k16 ? 16 : 4));
     await startPlay(p);
+    ok('4 Kirbys in play', (await p.ev('Module._PortPocKirbysNow()')) === 4);
     await p.ev(`__padPlug(0, ${JSON.stringify(XBOX)})`);
     await waitFrames(p, 10);
     await p.ev('__padSet(0, [0])');
@@ -726,9 +737,13 @@ async function caseGl() {
     const p = await openPage('gl');
     await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
     ok('the page runs on WebGL2 (Module.portGl)', await p.ev('!!Module.portGl'));
-    const wasm = await p.ev(`fetch(performance.getEntriesByType('resource').map(function(r){return r.name}).filter(function(n){return /katam\.wasm/.test(n)})[0]).then(function(r){return r.arrayBuffer()}).then(function(b){return crypto.subtle.digest('SHA-256', b)}).then(function(h){return Array.from(new Uint8Array(h)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')})`);
-    const mine = (await import('crypto')).createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'build/dist/katam.wasm'))).digest('hex');
-    ok('the served katam.wasm is this build', wasm === mine, wasm.slice(0, 12) + ' vs ' + mine.slice(0, 12));
+    // (the module this page runs: katam.wasm, or katam16.wasm -- only that one is fetched)
+    const wf = (await p.ev('!!window.KATAM_KIRBYS16')) ? 'katam16.wasm' : 'katam.wasm';
+    const fetched = await p.ev(`performance.getEntriesByType('resource').map(function(r){return r.name}).filter(function(n){return /katam(16)?\\.wasm/.test(n)}).map(function(n){return n.replace(/^.*\\/|\\?.*$/g,'')})`);
+    ok('the page fetched one module, ' + wf, fetched.length === 1 && fetched[0] === wf, JSON.stringify(fetched));
+    const wasm = await p.ev(`fetch(performance.getEntriesByType('resource').map(function(r){return r.name}).filter(function(n){return /\\/${wf.replace('.', '\\.')}/.test(n)})[0]).then(function(r){return r.arrayBuffer()}).then(function(b){return crypto.subtle.digest('SHA-256', b)}).then(function(h){return Array.from(new Uint8Array(h)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')})`);
+    const mine = (await import('crypto')).createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'build/dist/' + wf))).digest('hex');
+    ok(`the served ${wf} is this build`, wasm === mine, wasm.slice(0, 12) + ' vs ' + mine.slice(0, 12));
     await p.close();
 }
 

@@ -63,7 +63,10 @@
 //   rooms   FREE ROAM (rooms mode) with two and three pages (--rooms-pages
 //           2,3): each page on its own player's room, the canonical frames
 //           identical, the digest equal, a phone call, the pause menu.
-//   eight   an 8-player game (EXPERIMENTAL; not in the default list) with
+//   default the page's default module (no ?mod) against 8- and 4-player
+//           rooms: hosting 8 seats; invite link, a link without mod and the
+//           public list into a 4-player room (not in the default list)
+//   eight   an 8-player game (not in the default list) with
 //           --eight-tabs pages (default 6, at least 5): the host on the
 //           16-Kirby module (?mod=16) through MULTIPLAYER > ONLINE > HOST GAME;
 //           guest 1 on the ORDINARY module types the code on JOIN GAME and
@@ -88,6 +91,11 @@ const flag = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 ? argv[
 const has = (n) => argv.includes('--' + n);
 const CDP_PORT = +flag('cdp', 9351);
 const BASE = flag('base', 'http://127.0.0.1:8941/dist/');
+// --mod 4 | 16 | default: the module every page loads unless a case names its
+// own (extra `mod`; null = none, the page's default).  4 (?mod=4, the 4-Kirby
+// module) unless given: the 16-Kirby module is the page's default, so a suite
+// meant for it says --mod 16 or default (tools/full_check.sh).
+const MOD = flag('mod', '4');
 const ROM_URL = flag('rom-url', 'http://127.0.0.1:8941/rom.gba');
 const LIVE = has('live');
 const RELAY = LIVE ? null : flag('relay', 'http://127.0.0.1:8797');
@@ -149,7 +157,8 @@ function pageUrl(extra) {
     const u = new URL(BASE + 'index.html');
     u.searchParams.set('rom', ROM_URL);
     if (RELAY) u.searchParams.set('netserver', RELAY);
-    for (const [k, v] of Object.entries(extra || {})) u.searchParams.set(k, v);
+    const ex = Object.assign(MOD === 'default' ? {} : { mod: MOD }, extra || {});
+    for (const [k, v] of Object.entries(ex)) if (v !== null && v !== undefined) u.searchParams.set(k, v);
     return u.toString();
 }
 
@@ -1697,6 +1706,59 @@ if (CASES.includes('browse')) {
 }
 
 // --- eight: an 8-player game, 5-6 tabs, on the 16-Kirby module --------------------
+// default: the page's default (no ?mod: the 16-Kirby module) against 8- and
+// 4-player rooms -- a host there hosts 8 seats; a 4-player room (a host on
+// ?mod=4) is reached from a default page by its invite link (it names
+// mod=4: no reload), by a link from before that (no mod: the room's version
+// gate reloads the page into the 4-Kirby module) and from the public list
+// (the list's module: a reload before connecting).
+if (CASES.includes('default')) {
+    say('# default: the default module against 8- and 4-player rooms');
+    const extraOf = (link) => { const o = {}; for (const [k, v] of new URL(link).searchParams) o[k] = v; return o; };
+    const h16 = await openPage('dhost16', { mod: null });
+    const c16 = await hostToWaiting(h16, 'd16');
+    ok('default: a host on the default page has a room', !!c16, c16);
+    ok('default: ... on the 16-Kirby module, 8 seats', (await h16.ev('katamOnline.module()')) === '16' && (await h16.ev('katamOnline.seats()')) === 8);
+    const inv16 = await h16.ev('katamOnline.invite()');
+    ok('default: its invite link names mod=16', /[?&]mod=16\b/.test(inv16), inv16);
+    const g0 = await openPage('dg0', Object.assign(extraOf(inv16), { mod: null }));
+    const w0 = await until(async () => { const st = await stats(g0); return st && st.phase === 'waiting' && st.module === '16'; }, 60000, 300);
+    ok('default: a default page joins the 8-player room by code, no reload', !!w0 && !/[?&]mod=/.test(await g0.ev('location.search')), await g0.ev('location.search'));
+    await g0.close(); await h16.close();
+
+    const h4 = await openPage('dhost4', { mod: '4' });
+    const c4 = await hostToWaiting(h4, 'd4');
+    ok('default: a host on ?mod=4 has a room, 4 seats', !!c4 && (await h4.ev('katamOnline.module()')) === '4' && (await h4.ev('katamOnline.seats()')) === 4, c4);
+    const inv4 = await h4.ev('katamOnline.invite()');
+    ok('default: its invite link names mod=4', /[?&]mod=4\b/.test(inv4), inv4);
+    // the invite link as sent
+    const g1 = await openPage('dg1', extraOf(inv4));
+    const w1 = await until(async () => { const st = await stats(g1); return st && st.phase === 'waiting' ? st : null; }, 60000, 300);
+    ok('default: the invite link loads the 4-Kirby module and joins', !!w1 && w1.module === '4' && !(await g1.ev('!!window.KATAM_KIRBYS16')), JSON.stringify(w1 && w1.module));
+    // a link with no mod (from before mod=4 was in links): the default page, then the version gate's reload
+    const g2 = await openPage('dg2', { join: c4, mod: null });
+    const w2 = await until(async () => { try { const q = await g2.ev('location.search'); const st = await stats(g2); return /[?&]mod=4\b/.test(q) && st && st.module === '4' && st.phase === 'waiting' ? q : null; } catch (e) { return null; } }, 90000, 300);
+    ok('default: a link without mod: the default page reloads into the 4-Kirby module (the room\'s version gate) and joins', !!w2, String(w2));
+    // the public list
+    await press(h4, 'DOWN'); await press(h4, 'DOWN');           // GAME
+    await press(h4, 'RIGHT');                                    // PUBLIC
+    const listed = await until(async () => ((await relayGet(RELAY)) || []).find((g) => g.code === c4), 15000);
+    ok('default: the 4-player room is listed (no mod: the 4-Kirby module\'s)', !!listed && !listed.mod, JSON.stringify(listed));
+    const g3 = await openPage('dg3', { mod: null });
+    await toGameSelect(g3);
+    await toOnline(g3);
+    ok('default: BROWSE GAMES on the default page', await toBrowse(g3));
+    const seen = await until(async () => { const k = await kb(g3); return k && k.listStatus === 1 && k.games.some((g) => g.code === c4) ? k : null; }, 15000);
+    for (let i = 0; i < 8 && (await selected(g3)) !== c4; i++) await press(g3, 'DOWN');
+    ok('default: the list shows it, the cursor on it', !!seen && (await selected(g3)) === c4, await selected(g3));
+    await press(g3, 'A');
+    const w3 = await until(async () => { try { const q = await g3.ev('location.search'); const st = await stats(g3); return /[?&]mod=4\b/.test(q) && new RegExp('join=' + c4).test(q) && st && st.module === '4' && st.phase === 'waiting' ? q : null; } catch (e) { return null; } }, 90000, 300);
+    ok('default: joining it from the list reloads into the 4-Kirby module and joins', !!w3, String(w3));
+    await sleep(1500);
+    ok('default: the 4-player host counts 3 guests', (await stats(h4)).peers.length === 3, JSON.stringify((await stats(h4)).peers.map((p) => [p.dev, p.ready])));
+    for (const p of [g1, g2, g3, h4]) await p.close();
+}
+
 if (CASES.includes('eight')) {
     const NT = Math.max(5, +flag('eight-tabs', 6));
     say(`# eight: an 8-player game with ${NT} tabs on the 16-Kirby module; play with ${LAG} ms one way, jitter ${JITTER}, loss ${LOSS}%`);

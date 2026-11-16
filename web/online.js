@@ -1,5 +1,6 @@
-/* Online play, up to four players on up to four devices -- or eight on
- * eight in an 8-player game (EXPERIMENTAL) -- the page's half.
+/* Online play, up to eight players on up to eight devices (the 16-Kirby
+ * module, the default) or four on four (a 4-player game, the 4-Kirby
+ * module) -- the page's half.
  *
  * The game's own front end has the screens (Start Game > MULTIPLAYER >
  * ONLINE > HOST GAME / JOIN GAME: platform/online_ui.c, drawn by
@@ -35,16 +36,16 @@
  * hands its Kirbys to the CPU; back with the same code (the same tab, or a
  * reload of it), it gets a Kirby again -- the one it had, if still free.
  *
- * Modules.  Four-player games run on the ordinary module (katam.wasm);
- * 8-player games on the 16-Kirby one (katam16.wasm: web/shell.html picks it
- * for ?mod=16 or SETTINGS > EXPERIMENTAL > CPU KIRBYS above 3).  A host on
- * the 16-Kirby module hosts an 8-player game; ONLINE > HOST 8 PLAYERS on
- * the ordinary one reloads the page into it (and 4 PLAYER GAMES back).
- * Every peer of a game runs the same module (the sim id names it: KATAM_SIM
- * or KATAM_SIM16).  A joiner on the other module -- told so by the invite
- * link (?mod=16), the public list's `mod`, or the room's version gate (the
- * room's sim id is the other module's) -- reloads into it with ?join=CODE,
- * once.  The wire carries every slot's keys (web/ln_session.js) and, in an
+ * Modules.  8-player games run on the 16-Kirby module (katam16.wasm, the
+ * page's default: web/shell.html); 4-player games on the 4-Kirby one
+ * (katam.wasm, ?mod=4).  A host on the 16-Kirby module hosts an 8-player
+ * game; ONLINE > HOST 4 PLAYERS reloads the page into the 4-Kirby module
+ * (lighter on a phone), and HOST 8 PLAYERS there back.  Every peer of a
+ * game runs the same module (the sim id names it: KATAM_SIM or
+ * KATAM_SIM16).  A joiner on the other module -- told so by the invite link
+ * (?mod=16 or ?mod=4; a link from before ?mod=4 names none), the public
+ * list (`mod` 16, else 4), or the room's version gate (the room's sim id is
+ * the other module's) -- reloads into it with ?join=CODE, once.  The wire carries every slot's keys (web/ln_session.js) and, in an
  * 8-player game, each sealed record about four times (bounded redundancy).
  *
  * Invite links: ?join=CODE joins straight after the ROM is loaded.
@@ -214,9 +215,9 @@
             return false;
         }
         try { sessionStorage.setItem(key, JSON.stringify({ code: code, mod: mod, t: t })); } catch (e) { /* once is enough */ }
-        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (' + why + ') -- reloading into it');
+        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : '4-player') + ' module (' + why + ') -- reloading into it');
         S.stats.moduleHops = (S.stats.moduleHops || 0) + 1;
-        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the ordinary module...', 0);
+        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the 4-player module...', 0);
         var u = new URL(location.href);
         u.searchParams.delete('kirbys');
         u.searchParams.set('mod', mod);
@@ -685,7 +686,7 @@
         reset();
         S.role = 'host'; S.phase = 'hosting';
         if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1, 0);
-        if (wide() && phone) banner('8-player game (experimental): a desktop host is best - a phone may stutter', 5000);
+        if (wide() && phone) banner('8-player game: a desktop host is best. On a phone, ONLINE > HOST 4 PLAYERS is lighter', 5000);
         ui(UI.H_CREATING);
         var gen = ++S.gen;
         versions().then(function (v) {
@@ -825,7 +826,7 @@
     function inviteLink() {
         var u = new URL(location.href);
         ['join', 'netlag', 'netjitter', 'netloss', 'netrelay', 'kirbys', 'mod'].forEach(function (k) { u.searchParams.delete(k); });
-        if (wide()) u.searchParams.set('mod', '16');        /* the joiner's page loads this game's module */
+        u.searchParams.set('mod', modName());               /* the joiner's page loads this game's module */
         u.searchParams.set('join', S.code);
         return u.toString();
     }
@@ -933,7 +934,7 @@
                     clearTimeout(hiTimer);
                     S.myDev = d.dev || null;
                     S.seatWaitFrom = nowMs();
-                    if (wide() && phone) banner('8-player game (experimental): a phone may stutter', 4000);
+                    if (wide() && phone) banner('8-player game: a phone may stutter', 4000);
                     guestLink(net, d.sid, !!d.relay);
                     return;
                 }
@@ -1097,9 +1098,9 @@
      * katamOnline.otherModule() too, for a page button or a test. */
     function otherModule() {
         var mod = wide() ? '4' : '16';
-        log('module: to the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (the page reloads)');
+        log('module: to the ' + (mod === '16' ? '8-player' : '4-player') + ' module (the page reloads)');
         if (S.role) { try { reset(); } catch (e) { /* going anyway */ } }
-        banner(mod === '16' ? 'Loading the 8-player module: then MULTIPLAYER > ONLINE > HOST GAME' : 'Loading the ordinary module...', 0);
+        banner('Loading the ' + (mod === '16' ? '8' : '4') + '-player module: then MULTIPLAYER > ONLINE > HOST GAME', 0);
         var u = new URL(location.href);
         ['kirbys', 'mod', 'join'].forEach(function (k) { u.searchParams.delete(k); });
         u.searchParams.set('mod', mod);
@@ -1124,8 +1125,8 @@
                 break;
             }
             case EV.JOIN_CANCEL: joinCancel(); break;
-            /* ONLINE > HOST 8 PLAYERS (the ordinary module) or 4 PLAYER GAMES
-             * (the 16-Kirby one): the page again, on the other module */
+            /* ONLINE > HOST 4 PLAYERS (the 16-Kirby module) or HOST 8
+             * PLAYERS (the 4-Kirby one): the page again, on the other module */
             case EV.OTHER_MODULE: otherModule(); break;
             }
         }

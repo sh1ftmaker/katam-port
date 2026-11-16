@@ -412,16 +412,6 @@ void PortLmpSetHumans(int n)
  * by its A press) used to play as one player. */
 void PortLmpChoose(int n)
 {
-#if KATAM_WIDE
-    /* The wide build (more than 4 Kirbys, the web page's second module): no
-     * local multiplayer from the menus or the pads outside an online
-     * session.  Recordings and the environment still can (`option localmp
-     * N`); an online session on the wide module (8 seats) can, as the
-     * default module's (HOST GAME > START is a two-player start, which the
-     * session's slot table then mends: platform/lmpnet.c Reconcile). */
-    if (n >= 2 && !PortLnActive())
-        return;
-#endif
     if (n < 2)
         n = sFromHost;
     if (n > NS)
@@ -879,9 +869,6 @@ int PortLmpCanRequest(void)
 {
     if (PortLnActive())
         return !PortInputLogReplaying();
-#if KATAM_WIDE
-    return 0;               /* no drop-in outside a session (PortLmpChoose) */
-#endif
     return !SessionActive() && !PortInputLogReplaying();
 }
 
