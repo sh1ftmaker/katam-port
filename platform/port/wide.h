@@ -409,6 +409,13 @@ static inline int PortWideIsObjx(u32 addr)
 {
     return addr - WIDE_OBJX_TILES < WIDE_SZ_OBJX_TILES;
 }
+/* [addr, addr + n) lies in the wide area (the moved per-player tables, the
+ * Kirbys 4.. among them): where a test poke (a recording's poke16, the rig's
+ * PORT_LN_EV_POKE) may write besides EWRAM. */
+static inline int PortWideIsArea(u32 addr, u32 n)
+{
+    return addr >= WIDE_BASE && addr - WIDE_BASE + n <= WIDE_BYTES;
+}
 #endif
 /* Every build: more than four Kirbys are in the world, which only the GPU
  * renderer can draw (port/wide.h KATAM_KIRBY_TILES; platform/ui/present.c
