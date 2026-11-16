@@ -12,7 +12,7 @@ extern "C" {
 extern void (*gUnk_03003678)(u16 *, u8, u16); // never filled with real function pointer in katam
 /* PORT: replaced by port/ram_symbols.h -- extern u16 gRgbMap[3][0x20] __attribute__((aligned(4))); */
 
-void LoadObjPaletteWithTransformation(const u16 *palette, u8 offset, u16 num);
+void LoadObjPaletteWithTransformation(const u16 *palette, KATAM_PAL_OFF offset, u16 num); /* PORT: u16 in the wide build */
 void LoadBgPaletteWithTransformation(const u16 *palette, u8 offset, u16 num);
 void InvertRgbMap(void);
 void sub_08158434(const s8 delta[]);

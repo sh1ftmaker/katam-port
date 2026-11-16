@@ -76,6 +76,47 @@
 #define KATAM_HW_SLOT(i) (i)
 #endif
 
+/* A Kirby's own sprite memory (platform/wide_sprites.c has the whole story).
+ *
+ *   KATAM_KIRBY_TILES(i)  its 2 KiB of tile memory, as a sprite's tilesVram.
+ *                         Kirbys 0..3: 0x06010000 + (i << 11), the console's.
+ *                         Kirbys 4..: 2 KiB each in the wide area of the sim
+ *                         block (WIDE_OFF_OBJX), which the game's own tile
+ *                         queue fills as it fills VRAM.
+ *   KATAM_KIRBY_PAL(i)    its first OBJ palette line, as a sprite's palId;
+ *   KATAM_KIRBY_PAL2(i)   its second (the console's i + 4).  Kirbys 4.. get
+ *                         lines past the console's sixteen, in groups of four
+ *                         laid out as the console's: 16 * (i / 4) + i % 4,
+ *                         and that + 4.  So `palId & 15` is the console slot
+ *                         i & 3 (OAM's four bits: what the classic renderer
+ *                         shows) and the game's own `palId + 4` still finds a
+ *                         Kirby's second line from its first.
+ *   KATAM_OAM_TILES(v)    the OAM tile number of tilesVram v: for the wide
+ *                         area, the tile of the same place in console slot
+ *                         i & 3 (the classic renderer's placeholder); the GPU
+ *                         renderer reads the real one from the struct Sprite.
+ *   KATAM_OBJ_PAL(off)    &gObjPalette[off] for off up to 16 * 64.
+ *   KATAM_PAL_MASK        what the game's `palId & 0xF` keeps.
+ *
+ * The default build spells the console's expressions. */
+#if KATAM_WIDE
+#define KATAM_KIRBY_TILES(i) ((u32)(i) < 4 ? 0x6010000u + ((u32)(i) << 11) \
+                                           : WIDE_OBJX_TILES + (((u32)(i) - 4u) << 11))
+#define KATAM_KIRBY_PAL(i)   ((((i) >> 2) << 4) | ((i) & 3))
+#define KATAM_OAM_TILES(v)   PortWideOamTiles(v)
+#define KATAM_OBJ_PAL(off)   PortWideObjPal(off)
+#define KATAM_PAL_MASK       0xFF
+#define KATAM_PAL_OFF        u16     /* a palette offset: lines past 15   */
+#else
+#define KATAM_KIRBY_TILES(i) (((i) << 11) + 0x6010000)
+#define KATAM_KIRBY_PAL(i)   (i)
+#define KATAM_OAM_TILES(v)   (((v) - 0x6010000u) >> 5)
+#define KATAM_OBJ_PAL(off)   (&gObjPalette[off])
+#define KATAM_PAL_MASK       0xF
+#define KATAM_PAL_OFF        u8
+#endif
+#define KATAM_KIRBY_PAL2(i)  (KATAM_KIRBY_PAL(i) + 4)
+
 /* The console HUD's other-Kirby icons (hud.c: struct GameplayHud keeps
  * sprites for four), and the pause area map's Kirby markers (the same).
  * PLACEHOLDER in the wide build: they show Kirbys 0..3 only, and a screen whose own player is 4.. shows no calling-Kirby icon.  A
@@ -166,7 +207,18 @@
 #define WIDE_OFF_BGTAB     WIDE_AL(WIDE_OFF_FREEZE   + WIDE_SZ_FREEZE)
 #define WIDE_OFF_PALFX     WIDE_AL(WIDE_OFF_BGTAB    + 3u * KATAM_KIRBYS * 4u)
 #define WIDE_SZ_PALFX      (PAL_FX_SLOTS * 0x10u + PAL_FX_SLOTS * 4u)
-#define WIDE_OFF_LEVELINFO WIDE_AL(WIDE_OFF_PALFX    + WIDE_SZ_PALFX)
+/* Kirbys 4..'s sprite memory (KATAM_KIRBY_TILES/PAL above), in groups of four
+ * Kirbys past the console's group: per group 8 KiB of tiles and 16 OBJ
+ * palette lines, three copies of those (the game's buffer, gObjPalette's
+ * twin; the palette-effect source, gSourcePalettes.obj's; and the "hardware"
+ * copy UpdateScreen makes, OBJ_PLTT's).  Empty at N = 4. */
+#define WIDE_OBJX_GROUPS   ((KATAM_KIRBYS + 3u) / 4u - 1u)
+#define WIDE_SZ_OBJX_TILES (WIDE_OBJX_GROUPS * 0x2000u)
+#define WIDE_OBJX_LINES    (WIDE_OBJX_GROUPS * 16u)
+#define WIDE_SZ_OBJX_PAL   (WIDE_OBJX_LINES * 32u)
+#define WIDE_OFF_OBJX      WIDE_AL(WIDE_OFF_PALFX    + WIDE_SZ_PALFX)
+#define WIDE_SZ_OBJX       (WIDE_SZ_OBJX_TILES + 3u * WIDE_SZ_OBJX_PAL)
+#define WIDE_OFF_LEVELINFO WIDE_AL(WIDE_OFF_OBJX     + WIDE_SZ_OBJX)
 #define WIDE_BYTES         WIDE_AL(WIDE_OFF_LEVELINFO + KATAM_KIRBYS * WIDE_SZ_LEVELINFO)
 
 /* The wide area's GBA address: PORT_SIM_BASE + offsetof(PortSimBlock, wide).
@@ -176,6 +228,12 @@
 #define WIDE_SIM_OFFSET    (((0xB4u + 4130u * KATAM_KIRBYS) + 0xFFFu) & ~0xFFFu)
 #define WIDE_BASE          (0x02040000u + WIDE_SIM_OFFSET)
 #define WIDE_ADDR(off)     (WIDE_BASE + (off))
+
+/* Kirbys 4..'s tiles and palettes (GBA addresses). */
+#define WIDE_OBJX_TILES    WIDE_ADDR(WIDE_OFF_OBJX)
+#define WIDE_OBJX_PAL      (WIDE_OBJX_TILES + WIDE_SZ_OBJX_TILES)
+#define WIDE_OBJX_SRCPAL   (WIDE_OBJX_PAL + WIDE_SZ_OBJX_PAL)
+#define WIDE_OBJX_HWPAL    (WIDE_OBJX_SRCPAL + WIDE_SZ_OBJX_PAL)
 
 /* Where gCurLevelInfo[0xFF] reaches, which must stay mapped and unwritten. */
 #define WIDE_LI_REACH      (WIDE_ADDR(WIDE_OFF_LEVELINFO) + 256u * WIDE_SZ_LEVELINFO)
@@ -250,6 +308,31 @@ void PortWideSetTarget(int n);
 int  PortWideTarget(void);
 u8   PortWideStartKirbys(void);
 void PortWideFrame(void);
+
+/* Kirbys 4..'s sprite memory (platform/wide_sprites.c). */
+static inline u32 PortWideOamTiles(u32 v)
+{
+    u32 d = v - WIDE_OBJX_TILES;
+
+    if (d < WIDE_SZ_OBJX_TILES)
+        return (d & 0x1FFFu) >> 5;      /* the same place in slot i & 3 */
+    return (v - 0x6010000u) >> 5;
+}
+/* &gObjPalette[off]; off >= 0x100 is a line of the wide area. */
+u16 *PortWideObjPal(u32 off);
+/* gSourcePalettes.obj's twin: off >= 0x100 only (palette_effects.c). */
+u16 *PortWideObjSrcPal(u32 off);
+/* The whole-palette operations of the game, done to the wide area's lines
+ * as the game does them to the console's sixteen: */
+void PortWideObjPalRestore(void);          /* source -> buffer             */
+void PortWideObjPalTransformAll(void);     /* gRgbMap over the buffer      */
+void PortWideObjPalSync(void);             /* buffer -> "hardware"         */
+/* VramFree of a wide-area address: nothing to free (the console never
+ * frees a Kirby slot either). */
+static inline int PortWideIsObjx(u32 addr)
+{
+    return addr - WIDE_OBJX_TILES < WIDE_SZ_OBJX_TILES;
+}
 #endif
 /* Every build: the host asks for n Kirbys in all (0 in the default build,
  * which has nothing to change). */

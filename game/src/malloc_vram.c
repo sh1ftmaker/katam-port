@@ -37,6 +37,9 @@ void VramResetHeapState(void) {
 void VramFree(u32 addr) {
     u16 segmentId;
 
+#if KATAM_WIDE
+    if (PortWideIsObjx(addr)) return; /* PORT: a wide-build Kirby's own tiles (port/wide.h) */
+#endif
     if ((u32)ewram_end != addr) {
         segmentId = (addr - gVramHeapStartAddr) / VRAM_HEAP_SEGMENT_SIZE;
         gVramHeapState[segmentId] = 0;

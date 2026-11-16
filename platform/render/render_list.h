@@ -35,6 +35,7 @@
 #define GUARD_PORT_RENDER_LIST_H
 
 #include "gba/types.h"
+#include "port/wide.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,6 +49,21 @@ extern "C" {
 #define RL_MAX_HUD_REGIONS 8
 #define RL_LINES 160            /* per-line effect state, one row per GBA line */
 #define RL_LINE_WORDS 40        /* see RL_LINE_* below; 10 RGBA texels */
+
+/* The wide build's own memory for Kirbys 4.. (port/wide.h, platform/
+ * wide_sprites.c): tile memory past the console's 96 KiB of VRAM and OBJ
+ * palette lines past its sixteen.  RlFrame.vram and .palette carry them after
+ * the console's, so a sprite's tile number (RlSprite.tileX) counts on from
+ * OBJ VRAM's 0x400 tiles and OBJ palette line L is palette[256 + 16 * L]. */
+#if KATAM_WIDE
+#define RL_XTILE_BYTES  WIDE_SZ_OBJX_TILES
+#define RL_XPAL_LINES   WIDE_OBJX_LINES
+#else
+#define RL_XTILE_BYTES  0u
+#define RL_XPAL_LINES   0u
+#endif
+#define RL_VRAM_BYTES   (0x18000u + RL_XTILE_BYTES)
+#define RL_PAL_ENTRIES  (512u + RL_XPAL_LINES * 16u)
 
 /* A background layer.  The text/affine distinction and the tile fetch are the
  * GBA's (BGxCNT in the per-line table); what the list adds is where the
@@ -98,6 +114,14 @@ typedef struct RlSprite {
     u8 anchor;               /* HUD: index into RlFrame.hud                  */
     s16 pa, pb, pc, pd;      /* affine matrix (identity when not affine)    */
     s16 subX, subY;          /* added to x/y, 1/256 px (PortRlPresentFrame)  */
+    /* The wide build's Kirbys 4.. (RL_XTILE_BYTES above): OAM cannot name
+     * their memory, so attr2 holds the classic renderer's placeholder and
+     * these the real thing.  tileX: 0, or the tile number (>= 0x400) that
+     * replaces attr2's; palHi: OBJ palette line >> 4 (0 on the console), the
+     * line being palHi * 16 + attr2's four bits. */
+    u16 tileX;
+    u8 palHi;
+    u8 pad_;
 } RlSprite;
 
 /* A HUD region: a rectangle of the 240x160 HUD and the edge it is pinned to.
@@ -166,8 +190,8 @@ typedef struct RlFrame {
     u32 numObjWin;           /* sprites[numSprites .. +numObjWin): OBJ window */
 
     /* Texture-cache sources.  The backend uploads what changed. */
-    const u8 *vram;          /* 96 KiB, with off-screen sprite tiles patched  */
-    const u16 *palette;      /* 512 entries, BGR555                           */
+    const u8 *vram;          /* RL_VRAM_BYTES: VRAM, off-screen sprite tiles patched, then the wide build's */
+    const u16 *palette;      /* RL_PAL_ENTRIES, BGR555: BG, OBJ, the wide build's OBJ lines */
     s32 lines[RL_LINES][RL_LINE_WORDS];
 
     /* Diagnostics: where the list came from. */

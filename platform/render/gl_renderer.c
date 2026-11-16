@@ -76,7 +76,7 @@ GLR_FUNCS(GLR_DEFINE)
 
 #define G(name) GLR_FN(name)
 
-#define VRAM_BYTES 0x18000
+#define VRAM_BYTES RL_VRAM_BYTES   /* VRAM, then the wide build's (render_list.h) */
 #define VRAM_TEX_W 256
 #define VRAM_TEX_H (VRAM_BYTES / VRAM_TEX_W)
 #define MAP_TEX_W 1024
@@ -296,17 +296,18 @@ static const char *kObjFs =
     "  int col;\n"
     "  if (is256) {\n"
     "    int off = 0x10000 + ((ti & ~1) >> 1) * 64 + (texY & 7) * 8 + (texX & 7);\n"
-    "    if (off >= 0x18000) discard;\n"
+    "    if (off >= textureSize(uVram, 0).y << 8) discard;\n"
     "    int idx = vb(off);\n"
     "    if (idx == 0) discard;\n"
     "    col = pal(256 + idx);\n"
     "  } else {\n"
     "    int off = 0x10000 + ti * 32 + (texY & 7) * 4 + ((texX & 7) >> 1);\n"
-    "    if (off >= 0x18000) discard;\n"
+    "    if (off >= textureSize(uVram, 0).y << 8) discard;\n"
     "    int idx = vb(off);\n"
     "    idx = (texX & 1) != 0 ? (idx >> 4) : (idx & 15);\n"
     "    if (idx == 0) discard;\n"
-    "    col = pal(256 + (((fl & 15) * 16 + idx) & 255));\n"
+    /* bits 16-17: the wide build's palette lines past 15 (render_list.h) */
+    "    col = pal(256 + ((fl >> 16) & 3) * 256 + (((fl & 15) * 16 + idx) & 255));\n"
     "  }\n"
     "#ifdef RELIEF_DECODE\n"
     "  int r = col & 31, g = (col >> 5) & 31, b = (col >> 10) & 31;\n"
@@ -1314,7 +1315,7 @@ int GlrInit(void *(*getProc)(const char *), int es)
     G(glPixelStorei)(GL_UNPACK_ALIGNMENT, 1);
     G(glPixelStorei)(GL_PACK_ALIGNMENT, 1);
     sTexVram = MakeTex(GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, VRAM_TEX_W, VRAM_TEX_H);
-    sTexPal = MakeTex(GL_R16UI, GL_RED_INTEGER, GL_UNSIGNED_SHORT, 512, 1);
+    sTexPal = MakeTex(GL_R16UI, GL_RED_INTEGER, GL_UNSIGNED_SHORT, RL_PAL_ENTRIES, 1);
     sTexLines = MakeTex(GL_RGBA32I, GL_RGBA_INTEGER, GL_INT, RL_LINE_WORDS / 4, RL_LINES);
     sMapRows = 1;
     sTexMap = MakeTex(GL_R16UI, GL_RED_INTEGER, GL_UNSIGNED_SHORT, MAP_TEX_W, sMapRows);
@@ -1522,7 +1523,8 @@ static int BuildInstances(const RlFrame *f, u32 from, u32 count, int which,
         if (f->objOneD) flags |= 4096;
         if (s->space == RL_SPACE_HUD) flags |= 8192;
         o[0] = x; o[1] = y; o[2] = bw; o[3] = bh;
-        o[4] = w; o[5] = h; o[6] = s->attr2 & 0x3FF; o[7] = flags;
+        flags |= s->palHi << 16;
+        o[4] = w; o[5] = h; o[6] = s->tileX ? s->tileX : (s->attr2 & 0x3FF); o[7] = flags;
         o[8] = s->pa; o[9] = s->pb; o[10] = s->pc; o[11] = s->pd;
         o[12] = o[13] = o[14] = o[15] = 0;
         if (relief && from + i < RL_MAX_SPRITES && sSprHas[from + i]) {
@@ -1804,7 +1806,8 @@ static void PlanRelief(const RlFrame *f)
         r[m].bh = bh;
         r[m].sub = ((s32)(u16)s->subX << 16) | (u16)s->subY;
         r[m].key = ((s->attr0 & 0x2000) ? 16 : ((s->attr2 >> 12) & 15))
-                 | (((s->attr2 >> 10) & 3) << 5) | ((((s->attr0 >> 10) & 3) == 1) << 7);
+                 | (((s->attr2 >> 10) & 3) << 5) | ((((s->attr0 >> 10) & 3) == 1) << 7)
+                 | (s->palHi << 8);
         r[m].idx = i;
         r[m].parent = m;
         m++;
@@ -1877,11 +1880,12 @@ static void PlanRelief(const RlFrame *f)
         if (!affine && (s->attr1 & 0x2000)) fl |= 64;
         if (affine) fl |= 128;
         if (f->objOneD) fl |= 4096;
+        fl |= s->palHi << 16;
         o = sDecInst + sDecN * INST_INTS;
         memset(o, 0, INST_BYTES);
         o[0] = ox * 256; o[1] = oy * 256; o[2] = r[i].bw; o[3] = r[i].bh;
         o[4] = kObjW[shape][size]; o[5] = kObjH[shape][size];
-        o[6] = s->attr2 & 0x3FF; o[7] = fl;
+        o[6] = s->tileX ? s->tileX : (s->attr2 & 0x3FF); o[7] = fl;
         o[8] = s->pa; o[9] = s->pb; o[10] = s->pc; o[11] = s->pd;
         sDecN++;
         sSprSlot[r[i].idx][0] = ox;
@@ -2412,7 +2416,7 @@ void GlrDrawScaled(const RlFrame *f, int k)
     UploadVram(f->vram);
     G(glActiveTexture)(GL_TEXTURE0 + 1);
     G(glBindTexture)(GL_TEXTURE_2D, sTexPal);
-    G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, 512, 1, GL_RED_INTEGER, GL_UNSIGNED_SHORT, f->palette);
+    G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, RL_PAL_ENTRIES, 1, GL_RED_INTEGER, GL_UNSIGNED_SHORT, f->palette);
     G(glActiveTexture)(GL_TEXTURE0 + 2);
     G(glBindTexture)(GL_TEXTURE_2D, sTexLines);
     G(glTexSubImage2D)(GL_TEXTURE_2D, 0, 0, 0, RL_LINE_WORDS / 4, RL_LINES, GL_RGBA_INTEGER, GL_INT, f->lines);

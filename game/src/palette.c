@@ -13,9 +13,20 @@ extern "C" {
 #define GetG(color) (((color) & 0x3E0) >> 5)
 #define GetB(color) (((color) & 0x7C00) >> 10)
 
-void LoadObjPaletteWithTransformation(const u16 *palette, u8 offset, u16 num) {
+void LoadObjPaletteWithTransformation(const u16 *palette, KATAM_PAL_OFF offset, u16 num) {
     u16 i;
 
+#if KATAM_WIDE
+    /* PORT: a wide-build Kirby's own line (port/wide.h KATAM_KIRBY_PAL).
+     * gUnk_03003678 is never set in this game. */
+    if (offset >= 0x100) {
+        u16 *dst = KATAM_OBJ_PAL(offset);
+        for (i = 0; i < num; ++i, ++palette)
+            dst[i] = gRgbMap[0][GetR(*palette)] | gRgbMap[1][GetG(*palette)] | gRgbMap[2][GetB(*palette)];
+        gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
+        return;
+    }
+#endif
     for (i = 0; i < num; ++i) {
         gObjPalette[offset + i] =
             gRgbMap[0][GetR(*palette)]

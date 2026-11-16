@@ -46,7 +46,7 @@ bool8 IsPaletteEffectFinished(u8 arg0);
 void DestroyPaletteEffectsTask(u32 arg0);
 void LoadBgPaletteAndPaletteEffectSource(const u16 *palette, u8 offset, u16 num);
 void LoadLevelPaletteEffectSourcePalettes(const u16 **arg0, const u16 **arg1);
-void SaveObjPaletteColors(u8 offset, u8 num);
+void SaveObjPaletteColors(KATAM_PAL_OFF offset, u8 num); /* PORT: u16 in the wide build */
 void SaveBgPaletteColors(u8 offset, u8 num);
 void BackupPaletteEffectSourcePalettes(void);
 void RestorePaletteEffectSourcePalettes(void);

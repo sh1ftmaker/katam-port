@@ -5832,7 +5832,7 @@ void sub_0803E050(u16 sl)
     {
         if (!(gKirbys[i].base.unkC & 0x200)
             && (sub_0806EFF8(&gKirbys[i]), (gKirbys[i].ability == KIRBY_ABILITY_NORMAL && gKirbys[i].unkE0)))
-            SpriteSomething(&sprite, 0x6000000, gUnk_0834C5D0[gKirbys[i].unkE0 & 3], gKirbys[i].unkE0 / 4, 0xFF, 0, 0, 0, 0, 0x10, (i+4) & 0xF, 0x80000);
+            SpriteSomething(&sprite, 0x6000000, gUnk_0834C5D0[gKirbys[i].unkE0 & 3], gKirbys[i].unkE0 / 4, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(i) & KATAM_PAL_MASK, 0x80000);
     }
     SpriteSomething(&sprite, 0x6000000, 0x17, 0, 0xFF, 0, 0, 0, 0, 0x10, 0xE, 0x80000);
     SpriteSomething(&sprite, 0x6000000, 0x28A, 0, 0xFF, 0, 0, 0, 0, 0x10, 0xF, 0x80000);
@@ -5956,7 +5956,7 @@ void sub_0803E498(void)
 
 void sub_0803E4D4(u8 x)
 {
-    if (x >= 8)
+    if (x >= 8 && (!KATAM_WIDE || x < 16)) /* PORT: wide palIds 16.. are Kirbys' */
     {
         if (gUnk_02022E60[x-8] & 0x2000)
             gUnk_02022E60[x-8] -= 0x1000;
@@ -5985,7 +5985,7 @@ void sub_0803E558(u8 r8)
     sprite.unk14 = 0;
     sprite.unk16 = 0;
     sprite.unk1C = 0x10;
-    sprite.palId = KATAM_HW_SLOT(r8);
+    sprite.palId = KATAM_KIRBY_PAL(r8);
     sprite.unk8 = 0x80000;
     if (r4)
     {
@@ -6023,11 +6023,11 @@ void sub_0803E558(u8 r8)
         return;
     }
     sub_08155128(&sprite);
-    CpuCopy16(&gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0xC], colors, sizeof(colors));
+    CpuCopy16(KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0xC), colors, sizeof(colors));
     sprite.animId = 0x15;
     sprite.variant = gKirbys[r8].color;
     sub_08155128(&sprite);
-    CpuCopy16(colors, &gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0xC], sizeof(colors));
+    CpuCopy16(colors, KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0xC), sizeof(colors));
     SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     gKirbys[r8].base.unkC &= ~0x200;
 }
@@ -6044,7 +6044,7 @@ void sub_0803E6B8(u8 r6, u16 r1, u8 r2)
     sprite.unk14 = 0;
     sprite.unk16 = 0;
     sprite.unk1C = 0x10;
-    sprite.palId = KATAM_HW_SLOT(r6);
+    sprite.palId = KATAM_KIRBY_PAL(r6);
     sprite.unk8 = 0x80000;
     if (!r1)
     {
@@ -6058,11 +6058,11 @@ void sub_0803E6B8(u8 r6, u16 r1, u8 r2)
         sprite.animId = r1;
         sprite.variant = r2;
         sub_08155128(&sprite);
-        CpuCopy16(&gObjPalette[0x10 * KATAM_HW_SLOT(r6) + 0xC], colors, sizeof(colors));
+        CpuCopy16(KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r6) + 0xC), colors, sizeof(colors));
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r6].color;
         sub_08155128(&sprite);
-        CpuCopy16(colors, &gObjPalette[0x10 * KATAM_HW_SLOT(r6) + 0xC], sizeof(colors));
+        CpuCopy16(colors, KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r6) + 0xC), sizeof(colors));
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     }
 }
@@ -6080,7 +6080,7 @@ void sub_0803E778(u8 r8, u16 r1, u8 r2)
     sprite.unk14 = 0;
     sprite.unk16 = 0;
     sprite.unk1C = 0x10;
-    sprite.palId = KATAM_HW_SLOT(r8);
+    sprite.palId = KATAM_KIRBY_PAL(r8);
     sprite.unk8 = 0x80000;
     if (!r1)
     {
@@ -6094,13 +6094,13 @@ void sub_0803E778(u8 r8, u16 r1, u8 r2)
         sprite.animId = r1;
         sprite.variant = r2;
         sub_08155128(&sprite);
-        CpuCopy16(&gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0xA], colors, sizeof(colors));
-        CpuCopy16(&gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0x1], &colorBuf, sizeof(colorBuf));
+        CpuCopy16(KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0xA), colors, sizeof(colors));
+        CpuCopy16(KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0x1), &colorBuf, sizeof(colorBuf));
         sprite.animId = 0x15;
         sprite.variant = gKirbys[r8].color;
         sub_08155128(&sprite);
-        CpuCopy16(colors, &gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0xA], sizeof(colors));
-        CpuCopy16(&colorBuf, &gObjPalette[0x10 * KATAM_HW_SLOT(r8) + 0x1], sizeof(colorBuf));
+        CpuCopy16(colors, KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0xA), sizeof(colors));
+        CpuCopy16(&colorBuf, KATAM_OBJ_PAL(0x10 * KATAM_KIRBY_PAL(r8) + 0x1), sizeof(colorBuf));
         SaveObjPaletteColors(0x10 * sprite.palId, 0x10);
     }
 }
@@ -6110,9 +6110,9 @@ void sub_0803E868(u8 r4)
     struct Sprite sprite;
 
     if (gKirbys[r4].ability == KIRBY_ABILITY_UFO)
-        SpriteSomething(&sprite, 0x6000000, 0x1A0, 0xE, 0xFF, 0, 0, 0, 0, 0x10, r4 & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x1A0, 0xE, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL(r4) & KATAM_PAL_MASK, 0x80000);
     else
-        SpriteSomething(&sprite, 0x6000000, 0x15, 0xE, 0xFF, 0, 0, 0, 0, 0x10, r4 & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x15, 0xE, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL(r4) & KATAM_PAL_MASK, 0x80000);
 }
 
 struct KirbyIdx
@@ -6146,7 +6146,7 @@ void CreateKirby(u8 kirbyIdx, struct Kirby *kirby, u16 r5, const s32 *r6, bool32
     sub_0806F260(kirby);
     Macro_0803E920(kirby);
     sprite = &kirby->base.sprite;
-    sprite->tilesVram = (KATAM_HW_SLOT(kirbyIdx) << 11) + 0x6010000;
+    sprite->tilesVram = KATAM_KIRBY_TILES(kirbyIdx);
     sprite->animId = 0;
     sprite->variant = 0;
     sprite->unk1B = 0xFF;
@@ -6154,11 +6154,11 @@ void CreateKirby(u8 kirbyIdx, struct Kirby *kirby, u16 r5, const s32 *r6, bool32
     sprite->y = kirby->base.y >> 8;
     sprite->unk16 = 0;
     sprite->unk1C = 0x10;
-    sprite->palId = KATAM_HW_SLOT(kirbyIdx);
+    sprite->palId = KATAM_KIRBY_PAL(kirbyIdx);
     sprite->unk8 = 0x42000;
     sprite->unk20[0].unk0 = -1;
     sprite = &kirby->sprites[1];
-    sprite->tilesVram = (KATAM_HW_SLOT(kirbyIdx) << 11) + 0x6010200;
+    sprite->tilesVram = KATAM_KIRBY_TILES(kirbyIdx) + 0x200;
     sprite->animId = 0;
     sprite->variant = 0;
     sprite->unk1B = 0xFF;
@@ -6166,7 +6166,7 @@ void CreateKirby(u8 kirbyIdx, struct Kirby *kirby, u16 r5, const s32 *r6, bool32
     sprite->y = kirby->base.y >> 8;
     sprite->unk16 = 0;
     sprite->unk1C = 0x10;
-    sprite->palId = KATAM_HW_SLOT(kirbyIdx) + 4;
+    sprite->palId = KATAM_KIRBY_PAL2(kirbyIdx);
     sprite->unk8 = 0x42000;
     sprite = &kirby->sprites[0];
     sprite->tilesVram = 0x6012000;
@@ -6177,7 +6177,7 @@ void CreateKirby(u8 kirbyIdx, struct Kirby *kirby, u16 r5, const s32 *r6, bool32
     sprite->y = kirby->base.y >> 8;
     sprite->unk16 = 0;
     sprite->unk1C = 0x10;
-    sprite->palId = KATAM_HW_SLOT(kirbyIdx);
+    sprite->palId = KATAM_KIRBY_PAL(kirbyIdx);
     sprite->unk8 = 0xC2000;
     ++gNumKirbys;
 }
@@ -11507,7 +11507,7 @@ void sub_08052140(struct Kirby *kirby)
     else if (kirby->flyTimer)
     {
         CreateEffectObject(&kirby->base, 0, 0x296, 1);
-        kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+        kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
         sub_0806ED58(kirby);
         PlaySfx(&kirby->base, SE_WATER_SPLASH);
         kirby->base.sprite.unk1C = 0x10;
@@ -12363,7 +12363,7 @@ void sub_08054DBC(struct Kirby *kirby)
     }
     else
     {
-        kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+        kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
         sub_0806ED58(kirby);
         Macro_080435F8(kirby);
     }
@@ -12993,7 +12993,7 @@ _080564F8:
         sub_0803E458();
         sub_0803E050(kirby->base.roomId);
     }
-    kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+    kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
     sub_0806ED58(kirby);
     FillLevelInfo(kirby->base.unk56, kirby->base.roomId, &a, &b);
     if (!PortIsHuman(kirby->base.unk56))
@@ -13398,7 +13398,7 @@ void sub_080575D8(struct Kirby *kirby)
         kirby->transitioningAbility = 0;
         kirby->base.flags &= ~0x80;
         kirby->base.unkC |= 0x8000;
-        kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+        kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
         sub_0806ED58(kirby);
         CreateEffectObject(&kirby->base, 0, 0x292, 0);
         kirby->base.flags |= 0x340;
@@ -14930,7 +14930,7 @@ void KirbyEnterWater(struct Kirby *kirby)
 void KirbyLeaveWater(struct Kirby *kirby)
 {
     CreateEffectObject(&kirby->base, 0, 0x296, 1);
-    kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+    kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
     sub_0806ED58(kirby);
     PlaySfx(&kirby->base, SE_WATER_SPLASH);
     kirby->base.sprite.unk1C = 0x10;
@@ -15309,7 +15309,7 @@ void sub_0805C618(struct Kirby *kirby)
     kirby->base.flags |= 0x100;
     kirby->base.flags |= 0x800;
     kirby->base.unk58 &= ~2;
-    kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+    kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
     sub_0806ED58(kirby);
     if (++kirby->idleTimer > 0x16)
     {
@@ -15422,9 +15422,9 @@ void sub_0805C954(struct Kirby *kirby)
             sub_0808F0E8(kirby);
             break;
         case KIRBY_ABILITY_LASER:
-            effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010380, 0xEB, 0, 0);
+            effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x380, 0xEB, 0, 0);
             effectObject->sprite.palId = kirby->base.sprite.palId;
-            effectObject = sub_0808BA6C(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010400, 0xEC, 0);
+            effectObject = sub_0808BA6C(&kirby->base, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x400, 0xEC, 0);
             effectObject->flags |= 0x4000;
             sub_0807BCE0(kirby);
             break;
@@ -15968,7 +15968,7 @@ void sub_0805DBA4(struct Kirby *kirby)
         kirby->base.xspeed = -kirby->base.xspeed;
     sub_080897A0(&kirby->base);
     sub_08091614(kirby);
-    effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010600, 0x163, 0, 0);
+    effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x163, 0, 0);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     effectObject->flags |= 0x4000;
     kirby->stateFn = FN(sub_0805DC70);
@@ -16000,7 +16000,7 @@ void sub_0805DC70(struct Kirby *kirby)
         sub_080897A0(&kirby->base);
         sub_08091B5C(kirby);
         sub_08091F38(kirby);
-        effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010600, 0x163, 1, 0);
+        effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x163, 1, 0);
         effectObject->sprite.palId = kirby->base.sprite.palId + 4;
         effectObject->flags |= 0x4000;
     }
@@ -16193,8 +16193,8 @@ void sub_0805E304(struct Kirby *kirby)
     {
         kirby->base.flags &= ~0x10;
         if (kirby->ability == KIRBY_ABILITY_STONE)
-            sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010400, 0x1B6, 0, 0)
-                ->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x400, 0x1B6, 0, 0)
+                ->sprite.palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
     }
     kirby->base.flags &= ~2;
     sub_0807988C(kirby);
@@ -16216,8 +16216,8 @@ void sub_0805E448(struct Kirby *kirby)
         {
             kirby->animationIndex = 53;
             kirby->base.counter = 0;
-            sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010400, 0x1B6, 0, 0)
-                ->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x400, 0x1B6, 0, 0)
+                ->sprite.palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
         }
         if (kirby->base.yspeed < 0)
         {
@@ -16616,7 +16616,7 @@ void sub_0805EF18(struct Kirby *kirby)
                 kirby->base.flags |= 0x20;
                 kirby->base.yspeed = 0x100;
             }
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             Macro_0803E920(kirby);
             kirby->base.unk56 += 0; // duh
@@ -16673,7 +16673,7 @@ void sub_0805F210(struct Kirby *kirby)
             kirby->base.flags |= 0x20;
             kirby->base.yspeed = 0x100;
         }
-        kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+        kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
         sub_0806ED58(kirby);
         Macro_0803E920(kirby);
         kirby->stateFn = FN(sub_0805F428);
@@ -18845,9 +18845,9 @@ void sub_08063E50(struct Kirby *kirby)
 
         kirby->animationIndex = 52;
         kirby->stateFn = FN(sub_08063F74);
-        effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010380, 0xEB, 0, 0);
+        effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x380, 0xEB, 0, 0);
         effectObject->sprite.palId = kirby->base.sprite.palId;
-        effectObject = sub_0808BA6C(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010400, 0xEC, 0);
+        effectObject = sub_0808BA6C(&kirby->base, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x400, 0xEC, 0);
         effectObject->flags |= 0x4000;
         sub_0807BCE0(kirby);
     }
@@ -20845,12 +20845,12 @@ void sub_08068320(struct Kirby *kirby)
     sub_08033540(kirby->base.unk56);
     if (kirby->base.y - gCurLevelInfo[kirby->base.unk56].unk94 < 0x4000)
     {
-        effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010200, 0x233, 2, 0x4000);
+        effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x200, 0x233, 2, 0x4000);
         effectObject->flags |= 0x4000;
     }
     else
     {
-        effectObject = sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010200, 0x233, 1, 0x4000);
+        effectObject = sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x200, 0x233, 1, 0x4000);
         effectObject->flags |= 0x4000;
     }
     RequestScreenShake(4, &kirby->base);
@@ -20869,12 +20869,12 @@ void sub_080684D8(struct Kirby *kirby)
     if (kirby->base.header.unk1 == 0x15 || kirby->base.header.unk1 == 0x21)
     {
         sub_0803E558(kirby->base.unk56);
-        BlendSpriteAnimationPalettes(kirby->base.unk56, 0, 0, 0x232, 4, 0x55);
+        BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0, 0, 0x232, 4, 0x55);
     }
     else if (kirby->base.header.unk1 == 0x17 || kirby->base.header.unk1 == 0x22)
     {
         sub_0803E558(kirby->base.unk56);
-        BlendSpriteAnimationPalettes(kirby->base.unk56, 0, 0, 0x232, 4, 0xAA);
+        BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0, 0, 0x232, 4, 0xAA);
     }
     else if (kirby->base.header.unk1 == 0x19 || kirby->base.header.unk1 == 0x23)
     {
@@ -20897,7 +20897,7 @@ void sub_080684D8(struct Kirby *kirby)
         if (kirby->idleTimer > 0x100)
             kirby->idleTimer = 0x100;
         sub_0803E558(kirby->base.unk56);
-        BlendSpriteAnimationPalettes(kirby->base.unk56, 0, 0, 0x232, 3, kirby->idleTimer);
+        BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0, 0, 0x232, 3, kirby->idleTimer);
     }
     if (kirby->base.flags & 2)
     {
@@ -20923,12 +20923,12 @@ void sub_080685F4(struct Kirby *kirby)
             {
                 kirby->idleTimer = -1;
                 sub_0803E558(kirby->base.unk56);
-                BlendSpriteAnimationPalettes(kirby->base.unk56, 0, 0, 0x232, 3, 0x100);
+                BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0, 0, 0x232, 3, 0x100);
             }
             else
             {
                 sub_0803E558(kirby->base.unk56);
-                BlendSpriteAnimationPalettes(kirby->base.unk56, 0, 0, 0x232, 3, kirby->idleTimer);
+                BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0, 0, 0x232, 3, kirby->idleTimer);
             }
         }
         if (!(kirby->base.flags & 2))
@@ -20966,12 +20966,12 @@ void sub_08068724(struct Kirby *kirby)
             {
                 kirby->idleTimer = -1;
                 sub_0803E558(kirby->base.unk56);
-                BlendSpriteAnimationPalettes(kirby->base.unk56, 0x232, 3, 0, 0, 0x100);
+                BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0x232, 3, 0, 0, 0x100);
             }
             else
             {
                 sub_0803E558(kirby->base.unk56);
-                BlendSpriteAnimationPalettes(kirby->base.unk56, 0x232, 3, 0, 0, kirby->idleTimer);
+                BlendSpriteAnimationPalettes(KATAM_KIRBY_PAL(kirby->base.unk56), 0x232, 3, 0, 0, kirby->idleTimer);
             }
         }
         if (kirby->base.header.unk1 == 0x1A)
@@ -21201,7 +21201,7 @@ void sub_08069014(struct Kirby *kirby)
     u8 i;
     struct Sprite sprite;
 
-    SpriteSomething(&sprite, 0x6000000, 0x209, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+    SpriteSomething(&sprite, 0x6000000, 0x209, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
     kirby->base.unkC |= 0x200;
     sub_080838DC(kirby, kirby);
     for (i = 0; i < gNumKirbys; ++i)
@@ -21273,7 +21273,7 @@ void sub_08069270(struct Kirby *kirby)
         kirby->stateFn = FN(sub_080606A0);
         sub_08093390(kirby, -0x18, 0);
         sub_08080E9C(kirby);
-        SpriteSomething(&sprite, 0x6000000, 0x285, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x285, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & KATAM_PAL_MASK, 0x80000);
     }
     else if (kirby->base.flags & 0x20)
     {
@@ -21287,7 +21287,7 @@ void sub_08069270(struct Kirby *kirby)
             kirby->animationIndex = 113;
             sub_080806FC(kirby);
             PlaySfx(&kirby->base, SE_ABILITY_HAMMER_MIDAIR);
-            SpriteSomething(&sprite, 0x6000000, 0x287, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & 0xF, 0x80000);
+            SpriteSomething(&sprite, 0x6000000, 0x287, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & KATAM_PAL_MASK, 0x80000);
         }
         else
         {
@@ -21302,14 +21302,14 @@ void sub_08069270(struct Kirby *kirby)
         kirby->animationIndex = 103;
         sub_080806FC(kirby);
         PlaySfx(&kirby->base, SE_ABILITY_HAMMER_MIDAIR);
-        SpriteSomething(&sprite, 0x6000000, 0x287, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x287, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & KATAM_PAL_MASK, 0x80000);
     }
     else if (kirby->movementState & 0x80)
         sub_0805E304(kirby);
     else
     {
         sub_080694EC(kirby);
-        SpriteSomething(&sprite, 0x6000000, 0x1FA, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x1FA, 0, 0xFF, 0, 0, 0, 0, 0x10, (kirby->base.sprite.palId + 4) & KATAM_PAL_MASK, 0x80000);
     }
     kirby->base.flags &= ~2;
 }
@@ -21831,7 +21831,7 @@ void sub_0806A85C(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -21975,7 +21975,7 @@ void sub_0806B234(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22118,7 +22118,7 @@ void sub_0806BBD8(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22268,7 +22268,7 @@ void sub_0806C5AC(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22496,7 +22496,7 @@ void sub_0806D0F4(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22529,7 +22529,7 @@ void sub_0806D0F4(struct Kirby *kirby)
         {
             if (++kirby->idleTimer > 2)
             {
-                sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010200, 0x19B, 0, 0);
+                sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x200, 0x19B, 0, 0);
                 ++kirby->base.counter;
                 kirby->idleTimer = 0;
                 kirby->animationIndex = gUnk_0834C590[kirby->base.counter];
@@ -22539,7 +22539,7 @@ void sub_0806D0F4(struct Kirby *kirby)
         {
             if (++kirby->idleTimer > 4)
             {
-                sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010200, 0x19B, 0, 0);
+                sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x200, 0x19B, 0, 0);
                 PlaySfx(&kirby->base, SE_ABILITY_MASTER_WAVE_CHARGED);
                 ++kirby->base.counter;
                 kirby->idleTimer = 0;
@@ -22566,7 +22566,7 @@ void sub_0806D4F0(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22623,7 +22623,7 @@ void sub_0806D728(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22660,7 +22660,7 @@ void sub_0806D728(struct Kirby *kirby)
         }
         kirby->animationIndex = gUnk_0834C59E[kirby->base.counter];
         sub_0807BF2C(kirby);
-        sub_0808BA6C(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x192, 0);
+        sub_0808BA6C(&kirby->base, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x400, 0x192, 0);
     }
     sub_0806DF94(kirby);
     sub_0806DE28(kirby);
@@ -22673,7 +22673,7 @@ void sub_0806D978(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22710,7 +22710,7 @@ void sub_0806D978(struct Kirby *kirby)
         }
         kirby->animationIndex = gUnk_0834C5A2[kirby->base.counter];
         sub_0807C48C(kirby);
-        sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x194, 1, 0);
+        sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x194, 1, 0);
     }
     sub_0806DF94(kirby);
     sub_0806DE28(kirby);
@@ -22723,7 +22723,7 @@ void sub_0806DBCC(struct Kirby *kirby)
         if (!(kirby->base.unk58 & 2))
         {
             CreateEffectObject(&kirby->base, 0, 0x296, 1);
-            kirby->sprites[1].palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
+            kirby->sprites[1].palId = KATAM_KIRBY_PAL2(kirby->base.unk56);
             sub_0806ED58(kirby);
             PlaySfx(&kirby->base, SE_WATER_SPLASH);
         }
@@ -22760,7 +22760,7 @@ void sub_0806DBCC(struct Kirby *kirby)
         }
         kirby->animationIndex = gUnk_0834C5A6[kirby->base.counter];
         sub_0807C6C0(kirby);
-        sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x190, 1, 0);
+        sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x190, 1, 0);
     }
     sub_0806DF94(kirby);
     sub_0806DE28(kirby);
@@ -23164,7 +23164,7 @@ void sub_0806E40C(struct Kirby *kirby)
     kirby->base.flags &= ~0x1020;
     kirby->base.flags |= 0x40;
     kirby->stateFn = FN(sub_0806D978);
-    sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010600, 0x194, 0, 0);
+    sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x194, 0, 0);
 }
 
 void sub_0806E47C(struct Kirby *kirby)
@@ -23177,7 +23177,7 @@ void sub_0806E47C(struct Kirby *kirby)
     kirby->base.flags &= ~0x1020;
     kirby->base.flags |= 0x40;
     kirby->stateFn = FN(sub_0806DBCC);
-    sub_0808BEA4(kirby, (KATAM_HW_SLOT(kirby->base.unk56) << 11) + 0x6010600, 0x190, 0, 0);
+    sub_0808BEA4(kirby, KATAM_KIRBY_TILES(kirby->base.unk56) + 0x600, 0x190, 0, 0);
 }
 
 // file boundary?
@@ -23737,26 +23737,26 @@ void sub_0806EFF8(struct Kirby *kirby)
     if (gUnk_08D60FDC[kirby->ability])
     {
         if (kirby->ability == KIRBY_ABILITY_COOK || kirby->ability == KIRBY_ABILITY_MAGIC)
-            SpriteSomething(&sprite, 0x6000000, gUnk_08D60FDC[kirby->ability][0x34].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+            SpriteSomething(&sprite, 0x6000000, gUnk_08D60FDC[kirby->ability][0x34].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         else
-            SpriteSomething(&sprite, 0x6000000, gUnk_08D60FDC[kirby->ability][0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+            SpriteSomething(&sprite, 0x6000000, gUnk_08D60FDC[kirby->ability][0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
     }
     switch (kirby->ability)
     {
     case KIRBY_ABILITY_HAMMER:
-        SpriteSomething(&sprite, 0x6000000, gUnk_083502C0[0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, gUnk_083502C0[0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         break;
     case KIRBY_ABILITY_FIGHTER:
-        SpriteSomething(&sprite, 0x6000000, 0x1FA, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x1FA, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         break;
     case KIRBY_ABILITY_PARASOL:
-        SpriteSomething(&sprite, 0x6000000, gUnk_08350474[0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, gUnk_08350474[0].animId, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         break;
     case KIRBY_ABILITY_CUPID:
-        SpriteSomething(&sprite, 0x6000000, 0x219, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x219, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         break;
     case KIRBY_ABILITY_MASTER:
-        SpriteSomething(&sprite, 0x6000000, 0x234, 0, 0xFF, 0, 0, 0, 0, 0x10, (KATAM_HW_SLOT(kirby->base.unk56) + 4) & 0xF, 0x80000);
+        SpriteSomething(&sprite, 0x6000000, 0x234, 0, 0xFF, 0, 0, 0, 0, 0x10, KATAM_KIRBY_PAL2(kirby->base.unk56) & KATAM_PAL_MASK, 0x80000);
         break;
     }
     sub_0803E558(kirby->base.unk56);
