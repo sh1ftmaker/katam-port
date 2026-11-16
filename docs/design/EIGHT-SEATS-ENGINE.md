@@ -115,3 +115,25 @@ at the end of the block. Everything else keeps its name and position.
 `_PortLnSealedN`, `_PortLnSealedGetN`, `_PortLnSlots`, `_PortLnMaxDevices`,
 `_PortLnSetSeatSlots` and `_PortLnSeatSlots` are in `PORT_EXPORTS`
 (Makefile), in both modules.
+
+## Checked (2026-11-15; scratch and logs in `netproof-eval/eight-tmp/engine/`)
+
+- **The engine at 8 devices.** `n8.mjs` drives the API above directly, with
+  no wire: a host and guests 1..7 on the w8 module, joined by image. Guests
+  run 4 frames ahead, records arrive 1..3 frames late, and some pads arrive
+  after the host has sealed them. Over 6,000 frames: CPU KIRBYS 4 sealed, 7
+  seats (4 of them past the live count, each made and then joined), devices
+  5..7 gone (the count shrinks to 5), device 7 back in its own slot 7 (the
+  count rises again), CPU KIRBYS 6. All 7 guests verified 5,999 frames each
+  with 0 mismatches, and the final hashes agree. On the default module the
+  same harness passes with 3 guests.
+- **8 local humans** (`h8.txt`, `h8rooms.txt`, `option localmp 8` with
+  `human` churn and `kirbys 4`) on native w8:
+  - ASan + UBSan: 0 NEW (`tools/wide_sanclass.py`);
+  - the same input twice gives identical hash logs;
+  - native == wasm in keys/vid/sram/pix on every frame.
+- **Default module.** `tests/layout_neutral.sh` against the live binary,
+  `make regress` (same result as the reference), and the rig's quick pass:
+  16 gates, none FAIL.
+- **The w8 module under today's 4-wide rig** (scratch copy reading the Kirby
+  address from the environment): 16 gates, none FAIL.
