@@ -84,6 +84,10 @@ typedef struct PortSettings {
      * ("touch=N") from the saved text; nothing native looks at it.  A key
      * added without a schema bump: absent means AUTO. */
     int touch;
+    /* EXPERIMENTAL > CPU AI (platform/menu_poc.c, port/cpu_ai.h): each CPU
+     * Kirby's mode, 2 bits per Kirby slot (PORT_CPUAI_*), default the mix
+     * PORT_CPUAI_MIX.  Asked for in live play only; the host's online. */
+    unsigned cpuAi;
 } PortSettings;
 
 extern PortSettings gPortSettings;

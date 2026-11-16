@@ -43,6 +43,7 @@
 #include "port/dma.h"
 #include "port/mp.h"
 #include "port/rollback.h"
+#include "port/cpu_ai.h"
 #include "port/lmpnet.h"
 #include "port/player_card.h"
 #include "port/seats.h"
@@ -344,6 +345,10 @@ static void UpdateKeyInput(int frameLatch)
         sKeysDown = keys;
     /* Online local multiplayer: both players' pads for this frame from the
      * session timeline (platform/lmpnet.c).  0 unless a session is on. */
+    /* CPU AI modes (platform/cpu_ai_host.c): this device's setting is
+     * asked for in live play only; nothing when it is already in force. */
+    if (frameLatch)
+        PortCpuAiPoll();
     if (frameLatch && PortLnKeyOverride(&keys))
         sKeysDown = keys;
     /* The pause overlay's fork (platform/lmpnet.c): its own pad, never the

@@ -88,6 +88,7 @@
 #include "port/kirby_paint.h"     /* the presets' grid */
 #include "port/simblock.h"
 #include "port/inputlog.h"   /* PortInputLogReplaying */
+#include "port/cpu_ai.h"
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 #include "ui/light_opts.h"  /* the LIGHTING section's rows */
@@ -949,6 +950,8 @@ enum {
     IT_KIRBYS_GO,
     /* PLAYERS: the player card (its row is the section's last) */
     IT_CARD,
+    /* EXPERIMENTAL > CPU AI (port/cpu_ai.h): every CPU Kirby, then Kirbys 2-4 */
+    IT_CPUAI_ALL, IT_CPUAI_K2, IT_CPUAI_K3, IT_CPUAI_K4,
     IT_COUNT
 };
 
@@ -1071,6 +1074,11 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_KICK]        = { "REMOVE", K_CONFIRM, "" },
     [IT_KIRBYS_GO]   = { "CPU KIRBYS", K_CONFIRM, "" },
     [IT_CARD]        = { "PLAYER CARD", K_CARD, "YOUR NAME AND KIRBY COLOR" },
+    /* the descriptions are CpuAiDesc's */
+    [IT_CPUAI_ALL]   = { "CPU AI", K_TOGGLE, "" },
+    [IT_CPUAI_K2]    = { "KIRBY 2", K_TOGGLE, "" },
+    [IT_CPUAI_K3]    = { "KIRBY 3", K_TOGGLE, "" },
+    [IT_CPUAI_K4]    = { "KIRBY 4", K_TOGGLE, "" },
 };
 
 /* The sections' items.  Per build: the page's actions on the web, VSYNC
@@ -1145,7 +1153,10 @@ static const u8 kAdvancedItems[] = {
     IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
 };
 /* EXPERIMENTAL: LIGHTING (its own section), and the CPU Kirbys */
-static const u8 kExperimentalItems[] = { IT_SEC_LIGHTING, IT_KIRBYS, IT_ADD4, IT_REMOVE4 };
+static const u8 kExperimentalItems[] = {
+    IT_SEC_LIGHTING, IT_KIRBYS, IT_ADD4, IT_REMOVE4,
+    IT_CPUAI_ALL, IT_CPUAI_K2, IT_CPUAI_K3, IT_CPUAI_K4,
+};
 #define EXP_ROW_LIGHTING 0
 static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
 
@@ -1761,6 +1772,69 @@ static const char *KirbysDesc(int it)
     }
 }
 
+/* --- EXPERIMENTAL > CPU AI (port/cpu_ai.h) ------------------------------------
+ * What each CPU Kirby does: CLASSIC (the game's own), BODYGUARD, EXPLORER,
+ * ADVENTURER.  CPU AI sets every CPU Kirby at once (MIXED: Kirby 2
+ * BODYGUARD, 3 EXPLORER, 4 ADVENTURER, the wide build's 5.. the same three
+ * in turn -- the default); KIRBY 2..4 AI one each.  The modes are
+ * simulation state: this device's setting (gPortSettings.cpuAi) is asked
+ * for at the next latch (platform/cpu_ai_host.c), in a session by the host
+ * only, and the rows show the session's. */
+static const char *const kCpuAiAll[5] = { "MIXED", "CLASSIC", "BODYGUARD", "EXPLORER", "ADVENTURER" };
+
+static u32 CpuAiShownWord(void)
+{
+    return gPortLnOn ? PortCpuAiWord() : (u32)gPortSettings.cpuAi & ~3u;
+}
+
+/* 0 MIXED, 1 + mode when every CPU Kirby has it, -1 another mix */
+static int CpuAiAllIndex(u32 w)
+{
+    int s, m = PortCpuAiWordMode(w, 1);
+
+    if (w == PORT_CPUAI_MIX)
+        return 0;
+    for (s = 2; s < PORT_CPUAI_SLOTS; s++)
+        if (PortCpuAiWordMode(w, s) != m)
+            return -1;
+    return 1 + m;
+}
+
+static u32 CpuAiNextWord(int it, int dir, u32 w)
+{
+    if (it == IT_CPUAI_ALL) {
+        int i = CpuAiAllIndex(w), s;
+
+        i = i < 0 ? 0 : (i + (dir < 0 ? 4 : 1)) % 5;
+        if (i == 0)
+            return PORT_CPUAI_MIX;
+        for (w = 0, s = 1; s < PORT_CPUAI_SLOTS; s++)
+            w |= (u32)(i - 1) << (2 * s);
+        return w;
+    } else {
+        int s = it - IT_CPUAI_K2 + 1, m = PortCpuAiWordMode(w, s);
+
+        m = (m + (dir < 0 ? 3 : 1)) & 3;
+        return (w & ~(3u << (2 * s))) | ((u32)m << (2 * s));
+    }
+}
+
+static const char *CpuAiDesc(int it)
+{
+    static const char *const kDesc[PORT_CPUAI_MODES] = {
+        "THE GAMES OWN CPU", "GUARDS YOU - EATS WHEN HURT",
+        "FINDS NEW ROOMS AND CHESTS", "HEADS FOR BOSSES ON ITS OWN",
+    };
+    u32 w = CpuAiShownWord();
+
+    if (it == IT_CPUAI_ALL) {
+        int i = CpuAiAllIndex(w);
+
+        return i == 0 ? "ONE OF EACH - KIRBY 2 3 4" : i < 0 ? "EACH CPU KIRBY ITS OWN" : kDesc[i - 1];
+    }
+    return kDesc[PortCpuAiWordMode(w, it - IT_CPUAI_K2 + 1)];
+}
+
 static int CardOfPauser(void);
 
 static void ItemValue(int it, char *buf, int size)
@@ -1805,6 +1879,15 @@ static void ItemValue(int it, char *buf, int size)
         if (CardOfPauser() >= 0) snprintf(buf, size, "%s", PortCardShownName(CardOfPauser()));
         break;
     case IT_KIRBYS:    if (!gPortLnOn) snprintf(buf, size, "%d", gPortSettings.kirbys - 1); break;
+    case IT_CPUAI_ALL: {
+        int i = CpuAiAllIndex(CpuAiShownWord());
+
+        snprintf(buf, size, "%s", i < 0 ? "CUSTOM" : kCpuAiAll[i]);
+        break;
+    }
+    case IT_CPUAI_K2: case IT_CPUAI_K3: case IT_CPUAI_K4:
+        snprintf(buf, size, "%s", PortCpuAiName(PortCpuAiWordMode(CpuAiShownWord(), it - IT_CPUAI_K2 + 1)));
+        break;
     /* the page's own state: per device, so never shown in a session */
     case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
     case IT_TOUCH:      if (!gPortLnOn) snprintf(buf, size, "%s", kTouchName[gPortSettings.touch]); break;
@@ -1882,6 +1965,8 @@ static const char *ItemWhyNot(int it)
     }
     if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4)
         return KirbysWhyNot(it);
+    if (it >= IT_CPUAI_ALL && it <= IT_CPUAI_K4 && gPortLnOn && !PauserIsHost())
+        return "THE HOST CHOOSES";
     if (it == IT_CARD && CardOfPauser() < 0)
         return gPortLnOn ? "NOT DURING AN ONLINE GAME" : "NO CARD FOR THIS PLAYER";
     /* the CLASSIC renderer draws the GBA's 240 x 160 only: the view's
@@ -1940,6 +2025,8 @@ static const char *ItemDesc(int it)
         return gPortLnOn ? "CODE MODE AND PLAYERS" : "NOT IN AN ONLINE GAME";
     case IT_KIRBYS: case IT_ADD4: case IT_REMOVE4:
         return KirbysDesc(it);
+    case IT_CPUAI_ALL: case IT_CPUAI_K2: case IT_CPUAI_K3: case IT_CPUAI_K4:
+        return CpuAiDesc(it);
     case IT_TOUCH:
         return TouchDesc();
     case IT_CARD:
@@ -2023,6 +2110,16 @@ static void ItemApply(int it, int dir)
             HostAct("kirbys.restart", gPortSettings.kirbys);
         else
             PortWideRequestKirbys(gPortSettings.kirbys);    /* live (wide build) */
+        return;
+    }
+    if (it >= IT_CPUAI_ALL && it <= IT_CPUAI_K4) {
+        /* this device's setting, from what is shown (the session's when
+         * online); asked for at the next latch, online by the host only */
+        if (PortInputLogReplaying() || (gPortLnOn && PortLnRole() != PORT_LN_HOST))
+            return;
+        gPortSettings.cpuAi = CpuAiNextWord(it, dir, CpuAiShownWord());
+        PortSettingsChanged();
+        PortCpuAiSettingChanged();
         return;
     }
     if (it >= 0x80) {                   /* a section another file keeps */
@@ -2344,6 +2441,7 @@ static u32 SecGen(void)
 #if KATAM_WIDE
     g = g * 31u + (u32)gNumKirbys;      /* the list's rows with a Kirby */
 #endif
+    g = g * 31u + PortCpuAiWord();      /* EXPERIMENTAL > CPU AI, the session's */
     if (gPortLnOn) {
         const u8 *c = PORT_SIM_LNSET;
 

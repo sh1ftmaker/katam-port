@@ -9,6 +9,7 @@ extern "C" {
 #include "kirby.h"
 #include "constants/kirby.h"
 #include "port/localmp.h"
+#include "port/simblock.h"
 
 void CpuBrainTask(void);
 void CpuScriptStep(struct CpuBrain *);
@@ -16,6 +17,7 @@ void CpuActThink(struct CpuBrain *);
 void CpuBrainTaskDestroy(struct Task *);
 void CpuGoalNone(struct CpuBrain *);
 void CpuSenseNone(struct CpuBrain *);
+bool32 CpuAiGoal(struct CpuBrain *);
 
 void CpuBrainCreate(u8 slot, u16 startRoom, u16 homeRoom) {
     struct CpuBrain *brain = &gUnk_02038590[slot];
@@ -114,7 +116,10 @@ void CpuBrainTask(void) {
             && !(kirby->base.flags & 0x1000000)
             && kirby->animationIndex != 0x5A) {
             CALL(brain->layers[CPU_LAYER_SCRIPT])(brain);
-            CALL(brain->layers[CPU_LAYER_GOAL])(brain);
+            /* PORT: CPU AI modes (game/src/cpu_ai_modes.c, port/cpu_ai.h):
+             * all zero -- every Kirby CLASSIC -- is the stock brain. */
+            if (!gPortSim->game.reserved[0] || !CpuAiGoal(brain))
+                CALL(brain->layers[CPU_LAYER_GOAL])(brain);
             CALL(brain->layers[CPU_LAYER_SENSE])(brain);
             CALL(brain->layers[CPU_LAYER_ACTION])(brain);
         }

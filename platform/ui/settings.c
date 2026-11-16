@@ -45,6 +45,7 @@ void PortSettingsDefaults(PortSettings *s)
     LightDefaults(s);
     s->kirbys = 4;      /* the game as it is */
     s->touch = PS_TOUCH_AUTO;
+    s->cpuAi = 0xE79E79E4u;   /* PORT_CPUAI_MIX (port/cpu_ai.h) */
 }
 
 /* The lighting settings saved by a build before LIGHT_SETTINGS_VER are
@@ -224,6 +225,7 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 /* (the page's older "katam.touchControls" key is not read:
                  * everyone starts from AUTO once -- web/shell.html) */
                 INT_KEY("touch", touch)
+                else if (strcmp(key, "cpuai") == 0) s->cpuAi = (unsigned)strtoul(val, NULL, 16) & ~3u;
                 /* "lighton": the switch.  Not the old /lighting/ page's
                  * "light" (that page shares the site's storage, and there
                  * -1 meant on by the page's default): it is ignored, so
@@ -285,8 +287,8 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
-        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags=%d\nkirbys=%d\ntouch=%d\n",
-                      s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch);
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags=%d\nkirbys=%d\ntouch=%d\ncpuai=%08X\n",
+                      s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch, s->cpuAi);
     if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);
     if (n >= 0 && n < size)
