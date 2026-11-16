@@ -1,5 +1,6 @@
-/* Online play, up to four players on up to four devices -- or eight on
- * eight in an 8-player game (EXPERIMENTAL) -- the page's half.
+/* Online play, up to eight players on up to eight devices (the 16-Kirby
+ * module, the default) or four on four (a 4-player game, the 4-Kirby
+ * module) -- the page's half.
  *
  * The game's own front end has the screens (Start Game > MULTIPLAYER >
  * ONLINE > HOST GAME / JOIN GAME: platform/online_ui.c, drawn by
@@ -35,19 +36,24 @@
  * hands its Kirbys to the CPU; back with the same code (the same tab, or a
  * reload of it), it gets a Kirby again -- the one it had, if still free.
  *
- * Modules.  Four-player games run on the ordinary module (katam.wasm);
- * 8-player games on the 16-Kirby one (katam16.wasm: web/shell.html picks it
- * for ?mod=16 or SETTINGS > EXPERIMENTAL > CPU KIRBYS above 3).  A host on
- * the 16-Kirby module hosts an 8-player game; ONLINE > HOST 8 PLAYERS on
- * the ordinary one reloads the page into it (and 4 PLAYER GAMES back).
- * Every peer of a game runs the same module (the sim id names it: KATAM_SIM
- * or KATAM_SIM16).  A joiner on the other module -- told so by the invite
- * link (?mod=16), the public list's `mod`, or the room's version gate (the
- * room's sim id is the other module's) -- reloads into it with ?join=CODE,
- * once.  The wire carries every slot's keys (web/ln_session.js) and, in an
+ * Modules.  8-player games run on the 16-Kirby module (katam16.wasm, the
+ * page's default: web/shell.html); 4-player games on the 4-Kirby one
+ * (katam.wasm, ?mod=4).  A host on the 16-Kirby module hosts an 8-player
+ * game; ONLINE > HOST 4 PLAYERS reloads the page into the 4-Kirby module
+ * (lighter on a phone), and HOST 8 PLAYERS there back.  Every peer of a
+ * game runs the same module (the sim id names it: KATAM_SIM or
+ * KATAM_SIM16).  A joiner on the other module -- told so by the invite link
+ * (?mod=16 or ?mod=4; a link from before ?mod=4 names none), the public
+ * list (`mod` 16, else 4), or the room's version gate (the room's sim id is
+ * the other module's) -- reloads into it with ?join=CODE, once.  The wire carries every slot's keys (web/ln_session.js) and, in an
  * 8-player game, each sealed record about four times (bounded redundancy).
  *
- * Invite links: ?join=CODE joins straight after the ROM is loaded.
+ * Invite links: ?join=CODE.  Once the ROM is loaded the game goes by itself
+ * to the visitor's player card (platform/online_ui.c PortOuiInvite): A on
+ * its JOIN row joins (JOIN GAME shows how it goes; the banners and a locked
+ * game's password box as ever), B is the ONLINE screen.  A page reloaded into the other module
+ * for that join (hop) joins at once: the card was seen (sessionStorage
+ * katamInviteCard).  Without the game's menus: joins straight away.
  * Test knobs: ?netlag=ms (one way, added to everything this page sends),
  * ?netjitter=ms (uniform 0..ms on datagrams), ?netloss=% (datagrams),
  * ?netrelay=1 (never try WebRTC), ?netserver=<base> (another room server).
@@ -86,7 +92,8 @@
     var UI = { J_REMOVED: 18, IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
                J_CONNECTING: 6, J_WAITING: 7, J_STARTING: 8, J_NOGAME: 9, J_FULL: 10, J_BUILD: 11,
                J_ROM: 12, J_FAILED: 13, J_HOSTLEFT: 14 };
-    var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6, OTHER_MODULE: 7 };
+    var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6, OTHER_MODULE: 7,
+               INVITE_CANCEL: 8, INVITE_DIRECT: 9 };
     var NOTE = { NONE: 0, COPIED: 1, NOCOPY: 2 };
 
     function log(t) {
@@ -214,9 +221,12 @@
             return false;
         }
         try { sessionStorage.setItem(key, JSON.stringify({ code: code, mod: mod, t: t })); } catch (e) { /* once is enough */ }
-        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (' + why + ') -- reloading into it');
+        /* the player card was this tab's already (an invite's, or JOIN GAME):
+         * the reloaded page joins without it */
+        if (code) { try { sessionStorage.setItem('katamInviteCard', code); } catch (e) { /* shown again, then */ } }
+        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : '4-player') + ' module (' + why + ') -- reloading into it');
         S.stats.moduleHops = (S.stats.moduleHops || 0) + 1;
-        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the ordinary module...', 0);
+        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the 4-player module...', 0);
         var u = new URL(location.href);
         u.searchParams.delete('kirbys');
         u.searchParams.set('mod', mod);
@@ -685,7 +695,7 @@
         reset();
         S.role = 'host'; S.phase = 'hosting';
         if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1, 0);
-        if (wide() && phone) banner('8-player game (experimental): a desktop host is best - a phone may stutter', 5000);
+        if (wide() && phone) banner('8-player game: a desktop host is best. On a phone, ONLINE > HOST 4 PLAYERS is lighter', 5000);
         ui(UI.H_CREATING);
         var gen = ++S.gen;
         versions().then(function (v) {
@@ -825,7 +835,7 @@
     function inviteLink() {
         var u = new URL(location.href);
         ['join', 'netlag', 'netjitter', 'netloss', 'netrelay', 'kirbys', 'mod'].forEach(function (k) { u.searchParams.delete(k); });
-        if (wide()) u.searchParams.set('mod', '16');        /* the joiner's page loads this game's module */
+        u.searchParams.set('mod', modName());               /* the joiner's page loads this game's module */
         u.searchParams.set('join', S.code);
         return u.toString();
     }
@@ -933,7 +943,7 @@
                     clearTimeout(hiTimer);
                     S.myDev = d.dev || null;
                     S.seatWaitFrom = nowMs();
-                    if (wide() && phone) banner('8-player game (experimental): a phone may stutter', 4000);
+                    if (wide() && phone) banner('8-player game: a phone may stutter', 4000);
                     guestLink(net, d.sid, !!d.relay);
                     return;
                 }
@@ -1097,9 +1107,9 @@
      * katamOnline.otherModule() too, for a page button or a test. */
     function otherModule() {
         var mod = wide() ? '4' : '16';
-        log('module: to the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (the page reloads)');
+        log('module: to the ' + (mod === '16' ? '8-player' : '4-player') + ' module (the page reloads)');
         if (S.role) { try { reset(); } catch (e) { /* going anyway */ } }
-        banner(mod === '16' ? 'Loading the 8-player module: then MULTIPLAYER > ONLINE > HOST GAME' : 'Loading the ordinary module...', 0);
+        banner('Loading the ' + (mod === '16' ? '8' : '4') + '-player module: then MULTIPLAYER > ONLINE > HOST GAME', 0);
         var u = new URL(location.href);
         ['kirbys', 'mod', 'join'].forEach(function (k) { u.searchParams.delete(k); });
         u.searchParams.set('mod', mod);
@@ -1120,13 +1130,29 @@
             case EV.JOIN: {
                 var c = '';
                 for (var i = 0; i < 4; i++) c += String.fromCharCode(M._PortOuiJoinCode(i));
-                guestJoin(c, false);
+                /* JOIN on an invite link's player card: an invite's join from
+                 * here (its banners, a locked game's box), as before the card */
+                var inv = S.inviteCard === c;
+                S.inviteCard = null;
+                guestJoin(c, inv);
                 break;
             }
             case EV.JOIN_CANCEL: joinCancel(); break;
-            /* ONLINE > HOST 8 PLAYERS (the ordinary module) or 4 PLAYER GAMES
-             * (the 16-Kirby one): the page again, on the other module */
+            /* ONLINE > HOST 4 PLAYERS (the 16-Kirby module) or HOST 8
+             * PLAYERS (the 4-Kirby one): the page again, on the other module */
             case EV.OTHER_MODULE: otherModule(); break;
+            /* an invite link's card: B (to ONLINE), or the front end was not
+             * reached (the join as it always was, in the background) */
+            case EV.INVITE_CANCEL:
+                log('invite ' + (S.inviteCard || '') + ': not now (B on the player card)');
+                S.inviteCard = null; S.stats.inviteCancels = (S.stats.inviteCancels || 0) + 1;
+                banner(null);
+                break;
+            case EV.INVITE_DIRECT:
+                log('invite: the player card could not be reached -- joining');
+                if (S.inviteCard) guestJoin(S.inviteCard, true);
+                S.inviteCard = null;
+                break;
             }
         }
     }
@@ -1156,9 +1182,20 @@
         if (!code) banner('"' + joinParam + '" is not a game code (4 letters, no vowels).', 0);
         else {
             banner('Load your ROM to join game ' + code, 0);
+            /* reloaded into the other module for this very join: no card again */
+            var seen = false;
+            try { seen = sessionStorage.getItem('katamInviteCard') === code; if (seen) sessionStorage.removeItem('katamInviteCard'); } catch (e) { seen = false; }
             var wait = setInterval(function () {
                 if (!up() || !M._PortFrameNumber || M._PortFrameNumber() < 30) return;
                 clearInterval(wait);
+                if (!seen && M._PortOuiInvite && M._PortPocMenusOn && M._PortPocMenusOn()) {
+                    /* the visitor's player card first; its JOIN joins */
+                    S.inviteCard = code; S.stats.inviteCards = (S.stats.inviteCards || 0) + 1;
+                    log('invite ' + code + ': the player card first');
+                    banner(null);
+                    M._PortOuiInvite(code.charCodeAt(0), code.charCodeAt(1), code.charCodeAt(2), code.charCodeAt(3));
+                    return;
+                }
                 guestJoin(code, true);
             }, 200);
         }
@@ -1340,6 +1377,8 @@
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },
         cancelJoin: joinCancel,                 /* server browser: the password box's Cancel */
         invite: function () { return S.code ? inviteLink() : null; },
+        /* tests: an invite link's player card -- 0 none, 1 on the way, 3 up */
+        inviteCard: function () { return up() && M._PortOuiInviteState ? M._PortOuiInviteState() : 0; },
         _S: S,
     };
 }());

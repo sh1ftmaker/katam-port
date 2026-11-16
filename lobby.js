@@ -25,7 +25,7 @@
 (function () {
     'use strict';
     if (typeof window === 'undefined' || !window.KatamNet) return;
-    /* the 16-Kirby module (web/shell.html, EXPERIMENTAL > CPU KIRBYS): no netplay */
+    /* the 16-Kirby module (web/shell.html; ?room= / ?online=1 pick the 4-Kirby one): not this netplay */
     if (window.KATAM_KIRBYS16) return;
     var Net = window.KatamNet;
     var q = new URLSearchParams(location.search);

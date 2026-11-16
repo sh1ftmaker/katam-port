@@ -387,10 +387,13 @@
             if (el) el.style.display = 'none';
         },
         gate: gate, verify: verify, onChallenge: onChallenge,
-        /* web/online.js: the module a listed game runs on ('16', '4'), or null */
+        /* web/online.js: the module a listed game runs on ('16', '4'), or
+         * null (not listed).  The list names only the 16-Kirby module's games
+         * (netplay/listing.mjs keeps `mod` 16 or nothing): any other is a
+         * 4-Kirby module's. */
         modOf: function (code) {
             for (var i = 0; i < st.games.length; i++)
-                if (st.games[i].code === code) return st.games[i].mod === '16' ? '16' : st.games[i].mod ? '4' : null;
+                if (st.games[i].code === code) return st.games[i].mod === '16' ? '16' : '4';
             return null;
         },
         hash: pwHash,
