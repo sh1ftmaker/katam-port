@@ -52,7 +52,7 @@ void sub_08025650(u8 numPlayers) {
     gBldRegs.bldY = 0;
     sub_080332BC(numPlayers, 0, roomIds, positions[0], sp0C);
     for (i = numPlayers; i < ARRAY_COUNT(gUnk_02038590); i++)
-        gUnk_02038590[i].unk18 = 0x3C9;
+        gUnk_02038590[i].homeRoom = 0x3C9;
 }
 
 #ifdef __cplusplus

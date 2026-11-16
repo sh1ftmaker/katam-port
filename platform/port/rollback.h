@@ -180,7 +180,7 @@ u32  PortRbSuggestEventFrame(void);
  * It works because of where the game reads input.  In link mode
  * (src/kirby.c:6475) a Kirby takes its buttons from
  * gUnk_020382D0.unk8[0][player] when player < gUnk_0203AD30, and from
- * gUnk_02038590[player].unk9E -- the AI controller's synthesised word -- when
+ * gUnk_02038590[player].keys -- the AI controller's synthesised word -- when
  * it is not.  The engine holds gUnk_0203AD30 at the number of Kirbys in play,
  * so every participating slot reads the first, and then decides *per slot*
  * what to put there: the network's input for an occupied slot, the AI

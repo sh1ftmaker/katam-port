@@ -11,7 +11,7 @@ u8 sub_080024F0(struct LevelInfo *, u32 x, u32 y);
 PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *);
 
 // Builds the 5x5-ish collision/passability neighborhood around Kirby
-// (a1->unk1C/unk26/unk2B cells) from the tile attribute table, then widens the
+// (a1->terrain/unk26/unk2B cells) from the tile attribute table, then widens the
 // cells with the hitboxes of the objects returned by GetRoomSolidCollisionList.
 //
 // Semantics below from zalo's contrib-field-docs branch, verified there
@@ -39,11 +39,11 @@ PTR32(struct Object) *GetRoomSolidCollisionList(struct ObjectBase *);
 // bound temps) spill in a different order, which shifts every stack offset and
 // register choice in this 1900-instruction function.
 #ifndef NONMATCHING
-void sub_0800F044(struct Unk_02038590 *a1) { PortMissingFunction("sub_0800F044"); }
+void CpuScanTerrain(struct CpuBrain *a1) { PortMissingFunction("CpuScanTerrain"); }
 #else
-void sub_0800F044(struct Unk_02038590 *a1) {
-    struct Kirby *kirby = a1->unk40;
-    struct LevelInfo *li = a1->unk14;
+void CpuScanTerrain(struct CpuBrain *brain) {
+    struct Kirby *kirby = brain->kirby;
+    struct LevelInfo *li = brain->levelInfo;
     s16 array[4] = {
         li->unk_S32Vec2_6C.x >> 12, li->unk_S32Vec2_6C.y >> 12,
         li->unk_S32Vec2_74.x >> 12, li->unk_S32Vec2_74.y >> 12,
@@ -60,8 +60,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     kirbyCellX = kirby->base.x >> 12;
     kirbyCellY = (u16)(kirby->base.y >> 12);
     r6 = FALSE;
-    a1->unk26[2] = 0;
-    switch (gCollisionAttributes[sub_080024F0(a1->unk14, kirbyCellX, kirbyCellY)] & 0xF0000000) {
+    brain->terrainRow[2] = 0;
+    switch (gCollisionAttributes[sub_080024F0(brain->levelInfo, kirbyCellX, kirbyCellY)] & 0xF0000000) {
     case 0x20000000:
     case 0x30000000:
     case 0x40000000:
@@ -69,12 +69,12 @@ void sub_0800F044(struct Unk_02038590 *a1) {
         r6 = TRUE;
         break;
     }
-    r5 = a1->unk26;
+    r5 = brain->terrainRow;
     xm1 = kirbyCellX - 1;
     if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2])
         r5[1] = 0xFF;
-    else if (a1->unk26[2])
-        r5[1] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[1] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), kirbyCellY)];
 
@@ -95,8 +95,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[0] >= kirbyCellX - 2 || kirbyCellX - 2 >= (u16)array[2])
         r5[0] = 0xFF;
-    else if (a1->unk26[1])
-        r5[0] = a1->unk26[1];
+    else if (brain->terrainRow[1])
+        r5[0] = brain->terrainRow[1];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -2), kirbyCellY)];
 
@@ -116,8 +116,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     xp1 = kirbyCellX + 1;
     if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2])
         r5[3] = 0xFF;
-    else if (a1->unk26[2])
-        r5[3] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[3] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, kirbyCellY)];
 
@@ -139,8 +139,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     q = r5;
     if ((u16)array[0] >= kirbyCellX + 2 || kirbyCellX + 2 >= (u16)array[2])
         q[4] = 0xFF;
-    else if (a1->unk26[3])
-        q[4] = a1->unk26[3];
+    else if (brain->terrainRow[3])
+        q[4] = brain->terrainRow[3];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + 2), kirbyCellY)];
 
@@ -157,12 +157,12 @@ void sub_0800F044(struct Unk_02038590 *a1) {
             r5[4] = 0;
         }
     }
-    r5 = a1->unk1C;
+    r5 = brain->terrain;
     ym1 = kirbyCellY - 1;
     if ((u16)array[1] >= ym1 || ym1 >= (u16)array[3])
         r5[7] = 0xFF;
-    else if (a1->unk26[2])
-        r5[7] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[7] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + -1))];
 
@@ -181,8 +181,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[1] >= kirbyCellY - 2 || kirbyCellY - 2 >= (u16)array[3])
         r5[2] = 0xFF;
-    else if (a1->unk1C[7])
-        r5[2] = a1->unk1C[7];
+    else if (brain->terrain[7])
+        r5[2] = brain->terrain[7];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + -2))];
 
@@ -202,8 +202,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     yp1 = kirbyCellY + 1;
     if ((u16)array[1] >= yp1 || yp1 >= (u16)array[3])
         r5[0x11] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x11] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[0x11] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)yp1)];
 
@@ -222,8 +222,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[1] >= kirbyCellY + 2 || kirbyCellY + 2 >= (u16)array[3])
         r5[0x16] = 0xFF;
-    else if (a1->unk2B[2])
-        r5[0x16] = a1->unk2B[2];
+    else if (brain->terrainBelow[2])
+        r5[0x16] = brain->terrainBelow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, kirbyCellX, (u16)(kirbyCellY + 2))];
 
@@ -244,8 +244,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2]
         || (u16)array[1] >= ym1 || ym1 >= (u16)array[3])
         q[0x6] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x6] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[0x6] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), (u16)(kirbyCellY + -1))];
 
@@ -266,8 +266,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2]
         || (u16)array[1] >= ym1 || ym1 >= (u16)array[3])
         q[8] = 0xFF;
-    else if (a1->unk26[2])
-        r5[8] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[8] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, (u16)(kirbyCellY + -1))];
 
@@ -288,8 +288,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= xp1 || xp1 >= (u16)array[2]
         || (u16)array[1] >= yp1 || yp1 >= (u16)array[3])
         q[0x12] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x12] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[0x12] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)xp1, (u16)yp1)];
 
@@ -310,8 +310,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= xm1 || xm1 >= (u16)array[2]
         || (u16)array[1] >= yp1 || yp1 >= (u16)array[3])
         q[0x10] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x10] = a1->unk26[2];
+    else if (brain->terrainRow[2])
+        r5[0x10] = brain->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, (u16)(kirbyCellX + -1), (u16)yp1)];
 

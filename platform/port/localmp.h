@@ -187,7 +187,7 @@ void PortLmpStartedSlow(void);
 #define PortLmpHumanSlot(s) \
     (gPortSim->lmp.humans && (u32)(s) - 1u < PORT_LMP_SLOTS - 1u && ((PortLmpSlots() >> (s)) & 1))
 
-/* sub_0800EF60: a person's CPU brain waits -- except while a joiner is still
+/* CpuBrainTask: a person's CPU brain waits -- except while a joiner is still
  * on its way to the group (gPortSim->lmp.joining): a CPU parked away (in the
  * hub, waiting to be called) is moved only by its brain. */
 #define PortLmpBrainWaits(s) \
@@ -287,7 +287,7 @@ void PortLmpArrivedSlow(struct Kirby *k);
 
 /* FREE ROAM: a task's struct is being freed (task.c TaskDestroy).  The CPU
  * brains forget an object they track when they next see it flagged dead
- * (code_0800ECAC_2.c sub_08010294); a brain that does not run in between
+ * (code_0800ECAC_2.c CpuUpdateTargetMemory); a brain that does not run in between
  * keeps a stale pointer, and the memory behind it is reused differently on
  * devices that show different rooms (their screens' own tasks share the
  * heap), so a later pointer comparison or countdown differs by screen

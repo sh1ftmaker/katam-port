@@ -10,77 +10,77 @@ extern "C" {
 #include "constants/kirby.h"
 #include "port/localmp.h"
 
-void sub_0800EF60(void);
-void sub_08013804(struct Unk_02038590 *);
-void sub_0801519C(struct Unk_02038590 *);
-void nullsub_103(struct Task *);
-void nullsub_104(struct Unk_02038590 *);
-void nullsub_105(struct Unk_02038590 *);
+void CpuBrainTask(void);
+void CpuScriptStep(struct CpuBrain *);
+void CpuActThink(struct CpuBrain *);
+void CpuBrainTaskDestroy(struct Task *);
+void CpuGoalNone(struct CpuBrain *);
+void CpuSenseNone(struct CpuBrain *);
 
-void sub_0800ECAC(u8 a1, u16 a2, u16 a3) {
-    struct Unk_02038590 *r5 = &gUnk_02038590[a1];
-    struct Task *t = TaskCreate(FN(sub_0800EF60), sizeof(struct Unk_0800ECAC), a1 | 0x2100, TASK_USE_IWRAM, FN(nullsub_103));
-    struct Unk_0800ECAC *var = TaskGetStructPtr(t);
+void CpuBrainCreate(u8 slot, u16 startRoom, u16 homeRoom) {
+    struct CpuBrain *brain = &gUnk_02038590[slot];
+    struct Task *t = TaskCreate(FN(CpuBrainTask), sizeof(struct CpuBrainTaskData), slot | 0x2100, TASK_USE_IWRAM, FN(CpuBrainTaskDestroy));
+    struct CpuBrainTaskData *taskData = TaskGetStructPtr(t);
     const struct RoomProps *rp;
 
-    CpuFill16(0, var, sizeof(struct Unk_0800ECAC));
-    CpuFill16(0, r5, sizeof(struct Unk_02038590));
-    var->unk0 = a1;
-    r5->unk14 = &gCurLevelInfo[a1];
-    r5->unk18 = a3;
-    r5->unk40 = &gKirbys[a1];
-    r5->unkA8 = 0;
-    r5->unkAE = a2;
-    rp = &gRoomProps[a2];
-    r5->unk0[0] = FN(sub_08013804);
-    r5->unk0[1] = FN(nullsub_104);
-    r5->unk0[2] = FN(nullsub_105);
-    r5->unk0[3] = FN(sub_0801519C);
-    r5->flags = 0;
-    r5->unk1A = 0xFF;
-    r5->unk1B = 0xFF;
-    r5->unk3F = 0xFF;
-    r5->unk3C = 0;
-    r5->unkA0 = 0;
-    r5->unk44 = 0;
-    r5->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(a1)];
-    r5->unkA2 = 0;
-    r5->unkAC = 0;
-    r5->unkA4 = 0;
-    r5->unkB8 = 0;
-    r5->unkBA = 0;
-    r5->unkDC = 0xFF;
-    r5->unkDD = 0xFF;
+    CpuFill16(0, taskData, sizeof(struct CpuBrainTaskData));
+    CpuFill16(0, brain, sizeof(struct CpuBrain));
+    taskData->slot = slot;
+    brain->levelInfo = &gCurLevelInfo[slot];
+    brain->homeRoom = homeRoom;
+    brain->kirby = &gKirbys[slot];
+    brain->leader = 0;
+    brain->destRoom = startRoom;
+    rp = &gRoomProps[startRoom];
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalNone);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseNone);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->flags = 0;
+    brain->curNode = 0xFF;
+    brain->goalNode = 0xFF;
+    brain->nextNode = 0xFF;
+    brain->nodeChanges = 0;
+    brain->swallowCooldown = 0;
+    brain->followKirby = 0;
+    brain->script = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(slot)];
+    brain->nearHumanMeter = 0;
+    brain->roomHopTimer = 0;
+    brain->followStillFrames = 0;
+    brain->scriptPc = 0;
+    brain->unkBA = 0;
+    brain->action = CPU_ACT_NONE;
+    brain->prevAction = 0xFF;
 }
 
-void sub_0800EE04(u8 a1, u32 a2 __attribute__((unused))) {
-    struct Unk_02038590 *s = &gUnk_02038590[a1];
+void CpuBrainReset(u8 slot, u32 a2 __attribute__((unused))) {
+    struct CpuBrain *brain = &gUnk_02038590[slot];
     const struct RoomProps *rp;
 
-    rp = &gRoomProps[s->unk14->currentRoom];
-    s->unk0[0] = FN(sub_08013804);
-    s->unk0[1] = FN(nullsub_104);
-    s->unk0[2] = FN(nullsub_105);
-    s->unk0[3] = FN(sub_0801519C);
-    s->flags = 0;
-    s->unk1A = 0xFF;
-    s->unk1B = 0xFF;
-    s->unk3F = 0xFF;
-    s->unk3C = 0;
-    s->unkA0 = 0;
-    s->unk44 = 0;
-    s->unkB4 = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(a1)];
-    s->unkA2 = 0;
-    s->unkAC = 0;
-    s->unkA4 = 0;
-    s->unkB8 = 0;
-    s->unkBA = 0;
-    s->unk3E = 0;
-    s->unkDC = 0xFF;
-    s->unkDD = 0xFF;
+    rp = &gRoomProps[brain->levelInfo->currentRoom];
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalNone);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseNone);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->flags = 0;
+    brain->curNode = 0xFF;
+    brain->goalNode = 0xFF;
+    brain->nextNode = 0xFF;
+    brain->nodeChanges = 0;
+    brain->swallowCooldown = 0;
+    brain->followKirby = 0;
+    brain->script = gUnk_08D63C28[rp->unk22]->unk0[KATAM_ROM_ROW(slot)];
+    brain->nearHumanMeter = 0;
+    brain->roomHopTimer = 0;
+    brain->followStillFrames = 0;
+    brain->scriptPc = 0;
+    brain->unkBA = 0;
+    brain->wantAbility = 0;
+    brain->action = CPU_ACT_NONE;
+    brain->prevAction = 0xFF;
 }
 
-u8 sub_0800EEBC(struct ObjectBase *a1) {
+u8 CpuNavNodeAt(struct ObjectBase *a1) {
     struct LevelInfo *li = &gCurLevelInfo[a1->unk56];
     s16 vars[] = { a1->x >> 12, a1->y >> 12 };
 
@@ -95,40 +95,40 @@ u8 sub_0800EEBC(struct ObjectBase *a1) {
     return sub_080026A8(a1->unk56, vars[0], vars[1]);
 }
 
-void sub_0800EF60(void) {
-    struct Unk_0800ECAC *var = TaskGetStructPtr(gCurTask);
-    struct Unk_02038590 *s = &gUnk_02038590[var->unk0];
-    struct Kirby *kirby = s->unk40;
+void CpuBrainTask(void) {
+    struct CpuBrainTaskData *taskData = TaskGetStructPtr(gCurTask);
+    struct CpuBrain *brain = &gUnk_02038590[taskData->slot];
+    struct Kirby *kirby = brain->kirby;
 
     /* PORT: local multiplayer -- a person drives this Kirby now; the brain
      * waits, and is reset when the CPU takes it back (platform/localmp.c). */
-    if (PortLmpBrainWaits(var->unk0))
+    if (PortLmpBrainWaits(taskData->slot))
         return;
-    if (!Macro_0810B1F4(&s->unk40->base)
+    if (!Macro_0810B1F4(&brain->kirby->base)
         || kirby->base.flags & 0x2000) {
-        s->unk9C = s->unk9E;
-        s->unk9E = 0;
+        brain->prevKeys = brain->keys;
+        brain->keys = 0;
         if (kirby->hp > 0
             && !(kirby->base.unkC & 0x8000)
-            && s->unk14->currentRoom != 0xFFFF
+            && brain->levelInfo->currentRoom != 0xFFFF
             && !(kirby->base.flags & 0x1000000)
             && kirby->animationIndex != 0x5A) {
-            CALL(s->unk0[0])(s);
-            CALL(s->unk0[1])(s);
-            CALL(s->unk0[2])(s);
-            CALL(s->unk0[3])(s);
+            CALL(brain->layers[CPU_LAYER_SCRIPT])(brain);
+            CALL(brain->layers[CPU_LAYER_GOAL])(brain);
+            CALL(brain->layers[CPU_LAYER_SENSE])(brain);
+            CALL(brain->layers[CPU_LAYER_ACTION])(brain);
         }
     }
 }
 
-// TODO: decompile sub_0800F044.s
-// unk1C has to be a few separate arrays as confirmed in sub_080157B0 so why we have out-of-bounds r/w here?
+// TODO: decompile CpuScanTerrain.brain
+// unk1C has to be a few separate arrays as confirmed in CpuJumpNeeded so why we have out-of-bounds r/w here?
 // https://decomp.me/scratch/Au4Qp
 /*
-void sub_0800F044(struct Unk_02038590 *a1) {
+void CpuScanTerrain(struct CpuBrain *a1) {
     u16 r0, r0_2;
-    struct Kirby *kirby = a1->unk40;
-    struct LevelInfo *li = a1->unk14;
+    struct Kirby *kirby = a1->kirby;
+    struct LevelInfo *li = a1->levelInfo;
     s16 array[] = {
         li->unk6C >> 12, li->unk70 >> 12,
         li->unk74 >> 12, li->unk78 >> 12,
@@ -141,8 +141,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     s16 sp14;
     s16 sp18;
 
-    a1->unk26[2] = 0;
-    switch (gCollisionAttributes[sub_080024F0(a1->unk14, sp10, sl)] & 0xF0000000) {
+    a1->terrainRow[2] = 0;
+    switch (gCollisionAttributes[sub_080024F0(a1->levelInfo, sp10, sl)] & 0xF0000000) {
     case 0x20000000:
     case 0x30000000:
     case 0x40000000:
@@ -151,11 +151,11 @@ void sub_0800F044(struct Unk_02038590 *a1) {
         break;
     }
     r0 = array[0];
-    r5 = a1->unk26;
+    r5 = a1->terrainRow;
     if (r0 >= sp10 - 1 || sp10 - 1 >= (u16)array[2])
         r5[1] = 0xFF;
-    else if (a1->unk26[2])
-        r5[1] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[1] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + -1, sl)];
 
@@ -176,8 +176,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[0] >= sp10 - 2 || sp10 - 2 >= (u16)array[2])
         r5[0] = 0xFF;
-    else if (a1->unk26[1])
-        r5[0] = a1->unk26[1];
+    else if (a1->terrainRow[1])
+        r5[0] = a1->terrainRow[1];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + -2, sl)];
 
@@ -196,8 +196,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[0] >= sp10 + 1 || sp10 + 1 >= (u16)array[2])
         r5[3] = 0xFF;
-    else if (a1->unk26[2])
-        r5[3] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[3] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + 1, sl)];
 
@@ -218,8 +218,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[0] >= sp10 + 2 || sp10 + 2 >= (u16)array[2])
         r5[4] = 0xFF;
-    else if (a1->unk26[3])
-        r5[4] = a1->unk26[3];
+    else if (a1->terrainRow[3])
+        r5[4] = a1->terrainRow[3];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + 2, sl)];
 
@@ -237,11 +237,11 @@ void sub_0800F044(struct Unk_02038590 *a1) {
         }
     }
     r0_2 = array[1];
-    r5 = a1->unk1C;
+    r5 = a1->terrain;
     if (r0_2 >= sl - 1 || sl - 1 >= (u16)array[3])
         r5[7] = 0xFF;
-    else if (a1->unk26[2])
-        r5[7] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[7] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10, sl + -1)];
 
@@ -260,8 +260,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[1] >= sl - 2 || sl - 2 >= (u16)array[3])
         r5[2] = 0xFF;
-    else if (a1->unk1C[7])
-        r5[2] = a1->unk1C[7];
+    else if (a1->terrain[7])
+        r5[2] = a1->terrain[7];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10, sl + -2)];
 
@@ -280,8 +280,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[1] >= sl + 1 || sl + 1 >= (u16)array[3])
         r5[0x11] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x11] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[0x11] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10, sl + 1)];
 
@@ -300,8 +300,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     }
     if ((u16)array[1] >= sl + 2 || sl + 2 >= (u16)array[3])
         r5[0x16] = 0xFF;
-    else if (a1->unk2B[2])
-        r5[0x16] = a1->unk2B[2];
+    else if (a1->terrainBelow[2])
+        r5[0x16] = a1->terrainBelow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10, sl + 2)];
 
@@ -321,8 +321,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= sp10 - 1 || sp10 - 1 >= (u16)array[2]
         || (u16)array[1] >= sl - 1 || sl - 1 >= (u16)array[3])
         r5[0x6] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x6] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[0x6] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + -1, sl + -1)];
 
@@ -342,8 +342,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= sp10 + 1 || sp10 + 1 >= (u16)array[2]
         || (u16)array[1] >= sl - 1 || sl - 1 >= (u16)array[3])
         r5[8] = 0xFF;
-    else if (a1->unk26[2])
-        r5[8] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[8] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + 1, sl + -1)];
 
@@ -363,8 +363,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= sp10 + 1 || sp10 + 1 >= (u16)array[2]
         || (u16)array[1] >= sl + 1 || sl + 1 >= (u16)array[3])
         r5[0x12] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x12] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[0x12] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + 1, sl + 1)];
 
@@ -384,8 +384,8 @@ void sub_0800F044(struct Unk_02038590 *a1) {
     if ((u16)array[0] >= sp10 - 1 || sp10 - 1 >= (u16)array[2]
         || (u16)array[1] >= sl + 1 || sl + 1 >= (u16)array[3])
         r5[0x10] = 0xFF;
-    else if (a1->unk26[2])
-        r5[0x10] = a1->unk26[2];
+    else if (a1->terrainRow[2])
+        r5[0x10] = a1->terrainRow[2];
     else {
         u32 r1 = gCollisionAttributes[sub_080024F0(li, sp10 + -1, sl + 1)];
 
@@ -576,12 +576,16 @@ void sub_0800F044(struct Unk_02038590 *a1) {
 #ifdef __cplusplus
 }
 #endif
+/* PORT-FNID: these functions were renamed from their address names, so
+ * katam.elf no longer names them; pin each code ID to its ROM address
+ * (tools/codemod_fnid.py reads these):
+ * PORT_FNID_ROM(CpuBrainTask, 0x0800EF61u) */
 
 /* PORT-FNID begin: this file's functions the game stores as code
  * IDs, so the lookup can name statics (tools/codemod_fnid.py
  * --gen rewrites this block). */
 PORT_FNID_TABLE(game_src_code_0800ECAC) {
-    PORT_FNID(sub_0800EF60),
+    PORT_FNID(CpuBrainTask),
     PORT_FNID_END
 };
 /* PORT-FNID end */

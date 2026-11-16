@@ -32,7 +32,7 @@ extern "C" {
 WIDE_ASSERT(sizeof(struct Kirby) == WIDE_SZ_KIRBY, "wide: struct Kirby");
 WIDE_ASSERT(sizeof(struct AnimInfo) * 185 == WIDE_SZ_ANIM, "wide: AnimInfo");
 WIDE_ASSERT(sizeof(struct LevelInfo) == WIDE_SZ_LEVELINFO, "wide: LevelInfo");
-WIDE_ASSERT(sizeof(struct Unk_02038590) == WIDE_SZ_BRAIN, "wide: brain");
+WIDE_ASSERT(sizeof(struct CpuBrain) == WIDE_SZ_BRAIN, "wide: brain");
 WIDE_ASSERT(sizeof(struct PauseMenu) == WIDE_SZ_PAUSE, "wide: pause menu");
 WIDE_ASSERT(sizeof(union Unk_02028EE0) == WIDE_SZ_RS_EE0, "wide: tilemap");
 WIDE_ASSERT(sizeof(struct Unk_020382D0) == WIDE_SZ_INPUT, "wide: input block");
@@ -307,8 +307,8 @@ void PortWideRamReset(u32 flags)
 #define WIDE_TASK_HEADROOM 12       /* free task slots kept for effects */
 
 extern void sub_08055920(struct Kirby *);
-void sub_0800ECAC(u8, u16, u16);
-void sub_0800EF60(void);
+void CpuBrainCreate(u8, u16, u16);
+void CpuBrainTask(void);
 
 int PortWideTarget(void)
 {
@@ -349,7 +349,7 @@ static int Settled(const struct Kirby *k)
  * gNumKirbys to its post-opening room); a trigger in the hub then plays the
  * second one (0x1A, code_0814A828.c), which sets NORMAL (300).  A Kirby made
  * in those states is made as the play start makes Kirbys 1..3 (CreateKirby,
- * a brain with the same start room, sub_0800ECAC) and arrives beside player
+ * a brain with the same start room, CpuBrainCreate) and arrives beside player
  * 1, so it copies player 1 in the tutorial and is sent on with the others by
  * the opening.  What it must not do is arrive in the middle of the
  * story's scripted parts: an in-game interlude (the cutscene screens; a
@@ -388,7 +388,7 @@ static struct Task *BrainOf(u8 s)
     for (i = 0; i < MAX_TASK_NUM; i++) {
         struct Task *t = &gTasks[i];
 
-        if (t->main == FN(sub_0800EF60) && t->priority == (u16)(0x2100 | s) && t->structOffset)
+        if (t->main == FN(CpuBrainTask) && t->priority == (u16)(0x2100 | s) && t->structOffset)
             return t;
     }
     return NULL;
@@ -416,7 +416,7 @@ static void Add(u8 i)
     CreateKirby(i, k, room, pos, FALSE);        /* ++gNumKirbys */
     /* (not sub_0803E558: Kirby i shares palette slot i & 3 with a Kirby
      * already in play, whose colours it would overwrite) */
-    sub_0800ECAC(i, room, gAIKirbyState > 199 ? 0x321 : 0x323);
+    CpuBrainCreate(i, room, gAIKirbyState > 199 ? 0x321 : 0x323);
     li->unk1EC = 1;
     li->unk660 = i;
     PortLmpCarryTo(k, p1);                      /* sub_08055920 + respawn record */

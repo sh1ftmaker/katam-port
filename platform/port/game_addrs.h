@@ -13,7 +13,7 @@
  *                                  [1] pressed this frame, [2] released.
  *                                  Written by the link layer at
  *                                  src/multi_08030C94.c:332 and read by Kirby.
- *   gUnk_02038590[i].unk9E         the AI controller's synthesised buttons,
+ *   gUnk_02038590[i].keys         the AI controller's synthesised buttons,
  *                                  written by src/code_0800ECAC_2.c.  Stride
  *                                  244, field at 158; both asserted.
  *   gUnk_0203AD10 bit 1            the network-input branch (src/code_080332BC.c

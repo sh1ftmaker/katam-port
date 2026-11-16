@@ -73,7 +73,7 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     };
 
     for (otherKirbyId = arg0; otherKirbyId < nKirbys; otherKirbyId++) {
-        sub_0800ECAC(otherKirbyId, arg2[otherKirbyId & 3], startRoomId);
+        CpuBrainCreate(otherKirbyId, arg2[otherKirbyId & 3], startRoomId);
     }
 #else
     for (curKirbyId = 0; curKirbyId < 4; curKirbyId++) {
@@ -82,7 +82,7 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     };
 
     for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++) {
-        sub_0800ECAC(otherKirbyId, arg2[otherKirbyId], startRoomId);
+        CpuBrainCreate(otherKirbyId, arg2[otherKirbyId], startRoomId);
     }
 #endif
     /* PORT: local multiplayer -- the other humans join now that every slot

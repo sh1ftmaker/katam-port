@@ -6508,7 +6508,7 @@ void sub_0803F324(struct Kirby *kirby)
         if (kirby->base.unk56 < gNumHumanPlayers)
             r3 = sub_0802055C(kirby->base.unk56) & 0x3F7;
         else
-            r3 = gUnk_02038590[kirby->base.unk56].unk9E;
+            r3 = gUnk_02038590[kirby->base.unk56].keys;
     }
     else if (gUnk_0203AD10 & 2)
     {
@@ -6516,7 +6516,7 @@ void sub_0803F324(struct Kirby *kirby)
         if (kirby->base.unk56 < gNumHumanPlayers)
             r3 = gUnk_020382D0.unk8[0][kirby->base.unk56];
         else
-            r3 = gUnk_02038590[kirby->base.unk56].unk9E;
+            r3 = gUnk_02038590[kirby->base.unk56].keys;
     }
     else
     {
@@ -6528,7 +6528,7 @@ void sub_0803F324(struct Kirby *kirby)
         else if (PortLmpHumanSlot(kirby->base.unk56))
             r3 = PortLmpKeys(kirby->base.unk56);
         else
-            r3 = gUnk_02038590[kirby->base.unk56].unk9E;
+            r3 = gUnk_02038590[kirby->base.unk56].keys;
     }
     if (!r5) return;
     r1 = kirby->movementState;
@@ -13002,7 +13002,7 @@ _080564F8:
     sub_0806ED58(kirby);
     FillLevelInfo(kirby->base.unk56, kirby->base.roomId, &a, &b);
     if (!PortIsHuman(kirby->base.unk56))
-        sub_0800EE04(kirby->base.unk56, sb);
+        CpuBrainReset(kirby->base.unk56, sb);
     if (PortIsHuman(kirby->base.unk56))
     {
         if (sl != 0xFFFF)
@@ -13762,7 +13762,7 @@ void sub_08058158(struct Kirby *kirby)
         }
         else
         {
-            u8 idx = sub_0800EEBC(&gKirbys[kirby->idleTimer].base);
+            u8 idx = CpuNavNodeAt(&gKirbys[kirby->idleTimer].base);
             const struct LevelInfo_1E8_14 *p = gUnk_08D63C28[gRoomProps[gKirbys[kirby->idleTimer].base.roomId].unk22]->unk14;
             u16 r2 = p[idx].unk20, r3 = p[idx].unk22;
 

@@ -379,7 +379,7 @@ Each is still to be classified as a mask or a fix. The candidates:
 - the HUD task (`UpdateGameplayHud`, P);
 - `Kirby.base+45` (the sprite OAM slot);
 - the tasks `sub_08089BCC`, `sub_0808A208` and `sub_08088C0C`;
-- the AI task `sub_0800EF60` (2 bytes at frame 823: possibly real);
+- the AI task `CpuBrainTask` (2 bytes at frame 823: possibly real);
 - `gSourcePalettes` and `gPaletteEffectManager` (palette fades of the
   local view, probably S*);
 - heap objects whose fields beyond the sprite differ.
