@@ -363,6 +363,14 @@ void PortLmpSetHumans(int n)
  * by its A press) used to play as one player. */
 void PortLmpChoose(int n)
 {
+#if KATAM_WIDE
+    /* The wide build (more than 4 Kirbys, the web page's second module): no
+     * local multiplayer from the menus or the pads.  Recordings and the
+     * environment still can (`option localmp N`: the gates' four humans with
+     * twelve CPU Kirbys). */
+    if (n >= 2)
+        return;
+#endif
     if (n < 2)
         n = sFromHost;
     if (n > 4)
@@ -752,6 +760,9 @@ int PortLmpInStory(void)
 
 int PortLmpCanRequest(void)
 {
+#if KATAM_WIDE
+    return 0;               /* no drop-in (PortLmpChoose) */
+#endif
     if (PortLnActive())
         return !PortInputLogReplaying();
     return !SessionActive() && !PortInputLogReplaying();
@@ -935,6 +946,13 @@ static void Carry(struct Kirby *k, u16 room, const struct Kirby *to, int beside)
     PortLog("[katam-port] localmp: f%u player %u -> room %u cell (%u,%u)",
             (unsigned)gPortSim->frame.frameCount, (unsigned)k->base.unk56 + 1,
             (unsigned)room, (unsigned)cx, (unsigned)cy);
+}
+
+/* The wide build's live count (platform/wide.c) brings a Kirby to player 1
+ * the same way. */
+void PortLmpCarryTo(struct Kirby *k, const struct Kirby *to)
+{
+    Carry(k, to->base.roomId, to, 1);
 }
 
 /* The widest frame the screen may show this frame, in 1/256 px, placed the

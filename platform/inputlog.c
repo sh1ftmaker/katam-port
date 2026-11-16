@@ -14,6 +14,7 @@
 #include "port/port.h"
 #include "port/backend.h"
 #include "port/inputlog.h"
+#include "port/wide.h"
 #include "port/simblock.h"
 #include "port/localmp.h"
 #include "port/kirby_paint.h"
@@ -59,6 +60,9 @@ static u32 sLocalMp;
  * becomes a person (ON 1) or goes back to the CPU (ON 0) at the latch of
  * FRAME.  `human FRAME SLOT ON` in the file.  Kept sorted by frame. */
 struct HumanEv { u32 frame; u8 slot, on; };
+/* A HumanEv with this slot is `kirbys FRAME N`: the wide build's live Kirby
+ * count N (platform/wide.c), applied at the same point of the latch. */
+#define KIRBYS_EV 0x80
 static struct HumanEv *sHumans;
 static u32 sNumHumans, sHumansCap;
 
@@ -354,6 +358,14 @@ long PortInputLogLoad(const char *text, u32 len)
                 return -1;
             }
             AddHuman(a, (u8)b, (u8)c);
+        } else if (sscanf(line, "kirbys %u %u", &a, &b) == 2) {
+            /* the wide build's live Kirby count (platform/wide.c); kept with
+             * the human lines, slot KIRBYS_EV */
+            if (b < 4 || b > 16) {
+                PortError("[katam-port] replay: bad kirbys line: %s", line);
+                return -1;
+            }
+            AddHuman(a, KIRBYS_EV, (u8)b);
         } else if (sscanf(line, "paint %u %u %x", &a, &b, &c) == 3) {
             if (sscanf(line, "paint %*u %*u %*x %x", &d) != 1)
                 d = 0;
@@ -488,6 +500,9 @@ char *PortInputLogSerialize(u32 *outLen)
         }
         while (hu < sNumHumans && sHumans[hu].frame <= f) {
             if (cap - len < 64) break;
+            if (sHumans[hu].slot == KIRBYS_EV)
+                EMIT("kirbys %u %u\n", (unsigned)sHumans[hu].frame, (unsigned)sHumans[hu].on);
+            else
             EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
                  (unsigned)sHumans[hu].slot, (unsigned)sHumans[hu].on);
             hu++;
@@ -566,6 +581,9 @@ char *PortInputLogSerialize(u32 *outLen)
     }
     while (hu < sNumHumans) {
         if (cap - len < 64) break;
+        if (sHumans[hu].slot == KIRBYS_EV)
+            EMIT("kirbys %u %u\n", (unsigned)sHumans[hu].frame, (unsigned)sHumans[hu].on);
+        else
         EMIT("human %u %u %u\n", (unsigned)sHumans[hu].frame,
              (unsigned)sHumans[hu].slot, (unsigned)sHumans[hu].on);
         hu++;
@@ -600,6 +618,16 @@ u32 PortInputLogScheduleHuman(u8 slot, u8 on)
     if (sReplaying || slot < 1 || slot > 3)
         return 0;
     AddHuman(frame, slot, on ? 1 : 0);
+    return frame;
+}
+
+u32 PortInputLogScheduleKirbys(u8 n)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying || n < 4 || n > 16)
+        return 0;
+    AddHuman(frame, KIRBYS_EV, n);
     return frame;
 }
 
@@ -933,8 +961,14 @@ void PortInputLogLatch(u32 frame, u16 *keys)
     /* Slots changing hands this frame (drop in / drop out), before the pads
      * so a joiner's keys count from the frame they joined. */
     for (i = 0; i < sNumHumans; i++)
-        if (sHumans[i].frame == frame)
-            PortLmpSetSlotHuman(sHumans[i].slot, sHumans[i].on);
+        if (sHumans[i].frame == frame) {
+            if (sHumans[i].slot == KIRBYS_EV) {
+#if KATAM_WIDE
+                PortWideSetTarget(sHumans[i].on);   /* platform/wide.c */
+#endif
+            } else
+                PortLmpSetSlotHuman(sHumans[i].slot, sHumans[i].on);
+        }
 
     /* Player-card paint (platform/kirby_paint.c), the same way. */
     for (i = 0; i < sNumPaints; i++)

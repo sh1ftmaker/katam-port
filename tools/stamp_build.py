@@ -65,10 +65,29 @@ def main():
     # shell's `var Module = {...}` runs earlier in the page and would discard
     # anything assigned before it.  Injecting immediately ahead of the loader
     # tag is the only point that is after the shell and before the fetch.
-    shim = ('<script>Module.locateFile=function(p){'
-            'return p==="katam.wasm"?p+"?v=%s":p;};</script>' % build_id)
+    # The 16-Kirby module (make web16; web/shell.html's loader picks it for
+    # SETTINGS > EXPERIMENTAL > CPU KIRBYS above 3): its wasm through the
+    # same shim, its loader's version in KATAM_VER for the page's loader.
+    loader16 = args.dir / 'katam16.js'
+    wasm16 = args.dir / 'katam16.wasm'
+    ver16 = ''
+    if loader16.exists() and wasm16.exists():
+        id16 = hashlib.sha256(wasm16.read_bytes()).hexdigest()[:12]
+        loader16_id = hashlib.sha256(loader16.read_bytes()).hexdigest()[:12]
+        ver16 = ('p==="katam16.wasm"?p+"?v=%s":' % id16)
+        ver16_js = 'window.KATAM_VER={"katam16.js":"%s"};' % loader16_id
+    else:
+        ver16_js = ''
+    shim = ('<script>%sModule.locateFile=function(p){'
+            'return p==="katam.wasm"?p+"?v=%s":%sp;};</script>' % (ver16_js, build_id, ver16))
 
-    html = html[:m.start()] + shim + stamped + html[m.end():]
+    # The page keeps emcc's loader tag in a <template> (web/shell.html, the
+    # end of the page) and starts the module itself: the shim goes before
+    # that template, where it runs.
+    html = html[:m.start()] + stamped + html[m.end():]
+    tpl = re.search(r'<template\b[^>]*\bid=(["\']?)katamloader\1[^>]*>', html)
+    at = tpl.start() if tpl else m.start()
+    html = html[:at] + shim + html[at:]
 
     # The build a tester is on, readable on the page and by curl.
     label = (args.label + ' ' if args.label else '') + 'wasm ' + build_id

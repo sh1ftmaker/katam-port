@@ -60,17 +60,19 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     InitLevelTasks();
 
 #if KATAM_WIDE
-    /* PORT: the wide build (port/wide.h) starts N Kirbys.  The callers' spawn
-     * tables have four entries; PLACEHOLDER: Kirby i starts where Kirby
-     * (i & 3) does. */
-    for (curKirbyId = 0; curKirbyId < KATAM_KIRBYS; curKirbyId++) {
+    /* PORT: the wide build (port/wide.h) starts as many Kirbys as the live
+     * count asks for (4..N, platform/wide.c).  The callers' spawn tables have
+     * four entries; PLACEHOLDER: Kirby i starts where Kirby (i & 3) does. */
+    u8 nKirbys = PortWideStartKirbys();
+
+    for (curKirbyId = 0; curKirbyId < nKirbys; curKirbyId++) {
         u8 s = curKirbyId & 3;
 
         CreateKirby(curKirbyId, &gKirbys[curKirbyId], arg2[s], &arg3[2 * s], arg4[s]);
         sub_0803E558(curKirbyId);
     };
 
-    for (otherKirbyId = arg0; otherKirbyId < KATAM_KIRBYS; otherKirbyId++) {
+    for (otherKirbyId = arg0; otherKirbyId < nKirbys; otherKirbyId++) {
         sub_0800ECAC(otherKirbyId, arg2[otherKirbyId & 3], startRoomId);
     }
 #else

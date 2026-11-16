@@ -258,6 +258,17 @@ void PortHostInit(int argc, char **argv)
                     "(player cards and volume kept)");
         }
     }
+#if KATAM_WIDE
+    /* The wide module (katam16.js): the page loaded it for EXPERIMENTAL >
+     * CPU KIRBYS and says how many (Module.portKirbys, from the saved
+     * setting); node and the tools give none: all KATAM_KIRBYS. */
+    {
+        int n = EM_ASM_INT({ return (typeof Module.portKirbys === 'number') ? Module.portKirbys | 0 : 0; });
+
+        if (n >= 4)
+            PortWideRequestKirbys(n);
+    }
+#endif
     r = PortWebRendererParam();
     if (r >= 0)
         gPortSettings.renderer = r;

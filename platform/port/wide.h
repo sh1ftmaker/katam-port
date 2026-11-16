@@ -171,6 +171,18 @@
 /* Where gCurLevelInfo[0xFF] reaches, which must stay mapped and unwritten. */
 #define WIDE_LI_REACH      (WIDE_ADDR(WIDE_OFF_LEVELINFO) + 256u * WIDE_SZ_LEVELINFO)
 
+/* The live Kirby count (EXPERIMENTAL > CPU KIRBYS, platform/wide.c "The live
+ * count").  Simulation state, at the start of the sim block's padding before
+ * the wide area (port/simblock.h), so it is in every snapshot and hash.
+ * Zero (power-on, and every build that never asks) means KATAM_KIRBYS. */
+struct PortWideCtl {
+    u8  target;         /* Kirbys wanted, 4..KATAM_KIRBYS; 0 = KATAM_KIRBYS  */
+    u8  leaving;        /* the Kirby being taken away (+1), 0 = none         */
+    u16 pad;
+    u32 leavingSince;   /* the frame it was asked to come to player 1        */
+    u32 added, removed; /* counts, for the log and the tests                 */
+};
+
 #endif /* KATAM_WIDE */
 
 /* --- addresses the platform side names directly (port/game_addrs.h etc.) -- */
@@ -217,7 +229,24 @@ void PortWideRamReset(u32 flags);
  * for its screen slots too (past the end of gKirbys on the console): those
  * read what the console read. */
 u16 PortWideKirbyRoomAt(u32 slot);
+/* The live count (platform/wide.c "The live count").  Simulation input:
+ * PortWideSetTarget is applied at the latch of a frame-stamped `kirbys
+ * FRAME N` input (platform/inputlog.c); the host asks with
+ * PortWideRequestKirbys, which schedules one (0 when refused: replaying).
+ * PortWideStartKirbys is how many Kirbys a play start creates (at least 4,
+ * which the game's own start code assumes); PortWideFrame, once a frame
+ * after the latch (platform/main.c), brings one Kirby in or takes one away
+ * until gNumKirbys is the target. */
+void PortWideSetTarget(int n);
+int  PortWideTarget(void);
+u8   PortWideStartKirbys(void);
+void PortWideFrame(void);
 #endif
+/* Every build: the host asks for n Kirbys in all (0 in the default build,
+ * which has nothing to change). */
+u32  PortWideRequestKirbys(int n);
+/* The most Kirbys this build can have (4 without KATAM_MAX_KIRBYS). */
+static inline int PortWideMax(void) { return KATAM_KIRBYS; }
 #ifdef __cplusplus
 }
 #endif

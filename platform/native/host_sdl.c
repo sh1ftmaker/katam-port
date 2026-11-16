@@ -2227,6 +2227,19 @@ void PortHostInit(int argc, char **argv)
         gPortSettings.vsync = sVsync;
         PortSettingsApplyEarly();
     }
+#if KATAM_WIDE
+    /* The wide build's live Kirby count (platform/wide.c): EXPERIMENTAL >
+     * CPU KIRBYS as saved (default 4), or KATAM_KIRBYS=N; a scripted run
+     * without KATAM_KIRBYS: all KATAM_KIRBYS, as before. */
+    {
+        const char *e = getenv("KATAM_KIRBYS");
+
+        if (e != NULL && *e)
+            PortWideRequestKirbys(atoi(e));
+        else if (sUiMode)
+            PortWideRequestKirbys(gPortSettings.kirbys);
+    }
+#endif
 
     /* First, before SDL allocates a byte or starts a thread.  The GBA's
      * addresses have to be claimed while nothing else in the process has had

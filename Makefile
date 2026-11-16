@@ -185,7 +185,10 @@ UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
                  -fno-threadsafe-statics -w -Iplatform -Ithird_party/imgui \
                  -I$(BUILD)/gen -MMD -MP
 
-TARGET := $(OUT)/katam.html
+# The page's module name: katam (katam.html/.js/.wasm), or katam16 for the
+# 16-Kirby module (web16 below).
+WEB_NAME ?= katam
+TARGET := $(OUT)/$(WEB_NAME).html
 
 .PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test input-devices-test \
         lint-simstate native native-run native-test native-clean \
@@ -804,10 +807,23 @@ PAGES_PROJECT  ?= katam-port
 # can see more than one account.
 CF_ACCOUNT_ID  ?=
 
-dist: all
+# The page's second module: the same game with 16 Kirby slots
+# (KATAM_MAX_KIRBYS=16, port/wide.h), which the page loads instead of
+# katam.js when SETTINGS > EXPERIMENTAL > CPU KIRBYS is above 3
+# (web/shell.html).  Its own build directory; only katam16.js and
+# katam16.wasm ship (its katam16.html is never used).
+W16_BUILD := $(BUILD)/w16web
+W16_OUT   := $(W16_BUILD)/web
+.PHONY: web16
+web16:
+	@$(MAKE) --no-print-directory BUILD=$(W16_BUILD) OUT=$(W16_OUT) KATAM_MAX_KIRBYS=16 \
+	    WEB_NAME=katam16 $(W16_OUT)/katam16.html
+
+dist: all web16
 	@rm -rf $(DIST) && mkdir -p $(DIST)
 	@cp $(OUT)/katam.html $(DIST)/index.html
 	@cp $(OUT)/katam.js $(OUT)/katam.wasm $(DIST)/
+	@cp $(W16_OUT)/katam16.js $(W16_OUT)/katam16.wasm $(DIST)/
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
 	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
 	@cp $(OUT)/ln_session.js $(OUT)/online.js $(OUT)/online_browse.js $(DIST)/
@@ -839,7 +855,7 @@ dist-playtest: dist
 # actually about to be uploaded.
 check-dist:
 	@bad=$$(find $(DIST) -type f \( -iname '*.gba' -o -iname '*.gb' -o -iname '*.gbc' \
-	         -o -iname '*.bin' -o \( -size +8M ! -name 'katam.wasm' \) \)); \
+	         -o -iname '*.bin' -o \( -size +8M ! -name 'katam.wasm' ! -name 'katam16.wasm' \) \)); \
 	if [ -n "$$bad" ]; then \
 	    echo "REFUSING TO PUBLISH -- $(DIST) contains game data:"; \
 	    echo "$$bad"; \

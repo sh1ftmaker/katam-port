@@ -106,6 +106,11 @@ if [ "$DIST_TARGET" = dist-playtest ]; then
     cp -r "$DIST"/. "$TARGET"/
 fi
 cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
+# The 16-Kirby module (SETTINGS > EXPERIMENTAL > CPU KIRBYS; make web16):
+# the game page's second module.  The playtest page always runs katam.js.
+if [ "$DIST_TARGET" = dist ]; then
+    cp "$DIST"/katam16.js "$DIST"/katam16.wasm "$TARGET"/
+fi
 cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/ln_session.js "$DIST"/online.js "$TARGET"/ 2>/dev/null || true
@@ -118,7 +123,7 @@ touch "$WORKTREE/.nojekyll"
 # check-dist guarded build/dist; this guards what is actually staged.
 bad=$(find "$TARGET" -type f \( -iname '*.gba' -o -iname '*.gb' -o -iname '*.gbc' \
         -o -iname '*.bin' -o -iname '*.sav' -o -iname '*.srm' -o -iname '*.pack' -o -iname '*.katn' \
-        -o \( -size +8M ! -name 'katam.wasm' \) \) -not -path '*/.git/*')
+        -o \( -size +8M ! -name 'katam.wasm' ! -name 'katam16.wasm' \) \) -not -path '*/.git/*')
 if [ -n "$bad" ]; then
     echo "REFUSING TO PUBLISH -- staged files look like game data:" >&2
     echo "$bad" >&2

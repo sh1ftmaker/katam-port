@@ -850,7 +850,6 @@ if (CASES.includes('three')) {
         else { await press(host, 'SELECT'); await waitFrames(host, 70); }
     }
     ok('session: the pause SETTINGS page is up', pageUp);
-    await press(host, 'DOWN'); await waitFrames(host, 10);        // LIGHTING
     await press(host, 'DOWN'); await waitFrames(host, 10);        // SOUND
     await press(host, 'DOWN'); await waitFrames(host, 10);        // PLAYERS
     await press(host, 'A'); await waitFrames(host, 20);           // the PLAYERS section
@@ -1064,7 +1063,7 @@ if (CASES.includes('exits')) {
     ok('exits: guest A on SETTINGS', (await modelOf(ga)) === 9 && (await modelOf(host)) === 9);
     table.push(['Pause, online (TOGETHER)', 'the other players', 'nothing', 'nothing', 'next page']);
     // --- SETTINGS > ONLINE on guest A: the code and the list, read only
-    for (let i = 0; i < 4; i++) await step(ga, 'DOWN', 10);
+    for (let i = 0; i < 3; i++) await step(ga, 'DOWN', 10);
     await step(ga, 'A', 30);
     ok('exits: ONLINE section (guest A)', (await modelOf(ga)) === 13);
     await waitFrames(ga, 30);
@@ -1076,7 +1075,7 @@ if (CASES.includes('exits')) {
     ok('exits: B: SETTINGS', (await modelOf(ga)) === 9);
     // --- the owner's cases: guest A's ZOOM and CAMERA are its own
     const h0 = await word(host), a0 = await word(ga);
-    for (let i = 0; i < 4; i++) await step(ga, 'UP', 10);         // (B left the cursor on ONLINE)
+    for (let i = 0; i < 3; i++) await step(ga, 'UP', 10);         // (B left the cursor on ONLINE)
     await step(ga, 'A', 30);                                       // DISPLAY
     await step(ga, 'DOWN', 10); await step(ga, 'DOWN', 10);        // ZOOM
     await step(ga, 'RIGHT', 30); await sleep(1500);
@@ -1093,7 +1092,10 @@ if (CASES.includes('exits')) {
     ok('case 3: guest A\'s CAMERA Right: guest A toggled, the host not', camOf(await word(ga)) !== camOf(a0) && camOf(await word(host)) === camOf(h0));
     // LIGHTING online: the switch is guest A's own, the other rows dimmed
     await step(ga, 'B', 20);                                     // SETTINGS, on DISPLAY
-    await step(ga, 'DOWN', 10); await step(ga, 'A', 30);         // LIGHTING
+    await step(ga, 'UP', 10); await step(ga, 'UP', 10);          // (wraps past MAIN MENU) EXPERIMENTAL
+    await step(ga, 'A', 30);
+    ok('exits: EXPERIMENTAL section online', (await modelOf(ga)) === 20);
+    await step(ga, 'A', 30);                                     // its first row: LIGHTING
     const lon = (p) => p.ev('Module._PortPocSettingsExtWord() >>> 0').then((v) => v & 1);
     ok('exits: LIGHTING section online', (await modelOf(ga)) === 19);
     await step(ga, 'RIGHT', 30); await sleep(1500);
@@ -1127,7 +1129,7 @@ if (CASES.includes('exits')) {
     await step(host, 'UP', 10); await step(host, 'UP', 10); await step(host, 'LEFT', 30);   // ZOOM back
     await step(host, 'B', 30);
     // --- REMOVE guest B (the host's list; B is guest 2)
-    for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // ONLINE
+    for (let i = 0; i < 3; i++) await step(host, 'DOWN', 10);      // ONLINE
     await step(host, 'A', 30);
     for (let i = 0; i < 4; i++) await step(host, 'DOWN', 10);      // row 4: guest 2's Kirby
     await step(host, 'A', 30);

@@ -66,6 +66,8 @@ void PortInputLogScheduleWarp(u32 frame, u8 player, u16 room, u8 cellX, u8 cellY
  * back to the CPU at the next latch (platform/localmp.c PortLmpSetSlotHuman),
  * recorded as `human FRAME SLOT ON`.  Returns the frame, 0 when replaying. */
 u32  PortInputLogScheduleHuman(u8 slot, u8 on);
+/* The wide build's live Kirby count, n in all (4..16): `kirbys FRAME N`. */
+u32  PortInputLogScheduleKirbys(u8 n);
 /* A player card's colour: Kirby slot `slot` (0..3) wears paint `value`
  * and feet `feet` (port/kirby_paint.h) from the next latch, recorded as
  * `paint FRAME SLOT VALUE [FEET]`.  Returns the frame, 0 when replaying or

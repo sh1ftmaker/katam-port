@@ -1038,6 +1038,10 @@ void PortPresentFrame(void)
     /* Local multiplayer: everyone into one room, stragglers to player 1
      * (platform/localmp.c).  Returns at once unless it is on. */
     PortLmpFrame();
+#if KATAM_WIDE
+    /* The wide build's live Kirby count: one Kirby in or out (platform/wide.c). */
+    PortWideFrame();
+#endif
 
     /* Return with VBlank still in progress.  GameLoop does its screen flush
      * and queue draining now, and PortVBlankConsume ends VBlank once those

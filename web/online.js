@@ -1050,7 +1050,11 @@
 
     /* --- invite links ------------------------------------------------------------ */
     var joinParam = q.get('join');
-    if (joinParam) {
+    if (joinParam && window.KATAM_KIRBYS16) {
+        /* the 16-Kirby module (EXPERIMENTAL > CPU KIRBYS, web/shell.html): no
+         * online play, so the link is not followed */
+        banner('Invite links need 4 Kirbys: set SETTINGS > EXPERIMENTAL > CPU KIRBYS to 3, then open the link again.', 0);
+    } else if (joinParam) {
         var code = Net.normalizeCode(joinParam);
         if (!code) banner('"' + joinParam + '" is not a game code (4 letters, no vowels).', 0);
         else {

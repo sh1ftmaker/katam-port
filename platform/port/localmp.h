@@ -122,6 +122,11 @@ int  PortLmpInStory(void);
  * in its room), human, cpu, anim:N, flag:HEX (base.flags)?  Read-only. */
 int  PortLmpProbe(int slot, const char *cond);
 
+/* The respawn route to `to`'s room, beside it (platform/wide.c, the live
+ * Kirby count): the game's own room change, next frame. */
+struct Kirby;
+void PortLmpCarryTo(struct Kirby *k, const struct Kirby *to);
+
 /* --- game hooks ----------------------------------------------------------- */
 /* sub_080332BC's human count at a single-player start. */
 u8   PortLmpStartHumans(u8 n);

@@ -230,7 +230,6 @@ async function toSettingsPlayers(p) {
     await press(p, 'A');
     await until(() => screenLive(p), 10000);
     await waitFrames(p, 30);
-    await press(p, 'DOWN'); await waitFrames(p, 10);       // LIGHTING
     await press(p, 'DOWN'); await waitFrames(p, 10);       // SOUND
     await press(p, 'DOWN'); await waitFrames(p, 10);       // PLAYERS
     await press(p, 'A'); await waitFrames(p, 20);          // the PLAYERS section, on PLAYERS
@@ -439,7 +438,6 @@ async function caseLocal() {
     // the pause menu's SETTINGS > PLAYERS
     ok('the pause SETTINGS page is up', await toPauseSettings(p));
     ok('... on its top level', (await pagesModel(p)) === PAUSE_TOP);
-    await press(p, 'DOWN'); await waitFrames(p, 10);        // LIGHTING
     await press(p, 'DOWN'); await waitFrames(p, 10);        // SOUND
     await press(p, 'DOWN'); await waitFrames(p, 10);        // PLAYERS
     await press(p, 'A'); await waitFrames(p, 20);

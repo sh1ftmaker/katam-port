@@ -9,7 +9,7 @@
 //
 //   node tools/menu_exits_test.mjs --cdp 19371 --base http://127.0.0.1:18961/dist/
 //        --rom-url http://127.0.0.1:18961/rom.gba --shots DIR
-//        [--cases front,joinmsg,pause,local,phone,wide] [--relay http://127.0.0.1:18821]
+//        [--cases front,joinmsg,pause,local,phone,wide,kirbys] [--relay http://127.0.0.1:18821]
 //
 // Needs a Chromium already listening on --cdp with its own profile (never the
 // shared one), a static server for the dist and a ROM you own (served from
@@ -200,9 +200,10 @@ async function startPlay(p) {
 
 const XBOX = 'Xbox 360 Controller (XInput STANDARD GAMEPAD)';
 const XONE = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
-const M = { BROWSE: 17, PASS: 18, LIGHTING: 19, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
+const M = { BROWSE: 17, PASS: 18, LIGHTING: 19, EXPERIMENTAL: 20, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
             PAUSE_TOP: 9, DISPLAY: 10, SOUND: 11, SEC_PLAYERS: 12, SEC_ONLINE: 13, GAME: 14, ADVANCED: 15, CONFIRM: 16 };
-const SECTIONS = ['DISPLAY', 'LIGHTING', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED'];
+/* the top level's sections, in order (LIGHTING is EXPERIMENTAL's first row) */
+const SECTIONS = ['DISPLAY', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED', 'EXPERIMENTAL'];
 const ouiScreen = (p) => p.ev('Module._PortOuiScreen()');
 /* the pause screen (PortLnObserve works outside a session too): paused, its page */
 const pauseState = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
@@ -214,6 +215,8 @@ async function step(p, k, n = 20) { await press(p, k); await waitFrames(p, n); }
 const settingsWord = (p) => p.ev('Module._PortPocSettingsWord() >>> 0');
 const volume = async (p) => ((await settingsWord(p)) >>> 10) & 127;
 const lightOn = async (p) => (await p.ev('Module._PortPocSettingsExtWord() >>> 0')) & 1;
+/* EXPERIMENTAL > CPU KIRBYS as saved: the Kirbys in all ("kirbys=N") */
+const kirbysSetting = (p) => p.ev(`(function(){var m=/(?:^|\\n)kirbys=(\\d+)/.exec(localStorage.getItem('katam.settings')||'');return m?+m[1]:4})()`);
 
 // --------------------------------------------------------------------------
 /* Front end: SETTINGS, each section and the NO / YES screen; MULTIPLAYER,
@@ -241,15 +244,28 @@ async function caseFront() {
         await step(p, 'DOWN', 10);
     }
     row('Front SETTINGS > each section', 'rows', 'back to SETTINGS on its row', '= A', 'nothing (game rule)');
-    // LIGHTING: off by default; LIGHTING Right turns it on, every row then works
-    await step(p, 'DOWN', 10); await step(p, 'A');               // (wrapped to DISPLAY) -> LIGHTING
-    ok('LIGHTING section; lighting off by default', (await pagesModel(p)) === M.LIGHTING && (await lightOn(p)) === 0);
+    // EXPERIMENTAL > LIGHTING: off by default; LIGHTING Right turns it on,
+    // every row then works
+    await step(p, 'UP', 10); await step(p, 'A');                 // (wrapped from DISPLAY) -> EXPERIMENTAL
+    ok('EXPERIMENTAL section', (await pagesModel(p)) === M.EXPERIMENTAL);
+    await shot(p, 'front-experimental.png');
+    await step(p, 'A');                                          // its first row: LIGHTING
+    ok('EXPERIMENTAL > LIGHTING section; lighting off by default', (await pagesModel(p)) === M.LIGHTING && (await lightOn(p)) === 0);
     await step(p, 'RIGHT', 10);
     ok('LIGHTING Right: on', (await lightOn(p)) === 1);
     await shot(p, 'front-lighting-on.png');
-    await step(p, 'B'); await step(p, 'UP', 10);                 // back on DISPLAY
+    await step(p, 'B');
+    ok('B from LIGHTING: EXPERIMENTAL', (await pagesModel(p)) === M.EXPERIMENTAL);
+    // CPU KIRBYS on the ordinary module: Right asks first (the page would
+    // restart with the 16-Kirby module); B there keeps 4 Kirbys
+    await step(p, 'DOWN', 10); await step(p, 'RIGHT', 10);
+    ok('CPU KIRBYS Right asks first (NO / YES)', (await pagesModel(p)) === M.CONFIRM);
+    await shot(p, 'front-kirbys-confirm.png');
+    await step(p, 'B');
+    ok('B on that NO / YES: EXPERIMENTAL, still 4 Kirbys', (await pagesModel(p)) === M.EXPERIMENTAL && (await kirbysSetting(p)) === 4);
+    await step(p, 'B'); await step(p, 'DOWN', 10);               // SETTINGS on EXPERIMENTAL -> (wraps) DISPLAY
     // ADVANCED > DEFAULTS: NO / YES
-    for (let i = 0; i < 6; i++) await step(p, 'DOWN', 8);      // (wrapped to DISPLAY above) -> ADVANCED
+    for (let i = 0; i < 5; i++) await step(p, 'DOWN', 8);      // DISPLAY -> ADVANCED
     await step(p, 'A');
     ok('ADVANCED is up', (await pagesModel(p)) === M.ADVANCED);
     await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);        // DEFAULTS
@@ -271,7 +287,7 @@ async function caseFront() {
        String(await volume(p)));
     ok('DEFAULTS > YES: lighting off again', (await lightOn(p)) === 0);
     // the gesture rows: FULLSCREEN by the keyboard (now) and by a pad (asks)
-    await step(p, 'B'); await step(p, 'DOWN', 8);              // wraps to DISPLAY
+    await step(p, 'B'); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);   // EXPERIMENTAL, wraps to DISPLAY
     await step(p, 'A');
     for (let i = 0; i < 11; i++) await step(p, 'DOWN', 6);     // FULLSCREEN
     await shot(p, 'front-display-fullscreen-row.png');
@@ -458,7 +474,7 @@ async function casePause() {
     await step(p, 'SELECT', 70); ok('NO / YES: Select turns the page (nothing done)', (await pauseState(p)).menu !== MENU.SETTINGS && (await pauseState(p)).paused === 1);
     row('Pause SETTINGS > NO / YES (MAIN MENU)', 'asking', 'SETTINGS (= NO)', 'close the pause', 'next page (= NO)');
     await toPage(MENU.SETTINGS);
-    for (const [i, name] of [[0, 'DISPLAY'], [3, 'SEC_PLAYERS']]) {
+    for (const [i, name] of [[0, 'DISPLAY'], [2, 'SEC_PLAYERS']]) {
         for (let k = 0; k < i; k++) await step(p, 'DOWN', 8);
         await step(p, 'A');
         await step(p, 'START'); ok(`${name}: Start closes the pause`, await closed());
@@ -470,14 +486,14 @@ async function casePause() {
     }
     row('Pause SETTINGS > a section', 'its rows', 'SETTINGS on its row', 'close the pause', 'next page');
     // PLAYERS page and a card
-    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A');   // the PLAYERS section
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A');   // the PLAYERS section
     await step(p, 'A', 30);
     ok('the PLAYERS page', (await pagesModel(p)) === M.PLAYERS);
     await step(p, 'B'); ok('PLAYERS page: B back to the PLAYERS section', (await pagesModel(p)) === M.SEC_PLAYERS);
     await step(p, 'A', 30); await step(p, 'START'); ok('PLAYERS page: Start closes the pause', await closed());
     row('Pause PLAYERS page', 'choosing pads', 'the PLAYERS section', 'close the pause', 'next page');
     await open(); await toPage(MENU.SETTINGS);
-    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A'); await step(p, 'A', 30);
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A'); await step(p, 'A', 30);
     await step(p, 'DOWN', 8); await step(p, 'A', 30);         // P2: nothing chosen -> P2's card
     ok('a card from the PLAYERS page', (await pagesModel(p)) === M.CARD);
     await step(p, 'B'); ok('card: B back to PLAYERS', (await pagesModel(p)) === M.PLAYERS);
@@ -508,6 +524,114 @@ async function casePause() {
 
 /* Local multiplayer: player 2 (a pad) pauses; only the pauser's keys work;
  * MAIN MENU leaves for both, and the next game is one player again. */
+/* SETTINGS > EXPERIMENTAL > CPU KIRBYS: on the ordinary module more than 3
+ * asks (NO / YES) and YES reloads the page with the 16-Kirby module
+ * (katam16.js); there a new game starts with that many Kirbys, ADD 4 /
+ * REMOVE 4 in the pause change them in the running game, multiplayer is
+ * unavailable, and back at 3 the next load is the ordinary module with the
+ * same save.  An invite link on the 16-Kirby module is not followed. */
+async function caseKirbys() {
+    say('kirbys: EXPERIMENTAL > CPU KIRBYS, the 16-Kirby module');
+    const p = await openPage('kirbys');
+    const now = () => p.ev('Module._PortPocKirbysNow()');
+    const max = () => p.ev('Module._PortPocKirbysMax()');
+    const toExperimental = async () => {            // Game Select -> SETTINGS > EXPERIMENTAL
+        for (let i = 0; i < 4; i++) await step(p, 'DOWN', 8);
+        await press(p, 'A'); await until(() => screenLive(p), 10000); await waitFrames(p, 30);
+        await step(p, 'UP', 10); await step(p, 'A');
+        return (await pagesModel(p)) === M.EXPERIMENTAL;
+    };
+    await toGameSelect(p);
+    ok('the ordinary module: 4 Kirby slots', (await max()) === 4 && !(await p.ev('!!window.KATAM_KIRBYS16')));
+    ok('SETTINGS > EXPERIMENTAL', await toExperimental());
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);          // ADD 4
+    await shot(p, 'kirbys-add4-ordinary.png');
+    await step(p, 'A');
+    ok('ADD 4 on the ordinary module asks first (NO / YES)', (await pagesModel(p)) === M.CONFIRM);
+    await step(p, 'DOWN', 8);
+    await shot(p, 'kirbys-confirm-yes.png');
+    const f0 = await frame(p);
+    await press(p, 'A');                                         // YES: the page reloads
+    const reloaded = await until(async () => { try { return (await p.ev('!!window.KATAM_KIRBYS16 && !!(window.Module && Module.portRuntimeUp)')) && (await frame(p)) < f0; } catch (e) { return false; } }, 60000, 250);
+    ok('YES: the page reloads with the 16-Kirby module, 8 Kirbys saved', !!reloaded && (await max()) === 16 && (await kirbysSetting(p)) === 8,
+       `max ${await max().catch(() => '?')}, setting ${await kirbysSetting(p).catch(() => '?')}`);
+    ok('... no local drop-in there', (await p.ev('Module._PortLmpCanRequest()')) === 0);
+    await toGameSelect(p);
+    ok('16-Kirby module: SETTINGS > EXPERIMENTAL', await toExperimental());
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);          // ADD 4
+    await step(p, 'A'); await step(p, 'A');                      // 12, 16: no NO / YES here
+    ok('ADD 4 twice: 16 Kirbys, no question', (await kirbysSetting(p)) === 16 && (await pagesModel(p)) === M.EXPERIMENTAL);
+    await step(p, 'UP', 8);
+    await shot(p, 'kirbys-16-cpu-row.png');
+    await step(p, 'B'); await step(p, 'B', 40);                  // Game Select
+    // MULTIPLAYER: both rows unavailable
+    await step(p, 'UP', 8); for (let i = 0; i < 3; i++) await step(p, 'UP', 8);   // START GAME
+    await press(p, 'A'); await waitFrames(p, 60); await press(p, 'DOWN'); await waitFrames(p, 20);
+    await press(p, 'A'); await waitFrames(p, 80);                // the MULTIPLAYER screen
+    ok('MULTIPLAYER screen up', (await pagesModel(p)) === M.MP);
+    ok('... LOCAL unavailable', (await p.ev('Module._PortMenuPocRowAvailable ? Module._PortMenuPocRowAvailable(0) : 0')) === 0);
+    await shot(p, 'kirbys-mp-local-unavailable.png');
+    await press(p, 'DOWN'); await waitFrames(p, 20);
+    await shot(p, 'kirbys-mp-online-unavailable.png');
+    await press(p, 'A'); await waitFrames(p, 40);
+    ok('... ONLINE: A does nothing', (await pagesModel(p)) === M.MP);
+    await press(p, 'B'); await waitFrames(p, 60); await press(p, 'B'); await waitFrames(p, 60);
+    // a new game: you and 15 CPU Kirbys
+    await startPlay(p);
+    ok('a new game on the 16-Kirby module: 16 Kirbys', (await now()) === 16, String(await now()));
+    await waitFrames(p, 300);
+    await shot(p, 'kirbys-16-play.png');
+    ok('... still 16 after a warp and 300 frames', (await now()) === 16, String(await now()));
+    // the pause: REMOVE 4 three times, live
+    const paused = async () => { for (let i = 0; i < 5; i++) { await step(p, 'START', 70); if ((await pauseState(p)).paused === 1) return true; await waitFrames(p, 30); } return false; };
+    const toSettings = async () => { for (let i = 0; i < 6 && (await pauseState(p)).menu !== MENU.SETTINGS; i++) await step(p, 'SELECT', 70); };
+    ok('pause', await paused()); await toSettings();
+    await step(p, 'UP', 10); await step(p, 'UP', 10); await step(p, 'A');   // (wraps past MAIN MENU) EXPERIMENTAL
+    ok('pause: EXPERIMENTAL', (await pagesModel(p)) === M.EXPERIMENTAL);
+    for (let i = 0; i < 3; i++) await step(p, 'DOWN', 8);        // REMOVE 4
+    for (let i = 0; i < 3; i++) await step(p, 'A');
+    ok('REMOVE 4 three times: 4 in all saved', (await kirbysSetting(p)) === 4);
+    await shot(p, 'kirbys-pause-4.png');
+    await step(p, 'START', 60);
+    ok('... and in the game once unpaused: 4 Kirbys', !!(await until(async () => (await now()) === 4, 20000)), String(await now()));
+    ok('pause again', await paused()); await toSettings();
+    await step(p, 'UP', 10); await step(p, 'UP', 10); await step(p, 'A');
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A');  // ADD 4
+    await step(p, 'UP', 8); await step(p, 'RIGHT', 8);           // CPU KIRBYS 8 -> 9 in all
+    ok('ADD 4 and CPU KIRBYS Right: 9 in all', (await kirbysSetting(p)) === 9);
+    await step(p, 'START', 60);
+    ok('... live: 9 Kirbys', !!(await until(async () => (await now()) === 9, 20000)), String(await now()));
+    await waitFrames(p, 600);
+    await shot(p, 'kirbys-9-play.png');
+    ok('... still 9 600 frames on', (await now()) === 9);
+    // back to 4 in all, and the save
+    ok('pause', await paused()); await toSettings();
+    await step(p, 'UP', 10); await step(p, 'UP', 10); await step(p, 'A');
+    await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'A'); await step(p, 'A');
+    ok('REMOVE 4 twice: 4 in all', (await kirbysSetting(p)) === 4);
+    await step(p, 'START', 60);
+    await until(async () => (await now()) === 4, 20000);
+    const sramSum = `(function(){var h=Module.HEAPU8,s=0;for(var i=0x09000000;i<0x09010000;i++)s=(s*31+h[i])>>>0;return s})()`;
+    await p.ev('Module._shell.flushSave()'); await sleep(1500);
+    const sum16 = await p.ev(sramSum);
+    await p.s('Page.reload', {});
+    await until(() => p.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 30)'), 60000);
+    ok('the next load at 4 in all: the ordinary module', !(await p.ev('!!window.KATAM_KIRBYS16')) && (await max()) === 4);
+    await toGameSelect(p);
+    ok('... with the same save memory as the 16-Kirby module left', (await p.ev(sramSum)) === sum16, `${sum16} vs ${await p.ev(sramSum)}`);
+    await p.close();
+    // an invite link on the 16-Kirby module
+    const q = await openPage('kirbys-invite', { extra: { join: 'BCDF' },
+        early: `try{if(!/kirbys=/.test(localStorage.getItem('katam.settings')||''))localStorage.setItem('katam.settings','schema=2\\nkirbys=16\\n')}catch(e){}` });
+    await until(() => q.ev('!!(window.Module && Module.portRuntimeUp && Module._PortFrameNumber() > 120)'), 60000);
+    await sleep(3000);
+    await shot(q, 'kirbys-invite-ignored.png');
+    ok('invite link on the 16-Kirby module: not followed', (await q.ev('!!window.KATAM_KIRBYS16 && !(window.katamOnline && window.katamOnline.role && window.katamOnline.role())'))
+       && (await q.ev('document.getElementById("curtain").className')).indexOf('is-invite-bad') >= 0,
+       await q.ev('document.getElementById("curtain").className'));
+    await q.close();
+}
+
 async function caseLocal() {
     say('local: the pause belongs to whoever paused');
     const p = await openPage('local');
@@ -570,12 +694,16 @@ async function caseLooks(tag, opts) {
     await shot(p, `${tag}-front-settings.png`);
     for (let i = 0; i < SECTIONS.length; i++) {
         await step(p, 'A'); await shot(p, `${tag}-front-${SECTIONS[i].toLowerCase()}.png`);
-        if (SECTIONS[i] === 'LIGHTING') {
+        if (SECTIONS[i] === 'EXPERIMENTAL') {
+            await step(p, 'A'); await shot(p, `${tag}-front-lighting.png`);      // LIGHTING
             await step(p, 'RIGHT', 10); await shot(p, `${tag}-front-lighting-on.png`);
             for (let k = 0; k < 4; k++) await step(p, 'DOWN', 6);
             await shot(p, `${tag}-front-lighting-on-rows.png`);
             for (let k = 0; k < 4; k++) await step(p, 'UP', 6);
             await step(p, 'LEFT', 10);
+            await step(p, 'B'); await step(p, 'DOWN', 6);
+            await shot(p, `${tag}-front-experimental-kirbys.png`);
+            await step(p, 'UP', 6);
         }
         await step(p, 'B'); await step(p, 'DOWN', 10);
     }
@@ -602,6 +730,7 @@ for (const c of CASES) {
         else if (c === 'joinmsg') await caseJoinMessage();
         else if (c === 'pause') await casePause();
         else if (c === 'local') await caseLocal();
+        else if (c === 'kirbys') await caseKirbys();
         else if (c === 'phone') await caseLooks('phone', { w: 390, h: 844, mobile: true, touch: true });
         else if (c === 'wide') await caseLooks('wide', { w: 1440, h: 800 });
     } catch (e) {

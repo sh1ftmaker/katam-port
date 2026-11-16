@@ -14,6 +14,8 @@
 #include "palette_effects.h"
 #include "port/port.h"
 #include "port/simblock.h"
+#include "port/localmp.h"
+#include "task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -219,8 +221,273 @@ void PortWideRamReset(u32 flags)
     }
 }
 
+/* --- The live count ---------------------------------------------------------
+ *
+ * EXPERIMENTAL > CPU KIRBYS (platform/menu_poc.c) changes how many Kirbys
+ * there are while the game runs: 4 (you and the game's own three helpers)
+ * up to KATAM_KIRBYS.  The Kirbys in play are always the prefix
+ * 0 .. gNumKirbys - 1 -- every loop in the game is `i < gNumKirbys`, and the
+ * room-slot choice (level.c FillLevelInfo) is recomputed from those Kirbys
+ * each time, so a slot nobody below gNumKirbys holds is free again.
+ *
+ * The count wanted (gPortSim->wideCtl.target) is simulation state, set by a
+ * frame-stamped input (`kirbys FRAME N`, platform/inputlog.c) the host
+ * schedules from the setting.  Once a frame, after the latch, while the
+ * story is in ordinary play (not the title, the demo, a sub-game, the intro
+ * walk, a pause, a door), one Kirby comes or goes:
+ *
+ *   - in: Kirby gNumKirbys is made as the play start makes Kirbys
+ *     (sub_080332BC: CreateKirby, its CPU brain, its level info) and arrives
+ *     beside player 1 by the respawn route (PortLmpCarryTo, the game's own
+ *     room change).  Only with room in the task pool for it and its effects.
+ *   - out: the last Kirby.  Unless it already shares a room with a Kirby
+ *     that stays, it is first carried to player 1 (so its room, if it was
+ *     alone there, is torn down by the game's own room change); once it is
+ *     there and settled, the objects it owns (parent chain) and its two
+ *     tasks are destroyed and gNumKirbys drops.  A Kirby that cannot be
+ *     moved (dying, mid-door) is waited for.
+ *
+ * The four the game's start code makes are never taken away (the target is
+ * at least 4), so nothing that is unrolled for Kirbys 0..3 ever meets a
+ * missing one. */
+
+#define WC (gPortSim->wideCtl)
+#define WIDE_TASK_HEADROOM 12       /* free task slots kept for effects */
+
+extern void sub_08055920(struct Kirby *);
+void sub_0800ECAC(u8, u16, u16);
+void sub_0800EF60(void);
+
+int PortWideTarget(void)
+{
+    int t = WC.target ? WC.target : K;
+
+    return t < 4 ? 4 : t > K ? K : t;
+}
+
+u8 PortWideStartKirbys(void)
+{
+    return (u8)PortWideTarget();
+}
+
+void PortWideSetTarget(int n)
+{
+    n = n < 4 ? 4 : n > K ? K : n;
+    if (WC.target == (u8)n)
+        return;
+    WC.target = (u8)n;
+    PortLog("[katam-port] wide: f%u kirbys -> %d (now %u)", (unsigned)gPortSim->frame.frameCount,
+            n, (unsigned)gNumKirbys);
+}
+
+static int Settled(const struct Kirby *k)
+{
+    return k->hp > 0 && k->base.roomId != 0xFFFF && !(k->base.flags & 0x100)
+        && gCurLevelInfo[k->base.unk56].currentRoom == k->base.roomId;
+}
+
+/* Is the story in ordinary play, and player 1 somewhere a Kirby can be
+ * brought to? */
+static int CanChange(void)
+{
+    const struct Kirby *p1 = &gKirbys[0];
+
+    if (gNumKirbys < 4 || !PortLmpInStory() || gAIKirbyState < AI_KIRBY_STATE_NORMAL)
+        return 0;
+    if (gUnk_03000510.unk4 != 0)        /* a pause (or anything) holds rooms */
+        return 0;
+    return Settled(p1);
+}
+
+static struct Task *BrainOf(u8 s)
+{
+    int i;
+
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+        struct Task *t = &gTasks[i];
+
+        if (t->main == FN(sub_0800EF60) && t->priority == (u16)(0x2100 | s) && t->structOffset)
+            return t;
+    }
+    return NULL;
+}
+
+static void *StructOf(const struct Task *t)
+{
+    return (void *)((t->flags & TASK_USE_EWRAM)
+            ? (uintptr_t)EWRAM_START + ((uintptr_t)t->structOffset << 2)
+            : (uintptr_t)IWRAM_START + t->structOffset);
+}
+
+static void Add(u8 i)
+{
+    struct Kirby *k = &gKirbys[i], *p1 = &gKirbys[0];
+    struct LevelInfo *li = &gCurLevelInfo[i];
+    s32 pos[2];
+    u16 room = p1->base.roomId;
+
+    pos[0] = p1->base.x;
+    pos[1] = p1->base.y;
+    /* its level info as InitLevelTasks leaves it (the BGs it set up stay) */
+    li->currentRoom = 0xFFFF;
+    li->unk65C = 0xFFFF;
+    CreateKirby(i, k, room, pos, FALSE);        /* ++gNumKirbys */
+    /* (not sub_0803E558: Kirby i shares palette slot i & 3 with a Kirby
+     * already in play, whose colours it would overwrite) */
+    sub_0800ECAC(i, room, gAIKirbyState > 199 ? 0x321 : 0x323);
+    li->unk1EC = 1;
+    li->unk660 = i;
+    PortLmpCarryTo(k, p1);                      /* sub_08055920 + respawn record */
+    WC.added++;
+    PortLog("[katam-port] wide: f%u Kirby %u joins (room %u), %u Kirbys, %u tasks",
+            (unsigned)gPortSim->frame.frameCount, (unsigned)i + 1, (unsigned)room,
+            (unsigned)gNumKirbys, (unsigned)gNumTasks);
+}
+
+/* Kirby i (the last) shares a room, and so a room slot, with one that stays. */
+static int SharesRoom(u8 i)
+{
+    const struct Kirby *k = &gKirbys[i];
+    u8 j;
+
+    for (j = 0; j < i; j++)
+        if (gKirbys[j].base.roomId == k->base.roomId && Settled(&gKirbys[j])
+            && gCurLevelInfo[j].unk65E == gCurLevelInfo[i].unk65E)
+            return 1;
+    return 0;
+}
+
+static void Remove(u8 i)
+{
+    struct Kirby *k = &gKirbys[i];
+    const void *gone[24];
+    int ngone = 0, changed, n, t, g, killed = 0;
+
+    /* what it owns: objects whose parent is it, or is one of those */
+    gone[ngone++] = k;
+    do {
+        changed = 0;
+        for (t = 0; t < MAX_TASK_NUM; t++) {
+            struct Task *task = &gTasks[t];
+            const u8 *o;
+            const void *parent;
+
+            if (!task->main || !task->structOffset || task == k->task)
+                continue;
+            o = (const u8 *)StructOf(task);
+            if (o[0] == 3)
+                parent = ((const struct EffectObject *)o)->parent;
+            else if (o[0] == 1 || o[0] == 2)
+                parent = ((const struct ObjectBase *)o)->parent;
+            else
+                continue;
+            for (g = 0; g < ngone; g++)
+                if (parent == gone[g] && (const void *)o != gone[g])
+                    break;
+            if (g == ngone)
+                continue;
+            if (ngone < (int)ARRAY_COUNT(gone))
+                gone[ngone++] = o;
+            TaskDestroy(task);
+            killed++;
+            changed = 1;
+        }
+    } while (changed);
+    {
+        struct Task *b = BrainOf(i);
+
+        if (b != NULL)
+            TaskDestroy(b);
+    }
+    if (k->task != NULL)
+        TaskDestroy(k->task);
+    k->task = NULL;
+    k->base.roomId = 0xFFFF;
+    gNumKirbys = i;
+    WC.removed++;
+    n = gNumKirbys;
+    PortLog("[katam-port] wide: f%u Kirby %u leaves (%d of its objects), %d Kirbys, %u tasks",
+            (unsigned)gPortSim->frame.frameCount, (unsigned)i + 1, killed, n,
+            (unsigned)gNumTasks);
+}
+
+/* KATAM_WIDE_TRACE=F: every F frames, each Kirby's room and HP (a log line;
+ * reads the simulation, writes nothing). */
+static void Trace(void)
+{
+    static int sEvery = -1;
+    char line[16 * 14 + 1];
+    int i, n = 0;
+
+    if (sEvery < 0) {
+        const char *e = getenv("KATAM_WIDE_TRACE");
+
+        sEvery = e ? atoi(e) : 0;
+    }
+    if (sEvery <= 0 || gPortSim->frame.frameCount % (u32)sEvery)
+        return;
+    line[0] = '\0';
+    for (i = 0; i < gNumKirbys && i < K; i++)
+        n += snprintf(line + n, sizeof line - (size_t)n, " %u:%d/%d", (unsigned)gKirbys[i].base.roomId,
+                      (int)gKirbys[i].hp, (int)gKirbys[i].base.x >> 12);
+    PortLog("[katam-port] wide: f%u %u Kirbys, %u tasks:%s", (unsigned)gPortSim->frame.frameCount,
+            (unsigned)gNumKirbys, (unsigned)gNumTasks, line);
+}
+
+void PortWideFrame(void)
+{
+    int target = PortWideTarget();
+    u8 last;
+
+    Trace();
+    if (gNumKirbys == (u8)target && !WC.leaving)
+        return;
+    if (!CanChange())
+        return;
+    if (gNumKirbys < (u8)target) {
+        WC.leaving = 0;
+        if (gNumTasks + 2 + WIDE_TASK_HEADROOM <= MAX_TASK_NUM)
+            Add(gNumKirbys);
+        return;
+    }
+    if (gNumKirbys <= (u8)target || gNumKirbys <= 4) {
+        WC.leaving = 0;
+        return;
+    }
+    last = (u8)(gNumKirbys - 1);
+    if (!Settled(&gKirbys[last]))
+        return;                             /* dying, mid-door: wait */
+    if (SharesRoom(last)) {
+        WC.leaving = 0;
+        Remove(last);
+        return;
+    }
+    /* first to player 1 (again, if it wandered off before it arrived) */
+    if (WC.leaving != last + 1 || gPortSim->frame.frameCount - WC.leavingSince > 300) {
+        WC.leaving = (u8)(last + 1);
+        WC.leavingSince = gPortSim->frame.frameCount;
+        PortLmpCarryTo(&gKirbys[last], &gKirbys[0]);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* KATAM_WIDE */
+
+/* The host's request, in every build (the default build has nothing to
+ * change: the menus show the row as needing the wide module). */
+#include "port/inputlog.h"
+#ifdef __cplusplus
+extern "C"
+#endif
+u32 PortWideRequestKirbys(int n)
+{
+#if KATAM_WIDE
+    return PortInputLogScheduleKirbys((u8)(n < 4 ? 4 : n > KATAM_KIRBYS ? KATAM_KIRBYS : n));
+#else
+    (void)n;
+    return 0;
+#endif
+}

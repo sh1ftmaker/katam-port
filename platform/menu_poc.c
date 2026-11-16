@@ -912,7 +912,7 @@ enum {
     IT_NONE,
     /* the top level */
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
-    IT_SEC_LIGHTING,
+    IT_SEC_LIGHTING, IT_SEC_EXPERIMENTAL,
     IT_MAINMENU,
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
@@ -929,8 +929,13 @@ enum {
     IT_SIZES, IT_ABIL, IT_RESET,
     /* ADVANCED */
     IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
+    /* EXPERIMENTAL (and LIGHTING, a section in it) */
+    IT_KIRBYS, IT_ADD4, IT_REMOVE4,
     /* not a row: the NO / YES screen's REMOVE (a player row's A) */
     IT_KICK,
+    /* not a row: the NO / YES screen before the page reloads with the other
+     * module (CPU KIRBYS on the default module, the web page) */
+    IT_KIRBYS_GO,
     IT_COUNT
 };
 
@@ -963,6 +968,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_SEC_GAME]    = { "GAME", K_SECTION, "SAVE ROM AND RANDOMIZER" },
     [IT_SEC_ADVANCED]= { "ADVANCED", K_SECTION, "LOG BUILD AND DEFAULTS" },
     [IT_SEC_LIGHTING]= { "LIGHTING", K_SECTION, "LIGHT AND SHADOWS" },
+    [IT_SEC_EXPERIMENTAL] = { "EXPERIMENTAL", K_SECTION, "TRY-OUTS THAT MAY GLITCH" },
     [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
     [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
     [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
@@ -1008,13 +1014,19 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_WEBGL]       = { "WEBGL2", K_INFO, "" },
     [IT_GPU]         = { "GPU", K_INFO, "" },
     [IT_SETSTORE]    = { "STORED", K_INFO, "" },
+    /* EXPERIMENTAL: the descriptions are KirbysDesc's */
+    [IT_KIRBYS]      = { "CPU KIRBYS", K_SETTING, "" },
+    [IT_ADD4]        = { "ADD 4", K_ACTION, "" },
+    [IT_REMOVE4]     = { "REMOVE 4", K_ACTION, "" },
     [IT_KICK]        = { "REMOVE", K_CONFIRM, "" },
+    [IT_KIRBYS_GO]   = { "CPU KIRBYS", K_CONFIRM, "" },
 };
 
 /* The sections' items.  Per build: the page's actions on the web, VSYNC
  * natively. */
 static const u8 kTopItems[] = {
-    IT_SEC_DISPLAY, IT_SEC_LIGHTING, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
+    IT_SEC_EXPERIMENTAL,
     IT_MAINMENU,
 };
 static const u8 kDisplayItems[] = {
@@ -1041,6 +1053,9 @@ static const u8 kGameItems[] = {
 static const u8 kAdvancedItems[] = {
     IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
 };
+/* EXPERIMENTAL: LIGHTING (its own section), and the CPU Kirbys */
+static const u8 kExperimentalItems[] = { IT_SEC_LIGHTING, IT_KIRBYS, IT_ADD4, IT_REMOVE4 };
+#define EXP_ROW_LIGHTING 0
 static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
 
 /* Sections kept by other files (port/menu_poc.h "Adding a section"): their
@@ -1148,7 +1163,9 @@ static u16 sSlotExt[4];             /* per slot: the other files' online rows */
  * are relayed to the guests as presentation, so the list in game memory
  * draws these, which every device applies at the same frame. */
 static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
-static u8 sConfirmArg;              /* REMOVE: the slot asked about          */
+static u8 sConfirmArg;              /* REMOVE: the slot asked about; CPU
+                                     * KIRBYS: the Kirbys in all asked for    */
+static u8 sConfirmRow;              /* CPU KIRBYS: the row that asked         */
 
 /* Settings to a word (and back) for the copies: the fields the sections
  * show, nothing native-only. */
@@ -1474,6 +1491,96 @@ static void Drawable(char *s, int max)
     s[o] = '\0';
 }
 
+/* --- EXPERIMENTAL > CPU KIRBYS ---------------------------------------------------
+ * gPortSettings.kirbys is the Kirbys in all (4..16); the row shows the CPU
+ * helpers (3..15), Left / Right one at a time, ADD 4 / REMOVE 4 four.  In
+ * the wide build (port/wide.h: the web page's second module, katam16) a
+ * change applies at once, in the running game (platform/wide.c "The live
+ * count").  The default build has four Kirby slots: on the web a count
+ * above 4 asks first (NO / YES), then the page reloads with the wide module
+ * (web/shell.html "kirbys.restart"); natively it needs a wide build.  Never
+ * online, never in a local two-player game (the netcode is built for four;
+ * the wide module has neither). */
+static int KirbysMax(void)
+{
+    return KATAM_WIDE ? PortWideMax() : 16;
+}
+
+/* Tests (the page's browser test): Kirbys in play now, and the most this
+ * module has.  Read only. */
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int PortPocKirbysNow(void)
+{
+    return gNumKirbys;
+}
+
+#ifdef __EMSCRIPTEN__
+EMSCRIPTEN_KEEPALIVE
+#endif
+int PortPocKirbysMax(void)
+{
+    return KATAM_KIRBYS;
+}
+
+/* The total item `it` (step dir) asks for. */
+static int KirbysNext(int it, int dir)
+{
+    int n = gPortSettings.kirbys, max = KirbysMax();
+
+    if (it == IT_ADD4) n += 4;
+    else if (it == IT_REMOVE4) n -= 4;
+    else n += dir;
+    return n < 4 ? 4 : n > max ? max : n;
+}
+
+/* Does a total of n need the page to reload with the other module? */
+static int KirbysRestart(int n)
+{
+    return !KATAM_WIDE && n > 4;
+}
+
+static const char *KirbysWhyNot(int it)
+{
+    if (gPortLnOn)
+        return "NOT DURING AN ONLINE GAME";
+    if (!KATAM_WIDE && !Web())
+        return "NEEDS THE 16 KIRBY BUILD";
+    if (!KATAM_WIDE && (PortLmpInPlay() || PortLmpSetting() > 1))
+        return "NOT IN A 2 PLAYER GAME";
+    if (it == IT_ADD4 && gPortSettings.kirbys >= KirbysMax())
+        return KirbysMax() < 16 ? "THE MOST THIS BUILD HAS" : "16 IS THE MOST";
+    if (it == IT_REMOVE4 && gPortSettings.kirbys <= 4)
+        return "3 IS THE FEWEST";
+    return NULL;
+}
+
+static const char *KirbysDesc(int it)
+{
+    static char line[2][32];
+    static int flip;
+    int n = gPortSettings.kirbys;
+    char *l = line[flip ^= 1];
+
+    switch (it) {
+    case IT_KIRBYS:
+        if (!KATAM_WIDE)
+            snprintf(l, 32, "%d IN ALL - MORE RESTARTS", n);
+        else if (n > 4)
+            snprintf(l, 32, "%d IN ALL - EXPERIMENTAL", n);
+        else
+            snprintf(l, 32, "4 IN ALL - RELOAD FOR ONLINE");
+        return l;
+    case IT_ADD4:
+        return KirbysRestart(KirbysNext(it, 1)) ? "4 MORE - THE GAME RESTARTS" : "4 MORE - THEY SHARE COLORS";
+    case IT_REMOVE4:
+        return "4 FEWER CPU KIRBYS";
+    default:
+        return "";
+    }
+}
+
 static void ItemValue(int it, char *buf, int size)
 {
     const PortSettings *s = Shown();
@@ -1510,6 +1617,7 @@ static void ItemValue(int it, char *buf, int size)
     case IT_PARTY:     snprintf(buf, size, "%s", kPartyName[s->partyHud <= PS_PARTY_HELPERS ? s->partyHud : 0]); break;
     case IT_TAGS:      OnOff(buf, size, s->nameTags); break;
     case IT_PLAYERS:   PortPuiSummary(buf, size); break;
+    case IT_KIRBYS:    if (!gPortLnOn) snprintf(buf, size, "%d", gPortSettings.kirbys - 1); break;
     /* the page's own state: per device, so never shown in a session */
     case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
     case IT_TOUCH:      if (!gPortLnOn) OnOff(buf, size, HostOn("touch")); break;
@@ -1576,6 +1684,8 @@ static const char *ItemWhyNot(int it)
 
     if (display && PocDisplayFallback())
         return "NOT WITH THE 2D FALLBACK";
+    if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4)
+        return KirbysWhyNot(it);
     /* the CLASSIC renderer draws the GBA's 240 x 160 only: the view's
      * shape, zoom and camera are the ENHANCED renderer's (GRAPHICS stays
      * live to switch back).  In a session: the pausing player's setting. */
@@ -1627,6 +1737,8 @@ static const char *ItemDesc(int it)
         return kItem[it].desc;
     case IT_SEC_ONLINE:
         return gPortLnOn ? "CODE MODE AND PLAYERS" : "NOT IN AN ONLINE GAME";
+    case IT_KIRBYS: case IT_ADD4: case IT_REMOVE4:
+        return KirbysDesc(it);
     case IT_MODE:
         return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
     case IT_SLOT0: case IT_SLOT1: case IT_SLOT2: case IT_SLOT3: {
@@ -1694,6 +1806,20 @@ static void RowStepOn(PortSettings *s, int it, int dir)
  * final frame inside one (PortPocSessionEditApply). */
 static void ItemApply(int it, int dir)
 {
+    if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4 || it == IT_KIRBYS_GO) {
+        int n = it == IT_KIRBYS_GO ? dir : KirbysNext(it, dir);
+
+        if (gPortLnOn || PortInputLogReplaying())
+            return;
+        gPortSettings.kirbys = n;
+        PortSettingsClamp(&gPortSettings);
+        PortSettingsChanged();              /* saved: the page reads it at load */
+        if (KirbysRestart(gPortSettings.kirbys))
+            HostAct("kirbys.restart", gPortSettings.kirbys);
+        else
+            PortWideRequestKirbys(gPortSettings.kirbys);    /* live (wide build) */
+        return;
+    }
     if (it >= 0x80) {                   /* a section another file keeps */
         int x = (it >> 4) & 7;
 
@@ -2029,21 +2155,23 @@ static u32 SecGen(void)
                                        SecUnavailable, 0, SecGen, 0, 0, list, par, prow, NULL, 0 }
 /* a section kept by another file: its rows (a constant count), the place of
  * its row on the top level, its index in kExtRows */
-#define EXT_SECTION(n, rowsDef, nrows, prow, idx) \
+#define EXT_SECTION(n, rowsDef, nrows, par, prow, idx) \
     static const struct PocModel n = { nrows, NULL, ExtName, ExtValue, ExtDesc, SecStep, \
-                                       ExtUnavailable, 0, SecGen, 0, 0, NULL, &kTopModel, prow, rowsDef, idx }
+                                       ExtUnavailable, 0, SecGen, 0, 0, NULL, par, prow, rowsDef, idx }
 
 /* the top level: the front end's six, the pause page's seven (MAIN MENU) */
 /* (a section's parent row is its place on the top level; the parent itself
  * is whichever top level is up: SectionParent) */
 SECTION(kSecDisplay, "DISPLAY", kDisplayItems, &kTopModel, 0);
+SECTION(kSecSound, "SOUND", kSoundItems, &kTopModel, 1);
+SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 2);
+SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 3);
+SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 4);
+SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 5);
+SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 6);
+/* LIGHTING is a section inside EXPERIMENTAL */
 #define LIGHT_ROWS 26               /* LightOptCount(): checked as it opens */
-EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, 1, 0);
-SECTION(kSecSound, "SOUND", kSoundItems, &kTopModel, 2);
-SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 3);
-SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 4);
-SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 5);
-SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 6);
+EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, &kSecExperimental, EXP_ROW_LIGHTING, 0);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -2059,6 +2187,13 @@ static const char *ConfirmDesc(int row)
         SlotWho(sConfirmArg & 3, who, sizeof who);
         snprintf(q, sizeof q, row == 0 ? "REMOVE %s?" : "%s CANNOT COME BACK", n[0] ? n : who);
         Drawable(q, 30);
+        return q;
+    }
+    if (sConfirmItem == IT_KIRBYS_GO) {
+        if (row == 0)
+            snprintf(q, sizeof q, "RESTART WITH %d KIRBYS?", sConfirmArg);
+        else
+            snprintf(q, sizeof q, "FROM LAST SAVE - 1 PLAYER");
         return q;
     }
     if (row == 0)
@@ -2099,9 +2234,11 @@ static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
     { IT_SEC_DISPLAY, &kSecDisplay }, { IT_SEC_LIGHTING, &kSecLighting },
     { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
+    { IT_SEC_EXPERIMENTAL, &kSecExperimental },
 };
 static const struct PocModel *const kSections[] = {
     &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
+    &kSecExperimental,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2211,6 +2348,9 @@ static const char *MpDesc(int row)
 {
     if (gPortLnOn)
         return "IN AN ONLINE GAME";
+    /* the wide module (more than 4 Kirbys): no multiplayer of either kind */
+    if (KATAM_WIDE && row != PORT_MENU_POC_MP_CARD)
+        return "SET CPU KIRBYS TO 3 FIRST";
     if (row == PORT_MENU_POC_MP_CARD)
         return "YOUR NAME AND KIRBY COLOR";
     if (row != 0)
@@ -2225,6 +2365,8 @@ static int MpStep(int row, int dir) { (void)row; (void)dir; return 0; }
 static int MpUnavailable(int row)
 {
     if (gPortLnOn)
+        return 1;
+    if (KATAM_WIDE && row != PORT_MENU_POC_MP_CARD)
         return 1;
     return row == 0 && !PortLmpP2InputAvailable();
 }
@@ -2289,6 +2431,7 @@ static const struct PocModel *const kModels[] = {
     /* 17, 18: the server browser's */
     &kBrowseModel, &kPassModel,     /* server browser */
     &kSecLighting,                  /* 19 */
+    &kSecExperimental,              /* 20 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -2803,7 +2946,10 @@ static int ScreenBack(u32 tiles, u8 *row)
     const struct PocModel *to = sModel->parent;
     int r = sModel->parentRow;
 
-    if (sModel == &kConfirmModel) {
+    if (sModel == &kConfirmModel && sConfirmItem == IT_KIRBYS_GO) {
+        to = &kSecExperimental;
+        r = sConfirmRow;
+    } else if (sModel == &kConfirmModel) {
         to = ItemHome(sConfirmItem, &r);
         if (sConfirmItem == IT_KICK) {
             to = &kSecOnline;
@@ -2827,6 +2973,28 @@ static int ItemKey(u32 tiles, u8 *row, unsigned key)
 
     if (ItemWhyNot(it) != NULL)
         return key == 1 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+    if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4) {
+        int n;
+
+        if (it != IT_KIRBYS && key != 1)
+            return PORT_POC_IN_NONE;
+        n = KirbysNext(it, dir);
+        if (n == gPortSettings.kirbys)
+            return key == 1 ? PORT_POC_IN_REFUSED : PORT_POC_IN_NONE;
+        if (KirbysRestart(n)) {             /* the page reloads: ask first */
+            sConfirmItem = IT_KIRBYS_GO;
+            sConfirmArg = (u8)n;
+            sConfirmRow = (u8)was;
+            *row = 0;                       /* on NO */
+            SwapModel(tiles, &kConfirmModel, 0);
+            return PORT_POC_IN_SCREEN;
+        }
+        ItemDo(it, dir);
+        DrawRows(tiles, was);
+        sDescShown = sModel->desc(was);
+        BuildDesc(sDescShown, SetDescVram(tiles));
+        return PORT_POC_IN_VALUE;
+    }
     switch (kItem[it].kind) {
     case K_SECTION:
         if (key != 1)
@@ -2895,7 +3063,7 @@ int PortPocScreenInput(u32 tiles, u8 *row, unsigned key)
         int item = sConfirmItem;
 
         if (was == 1)
-            ItemDo(item, item == IT_KICK ? sConfirmArg : 1);   /* YES */
+            ItemDo(item, item == IT_KICK || item == IT_KIRBYS_GO ? sConfirmArg : 1);   /* YES */
         ScreenBack(tiles, row);
         return was == 1 ? PORT_POC_IN_DONE : PORT_POC_IN_SCREEN;
     }
@@ -3087,6 +3255,8 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
         case PORT_CARD_K_CLOSE:  act = PORT_OUI_K_BACK; row = PORT_MENU_POC_MP_CARD; break;
         default:                 act = PORT_OUI_K_QUIET; break;
         }
+    } else if (KATAM_WIDE && PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_ONLINE) {
+        act = PORT_OUI_K_DENY;  /* the wide module: no online (MpUnavailable) */
     } else if (PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_CARD) {
         PortPlayerCardOpen(0, 0);
         row = 1;                /* on NAME: the PLAYER row is for P2..P4 */

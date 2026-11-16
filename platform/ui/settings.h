@@ -70,6 +70,13 @@ typedef struct PortSettings {
     int lightEngine;    /* LIGHT_ENGINE_*: classic, radiance cascades       */
     float lightBounce;  /* radiance cascades: light off solids              */
     int lightSolidShade; /* darken inside solid ground (below lightDepth)   */
+    /* EXPERIMENTAL > CPU KIRBYS (platform/menu_poc.c): Kirbys in all, you
+     * and the CPU helpers, 4 (the game as it is) .. 16.  Above 4 needs the
+     * wide build (port/wide.h): on the web the page loads its second module
+     * (katam16.js) at start when this is above 4, so a change from 4 or back
+     * to 4 takes a reload; inside the wide module it applies live.  Per
+     * device, never online (the wide module has no multiplayer). */
+    int kirbys;
 } PortSettings;
 
 extern PortSettings gPortSettings;
