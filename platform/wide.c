@@ -98,6 +98,16 @@ void PortWideTaskFull(void)
     sStats.taskFull++;
 }
 
+void PortWideAllocFail(int kind)
+{
+    if (kind == 0)
+        sStats.ewramFail++;
+    else if (kind == 1)
+        sStats.iwramFail++;
+    else
+        sStats.bothFail++;
+}
+
 void PortWideTaskCount(u32 n)
 {
     if (n > sStats.taskPeak)
@@ -107,9 +117,11 @@ void PortWideTaskCount(u32 n)
 static void PrintStats(void)
 {
     fprintf(stderr, "[katam-port] wide: kirbys %d, task peak %u/128, task pool full %u times, "
-            "collision list peak %u/32, collision adds refused %u\n", K,
+            "collision list peak %u/32, collision adds refused %u, "
+            "alloc failed: ewram %u iwram %u both %u\n", K,
             (unsigned)sStats.taskPeak, (unsigned)sStats.taskFull,
-            (unsigned)sStats.collPeak, (unsigned)sStats.collDrops);
+            (unsigned)sStats.collPeak, (unsigned)sStats.collDrops,
+            (unsigned)sStats.ewramFail, (unsigned)sStats.iwramFail, (unsigned)sStats.bothFail);
 }
 
 const struct PortWideStats *PortWideGetStats(void)

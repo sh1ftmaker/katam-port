@@ -250,10 +250,14 @@ int PortWideRelocs(const struct PortWideReloc **out);
 int PortWideCollRoom(u32 count);
 /* TaskCreate found the 128-task pool full (game/src/task.c). */
 void PortWideTaskFull(void);
+/* TaskCreate's struct allocation failed (game/src/task.c): kind 0 = the EWRAM
+ * heap refused a task that asked for EWRAM, 1 = the IWRAM heap refused one
+ * (it falls back to EWRAM), 2 = that fallback failed too. */
+void PortWideAllocFail(int kind);
 void PortWideTaskCount(u32 n);
 /* Telemetry for the gates (platform/wide.c): peak per-kind list length,
  * refused adds, peak tasks in use. */
-struct PortWideStats { u32 collPeak, collDrops, taskFull, taskPeak; };
+struct PortWideStats { u32 collPeak, collDrops, taskFull, taskPeak, ewramFail, iwramFail, bothFail; };
 const struct PortWideStats *PortWideGetStats(void);
 /* Power-on: the port-owned table gUnk_03002E60 points at in levels. */
 void PortWideInit(void);

@@ -519,6 +519,14 @@ static void sub_080B2210(struct Object *arg0) {
 
 static void sub_080B2224(struct Object *arg0) {
     struct Object *parent = arg0->base.parent;
+#if KATAM_WIDE
+    /* PORT: the cutter outlives its thrower (parent cleared here or by
+     * sub_080B17BC) and this runs every frame after.  The console reads BIOS
+     * through NULL and either way leaves parent NULL; a native host faults.
+     * Reached in the w8 soak (eight people, room 534). */
+    if (parent == NULL)
+        return;
+#endif
     if ((parent->base.flags & 0x1000) || parent->unk80 < 1)
         arg0->base.parent = NULL;
 }

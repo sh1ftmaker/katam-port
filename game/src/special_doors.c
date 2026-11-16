@@ -369,6 +369,14 @@ static void sub_0802B2F4(struct AreaDoor *door)
         }
         else
         {
+#if KATAM_WIDE
+            /* PORT: a door made already open (its first call, from the
+             * constructor) has no effect object yet.  The console writes
+             * through NULL into BIOS, which does nothing; a native host
+             * faults.  Reached by eight people arriving together (the w8
+             * soak, room 534). */
+            if (door->effectObject != NULL)
+#endif
             door->effectObject->flags |= 0x1000;
             door->effectObject = NULL;
         }

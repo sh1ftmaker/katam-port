@@ -75,6 +75,14 @@
 #include "bg.h"
 #include "task.h"
 
+/* A player's level info: its slot (the wide build's 4.. are slots of their
+ * own; port/wide.h), the console's four otherwise. */
+#if KATAM_WIDE
+#define VIEW_P(p) ((p) < KATAM_KIRBYS ? (p) : (p) & 3)
+#else
+#define VIEW_P(p) ((p) & 3)
+#endif
+
 /* C linkage for the 64-bit builds.
  *
  * Those compile the game as C++ and tools/legacy-sync/cxxify.py gives it C linkage, so
@@ -815,7 +823,7 @@ static s32 Cells(s32 px)
 static void Margin(u8 player, s32 camX, s32 camY, s32 w, s32 h,
                    struct PortSpawnMargin *m)
 {
-    const struct LevelInfo *li = &gCurLevelInfo[player & 3];
+    const struct LevelInfo *li = &gCurLevelInfo[VIEW_P(player)];
     s32 lo, hi;
     /* The room's extent.  The BG layer's map size (unkC0[1].unk14/16) is
      * what the renderer places by, but it is set (LoadLevelGfx) only for the
@@ -858,7 +866,7 @@ static void Stock(struct PortSpawnMargin *m)
 
 void PortSpawnMarginNow(u8 player, struct PortSpawnMargin *m)
 {
-    const struct LevelInfo *li = &gCurLevelInfo[player & 3];
+    const struct LevelInfo *li = &gCurLevelInfo[VIEW_P(player)];
 
     if (sSim.stock) {
         Stock(m);
@@ -874,7 +882,7 @@ void PortSpawnMarginNow(u8 player, struct PortSpawnMargin *m)
 
 void PortSpawnMarginPrev(u8 player, struct PortSpawnMargin *m)
 {
-    const struct LevelInfo *li = &gCurLevelInfo[player & 3];
+    const struct LevelInfo *li = &gCurLevelInfo[VIEW_P(player)];
 
     if (sSim.stock) {
         Stock(m);
@@ -917,7 +925,7 @@ static int StatOn(void)
 
 static int StatWhere(u8 player, s32 x, s32 y)
 {
-    const struct LevelInfo *li = &gCurLevelInfo[player & 3];
+    const struct LevelInfo *li = &gCurLevelInfo[VIEW_P(player)];
     s32 camX = li->viewportPosition.x >> 8, camY = li->viewportPosition.y >> 8;
     s32 w = sStatW ? sStatW : sSim.viewW, h = sStatH ? sStatH : sSim.viewH;
     s32 l = 0, r = 0, t = 0, b = 0;
@@ -943,7 +951,7 @@ void PortSpawnNoteDespawn(u8 player, s32 x, s32 y)
 
 int PortSpawnHeadroom(u8 player, s32 x, s32 y, int edge)
 {
-    const struct LevelInfo *li = &gCurLevelInfo[player & 3];
+    const struct LevelInfo *li = &gCurLevelInfo[VIEW_P(player)];
     u32 used = 0, i;
 
     if (StatOn())

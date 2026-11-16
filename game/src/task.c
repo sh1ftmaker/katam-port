@@ -111,7 +111,18 @@ struct Task* TaskCreate(TaskMain taskMain, u16 structSize, u16 priority, u16 fla
             task->structOffset = 0;
         }
         else {
+#if KATAM_WIDE
+            /* PORT: telemetry (port/wide.h): the EWRAM heap refused it.  The
+             * check below never sees that (ewram_end is 0), so the struct is
+             * then the heap's own head, as on the console. */
+            void *m = EwramMalloc(structSize);
+
+            if (m == ewram_end)
+                PortWideAllocFail(0);
+            task->structOffset = ((uintptr_t)m - EWRAM_START) >> 2;
+#else
             task->structOffset = ((uintptr_t)EwramMalloc(structSize) - EWRAM_START) >> 2;
+#endif
         }
 
         if (ewram_end == (temp = TaskGetStructPtr(task))) {
@@ -122,8 +133,21 @@ struct Task* TaskCreate(TaskMain taskMain, u16 structSize, u16 priority, u16 fla
     else {
         task->structOffset = (uintptr_t)IwramMalloc(structSize);
         if (structSize != 0 && task->structOffset == 0) {
+#if KATAM_WIDE
+            /* PORT: telemetry (port/wide.h): the IWRAM heap refused it (it
+             * goes to EWRAM), and both did. */
+            void *m;
+
+            PortWideAllocFail(1);
+            task->flags |= TASK_USE_EWRAM;
+            m = EwramMalloc(structSize);
+            if (m == ewram_end)
+                PortWideAllocFail(2);
+            task->structOffset = ((uintptr_t)m - EWRAM_START) >> 2;
+#else
             task->flags |= TASK_USE_EWRAM;
             task->structOffset = ((uintptr_t)EwramMalloc(structSize) - EWRAM_START) >> 2;
+#endif
         }
     }
 
