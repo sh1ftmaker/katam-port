@@ -24,12 +24,13 @@ struct Unk_020382D0 {
     u32 unk0;
     u16 unk4;
     u8 unk6;
-    u16 unk8[3][4];
+    /* PORT: KATAM_KIRBYS (port/wide.h) is 4 except in the wide build. */
+    u16 unk8[3][KATAM_KIRBYS];
     struct Unk_020382D0_sub unk20[0x10];
-    struct Unk_020382D0_sub unkA0[4][0x10];
-    u8 unk2A0[4];
-    u8 unk2A4[4];
-    u8 unk2A8[4];
+    struct Unk_020382D0_sub unkA0[KATAM_KIRBYS][0x10];
+    u8 unk2A0[KATAM_KIRBYS];
+    u8 unk2A4[KATAM_KIRBYS];
+    u8 unk2A8[KATAM_KIRBYS];
     u8 unk2AC;
     s8 unk2AD;
 };

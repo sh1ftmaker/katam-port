@@ -403,6 +403,17 @@ target_compile_definitions(katam PRIVATE PORTABLE NONMATCHING MODERN=1)
 
 set(FORCE_INCLUDES port/prelude.h port/ram_symbols.h port/rom_data.h)
 
+# More than four Kirbys in one world (docs/design/ONE-WORLD-16.md): unset is
+# the game as it always was; 4..16 moves the per-player tables into the port
+# sim block (platform/port/wide.h) and sizes them for that many Kirbys.  Use a
+# build directory of its own per value.
+set(KATAM_MAX_KIRBYS "" CACHE STRING "Kirby slots in one world (4..16); empty = the original four")
+if(KATAM_MAX_KIRBYS)
+  target_compile_definitions(katam PRIVATE KATAM_MAX_KIRBYS=${KATAM_MAX_KIRBYS})
+  list(APPEND FORCE_INCLUDES port/wide_symbols.h)
+  message(STATUS "KATAM_MAX_KIRBYS=${KATAM_MAX_KIRBYS}: the wide build")
+endif()
+
 include(CheckCCompilerFlag)
 
 if(MSVC)

@@ -410,7 +410,7 @@ static void sub_0814ACA8(struct Unk_0814A828 *a1) {
 
     LoadBgPaletteAndPaletteEffectSource(var->palette, 0, 0x60);
     LoadBgPaletteAndPaletteEffectSource(bg->palette, bg->paletteOffset, bg->paletteSize);
-    var2 = CreatePaletteFadeFromWhite(7);
+    var2 = CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7));
     var2->unk8 |= 0x180;
     var2->unk4 = 0xFFFF;
     var2->unk6 = 0xFFFF;
@@ -2330,7 +2330,7 @@ static void sub_0814E284(struct Unk_0814A828 *a1) {
 
 static void sub_0814E290(struct Unk_0814A828 *a1) {
     u16 color = RGB_WHITE;
-    struct PaletteEffect *var = CreatePaletteFadeToWhite(7);
+    struct PaletteEffect *var = CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7));
 
     var->unk8 |= 0x180;
     var->unk4 = 0xFFFF;

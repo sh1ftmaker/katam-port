@@ -36,7 +36,11 @@ void InitLevelTasks(void)
     gBgScrollRegs[2][0] = 0;
     gBgScrollRegs[2][1] = 0;
     var->unk24 = gUnk_03002E60;
+#if KATAM_WIDE
+    gUnk_03002E60 = gPortWideBgTab; /* PORT: the wide build (port/wide.h): the ROM's copy holds the old addresses of gCurLevelInfo. */
+#else
     gUnk_03002E60 = PORT_ROM_TABLE(const union Unk_03002E60 *, gUnk_082D8D74, 0x082D8D74); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
+#endif
     CpuFill32(0, gUnk_02028EE0, sizeof(gUnk_02028EE0));
     CpuFill32(0, gUnk_02024ED0, sizeof(gUnk_02024ED0));
     CpuFill32(0, gUnk_02026D60, sizeof(gUnk_02026D60));
@@ -45,16 +49,18 @@ void InitLevelTasks(void)
     var->unk0 = gLocalPlayerId;
     CpuFill16(0, gCurLevelInfo, sizeof(gCurLevelInfo));
 
-    for (i = 0; i < 4; i++) {
+    /* PORT: KATAM_KIRBYS (port/wide.h) is 4 except in the wide build, whose
+     * BG table (gPortWideBgTab) is laid out layer * N + player like the ROM's. */
+    for (i = 0; i < KATAM_KIRBYS; i++) {
         struct LevelInfo *levelInfo = &gCurLevelInfo[i];
 
         levelInfo->currentRoom |= 0xFFFF;
         levelInfo->unk65C |= 0xFFFF;
         BgInit(&levelInfo->unkC0[1], 0x6008000, 0, 0x600F000, 0, 0, i, 0, 0, 0, 0, 0x1F, 0x15, 0, 0, 0,
             0x3B, 0, 0, 0x7FFF, 0x7FFF);
-        BgInit(&levelInfo->unkC0[2], 0x6000000, 0, 0x600F800, 0, 0, i + 4, 0, 0, 0, 0, 0x1F, 0x15, 0, 0, 0,
+        BgInit(&levelInfo->unkC0[2], 0x6000000, 0, 0x600F800, 0, 0, i + KATAM_KIRBYS, 0, 0, 0, 0, 0x1F, 0x15, 0, 0, 0,
             0x38, 0, 0, 0x7FFF, 0x7FFF);
-        BgInit(&levelInfo->unkC0[0], 0x6008000, 0, 0x600E800, 0, 0, i + 8, 0, 0, 0, 0, 0x1F, 0x15, 0, 0, 0,
+        BgInit(&levelInfo->unkC0[0], 0x6008000, 0, 0x600E800, 0, 0, i + 2 * KATAM_KIRBYS, 0, 0, 0, 0, 0x1F, 0x15, 0, 0, 0,
             0x3A, 0, 0, 0x7FFF, 0x7FFF);
     }
 
@@ -85,7 +91,11 @@ void RestoreDisplayState(void)
     struct Unk_08002E48 *var0 = TaskGetStructPtr(gUnk_02023354), *var1 = var0;
     u16 i;
 
+#if KATAM_WIDE
+    gUnk_03002E60 = gPortWideBgTab; /* PORT: the wide build (port/wide.h): the ROM's copy holds the old addresses of gCurLevelInfo. */
+#else
     gUnk_03002E60 = PORT_ROM_TABLE(const union Unk_03002E60 *, gUnk_082D8D74, 0x082D8D74); /* PORT-FORK (NETPLAY-V2 R6): the ROM's copy, at its GBA address, not the C one -- the same bytes, and a pointer every host stores alike. */
+#endif
     gDispCnt = var1->unk2;
 
     for (i = 0; i < 4; i++) {
@@ -342,7 +352,11 @@ void FillLevelInfo(u8 playerId, u16 roomId, const u16 **arg2, const u16 **arg3)
             levelInfo->unk180[0].tilemap = gUnk_02028EE0[levelInfo->unk65E].text;
         }
         else {
+#if KATAM_WIDE
+            u32 mask = 0; /* PORT: the wide build's N room slots */
+#else
             u8 mask = 0;
+#endif
 
             for (i = 0; i < gNumKirbys; i++) {
                 if (i == playerId)
@@ -352,7 +366,7 @@ void FillLevelInfo(u8 playerId, u16 roomId, const u16 **arg2, const u16 **arg3)
                 mask |= 1 << EWRAM_MIRROR_U8(&gCurLevelInfo[i].unk65E);
             }
 
-            for (i = 0; i < 4; i++) {
+            for (i = 0; i < KATAM_ROOM_SLOTS; i++) {
                 if (!((mask >> i) & 1)) {
                     levelInfo->unk65E = i;
                     break;

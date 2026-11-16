@@ -682,7 +682,7 @@ void PauseMenuInitRetained(void) {
 
 // Influences fading
 void sub_08124EA0(void) {
-    struct PaletteEffect* effect = CreatePaletteFadeFromWhite(7);
+    struct PaletteEffect* effect = CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7));
     effect->unk8 |= 0x0180;
     effect->unk4 = ~0;
     effect->unk6 = ~0;
@@ -691,7 +691,7 @@ void sub_08124EA0(void) {
 // Runs once immediately when pause menu (or BigSwitch activation) should be closed
 void sub_08124EC8(void) {
     u16 white;
-    struct PaletteEffect* effect = CreatePaletteFadeToWhite(7);
+    struct PaletteEffect* effect = CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7));
     effect->unk8 |= 0x0180;
     effect->unk4 = ~0;
     effect->unk6 = ~0;

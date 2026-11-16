@@ -154,6 +154,13 @@ int PortHostAddrValid(uintptr_t addr, size_t len)
     hi -= hi % page;
     if (hi <= lo)
         return 0;                   /* the rounding wrapped: not an address */
+#if defined(__SANITIZE_ADDRESS__) && defined(__x86_64__)
+    /* An AddressSanitizer build (the wide build's W1 gate): ASan's shadow
+     * memory and the PROT_NONE gap between its halves are mapped, so mincore
+     * calls them valid; nothing the game owns is there. */
+    if (hi > 0x00007fff8000ull && lo < 0x10007fff8000ull)
+        return 0;
+#endif
 
     for (at = lo; at < hi; ) {
         size_t want = (size_t)(hi - at);

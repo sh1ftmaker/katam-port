@@ -25,10 +25,12 @@
  *                                  registers -- see GAME_REPIN_FOCUS below.
  */
 #define GAME_PLAYER_COUNT (*(vu8 *)0x0203AD30)
-#define GAME_HELD(slot)     (*(vu16 *)(0x020382D0 + 8      + 2 * (slot)))
-#define GAME_PRESSED(slot)  (*(vu16 *)(0x020382D0 + 8 +  8 + 2 * (slot)))
-#define GAME_RELEASED(slot) (*(vu16 *)(0x020382D0 + 8 + 16 + 2 * (slot)))
-#define GAME_AI_INPUT(slot) (*(vu8  *)(0x02038590 + 244 * (slot) + 158))
+/* PORT_ADDR_* and PORT_INPUT_ROW (port/wide.h) are these tables' console
+ * addresses and 8 bytes per row, except in the wide build. */
+#define GAME_HELD(slot)     (*(vu16 *)(uintptr_t)(PORT_ADDR_INPUT + 8                      + 2 * (slot)))
+#define GAME_PRESSED(slot)  (*(vu16 *)(uintptr_t)(PORT_ADDR_INPUT + 8 +     PORT_INPUT_ROW + 2 * (slot)))
+#define GAME_RELEASED(slot) (*(vu16 *)(uintptr_t)(PORT_ADDR_INPUT + 8 + 2 * PORT_INPUT_ROW + 2 * (slot)))
+#define GAME_AI_INPUT(slot) (*(vu8  *)(uintptr_t)(PORT_ADDR_BRAINS + 244 * (slot) + 158))
 #define GAME_MODE_FLAGS     (*(vu32 *)0x0203AD10)
 #define GAME_FOCUS          (*(vu8  *)0x0203AD3C)
 #define GAME_STORY          (*(vu16 *)0x0203AD2C)

@@ -345,6 +345,9 @@ void RegisterRamReset(u32 resetFlags)
         memset((void *)GBA_VRAM_BASE, 0, GBA_VRAM_SIZE);
     if (resetFlags & RESET_OAM)
         memset((void *)GBA_OAM_BASE, 0, GBA_OAM_SIZE);
+#if KATAM_WIDE
+    PortWideRamReset(resetFlags);   /* the moved tables (port/wide.h) */
+#endif
 }
 
 int MultiBoot(struct MultiBootParam *mp)

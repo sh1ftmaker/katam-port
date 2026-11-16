@@ -903,7 +903,7 @@ static void TestAfterCapture(u32 frame)
 
 /* --- the frame hook --------------------------------------------------------- */
 
-#define KIRBY(k) (0x02020EE0u + (u32)(k) * 424u)
+#define KIRBY(k) (PORT_ADDR_KIRBYS + (u32)(k) * 424u)   /* port/wide.h */
 static void KirbyPos(s32 *x, s32 *y, u16 *room)
 {
     int k;

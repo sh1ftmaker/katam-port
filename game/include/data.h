@@ -566,9 +566,23 @@ struct Unk_08352AD0 {
 } __attribute__((aligned(4))); /* size = 0x8 */
 
 struct Unk_03000510 {
+#if KATAM_KIRBYS <= 4
     u8 unk0[4];
     u8 unk4;
+#else
+    /* PORT: the wide build (port/wide.h): a freezer per Kirby, and the mask
+     * one bit per Kirby, with the game's global 0x10 flag moved to bit 15
+     * (FREEZE_ALL below). */
+    u8 unk0[KATAM_KIRBYS];
+    u16 unk4;
+#endif
 };
+/* The freeze mask's "everyone" bit (set only by two unused functions). */
+#if KATAM_KIRBYS <= 4
+#define FREEZE_ALL 0x10
+#else
+#define FREEZE_ALL 0x8000
+#endif
 
 struct Unk_08930E00_1 {
     u8 unk00;

@@ -226,7 +226,7 @@ static void sub_0802AE9C(struct DoorToHub *door)
             for (j = 0; j < PortHumanEnd(); j = PortHumanNext(j))
             {
                 gKirbys[j].base.unkC |= 0x800000;
-                sub_0805BDF4(&gKirbys[j], gUnk_082D8CF0[j], gUnk_082D8D08[j][0] >> 12, gUnk_082D8D08[j][1] >> 12);
+                sub_0805BDF4(&gKirbys[j], gUnk_082D8CF0[KATAM_ROM_ROW(j)], gUnk_082D8D08[KATAM_ROM_ROW(j)][0] >> 12, gUnk_082D8D08[KATAM_ROM_ROW(j)][1] >> 12);
             }
             if (gAIKirbyState < AI_KIRBY_STATE_CUTSCENE)
                 StartInGameInterlude(0x19);

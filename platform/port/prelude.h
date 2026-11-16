@@ -61,6 +61,11 @@
  * code IDs, not host pointers (netplay-v2 R5). */
 #include "port/fnid.h"
 
+/* KATAM_KIRBYS / KATAM_WIDE: four Kirby slots, or the wide build's N
+ * (KATAM_MAX_KIRBYS; docs/design/ONE-WORLD-16.md).  Constants only; with the
+ * flag unset every one of them spells the original 4. */
+#include "port/wide.h"
+
 /* The port's own hooks, declared here so that every translation unit sees a
  * prototype.  portify.py rewrites `asm("swi 3")` into a PortHalt() call inside
  * the game's own main.c, and the asm-wrapper stubs it generates call

@@ -29,13 +29,24 @@
  * snapshots carry it. */
 
 #include "gba/types.h"
+#include "port/wide.h"
 
+/* The wide build (port/wide.h, KATAM_MAX_KIRBYS) has a seat per Kirby slot. */
+#if KATAM_WIDE && !defined(PORT_MAX_SEATS)
+#define PORT_MAX_SEATS KATAM_KIRBYS
+#endif
 #ifndef PORT_MAX_SEATS
 #define PORT_MAX_SEATS 4
 #endif
 
 #define PORT_SIM_BASE      0x02040000u
+#if KATAM_WIDE
+/* The wide build: the block holds the moved per-player tables (port/wide.h),
+ * and gCurLevelInfo[0xFF] must still land in mapped, unwritten memory. */
+#define PORT_SIM_SPAN      0x00100000u   /* reserved: to 0x02140000           */
+#else
 #define PORT_SIM_SPAN      0x00040000u   /* reserved: to 0x02080000           */
+#endif
 #define PORT_SIM_MAGIC     0x4D49534Bu   /* 'KSIM'                            */
 #define PORT_SIM_VERSION   1u
 
@@ -173,6 +184,11 @@ struct PortSimBlock {
      * loader, branch roomload, is expected to add its struct here), and
      * bumps PORT_SIM_VERSION.  The header's reserved
      * words are free too.  The mod store follows, at PortSimModStore(). */
+#if KATAM_WIDE
+    /* The wide build's per-player tables (port/wide.h), last, page-aligned. */
+    u8 widePad[WIDE_SIM_OFFSET - (0xB4u + 4130u * PORT_MAX_SEATS)];
+    u8 wide[WIDE_BYTES];
+#endif
 };
 
 #define gPortSim ((struct PortSimBlock *)(uintptr_t)PORT_SIM_BASE)
@@ -236,6 +252,12 @@ PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, session) == PORT_SIM_OFF
 PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, rando) % 4 == 0, "sim block layout");
 PORT_SIM_ASSERT(PORT_SIM_ALIGN4(sizeof(struct PortSimBlock)) + PORT_SIM_MOD_STORE_BYTES
                 <= PORT_SIM_SPAN, "the sim block outgrew its reservation");
+#if KATAM_WIDE
+PORT_SIM_ASSERT(PORT_MAX_SEATS == KATAM_KIRBYS, "wide build: a seat per Kirby slot");
+PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, rando) == 0xB4u + PORT_MAX_SEATS, "wide layout");
+PORT_SIM_ASSERT(__builtin_offsetof(struct PortSimBlock, wide) == WIDE_SIM_OFFSET, "wide layout");
+PORT_SIM_ASSERT(WIDE_LI_REACH <= PORT_SIM_BASE + PORT_SIM_SPAN, "gCurLevelInfo[0xFF] must stay mapped");
+#endif
 
 #ifdef __cplusplus
 extern "C" {

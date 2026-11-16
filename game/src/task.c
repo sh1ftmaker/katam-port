@@ -81,9 +81,23 @@ struct Task* TaskCreate(TaskMain taskMain, u16 structSize, u16 priority, u16 fla
     if (gNumTasks < MAX_TASK_NUM) {
         struct Task* nextSlot = gTaskPtrs[gNumTasks++];
         task = nextSlot;
+#if KATAM_WIDE
+        PortWideTaskCount((u32)gNumTasks);   /* PORT: telemetry, port/wide.h */
+#endif
     }
 
     if (task == NULL) {
+#if KATAM_WIDE
+        /* PORT: the wide build (port/wide.h).  The pool is full (128 tasks,
+         * reached with 16 Kirbys in one room) and callers never check: on the
+         * console they then write their object through gEmptyTask's struct,
+         * over IWRAM's globals.  PLACEHOLDER: the object still does not
+         * spawn, but its writes land in scratch memory (the moved
+         * gUnk_02028EE0's old EWRAM home, unused in this build). */
+        PortWideTaskFull();
+        gEmptyTask.flags = TASK_USE_EWRAM;
+        gEmptyTask.structOffset = (0x02028EE0u - EWRAM_START) >> 2;
+#endif
         return &gEmptyTask;
     }
 

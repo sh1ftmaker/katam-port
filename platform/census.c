@@ -125,7 +125,7 @@ static void DynCollect(const u8 *state)
     /* gKirbys: base.sprite and sprites[], 424 bytes apart, sprites at 124,
      * 40 bytes each, three of them before `task` at 204. */
     for (i = 0; i < 4; i++) {
-        u32 kb = 0x02020EE0u + (u32)i * 424u;
+        u32 kb = PORT_ADDR_KIRBYS + (u32)i * 424u;   /* port/wide.h */
 
         DynSprite(kb + 16);
         for (k = 0; k < 2; k++)

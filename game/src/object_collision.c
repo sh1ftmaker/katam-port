@@ -57,6 +57,17 @@ static inline void ClearCollisionCounts(void)
     gUnk_02022F40[1] = 0;
     gUnk_02022F40[2] = 0;
     gUnk_02022F40[3] = 0;
+#if KATAM_WIDE
+    { /* PORT: the wide build's room slots 4.. (port/wide.h) */
+        u8 g;
+
+        for (g = 4; g < KATAM_ROOM_SLOTS; g++) {
+            gUnk_02022EB0[g][0] = 0;
+            gUnk_02022EB0[g][1] = 0;
+            gUnk_02022F40[g] = 0;
+        }
+    }
+#endif
 }
 
 void CreateObjectCollisionManager(void)
@@ -80,6 +91,16 @@ static void UpdateObjectCollisions(void)
     gUnk_02022EC0[1][0] = NULL;
     gUnk_02022EC0[2][0] = NULL;
     gUnk_02022EC0[3][0] = NULL;
+#if KATAM_WIDE
+    { /* PORT: the wide build's room slots 4.. (port/wide.h) */
+        u8 g;
+
+        for (g = 4; g < KATAM_ROOM_SLOTS; g++) {
+            gUnk_02022F50[g * 0x40] = NULL;
+            gUnk_02022EC0[g][0] = NULL;
+        }
+    }
+#endif
     gUnk_0203AD40++;
 }
 
@@ -1156,15 +1177,19 @@ static inline void StartKirbyShare(struct Kirby *sharing, u8 sharingId, struct K
 static void ProcessKirbyContacts(void)
 {
     u8 firstId, secondId;
-    for (firstId = 0; firstId < gNumKirbys; ++firstId) {
+    /* PORT: KATAM_MIN4 (port/wide.h): each Kirby keeps its contacts with the
+     * others as 4 bits per Kirby in a u16 (unk104) and a u8 mask (unkE1).
+     * PLACEHOLDER in the wide build: only Kirbys 0..3 stand on or share with
+     * each other; the rest pass through. */
+    for (firstId = 0; firstId < KATAM_MIN4(gNumKirbys); ++firstId) {
         struct ObjectBase *firstBase = &gKirbys[firstId].base;
         struct Kirby *first = (struct Kirby *)firstBase;
-        if ((gUnk_03000510.unk4 & (0x10 | (1 << firstId)))
+        if ((gUnk_03000510.unk4 & (FREEZE_ALL | (1 << firstId)))
             || (firstBase->flags & 0x3800F00) || first->stateFn == FN(sub_080566E0)
             || (first->animationIndex >= 0x4A && first->animationIndex <= 0x59) || firstBase->sprite.animId == 0x220)
             continue;
         secondId = firstId + 1;
-        while (secondId < gNumKirbys) {
+        while (secondId < KATAM_MIN4(gNumKirbys)) {
             struct Kirby *second = &gKirbys[secondId];
             bool8 overlap;
             u32 shift, testShift, contactBits;

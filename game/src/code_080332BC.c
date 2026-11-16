@@ -59,6 +59,21 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     ResetInGameInterlude();
     InitLevelTasks();
 
+#if KATAM_WIDE
+    /* PORT: the wide build (port/wide.h) starts N Kirbys.  The callers' spawn
+     * tables have four entries; PLACEHOLDER: Kirby i starts where Kirby
+     * (i & 3) does. */
+    for (curKirbyId = 0; curKirbyId < KATAM_KIRBYS; curKirbyId++) {
+        u8 s = curKirbyId & 3;
+
+        CreateKirby(curKirbyId, &gKirbys[curKirbyId], arg2[s], &arg3[2 * s], arg4[s]);
+        sub_0803E558(curKirbyId);
+    };
+
+    for (otherKirbyId = arg0; otherKirbyId < KATAM_KIRBYS; otherKirbyId++) {
+        sub_0800ECAC(otherKirbyId, arg2[otherKirbyId & 3], startRoomId);
+    }
+#else
     for (curKirbyId = 0; curKirbyId < 4; curKirbyId++) {
         CreateKirby(curKirbyId, &gKirbys[curKirbyId], arg2[curKirbyId], &arg3[2 * curKirbyId], arg4[curKirbyId]);
         sub_0803E558(curKirbyId);
@@ -67,6 +82,7 @@ void sub_080332BC(u8 arg0, u8 arg1, const u16* arg2, const s32* arg3, const bool
     for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++) {
         sub_0800ECAC(otherKirbyId, arg2[otherKirbyId], startRoomId);
     }
+#endif
     /* PORT: local multiplayer -- the other humans join now that every slot
      * has its CPU brain (platform/localmp.c, "human slots"). */
     PortLmpStarted();
@@ -138,7 +154,7 @@ void sub_08033540(u8 arg0) {
 
 void sub_080335B4(u8 arg0) {
     u8 r5 = 0;
-    u8 sp0[4] = {0, 0, 0, 0};
+    u8 sp0[KATAM_KIRBYS] = {0, 0, 0, 0};
     struct Unk_03000510* unk_03000510 = &gUnk_03000510;
     u8 r4;
 
@@ -162,15 +178,23 @@ static void sub_08033638(void) {
     gUnk_03000510.unk0[1] = 0xff;
     gUnk_03000510.unk0[2] = 0xff;
     gUnk_03000510.unk0[3] = 0xff;
+#if KATAM_KIRBYS > 4
+    {
+        u8 i;
+
+        for (i = 4; i < KATAM_KIRBYS; i++)
+            gUnk_03000510.unk0[i] = 0xff;
+    }
+#endif
     gUnk_03000510.unk4 = 0;
 }
 
 static void UNUSED sub_08033654(void) {
-    gUnk_03000510.unk4 |= 0x10;
+    gUnk_03000510.unk4 |= FREEZE_ALL;
 }
 
 static void UNUSED sub_08033664(void) {
-    gUnk_03000510.unk4 &= ~0x10;
+    gUnk_03000510.unk4 &= ~FREEZE_ALL;
 }
 
 void sub_08033674(u8 arg0) {

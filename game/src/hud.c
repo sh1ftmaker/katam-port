@@ -167,7 +167,12 @@ static inline void DrawGameOverMessageInline(void)
 
 static inline void DisplayCallingKirby(struct GameplayHud *hud)
 {
-    struct Sprite *sprite = &hud->unk20[0][gLocalPlayerId];
+    struct Sprite *sprite;
+#if KATAM_WIDE
+    if (gLocalPlayerId >= 4 || gUnk_02021580 >= 4) /* PORT: port/wide.h, KATAM_HUD_KIRBYS */
+        return;
+#endif
+    sprite = &hud->unk20[0][gLocalPlayerId];
     sprite->tilesVram = gKirbys[gUnk_02021580].base.sprite.tilesVram + TILE_OFFSET_4BPP(8);
     sprite->palId = gUnk_02021580;
     sprite->unk1B = 0xFF;
@@ -228,7 +233,7 @@ void CreateGameplayHud(void)
     hud->unkE = 0;
     hud->unk10 = 0;
     hud->unkD = 0;
-    for (i = 0; i < gNumKirbys; i++) {
+    for (i = 0; i < KATAM_HUD_KIRBYS; i++) { /* PORT: port/wide.h */
         if (gLocalPlayerId == i) {
             SpriteInitNoFunc(&hud->unk20[0][i], 0, 0x80, 0x2DB, 1, 0, 0xFF, 0x10, 0, 8, 15, 0x40000);
         } else {
@@ -451,7 +456,7 @@ static void DrawHudOtherKirbys(struct GameplayHud *hud)
 {
     struct Sprite savedSprite;
     u8 i = 0, otherKirbyNumber = 0;
-    for (; i < gNumKirbys; i++) {
+    for (; i < KATAM_HUD_KIRBYS; i++) { /* PORT: port/wide.h */
         struct Kirby *kirby;
         struct Sprite *body, *ability, *effect;
         if (i == gLocalPlayerId)
@@ -1049,7 +1054,7 @@ static void UpdateTrackedHudEnemy(struct GameplayHud *hud)
 static void AnimateHudEnemyHealth(struct GameplayHud *hud)
 {
     if (hud->unkF != 0) {
-        u32 paused = gUnk_03000510.unk4 & ((1 << gLocalPlayerId) | 0x10);
+        u32 paused = gUnk_03000510.unk4 & ((1 << gLocalPlayerId) | FREEZE_ALL);
         if (!paused) {
             if (++hud->unkF > 48) {
                 CpuFill16(0, BG_CHAR_ADDR(1) + TILE_OFFSET_4BPP(0x1BD), TILE_SIZE_4BPP * 8);

@@ -24,8 +24,9 @@ struct PaletteEffect {
 }; /* size = 0x10 */
 
 struct PaletteEffectManager {
-    /* 0x00 */ struct PaletteEffect unk0[8];
-    /* 0x80 */ PTR32(struct PaletteEffect) unk80[8];
+    /* PORT: PAL_FX_SLOTS (port/wide.h) is 8 except in the wide build. */
+    /* 0x00 */ struct PaletteEffect unk0[PAL_FX_SLOTS];
+    /* 0x80 */ PTR32(struct PaletteEffect) unk80[PAL_FX_SLOTS];
 }; /* size = 0xA0 */
 
 /* PORT: replaced by port/ram_symbols.h -- extern struct Task *gPaletteEffectsTask; */

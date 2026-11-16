@@ -756,13 +756,23 @@ bool16 ObjectPreUpdate(struct ObjectBase *a1) {
             if (a1->unk56 == 0xFF)
                 temp = 0xFF;
             if (temp != 0xFF) {
-                u8 idx;
+                KATAM_COLL_IDX idx; /* PORT: port/wide.h */
                 u32 temp2 = temp * 0x40 + (a1->header.kind - 1) * 0x20;
 
                 ++a1; --a1;
+#if KATAM_WIDE
+                /* PORT: the wide build (port/wide.h): the list holds 32 per kind with no
+                 * bound on the console, and more Kirbys in a room overflow it.
+                 * PLACEHOLDER: past 31 the object skips collision this frame. */
+                if (!PortWideCollRoom(gUnk_02022EB0[temp][a1->header.kind - 1]))
+                    ;
+                else
+#endif
+                {
                 idx = gUnk_02022EB0[temp][a1->header.kind - 1]++ + temp2;
                 gUnk_02022F50[idx] = a1;
                 gUnk_02022F50[idx + 1] = NULL;
+                }
             }
         }
         sub_0803D9A8(a1);
@@ -988,7 +998,7 @@ void sub_08070164(struct Unk_0806FDF4_0 *a1) {
     if (gNumKirbys) {
         while (1) {
             if (gCurLevelInfo[i - 1].currentRoom == a1->roomId) {
-                if (gUnk_03000510.unk4 & ((1 << (i - 1)) | 0x10))
+                if (gUnk_03000510.unk4 & ((1 << (i - 1)) | FREEZE_ALL))
                     v4 = TRUE;
                 if (!(gUnk_02026D50[EWRAM_MIRROR_U8(&gCurLevelInfo[i - 1].unk65E)] & 8)) {
                     flag = FALSE;
@@ -1096,7 +1106,7 @@ bool8 sub_08070488(struct ObjectBase *a1) {
         return FALSE;
     tmp = TaskGetStructPtr(gUnk_03000518);
     var = tmp;
-    for (i = 0; i < gNumKirbys; ++i) {
+    for (i = 0; i < KATAM_MIN4(gNumKirbys); ++i) { /* PORT: port/wide.h */
         v6 = &var->unk0[i];
         if (v6->roomId == a1->roomId && v6->flags & 0x100)
             ret = TRUE;
@@ -1115,7 +1125,7 @@ bool8 sub_08070504(struct ObjectBase *a1) {
         return FALSE;
     tmp = TaskGetStructPtr(gUnk_03000518);
     var = tmp;
-    for (i = 0; i < gNumKirbys; ++i) {
+    for (i = 0; i < KATAM_MIN4(gNumKirbys); ++i) { /* PORT: port/wide.h */
         v6 = &var->unk0[i];
         if (v6->roomId == a1->roomId && v6->flags & 0x200) {
             ret = TRUE;
@@ -1827,7 +1837,7 @@ void sub_08071FC0(struct Kirby *kirby) {
     sub_0803E2B0(objBase, 0, -0x12, 0x2C, 0x10);
     ObjectSetBounds(objBase, 0, -0x12, 0x2C, 0x10);
     ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 * 0x800) + 0x6010400, 0x13, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56;
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56);
 }
 
 void sub_080720F8(void) {
@@ -2383,23 +2393,23 @@ void sub_080734F8(struct Kirby *kirby) {
         objBase->x += 0x1800;
     }
     obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010600, 0x4E, 0, FN(sub_080730E0), FN(sub_08072FF0));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x2C0;
     obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 2, FN(sub_080731EC), FN(sub_08072FF0));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 3, FN(sub_080732E4), FN(sub_08072FF0));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     obj14 = sub_080706A0(&kirby->base, kirby->base.unk56 * 0x800 + 0x6010400, 0x4E, 4, FN(sub_080733D8), FN(sub_08072FF0));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     sub_08073A74(kirby);
     obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, FN(sub_08073C98), NULL);
     obj14->effectObject.sprite.palId = 0xF;
     obj14->effectObject.sprite.unk14 = 0x280;
     ObjectBaseInitSprite(objBase, &objBase->sprite, kirby->base.unk56 * 0x800 + 0x6010400, 0x4D, 0, 0xB);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_080737D8(void) {
@@ -2830,7 +2840,7 @@ void sub_08074AB0(struct Kirby *kirby) {
         objBase->flags |= 1;
     sub_0803E2B0(objBase, -0x17, -0x14, 0x17, 0x1A);
     ObjectSetBounds(objBase, -0x1A, -0x16, 0x1A, 0x1E);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x116, 0, 0xA);
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x116, 0, 0xA);
     objBase->sprite.palId = kirby->base.sprite.palId + 4;
     objBase->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -2932,8 +2942,8 @@ void sub_0807529C(struct Kirby *kirby) {
     objBase->flags |= 0x4000;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, gUnk_0834FF14[0].animId, gUnk_0834FF14[0].variant, 0xC);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, gUnk_0834FF14[0].animId, gUnk_0834FF14[0].variant, 0xC);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
     objBase->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -3114,8 +3124,8 @@ void sub_08075DB0(struct Kirby *kirby) {
     objBase->flags |= 0x4000;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, gUnk_083500D8[0].animId, gUnk_083500D8[0].variant, 0xC);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, gUnk_083500D8[0].animId, gUnk_083500D8[0].variant, 0xC);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
@@ -3229,13 +3239,13 @@ void sub_08075EDC(void) {
                         break;
                     case 0x77:
                         PlaySfx(&kirby->base, SE_ABILITY_MASTER_RUN_ATTACK);
-                        objBase->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010200;
+                        objBase->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200;
                         break;
                     }
                     if (kirby->animationIndex != 0x77) {
                         if (kirby->base.unk56 == gLocalPlayerId)
                             m4aSongNumStop(SE_ABILITY_MASTER_RUN_ATTACK);
-                        objBase->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010400;
+                        objBase->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400;
                     }
                     if (kirby->animationIndex != 0x68 && kirby->animationIndex != 0x69 && kirby->base.unk56 == gLocalPlayerId)
                         m4aSongNumStop(SE_ABILITY_SWORD_MIDAIR);
@@ -3332,8 +3342,8 @@ void sub_08076A60(struct Kirby *kirby) {
     objBase->flags |= 0x200;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, gUnk_083502C0[0].animId, gUnk_083502C0[0].variant, 0xC);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, gUnk_083502C0[0].animId, gUnk_083502C0[0].variant, 0xC);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
@@ -3486,8 +3496,8 @@ void sub_08077454(struct Kirby *kirby) {
     objBase->flags |= 0x200;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, gUnk_08350474[0].animId, gUnk_08350474[0].variant, 0xC);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, gUnk_08350474[0].animId, gUnk_08350474[0].variant, 0xC);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
@@ -3625,7 +3635,7 @@ void sub_08077CD0(struct Kirby *kirby) {
     effectObject->roomId = kirby->base.roomId;
     if (!(kirby->base.flags & 1))
         effectObject->flags |= 1;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010300, gUnk_0834FBCC[0].animId, gUnk_0834FBCC[0].variant, 0xC);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010300, gUnk_0834FBCC[0].animId, gUnk_0834FBCC[0].variant, 0xC);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     effectObject->unk8 = 0;
 }
@@ -3713,7 +3723,7 @@ void sub_08078260(struct Kirby *kirby) {
     effectObject->roomId = kirby->base.roomId;
     if (!(kirby->base.flags & 1))
         effectObject->flags |= 1;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010380, gUnk_0834FD70[0].animId, gUnk_0834FD70[0].variant, 0xC);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010380, gUnk_0834FD70[0].animId, gUnk_0834FD70[0].variant, 0xC);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     effectObject->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -3800,7 +3810,7 @@ void sub_080787F0(struct Kirby *kirby) {
     effectObject->roomId = kirby->base.roomId;
     if (!(kirby->base.flags & 1))
         effectObject->flags |= 1;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, gUnk_08350620[0].animId, gUnk_08350620[0].variant, 0xC);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, gUnk_08350620[0].animId, gUnk_08350620[0].variant, 0xC);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     effectObject->unk8 = ((struct Kirby *)effectObject->parent)->animationIndex;
     effectObject->unk3C = 0;
@@ -3970,8 +3980,8 @@ void sub_08078EFC(struct Kirby *kirby) {
     }
     sub_0803E2B0(&var->base, -0xC, -7, 0xC, 8);
     ObjectSetBounds(&var->base, -2, -2, 2, 2);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1A3, 0, 0xA);
-    var->base.sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1A3, 0, 0xA);
+    var->base.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     effectObject = CreateEffectObject(&kirby->base, 0, 0x293, 1);
     objBase = effectObject->parent;
     if (objBase) {
@@ -4263,7 +4273,7 @@ void sub_08079C28(struct Kirby *kirby) {
     objBase->unk68 |= 0x30000043;
     sub_0803E2B0(objBase, -8, -0xC, 0xC, 0xA);
     ObjectSetBounds(objBase, -8, -0xC, 0xC, 0xA);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010340, 0x2E, 0, 0xA);
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010340, 0x2E, 0, 0xA);
     objBase->sprite.palId = 0xE;
 }
 
@@ -5013,8 +5023,8 @@ void sub_0807BCE0(struct Kirby *kirby) {
     }
     sub_0803E2B0(&var->base, -6, -3, 6, 3);
     ObjectSetBounds(&var->base, -1, -1, 1, 1);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0xED, 0, 0xD);
-    var->base.sprite.palId = kirby->base.unk56;
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0xED, 0, 0xD);
+    var->base.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56);
     PlaySfx(&kirby->base, SE_LASER_ATTACK);
 }
 
@@ -5057,7 +5067,7 @@ void sub_0807BF2C(struct Kirby *kirby) {
     var->base.y += 0x200;
     sub_0803E2B0(&var->base, -6, -3, 6, 3);
     ObjectSetBounds(&var->base, -1, -1, 1, 1);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x199, 0, 0x17);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x199, 0, 0x17);
     PlaySfx(&kirby->base, SE_ABILITY_UFO_SMALL_LASER_ATTACK);
     if (var->base.x <= gCurLevelInfo[var->base.unk56].levelMaxPosition.x
         && var->base.x >= gCurLevelInfo[var->base.unk56].levelMinPosition.x
@@ -5218,7 +5228,7 @@ void sub_0807C48C(struct Kirby *kirby) {
     var->base.y += 0x200;
     sub_0803E2B0(&var->base, -0xC, -8, 0xC, 8);
     ObjectSetBounds(&var->base, -6, -4, 6, 4);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x19A, 0, 0xD);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x19A, 0, 0xD);
     sub_08092944(&var->base, 0, 0x2AF, 1);
     PlaySfx(&kirby->base, SE_ABILITY_UFO_MEDIUM_LASER_ATTACK);
 }
@@ -5263,7 +5273,7 @@ void sub_0807C6C0(struct Kirby *kirby) {
     var->base.y += 0x200;
     sub_0803E2B0(&var->base, -0x10, -0xE, 0xA, 0xE);
     ObjectSetBounds(&var->base, -6, -4, 6, 4);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x198, 0, 0xD);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x198, 0, 0xD);
     sub_08092944(&var->base, 0, 0x2AF, 0);
     PlaySfx(&kirby->base, SE_ABILITY_UFO_LARGE_LASER_ATTACK);
 }
@@ -5322,7 +5332,7 @@ void sub_0807C954(struct Kirby *kirby) {
         var->base.flags |= 1;
     sub_0803E2B0(&var->base, -6, -6, 6, 6);
     ObjectSetBounds(&var->base, -2, -2, 2, 2);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x195, 0, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x195, 0, 0xA);
     PlaySfx(&kirby->base, SE_ABILITY_UFO_BEAM_ATTACK);
 }
 
@@ -5383,7 +5393,7 @@ void sub_0807CC14(struct Kirby *kirby) {
     var->base.flags &= ~0x2000;
     if (kirby->base.flags & 1)
         var->base.flags |= 1;
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x196, 0, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x196, 0, 0xA);
 }
 
 bool8 sub_0807CD3C(struct Unk_080C4EDC *a1) {
@@ -5442,7 +5452,7 @@ void sub_0807CDFC(struct Kirby *kirby) {
     var->base.flags &= ~0x2000;
     if (kirby->base.flags & 1)
         var->base.flags |= 1;
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x197, 0, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x197, 0, 0xA);
 }
 
 bool8 sub_0807CF24(struct Unk_080C4EDC *a1) {
@@ -5508,7 +5518,7 @@ void sub_0807CFE4(struct Kirby *kirby) {
         var->base.flags |= 1;
     sub_0803E2B0(&var->base, -6, -6, 6, 6);
     ObjectSetBounds(&var->base, -2, -2, 2, 2);
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x103, 0, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x103, 0, 0xA);
     PlaySfx(&kirby->base, SE_ABILITY_BEAM_ATTACK);
 }
 
@@ -5568,7 +5578,7 @@ void sub_0807D2D0(struct Kirby *kirby) {
     var->base.header.unk1 = 5;
     if (kirby->base.flags & 1)
         var->base.flags |= 1;
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x102, 0, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x102, 0, 0xA);
 }
 
 bool8 sub_0807D3F0(struct Unk_080C4EDC *a1) {
@@ -5626,7 +5636,7 @@ void sub_0807D4B0(struct Kirby *kirby) {
     var->base.header.unk1 = 5;
     if (kirby->base.flags & 1)
         var->base.flags |= 1;
-    ObjectBaseInitSprite(&var->base, &var->base.sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x102, 1, 0xA);
+    ObjectBaseInitSprite(&var->base, &var->base.sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x102, 1, 0xA);
 }
 
 bool8 sub_0807D5D0(struct Unk_080C4EDC *a1) {
@@ -5696,24 +5706,24 @@ void sub_0807D690(struct Kirby *kirby) {
     } else {
         objBase->x += 0x1800;
     }
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010600, 0xD8, 0, FN(sub_080730E0), FN(sub_08073068));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14 = sub_080706A0(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0xD8, 0, FN(sub_080730E0), FN(sub_08073068));
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x2C0;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 2, FN(sub_0807D978), FN(sub_08073068));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14 = sub_080706A0(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0xD8, 2, FN(sub_0807D978), FN(sub_08073068));
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 3, FN(sub_080732E4), FN(sub_08073068));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14 = sub_080706A0(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0xD8, 3, FN(sub_080732E4), FN(sub_08073068));
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
-    obj14 = sub_080706A0(&kirby->base, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD8, 4, FN(sub_080733D8), FN(sub_08073068));
-    obj14->effectObject.sprite.palId = kirby->base.unk56 + 4;
+    obj14 = sub_080706A0(&kirby->base, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0xD8, 4, FN(sub_080733D8), FN(sub_08073068));
+    obj14->effectObject.sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     obj14->effectObject.sprite.unk14 = 0x280;
     sub_08073A74(kirby);
     obj14 = sub_080706A0(&kirby->base, 0, 0x293, 2, FN(sub_08073C98), NULL);
     obj14->effectObject.sprite.palId = 0xF;
     obj14->effectObject.sprite.unk14 = 0x280;
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0xD7, 0, 0xB);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0xD7, 0, 0xB);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 bool8 sub_0807D978(struct Object14 *obj14) {
@@ -6071,8 +6081,8 @@ void sub_0807E66C(struct Kirby *kirby) {
     objBase->flags |= kirby->base.flags & 1;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1FA, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1FA, 0, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 #ifdef NONMATCHING
     PlaySfx(&kirby->base, SE_ABILITY_FIGHTER_COMBO_1);
 #else
@@ -6156,8 +6166,8 @@ void sub_0807EA78(struct Kirby *kirby) {
     objBase->flags |= kirby->base.flags & 1;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1FA, 1, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1FA, 1, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_0807EBAC(struct Kirby *kirby) {
@@ -6184,8 +6194,8 @@ void sub_0807EBAC(struct Kirby *kirby) {
     objBase->counter = 1;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1FA, 2, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1FA, 2, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_0807ECE0(struct Kirby *kirby) {
@@ -6340,8 +6350,8 @@ void sub_0807F344(struct Kirby *kirby) {
     objBase->flags |= kirby->base.flags & 1;
     sub_0803E2B0(objBase, 1, -5, 0x10, 0xE);
     ObjectSetBounds(objBase, 5, 5, 0x10, 0xE);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1FD, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1FD, 0, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_0807F46C(void) {
@@ -6493,8 +6503,8 @@ void sub_0807F9EC(struct Kirby *kirby) {
     objBase->unk68 |= 0x30000043;
     objBase->unk68 |= 0x80000000;
     objBase->flags |= kirby->base.flags & 1;
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1FF, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1FF, 0, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 #ifdef NONMATCHING
     PlaySfx(&kirby->base, SE_ABILITY_FIGHTER_RUN_ATTACK);
 #else
@@ -6641,8 +6651,8 @@ void sub_08080004(struct Kirby *kirby) {
     objBase->xspeed = 0x620;
     if (objBase->flags & 1)
         objBase->xspeed = -objBase->xspeed;
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x9C, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x9C, 0, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08080130(void) {
@@ -6713,8 +6723,8 @@ void sub_080802CC(struct Kirby *kirby, u8 a2) {
         v4 = TRUE;
         objBase->counter = 1;
     }
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, animId, v4, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, animId, v4, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 #ifdef NONMATCHING
     PlaySfx(&kirby->base, SE_ABILITY_FIGHTER_COMBO_1);
 #else
@@ -6814,14 +6824,14 @@ void sub_080806FC(struct Kirby *kirby) {
         objBase->unk64 = 0x280;
         objBase->unk66 = 0x100;
         objBase->unk63 = 9;
-        ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x1DC, 1, 0xC);
+        ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x1DC, 1, 0xC);
     } else {
         objBase->unk64 = 0x280;
         objBase->unk66 = 0x280;
         objBase->unk63 = 0xA;
-        ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x287, 0, 0xC);
+        ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x287, 0, 0xC);
     }
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
@@ -6924,8 +6934,8 @@ void sub_08080E9C(struct Kirby *kirby) {
     objBase->flags |= 0x200;
     sub_0803E2B0(objBase, 0, 0, 0, 0);
     ObjectSetBounds(objBase, 0, 0, 0, 0);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x285, 0, 0xC);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x285, 0, 0xC);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     objBase->sprite.unk20[0].unk0 = -1;
 }
 
@@ -7119,8 +7129,8 @@ void sub_08081864(struct Kirby *kirby, s16 a2, u8 a3) {
         objBase->xspeed = -objBase->xspeed;
     sub_0803E2B0(objBase, -6, -3, 0, 3);
     ObjectSetBounds(objBase, -1, -1, 1, 1);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x21D, 0, 8);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x21D, 0, 8);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08081ABC(void) {
@@ -7481,8 +7491,8 @@ void sub_08082380(struct Kirby *kirby, u8 a2) {
         objBase->xspeed = -objBase->xspeed;
     if (a2 == 4 || a2 == 5)
         sub_0809D8C8(objBase);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x25A, 0, 0xD);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x25A, 0, 0xD);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_0808269C(void) {
@@ -7669,8 +7679,8 @@ void sub_08082B5C(struct Kirby *kirby) {
     }
     sub_0803E2B0(objBase, -0xA, -0x14, 8, 0x14);
     ObjectSetBounds(objBase, -8, -0xC, 8, 0xC);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x248, 0, 0xA);
-    objBase->sprite.palId = kirby->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x248, 0, 0xA);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08082CCC(void) {
@@ -7953,13 +7963,23 @@ void sub_08083494(void) {
                     u32 temp = objBase->unk56 != 0xFF ? EWRAM_MIRROR_U8(&gCurLevelInfo[objBase->unk56].unk65E) : 0xFF;
 
                     if (temp != 0xFF) {
-                        u8 idx;
+                        KATAM_COLL_IDX idx; /* PORT: port/wide.h */
                         u32 temp2 = temp * 0x40 + (objBase->header.kind - 1) * 0x20;
 
                         ++objBase; --objBase;
+#if KATAM_WIDE
+                        /* PORT: the wide build (port/wide.h): the list holds 32 per kind with no
+                         * bound on the console, and more Kirbys in a room overflow it.
+                         * PLACEHOLDER: past 31 the object skips collision this frame. */
+                        if (!PortWideCollRoom(gUnk_02022EB0[temp][objBase->header.kind - 1]))
+                            ;
+                        else
+#endif
+                        {
                         idx = gUnk_02022EB0[temp][objBase->header.kind - 1]++ + temp2;
                         gUnk_02022F50[idx] = objBase;
                         gUnk_02022F50[idx + 1] = NULL;
+                        }
                     }
                 }
             }
@@ -8011,8 +8031,8 @@ void sub_080838DC(struct Kirby *kirby, struct Kirby *kirby2) {
     objBase->unk68 |= 2;
     objBase->flags |= 0x2000;
     sub_0803E2B0(objBase, -0x28, -0x50, 0, 0x50);
-    ObjectBaseInitSprite(objBase, &objBase->sprite, (kirby2->base.unk56 << 0xB) + 0x6010400, 0x209, 0, 8);
-    objBase->sprite.palId = kirby2->base.unk56 + 4;
+    ObjectBaseInitSprite(objBase, &objBase->sprite, (KATAM_HW_SLOT(kirby2->base.unk56) << 0xB) + 0x6010400, 0x209, 0, 8);
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby2->base.unk56) + 4;
     objBase->unk74 = &kirby2->base;
     v8 = gCurLevelInfo[objBase->unk56].viewportPosition.x;
     objBase->x = v8 + 0x7800; // dead code
@@ -8032,7 +8052,7 @@ void sub_08083B04(void) {
     struct ObjectBase *tmp = TaskGetStructPtr(gCurTask), *objBase = tmp;
     struct Kirby *kirby2 = (struct Kirby *)objBase->unk74, *kirby = objBase->parent;
 
-    objBase->sprite.palId = kirby2->base.unk56 + 4;
+    objBase->sprite.palId = KATAM_HW_SLOT(kirby2->base.unk56) + 4;
     if (kirby2->ability != KIRBY_ABILITY_MAGIC) {
         CreateEffectObject(objBase, 0, 0x28E, 0);
         objBase->roomId = 0xFFFF;
@@ -8831,7 +8851,7 @@ struct Unk_08088234 {
 void sub_080859B4(void) {
     struct Unk_08088234 *unk = TaskGetStructPtr(gCurTask);
 
-    if (!(gUnk_03000510.unk4 & ((1 << unk->unk4) | 0x10))) { // TODO: we can probably use Macro_0810B1F4 here as long as unk4 is named correctly
+    if (!(gUnk_03000510.unk4 & ((1 << unk->unk4) | FREEZE_ALL))) { // TODO: we can probably use Macro_0810B1F4 here as long as unk4 is named correctly
         u32 *ptr = GetStateSlot(STATE_SLOT_ROOM, unk->unk0, EWRAM_MIRROR_U8(&gCurLevelInfo[unk->unk4].unk65E));
 
         if (*ptr != unk->unk2)
@@ -9199,7 +9219,7 @@ struct Object6 *sub_0808671C(struct Object *obj) {
     obj6->unk4 = obj;
     obj6->unk2 = 0xB;
     obj6->unk0 = 0;
-    unk = CreateLowPriorityRoomPaletteEffect(5, obj->base.roomId);
+    unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(5), obj->base.roomId);
     unk->unk0 = 2;
     unk->unkA = 0x100;
     unk->unk3 = 5;
@@ -9211,7 +9231,7 @@ struct Object6 *sub_0808671C(struct Object *obj) {
 }
 
 void sub_080867A0(struct Object6 *obj6) {
-    struct PaletteEffect *unk = CreateLowPriorityRoomPaletteEffect(5, obj6->unk4->base.roomId);
+    struct PaletteEffect *unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(5), obj6->unk4->base.roomId);
 
     unk->unk0 = 2;
     unk->unkA = -0x100;
@@ -9253,7 +9273,7 @@ void sub_080868D4(struct Task *t) {
     struct PaletteEffect *unk;
 
     if (obj6->unk0 != 2) {
-        unk = CreateLowPriorityRoomPaletteEffect(5, obj->base.roomId);
+        unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(5), obj->base.roomId);
         unk->unk0 = 2;
         unk->unkA = -0x1000;
         unk->unkC = 0x1000;
@@ -9276,7 +9296,7 @@ struct Object6 *sub_08086938(struct Object *obj, u8 a2) {
     obj6->unk0 = 0;
     if (a2)
         t->dtor = FN(sub_08086BE0);
-    unk = CreateLowPriorityRoomPaletteEffect(6, obj->base.roomId);
+    unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(6), obj->base.roomId);
     unk->unk4 = 0xFF00;
     unk->unk6 = 0x3FFF;
     ret = sub_0803DF24(0x39A);
@@ -9302,7 +9322,7 @@ struct Object6 *sub_08086938(struct Object *obj, u8 a2) {
 }
 
 void sub_08086A28(struct Object6 *obj6, u8 a2) {
-    struct PaletteEffect *unk = CreateLowPriorityRoomPaletteEffect(6, obj6->unk4->base.roomId);
+    struct PaletteEffect *unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(6), obj6->unk4->base.roomId);
     u8 ret;
 
     unk->unk4 = 0xFF00;
@@ -9346,7 +9366,7 @@ void sub_08086B40(struct Task *t) {
     u8 ret;
 
     if (obj6->unk0 != 2) {
-        unk = CreateLowPriorityRoomPaletteEffect(6, obj->base.roomId);
+        unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(6), obj->base.roomId);
         unk->unk0 = 2;
         unk->unkA = -0x1000;
         unk->unkC = 0x1F00;
@@ -9370,7 +9390,7 @@ void sub_08086BE0(struct Task *t) {
     struct Object *obj = obj6->unk4;
 
     if (obj6->unk0 != 2) {
-        unk = CreateLowPriorityRoomPaletteEffect(6, obj->base.roomId);
+        unk = CreateLowPriorityRoomPaletteEffect(PAL_FX_GLOBAL(6), obj->base.roomId);
         unk->unk0 = 2;
         unk->unkA = -0x1000;
         unk->unkC = 0x1F00;
@@ -9653,7 +9673,7 @@ void sub_0808781C(void) {
                 v0 = gKirbys[j].base.unk56;
             }
         }
-        if (!(gUnk_03000510.unk4 & ((1 << v0) | 0x10))) {
+        if (!(gUnk_03000510.unk4 & ((1 << v0) | FREEZE_ALL))) {
             if (!unk->unk4) {
                 for (j = 0; j < gNumKirbys; ++j) {
                     u8 a, b;
@@ -9728,7 +9748,7 @@ void sub_08087B58(void) {
                 return;
         }
         // TODO: we can probably use Macro_0810B1F4 here as long as unk0 is named correctly
-        if (!(gUnk_03000510.unk4 & ((1 << unk->unk0) | 0x10)) && !--unk->unk4) {
+        if (!(gUnk_03000510.unk4 & ((1 << unk->unk0) | FREEZE_ALL)) && !--unk->unk4) {
             for (i = 0; i < gNumKirbys; ++i) {
                 if (gKirbys[i].base.roomId == unk->roomId) {
                     unk->unk0 = i;
@@ -10159,8 +10179,8 @@ void sub_08088AC8(struct Kirby *kirby) {
         effectObject->x += (gUnk_08350EA0[(Rand16() & 0xF) * 2] * 0x100);
     }
     effectObject->y -= gUnk_08350EA0[(Rand16() & 0xF) * 2 + 1] * 0x100;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010200, 0x14, 0, 0xA);
-    effectObject->sprite.palId = kirby->base.unk56;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200, 0x14, 0, 0xA);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56);
 }
 
 void sub_08088C0C(void) {
@@ -10989,7 +11009,7 @@ void sub_0808AF48(void) {
                     }
                 }
             }
-            if (gUnk_03000510.unk4 & ((1 << r3) | 0x10) && !(obj->flags & 0x2000)) {
+            if (gUnk_03000510.unk4 & ((1 << r3) | FREEZE_ALL) && !(obj->flags & 0x2000)) {
                 EffectObjectDisplaySprite(obj);
                 effectObject->objBase54 = numTiles;
                 return;
@@ -11087,7 +11107,7 @@ void sub_0808B360(void) {
                     }
                 }
             }
-            if (gUnk_03000510.unk4 & ((1 << r3) | 0x10) && !(obj->flags & 0x2000)) {
+            if (gUnk_03000510.unk4 & ((1 << r3) | FREEZE_ALL) && !(obj->flags & 0x2000)) {
                 EffectObjectDisplaySprite(obj);
                 effectObject->objBase54 = numTiles;
                 return;
@@ -11188,7 +11208,7 @@ void sub_0808B754(void) {
                     }
                 }
             }
-            if (gUnk_03000510.unk4 & ((1 << r3) | 0x10) && !(obj->flags & 0x2000)) {
+            if (gUnk_03000510.unk4 & ((1 << r3) | FREEZE_ALL) && !(obj->flags & 0x2000)) {
                 EffectObjectDisplaySprite(obj);
                 effectObject->objBase54 = numTiles;
                 return;
@@ -11295,7 +11315,7 @@ void sub_0808BB98(void) {
                     }
                 }
             }
-            if (gUnk_03000510.unk4 & ((1 << r3) | 0x10) && !(obj->flags & 0x2000)) {
+            if (gUnk_03000510.unk4 & ((1 << r3) | FREEZE_ALL) && !(obj->flags & 0x2000)) {
                 EffectObjectDisplaySprite(obj);
                 effectObject->objBase54 = numTiles;
                 return;
@@ -11443,7 +11463,7 @@ void sub_0808C538(void) {
                     }
                 }
             }
-            if (gUnk_03000510.unk4 & ((1 << r3) | 0x10) && !(obj->flags & 0x2000)) {
+            if (gUnk_03000510.unk4 & ((1 << r3) | FREEZE_ALL) && !(obj->flags & 0x2000)) {
                 EffectObjectDisplaySprite(obj);
                 return;
             }
@@ -12361,7 +12381,7 @@ struct EffectObject *sub_0808EDB8(struct Kirby *kirby) {
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010600 + (kirby->base.unk56 << 0xB), 0x2DE, 0, kirby->base.sprite.unk14 >> 6);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010600 + (KATAM_HW_SLOT(kirby->base.unk56) << 0xB), 0x2DE, 0, kirby->base.sprite.unk14 >> 6);
     PlaySfx(&kirby->base, SE_KIRBY_STAR_DESTROY);
     return effectObject;
 }
@@ -12421,7 +12441,7 @@ struct EffectObject *sub_0808F0E8(struct Kirby *kirby) {
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010600 + (kirby->base.unk56 << 0xB), 0x117, 0, 0xC);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010600 + (KATAM_HW_SLOT(kirby->base.unk56) << 0xB), 0x117, 0, 0xC);
     effectObject->sprite.palId = kirby->base.sprite.palId;
     return effectObject;
 }
@@ -12514,7 +12534,7 @@ void sub_0808F774(struct Kirby *kirby) {
     effectObject->y += ((Rand16() & 7) - 0xB) * 0x100;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010400 + (kirby->base.unk56 << 0xB),
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6010400 + (KATAM_HW_SLOT(kirby->base.unk56) << 0xB),
         0x118, 0, (kirby->base.sprite.unk14 >> 6) - 1);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
 }
@@ -12598,7 +12618,7 @@ void sub_0808FB44(struct Kirby *kirby) {
     effectObject->unk3E = 0x200;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x184, 6, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x184, 6, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     effectObject->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -12670,7 +12690,7 @@ void sub_0808FE0C(struct Kirby *kirby) {
     }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x184, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x184, 0, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     PlaySfx(&kirby->base, SE_ABILITY_SLEEP_SNORE);
 }
@@ -12745,7 +12765,7 @@ void sub_08090198(struct Kirby *kirby) {
     }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x184, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x184, 0, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     PlaySfx(&kirby->base, SE_ABILITY_SLEEP_SNORE);
 }
@@ -12822,7 +12842,7 @@ void sub_08090518(struct Kirby *kirby) {
     }
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x184, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x184, 0, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     PlaySfx(&kirby->base, SE_ABILITY_SLEEP_SNORE);
 }
@@ -13070,7 +13090,7 @@ void sub_08090F68(struct Kirby *kirby) {
     effectObject->y -= 0x300;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010200, 0x129, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200, 0x129, 0, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId;
     effectObject->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -13158,7 +13178,7 @@ void sub_08091258(struct Kirby *kirby) {
         effectObject->flags |= 0x4000;
         EffectObjectInitSprite(effectObject, &effectObject->sprite, 0x6012000, 0x2BD, 0, 0xA);
     } else {
-        EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x129, 1, 0xA);
+        EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x129, 1, 0xA);
         effectObject->sprite.palId = kirby->base.sprite.palId + 4;
     }
 }
@@ -13344,8 +13364,8 @@ void sub_08091B5C(struct Kirby *kirby) {
         effectObject->x = (Rand16() & 0xF) * 0x100 + effectObject->x; // why not +=?
         effectObject->y -= (Rand16() & 7) * 0x100;
     }
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x166, 0, 0xA);
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x166, 0, 0xA);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08091C7C(void) {
@@ -13426,8 +13446,8 @@ void sub_08091F38(struct Kirby *kirby) {
         effectObject->x = (Rand16() & 7) * 0x100 + effectObject->x; // why not +=?
         effectObject->y += (0xC - (Rand16() & 0xF)) * 0x100;
     }
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010480, 0x166, 1, 0xA);
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010480, 0x166, 1, 0xA);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_080920A0(void) {
@@ -13502,7 +13522,7 @@ void sub_08092380(struct Kirby *kirby) {
     effectObject->y += (4 - (Rand16() & 7)) * 0x100;
     effectObject->unk3C = -0x180;
     effectObject->unk3E = 0x180;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x166, 2, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x166, 2, 0xA);
 }
 
 void sub_08092474(struct Kirby *kirby) {
@@ -13519,7 +13539,7 @@ void sub_08092474(struct Kirby *kirby) {
     effectObject->y += (4 - (Rand16() & 7)) * 0x100;
     effectObject->unk3C = 0x180;
     effectObject->unk3E = 0x180;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010680, 0x166, 3, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010680, 0x166, 3, 0xA);
 }
 
 void sub_08092568(struct Kirby *kirby) {
@@ -13536,7 +13556,7 @@ void sub_08092568(struct Kirby *kirby) {
     effectObject->y += (4 - (Rand16() & 7)) * 0x100;
     effectObject->unk3C = -0x180;
     effectObject->unk3E = -0x180;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010700, 0x166, 4, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010700, 0x166, 4, 0xA);
 }
 
 void sub_08092654(struct Kirby *kirby) {
@@ -13553,7 +13573,7 @@ void sub_08092654(struct Kirby *kirby) {
     effectObject->y += (4 - (Rand16() & 7)) * 0x100;
     effectObject->unk3C = 0x180;
     effectObject->unk3E = -0x180;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010780, 0x166, 5, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010780, 0x166, 5, 0xA);
 }
 
 void sub_08092748(void) {
@@ -13774,7 +13794,7 @@ void sub_08092F44(struct Kirby *kirby, u8 a2) {
     } else {
         effectObject->x += 0x2800;
     }
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0xC8, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0xC8, 0, 0xA);
 }
 
 void sub_08093044(void) {
@@ -14020,8 +14040,8 @@ void sub_08093918(struct Kirby *kirby, u8 a2) {
         }
     }
     effectObject->y += 0x800;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010600, 0x1D5, 0, 0xA);
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600, 0x1D5, 0, 0xA);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08093A4C(void) {
@@ -14194,8 +14214,8 @@ void sub_08094124(struct Kirby *kirby) {
     } else {
         effectObject->x += 0x1300;
     }
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x205, 0, 0x1C);
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x205, 0, 0x1C);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_080941F0(void) {
@@ -14629,7 +14649,7 @@ void sub_08095714(struct Kirby *kirby) {
         effectObject->flags |= 1;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010200, 0x220, kirby->base.sprite.variant + 8, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200, 0x220, kirby->base.sprite.variant + 8, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId;
     effectObject->sprite.unk14 = kirby->base.sprite.unk14;
 }
@@ -14692,7 +14712,7 @@ void sub_080959F4(struct Kirby *kirby) {
         effectObject->flags |= 1;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010200,
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200,
         gUnk_0834D484[5].animId, gUnk_0834D484[5].variant, (kirby->base.sprite.unk14 >> 6) - 1);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
 }
@@ -14776,7 +14796,7 @@ void sub_08095F68(struct Kirby *kirby) {
         effectObject->flags |= 1;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x21C, 0, 0xA);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x21C, 0, 0xA);
     effectObject->sprite.palId = kirby->base.sprite.palId + 4;
 }
 
@@ -14858,8 +14878,8 @@ void sub_08096464(struct ObjectBase *objBase, s8 a2, s8 a3) {
     effectObject->y += a3 * 0x100;
     if (Macro_0810B1F4(objBase))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (objBase->unk56 << 0xB) + 0x6010600, 0x25B, 0, 0xA);
-    effectObject->sprite.palId = objBase->unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(objBase->unk56) << 0xB) + 0x6010600, 0x25B, 0, 0xA);
+    effectObject->sprite.palId = KATAM_HW_SLOT(objBase->unk56) + 4;
 }
 
 void sub_0809656C(void) {
@@ -14868,7 +14888,7 @@ void sub_0809656C(void) {
     struct Kirby *kirby = effectObject->parent, *kirby2, *kirby3;
 
     effectObject->roomId = kirby->base.roomId;
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     if (kirby->base.header.kind == 0) {
         if (kirby->ability != KIRBY_ABILITY_BOMB || kirby->animationIndex == 0x5A) {
             effectObject->flags |= 0x1000;
@@ -14934,7 +14954,7 @@ void sub_080967B8(struct Kirby *kirby) {
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
     effectObject->flags |= 0x4000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010200, 0x233, 0, 0x1C);
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010200, 0x233, 0, 0x1C);
     effectObject->sprite.palId = kirby->base.sprite.palId;
 }
 
@@ -14973,7 +14993,7 @@ void sub_08096898(void) {
             if (effectObject->header.unk1 == 0xF) {
                 struct PaletteEffect *v13;
 
-                v13 = CreateRoomPaletteEffect(4, kirby->base.roomId);
+                v13 = CreateRoomPaletteEffect(PAL_FX_GLOBAL(4), kirby->base.roomId);
                 v13->unk0 = 2;
                 v13->unkA = 0x180;
                 v13->unk4 = 0x7F00;
@@ -15017,8 +15037,8 @@ void sub_08096AC4(struct Kirby *kirby, u8 a2) {
     effectObject->unk3E = -0x100;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x208, a2, 8);
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x208, a2, 8);
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
 }
 
 void sub_08096C28(void) {
@@ -15026,7 +15046,7 @@ void sub_08096C28(void) {
     struct Kirby *kirby = effectObject->parent, *kirby2;
 
     effectObject->roomId = kirby->base.roomId;
-    effectObject->sprite.palId = kirby->base.unk56 + 4;
+    effectObject->sprite.palId = KATAM_HW_SLOT(kirby->base.unk56) + 4;
     if (effectObject->flags & 0x1000)
         TaskDestroy(gCurTask);
     else {
@@ -15083,20 +15103,20 @@ void sub_08096E24(struct Kirby *kirby, u8 a2) {
     effectObject->roomId = kirby->base.roomId;
     if (Macro_0810B1F4(&kirby->base))
         effectObject->flags |= 0x2000;
-    EffectObjectInitSprite(effectObject, &effectObject->sprite, (kirby->base.unk56 << 0xB) + 0x6010400, 0x208, 6, v4);
-    effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010480;
+    EffectObjectInitSprite(effectObject, &effectObject->sprite, (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010400, 0x208, 6, v4);
+    effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010480;
     effectObject->sprite.variant = 9;
     sub_08155128(&effectObject->sprite);
-    effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010500;
+    effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010500;
     effectObject->sprite.variant = 7;
     sub_08155128(&effectObject->sprite);
-    effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010580;
+    effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010580;
     effectObject->sprite.variant = 8;
     sub_08155128(&effectObject->sprite);
-    effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010600;
+    effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010600;
     effectObject->sprite.variant = 0xA;
     sub_08155128(&effectObject->sprite);
-    effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010680;
+    effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010680;
     effectObject->sprite.variant = 0xB;
     sub_08155128(&effectObject->sprite);
     effectObject->unk3C = 0x140;
@@ -15136,9 +15156,9 @@ void sub_08096F80(void) {
                 && (v6 >= 0x2F0 && v6 < 0x310))
                 PlaySfx(&kirby->base, SE_MAIN_MENU_CURSOR);
             if (v6 >= 0x2E0 && v6 < 0x320)
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010680;
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010680;
             else
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + ({(gUnk_0835100A[effectObject->unk8][i] << 7) + 0x6010400;});
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + ({(gUnk_0835100A[effectObject->unk8][i] << 7) + 0x6010400;});
             if (!(effectObject->flags & 0x400) && gKirbys[gLocalPlayerId].base.roomId == effectObject->roomId) {
                 effectObject->sprite.x += gUnk_0203AD18[0];
                 effectObject->sprite.y += gUnk_0203AD18[1];
@@ -15185,9 +15205,9 @@ void sub_0809729C(void) {
                     PlaySfx(&kirby->base, SE_MAIN_MENU_CURSOR);
             }
             if (v6 >= 0x2E0 && v6 < 0x320)
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010680;
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010680;
             else
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + ({(gUnk_0835100A[effectObject->unk8][i] << 7) + 0x6010400;});
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + ({(gUnk_0835100A[effectObject->unk8][i] << 7) + 0x6010400;});
             if (!(effectObject->flags & 0x400) && gKirbys[gLocalPlayerId].base.roomId == effectObject->roomId) {
                 effectObject->sprite.x += gUnk_0203AD18[0];
                 effectObject->sprite.y += gUnk_0203AD18[1];
@@ -15224,9 +15244,9 @@ void sub_08097668(void) {
             effectObject->sprite.x = ((effectObject->x + a * 8) >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.x >> 8);
             effectObject->sprite.y = ((effectObject->y + b * 8) >> 8) - (gCurLevelInfo[gLocalPlayerId].viewportPosition.y >> 8);
             if (effectObject->unk4 & 2)
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + 0x6010680;
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + 0x6010680;
             else
-                effectObject->sprite.tilesVram = (kirby->base.unk56 << 0xB) + ({(kirby->unkD9 << 7) + 0x6010400;});
+                effectObject->sprite.tilesVram = (KATAM_HW_SLOT(kirby->base.unk56) << 0xB) + ({(kirby->unkD9 << 7) + 0x6010400;});
             if (!(effectObject->flags & 0x400) && gKirbys[gLocalPlayerId].base.roomId == effectObject->roomId) {
                 effectObject->sprite.x += gUnk_0203AD18[0];
                 effectObject->sprite.y += gUnk_0203AD18[1];

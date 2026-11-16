@@ -2725,7 +2725,7 @@ static inline const struct AreaMapRoomInfo* AreaMapGetRoomInfo(u16 roomId) {
  */
 static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
     u32 playerId;
-    for (playerId = 0; playerId < gNumKirbys; playerId++) {
+    for (playerId = 0; playerId < KATAM_HUD_KIRBYS; playerId++) { /* PORT: port/wide.h */
         const struct AreaMapRoomInfo* roomInfo;
         u16 roomId = gCurLevelInfo[playerId].currentRoom;
         if (gUnk_08D6CD0C[roomId]->unk46 == 9 || gUnk_08D6CD0C[roomId]->unk46 == 10) {
@@ -2750,7 +2750,7 @@ static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
 static void AreaMapDrawKirbysInRoom(struct AreaMap* areamap) {
     u32 playerId;
     struct AreaMapCamera* cameraBg2 = &areamap->cameraBg2;
-    for (playerId = 0; playerId < gNumKirbys; playerId++) {
+    for (playerId = 0; playerId < KATAM_HUD_KIRBYS; playerId++) { /* PORT: port/wide.h */
         u8 xOffset, yOffset;  // offsets from room coordinates for 4 kirbys to be drawn without overlap in one room
         struct AreaMapSprite* kirby = areamap->kirbySprites + playerId;
         struct AreaMapSprite* abilityAccessory = areamap->abilityAccessories + playerId;
@@ -2763,13 +2763,13 @@ static void AreaMapDrawKirbysInRoom(struct AreaMap* areamap) {
         switch (areamap->roomInfos[playerId]->type) {
         case AREAMAP_ROOM_BIG:
         case AREAMAP_ROOM_STAR:
-            xOffset = sAreaMapBigRoomKirbyOffsets[playerId * 2];
-            yOffset = sAreaMapBigRoomKirbyOffsets[playerId * 2 + 1];
+            xOffset = sAreaMapBigRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2];
+            yOffset = sAreaMapBigRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2 + 1];
             break;
         case AREAMAP_ROOM_NORMAL:
         default:
-            xOffset = sAreaMapNormalRoomKirbyOffsets[playerId * 2];
-            yOffset = sAreaMapNormalRoomKirbyOffsets[playerId * 2 + 1];
+            xOffset = sAreaMapNormalRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2];
+            yOffset = sAreaMapNormalRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2 + 1];
             break;
         }
 
@@ -3151,7 +3151,7 @@ void CreateAreaMap(void) {
     areamap->cameraBg2.doZoom = 0;
 
     AreaMapBGInit(areamap);
-    for (id = 0; id < gNumKirbys; id++) {  // playerId
+    for (id = 0; id < KATAM_HUD_KIRBYS; id++) {  // playerId; PORT: port/wide.h
         AreaMapKirbySpritesInit(&areamap->kirbySprites[id].sprite, &areamap->abilityAccessories[id].sprite, id);
     }
     AreaMapTextLabelInit(areamap);

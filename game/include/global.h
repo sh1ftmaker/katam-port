@@ -14,8 +14,14 @@ extern "C" {
  * mirrors EWRAM every 256 KiB, so such a read lands back inside it; natively
  * the address is unmapped and faults, and in wasm it reads whatever the port
  * keeps there.  This reads what the console reads, on every host. */
+#if KATAM_WIDE
+/* The wide build (port/wide.h): the tables these reads index have moved, so
+ * the console's address is computed in the console's own layout. */
+#define EWRAM_MIRROR_U8(addr) (PortWideMirrorU8((uintptr_t)(addr)))
+#else
 #define EWRAM_MIRROR_U8(addr) \
     (*(const u8 *)(uintptr_t)(0x02000000u + (((uintptr_t)(addr) - 0x02000000u) & 0x3FFFFu)))
+#endif
 
 // Prevent cross-jump optimization.
 #define BLOCK_CROSS_JUMP /* PORT: asm barrier removed */

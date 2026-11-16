@@ -78,6 +78,14 @@ extern "C" {
  * overlapping regions at all.
  * ------------------------------------------------------------------------ */
 
+/* How far past EWRAM the "overrun" mapping reaches: 512 KiB, or in the wide
+ * build (port/wide.h) the larger sim span plus the same 256 KiB beyond it. */
+#if KATAM_WIDE
+#define PORT_OVERRUN_SPAN (PORT_SIM_SPAN + 0x00040000u)
+#else
+#define PORT_OVERRUN_SPAN 0x00080000u
+#endif
+
 struct Region {
     uintptr_t base;
     size_t    size;
@@ -93,7 +101,7 @@ static const struct Region kMap[] = {
      * (zero) linear memory, and natively the page was unmapped and the read
      * faulted.  Mapping it makes the native build read what wasm reads, which
      * is what cross-platform determinism needs.  docs/DETERMINISM.md. */
-    { GBA_EWRAM_BASE + GBA_EWRAM_SIZE, 0x00080000u, "EWRAM overrun" },
+    { GBA_EWRAM_BASE + GBA_EWRAM_SIZE, PORT_OVERRUN_SPAN, "EWRAM overrun" },
     /* The port sim block (port/simblock.h) is the first quarter of that span:
      * listed by name so the check below writes and reads both of its ends.
      * Coalesce() folds it into the overrun mapping. */
@@ -191,7 +199,7 @@ static void OverrunTrap(int sig, siginfo_t *si, void *ucv)
     int n;
 
     (void)sig;
-    if (a >= TrapLo() && a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u) {
+    if (a >= TrapLo() && a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE + PORT_OVERRUN_SPAN) {
         n = snprintf(buf, sizeof buf, "[katam-port] overrun trap: %08lx from pc %p\n",
                      (unsigned long)a, (void *)uc->uc_mcontext.gregs[REG_RIP]);
         if (n > 0 && write(2, buf, (size_t)n) < 0) { /* nothing to do */ }
@@ -209,11 +217,11 @@ static void ArmOverrunTrap(void)
     sa.sa_sigaction = OverrunTrap;
     sa.sa_flags = SA_SIGINFO;
     sigaction(SIGSEGV, &sa, NULL);
-    mprotect((void *)TrapLo(), GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u - TrapLo(),
+    mprotect((void *)TrapLo(), GBA_EWRAM_BASE + GBA_EWRAM_SIZE + PORT_OVERRUN_SPAN - TrapLo(),
              PROT_NONE);
     PortLog("[katam-port] overrun trap armed over 0x%08X..0x%08X",
             (unsigned)TrapLo(),
-            (unsigned)(GBA_EWRAM_BASE + GBA_EWRAM_SIZE + 0x80000u));
+            (unsigned)(GBA_EWRAM_BASE + GBA_EWRAM_SIZE + PORT_OVERRUN_SPAN));
 }
 #endif
 

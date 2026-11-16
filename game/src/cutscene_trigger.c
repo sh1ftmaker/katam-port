@@ -1303,7 +1303,7 @@ static void sub_08022D78(struct CutsceneTrigger5 *trigger)
 {
     if (++trigger->unkB4 > 0x3B)
     {
-        trigger->unkC4 = CreateRoomPaletteEffect(5, trigger->obj.base.roomId);
+        trigger->unkC4 = CreateRoomPaletteEffect(PAL_FX_GLOBAL(5), trigger->obj.base.roomId);
         trigger->unkC4->unk8 |= 0x40;
         trigger->unkC4->unkA = 0x80;
         trigger->unkC4->unk4 = 0xFFFF;
@@ -1731,7 +1731,7 @@ static void sub_08023580(struct CutsceneTrigger1 *trigger)
 
 static void sub_08023594(struct CutsceneTrigger1 *trigger)
 {
-    CreatePaletteFadeToWhite(7)->unkA = 0x400;
+    CreatePaletteFadeToWhite(PAL_FX_GLOBAL(7))->unkA = 0x400;
     trigger->unkBC = 0;
     trigger->obj.unk78 = FN(sub_08023664);
 }
@@ -1801,7 +1801,7 @@ static void sub_080236CC(struct CutsceneTrigger1 *trigger)
 
 static void sub_080236EC(struct CutsceneTrigger1 *trigger)
 {
-    CreatePaletteFadeFromWhite(7)->unkA = 0xFF80;
+    CreatePaletteFadeFromWhite(PAL_FX_GLOBAL(7))->unkA = 0xFF80;
     trigger->unkBC = 0;
     trigger->obj.unk78 = FN(sub_08023714);
 }

@@ -136,6 +136,20 @@ static void QueuePaletteEffect(struct PaletteEffect *effect)
 
 static void CompactPaletteEffectQueue(void)
 {
+#if KATAM_KIRBYS > 4
+    /* PORT: the wide build's PAL_FX_SLOTS queue (port/wide.h): the same
+     * cascade as the unrolled original, from the second-last slot down. */
+    PTR32(struct PaletteEffect) *q = gPaletteEffectManager.unk80;
+    s32 p, j;
+
+    for (p = PAL_FX_SLOTS - 2; p >= 0; p--) {
+        if (q[p] == NULL) {
+            for (j = p; j < PAL_FX_SLOTS - 1; j++)
+                q[j] = q[j + 1];
+            q[PAL_FX_SLOTS - 1] = NULL;
+        }
+    }
+#else
     struct PaletteEffectManager *state = &gPaletteEffectManager;
 
     if (!state->unk80[0] && !state->unk80[1] && !state->unk80[2] && !state->unk80[3]
@@ -190,6 +204,7 @@ static void CompactPaletteEffectQueue(void)
         state->unk80[6] = state->unk80[7];
         state->unk80[7] = NULL;
     }
+#endif
 }
 
 static void UpdatePaletteEffects(void)
@@ -197,9 +212,17 @@ static void UpdatePaletteEffects(void)
     struct PaletteEffectManager *state = &gPaletteEffectManager;
     bool32 objRestored = FALSE;
     bool32 bgRestored = FALSE;
+#if KATAM_KIRBYS > 4
+    u16 flags = 0; /* PORT: the wide build's PAL_FX_SLOTS (port/wide.h) */
+    u8 i;
+
+    for (i = 0; i < PAL_FX_SLOTS; i++)
+        flags |= state->unk0[i].unk8;
+#else
     u16 flags = state->unk0[0].unk8 | state->unk0[1].unk8 | state->unk0[2].unk8 | state->unk0[3].unk8
         | state->unk0[4].unk8 | state->unk0[5].unk8 | state->unk0[6].unk8 | state->unk0[7].unk8;
     u8 i;
+#endif
 
     if (flags & 4) {
         for (i = 0; i < ARRAY_COUNT(state->unk80); i++) {
@@ -640,7 +663,11 @@ struct PaletteEffect *CreatePaletteFadeFromWhite(u8 slot)
         effect->unk8 = 6;
     }
     // TODO: Original UB: slots 4-7 read beyond the four-element gKirbys array.
+#if KATAM_WIDE
+    effect->unkE = PortWideKirbyRoomAt(slot); /* PORT: port/wide.h */
+#else
     effect->unkE = gKirbys[slot].base.roomId;
+#endif
     effect->unkA = -0x200;
     effect->unkC = 0x1F00;
     effect->unk1 = 0x1F;
@@ -674,7 +701,11 @@ struct PaletteEffect *CreatePaletteFadeToWhite(u8 slot)
         effect->unk8 = 0x4E;
     }
     // TODO: Original UB: slots 4-7 read beyond the four-element gKirbys array.
+#if KATAM_WIDE
+    effect->unkE = PortWideKirbyRoomAt(slot); /* PORT: port/wide.h */
+#else
     effect->unkE = gKirbys[slot].base.roomId;
+#endif
     effect->unkA = 0x200;
     effect->unkC = 0;
     effect->unk1 = 0;
@@ -704,7 +735,11 @@ struct PaletteEffect *CreateHiddenPaletteFadeToWhite(u8 slot)
     }
     effect->unk8 = 0x14;
     // TODO: Original UB: slots 4-7 read beyond the four-element gKirbys array.
+#if KATAM_WIDE
+    effect->unkE = PortWideKirbyRoomAt(slot); /* PORT: port/wide.h */
+#else
     effect->unkE = gKirbys[slot].base.roomId;
+#endif
     effect->unkA = 0x200;
     effect->unkC = 0;
     effect->unk1 = 0;
@@ -755,7 +790,11 @@ struct PaletteEffect *CreatePaletteDim(u8 slot)
         effect->unk8 = 0x4E;
     }
     // TODO: Original UB: slots 4-7 read beyond the four-element gKirbys array.
+#if KATAM_WIDE
+    effect->unkE = PortWideKirbyRoomAt(slot); /* PORT: port/wide.h */
+#else
     effect->unkE = gKirbys[slot].base.roomId;
+#endif
     effect->unkA = 0x100;
     effect->unkC = 0;
     effect->unk1 = 0;
@@ -789,7 +828,11 @@ struct PaletteEffect *CreatePaletteUndim(u8 slot)
         effect->unk8 = 6;
     }
     // TODO: Original UB: slots 4-7 read beyond the four-element gKirbys array.
+#if KATAM_WIDE
+    effect->unkE = PortWideKirbyRoomAt(slot); /* PORT: port/wide.h */
+#else
     effect->unkE = gKirbys[slot].base.roomId;
+#endif
     effect->unkA = -0x200;
     effect->unkC = 0xA00;
     effect->unk1 = 0xA;
