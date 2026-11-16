@@ -471,10 +471,11 @@ static int sKpEnabled = -1;
 static u32 sKpFrames, sKpPieces, sKpBad, sKpMaxOn, sKpMaxOnFrame, sKpOamPeak, sKpOamFull;
 static u32 sKpOnHist[17], sKpOnFirst[17], sKpOamDropped, sKpOamDropFrames;
 static u32 sKpSpreadMax, sKpSpreadFrame;    /* Kirbys on screen 24 px apart */
+static u32 sKpAbilMax, sKpAbilFrame;        /* Kirbys 4.. on screen with an ability */
 
 static void KirbyProbe(void)
 {
-    u32 i, on = 0, oam = 0, dropped = 0, spread = 0;
+    u32 i, on = 0, oam = 0, dropped = 0, spread = 0, abil = 0;
     u32 seen = 0;
     s32 ax[16], ay[16];
 
@@ -519,6 +520,8 @@ static void KirbyProbe(void)
             && p->s.x + bw > 0 && p->s.y + bh > 0) {
             u32 j;
             seen |= 1u << k;
+            if (k >= 4 && gKirbys[k].ability != 0)  /* KIRBY_ABILITY_NORMAL */
+                abil++;
             for (j = 0; j < spread; j++)
                 if (abs(ax[j] - p->ax) < 24 && abs(ay[j] - p->ay) < 24)
                     break;
@@ -550,6 +553,10 @@ static void KirbyProbe(void)
         sKpMaxOn = on;
         sKpMaxOnFrame = PortFrameNumber();
     }
+    if (abil > sKpAbilMax) {
+        sKpAbilMax = abil;
+        sKpAbilFrame = PortFrameNumber();
+    }
     if (spread > sKpSpreadMax) {
         sKpSpreadMax = spread;
         sKpSpreadFrame = PortFrameNumber();
@@ -572,8 +579,10 @@ void PortRlReportPopIn(void)
                 "(on %u frames)", (unsigned)sKpMaxOn, (unsigned)sKpMaxOnFrame,
                 (unsigned)sKpOamPeak, (unsigned)sKpOamFull, (unsigned)sKpOamDropped,
                 (unsigned)sKpOamDropFrames);
-        PortLog("[katam-port] kirby probe: most Kirbys on screen 24 px apart %u (frame %u)",
-                (unsigned)sKpSpreadMax, (unsigned)sKpSpreadFrame);
+        PortLog("[katam-port] kirby probe: most Kirbys on screen 24 px apart %u (frame %u); "
+                "most Kirbys 4.. on screen with an ability %u (frame %u)",
+                (unsigned)sKpSpreadMax, (unsigned)sKpSpreadFrame, (unsigned)sKpAbilMax,
+                (unsigned)sKpAbilFrame);
         for (i = 1; i <= 16; i++)
             if (sKpOnHist[i])
                 PortLog("[katam-port] kirby probe:   %2u on screen: %u frames, first at %u",

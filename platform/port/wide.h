@@ -58,11 +58,11 @@
 #define KATAM_ROOM_SLOTS KATAM_KIRBYS
 
 /* A Kirby's console hardware slot: OBJ palettes i and i+4 and the 2 KiB of
- * OBJ VRAM at 0x06010000 + (i << 11).  The console has four.  PLACEHOLDER in
- * the wide build: Kirby i uses slot i & 3, so Kirbys 4.. share the colours and
- * tile memory of Kirbys 0..3 (and do not overwrite the palettes past 15 or
- * the effect and enemy tiles past 0x06012000).  Real per-Kirby colours and
- * tiles are the renderer's job (ONE-WORLD-16.md, "presentation"). */
+ * OBJ VRAM at 0x06010000 + (i << 11).  The console has four.  The game no
+ * longer uses this: it was the wide build's first placeholder (Kirbys 4..
+ * sharing slot i & 3, frames and colours colliding on screen), replaced by
+ * KATAM_KIRBY_TILES / KATAM_KIRBY_PAL below, which give every Kirby memory
+ * of its own.  Kept for code on other branches that still spells it. */
 /* Palette effects (palette_effects.c): the console has eight slots, 0..3 one
  * per Kirby (door fades) and 4..7 for the screen.  The wide build has one per
  * Kirby and the same four screen slots after them; PAL_FX_GLOBAL(g) is the
