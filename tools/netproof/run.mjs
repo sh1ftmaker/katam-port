@@ -27,6 +27,11 @@
 // (tools/rooms/gates.mjs).  c.onHostFrame(host, f) / c.onGuestTick(g) are
 // its observers; sc.pad(dev, seat), when a scenario has it, gives the pads.
 // c.hostCards: the host's card changes, likewise.
+// c.presentChecks: every device builds the GPU renderer's list each presented
+// frame (no GPU needed) and res.present has its present checks
+// (platform/render/rl_build.c PortRlPresentStats): a frame built from another
+// screen player's commit, or from one not made for that frame, is a frame of
+// someone else's picture on screen.
 // c.pauseSlots: only players in slots below this press START (the others'
 // START is masked).  Default: no limit (players 5.. pause like 1..4 since the
 // pause screens and maps took them: port/wide.h KATAM_PAUSE_MENUS; before
@@ -75,6 +80,7 @@ export async function runSession(cfg) {
     const host = await createInstance({ modulePath: c.modulePath, rom: c.rom, name: 'host', menus: menus === 'boot' ? 1 : 0,
                                         audio: c.hostAudio || null, clock: () => hostClockF(), modulePre: withKirbys(c.hostModulePre || null) });
     if (c.hostPre) c.hostPre(host);
+    if (c.presentChecks) host.M._PortRlSetEnabled(1);
     host.M._PortLmpSetHumans(sc.localmp || 2);
     for (const e of sc.events) if (e.f < c.startFrame) {
         if (e.type === 2) host.M._PortInputLogScheduleView(e.f, e.a, e.b);
@@ -137,6 +143,7 @@ export async function runSession(cfg) {
                                         audio: (g.dev === 1 ? c.guestAudio : c.guestAudioN) || null, clock: () => sch.now * (1 + g.cfg.drift),
                                         modulePre: withKirbys(c.guestModulePre || null) });
         if (c.guestPre) c.guestPre(g.inst, g.dev);
+        if (c.presentChecks) g.inst.M._PortRlSetEnabled(1);
         if (!g.inst.M._PortLnStart(2, c.kfEvery, c.kfCount, c.guestFlags ?? (c.flags | F_HASH_EVERY)))
             throw new Error('guest PortLnStart failed (memory for keyframes?)');
         g.link = new Link(sch, c.seed * 1000003 + 17 + (g.dev - 1) * 7919 + g.gen * 104729, Object.assign({}, spec(g).link || c.link));
@@ -476,6 +483,12 @@ export async function runSession(cfg) {
     res.dumps = c.dumpAt !== null ? dumps : undefined;
     res.hostLogs = host.logs.filter((l) => /lmpnet|error|ERROR|fault|trap/i.test(l)).slice(-60);
     res.guestLogs = G[0] && G[0].inst ? G[0].inst.logs.filter((l) => /lmpnet|error|ERROR|fault|trap/i.test(l)).slice(-40) : [];
+    if (c.presentChecks) {
+        const ps = (inst) => { const p = inst.M._malloc(32); inst.M._PortRlPresentStats(p, 0);
+            const a = Array.from(inst.M.HEAPU32.subarray(p >> 2, (p >> 2) + 8)); inst.M._free(p);
+            return { builds: a[0], world: a[1], drops: a[2], foreign: a[3], stale: a[4], lastBad: a[5] }; };
+        res.present = { host: ps(host), guests: G.filter((g) => g.inst).map((g) => Object.assign({ name: g.name, images: g.inst.tel.read().imagesLoaded, canonRuns: g.inst.tel.read().canonRuns }, ps(g.inst))) };
+    }
     res._host = host; res._guest = G[0] ? G[0].inst : null;
     Object.defineProperty(res, '_G', { value: G, enumerable: false });   // tools/rooms/gates.mjs; never serialised
     return res;

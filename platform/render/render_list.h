@@ -368,6 +368,8 @@ void PortRlNoteCorrection(u32 frame);
 /* After PortRlPresentFrame: the local Kirby's top-left in the view (1/256
  * px) and the view's top-left in world coordinates (1/256 px); returns 0 if
  * Kirby was not found.  Diagnostics (KATAM_CAMLOG). */
+void PortRlPresentStats(u32 *out, int reset);   /* 8 words; rl_build.c sPs */
+void PortRlSetEnabled(int on);
 int PortRlPresentDiag(s32 *kirbyViewX, s32 *kirbyViewY, s32 *viewWorldX, s32 *viewWorldY);
 
 /* --- game-side hooks: write-only, see the header comment ----------------

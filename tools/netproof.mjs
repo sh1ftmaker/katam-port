@@ -576,7 +576,7 @@ async function main() {
         // together, and in free roam (rooms mode: each device's own game is
         // rebuilt from the canonical one -- a paint must be in both)
         for (const rooms of [false, true]) {
-        const r = await run(`R16 cards${rooms ? ' (free roam)' : ''}: names and colours, ${Math.max(3, DEVICES)} devices, joins, a drop and return, a leave, slot reuse @120ms`, { rooms,
+        const r = await run(`R16 cards${rooms ? ' (free roam)' : ''}: names and colours, ${Math.max(3, DEVICES)} devices, joins, a drop and return, a leave, slot reuse @120ms`, { rooms, presentChecks: true,
             link: HEADLINE, durationFrames: QUICK ? 4200 : 5200,
             hostCards: [[0, 0, '1,2,0,0,0,HOSTY'], [0, 1, '2,0,200,80,90,COUCH']],
             hostSeats: [[B + 3000, 1, 1]],
@@ -605,11 +605,27 @@ async function main() {
         const bob = s2.find((v) => v !== '0');
         const s2ok = !!bob && s2.join(' ').endsWith(`${bob} 0 ${bob} 0 ${p[2]}`) && p[2] !== bob;
         const okRun = r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected * 0.9 && r.host.tel.hostRewinds === 0;
-        verdicts.push(okRun && sameAll && paintsOk && namesOk && s2ok && feetOk);
+        // every presented frame on every device is its own picture: built
+        // from its own screen player's commit for that frame (free roam:
+        // a guest's canonical shadow runs every 16 frames through the same
+        // game code -- its sprites and camera once reached the next present:
+        // a blink of player 1's screen, 240 wide).  A commit not made for its
+        // frame is allowed once per image loaded (the join, a repair, a
+        // return), and another screen's once per image after the join: an
+        // image that jumps a guest forward is presented as loaded -- the
+        // host's state, player 1's screen -- until its next latch re-views it
+        // (lmpnet.c ImageLoad, CanonAdopt).  A cut either way.
+        const pr = r.present || { host: null, guests: [] };
+        const prOk = !!pr.host && pr.guests.length > 0 && [pr.host, ...pr.guests].every((x) => x.builds > 0
+                && x.foreign <= Math.max(0, (x.images || 0) - 1) && x.stale <= (x.images || 0))
+            && (!rooms || pr.guests.every((x) => x.canonRuns > 0));
+        verdicts.push(okRun && sameAll && paintsOk && namesOk && s2ok && feetOk && prOk);
         briefs.push(Object.assign(brief(r), { trace: r.cardTrace, cards: r.cards }));
         texts.push(`${rooms ? 'free roam' : 'together'}: ${r.compare.equal}/${r.compare.compared} frames identical; at the end every device has paints ${p.join(' ')} and names ${r.cards.host.names.join(' ')}, feet ${r.cards.host.feet.join(' ')} (${feetOk ? 'ALICE\'s parts' : 'NOT ALICE\'s parts'}) (${sameAll ? 'the same on all ' + views.length : 'NOT the same on every device'}); ` +
                   `slot 2's colour over time ${s2.join(' -> ')} (${s2ok ? 'BOB, the game\'s own while gone, BOB, the game\'s own after the leave, then the host\'s second player' : 'NOT as expected'}); ` +
-                  `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}`);
+                  `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}; ` +
+                  `presented frames from another screen's or frame's commit ${[pr.host, ...pr.guests].filter(Boolean).map((x) => `${x.foreign}/${x.stale}`).join(' ')} of ${pr.host ? pr.host.builds : 0}` +
+                  `${rooms ? `, shadow runs ${pr.guests.map((x) => x.canonRuns).join('/')}` : ''} (${prOk ? 'every device its own picture' : 'NOT every device its own picture'})`);
         }
         report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };
     }

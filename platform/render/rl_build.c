@@ -28,6 +28,7 @@
 
 #include "port/port.h"
 #include "port/backend.h"
+#include "port/lmpnet.h"
 #include "gba/gba.h"
 #include "global.h"
 #include "main.h"
@@ -44,6 +45,23 @@ extern "C" {
 #endif
 
 int gPortRlEnabled;
+
+/* The hooks record this device's picture, and nothing else.  An online
+ * guest in free roam runs a second state every 16 frames or so -- the
+ * canonical shadow (platform/lmpnet.c CanonStart), the session as the host
+ * shows it -- through the same game code, at a frame top, between the live
+ * frame's logic and its UpdateScreen.  Its DisplaySprite and DrawToOamBuffer
+ * calls are not this screen's: committed, they replaced the live frame's
+ * camera, layers and sprites, and the frame presented right after the swap
+ * back was built from them -- player 1's camera, the room records not
+ * matching the live display (so native 240-wide framing, black bars beside
+ * it), the host's Kirby poses and HUD.  So while the shadow runs the hooks
+ * do nothing: the live frame's emitted sprites wait, untouched, for its own
+ * commit. */
+static int Recording(void)
+{
+    return gPortRlEnabled && !PortLnCanonRunning();
+}
 
 #define RL_MAX_SHAKE 16          /* px; see sScreen.shakeX                     */
 
@@ -85,7 +103,20 @@ static struct {
      * anchor is that position's pixel, rounded either way the game does it
      * -- (x >> 8) - (camera >> 8) for objects, (x - camera) >> 8 for Kirby. */
     u8 kirbyOk[4][3];
+    /* Whose screen and which frame this commit is (the present checks). */
+    u8 player;
+    u32 frame;
 } sScreen;
+static u32 sSprFrame;            /* PortFrameNumber() at the sprite commit    */
+
+/* --- present checks: what the presented frame was built from ---------------
+ * Counted at every PortRlBuildFrame; read with PortRlPresentStats.  The
+ * frame shown must be built from this device's own last commit: its own
+ * screen player's, from the UpdateScreen just before this present (which
+ * the frame counter already numbers as this frame). */
+enum { PS_BUILDS, PS_WORLD, PS_DROPS, PS_FOREIGN, PS_STALE, PS_LAST_BAD, PS_N = 8 };
+static u32 sPs[PS_N];
+static int sPsPrevWorld;
 
 /* --- sprite emission ----------------------------------------------------- */
 
@@ -211,7 +242,7 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
     const u16 *oamData;
     int uploadDone, hud;
 
-    if (!gPortRlEnabled || sprite->unk4 == -1)
+    if (!Recording() || sprite->unk4 == -1)
         return;
     hud = IsHudSprite(sprite);
 
@@ -610,7 +641,7 @@ void PortRlCommitSprites(void)
     u32 counts[33];
     u32 i;
 
-    if (!gPortRlEnabled)
+    if (!Recording())
         return;
     if (sPopEnabled < 0)
         sPopEnabled = getenv("KATAM_RL_POPSTAT") != NULL;
@@ -633,6 +664,7 @@ void PortRlCommitSprites(void)
     sNumEmit = 0;
     sNumEmitPatch = 0;
     sCommitSerial++;
+    sSprFrame = PortFrameNumber();
 }
 
 /* --- screen commit ------------------------------------------------------- */
@@ -642,11 +674,13 @@ void PortRlCommitScreen(void)
     struct LevelInfo *li;
     int i;
 
-    if (!gPortRlEnabled)
+    if (!Recording())
         return;
     li = &gCurLevelInfo[gLocalPlayerId];
     sScreen.valid = (li->currentRoom != 0xFFFF);
     sScreen.serial++;
+    sScreen.player = gLocalPlayerId;
+    sScreen.frame = PortFrameNumber();
     if (!sScreen.valid)
         return;
     sScreen.room = li->currentRoom;
@@ -1723,7 +1757,36 @@ const RlFrame *PortRlBuildFrame(void)
     f->light = NULL;
     if (gPortLighting)
         PortLightAttach(f, fgRec >= 0 ? (int)(sScreen.bg[1].flags & 3) : -1);
+
+    sPs[PS_BUILDS]++;
+    if (f->world)
+        sPs[PS_WORLD]++;
+    else if (sPsPrevWorld)
+        sPs[PS_DROPS]++;
+    sPsPrevWorld = f->world;
+    if (sScreen.valid && sScreen.player != gLocalPlayerId)
+        sPs[PS_FOREIGN]++, sPs[PS_LAST_BAD] = PortFrameNumber();
+    if (sScreen.frame != PortFrameNumber() || sSprFrame != PortFrameNumber())
+        sPs[PS_STALE]++, sPs[PS_LAST_BAD] = PortFrameNumber();
     return f;
+}
+
+/* The present checks (see sPs): builds, builds of the world, world -> native
+ * framing drops, built from another screen player's commit, built from a
+ * commit that is not this frame's, and the last frame either of those two
+ * happened.  reset: zero them after. */
+void PortRlPresentStats(u32 *out, int reset)
+{
+    memcpy(out, sPs, sizeof sPs);
+    if (reset)
+        memset(sPs, 0, sizeof sPs);
+}
+
+/* Headless harnesses (no GPU): build the render list anyway, so the present
+ * checks run. */
+void PortRlSetEnabled(int on)
+{
+    gPortRlEnabled = on != 0;
 }
 
 const RlFrame *PortRlCurrentFrame(void)
