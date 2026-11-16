@@ -88,6 +88,11 @@ FORCE_INCLUDE := -include port/prelude.h -include port/ram_symbols.h -include po
 ifneq ($(KATAM_MAX_KIRBYS),)
 DEFINES += -DKATAM_MAX_KIRBYS=$(KATAM_MAX_KIRBYS)
 FORCE_INCLUDE += -include port/wide_symbols.h
+# The wide build's online guest holds 16 keyframes of ~940 KiB, the free-roam
+# shadow (2 x ~1 MiB), images and the pause overlay's fork (2 x ~940 KiB):
+# measured 2.2 MiB left of 192 MiB before the overlay (tools/netproof/
+# pause_test.mjs `memory`).  8 MiB more (200 MiB, 4% of the reservation).
+INITIAL_MEMORY := 209715200
 endif
 
 # -Wno-everything is right for the decompilation itself: it is machine-shaped C

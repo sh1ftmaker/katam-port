@@ -156,7 +156,8 @@ typedef u16 LnSeatMask;
  * frames run, edits carried out from it, the swap's cost, and the STARTs in
  * play kept out of the session (sealed: host; this device's pads: all). */
 #define LN_TELEMETRY_OVL(X) X(ovlState) X(ovlSeat) X(ovlOpens) X(ovlCloses) X(ovlRefused) X(ovlFrames) \
-    X(ovlEdits) X(ovlSwapUsSum) X(ovlSwapUsMax) X(ovlStartsStripped) X(ovlStartsLocal)
+    X(ovlEdits) X(ovlSwapUsSum) X(ovlSwapUsMax) X(ovlStartsStripped) X(ovlStartsLocal) \
+    X(ovlHeapFreeKiB) X(ovlNoMemory)
 /* The wide build: slots 4..7's owners and the guest devices past 3 (slots 8..
  * are not in the telemetry). */
 #if KATAM_WIDE
@@ -346,6 +347,10 @@ static int RoomsGuest(void);
  * number in memory is C's. */
 static u32 NowF(void) { return sCanonRun ? sCanonP : PortFrameNumber(); }
 static void RoomsDevices(void);
+static void *LnAlloc(size_t n, const char *what);
+static void OvlAlloc(void);
+static int OvlBuffers(void);
+static u32 HeapFree(void);
 static void RoomsSetView(void);
 static void CanonAdopt(void);
 /* The pause overlay (below, "the pause overlay"): */
@@ -432,7 +437,7 @@ static void HashState(u32 f)
         static u8 *x;
         u32 xn = PortLnExtrasSize();
 
-        if (x == NULL) x = (u8 *)malloc(xn + NSL);
+        if (x == NULL) x = (u8 *)LnAlloc(xn + NSL, "the hash's host state");
         if (x != NULL) {
             PortLnExtrasSave(x);
             memcpy(x + xn, sOwn, NSL);
@@ -720,8 +725,10 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     sKfCount = kfCount;
     sSnapBytes = PortRbSnapshotBytes();
     sKfBytes = sSnapBytes + (KfSram() ? GBA_SRAM_SIZE : 0) + PortLnExtrasSize() + KF_OWN_BYTES;
-    sTl = (struct Ent *)calloc(TLN, sizeof *sTl);
-    sRgn = (u32 (*)[NRGN][2])calloc(TLN, sizeof *sRgn);
+    sTl = (struct Ent *)LnAlloc((size_t)TLN * sizeof *sTl, "the timeline");
+    if (sTl != NULL) memset(sTl, 0, (size_t)TLN * sizeof *sTl);
+    sRgn = (u32 (*)[NRGN][2])LnAlloc((size_t)TLN * sizeof *sRgn, "the hashes' regions");
+    if (sRgn != NULL) memset(sRgn, 0, (size_t)TLN * sizeof *sRgn);
     if (sTl == NULL || sRgn == NULL) {
         PortError("[katam-port] lmpnet: no memory for the timeline");
         PortLnStop();
@@ -734,7 +741,7 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
             sTl[i].frame = NONE;
     }
     if (role == PORT_LN_GUEST || (flags & PORT_LN_F_HOST_KEYS)) {
-        sKf = (u8 *)malloc((size_t)sKfBytes * (size_t)kfCount);
+        sKf = (u8 *)LnAlloc((size_t)sKfBytes * (size_t)kfCount, "the keyframes");
         sKfFrame = (u32 *)calloc((size_t)kfCount, sizeof *sKfFrame);
         sKfValid = (u8 *)calloc((size_t)kfCount, 1);
         if (sKf == NULL || sKfFrame == NULL || sKfValid == NULL) {
@@ -756,6 +763,10 @@ int PortLnStart(int role, int kfEvery, int kfCount, int flags)
     T.repairFrame = NONE;
     T.dumpFrame = NONE;
     T.ovlSeat = 0xFFFFFFFFu;
+    OvlAlloc();
+    T.ovlHeapFreeKiB = HeapFree() == 0xFFFFFFFFu ? 0xFFFFFFFFu : HeapFree() >> 10;
+    PortLog("[katam-port] lmpnet: pause overlay %s; heap free after the session's buffers: %u KiB",
+            OvlBuffers() ? "ready" : "OFF (no memory)", (unsigned)T.ovlHeapFreeKiB);
     sFloor = f;
     sSealedUpTo = f;
     sVerify = f;
@@ -1779,7 +1790,7 @@ u8 *PortLnImageInBuffer(void)
     if (!gPortLnOn)
         return NULL;
     if (sImgIn == NULL)
-        sImgIn = (u8 *)malloc(ImageBytes());
+        sImgIn = (u8 *)LnAlloc(ImageBytes(), "an image to load");
     return sImgIn;
 }
 
@@ -2040,9 +2051,9 @@ static void CanonAdopt(void)
     if (!RoomsGuest())
         return;
     if (sCanon == NULL)
-        sCanon = (u8 *)malloc(CanonBytes());
+        sCanon = (u8 *)LnAlloc(CanonBytes(), "the canonical shadow");
     if (sCanonSwap == NULL)
-        sCanonSwap = (u8 *)malloc(CanonBytes());
+        sCanonSwap = (u8 *)LnAlloc(CanonBytes(), "the canonical shadow's swap");
     if (sCanon == NULL || sCanonSwap == NULL) {
         PortError("[katam-port] lmpnet: rooms mode: no memory for the canonical shadow");
         return;
@@ -2099,7 +2110,7 @@ static int CanonTopRun(void)
             HashState(f);
         if (sDumpAt == f) {
             if (sDump == NULL)
-                sDump = (u8 *)malloc(ImageBytes());
+                sDump = (u8 *)LnAlloc(ImageBytes(), "a dump");
             if (sDump != NULL) {
                 SaveImage(sDump, f);
                 sDumpReady = f + 1;
@@ -2303,6 +2314,52 @@ static int OvlSlotInPlay(int s)
 int PortLnOverlayRunning(void) { return gPortLnOn && sOvlRun; }
 int PortLnOverlayQuiet(void) { return gPortLnOn && sOvlQuiet; }
 int PortLnOverlayHidden(void) { return gPortLnOn && sOvlRun && !sOvlShown; }
+/* --- memory: what a session may still take -----------------------------------
+ * The web modules have a fixed heap (Makefile INITIAL_MEMORY, no growth) and
+ * emscripten's malloc aborts the page when it cannot grow it.  So a session
+ * asks first: LnAlloc refuses (NULL) what would leave less than LN_HEAP_MARGIN
+ * free, and every caller treats NULL as a refusal.  Natively: plain malloc. */
+#define LN_HEAP_MARGIN (2u << 20)
+#ifdef __EMSCRIPTEN__
+#include <malloc.h>
+#include <unistd.h>
+#include <emscripten/heap.h>
+static u32 HeapFree(void)
+{
+    struct mallinfo mi = mallinfo();
+    uintptr_t top = (uintptr_t)sbrk(0), end = (uintptr_t)emscripten_get_heap_size();
+
+    return (u32)((end > top ? end - top : 0) + (uintptr_t)mi.fordblks);
+}
+/* Tests and the page's log: [0] the heap's end, [1] its top now, [2] bytes
+ * in use, [3] free (in the arena and above it). */
+LN_EXPORT int PortLnHeapInfo(u32 *out)
+{
+    struct mallinfo mi = mallinfo();
+
+    out[0] = (u32)emscripten_get_heap_size();
+    out[1] = (u32)(uintptr_t)sbrk(0);
+    out[2] = (u32)mi.uordblks;
+    out[3] = HeapFree();
+    return 4;
+}
+#else
+static u32 HeapFree(void) { return 0xFFFFFFFFu; }
+int PortLnHeapInfo(u32 *out) { out[0] = out[1] = out[2] = 0; out[3] = HeapFree(); return 4; }
+#endif
+
+static void *LnAlloc(size_t n, const char *what)
+{
+    u32 fr = HeapFree();
+
+    if (fr != 0xFFFFFFFFu && (u64)n + LN_HEAP_MARGIN > fr) {
+        PortLog("[katam-port] lmpnet: no memory for %s (%u KiB asked, %u KiB free): refused",
+                what, (unsigned)(n >> 10), (unsigned)(fr >> 10));
+        return NULL;
+    }
+    return malloc(n);
+}
+
 LN_EXPORT int PortLnOverlayOpen(void) { return gPortLnOn ? sOvl : 0; }
 int PortLnShadowRunning(void) { return gPortLnOn && SHADOW(); }
 
@@ -2311,13 +2368,35 @@ static u32 OvlBytes(void)
     return sSnapBytes + PortLnExtrasSize();
 }
 
+/* The overlay's two buffers, taken as the session starts (PortLnStart),
+ * never on a START: if the heap cannot hold them the session goes on and
+ * START does nothing (refused, logged). */
 static int OvlBuffers(void)
 {
-    if (sOvlFork == NULL)
-        sOvlFork = (u8 *)malloc(OvlBytes());
-    if (sOvlLive == NULL)
-        sOvlLive = (u8 *)malloc(OvlBytes());
     return sOvlFork != NULL && sOvlLive != NULL;
+}
+
+/* Tests: the overlay's buffers ask for this much more (a heap too full to
+ * hold them, without filling one). */
+static u32 sOvlTestExtra;
+LN_EXPORT void PortLnTestOverlayExtra(u32 bytes) { sOvlTestExtra = bytes; }
+
+static void OvlAlloc(void)
+{
+    if (sOvlFork == NULL && sOvlTestExtra) {
+        void *x = LnAlloc((size_t)OvlBytes() + sOvlTestExtra, "the pause overlay (test)");
+
+        free(x);
+        if (x != NULL)
+            sOvlFork = (u8 *)LnAlloc(OvlBytes(), "the pause overlay");
+    } else if (sOvlFork == NULL)
+        sOvlFork = (u8 *)LnAlloc(OvlBytes(), "the pause overlay");
+    if (sOvlFork != NULL && sOvlLive == NULL)
+        sOvlLive = (u8 *)LnAlloc(OvlBytes(), "the pause overlay's swap");
+    if (sOvlLive == NULL) {
+        free(sOvlFork);
+        sOvlFork = NULL;
+    }
 }
 
 static void OvlSave(u8 *d)
@@ -2386,6 +2465,8 @@ static u16 OvlLocalKeys(int seat, u16 raw)
         return k;
     T.ovlStartsLocal++;
     k &= (u16)~START_BUTTON;
+    if (!(prev & START_BUTTON) && sOvl == OVL_CLOSED && !sOvlRun && !OvlBuffers())
+        T.ovlNoMemory++;            /* no overlay this session: START does nothing */
     if (!(prev & START_BUTTON) && sOvl == OVL_CLOSED && !sOvlRun
         && OvlSlotInPlay(slot = PortLnSeatSlot(sSelf, seat)) && OvlBuffers()) {
         sOvl = OVL_OPENING;
@@ -2742,7 +2823,7 @@ void PortLnFrame(void)
         u64 t1 = MICROS();
 
         if (sImg == NULL)
-            sImg = (u8 *)malloc(ImageBytes());
+            sImg = (u8 *)LnAlloc(ImageBytes(), "an image to send");
         if (sImg != NULL) {
             SaveImage(sImg, f);
             sImgBytes = ImageBytes();
@@ -2755,7 +2836,7 @@ void PortLnFrame(void)
     }
     if (sDumpAt == f && !RoomsGuest()) {
         if (sDump == NULL)
-            sDump = (u8 *)malloc(ImageBytes());
+            sDump = (u8 *)LnAlloc(ImageBytes(), "a dump");
         if (sDump != NULL) {
             SaveImage(sDump, f);
             sDumpReady = f + 1;
@@ -2832,7 +2913,7 @@ static void HomeSave(void)
     sHomeTried = 1;
     sHomeSnap = PortRbSnapshotBytes();
     sHomeExtras = PortLnExtrasSize();
-    sHome = (u8 *)malloc(sHomeSnap + sHomeExtras);
+    sHome = (u8 *)LnAlloc(sHomeSnap + sHomeExtras, "the power-on picture");
     if (sHome == NULL)
         return;
     PortRbSnapshotSave(sHome);
@@ -2845,7 +2926,7 @@ static void HomeKeepOwnSave(void)
 {
     PortSramEnsureRestored();
     if (sOwnSram == NULL)
-        sOwnSram = (u8 *)malloc(GBA_SRAM_SIZE);
+        sOwnSram = (u8 *)LnAlloc(GBA_SRAM_SIZE, "the guest's own save");
     if (sOwnSram != NULL)
         memcpy(sOwnSram, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
 }

@@ -80,6 +80,7 @@
 //           and depth per device, retransmits, seat wait) to the results.
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { human, ROOMS } from './netproof/scenario.mjs';
 
 const argv = process.argv.slice(2);
@@ -233,6 +234,43 @@ const PAGE_HOOK = `(function(){
 async function until(fn, ms, step = 100) {
     const t = Date.now();
     for (;;) { let v; try { v = await fn(); } catch (e) { v = false; } if (v) return v; if (Date.now() - t > ms) return false; await sleep(step); }
+}
+/* The page's picture (a screenshot, decoded here: 8-bit RGB/RGBA PNG) and
+ * the number of distinct colours in a box of it -- the pause overlay's help
+ * page is a picture of many colours (the paper, the text, the ability's
+ * image); built from the wrong game's registers it was a three-colour
+ * pattern of repeated tiles. */
+function pngDecode(buf) {
+    let i = 8, w = 0, h = 0, ct = 0;
+    const idat = [];
+    while (i < buf.length) {
+        const n = buf.readUInt32BE(i), t = buf.toString('ascii', i + 4, i + 8), d = buf.subarray(i + 8, i + 8 + n);
+        if (t === 'IHDR') { w = d.readUInt32BE(0); h = d.readUInt32BE(4); ct = d[9]; }
+        else if (t === 'IDAT') idat.push(d);
+        i += 12 + n;
+    }
+    const bpp = ct === 6 ? 4 : 3, raw = zlib.inflateSync(Buffer.concat(idat)), stride = w * bpp, out = Buffer.alloc(h * stride);
+    for (let y = 0; y < h; y++) {
+        const f = raw[y * (stride + 1)], src = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)), o = y * stride;
+        for (let x = 0; x < stride; x++) {
+            const a = x >= bpp ? out[o + x - bpp] : 0, b = y ? out[o - stride + x] : 0, c = x >= bpp && y ? out[o - stride + x - bpp] : 0;
+            let v = src[x];
+            if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+            else if (f === 4) { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+            out[o + x] = v & 255;
+        }
+    }
+    return { w, h, bpp, px: out };
+}
+async function coloursIn(p, fx0 = 0, fy0 = 0.15, fx1 = 1, fy1 = 1) {
+    const r = await p.s('Page.captureScreenshot', { format: 'png' });
+    const im = pngDecode(Buffer.from(r.data, 'base64')), set = new Set();
+    for (let y = Math.floor(im.h * fy0); y < Math.floor(im.h * fy1); y += 2)
+        for (let x = Math.floor(im.w * fx0); x < Math.floor(im.w * fx1); x += 2) {
+            const o = (y * im.w + x) * im.bpp;
+            set.add((im.px[o] << 16) | (im.px[o + 1] << 8) | im.px[o + 2]);
+        }
+    return set.size;
 }
 async function shot(p, name) {
     if (!SHOTS) return;
@@ -666,6 +704,10 @@ const screenLive = async (p) => (await frame(p)) - (await p.ev('Module._PortPocS
  * page shows, fork frames run. */
 const ovlOf = (p) => p.ev(`(function(){var q=Module._malloc(64),n=Module._PortLnOverlayObserve?Module._PortLnOverlayObserve(q):0,H=Module.HEAP32,b=q>>2;
     var r={st:n?H[b]:0,pauser:H[b+3],menu:H[b+4],row:H[b+5],model:H[b+6],help:H[b+12],shown:H[b+13]>>>0,frames:H[b+11]};Module._free(q);return r})()`);
+/* a field of the engine's telemetry block (platform/lmpnet.c LN_TELEMETRY) */
+const telOf = (p, name) => p.ev(`(function(){var a=Module._PortLnTelemetryNames(),t='';while(Module.HEAPU8[a])t+=String.fromCharCode(Module.HEAPU8[a++]);
+    var n=t.split(',').indexOf(${JSON.stringify(name)});
+    return n < 0 ? null : Module.HEAPU32[(Module._PortLnTelemetry()>>2)+n];})()`);
 /* the screen's settings model: the overlay's while it is up */
 const modelNow = async (p) => { const o = await ovlOf(p); return o.st ? o.model : p.ev('Module._PortPocScreenModel()'); };
 /* the player cards (platform/player_card.c): set card c from a settings value
@@ -1095,6 +1137,10 @@ if (CASES.includes('exits')) {
         ok('exits: everyone\'s game runs on behind guest A\'s pause', f1.every((f, i) => f - f0[i] > 50), JSON.stringify([f0, f1]));
     }
     ok('exits: the help page shows the room line on guest A\'s overlay', (await ovlOf(ga)).help === 1);
+    {
+        const n = await coloursIn(ga);
+        ok('exits: guest A\'s help page is drawn (GPU picture: many colours, not a tile pattern)', n >= 12, `${n} colours`);
+    }
     await shot(ga, 'x-01-guestA-help-code.png'); await shot(host, 'x-01-host-plays-on.png');
     const am0 = (await pauseOf(ga)).menu;
     await step(host, 'B', 30);
@@ -1330,6 +1376,10 @@ for (const nPages of (flag('rooms-pages', '2,3')).split(',').map(Number)) {
         ok(`${tag}: ${p.name} pauses on its own page only (no game paused)`, !!paused
            && shotsNow.every((x, j) => x.paused === 0 && x.ovl === (j === i ? 2 : 0)), JSON.stringify(shotsNow.map((x) => [x.paused, x.ovl])));
         ok(`${tag}: ${p.name}'s overlay is its own player's pause`, (await ovlOf(p)).pauser === i, String((await ovlOf(p)).pauser));
+        {
+            const n = await coloursIn(p), o = await ovlOf(p);
+            ok(`${tag}: ${p.name}'s pause page is drawn (GPU picture: many colours, not a tile pattern)`, n >= 12, `page ${o.menu}, ${n} colours`);
+        }
         const f1 = await frame(p), K2 = new Array(400).fill(0);
         for (let j = 0; j < 6; j++) K2[10 + j] = KEY.START;
         await setScript(p, K2, f1, []);
@@ -1711,6 +1761,18 @@ if (CASES.includes('eight')) {
     await playMany(host, G, 45, cmps, 'e-play', [20]);
     for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight: ${G[i].name} identical to the host`, c.compared > 50 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
     R.steps.push({ step: `play${NT - 1}`, host: await stats(host), guests: await Promise.all(G.map(stats)) });
+    // the heap: the 16-Kirby module's is fixed (Makefile INITIAL_MEMORY);
+    // every page took the pause overlay's buffers at its session's start and
+    // kept room.  This game is TOGETHER; FREE ROAM's guests hold the
+    // canonical shadow's two buffers more (about 2 MiB: tools/netproof/
+    // pause_test.mjs `memory` measures that case), so 6 MiB here.
+    {
+        const free = await Promise.all([host, ...G].map((p) => p.ev(`(function(){var q=Module._malloc(16);Module._PortLnHeapInfo(q);var r=Module.HEAPU32[(q>>2)+3];Module._free(q);return r>>>20})()`)));
+        const atStart = await Promise.all([host, ...G].map((p) => telOf(p, 'ovlHeapFreeKiB')));
+        R.heapFreeMiB = free;
+        ok('eight: every page took the pause overlay\'s buffers and has 6 MiB free', free.every((v) => v >= 6) && atStart.every((v) => v !== null && v >= 4096),
+           `now ${free.join(' ')} MiB; after the session's buffers ${atStart.join(' ')} KiB`);
+    }
     // --- the pause menu is each device's own (platform/lmpnet.c "the pause
     // overlay"): a guest whose Kirby is slot 4.. pauses, then another one at
     // the same time; the others play on; rewinds under the overlay; the host
@@ -1744,6 +1806,10 @@ if (CASES.includes('eight')) {
             ok('eight/pause: everyone else\'s game runs on (frames)', f1.every((f, i) => f - f0[i] > 60), JSON.stringify([f0, f1]));
             ok(`eight/pause: ... and a playing Kirby (slot ${runner.slot}) moves`, k0 !== k1, `${k0} -> ${k1}`);
             await shot(hi.g, 'e-05-pause-slot4-own.png'); await shot(host, 'e-05-host-plays-on.png');
+            {
+                const n = await coloursIn(hi.g);
+                ok(`eight/pause: ${hi.g.name}'s help page is drawn (GPU picture: many colours, not a tile pattern)`, n >= 12, `${n} colours`);
+            }
             const m0 = (await ovlOf(hi.g)).menu;
             await press(lo.g, 'SELECT'); await waitFrames(lo.g, 40);
             ok('eight/pause: another device\'s Select (in its game) does not turn the page', (await ovlOf(hi.g)).menu === m0, `${m0} -> ${(await ovlOf(hi.g)).menu}`);
@@ -1774,6 +1840,12 @@ if (CASES.includes('eight')) {
             const hostScript = await host.ev('window.__scriptSaved = window.__script; true');
             await hands(host); await waitFrames(host, 20);
             ok('eight/pause: the host opens its pause menu', !!hostScript && await openOn(host));
+            await waitFrames(host, 30);
+            {
+                const n = await coloursIn(host), o = await ovlOf(host);
+                ok('eight/pause: the host\'s help page is drawn (GPU picture: many colours, not a tile pattern)', o.menu === 1 && n >= 12, `page ${o.menu}, ${n} colours`);
+                await shot(host, 'e-07a-host-pause-help.png');
+            }
             const gov = await Promise.all(G.map(ovlOf));
             ok('eight/pause: no guest shows it', gov.every((o) => !o.st), JSON.stringify(gov.map((o) => o.st)));
             for (let i = 0; i < 5 && (await ovlOf(host)).menu !== 8; i++) { await press(host, 'SELECT'); await waitFrames(host, 80); }
@@ -1822,9 +1894,23 @@ if (CASES.includes('eight')) {
     await playMany(host, G, 25, cmps, 'e-play2', [10]);
     // guest 2 leaves from its game, and comes back in the same tab by its link
     const g2 = G[1], self2 = (await stats(g2)).self, slot2 = (await slotsOf(host)).findIndex((x) => x && x.dev === self2 && x.seat === 0);
+    // ... while the host's pause menu is up: it stays up, drawn, and closes
+    await host.ev('window.__scriptSaved = window.__script; window.__script = null; Module._PortSetKeys(0)');
+    await waitFrames(host, 20);
+    for (let i = 0; i < 5 && (await ovlOf(host)).st !== 2; i++) { await press(host, 'START'); await waitFrames(host, 60); }
+    ok('eight: the host\'s pause menu is up as guest 2 leaves', (await ovlOf(host)).st === 2);
     await g2.ev('katamOnline.leave()');
     const gone2 = await until(async () => { const s2 = await slotsOf(host); return !s2[slot2] ? s2 : null; }, 20000);
     ok(`eight: guest 2 leaves (slot ${slot2 + 1} to the CPU)`, !!gone2, gone2 ? slotsStr(gone2) : '');
+    await waitFrames(host, 60);
+    {
+        const o = await ovlOf(host), n = await coloursIn(host);
+        ok('eight: the host\'s pause menu stays up and drawn through the leave', o.st === 2 && n >= 12, `state ${o.st}, page ${o.menu}, ${n} colours`);
+        await shot(host, 'e-08-host-pause-after-leave.png');
+    }
+    await press(host, 'START');
+    ok('eight: ... and closes with its Start', !!(await until(async () => !(await ovlOf(host)).st, 6000)));
+    await host.ev('window.__script = window.__scriptSaved');
     await sleep(1500);
     await g2.s('Page.navigate', { url: pageUrl(Object.assign({ join: code }, k16)) });
     const back2 = await until(async () => { const st = await stats(g2); return st && st.session && st.joined && st.accept !== false ? st : null; }, 60000);

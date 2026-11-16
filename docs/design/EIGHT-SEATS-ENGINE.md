@@ -351,3 +351,27 @@ up, no START ever sealed, every final frame identical); the browser cases
 `exits`, `three`, `rooms`, `eight` rewritten for per-device pause; the
 rig's pause bot reads the overlay; regress and layout-neutral against main
 unchanged (sim column identical).
+
+**Two faults found live (e7f8a33), fixed.**  *A guest's page aborted
+(OOM) on START* on the 16-Kirby module: the overlay took its two buffers
+(2 x ~940 KiB) on the first START, and a FREE ROAM guest there holds 16
+keyframes, the canonical shadow's two buffers and the images -- 2.2 MiB was
+left of the 192 MiB heap, and emscripten's malloc aborts the page when the
+fixed heap cannot hold a block.  Now the buffers are taken as the session
+starts; every session allocation goes through `LnAlloc`, which refuses
+(NULL, logged) what would leave less than 2 MiB free, and every caller
+treats that as a refusal (no overlay: START opens nothing and is counted,
+`ovlNoMemory`); and the wide modules' heap is 200 MiB (Makefile, only with
+`KATAM_MAX_KIRBYS`; the 4-Kirby module stays 192, where the same guest keeps
+~10 MiB free).  Measured in node (`pause_test.mjs memory`): katam16 FREE ROAM
+guest 10.2 MiB free at its lowest, host 27 MiB; `PortLnHeapInfo` and the
+log line "pause overlay ready; heap free ..." report it on every device.
+*The overlay's pause screens were garbled with the GPU renderer* (help
+page: a repeated tile pattern), on both modules, with or without anyone
+else: the quiet live frame's scanline loop overwrote the render list's
+per-line register table (`PortRlCaptureLine`) after the fork's frame had
+been built, so the fork's tiles were drawn with the live game's BG control
+and scroll.  The quiet frame (and a fork frame not shown) no longer
+captures lines.  The node rig composes with the PPU and never saw it; the
+browser cases now count the colours of the pause page's GPU picture
+(`coloursIn`: the garbled page had 6, the real ones 14-25).

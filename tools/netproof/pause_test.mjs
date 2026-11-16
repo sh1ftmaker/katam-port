@@ -25,6 +25,13 @@
 //           is corrupted (the RNG word) and repaired by the host's image while
 //           the overlay is up: the overlay is still up on the same page and
 //           row, and closes as ever.
+//   memory  the 16-Kirby module as a real 8-player room's guest has it: FREE
+//           ROAM (the canonical shadow's two buffers), 16 keyframes, images:
+//           the overlay's buffers are taken as the session starts and leave
+//           room (at least 4 MiB free on every device), a guest pauses; and
+//           a guest whose heap cannot hold them: the session runs on, START
+//           opens nothing, nothing aborts.  (Live, the overlay's lazy malloc
+//           on a FREE ROAM katam16 guest aborted the page: Aborted(OOM).)
 //   eight   the 16-Kirby module, an 8-player room, host + 5 guests (8 Kirbys):
 //           guest 4 (slot 4) and guest 5 (slot 5) pause, at once; guest 4 to
 //           SETTINGS and back; the host mashes; then the host pauses.
@@ -43,7 +50,7 @@ const flag = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 ? argv[
 const ROM = flag('rom', process.env.ROM || '/bigdata/agent-tom/projects/katamport/decomp/baserom.gba');
 const MODULE = path.resolve(flag('module', path.join(ROOT, 'build/katam-node.js')));
 const MODULE16 = path.resolve(flag('module16', path.join(ROOT, 'build/w16/katam-node.js')));
-const ONLY = flag('only', 'four,repair,eight').split(',');
+const ONLY = flag('only', 'four,repair,eight,memory').split(',');
 const rom = fs.readFileSync(ROM);
 const S = BOOT_END;                 // the session's first frame (run.mjs startFrame)
 const LINK = { oneWay: 60, jitter: 20, loss: 0.02, reorder: 0.02, reorderMs: 20 };
@@ -291,6 +298,40 @@ async function caseEight() {
     ok('eight: every compared frame identical', r.compare.mismatched === 0 && r.compare.compared > 5000, `${r.compare.equal}/${r.compare.compared}`);
 }
 
+async function caseMemory() {
+    if (!fs.existsSync(MODULE16)) { ok('memory: the 16-Kirby node module exists', false, MODULE16); return; }
+    const heap = (inst) => { const M = inst.M, p = M._malloc(16); M._PortLnHeapInfo(p); const a = Array.from(M.HEAPU32.subarray(p >> 2, (p >> 2) + 4)); M._free(p); return a; };
+    for (const starved of [false, true]) {
+        const tag = starved ? 'memory (a guest without room)' : 'memory';
+        say(`# ${tag}: the 16-Kirby module, FREE ROAM, 16 keyframes, host + 2 guests`);
+        const g1 = device(61, [tap('g1 start', 500, KEY.START, starved ? undefined : open, { every: 40 }),
+                               ...(starved ? [] : [tap('g1 close', 800, KEY.START, closed, { every: 60 })])]);
+        const hd = device(60, []), g2 = device(62, []);
+        const low = { g: 1e12 };
+        const r = await runSession({
+            name: 'pause ' + tag, modulePath: MODULE16, rom, scenario: scenarioWith({ 0: hd, 1: g1, 2: g2 }, []),
+            guests: [{ dev: 1 }, { dev: 2 }], seats: 8, kirbys: 8, kfCount: 16, rooms: true, link: LINK, durationFrames: 1100,
+            hostOpts: { copies: 4, maxPacketBytes: 1100 },
+            guestPre: (inst, dev) => { if (starved && dev === 1) inst.M._PortLnTestOverlayExtra(512 << 20); },
+            onGuestTick: (g) => { const h = heap(g.inst); if (h[3] < low.g) low.g = h[3]; },
+        });
+        const tels = [r.host.tel, ...r.guestTels];
+        if (!starved) {
+            ok(`${tag}: every device took the overlay's buffers and kept 4 MiB free`, tels.every((t) => t.ovlHeapFreeKiB >= 4096 && !t.ovlNoMemory),
+               tels.map((t) => t.ovlHeapFreeKiB + ' KiB').join(', '));
+            ok(`${tag}: guests' heap never under 4 MiB free (shadow runs ${r.guestTels.map((t) => t.canonRuns).join('/')})`, low.g >= 4 << 20, `${(low.g / 1048576).toFixed(1)} MiB`);
+            ok(`${tag}: guest 1 paused and closed`, spans(g1.trace, 2).length === 1 && !g1.taps.some((t) => t.gaveUp));
+        } else {
+            ok(`${tag}: the starved guest runs without the overlay`, r.guestTels[0].ovlHeapFreeKiB >= 0 && r.guestTels[0].ovlNoMemory >= 1 && r.guestTels[0].ovlOpens === 0,
+               `noMemory ${r.guestTels[0].ovlNoMemory}, opens ${r.guestTels[0].ovlOpens}`);
+            ok(`${tag}: its START opened nothing and paused nobody`, g1.trace.every((x) => !x.st && !x.il) && hd.trace.every((x) => !x.il));
+        }
+        ok(`${tag}: frames advanced, nothing aborted`, r.guests.every((g) => g.frame >= S + 1000), r.guests.map((g) => g.frame).join(','));
+        ok(`${tag}: every compared frame identical`, r.compare.mismatched === 0 && r.compare.compared > 1500, `${r.compare.equal}/${r.compare.compared}`);
+    }
+}
+
+if (ONLY.includes('memory')) await caseMemory();
 if (ONLY.includes('four')) await caseFour();
 if (ONLY.includes('repair')) await caseRepair();
 if (ONLY.includes('eight')) await caseEight();
