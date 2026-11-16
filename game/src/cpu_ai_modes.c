@@ -2174,7 +2174,9 @@ static bool32 GoalDirective(struct CpuBrain *brain)
         }
         if (TravelG(brain, WANT_ROOM, -1, bl->dirA, grp))
             return TRUE;
-        DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NOROUTE);
+        /* no route left: because it just gave a door up (a gate?), or none at all */
+        DirEnd(brain, PORT_CPUGOAL_ST_FAILED,
+               st->destFrames > DOOR_GIVEUP ? PORT_CPUGOAL_WHY_GAVEUP : PORT_CPUGOAL_WHY_NOROUTE);
         return FALSE;
     }
     case PORT_CPUGOAL_DOOR: {
@@ -2242,7 +2244,8 @@ static bool32 GoalDirective(struct CpuBrain *brain)
     case PORT_CPUGOAL_EXPLORE:
         if (GoalExplorer(brain, 0))
             return TRUE;
-        DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NOROUTE);
+        DirEnd(brain, PORT_CPUGOAL_ST_FAILED,
+               st->destFrames > DOOR_GIVEUP ? PORT_CPUGOAL_WHY_GAVEUP : PORT_CPUGOAL_WHY_NOROUTE);
         return FALSE;
     case PORT_CPUGOAL_FIGHT: {
         struct Object *o = NearestObject(brain, 2);

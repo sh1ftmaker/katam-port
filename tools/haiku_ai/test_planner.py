@@ -45,7 +45,7 @@ def sample_request(**over):
         "blocked": [[108, 140]],
         "team": [{"slot": 0, "person": 1, "room": 801, "x": 23, "y": 12, "hp": 6, "ability": "normal"},
                  {"slot": 1, "person": 0, "room": 801, "x": 17, "y": 10, "hp": 5, "ability": "normal",
-                  "mode": "BODYGUARD", "doing": "follow"},
+                  "mode": "BODYGUARD", "doing": "follow", "args": [0, 0, 0]},
                  {"slot": 2, "person": 0, "room": 101, "x": 2, "y": 6, "hp": 6, "ability": "normal",
                   "mode": "EXPLORER"}],
         "progress": {"shards": 0, "rooms_entered": 3,
@@ -119,11 +119,13 @@ class Vocabulary(unittest.TestCase):
 
     def test_render_is_deterministic_and_complete(self):
         req = sample_request()
-        a = pc.render_observation(req, ["wait -> done (ok) after 10s"])
-        self.assertEqual(a, pc.render_observation(req, ["wait -> done (ok) after 10s"]))
+        a = pc.render_observation(req, ["wait -> done (ok) after 10s"], ["Kirby 4: goto_room 110 -> failed"])
+        self.assertEqual(a, pc.render_observation(req, ["wait -> done (ok) after 10s"],
+                                                  ["Kirby 4: goto_room 110 -> failed"]))
         for want in ("Kirby 3", "goto_room 101 -> done (ok)", "(83,8)->room 106", "group 0",
                      "never entered", "worth exploring by door route: 106", "516", "enemy x2",
-                     "108->140", "player 1", "doing follow", "Earlier orders"):
+                     "108->140", "player 1", "doing follow 0", "Earlier orders",
+                     "Teammates' recent failures: Kirby 4: goto_room 110"):
             self.assertIn(want, a)
 
 

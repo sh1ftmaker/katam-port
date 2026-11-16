@@ -112,7 +112,7 @@ class HaikuPlanner:
         self.image_scale = image_scale
         self.send_images = send_images
 
-    def build_request(self, req, history=(), png=None):
+    def build_request(self, req, history=(), png=None, team_notes=()):
         """The keyword arguments of client.messages.create for one decision."""
         content = []
         if png is not None and self.send_images:
@@ -120,7 +120,7 @@ class HaikuPlanner:
             content.append({"type": "image",
                             "source": {"type": "base64", "media_type": "image/png",
                                        "data": base64.standard_b64encode(data).decode("ascii")}})
-        content.append({"type": "text", "text": render_observation(req, history)})
+        content.append({"type": "text", "text": render_observation(req, history, team_notes)})
         return {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -161,9 +161,9 @@ class HaikuPlanner:
                 out[k] = v
         return out
 
-    def decide(self, req, history=(), png=None):
+    def decide(self, req, history=(), png=None, team_notes=()):
         """(directive, meta): meta has the token usage and the request id."""
-        params = self.build_request(req, history, png)
+        params = self.build_request(req, history, png, team_notes)
         resp = self.client.messages.create(**params)
         meta = {"usage": self.usage_of(resp), "request_id": getattr(resp, "_request_id", None),
                 "image": any(c["type"] == "image" for c in params["messages"][0]["content"])}

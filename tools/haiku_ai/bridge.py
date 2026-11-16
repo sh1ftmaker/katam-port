@@ -50,6 +50,7 @@ class Bridge:
         self.log = open(log_path, "a", buffering=1) if log_path else None
         self.pool = ThreadPoolExecutor(max_workers=workers) if workers > 1 else None
         self.history = collections.defaultdict(lambda: collections.deque(maxlen=4))
+        self.team_fail = collections.deque(maxlen=4)     # (slot, what) of failed orders
         self.decisions = 0
         self.errors = 0
 
@@ -66,20 +67,24 @@ class Bridge:
             return
         slot = req.get("slot")
         hist = list(self.history[slot])
-        if req.get("last"):
-            self.history[slot].append(describe_last(req["last"]))
+        notes = ["Kirby %d: %s" % (s + 1, w) for s, w in self.team_fail if s != slot]
+        last = req.get("last")
+        if last:
+            self.history[slot].append(describe_last(last))
+            if last.get("status") in ("failed", "timeout", "stale", "lost"):
+                self.team_fail.append((slot, describe_last(last)))
         if self.pool is not None:
-            self.pool.submit(self.decide, req, hist)
+            self.pool.submit(self.decide, req, hist, notes)
         else:
-            self.decide(req, hist)
+            self.decide(req, hist, notes)
 
-    def decide(self, req, hist):
+    def decide(self, req, hist, notes=()):
         t0 = time.monotonic()
         entry = {"ts": round(time.time(), 3), "backend": self.backend.name, "id": req.get("id"),
                  "slot": req.get("slot"), "frame": req.get("frame"), "reason": req.get("reason"),
                  "last": req.get("last"), "shot": req.get("shot")}
         try:
-            entry["observation"] = render_observation(req, hist)
+            entry["observation"] = render_observation(req, hist, notes)
             png = None
             if req.get("shot"):
                 try:
@@ -87,7 +92,7 @@ class Bridge:
                         png = f.read()
                 except OSError:
                     png = None
-            d, meta = self.backend.decide(req, hist, png)
+            d, meta = self.backend.decide(req, hist, png, notes)
             d = normalize_directive(d, req)
             entry.update(meta)
         except PlannerError as e:

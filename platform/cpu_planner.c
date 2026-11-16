@@ -166,7 +166,8 @@ static void Team(struct Buf *b)
         if (!PortIsHuman(i)) {
             Put(b, ",\"mode\":\"%s\"", PortCpuAiName(PortCpuAiWordMode(PortCpuAiWord(), i)));
             if (ds.status == PORT_CPUGOAL_ST_RUNNING)
-                Put(b, ",\"doing\":\"%s\"", PortCpuGoalName(ds.kind));
+                Put(b, ",\"doing\":\"%s\",\"args\":[%u,%u,%u]", PortCpuGoalName(ds.kind),
+                    (unsigned)ds.a, (unsigned)ds.b, (unsigned)ds.c);
         }
         Put(b, "}");
     }

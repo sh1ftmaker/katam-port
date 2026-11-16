@@ -31,7 +31,7 @@ def _d(kind, why, room=0, group=-1, x=0, y=0, who=0, secs=0):
 class MockPlanner:
     name = "mock"
 
-    def decide(self, req, history=(), png=None):
+    def decide(self, req, history=(), png=None, team_notes=()):
         """(directive, meta) -- the same interface as HaikuPlanner.decide."""
         return self._decide(req), {}
 

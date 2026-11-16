@@ -129,9 +129,17 @@ def describe_last(last):
     return "%s -> %s (%s) after %ss" % (what, last.get("status"), last.get("why"), last.get("took_s"))
 
 
-def render_observation(req, history=()):
+def describe_doing(kind, args):
+    """A teammate's running directive (the game's team entry: kind, [A, B, C])."""
+    a, b, c = (list(args) + [0, 0, 0])[:3]
+    return describe_last({"kind": kind, "a": a, "b": b, "c": c}).split(" -> ")[0]
+
+
+def render_observation(req, history=(), team_notes=()):
     """The observation as compact text for a language model (the image, if
-    any, goes alongside).  Deterministic: the same request renders the same."""
+    any, goes alongside).  Deterministic: the same request renders the same.
+    `history`: this Kirby's earlier orders and how they ended; `team_notes`:
+    the other Kirbys' recent failures (the bridge keeps both)."""
     me = req.get("me", {})
     slot = req.get("slot")
     lines = []
@@ -184,10 +192,12 @@ def render_observation(req, history=()):
         if t["slot"] == slot:
             continue
         who = "player %d" % (t["slot"] + 1) if t.get("person") else "CPU Kirby %d" % (t["slot"] + 1)
-        extra = (", doing %s" % t["doing"]) if t.get("doing") else ""
+        extra = (", doing %s" % describe_doing(t["doing"], t.get("args", ()))) if t.get("doing") else ""
         team.append("slot %d %s: room %d (%d,%d) HP %d %s%s" % (
             t["slot"], who, t["room"], t["x"], t["y"], t["hp"], t.get("ability", ""), extra))
     lines.append("Team: %s." % ("; ".join(team) if team else "nobody else"))
+    if team_notes:
+        lines.append("Teammates' recent failures: %s." % "; ".join(team_notes))
     pr = req.get("progress", {})
     bosses = pr.get("bosses", [])
     beaten = sum(1 for b in bosses if b[2])
