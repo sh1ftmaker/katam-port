@@ -47,7 +47,7 @@
 #   Modules: the browser suites run the 4-Kirby module (?mod=4) unless the
 #   line says --mod 16 or --mod default (no ?mod: the page's default, the
 #   16-Kirby module) or the case names its own -- web-*-default and
-#   web-menu-exits-e test the default page, web-on-eight the 8-player games.
+#   web-menu-exits-e test the default page, web-on-eight the 16-player games (5-6 tabs).
 #   In COMMAND: $ROM, $D (this suite's own directory), $ROOT (the checkout,
 #   also the cwd), $W (its slots), $PLAY (browser play seconds:
 #   fast 130, deep 130 -- see below), $DEEP (1 with --deep, else empty), $RIG

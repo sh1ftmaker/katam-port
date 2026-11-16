@@ -137,6 +137,7 @@ struct WorldMap {
     /* PORT: the wide build's markers (port/wide.h KATAM_MAP_MARKERS):
      * worldmapKirbys[m] shows Kirby markerKirby[m]. */
     u8 markerKirby[KATAM_MAP_MARKERS];
+    u8 markerTile[KATAM_MAP_MARKERS];   /* its OBJ tile slot (shared by an ability) */
     u8 numMarkers;
 #endif
 }; /* size = 0x218 */
@@ -908,10 +909,11 @@ static u16 WorldMapGetCoorFromRoom(u16 roomId, u8 playerId) {
 /* PORT: `marker` is the marker's index (its OBJ tiles, draw order): the
  * console's playerId (port/wide.h KATAM_MAP_MARKERS). */
 #if KATAM_KIRBYS > 4
-static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 playerId, u32 marker) {
+/* (`tile`: the marker's tile slot, port/wide.h KATAM_MAP_MARKER_TILES) */
+static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 playerId, u32 marker, u32 tile) {
 #else
 static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 playerId) {
-    u32 marker = playerId;
+    u32 marker = playerId, tile = playerId;
 #endif
     u16 spriteCoor;
 
@@ -933,15 +935,17 @@ static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 pla
     }
 #if KATAM_KIRBYS > 4
     else if (playerId >= 4) {
-        spriteCoor += 6 << 8;
+        /* 4..7 6 px right of 0..3, 8..11 6 px left, 12..15 12 px right */
+        static const s8 kShift[4] = { 0, 6, -6, 12 };
+        spriteCoor += kShift[(playerId >> 2) & 3] << 8;
     }
 #endif
     sub_0803E558(playerId);
 
-    SpriteInitNoFunc(&worldmapKirby->kirby, (u32)OBJ_VRAM0 + 0x3800 + (marker << 8), (r9 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
+    SpriteInitNoFunc(&worldmapKirby->kirby, (u32)OBJ_VRAM0 + 0x3800 + (tile << 8), (r9 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
                      gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL(playerId), spriteCoor >> 8, (spriteCoor & 0xff) + 7, 0x41000);
 
-    SpriteInitNoFunc(&worldmapKirby->abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + (marker << 8), r9 << 6,
+    SpriteInitNoFunc(&worldmapKirby->abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + (tile << 8), r9 << 6,
                      gUnk_08350B30[gKirbys[playerId].ability].animId, gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL2(playerId),
                      spriteCoor >> 8, (spriteCoor & 0xff) + 7, 0x41000);
 
@@ -1146,10 +1150,10 @@ static void WorldMapDrawKirbys(struct WorldMap* worldmap) {
 static void WorldMapSetAllKirbySprites(struct WorldMap* worldmap) {
 #if KATAM_KIRBYS > 4
     u32 m;
-    worldmap->numMarkers = PortWideMapMarkers(worldmap->markerKirby);
+    worldmap->numMarkers = PortWideMapMarkers(worldmap->markerKirby, worldmap->markerTile);
     for (m = 0; m < KATAM_MAP_MARKERS; m++) {
         if (m < worldmap->numMarkers) {
-            WorldMapSetKirbySprites(worldmap->worldmapKirbys + m, worldmap->markerKirby[m], m);
+            WorldMapSetKirbySprites(worldmap->worldmapKirbys + m, worldmap->markerKirby[m], m, worldmap->markerTile[m]);
         }
         else {
             worldmap->worldmapKirbys[m].flags = WORLDMAP_KIRBY_DRAW_NO_SPRITE | WORLDMAP_KIRBY_DRAW_NO_ACCESSORY;

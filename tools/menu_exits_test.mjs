@@ -618,7 +618,7 @@ async function casePause() {
  * asks (NO / YES) and YES reloads the page with the 16-Kirby module
  * (katam16.js); there a new game starts with that many Kirbys, ADD 4 /
  * REMOVE 4 in the pause change them in the running game, LOCAL multiplayer
- * is unavailable (ONLINE is its 8-player games), and back at 3 the next load
+ * is unavailable (ONLINE is its 16-player games), and back at 3 the next load
  * is the ordinary module with the same save.  An invite link on the 16-Kirby
  * module is followed (web/online.js: a game on the other module reloads). */
 async function caseKirbys() {
@@ -656,7 +656,7 @@ async function caseKirbys() {
     await step(p, 'UP', 8);
     await shot(p, 'kirbys-16-cpu-row.png');
     await step(p, 'B'); await step(p, 'B', 40);                  // Game Select
-    // MULTIPLAYER: LOCAL available, ONLINE its 8-player games
+    // MULTIPLAYER: LOCAL available, ONLINE its 16-player games
     await step(p, 'UP', 8); for (let i = 0; i < 3; i++) await step(p, 'UP', 8);   // START GAME
     await press(p, 'A'); await waitFrames(p, 60); await press(p, 'DOWN'); await waitFrames(p, 20);
     await press(p, 'A'); await waitFrames(p, 80);                // the MULTIPLAYER screen
@@ -666,7 +666,7 @@ async function caseKirbys() {
     await press(p, 'DOWN'); await waitFrames(p, 20);
     await shot(p, 'kirbys-mp-online-8.png');
     await press(p, 'A'); await waitFrames(p, 40);
-    ok('... ONLINE: A opens it (8-player games)', (await pagesModel(p)) !== M.MP && ((await p.ev('Module._PortOuiScreen()')) >> 8) === 1);
+    ok('... ONLINE: A opens it (16-player games)', (await pagesModel(p)) !== M.MP && ((await p.ev('Module._PortOuiScreen()')) >> 8) === 1);
     await press(p, 'B'); await waitFrames(p, 40);
     await press(p, 'B'); await waitFrames(p, 60); await press(p, 'B'); await waitFrames(p, 60);
     // a new game (a fresh file: the story's opening, not sealed NORMAL): you and 15 CPU Kirbys

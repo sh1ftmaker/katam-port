@@ -4,8 +4,8 @@
 // config.
 //
 // Guests come from c.guests (default: one guest, device 1, as the two-device
-// rig always was).  c.seats: the people the room holds (default 4, or 8 on a
-// wide module: web/ln_session.js HostHub).  c.hostOpts / c.guestOpts: the
+// rig always was).  c.seats: the people the room holds (default 4, or 16 on
+// the 16-Kirby module, as web/online.js: web/ln_session.js HostHub).  c.hostOpts / c.guestOpts: the
 // session options (e.g. copies, maxPacketBytes: bounded redundancy).  A
 // guest spec:
 //   dev        device id (1..devices-1; the host numbers them, here the config does)
@@ -121,7 +121,7 @@ export async function runSession(cfg) {
     const frozen = (cf, t) => cf.freezes.some(([a, d]) => t >= a && t < a + d);
     const he = engineOf(host);
     const nSlots = he.slots ? he.slots() : 4;
-    const seats = c.seats || (nSlots > 4 ? Math.min(8, nSlots) : 4);
+    const seats = c.seats || (nSlots > 4 ? Math.min(16, nSlots) : 4);
     const hub = new HostHub(he, hostClock, Object.assign({ seats }, c.hostOpts));
     const live = c.liveness ? new HostLiveness(c.liveness) : null;
     let hostHeld = false;

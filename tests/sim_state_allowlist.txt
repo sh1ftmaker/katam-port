@@ -182,6 +182,7 @@ online_ui sEvTail front-end requests to the page
 online_ui sPlayers front-end HOST GAME's player count the page reports
 online_ui sConnecting front-end HOST GAME's still-connecting count the page reports
 online_ui _ZZ14PortOuiRowDescE4line scratch HOST GAME's "n PLAYERS" line, written before every read
+online_ui _ZZ14PortOuiRowDescE3cur scratch which of the two "n PLAYERS" lines is current (front end only)
 # platform/menu_poc.c, the PLAYER CARD screens (platform/player_card.c): front
 # end, and in an online session only on this device's pause overlay (its
 # private fork, platform/lmpnet.c: never in a keyframe, an image or a hash) --

@@ -64,7 +64,7 @@
 //           2,3): each page on its own player's room, the canonical frames
 //           identical, the digest equal, a phone call, the pause menu.
 //   default the page's default module (no ?mod) against 8- and 4-player
-//           rooms: hosting 8 seats; invite link, a link without mod and the
+//           rooms: hosting 16 seats; invite link, a link without mod and the
 //           public list into a 4-player room (not in the default list)
 //   eight   an 8-player game (not in the default list) with
 //           --eight-tabs pages (default 6, at least 5): the host on the
@@ -1803,7 +1803,7 @@ if (CASES.includes('browse')) {
 
 // --- eight: an 8-player game, 5-6 tabs, on the 16-Kirby module --------------------
 // default: the page's default (no ?mod: the 16-Kirby module) against 8- and
-// 4-player rooms -- a host there hosts 8 seats; a 4-player room (a host on
+// 4-player rooms -- a host there hosts 16 seats; a 4-player room (a host on
 // ?mod=4) is reached from a default page by its invite link (it names
 // mod=4: no reload), by a link from before that (no mod: the room's version
 // gate reloads the page into the 4-Kirby module) and from the public list
@@ -1819,7 +1819,7 @@ if (CASES.includes('default')) {
     ok('default: its invite link names mod=16', /[?&]mod=16\b/.test(inv16), inv16);
     const g0 = await openPage('dg0', Object.assign(extraOf(inv16), { mod: null }));
     const w0 = await until(async () => { const st = await stats(g0); return st && st.phase === 'waiting' && st.module === '16'; }, 60000, 300);
-    ok('default: a default page joins the 8-player room by code, no reload', !!w0 && !/[?&]mod=/.test(await g0.ev('location.search')), await g0.ev('location.search'));
+    ok('default: a default page joins the 16-player room by code, no reload', !!w0 && !/[?&]mod=/.test(await g0.ev('location.search')), await g0.ev('location.search'));
     await g0.close(); await h16.close();
 
     const h4 = await openPage('dhost4', { mod: '4' });
@@ -2290,6 +2290,8 @@ if (CASES.includes('smoke')) {
     say('smoke: the guests wait');
     ok(`smoke: ${NT - 1} guests wait (one by JOIN GAME, ${NT - 2} by the invite link)`, waiting.every(Boolean), waiting.map((w) => (w ? 1 : 0)).join(''));
     await until(async () => (await stats(host)).peers.filter((p) => p.ready).length === NT - 1, 15000, 200);
+    await waitFrames(host, 20);
+    await shot(host, `s-03-host-players-${NT}of16.png`);
     await press(host, 'DOWN'); await waitFrames(host, 10);
     await pickMode(host, 0);
     await press(host, 'A');
@@ -2326,6 +2328,32 @@ if (CASES.includes('smoke')) {
     ok(`smoke: ... and Start closes it`, !!(await until(async () => !(await ovlOf(gp)).st, 6000)));
     const last = await stats(host);
     ok('smoke: the host still has everyone', last.peers.length === NT - 1 && last.players === NT, `${last.peers.length} peers, players ${last.players}`);
+    // the host's pause: SETTINGS > ONLINE lists every player (rows by device:
+    // CODE, MODE, then one a person); the last one's row (past the eighth)
+    // and REMOVE: that guest is out, its Kirby the CPU's
+    {
+        const step = async (p, k, n = 10) => { await press(p, k); await waitFrames(p, n); };
+        await host.ev('window.__script = null; Module._PortSetKeys(0)'); await waitFrames(host, 20);
+        let hu = false;
+        for (let i = 0; i < 5 && !hu; i++) { await step(host, 'START', 60); hu = (await ovlOf(host)).st === 2; }
+        for (let i = 0; i < 5 && (await ovlOf(host)).menu !== 8; i++) await step(host, 'SELECT', 80);
+        for (let i = 0; i < 3; i++) await step(host, 'DOWN');      // ONLINE
+        await step(host, 'A', 30);
+        for (let i = 0; i < NT + 1; i++) await step(host, 'DOWN');  // the last player's row
+        const lr = await ovlOf(host);
+        ok(`smoke: the host's ONLINE list reaches player ${NT}'s row`, hu && lr.model === 13 && lr.row === NT + 1, JSON.stringify(lr));
+        await shot(host, `s-05-host-online-list-${NT}.png`);
+        // (rows by device: the last row is the highest device's, whichever tab that is)
+        const devs = await Promise.all(G.map(async (g) => (await stats(g)).self));
+        const self = Math.max(...devs), gk = G[devs.indexOf(self)];
+        const slot = (await slotsOf(host)).findIndex((x) => x && x.dev === self);
+        await step(host, 'A', 30);
+        const asked = (await ovlOf(host)).model === 16;
+        await step(host, 'DOWN'); await step(host, 'A', 30);        // YES
+        const gone = await until(async () => { const sl = await slotsOf(host); return slot > 0 && !sl[slot]; }, 15000, 200);
+        ok(`smoke: REMOVE on it (NO / YES) takes ${gk.name} (device ${self}) out, slot ${slot + 1} to the CPU`, asked && !!gone, `asked ${asked}, slot ${slot}`);
+        await step(host, 'START', 60);
+    }
     for (const g of G) await g.close();
     await host.close();
 }
