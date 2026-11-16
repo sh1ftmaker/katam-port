@@ -17,9 +17,10 @@ const NODE_CODEC = {
 };
 
 // --- engine adapter ---------------------------------------------------------
+// (the N-wide calls on a wide module: web/ln_session.js wideCalls, the page's own)
 export function engineOf(inst) {
     const M = inst.M;
-    return L.cardCalls(M, {
+    return L.wideCalls(M, L.cardCalls(M, {
         frame: () => M._PortFrameNumber(),
         localInput: (f, k, seat = 0) => M._PortLnLocalInputSeat(f, seat, k),
         remoteInput: (f, k, dev = 1, seat = 0) => M._PortLnRemoteInputSeat(f, dev, seat, k),
@@ -39,7 +40,7 @@ export function engineOf(inst) {
         selfSeats: () => M._PortLnSelfSeats(),
         seatAskPoll: () => M._PortLnSeatAskPoll(),
         slotOwner: (s) => M._PortLnSlotOwner(s),
-    });
+    }));
 }
 
 export class HostSession extends L.HostSession {

@@ -12,6 +12,7 @@
 #include "port/lmpnet.h"
 #include "port/online_ui.h"
 #include "port/online_browse.h"     /* server browser */
+#include "port/wide.h"              /* KATAM_WIDE: the 16-Kirby module */
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,17 @@ static int sRoomsMode = 1;
 
 int PortOuiRoomsMode(void) { return sRoomsMode; }
 static int sPlayers = 1, sConnecting;
+
+/* An 8-player game (EXPERIMENTAL) runs on the 16-Kirby module: there, HOST
+ * GAME holds 8 people; on the ordinary module 4. */
+int PortOuiSeats(void) { return KATAM_WIDE ? 8 : 4; }
+
+static const char *Count(int n)
+{
+    static const char *const k[] = { "NO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT" };
+
+    return n >= 0 && n <= 8 ? k[n] : "MANY";
+}
 static u32 sGen = 1;
 static int sEv[8], sEvHead, sEvTail;
 
@@ -73,7 +85,7 @@ void PortOuiChanged(void) { sGen++; }
 
 void PortOuiSetPlayers(int players, int connecting)
 {
-    sPlayers = players < 1 ? 1 : players > 4 ? 4 : players;
+    sPlayers = players < 1 ? 1 : players > PortOuiSeats() ? PortOuiSeats() : players;
     sConnecting = connecting < 0 ? 0 : connecting;
     sGen++;
 }
@@ -136,6 +148,8 @@ const char *PortOuiRowName(int sub, int row)
     /* server browser */
     if (sub == PORT_OUI_SUB_ONLINE && row == 2)
         return "BROWSE GAMES";
+    if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE)
+        return KATAM_WIDE ? "4 PLAYER GAMES" : "HOST 8 PLAYERS";
     if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
         return PortObrRowName(sub, row);
     switch (sub) {
@@ -167,6 +181,10 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
         PortObrRowValue(sub, row, selected, buf, size);
         return;
     }
+    if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE) {
+        snprintf(buf, size, "%s", KATAM_WIDE ? "" : "EXPERIMENTAL");
+        return;
+    }
     if (sub == PORT_OUI_SUB_HOST) {
         if (row == 0) {
             v = sState == PORT_OUI_H_CREATING ? "...." : HostHasRoom() ? sCode : "----";
@@ -181,7 +199,7 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
                     return;
                 }
                 if (sPlayers <= 1 && !sConnecting) { v = "ALONE"; break; }
-                snprintf(buf, size, "PLAYERS %d/4%s", sPlayers, sConnecting ? " +" : "");
+                snprintf(buf, size, "PLAYERS %d/%d%s", sPlayers, PortOuiSeats(), sConnecting ? " +" : "");
                 return;
             case PORT_OUI_H_NOSERVER: v = "OFFLINE"; break;
             default:                  v = ""; break;
@@ -233,6 +251,13 @@ const char *PortOuiRowDesc(int sub, int row)
     /* server browser */
     if (sub == PORT_OUI_SUB_ONLINE && row == 2)
         return "FIND A PUBLIC GAME TO JOIN";
+    if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE) {
+#ifdef __EMSCRIPTEN__
+        return KATAM_WIDE ? "BACK TO THE FOUR PLAYER GAME" : "UP TO EIGHT - THE PAGE RELOADS";
+#else
+        return "ONLY ON THE WEB PAGE";
+#endif
+    }
     if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
         return PortObrRowDesc(sub, row);
     if (sub == PORT_OUI_SUB_ONLINE)
@@ -245,9 +270,15 @@ const char *PortOuiRowDesc(int sub, int row)
         case PORT_OUI_H_NOSERVER: return "NO GAME SERVER - TRY AGAIN";
         case PORT_OUI_H_JOINING:  return "A PLAYER IS CONNECTING";
         case PORT_OUI_H_READY:
-            if (row == 0)
-                return sPlayers >= 4 ? "FOUR PLAYERS - THE GAME IS FULL"
-                     : sPlayers == 3 ? "THREE PLAYERS ARE HERE" : "TWO PLAYERS ARE HERE";
+            if (row == 0) {
+                static char line[40];
+
+                if (sPlayers >= PortOuiSeats())
+                    snprintf(line, sizeof(line), "%s PLAYERS - THE GAME IS FULL", Count(sPlayers));
+                else
+                    snprintf(line, sizeof(line), "%s PLAYERS ARE HERE", Count(sPlayers < 2 ? 2 : sPlayers));
+                return line;
+            }
             return sRoomsMode ? "EACH PLAYS ON - MEET BY PHONE" : "PRESS A TO PLAY TOGETHER";
         default:
             if (row == 1 && HostHasRoom())
@@ -261,7 +292,7 @@ const char *PortOuiRowDesc(int sub, int row)
         case PORT_OUI_J_WAITING:    return "WAITING FOR THE HOST";
         case PORT_OUI_J_STARTING:   return "GETTING THE GAME";
         case PORT_OUI_J_NOGAME:     return "CHECK THE CODE";
-        case PORT_OUI_J_FULL:       return "THAT GAME HAS FOUR PLAYERS";
+        case PORT_OUI_J_FULL:       return "THAT GAME IS FULL";
         case PORT_OUI_J_BUILD:      return "REFRESH THE PAGE";
         case PORT_OUI_J_ROM:        return "YOU BOTH NEED THE SAME ROM";
         case PORT_OUI_J_FAILED:     return "NO CONNECTION - TRY AGAIN";
@@ -282,6 +313,10 @@ int PortOuiRowUnavailable(int sub, int row)
         return PortObrRowUnavailable(sub, row);     /* server browser */
     if (sub == PORT_OUI_SUB_HOST && row == 1)
         return !HostHasRoom();
+#ifndef __EMSCRIPTEN__
+    if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE)
+        return 1;                   /* the other module is the web page's */
+#endif
     if (sub == PORT_OUI_SUB_JOIN && row == 1)
         return JoinBusy();
     return 0;
@@ -345,6 +380,14 @@ int PortOuiKey(int *row, unsigned key)
         }
         if (key != 1)
             return PORT_OUI_K_NONE;
+        if (*row == PORT_OUI_ROW_OTHER_MODULE) {
+#ifdef __EMSCRIPTEN__
+            Push(PORT_OUI_EV_OTHER_MODULE); /* the page reloads */
+            return PORT_OUI_K_SELECT;
+#else
+            return PORT_OUI_K_DENY;
+#endif
+        }
         if (*row == 2) {                    /* server browser */
             Go(PORT_OUI_SUB_BROWSE);
             PortObrOpen();

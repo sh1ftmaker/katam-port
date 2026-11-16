@@ -115,8 +115,14 @@ def main():
         if f.exists():
             sim.update(f.read_bytes())
     sim_version = 's' + sim.hexdigest()[:16] + '.w' + build_id[:8]
+    # the 16-Kirby module's own (web/online.js: an 8-player game runs on it,
+    # and a page on the other module must not meet it -- or, seeing the
+    # room's id, reloads into it)
+    sim16 = ''
+    if ver16:
+        sim16 = '<script>window.KATAM_SIM16=%r;</script>' % (sim_version + '.k' + id16[:8])
     html = html.replace('<head>', '<head><meta name="katam-sim" content="%s">'
-                        '<script>window.KATAM_SIM=%r;</script>' % (sim_version, sim_version), 1)
+                        '<script>window.KATAM_SIM=%r;</script>%s' % (sim_version, sim_version, sim16), 1)
 
     # The netplay scripts are separate files with the same trap -- a stale
     # cached mp_net.js against a fresh page throws on the first API the old

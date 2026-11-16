@@ -85,6 +85,29 @@ test('heartbeats update in place; full shows FULL; values are clamped', () => {
     assert.equal(d.publicList('9').body.games.find((x) => x.code === a.code).n, 1);
 });
 
+test('an 8-player game: its own max, n up to it, its module; a bad max is 4', () => {
+    const c = new Clock();
+    const d = svc(c);
+    const a = host(d), b = host(d);
+    pub(d, a, { n: 5, max: 8, mod: '16' });
+    c.advance(1000);
+    pub(d, b, { n: 4 });
+    let g = d.publicList('9').body.games;
+    const ga = g.find((x) => x.code === a.code), gb = g.find((x) => x.code === b.code);
+    assert.deepEqual({ ...ga, age: 0 }, { code: a.code, name: 'KIRBY', n: 5, max: 8, mode: 'together', locked: false, full: false, mod: '16', age: 0 });
+    assert.equal(gb.full, true); assert.equal(gb.max, 4); assert.equal('mod' in gb, false);   // a 4-player game: as before
+    assert.deepEqual(g.map((x) => x.code), [a.code, b.code]);            // 5/8 is open, 4/4 is full
+    pub(d, a, { n: 99, max: 8, mod: '16' });
+    ga.n = d.publicList('9').body.games.find((x) => x.code === a.code).n;
+    assert.equal(ga.n, 8);
+    assert.equal(d.publicList('9').body.games.find((x) => x.code === a.code).full, true);
+    for (const max of [3, 17, 'x', -8, 2.5])
+        { pub(d, a, { n: 6, max, mod: 'w8' }); const x = d.publicList('9').body.games.find((y) => y.code === a.code);
+          assert.equal(x.max, 4); assert.equal(x.n, 4); assert.equal('mod' in x, false); }
+    pub(d, a, { n: 12, max: 16 });
+    assert.equal(d.publicList('9').body.games.find((x) => x.code === a.code).n, 12);
+});
+
 test('expiry: unheard for the TTL, the host ends it, or the room empties', () => {
     const c = new Clock();
     const d = svc(c);

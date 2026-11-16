@@ -15,7 +15,18 @@ export const SCRIPTED_END = 10100;
 export const ROOMS = [[101, 3, 7], [104, 2, 9], [106, 2, 9], [202, 3, 4], [205, 3, 3], [310, 4, 9],
     [402, 4, 4], [502, 2, 7], [601, 4, 9], [704, 2, 8], [113, 89, 7], [203, 59, 5], [325, 4, 20],
     [118, 3, 5], [225, 13, 7], [134, 2, 7], [415, 77, 1], [617, 4, 9]];
-const KIRBY = 0x02020EE0, KSIZE = 0x1A8, HP = 0x100;
+// gKirbys: the 4-Kirby module's own array, or the wide module's (port/wide.h
+// WIDE_ADDR(WIDE_OFF_KIRBYS)): buildScenario({ kirbyAddr }) from the module
+// (netproof.mjs kirbyAddrOf), else KATAM_KIRBY_ADDR, else the 4-Kirby one.
+export const KIRBY_DEFAULT = 0x02020EE0;
+const KSIZE = 0x1A8, HP = 0x100;
+// The wide build's sim block grows by 4130 B per Kirby slot, page-aligned,
+// and the Kirbys open its wide area (port/wide.h WIDE_SIM_OFFSET, WIDE_BASE).
+export function kirbyAddrOf(slots) {
+    if (process.env.KATAM_KIRBY_ADDR) return +process.env.KATAM_KIRBY_ADDR;
+    if (!(slots > 4)) return KIRBY_DEFAULT;
+    return 0x02040000 + (((0xB4 + 4130 * slots) + 0xFFF) & ~0xFFF);
+}
 
 // The power-on to first-level taps the committed recordings use.
 export function bootKey(f) { return f >= 120 && (f - 120) % 20 < 10 ? 0x11 : 0; }
@@ -137,7 +148,8 @@ function abilityBot(from, to) {
 }
 
 // The full scenario.  `humanFrames` of free play follow the scripted part.
-export function buildScenario({ seed = 1, humanFrames = 36000, skipScripted = false } = {}) {
+export function buildScenario({ seed = 1, humanFrames = 36000, skipScripted = false, kirbyAddr = null } = {}) {
+    const KIRBY = kirbyAddr ?? (process.env.KATAM_KIRBY_ADDR ? +process.env.KATAM_KIRBY_ADDR : KIRBY_DEFAULT);
     const k1 = [], k2 = [], ev = [], marks = [];
     let f = BOOT_END;
     const p1b = [], p2b = [];

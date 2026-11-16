@@ -63,6 +63,21 @@
 //   rooms   FREE ROAM (rooms mode) with two and three pages (--rooms-pages
 //           2,3): each page on its own player's room, the canonical frames
 //           identical, the digest equal, a phone call, the pause menu.
+//   eight   an 8-player game (EXPERIMENTAL; not in the default list) with
+//           --eight-tabs pages (default 6, at least 5): the host on the
+//           16-Kirby module (?mod=16) through MULTIPLAYER > ONLINE > HOST GAME;
+//           guest 1 on the ORDINARY module types the code on JOIN GAME and
+//           its page reloads into the 16-Kirby module (the room's version
+//           gate names it) and joins; the others by the invite link (which
+//           names the module); the host starts with all but the last tab;
+//           every guest's every compared frame identical with the host's;
+//           the last tab joins mid-game into a seat past the live count (its
+//           Kirby is made, then seated: the seat wait measured); the host
+//           changes the Kirby count (CPU KIRBYS, the sealed EV_KIRBYS) and
+//           every page has the new count; guest 2 leaves from its game and
+//           comes back by its invite link in the same tab to its own Kirby;
+//           the status line says players n/8; telemetry (bytes/s, rewinds/s
+//           and depth per device, retransmits, seat wait) to the results.
 import fs from 'fs';
 import path from 'path';
 import { human, ROOMS } from './netproof/scenario.mjs';
@@ -1594,6 +1609,134 @@ if (CASES.includes('browse')) {
     } else {
         ok('browse/old: --relay-old given', false);
     }
+}
+
+// --- eight: an 8-player game, 5-6 tabs, on the 16-Kirby module --------------------
+if (CASES.includes('eight')) {
+    const NT = Math.max(5, +flag('eight-tabs', 6));
+    say(`# eight: an 8-player game with ${NT} tabs on the 16-Kirby module; play with ${LAG} ms one way, jitter ${JITTER}, loss ${LOSS}%`);
+    const R = results.eight = { steps: [] };
+    const k16 = Object.assign({ mod: '16' }, knobs);
+    const host = await openPage('host', k16);
+    await until(() => host.ev('!!(window.Module && Module.portRuntimeUp)'), 60000);
+    ok('eight: the host page runs the 16-Kirby module', (await host.ev('katamOnline.module()')) === '16' && (await host.ev('Module._PortLnSlots()')) === 16,
+       'slots ' + (await host.ev('Module._PortLnSlots()')));
+    await setCard(host, 0, '1,2,0,0,0,HOSTY');
+    const code = await hostToWaiting(host, 'e');
+    ok('eight: MULTIPLAYER > ONLINE > HOST GAME works on the 16-Kirby module', !!code, code);
+    const inv = await host.ev('katamOnline.invite()');
+    ok('eight: the invite link names the module', /[?&]mod=16\b/.test(inv) && inv.includes('join=' + code), inv);
+    // guest 1: the ORDINARY module, the code typed on JOIN GAME
+    const g1 = await openPage('guest1', knobs);
+    await toGameSelect(g1);
+    ok('eight: guest 1 starts on the ordinary module', (await g1.ev('katamOnline.module()')) === '4');
+    await toOnline(g1);
+    await press(g1, 'DOWN');
+    await press(g1, 'A');
+    await waitFrames(g1, 20);
+    await typeCode(g1, code);
+    const hopped = await until(async () => {
+        const q = await g1.ev('location.search');
+        const st = await stats(g1);
+        return /mod=16/.test(q) && st && st.module === '16' && (st.phase === 'waiting' || st.session) ? q : null;
+    }, 90000, 300);
+    await glCheck(g1);
+    ok('eight: guest 1\'s page reloads into the 16-Kirby module by itself and joins (the room\'s version gate)', !!hopped, String(hopped));
+    // guests 2 .. NT-2 by the invite link
+    const G = [g1];
+    for (let i = 2; i <= NT - 2; i++) {
+        const g = await openPage('guest' + i, Object.assign({ join: code }, k16));
+        await setCard(g, 0, `1,${i + 3},0,0,0,G${i}`);
+        G.push(g);
+    }
+    for (const g of G.slice(1)) {
+        const w = await until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 60000);
+        await glCheck(g);
+        ok(`eight: ${g.name} (invite link) connected and waits`, !!w);
+    }
+    await sleep(1500);
+    const hs0 = await stats(host);
+    ok(`eight: the host counts ${NT - 2} guests ready`, hs0.peers.filter((p) => p.ready).length === NT - 2, JSON.stringify(hs0.peers.map((p) => [p.dev, p.ready, p.path])));
+    await press(host, 'DOWN'); await waitFrames(host, 10);
+    ok('eight: START row set to TOGETHER', await pickMode(host, 0));
+    await press(host, 'UP'); await waitFrames(host, 10);
+    await press(host, 'DOWN'); await waitFrames(host, 10);
+    await shot(host, `e-03-host-players-${NT - 1}of8.png`);
+    await press(host, 'A');
+    ok('eight: session started', !!(await until(async () => { const st = await stats(host); return st && st.session; }, 20000)));
+    for (const g of G) ok(`eight: ${g.name} took the host's image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 40000)));
+    await sleep(3000);
+    let sl = await slotsOf(host);
+    ok(`eight: ${NT - 1} Kirbys are people`, sl.filter(Boolean).length === NT - 1 && sl.length === 8, slotsStr(sl));
+    const base = (await stats(host)).startFrame, frames = 60 * 400;
+    const play = buildPlay(frames, 4, 900);
+    await setScript(host, play.k1, base, play.warps);
+    for (const [i, g] of G.entries()) await setScript(g, buildPlay(frames, 10 + i, 100000).k2, base, []);
+    const cmps = G.map((g) => makeComparer(host, g));
+    await playMany(host, G, 45, cmps, 'e-play', [20]);
+    for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight: ${G[i].name} identical to the host`, c.compared > 50 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
+    R.steps.push({ step: `play${NT - 1}`, host: await stats(host), guests: await Promise.all(G.map(stats)) });
+    // the last tab joins mid-game: a seat past the live count (4 Kirbys
+    // until people needed more; the engine makes the Kirby, then seats it)
+    const kBefore = await host.ev('Module._PortPocKirbysNow()');
+    const gl = await openPage('guest' + (NT - 1), Object.assign({ join: code }, k16));
+    await setCard(gl, 0, '1,12,0,0,0,LATE');
+    const inL = await until(async () => { const st = await stats(gl); return st && st.session && st.joined; }, 60000);
+    await glCheck(gl);
+    ok(`eight: tab ${NT} joins mid-game`, !!inL);
+    // its seat is past the live count: the engine holds the join until its
+    // Kirby is made, and makes Kirbys in play only from the story stage
+    // where the CPU helpers are free (platform/wide.c CanChange:
+    // gAIKirbyState >= NORMAL); a fresh file is before it
+    const heldFor = 20000, early = await host.ev('Module.HEAPU16[0x0203AD2C >> 1]');
+    const seatedEarly = await until(async () => { const st = await stats(gl); return st && st.seatWaitMs !== null && st.seatWaitMs !== undefined ? st : null; }, heldFor);
+    R.earlyStory = { aiState: early, seatedWithin20s: !!seatedEarly, kirbys: await host.ev('Module._PortPocKirbysNow()') };
+    say(`eight: story stage ${early} (NORMAL is 300): seated without help in 20 s: ${!!seatedEarly}, Kirbys ${R.earlyStory.kirbys}`);
+    // the story stage where the count may change: the host seals it (a poke, as the rig's R13-N count case)
+    if (!seatedEarly) { await host.ev('Module._PortLnEvent(4, 0x0203AD2C, 0x2C, 0, 0)'); await host.ev('Module._PortLnEvent(4, 0x0203AD2D, 0x01, 0, 0)'); }
+    const seated = seatedEarly || await until(async () => { const st = await stats(gl); return st && st.seatWaitMs !== null && st.seatWaitMs !== undefined ? st : null; }, 30000);
+    const hsL = await stats(host), pl = hsL.peers.find((p) => p.dev === (seated ? seated.self : -1));
+    ok(`eight: it is seated (player ${NT}: a Kirby made past the ${kBefore} there were)`, !!seated && (await slotsOf(host)).filter(Boolean).length === NT
+       && (await host.ev('Module._PortPocKirbysNow()')) >= NT,
+       `guest seat wait ${seated ? seated.seatWaitMs : '-'} ms, host side ${pl ? pl.seatWaitMs : '-'} ms, Kirbys ${await host.ev('Module._PortPocKirbysNow()')}${seatedEarly ? '' : ' (after the story stage was sealed NORMAL)'}`);
+    R.seatWait = { guestMs: seated ? seated.seatWaitMs : null, hostMs: pl ? pl.seatWaitMs : null, kirbysBefore: kBefore, kirbysAfter: await host.ev('Module._PortPocKirbysNow()'), hostWaits: hsL.seatWaits };
+    await setScript(gl, buildPlay(frames, 30, 100000).k2, await frame(gl), []);
+    G.push(gl); cmps.push(makeComparer(host, gl));
+    // the host's count: CPU KIRBYS 7 (sealed for every device)
+    await host.ev('Module._PortLnEvent(10, 7, 0, 0, 0)');
+    const k7 = await until(async () => { for (const p of [host, ...G]) if ((await p.ev('Module._PortPocKirbysNow()')) !== 7) return false; return true; }, 30000, 250);
+    ok('eight: the host changes the Kirby count (7) and every page has it', !!k7,
+       (await Promise.all([host, ...G].map((p) => p.ev('Module._PortPocKirbysNow()')))).join(' '));
+    await playMany(host, G, 25, cmps, 'e-play2', [10]);
+    // guest 2 leaves from its game, and comes back in the same tab by its link
+    const g2 = G[1], self2 = (await stats(g2)).self, slot2 = (await slotsOf(host)).findIndex((x) => x && x.dev === self2 && x.seat === 0);
+    await g2.ev('katamOnline.leave()');
+    const gone2 = await until(async () => { const s2 = await slotsOf(host); return !s2[slot2] ? s2 : null; }, 20000);
+    ok(`eight: guest 2 leaves (slot ${slot2 + 1} to the CPU)`, !!gone2, gone2 ? slotsStr(gone2) : '');
+    await sleep(1500);
+    await g2.s('Page.navigate', { url: pageUrl(Object.assign({ join: code }, k16)) });
+    const back2 = await until(async () => { const st = await stats(g2); return st && st.session && st.joined && st.accept !== false ? st : null; }, 60000);
+    await sleep(3000);
+    const sl2 = await slotsOf(host);
+    ok('eight: guest 2 comes back (same tab) to its own Kirby', !!back2 && sl2[slot2] && sl2[slot2].dev === self2, slotsStr(sl2));
+    await setScript(g2, buildPlay(frames, 41, 100000).k2, await frame(g2), []);
+    cmps[1] = makeComparer(host, g2);
+    await playMany(host, G, 25, cmps, 'e-play3', [10]);
+    for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight: ${G[i].name} identical to the host (to the end)`, c.compared > 30 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
+    const txt = await host.ev('katamOnline.statsText()');
+    ok('eight: the status line says players n/8', /players \d\/8/.test(txt), txt.split('\n')[0]);
+    // telemetry: what an 8-player game costs each device
+    const hsF = await stats(host), gsF = await Promise.all(G.map(stats));
+    R.final = { host: { upBps: hsF.upBps, downBps: hsF.downBps, devices: hsF.devices, kirbys: hsF.kirbys,
+                        peers: hsF.peers.map((p) => ({ dev: p.dev, path: p.path, upBps: p.upBps, downBps: p.downBps, resends: p.resends, resentRecs: p.resentRecs,
+                                                       rtoMs: p.rtoMs, ackRttMs: p.ackRttMs, maxPacket: p.maxPacket, recsPerPacket: p.recsPerPacket, seatWaitMs: p.seatWaitMs })) },
+                guests: gsF.map((g) => ({ self: g.self, path: g.path, upBps: g.upBps, downBps: g.downBps, rewindsPerSec: g.rewindsPerSec, replayAvg: g.replayAvg,
+                                          rewinds: g.rewinds, repairs: g.repairs, mismatches: g.mismatches, lead: g.lead, rttMs: g.rttMs })) };
+    say('eight: ' + JSON.stringify(R.final));
+    ok('eight: largest sealed packet under 1200 B', hsF.peers.every((p) => !p.maxPacket || p.maxPacket <= 1200), hsF.peers.map((p) => p.maxPacket).join(' '));
+    await shot(host, 'e-09-host-end.png');
+    for (const g of G) await g.close();
+    await host.close();
 }
 
 if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'online-test-results.json'), JSON.stringify(results, null, 1));

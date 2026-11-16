@@ -2511,9 +2511,12 @@ static const char *MpDesc(int row)
 {
     if (gPortLnOn)
         return "IN AN ONLINE GAME";
-    /* the wide module (more than 4 Kirbys): no multiplayer of either kind */
-    if (KATAM_WIDE && row != PORT_MENU_POC_MP_CARD)
+    /* the wide module (more than 4 Kirbys): no local multiplayer; online is
+     * its 8-player games (platform/online_ui.c PortOuiSeats) */
+    if (KATAM_WIDE && row == 0)
         return "SET CPU KIRBYS TO 3 FIRST";
+    if (KATAM_WIDE && row == PORT_MENU_POC_MP_ONLINE)
+        return "UP TO EIGHT ONLINE - EXPERIMENTAL";
     if (row == PORT_MENU_POC_MP_CARD)
         return "YOUR NAME AND KIRBY COLOR";
     if (row != 0)
@@ -2529,7 +2532,7 @@ static int MpUnavailable(int row)
 {
     if (gPortLnOn)
         return 1;
-    if (KATAM_WIDE && row != PORT_MENU_POC_MP_CARD)
+    if (KATAM_WIDE && row == 0)
         return 1;
     return row == 0 && !PortLmpP2InputAvailable();
 }
@@ -2546,7 +2549,7 @@ static const char *OuiDesc(int row) { return PortOuiRowDesc(sModel->oui, row); }
 static int OuiUnavailable(int row) { return PortOuiRowUnavailable(sModel->oui, row); }
 
 static const struct PocModel kOnlineModel = {
-    3 /* server browser: + BROWSE GAMES */, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
+    4 /* server browser: + BROWSE GAMES; + the other module (HOST 8 PLAYERS) */, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
 };
 static const struct PocModel kHostModel = {
     4 /* server browser: + GAME, PASS */, "HOST GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_HOST,
@@ -3418,8 +3421,6 @@ int PortMenuPocMpKey(struct Unk_08138D64 *a1, unsigned key)
         case PORT_CARD_K_CLOSE:  act = PORT_OUI_K_BACK; row = PORT_MENU_POC_MP_CARD; break;
         default:                 act = PORT_OUI_K_QUIET; break;
         }
-    } else if (KATAM_WIDE && PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_ONLINE) {
-        act = PORT_OUI_K_DENY;  /* the wide module: no online (MpUnavailable) */
     } else if (PortOuiSub() == PORT_OUI_SUB_MP && key == 1 && row == PORT_MENU_POC_MP_CARD) {
         PortPlayerCardOpen(0, 0);
         row = 1;                /* on NAME: the PLAYER row is for P2..P4 */

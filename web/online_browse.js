@@ -11,7 +11,9 @@
  *             need it and work as before.
  *   publish   a host that chose PUBLIC: POST /v2/public with the room's code
  *             and resume token (the ownership proof), the card's name, the
- *             players, the mode and whether there is a password -- at once,
+ *             players, the room's seats (`max`: 4, or 8 in an 8-player game)
+ *             and module (`mod`: '16' for the 8-player module), the mode and
+ *             whether there is a password -- at once,
  *             on every change, and as a heartbeat (every 25 s, the server's
  *             `every`).  PRIVATE again, the game ending or the page closing:
  *             POST /v2/public/remove.  The server also drops it when the room
@@ -30,6 +32,13 @@
  *             docs or the report -- anyone who has the password can pass it
  *             on, the relay sees the nonce and the hash, and four letters can
  *             be guessed offline from one captured exchange.
+ *
+ * The list shows "players/max" from the listing's `max` when it has one, else
+ * "/4".  A worker from before `max` and `mod` (netplay/listing.mjs with
+ * MAX_PLAYERS 4) clamps n to 4, says max 4 and full from 4 players on, and
+ * drops `mod`: an 8-player game then lists as n/4 and FULL from its fourth
+ * player (joining it by code or invite still works; the room's version gate
+ * moves a joiner on the wrong module over).
  *
  * Joiners type the password on the game's PASSWORD screen (it opens by
  * itself when the host asks) -- or, for an invite link, which joins from
@@ -114,8 +123,10 @@
             if (r.status === 200 && r.games) {
                 st.games = r.games;
                 var packed = r.games.map(function (g) {
-                    var fl = (g.locked ? 1 : 0) | (g.mode === 'roam' ? 2 : 0) | (g.full ? 4 : 0);
-                    return [g.code, String(g.name || '').replace(/[\t\n]/g, ' '), g.n, fl].join('\t');
+                    var max = g.max >= 2 && g.max <= 16 ? g.max | 0 : 4;
+                    var full = g.max ? g.n >= max : g.full;
+                    var fl = (g.locked ? 1 : 0) | (g.mode === 'roam' ? 2 : 0) | (full ? 4 : 0);
+                    return [g.code, String(g.name || '').replace(/[\t\n]/g, ' '), g.n, fl, max].join('\t');
                 }).join('\n');
                 try { M.ccall('PortObrListSet', null, ['string'], [packed]); } catch (e) { log('list: ' + e); }
                 setStatus(LIST.OK);
@@ -144,9 +155,13 @@
     }
     function fields() {
         var h = st.host, name = str('PortCardNameJs');
-        return { code: h.code, resume: h.resume, name: name || 'PLAYER', n: h.players(),
-                 mode: M._PortOuiRoomsMode && M._PortOuiRoomsMode() ? 'roam' : 'together',
-                 locked: !!str('PortObrHostPassJs') };
+        var f = { code: h.code, resume: h.resume, name: name || 'PLAYER', n: h.players(),
+                  mode: M._PortOuiRoomsMode && M._PortOuiRoomsMode() ? 'roam' : 'together',
+                  locked: !!str('PortObrHostPassJs') };
+        /* an 8-player game: its seats and module (a worker before them ignores both) */
+        if (h.max && h.max !== 4) f.max = h.max;
+        if (h.mod) f.mod = h.mod;
+        return f;
     }
     function publish(f) {
         var h = st.host, sig = JSON.stringify(f);
@@ -356,10 +371,11 @@
     window.KatamBrowse = {
         UI: UI,
         /* web/online.js: a room of ours, its resume token, a head count */
-        hosting: function (code, resume, players) {
+        hosting: function (code, resume, players, opts) {
             if (st.host) unpublish(st.host);
             st.host = { code: code, resume: resume, players: players, listed: false, sig: null, next: 0,
-                        retryAt: 0, dead: false, inflight: false, want: false, state: HOSTL.PRIVATE };
+                        retryAt: 0, dead: false, inflight: false, want: false, state: HOSTL.PRIVATE,
+                        max: opts && opts.max || 4, mod: opts && opts.mod || null };
             st.fails = {}; st.pending = {};
             hostSet(HOSTL.PRIVATE);
         },
@@ -371,6 +387,12 @@
             if (el) el.style.display = 'none';
         },
         gate: gate, verify: verify, onChallenge: onChallenge,
+        /* web/online.js: the module a listed game runs on ('16', '4'), or null */
+        modOf: function (code) {
+            for (var i = 0; i < st.games.length; i++)
+                if (st.games[i].code === code) return st.games[i].mod === '16' ? '16' : st.games[i].mod ? '4' : null;
+            return null;
+        },
         hash: pwHash,
         stats: function () {
             return { browsing: st.browsing, listStatus: st.listStatus, games: st.games, lists: st.lists,

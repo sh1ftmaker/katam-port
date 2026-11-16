@@ -12,6 +12,7 @@
  * characters: A-Z 0-9 space : . - ! / % + < > and '*', the padlock. */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "global.h"
@@ -36,7 +37,7 @@ extern "C" {
 struct ObrGame {
     char code[5];
     char name[9];
-    u8 n, roam, locked, full;
+    u8 n, max, roam, locked, full;      /* max: its seats (4, or 8 in an 8-player game) */
 };
 
 static struct ObrGame sGames[PORT_OBR_LIST_MAX];
@@ -352,7 +353,7 @@ static void BrowseValue(int row, char *buf, int size)
     if (g->full)
         snprintf(base, sizeof(base), "%sFULL", g->locked ? "* " : "");
     else
-        snprintf(base, sizeof(base), "%s%d/4", g->locked ? "* " : "", g->n);
+        snprintf(base, sizeof(base), "%s%d/%d", g->locked ? "* " : "", g->n, g->max);
     /* the mode where it fits beside the name (the description has it too) */
     snprintf(buf, size, "%s %s%s", base, g->roam ? "ROAM" : "TOGETHER", more);
     if (TextW(g->name) + 8 + TextW(buf) > ROW_TEXT_W)
@@ -437,7 +438,7 @@ const char *PortObrRowDesc(int sub, int row)
         case PORT_OUI_J_CONNECTING: return "CHECKING THE PASSWORD";
         case PORT_OUI_J_WAITING:    return "WAITING FOR THE HOST";
         case PORT_OUI_J_STARTING:   return "GETTING THE GAME";
-        case PORT_OUI_J_FULL:       return "THAT GAME HAS FOUR PLAYERS";
+        case PORT_OUI_J_FULL:       return "THAT GAME IS FULL";
         case PORT_OUI_J_HOSTLEFT:   return "THE HOST CLOSED THE GAME";
         default:                    return "NO CONNECTION - TRY AGAIN";
         }
@@ -557,7 +558,9 @@ int PortObrHostKey(int *row, unsigned key)
 
 /* --- the page's side ----------------------------------------------------------------- */
 
-/* "CODE\tNAME\tN\tFLAGS\n" per game; FLAGS bit 0 locked, 1 free roam, 2 full. */
+/* "CODE\tNAME\tN\tFLAGS[\tMAX]\n" per game; FLAGS bit 0 locked, 1 free roam,
+ * 2 full; MAX the game's seats (web/online_browse.js: the listing's `max`,
+ * 4 when it has none). */
 OBR_EXPORT void PortObrListSet(const char *packed)
 {
     const char *p = packed;
@@ -565,12 +568,12 @@ OBR_EXPORT void PortObrListSet(const char *packed)
 
     while (p && *p && n < PORT_OBR_LIST_MAX) {
         struct ObrGame g;
-        char f[4][16];
+        char f[5][16];
         int k = 0, o = 0, flags;
 
         memset(f, 0, sizeof(f));
         for (; *p && *p != '\n'; p++) {
-            if (*p == '\t') { if (++k >= 4) break; o = 0; continue; }
+            if (*p == '\t') { if (++k >= 5) break; o = 0; continue; }
             if (o < 15) f[k][o++] = *p;
         }
         while (*p && *p != '\n') p++;
@@ -588,11 +591,16 @@ OBR_EXPORT void PortObrListSet(const char *packed)
         }
         if (!o)
             snprintf(g.name, sizeof(g.name), "PLAYER");
-        g.n = (u8)(f[2][0] >= '1' && f[2][0] <= '4' ? f[2][0] - '0' : 1);
+        {
+            int mx = atoi(f[4]), pn = atoi(f[2]);
+
+            g.max = (u8)(mx >= 2 && mx <= 16 ? mx : 4);
+            g.n = (u8)(pn >= 1 && pn <= g.max ? pn : pn > g.max ? g.max : 1);
+        }
         flags = f[3][0] >= '0' && f[3][0] <= '9' ? f[3][0] - '0' : 0;
         g.locked = (u8)(flags & 1);
         g.roam = (u8)((flags >> 1) & 1);
-        g.full = (u8)(((flags >> 2) & 1) || g.n >= 4);
+        g.full = (u8)(((flags >> 2) & 1) || g.n >= g.max);
         sGames[n++] = g;
     }
     sCount = n;
