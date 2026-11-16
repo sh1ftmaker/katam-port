@@ -187,7 +187,9 @@ struct PortSimBlock {
 #if KATAM_WIDE
     /* The wide build's per-player tables (port/wide.h), last, page-aligned. */
     struct PortWideCtl wideCtl;     /* the live count (port/wide.h) */
-    u8 widePad[WIDE_SIM_OFFSET - (0xB4u + 4130u * PORT_MAX_SEATS) - sizeof(struct PortWideCtl)];
+    struct PortWideLmp lmpw;        /* the human-slot layer, N wide (port/wide.h) */
+    u8 widePad[WIDE_SIM_OFFSET - (0xB4u + 4130u * PORT_MAX_SEATS) - sizeof(struct PortWideCtl)
+               - sizeof(struct PortWideLmp)];
     u8 wide[WIDE_BYTES];
 #endif
 };

@@ -49,10 +49,12 @@ static u32 sLastLatched;        /* the newest frame the latch has run for     */
 static int sLatchedAny;
 
 /* Local multiplayer (platform/localmp.c): the other humans' pads, per frame,
- * like sKeys; index 1..3 is player 2..4.  `kp PLAYER FRAME MASK` in the file,
- * and `option localmp N` for the switch itself. */
-static u16 *sKeysP[4];
-static u32 sKeysPCap[4], sKeysPLen[4];
+ * like sKeys; index 1..LP-1 is player 2..LP (LP = PORT_LMP_SLOTS: 4, or the
+ * wide build's Kirby slots).  `kp PLAYER FRAME MASK` in the file, and
+ * `option localmp N` for the switch itself. */
+#define LP PORT_LMP_SLOTS
+static u16 *sKeysP[LP];
+static u32 sKeysPCap[LP], sKeysPLen[LP];
 static int sHaveLocalMp;
 static u32 sLocalMp;
 
@@ -291,12 +293,14 @@ long PortInputLogLoad(const char *text, u32 len)
     const char *p = text, *end = text + len;
     u32 frames = 0, last = 0;
     u16 mask = 0;
-    u32 lastP[4] = { 0, 0, 0, 0 };
-    u16 maskP[4] = { 0, 0, 0, 0 };
+    u32 lastP[LP];
+    u16 maskP[LP];
     int sawHeader = 0, pl;
 
+    memset(lastP, 0, sizeof lastP);
+    memset(maskP, 0, sizeof maskP);
     sKeysLen = 0;
-    for (pl = 0; pl < 4; pl++)
+    for (pl = 0; pl < LP; pl++)
         sKeysPLen[pl] = 0;
     sNumWarps = 0;
     sNumViews = 0;
@@ -328,7 +332,7 @@ long PortInputLogLoad(const char *text, u32 len)
         } else if (sscanf(line, "frames %u", &a) == 1) {
             frames = a;
         } else if (sscanf(line, "kp %u %u %x", &a, &b, &c) == 3) {
-            if (a < 1 || a > 3 || !GrowKeysP((int)a, b + 1))
+            if (a < 1 || a >= LP || !GrowKeysP((int)a, b + 1))
                 return -1;
             while (lastP[a] < b)
                 sKeysP[a][lastP[a]++] = maskP[a];
@@ -353,7 +357,7 @@ long PortInputLogLoad(const char *text, u32 len)
         } else if (sscanf(line, "poke16 %u %x %x", &a, &b, &c) == 3) {
             AddPoke(a, b, (u16)c);
         } else if (sscanf(line, "human %u %u %u", &a, &b, &c) == 3) {
-            if (b < 1 || b > 3 || c > 1) {
+            if (b < 1 || b >= LP || c > 1) {
                 PortError("[katam-port] replay: bad human line: %s", line);
                 return -1;
             }
@@ -408,7 +412,7 @@ long PortInputLogLoad(const char *text, u32 len)
     while (last < frames)
         sKeys[last++] = mask;
     sKeysLen = frames;
-    for (pl = 1; pl < 4; pl++) {
+    for (pl = 1; pl < LP; pl++) {
         if (sKeysP[pl] == NULL && lastP[pl] == 0)
             continue;
         if (!GrowKeysP(pl, frames + 1))
@@ -539,7 +543,7 @@ char *PortInputLogSerialize(u32 *outLen)
         {
             int q;
 
-            for (q = 1; q < 4; q++) {
+            for (q = 1; q < LP; q++) {
                 if (f >= sKeysPLen[q] || (f > 0 && sKeysP[q][f] == sKeysP[q][f - 1]))
                     continue;
                 if (f == 0 && sKeysP[q][0] == 0)
@@ -615,7 +619,7 @@ u32 PortInputLogScheduleHuman(u8 slot, u8 on)
 {
     u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
 
-    if (sReplaying || slot < 1 || slot > 3)
+    if (sReplaying || slot < 1 || slot >= LP)
         return 0;
     AddHuman(frame, slot, on ? 1 : 0);
     return frame;
@@ -979,10 +983,11 @@ void PortInputLogLatch(u32 frame, u16 *keys)
      * Every frame: a game nobody has joined latches nothing (PortLmpLatch
      * returns at once) and records nothing (all-zero pads write no line). */
     {
-        u16 kp[4] = { 0, 0, 0, 0 };
+        u16 kp[LP];
         int q;
 
-        for (q = 1; q < 4; q++) {
+        memset(kp, 0, sizeof kp);
+        for (q = 1; q < LP; q++) {
             if (sReplaying)
                 kp[q] = frame < sKeysPLen[q] ? sKeysP[q][frame] : 0;
             else

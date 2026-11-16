@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #include "gba/types.h"
+#include "port/wide.h"
 
 #define PORT_LN_HOST  1
 #define PORT_LN_GUEST 2
@@ -42,7 +43,7 @@ extern "C" {
 #define PORT_LN_EV_VIEW    2   /* a=w b=h: the session (sim) view            */
 #define PORT_LN_EV_LMP     3   /* a=humans: local-multiplayer setting        */
 #define PORT_LN_EV_POKE    4   /* a=GBA address b=byte (tests: an "option")  */
-#define PORT_LN_EV_HUMAN   5   /* a=slot 1..3 b=1 joins / 0 leaves (localmp.c)
+#define PORT_LN_EV_HUMAN   5   /* a=slot 1..PORT_LN_SLOTS-1 b=1 joins / 0 leaves (localmp.c)
                                 * c=owner: 0 = unchanged (a test's bare join),
                                 * else 1 + device*4 + seat (see "slots" below) */
 #define PORT_LN_EV_PAINT   6   /* a=slot 0..3 b=paint (PORT_PAINT_*, kirby_paint.c)
@@ -59,10 +60,20 @@ extern "C" {
                                 * (low byte first), as the host has it from
                                 * the cards: drawn by the pause SETTINGS
                                 * page's ONLINE list; only with the menus on */
+#define PORT_LN_EV_KIRBYS 10   /* a=Kirbys in all, 4..KATAM_KIRBYS: the host's
+                                * CPU KIRBYS setting (platform/wide.c
+                                * PortWideSetTarget); ignored by the default
+                                * build.  The count in play never drops below
+                                * a person's Kirby (wide.c "People"), so seats
+                                * need no event of their own: a seat past the
+                                * count is an ordinary EV_HUMAN, held in the
+                                * simulation until its Kirby has been made */
 
 /* --- slots, devices, seats -------------------------------------------------
- * Up to four devices in a star: the host is device 0, guests 1..3 (the host
- * numbers them).  Each device has up to four local SEATS: seat 0 is the
+ * PORT_LN_SLOTS Kirby slots (4; the wide build: one per Kirby slot,
+ * KATAM_KIRBYS) over up to PORT_LN_MAX_DEV devices (as many as slots) in a
+ * star: the host is device 0, guests 1..PORT_LN_MAX_DEV-1 (the host numbers
+ * them; on a w8 module devices 4..7 are numbered exactly like 1..3).  Each device has up to four local SEATS: seat 0 is the
  * console's own keys, seats 1..3 the pads platform/localmp.c's host keys
  * carry (PortLmpSetHostKeys).  The session maps seats onto Kirby SLOTS: slot
  * 0 is always the host's seat 0; slots 1..3 are owned by a (device, seat) or
@@ -73,8 +84,9 @@ extern "C" {
  * Until the host first calls one of those two, slot 1 is device 1 seat 0 and
  * nothing is reconciled: a caller that predates slots (two devices, the
  * legacy PortLnLocalInput / PortLnRemoteInput) sees exactly what it did. */
-#define PORT_LN_MAX_DEV   4
-#define PORT_LN_OWN(dev, seat) (1 + (dev) * 4 + (seat))
+#define PORT_LN_SLOTS     PORT_LMP_SLOTS
+#define PORT_LN_MAX_DEV   PORT_LN_SLOTS
+#define PORT_LN_OWN(dev, seat) (1 + (dev) * 4 + (seat))   /* <= 64: a u8 */
 
 extern int gPortLnOn;
 
@@ -98,8 +110,11 @@ int  PortLnEvent(int type, int a, int b, int c, int d); /* host: at next latch *
 
 /* --- slots (see above) ---------------------------------------------------- */
 /* host: device `dev` wants its seat `seat` to play (on) or not (off).  The
- * slot it had last if free, else the lowest free one.  Returns the slot, or
- * -1 (on: all four taken; off: it had none).  Sealed at the next latch. */
+ * slot it had last if free, else the lowest free one (the wide build: a slot
+ * whose Kirby exists first; past the live count the join is held in the
+ * simulation until the count, raised by it, has made that Kirby).  Returns
+ * the slot, or -1 (on: every slot taken; off: it had none).  Sealed at the
+ * next latch. */
 int  PortLnSeatRequest(int dev, int seat, int on);
 void PortLnDeviceGone(int dev);              /* host: its slots to the CPU   */
 int  PortLnFreeSlots(void);                  /* host: slots nobody has        */
@@ -124,11 +139,23 @@ int  PortLnSeatAskPoll(void);                /* guest: 1 + seat + 4*on, 0 none *
  * ontime (device 1 seat 0's key was on time), hashLo, hashHi, hashed, k2,
  * k3.  Returns 0 if not sealed (yet, or no longer held). */
 int  PortLnSealedGet(u32 frame, u32 *out);
+/* The same for every slot, PORT_LN_SEALED_WORDS words: out[0..8] exactly as
+ * PortLnSealedGet, out[9] = PORT_LN_SLOTS, out[10 + i] = the keys of slot
+ * 4 + i for i < PORT_LN_SLOTS - 4 (none in the default build).  Returns 0 if
+ * not sealed. */
+#define PORT_LN_SEALED_WORDS (10 + PORT_LN_SLOTS - 4)
+int  PortLnSealedGetN(u32 frame, u32 *out);
 int  PortLnSealedEventGet(u32 frame, int idx, s32 *out);  /* type,a,b,c,d */
 /* guest: a sealed frame from the host (its events first). */
 void PortLnSealedEvent(u32 frame, int type, int a, int b, int c, int d);
 void PortLnSealed(u32 frame, u16 k0, u16 k1, int nev);
 void PortLnSealed4(u32 frame, u16 k0, u16 k1, u16 k2, u16 k3, int nev);
+/* guest: a sealed frame with n slots' keys (keys[0..n-1], slot order; slots
+ * from n on are 0).  n is at most PORT_LN_SLOTS; PortLnSealed4 is n = 4. */
+void PortLnSealedN(u32 frame, const u16 *keys, int n, int nev);
+/* What this build's sessions are made of (the page and the rig ask): */
+int  PortLnSlots(void);                      /* PORT_LN_SLOTS                 */
+int  PortLnMaxDevices(void);                 /* PORT_LN_MAX_DEV               */
 void PortLnRemoteHash(u32 frame, u32 lo, u32 hi);
 
 /* --- state ----------------------------------------------------------------- */

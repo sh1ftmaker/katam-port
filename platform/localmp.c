@@ -163,12 +163,23 @@ extern void sub_0800EF60(void);
 extern void sub_0803E050(u16);
 
 #define L (&gPortSim->lmp)
+/* The human-slot layer's width (port/wide.h): 4, or one per Kirby slot in
+ * the wide build.  Masks of slots are u32 (port/localmp.h). */
+#define NS PORT_LMP_SLOTS
+/* Kirby k's slot (base.unk56 is the slot; % NS is the default build's & 3). */
+#define SLOT_OF(k) ((u8)((k)->base.unk56 % NS))
+/* The Kirbys in play: the wide build's live count (platform/wide.c), else 4. */
+#if KATAM_WIDE
+#define LIVE_N (gNumKirbys < NS ? (int)gNumKirbys : NS)
+#else
+#define LIVE_N 4
+#endif
 
 /* The host's setting and pads.  Not simulation state: the setting reaches
  * the game through PortLmpStartHumans and is recorded as `option localmp`,
  * and the pads through the latch, recorded as `kp` lines. */
 static int sSetting, sFromHost;
-static u16 sHostKeys[4];
+static u16 sHostKeys[NS];
 /* Can player 2 press anything on this device?  The web page clears it on a
  * touch-only device until a key or a gamepad shows up. */
 static int sP2Input = 1;
@@ -207,7 +218,7 @@ static void RoomsEnv(void)
         const char *e = getenv("KATAM_LOCAL_MP_VIEW");
 
         sView = e ? atoi(e) : -1;
-        if (sView < -1 || sView > 3)
+        if (sView < -1 || sView >= NS)
             sView = -1;
     }
 }
@@ -234,7 +245,7 @@ int PortLmpRooms(void)
 void PortLmpSetView(int slot)
 {
     RoomsEnv();
-    sView = (slot >= 0 && slot <= 3) ? slot : -1;
+    sView = (slot >= 0 && slot < NS) ? slot : -1;
 }
 
 int PortLmpView(void)
@@ -274,8 +285,14 @@ void PortLmpRoomsSealed(int on)
 {
     gPortSim->view.lmpRooms = on != 0;
     if (!on) {
+#if KATAM_WIDE
+        gPortSim->lmpw.devSet = 0;
+        memset(gPortSim->lmpw.dev, 0, sizeof gPortSim->lmpw.dev);
+        memset(gPortSim->lmpw.groupRoom, 0, sizeof gPortSim->lmpw.groupRoom);
+#else
         gPortSim->view.lmpDev = gPortSim->view.lmpDevSet = 0;
         memset(gPortSim->view.lmpGroupRoom, 0, sizeof gPortSim->view.lmpGroupRoom);
+#endif
     }
     PortLog("[katam-port] localmp: f%u rooms mode %s (the session's)",
             (unsigned)gPortSim->frame.frameCount, on ? "on" : "off");
@@ -290,54 +307,86 @@ void PortLmpRoomsSealed(int on)
  * every sealed change (platform/lmpnet.c RoomsDevices) and nowhere else.
  * A slot whose device is not known (no session: a recording) is a device
  * of its own.  Nothing here runs outside rooms mode. */
-void PortLmpSetDevices(const int dev[4])
+void PortLmpSetDevices(const int dev[NS])
 {
-    u8 d = 0, set = 0;
     int s;
 
     if (!ROOMS())
         return;
-    for (s = 0; s < 4; s++)
-        if (dev[s] >= 0 && dev[s] <= 3) {
-            d |= (u8)((dev[s] & 3) << (2 * s));
-            set |= (u8)(1u << s);
+#if KATAM_WIDE
+    /* Devices 0..NS-1 (platform/lmpnet.c: PORT_LN_MAX_DEV is NS). */
+    gPortSim->lmpw.devSet = 0;
+    for (s = 0; s < NS; s++) {
+        gPortSim->lmpw.dev[s] = 0;
+        if (dev[s] >= 0 && dev[s] < NS) {
+            gPortSim->lmpw.dev[s] = (u8)dev[s];
+            gPortSim->lmpw.devSet |= 1u << s;
         }
-    gPortSim->view.lmpDev = d;
-    gPortSim->view.lmpDevSet = set;
+    }
+#else
+    {
+        u8 d = 0, set = 0;
+
+        for (s = 0; s < 4; s++)
+            if (dev[s] >= 0 && dev[s] <= 3) {
+                d |= (u8)((dev[s] & 3) << (2 * s));
+                set |= (u8)(1u << s);
+            }
+        gPortSim->view.lmpDev = d;
+        gPortSim->view.lmpDevSet = set;
+    }
+#endif
 }
 
 static int Human(int k);
 
-/* The screen slot k plays on: its device, or a device of its own. */
+/* The screen slot k plays on: its device (0..NS-1), or a device of its own
+ * (NS + k). */
 static int Dev(int k)
 {
+#if KATAM_WIDE
+    return (gPortSim->lmpw.devSet >> k & 1) ? gPortSim->lmpw.dev[k] : NS + k;
+#else
     return (gPortSim->view.lmpDevSet >> k & 1) ? (gPortSim->view.lmpDev >> (2 * k)) & 3 : 4 + k;
+#endif
+}
+
+/* Device d's group room + 1 (rooms mode); NULL for a device of its own. */
+static u16 *GroupRoomOf(int d)
+{
+    if (d < 0 || d >= NS)
+        return NULL;
+#if KATAM_WIDE
+    return &gPortSim->lmpw.groupRoom[d];
+#else
+    return &gPortSim->view.lmpGroupRoom[d];
+#endif
 }
 
 /* The people on slot k's screen (bit per slot), k among them if a person. */
-static u8 GroupOf(int k)
+static u32 GroupOf(int k)
 {
-    u8 m = 0;
+    u32 m = 0;
     int j;
 
-    for (j = 0; j < 4; j++)
+    for (j = 0; j < NS; j++)
         if (Human(j) && Dev(j) == Dev(k))
-            m |= (u8)(1u << j);
+            m |= 1u << j;
     return m;
 }
 
 /* The group's anchor: its lowest slot (whose screen it is). */
-static int Lowest(u8 m)
+static int Lowest(u32 m)
 {
     int j;
 
-    for (j = 0; j < 4; j++)
+    for (j = 0; j < NS; j++)
         if (m >> j & 1)
             return j;
     return -1;
 }
 
-static int Popcount(u8 m);
+static int Popcount(u32 m);
 
 /* Margins, in pixels, kept between a framed player and the picture's edge. */
 #define MARGIN_X 40
@@ -349,8 +398,8 @@ void PortLmpSetHumans(int n)
 {
     if (n < 2)
         n = 0;
-    if (n > 4)
-        n = 4;
+    if (n > NS)
+        n = NS;
     sSetting = n;
     sFromHost = n;
 }
@@ -365,16 +414,18 @@ void PortLmpChoose(int n)
 {
 #if KATAM_WIDE
     /* The wide build (more than 4 Kirbys, the web page's second module): no
-     * local multiplayer from the menus or the pads.  Recordings and the
-     * environment still can (`option localmp N`: the gates' four humans with
-     * twelve CPU Kirbys). */
-    if (n >= 2)
+     * local multiplayer from the menus or the pads outside an online
+     * session.  Recordings and the environment still can (`option localmp
+     * N`); an online session on the wide module (8 seats) can, as the
+     * default module's (HOST GAME > START is a two-player start, which the
+     * session's slot table then mends: platform/lmpnet.c Reconcile). */
+    if (n >= 2 && !PortLnActive())
         return;
 #endif
     if (n < 2)
         n = sFromHost;
-    if (n > 4)
-        n = 4;
+    if (n > NS)
+        n = NS;
     sSetting = n;
 }
 
@@ -414,19 +465,19 @@ int PortLmpSetting(void)
 
 void PortLmpSetHostKeys(int player, u16 mask)
 {
-    if (player >= 1 && player <= 3)
+    if (player >= 1 && player < NS)
         sHostKeys[player] = mask & 0x03FF;
 }
 
 u16 PortLmpHostKeys(int player)
 {
-    return (player >= 1 && player <= 3) ? sHostKeys[player] : 0;
+    return (player >= 1 && player < NS) ? sHostKeys[player] : 0;
 }
 
 /* An online session (platform/lmpnet.c) decides every slot's pad at the
  * latch; this device's own pads (PortLmpHostKeys) are its seats, which the
  * session reads and maps.  Off (NULL), the latch reads the host keys. */
-static u16 sSessKeys[4];
+static u16 sSessKeys[NS];
 static int sSessOn;
 
 void PortLmpSetSessionKeys(const u16 *k)
@@ -438,7 +489,7 @@ void PortLmpSetSessionKeys(const u16 *k)
 
 u16 PortLmpLatchKeys(int player)
 {
-    if (player < 1 || player > 3)
+    if (player < 1 || player >= NS)
         return 0;
     return sSessOn ? sSessKeys[player] : sHostKeys[player];
 }
@@ -458,27 +509,27 @@ float PortLmpMinZoom(void)
 }
 
 /* The latch: this frame's pads for the other humans, into the sim block. */
-void PortLmpLatch(u16 keys[4])
+void PortLmpLatch(u16 keys[NS])
 {
     int p;
 
     if (!L->humans)
         return;
-    for (p = 1; p < 4; p++) {
+    for (p = 1; p < NS; p++) {
         u16 k = PortLmpHumanSlot(p) ? (u16)(keys[p] & 0x03FF) : 0;
 
-        gPortSim->frame.lmpPressed[p - 1] = k & ~L->keys[p - 1];
-        L->keys[p - 1] = k;
+        PortLmpPressRef(p) = k & ~PortLmpKeyRef(p);
+        PortLmpKeyRef(p) = k;
     }
 }
 
 /* --- game hooks ------------------------------------------------------------ */
 
-static int Popcount(u8 m)
+static int Popcount(u32 m)
 {
     int n = 0;
 
-    for (; m; m &= (u8)(m - 1))
+    for (; m; m &= m - 1)
         n++;
     return n;
 }
@@ -489,40 +540,43 @@ static int Popcount(u8 m)
  * outside play -- join once the brains exist (PortLmpStartedSlow). */
 u8 PortLmpStartHumans(u8 n)
 {
-    u8 want = L->slots;
+    u32 want = PortLmpSlots();
     int s;
 
     L->humans = 0;
-    for (s = 1; s < sSetting && s < 4; s++)
-        want |= (u8)(1u << s);
-    if (want & 0x0E) {
+    for (s = 1; s < sSetting && s < NS; s++)
+        want |= 1u << s;
+    if (want & PORT_LMP_OTHERS) {
         if (SessionActive()) {
             PortLog("[katam-port] localmp: refused -- a netplay/rollback/link session is active");
-            L->slots = 0;
+            PortLmpSetSlots(0);
             return n;
         }
-        L->slots = (u8)(want | 1u);
+        PortLmpSetSlots(want | 1u);
     } else {
-        L->slots = 0;
+        PortLmpSetSlots(0);
     }
     return n;
 }
 
 static void Engage(void)
 {
+    int s;
+
     L->groupRoom = 0xFFFF;
-    L->stray[0] = L->stray[1] = L->stray[2] = L->stray[3] = 0;
+    for (s = 0; s < NS; s++)
+        PortLmpStrayRef(s) = 0;
 }
 
 void PortLmpStartedSlow(void)
 {
-    if (!(L->slots & 0x0E) || (gUnk_0203AD10 & 0x12))
+    if (!(PortLmpSlots() & PORT_LMP_OTHERS) || (gUnk_0203AD10 & 0x12))
         return;
     Engage();
-    L->humans = (u8)Popcount(L->slots);
+    L->humans = (u8)Popcount(PortLmpSlots());
     gNumHumanPlayers = L->humans;
     PortLog("[katam-port] localmp: game starts with %d human players (slots %X)",
-            (int)L->humans, (unsigned)L->slots);
+            (int)L->humans, (unsigned)PortLmpSlots());
 }
 
 /* Ordinary play with local humans: not the attract demo (0x10), not link
@@ -576,7 +630,12 @@ static void RescaleBosses(int from, int to)
 {
     int i;
 
-    if (from < 1 || from > 4 || to < 1 || to > 4 || from == to)
+    /* The game's tables have four rows: five or more people play at the
+     * four-player value (the owner's rule for 5..8; game/src reads clamp the
+     * same way). */
+    if (from > 4) from = 4;
+    if (to > 4) to = 4;
+    if (from < 1 || to < 1 || from == to)
         return;
     for (i = 0; i < MAX_TASK_NUM; i++) {
         const struct Task *t = &gTasks[i];
@@ -621,9 +680,9 @@ static void ToCpu(u8 s)
     b->unk9C = 0;
     b->unk9E = 0;
     b->unkA8 = &gKirbys[0];
-    L->keys[s - 1] = 0;
-    L->joining &= (u16)~(1u << s);
-    gPortSim->frame.lmpPressed[s - 1] = 0;
+    PortLmpKeyRef(s) = 0;
+    PortLmpSetJoining(PortLmpJoining() & ~(1u << s));
+    PortLmpPressRef(s) = 0;
 }
 
 /* During the tutorial and the intro (gAIKirbyState below NORMAL) the other
@@ -641,7 +700,7 @@ static int Scripted(u8 s)
         && (!InRoom(k) || k->base.roomId == 0x321);
 }
 
-static void Apply(int slot, int on, u8 old, u8 m)
+static void Apply(int slot, int on, u32 old, u32 m)
 {
     int s, from, to;
 
@@ -649,37 +708,37 @@ static void Apply(int slot, int on, u8 old, u8 m)
         Engage();
     from = gNumHumanPlayers;
     to = Popcount(m);
-    L->slots = m;
+    PortLmpSetSlots(m);
     L->humans = (u8)to;
-    for (s = 1; s < 4; s++) {
-        u8 bit = (u8)(1u << s);
+    for (s = 1; s < NS; s++) {
+        u32 bit = 1u << s;
 
         if ((old & bit) && !(m & bit))
             ToCpu((u8)s);
         else if (!(old & bit) && (m & bit)) {
             const struct Kirby *k = &gKirbys[s];
             u16 g = L->groupRoom != 0xFFFF ? L->groupRoom : gKirbys[0].base.roomId;
+            const u16 *gr = ROOMS() ? GroupRoomOf(Dev(s)) : NULL;
 
             gUnk_02038590[s].unk9E = 0;
-            L->stray[s] = 0;
+            PortLmpStrayRef(s) = 0;
             /* A joiner away from the group -- another room, mid-door, dying
              * -- is brought to the group; their own arrival somewhere (the
              * door they were already in) must not move everyone there.
              * Rooms mode has no group: they play where they are. */
             if (!ROOMS() && (k->base.roomId != g || !InRoom(k)))
-                L->joining |= bit;
-            else if (ROOMS() && Dev(s) < 4 && gPortSim->view.lmpGroupRoom[Dev(s)]
-                     && (k->base.roomId != gPortSim->view.lmpGroupRoom[Dev(s)] - 1 || !InRoom(k)))
-                L->joining |= bit;   /* to the people on its device */
+                PortLmpSetJoining(PortLmpJoining() | bit);
+            else if (gr != NULL && *gr && (k->base.roomId != *gr - 1 || !InRoom(k)))
+                PortLmpSetJoining(PortLmpJoining() | bit);   /* to the people on its device */
         }
     }
     /* Brains that were following someone who is no longer a person. */
-    for (s = 1; s < 4; s++) {
+    for (s = 1; s < NS; s++) {
         struct Unk_02038590 *b = &gUnk_02038590[s];
         const struct Kirby *lead = b->unkA8;
 
-        if (!(m & (1u << s)) && lead != NULL && (old & (1u << (lead->base.unk56 & 3)))
-            && !(m & (1u << (lead->base.unk56 & 3))))
+        if (!(m & (1u << s)) && lead != NULL && (old & (1u << SLOT_OF(lead)))
+            && !(m & (1u << SLOT_OF(lead))))
             b->unkA8 = &gKirbys[0];
     }
     RescaleBosses(from, to);
@@ -691,27 +750,38 @@ static void Apply(int slot, int on, u8 old, u8 m)
 
 void PortLmpSetSlotHuman(int slot, int on)
 {
-    u8 old = L->slots ? L->slots : 1, m;
+    u32 old = PortLmpSlots() ? PortLmpSlots() : 1, m;
 
-    if (slot < 1 || slot > 3)
+    if (slot < 1 || slot >= NS)
         return;
     if (SessionActive()) {
         PortLog("[katam-port] localmp: slot change refused -- a rollback/netsim/seat session owns the slots");
         return;
     }
-    L->joining &= (u16)~(0x100u << slot);     /* a waiting join is superseded */
-    m = on ? (u8)(old | (1u << slot)) : (u8)(old & ~(1u << slot));
-    if (m == old && L->slots)
+    PortLmpSetWaiting(PortLmpWaiting() & ~(1u << slot));     /* a waiting join is superseded */
+    m = on ? (old | (1u << slot)) : (old & ~(1u << slot));
+    if (m == old && PortLmpSlots())
         return;
     if (!InStoryPlay()) {
         /* Held for the next game's start (PortLmpStartHumans). */
-        L->slots = (m & 0x0E) ? m : 0;
+        PortLmpSetSlots((m & PORT_LMP_OTHERS) ? m : 0);
         PortLog("[katam-port] localmp: f%u player %d %s (not in play: from the next game)",
                 (unsigned)gPortSim->frame.frameCount, slot + 1, on ? "joins" : "leaves");
         return;
     }
+#if KATAM_WIDE
+    /* A slot past the live Kirby count (platform/wide.c): its Kirby is made
+     * first -- the count never stays below a person or a held join
+     * (PortLmpPeopleEnd) -- and the join is applied once it exists. */
+    if (on && slot >= gNumKirbys) {
+        PortLmpSetWaiting(PortLmpWaiting() | (1u << slot));
+        PortLog("[katam-port] localmp: f%u player %d joins once Kirby %d is made (%u Kirbys now)",
+                (unsigned)gPortSim->frame.frameCount, slot + 1, slot + 1, (unsigned)gNumKirbys);
+        return;
+    }
+#endif
     if (on && Scripted((u8)slot)) {
-        L->joining |= (u16)(0x100u << slot);
+        PortLmpSetWaiting(PortLmpWaiting() | (1u << slot));
         PortLog("[katam-port] localmp: f%u player %d joins once that Kirby is with player 1 (the story has it)",
                 (unsigned)gPortSim->frame.frameCount, slot + 1);
         return;
@@ -719,18 +789,29 @@ void PortLmpSetSlotHuman(int slot, int on)
     Apply(slot, on, old, m);
 }
 
-/* Joins waiting for the story to let go of the Kirby (Scripted). */
+/* A held join may go ahead: its Kirby exists (the wide build's live count)
+ * and the story has let go of it (Scripted). */
+static int JoinReady(u8 s)
+{
+#if KATAM_WIDE
+    if (s >= gNumKirbys)
+        return 0;
+#endif
+    return !Scripted(s);
+}
+
+/* Joins waiting for the story to let go of the Kirby, or for it to exist. */
 static void Waiting(void)
 {
     int s;
 
-    for (s = 1; s < 4; s++)
-        if ((L->joining & (0x100u << s)) && !Scripted((u8)s)) {
-            u8 old = L->slots ? L->slots : 1;
+    for (s = 1; s < NS; s++)
+        if ((PortLmpWaiting() & (1u << s)) && JoinReady((u8)s)) {
+            u32 old = PortLmpSlots() ? PortLmpSlots() : 1;
 
-            L->joining &= (u16)~(0x100u << s);
+            PortLmpSetWaiting(PortLmpWaiting() & ~(1u << s));
             if (!(old & (1u << s)))
-                Apply(s, 1, old, (u8)(old | (1u << s)));
+                Apply(s, 1, old, old | (1u << s));
         }
 }
 
@@ -746,11 +827,11 @@ static void Waiting(void)
  * change for this: its player p is seat p, its keys go where they went. */
 int PortLmpSlotJoinable(int slot)
 {
-    if (slot < 1 || slot > 3)
+    if (slot < 1 || slot >= NS)
         return 0;
     if (PortLnActive())
         return 1;
-    return !InStoryPlay() || !Scripted((u8)slot);
+    return !InStoryPlay() || JoinReady((u8)slot);
 }
 
 int PortLmpInStory(void)
@@ -760,17 +841,20 @@ int PortLmpInStory(void)
 
 int PortLmpCanRequest(void)
 {
-#if KATAM_WIDE
-    return 0;               /* no drop-in (PortLmpChoose) */
-#endif
     if (PortLnActive())
         return !PortInputLogReplaying();
+#if KATAM_WIDE
+    return 0;               /* no drop-in outside a session (PortLmpChoose) */
+#endif
     return !SessionActive() && !PortInputLogReplaying();
 }
 
 u32 PortLmpRequestHuman(int slot, int on)
 {
-    if (slot < 1 || slot > 3 || !PortLmpCanRequest())
+    if (slot < 1 || slot >= NS || !PortLmpCanRequest())
+        return 0;
+    /* In a session `slot` is a local seat (1..3: the device's own pads). */
+    if (PortLnActive() && slot > 3)
         return 0;
     if (PortLnActive())
         return PortLnSeatAsk(slot, on != 0) ? 1u : 0u;
@@ -782,7 +866,7 @@ int PortLmpProbe(int slot, const char *cond)
     const struct Kirby *k;
     int i;
 
-    if (slot < 0 || slot > 3 || cond == NULL)
+    if (slot < 0 || slot >= NS || cond == NULL)
         return 0;
     k = &gKirbys[slot];
     if (strcmp(cond, "dead") == 0)
@@ -824,9 +908,9 @@ int PortLmpSlotPerson(int slot)
 {
     if (slot == 0)
         return 1;
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= NS)
         return 0;
-    return ((L->slots >> slot) & 1) || ((L->joining >> (8 + slot)) & 1);
+    return ((PortLmpSlots() >> slot) & 1) || ((PortLmpWaiting() >> slot) & 1);
 }
 
 int PortLmpSlotIsHuman(int slot)
@@ -840,13 +924,20 @@ void PortLmpEndSlow(void)
 {
     if (L->humans)
         PortLog("[katam-port] localmp: back to the title; local players off");
+    int s;
+
     L->humans = 0;
-    L->slots = 0;
+    PortLmpSetSlots(0);
     L->groupRoom = 0;
-    L->keys[0] = L->keys[1] = L->keys[2] = 0;
-    L->joining = 0;
-    L->stray[0] = L->stray[1] = L->stray[2] = L->stray[3] = 0;
-    gPortSim->frame.lmpPressed[0] = gPortSim->frame.lmpPressed[1] = gPortSim->frame.lmpPressed[2] = 0;
+    PortLmpSetJoining(0);
+    PortLmpSetWaiting(0);
+    for (s = 0; s < NS; s++) {
+        PortLmpStrayRef(s) = 0;
+        if (s >= 1) {
+            PortLmpKeyRef(s) = 0;
+            PortLmpPressRef(s) = 0;
+        }
+    }
 }
 
 /* Is slot k one of the humans on this screen?  (Slot 0 always.) */
@@ -995,13 +1086,13 @@ int PortLmpInFrameSlow(const struct ObjectBase *o)
 
 /* Rooms mode: the shared camera of one device's people (m), on its anchor:
  * together mode's centring, for that group. */
-static void RoomsCam(u8 player, u8 m, s32 *x, s32 *y)
+static void RoomsCam(u8 player, u32 m, s32 *x, s32 *y)
 {
     s32 minX = *x, maxX = *x, minY = *y, maxY = *y, cx, cy, hw, hh;
     u16 room = gKirbys[player].base.roomId;
     int k;
 
-    for (k = 0; k < 4; k++) {
+    for (k = 0; k < NS; k++) {
         const struct Kirby *o = &gKirbys[k];
 
         if (k == player || !(m >> k & 1) || o->base.roomId != room || !InRoom(o))
@@ -1035,7 +1126,7 @@ void PortLmpCamTargetSlow(u8 player, s32 *x, s32 *y)
         return;
     if (ROOMS()) {
         /* each device's anchor, on every device alike: it is gameplay */
-        u8 m = GroupOf(player);
+        u32 m = GroupOf(player);
 
         if (Popcount(m) < 2 || Lowest(m) != player)
             return;
@@ -1044,7 +1135,7 @@ void PortLmpCamTargetSlow(u8 player, s32 *x, s32 *y)
     }
     if (player != gLocalPlayerId)
         return;
-    n = 4;
+    n = NS;
     room = gKirbys[player].base.roomId;
     minX = maxX = *x;
     minY = maxY = *y;
@@ -1099,28 +1190,27 @@ void PortLmpArrivedSlow(struct Kirby *k)
     if (!Active() || !Human(k->base.unk56))
         return;
     if (ROOMS()) {
-        u8 s = k->base.unk56 & 3, m = GroupOf(s);
-        int d = Dev(s);
+        u8 s = SLOT_OF(k);
+        u32 m = GroupOf(s);
+        u16 *gr = GroupRoomOf(Dev(s));
 
-        if (Popcount(m) < 2 || d > 3)
+        if (Popcount(m) < 2 || gr == NULL)
             return;
-        if (L->joining & (1u << s)) {
-            u16 gr = gPortSim->view.lmpGroupRoom[d];
-
-            if (gr == 0 || gr - 1 == k->base.roomId)
-                L->joining &= (u16)~(1u << s);
+        if (PortLmpJoining() & (1u << s)) {
+            if (*gr == 0 || *gr - 1 == k->base.roomId)
+                PortLmpSetJoining(PortLmpJoining() & ~(1u << s));
             else
                 return;
         }
-        if (gPortSim->view.lmpGroupRoom[d] != k->base.roomId + 1)
+        if (*gr != k->base.roomId + 1)
             PortLog("[katam-port] localmp: f%u player %u arrives in room %u; their device's group follows",
                     (unsigned)gPortSim->frame.frameCount, (unsigned)s + 1, (unsigned)k->base.roomId);
-        gPortSim->view.lmpGroupRoom[d] = (u16)(k->base.roomId + 1);
+        *gr = (u16)(k->base.roomId + 1);
         return;
     }
-    if (L->joining & (1u << (k->base.unk56 & 3))) {
+    if (PortLmpJoining() & (1u << SLOT_OF(k))) {
         if (L->groupRoom == 0xFFFF || L->groupRoom == k->base.roomId)
-            L->joining &= (u16)~(1u << (k->base.unk56 & 3));
+            PortLmpSetJoining(PortLmpJoining() & ~(1u << SLOT_OF(k)));
         else {
             PortLog("[katam-port] localmp: f%u player %u (just joined) arrives in room %u; brought to the group",
                     (unsigned)gPortSim->frame.frameCount, (unsigned)k->base.unk56 + 1,
@@ -1150,9 +1240,9 @@ static void Trace(void)
     if (sTrace <= 0 || f % (u32)sTrace)
         return;
     PortLog("[katam-port] localmp-trace: f%u pauser %u freeze %X keys %03X %03X %03X",
-            (unsigned)f, (unsigned)gUnk_0203AD50, (unsigned)gUnk_03000510.unk4, (unsigned)L->keys[0],
-            (unsigned)L->keys[1], (unsigned)L->keys[2]);
-    for (k = 0; k < 4; k++) {
+            (unsigned)f, (unsigned)gUnk_0203AD50, (unsigned)gUnk_03000510.unk4, (unsigned)PortLmpKeyRef(1),
+            (unsigned)PortLmpKeyRef(2), (unsigned)PortLmpKeyRef(3));
+    for (k = 0; k < NS; k++) {
         const struct Kirby *o = &gKirbys[k];
 
         if (!Human(k))
@@ -1287,7 +1377,7 @@ void PortLmpReview(void)
         int k;
         struct GameplayHud *hud = gGameplayHudTask ? TaskGetStructPtr(gGameplayHudTask) : NULL;
 
-        for (k = 0; k < 4; k++) {
+        for (k = 0; k < LIVE_N; k++) {
             struct Kirby *kb = &gKirbys[k];
             u16 pri = k == v ? 0x3C0 : (u16)((k + 0x10) * 0x40);
 
@@ -1295,7 +1385,8 @@ void PortLmpReview(void)
             kb->sprites[0].unk8 &= ~0x80000u;
             kb->sprites[1].unk8 &= ~0x80000u;
             kb->base.sprite.unk14 = kb->sprites[0].unk14 = kb->sprites[1].unk14 = pri;
-            if (hud) {
+            /* the console HUD keeps icons for four (port/wide.h KATAM_HUD_KIRBYS) */
+            if (hud && k < 4) {
                 hud->unk15[k] = 0;
                 /* The HUD's icon of each other Kirby draws from that
                  * Kirby's own sprite tiles; the screen's slot is the
@@ -1329,7 +1420,7 @@ void PortLmpReview(void)
      * the screen's player, HiddenFadeToWhite for anyone else): the re-view
      * arrives the way a door does, from white. */
     CreatePaletteFadeFromWhite(v);
-    if (old < 4 && old != v)
+    if (old < NS && old != v)
         CreateHiddenPaletteFadeToWhite(old);
     sSettle = 1;
     sSettleAt = gPortSim->frame.frameCount + 4;
@@ -1433,8 +1524,11 @@ u32 PortLmpDigestNow(void)
     FNV_ADD(h, gAIKirbyState);
     FNV_ADD(h, gMainFlags & 0x400);
     h = Fnv1(h, &gPortSim->lmp, sizeof gPortSim->lmp);
+#if KATAM_WIDE
+    h = Fnv1(h, &gPortSim->lmpw, sizeof gPortSim->lmpw);
+#endif
     sDigParts[0] = h;
-    for (k = 0; k < 4; k++) {
+    for (k = 0; k < KATAM_KIRBYS; k++) {
         const struct Kirby *kb = &gKirbys[k];
 
         FNV_ADD(h, kb->base.x); FNV_ADD(h, kb->base.y);
@@ -1520,7 +1614,9 @@ void PortLmpTaskGoneSlow(const void *structPtr)
 {
     int k, i;
 
-    for (k = 0; k < 4; k++) {
+    /* every brain: the wide build's 4.. too (their stale pointers are the
+     * same divergence, ROOMS-REPORT.md F3) */
+    for (k = 0; k < KATAM_KIRBYS; k++) {
         struct Unk_02038590 *b = &gUnk_02038590[k];
 
         if ((const void *)b->unk48 == structPtr)
@@ -1631,20 +1727,21 @@ static void RoomsGroups(void)
 {
     int d, k;
 
-    for (d = 0; d < 8; d++) {
-        u8 m = 0;
+    /* devices 0..NS-1, then NS + k: slot k's device of its own */
+    for (d = 0; d < 2 * NS; d++) {
+        u32 m = 0;
         int a;
-        u16 g, *gr = d < 4 ? &gPortSim->view.lmpGroupRoom[d] : NULL;
+        u16 g, *gr = GroupRoomOf(d);
         const struct Kirby *anchor = NULL;
 
-        for (k = 0; k < 4; k++)
+        for (k = 0; k < NS; k++)
             if (Human(k) && Dev(k) == d)
-                m |= (u8)(1u << k);
+                m |= 1u << k;
         if (Popcount(m) < 2 || gr == NULL) {
-            for (k = 0; k < 4; k++)
+            for (k = 0; k < NS; k++)
                 if (m >> k & 1) {
-                    L->joining &= (u16)~(1u << k);
-                    L->stray[k] = 0;
+                    PortLmpSetJoining(PortLmpJoining() & ~(1u << k));
+                    PortLmpStrayRef(k) = 0;
                 }
             if (gr != NULL && m == 0)
                 *gr = 0;
@@ -1657,13 +1754,13 @@ static void RoomsGroups(void)
             *gr = (u16)(gKirbys[a].base.roomId + 1);
         }
         g = (u16)(*gr - 1);
-        for (k = 0; k < 4; k++)
+        for (k = 0; k < NS; k++)
             if ((m >> k & 1) && gKirbys[k].base.roomId == g
                 && (anchor == NULL || (anchor->hp <= 0 && gKirbys[k].hp > 0)))
                 anchor = &gKirbys[k];
         if (anchor == NULL)
             continue;
-        for (k = 0; k < 4; k++) {
+        for (k = 0; k < NS; k++) {
             struct Kirby *o = &gKirbys[k];
 
             if (!(m >> k & 1) || o == anchor || o->hp > 0 || o->base.roomId == 0xFFFF)
@@ -1676,22 +1773,22 @@ static void RoomsGroups(void)
                 o->spawnLocation.y = (s16)((anchor->base.y + 0x701) >> 12);
             }
         }
-        for (k = 0; k < 4; k++) {
+        for (k = 0; k < NS; k++) {
             struct Kirby *o = &gKirbys[k];
 
             if (!(m >> k & 1))
                 continue;
-            if ((L->joining & (1u << k)) && o->base.roomId == g && InRoom(o))
-                L->joining &= (u16)~(1u << k);
+            if ((PortLmpJoining() & (1u << k)) && o->base.roomId == g && InRoom(o))
+                PortLmpSetJoining(PortLmpJoining() & ~(1u << k));
             if (o->base.roomId != g && Movable(o)) {
-                L->stray[k] = 0;
+                PortLmpStrayRef(k) = 0;
                 Carry(o, g, anchor, 1);
-            } else if ((L->joining & (1u << k)) && o->base.roomId != g && o->base.roomId != 0xFFFF
+            } else if ((PortLmpJoining() & (1u << k)) && o->base.roomId != g && o->base.roomId != 0xFFFF
                        && o->hp > 0 && !(o->base.flags & 0x3800000)) {
-                if (L->stray[k] < 255)
-                    L->stray[k]++;
-                if (L->stray[k] >= 120) {
-                    L->stray[k] = 0;
+                if (PortLmpStrayRef(k) < 255)
+                    PortLmpStrayRef(k)++;
+                if (PortLmpStrayRef(k) >= 120) {
+                    PortLmpStrayRef(k) = 0;
                     o->base.flags &= ~0xB00u;
                     Carry(o, g, anchor, 1);
                 }
@@ -1701,25 +1798,25 @@ static void RoomsGroups(void)
             s32 x0, y0, x1, y1;
 
             Frame((u8)a, &x0, &y0, &x1, &y1);
-            for (k = 0; k < 4; k++) {
+            for (k = 0; k < NS; k++) {
                 struct Kirby *o = &gKirbys[k];
 
                 if (!(m >> k & 1) || k == a)
                     continue;
                 if (o->base.roomId != g || !InRoom(o)) {
-                    if (!(L->joining & (1u << k)))
-                        L->stray[k] = 0;
+                    if (!(PortLmpJoining() & (1u << k)))
+                        PortLmpStrayRef(k) = 0;
                     continue;
                 }
                 if (o->base.x >= x0 + 0x800 && o->base.x <= x1 - 0x800
                     && o->base.y >= y0 + 0x800 && o->base.y <= y1 - 0x800) {
-                    L->stray[k] = 0;
+                    PortLmpStrayRef(k) = 0;
                     continue;
                 }
-                if (L->stray[k] < 255)
-                    L->stray[k]++;
-                if (L->stray[k] >= STRAY_FRAMES && Movable(o)) {
-                    L->stray[k] = 0;
+                if (PortLmpStrayRef(k) < 255)
+                    PortLmpStrayRef(k)++;
+                if (PortLmpStrayRef(k) >= STRAY_FRAMES && Movable(o)) {
+                    PortLmpStrayRef(k) = 0;
                     Carry(o, g, &gKirbys[a], 0);
                 }
             }
@@ -1757,7 +1854,7 @@ void PortLmpFrame(void)
         if (sAtF >= 0 && gPortSim->frame.frameCount == (u32)sAtF)
             PortLmpSetView(sAtV);
     }
-    if (L->joining & 0x0E00)
+    if (PortLmpWaiting() & PORT_LMP_OTHERS)
         Waiting();
     if (!Active())
         return;
@@ -1769,7 +1866,7 @@ void PortLmpFrame(void)
         PortLmpReview();
         return;
     }
-    n = 4;
+    n = NS;
     g = L->groupRoom;
     if (g == 0xFFFF) {
         /* First frame in a level: the group is wherever player 1 is. */
@@ -1810,21 +1907,21 @@ void PortLmpFrame(void)
     for (k = 0; k < n; k++) {
         struct Kirby *o = &gKirbys[k];
 
-        if ((L->joining & (1u << k)) && o->base.roomId == g && InRoom(o))
-            L->joining &= (u16)~(1u << k);
+        if ((PortLmpJoining() & (1u << k)) && o->base.roomId == g && InRoom(o))
+            PortLmpSetJoining(PortLmpJoining() & ~(1u << k));
 
         if (Human(k) && o->base.roomId != g && Movable(o)) {
-            L->stray[k] = 0;
+            PortLmpStrayRef(k) = 0;
             Carry(o, g, anchor, 1);
-        } else if ((L->joining & (1u << k)) && o->base.roomId != g && o->base.roomId != 0xFFFF
+        } else if ((PortLmpJoining() & (1u << k)) && o->base.roomId != g && o->base.roomId != 0xFFFF
                    && o->hp > 0 && !(o->base.flags & 0x3800000)) {
             /* A joiner that a CPU-only state holds (a CPU parked in the hub,
              * waiting for a call: flags 0xB00, which only its brain -- now
              * frozen -- would end): after two seconds, carried anyway. */
-            if (L->stray[k] < 255)
-                L->stray[k]++;
-            if (L->stray[k] >= 120) {
-                L->stray[k] = 0;
+            if (PortLmpStrayRef(k) < 255)
+                PortLmpStrayRef(k)++;
+            if (PortLmpStrayRef(k) >= 120) {
+                PortLmpStrayRef(k) = 0;
                 o->base.flags &= ~0xB00u;
                 Carry(o, g, anchor, 1);
             }
@@ -1840,19 +1937,19 @@ void PortLmpFrame(void)
             struct Kirby *o = &gKirbys[k];
 
             if (!Human(k) || o->base.roomId != g || !InRoom(o)) {
-                if (!(L->joining & (1u << k)))      /* its counter, above */
-                    L->stray[k] = 0;
+                if (!(PortLmpJoining() & (1u << k)))      /* its counter, above */
+                    PortLmpStrayRef(k) = 0;
                 continue;
             }
             if (o->base.x >= x0 + 0x800 && o->base.x <= x1 - 0x800
                 && o->base.y >= y0 + 0x800 && o->base.y <= y1 - 0x800) {
-                L->stray[k] = 0;
+                PortLmpStrayRef(k) = 0;
                 continue;
             }
-            if (L->stray[k] < 255)
-                L->stray[k]++;
-            if (L->stray[k] >= STRAY_FRAMES && Movable(o)) {
-                L->stray[k] = 0;
+            if (PortLmpStrayRef(k) < 255)
+                PortLmpStrayRef(k)++;
+            if (PortLmpStrayRef(k) >= STRAY_FRAMES && Movable(o)) {
+                PortLmpStrayRef(k) = 0;
                 Carry(o, g, &gKirbys[0], 0);
             }
         }
@@ -1868,16 +1965,16 @@ void PortLmpFrame(void)
  * party HUD's hint (platform/ui/party_hud.c): reads, never writes. */
 int PortLmpWaitingFor(int *who)
 {
-    u8 me = gLocalPlayerId & 3;
+    u8 me = (u8)(gLocalPlayerId % NS);
     const struct Kirby *k = &gKirbys[me];
     int i, s, kind = 0;
 
     if (!ROOMS() || !Active() || !InRoom(k))
         return 0;
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NS; s++)
         if (s != me && Human(s) && (gKirbys[s].base.roomId != k->base.roomId || gKirbys[s].hp <= 0))
             break;
-    if (s == 4)
+    if (s == NS)
         return 0;
     for (i = 0; i < MAX_TASK_NUM && !kind; i++) {
         const struct Task *t = &gTasks[i];
@@ -1912,7 +2009,7 @@ int PortLmpViewNeed(s32 *w, s32 *h)
     u16 room;
     int k, n;
 
-    if (!Active() || p >= 4)
+    if (!Active() || p >= NS)
         return 0;
     if (ROOMS() && Popcount(GroupOf(p)) < 2)
         return 0;
@@ -1920,7 +2017,7 @@ int PortLmpViewNeed(s32 *w, s32 *h)
     room = gKirbys[p].base.roomId;
     if (room == 0xFFFF || li->currentRoom == 0xFFFF)
         return 0;
-    n = 4;
+    n = NS;
     minX = maxX = gKirbys[p].base.x;
     minY = maxY = gKirbys[p].base.y;
     for (k = 0; k < n; k++) {

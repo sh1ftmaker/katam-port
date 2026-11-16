@@ -13,8 +13,57 @@
 extern "C" {
 #endif
 
+/* --- the human-slot layer's state ------------------------------------------
+ * PORT_LMP_SLOTS (port/wide.h) Kirby slots can be people: 4 in the default
+ * build, one per Kirby slot in the wide build.  The default build keeps the
+ * state in the console-sized structs of the sim block (gPortSim->lmp: slots
+ * u8, joining u16 with the held joins in its high byte, keys[3] for slots
+ * 1..3; frame.lmpPressed[3]); the wide build in gPortSim->lmpw (port/wide.h),
+ * a u32 mask each and an entry per slot.  Everything goes through these, so
+ * the default build reads and writes exactly the bytes it always did. */
+#if KATAM_WIDE
+static inline u32 PortLmpSlots(void) { return gPortSim->lmpw.slots; }
+static inline void PortLmpSetSlots(u32 m) { gPortSim->lmpw.slots = m; }
+static inline u32 PortLmpJoining(void) { return gPortSim->lmpw.joining; }
+static inline void PortLmpSetJoining(u32 m) { gPortSim->lmpw.joining = m; }
+static inline u32 PortLmpWaiting(void) { return gPortSim->lmpw.waiting; }
+static inline void PortLmpSetWaiting(u32 m) { gPortSim->lmpw.waiting = m; }
+#define PortLmpKeyRef(s)   (gPortSim->lmpw.keys[(s)])
+#define PortLmpPressRef(s) (gPortSim->lmpw.pressed[(s)])
+#define PortLmpStrayRef(s) (gPortSim->lmpw.stray[(s)])
+#else
+static inline u32 PortLmpSlots(void) { return gPortSim->lmp.slots; }
+static inline void PortLmpSetSlots(u32 m) { gPortSim->lmp.slots = (u8)m; }
+static inline u32 PortLmpJoining(void) { return gPortSim->lmp.joining & 0xFFu; }
+static inline void PortLmpSetJoining(u32 m)
+{
+    gPortSim->lmp.joining = (u16)((gPortSim->lmp.joining & 0xFF00u) | (m & 0xFFu));
+}
+static inline u32 PortLmpWaiting(void) { return (u32)gPortSim->lmp.joining >> 8; }
+static inline void PortLmpSetWaiting(u32 m)
+{
+    gPortSim->lmp.joining = (u16)((gPortSim->lmp.joining & 0xFFu) | ((m & 0xFFu) << 8));
+}
+#define PortLmpKeyRef(s)   (gPortSim->lmp.keys[(s) - 1])
+#define PortLmpPressRef(s) (gPortSim->frame.lmpPressed[(s) - 1])
+#define PortLmpStrayRef(s) (gPortSim->lmp.stray[(s)])
+#endif
+/* Every slot but player 1's, as a mask (0x0E in the default build). */
+#define PORT_LMP_OTHERS (((PORT_LMP_SLOTS >= 32 ? 0u : (1u << PORT_LMP_SLOTS)) - 1u) & ~1u)
+/* The highest slot that is a person or is waiting to be one, + 1 (0 = none):
+ * the live Kirby count never drops below it (platform/wide.c). */
+static inline u32 PortLmpPeopleEnd(void)
+{
+    u32 m = PortLmpSlots() | PortLmpWaiting(), n = 0;
+
+    for (; m; m >>= 1)
+        n++;
+    return n;
+}
+
 /* --- host / session ------------------------------------------------------ */
-/* How many human players the next game started gets (2..4; 0 or 1 = off).
+/* How many human players the next game started gets (2..PORT_LMP_SLOTS; 0
+ * or 1 = off).
  * Takes effect at the game's own start (new game, continue), not mid-game. */
 void PortLmpSetHumans(int n);
 int  PortLmpSetting(void);
@@ -29,14 +78,15 @@ int  PortLmpInPlay(void);
  * device until a key or gamepad shows up)?  Native: always. */
 void PortLmpSetP2Input(int available);
 int  PortLmpP2InputAvailable(void);
-/* The host's pad for player p (1..3 = P2..P4).  Latched once a frame with
+/* The host's pad for player p (1..PORT_LMP_SLOTS-1 = P2..; in an online
+ * session a local seat, 1..3).  Latched once a frame with
  * the console's own keys (platform/inputlog.c), recorded and replayed. */
 void PortLmpSetHostKeys(int player, u16 mask);
 u16  PortLmpHostKeys(int player);
 /* What the latch gives players 2..4 (platform/inputlog.c): the host keys,
  * or, during an online session, the slots' keys the session decided
  * (platform/lmpnet.c sets them every latch; NULL hands back). */
-void PortLmpSetSessionKeys(const u16 *keys4);
+void PortLmpSetSessionKeys(const u16 *keysN);   /* PORT_LMP_SLOTS keys */
 u16  PortLmpLatchKeys(int player);
 /* The smallest zoom the shared camera may use (presentation). */
 float PortLmpMinZoom(void);
@@ -53,7 +103,7 @@ int  PortLmpViewNeed(s32 *w, s32 *h);
 void PortLmpSetRooms(int on);
 void PortLmpSetRoomsAt(u32 frame);        /* `option roomsat F` */
 int  PortLmpRooms(void);
-/* This device's screen player (0..3; -1 = the game's choice).  Per device,
+/* This device's screen player (0..PORT_LMP_SLOTS-1; -1 = the game's choice).  Per device,
  * honoured only in rooms mode.  KATAM_LOCAL_MP_VIEW=k natively. */
 void PortLmpSetView(int slot);
 int  PortLmpView(void);
@@ -79,17 +129,17 @@ void PortLmpDigestExplain(u32 f);          /* log what differs (diagnostic) */
 /* Online: the session's mode, sealed (PORT_LN_EV_ROOMS); each slot's device
  * (-1 = nobody's), so the people on one device share its screen. */
 void PortLmpRoomsSealed(int on);
-void PortLmpSetDevices(const int dev[4]);
+void PortLmpSetDevices(const int dev[PORT_LMP_SLOTS]);
 /* Rooms mode, presentation: this screen's player at a big door (1) or the
  * goal star (2) that waits for *who, a person elsewhere; 0 = no. */
 int  PortLmpWaitingFor(int *who);
 
 /* --- the latch (platform/inputlog.c, platform/main.c) -------------------- */
-void PortLmpLatch(u16 keys[4]);
+void PortLmpLatch(u16 keys[PORT_LMP_SLOTS]);
 void PortLmpFrame(void);
 
 /* --- human slots: drop in, drop out (platform/localmp.c, "human slots") --- */
-/* Kirby slot s (1..3) becomes a person (on) or goes back to the CPU (off).
+/* Kirby slot s (1..PORT_LMP_SLOTS-1) becomes a person (on) or goes back to the CPU (off).
  * Applied at the latch of the frame it is stamped with: from a recording's
  * `human FRAME SLOT ON` line (platform/inputlog.c), from an online session's
  * PORT_LN_EV_HUMAN event (platform/lmpnet.c).  Simulation input; never call
@@ -132,16 +182,16 @@ void PortLmpCarryTo(struct Kirby *k, const struct Kirby *to);
 u8   PortLmpStartHumans(u8 n);
 /* sub_080332BC, once every Kirby has its CPU brain: the humans join. */
 void PortLmpStartedSlow(void);
-#define PortLmpStarted() do { if (gPortSim->lmp.slots) PortLmpStartedSlow(); } while (0)
+#define PortLmpStarted() do { if (PortLmpSlots()) PortLmpStartedSlow(); } while (0)
 /* Is Kirby slot s driven by a local human other than the console's own? */
 #define PortLmpHumanSlot(s) \
-    (gPortSim->lmp.humans && (u32)(s) - 1u < 3u && ((gPortSim->lmp.slots >> (s)) & 1))
+    (gPortSim->lmp.humans && (u32)(s) - 1u < PORT_LMP_SLOTS - 1u && ((PortLmpSlots() >> (s)) & 1))
 
 /* sub_0800EF60: a person's CPU brain waits -- except while a joiner is still
  * on its way to the group (gPortSim->lmp.joining): a CPU parked away (in the
  * hub, waiting to be called) is moved only by its brain. */
 #define PortLmpBrainWaits(s) \
-    (PortLmpHumanSlot(s) && !((gPortSim->lmp.joining >> (s)) & 1))
+    (PortLmpHumanSlot(s) && !((PortLmpJoining() >> (s)) & 1))
 
 /* The game's own "is Kirby slot s a person" is `s < gNumHumanPlayers`: the
  * humans are a prefix of the slots.  With drop-in/out they are any set
@@ -151,7 +201,7 @@ void PortLmpStartedSlow(void);
  * the subgames) each one is exactly the expression it replaced. */
 static inline int PortLmpSlotBit(u32 s)
 {
-    return s < 4 && ((gPortSim->lmp.slots >> s) & 1);
+    return s < PORT_LMP_SLOTS && ((PortLmpSlots() >> s) & 1);
 }
 /* A macro, so that not engaged it is the original comparison in the
  * original operand's type.  The operand is read twice: pass a plain value. */
@@ -163,13 +213,13 @@ static inline int PortLmpSlotBit(u32 s)
  * becomes `i >= PortHumanEnd()`. */
 static inline u32 PortHumanEnd(void)
 {
-    return gPortSim->lmp.humans ? 4u : gNumHumanPlayers;
+    return gPortSim->lmp.humans ? (u32)PORT_LMP_SLOTS : gNumHumanPlayers;
 }
 static inline u32 PortHumanNext(u32 i)
 {
     if (!gPortSim->lmp.humans)
         return i + 1;
-    for (i++; i < 4 && !((gPortSim->lmp.slots >> i) & 1); i++)
+    for (i++; i < PORT_LMP_SLOTS && !((PortLmpSlots() >> i) & 1); i++)
         ;
     return i;
 }
@@ -178,7 +228,7 @@ static inline u32 PortCpuNext(u32 i)
 {
     if (!gPortSim->lmp.humans)
         return i + 1;
-    for (i++; i < 4 && ((gPortSim->lmp.slots >> i) & 1); i++)
+    for (i++; i < PORT_LMP_SLOTS && ((PortLmpSlots() >> i) & 1); i++)
         ;
     return i;
 }
@@ -194,18 +244,23 @@ static inline u32 PortSlotOrder(u32 p)
 {
     u32 s, n = 0;
 
-    if (!gPortSim->lmp.humans || p >= 4)
+    if (!gPortSim->lmp.humans || p >= PORT_LMP_SLOTS)
         return p;
-    for (s = 0; s < 4; s++)
-        if (((gPortSim->lmp.slots >> s) & 1) && n++ == p)
+    for (s = 0; s < PORT_LMP_SLOTS; s++)
+        if (((PortLmpSlots() >> s) & 1) && n++ == p)
             return s;
-    for (s = 0; s < 4; s++)
-        if (!((gPortSim->lmp.slots >> s) & 1) && n++ == p)
+    for (s = 0; s < PORT_LMP_SLOTS; s++)
+        if (!((PortLmpSlots() >> s) & 1) && n++ == p)
             return s;
     return p;
 }
+#if KATAM_WIDE
+#define PortLmpKeys(s)      (gPortSim->lmpw.keys[(u32)(s) % PORT_LMP_SLOTS])
+#define PortLmpPressed(s)   ((u32)(s) - 1u < PORT_LMP_SLOTS - 1u ? gPortSim->lmpw.pressed[(s)] : 0)
+#else
 #define PortLmpKeys(s)      (gPortSim->lmp.keys[((s) - 1) % 3u])
 #define PortLmpPressed(s)   ((s) >= 1 && (s) <= 3 ? gPortSim->frame.lmpPressed[(s) - 1] : 0)
+#endif
 /* The camera's follow target for LevelInfo `player`: Kirby's position, or
  * the group's when local multiplayer is on and this is the local screen. */
 void PortLmpCamTargetSlow(u8 player, s32 *x, s32 *y);

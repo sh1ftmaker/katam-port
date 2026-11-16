@@ -249,7 +249,18 @@ void PortWideRamReset(u32 flags)
  *
  * The four the game's start code makes are never taken away (the target is
  * at least 4), so nothing that is unrolled for Kirbys 0..3 ever meets a
- * missing one. */
+ * missing one.
+ *
+ * People (the human-slot layer, platform/localmp.c).  The count in play is
+ * max(4, the setting, the highest slot that is a person or waits to be one
+ * + 1): PortWideTarget, from simulation state only, so every device agrees.
+ * A join of a slot past the count is held (localmp.c PortLmpSetSlotHuman:
+ * waiting), the count rises to it one Kirby a frame, and the join goes
+ * ahead once its Kirby exists.  The count shrinks from the end only, and
+ * never past a person's Kirby: lowering the setting below a person leaves
+ * the count at that person until they leave.  Online, the setting is the
+ * host's, sealed (PORT_LN_EV_KIRBYS, platform/lmpnet.c); seats are
+ * PORT_LN_EV_HUMAN as at four. */
 
 #define WC (gPortSim->wideCtl)
 #define WIDE_TASK_HEADROOM 12       /* free task slots kept for effects */
@@ -260,8 +271,10 @@ void sub_0800EF60(void);
 
 int PortWideTarget(void)
 {
-    int t = WC.target ? WC.target : K;
+    int t = WC.target ? WC.target : K, p = (int)PortLmpPeopleEnd();
 
+    if (t < p)
+        t = p;              /* never below a person's Kirby (or a held join) */
     return t < 4 ? 4 : t > K ? K : t;
 }
 
@@ -479,13 +492,22 @@ void PortWideFrame(void)
 /* The host's request, in every build (the default build has nothing to
  * change: the menus show the row as needing the wide module). */
 #include "port/inputlog.h"
+#include "port/lmpnet.h"
 #ifdef __cplusplus
 extern "C"
 #endif
 u32 PortWideRequestKirbys(int n)
 {
 #if KATAM_WIDE
-    return PortInputLogScheduleKirbys((u8)(n < 4 ? 4 : n > KATAM_KIRBYS ? KATAM_KIRBYS : n));
+    n = n < 4 ? 4 : n > KATAM_KIRBYS ? KATAM_KIRBYS : n;
+    /* An online session: the host's setting is sealed for every device
+     * (PORT_LN_EV_KIRBYS); a guest's is not the session's. */
+    if (PortLnActive()) {
+        int f = PortLnRole() == PORT_LN_HOST ? PortLnEvent(PORT_LN_EV_KIRBYS, n, 0, 0, 0) : -1;
+
+        return f < 0 ? 0 : (u32)f;
+    }
+    return PortInputLogScheduleKirbys((u8)n);
 #else
     (void)n;
     return 0;

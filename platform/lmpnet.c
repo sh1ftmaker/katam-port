@@ -49,7 +49,8 @@
  *
  * --- more than two ------------------------------------------------------------
  *
- * Up to four devices in a star (one host, guests 1..3), each with up to four
+ * Up to PORT_LN_MAX_DEV devices in a star (one host, guests 1..; four in the
+ * default build, one per Kirby slot in the wide build), each with up to four
  * local seats; the Kirby slots are mapped onto (device, seat) by the host
  * (port/lmpnet.h, "slots").  The sealed record carries every slot's keys;
  * each guest predicts every slot it does not play; the host fills a guest
@@ -108,6 +109,18 @@ void PortLnExtrasLoad(const u8 *src, u32 len);
 
 int gPortLnOn;
 
+/* The session's width: PORT_LN_SLOTS Kirby slots (4; the wide build's
+ * KATAM_KIRBYS), over PORT_LN_MAX_DEV devices of four seats each.  Every
+ * per-slot array and loop below is NSL wide; per-seat ones stay 4. */
+#define NSL PORT_LN_SLOTS
+/* A bit per (guest device, seat): (dev - 1) * 4 + seat. */
+#if KATAM_WIDE
+typedef u64 LnSeatMask;
+#else
+typedef u16 LnSeatMask;
+#endif
+#define RM_BIT(dev, seat) ((LnSeatMask)((LnSeatMask)1 << (((dev) - 1) * 4 + (seat))))
+
 /* --- telemetry: one block of u32, self-describing ---------------------------- */
 #define LN_TELEMETRY(X) \
     X(role) X(frame) X(top) X(sealedUpTo) X(verifiedUpTo) X(floor) \
@@ -132,7 +145,15 @@ int gPortLnOn;
     X(d1KeyOnTime) X(d1KeyMissing) X(d2KeyOnTime) X(d2KeyMissing) X(d3KeyOnTime) X(d3KeyMissing) \
     X(mispredOther) X(ownSlots) \
     X(rooms) X(canonFrame) X(canonRuns) X(canonFrames) X(canonUsSum) X(canonUsMax) X(canonSwapUsSum) \
-    X(digCompared) X(digEqual) X(digMismatch) X(digFirstMismatch) X(digUpTo) X(persRepairs) X(view)
+    X(digCompared) X(digEqual) X(digMismatch) X(digFirstMismatch) X(digUpTo) X(persRepairs) X(view) \
+    LN_TELEMETRY_WIDE(X)
+/* The wide build: slots 4..7's owners and the guest devices past 3 (slots 8..
+ * are not in the telemetry). */
+#if KATAM_WIDE
+#define LN_TELEMETRY_WIDE(X) X(own4) X(own5) X(own6) X(own7) X(dHiKeyOnTime) X(dHiKeyMissing)
+#else
+#define LN_TELEMETRY_WIDE(X)
+#endif
 
 #define X_FIELD(n) u32 n;
 struct LnTelemetry { LN_TELEMETRY(X_FIELD) };
@@ -159,18 +180,18 @@ enum {
 
 #define SND_MAX 4
 
-/* Per frame: sk = the sealed keys of slots 0..3, uk = the keys this device
- * simulated with; lk = this device's own seats' keys (lm: which arrived);
- * host: rk = each guest device's seats' keys (rm: bit (dev-1)*4+seat);
- * own = slot ownership as latched (PORT_LN_OWN codes, 0 = CPU). */
+/* Per frame: sk = the sealed keys of slots 0..NSL-1, uk = the keys this
+ * device simulated with; lk = this device's own seats' keys (lm: which
+ * arrived); host: rk = each guest device's seats' keys (rm: RM_BIT(dev,
+ * seat)); own = slot ownership as latched (PORT_LN_OWN codes, 0 = CPU). */
 struct Ent {
     u32 frame;
-    u16 sk[4], uk[4];
+    u16 sk[NSL], uk[NSL];
     u16 lk[4];
     u16 rk[PORT_LN_MAX_DEV - 1][4];
-    u16 rm;
+    LnSeatMask rm;
     u8  lm;
-    u8  own[4];
+    u8  own[NSL];
     u16 flags;
     u32 evSig, usedEvSig;
     u32 h[2], rh[2];
@@ -274,17 +295,17 @@ static u64 sCatchT0;
 static u32 sCatchFrom;
 static u32 sFloor;                /* guest: nothing before this is ours    */
 static u32 sSealedUpTo, sVerify;
-static u16 sLastLocal[4], sLastSealedK[4];
-static u8  sLastSealedOwn[4];
+static u16 sLastLocal[4], sLastSealedK[NSL];
+static u8  sLastSealedOwn[NSL];
 /* Slots (port/lmpnet.h): sOwn is applied ownership -- simulation-side session
  * state, replayed, in keyframes and images, hashed.  The rest is the host's:
  * sWant what it decided, sMem the slot each (device, seat) last had, sRecon
  * the next frame a slot may be reconciled again.  sAsk: a guest's own seat
  * requests waiting for the page. */
-static u8  sOwn[4], sWant[4];
+static u8  sOwn[NSL], sWant[NSL];
 static int sManaged, sSelf;
 static s8  sMem[PORT_LN_MAX_DEV][4];
-static u32 sRecon[4];
+static u32 sRecon[NSL];
 static int sAsk[8], sAskN;
 static u8  sAskSeats;
 static int sForceKf;
@@ -294,7 +315,7 @@ static int sSetInit, sSetApplied = -1;
  * (the host's own, device 0, read directly). */
 static char sRoomCode[5];
 static u32 sDevSet[PORT_LN_MAX_DEV], sDevExt[PORT_LN_MAX_DEV];
-static u8 sDevSetOn;
+static u32 sDevSetOn;
 
 /* Rooms mode on a guest (the canonical shadow, below "rooms mode"): */
 static u8 *sCanon, *sCanonSwap;   /* C's state; the live state while C runs */
@@ -382,11 +403,11 @@ static void HashState(u32 f)
         static u8 *x;
         u32 xn = PortLnExtrasSize();
 
-        if (x == NULL) x = (u8 *)malloc(xn + 4);
+        if (x == NULL) x = (u8 *)malloc(xn + NSL);
         if (x != NULL) {
             PortLnExtrasSave(x);
-            memcpy(x + xn, sOwn, 4);
-            HashWords64(x, xn + 4, RG_HOST, g[RG_HOST]);
+            memcpy(x + xn, sOwn, NSL);
+            HashWords64(x, xn + NSL, RG_HOST, g[RG_HOST]);
         }
     }
     for (i = 0; i < NRGN; i++)
@@ -408,7 +429,7 @@ static int KfSram(void) { return !(sFlags & PORT_LN_F_NO_SRAM_KF); }
 static u32 KfSramOff(void) { return sSnapBytes; }
 static u32 KfExtraOff(void) { return sSnapBytes + (KfSram() ? GBA_SRAM_SIZE : 0); }
 static u32 KfOwnOff(void) { return KfExtraOff() + PortLnExtrasSize(); }
-#define KF_OWN_BYTES 4u
+#define KF_OWN_BYTES ((u32)NSL)
 
 static void SaveState(u8 *d)
 {
@@ -486,7 +507,7 @@ int PortLnKirby(int i, s32 *out)
 {
     const struct Kirby *k;
 
-    if (i < 0 || i > 3)
+    if (i < 0 || i >= KATAM_KIRBYS)
         return 0;
     k = &gKirbys[i];
     out[0] = k->base.x >> 8;
@@ -505,7 +526,7 @@ int PortLnObserve(s32 *out)
 
     out[0] = (gMainFlags & 0x400) ? 1 : 0;
     out[1] = p;
-    out[2] = p < 4 ? gPauseMenus[p].menuId : -1;
+    out[2] = p < KATAM_KIRBYS ? gPauseMenus[p].menuId : -1;
     out[3] = gNumHumanPlayers;
     out[4] = gPortSim->lmp.humans;
     out[5] = gKirbys[0].battery;
@@ -574,7 +595,7 @@ static int OwnSlot(void)
     int s;
 
     if (sRole == PORT_LN_GUEST)
-        for (s = 1; s < 4; s++)
+        for (s = 1; s < NSL; s++)
             if (sOwn[s] && (sOwn[s] - 1) / 4 == sSelf)
                 return s;
     return 1;
@@ -767,7 +788,7 @@ void PortLnRemoteInputSeat(u32 f, int dev, int seat, u16 keys)
 {
     struct Ent *e;
     u32 next = NowF();
-    u16 bit;
+    LnSeatMask bit;
     int s;
 
     if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 1 || dev >= PORT_LN_MAX_DEV || seat < 0 || seat > 3)
@@ -776,14 +797,14 @@ void PortLnRemoteInputSeat(u32 f, int dev, int seat, u16 keys)
     if (f + TLN / 2 < next)
         return;                                  /* ancient: ignore      */
     e = Claim(f);
-    bit = (u16)(1u << ((dev - 1) * 4 + seat));
+    bit = RM_BIT(dev, seat);
     if (e->rm & bit)
         return;                                  /* duplicate            */
     e->rk[dev - 1][seat] = keys;
     e->rm |= bit;
     if (f < next && (e->flags & E_SEALED)) {
         T.hostKeyLate++;
-        for (s = 0; s < 4; s++)
+        for (s = 0; s < NSL; s++)
             if (e->own[s] == PORT_LN_OWN(dev, seat) && e->sk[s] != keys) {
                 T.hostKeyLateDiffer++;
                 e->flags |= E_OVR;
@@ -798,7 +819,7 @@ void PortLnRemoteInput(u32 f, u16 keys) { PortLnRemoteInputSeat(f, 1, 0, keys); 
  * that slot if the same seat had it. */
 static u16 HostGuestKey(u32 f, int slot, int dev, int seat, int *ontime)
 {
-    u16 bit = (u16)(1u << ((dev - 1) * 4 + seat));
+    LnSeatMask bit = RM_BIT(dev, seat);
     u32 g;
 
     *ontime = 0;
@@ -850,7 +871,7 @@ int PortLnSeatRequest(int dev, int seat, int on)
     o = (u8)PORT_LN_OWN(dev, seat);
     if (o == PORT_LN_OWN(0, 0))
         return on ? 0 : -1;                  /* the host's own player is slot 0 */
-    for (s = 1; s < 4; s++)
+    for (s = 1; s < NSL; s++)
         if (sWant[s] == o)
             pick = s;
     if (!on) {
@@ -865,14 +886,22 @@ int PortLnSeatRequest(int dev, int seat, int on)
     if (pick >= 0)
         return pick;
     s = sMem[dev][seat];
-    if (s >= 1 && s < 4 && !sWant[s])
+    if (s >= 1 && s < NSL && !sWant[s])
         pick = s;
-    for (s = 1; s < 4 && pick < 0; s++)
+#if KATAM_WIDE
+    /* A Kirby that exists first (a CPU of the live count), then the next
+     * slot past it: its join is held in the simulation while the count,
+     * raised by it, makes that Kirby (platform/wide.c "People"). */
+    for (s = 1; s < NSL && s < gNumKirbys && pick < 0; s++)
+        if (!sWant[s])
+            pick = s;
+#endif
+    for (s = 1; s < NSL && pick < 0; s++)
         if (!sWant[s])
             pick = s;
     if (pick < 0) {
         T.seatFull++;
-        PortLog("[katam-port] lmpnet: device %d seat %d refused -- all four Kirbys are people", dev, seat);
+        PortLog("[katam-port] lmpnet: device %d seat %d refused -- all %d Kirbys are people", dev, seat, NSL);
         return -1;
     }
     sWant[pick] = o;
@@ -890,7 +919,7 @@ void PortLnDeviceGone(int dev)
     if (!gPortLnOn || sRole != PORT_LN_HOST || dev < 1 || dev >= PORT_LN_MAX_DEV)
         return;
     Manage();
-    for (s = 1; s < 4; s++)
+    for (s = 1; s < NSL; s++)
         if (OwnDev(sWant[s]) == dev) {
             sWant[s] = 0;
             sRecon[s] = 0;
@@ -905,21 +934,21 @@ int PortLnFreeSlots(void)
 
     if (!gPortLnOn || sRole != PORT_LN_HOST)
         return 0;
-    for (s = 1; s < 4; s++)
+    for (s = 1; s < NSL; s++)
         n += sManaged ? !sWant[s] : 0;
     return n;
 }
 
 int PortLnSlotWant(int slot)
 {
-    if (!gPortLnOn || slot < 0 || slot > 3 || !sWant[slot])
+    if (!gPortLnOn || slot < 0 || slot >= NSL || !sWant[slot])
         return -1;
     return sWant[slot] - 1;
 }
 
 int PortLnSlotOwner(int slot)
 {
-    if (!gPortLnOn || slot < 0 || slot > 3 || !sOwn[slot])
+    if (!gPortLnOn || slot < 0 || slot >= NSL || !sOwn[slot])
         return -1;
     return sOwn[slot] - 1;
 }
@@ -930,7 +959,7 @@ int PortLnSeatSlot(int dev, int seat)
 
     if (!gPortLnOn)
         return -1;
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NSL; s++)
         if (sOwn[s] && sOwn[s] == PORT_LN_OWN(dev, seat))
             return s;
     return -1;
@@ -949,7 +978,7 @@ int PortLnSelfSeats(void)
 {
     int s, m = 1;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NSL; s++)
         if (sOwn[s] && OwnDev(sOwn[s]) == sSelf)
             m |= 1 << OwnSeat(sOwn[s]);
     return m | sAskSeats;
@@ -961,7 +990,7 @@ int PortLnSelfSlots(void)
 
     if (!gPortLnOn)
         return 0;
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NSL; s++)
         if (sOwn[s] && OwnDev(sOwn[s]) == sSelf)
             m |= 1 << s;
     return m;
@@ -1005,7 +1034,10 @@ static void SealSettings(u32 f)
     sDevSet[0] = PortPocSettingsWord();
     sDevExt[0] = PortPocSettingsExtWord();
     sDevSetOn |= 1;
-    for (s = 0; s < 4; s++) {
+    /* Slots 0..3 only: the pause page's session copies (platform/menu_poc.c)
+     * and the cards' names (player_card.c) are four wide; a slot 4.. would
+     * be sealed again every frame.  (The presentation stage widens them.) */
+    for (s = 0; s < 4 && s < NSL; s++) {
         int dev = s == 0 ? 0 : OwnDev(sOwn[s]);
         u32 have, haveExt;
 
@@ -1020,7 +1052,7 @@ static void SealSettings(u32 f)
     }
     /* and each slot's player's name, as the cards name them here (a CPU
      * slot: none) -- the ONLINE list draws these */
-    for (s = 0; s < 4; s++) {
+    for (s = 0; s < 4 && s < NSL; s++) {
         const char *n = (s == 0 || (sOwn[s] && PortLmpSlotPerson(s))) ? PortPlayerName(s) : "";
         u32 lo, hi;
 
@@ -1038,7 +1070,7 @@ LN_EXPORT void PortLnDeviceSettings(int dev, u32 word, u32 ext)
         return;
     sDevSet[dev] = word;
     sDevExt[dev] = ext;
-    sDevSetOn |= (u8)(1u << dev);
+    sDevSetOn |= 1u << dev;
 }
 
 LN_EXPORT void PortLnSetRoomCode(int c0, int c1, int c2, int c3)
@@ -1057,7 +1089,7 @@ static void Reconcile(u32 f)
 
     if (!sManaged)
         return;
-    for (s = 1; s < 4; s++) {
+    for (s = 1; s < NSL; s++) {
         int want = sWant[s] != 0;
 
         if (sWant[s] == sOwn[s] && PortLmpSlotPerson(s) == want)
@@ -1106,6 +1138,21 @@ int PortLnSealedGet(u32 f, u32 *out)
     out[8] = e->sk[3];
     return 1;
 }
+
+int PortLnSealedGetN(u32 f, u32 *out)
+{
+    int i;
+
+    if (!PortLnSealedGet(f, out))
+        return 0;
+    out[9] = NSL;
+    for (i = 4; i < NSL; i++)
+        out[10 + i - 4] = E(f)->sk[i];
+    return 1;
+}
+
+int PortLnSlots(void) { return NSL; }
+int PortLnMaxDevices(void) { return PORT_LN_MAX_DEV; }
 
 int PortLnSealedEventGet(u32 f, int idx, s32 *out)
 {
@@ -1158,11 +1205,11 @@ static void MarkDirty(u32 f, int event)
     }
 }
 
-void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
+void PortLnSealedN(u32 f, const u16 *keys, int nk, int nev)
 {
     struct Ent *e;
     u32 next = NowF();
-    u16 k[4];
+    u16 k[NSL];
     int i;
 
     if (!gPortLnOn || sRole != PORT_LN_GUEST)
@@ -1192,8 +1239,9 @@ void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
         for (i = 0; i < sEvStageN && i < nev; i++)
             EvAdd(f, sEvStage[i].type, sEvStage[i].a, sEvStage[i].b, sEvStage[i].c, sEvStage[i].d);
     sEvStageFrame = NONE;
-    k[0] = k0; k[1] = k1; k[2] = k2; k[3] = k3;
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < NSL; i++)
+        k[i] = keys != NULL && i < nk ? keys[i] : 0;
+    for (i = 0; i < NSL; i++)
         e->sk[i] = k[i] & 0x03FF;
     e->flags |= E_SEALED;
     e->evSig = EvSig(f);
@@ -1203,7 +1251,7 @@ void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
         const u8 *own = (e->flags & E_SIM) ? e->own : sOwn;
         int over = 0;
 
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < NSL; i++) {
             int seat = OwnSeat(own[i]);
 
             if (own[i] && OwnDev(own[i]) == sSelf && (e->lm & (1u << seat)) && e->lk[seat] != e->sk[i])
@@ -1215,7 +1263,7 @@ void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
     if (f < next && f >= sFloor && (e->flags & E_SIM)) {
         int keys = 0, evs = e->usedEvSig != e->evSig, mine = 0, other = 0;
 
-        for (i = 0; i < 4; i++)
+        for (i = 0; i < NSL; i++)
             if (e->uk[i] != e->sk[i]) {
                 keys = 1;
                 if (e->own[i] && OwnDev(e->own[i]) == sSelf) mine = 1;
@@ -1231,9 +1279,17 @@ void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
     }
     AdvanceSealed();
     if (sSealedUpTo > 0 && Have(sSealedUpTo - 1))
-        for (i = 0; i < 4; i++)
+        for (i = 0; i < NSL; i++)
             sLastSealedK[i] = E(sSealedUpTo - 1)->sk[i];
     T.sealedUpTo = sSealedUpTo;
+}
+
+void PortLnSealed4(u32 f, u16 k0, u16 k1, u16 k2, u16 k3, int nev)
+{
+    u16 k[4];
+
+    k[0] = k0; k[1] = k1; k[2] = k2; k[3] = k3;
+    PortLnSealedN(f, k, 4, nev);
 }
 
 void PortLnSealed(u32 f, u16 k0, u16 k1, int nev) { PortLnSealed4(f, k0, k1, 0, 0, nev); }
@@ -1430,7 +1486,7 @@ static void ApplyEvents(u32 f)
             break;
         case PORT_LN_EV_HUMAN:
             /* who plays it first (the keys below follow), then the game */
-            if (v->a >= 1 && v->a <= 3) {
+            if (v->a >= 1 && v->a < NSL) {
                 if (!v->b)
                     sOwn[v->a] = 0;
                 else if (v->c > 0 && v->c <= PORT_LN_OWN(PORT_LN_MAX_DEV - 1, 3))
@@ -1453,6 +1509,12 @@ static void ApplyEvents(u32 f)
         case PORT_LN_EV_NAME:
             PortPocSlotNameSet(v->a, (u32)v->b, (u32)v->c);
             break;
+        case PORT_LN_EV_KIRBYS:
+            /* the host's CPU KIRBYS setting (platform/wide.c) */
+#if KATAM_WIDE
+            PortWideSetTarget(v->a);
+#endif
+            break;
         case PORT_LN_EV_POKE:
             if ((u32)v->a >= GBA_EWRAM_BASE && (u32)v->a < GBA_EWRAM_BASE + GBA_EWRAM_SIZE)
                 *(u8 *)(uintptr_t)(u32)v->a = (u8)v->b;
@@ -1467,7 +1529,7 @@ int PortLnKeyOverride(u16 *keys)
 {
     u32 f;
     struct Ent *e;
-    u16 k[4];
+    u16 k[NSL];
     int s;
 
     if (!gPortLnOn)
@@ -1498,7 +1560,7 @@ int PortLnKeyOverride(u16 *keys)
     if (sRole == PORT_LN_HOST) {
         int ontime1 = 0;
 
-        for (s = 0; s < 4; s++) {
+        for (s = 0; s < NSL; s++) {
             u8 o = sOwn[s];
             int dev = OwnDev(o), seat = OwnSeat(o);
 
@@ -1511,6 +1573,12 @@ int PortLnKeyOverride(u16 *keys)
 
                 k[s] = HostGuestKey(f, s, dev, seat, &ontime);
                 if (dev == 1 && seat == 0) ontime1 = ontime;
+#if KATAM_WIDE
+                if (dev > 3) {
+                    if (ontime) { T.hostKeyOnTime++; T.dHiKeyOnTime++; }
+                    else { T.hostKeyMissing++; T.dHiKeyMissing++; }
+                } else
+#endif
                 if (ontime) { T.hostKeyOnTime++; if (dev == 1) T.d1KeyOnTime++; else if (dev == 2) T.d2KeyOnTime++; else T.d3KeyOnTime++; }
                 else { T.hostKeyMissing++; if (dev == 1) T.d1KeyMissing++; else if (dev == 2) T.d2KeyMissing++; else T.d3KeyMissing++; }
             }
@@ -1526,7 +1594,7 @@ int PortLnKeyOverride(u16 *keys)
     } else if (e->flags & E_SEALED) {
         memcpy(k, e->sk, sizeof k);
     } else {
-        for (s = 0; s < 4; s++) {
+        for (s = 0; s < NSL; s++) {
             u8 o = sOwn[s];
             int seat = OwnSeat(o);
 
@@ -1560,8 +1628,15 @@ int PortLnKeyOverride(u16 *keys)
     {
         int n = 0;
 
-        for (s = 0; s < 4; s++) {
-            (&T.own0)[s] = sOwn[s] ? sOwn[s] - 1u : 0xFFFFFFFFu;
+        for (s = 0; s < NSL; s++) {
+            u32 v = sOwn[s] ? sOwn[s] - 1u : 0xFFFFFFFFu;
+
+            if (s < 4)
+                (&T.own0)[s] = v;
+#if KATAM_WIDE
+            else if (s < 8)
+                (&T.own4)[s - 4] = v;
+#endif
             n += sOwn[s] != 0;
         }
         T.ownSlots = (u32)n;
@@ -1574,10 +1649,21 @@ int PortLnKeyOverride(u16 *keys)
 /* --- images ------------------------------------------------------------------- */
 #define IMG_MAGIC 0x494E4C4Bu       /* 'KLNI' */
 #define IMG_HDR   64u
+/* The slot ownership: header bytes 52..55 hold slots 0..3 (version 2).  The
+ * wide build (version 3) also appends every slot's, NSL bytes, after the
+ * host extras -- the header has no room for 16 -- so the header and the
+ * offsets tools read from it (tools/netproof/localise.mjs) do not move. */
+#if KATAM_WIDE
+#define IMG_VERSION  3u
+#define IMG_OWN_TAIL ((u32)NSL)
+#else
+#define IMG_VERSION  2u
+#define IMG_OWN_TAIL 0u
+#endif
 
 static u32 ImageBytes(void)
 {
-    return IMG_HDR + sSnapBytes + GBA_SRAM_SIZE + PortLnExtrasSize();
+    return IMG_HDR + sSnapBytes + GBA_SRAM_SIZE + PortLnExtrasSize() + IMG_OWN_TAIL;
 }
 
 static void Put32(u8 *p, u32 v) { p[0] = (u8)v; p[1] = (u8)(v >> 8); p[2] = (u8)(v >> 16); p[3] = (u8)(v >> 24); }
@@ -1590,7 +1676,7 @@ static void SaveImage(u8 *d, u32 f)
 
     memset(d, 0, IMG_HDR);
     Put32(d + 0, IMG_MAGIC);
-    Put32(d + 4, 2);
+    Put32(d + 4, IMG_VERSION);
     Put32(d + 8, f);
     Put32(d + 12, sSnapBytes);
     Put32(d + 16, (u32)PortLmpSetting());
@@ -1606,6 +1692,9 @@ static void SaveImage(u8 *d, u32 f)
     PortRbSnapshotSave(d + IMG_HDR);
     memcpy(d + IMG_HDR + sSnapBytes, (const void *)(uintptr_t)GBA_SRAM_BASE, GBA_SRAM_SIZE);
     PortLnExtrasSave(d + IMG_HDR + sSnapBytes + GBA_SRAM_SIZE);
+#if KATAM_WIDE
+    memcpy(d + IMG_HDR + sSnapBytes + GBA_SRAM_SIZE + x, sOwn, IMG_OWN_TAIL);
+#endif
 }
 
 int PortLnImageRequest(void)
@@ -1675,6 +1764,11 @@ static void ApplyImage(void)
     PortRbSnapshotLoad(s + IMG_HDR);
     if (!(sImgSkip & PORT_LN_SKIP_OWN) && Get32(s + 4) >= 2)
         memcpy(sOwn, s + 52, 4);
+#if KATAM_WIDE
+    if (!(sImgSkip & PORT_LN_SKIP_OWN) && Get32(s + 4) >= 3
+        && sImgInLen >= IMG_HDR + sSnapBytes + GBA_SRAM_SIZE + Get32(s + 40) + IMG_OWN_TAIL)
+        memcpy(sOwn, s + IMG_HDR + sSnapBytes + GBA_SRAM_SIZE + Get32(s + 40), IMG_OWN_TAIL);
+#endif
     if (!(sImgSkip & PORT_LN_SKIP_SRAM))
         memcpy((void *)(uintptr_t)GBA_SRAM_BASE, s + IMG_HDR + sSnapBytes, GBA_SRAM_SIZE);
     if (!(sImgSkip & PORT_LN_SKIP_SRAMLOAD))
@@ -1853,9 +1947,9 @@ static void CanonLoad(const u8 *src)
  * several people on one device share its screen). */
 static void RoomsDevices(void)
 {
-    int dev[4], s;
+    int dev[NSL], s;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NSL; s++)
         dev[s] = sOwn[s] ? OwnDev(sOwn[s]) : -1;
     PortLmpSetDevices(dev);
 }
@@ -1866,7 +1960,7 @@ static void RoomsSetView(void)
 {
     int s, v = 0;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < NSL; s++)
         if (sOwn[s] && OwnDev(sOwn[s]) == sSelf) { v = s; break; }
     PortLmpSetView(v);
     T.view = (u32)v;
@@ -2069,7 +2163,7 @@ static int PersRepair(void)
  * seen here once, in order.  The others' edits are theirs. */
 static void FinalSettings(const struct Ent *e)
 {
-    int slot = e->set[2] & 3;
+    int slot = e->set[2] % NSL;    /* the default build's & 3 */
     int me;
 
     if (e->set[0] != 2)

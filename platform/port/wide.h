@@ -192,7 +192,32 @@ struct PortWideCtl {
     u32 added, removed; /* counts, for the log and the tests                 */
 };
 
+/* The human-slot layer (platform/localmp.c, port/localmp.h) at the wide
+ * build's width: one entry per Kirby slot.  In the default build these live
+ * in the console-sized structs of the sim block (lmp, frame.lmpPressed,
+ * view.lmpDev*, whose sizes are asserted and must not move); the wide build
+ * keeps them here, after wideCtl in the padding before the wide area, and
+ * leaves those four-slot fields zero.  Simulation state: snapshotted, hashed
+ * and carried by images like the rest of the block.  The masks are u32 so the
+ * same layer serves 16 (bit s = slot s). */
+struct PortWideLmp {
+    u32 slots;          /* which Kirby slots are people (bit 0 = P1)          */
+    u32 joining;        /* slots on their way to the group (joined away)      */
+    u32 waiting;        /* joins held: the story has the Kirby, or the Kirby
+                         * does not exist yet (the live count is raised)     */
+    u32 devSet;         /* rooms mode: slots whose device is known            */
+    u16 keys[KATAM_KIRBYS];      /* this frame's held keys, by slot (0 unused) */
+    u16 pressed[KATAM_KIRBYS];   /* newly pressed this frame, by slot          */
+    u16 groupRoom[KATAM_KIRBYS]; /* rooms mode: each DEVICE's group room + 1   */
+    u8  stray[KATAM_KIRBYS];     /* frames each slot has been out of the frame */
+    u8  dev[KATAM_KIRBYS];       /* rooms mode: each slot's device (devSet)    */
+};
+
 #endif /* KATAM_WIDE */
+
+/* The human-slot layer's width (port/localmp.h, platform/lmpnet.c): a slot
+ * per Kirby slot.  4 in the default build. */
+#define PORT_LMP_SLOTS KATAM_KIRBYS
 
 /* --- addresses the platform side names directly (port/game_addrs.h etc.) -- */
 #if KATAM_WIDE
