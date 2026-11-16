@@ -304,6 +304,11 @@ static u8  sLastSealedOwn[NSL];
  * requests waiting for the page. */
 static u8  sOwn[NSL], sWant[NSL];
 static int sManaged, sSelf;
+/* Slots a seat may be given (PortLnSetSeatSlots): what the transport's
+ * sealed record carries.  4 until the caller says more -- today's wire has
+ * k0..k3 -- so a wide module run by a 4-wide page never seats a person whose
+ * keys would not travel.  The caller's setting, kept across sessions. */
+static int sSeatSlots = 4 < NSL ? 4 : NSL;
 static s8  sMem[PORT_LN_MAX_DEV][4];
 static u32 sRecon[NSL];
 static int sAsk[8], sAskN;
@@ -886,22 +891,22 @@ int PortLnSeatRequest(int dev, int seat, int on)
     if (pick >= 0)
         return pick;
     s = sMem[dev][seat];
-    if (s >= 1 && s < NSL && !sWant[s])
+    if (s >= 1 && s < sSeatSlots && !sWant[s])
         pick = s;
 #if KATAM_WIDE
     /* A Kirby that exists first (a CPU of the live count), then the next
      * slot past it: its join is held in the simulation while the count,
      * raised by it, makes that Kirby (platform/wide.c "People"). */
-    for (s = 1; s < NSL && s < gNumKirbys && pick < 0; s++)
+    for (s = 1; s < sSeatSlots && s < gNumKirbys && pick < 0; s++)
         if (!sWant[s])
             pick = s;
 #endif
-    for (s = 1; s < NSL && pick < 0; s++)
+    for (s = 1; s < sSeatSlots && pick < 0; s++)
         if (!sWant[s])
             pick = s;
     if (pick < 0) {
         T.seatFull++;
-        PortLog("[katam-port] lmpnet: device %d seat %d refused -- all %d Kirbys are people", dev, seat, NSL);
+        PortLog("[katam-port] lmpnet: device %d seat %d refused -- all %d seats are people", dev, seat, sSeatSlots);
         return -1;
     }
     sWant[pick] = o;
@@ -934,7 +939,7 @@ int PortLnFreeSlots(void)
 
     if (!gPortLnOn || sRole != PORT_LN_HOST)
         return 0;
-    for (s = 1; s < NSL; s++)
+    for (s = 1; s < sSeatSlots; s++)
         n += sManaged ? !sWant[s] : 0;
     return n;
 }
@@ -1152,6 +1157,14 @@ int PortLnSealedGetN(u32 f, u32 *out)
 }
 
 int PortLnSlots(void) { return NSL; }
+
+LN_EXPORT int PortLnSetSeatSlots(int n)
+{
+    sSeatSlots = n < 1 ? 1 : n > NSL ? NSL : n;
+    return sSeatSlots;
+}
+
+int PortLnSeatSlots(void) { return sSeatSlots; }
 int PortLnMaxDevices(void) { return PORT_LN_MAX_DEV; }
 
 int PortLnSealedEventGet(u32 f, int idx, s32 *out)

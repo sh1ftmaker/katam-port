@@ -156,6 +156,13 @@ void PortLnSealedN(u32 frame, const u16 *keys, int n, int nev);
 /* What this build's sessions are made of (the page and the rig ask): */
 int  PortLnSlots(void);                      /* PORT_LN_SLOTS                 */
 int  PortLnMaxDevices(void);                 /* PORT_LN_MAX_DEV               */
+/* host: how many Kirby slots seats may be given, 1..PORT_LN_SLOTS (slot 0 is
+ * the host's).  4 until the caller raises it: the transport must carry every
+ * seated slot's keys (PortLnSealedGetN / PortLnSealedN), and today's wire
+ * carries k0..k3.  Kept across sessions; returns the value set.
+ * PortLnFreeSlots counts within it. */
+int  PortLnSetSeatSlots(int n);
+int  PortLnSeatSlots(void);
 void PortLnRemoteHash(u32 frame, u32 lo, u32 hi);
 
 /* --- state ----------------------------------------------------------------- */
