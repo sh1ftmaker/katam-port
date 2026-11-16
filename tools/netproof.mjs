@@ -77,10 +77,9 @@ const SEATS = +flag('seats', SLOTS > 4 ? Math.min(8, SLOTS) : 4);
 const DEVICES = Math.min(+flag('devices', 2), MAXDEV, SEATS);
 const R15_N = flag('r15', '2,3,4').split(',').map(Number).filter((n) => n >= 2 && n <= Math.min(MAXDEV, SEATS));
 const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
-// keyframes a guest keeps (x 15 frames of history): 24, or 16 on the 16-Kirby
-// module (what web/online.js uses: 24 of its 940 KiB keyframes do not fit
-// its 192 MiB heap beside the rest)
-const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 16 : 24);
+// keyframes a guest keeps (x 15 frames of history): 24, or 32 on the 16-Kirby
+// module (what web/online.js uses: its heap is 256 MiB, Makefile)
+const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 32 : 24);
 // a wide module's Kirby count at power-on (run.mjs c.kirbys): the seats, so
 // eight people have eight Kirbys from the start, as an 8-player game whose
 // count has risen (R13-N "count rising" starts at 4 instead)

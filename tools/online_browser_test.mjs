@@ -1813,7 +1813,7 @@ if (CASES.includes('default')) {
     const h16 = await openPage('dhost16', { mod: null });
     const c16 = await hostToWaiting(h16, 'd16');
     ok('default: a host on the default page has a room', !!c16, c16);
-    ok('default: ... on the 16-Kirby module, 8 seats', (await h16.ev('katamOnline.module()')) === '16' && (await h16.ev('katamOnline.seats()')) === 8);
+    ok('default: ... on the 16-Kirby module, 16 seats', (await h16.ev('katamOnline.module()')) === '16' && (await h16.ev('katamOnline.seats()')) === 16);
     const inv16 = await h16.ev('katamOnline.invite()');
     ok('default: its invite link names mod=16', /[?&]mod=16\b/.test(inv16), inv16);
     const g0 = await openPage('dg0', Object.assign(extraOf(inv16), { mod: null }));
@@ -1903,13 +1903,13 @@ if (CASES.includes('eight')) {
     ok('eight: START row set to TOGETHER', await pickMode(host, 0));
     await press(host, 'UP'); await waitFrames(host, 10);
     await press(host, 'DOWN'); await waitFrames(host, 10);
-    await shot(host, `e-03-host-players-${NT - 1}of8.png`);
+    await shot(host, `e-03-host-players-${NT - 1}of16.png`);
     await press(host, 'A');
     ok('eight: session started', !!(await until(async () => { const st = await stats(host); return st && st.session; }, 20000)));
     for (const g of G) ok(`eight: ${g.name} took the host's image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 40000)));
     await sleep(3000);
     let sl = await slotsOf(host);
-    ok(`eight: ${NT - 1} Kirbys are people`, sl.filter(Boolean).length === NT - 1 && sl.length === 8, slotsStr(sl));
+    ok(`eight: ${NT - 1} Kirbys are people`, sl.filter(Boolean).length === NT - 1 && sl.length === 16, slotsStr(sl));
     const base = (await stats(host)).startFrame, frames = 60 * 400;
     const play = buildPlay(frames, 4, 900);
     await setScript(host, play.k1, base, play.warps);
@@ -2059,10 +2059,11 @@ if (CASES.includes('eight')) {
     R.seatWait = { guestMs: seated ? seated.seatWaitMs : null, hostMs: pl ? pl.seatWaitMs : null, kirbysBefore: kBefore, kirbysAfter: await host.ev('Module._PortPocKirbysNow()'), hostWaits: hsL.seatWaits };
     await setScript(gl, buildPlay(frames, 30, 100000).k2, await frame(gl), []);
     G.push(gl); cmps.push(makeComparer(host, gl));
-    // the host's count: CPU KIRBYS 7 (sealed for every device)
-    await host.ev('Module._PortLnEvent(10, 7, 0, 0, 0)');
-    const k7 = await until(async () => { for (const p of [host, ...G]) if ((await p.ev('Module._PortPocKirbysNow()')) !== 7) return false; return true; }, 30000, 250);
-    ok('eight: the host changes the Kirby count (7) and every page has it', !!k7,
+    // the host's count: CPU KIRBYS 7, or one past the people (sealed for every device)
+    const KW = Math.min(16, Math.max(7, NT + 1));
+    await host.ev(`Module._PortLnEvent(10, ${KW}, 0, 0, 0)`);
+    const k7 = await until(async () => { for (const p of [host, ...G]) if ((await p.ev('Module._PortPocKirbysNow()')) !== KW) return false; return true; }, 30000, 250);
+    ok(`eight: the host changes the Kirby count (${KW}) and every page has it`, !!k7,
        (await Promise.all([host, ...G].map((p) => p.ev('Module._PortPocKirbysNow()')))).join(' '));
     await playMany(host, G, 25, cmps, 'e-play2', [10]);
     // guest 2 leaves from its game, and comes back in the same tab by its link
@@ -2096,7 +2097,7 @@ if (CASES.includes('eight')) {
     await playMany(host, G, 25, cmps, 'e-play3', [10]);
     for (const [i, c] of cmps.entries()) { await c.run(); ok(`eight: ${G[i].name} identical to the host (to the end)`, c.compared > 30 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
     const txt = await host.ev('katamOnline.statsText()');
-    ok('eight: the status line says players n/8', /players \d\/8/.test(txt), txt.split('\n')[0]);
+    ok('eight: the status line says players n/16', /players \d+\/16/.test(txt), txt.split('\n')[0]);
     // telemetry: what an 8-player game costs each device
     const hsF = await stats(host), gsF = await Promise.all(G.map(stats));
     R.final = { host: { upBps: hsF.upBps, downBps: hsF.downBps, devices: hsF.devices, kirbys: hsF.kirbys,

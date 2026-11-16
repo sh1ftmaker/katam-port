@@ -1,4 +1,4 @@
-/* Online play, up to eight players on up to eight devices (the 16-Kirby
+/* Online play, up to sixteen players on up to sixteen devices (the 16-Kirby
  * module, the default) or four on four (a 4-player game, the 4-Kirby
  * module) -- the page's half.
  *
@@ -47,17 +47,17 @@
  * 0:30) and keeps everyone.  A host that closes its tab says bye: that ends
  * the game for everyone at once, as before.
  *
- * Modules.  8-player games run on the 16-Kirby module (katam16.wasm, the
+ * Modules.  16-player games run on the 16-Kirby module (katam16.wasm, the
  * page's default: web/shell.html); 4-player games on the 4-Kirby one
- * (katam.wasm, ?mod=4).  A host on the 16-Kirby module hosts an 8-player
+ * (katam.wasm, ?mod=4).  A host on the 16-Kirby module hosts a 16-player
  * game; ONLINE > HOST 4 PLAYERS reloads the page into the 4-Kirby module
- * (lighter on a phone), and HOST 8 PLAYERS there back.  Every peer of a
+ * (lighter on a phone), and HOST 16 PLAYERS there back.  Every peer of a
  * game runs the same module (the sim id names it: KATAM_SIM or
  * KATAM_SIM16).  A joiner on the other module -- told so by the invite link
  * (?mod=16 or ?mod=4; a link from before ?mod=4 names none), the public
  * list (`mod` 16, else 4), or the room's version gate (the room's sim id is
  * the other module's) -- reloads into it with ?join=CODE, once.  The wire carries every slot's keys (web/ln_session.js) and, in an
- * 8-player game, each sealed record about four times (bounded redundancy).
+ * 16-player game, each sealed record about four times (bounded redundancy).
  *
  * Invite links: ?join=CODE.  Once the ROM is loaded the game goes by itself
  * to the visitor's player card (platform/online_ui.c PortOuiInvite): A on
@@ -90,10 +90,12 @@
     };
     var PERIOD = LS.PERIOD;
     var KF_EVERY = 15, KF_COUNT = 24;          /* as the rig: 360 frames of history, ~12 MiB */
-    /* the 16-Kirby module's keyframes are 940 KiB: 24 of them do not fit its
-     * heap beside the rest (192 MiB, no growth), 16 do (240 frames, ~15 MiB;
-     * tools/netproof.mjs --kf-count runs the rig the same) */
-    function kfCount() { return up() && M._PortLnSlots && M._PortLnSlots() > 8 ? 16 : KF_COUNT; }
+    /* the 16-Kirby module's keyframes are 940 KiB; its heap is 256 MiB
+     * (Makefile, for 16-player games), so it keeps 32 (480 frames, ~30 MiB)
+     * and still has ~50 MiB spare (tools/netproof.mjs --kf-count runs the
+     * rig the same) */
+    var KF_COUNT_WIDE = 32;
+    function kfCount() { return up() && M._PortLnSlots && M._PortLnSlots() > 8 ? KF_COUNT_WIDE : KF_COUNT; }
     var P2P_WAIT_MS = 5000, DEAD_MS = 6000, PING_MS = 1000;
     /* Liveness (web/ln_session.js LIVE, the rig's rules too): a quiet host is
      * waited for (WAITING FOR HOST 0:30) instead of given up on; a host whose
@@ -158,17 +160,17 @@
         hold: false, holdLeft: 0, notice: null, cutUntil: 0, lastAfter: 0, live: null,
     };
     /* The 16-Kirby module (web/shell.html; it may have fallen back to the
-     * ordinary one, so asked each time): its games hold 8 people */
+     * ordinary one, so asked each time): its games hold 16 people */
     function wide() { return !!window.KATAM_KIRBYS16 && !(up() && M._PortLnSlots && M._PortLnSlots() <= 4); }
     function modName() { return wide() ? '16' : '4'; }
-    function seats() { return wide() ? 8 : 4; }
+    function seats() { return wide() ? Math.min(16, up() && M._PortLnSlots ? M._PortLnSlots() : 16) : 4; }
     function maxGuests() {
         var d = up() && M._PortLnMaxDevices ? M._PortLnMaxDevices() : 4;
         return Math.min(seats(), d) - 1;
     }
     /* slots the page watches: the seats (people sit only in slots below them) */
     function nSlots() { return Math.min(seats(), up() && M._PortLnSlots ? M._PortLnSlots() : 4); }
-    function noOwners() { var o = [0]; for (var i = 1; i < 8; i++) o.push(-1); return o; }
+    function noOwners() { var o = [0]; for (var i = 1; i < 16; i++) o.push(-1); return o; }
     var phone = (function () { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }());
     /* this tab's token: a reload of it is the same device to the host */
     var TOK = (function () {
@@ -309,9 +311,9 @@
         /* the player card was this tab's already (an invite's, or JOIN GAME):
          * the reloaded page joins without it */
         if (code) { try { sessionStorage.setItem('katamInviteCard', code); } catch (e) { /* shown again, then */ } }
-        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : '4-player') + ' module (' + why + ') -- reloading into it');
+        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '16-player' : '4-player') + ' module (' + why + ') -- reloading into it');
         S.stats.moduleHops = (S.stats.moduleHops || 0) + 1;
-        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the 4-player module...', 0);
+        banner(mod === '16' ? 'That is a 16-player game: loading the 16-player module...' : 'That is a 4-player game: loading the 4-player module...', 0);
         var u = new URL(location.href);
         u.searchParams.delete('kirbys');
         u.searchParams.set('mod', mod);
@@ -824,7 +826,7 @@
             if (M._PortLnSetRoomCode && S.code && S.code.length === 4)
                 M._PortLnSetRoomCode(S.code.charCodeAt(0), S.code.charCodeAt(1), S.code.charCodeAt(2), S.code.charCodeAt(3));
             S.lastView = M._PortSimViewRequested() >>> 0;
-            /* an 8-player game (the 16-Kirby module): eight seats, and each
+            /* a 16-player game (the 16-Kirby module): sixteen seats, and each
              * sealed record sent about four times instead of until acked, in
              * packets under the data channel's fragmentation size */
             S.hub = new LS.HostHub(engine(), clock, wide() ? { codec: CODEC, seats: seats(), copies: 4, maxPacketBytes: 1100 }
@@ -883,7 +885,7 @@
         reset();
         S.role = 'host'; S.phase = 'hosting';
         if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1, 0);
-        if (wide() && phone) banner('8-player game: a desktop host is best. On a phone, ONLINE > HOST 4 PLAYERS is lighter', 5000);
+        if (wide() && phone) banner('16-player game: a desktop host is best. On a phone, ONLINE > HOST 4 PLAYERS is lighter', 5000);
         ui(UI.H_CREATING);
         var gen = ++S.gen;
         versions().then(function (v) {
@@ -980,7 +982,7 @@
             /* a tab that was here before (and whose link is dead) comes back as itself */
             forPeers(function (p) { if (d.tok && p.tok === d.tok) guestGone(p, 'came back'); });
             var dev = devFor(d.tok);
-            /* full: every device id taken (three guests; seven in an 8-player
+            /* full: every device id taken (three guests; fifteen in a 16-player
              * game), or (in play) no seat free for its player */
             var noKirby = S.session && M._PortLnFreeSlots() === 0;
             if (dev < 0 || noKirby) {
@@ -1204,7 +1206,7 @@
                     clearTimeout(hiTimer);
                     S.myDev = d.dev || null;
                     S.seatWaitFrom = nowMs();
-                    if (wide() && phone) banner('8-player game: a phone may stutter', 4000);
+                    if (wide() && phone) banner('16-player game: a phone may stutter', 4000);
                     guestLink(net, d.sid, !!d.relay);
                     return;
                 }
@@ -1375,9 +1377,9 @@
      * katamOnline.otherModule() too, for a page button or a test. */
     function otherModule() {
         var mod = wide() ? '4' : '16';
-        log('module: to the ' + (mod === '16' ? '8-player' : '4-player') + ' module (the page reloads)');
+        log('module: to the ' + (mod === '16' ? '16-player' : '4-player') + ' module (the page reloads)');
         if (S.role) { try { reset(); } catch (e) { /* going anyway */ } }
-        banner('Loading the ' + (mod === '16' ? '8' : '4') + '-player module: then MULTIPLAYER > ONLINE > HOST GAME', 0);
+        banner('Loading the ' + (mod === '16' ? '16' : '4') + '-player module: then MULTIPLAYER > ONLINE > HOST GAME', 0);
         var u = new URL(location.href);
         ['kirbys', 'mod', 'join'].forEach(function (k) { u.searchParams.delete(k); });
         u.searchParams.set('mod', mod);
@@ -1406,7 +1408,7 @@
                 break;
             }
             case EV.JOIN_CANCEL: joinCancel(); break;
-            /* ONLINE > HOST 4 PLAYERS (the 16-Kirby module) or HOST 8
+            /* ONLINE > HOST 4 PLAYERS (the 16-Kirby module) or HOST 16
              * PLAYERS (the 4-Kirby one): the page again, on the other module */
             case EV.OTHER_MODULE: otherModule(); break;
             /* an invite link's card: B (to ONLINE), or the front end was not
@@ -1567,7 +1569,7 @@
             o.inputsIn = hs.st.inputsIn; o.images = hs.st.images; o.repairReqs = hs.st.repairReqs;
             o.lastImageBytes = hs.st.imageComp; o.seatReqs = hs.st.seatReqs || 0; o.seatFull = hs.st.seatFull || 0;
             o.guestAck = hs.guestAck; o.guestContig = hs.guestContig;
-            /* bounded redundancy (8-player games): retransmits from the ack, its timeout */
+            /* bounded redundancy (16-player games): retransmits from the ack, its timeout */
             o.resends = hs.st.resends; o.resentRecs = hs.st.resentRecs; o.rtoMs = hs.st.rtoMs; o.ackRttMs = hs.st.srttMs;
             o.maxPacket = hs.st.maxPacket; o.recsPerPacket = +(hs.st.recs / Math.max(1, hs.st.packets)).toFixed(2);
             o.seatWaitMs = hs.st.seatWaitMs === undefined ? null : hs.st.seatWaitMs;
@@ -1647,7 +1649,7 @@
         var o = stats(), L = [];
         var who = o.slots.map(function (x, i) { return 'P' + (i + 1) + ' ' + (x ? (x.dev === o.self ? 'you' : x.dev === 0 ? 'host' : 'dev ' + x.dev) + (x.seat ? '.' + x.seat : '') : 'cpu'); });
         L.push((o.role === 'host' ? 'Hosting' : 'Joined') + ' game ' + (o.code || '-') + ', ' + o.phase +
-               (o.session ? ', players ' + o.players + '/' + o.seats : '') + (o.module === '16' ? ' (8-player module)' : ''));
+               (o.session ? ', players ' + o.players + '/' + o.seats : '') + (o.module === '16' ? ' (16-player module)' : ''));
         if (o.session) L.push(who.join(', '));
         if (o.role === 'host') {
             if (!o.peers.length) L.push('No guests connected');

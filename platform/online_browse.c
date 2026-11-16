@@ -37,7 +37,7 @@ extern "C" {
 struct ObrGame {
     char code[5];
     char name[9];
-    u8 n, max, roam, locked, full;      /* max: its seats (4, or 8 in an 8-player game) */
+    u8 n, max, roam, locked, full;      /* max: its seats (4, or 16 in a 16-player game) */
 };
 
 static struct ObrGame sGames[PORT_OBR_LIST_MAX];
