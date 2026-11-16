@@ -186,6 +186,14 @@ regress`) replays the committed input recordings and reports the first frame
 whose simulation state differs from the golden logs -- see
 [docs/DETERMINISM.md](docs/DETERMINISM.md).
 
+Checking a build: `tools/smoke.sh ROM` is the one-minute check (about 50 s
+wall here): the recordings natively and in wasm, a 16-device online session
+in node, host-away grace, the wide blocks run, lint, unit tests and one
+10-tab browser session on the default module, all at once on artefacts
+already built.  `tools/full_check.sh ROM [--build]` is the deep check (43
+suites, about 30 minutes).  Both print one PASS/FAIL line per suite; their
+headers list what each suite is.
+
 ## The native build
 
 The same port in a window, on SDL2. Same PPU, same DMA, same mixer, same game

@@ -2253,6 +2253,69 @@ if (CASES.includes('hostblip')) {
     }
 }
 
+// --- smoke: the one-minute check's browser part (tools/smoke.sh) ----------------
+// --smoke-tabs pages (default 10) on the page's default module: the host
+// through MULTIPLAYER > ONLINE > HOST GAME (16 seats), guest 1 typing the
+// code on JOIN GAME, the others by the invite link (its player card, A);
+// TOGETHER; --play seconds (smoke.sh: 8) of play with every guest's hashed
+// frames compared with the host's; the last guest (a slot past 8) opens its
+// pause overlay (nobody else does) and closes it; the host ends with
+// everyone still in.
+if (CASES.includes('smoke')) {
+    const NT = Math.max(3, Math.min(16, +flag('smoke-tabs', 10)));
+    const secs = Math.max(4, PLAY_S);
+    say(`# smoke: ${NT} tabs on the default module, ${secs} s of play`);
+    const def = Object.assign({ mod: null }, knobs);
+    const host = await openPage('host', def);
+    const g1 = await openPage('guest1', def);
+    const hostP = hostToWaiting(host, 's');
+    // guest 1 reaches the ONLINE screen while the host makes its room
+    await toGameSelect(g1); await toOnline(g1);
+    const code = await hostP;
+    ok('smoke: HOST GAME on the default module: a room, 16 seats', !!code && (await host.ev('katamOnline.seats()')) === 16,
+       `${code} seats ${await host.ev('katamOnline.seats()')}`);
+    say(`smoke: room ${code}; guest 1 types it`);
+    // (before the other tabs load: a page busy loading them can miss a press)
+    await press(g1, 'DOWN'); await waitFrames(g1, 10); await press(g1, 'A'); await waitFrames(g1, 20);
+    await typeCode(g1, code);
+    const G = [g1];
+    for (let i = 2; i < NT; i++) G.push(await openPage('guest' + i, Object.assign({ join: code }, def)));
+    const waiting = await Promise.all(G.map((g) => until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 60000, 250)));
+    say('smoke: the guests wait');
+    ok(`smoke: ${NT - 1} guests wait (one by JOIN GAME, ${NT - 2} by the invite link)`, waiting.every(Boolean), waiting.map((w) => (w ? 1 : 0)).join(''));
+    await until(async () => (await stats(host)).peers.filter((p) => p.ready).length === NT - 1, 15000, 200);
+    await press(host, 'DOWN'); await waitFrames(host, 10);
+    await pickMode(host, 0);
+    await press(host, 'A');
+    ok('smoke: session started', !!(await until(async () => { const st = await stats(host); return st && st.session; }, 20000)));
+    const joined = await Promise.all(G.map((g) => until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 30000, 200)));
+    ok('smoke: every guest took the host\'s image', joined.every(Boolean), joined.map((w) => (w ? 1 : 0)).join(''));
+    const seated = await until(async () => { const sl = await slotsOf(host); return sl.filter(Boolean).length === NT ? sl : null; }, 20000, 250);
+    ok(`smoke: ${NT} Kirbys are people`, !!seated, slotsStr(await slotsOf(host)));
+    say('smoke: everyone seated');
+    const base = (await stats(host)).startFrame, frames = 60 * 120;
+    await setScript(host, buildPlay(frames, 4, 100000).k1, base, []);
+    for (const [i, g] of G.entries()) await setScript(g, buildPlay(frames, 10 + i, 100000).k2, base, []);
+    const cmps = G.map((g) => makeComparer(host, g));
+    await playMany(host, G, secs, cmps, 's-play');
+    for (const [i, c] of cmps.entries()) { await c.run(); ok(`smoke: ${G[i].name} identical to the host`, c.compared > 10 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
+    const reps = await Promise.all(G.map(async (g) => (await stats(g)).repairs));
+    ok('smoke: no repair image (the engine\'s own hashes agreed)', reps.every((r) => !r), reps.join(' '));
+    // the pause menu: the last guest (slot NT-1) opens its own and closes it
+    const gp = G[G.length - 1];
+    await gp.ev('window.__script = null; Module._PortSetKeys(0)'); await waitFrames(gp, 20);
+    let up = false;
+    for (let i = 0; i < 5 && !up; i++) { await press(gp, 'START'); await waitFrames(gp, 60); up = (await ovlOf(gp)).st === 2; }
+    const pz = await ovlOf(gp), others = await Promise.all([host, ...G.slice(0, -1)].map(ovlOf));
+    ok(`smoke: ${gp.name} opens its pause menu (slot ${pz.pauser}), nobody else shows one`, up && others.every((o) => !o.st), `${JSON.stringify(pz)} others ${others.map((o) => o.st).join('')}`);
+    await press(gp, 'START');
+    ok(`smoke: ... and Start closes it`, !!(await until(async () => !(await ovlOf(gp)).st, 6000)));
+    const last = await stats(host);
+    ok('smoke: the host still has everyone', last.peers.length === NT - 1 && last.players === NT, `${last.peers.length} peers, players ${last.players}`);
+    for (const g of G) await g.close();
+    await host.close();
+}
+
 if (inviteCards.length) {
     results.inviteCards = inviteCards;
     ok(`every invite link's first screen was the player card, and one A on JOIN went on (${inviteCards.length})`,
