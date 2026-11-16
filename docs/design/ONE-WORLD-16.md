@@ -265,3 +265,37 @@ the renderer and the rules are most of it; the simulation itself is done.
 | replay grows ~0.07·N | sim ≈ +0.7 µs per Kirby (**confirmed** order); rollback overhead grows with the image |
 | image 806 KB raw at 16 | 840 KB (**confirmed**); deflated 65–73 KB, not 85 |
 | per-device rooms change the hash | untested here; the wide build hashes the whole sim block |
+
+## 8. Published as EXPERIMENTAL > CPU KIRBYS (2026-11-15, branch `experimental`)
+
+The owner: *"allow me to add cpu kirbys one or 4 at a time in the
+experimental settings section."*
+
+- **The setting.** SETTINGS > EXPERIMENTAL (a new top-level section; LIGHTING
+  moved into it) has CPU KIRBYS (3..15 helpers; Left/Right one at a time),
+  ADD 4 and REMOVE 4. Saved as `kirbys=N` (Kirbys in all, 4..16) in the
+  settings text. Never online; unavailable in a local two-player game.
+- **Live count (wide build only, `platform/wide.c` "The live count").**
+  `gPortSim->wideCtl.target` is simulation state, set by a frame-stamped
+  input (`kirbys FRAME N` in a recording; the host schedules it). Once a
+  frame, in ordinary story play (not the title, demo, intro walk, a pause, a
+  door), one Kirby joins (made as the play start makes one, its brain, then
+  the respawn route to player 1) or leaves (the last one: carried to
+  player 1 unless it shares a room with a Kirby that stays, then its owned
+  objects and its two tasks destroyed, `gNumKirbys` down). Play starts with
+  the target (at least 4). Joins wait for room in the task pool (12 slots
+  of headroom). Kirby i >= 4 wears the colour of Kirby i & 3 (they share a
+  palette).
+- **Web.** The default module stays the 4-Kirby build. `make dist` builds a
+  second module, `katam16.js` / `katam16.wasm` (`make web16`,
+  KATAM_MAX_KIRBYS=16), and the page loads it when `kirbys` > 4. From the
+  ordinary module, a change above 3 asks (NO / YES), writes the save and
+  reloads; inside the 16 module changes are live; back at 3 the next load is
+  the ordinary module. Both modules use the same save record (the save
+  buffers are not among the moved tables, so the format is the same).
+  `?kirbys=4` forces the ordinary module for one visit.
+- **No multiplayer in the 16 module**: MULTIPLAYER > LOCAL / ONLINE
+  unavailable ("SET CPU KIRBYS TO 3 FIRST"), pad drop-in refused, invite and
+  netplay links and `?localmp` not followed.
+- **Native**: the default build shows the rows as needing the 16-Kirby
+  build; a wide native build applies the setting (or `KATAM_KIRBYS=N`).

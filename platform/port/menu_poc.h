@@ -72,7 +72,9 @@ u32  PortPocSettingsExtWord(void);      /* the external sections' online rows */
  *   3. for rows of your own: a kItems list and SECTION(kSecName, "NAME",
  *      list, &kTopModel, place); for another file's: its struct PortPocRows
  *      in kExtRows (before the NULL) and EXT_SECTION(kSecName, &rows,
- *      ROWCOUNT, place, index in kExtRows);
+ *      ROWCOUNT, parent, place, index in kExtRows) -- parent &kTopModel, or
+ *      the section it sits in (LIGHTING: &kSecExperimental, a section row
+ *      K_SECTION in that section's items);
  *   4. { IT_SEC_<NAME>, &kSecName } in kSectionOf, &kSecName in kSections
  *      and at the end of kModels (the tests' model numbers). */
 struct PortPocRows {
