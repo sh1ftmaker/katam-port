@@ -1,4 +1,5 @@
-/* Online play, up to four players on up to four devices: the page's half.
+/* Online play, up to four players on up to four devices -- or eight on
+ * eight in an 8-player game (EXPERIMENTAL) -- the page's half.
  *
  * The game's own front end has the screens (Start Game > MULTIPLAYER >
  * ONLINE > HOST GAME / JOIN GAME: platform/online_ui.c, drawn by
@@ -33,6 +34,18 @@
  * same sealed frame.  A guest leaving, or its link going quiet for 6 s,
  * hands its Kirbys to the CPU; back with the same code (the same tab, or a
  * reload of it), it gets a Kirby again -- the one it had, if still free.
+ *
+ * Modules.  Four-player games run on the ordinary module (katam.wasm);
+ * 8-player games on the 16-Kirby one (katam16.wasm: web/shell.html picks it
+ * for ?mod=16 or SETTINGS > EXPERIMENTAL > CPU KIRBYS above 3).  A host on
+ * the 16-Kirby module hosts an 8-player game; ONLINE > HOST 8 PLAYERS on
+ * the ordinary one reloads the page into it (and 4 PLAYER GAMES back).
+ * Every peer of a game runs the same module (the sim id names it: KATAM_SIM
+ * or KATAM_SIM16).  A joiner on the other module -- told so by the invite
+ * link (?mod=16), the public list's `mod`, or the room's version gate (the
+ * room's sim id is the other module's) -- reloads into it with ?join=CODE,
+ * once.  The wire carries every slot's keys (web/ln_session.js) and, in an
+ * 8-player game, each sealed record about four times (bounded redundancy).
  *
  * Invite links: ?join=CODE joins straight after the ROM is loaded.
  * Test knobs: ?netlag=ms (one way, added to everything this page sends),
@@ -69,7 +82,7 @@
     var UI = { J_REMOVED: 18, IDLE: 0, H_CREATING: 1, H_WAITING: 2, H_JOINING: 3, H_READY: 4, H_NOSERVER: 5,
                J_CONNECTING: 6, J_WAITING: 7, J_STARTING: 8, J_NOGAME: 9, J_FULL: 10, J_BUILD: 11,
                J_ROM: 12, J_FAILED: 13, J_HOSTLEFT: 14 };
-    var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6 };
+    var EV = { HOST_OPEN: 1, HOST_CLOSE: 2, HOST_START: 3, COPY_LINK: 4, JOIN: 5, JOIN_CANCEL: 6, OTHER_MODULE: 7 };
     var NOTE = { NONE: 0, COPIED: 1, NOCOPY: 2 };
 
     function log(t) {
@@ -90,7 +103,7 @@
         tokDev: {},            /* host: a returning device's id, by its tab token */
         session: false,        /* the engine session is on (PortLnStart done) */
         startWanted: false,
-        eng: null, hub: null, gs: null, owners: [0, -1, -1, -1],
+        eng: null, hub: null, gs: null, owners: noOwners(),
         inbox: [], accept: false,
         t0: 0, ticks: 0, reanchors: 0,
         startedAt: 0, lastView: -1, invite: null,
@@ -98,7 +111,19 @@
         stats: { relayIn: 0, relayOut: 0, p2pIn: 0, p2pOut: 0, bytesIn: 0, bytesOut: 0, dropped: 0,
                  joins: 0, guestDrops: 0, imagesSent: 0, imagesIn: 0, slotChanges: 0, refusedFull: 0 },
     };
-    var MAX_GUESTS = 3;
+    /* The 16-Kirby module (web/shell.html; it may have fallen back to the
+     * ordinary one, so asked each time): its games hold 8 people */
+    function wide() { return !!window.KATAM_KIRBYS16 && !(up() && M._PortLnSlots && M._PortLnSlots() <= 4); }
+    function modName() { return wide() ? '16' : '4'; }
+    function seats() { return wide() ? 8 : 4; }
+    function maxGuests() {
+        var d = up() && M._PortLnMaxDevices ? M._PortLnMaxDevices() : 4;
+        return Math.min(seats(), d) - 1;
+    }
+    /* slots the page watches: the seats (people sit only in slots below them) */
+    function nSlots() { return Math.min(seats(), up() && M._PortLnSlots ? M._PortLnSlots() : 4); }
+    function noOwners() { var o = [0]; for (var i = 1; i < 8; i++) o.push(-1); return o; }
+    var phone = (function () { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }());
     /* this tab's token: a reload of it is the same device to the host */
     var TOK = (function () {
         try {
@@ -160,11 +185,41 @@
         var rom = M.HEAPU8.slice(0x08000000, 0x08000000 + romSize);
         /* KATAM_SIM (tools/stamp_build.py) includes the wasm's own id: an
          * image holds this build's pointers, so nothing else may join */
-        var sim = window.KATAM_SIM ? Promise.resolve(window.KATAM_SIM)
-            : fetch('katam.wasm').then(function (r) { return r.arrayBuffer(); }).then(sha1)
-                .then(function (h) { return 'dev.w' + h.slice(0, 12); }, function () { return 'dev'; });
-        verP = Promise.all([sim, sha1(rom)]).then(function (v) { return { sim: v[0], rom: v[1] }; });
+        /* both modules' ids: this page's, and the other one's (a room on the
+         * other module is recognised by it, and reloaded into) */
+        var mine = simOf(wide()), other = simOf(!wide());
+        verP = Promise.all([mine, sha1(rom), other]).then(function (v) { return { sim: v[0], rom: v[1], other: v[2] }; });
         return verP;
+    }
+    function simOf(w16) {
+        if (window.KATAM_SIM) {
+            if (!w16) return Promise.resolve(window.KATAM_SIM);
+            return Promise.resolve(window.KATAM_SIM16 || window.KATAM_SIM + '.k16');
+        }
+        var file = w16 ? 'katam16.wasm' : 'katam.wasm';
+        return fetch(file).then(function (r) { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(sha1)
+            .then(function (h) { return 'dev.w' + h.slice(0, 12) + (w16 ? '.k16' : ''); }, function () { return w16 ? 'dev.k16' : 'dev'; });
+    }
+
+    /* --- the other module: reload into it, once per game code ----------------- */
+    function hop(mod, code, why) {
+        var key = 'katamModHop', t = Date.now(), last = null;
+        try { last = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (e) { last = null; }
+        if (last && last.code === code && t - last.t < 60000) {
+            log('module: already reloaded for ' + code + ' a moment ago -- not again');
+            return false;
+        }
+        try { sessionStorage.setItem(key, JSON.stringify({ code: code, mod: mod, t: t })); } catch (e) { /* once is enough */ }
+        log('module: game ' + (code || '') + ' runs on the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (' + why + ') -- reloading into it');
+        S.stats.moduleHops = (S.stats.moduleHops || 0) + 1;
+        banner(mod === '16' ? 'That is an 8-player game: loading the 8-player module...' : 'That is a 4-player game: loading the ordinary module...', 0);
+        var u = new URL(location.href);
+        u.searchParams.delete('kirbys');
+        u.searchParams.set('mod', mod);
+        if (code) u.searchParams.set('join', code); else u.searchParams.delete('join');
+        if (S.net || S.peer) { try { reset(); } catch (e) { /* going anyway */ } }
+        setTimeout(function () { location.href = u.toString(); }, 50);
+        return true;
     }
     function hello(v) {
         return { sim: v.sim, rom: v.rom, content: CONTENT, name: 'Player', platform: 'web',
@@ -458,8 +513,8 @@
     function slotName(s) { return 'Player ' + (s + 1); }
     function watchSlots() {
         if (!S.session || !M._PortLnSlotOwner) return;
-        var self = S.role === 'host' ? 0 : M._PortLnSelf();
-        for (var s = 1; s < 4; s++) {
+        var self = S.role === 'host' ? 0 : M._PortLnSelf(), ns = nSlots();
+        for (var s = 1; s < ns; s++) {
             var o = M._PortLnSlotOwner(s), was = S.owners[s];
             if (o === was) continue;
             S.owners[s] = o;
@@ -504,9 +559,14 @@
                     /* in the game: whatever said "connecting" or "getting
                      * the game" is done (it used to stay up for good) */
                     S.accept = true;
-                    for (var s = 1; s < 4; s++) S.owners[s] = M._PortLnSlotOwner(s);
+                    for (var s = 1; s < nSlots(); s++) S.owners[s] = M._PortLnSlotOwner(s);
                     var mine = M._PortLnSeatSlot(M._PortLnSelf(), 0);
                     banner(mine > 0 ? 'You are ' + slotName(mine) : 'You are in - waiting for a free Kirby', 2500);
+                }
+                /* seat wait (telemetry): from the host's yes to this device's Kirby playing */
+                if (S.accept && S.seatWaitFrom && M._PortLnSeatSlot(M._PortLnSelf(), 0) > 0) {
+                    S.stats.seatWaitMs = Math.round(nowMs() - S.seatWaitFrom);
+                    S.seatWaitFrom = 0;
                 }
                 S.gs.afterTick();
             }
@@ -554,14 +614,18 @@
         S.startedAt = nowMs();
         S.startFrame = M._PortFrameNumber();
         S.t0 = 0;
-        S.owners = [0, -1, -1, -1];
+        S.owners = noOwners();
         if (role === 1) {
             /* the room code, for the pause menus (session state from the
              * first frame: platform/lmpnet.c, platform/menu_poc.c) */
             if (M._PortLnSetRoomCode && S.code && S.code.length === 4)
                 M._PortLnSetRoomCode(S.code.charCodeAt(0), S.code.charCodeAt(1), S.code.charCodeAt(2), S.code.charCodeAt(3));
             S.lastView = M._PortSimViewRequested() >>> 0;
-            S.hub = new LS.HostHub(engine(), clock, { codec: CODEC });
+            /* an 8-player game (the 16-Kirby module): eight seats, and each
+             * sealed record sent about four times instead of until acked, in
+             * packets under the data channel's fragmentation size */
+            S.hub = new LS.HostHub(engine(), clock, wide() ? { codec: CODEC, seats: seats(), copies: 4, maxPacketBytes: 1100 }
+                                                          : { codec: CODEC });
             /* HOST GAME > START, Left/Right: FREE ROAM is rooms mode, sealed
              * for every device at this first frame (platform/localmp.c);
              * ?rooms=1 is the same for tests */
@@ -569,7 +633,7 @@
             if (S.rooms) M._PortLnEvent(7, 1, 0, 0, 0);
             /* everyone already in: their Kirbys from the first frame */
             forPeers(function (p) { if (p.ready) addToHub(p); });
-            for (var s = 1; s < 4; s++) S.owners[s] = M._PortLnSlotWant(s);
+            for (var s = 1; s < nSlots(); s++) S.owners[s] = M._PortLnSlotWant(s);
         } else {
             S.gs = new LS.GuestSession(engine(), txOf(S.peer.link), clock,
                                        { codec: CODEC, leadCap: KF_EVERY * (KF_COUNT - 2) - 10, samples: false });
@@ -579,7 +643,7 @@
                  * it (its Start asks again) -- it says so on the page */
                 var kd = window.katamDevices, pl = kd && kd.listPlayers ? kd.listPlayers()[seat] : null;
                 if (seat >= 1 && pl && pl.devices.length) kd.dropOut(seat, 'full');
-                else banner('No Kirby free - the game has four players', 3500);
+                else banner('No Kirby free - the game has ' + seats() + ' players', 3500);
             };
             /* the host's save memory is in the image: never store it here */
             if (window.shell && shell.save && shell.save.hold) shell.save.hold();
@@ -598,7 +662,7 @@
         S.stats.joins++;
         if (hs.slot < 0) {
             S.stats.refusedFull++;
-            log('device ' + p.dev + ' is in, but all four Kirbys are people: it plays when one is free');
+            log('device ' + p.dev + ' is in, but every seat (' + seats() + ') is a person\'s: it plays when one is free');
         }
         return hs;
     }
@@ -616,6 +680,7 @@
         reset();
         S.role = 'host'; S.phase = 'hosting';
         if (up() && M._PortOuiSetPlayers) M._PortOuiSetPlayers(1, 0);
+        if (wide() && phone) banner('8-player game (experimental): a desktop host is best - a phone may stutter', 5000);
         ui(UI.H_CREATING);
         var gen = ++S.gen;
         versions().then(function (v) {
@@ -624,7 +689,8 @@
             if (gen !== S.gen) return;
             if (!x.r.code) { log('no room: ' + Net.explainError(x.r)); ui(UI.H_NOSERVER); S.phase = 'failed'; return; }
             S.code = x.r.code;
-            if (KB) KB.hosting(S.code, x.r.resume, function () { return 1 + readyCount(); });   /* server browser */
+            if (KB) KB.hosting(S.code, x.r.resume, function () { return 1 + readyCount(); },   /* server browser */
+                               { max: seats(), mod: wide() ? '16' : null });
             var net = S.net = Net.connect({ base: BASE, code: S.code, hello: hello(x.v), log: log });
             S.ver = x.v;
             net.on('welcome', function () {
@@ -652,7 +718,7 @@
         forPeers(function (p) { used[p.dev] = true; });
         var d = tok && S.tokDev[tok];
         if (d && !used[d]) return d;
-        for (d = 1; d <= MAX_GUESTS; d++) if (!used[d]) return d;
+        for (d = 1; d <= maxGuests(); d++) if (!used[d]) return d;
         return -1;
     }
 
@@ -667,7 +733,8 @@
         if (d.k === 'hi') {
             var v = S.ver;
             if (d.sim !== v.sim || d.rom !== v.rom) {
-                S.net.send({ t: 'signal', to: m.from, data: { k: 'bad', sid: d.sid, field: d.sim !== v.sim ? 'sim' : 'rom' } });
+                /* mod: this game's module, so a page on the other one can reload into it */
+                S.net.send({ t: 'signal', to: m.from, data: { k: 'bad', sid: d.sid, field: d.sim !== v.sim ? 'sim' : 'rom', mod: modName() } });
                 return;
             }
             /* a device the host removed: not back in this room (its tab
@@ -683,7 +750,8 @@
             /* a tab that was here before (and whose link is dead) comes back as itself */
             forPeers(function (p) { if (d.tok && p.tok === d.tok) guestGone(p, 'came back'); });
             var dev = devFor(d.tok);
-            /* full: three guests, or (in play) no Kirby free for its player */
+            /* full: every device id taken (three guests; seven in an 8-player
+             * game), or (in play) no seat free for its player */
             var noKirby = S.session && M._PortLnFreeSlots() === 0;
             if (dev < 0 || noKirby) {
                 S.stats.refusedFull++;
@@ -751,7 +819,8 @@
 
     function inviteLink() {
         var u = new URL(location.href);
-        ['join', 'netlag', 'netjitter', 'netloss', 'netrelay'].forEach(function (k) { u.searchParams.delete(k); });
+        ['join', 'netlag', 'netjitter', 'netloss', 'netrelay', 'kirbys', 'mod'].forEach(function (k) { u.searchParams.delete(k); });
+        if (wide()) u.searchParams.set('mod', '16');        /* the joiner's page loads this game's module */
         u.searchParams.set('join', S.code);
         return u.toString();
     }
@@ -779,6 +848,9 @@
     }
 
     function guestJoin(code, invite) {
+        /* the public list said which module that game runs on */
+        var lm = KB && KB.modOf ? KB.modOf(code) : null;
+        if (lm && lm !== modName() && hop(lm, code, 'the public list')) return;
         reset();
         S.role = 'guest'; S.phase = 'joining'; S.code = code; S.invite = invite ? code : null;
         ui(UI.J_CONNECTING);
@@ -796,6 +868,9 @@
             net.on('error', function (e) {
                 if (gen !== S.gen) return;
                 if (e.code === 'version' && e.field === 'rom') return joinFail(UI.J_ROM, 'Your ROM is not the same as the host\'s.');
+                /* the room's id is the other module's: that game runs there */
+                if (e.code === 'version' && e.field === 'sim' && e.room && S.ver && e.room === S.ver.other
+                    && hop(modName() === '16' ? '4' : '16', code, 'the room\'s version')) return;
                 if (e.code === 'version') return joinFail(UI.J_BUILD, 'The host runs a different build. Refresh the page (both of you).');
                 if (e.code === 'full') return joinFail(UI.J_FULL, 'That game is full.');
                 if (e.code === 'unknown') return joinFail(UI.J_NOGAME, 'No game with the code ' + code + '.');
@@ -836,7 +911,7 @@
                     });
                     return;
                 }
-                if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game is full: four players.'); }
+                if (d.k === 'busy') { clearTimeout(hiTimer); return joinFail(UI.J_FULL, 'That game is full.'); }
                 if (d.k === 'removed') {
                     clearTimeout(hiTimer);
                     if (S.session) { removedByHost(); return; }
@@ -844,6 +919,7 @@
                 }
                 if (d.k === 'bad') {
                     clearTimeout(hiTimer);
+                    if (d.field === 'sim' && d.mod && d.mod !== modName() && hop(d.mod, code, 'the host')) return;
                     return d.field === 'rom' ? joinFail(UI.J_ROM, 'Your ROM is not the same as the host\'s.')
                         : joinFail(UI.J_BUILD, 'The host runs a different build. Refresh the page (both of you).');
                 }
@@ -851,6 +927,8 @@
                     if (d.sid !== S.pendingSid || S.peer) return;
                     clearTimeout(hiTimer);
                     S.myDev = d.dev || null;
+                    S.seatWaitFrom = nowMs();
+                    if (wide() && phone) banner('8-player game (experimental): a phone may stutter', 4000);
                     guestLink(net, d.sid, !!d.relay);
                     return;
                 }
@@ -945,7 +1023,7 @@
         log((was === 'host' ? 'ending the online game' : 'leaving the online game') + (why ? ' (' + why + ')' : ''));
         reset();                                /* links closed with a bye, the room left */
         S.inbox = []; S.startWanted = false; S.accept = false; S.gs = null; S.hub = null; S.eng = S.eng || null;
-        S.owners = [0, -1, -1, -1]; S.myDev = null; S.hostAwayAt = 0; S.tokDev = {};
+        S.owners = noOwners(); S.myDev = null; S.hostAwayAt = 0; S.tokDev = {};
         if (inGame) {
             S.session = false;
             ln.on = false; ln.burst = 0;
@@ -1010,6 +1088,20 @@
         S.banned = {};
     }
 
+    /* The page again on the other module, at the title (the game restarts):
+     * katamOnline.otherModule() too, for a page button or a test. */
+    function otherModule() {
+        var mod = wide() ? '4' : '16';
+        log('module: to the ' + (mod === '16' ? '8-player' : 'ordinary') + ' module (the page reloads)');
+        if (S.role) { try { reset(); } catch (e) { /* going anyway */ } }
+        banner(mod === '16' ? 'Loading the 8-player module: then MULTIPLAYER > ONLINE > HOST GAME' : 'Loading the ordinary module...', 0);
+        var u = new URL(location.href);
+        ['kirbys', 'mod', 'join'].forEach(function (k) { u.searchParams.delete(k); });
+        u.searchParams.set('mod', mod);
+        setTimeout(function () { location.href = u.toString(); }, 50);
+        return true;
+    }
+
     /* --- polling: the game's requests, and liveness ---------------------------- */
     function poll() {
         if (!up()) return;
@@ -1027,6 +1119,9 @@
                 break;
             }
             case EV.JOIN_CANCEL: joinCancel(); break;
+            /* ONLINE > HOST 8 PLAYERS (the ordinary module) or 4 PLAYER GAMES
+             * (the 16-Kirby one): the page again, on the other module */
+            case EV.OTHER_MODULE: otherModule(); break;
             }
         }
     }
@@ -1049,12 +1144,9 @@
     });
 
     /* --- invite links ------------------------------------------------------------ */
+    /* (on either module: a game on the other one reloads the page into it) */
     var joinParam = q.get('join');
-    if (joinParam && window.KATAM_KIRBYS16) {
-        /* the 16-Kirby module (EXPERIMENTAL > CPU KIRBYS, web/shell.html): no
-         * online play, so the link is not followed */
-        banner('Invite links need 4 Kirbys: set SETTINGS > EXPERIMENTAL > CPU KIRBYS to 3, then open the link again.', 0);
-    } else if (joinParam) {
+    if (joinParam) {
         var code = Net.normalizeCode(joinParam);
         if (!code) banner('"' + joinParam + '" is not a game code (4 letters, no vowels).', 0);
         else {
@@ -1071,7 +1163,7 @@
     function pct(a, b) { return +(100 * a / Math.max(1, b)).toFixed(2); }
     function slotsNow() {
         var out = [];
-        for (var s = 0; s < 4; s++) {
+        for (var s = 0; s < nSlots(); s++) {
             var o = S.session && M._PortLnSlotOwner ? M._PortLnSlotOwner(s) : (s === 0 ? 0 : -1);
             out.push(o < 0 ? null : { dev: o >> 2, seat: o & 3 });
         }
@@ -1079,13 +1171,20 @@
     }
     function peerStats(p, t) {
         var hs = S.hub ? S.hub.get(p.dev) : null, l = p.link, slots = [];
-        for (var s = 1; s < 4; s++) if (S.session && (M._PortLnSlotOwner(s) >> 2) === p.dev && M._PortLnSlotOwner(s) >= 0) slots.push(s);
+        for (var s = 1; s < nSlots(); s++) if (S.session && (M._PortLnSlotOwner(s) >> 2) === p.dev && M._PortLnSlotOwner(s) >= 0) slots.push(s);
+        var secs = Math.max(1e-3, (nowMs() - (p.at || S.startedAt || nowMs())) / 1000);
         var o = { dev: p.dev, ready: p.ready, slots: slots, path: l.path(), dcOpen: !!l.p2p,
-                  linkRttMs: l.rtt !== null ? Math.round(l.rtt) : null, bytesIn: l.bIn, bytesOut: l.bOut, silentMs: Math.round(nowMs() - l.lastRecv) };
+                  linkRttMs: l.rtt !== null ? Math.round(l.rtt) : null, bytesIn: l.bIn, bytesOut: l.bOut, silentMs: Math.round(nowMs() - l.lastRecv),
+                  /* per peer, since it connected: what this host sends it and hears from it */
+                  upBps: Math.round(l.bOut / secs), downBps: Math.round(l.bIn / secs) };
         if (hs) {
             o.inputsIn = hs.st.inputsIn; o.images = hs.st.images; o.repairReqs = hs.st.repairReqs;
             o.lastImageBytes = hs.st.imageComp; o.seatReqs = hs.st.seatReqs || 0; o.seatFull = hs.st.seatFull || 0;
             o.guestAck = hs.guestAck; o.guestContig = hs.guestContig;
+            /* bounded redundancy (8-player games): retransmits from the ack, its timeout */
+            o.resends = hs.st.resends; o.resentRecs = hs.st.resentRecs; o.rtoMs = hs.st.rtoMs; o.ackRttMs = hs.st.srttMs;
+            o.maxPacket = hs.st.maxPacket; o.recsPerPacket = +(hs.st.recs / Math.max(1, hs.st.packets)).toFixed(2);
+            o.seatWaitMs = hs.st.seatWaitMs === undefined ? null : hs.st.seatWaitMs;
         }
         if (t) {
             var miss = t['d' + p.dev + 'KeyMissing'] || 0, on = t['d' + p.dev + 'KeyOnTime'] || 0;
@@ -1104,10 +1203,15 @@
             knobs: KNOB, net: Object.assign({}, S.stats), reanchors: S.reanchors, banner: S.banner,
             screen: up() ? M._PortOuiScreen() : 0,
             slots: slotsNow(), self: S.session && M._PortLnSelf ? M._PortLnSelf() : (S.role === 'host' ? 0 : S.myDev || null),
+            module: modName(), seats: seats(), kirbys: up() && M._PortPocKirbysNow ? M._PortPocKirbysNow() : null,
         };
         o.players = o.slots.filter(Boolean).length;
         if (S.role === 'host') {
             o.peers = peerList().map(function (p) { return peerStats(p, t); });
+            o.upBps = o.peers.reduce(function (a, p) { return a + p.upBps; }, 0);
+            o.downBps = o.peers.reduce(function (a, p) { return a + p.downBps; }, 0);
+            o.devices = 1 + o.peers.filter(function (p) { return p.ready; }).length;
+            if (S.hub) o.seatWaits = S.hub.st.seatWaits.slice();
             if (o.peers.length) { var p1 = o.peers[0]; o.path = p1.path; o.dcOpen = p1.dcOpen; o.linkRttMs = p1.linkRttMs; }
         }
         if (t) {
@@ -1115,6 +1219,8 @@
             o.sealedUpTo = t.sealedUpTo; o.verifiedUpTo = t.verifiedUpTo; o.verified = t.verified;
             o.mismatches = t.mismatches; o.repairWanted = t.repairWanted; o.firstMismatch = t.firstMismatch; o.lastMismatch = t.lastMismatch; o.historyExceeded = t.historyExceeded;
             o.rewinds = t.rewinds; o.rewindsPerMin = +(t.rewinds / mins).toFixed(1);
+            o.rewindsPerSec = +(t.rewinds / Math.max(secs, 1e-9)).toFixed(2);
+            o.replayAvg = +(t.replayedFrames / Math.max(1, t.rewinds)).toFixed(1);      /* frames replayed per rewind: its depth */
             o.replayedFrames = t.replayedFrames; o.imagesLoaded = t.imagesLoaded;
             o.repairs = S.role === 'guest' ? Math.max(0, t.imagesLoaded - 1) : Math.max(0, S.stats.imagesSent - S.stats.joins);
             o.ownOverridden = t.ownOverridden; o.sealedRecv = t.sealedRecv;
@@ -1138,6 +1244,8 @@
             o.holds = g.st.holds; o.skips = g.st.skips; o.bursts = g.st.bursts; o.capHolds = g.st.capHolds;
             o.repairReqs = g.st.repairReqs; o.joined = g.joined; o.lastImageMs = S.lastImageMs;
             o.seatAsks = g.st.seatAsks || 0; o.seatFullNotes = g.st.seatFull || 0;
+            o.upBps = Math.round((g.st.bytesOut || 0) / Math.max(secs, 1e-3)); o.downBps = Math.round((g.st.bytesIn || 0) / Math.max(secs, 1e-3));
+            o.seatWaitMs = S.stats.seatWaitMs === undefined ? null : S.stats.seatWaitMs;
         }
         if (S.hub) {
             var p0 = S.hub.get(1) || S.hub.get(S.hub.devs()[0]);
@@ -1150,7 +1258,7 @@
         var o = stats(), L = [];
         var who = o.slots.map(function (x, i) { return 'P' + (i + 1) + ' ' + (x ? (x.dev === o.self ? 'you' : x.dev === 0 ? 'host' : 'dev ' + x.dev) + (x.seat ? '.' + x.seat : '') : 'cpu'); });
         L.push((o.role === 'host' ? 'Hosting' : 'Joined') + ' game ' + (o.code || '-') + ', ' + o.phase +
-               (o.session ? ', players ' + o.players + '/4' : ''));
+               (o.session ? ', players ' + o.players + '/' + o.seats : '') + (o.module === '16' ? ' (8-player module)' : ''));
         if (o.session) L.push(who.join(', '));
         if (o.role === 'host') {
             if (!o.peers.length) L.push('No guests connected');
@@ -1168,8 +1276,10 @@
             if (o.role === 'guest')
                 L.push('Round trip ' + (o.rttMs === null ? '-' : o.rttMs + ' ms') + ', lead ' + o.lead + ' frames' +
                        ', holds ' + o.holds + ' skips ' + o.skips + ' bursts ' + o.bursts);
-            L.push('Rewinds ' + o.rewinds + ' (' + o.rewindsPerMin + '/min), repairs ' + o.repairs +
+            L.push('Rewinds ' + o.rewinds + ' (' + o.rewindsPerMin + '/min, ' + o.replayAvg + ' frames each), repairs ' + o.repairs +
                    ', mismatches ' + o.mismatches + (o.repairWanted ? ' (repair pending)' : ''));
+            if (o.upBps !== undefined) L.push('Bytes/s up ' + o.upBps + ', down ' + o.downBps +
+                   (o.role === 'host' && o.peers.length ? ', retransmits ' + o.peers.reduce(function (a, p) { return a + (p.resends || 0); }, 0) : ''));
             if (o.role === 'guest') L.push('Own input overridden ' + o.ownOverriddenPct + '%, others mispredicted ' + o.mispredHostPct + '% / ' + o.mispredOtherPct + '%');
             else L.push('Guest keys late at the latch ' + o.hostKeyLatePct + '%');
         }
@@ -1219,6 +1329,7 @@
         inSession: function () { return S.session; },
         /* leave (a guest) or end (the host) the online game: back to the title */
         leave: leave, kick: kick, role: function () { return S.role; },
+        otherModule: otherModule, module: modName, seats: seats,
         requestSlot: requestSlot, slots: slotsNow,
         /* tests and the console */
         host: hostOpen, join: function (c) { guestJoin(Net.normalizeCode(c) || c, false); },

@@ -7,19 +7,21 @@
 // needs the game's second module, katam16.js / katam16.wasm (the same game
 // built with KATAM_MAX_KIRBYS=16; port/wide.h).  Which one this visit runs
 // is decided here, from the saved setting ("kirbys=N" in katam.settings), so
-// the scripts below know before they start: in the 16-Kirby module there is
-// no online or local multiplayer (the netcode and the wire are built for 4),
-// so an invite link is not followed.  ?kirbys=4 runs the ordinary module
-// this visit whatever the setting.  The module itself is loaded last (the
-// loader at the end of the page).
+// the scripts below know before they start.  The 16-Kirby module is also
+// the one 8-player online games run on (web/online.js: a room names its
+// module, and a page on the other one reloads into it): ?mod=16 runs it this
+// visit whatever the setting (an 8-player game's invite link has it), and
+// ?mod=4 -- or ?kirbys=4 -- the ordinary one.  Local multiplayer stays off
+// in the 16-Kirby module.  The module itself is loaded last (the loader at
+// the end of the page).
 (function () {
-  var n = 4, q = null;
+  var n = 4, q = null, mod = null;
   try { var m = /(?:^|\n)kirbys=(\d+)/.exec(localStorage.getItem('katam.settings') || ''); if (m) n = parseInt(m[1], 10); } catch (e) { n = 4; }
-  try { q = new URLSearchParams(location.search).get('kirbys'); } catch (e) { q = null; }
-  if (q === '4') n = 4;
+  try { var u = new URLSearchParams(location.search); q = u.get('kirbys'); mod = u.get('mod'); } catch (e) { q = null; }
+  if (q === '4' || mod === '4') n = 4;
   if (!(n >= 4 && n <= 16)) n = 4;
   window.KATAM_KIRBYS = n;
-  window.KATAM_KIRBYS16 = n > 4;
+  window.KATAM_KIRBYS16 = n > 4 || mod === '16';
 })();
 </script>
 <!-- viewport-fit=cover puts the page under the notch and the home indicator,
@@ -1504,13 +1506,8 @@
       s.appendChild(document.createTextNode('. You\'ll go straight in.'));
       document.getElementById('rompicktext').textContent = 'Choose your ROM to join';
     }
-    if (join && window.KATAM_KIRBYS16) {
-      // the 16-Kirby module has no online play: the link is not followed
-      state('is-invite-bad', true);
-      document.getElementById('curtaininvitehead').textContent = 'Invite links need 4 Kirbys';
-      document.getElementById('curtaininvitetext').textContent =
-        'You have extra CPU Kirbys on (SETTINGS > EXPERIMENTAL). Set CPU KIRBYS to 3, then open the link again.';
-    } else if (join) invite(join.toUpperCase());
+    // (either module: a game on the other one reloads the page into it, web/online.js)
+    if (join) invite(join.toUpperCase());
 
     // The rest needs the page below this point: the toast, the log, the
     // invite-code rules and the WebGL2 probe.
@@ -5401,7 +5398,7 @@ var Module = (function () {
   if (window.KATAM_KIRBYS16) {
     var v = (window.KATAM_VER || {})['katam16.js'];
     Module.portKirbys = window.KATAM_KIRBYS;               /* host_web.c, the live count */
-    log('EXPERIMENTAL: ' + window.KATAM_KIRBYS + ' Kirbys, the 16-Kirby module (no online or local multiplayer)', 'ok');
+    log('EXPERIMENTAL: ' + window.KATAM_KIRBYS + ' Kirbys, the 16-Kirby module (8-player online; no local multiplayer)', 'ok');
     load('katam16.js' + (v ? '?v=' + v : ''), src);
   } else {
     load(src, null);

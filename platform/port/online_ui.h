@@ -19,7 +19,7 @@ extern "C" {
 
 /* Sub-screens of the MULTIPLAYER screen. */
 #define PORT_OUI_SUB_MP     0   /* LOCAL / ONLINE (the screen as it was)   */
-#define PORT_OUI_SUB_ONLINE 1   /* HOST GAME / JOIN GAME                   */
+#define PORT_OUI_SUB_ONLINE 1   /* HOST GAME / JOIN GAME (/ BROWSE GAMES / the other module) */
 #define PORT_OUI_SUB_HOST   2   /* CODE / START                            */
 #define PORT_OUI_SUB_JOIN   3   /* CODE / JOIN                             */
 /* server browser (platform/online_browse.c) */
@@ -52,6 +52,14 @@ enum {
 #define PORT_OUI_EV_COPY_LINK   4
 #define PORT_OUI_EV_JOIN        5   /* PortOuiJoinCode has the code        */
 #define PORT_OUI_EV_JOIN_CANCEL 6
+/* ONLINE's last row: the page again on the other module -- HOST 8 PLAYERS
+ * on the ordinary one (8-player games run on the 16-Kirby module), 4 PLAYER
+ * GAMES on that one (web/online.js otherModule) */
+#define PORT_OUI_EV_OTHER_MODULE 7
+/* ONLINE's rows: HOST GAME, JOIN GAME, BROWSE GAMES, the other module */
+#define PORT_OUI_ROW_OTHER_MODULE 3
+/* the people a game holds: 8 on the 16-Kirby module (EXPERIMENTAL), else 4 */
+int PortOuiSeats(void);
 
 /* What a key did (PortMenuPocMpKey, platform/menu_poc.c). */
 #define PORT_OUI_K_NONE    0        /* not handled: the screen's own keys  */
@@ -65,9 +73,9 @@ enum {
 /* --- the page's side (exported to JS) --- */
 void PortOuiSet(int state, int c0, int c1, int c2, int c3);
 void PortOuiNote(int note);
-/* HOST GAME: people in the game so far (1..4: the host and each guest's
- * players), and of those how many are still connecting.  The START row
- * shows "PLAYERS n/4". */
+/* HOST GAME: people in the game so far (1..PortOuiSeats(): the host and
+ * each guest's players), and of those how many are still connecting.  The
+ * START row shows "PLAYERS n/4" (n/8 in an 8-player game). */
 void PortOuiSetPlayers(int players, int connecting);
 int  PortOuiPoll(void);
 int  PortOuiJoinCode(int i);
