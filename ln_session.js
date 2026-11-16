@@ -66,18 +66,25 @@
     }
     // Sealed (host -> one guest): 23-byte header (frontier P, first frame,
     // count, that guest's contiguous inputs, its lateness, the echo), then per
-    // frame: u8 flags (bits 0-3 slots whose keys follow -- a slot not listed
-    // has none pressed, so a CPU slot or an idle player costs nothing; bit 4
-    // hashed; bit 5 events follow), [u8 nev], u16 per listed slot, [u32 lo,
-    // u32 hi], nev x 17 bytes.  Two idle players: 1 byte a frame.
-    function recKeys(r) { return [r.k0 | 0, r.k1 | 0, r.k2 | 0, r.k3 | 0]; }
+    // frame: u8 flags (bits 0-3 slots 0..3 whose keys follow -- a slot not
+    // listed has none pressed, so a CPU slot or an idle player costs nothing;
+    // bit 4 hashed; bit 5 events follow; bit 6 a mask byte for slots 4..11
+    // follows; bit 7 one for slots 12..19), [u8 nev], [u8 mask 4..11],
+    // [u8 mask 12..19], u16 per listed slot in slot order, [u32 lo, u32 hi],
+    // nev x 17 bytes.  Two idle players: 1 byte a frame.  A frame whose slots
+    // 4.. are idle (always so on the 4-Kirby module, which has none) is the
+    // same bytes as before those bits had a meaning.
+    var XSLOTS = 20;          // what the two mask bytes reach (slots 0..19)
+    function recKeys(r) { return r.k ? r.k : [r.k0 | 0, r.k1 | 0, r.k2 | 0, r.k3 | 0]; }
+    // one record's bytes on the wire
+    function recBytes(r) {
+        var kk = recKeys(r), n = 1 + (r.ev.length ? 1 : 0) + (r.hashed ? 8 : 0) + r.ev.length * 17, x1 = 0, x2 = 0;
+        for (var s = 0; s < kk.length && s < XSLOTS; s++) if (kk[s]) { n += 2; if (s >= 12) x2 = 1; else if (s >= 4) x1 = 1; }
+        return n + x1 + x2;
+    }
     function encSealed(P, first, recs, guestContig, marginMin, echoTs, holdMs) {
         var n = 23, r, i, k, s;
-        for (i = 0; i < recs.length; i++) {
-            var kk = recKeys(recs[i]);
-            n += 1 + (recs[i].ev.length ? 1 : 0) + (recs[i].hashed ? 8 : 0) + recs[i].ev.length * 17;
-            for (s = 0; s < 4; s++) if (kk[s]) n += 2;
-        }
+        for (i = 0; i < recs.length; i++) n += recBytes(recs[i]);
         var b = new Uint8Array(n), d = dv(b);
         b[0] = T_SEALED; d.setUint32(1, P >>> 0, true); d.setUint32(5, first >>> 0, true);
         d.setUint16(9, recs.length, true);
@@ -88,11 +95,15 @@
         var o = 23;
         for (i = 0; i < recs.length; i++) {
             r = recs[i];
-            var keys = recKeys(r), m = 0;
-            for (s = 0; s < 4; s++) if (keys[s]) m |= 1 << s;
-            b[o++] = m | (r.hashed ? 16 : 0) | (r.ev.length ? 32 : 0);
+            var keys = recKeys(r), m = 0, x1 = 0, x2 = 0, ns = Math.min(keys.length, XSLOTS);
+            for (s = 0; s < ns; s++) if (keys[s]) {
+                if (s < 4) m |= 1 << s; else if (s < 12) x1 |= 1 << (s - 4); else x2 |= 1 << (s - 12);
+            }
+            b[o++] = m | (r.hashed ? 16 : 0) | (r.ev.length ? 32 : 0) | (x1 ? 64 : 0) | (x2 ? 128 : 0);
             if (r.ev.length) b[o++] = r.ev.length;
-            for (s = 0; s < 4; s++) if (m & (1 << s)) { d.setUint16(o, keys[s], true); o += 2; }
+            if (x1) b[o++] = x1;
+            if (x2) b[o++] = x2;
+            for (s = 0; s < ns; s++) if (keys[s]) { d.setUint16(o, keys[s], true); o += 2; }
             if (r.hashed) { d.setUint32(o, r.hlo >>> 0, true); d.setUint32(o + 4, r.hhi >>> 0, true); o += 8; }
             for (k = 0; k < r.ev.length; k++) {
                 var e = r.ev[k];
@@ -107,8 +118,14 @@
         var d = dv(b), n = d.getUint16(9, true), recs = [], o = 23;
         for (var i = 0; i < n; i++) {
             var fl = b[o++], nev = fl & 32 ? b[o++] : 0, kk = [0, 0, 0, 0];
-            for (var s = 0; s < 4; s++) if (fl & (1 << s)) { kk[s] = d.getUint16(o, true); o += 2; }
+            var x1 = fl & 64 ? b[o++] : 0, x2 = fl & 128 ? b[o++] : 0, s;
+            var mask = (fl & 15) | (x1 << 4) | (x2 << 12);
+            for (s = 0; s < XSLOTS; s++) if (mask & (1 << s)) {
+                while (kk.length <= s) kk.push(0);
+                kk[s] = d.getUint16(o, true); o += 2;
+            }
             var r = { k0: kk[0], k1: kk[1], k2: kk[2], k3: kk[3], hashed: fl & 16 ? 1 : 0, ev: [] };
+            if (kk.length > 4) r.k = kk;
             if (r.hashed) { r.hlo = d.getUint32(o, true); r.hhi = d.getUint32(o + 4, true); o += 8; }
             for (var k = 0; k < nev; k++) {
                 var e = [b[o]];
@@ -131,11 +148,33 @@
     }
 
     // --- host -------------------------------------------------------------------
-    // One per guest device (opts.dev, 1..3): that guest's inputs in, its
-    // sealed stream and images out.  Several share the one engine (HostHub).
+    // One per guest device (opts.dev, 1 .. the engine's devices - 1): that
+    // guest's inputs in, its sealed stream and images out.  Several share the
+    // one engine (HostHub).
+    //
+    // Redundancy of the sealed stream.  opts.copies 0 (the default): every
+    // record from the guest's ack on goes in every packet until the guest acks
+    // it (up to maxPerPacket) -- what the 4-Kirby module has always done.
+    // opts.copies k: each record goes in k consecutive packets and then stops;
+    // the guest's ack (its contiguous sealed frontier, in every input packet)
+    // is the negative acknowledgement: when the record at the ack has had its k
+    // copies and is still not acked one retransmit timeout after it was last
+    // sent, everything from the ack is sent again (once, then the timeout
+    // doubles until the ack moves).  The timeout follows the ack's round trip
+    // (srtt + 4 rttvar + 2 frames, 60..1000 ms; Karn: retransmitted records
+    // give no sample).  Until the guest has acked its join or repair image
+    // the old rule holds (it may drop records while it inflates the image).
+    // opts.maxPacketBytes: no packet larger (records are not split), so a
+    // datagram stays under the data channel's fragmentation size.
+    var RING = 4096, RTO_MIN = 60, RTO_MAX = 1000, RTO_INIT = 300;
     function HostSession(eng, tx, clock, opts) {
         this.e = eng; this.tx = tx; this.clock = clock;
-        this.o = assign({ maxPerPacket: 64, resendWindow: 1024, codec: null, dev: 1 }, opts || {});
+        this.o = assign({ maxPerPacket: 64, resendWindow: 1024, codec: null, dev: 1, copies: 0, maxPacketBytes: 0 }, opts || {});
+        if (this.o.copies) {
+            this.sTag = new Int32Array(RING).fill(-1); this.sCnt = new Uint8Array(RING);
+            this.sFirst = new Float64Array(RING); this.sLast = new Float64Array(RING);
+            this.srtt = null; this.rttvar = 0; this.rtoBase = RTO_INIT; this.rto = RTO_INIT;
+        }
         this.dev = this.o.dev;
         this.start = eng.frame();
         this.lastHeard = clock();
@@ -147,14 +186,52 @@
         this.lastTs = 0; this.lastTsAt = 0;
         this.imageWanted = 0; this.imageReason = ''; this.imgInFlight = null;
         this.st = { packets: 0, recs: 0, images: 0, imageRaw: 0, imageComp: 0, compressMs: 0, repairReqs: 0,
-                    viewReqs: 0, inputsIn: 0, inputsUseless: 0 };
+                    viewReqs: 0, inputsIn: 0, inputsUseless: 0,
+                    bytesOut: 0, bytesIn: 0, maxPacket: 0, resends: 0, resentRecs: 0, rtoMs: 0, srttMs: 0 };
         this.started = false;
     }
+    // the guest's ack moved to `ack`: a round-trip sample from the newest
+    // record it covers (sent once only), and the timeout back to its base
+    HostSession.prototype.ackMoved = function (ack, t) {
+        var f = ack - 1, i = f & (RING - 1);
+        if (this.sTag[i] === f && this.sCnt[i] <= this.o.copies) {
+            var x = t - this.sFirst[i];
+            if (this.srtt === null) { this.srtt = x; this.rttvar = x / 2; }
+            else { this.rttvar = 0.75 * this.rttvar + 0.25 * Math.abs(this.srtt - x); this.srtt = 0.875 * this.srtt + 0.125 * x; }
+            this.rtoBase = Math.max(RTO_MIN, Math.min(RTO_MAX, this.srtt + 4 * this.rttvar + 2 * PERIOD));
+            this.st.srttMs = Math.round(this.srtt);
+        }
+        this.rto = this.rtoBase;
+    };
+    // bounded redundancy: the first frame this packet carries, from lo (the
+    // guest's ack, or later)
+    HostSession.prototype.boundedFirst = function (lo, P, t) {
+        var k = this.o.copies, f = lo;
+        while (f < P && this.sTag[f & (RING - 1)] === f && this.sCnt[f & (RING - 1)] >= k) f++;
+        if (f === lo) return lo;
+        // the record at the ack has had its copies: lost every time, or its
+        // ack is still on the way.  One timeout after its last copy: again.
+        if (!this.o.noRetransmit && t - this.sLast[lo & (RING - 1)] >= this.rto) {      // (noRetransmit: the rig's ablation)
+            this.st.resends++; this.st.resentRecs += f - lo;
+            this.rto = Math.min(RTO_MAX, this.rto * 2);
+            return lo;
+        }
+        return f;
+    };
+    HostSession.prototype.noteSent = function (first, n, t) {
+        for (var f = first; f < first + n; f++) {
+            var i = f & (RING - 1);
+            if (this.sTag[i] !== f) { this.sTag[i] = f; this.sCnt[i] = 0; this.sFirst[i] = t; }
+            if (this.sCnt[i] < 255) this.sCnt[i]++;
+            this.sLast[i] = t;
+        }
+    };
     HostSession.prototype.onDatagram = function (buf) {
         if (buf[0] !== T_INPUT) return;
         var t = this.clock(), m = decInput(buf), next = this.e.frame();
         var first = m.g - m.keys.length + 1;
         this.st.inputsIn++;
+        this.st.bytesIn += buf.length;
         this.lastHeard = t;
         for (var i = 0; i < m.keys.length; i++) {
             var f = first + i;
@@ -172,7 +249,10 @@
             this.seen.delete(this.guestContig - 2048);
             this.guestContig++;
         }
-        if (m.ack > this.guestAck) this.guestAck = m.ack;
+        if (m.ack > this.guestAck) {
+            this.guestAck = m.ack;
+            if (this.o.copies) this.ackMoved(m.ack, t);
+        }
         if (this.imgInFlight !== null && m.ack >= this.imgInFlight) this.imgInFlight = null;
         this.lastTs = m.ts; this.lastTsAt = t;
     };
@@ -245,14 +325,25 @@
             for (var i = 0; i < this.margins.length; i++) if (this.margins[i].m < mmin) mmin = this.margins[i].m;
         }
         var first = Math.max(this.guestAck, P - this.o.resendWindow, this.start);
-        var recs = [];
+        var bounded = this.o.copies && this.imgInFlight === null && this.imagesSent;
+        if (bounded) first = this.boundedFirst(first, P, t);
+        var recs = [], bytes = 23, cap = this.o.maxPacketBytes || Infinity;
         for (var f = first; f < P && recs.length < this.o.maxPerPacket; f++) {
             var r = this.e.sealedGet(f);
             if (!r) { if (!recs.length) first = f + 1; else break; continue; }
+            if (cap !== Infinity) {
+                var nb = recBytes(r);
+                if (recs.length && bytes + nb > cap) break;
+                bytes += nb;
+            }
             recs.push(r);
         }
+        if (this.o.copies) this.noteSent(first, recs.length, t);
         var pkt = encSealed(P, first, recs, this.guestContig, mmin, this.lastTs, t - this.lastTsAt);
         this.st.packets++; this.st.recs += recs.length;
+        this.st.bytesOut += pkt.length;
+        if (pkt.length > this.st.maxPacket) this.st.maxPacket = pkt.length;
+        if (this.o.copies) this.st.rtoMs = Math.round(this.rto);
         this.tx.datagram(pkt);
     };
 
@@ -280,10 +371,13 @@
         if (buf[0] !== T_SEALED) return;
         var t = this.clock(), m = decSealed(buf), i;
         this.st.packets++;
+        this.st.bytesIn = (this.st.bytesIn || 0) + buf.length;
         for (i = 0; i < m.recs.length; i++) {
             var f = m.first + i, r = m.recs[i];
             for (var k = 0; k < r.ev.length; k++) this.e.sealedEvent(f, r.ev[k]);
-            this.e.sealed(f, r.k0, r.k1, r.ev.length, r.k2, r.k3);
+            // slots 4.. (a wide module): the N-wide call; else the 4-wide one
+            if (this.e.sealedN) this.e.sealedN(f, recKeys(r), r.ev.length);
+            else this.e.sealed(f, r.k0, r.k1, r.ev.length, r.k2, r.k3);
             if (r.hashed) this.e.remoteHash(f, r.hlo, r.hhi);
         }
         this.st.recs += m.recs.length;
@@ -447,7 +541,9 @@
         var keys = [];
         for (var f = from; f <= g; f++) keys.push(this.keysAt(f));
         if (!keys.length) return;
-        this.tx.datagram(encInput(g, keys, tel.sealedUpTo, Math.round(t * 10), mask | 1));
+        var pkt = encInput(g, keys, tel.sealedUpTo, Math.round(t * 10), mask | 1);
+        this.st.bytesOut = (this.st.bytesOut || 0) + pkt.length;
+        this.tx.datagram(pkt);
     };
     GuestSession.prototype.keyAt = function (f) { return this.keyRing[(f & 4095) * 4]; };
     GuestSession.prototype.keysAt = function (f) { var o = (f & 4095) * 4; return [this.keyRing[o], this.keyRing[o + 1], this.keyRing[o + 2], this.keyRing[o + 3]]; };
@@ -458,16 +554,26 @@
     // player's slot (the next free one, or the one it had) and a join image;
     // remove() hands its Kirbys to the CPU.  The caller says who is
     // connected; the hub keeps no timers.
+    //
+    // opts.seats: the people the room holds (4, or 8 on a wide module).  The
+    // engine may seat a person in any slot below that, now that the wire
+    // carries every slot's keys (PortLnSetSeatSlots); devices are 1 ..
+    // min(seats, the engine's devices) - 1.
     function HostHub(eng, clock, opts) {
         this.e = eng; this.clock = clock; this.o = opts || {};
         this.peers = {};
-        this.st = { adds: 0, removes: 0, full: 0 };
+        this.st = { adds: 0, removes: 0, full: 0, seatWaits: [] };
+        var slots = eng.slots ? eng.slots() : 4;
+        this.seats = Math.max(1, Math.min(this.o.seats || 4, slots));
+        this.maxDev = Math.max(1, Math.min(this.seats, eng.maxDevices ? eng.maxDevices() : 4));
+        if (eng.setSeatSlots) eng.setSeatSlots(this.seats);
         eng.seatRequest(0, 0, 1);          // the host's own player: slot 0; the host now manages the slots
     }
     HostHub.prototype.add = function (dev, tx, opts) {
         if (this.peers[dev]) this.remove(dev);
         var hs = new HostSession(this.e, tx, this.clock, assign({}, this.o, opts || {}, { dev: dev }));
         hs.slot = this.e.seatRequest(dev, 0, 1);
+        hs.addedAt = this.clock(); hs.seatedAt = null;
         if (hs.slot < 0) this.st.full++;
         hs.wantImage('join');
         this.peers[dev] = hs;
@@ -486,8 +592,9 @@
     HostHub.prototype.count = function () { return this.devs().length; };
     // a device id for a newcomer: `prefer` (a returning device) if free, else the lowest
     HostHub.prototype.freeDev = function (prefer) {
-        if (prefer >= 1 && prefer <= 3 && !this.peers[prefer]) return prefer;
-        for (var d = 1; d <= 3; d++) if (!this.peers[d]) return d;
+        var top = this.maxDev - 1;
+        if (prefer >= 1 && prefer <= top && !this.peers[prefer]) return prefer;
+        for (var d = 1; d <= top; d++) if (!this.peers[d]) return d;
         return -1;
     };
     // the host's own seats' keys for frame f (seat 0 = the console's)
@@ -501,8 +608,18 @@
         var ds = this.devs();
         for (var i = 0; i < ds.length; i++) {
             var hs = this.peers[ds[i]];
-            // a device that came in while all four Kirbys were people: a slot when one frees
+            // a device that came in while every seat was a person's: a slot when one frees
             if (hs.slot < 0) hs.slot = this.e.freeSlots() > 0 ? this.e.seatRequest(hs.dev, 0, 1) : -1;
+            // seat wait: from its arrival to its Kirby playing (a slot past the
+            // live count waits for its Kirby to be made)
+            if (hs.seatedAt === null && hs.slot >= 0 && this.e.slotOwner && this.e.slotOwner(hs.slot) === hs.dev * 4
+                && (!this.e.kirbysNow || this.e.kirbysNow() > hs.slot)) {
+                hs.seatedAt = this.clock();
+                hs.st.seatWaitMs = Math.round(hs.seatedAt - hs.addedAt);
+                hs.st.seatSlot = hs.slot;
+                this.st.seatWaits.push({ dev: hs.dev, slot: hs.slot, ms: hs.st.seatWaitMs });
+                if (this.st.seatWaits.length > 32) this.st.seatWaits.shift();
+            }
             hs.afterTick();
         }
         // every slot's name to every guest, when it changes (the host names
@@ -551,6 +668,40 @@
             return { v: v, x: x, k: v + ':' + x };
         };
         eng.deviceSettings = function (dev, v, x) { M._PortLnDeviceSettings(dev, v >>> 0, (x || 0) >>> 0); };
+        return eng;
+    }
+    // The N-wide calls (docs/design/EIGHT-SEATS-ENGINE.md), on a module that
+    // has them: its slots and devices, the seats the host may give, and -- on
+    // a module with more than 4 Kirby slots -- the sealed record of every slot
+    // (PortLnSealedGetN / PortLnSealedN).  The 4-Kirby module keeps the
+    // 4-wide calls (sealedGet / sealed) exactly as before.
+    function wideCalls(M, eng) {
+        if (!M._PortLnSlots) return eng;
+        var n = M._PortLnSlots();
+        eng.slots = function () { return n; };
+        eng.maxDevices = function () { return M._PortLnMaxDevices ? M._PortLnMaxDevices() : 4; };
+        // the Kirbys in play (a seat past them waits for its Kirby to be made)
+        if (M._PortPocKirbysNow) eng.kirbysNow = function () { return M._PortPocKirbysNow(); };
+        if (M._PortLnSetSeatSlots) eng.setSeatSlots = function (k) { return M._PortLnSetSeatSlots(k); };
+        if (n <= 4 || !M._PortLnSealedGetN || !M._PortLnSealedN) return eng;
+        var wb = M._malloc(4 * (12 + n)), kb = M._malloc(2 * n);
+        eng.sealedGet = function (f) {
+            if (!M._PortLnSealedGetN(f, wb)) return null;
+            var w = wb >> 2, U = M.HEAPU32, k = [U[w], U[w + 1], U[w + 7], U[w + 8]];
+            for (var i = 4; i < n; i++) k.push(U[w + 10 + i - 4]);
+            var rec = { k0: k[0], k1: k[1], nev: U[w + 2], ontime: U[w + 3], hlo: U[w + 4], hhi: U[w + 5],
+                        hashed: U[w + 6], k2: k[2], k3: k[3], k: k, ev: [] };
+            for (i = 0; i < rec.nev; i++) {
+                M._PortLnSealedEventGet(f, i, wb);
+                rec.ev.push([M.HEAP32[w], M.HEAP32[w + 1], M.HEAP32[w + 2], M.HEAP32[w + 3], M.HEAP32[w + 4]]);
+            }
+            return rec;
+        };
+        eng.sealedN = function (f, keys, nev) {
+            var h = kb >> 1, m = Math.min(keys.length, n), H = M.HEAPU16 || new Uint16Array(M.HEAPU8.buffer);
+            for (var i = 0; i < n; i++) H[h + i] = i < m ? keys[i] & 0x3FF : 0;
+            M._PortLnSealedN(f, kb, n, nev);
+        };
         return eng;
     }
     function engineOfModule(M) {
@@ -603,13 +754,13 @@
             seatAskPoll: function () { return M._PortLnSeatAskPoll(); },
             slotOwner: function (s) { return M._PortLnSlotOwner(s); },
         };
-        return cardCalls(M, eng);
+        return wideCalls(M, cardCalls(M, eng));
     }
 
     return {
         PERIOD: PERIOD, T_INPUT: T_INPUT, T_SEALED: T_SEALED,
         HostSession: HostSession, GuestSession: GuestSession, HostHub: HostHub,
         encInput: encInput, decInput: decInput, encSealed: encSealed, decSealed: decSealed,
-        engineOfModule: engineOfModule, cardCalls: cardCalls,
+        engineOfModule: engineOfModule, cardCalls: cardCalls, wideCalls: wideCalls, recBytes: recBytes, recKeys: recKeys,
     };
 }));
