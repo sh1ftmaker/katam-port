@@ -213,6 +213,34 @@ void PortWideInit(void)
                 fprintf(f, "%s %08X %X %08X %X %X\n", kRelocs[i].name, (unsigned)kRelocs[i].orig,
                         (unsigned)kRelocs[i].origSize, (unsigned)kRelocs[i].now,
                         (unsigned)kRelocs[i].nowSize, (unsigned)kRelocs[i].stride);
+            /* The sim block's moved fields (port/wide.h struct PortWideLmp,
+             * PortWidePaint) and the four-slot ones they replace, as
+             * `simfield NAME OFFSET SIZE` (offsets in the block): the
+             * unrelocation maps them back. */
+#define SF(name, field) fprintf(f, "simfield %s %X %X\n", name, \
+                                (unsigned)offsetof(struct PortSimBlock, field), \
+                                (unsigned)sizeof(((struct PortSimBlock *)0)->field))
+            SF("lmpw.slots", lmpw.slots);
+            SF("lmpw.joining", lmpw.joining);
+            SF("lmpw.waiting", lmpw.waiting);
+            SF("lmpw.devSet", lmpw.devSet);
+            SF("lmpw.keys", lmpw.keys);
+            SF("lmpw.pressed", lmpw.pressed);
+            SF("lmpw.groupRoom", lmpw.groupRoom);
+            SF("lmpw.stray", lmpw.stray);
+            SF("lmpw.dev", lmpw.dev);
+            SF("lmpw", lmpw);
+            SF("paintw", paintw);
+            SF("wideCtl", wideCtl);
+            SF("lmp.slots", lmp.slots);
+            SF("lmp.joining", lmp.joining);
+            SF("lmp.keys", lmp.keys);
+            SF("lmp.stray", lmp.stray);
+            SF("frame.lmpPressed", frame.lmpPressed);
+            SF("view.lmpDev", view.lmpDev);
+            SF("view.lmpDevSet", view.lmpDevSet);
+            SF("view.lmpGroupRoom", view.lmpGroupRoom);
+#undef SF
             fclose(f);
         }
     }

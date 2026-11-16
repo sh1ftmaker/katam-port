@@ -13,6 +13,11 @@ the default build, so that tools/layout_diff.py can compare the two:
      same byte;
   3. the sim block is cut back to the default build's length (the wide area
      is its tail) and its header's usedBytes restored.
+  4. the human-slot layer's state, which the wide build keeps N wide in
+     gPortSim->lmpw (port/wide.h struct PortWideLmp), is written back into
+     the four-slot fields the default build keeps it in (lmp, frame, view;
+     map_back_fields below), from the map's `simfield` lines.  Nothing is
+     masked; a value those fields cannot hold fails the dump.
 
 Coincidence is possible in (2) -- a game word that merely equals an address in
 the wide area -- and would show up as a "real difference" afterwards, never be
@@ -41,6 +46,73 @@ from state_diff import REGIONS
 SIM_BASE = 0x02040000
 
 
+def map_back_fields(sim, simb, F):
+    """The human-slot layer's state (port/wide.h struct PortWideLmp, the wide
+    build's gPortSim->lmpw) back into the four-slot fields the default build
+    keeps it in (port/simblock.h: lmp.slots, lmp.joining with the held joins
+    in its high byte, lmp.keys[3] for slots 1..3, lmp.stray[4],
+    frame.lmpPressed[3], view.lmpDev two bits a slot with view.lmpDevSet,
+    view.lmpGroupRoom[4]; port/localmp.h and platform/localmp.c spell both).
+    The wide build leaves those fields zero.  Nothing is masked: a value the
+    four-slot fields cannot hold is an error.  Not mapped (no counterpart in
+    the default build, and outside its sim block's length, so never compared
+    there): wideCtl (the live Kirby count) and paintw (paint for Kirbys 4..:
+    at N = 4 it holds nothing, checked zero)."""
+    def rd(name, i=0, size=None):
+        off, sz = F[name]
+        return int.from_bytes(sim[off:off + (size or sz)], 'little') if size is None else \
+            int.from_bytes(sim[off + i * size:off + (i + 1) * size], 'little')
+
+    def wr(name, value, i=0, size=None):
+        off, sz = F[name]
+        size = size or sz
+        if off + (i + 1) * size > len(simb):
+            raise ValueError(name)
+        old = int.from_bytes(simb[off + i * size:off + (i + 1) * size], 'little')
+        if old:
+            return '%s[%d] is %#x in the wide build (expected 0)' % (name, i, old)
+        simb[off + i * size:off + (i + 1) * size] = value.to_bytes(size, 'little')
+        return None
+
+    need = ['lmpw.slots', 'lmpw.joining', 'lmpw.waiting', 'lmpw.devSet', 'lmpw.keys', 'lmpw.pressed',
+            'lmpw.groupRoom', 'lmpw.stray', 'lmpw.dev', 'lmp.slots', 'lmp.joining', 'lmp.keys', 'lmp.stray',
+            'frame.lmpPressed', 'view.lmpDev', 'view.lmpDevSet', 'view.lmpGroupRoom']
+    missing = [n for n in need if n not in F]
+    if missing:
+        return 'map has no simfield %s' % ', '.join(missing)
+    slots, joining, waiting, devset = (rd('lmpw.' + n) for n in ('slots', 'joining', 'waiting', 'devSet'))
+    keys = [rd('lmpw.keys', s, 2) for s in range(4)]
+    pressed = [rd('lmpw.pressed', s, 2) for s in range(4)]
+    group = [rd('lmpw.groupRoom', s, 2) for s in range(4)]
+    stray = [rd('lmpw.stray', s, 1) for s in range(4)]
+    dev = [rd('lmpw.dev', s, 1) for s in range(4)]
+    if slots > 0xFF or joining > 0xFF or waiting > 0xFF or devset > 0xF:
+        return 'lmpw masks past four slots: slots %#x joining %#x waiting %#x devSet %#x' % (slots, joining, waiting, devset)
+    if keys[0] or pressed[0]:
+        return 'lmpw keys/pressed of slot 0 are set (%#x, %#x): no four-slot field holds them' % (keys[0], pressed[0])
+    if any(devset >> s & 1 and dev[s] > 3 for s in range(4)) or any(not devset >> s & 1 and dev[s] for s in range(4)):
+        return 'lmpw.dev %s (devSet %#x) does not fit two bits a slot' % (dev, devset)
+    if 'paintw' in F:
+        off, sz = F['paintw']
+        if any(sim[off:off + sz]):
+            return 'paintw is not zero at N = 4'
+    lmpdev = 0
+    for s in range(4):
+        if devset >> s & 1:
+            lmpdev |= dev[s] << 2 * s
+    for e in (wr('lmp.slots', slots), wr('lmp.joining', joining | waiting << 8),
+              wr('view.lmpDevSet', devset), wr('view.lmpDev', lmpdev)):
+        if e:
+            return e
+    for s in range(4):
+        e = (wr('lmp.stray', stray[s], s, 1) or wr('view.lmpGroupRoom', group[s], s, 2)
+             or (wr('lmp.keys', keys[s], s - 1, 2) if s else None)
+             or (wr('frame.lmpPressed', pressed[s], s - 1, 2) if s else None))
+        if e:
+            return e
+    return None
+
+
 def main():
     src, mapf, orig_len, out = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
     explain = sys.argv[6] if len(sys.argv) > 6 and sys.argv[5] == '--explain' else None
@@ -52,10 +124,13 @@ def main():
         print('wide_unrelocate: only N = 4 has a console layout (map says %d)' % kirbys)
         return 2
     relocs = []
+    fields = {}
     for ln in lines[1:]:
         p = ln.split()
         if len(p) == 6:
             relocs.append((p[0], int(p[1], 16), int(p[2], 16), int(p[3], 16), int(p[4], 16)))
+        elif len(p) == 4 and p[0] == 'simfield':
+            fields[p[1]] = (int(p[2], 16), int(p[3], 16))
 
     off = {}
     o = 0
@@ -121,6 +196,13 @@ def main():
         nfix += fix(simb, i, aref)
     # 3. header: usedBytes at +8
     struct.pack_into('<I', simb, 8, orig_len)
+
+    # 3b. the sim block's moved fields (the map's `simfield` lines)
+    if fields:
+        err = map_back_fields(sim, simb, fields)
+        if err:
+            print('wide_unrelocate: %s' % err)
+            return 3
 
     # 4. stale bytes of a moved pointer (--explain)
     nstale = 0
