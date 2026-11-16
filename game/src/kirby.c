@@ -6677,7 +6677,18 @@ void sub_0803F46C(struct Kirby *kirby)
             sub_08155128(r8);
         }
     }
-    if (!(kirby->base.flags & 0x400) && !(r7->unk8 & 0x80000))
+    if (!(kirby->base.flags & 0x400) && !(r7->unk8 & 0x80000)
+#if KATAM_WIDE
+        /* PORT: the wide build (port/wide.h KATAM_HUD_KIRBYS).  What keeps a
+         * Kirby in another room off the screen is the HUD: DrawHudOtherKirbys
+         * (hud.c) sets 0x80000 on the sprites of each other Kirby not in the
+         * screen's player's room, and it visits Kirbys 0..3 only.  Kirbys 4..
+         * were drawn in every room, at their own room's coordinates against
+         * this room's camera (docs/design/ONE-WORLD-16.md, slot audit).  The
+         * HUD's own test, for them. */
+        && (kirby->base.unk56 < 4 || kirby->base.roomId == gKirbys[gLocalPlayerId].base.roomId)
+#endif
+        )
     {
         if (r4) DisplaySprite(sb);
         if (sl) sub_081564D8(r8);
