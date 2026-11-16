@@ -30,6 +30,7 @@ const MODULE16 = path.resolve(flag('module16', path.join(ROOT, 'build/w16/katam-
 const CASES = flag('cases', 'together').split(',');
 const FRAMES = +flag('frames', 2400);
 const N = +flag('devices', 16);
+const INITIAL = +flag('initial', 8);          // devices in from the first frame (the host's included)
 const LINK = { oneWay: 60, jitter: 15, loss: 0.02 };
 
 let pass = 0, fail = 0;
@@ -47,9 +48,12 @@ for (const mode of CASES) {
     const S = 1300;                     // scenario.mjs BOOT_END: the session's first frame
     const guests = Array.from({ length: N - 1 }, (_, i) => {
         const dev = i + 1;
-        return dev < 8 ? { dev } : { dev, join: S + 200 + 60 * (dev - 8) };
+        // each player's card: a spray of their own (as the browser tests set them)
+        const cards = { cards: [[0, 0, `1,${(dev + 3) % 14},0,0,0,G${dev}`]] };
+        return Object.assign(dev < INITIAL ? { dev } : { dev, join: S + 200 + 60 * (dev - INITIAL) }, cards);
     });
     let err = null, r = null, kMax = 0;
+    const repairs = () => r.guestTels.map((t) => t.imagesLoaded - 1);
     const t0 = Date.now();
     try {
         r = await runSession({
@@ -68,6 +72,7 @@ for (const mode of CASES) {
     ok(`${tag}: ${N} people at once`, r.coverage.humansMax === N && people === N, `most ${r.coverage.humansMax}, at the end ${people}`);
     ok(`${tag}: the Kirby count rose to ${N}`, kMax >= N, String(kMax));
     const bad = r.guests.filter((g) => g.compare.mismatched !== 0 || g.compare.compared < g.compare.expected * 0.9);
+    ok(`${tag}: no repair image (the engine's own hashes agreed)`, repairs().every((n) => n === 0), repairs().join(' '));
     ok(`${tag}: every guest's every compared frame identical with the host's`, r.compare.mismatched === 0 && !bad.length,
        `${r.compare.equal}/${r.compare.compared}` + (bad.length ? '; ' + bad.map((g) => `${g.name} ${g.compare.equal}/${g.compare.compared} of ${g.compare.expected}`).join(', ') : ''));
     console.log(`  info ${tag}: per guest rewinds/min ${r.guests.map((g) => g.feel.rewindsPerMin).join(' ')}; replayed frames/s ${r.guests.map((g) => g.feel.replayedFramesPerSec).join(' ')}; ` +
