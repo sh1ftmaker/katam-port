@@ -300,7 +300,11 @@ async function main() {
         cases[1].frame = 3000;   // in Kracko's arena
         const res = [];
         for (const cz of cases) {
-            const r = await run(`R4 ${cz.what}`, { link: HEADLINE, durationFrames: SCRIPTED + 1200 + (QUICK ? 1200 : 2400), corrupt: [cz], noLocalise: true });
+            // more than two devices: lockstep (no rewinds), or the next rewind
+            // (another guest's late keys, about every other frame) restores a
+            // keyframe from before the injection and heals it -- the
+            // detection and repair would go untested
+            const r = await run(`R4 ${cz.what}`, { link: HEADLINE, durationFrames: SCRIPTED + 1200 + (QUICK ? 1200 : 2400), corrupt: [cz], noLocalise: true, lockstep: DEVICES > 2 });
             const c = r.corrupt[0] || {};
             const after = r.mismatches.filter((m) => c.repairT !== undefined && m.t > c.repairT + 1000);
             res.push({ what: cz.what, target: c.target, detected: c.detectT !== undefined, detectMs: c.detectT !== undefined ? +(c.detectT - c.t).toFixed(0) : null,
@@ -444,19 +448,21 @@ async function main() {
             const nl = Math.min(N, SEATS - 1);
             const nTwo = await run(`R13-${N} ${nl} devices, guest 1 with two local players (${nl + 1} people) @120ms`, { link: HEADLINE, durationFrames: dur,
                 guests: guestsN(nl).map((g) => (g.dev === 1 ? Object.assign(g, { seats: [[B + 300, 1, 1]] }) : g)) });
-            // churn at N: guest 1 leaves and a fresh instance of it comes back
-            // (to a full game: it waits for a seat); guest 2 joins late and its
-            // link drops for 8 s; guest 3 brings three more local players, so
-            // the eight seats fill and every later ask is refused until the
-            // host's second player leaves; guests 4.. arrive one by one
+            // churn at N: the host brings three local players and guests 4..
+            // arrive one by one, so guest 3 (or an earlier one) finds the last
+            // seats; guest 3's next two local players are refused (all eight
+            // are people); guest 1 leaves, guest 3's fourth player takes its
+            // Kirby, and a fresh instance of guest 1 comes back to a full game
+            // (it waits: admitted without a seat) until the host's second
+            // player leaves; guest 2 joins late and its link drops for 8 s
             const nChurn = await run(`R13-${N} churn: joins, leaves, a link drop and return, a full game of ${SEATS}, slot reuse @60ms`, { link: L(60, 15, 0.02), durationFrames: QUICK ? 9000 : 14000,
                 guests: [
                     { dev: 1, leave: B + 2600, rejoin: B + 3400 },
                     { dev: 2, join: B + 800, link: L(60, 15, 0.02, { outages: [[70000, 8000]] }) },
-                    { dev: 3, join: B + 1500, seats: [[B + 1700, 1, 1], [B + 1800, 2, 1], [B + 1900, 3, 1], [B + 7000, 1, 0], [B + 7600, 1, 1]] },
+                    { dev: 3, join: B + 1500, seats: [[B + 1700, 1, 1], [B + 1800, 2, 1], [B + 2700, 3, 1], [B + 7000, 1, 0], [B + 7600, 1, 1]] },
                     ...guestsN(N).slice(3).map((g, i) => Object.assign(g, { join: B + 300 + 150 * i })),
                 ],
-                hostSeats: [[B + 1000, 1, 1], [B + 6000, 1, 0]] });
+                hostSeats: [[B + 1000, 1, 1], [B + 1050, 2, 1], [B + 1100, 3, 1], [B + 6000, 1, 0]] });
             const nCh = nChurn.churn;
             const nChurnOk = nCh.some((x) => x.what === 'dead') && nCh.some((x) => x.why === 'back') && nCh.some((x) => x.what === 'bye')
                 && nCh.some((x) => x.what === 'admit' && x.slot === -1) && nChurn.host.tel.seatFull > 0 && nChurn.coverage.humansMax === SEATS;
