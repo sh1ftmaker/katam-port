@@ -10,6 +10,8 @@ const require = createRequire(import.meta.url);
 const L = require('../../web/ln_session.js');
 
 export const PERIOD = L.PERIOD;
+// the page's liveness rules (web/ln_session.js): run.mjs c.liveness
+export const { HostLiveness, guestWait, LIVE } = L;
 
 const NODE_CODEC = {
     deflate: (b) => zlib.deflateRawSync(b, { level: 6 }),

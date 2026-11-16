@@ -42,9 +42,16 @@
 // gAIKirbyState = NORMAL at the session's first frame, as for a game past the
 // tutorial (the live count changes in the opening too, except while its
 // cutscenes play: platform/wide.c OpeningHolds).
+// c.liveness: the page's liveness rules (web/ln_session.js HostLiveness,
+// guestWait; {} for the shipped times, or overrides) in place of the old
+// host-side DEAD_MS rule: the host holds its game while every guest is quiet
+// and keeps them for the grace; one quiet guest's Kirbys go to the CPU and
+// come back to it if it is heard within the grace; a guest that hears nothing
+// from the host for the grace gives up (says bye, stops: res.churn 'gaveup').
+// res.liveness has the host's counts and res.hostHeld its held ticks.
 import { createInstance } from './instance.mjs';
 import { Scheduler, Link } from './link.mjs';
-import { HostHub, GuestSession, engineOf, PERIOD } from './session.mjs';
+import { HostHub, GuestSession, engineOf, PERIOD, HostLiveness, guestWait } from './session.mjs';
 import { BOOT_END, human } from './scenario.mjs';
 
 const F_HASH_EVERY = 1, F_HOST_KEYS = 2, F_NO_SRAM_KF = 4;
@@ -64,7 +71,7 @@ export async function runSession(cfg) {
         seed: 1, link: {}, host: {}, guest: {}, kfEvery: 15, kfCount: 24, flags: 0,
         startFrame: BOOT_END, joinFrame: null, durationFrames: 6000, forceRewind: null,
         corrupt: [], lockstep: false, renderGuest: false, dumpAt: null, maxWallMs: 30 * 60 * 1000,
-        guests: null, hostSeats: [], hostCards: [], deadMs: DEAD_MS, pauseSlots: Infinity, kirbys: null, storyNormal: false,
+        guests: null, hostSeats: [], hostCards: [], deadMs: DEAD_MS, liveness: null, pauseSlots: Infinity, kirbys: null, storyNormal: false,
     }, cfg);
     const withKirbys = (pre) => (c.kirbys ? (Mod) => { Mod.portKirbys = c.kirbys; if (pre) pre(Mod); } : pre);
     const hostCfg = Object.assign({ rate: 60, drift: 0, freezes: [] }, c.host);
@@ -113,6 +120,9 @@ export async function runSession(cfg) {
     const nSlots = he.slots ? he.slots() : 4;
     const seats = c.seats || (nSlots > 4 ? Math.min(8, nSlots) : 4);
     const hub = new HostHub(he, hostClock, Object.assign({ seats }, c.hostOpts));
+    const live = c.liveness ? new HostLiveness(c.liveness) : null;
+    let hostHeld = false;
+    res.hostHeld = 0;
     const hostBacklog = [];
 
     // --- who plays: (device, seat) -> a pad function of (frame, own screen) ---
@@ -133,7 +143,8 @@ export async function runSession(cfg) {
         const gc = Object.assign({ rate: 60, drift: 0, freezes: [] }, c.guest, spec.guest || {});
         const g = { spec, gen, dev: spec.dev, cfg: gc, inst: null, gs: null, link: null, started: false, gone: false,
                     backlog: [], cmpNext: 0, compared: 0, equal: 0, skipped: 0, firstMismatch: null, stepMs: [], stepMax: 0, leadMax: 0,
-                    joinAt: null, seatsOn: 1, seatIdx: 0, cardIdx: 0, name: `guest${spec.dev}${gen ? '.' + gen : ''}`, heardAt: 0, admitted: false };
+                    joinAt: null, seatsOn: 1, seatIdx: 0, cardIdx: 0, name: `guest${spec.dev}${gen ? '.' + gen : ''}`, heardAt: 0, admitted: false,
+                    awayAt: 0, forgotten: false, hostHeard: 0, gaveUp: false, waitShownMs: 0 };
         return g;
     }
     for (const sp of specs) G.push(newGuest(sp, 0));
@@ -160,6 +171,7 @@ export async function runSession(cfg) {
         g.gs = new GuestSession(ge, g.tx, guestClock, Object.assign({ lockstep: c.lockstep,
             leadCap: c.kfEvery * (c.kfCount - 2) - 10 }, c.guestOpts));
         g.started = true;
+        g.hostHeard = g.heardAt = sch.now;
         g.joinAt = host.frame();
         g.cmpNext = g.cmpStart = Math.max(joinFrame, host.frame());
         // connected when the host starts: in from the first frame (web/online.js
@@ -172,7 +184,8 @@ export async function runSession(cfg) {
     const deliverHost = (fn) => () => { if (frozen(hostCfg, sch.now)) hostBacklog.push(fn); else fn(); };
     const deliverGuest = (g, fn) => (x) => {
         if (g.gone) return;
-        if (frozen(g.cfg, sch.now) || !g.started) g.backlog.push(() => fn(x)); else fn(x);
+        if (frozen(g.cfg, sch.now) || !g.started) g.backlog.push(() => { g.hostHeard = sch.now; fn(x); });
+        else { g.hostHeard = sch.now; fn(x); }
     };
     function admit(g, why) {
         if (hub.get(g.dev)) return;
@@ -183,15 +196,17 @@ export async function runSession(cfg) {
     }
     function hostRecv(g, kind, m) {
         if (kind === 'r' && m.t === 'bye') {
+            g.byeHeard = true;
             if (hub.get(g.dev) === g.hs) { hub.remove(g.dev); res.churn.push({ t: +sch.now.toFixed(0), f: host.frame(), dev: g.dev, what: 'bye' }); }
             return;
         }
-        if (g.gone) return;
+        if (g.gone || g.forgotten) return;
         g.heardAt = sch.now;
         if (kind === 'r' && m.t === 'hi') { admit(g, 'hi'); return; }
         let hs = hub.get(g.dev);
         // heard again after the host gave it up: a link that came back
-        if (!hs && kind === 'd' && g.admitted) { admit(g, 'back'); hs = hub.get(g.dev); }
+        // (c.liveness: the liveness rules decide, at the host's next tick)
+        if (!hs && kind === 'd' && g.admitted && !live) { admit(g, 'back'); hs = hub.get(g.dev); }
         if (!hs) return;
         if (kind === 'd') hs.onDatagram(m); else hs.onReliable(m);
     }
@@ -308,8 +323,32 @@ export async function runSession(cfg) {
         if (done) return;
         if (frozen(hostCfg, sch.now)) { sch.at(sch.now + hostTickMs, hostTick); return; }
         for (const fn of hostBacklog.splice(0)) fn();
-        // liveness: a guest not heard from for DEAD_MS is gone
-        for (const d of hub.devs()) {
+        // liveness: the page's rules (c.liveness), else a guest not heard
+        // from for DEAD_MS is gone
+        if (live) {
+            // (what the host knows: not the guest's own state)
+            const ps = G.filter((x) => x.started && x.admitted && !x.byeHeard && !x.forgotten)
+                .map((x) => ({ id: x.dev, g: x, heard: x.heardAt, seated: !!x.hs && hub.get(x.dev) === x.hs, awayAt: x.awayAt }));
+            const L = live.step(sch.now, ps, false);
+            const byId = (id) => ps.find((p) => p.id === id).g;
+            hostHeld = L.hold;
+            for (const id of L.cpu) {
+                const g = byId(id);
+                hub.remove(id); g.awayAt = sch.now;
+                res.churn.push({ t: +sch.now.toFixed(0), f: host.frame(), dev: id, what: 'cpu' });
+            }
+            for (const id of L.back) {
+                const g = byId(id);
+                g.awayAt = 0; g.hs = null;
+                admit(g, 'back');
+            }
+            for (const id of L.gone) {
+                const g = byId(id);
+                if (hub.get(id) && hub.get(id) === g.hs) hub.remove(id);
+                g.forgotten = true;
+                res.churn.push({ t: +sch.now.toFixed(0), f: host.frame(), dev: id, what: 'gone' });
+            }
+        } else for (const d of hub.devs()) {
             const g = G.find((x) => x.dev === d && x.started && !x.gone);
             const hs = hub.get(d);
             if (hostClock() - hs.lastHeard > c.deadMs) {
@@ -322,6 +361,8 @@ export async function runSession(cfg) {
         let n = Math.floor(hostDue) - hostRan;
         if (n > 8) { reanchors.host++; hostRan = Math.floor(hostDue) - 1; n = 1; }
         n = Math.min(n, 3);
+        // held (c.liveness: every guest quiet): no frames on stale keys
+        if (hostHeld) { hostRan += n; n = 0; res.hostHeld++; }
         for (let i = 0; i < n; i++) {
             const f = host.frame();
             // guests that connect now, leave now, come back now
@@ -381,6 +422,18 @@ export async function runSession(cfg) {
         const tickMs = (g.cfg.rate === 30 ? 2 : 1) * PERIOD / (1 + g.cfg.drift);
         if (frozen(g.cfg, sch.now)) { sch.at(sch.now + tickMs, () => guestTick(g)); return; }
         for (const fn of g.backlog.splice(0)) fn();
+        // c.liveness: nothing from the host for the grace -- the guest gives
+        // up as the page does (HOST LEFT): says bye and stops
+        if (live && g.gs.joined) {
+            const w = guestWait(sch.now, g.hostHeard, c.liveness);
+            if (w.show) g.waitShownMs = Math.max(g.waitShownMs, w.quiet - live.o.waitMs);
+            if (w.gone) {
+                g.tx.reliable({ t: 'bye' }, 8);
+                g.gaveUp = true; g.gone = true; g.leaveFrame = g.inst.frame();
+                res.churn.push({ t: +sch.now.toFixed(0), f: host.frame(), dev: g.dev, what: 'gaveup', frame: g.inst.frame() });
+                return;
+            }
+        }
         const nominal = g.cfg.rate === 30 ? 2 : 1;
         const n = g.gs.framesToRun(nominal);
         const seats = (g.spec.seats || []).slice().sort((a, b) => a[0] - b[0]);
@@ -453,6 +506,7 @@ export async function runSession(cfg) {
                     firstMismatch: perGuest.map((x) => x.compare.firstMismatch).filter((x) => x !== null).sort((a, b) => a - b)[0] ?? null,
                     expected: sum('expected') };
     res.host = { tel: ht, session: hubStats(G), stepMs: dist(stepMsHost), reanchors: reanchors.host, hub: hub.st };
+    if (live) res.liveness = Object.assign({ holdingAtEnd: live.holding() }, live.st);
     const g1 = perGuest[0];
     res.guest = g1 ? { tel: g1.tel, session: g1.session, stepMs: g1.stepMs, lead: g1.lead, margin: g1.margin, leadMax: g1.leadMax, rtt: g1.rtt } : null;
     res.feel = g1 ? g1.feel : null;
@@ -512,6 +566,7 @@ function guestResult(g, host, ht, endFrame) {
     const miss = ht[`d${g.dev}KeyMissing`] || 0, on = ht[`d${g.dev}KeyOnTime`] || 0;
     return {
         name: g.name, dev: g.dev, gen: g.gen, joinAt: g.joinAt, leaveFrame: g.leaveFrame ?? null, frame: g.inst.frame(), minutes: +mins.toFixed(2),
+        gaveUp: g.gaveUp, waitShownMs: Math.round(g.waitShownMs), forgotten: g.forgotten,
         compare: { compared: g.compared, equal: g.equal, mismatched: g.compared - g.equal, skipped: g.skipped, firstMismatch: g.firstMismatch, expected },
         tel: gt, session: Object.assign({}, st, { leadSamples: undefined, marginSamples: undefined }),
         stepMs: dist(g.stepMs), lead: dist(st.leadSamples), margin: dist(st.marginSamples), leadMax: g.leadMax, rtt: g.gs.rtt,

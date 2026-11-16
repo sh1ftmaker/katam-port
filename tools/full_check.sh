@@ -81,6 +81,8 @@ web-dev-picker     1     web    node tools/devices_browser_test.mjs --cdp $CDP -
 rig-r16            2     -      $RIG --jobs $W --rom "$ROM" --out "$D" --only R16 --skip-r11
 rig-pause          2     -      node tools/netproof/pause_test.mjs --rom "$ROM"
 rig-lwarp          1     -      node tools/netproof/lwarp_test.mjs --rom "$ROM"
+rig-hostaway       3     -      node tools/netproof/hostaway_test.mjs --rom "$ROM" --jobs $W --out "$D"
+web-on-hostblip    4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases hostblip
 paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
