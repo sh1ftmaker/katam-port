@@ -151,7 +151,7 @@ static void sub_080D5930(struct Boxy *boxy)
         a = 0x60;
         b = 2;
     }
-    else if (boxy->obj.unk80 <= gUnk_08351530[5][gNumHumanPlayers - 1] >> 1)
+    else if (boxy->obj.unk80 <= gUnk_08351530[5][KATAM_HUMANS_ROW] >> 1)
     {
         a = 0x48;
         b = 2;

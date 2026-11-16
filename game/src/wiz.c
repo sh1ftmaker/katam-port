@@ -213,7 +213,7 @@ void sub_080E82C4(struct Object *wiz)
             wiz->base.x = wiz->base.x & ~0xFF;
         wiz->base.xspeed = 0;
         wiz->base.yspeed = 0;
-        if (wiz->unk80 <= gUnk_08351530[0x11][gNumHumanPlayers - 1] >> 1)
+        if (wiz->unk80 <= gUnk_08351530[0x11][KATAM_HUMANS_ROW] >> 1)
         {
             if (wiz->unk85)
             {
@@ -320,7 +320,7 @@ static void sub_080E8588(struct Object *wiz)
     wiz->unk9E = 0;
     wiz->unk9F = 0;
     wiz->unk85 = 1;
-    if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][gNumHumanPlayers - 1] >> 1)
+    if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][KATAM_HUMANS_ROW] >> 1)
     {
         wiz->unk9F = Rand16() & 1;
         if (wiz->base.y < 0x4000)
@@ -342,7 +342,7 @@ static void sub_080E8588(struct Object *wiz)
 ({ \
     u16 _r; \
  \
-    if ((wiz)->subtype || (wiz)->unk80 <= gUnk_08351530[0x11][gNumHumanPlayers - 1] >> 1) \
+    if ((wiz)->subtype || (wiz)->unk80 <= gUnk_08351530[0x11][KATAM_HUMANS_ROW] >> 1) \
         _r = Rand16() & 1; \
     else \
         _r = RandLessThan3(); \
@@ -661,7 +661,7 @@ static void sub_080E9034(struct Object *wiz)
         u16 r;
 
         ++wiz->unk9E;
-        if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][gNumHumanPlayers - 1] >> 1)
+        if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][KATAM_HUMANS_ROW] >> 1)
             r = Rand16() & 1;
         else
             r = Rand16() & 3;
@@ -681,7 +681,7 @@ static void sub_080E921C(struct Object *wiz)
 {
     u8 r = 0;
 
-    if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][gNumHumanPlayers - 1] >> 1)
+    if (wiz->subtype || wiz->unk80 <= gUnk_08351530[0x11][KATAM_HUMANS_ROW] >> 1)
         r = Rand16() & 1;
     switch (RandLessThan(10))
     {

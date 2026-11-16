@@ -15,7 +15,13 @@ struct KirbyCannon {
     /* 0xB5 */ u8 unkB5;
     /* 0xB6 */ u8 unkB6;
     /* 0xB7 */ u8 unkB7;
+#if KATAM_KIRBYS > 4
+    /* PORT: the Kirbys inside, one bit each: a u16 for up to 16 (it takes
+     * the padding byte at 0xB9; the size is unchanged). */
+    /* 0xB8 */ u16 unkB8;
+#else
     /* 0xB8 */ u8 unkB8;
+#endif
     /* 0xBA */ u16 unkBA;
     /* 0xBC */ s8 unkBC;
     /* 0xBD */ s8 unkBD;

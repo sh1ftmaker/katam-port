@@ -23,6 +23,25 @@ extern "C" {
     (*(const u8 *)(uintptr_t)(0x02000000u + (((uintptr_t)(addr) - 0x02000000u) & 0x3FFFFu)))
 #endif
 
+/* PORT: the row of a per-human-count table (boss HP, the HP bar's scale,
+ * a boss's half-HP thresholds: four rows, for 1..4 people), indexed by the
+ * game as table[gNumHumanPlayers - 1].  More than four people (the wide
+ * build) use the four-player row (owner's decision; ONE-WORLD-16.md §5).
+ * The default build has at most four, and this is exactly that expression. */
+#define KATAM_HUMANS_ROW (KATAM_MIN4(gNumHumanPlayers) - 1)
+/* The same count where the game scales a number by it (dark_mind.c). */
+#define KATAM_HUMANS_SCALE KATAM_MIN4(gNumHumanPlayers)
+/* PORT: a loop the console writes `i < 4` over every Kirby, where Kirbys
+ * past the fourth must take part too (they would be left behind in a room
+ * nobody can leave, docs/design/ONE-WORLD-16.md §5): the live Kirbys in a
+ * build with more than four, the literal four otherwise (the default build,
+ * and the wide build at four, proof W0). */
+#if KATAM_KIRBYS > 4
+#define KATAM_LIVE_KIRBYS gNumKirbys
+#else
+#define KATAM_LIVE_KIRBYS 4
+#endif
+
 // Prevent cross-jump optimization.
 #define BLOCK_CROSS_JUMP /* PORT: asm barrier removed */
 

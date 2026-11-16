@@ -429,7 +429,7 @@ void sub_080DBE3C(struct Kracko *kracko)
     kracko->obj.base.flags |= 0x40;
     kracko->obj.base.counter = 0;
     kracko->obj.unk9F = 2;
-    if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)
+    if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][KATAM_HUMANS_ROW] >> 1)
         kracko->obj.unk9F = 1;
 }
 
@@ -461,7 +461,7 @@ static void sub_080DBF40(struct Kracko *kracko)
     kracko->obj.base.yspeed = 0;
     kracko->obj.base.counter = 0x5A;
     PlaySfx(&kracko->obj.base, SE_KRACKO_SWEEP_ATTACK);
-    if ((kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)
+    if ((kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][KATAM_HUMANS_ROW] >> 1)
         && Rand16() & 1)
     {
         kracko->obj.unk78 = FN(sub_080DC1CC);
@@ -767,7 +767,7 @@ static void sub_080DCB38(struct Kracko *kracko)
     ObjectSetFunc(kracko, 1, FN(sub_080DF18C));
     kracko->obj.base.xspeed = 0;
     kracko->obj.base.yspeed = 0;
-    if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][gNumHumanPlayers - 1] >> 1)
+    if (kracko->obj.subtype || kracko->obj.unk80 <= gUnk_08351530[0xD][KATAM_HUMANS_ROW] >> 1)
         kracko->obj.base.counter = 0x10;
     else
         kracko->obj.base.counter = 0x24;

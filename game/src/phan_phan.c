@@ -218,7 +218,7 @@ static void sub_080CD8D4(struct Object *phanPhan)
         a = 0x60;
         b = 2;
     }
-    else if (phanPhan->unk80 <= gUnk_08351530[2][gNumHumanPlayers - 1] >> 1)
+    else if (phanPhan->unk80 <= gUnk_08351530[2][KATAM_HUMANS_ROW] >> 1)
     {
         a = 0x48;
         b = 2;

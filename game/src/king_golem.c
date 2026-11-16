@@ -122,7 +122,7 @@ void sub_080DA4B0(struct KingGolem *kg)
     else
     {
         kg->obj.unk78 = FN(sub_080DA540);
-        if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+        if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
             kg->obj.base.counter = 0x10;
         else
             kg->obj.base.counter = 0x30;
@@ -144,13 +144,13 @@ static void sub_080DA540(struct KingGolem *kg1)
     if (!--kg2->obj.base.counter)
     {
         ++kg2->obj.unk9F;
-        if (kg2->obj.subtype || kg2->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+        if (kg2->obj.subtype || kg2->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
             kg2->obj.base.counter = 0x10;
         else
             kg2->obj.base.counter = 0x30;
         if (!(Rand16() & 1) || kg2->obj.unk9F > 3)
         {
-            if (kg2->obj.unk80 <= gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1
+            if (kg2->obj.unk80 <= gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1
                 && ((Rand16() & 1) || !kg2->obj.unk85))
             {
                 kg2->obj.unk85 = 1;
@@ -224,7 +224,7 @@ static void sub_080DA768(void)
             kg2->unkBD = 0;
             kg2->unkBC = 0;
             effectObject->unk8 = 1;
-            if (kg1->obj.subtype || kg1->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+            if (kg1->obj.subtype || kg1->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
             {
                 if (!(Rand16() & 3)) effectObject->unk8 = 2;
             }
@@ -293,7 +293,7 @@ static void sub_080DAB00(void)
                         sub_080DB1B8(kg1, 0);
                     break;
                 case 2:
-                    if (kg1->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+                    if (kg1->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
                     {
                         if (kg1->obj.subtype)
                             sub_080DB1B8(kg1, 1);
@@ -409,7 +409,7 @@ static void sub_080DB1B8(struct KingGolem *kg, u8 a2)
     if (a2) type = OBJ_KING_GOLEM_GORDO;
     x = kg->obj.base.x >> 8;
     y = kg->obj.base.y >> 8;
-    if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+    if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
     {
         r3 = RandLessThan(6);
         while ((kg->unkBC >> r3) & 1) // why not use do while?
@@ -503,7 +503,7 @@ static void sub_080DB6DC(struct KingGolem *kg)
         RequestScreenShake(2, &kg->obj.base);
         sub_080DB43C(kg);
     }
-    if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][gNumHumanPlayers - 1] >> 1)
+    if (kg->obj.subtype || kg->obj.unk80 < gUnk_08351530[0xE][KATAM_HUMANS_ROW] >> 1)
     {
         if (kg->obj.base.counter > 0x38)
             sub_080DB754(kg);

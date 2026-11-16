@@ -880,7 +880,7 @@ static void sub_080F738C(struct DarkMetaKnight *dmk)
         r3 = Rand16() & 7;
         if (dmk->obj.objTemplate->subtype1 && dmk2->unkC9)
         {
-            if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+            if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
             {
                 r1 = 1;
                 r5 = 2;
@@ -894,7 +894,7 @@ static void sub_080F738C(struct DarkMetaKnight *dmk)
         }
         else
         {
-            if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+            if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
             {
                 r1 = 3;
                 r2 = 1;
@@ -928,7 +928,7 @@ static void sub_080F7490(struct DarkMetaKnight *dmk)
     r3 = Rand16() & 7;
     if (dmk->obj.objTemplate->subtype1 && dmk2->unkC9)
     {
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
         {
             r2 = 3;
             r6 = 2;
@@ -945,7 +945,7 @@ static void sub_080F7490(struct DarkMetaKnight *dmk)
     }
     else
     {
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
         {
             r2 = 4;
             r6 = 3;
@@ -1192,7 +1192,7 @@ static void sub_080F79AC(struct DarkMetaKnight *dmk)
         r0 = 8;
         r1 = 0;
     }
-    else if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+    else if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
     {
         r0 = 3;
         r1 = 2;
@@ -1279,7 +1279,7 @@ static void sub_080F7B34(struct DarkMetaKnight *dmk)
     dmk->obj.base.yspeed = 0;
     if (RandLessThan3())
     {
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
         {
             u16 r = (Rand32(), Rand16()); // duh
 
@@ -1451,12 +1451,12 @@ static void sub_080F7DB8(struct DarkMetaKnight *dmk)
     {
         if (dmk->obj.objTemplate->subtype1)
         {
-            if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+            if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
                 ++dmk->obj.unk9E;
         }
         else
         {
-            if (dmk->obj.unk80 < (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1) - (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 2))
+            if (dmk->obj.unk80 < (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1) - (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 2))
                 ++dmk->obj.unk9E;
         }
     }
@@ -2174,7 +2174,7 @@ static void sub_080FA5C0(struct DarkMetaKnight *dmk)
     }
     else
     {
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
             dmk->obj.base.counter = 0x30;
         else
             dmk->obj.base.counter = 0x40;
@@ -2182,7 +2182,7 @@ static void sub_080FA5C0(struct DarkMetaKnight *dmk)
             dmk->obj.base.counter -= 0x18;
     }
     r = Rand16() & 7;
-    if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+    if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
     {
         if (r < 2) dmk->obj.unk83 = 0x17;
     }
@@ -2213,7 +2213,7 @@ static void sub_080FA70C(struct DarkMetaKnight *dmk)
     }
     else
     {
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
             dmk->obj.base.counter = 0x30;
         else
             dmk->obj.base.counter = 0x40;
@@ -2221,7 +2221,7 @@ static void sub_080FA70C(struct DarkMetaKnight *dmk)
             dmk->obj.base.counter -= 0x18;
     }
     r = Rand16() & 7;
-    if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+    if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
     {
         if (r < 2) dmk->obj.unk83 = 0x17;
     }
@@ -2379,7 +2379,7 @@ static void sub_080FB000(struct DarkMetaKnight *dmk)
     dmk->obj.base.flags &= ~2;
     dmk->obj.base.xspeed = 0;
     if (abs(dmk->obj.base.x - dmk->obj.kirby3->base.x) > 0x4800
-        && (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1 || Rand16() & 1))
+        && (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1 || Rand16() & 1))
         dmk2->unkCA = 3;
     if (dmk2->unkCA == 3)
         dmk->obj.base.counter = 0x80;
@@ -2534,9 +2534,9 @@ static void sub_080FB504(struct DarkMetaKnight *dmk)
         u32 ip = r;
 #endif
 
-        if (dmk->obj.unk80 < gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1)
+        if (dmk->obj.unk80 < gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1)
         {
-            if (dmk->obj.unk80 < (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1) - (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 2))
+            if (dmk->obj.unk80 < (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1) - (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 2))
             {
                 if (!r)
                 {
@@ -2557,7 +2557,7 @@ static void sub_080FB504(struct DarkMetaKnight *dmk)
         }
         else
         {
-            if (dmk->obj.unk80 < (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 1) + (gUnk_08351530[0x10][gNumHumanPlayers - 1] >> 2))
+            if (dmk->obj.unk80 < (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 1) + (gUnk_08351530[0x10][KATAM_HUMANS_ROW] >> 2))
             {
                 if (r < 2)
                 {

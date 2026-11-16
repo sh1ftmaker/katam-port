@@ -209,7 +209,7 @@ static void sub_080D1978(struct Object *mh)
 void sub_080D1A38(struct Object *mh)
 {
     ObjectSetFunc(mh, 0, FN(sub_080D1AD4));
-    if (mh->subtype || mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)
+    if (mh->subtype || mh->unk80 <= gUnk_08351530[6][KATAM_HUMANS_ROW] >> 1)
         mh->base.counter = (Rand16() & 0xF) + 0x20;
     else
         mh->base.counter = (Rand16() & 0x1F) + 0x3A;
@@ -437,7 +437,7 @@ static void sub_080D1FB4(struct Object *mh)
     mh->base.yspeed = 0;
     mh->base.flags |= 0x100;
     mh->base.flags &= ~2;
-    if (mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)
+    if (mh->unk80 <= gUnk_08351530[6][KATAM_HUMANS_ROW] >> 1)
         mh->base.counter = 0x18;
     else
         mh->base.counter = 0x20;
@@ -1047,7 +1047,7 @@ static void sub_080D2CB0(struct Object *mh)
 
             if (mh->unk85 < 3)
             {
-                if (mh->subtype || mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)
+                if (mh->subtype || mh->unk80 <= gUnk_08351530[6][KATAM_HUMANS_ROW] >> 1)
                 {
                     if (mh->unk85 != 1)
                         r1 = Rand16() & 1;
@@ -1582,7 +1582,7 @@ static void sub_080D394C(struct Object *mh)
     mh->unk9F = 0;
     mh->unk9E = 0;
     mh->base.flags &= ~2;
-    if (mh->subtype || mh->unk80 <= gUnk_08351530[6][gNumHumanPlayers - 1] >> 1)
+    if (mh->subtype || mh->unk80 <= gUnk_08351530[6][KATAM_HUMANS_ROW] >> 1)
         mh->base.counter = 0x1C;
     else
         mh->base.counter = 0x20;

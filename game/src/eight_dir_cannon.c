@@ -81,6 +81,26 @@ void *CreateEightDirCannon(struct ObjectTemplate *arg0, u8 arg1) {
     return cannon;
 }
 
+/* PORT: Kirbys past the fourth.  The console checks Kirbys 0..3 one by one
+ * and keeps who is inside in unkBA bits 0..3, but fires everyone with a loop
+ * over gNumKirbys that reads bit i -- for Kirby 4 that is bit 4, the "first
+ * one recorded" flag, so with more than four Kirbys that loop launched
+ * Kirby 4 from wherever it was whenever anyone fired.  With more than four:
+ * Kirbys 4..11 have their own bits in unkBB (a byte the game never uses; the
+ * layout is fixed, port/gba_layout.h), checked after 0..3 in the same way.
+ * Only people get in, and people are slots 0..7 (port/localmp.h).  Without
+ * more than four Kirbys, EDC_IN is the console's expression and the blocks
+ * are compiled out. */
+#if KATAM_KIRBYS > 4
+#define EDC_WIDE_MAX 12
+#define EDC_IN(c, i) ((i) < 4 ? ((c)->unkBA >> (i)) & 1 \
+                      : (i) < EDC_WIDE_MAX ? ((c)->unkBB >> ((i) - 4)) & 1 : 0)
+#define EDC_WIDE_RESET(c) ((c)->unkBB = 0)
+#else
+#define EDC_IN(c, i) (((c)->unkBA >> (i)) & 1)
+#define EDC_WIDE_RESET(c) ((void)0)
+#endif
+
 void EightDirCannonSetFunc(struct EightDirCannon *cannon) {
     cannon->obj.base.counter = 0;
     cannon->unkB4 = cannon->obj.objTemplate->unk14;
@@ -90,6 +110,7 @@ void EightDirCannonSetFunc(struct EightDirCannon *cannon) {
     cannon->unkB8 = 2;
     cannon->unkB9 = 0;
     cannon->unkBA = 0;
+    EDC_WIDE_RESET(cannon);
     cannon->obj.unk83 = cannon->unkB4;
     cannon->obj.unk78 = FN(EightDirCannonIdle);
 }
@@ -156,8 +177,30 @@ static void EightDirCannonIdle(struct EightDirCannon *cannon) {
                 cannon2->unkBC = &gKirbys[3];
             }
         }
+#if KATAM_KIRBYS > 4
+        {
+            u16 k;
+
+            for (k = 4; k < gNumKirbys && k < EDC_WIDE_MAX; ++k)
+                if (gKirbys[k].base.roomId == roomId && PortIsHuman(k)
+                    && !((cannon2->unkBB >> (k - 4)) & 1)
+                    && ObjectHitboxesOverlap(&cannon2->obj.base, &gKirbys[k].base)
+                    && gKirbys[k].base.unk6C == cannon2
+                    && sub_08051C40(&gKirbys[k])) {
+                    CreateEffectObject(&cannon2->obj.base, 0, 0x2A8, 7);
+                    cannon2->unkBB |= 1 << (k - 4);
+                    if (!(cannon2->unkBA & 0x10)) {
+                        cannon2->unkBA |= 0x10;
+                        cannon2->unkBC = &gKirbys[k];
+                    }
+                }
+        }
+        if (!cannon2->unkBA && !cannon2->unkBB)
+            cannon2->unkB7 &= ~1;
+#else
         if (!cannon2->unkBA)
             cannon2->unkB7 &= ~1;
+#endif
     }
     EightDirCannonRotate(cannon);
     cannon->obj.base.counter++;
@@ -171,7 +214,7 @@ static void EightDirCannonRotate(struct EightDirCannon *cannon) {
         if (!(cannon->obj.objTemplate->unk22 & 1)) {
             if (cannon2->unkBC->unk11A & 1) {
                 for (i = 0; i < gNumKirbys; i++) {
-                    if ((cannon2->unkBA >> i) & 1)
+                    if (EDC_IN(cannon2, i))
                         sub_08051F70(&gKirbys[i], cannon2->unkB4);
                 }
                 cannon->obj.unk78 = FN(EightDirCannonRecoil);
@@ -182,7 +225,7 @@ static void EightDirCannonRotate(struct EightDirCannon *cannon) {
         }
         else if (cannon2->unkB7 & 2 && cannon2->unkB4 == cannon->obj.objTemplate->unk14) {
             for (i = 0; i < gNumKirbys; i++) {
-                if ((cannon2->unkBA >> i) & 1)
+                if (EDC_IN(cannon2, i))
                     sub_08051F70(&gKirbys[i], cannon2->unkB4);
             }
             cannon->obj.unk78 = FN(EightDirCannonRecoil);
@@ -275,6 +318,7 @@ static void EightDirCannonRecoil(struct EightDirCannon *cannon) {
         cannon->unkB7 = 8;
         cannon->unkB5 = 5;
         cannon->unkBA = 0;
+        EDC_WIDE_RESET(cannon);
         cannon->obj.unk78 = FN(EightDirCannonIdle);
     }
     cannon->obj.base.counter++;

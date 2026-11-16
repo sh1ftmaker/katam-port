@@ -2074,11 +2074,11 @@ void InitObject(struct Object* arg0, struct ObjectTemplate* arg1, u8 arg2) {
     arg0->unk9F = 0xff;
     if (ObjType38To52(arg0)) {
         if (arg0->type == OBJ_DARK_MIND_FORM_1) {
-            arg0->unk80 = gUnk_08351608[arg1->subtype2][gNumHumanPlayers - 1];
+            arg0->unk80 = gUnk_08351608[arg1->subtype2][KATAM_HUMANS_ROW];
             arg0->base.flags |= 0x4000000;
         }
         else {
-            arg0->unk80 = gUnk_08351530[ObjTypeAltIdx(arg0)][gNumHumanPlayers - 1];
+            arg0->unk80 = gUnk_08351530[ObjTypeAltIdx(arg0)][KATAM_HUMANS_ROW];
             arg0->base.flags |= 0x4000000;
         }
     }

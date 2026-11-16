@@ -683,7 +683,7 @@ void *CreateDarkMindForm1(struct ObjectTemplate *r6, u8 r4_)
     r5->unk0.base.flags |= 0x200;
     r5->unk0.base.flags |= 0x100;
     r5->unk0.base.flags |= 0x40;
-    r5->unk0.unk80 = gUnk_08351608[r5->unk0.subtype][gNumHumanPlayers - 1];
+    r5->unk0.unk80 = gUnk_08351608[r5->unk0.subtype][KATAM_HUMANS_ROW];
     r5->unkD4 = 0;
     r5->unkB4 = NULL;
     r5->unkB8 = NULL;
@@ -802,7 +802,7 @@ static void sub_08100538(struct DarkMindForm1 *r4)
         break;
     default:
         sp0C = 0;
-        if (r4->unk0.unk80 <= gUnk_08351608[3][gNumHumanPlayers - 1] >> 1)
+        if (r4->unk0.unk80 <= gUnk_08351608[3][KATAM_HUMANS_ROW] >> 1)
         {
             sb = 1;
             r6 = 3;
@@ -8867,7 +8867,7 @@ static void sub_08110F80(struct DarkMindMirror *r7)
             r5->unk12F += r7->unk0.unk80 - r8->unkE4;
             sb->unk0.unk80 -= r7->unk0.unk80 - r8->unkE4;
             TryTrackHudEnemy(&sb->unk0);
-            if (sb->unk0.unk83 == 2 && r5->unk12F >= 5 * gNumHumanPlayers + 5)
+            if (sb->unk0.unk83 == 2 && r5->unk12F >= 5 * KATAM_HUMANS_SCALE + 5) /* PORT: KATAM_HUMANS_SCALE (global.h) */
             {
                 sub_08110F28(r7);
                 if (r7 == r5->unkFC)
@@ -10556,7 +10556,7 @@ void sub_08114BA0(struct DarkMindTrigger *r4)
     r4->unk0.base.flags |= 0x40;
     r4->unk0.base.counter = (Rand16() & 0xF) + 0x10;
     r4->unk0.unk9F = 0;
-    if (r4->unk0.unk80 <= gUnk_08351530[0x19][gNumHumanPlayers - 1] >> 1)
+    if (r4->unk0.unk80 <= gUnk_08351530[0x19][KATAM_HUMANS_ROW] >> 1)
         r4->unk0.base.counter >>= 1;
 }
 
@@ -10904,7 +10904,7 @@ static void sub_08115814(struct DarkMindTrigger *r4)
     r4->unk0.base.counter = 36;
     r4->unk0.unk9E = 0;
     r4->unk0.unk85 = 0;
-    if (r4->unk0.unk80 <= gUnk_08351530[0x19][gNumHumanPlayers - 1] >> 1)
+    if (r4->unk0.unk80 <= gUnk_08351530[0x19][KATAM_HUMANS_ROW] >> 1)
         r4->unk0.unk85 = Rand16() & 1;
 }
 

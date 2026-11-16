@@ -5900,6 +5900,16 @@ static u16 sub_0800A050(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2) 
 static u16 sub_0800A064(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2) { return sub_08006598(arg0, arg1, arg2, 0x6B); }
 static u16 sub_0800A078(struct Kirby *arg0, struct Unk_3007DE0 *arg1, u16 arg2) { return sub_08006598(arg0, arg1, arg2, 0x6C); }
 
+/* PORT: the object windows (CreateLevelObjects and the two scroll-in walks)
+ * keep one view per player in four-entry arrays, indexed by the player whose
+ * room it is and by each person (the PortHumanEnd loops) -- which, with more
+ * than four Kirbys, can be 4..: one per Kirby there. */
+#if KATAM_KIRBYS > 4
+#define KATAM_SPAWN_VIEWS KATAM_KIRBYS
+#else
+#define KATAM_SPAWN_VIEWS 4
+#endif
+
 void CreateLevelObjects(u8 playerId)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
@@ -5908,8 +5918,19 @@ void CreateLevelObjects(u8 playerId)
         const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
         /* PORT-FORK: the window is sized for the session's view, per side
          * (port/spawn.h); every pad is 0 at the stock 240x160. */
-        struct PortSpawnMargin mg[4];
         u8 q;
+#if KATAM_KIRBYS > 4
+        /* PORT: KATAM_SPAWN_VIEWS (below): one view per Kirby, indexed by
+         * the player and by each person (PortHumanEnd), who can be 4.. */
+        struct PortSpawnMargin mg[KATAM_KIRBYS];
+        s16 stack0[KATAM_KIRBYS][2];
+
+        for (q = 0; q < KATAM_KIRBYS; q++) {
+            stack0[q][0] = ((gCurLevelInfo[q].viewportPosition.x  + gCurLevelInfo[q].unk1C) >> 0xC) - 2;
+            stack0[q][1] = ((gCurLevelInfo[q].viewportPosition.y + gCurLevelInfo[q].unk20) >> 0xC) - 2;
+        }
+#else
+        struct PortSpawnMargin mg[4];
 
         s16 stack0[4][2] = {
             {((gCurLevelInfo[0].viewportPosition.x  + gCurLevelInfo[0].unk1C) >> 0xC) - 2,
@@ -5921,8 +5942,9 @@ void CreateLevelObjects(u8 playerId)
             {((gCurLevelInfo[3].viewportPosition.x  + gCurLevelInfo[3].unk1C) >> 0xC) - 2,
              ((gCurLevelInfo[3].viewportPosition.y + gCurLevelInfo[3].unk20) >> 0xC) - 2}
         };
+#endif
 
-        for (q = 0; q < 4; q++)
+        for (q = 0; q < KATAM_SPAWN_VIEWS; q++)
             PortSpawnMarginNow(q, &mg[q]);
 
         for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
@@ -5978,11 +6000,11 @@ void sub_0800A2B4(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
-    struct PortSpawnMargin mg[4];
+    struct PortSpawnMargin mg[KATAM_SPAWN_VIEWS];
 
     u8 p;
 
-    for (p = 0; p < 4; p++)
+    for (p = 0; p < KATAM_SPAWN_VIEWS; p++)
         PortSpawnMarginNow(p, &mg[p]);
 
     for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
@@ -6029,11 +6051,11 @@ void sub_0800A460(u8 playerId, s16 arg1, s16 (*arg2)[2], s16 arg3)
 {
     struct LevelInfo *levelInfo = gCurLevelInfo + playerId;
     const struct ObjectTemplate *obj = levelInfo->objlistPtr->unk0;
-    struct PortSpawnMargin mg[4];
+    struct PortSpawnMargin mg[KATAM_SPAWN_VIEWS];
 
     u8 p;
 
-    for (p = 0; p < 4; p++)
+    for (p = 0; p < KATAM_SPAWN_VIEWS; p++)
         PortSpawnMarginNow(p, &mg[p]);
 
     for (; obj->unk1 != 0; obj = (void *) obj + obj->unk1) {
@@ -6135,6 +6157,15 @@ void sub_0800A60C(u8 playerId, s16 (*arg1)[2])
 
 void sub_0800A6E8(void)
 {
+#if KATAM_KIRBYS > 4
+    s16 stack0[KATAM_KIRBYS][2];
+    u8 p;
+
+    for (p = 0; p < KATAM_KIRBYS; p++) {
+        stack0[p][0] = (gCurLevelInfo[p].viewportPosition.x >> 0xc) - 2;
+        stack0[p][1] = (gCurLevelInfo[p].viewportPosition.y >> 0xc) - 2;
+    }
+#else
     s16 stack0[][2] = {
         {(gCurLevelInfo[0].viewportPosition.x >> 0xc) - 2, (gCurLevelInfo[0].viewportPosition.y >> 0xc) - 2},
         {(gCurLevelInfo[1].viewportPosition.x >> 0xc) - 2, (gCurLevelInfo[1].viewportPosition.y >> 0xc) - 2},
@@ -6143,6 +6174,7 @@ void sub_0800A6E8(void)
     };
 
     u8 p;
+#endif
 
     for (p = 0; p < PortHumanEnd(); p = PortHumanNext(p)) {
         if (gCurLevelInfo[p].currentRoom == 0xFFFF)

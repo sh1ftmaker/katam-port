@@ -48,6 +48,17 @@ void *CreateKirbyCannon(struct ObjectTemplate *template_, u8 arg1)
     return cannon;
 }
 
+/* PORT: Kirbys past the fourth.  The console checks Kirbys 0..3 one by one
+ * (unkB8 bits 0..3: who is inside); with more than four the same for
+ * 4..gNumKirbys-1, after them and in the same order, so a fifth to eighth
+ * person can use the cannon and is not left behind when it fires.  Without
+ * more than four Kirbys every block below is compiled out. */
+#if KATAM_KIRBYS > 4
+#define CANNON_IN_ALL 0xFFFF
+#else
+#define CANNON_IN_ALL 0xF
+#endif
+
 void sub_08121AF8(struct KirbyCannon *cannon)
 {
     cannon->obj.base.counter = 0;
@@ -109,6 +120,19 @@ static void sub_08121B70(struct KirbyCannon *cannon)
                     && gKirbys[3].base.unk6C == cannon
                     && sub_080510EC(&gKirbys[3]))
                     cannon2->unkB8 |= 8;
+#if KATAM_KIRBYS > 4
+                {
+                    u16 k;
+
+                    for (k = 4; k < gNumKirbys; ++k)
+                        if (PortIsHuman(k) && gKirbys[k].base.roomId == roomId
+                            && !((cannon2->unkB8 >> k) & 1)
+                            && ObjectHitboxesOverlap(&cannon->obj.base, &gKirbys[k].base)
+                            && gKirbys[k].base.unk6C == cannon
+                            && sub_080510EC(&gKirbys[k]))
+                            cannon2->unkB8 |= 1 << k;
+                }
+#endif
             }
         } else if (cannon2->unkB6 & 1) {
             if (cannon2->unkB8 & 1 && gKirbys[0].unk11A & 1) {
@@ -127,7 +151,18 @@ static void sub_08121B70(struct KirbyCannon *cannon)
                 sub_08051544(&gKirbys[3]);
                 cannon2->unkB8 &= ~8;
             }
-            if (!(cannon2->unkB8 & 0xF))
+#if KATAM_KIRBYS > 4
+            {
+                u16 k;
+
+                for (k = 4; k < gNumKirbys; ++k)
+                    if ((cannon2->unkB8 >> k) & 1 && gKirbys[k].unk11A & 1) {
+                        sub_08051544(&gKirbys[k]);
+                        cannon2->unkB8 &= ~(1 << k);
+                    }
+            }
+#endif
+            if (!(cannon2->unkB8 & CANNON_IN_ALL))
                 cannon2->unkB6 &= ~1;
         }
     }
@@ -147,6 +182,15 @@ static void sub_08121B70(struct KirbyCannon *cannon)
                 sub_0805BE64(&gKirbys[2]);
             if (cannon2->unkB8 & 8)
                 sub_0805BE64(&gKirbys[3]);
+#if KATAM_KIRBYS > 4
+            {
+                u16 k;
+
+                for (k = 4; k < gNumKirbys; ++k)
+                    if ((cannon2->unkB8 >> k) & 1)
+                        sub_0805BE64(&gKirbys[k]);
+            }
+#endif
             if (cannon->obj.objTemplate->unk22 & 1)
                 cannon->obj.unk83 = 2;
             else
@@ -188,6 +232,17 @@ static void sub_08121FCC(struct KirbyCannon *cannon)
             sub_080515D4(&gKirbys[3], cannon2->unkBA, cannon2->unkBC, cannon2->unkBD, cannon2->obj.objTemplate->unk22 & 1);
             cannon2->unkB8 &= ~8;
         }
+#if KATAM_KIRBYS > 4
+        {
+            u16 k;
+
+            for (k = 4; k < gNumKirbys; ++k)
+                if ((cannon2->unkB8 >> k) & 1) {
+                    sub_080515D4(&gKirbys[k], cannon2->unkBA, cannon2->unkBC, cannon2->unkBD, cannon2->obj.objTemplate->unk22 & 1);
+                    cannon2->unkB8 &= ~(1 << k);
+                }
+        }
+#endif
     }
 }
 

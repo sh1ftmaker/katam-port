@@ -665,7 +665,7 @@ static void sub_080D85BC(struct Object *bombar)
         if (!gUnk_083562D8[(u8)(bombar->unk9F+1)].unk8 && !bombar->unk9E)
         {
             ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
-            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
+            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][KATAM_HUMANS_ROW] >> 1)
                 bombar->base.counter = 0x18;
             else
                 bombar->base.counter = 0x30;
@@ -709,7 +709,7 @@ static void sub_080D85BC(struct Object *bombar)
         if (!gUnk_08356278[(u8)(bombar->unk9F+1)].unk8 && !bombar->unk9E)
         {
             ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
-            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
+            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][KATAM_HUMANS_ROW] >> 1)
                 bombar->base.counter = 0x18;
             else
                 bombar->base.counter = 0x30;
@@ -1027,7 +1027,7 @@ static void sub_080D8F34(struct Object *bombar)
     {
         bombar->unk85 = 0;
         ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
-        if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
+        if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][KATAM_HUMANS_ROW] >> 1)
             bombar->base.counter = 0x18;
         else
             bombar->base.counter = 0x30;
@@ -1186,7 +1186,7 @@ static void sub_080D9388(struct Object *bombar)
         if (bombar->base.flags & 2)
         {
             ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
-            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
+            if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][KATAM_HUMANS_ROW] >> 1)
                 bombar->base.counter = 0x18;
             else
                 bombar->base.counter = 0x30;
@@ -1546,7 +1546,7 @@ static void sub_080D9E34(struct Object *missile)
 void sub_080D9E94(struct Object *bombar)
 {
     ObjectSetFunc(bombar, 0, FN(sub_080D7D28));
-    if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][gNumHumanPlayers - 1] >> 1)
+    if (bombar->subtype || bombar->unk80 <= gUnk_08351530[7][KATAM_HUMANS_ROW] >> 1)
         bombar->base.counter = 0x18;
     else
         bombar->base.counter = 0x30;
