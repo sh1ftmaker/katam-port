@@ -741,7 +741,7 @@ async function caseKirbys() {
 
 /* The page's default: a fresh profile and no ?mod -- the 16-Kirby module at
  * 4 Kirbys, one module fetched; LOCAL works there; ONLINE > HOST 4 PLAYERS
- * reloads into the 4-Kirby module and HOST 8 PLAYERS back; ?mod=4 is the
+ * reloads into the 4-Kirby module and HOST 16 PLAYERS back; ?mod=4 is the
  * 4-Kirby module. */
 const pageLog = (p) => p.ev('Array.from(document.querySelectorAll("#log > div")).map(function(e){return e.textContent})');
 const fetchedWasm = (p) => p.ev(`performance.getEntriesByType('resource').map(function(r){return r.name}).filter(function(n){return /katam(16)?\\.wasm/.test(n)}).map(function(n){return n.replace(/^.*\\/|\\?.*$/g,'')})`);
@@ -757,7 +757,7 @@ async function caseDefault() {
         ok('default: the page log names the module (no EXPERIMENTAL)', L.some((t) => /^module: katam16, 4 Kirbys/.test(t))
            && !L.some((t) => /EXPERIMENTAL/.test(t)), L.filter((t) => /module|EXPERIMENTAL/.test(t)).join(' | '));
     }
-    ok('default: online games here hold 8', (await p.ev('katamOnline.module()')) === '16' && (await p.ev('katamOnline.seats()')) === 8);
+    ok('default: online games here hold 16', (await p.ev('katamOnline.module()')) === '16' && (await p.ev('katamOnline.seats()')) === 16);
     // MULTIPLAYER > LOCAL: a two-player game, 4 Kirbys
     await step(p, 'A', 60); await step(p, 'DOWN'); await step(p, 'A', 80);
     ok('default: MULTIPLAYER, LOCAL available', (await pagesModel(p)) === M.MP && (await p.ev('Module._PortMenuPocRowAvailable(0)')) === 1);
@@ -781,7 +781,7 @@ async function caseDefault() {
     await shot(p, 'default-local-two.png');
     await p.close();
 
-    // ONLINE > HOST 4 PLAYERS: the page again on the 4-Kirby module, and HOST 8 PLAYERS back
+    // ONLINE > HOST 4 PLAYERS: the page again on the 4-Kirby module, and HOST 16 PLAYERS back
     const r = await openPage('default-hop', { extra: { mod: null } });
     await toGameSelect(r);
     const toOnlineRow3 = async () => {
@@ -800,7 +800,7 @@ async function caseDefault() {
     await shot(r, 'mod4-online-host8.png');
     await press(r, 'A');
     const hopped16 = await until(async () => { try { return /[?&]mod=16\b/.test(await r.ev('location.search')) && (await r.ev('!!window.KATAM_KIRBYS16')) && (await r.ev('!!(Module.portRuntimeUp && Module._PortFrameNumber() > 30)')); } catch (e) { return false; } }, 60000, 250);
-    ok('4-Kirby module: HOST 8 PLAYERS reloads into the 16-Kirby module', !!hopped16, await r.ev('location.search').catch(() => '?'));
+    ok('4-Kirby module: HOST 16 PLAYERS reloads into the 16-Kirby module', !!hopped16, await r.ev('location.search').catch(() => '?'));
     await r.close();
 
     // ?mod=4: the 4-Kirby module, its wasm only

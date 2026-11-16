@@ -37,15 +37,18 @@ static int sRoomsMode = 1;
 int PortOuiRoomsMode(void) { return sRoomsMode; }
 static int sPlayers = 1, sConnecting;
 
-/* An 8-player game runs on the 16-Kirby module (the web page's default):
- * there, HOST GAME holds 8 people; on the 4-Kirby module 4. */
-int PortOuiSeats(void) { return KATAM_WIDE ? 8 : 4; }
+/* A 16-player game runs on the 16-Kirby module (the web page's default):
+ * there, HOST GAME holds 16 people (or as many as a narrower wide build has
+ * Kirby slots); on the 4-Kirby module 4. */
+int PortOuiSeats(void) { return KATAM_WIDE ? (PORT_LN_SLOTS < 16 ? PORT_LN_SLOTS : 16) : 4; }
 
 static const char *Count(int n)
 {
-    static const char *const k[] = { "NO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT" };
+    static const char *const k[] = { "NO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT",
+                                     "NINE", "TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN",
+                                     "SIXTEEN" };
 
-    return n >= 0 && n <= 8 ? k[n] : "MANY";
+    return n >= 0 && n <= 16 ? k[n] : "MANY";
 }
 static u32 sGen = 1;
 static int sEv[8], sEvHead, sEvTail;
@@ -149,7 +152,7 @@ const char *PortOuiRowName(int sub, int row)
     if (sub == PORT_OUI_SUB_ONLINE && row == 2)
         return "BROWSE GAMES";
     if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE)
-        return KATAM_WIDE ? "HOST 4 PLAYERS" : "HOST 8 PLAYERS";
+        return KATAM_WIDE ? "HOST 4 PLAYERS" : "HOST 16 PLAYERS";
     if (sub >= PORT_OUI_SUB_BROWSE || (sub == PORT_OUI_SUB_HOST && row >= 2))
         return PortObrRowName(sub, row);
     switch (sub) {
@@ -182,7 +185,7 @@ void PortOuiRowValue(int sub, int row, int selected, char *buf, int size)
         return;
     }
     if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE)
-        return;                         /* HOST 4 / 8 PLAYERS: no value */
+        return;                         /* HOST 4 / 16 PLAYERS: no value */
     if (sub == PORT_OUI_SUB_HOST) {
         if (row == 0) {
             v = sState == PORT_OUI_H_CREATING ? "...." : HostHasRoom() ? sCode : "----";
@@ -251,7 +254,7 @@ const char *PortOuiRowDesc(int sub, int row)
         return "FIND A PUBLIC GAME TO JOIN";
     if (sub == PORT_OUI_SUB_ONLINE && row == PORT_OUI_ROW_OTHER_MODULE) {
 #ifdef __EMSCRIPTEN__
-        return KATAM_WIDE ? "LIGHTER ON PHONES - RELOADS" : "UP TO EIGHT - THE PAGE RELOADS";
+        return KATAM_WIDE ? "LIGHTER ON PHONES - RELOADS" : "UP TO SIXTEEN - THE PAGE RELOADS";
 #else
         return "ONLY ON THE WEB PAGE";
 #endif

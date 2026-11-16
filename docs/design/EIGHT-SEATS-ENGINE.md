@@ -386,3 +386,47 @@ and scroll.  The quiet frame (and a fork frame not shown) no longer
 captures lines.  The node rig composes with the PPU and never saw it; the
 browser cases now count the colours of the pause page's GPU picture
 (`coloursIn`: the garbled page had 6, the real ones 14-25).
+
+# Sixteen seats (branch `six-sixteen`)
+
+A room hosted on the 16-Kirby module (the page's default) holds 16 people
+on up to 16 devices; `?mod=4` is unchanged (4 seats, 192 MiB, 24
+keyframes).  Nothing in the engine or the wire was eight wide: the engine's
+devices are `PORT_LN_MAX_DEV` = 16 there, the per-frame seat mask is a u64,
+the sealed record's mask bytes cover slots 4..19, and paint, names, pause
+copies and the party HUD were already `PORT_LN_SLOTS` wide.  What changed:
+
+- `web/online.js seats()` is 16 on the wide module (min(16, `PortLnSlots`)),
+  so HostHub's `seats`, `PortLnSetSeatSlots`, the device ids (1..15), the
+  join refusal text, the public listing's `max` (the worker accepts 4..16)
+  and the status line follow; `noOwners()` is 16 wide.  The invite link's
+  `mod=16` is unchanged.
+- `platform/online_ui.c PortOuiSeats()` is 16 (HOST GAME's PLAYERS n/16,
+  the counts in words up to SIXTEEN); ONLINE's fourth row on the 4-Kirby
+  module reads HOST 16 PLAYERS ("UP TO SIXTEEN - THE PAGE RELOADS"), and
+  MULTIPLAYER's ONLINE row on the wide module PLAY WITH UP TO SIXTEEN ONLINE.
+  All fallback-font / description-cut text composed at run time, as before.
+- Memory: the wide builds' heap is 256 MiB (Makefile `INITIAL_MEMORY`, was
+  200) and a wide page keeps 32 keyframes (`KF_COUNT_WIDE`: 480 frames of
+  history, ~30 MiB; was 16 / 240 frames), so a guest's lead cap is
+  15 x 30 - 10 = 440 frames.  The browser `eight` case measures ~50 MiB free
+  on every guest after the session's buffers (was ~10).  The rig's default
+  `--kf-count` on the 16-Kirby module is 32 to match.
+- Packets: a record with all 16 pads held is 1 + 2 + 32 (+ 8 hash) = 43 B,
+  so `maxPacketBytes` 1100 still carries ~25 records a packet and `copies: 4`
+  (four records' worth in steady state, ~170 B) is unchanged.
+- Colours: `PortWideDefaultColor` already cycles the sprays Kirbys 1..4 do not
+  wear: Kirbys 9..14 are ORANGE, SAPPHIRE, EMERALD, CHOCOLATE, CHERRY, CHALK,
+  and 15, 16 wrap to SNOW, CARBON (the game has 14 sprays; four are worn by
+  Kirbys 1..4).  A player card's paint goes on top, as for 5..8.
+
+Checked: `tools/netproof/sixteen_test.mjs` (host + 15 guests on the 16-Kirby
+node module, guests 8..15 joining mid-game into seats past the live count,
+32 keyframes, copies 4 / 1100 B, 60 ms +-15, 2% loss; TOGETHER and FREE
+ROAM): 16 people, the count rises to 16, every guest's every compared frame
+identical.  Guests replay ~800 frames/s there (about 15% of a core at
+190 us a frame).
+In the browser, `online_browser_test.mjs --cases eight --eight-tabs 12`
+(12 tabs on the 16-Kirby page: 11 people at the start, the 12th joining
+mid-game into a Kirby made for it, CPU KIRBYS 13): 108 ok, 0 failed; every
+guest's compared frames identical, largest sealed packet 607 B.

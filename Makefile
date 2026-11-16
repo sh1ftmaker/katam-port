@@ -88,11 +88,14 @@ FORCE_INCLUDE := -include port/prelude.h -include port/ram_symbols.h -include po
 ifneq ($(KATAM_MAX_KIRBYS),)
 DEFINES += -DKATAM_MAX_KIRBYS=$(KATAM_MAX_KIRBYS)
 FORCE_INCLUDE += -include port/wide_symbols.h
-# The wide build's online guest holds 16 keyframes of ~940 KiB, the free-roam
-# shadow (2 x ~1 MiB), images and the pause overlay's fork (2 x ~940 KiB):
-# measured 2.2 MiB left of 192 MiB before the overlay (tools/netproof/
-# pause_test.mjs `memory`).  8 MiB more (200 MiB, 4% of the reservation).
-INITIAL_MEMORY := 209715200
+# The wide build's online guest holds its keyframes (~940 KiB each), the
+# free-roam shadow (2 x ~1 MiB), images and the pause overlay's fork
+# (2 x ~940 KiB): with 16 keyframes 2.2 MiB was left of 192 MiB before the
+# overlay (tools/netproof/pause_test.mjs `memory`).  16-player games keep 32
+# keyframes (web/online.js KF_COUNT_WIDE, ~30 MiB) and more people's images
+# and buffers, so the wide build has 256 MiB: 64 MiB over the 4-Kirby
+# module's 192, about 50 MiB of it spare in a 16-player guest.
+INITIAL_MEMORY := 268435456
 endif
 
 # -Wno-everything is right for the decompilation itself: it is machine-shaped C

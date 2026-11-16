@@ -2589,10 +2589,10 @@ static const char *MpDesc(int row)
 {
     if (gPortLnOn)
         return "IN AN ONLINE GAME";
-    /* the wide module (the web page's default): online is its 8-player
-     * games (platform/online_ui.c PortOuiSeats) */
+    /* the wide module (the web page's default): online is its 16-player
+     * games (platform/online_ui.c PortOuiSeats: 16) */
     if (KATAM_WIDE && row == PORT_MENU_POC_MP_ONLINE)
-        return "PLAY WITH UP TO EIGHT ONLINE";
+        return "PLAY WITH UP TO SIXTEEN ONLINE";
     if (row == PORT_MENU_POC_MP_CARD)
         return "YOUR NAME AND KIRBY COLOR";
     if (row != 0)
@@ -2623,7 +2623,7 @@ static const char *OuiDesc(int row) { return PortOuiRowDesc(sModel->oui, row); }
 static int OuiUnavailable(int row) { return PortOuiRowUnavailable(sModel->oui, row); }
 
 static const struct PocModel kOnlineModel = {
-    4 /* server browser: + BROWSE GAMES; + the other module (HOST 8 PLAYERS) */, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
+    4 /* server browser: + BROWSE GAMES; + the other module (HOST 16 PLAYERS) */, "ONLINE", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_ONLINE,
 };
 static const struct PocModel kHostModel = {
     4 /* server browser: + GAME, PASS */, "HOST GAME", OuiName, OuiValue, OuiDesc, MpStep, OuiUnavailable, PORT_OUI_SUB_HOST,

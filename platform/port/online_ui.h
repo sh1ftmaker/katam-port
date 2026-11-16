@@ -52,8 +52,8 @@ enum {
 #define PORT_OUI_EV_COPY_LINK   4
 #define PORT_OUI_EV_JOIN        5   /* PortOuiJoinCode has the code        */
 #define PORT_OUI_EV_JOIN_CANCEL 6
-/* ONLINE's last row: the page again on the other module -- HOST 8 PLAYERS
- * on the ordinary one (8-player games run on the 16-Kirby module), 4 PLAYER
+/* ONLINE's last row: the page again on the other module -- HOST 16 PLAYERS
+ * on the ordinary one (16-player games run on the 16-Kirby module), 4 PLAYER
  * GAMES on that one (web/online.js otherModule) */
 #define PORT_OUI_EV_OTHER_MODULE 7
 /* An invite link's card (PortOuiInvite): B on it -- the invite is put
@@ -80,7 +80,7 @@ void PortOuiSet(int state, int c0, int c1, int c2, int c3);
 void PortOuiNote(int note);
 /* HOST GAME: people in the game so far (1..PortOuiSeats(): the host and
  * each guest's players), and of those how many are still connecting.  The
- * START row shows "PLAYERS n/4" (n/8 in an 8-player game). */
+ * START row shows "PLAYERS n/4" (n/16 in a 16-player game). */
 void PortOuiSetPlayers(int players, int connecting);
 int  PortOuiPoll(void);
 int  PortOuiJoinCode(int i);
