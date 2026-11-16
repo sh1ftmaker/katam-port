@@ -185,14 +185,17 @@ async function toGameSelect(p) {
 
 /* Game Select > START GAME > ONE PLAYER, then into ordinary play: player 1
  * warped to a level room, the intro's hold on the other Kirbys lifted (as
- * tools/netaudit/make_players_recordings.py does) */
-async function startPlay(p) {
+ * tools/netaudit/make_players_recordings.py does) -- unless `opening`: the
+ * fresh file's story stage left as it is (the CPU KIRBYS case: the count
+ * changes in the opening too, platform/wide.c OpeningHolds) */
+async function startPlay(p, opening = false) {
     await press(p, 'A'); await waitFrames(p, 60);          // the pop-up
     await press(p, 'A'); await waitFrames(p, 60);          // ONE PLAYER
     await until(() => p.ev('Module._PortLmpInStory()'), 60000, 100);
     await waitFrames(p, 200);
     await p.ev('Module._PortWarp(0, 117, 44, 9)');
     await waitFrames(p, 120);
+    if (opening) return;
     // gAIKirbyState (0x0203AD2C, u16) = NORMAL (300): the CPUs are partners
     await p.ev('(function(){var a=0x0203AD2C;Module.HEAPU8[a]=300&255;Module.HEAPU8[a+1]=300>>8;})()');
     await waitFrames(p, 60);
@@ -578,9 +581,10 @@ async function caseKirbys() {
     ok('... ONLINE: A opens it (8-player games)', (await pagesModel(p)) !== M.MP && ((await p.ev('Module._PortOuiScreen()')) >> 8) === 1);
     await press(p, 'B'); await waitFrames(p, 40);
     await press(p, 'B'); await waitFrames(p, 60); await press(p, 'B'); await waitFrames(p, 60);
-    // a new game: you and 15 CPU Kirbys
-    await startPlay(p);
-    ok('a new game on the 16-Kirby module: 16 Kirbys', (await now()) === 16, String(await now()));
+    // a new game (a fresh file: the story's opening, not sealed NORMAL): you and 15 CPU Kirbys
+    await startPlay(p, true);
+    const story = await p.ev('Module.HEAPU16[0x0203AD2C >> 1]');
+    ok(`a new game on the 16-Kirby module: 16 Kirbys (story stage ${story}, NORMAL is 300)`, (await now()) === 16, String(await now()));
     await waitFrames(p, 300);
     await shot(p, 'kirbys-16-play.png');
     ok('... still 16 after a warp and 300 frames', (await now()) === 16, String(await now()));

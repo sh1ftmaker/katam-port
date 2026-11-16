@@ -339,15 +339,43 @@ static int Settled(const struct Kirby *k)
         && gCurLevelInfo[k->base.unk56].currentRoom == k->base.roomId;
 }
 
-/* Is the story in ordinary play, and player 1 somewhere a Kirby can be
- * brought to? */
+/* The opening (gAIKirbyState below NORMAL, a fresh file until the CPU
+ * Kirbys go their own way).  There the CPU Kirbys are the story's: in the
+ * tutorial they copy player 1 (TUTORIAL, 100); the tutorial's door to the
+ * hub (special_doors.c) takes every person to the hub and starts the
+ * opening cutscene (in_game_interlude 0x19: CUTSCENE, 200, whose start,
+ * code_0802E16C.c sub_0802E270, sends every CPU brain from PortCpuFirst to
+ * gNumKirbys to its post-opening room); a trigger in the hub then plays the
+ * second one (0x1A, code_0814A828.c), which sets NORMAL (300).  A Kirby made
+ * in those states is made as the play start makes Kirbys 1..3 (CreateKirby,
+ * a brain with the same start room, sub_0800ECAC) and arrives beside player
+ * 1, so it copies player 1 in the tutorial and is sent on with the others by
+ * the opening.  What it must not do is arrive in the middle of the
+ * story's scripted parts: an in-game interlude (the cutscene screens; a
+ * pause also sets the freeze mask), or the hub while the opening plays there
+ * (the cutscene's own Kirbys stand in it; the joins of slots 1..3 wait there
+ * too, localmp.c Scripted).  Outside those the opening's states change
+ * nothing here, so a join past the count is held only while the opening's
+ * scripted parts play -- the story's own pace, not until NORMAL. */
+static int OpeningHolds(void)
+{
+    if (gAIKirbyState >= AI_KIRBY_STATE_NORMAL)
+        return 0;
+    if (gInGameInterludeTask != NULL || (gMainFlags & 0x400))
+        return 1;
+    return gKirbys[0].base.roomId == 0x321;
+}
+
+/* Is the story in play, and player 1 somewhere a Kirby can be brought to? */
 static int CanChange(void)
 {
     const struct Kirby *p1 = &gKirbys[0];
 
-    if (gNumKirbys < 4 || !PortLmpInStory() || gAIKirbyState < AI_KIRBY_STATE_NORMAL)
+    if (gNumKirbys < 4 || !PortLmpInStory())
         return 0;
     if (gUnk_03000510.unk4 != 0)        /* a pause (or anything) holds rooms */
+        return 0;
+    if (OpeningHolds())
         return 0;
     return Settled(p1);
 }
@@ -508,8 +536,9 @@ static void Trace(void)
     for (i = 0; i < gNumKirbys && i < K; i++)
         n += snprintf(line + n, sizeof line - (size_t)n, " %u:%d/%d", (unsigned)gKirbys[i].base.roomId,
                       (int)gKirbys[i].hp, (int)gKirbys[i].base.x >> 12);
-    PortLog("[katam-port] wide: f%u %u Kirbys, %u tasks:%s", (unsigned)gPortSim->frame.frameCount,
-            (unsigned)gNumKirbys, (unsigned)gNumTasks, line);
+    PortLog("[katam-port] wide: f%u %u Kirbys, %u tasks, story %u%s:%s", (unsigned)gPortSim->frame.frameCount,
+            (unsigned)gNumKirbys, (unsigned)gNumTasks, (unsigned)gAIKirbyState,
+            (gMainFlags & 0x400) ? " (interlude)" : "", line);
 }
 
 void PortWideFrame(void)

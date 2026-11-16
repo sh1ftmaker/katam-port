@@ -1685,20 +1685,18 @@ if (CASES.includes('eight')) {
     await glCheck(gl);
     ok(`eight: tab ${NT} joins mid-game`, !!inL);
     // its seat is past the live count: the engine holds the join until its
-    // Kirby is made, and makes Kirbys in play only from the story stage
-    // where the CPU helpers are free (platform/wide.c CanChange:
-    // gAIKirbyState >= NORMAL); a fresh file is before it
+    // Kirby is made, then seats it.  A fresh file is early in the story
+    // (gAIKirbyState below NORMAL, 300): Kirbys are made there too, except
+    // while the opening's cutscenes play (platform/wide.c OpeningHolds), so
+    // the seat comes within seconds without the test touching the story
     const heldFor = 20000, early = await host.ev('Module.HEAPU16[0x0203AD2C >> 1]');
-    const seatedEarly = await until(async () => { const st = await stats(gl); return st && st.seatWaitMs !== null && st.seatWaitMs !== undefined ? st : null; }, heldFor);
-    R.earlyStory = { aiState: early, seatedWithin20s: !!seatedEarly, kirbys: await host.ev('Module._PortPocKirbysNow()') };
-    say(`eight: story stage ${early} (NORMAL is 300): seated without help in 20 s: ${!!seatedEarly}, Kirbys ${R.earlyStory.kirbys}`);
-    // the story stage where the count may change: the host seals it (a poke, as the rig's R13-N count case)
-    if (!seatedEarly) { await host.ev('Module._PortLnEvent(4, 0x0203AD2C, 0x2C, 0, 0)'); await host.ev('Module._PortLnEvent(4, 0x0203AD2D, 0x01, 0, 0)'); }
-    const seated = seatedEarly || await until(async () => { const st = await stats(gl); return st && st.seatWaitMs !== null && st.seatWaitMs !== undefined ? st : null; }, 30000);
+    const seated = await until(async () => { const st = await stats(gl); return st && st.seatWaitMs !== null && st.seatWaitMs !== undefined ? st : null; }, heldFor);
+    R.earlyStory = { aiState: early, seatedWithin20s: !!seated, kirbys: await host.ev('Module._PortPocKirbysNow()') };
+    say(`eight: story stage ${early} (NORMAL is 300): seated in 20 s: ${!!seated}, Kirbys ${R.earlyStory.kirbys}`);
     const hsL = await stats(host), pl = hsL.peers.find((p) => p.dev === (seated ? seated.self : -1));
-    ok(`eight: it is seated (player ${NT}: a Kirby made past the ${kBefore} there were)`, !!seated && (await slotsOf(host)).filter(Boolean).length === NT
+    ok(`eight: it is seated (player ${NT}: a Kirby made past the ${kBefore} there were, story stage ${early})`, !!seated && (await slotsOf(host)).filter(Boolean).length === NT
        && (await host.ev('Module._PortPocKirbysNow()')) >= NT,
-       `guest seat wait ${seated ? seated.seatWaitMs : '-'} ms, host side ${pl ? pl.seatWaitMs : '-'} ms, Kirbys ${await host.ev('Module._PortPocKirbysNow()')}${seatedEarly ? '' : ' (after the story stage was sealed NORMAL)'}`);
+       `guest seat wait ${seated ? seated.seatWaitMs : '-'} ms, host side ${pl ? pl.seatWaitMs : '-'} ms, Kirbys ${await host.ev('Module._PortPocKirbysNow()')}`);
     R.seatWait = { guestMs: seated ? seated.seatWaitMs : null, hostMs: pl ? pl.seatWaitMs : null, kirbysBefore: kBefore, kirbysAfter: await host.ev('Module._PortPocKirbysNow()'), hostWaits: hsL.seatWaits };
     await setScript(gl, buildPlay(frames, 30, 100000).k2, await frame(gl), []);
     G.push(gl); cmps.push(makeComparer(host, gl));
