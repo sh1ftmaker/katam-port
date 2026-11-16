@@ -674,7 +674,7 @@ async function caseTouchSet() {
     say('touchset: the 16-Kirby module reads the same setting');
     {
         const early = `try{if(!sessionStorage.getItem('ts16')){sessionStorage.setItem('ts16','1');localStorage.setItem('katam.settings','schema=2\\nkirbys=8\\ntouch=1\\n');}}catch(e){}`;
-        const p = await openPage('ts-wide16', { w: 1440, h: 800, early });
+        const p = await openPage('ts-wide16', { w: 1440, h: 800, early, extra: { mod: '16' } });
         await ready(p);
         ok('katam16 with touch=1 saved: the pads are up on a desktop',
            (await p.ev('!!window.KATAM_KIRBYS16')) && (await padsUp(p)), 'wide ' + (await p.ev('!!window.KATAM_KIRBYS16')));

@@ -205,10 +205,17 @@ async function inviteContinue(p) {
         if (!(await until(live, 90000, 150))) return false;
         rec.up = true; rec.ms = Date.now() - t0; rec.frame = await frame(p);
         await waitFrames(p, 12);                    // (its keys from the frame it is in)
-        for (let i = 0; i < 4 && (await p.ev('katamOnline.inviteCard()')) === 3; i++) { await press(p, 'A'); await waitFrames(p, 20); }
+        for (let i = 0; i < 4 && (await p.ev('katamOnline.inviteCard()')) === 3; i++) { rec.pressed = true; await press(p, 'A'); await waitFrames(p, 20); }
         rec.joined = (await p.ev('katamOnline.inviteCard()')) === 0;
         return rec.joined;
-    } catch (e) { rec.error = String(e.message || e); return false; }
+    } catch (e) {
+        rec.error = String(e.message || e);
+        /* the A on JOIN reloaded the page into the game's module (a link with
+         * no ?mod on the default page): the card was up and the join went on;
+         * the case's own checks say whether the reloaded page got in */
+        if (rec.up && rec.pressed) { rec.hop = true; rec.joined = true; return true; }
+        return false;
+    }
 }
 
 // --noaudio: no audio device at all in either page (as the node rig runs):
