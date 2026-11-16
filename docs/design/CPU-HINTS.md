@@ -1,6 +1,7 @@
 # The game's per-room CPU hints, and what the CPU AI modes use
 
-Status: survey done, door groups in use (branch `six-hints`).  Tool:
+Status: survey done; door groups, block breaking and reachable targets in
+use (branch `six-hints`).  Tool:
 `tools/cpu_hints.py ROM` (reads the ROM at run time; write its `--json`
 dumps to a scratch directory, never into the repository).  The brain that
 reads these hints: `docs/naming/cpu-brain.md`; the modes: `CPU-AI.md`.
@@ -122,21 +123,28 @@ Mansion room of the bug report: three sealed chambers, one door each) it
 gets the upper chambers right, but it links the lower chamber to the upper
 right one (node 6 -> node 3) through two rows of solid floor.  The room
 table (`gUnk_08D6CD0C`) has no notion of doors inside a room at all: 709's
-neighbours are 702, 704 and 707, and 578 of its 3912 multi-room paths cross
-a room from a door to a door the arrival cannot reach (counted at the
-"normal ability" tier below; 924 more cross rooms by edges, not judged).
+neighbours are 702, 704 and 707, and 1166 of its 3912 multi-room paths cross
+some room from an arrival to a door the collision map says it cannot reach
+at the "normal ability" tier below (1009 even breaking up to level 3; 873
+more cross rooms by edges or objects, not judged).  Some of those are
+switch or object passages the map cannot see, but the off-screen hops the
+stock brain uses this table for are warps, so it never noticed.
 
-**The collision map can.**  Flood the cells a floating Kirby can pass (not
-solid, not a Mini-only gap, a breakable block only if its ability breaks
-that level, chain blocks only if it can hit a trigger) from each door; doors
-in one flood are one group.  Compared over the 253 rooms with doors:
+**The collision map can.**  Flood the cells a floating Kirby can pass from
+a cell: not solid, not a Mini-only gap, a breakable block only if its
+ability breaks that level, and a chain block (0x240) only once the blast
+gets there -- from a chain trigger (0x1020) it can reach and break, through
+chain cells (0x40).  That last rule makes reachability directed (a chain
+set off from one side opens a way the other side cannot open), so the
+modes use, for every door into a room, the set of the room's doors its
+arrival cell reaches.  Over the 253 rooms with doors:
 
-| rooms with more than one door group | |
-|---|---|
-| nav graph (mutual next hops) | 73 |
-| collision map, breaking nothing | 95 |
-| collision map, breaking levels 0-1 and chain blocks (most abilities) | 34 |
-| collision map, breaking everything up to level 3 (Hammer) | 30 |
+| | breaking nothing | levels 0-1 and chains (most abilities) | to level 3 (Hammer) |
+|---|---|---|---|
+| rooms whose doors are not all mutually reachable | 95 | 53 | 48 |
+| entrances that do not reach every door of their room | 423 (140 rooms) | 234 (55 rooms) | 213 (47 rooms) |
+
+The nav graph (mutual next hops) splits 73 rooms.
 
 Door pairs (one door to another): the nav graph and the breaking-nothing
 flood agree on 1310 pairs; the nav graph says "reachable" where the flood
@@ -146,25 +154,62 @@ the two looping shaft rooms 180/181 (their doors lead into the same room),
 the other 20 in 132, 312, 605, 706, 709, 736, 743 (graph errors like 709's);
 the other way round, the graph has no route where the flood passes without
 breaking anything in 122 pairs (one-way drops in the graph, or flying the
-graph does not plan).  So the game's graph is the
-designers' "CPU paths" and treats breakables as open; the flood is the
-physical answer and matches the hand-checked rooms (709, 545, 108, 110).
+graph does not plan).  So the game's graph is the designers' "CPU paths"
+and treats breakables as open; the flood is the physical answer and matches
+the hand-checked rooms (709, 545, 108, 110).
 
 What the modes do now (`game/src/cpu_ai_modes.c`): the route is a breadth
-first search over (room, door group) states.  A door record (the solidity
-map's tag-3 cell record: door cell -> room, arrival cell) leads from its
-group to the group of its arrival cell (`unk0A - 1, unk0B - 1`) in the next
-room; the Kirby's own room uses its live collision map flooded from its
-cell (blocks already broken are open) and only doors that are on the map
-now.  The tier is the Kirby's current ability's (above).  The groups of
-every room are computed once per tier from the ROM maps and cached
-(pure function of the loaded data, rebuilt if the room tables change);
-`KATAM_CPUAI_LOG=3` prints them, and they match `tools/cpu_hints.py` in all
-253 rooms at both tiers compared.
+first search over door records (the solidity map's tag-3 cell records: door
+cell -> room, arrival cell `unk0A - 1, unk0B - 1`): taking a door leads to
+the doors its arrival cell reaches in the next room.  The Kirby's own room
+uses its live collision map flooded from its cell (blocks already broken are
+open) and only doors that are on the map now; a route never passes back
+through the room it starts in.  The tier is the Kirby's current ability's.
+The reach sets are computed once per tier from the ROM maps and cached (a
+pure function of the loaded data, rebuilt if the room tables change);
+`KATAM_CPUAI_LOG=3` prints them, and they match `tools/cpu_hints.py` for all
+724 doors at tiers 0, 1 and 3.
 
-### B. Breakable blocks in the way, C. unreachable targets
+### B. Breakable blocks in the way
 
-See the sections added with that work.
+**The hints say nothing useful here** beyond `gCpuBreakBlockChecks` (which
+level each ability breaks, used for the tiers): the nav graph routes
+straight through breakable blocks, and no script or trigger marks them.  So
+the modes use the live collision map: while walking to the chosen door
+(`BreakWay`), a breadth-first distance field from the door over the live
+map (at the Kirby's tier) gives the cell path; when a cell that is not open
+without breaking is within three steps, the Kirby goes to stand beside it
+(same row, or on top of it), lets the air out if it is flying, turns to it
+and runs the stock break check for its ability (`CpuBreakBlockCheck`, the
+call `CpuActDecide` makes).  A chain block is attacked through its trigger
+(the reachable trigger of the same chain).  The stock ACTION layer stands
+still near a point straight above or below it (its distance is |dx - dy|),
+so near the block it flaps up or lets the air out itself.
+
+### C. Unreachable targets
+
+Hints: none (no script asks for an ability; no switch data).  Map-based:
+
+- doors: the route only uses doors reachable as above, at the tier of the
+  ability it has (so a door behind level-2 blocks is not chosen by a
+  normal Kirby);
+- chests, shards, bosses, food: only targets whose cell the live flood
+  reaches (a sealed chamber's chest is not chased);
+- rooms wanted for an unopened chest: only if a chest is reachable from
+  the door it would enter by (ROM object list, same flood);
+- dead ends for door tiles (one-way rooms like 103, exits that are objects
+  -- cannons, warp stars -- or room edges): after 20 s without a route, the
+  stock warp to a neighbour from the brain's own room table (a wanted one
+  first), and that way back in is blocked for the brain;
+- a route whose only way on is straight back through the door just taken
+  blocks that door for the brain (two rooms no longer send it to and fro).
+
+Not done: fetching a needed ability (the data never names one; the map
+names only the breakable level, so "inhale an enemy that gives Hammer" would
+need an enemy-to-ability table and a plan), switches, objects that block
+or open passages (sliding doors, triggerable walls, star stone blocks),
+exits that are objects or room edges (only the warp fallback above), and
+BODYGUARD in the same room as its person but cut off from it.
 
 ## Coverage per area (rooms; all have a nav graph; real scripts)
 

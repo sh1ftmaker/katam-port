@@ -1420,6 +1420,12 @@ void CpuScanUnderwater(struct CpuBrain *brain) {
     }
 }
 
+/* PORT: CPU AI modes (cpu_ai_modes.c) -- the stock block-break check for
+ * the Kirby's ability, the call CpuActDecide makes. */
+bool16 CpuBreakBlockCheck(struct CpuBrain *brain) {
+    return CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain);
+}
+
 bool16 CpuBreakBlockNormal(struct CpuBrain *brain) {
     s8 r8 = brain->kirby->base.flags & 1 ? -1 : 1;
     s16 r2 = (brain->kirby->base.x >> 0xC) + r8;

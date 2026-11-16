@@ -180,12 +180,13 @@ def passable(a, tier):
 
 
 def flood(cells, w, h, at, start, tier):
-    """Cells a floating Kirby reaches from `start`: 4-neighbour moves into
-    passable cells (top-solid platforms count as passable: Kirby flies up
-    through them, and drops or walks round them)."""
-    def ok(i):
-        return passable(at[cells[i]], tier)
+    """Cells a floating Kirby reaches from `start` (game/src/cpu_ai_modes.c
+    Flood()): 4-neighbour moves into passable cells (top-solid platforms
+    count as passable: Kirby flies up through them, and drops or walks round
+    them).  A chain block opens only once the blast reaches it: from a chain
+    trigger (0x1020) the Kirby breaks, through chain cells (0x40)."""
     seen = bytearray(w * h)
+    ign = bytearray(w * h)
     q = collections.deque()
     for s in start:
         if 0 <= s < w * h:
@@ -195,11 +196,25 @@ def flood(cells, w, h, at, start, tier):
         i = q.popleft()
         x, y = i % w, i // w
         for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            if 0 <= nx < w and 0 <= ny < h:
-                j = ny * w + nx
-                if not seen[j] and ok(j):
-                    seen[j] = 1
-                    q.append(j)
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+            j = ny * w + nx
+            a = at[cells[j]]
+            if a & 0x1240 == 0x240:
+                if tier < 1 or not ign[i]:
+                    continue
+                g = 1
+            else:
+                if not passable(a, tier):
+                    continue
+                g = 1 if (a & 0x1020) == 0x1020 or (ign[i] and a & 0x40) else 0
+            if not seen[j]:
+                seen[j] = 1
+                ign[j] = g
+                q.append(j)
+            elif g and not ign[j]:
+                ign[j] = 1
+                q.append(j)
     return seen
 
 
@@ -255,7 +270,7 @@ def decode_room(rom, room, at):
     nav_gid = groups_of(doors, lambda i, j: nreach(doors[i]['node'], doors[j]['node']))
     # door groups: flood fill (no breaking / break anything)
     floods = {}
-    for tier, f in (('solid', 0), ('break', 3)):
+    for tier, f in (("solid", 0), ("break", 1), ("hammer", 3)):
         reach = []
         for d in doors:
             reach.append(flood(cells, w, h, at, [d['y'] * w + d['x']], f))
@@ -268,6 +283,7 @@ def decode_room(rom, room, at):
     return {'room': room, 'idx': p['unk22'], 'w': w, 'h': h, 'nodes': nav['nodes'], 'nodeMap': nm,
             'scripts': scripts, 'doors': doors, 'objects': objs, 'navGroups': nav_gid,
             'floodGroups': floods['solid'], 'floodGroupsBreak': floods['break'],
+            'floodGroupsHammer': floods['hammer'],
             'asym': asym, 'unreachPairs': unreach, 'breakables': dict(breakables),
             'table': room_table(rom, room), 'cells': cells}
 
@@ -293,7 +309,7 @@ def main():
     a = ap.parse_args()
     rom = rx.Rom(a.rom)
     at = attrs(rom)
-    rooms = a.room or rx.valid_rooms(rom)
+    rooms = rx.valid_rooms(rom)
     out = []
     for room in rooms:
         try:
@@ -301,9 +317,11 @@ def main():
         except rx.BadPointer as e:
             print('room %d: %s' % (room, e), file=sys.stderr)
 
+    entrances(out, at)
     if a.room:
         for d in out:
-            print_room(d, a.map)
+            if d['room'] in a.room:
+                print_room(d, a.map)
     elif a.groups:
         for d in out:
             if ngroups(d['navGroups']) > 1 or ngroups(d['floodGroups']) > 1:
@@ -315,7 +333,29 @@ def main():
     if a.json:
         for d in out:
             d.pop('cells')
+            d['entries'] = [list(e) for e in d['entries']]
         Path(a.json).write_text(json.dumps(out))
+
+
+def entrances(rooms, at):
+    """For every door into a room: the room's doors its arrival cell reaches
+    (cpu_ai_modes.c sHintReach), at tiers 0, 1 and 3.  Stored on the room
+    as d['entries'] = [(from room, arrival x, y, [mask t0, t1, t3])]."""
+    by = {d['room']: d for d in rooms}
+    for d in rooms:
+        d['entries'] = []
+    for src in rooms:
+        for x in src['doors']:
+            d = by.get(x['dest'])
+            if d is None:
+                continue
+            ax, ay, w = x['dx'] - 1, x['dy'] - 1, d['w']
+            masks = []
+            for tier in (0, 1, 3):
+                seen = flood(d['cells'], w, d['h'], at, [ay * w + ax], tier)
+                masks.append(sum(1 << i for i, y in enumerate(d['doors'][:32])
+                                 if seen[y['y'] * w + y['x']]))
+            d['entries'].append((src['room'], ax, ay, masks))
 
 
 def print_room(d, show_map):
@@ -330,6 +370,9 @@ def print_room(d, show_map):
         print('  door (%d,%d) -> room %d (%d,%d) node %d  nav group %d flood group %d (+break %d)' % (
             x['x'], x['y'], x['dest'], x['dx'], x['dy'], x['node'], d['navGroups'][i],
             d['floodGroups'][i], d['floodGroupsBreak'][i]))
+    for src, ax, ay, m in d.get('entries', []):
+        print('  entered from %d at (%d,%d): reaches doors %s (breaking nothing), %s (levels 0-1, chains), %s (to level 3)' % (
+            src, ax, ay, *[[i for i in range(len(d['doors'])) if mm >> i & 1] for mm in m]))
     for o in d['objects']:
         if o['type'] == 0x7F:
             print('  cpu trigger at (%d,%d) %s %s raise state to %d rect %s' % (
@@ -411,9 +454,14 @@ def survey(rooms):
     multi_nav = [d for d in rooms if ngroups(d['navGroups']) > 1]
     multi_fl = [d for d in rooms if ngroups(d['floodGroups']) > 1]
     multi_flb = [d for d in rooms if ngroups(d['floodGroupsBreak']) > 1]
-    print('door groups: rooms with doors %d; >1 group by nav graph %d, by flood (no breaking) %d, '
-          'by flood (breaking all) %d' % (sum(1 for d in rooms if d['doors']), len(multi_nav),
-                                          len(multi_fl), len(multi_flb)))
+    multi_flh = [d for d in rooms if ngroups(d['floodGroupsHammer']) > 1]
+    print('door groups (mutual): rooms with doors %d; >1 group by nav graph %d, by flood breaking nothing %d, '
+          'levels 0-1 + chains %d, to level 3 %d' % (sum(1 for d in rooms if d['doors']), len(multi_nav),
+                                                    len(multi_fl), len(multi_flb), len(multi_flh)))
+    for k, name in ((0, 'breaking nothing'), (1, 'breaking levels 0-1 and chains'), (2, 'breaking to level 3')):
+        rs = [d for d in rooms if any(m[k] != (1 << min(len(d['doors']), 32)) - 1 for _, _, _, m in d['entries'])]
+        ent = sum(1 for d in rooms for _, _, _, m in d['entries'] if m[k] != (1 << min(len(d['doors']), 32)) - 1)
+        print('  entrances that do not reach every door of the room (%s): %d in %d rooms' % (name, ent, len(rs)))
     same = sum(1 for d in rooms if d['doors'] and same_partition(d['navGroups'], d['floodGroups']))
     sameb = sum(1 for d in rooms if d['doors'] and same_partition(d['navGroups'], d['floodGroupsBreak']))
     print('  nav partition == flood partition: %d (no breaking), %d (breaking all) of %d rooms with doors' % (
