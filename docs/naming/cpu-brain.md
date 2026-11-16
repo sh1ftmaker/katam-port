@@ -386,6 +386,14 @@ place of a pad.  The brain never writes the Kirby's state directly, except
 review documents in this directory cite the decompilation and keep the old
 names.
 
-*(guess)*: `homeRoom`, `CPU_ACT_LADDER`, `CPU_ACT_SLIDE`, `CpuIsAboveLadder`,
+*(guess)*: `CPU_ACT_LADDER`, `CPU_ACT_SLIDE`, `CpuIsAboveLadder`,
 `CpuIsOnLadder`, `CpuIsHoldingThrow`, `CpuActLeaveFlight`, `CpuActWalkPause*`,
-`CpuActDash*`, `gCpuLinkedRooms`, `CPU_ACT_ROOM_397` (what room 0x397 is).
+`CpuActDash*`, `CPU_ACT_ROOM_397` (what room 0x397 is).
+
+Confirmed from the ROM data (`docs/design/CPU-HINTS.md`, `tools/cpu_hints.py`):
+`homeRoom` (the room a CPU falls back to: the hub once it leaves the
+opening; the warp target from rooms flagged 0x02 in `gUnk_08D6CD0C`);
+`gCpuLinkedRooms` (the eight (area entrance room, boss room) pairs: every
+first room carries `gUnk_08D6CD0C` flag 0x08, every second 0x01, same area);
+`CPU_OP_SET_ABILITY` (only ever used with 0xFFFF = drop the ability); the nav
+graph's node layout including the neighbour list in `filler26`.

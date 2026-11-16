@@ -222,3 +222,15 @@ menu_poc _ZL12kBrowseModel front-end BROWSE GAMES list model: its row count foll
 menu_poc _ZZL13LightSettingsPiE4copy scratch written before every read
 menu_poc _ZL8sCellGap scratch the fallback font's letter gap, set and restored within one BuildDesc
 menu_poc _ZL10sCellSpace scratch with sCellGap
+cpu_ai_modes sHintRec rom-cache CPU AI door groups (game/src/cpu_ai_modes.c): the solidity maps' door records, rebuilt from the loaded room data when it changes (sHintSig); a pure function of the ROM, the same on every device
+cpu_ai_modes sHintRoom rom-cache CPU AI door groups: each door record's room, rebuilt with sHintRec
+cpu_ai_modes sHintFirst rom-cache CPU AI door groups: each room's first door record, rebuilt with sHintRec
+cpu_ai_modes sHintCount rom-cache CPU AI door groups: each room's door record count, rebuilt with sHintRec
+cpu_ai_modes sHintTotal rom-cache CPU AI door groups: the door record count, rebuilt with sHintRec
+cpu_ai_modes sHintGroup rom-cache CPU AI door groups: per breaking tier, each door's group in its room's ROM collision map
+cpu_ai_modes sHintArrive rom-cache CPU AI door groups: per breaking tier, the group each door delivers into
+cpu_ai_modes sHintBuilt rom-cache CPU AI door groups: which of the tables above are built (a cache valid bit, never changes a result)
+cpu_ai_modes sHintSig rom-cache CPU AI door groups: the loaded room tables' signature the cache was built from
+cpu_ai_modes sHintCells scratch decompression buffer, written before every read
+cpu_ai_modes sHintLab scratch flood labels, written before every read
+cpu_ai_modes sHintQueue scratch flood queue, written before every read
