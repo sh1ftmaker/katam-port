@@ -50,6 +50,7 @@ cd "$ROOT"
 SUITES=$(cat <<'EOF'
 # name             slots needs  command                      (longest first)
 web-on-three       3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases three
+web-on-eight       3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases eight
 web-on-menu        2     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases menu,drop --play $PLAY
 rig                4     -      $RIG --jobs $W --rom "$ROM" --out "$D" --skip-r11
 web-rooms-2        2     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases rooms --rooms-pages 2
