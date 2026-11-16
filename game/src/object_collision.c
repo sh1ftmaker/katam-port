@@ -28,6 +28,7 @@ extern "C" {
 #include "constants/kirby.h"
 #include "constants/object_types.h"
 #include "prank.h"
+#include "star_stone_block.h"
 #include "soarar.h"
 #include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
@@ -210,6 +211,20 @@ static bool16 HandleObjectCollision(struct ObjectBase *attack, struct ObjectBase
                 object->base.unk6C = parent;
             }
         }
+#if KATAM_KIRBYS > 4
+        /* PORT: Kirbys 4.. (unk56 is the attacker's slot) do not fit the u8;
+         * on a star stone block they go to portContactHi (star_stone_block.h).
+         * On the u8 these writes changed nothing, so skipping them is the same. */
+        if (attack->unk56 >= 4) {
+            if (attack->unk56 < KATAM_KIRBYS && PORT_IS_STAR_STONE_BLOCK(object)) {
+                struct StarStoneBlock *block = (struct StarStoneBlock *)object;
+                u32 shift = (attack->unk56 - 4) * 2;
+
+                block->portContactHi &= ~(3u << shift);
+                block->portContactHi |= (attackFlags == 0x20000023 ? 2u : 1u) << shift;
+            }
+        } else
+#endif
         if (attackFlags == 0x20000023) {
             object->unk90 &= ~(3 << (attack->unk56 * 2));
             object->unk90 |= 2 << (attack->unk56 * 2);

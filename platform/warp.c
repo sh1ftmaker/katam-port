@@ -60,6 +60,10 @@
 #include "constants/kirby.h"
 #include "port/port.h"
 #include "port/simblock.h"
+#if KATAM_KIRBYS > 4
+#include "task.h"
+#include "star_stone_block.h"
+#endif
 
 /* C linkage for the 64-bit builds.
  *
@@ -241,6 +245,29 @@ void PortWarpReport(void)
             PortLog("[katam-port] at exit: player %u in room %u, hp %d", (unsigned)i,
                     (unsigned)gKirbys[i].base.roomId, (int)gKirbys[i].hp);
     }
+#if KATAM_KIRBYS > 4
+    /* and where each Kirby and each star stone block is, so a test of Kirbys 4.. pushing
+     * one (tests/wide_blocks.sh) can say whether it moved */
+    if (gPortWarpCount) {
+        u32 t;
+
+        for (t = 0; t < gNumKirbys && t < KATAM_KIRBYS; t++)
+            PortLog("[katam-port] at exit: player %u at %d,%d", (unsigned)t,
+                    (int)(gKirbys[t].base.x >> 8), (int)(gKirbys[t].base.y >> 8));
+        for (t = 0; t < MAX_TASK_NUM; t++) {
+            struct Task *task = &gTasks[t];
+            const struct Object *o;
+
+            if (!task->main || !task->structOffset)
+                continue;
+            o = (const struct Object *)TaskGetStructPtr(task);
+            if (o->base.header.kind == 1 && PORT_IS_STAR_STONE_BLOCK(o))
+                PortLog("[katam-port] at exit: star stone block %02X in room %u at %d,%d",
+                        (unsigned)o->type, (unsigned)o->base.roomId,
+                        (int)(o->base.x >> 8), (int)(o->base.y >> 8));
+        }
+    }
+#endif
     Res_LogNewRoomProgress();
 }
 
