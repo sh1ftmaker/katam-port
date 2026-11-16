@@ -86,9 +86,15 @@
 extern "C" {
 #endif
 
+/* Names are per Kirby slot (PORT_LN_SLOTS: four, the wide build one per
+ * slot); cards are per seat of this device (PORT_CARD_PLAYERS, four); paint
+ * is per slot of the simulation's paint table (kirby_paint.c: four). */
+#define CARD_SLOTS PORT_LN_SLOTS
+#define PAINT_SLOTS 4
+
 static struct PortCard sCards[PORT_CARD_PLAYERS];
-static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
-static int sSlotNamed[4];
+static char sSlotName[CARD_SLOTS][PORT_CARD_NAME_MAX + 1];
+static int sSlotNamed[CARD_SLOTS];
 
 /* The characters a name may hold, in the order Left / Right step through
  * them (space first: it ends a name). */
@@ -316,14 +322,14 @@ int PortCardFormatSettings(char *buf, int size)
 
 CARD_EXPORT const char *PortPlayerName(int slot)
 {
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= CARD_SLOTS)
         return "";
     if (sSlotNamed[slot])
         return sSlotName[slot];
     if (gPortLnOn)
         return "";          /* online: the session names its players */
-    if (!PortLmpSlotIsHuman(slot))
-        return "";
+    if (slot >= PORT_CARD_PLAYERS || !PortLmpSlotIsHuman(slot))
+        return "";          /* (a fifth person on one screen has no card) */
     return sCards[slot].name;   /* "" when the card has none */
 }
 
@@ -332,7 +338,7 @@ CARD_EXPORT u32 PortPlayerColor(int slot)
     u32 v;
     s32 rgb;
 
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= CARD_SLOTS)
         return 0xFFFFFF;
     v = PortPaintOfSlot(slot);
     if ((v & PORT_PAINT_KIND_MASK) == PORT_PAINT_CUSTOM)
@@ -344,7 +350,7 @@ CARD_EXPORT u32 PortPlayerColor(int slot)
 
 CARD_EXPORT void PortCardSetSlotName(int slot, const char *name)
 {
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= CARD_SLOTS)
         return;
     if (name == NULL || !name[0]) {
         sSlotNamed[slot] = 0;
@@ -360,7 +366,7 @@ CARD_EXPORT int PortPlayerTagAnchor(int slot, s32 *x, s32 *y, u16 *room)
 {
     const struct Kirby *k;
 
-    if (!gPortSettings.nameTags || slot < 0 || slot > 3 || !PortLmpSlotPerson(slot))
+    if (!gPortSettings.nameTags || slot < 0 || slot >= CARD_SLOTS || !PortLmpSlotPerson(slot))
         return 0;
     k = &gKirbys[slot];
     if (k->hp <= 0 || k->base.roomId == 0xFFFF || (k->base.flags & 0x100)
@@ -541,10 +547,10 @@ static u32 OwnerPaint(int own, const char **name, u32 *feet)
 
 CARD_EXPORT const char *PortCardSlotNames(void)
 {
-    static char buf[4 * (PORT_CARD_NAME_MAX + 1) + 4];
+    static char buf[CARD_SLOTS * (PORT_CARD_NAME_MAX + 1) + 4];
     int s, n = 0;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < CARD_SLOTS; s++)
         n += snprintf(buf + n, sizeof(buf) - (size_t)n, "%s%s", s ? "\t" : "", PortPlayerName(s));
     return buf;
 }
@@ -554,7 +560,7 @@ CARD_EXPORT void PortCardSetSlotNames(const char *names)
     const char *p = names;
     int s;
 
-    for (s = 0; s < 4; s++) {
+    for (s = 0; s < CARD_SLOTS; s++) {
         char one[PORT_CARD_NAME_MAX + 1];
         const char *tab = p ? strchr(p, '\t') : NULL;
         size_t n = p ? (tab ? (size_t)(tab - p) : strlen(p)) : 0;
@@ -574,7 +580,7 @@ CARD_EXPORT void PortCardSessionEnd(void)
 {
     int s;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < CARD_SLOTS; s++)
         PortCardSetSlotName(s, NULL);
     memset(sProfName, 0, sizeof(sProfName));
     memset(sProfPaint, 0, sizeof(sProfPaint));
@@ -691,13 +697,15 @@ void PortCardHostFrame(void)
          * from its cards, the guests' from the profiles they sent) */
         if (PortLnRole() != PORT_LN_HOST || PortLnCatchingUp())
             return;
-        for (s = 0; s < 4; s++) {
+        for (s = 0; s < CARD_SLOTS; s++) {
             const char *name;
             int own = PortLnSlotOwner(s);
             u32 feet, want = OwnerPaint(own, &name, &feet);
 
             if (strcmp(PortPlayerName(s), name) != 0)
                 PortCardSetSlotName(s, name);
+            if (s >= PAINT_SLOTS)
+                continue;       /* names only: paint is four slots wide */
             if (sEditing && own >= 0 && own < 4)
                 continue;       /* the host's own card is being edited */
             if (!Worn(s, want, feet))

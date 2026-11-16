@@ -965,6 +965,12 @@ static int SourceMapUsable(u32 a, s32 w, s32 h)
         return 1;
     if (a >= GBA_ROM_BASE && a + bytes <= GBA_ROM_BASE + gPortRomSize)
         return 1;
+#if KATAM_WIDE
+    /* the wide build's room slots live in the wide area (port/wide.h
+     * WIDE_OFF_RSEE0), past EWRAM in the port's sim block */
+    if (a >= WIDE_BASE && a + bytes <= WIDE_BASE + WIDE_BYTES)
+        return 1;
+#endif
     return 0;
 }
 

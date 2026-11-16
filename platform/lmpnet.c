@@ -1039,10 +1039,9 @@ static void SealSettings(u32 f)
     sDevSet[0] = PortPocSettingsWord();
     sDevExt[0] = PortPocSettingsExtWord();
     sDevSetOn |= 1;
-    /* Slots 0..3 only: the pause page's session copies (platform/menu_poc.c)
-     * and the cards' names (player_card.c) are four wide; a slot 4.. would
-     * be sealed again every frame.  (The presentation stage widens them.) */
-    for (s = 0; s < 4 && s < NSL; s++) {
+    /* Every slot: the pause page's session copies (platform/menu_poc.c)
+     * and the cards' names (player_card.c) are PORT_LN_SLOTS wide. */
+    for (s = 0; s < PORT_LN_SLOTS && s < NSL; s++) {
         int dev = s == 0 ? 0 : OwnDev(sOwn[s]);
         u32 have, haveExt;
 
@@ -1057,7 +1056,7 @@ static void SealSettings(u32 f)
     }
     /* and each slot's player's name, as the cards name them here (a CPU
      * slot: none) -- the ONLINE list draws these */
-    for (s = 0; s < 4 && s < NSL; s++) {
+    for (s = 0; s < PORT_LN_SLOTS && s < NSL; s++) {
         const char *n = (s == 0 || (sOwn[s] && PortLmpSlotPerson(s))) ? PortPlayerName(s) : "";
         u32 lo, hi;
 

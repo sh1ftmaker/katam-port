@@ -101,12 +101,18 @@ at the end of the block. Everything else keeps its name and position.
 ## Still four wide, on purpose
 
 - Seats per device (4): `lk`, `rk[dev][4]`, `PortLnSeatAsk`, `sLastLocal`.
-- The pause page's session copies and names (`PORT_LN_EV_PSET`, `_NAME`) are
-  sealed for slots 0..3 only. `menu_poc.c` and `player_card.c` keep four
-  (stage 5).
-- Paint (`PORT_LN_EV_PAINT`, `kirby_paint.c`): slots 0..3. Kirby i ≥ 4
-  shares hardware palette i & 3 until stage 6, so painting it would recolour
-  Kirby i − 4.
+- Paint (`PORT_LN_EV_PAINT`, `kirby_paint.c`): slots 0..3. The simulation's
+  paint table (`game.paint[4]`, `paintFeet[4]`, the `paintDirty` bits, in the
+  default build's sim block layout) and `PortPaintPaletteSlow` (a sprite's
+  `palId` taken as the slot) are four wide; Kirbys 4.. wear the game's own
+  colour.
+
+Stage 5 (branch `eight-hud`) widened the pause page's session copies and
+names: `PORT_LN_EV_PSET` and `_NAME` are sealed for every slot
+(`PORT_LN_SLOTS`), `menu_poc.c` keeps `POC_SLOTS` = `PORT_LN_SLOTS` copies
+(its host state, `PocHostState`, is that wide: same build only), and
+`player_card.c` names `PORT_LN_SLOTS` slots (`PortCardSlotNames` lists that
+many, tab-separated).
 - `PortLmpSlotIsHuman` / `PortLmpRequestHuman` in a session speak of a
   device's local seats 1..3, as before.
 

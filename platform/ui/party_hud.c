@@ -13,6 +13,10 @@
  *   - a CPU helper while it is in the group's room (the game's own icons in
  *     the top left already say where the absent ones are).
  *
+ * Up to three cards, as below.  The wide build (port/wide.h: up to sixteen
+ * Kirbys) can have more: past three, the cards over the play field are minis
+ * in a grid in the same corner ("the mini grid", below Compose's helpers).
+ *
  * A card is 16 HUD pixels tall: the game's own lives icon (the Kirby from
  * the bottom bar) in that Kirby's colours, a tag (2P..4P, or CPU), the
  * player's name from the player cards when they have one (PortPlayerName:
@@ -156,18 +160,26 @@ typedef struct {
     u16 pal[16];
 } NameTag;
 
+/* Kirbys the HUD knows: four, the wide build one per Kirby slot; a card for
+ * each but this screen's player. */
+#define PARTY_KIRBYS KATAM_KIRBYS
+#define PARTY_OTHERS (PARTY_KIRBYS - 1)
+
 typedef struct {
     u8 show;                /* the game's HUD is up                          */
     u8 n;                   /* cards                                         */
     u8 tag;                 /* the "1P" tag on the game's bar                */
     u8 p1slot, p1color, p1local;
     u8 lo[3], hi[3];        /* fade: c -> lo + c * (hi - lo) / 31            */
+#if KATAM_WIDE
+    u8 grid;                /* more than three cards: the mini grid (Layout) */
+#endif
     u16 p1pal[16];
-    Member m[3];
+    Member m[PARTY_OTHERS];
 } Party;
 
 static Party sNow;
-static NameTag sTags[4];    /* sampled with the party; independent of it   */
+static NameTag sTags[PARTY_KIRBYS]; /* sampled with the party; independent of it */
 static u8 sTagsShow;
 static Party sTagFade;      /* the HUD's fade, for the tags (lo/hi only)   */
 
@@ -190,11 +202,11 @@ void PortPartyHudSetView(int ok, int camX, int camY, int viewX, int viewY, int v
  * whole card -- icon, name, ability, lives -- then closes again.  Per slot,
  * per device, presentation only. */
 #define EXPAND_FRAMES 180
-static struct { u8 seen, hp, ability, lives, state, human; int left; } sWatch[4];
+static struct { u8 seen, hp, ability, lives, state, human; int left; } sWatch[PARTY_KIRBYS];
 
 static int WatchCard(const Member *m)
 {
-    int s = m->slot & 3;
+    int s = m->slot % PARTY_KIRBYS;
 
     if (!sWatch[s].seen || sWatch[s].hp != m->hp || sWatch[s].ability != m->ability
         || sWatch[s].lives != m->lives || sWatch[s].state != m->state || sWatch[s].human != m->human)
@@ -298,7 +310,7 @@ int PortPartyHudNameTags(void)
 {
     int s, n = 0;
 
-    for (s = 0; sTagsShow && s < 4; s++)
+    for (s = 0; sTagsShow && s < PARTY_KIRBYS; s++)
         n += sTags[s].on;
     return n;
 }
@@ -395,7 +407,7 @@ static void SampleTags(void)
 
     memset(sTags, 0, sizeof(sTags));
     sTagsShow = 0;
-    if (!gPortSettings.nameTags || !HudShowing() || gNumKirbys < 2 || gNumKirbys > 4 || !sView.ok)
+    if (!gPortSettings.nameTags || !HudShowing() || gNumKirbys < 2 || gNumKirbys > PARTY_KIRBYS || !sView.ok)
         return;
     for (s = 0; s < gNumKirbys; s++)
         people += IsHuman(s) != 0;
@@ -433,25 +445,29 @@ void PortPartyHudSample(void)
 
     memset(&p, 0, sizeof(p));
     SampleTags();
-    if (HudShowing() && gNumKirbys >= 2 && gNumKirbys <= 4)
+    if (HudShowing() && gNumKirbys >= 2 && gNumKirbys <= PARTY_KIRBYS)
         SampleHint();
     else {
         sHintText[0] = '\0';
         sHintKind = 0;
     }
-    if (!gPortSettings.partyHud || !HudShowing() || gNumKirbys < 2 || gNumKirbys > 4) {
+    if (!gPortSettings.partyHud || !HudShowing() || gNumKirbys < 2 || gNumKirbys > PARTY_KIRBYS) {
         SampleFade(&p);         /* the hint's fade */
         sNow = p;
-        for (s = 0; s < 4; s++)
+        for (s = 0; s < PARTY_KIRBYS; s++)
             sWatch[s].seen = 0;
         return;
     }
     p.show = 1;
+#if KATAM_WIDE
+    me = gLocalPlayerId < gNumKirbys ? gLocalPlayerId : 0;
+#else
     me = gLocalPlayerId & 3;
+#endif
     room = gKirbys[me].base.roomId;
     /* Humans first, then the CPUs, each by slot. */
     for (pass = 0; pass < 2; pass++) {
-        for (s = 0; s < gNumKirbys && n < 3; s++) {
+        for (s = 0; s < gNumKirbys && n < PARTY_OTHERS; s++) {
             const struct Kirby *k = &gKirbys[s];
             Member *m;
             int human = IsHuman(s) != 0;
@@ -481,12 +497,17 @@ void PortPartyHudSample(void)
             m->full = (u8)WatchCard(m);
         }
     }
-    for (s = 0; s < 4; s++) {   /* a card gone: it opens again when it is back */
+    for (s = 0; s < PARTY_KIRBYS; s++) {   /* a card gone: it opens again when it is back */
         if (sWatch[s].seen == 2)
             sWatch[s].seen = 1;
         else
             sWatch[s].seen = 0;
     }
+#if KATAM_WIDE
+    if (n > 3)                  /* the mini grid: no card opens (Compose) */
+        for (s = 0; s < n; s++)
+            p.m[s].full = 0;
+#endif
     p.n = (u8)n;
     p.tag = n > 0;
     p.p1slot = (u8)me;
@@ -511,7 +532,7 @@ void PortPartyHudSample(void)
 
             fprintf(f, "%u room=%u hud=%08X n=%d", (unsigned)PortFrameNumber(), room,
                     (unsigned)gUnk_0203AD10, n);
-            for (i = 0; i < 4 && i < gNumKirbys; i++)
+            for (i = 0; i < PARTY_KIRBYS && i < gNumKirbys; i++)
                 fprintf(f, " [%d h%d/%d l%d a%d c%d r%u%s]", i, gKirbys[i].hp, gKirbys[i].maxHp,
                         gKirbys[i].lives, gKirbys[i].ability, gKirbys[i].color,
                         gKirbys[i].base.roomId, IsHuman(i) ? " H" : "");
@@ -523,15 +544,23 @@ void PortPartyHudSample(void)
 
 /* --- pictures ------------------------------------------------------------- */
 
-/* Wide enough for a card with an eight-letter name and a twelve-pip bar. */
+/* Wide enough for a card with an eight-letter name and a twelve-pip bar;
+ * tall enough for three whole cards.  The wide build: also seven whole cards
+ * stacked (the bar beside the picture) and the mini grid of up to 15. */
+#if KATAM_WIDE
+#define CANVAS_W 136
+#define CANVAS_H ((PARTY_OTHERS > 7 ? 7 : PARTY_OTHERS) * 20 + 4)
+#else
 #define CANVAS_W 120
+#define CANVAS_H 64
+#endif
 
 /* Pixels are composed as GBA colours with an alpha and only turned into
  * RGBA (faded, premultiplied) at the end. */
 typedef struct {
     int w, h;
-    u16 c[CANVAS_W * 64];
-    u8 a[CANVAS_W * 64];
+    u16 c[CANVAS_W * CANVAS_H];
+    u8 a[CANVAS_W * CANVAS_H];
 } Canvas;
 
 static void Put(Canvas *cv, int x, int y, u16 c, u8 a)
@@ -875,19 +904,96 @@ static void CompactCard(Canvas *cv, int x0, int y, const Member *m)
         Text(cv, x + 2, y + 1, label, m->state == ST_AWAY ? AWAY_INK : KO_INK, 0, 1, 255);
 }
 
+#if KATAM_WIDE
+/* --- the mini grid (the wide build: more than three cards) -------------------
+ * Seven others do not fit the corner as a column: seven compact cards are 82
+ * HUD pixels tall, half the picture.  So past three the cards over the play
+ * field are minis, in a grid of up to four rows hugging the top right corner
+ * (two columns for 4..7 others, three for 8..11, four for 12..15), filled a
+ * row at a time in the cards' order (people first, then CPUs, by slot).  A
+ * mini is the tag and a health bar of 2-pixel pips, or the tag and the state
+ * word in place of the bar (AWAY, KO, OUT: words, as on the other cards);
+ * every mini of a grid is as wide as the widest, so the columns line up.  A
+ * mini never opens to the whole card: with this many, the corner would be
+ * covered.  (The bar beside the picture, when the window has one tall
+ * enough, still shows them all whole: Layout.)  One to three others: the
+ * cards as they always were. */
+#define GRID_ROWS 4
+
+static int GridCols(int n) { return (n + GRID_ROWS - 1) / GRID_ROWS; }
+
+static int MiniBarW(const Member *m) { return m->maxHp * 2 + 1; }
+
+static int MiniWidth(const Member *m)
+{
+    char tag[4];
+    const char *label = StateLabel(m);
+
+    TagFor(m, tag);
+    return TextW(tag) + 4 + 1 + (label ? 1 + TextW(label) : MiniBarW(m));
+}
+
+/* The health bar with 2-pixel pips: an edge column and a fill column each. */
+static void MiniBar(Canvas *cv, int x, int y, int hp, int maxHp, const u16 *pal, u8 a)
+{
+    int w = maxHp * 2 + 1, i, r;
+
+    for (r = 0; r < 8; r++)
+        for (i = 0; i < w; i++) {
+            u16 c;
+
+            if (r == 0 || r == 7) {
+                if (i == 0 || i == w - 1)
+                    continue;
+                c = pal[7];
+            } else if (i % 2 == 0) {
+                c = pal[7];
+            } else if (i / 2 < hp) {
+                c = r == 1 ? pal[8] : r == 6 ? pal[3] : pal[1];
+            } else {
+                c = pal[6];
+            }
+            Put(cv, x + i, y + r, c, a);
+        }
+}
+
+static void MiniCard(Canvas *cv, int x0, int y, const Member *m)
+{
+    const char *label = StateLabel(m);
+    int x = x0 + CardTag(cv, x0, y, m, 255);
+
+    if (label)
+        Text(cv, x + 2, y + 1, label, m->state == ST_AWAY ? AWAY_INK : KO_INK, 0, 1, 255);
+    else
+        MiniBar(cv, x + 1, y, m->hp, m->maxHp, m->pal, 255);
+}
+
+/* A mini's plate: the widest mini's content, 2 columns of edge and space
+ * each side. */
+static int MiniCellW(const Party *p)
+{
+    int i, w = 0;
+
+    for (i = 0; i < p->n; i++)
+        if (MiniWidth(&p->m[i]) + 4 > w)
+            w = MiniWidth(&p->m[i]) + 4;
+    return w;
+}
+#endif
+
 /* Composed canvases and what they were composed from. */
 #define HINT_W 192
-static Canvas sCards, sTag, sHint, sNameTag[4];
+static Canvas sCards, sTag, sHint, sNameTag[PARTY_KIRBYS];
 static u32 sHintPx[HINT_W * COMPACT_PLATE_H];
 static Party sComposed;
 static int sHaveComposed;
-static u32 sCardsPx[CANVAS_W * 64], sTagPx[16 * 8];
-static u32 sNameTagPx[4][CANVAS_W * 10];
-static NameTag sNameTagDrawn[4];
-static u8 sNameTagFade[4][6];
-static u8 sNameTagUpload[4];         /* composed, not yet sent to the GPU */
+static u32 sCardsPx[CANVAS_W * CANVAS_H], sTagPx[16 * 8];
+static u32 sNameTagPx[PARTY_KIRBYS][CANVAS_W * 10];
+static NameTag sNameTagDrawn[PARTY_KIRBYS];
+static u8 sNameTagFade[PARTY_KIRBYS][6];
+static u8 sNameTagUpload[PARTY_KIRBYS];  /* composed, not yet sent to the GPU */
 /* Where each card's plate is in the composed canvas: x y w h. */
-static int sCardBox[3][4];
+static int sCardBox[PARTY_OTHERS][4];
 
 /* Into premultiplied RGBA, through the HUD's fade; `alpha` (0..255) scales
  * the whole canvas (the name tags are a little see-through). */
@@ -919,6 +1025,16 @@ static void CardsSize(const Party *p, int *w, int *h)
     int i;
 
     *w = *h = 0;
+#if KATAM_WIDE
+    if (p->grid) {
+        int cols = GridCols(p->n), rows = (p->n + cols - 1) / cols;
+
+        *w = cols * MiniCellW(p) + (cols - 1) * CARD_GAP;
+        *h = rows * COMPACT_PLATE_H + (rows - 1) * CARD_GAP;
+        if (*w > CANVAS_W) *w = CANVAS_W;
+        return;
+    }
+#endif
     for (i = 0; i < p->n; i++) {
         const Member *m = &p->m[i];
         int mw = PlateW(m);
@@ -927,12 +1043,33 @@ static void CardsSize(const Party *p, int *w, int *h)
         *h += PlateH(m) + (i ? CARD_GAP : 0);
     }
     if (*w > CANVAS_W) *w = CANVAS_W;
+    if (*h > CANVAS_H) *h = CANVAS_H;
 }
 
 static void Compose(const Party *p)
 {
     int i, w, h, wFull = 0, y;
 
+#if KATAM_WIDE
+    if (p->grid) {
+        int cols = GridCols(p->n), cw = MiniCellW(p);
+
+        CardsSize(p, &w, &h);
+        memset(&sCards, 0, sizeof(sCards));
+        sCards.w = w;
+        sCards.h = h;
+        for (i = 0; i < p->n; i++) {
+            const Member *m = &p->m[i];
+            int px = (i % cols) * (cw + CARD_GAP), py = (i / cols) * (COMPACT_PLATE_H + CARD_GAP);
+
+            Plate(&sCards, px, py, cw, COMPACT_PLATE_H, EdgeOf(m));
+            MiniCard(&sCards, px + 2, py + 1, m);
+            sCardBox[i][0] = px; sCardBox[i][1] = py; sCardBox[i][2] = cw; sCardBox[i][3] = COMPACT_PLATE_H;
+        }
+        Finish(&sCards, sCardsPx, p, 255);
+        goto tag;
+    }
+#endif
     for (i = 0; i < p->n; i++)
         if (p->m[i].full && PlateW(&p->m[i]) > wFull)
             wFull = PlateW(&p->m[i]);
@@ -957,6 +1094,9 @@ static void Compose(const Party *p)
     }
     Finish(&sCards, sCardsPx, p, 255);
 
+#if KATAM_WIDE
+tag:
+#endif
     memset(&sTag, 0, sizeof(sTag));
     {
         char t[4];
@@ -1037,14 +1177,14 @@ static void Emit(const Target *t, int slot, const u32 *px, int w, int h, int dir
  * own players' on a plate of their colour.  Under the cards. */
 static void DrawNameTags(const Target *tg, const int world[4], double scale)
 {
-    double kx, ky, rx[4], ry[4], rw[4], rh[4];
-    int s, on[4], dirty[4], moved, pass;
+    double kx, ky, rx[PARTY_KIRBYS], ry[PARTY_KIRBYS], rw[PARTY_KIRBYS], rh[PARTY_KIRBYS];
+    int s, on[PARTY_KIRBYS], dirty[PARTY_KIRBYS], moved, pass;
 
     if (!sTagsShow || !sView.ok || scale <= 0.0)
         return;
     kx = (double)world[2] / sView.viewW;
     ky = (double)world[3] / sView.viewH;
-    for (s = 0; s < 4; s++) {
+    for (s = 0; s < PARTY_KIRBYS; s++) {
         NameTag *t = &sTags[s];
         Canvas *cv = &sNameTag[s];
 
@@ -1080,11 +1220,11 @@ static void DrawNameTags(const Target *tg, const int world[4], double scale)
         on[s] = 1;
     }
     /* Kirbys side by side: a tag that would cover another goes up a row. */
-    for (pass = 0, moved = 1; moved && pass < 4; pass++) {
+    for (pass = 0, moved = 1; moved && pass < PARTY_KIRBYS; pass++) {
         int a, b;
 
         moved = 0;
-        for (a = 0; a < 4; a++)
+        for (a = 0; a < PARTY_KIRBYS; a++)
             for (b = 0; b < a; b++)
                 if (on[a] && on[b] && rx[a] < rx[b] + rw[b] && rx[b] < rx[a] + rw[a]
                     && ry[a] < ry[b] + rh[b] && ry[b] < ry[a] + rh[a]) {
@@ -1092,7 +1232,7 @@ static void DrawNameTags(const Target *tg, const int world[4], double scale)
                     moved = 1;
                 }
     }
-    for (s = 0; s < 4; s++) {
+    for (s = 0; s < PARTY_KIRBYS; s++) {
         if (!on[s] || ry[s] < world[1] || ry[s] + rh[s] > world[1] + world[3])
             continue;               /* off the top or bottom: no tag */
         Emit(tg, 3 + s, sNameTagPx[s], sNameTag[s].w, sNameTag[s].h, dirty[s],
@@ -1105,7 +1245,7 @@ static void DrawNameTags(const Target *tg, const int world[4], double scale)
  * the cards' stack x y w h, 1 if in a bar beside or above the picture, how
  * many were drawn whole; each card's plate; the hint's box. */
 /* (sCardsAt is declared with the getters above) */
-static int sCardAt[3][4];
+static int sCardAt[PARTY_OTHERS][4];
 static int sHintAt[4];
 static double sCardScaleNow;
 
@@ -1130,7 +1270,10 @@ static void Layout(const Target *tg, const int world[4], double scale, int strip
 {
     const Party *p = &sNow;
     Party whole;
-    int dirty = 0, inBand = 0, w, h, i, moved;
+#if KATAM_WIDE
+    Party mini;
+#endif
+    int dirty = 0, inBand = 0, w, h, i, moved, bandOk = 1;
     double left, right, top, bottom, cw, ch, x = 0, y = 0, gap, sc, cardScale;
 
     sCardsAt[0] = sCardsAt[1] = sCardsAt[2] = sCardsAt[3] = sCardsAt[4] = sCardsAt[5] = 0;
@@ -1161,16 +1304,23 @@ static void Layout(const Target *tg, const int world[4], double scale, int strip
         whole = *p;
         for (i = 0; i < whole.n; i++)
             whole.m[i].full = 1;
+#if KATAM_WIDE
+        whole.grid = 0;
+        bandOk = whole.n <= 7;  /* (CANVAS_H) */
+#endif
         CardsSize(&whole, &w, &h);
         /* from the HUD's own scale (a whole number, and no smaller than
          * reading needs, CardScale) down to half of it */
         sc = scale >= 2.0 ? (double)(int)scale : scale;
         if (sc < dpr * 1.5)
             sc = (double)(int)(dpr * 1.5 + 0.999);
-        for (; !inBand && (sc >= scale / 2 || sc >= dpr * 1.5 - 0.001) && sc >= 1.0 && sc >= dpr * 1.5 - 0.001; sc -= 1.0) {
+        for (; bandOk && !inBand && (sc >= scale / 2 || sc >= dpr * 1.5 - 0.001) && sc >= 1.0 && sc >= dpr * 1.5 - 0.001; sc -= 1.0) {
             double bw = w * sc, bh = h * sc, g = 2 * sc;
 
+            /* (more than three whole cards: the column must also fit the
+             * window's height -- one to three always have) */
             if (tg->fbW - (world[0] + world[2]) >= bw + 2 * g
+                && (whole.n <= 3 || top + g + bh <= tg->fbH)
                 && !HitsKeepOut(world[0] + world[2] + g, top + g, bw, bh)) {
                 x = (double)(int)(world[0] + world[2] + g + 0.5);     /* the right bar */
                 y = (double)(int)(top + g + 0.5);
@@ -1187,6 +1337,13 @@ static void Layout(const Target *tg, const int world[4], double scale, int strip
         if (inBand)
             p = &whole;
         else {
+#if KATAM_WIDE
+            if (p->n > 3) {     /* over the play field: the mini grid */
+                mini = *p;
+                mini.grid = 1;
+                p = &mini;
+            }
+#endif
             CardsSize(p, &w, &h);
             cardScale = CardScale(scale, dpr, world, w, h);
         }
@@ -1321,7 +1478,7 @@ void PortPartyHudDrawSoft(u32 *pixels, int w, int h)
     memcpy(keep, sKeep, sizeof(keep));
     memset(sKeep, 0, sizeof(sKeep));
     sHaveComposed = 0;          /* the overlays' uploads are not ours */
-    for (k = 0; k < 4; k++)
+    for (k = 0; k < PARTY_KIRBYS; k++)
         sNameTagUpload[k] = 1;
     Layout(&t, world, 1.0, 0, 0.0);
     memcpy(sKeep, keep, sizeof(keep));

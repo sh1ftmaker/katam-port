@@ -47,6 +47,7 @@
 #include <math.h>
 
 #include "port/port.h"
+#include "port/wide.h"          /* KATAM_KIRBYS: the party HUD's name tags */
 #include "render/gl_api.h"
 #include "render/gl_renderer.h"
 #include "render/relief_glsl.h"
@@ -2648,7 +2649,9 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * texture per slot, re-uploaded only when the caller says the pixels
  * changed, drawn with the HUD program (premultiplied, nearest or sharp
  * bilinear). */
-#define GLR_OVERLAYS 8
+/* Slots: 0 the cards, 1 the "1P" tag, 2 the hint, 3.. a name tag per Kirby
+ * (8 with four Kirbys). */
+#define GLR_OVERLAYS (4 + KATAM_KIRBYS)
 static struct { GLuint tex; int w, h; } sOvl[GLR_OVERLAYS];
 
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,

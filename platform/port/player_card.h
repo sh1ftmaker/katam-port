@@ -97,7 +97,8 @@ int  PortCardHostApplyProfile(int slot, const char *profile);
  * each slot's paint from its owner (PortLnSlotOwner): the host's own seats
  * from its cards, a guest's from its profiles, a CPU slot (or one whose
  * owner's profile has not arrived) the game's own colour.  The host names
- * every slot likewise (PortCardSlotNames: four names, tab-separated) and the
+ * every slot likewise (PortCardSlotNames: a name per Kirby slot,
+ * PORT_LN_SLOTS of them -- four; the wide build N -- tab-separated) and the
  * page relays them; a guest applies them with PortCardSetSlotNames. */
 const char *PortCardSeatProfiles(void);
 void PortCardHostSetProfiles(int dev, const char *profiles);   /* dev 1..3 */

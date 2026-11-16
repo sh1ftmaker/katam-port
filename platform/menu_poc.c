@@ -908,6 +908,17 @@ static const char *const kPartyName[] = { "OFF", "PLAYERS", "ALL" };
 static const unsigned kBorder[4] = { 0x000000, 0x0C0E11, 0x2A2E36, 0x3A2A55 };
 static const char *const kBorderName[5] = { "BLACK", "DARK", "GREY", "PURPLE", "OTHER" };
 
+/* The ONLINE list's Kirby slots and the pause page's per-slot session copies
+ * (settings, names): PORT_LN_SLOTS -- four, the wide build one per Kirby
+ * slot -- and a mask with a bit for each. */
+#define POC_SLOTS PORT_LN_SLOTS
+#if POC_SLOTS > 8
+typedef u16 PocSlotMask;
+#else
+typedef u8 PocSlotMask;
+#endif
+#define IS_SLOT_ITEM(it) ((it) >= IT_SLOT0 && (it) <= IT_SLOT_LAST)
+
 enum {
     IT_NONE,
     /* the top level */
@@ -921,9 +932,9 @@ enum {
     IT_VOLUME, IT_MUTE,
     /* PLAYERS */
     IT_PLAYERS, IT_PARTY, IT_TAGS, IT_TOUCH,
-    /* ONLINE: the code, the mode, then the four Kirbys (rows ordered by
-     * device, RowSlot) */
-    IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT1, IT_SLOT2, IT_SLOT3,
+    /* ONLINE: the code, the mode, then a row per Kirby slot (four; the
+     * wide build's POC_SLOTS; rows ordered by device, RowSlot) */
+    IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT_LAST = IT_SLOT0 + POC_SLOTS - 1,
     /* GAME */
     IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
     IT_SIZES, IT_ABIL, IT_RESET,
@@ -992,9 +1003,45 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_CODE]        = { "CODE", K_INFO, "TELL A FRIEND THIS CODE" },
     [IT_MODE]        = { "MODE", K_INFO, "CHOSEN BY THE HOST" },
     [IT_SLOT0]       = { "", K_PLAYER, "" },
-    [IT_SLOT1]       = { "", K_PLAYER, "" },
-    [IT_SLOT2]       = { "", K_PLAYER, "" },
-    [IT_SLOT3]       = { "", K_PLAYER, "" },
+    [IT_SLOT0 + 1]   = { "", K_PLAYER, "" },
+    [IT_SLOT0 + 2]   = { "", K_PLAYER, "" },
+    [IT_SLOT0 + 3]   = { "", K_PLAYER, "" },
+#if POC_SLOTS > 4
+    [IT_SLOT0 + 4]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 5
+    [IT_SLOT0 + 5]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 6
+    [IT_SLOT0 + 6]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 7
+    [IT_SLOT0 + 7]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 8
+    [IT_SLOT0 + 8]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 9
+    [IT_SLOT0 + 9]    = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 10
+    [IT_SLOT0 + 10]   = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 11
+    [IT_SLOT0 + 11]   = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 12
+    [IT_SLOT0 + 12]   = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 13
+    [IT_SLOT0 + 13]   = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 14
+    [IT_SLOT0 + 14]   = { "", K_PLAYER, "" },
+#endif
+#if POC_SLOTS > 15
+    [IT_SLOT0 + 15]   = { "", K_PLAYER, "" },
+#endif
     [IT_EXPORT]      = { "EXPORT SAVE", K_ACTION, "A DOWNLOADS A COPY - BACKUP" },
     [IT_IMPORT]      = { "IMPORT SAVE", K_ACTION, "LOAD A SAV FILE" },
     [IT_DELSAVE]     = { "DELETE SAVE", K_CONFIRM, "ERASE THE STORED SAVE" },
@@ -1045,7 +1092,46 @@ static const u8 kPlayersItems[] = {
     IT_TOUCH,
 #endif
 };
-static const u8 kOnlineItems[] = { IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT1, IT_SLOT2, IT_SLOT3 };
+static const u8 kOnlineItems[] = {
+    IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT0 + 1, IT_SLOT0 + 2, IT_SLOT0 + 3,
+    /* the wide build: one row more per Kirby slot (the list scrolls) */
+#if POC_SLOTS > 4
+    IT_SLOT0 + 4,
+#endif
+#if POC_SLOTS > 5
+    IT_SLOT0 + 5,
+#endif
+#if POC_SLOTS > 6
+    IT_SLOT0 + 6,
+#endif
+#if POC_SLOTS > 7
+    IT_SLOT0 + 7,
+#endif
+#if POC_SLOTS > 8
+    IT_SLOT0 + 8,
+#endif
+#if POC_SLOTS > 9
+    IT_SLOT0 + 9,
+#endif
+#if POC_SLOTS > 10
+    IT_SLOT0 + 10,
+#endif
+#if POC_SLOTS > 11
+    IT_SLOT0 + 11,
+#endif
+#if POC_SLOTS > 12
+    IT_SLOT0 + 12,
+#endif
+#if POC_SLOTS > 13
+    IT_SLOT0 + 13,
+#endif
+#if POC_SLOTS > 14
+    IT_SLOT0 + 14,
+#endif
+#if POC_SLOTS > 15
+    IT_SLOT0 + 15,
+#endif
+};
 static const u8 kGameItems[] = {
     IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
     IT_SIZES, IT_ABIL, IT_RESET,
@@ -1156,13 +1242,13 @@ static void StatusLine(int n, char *out, int max)
  * Nothing in gPortSettings is ever read for drawing in a session, and
  * nothing a device does to itself reaches the simulation but through the
  * host's sealed events.  Off, none of this runs. */
-static u32 sSlotSet[4];             /* packed (PocPack), valid if sSlotSetOn */
-static u8 sSlotSetOn;               /* bit per slot                          */
-static u16 sSlotExt[4];             /* per slot: the other files' online rows */
+static u32 sSlotSet[POC_SLOTS];     /* packed (PocPack), valid if sSlotSetOn */
+static PocSlotMask sSlotSetOn;      /* bit per slot                          */
+static u16 sSlotExt[POC_SLOTS];     /* per slot: the other files' online rows */
 /* Each slot's player's name as the host sealed it (PORT_LN_EV_NAME): names
  * are relayed to the guests as presentation, so the list in game memory
  * draws these, which every device applies at the same frame. */
-static char sSlotName[4][PORT_CARD_NAME_MAX + 1];
+static char sSlotName[POC_SLOTS][PORT_CARD_NAME_MAX + 1];
 static u8 sConfirmArg;              /* REMOVE: the slot asked about; CPU
                                      * KIRBYS: the Kirbys in all asked for    */
 static u8 sConfirmRow;              /* CPU KIRBYS: the row that asked         */
@@ -1259,11 +1345,11 @@ u32 PortPocSettingsExtWord(void)
 /* A sealed PORT_LN_EV_PSET (platform/lmpnet.c ApplyEvents). */
 void PortPocSlotSettingsSet(int slot, u32 word, u32 ext)
 {
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= POC_SLOTS)
         return;
     sSlotExt[slot] = (u16)ext;
     sSlotSet[slot] = word;
-    sSlotSetOn |= (u8)(1u << slot);
+    sSlotSetOn |= (PocSlotMask)(1u << slot);
 }
 
 /* A sealed PORT_LN_EV_NAME, and what the host compares before sealing. */
@@ -1271,7 +1357,7 @@ void PortPocSlotNameSet(int slot, u32 lo, u32 hi)
 {
     int i;
 
-    if (slot < 0 || slot > 3)
+    if (slot < 0 || slot >= POC_SLOTS)
         return;
     for (i = 0; i < 8 && i < PORT_CARD_NAME_MAX; i++) {
         u32 w = i < 4 ? lo : hi;
@@ -1295,13 +1381,13 @@ void PortPocNameWords(const char *name, u32 *lo, u32 *hi)
 
 int PortPocSlotNameSame(int slot, const char *name)
 {
-    return slot >= 0 && slot < 4 && strncmp(sSlotName[slot], name, PORT_CARD_NAME_MAX) == 0;
+    return slot >= 0 && slot < POC_SLOTS && strncmp(sSlotName[slot], name, PORT_CARD_NAME_MAX) == 0;
 }
 
 /* The host, before sealing: what slot `slot`'s copy holds (-1: none). */
 int PortPocSlotSettingsHave(int slot, u32 *word, u32 *ext)
 {
-    if (slot < 0 || slot > 3 || !(sSlotSetOn & (1u << slot)))
+    if (slot < 0 || slot >= POC_SLOTS || !(sSlotSetOn & (1u << slot)))
         return 0;
     *word = sSlotSet[slot];
     *ext = sSlotExt[slot];
@@ -1338,7 +1424,7 @@ static const char *SessionCode(void)
 /* The player whose pause menu this is (the simulation's: gUnk_0203AD50). */
 static int Pauser(void)
 {
-    return gUnk_0203AD50 < 4 ? gUnk_0203AD50 : 0;
+    return gUnk_0203AD50 < POC_SLOTS ? gUnk_0203AD50 : 0;
 }
 
 /* The settings the page shows: this device's own; in a session the copy of
@@ -1423,20 +1509,38 @@ static int PauserIsHost(void)
     return SlotDevice(Pauser()) == 0;
 }
 
+/* Has slot s a Kirby in the world?  Always, with four; the wide build's
+ * count changes in play (platform/wide.c), and its list has a row for every
+ * slot the module has.  A person's slot counts as soon as the join is held
+ * (its Kirby follows). */
+static int SlotExists(int s)
+{
+#if KATAM_WIDE
+    return s < gNumKirbys || SlotDevice(s) >= 0;
+#else
+    (void)s;
+    return 1;
+#endif
+}
+
 /* The slot shown on row k of the list: by device (the host's first, then
- * each guest's), so Kirbys that share a device sit together; the CPU last. */
+ * each guest's), so Kirbys that share a device sit together; the CPU last,
+ * and last of all (the wide build) the slots with no Kirby now. */
 static int RowSlot(int k)
 {
-    int order[4], n = 0, d, s;
+    int order[POC_SLOTS], n = 0, d, s;
 
     for (d = 0; d < PORT_LN_MAX_DEV; d++)
-        for (s = 0; s < 4; s++)
+        for (s = 0; s < POC_SLOTS; s++)
             if (SlotDevice(s) == d)
                 order[n++] = s;
-    for (s = 0; s < 4; s++)
-        if (SlotDevice(s) < 0)
+    for (s = 0; s < POC_SLOTS; s++)
+        if (SlotDevice(s) < 0 && SlotExists(s))
             order[n++] = s;
-    return order[k & 3];
+    for (s = 0; s < POC_SLOTS; s++)
+        if (SlotDevice(s) < 0 && !SlotExists(s))
+            order[n++] = s;
+    return order[(unsigned)k % POC_SLOTS];
 }
 
 static void SlotWho(int s, char *buf, int size)
@@ -1452,24 +1556,25 @@ static void SlotWho(int s, char *buf, int size)
  * until it fits beside the device. */
 static const char *SlotLabel(int k)
 {
-    static char lbl[4][24];
+    static char lbl[POC_SLOTS][24];
     char who[12], name[PORT_CARD_NAME_MAX + 1];
     int s = RowSlot(k), n;
 
+    k = (int)((unsigned)k % POC_SLOTS);
     if (!gPortLnOn) {
-        snprintf(lbl[k & 3], sizeof lbl[0], "%dP", k + 1);
-        return lbl[k & 3];
+        snprintf(lbl[k], sizeof lbl[0], "%dP", k + 1);
+        return lbl[k];
     }
     SlotWho(s, who, sizeof who);
     snprintf(name, sizeof name, "%s", SlotDevice(s) < 0 ? "" : sSlotName[s]);
     Drawable(name, PORT_CARD_NAME_MAX);
     for (n = (int)strlen(name); ; n--) {
         name[n] = '\0';
-        snprintf(lbl[k & 3], sizeof lbl[0], "%dP%s%s", s + 1, n ? " " : "", name);
-        if (n == 0 || LBL_TEXT_LEFT + CellWidth(lbl[k & 3]) + 8 + CellWidth(who) <= ROW_VALUE_X1)
+        snprintf(lbl[k], sizeof lbl[0], "%dP%s%s", s + 1, n ? " " : "", name);
+        if (n == 0 || LBL_TEXT_LEFT + CellWidth(lbl[k]) + 8 + CellWidth(who) <= ROW_VALUE_X1)
             break;
     }
-    return lbl[k & 3];
+    return lbl[k];
 }
 
 /* Drawable text: the fallback font's letters, upper case. */
@@ -1524,10 +1629,40 @@ int PortPocKirbysMax(void)
     return KATAM_KIRBYS;
 }
 
+/* More than four Kirbys are drawn by the ENHANCED (GPU) renderer only: the
+ * CLASSIC one shows what the console could, four Kirbys' sprite memory, so
+ * Kirbys 5.. come out as another Kirby's pose and colours (port/wide.h
+ * KATAM_KIRBY_TILES).  So with CLASSIC (or the 2D fallback) the count may
+ * come down but not go above four, and GRAPHICS cannot go to CLASSIC while
+ * more than four are in the world (ItemWhyNot).  Device state: never asked
+ * in a session (KirbysWhyNot). */
+static int KirbysCanShow(void)
+{
+    return PortShowUsingGpu();
+}
+
+/* Why GRAPHICS may not go to CLASSIC now, or NULL.  `gpu`: it shows
+ * ENHANCED now.  The Kirbys in the world are simulation state (the same on
+ * every device in a session); the CPU KIRBYS setting is this device's and
+ * counts outside a session only. */
+static const char *ClassicWhyNot(int gpu)
+{
+#if KATAM_WIDE
+    if (gpu && (gNumKirbys > 4 || (!gPortLnOn && gPortSettings.kirbys > 4)))
+        return "CLASSIC SHOWS ONLY 4 KIRBYS";
+#else
+    (void)gpu;
+#endif
+    return NULL;
+}
+
 /* The total item `it` (step dir) asks for. */
 static int KirbysNext(int it, int dir)
 {
     int n = gPortSettings.kirbys, max = KirbysMax();
+
+    if (!KirbysCanShow() && max > (n < 4 ? 4 : n))
+        max = n < 4 ? 4 : n;            /* CLASSIC: down, never up */
 
     if (it == IT_ADD4) n += 4;
     else if (it == IT_REMOVE4) n -= 4;
@@ -1549,6 +1684,8 @@ static const char *KirbysWhyNot(int it)
         return "NEEDS THE 16 KIRBY BUILD";
     if (!KATAM_WIDE && (PortLmpInPlay() || PortLmpSetting() > 1))
         return "NOT IN A 2 PLAYER GAME";
+    if (!KirbysCanShow() && (it == IT_ADD4 || (it == IT_KIRBYS && gPortSettings.kirbys <= 4)))
+        return PocDisplayFallback() ? "NOT WITH THE 2D FALLBACK" : "NEEDS ENHANCED GRAPHICS";
     if (it == IT_ADD4 && gPortSettings.kirbys >= KirbysMax())
         return KirbysMax() < 16 ? "THE MOST THIS BUILD HAS" : "16 IS THE MOST";
     if (it == IT_REMOVE4 && gPortSettings.kirbys <= 4)
@@ -1567,13 +1704,15 @@ static const char *KirbysDesc(int it)
     case IT_KIRBYS:
         if (!KATAM_WIDE)
             snprintf(l, 32, "%d IN ALL - MORE RESTARTS", n);
+        else if (n > 4 && !KirbysCanShow())
+            snprintf(l, 32, "CLASSIC SHOWS 4 - LEFT LOWERS");
         else if (n > 4)
             snprintf(l, 32, "%d IN ALL - EXPERIMENTAL", n);
         else
             snprintf(l, 32, "4 IN ALL - RELOAD FOR ONLINE");
         return l;
     case IT_ADD4:
-        return KirbysRestart(KirbysNext(it, 1)) ? "4 MORE - THE GAME RESTARTS" : "4 MORE - THEY SHARE COLORS";
+        return KirbysRestart(KirbysNext(it, 1)) ? "4 MORE - THE GAME RESTARTS" : "4 MORE CPU KIRBYS";
     case IT_REMOVE4:
         return "4 FEWER CPU KIRBYS";
     default:
@@ -1643,8 +1782,8 @@ static void ItemValue(int it, char *buf, int size)
     case IT_MODE:
         snprintf(buf, size, "%s", !gPortLnOn ? "-" : gPortSim->view.lmpRooms ? "FREE ROAM" : "TOGETHER");
         break;
-    case IT_SLOT0: case IT_SLOT1: case IT_SLOT2: case IT_SLOT3:
-        if (gPortLnOn) SlotWho(RowSlot(it - IT_SLOT0), buf, size);
+    case IT_SLOT0 ... IT_SLOT_LAST:
+        if (gPortLnOn && SlotExists(RowSlot(it - IT_SLOT0))) SlotWho(RowSlot(it - IT_SLOT0), buf, size);
         else snprintf(buf, size, "-");
         break;
     case IT_BUILD:
@@ -1684,6 +1823,16 @@ static const char *ItemWhyNot(int it)
 
     if (display && PocDisplayFallback())
         return "NOT WITH THE 2D FALLBACK";
+    if (it == IT_GRAPHICS) {
+        /* on ENHANCED with more than four Kirbys: CLASSIC would garble them
+         * (KirbysCanShow); in a session the pausing player's setting */
+        const PortSettings *sh = Shown();
+        const char *why = ClassicWhyNot(gPortLnOn ? (sh != NULL && sh->renderer == PS_RENDER_GPU)
+                                                  : PortShowUsingGpu());
+
+        if (why != NULL)
+            return why;
+    }
     if (it == IT_KIRBYS || it == IT_ADD4 || it == IT_REMOVE4)
         return KirbysWhyNot(it);
     /* the CLASSIC renderer draws the GBA's 240 x 160 only: the view's
@@ -1702,8 +1851,10 @@ static const char *ItemWhyNot(int it)
         return "ON THE WEB PAGE ONLY";
     if (it >= IT_RENDERER && it <= IT_SETSTORE && gPortLnOn)
         return "NOT DURING AN ONLINE GAME";
-    if ((it == IT_CODE || it == IT_MODE || (it >= IT_SLOT0 && it <= IT_SLOT3)) && !gPortLnOn)
+    if ((it == IT_CODE || it == IT_MODE || IS_SLOT_ITEM(it)) && !gPortLnOn)
         return "NOT IN AN ONLINE GAME";
+    if (IS_SLOT_ITEM(it) && !SlotExists(RowSlot(it - IT_SLOT0)))
+        return "NO KIRBY IN THIS SLOT NOW";
     if (gPortLnOn)
         return NULL;
     /* the page's state, outside a session */
@@ -1741,7 +1892,7 @@ static const char *ItemDesc(int it)
         return KirbysDesc(it);
     case IT_MODE:
         return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
-    case IT_SLOT0: case IT_SLOT1: case IT_SLOT2: case IT_SLOT3: {
+    case IT_SLOT0 ... IT_SLOT_LAST: {
         int d = SlotDevice(RowSlot(it - IT_SLOT0));
 
         if (d < 0) return "THE CPU PLAYS THIS KIRBY";
@@ -1869,8 +2020,9 @@ static void ItemApply(int it, int dir)
         if (KATAM_WIDE)
             PortWideRequestKirbys(gPortSettings.kirbys);    /* CPU KIRBYS 3, live */
         break;
-    case IT_KICK:                       /* the host's device: remove a guest's */
-        if (gPortLnOn && PortLnRole() == PORT_LN_HOST && dir >= 1 && dir <= 3)
+    case IT_KICK:                       /* the host's device: remove a guest's
+                                         * (dir: the slot, web/online.js kick) */
+        if (gPortLnOn && PortLnRole() == PORT_LN_HOST && dir >= 1 && dir < POC_SLOTS)
             HostAct("online.kick", dir);
         break;
     case IT_MAINMENU:
@@ -2105,7 +2257,7 @@ static const char *SecName(int row)
 {
     int it = ModelItem(row);
 
-    if (it >= IT_SLOT0 && it <= IT_SLOT3)
+    if (IS_SLOT_ITEM(it))
         return SlotLabel(it - IT_SLOT0);
     return kItem[it].name;
 }
@@ -2123,12 +2275,15 @@ static u32 SecGen(void)
     u32 g = 0;
     int s;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < POC_SLOTS; s++)
         g = g * 2u + (u32)(PortLmpSlotPerson(s) != 0);
+#if KATAM_WIDE
+    g = g * 31u + (u32)gNumKirbys;      /* the list's rows with a Kirby */
+#endif
     if (gPortLnOn) {
         const u8 *c = PORT_SIM_LNSET;
 
-        for (s = 0; s < 4; s++)
+        for (s = 0; s < POC_SLOTS; s++)
             g = g * 31u + ((sSlotSetOn >> s) & 1u ? sSlotSet[s] + sSlotExt[s] * 7u : 0x5A5Au)
                 + (u32)(PortLnSlotOwner(s) + 1);
         for (s = 5; s < 10; s++)
@@ -2183,10 +2338,10 @@ static const char *ConfirmDesc(int row)
     static char q[40];
 
     if (sConfirmItem == IT_KICK) {
-        const char *n = sSlotName[sConfirmArg & 3];
+        const char *n = sSlotName[sConfirmArg % POC_SLOTS];
         char who[12];
 
-        SlotWho(sConfirmArg & 3, who, sizeof who);
+        SlotWho(sConfirmArg % POC_SLOTS, who, sizeof who);
         snprintf(q, sizeof q, row == 0 ? "REMOVE %s?" : "%s CANNOT COME BACK", n[0] ? n : who);
         Drawable(q, 30);
         return q;
@@ -2301,8 +2456,9 @@ static const struct PocModel kPlayersModel = {
  * device has a +. */
 static const char *LnPlName(int row)
 {
-    static const char *const n[4] = { "P1", "P2", "P3", "P4" };
-    return n[row & 3];
+    static const char *const n[16] = { "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8",
+                                       "P9", "P10", "P11", "P12", "P13", "P14", "P15", "P16" };
+    return n[(unsigned)row % POC_SLOTS];
 }
 static void LnPlValue(int row, char *buf, int size)
 {
@@ -2325,12 +2481,12 @@ static u32 LnPlGen(void)
     u32 g = 0;
     int s;
 
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < POC_SLOTS; s++)
         g = g * 64u + (u32)(PortLnSlotOwner(s) + 1);
     return g;
 }
 static const struct PocModel kLnPlayersModel = {
-    4, "PLAYERS", LnPlName, LnPlValue, LnPlDesc, LnPlStep, LnPlUnavailable, 0, LnPlGen, 0, 0, NULL,
+    POC_SLOTS, "PLAYERS", LnPlName, LnPlValue, LnPlDesc, LnPlStep, LnPlUnavailable, 0, LnPlGen, 0, 0, NULL,
     &kSecPlayers, 0,
 };
 
@@ -2955,9 +3111,9 @@ static int ScreenBack(u32 tiles, u8 *row)
         to = ItemHome(sConfirmItem, &r);
         if (sConfirmItem == IT_KICK) {
             to = &kSecOnline;
-            for (r = 0; r < 4 && RowSlot(r) != sConfirmArg; r++)
+            for (r = 0; r < POC_SLOTS && RowSlot(r) != sConfirmArg; r++)
                 ;
-            r = 2 + (r & 3);
+            r = 2 + (r % POC_SLOTS);
         }
     }
     if (to == NULL || IsTop(to))
@@ -3427,7 +3583,7 @@ static int HelpLineText(char *buf, int size)
 
     if (!PortMenuPoc() || code == NULL)
         return 0;
-    for (s = 0; s < 4; s++)
+    for (s = 0; s < POC_SLOTS; s++)
         n += PortLmpSlotPerson(s) != 0;
     snprintf(buf, size, "GAME %s - %s - %d PLAYER%s", code,
              gPortSim->view.lmpRooms ? "FREE ROAM" : "TOGETHER", n, n == 1 ? "" : "S");
@@ -3505,10 +3661,14 @@ struct PocHostState {
     s16 lblOffX, lblOffY, hdrOffX, hdrOffY;
     s32 descLine;
     u32 genShown;                   /* sOuiGenShown                       */
-    u32 slotSet[4];                 /* online: each slot's settings copy  */
-    u16 slotExt[4];
-    u8  slotSetOn, confirmItem, pauseScreen, helpSaved, confirmArg, confirmRow;
-    char slotName[4][PORT_CARD_NAME_MAX + 1];
+    /* (POC_SLOTS: four, so the default build's layout is the old one; the
+     * wide build's is its own -- the state travels between devices of one
+     * build only) */
+    u32 slotSet[POC_SLOTS];         /* online: each slot's settings copy  */
+    u16 slotExt[POC_SLOTS];
+    PocSlotMask slotSetOn;
+    u8  confirmItem, pauseScreen, helpSaved, confirmArg, confirmRow;
+    char slotName[POC_SLOTS][PORT_CARD_NAME_MAX + 1];
     u8  helpSave[PORT_POC_HELP_BYTES];  /* under the pause help page's line */
     u8  objSave[PORT_POC_PAUSE_OBJ_BYTES];
     u8  rowBanner[sizeof(sRowBanner)];
