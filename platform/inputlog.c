@@ -373,7 +373,7 @@ long PortInputLogLoad(const char *text, u32 len)
         } else if (sscanf(line, "paint %u %u %x", &a, &b, &c) == 3) {
             if (sscanf(line, "paint %*u %*u %*x %x", &d) != 1)
                 d = 0;
-            if (b > 3 || !PortPaintValid(c) || !PortPaintFeetValid(d)) {
+            if (b >= PORT_PAINT_SLOTS || !PortPaintValid(c) || !PortPaintFeetValid(d)) {
                 PortError("[katam-port] replay: bad paint line: %s", line);
                 return -1;
             }
@@ -639,7 +639,7 @@ u32 PortInputLogSchedulePaint(u8 slot, u32 value, u32 feet)
 {
     u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
 
-    if (sReplaying || slot > 3 || !PortPaintValid(value) || !PortPaintFeetValid(feet))
+    if (sReplaying || slot >= PORT_PAINT_SLOTS || !PortPaintValid(value) || !PortPaintFeetValid(feet))
         return 0;
     AddPaint(frame, slot, value, feet);
     return frame;

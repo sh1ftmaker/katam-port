@@ -525,3 +525,18 @@ u32 PortWideRequestKirbys(int n)
     return 0;
 #endif
 }
+
+/* More than four Kirbys in the world: the GPU renderer must draw them
+ * (port/wide.h; platform/ui/present.c).  A read of simulation state, so it
+ * is the same on every device of a session. */
+#ifdef __cplusplus
+extern "C"
+#endif
+int PortWideNeedsGpu(void)
+{
+#if KATAM_WIDE
+    return gNumKirbys > 4;
+#else
+    return 0;
+#endif
+}

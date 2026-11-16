@@ -40,12 +40,19 @@ int  PortPaintValid(u32 v);
 int  PortPaintFeetValid(u32 feet);
 
 /* --- simulation input -------------------------------------------------- */
-/* Slot s (0..3) wears paint v and feet `feet` from now on.  Applied at the
+/* Slot s (0..PORT_PAINT_SLOTS-1) wears paint v and feet `feet` from now on.  Applied at the
  * latch of the frame it is stamped with (recording line, session event);
  * never call it from the host directly -- schedule it
  * (PortInputLogSchedulePaint, or the session's
  * PortLnEvent(PORT_LN_EV_PAINT, s, v, feet, 0)). */
 void PortPaintSetSlot(int slot, u32 v, u32 feet);
+/* Slots that can be painted: four, the wide build one per Kirby slot (4..
+ * in gPortSim->paintw, port/wide.h). */
+#define PORT_PAINT_SLOTS KATAM_KIRBYS
+#if KATAM_WIDE
+/* The game's own colour for Kirby s (kirby.c; 4.. are the port's choice). */
+u8   PortWideDefaultColor(u8 s);
+#endif
 /* Read-only, for the host and the presentation layer. */
 u32  PortPaintOfSlot(int slot);
 u32  PortPaintFeetOfSlot(int slot);
@@ -74,6 +81,8 @@ const u16 *PortPaintPaletteSlow(const struct Sprite *s, const u16 *rom, u16 *buf
  * buf.  PortPaintHudTick: once a frame from the bar's update, reloads the
  * palette after the screen's Kirby changed colour (paintDirty bit 4). */
 #define PORT_PAINT_DIRTY_HUD    0x10
+/* The wide build: some slot 4.. has its reload bit set (gPortSim->paintw). */
+#define PORT_PAINT_DIRTY_WIDE   0x20
 const u16 *PortPaintHudPaletteSlow(u8 color, u16 *buf);
 #define PortPaintHudPalette(color, buf) \
     (gPortSim->game.paintOn ? PortPaintHudPaletteSlow((color), (buf)) : sHudPalettes[color])

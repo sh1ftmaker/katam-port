@@ -88,9 +88,10 @@ extern "C" {
 
 /* Names are per Kirby slot (PORT_LN_SLOTS: four, the wide build one per
  * slot); cards are per seat of this device (PORT_CARD_PLAYERS, four); paint
- * is per slot of the simulation's paint table (kirby_paint.c: four). */
+ * is per slot of the simulation's paint table (kirby_paint.c
+ * PORT_PAINT_SLOTS: the same). */
 #define CARD_SLOTS PORT_LN_SLOTS
-#define PAINT_SLOTS 4
+#define PAINT_SLOTS PORT_PAINT_SLOTS
 
 static struct PortCard sCards[PORT_CARD_PLAYERS];
 static char sSlotName[CARD_SLOTS][PORT_CARD_NAME_MAX + 1];
@@ -411,7 +412,7 @@ CARD_EXPORT const char *PortCardProfileString(void)
 
 CARD_EXPORT int PortCardHostApplyPaint(int slot, u32 paint, u32 feet)
 {
-    if (!gPortLnOn || PortLnRole() != PORT_LN_HOST || slot < 0 || slot > 3 || !PortPaintValid(paint)
+    if (!gPortLnOn || PortLnRole() != PORT_LN_HOST || slot < 0 || slot >= PAINT_SLOTS || !PortPaintValid(paint)
         || !PortPaintFeetValid(feet))
         return -1;
     return PortLnEvent(PORT_LN_EV_PAINT, slot, (int)paint, (int)feet, 0);
@@ -626,8 +627,8 @@ CARD_EXPORT int PortCardSetJs(int p, const char *val)
 static int sEditing;
 /* What was asked of the simulation and when, so a paint waiting for its
  * latch is not asked for again every frame. */
-static u32 sAsked[4], sAskedFeet[4], sAskedAt[4];
-static int sAskedValid[4];
+static u32 sAsked[PAINT_SLOTS], sAskedFeet[PAINT_SLOTS], sAskedAt[PAINT_SLOTS];
+static int sAskedValid[PAINT_SLOTS];
 
 static void Ask(int s, u32 want, u32 feet)
 {

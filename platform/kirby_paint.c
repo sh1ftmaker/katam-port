@@ -436,22 +436,63 @@ static int Paintable(void)
     return !(gUnk_0203AD10 & 0x12);
 }
 
+/* A slot's paint, feet and reload bit: slots 0..3 in game.paint (the default
+ * build's layout), the wide build's 4.. in gPortSim->paintw (port/wide.h). */
+#if KATAM_WIDE
+#define W (gPortSim->paintw)
+static u32 PaintOf(int s) { return s < 4 ? P.paint[s] : W.paint[s]; }
+static u32 FeetOf(int s) { return s < 4 ? P.paintFeet[s] : W.feet[s]; }
+static int DirtyOf(int s) { return s < 4 ? (P.paintDirty >> s) & 1 : (int)((W.dirty >> s) & 1u); }
+static void SetPaint(int s, u32 v, u32 feet)
+{
+    if (s < 4) {
+        P.paint[s] = v;
+        P.paintFeet[s] = (u16)feet;
+        P.paintDirty |= (u8)(1u << s);
+    } else {
+        W.paint[s] = v;
+        W.feet[s] = (u16)feet;
+        W.dirty |= 1u << s;
+        P.paintDirty |= PORT_PAINT_DIRTY_WIDE;
+    }
+}
+static void ClearDirty(int s)
+{
+    if (s < 4) {
+        P.paintDirty &= (u8)~(1u << s);
+    } else {
+        W.dirty &= ~(1u << s);
+        if (!W.dirty)
+            P.paintDirty &= (u8)~PORT_PAINT_DIRTY_WIDE;
+    }
+}
+#else
+static u32 PaintOf(int s) { return P.paint[s]; }
+static u32 FeetOf(int s) { return P.paintFeet[s]; }
+static int DirtyOf(int s) { return (P.paintDirty >> s) & 1; }
+static void SetPaint(int s, u32 v, u32 feet)
+{
+    P.paint[s] = v;
+    P.paintFeet[s] = (u16)feet;
+    P.paintDirty |= (u8)(1u << s);
+}
+static void ClearDirty(int s) { P.paintDirty &= (u8)~(1u << s); }
+#endif
+
 void PortPaintSetSlot(int slot, u32 v, u32 feet)
 {
     int s;
 
-    if (slot < 0 || slot > 3 || !PortPaintValid(v) || !PortPaintFeetValid(feet))
+    if (slot < 0 || slot >= PORT_PAINT_SLOTS || !PortPaintValid(v) || !PortPaintFeetValid(feet))
         return;
     if (v == PORT_PAINT_NONE)
         feet = 0;           /* feet of their own go with a body paint */
-    if (P.paint[slot] == v && P.paintFeet[slot] == feet)
+    if (PaintOf(slot) == v && FeetOf(slot) == feet)
         return;
-    P.paint[slot] = v;
-    P.paintFeet[slot] = (u16)feet;
-    P.paintDirty |= (u8)(1u << slot);
+    SetPaint(slot, v, feet);
     P.paintOn = 0;
-    for (s = 0; s < 4; s++)
-        if (P.paint[s])
+    for (s = 0; s < PORT_PAINT_SLOTS; s++)
+        if (PaintOf(s))
             P.paintOn = 1;
     /* Nobody painting any more: paintDirty still has the Kirbys whose own
      * colour must come back (PortPaintTickSlow, or a new Kirby's init); then
@@ -462,17 +503,47 @@ void PortPaintSetSlot(int slot, u32 v, u32 feet)
 
 u32 PortPaintOfSlot(int slot)
 {
-    return slot >= 0 && slot < 4 ? P.paint[slot] : 0;
+    return slot >= 0 && slot < PORT_PAINT_SLOTS ? PaintOf(slot) : 0;
 }
 
 u32 PortPaintFeetOfSlot(int slot)
 {
-    return slot >= 0 && slot < 4 ? P.paintFeet[slot] : 0;
+    return slot >= 0 && slot < PORT_PAINT_SLOTS ? FeetOf(slot) : 0;
 }
+
+#if KATAM_WIDE
+/* The game's own colour for Kirby s >= 4 (kirby.c sub_0803EA90; the console
+ * has only four): the sprays Kirbys 1..4 do not wear, in this order --
+ * SNOW, CARBON, OCEAN, GRAPE for Kirbys 5..8, then ORANGE, SAPPHIRE, EMERALD,
+ * CHOCOLATE, CHERRY, CHALK -- and round again.  "Do not wear" is the game's
+ * own choice for 1..4 (gUnk_0203AD1C, or the slot), so a player 1 who chose
+ * a spray in the collection room does not meet a Kirby of the same colour.
+ * Simulation state only: the same on every device. */
+u8 PortWideDefaultColor(u8 s)
+{
+    static const u8 kOrder[] = { 4, 5, 6, 8, 10, 7, 9, 11, 12, 13 };
+    u8 avail[sizeof kOrder];
+    u32 used = 0;
+    int i, n = 0;
+
+    if (s < 4)
+        return gUnk_0203AD1C[s] != 0xFF ? gUnk_0203AD1C[s] : s;
+    for (i = 0; i < 4; i++)
+        used |= 1u << (gUnk_0203AD1C[i] != 0xFF ? (gUnk_0203AD1C[i] & 31) : i);
+    for (i = 0; i < (int)sizeof kOrder; i++)
+        if (!((used >> kOrder[i]) & 1))
+            avail[n++] = kOrder[i];
+    return n ? avail[(s - 4) % n] : (u8)(s & 3);
+}
+#endif
 
 /* The game's own choice for slot s (sub_0803EA90). */
 static u8 GameColor(u8 s)
 {
+#if KATAM_WIDE
+    if (s >= 4)
+        return PortWideDefaultColor(s);
+#endif
     return gUnk_0203AD1C[s] != 0xFF ? gUnk_0203AD1C[s] : s;
 }
 
@@ -480,9 +551,9 @@ u8 PortPaintColorInitSlow(u8 slot, u8 chosen)
 {
     int t;
 
-    if (slot < 4)
-        P.paintDirty &= (u8)~(1u << slot);     /* the new Kirby loads it fresh */
-    if (slot >= 4 || !Paintable() || (t = PortPaintTemplate(P.paint[slot])) < 0)
+    if (slot < PORT_PAINT_SLOTS)
+        ClearDirty(slot);                       /* the new Kirby loads it fresh */
+    if (slot >= PORT_PAINT_SLOTS || !Paintable() || (t = PortPaintTemplate(PaintOf(slot))) < 0)
         return chosen;
     return (u8)t;
 }
@@ -492,12 +563,12 @@ void PortPaintTickSlow(struct Kirby *k)
     u8 s = k->base.unk56;
     int t;
 
-    if (s >= 4 || !((P.paintDirty >> s) & 1))
+    if (s >= PORT_PAINT_SLOTS || !DirtyOf(s))
         return;
-    P.paintDirty &= (u8)~(1u << s);
+    ClearDirty(s);
     if (!Paintable())
         return;
-    t = PortPaintTemplate(P.paint[s]);
+    t = PortPaintTemplate(PaintOf(s));
     k->color = t >= 0 ? (u8)t : GameColor(s);
     sub_0803E558(s);
     if (s == gLocalPlayerId)
@@ -512,12 +583,12 @@ const u16 *PortPaintHudPaletteSlow(u8 color, u16 *buf)
     u8 s = gLocalPlayerId;
     u32 v;
 
-    if (s >= 4 || !Paintable() || color >= PORT_PAINT_COLORS)
+    if (s >= PORT_PAINT_SLOTS || !Paintable() || color >= PORT_PAINT_COLORS)
         return sHudPalettes[color];
-    v = P.paint[s];
-    if (((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM && !P.paintFeet[s]) || gKirbys[s].color != color)
+    v = PaintOf(s);
+    if (((v & PORT_PAINT_KIND_MASK) != PORT_PAINT_CUSTOM && !FeetOf(s)) || gKirbys[s].color != color)
         return sHudPalettes[color];
-    if (!PortPaintHudPaletteOf(v, P.paintFeet[s], color, buf))
+    if (!PortPaintHudPaletteOf(v, FeetOf(s), color, buf))
         return sHudPalettes[color];
     return buf;
 }
@@ -531,7 +602,7 @@ void PortPaintHudTickSlow(void)
     u8 color;
 
     P.paintDirty &= (u8)~PORT_PAINT_DIRTY_HUD;
-    if (gLocalPlayerId >= 4 || !Paintable())
+    if (gLocalPlayerId >= PORT_PAINT_SLOTS || !Paintable())
         return;
     color = gKirbys[gLocalPlayerId].color;
     if (color >= 18)
@@ -547,11 +618,18 @@ const u16 *PortPaintPaletteSlow(const struct Sprite *sp, const u16 *rom, u16 *bu
     int t, custom;
 
     (void)off;      /* the command copies from the line's start, to off */
-    if (s >= 4 || !Paintable())
+#if KATAM_WIDE
+    /* Kirby i's first line is 16 * (i / 4) + i % 4 (port/wide.h
+     * KATAM_KIRBY_PAL): back to the slot */
+    if ((s & 15) >= 4)
         return rom;
-    v = P.paint[s];
+    s = (u8)((s >> 4) * 4 + (s & 3));
+#endif
+    if (s >= PORT_PAINT_SLOTS || !Paintable())
+        return rom;
+    v = PaintOf(s);
     custom = (v & PORT_PAINT_KIND_MASK) == PORT_PAINT_CUSTOM;
-    feet = P.paintFeet[s];
+    feet = FeetOf(s);
     if (!custom && !feet)
         return rom;
     t = gKirbys[s].color;

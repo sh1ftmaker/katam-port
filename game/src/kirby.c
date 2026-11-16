@@ -6249,17 +6249,15 @@ void sub_0803EA90(struct Kirby *kirby, u16 sl, const s32 *r2, bool32 r3)
         kirby->color = gUnk_0203AD1C[KATAM_ROM_ROW(kirby->base.unk56)];
     else
         kirby->color = kirby->base.unk56;
+#if KATAM_WIDE
+    /* PORT: the wide build (port/wide.h): Kirbys 4.. have palette lines of
+     * their own, and a colour of their own the console never chose
+     * (platform/kirby_paint.c PortWideDefaultColor). */
+    if (kirby->base.unk56 >= 4)
+        kirby->color = PortWideDefaultColor(kirby->base.unk56);
+#endif
     /* PORT: a player card's colour (platform/kirby_paint.c) */
     kirby->color = PortPaintColorInit(kirby->base.unk56, kirby->color);
-#if KATAM_WIDE
-    /* PORT: the wide build (port/wide.h): Kirby i >= 4 draws with palette
-     * slot i & 3, so it wears that Kirby's colour -- otherwise the shared
-     * palette takes its colour and the Kirby it belongs to (player 1 for
-     * Kirbys 5, 9, 13) changes colour with it.  PLACEHOLDER (colours per
-     * Kirby are the renderer's job). */
-    if (kirby->base.unk56 >= 4)
-        kirby->color = gKirbys[kirby->base.unk56 & 3].color;
-#endif
     kirby->roomId = sl;
     kirby->spawnLocation.x = 4;
     kirby->spawnLocation.y = 4;

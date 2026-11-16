@@ -101,20 +101,25 @@ at the end of the block. Everything else keeps its name and position.
 ## Still four wide, on purpose
 
 - Seats per device (4): `lk`, `rk[dev][4]`, `PortLnSeatAsk`, `sLastLocal`.
-- Paint (`PORT_LN_EV_PAINT`, `kirby_paint.c`): slots 0..3. The simulation's
-  paint table (`game.paint[4]`, `paintFeet[4]`, the `paintDirty` bits, in the
-  default build's sim block layout) and `PortPaintPaletteSlow` (a sprite's
-  `palId` taken as the slot) are four wide; Kirbys 4.. wear the game's own
-  colour.
+- `PortLmpSlotIsHuman` / `PortLmpRequestHuman` in a session speak of a
+  device's local seats 1..3, as before.
 
 Stage 5 (branch `eight-hud`) widened the pause page's session copies and
 names: `PORT_LN_EV_PSET` and `_NAME` are sealed for every slot
 (`PORT_LN_SLOTS`), `menu_poc.c` keeps `POC_SLOTS` = `PORT_LN_SLOTS` copies
 (its host state, `PocHostState`, is that wide: same build only), and
 `player_card.c` names `PORT_LN_SLOTS` slots (`PortCardSlotNames` lists that
-many, tab-separated).
-- `PortLmpSlotIsHuman` / `PortLmpRequestHuman` in a session speak of a
-  device's local seats 1..3, as before.
+many, tab-separated).  Paint (`PORT_LN_EV_PAINT`, `kirby_paint.c`) covers
+every slot (`PORT_PAINT_SLOTS`): slots 0..3 in the default layout's
+`game.paint`/`paintFeet`/`paintDirty`, slots 4.. in `gPortSim->paintw`
+(`struct PortWidePaint`, port/wide.h, in the padding before the wide area:
+snapshotted, hashed, in images), with `PORT_PAINT_DIRTY_WIDE` in
+`paintDirty` while any of those reloads is pending.  A Kirby 4..'s sprite
+`palId` maps back to its slot as `(palId >> 4) * 4 + (palId & 3)`.  Kirbys
+4.. have colours of their own (`PortWideDefaultColor`: the sprays 1..4 do
+not wear, Snow, Carbon, Ocean, Grape first), and while more than four are in
+the world the GPU renderer draws whatever GRAPHICS says (`PortWideNeedsGpu`,
+platform/ui/present.c).
 
 ## Exports
 

@@ -1631,29 +1631,32 @@ int PortPocKirbysMax(void)
 
 /* More than four Kirbys are drawn by the ENHANCED (GPU) renderer only: the
  * CLASSIC one shows what the console could, four Kirbys' sprite memory, so
- * Kirbys 5.. come out as another Kirby's pose and colours (port/wide.h
- * KATAM_KIRBY_TILES).  So with CLASSIC (or the 2D fallback) the count may
- * come down but not go above four, and GRAPHICS cannot go to CLASSIC while
- * more than four are in the world (ItemWhyNot).  Device state: never asked
- * in a session (KirbysWhyNot). */
+ * Kirbys 5.. would come out as another Kirby's pose and colours (port/wide.h
+ * KATAM_KIRBY_TILES).  So while more than four are in the world the picture
+ * is ENHANCED whatever GRAPHICS says (platform/ui/present.c, per device) and
+ * the GRAPHICS row is dimmed with the reason; where there is no GPU path at
+ * all (the 2D fallback) the count may come down but not go above four.
+ * Device state: never asked in a session (KirbysWhyNot). */
 static int KirbysCanShow(void)
 {
-    return PortShowUsingGpu();
+    return PortShowGpuAvailable();
 }
 
-/* Why GRAPHICS may not go to CLASSIC now, or NULL.  `gpu`: it shows
- * ENHANCED now.  The Kirbys in the world are simulation state (the same on
- * every device in a session); the CPU KIRBYS setting is this device's and
- * counts outside a session only. */
-static const char *ClassicWhyNot(int gpu)
+/* Is the picture held at ENHANCED now (more than four Kirbys in the world,
+ * or -- outside a session -- this device's CPU KIRBYS setting above four)?
+ * The Kirbys in the world are simulation state, the same on every device. */
+static int GpuHeld(void)
 {
-#if KATAM_WIDE
-    if (gpu && (gNumKirbys > 4 || (!gPortLnOn && gPortSettings.kirbys > 4)))
-        return "CLASSIC SHOWS ONLY 4 KIRBYS";
-#else
-    (void)gpu;
-#endif
-    return NULL;
+    return PortWideNeedsGpu() || (KATAM_WIDE && !gPortLnOn && gPortSettings.kirbys > 4);
+}
+
+/* Why GRAPHICS may not be changed now, or NULL.  `gpu`: its setting is
+ * ENHANCED. */
+static const char *GraphicsWhyNot(int gpu)
+{
+    if (!GpuHeld())
+        return NULL;
+    return gpu ? "CLASSIC SHOWS ONLY 4 KIRBYS" : "ENHANCED WHILE OVER 4 KIRBYS";
 }
 
 /* The total item `it` (step dir) asks for. */
@@ -1685,7 +1688,7 @@ static const char *KirbysWhyNot(int it)
     if (!KATAM_WIDE && (PortLmpInPlay() || PortLmpSetting() > 1))
         return "NOT IN A 2 PLAYER GAME";
     if (!KirbysCanShow() && (it == IT_ADD4 || (it == IT_KIRBYS && gPortSettings.kirbys <= 4)))
-        return PocDisplayFallback() ? "NOT WITH THE 2D FALLBACK" : "NEEDS ENHANCED GRAPHICS";
+        return "NOT WITH THE 2D FALLBACK";
     if (it == IT_ADD4 && gPortSettings.kirbys >= KirbysMax())
         return KirbysMax() < 16 ? "THE MOST THIS BUILD HAS" : "16 IS THE MOST";
     if (it == IT_REMOVE4 && gPortSettings.kirbys <= 4)
@@ -1705,7 +1708,7 @@ static const char *KirbysDesc(int it)
         if (!KATAM_WIDE)
             snprintf(l, 32, "%d IN ALL - MORE RESTARTS", n);
         else if (n > 4 && !KirbysCanShow())
-            snprintf(l, 32, "CLASSIC SHOWS 4 - LEFT LOWERS");
+            snprintf(l, 32, "2D SHOWS ONLY 4 - LEFT LOWERS");
         else if (n > 4)
             snprintf(l, 32, "%d IN ALL - EXPERIMENTAL", n);
         else
@@ -1736,7 +1739,9 @@ static void ItemValue(int it, char *buf, int size)
         snprintf(buf, size, "%s", code ? code : "");
         break;
     }
-    case IT_GRAPHICS:  snprintf(buf, size, "%s", s->renderer == PS_RENDER_GPU ? "ENHANCED" : "CLASSIC"); break;
+    case IT_GRAPHICS:  /* (held at ENHANCED with more than four Kirbys) */
+        snprintf(buf, size, "%s", s->renderer == PS_RENDER_GPU || GpuHeld() ? "ENHANCED" : "CLASSIC");
+        break;
     case IT_SCREEN:    snprintf(buf, size, "%s", kAspect[s->aspect]); break;
     case IT_ZOOM:      snprintf(buf, size, "%s", kZoomName[ZoomIndexOf(s)]); break;
     case IT_DYNZOOM:   OnOff(buf, size, s->dynZoom); break;
@@ -1824,11 +1829,10 @@ static const char *ItemWhyNot(int it)
     if (display && PocDisplayFallback())
         return "NOT WITH THE 2D FALLBACK";
     if (it == IT_GRAPHICS) {
-        /* on ENHANCED with more than four Kirbys: CLASSIC would garble them
-         * (KirbysCanShow); in a session the pausing player's setting */
+        /* more than four Kirbys: held at ENHANCED (KirbysCanShow); in a
+         * session the pausing player's setting */
         const PortSettings *sh = Shown();
-        const char *why = ClassicWhyNot(gPortLnOn ? (sh != NULL && sh->renderer == PS_RENDER_GPU)
-                                                  : PortShowUsingGpu());
+        const char *why = GraphicsWhyNot(sh != NULL && sh->renderer == PS_RENDER_GPU);
 
         if (why != NULL)
             return why;
@@ -1840,7 +1844,8 @@ static const char *ItemWhyNot(int it)
      * live to switch back).  In a session: the pausing player's setting. */
     if (it == IT_SCREEN || it == IT_ZOOM || it == IT_DYNZOOM || it == IT_CAMERA || it == IT_INTERP) {
         const PortSettings *sh = Shown();
-        int classic = gPortLnOn ? (sh != NULL && sh->renderer == PS_RENDER_PPU) : !PortShowUsingGpu();
+        int classic = gPortLnOn ? (sh != NULL && sh->renderer == PS_RENDER_PPU && !GpuHeld())
+                                : !PortShowUsingGpu();
 
         if (classic)
             return "NEEDS ENHANCED GRAPHICS";

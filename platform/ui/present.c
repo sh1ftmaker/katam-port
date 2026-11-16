@@ -19,6 +19,7 @@
 
 #include "port/port.h"
 #include "port/localmp.h"
+#include "port/wide.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "ui/settings.h"
@@ -175,9 +176,15 @@ static float sCamSpeed;
 static double sRateT0;
 static int sRateSims, sRateDraws;
 
+/* The GPU renderer draws when the setting asks for it, and -- the wide build
+ * -- while more than four Kirbys are in the world, whatever the setting:
+ * the Classic one shows four Kirbys' sprite memory, so Kirbys 5.. would come
+ * out as another Kirby's pose (port/wide.h PortWideNeedsGpu).  Per device,
+ * presentation only; the setting itself is untouched and rules again once
+ * the count is back at four.  Without a GPU path the Classic one it is. */
 static void ApplyRenderer(void)
 {
-    int want = sGpuAvail && gPortSettings.renderer == PS_RENDER_GPU;
+    int want = sGpuAvail && (gPortSettings.renderer == PS_RENDER_GPU || PortWideNeedsGpu());
 
     if (want == sUsingGpu)
         return;
@@ -256,6 +263,11 @@ int PortShowReady(void)
 int PortShowUsingGpu(void)
 {
     return sUsingGpu == 1;
+}
+
+int PortShowGpuAvailable(void)
+{
+    return sReady && sGpuAvail;
 }
 
 #ifdef __EMSCRIPTEN__
@@ -544,6 +556,9 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
     gPortUiStatus.zoomNow = zoom;
     CountRates(nowMs, 1);
     Draw(fbW, fbH, dpr, nowMs);
+    /* the Kirbys in the world may have changed (PortWideNeedsGpu): the
+     * next frame is built for the renderer that can draw them */
+    ApplyRenderer();
 }
 
 void PortShowAgain(int fbW, int fbH, float dpr, double nowMs)

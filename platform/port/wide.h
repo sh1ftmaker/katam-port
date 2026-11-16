@@ -271,6 +271,20 @@ struct PortWideLmp {
     u8  dev[KATAM_KIRBYS];       /* rooms mode: each slot's device (devSet)    */
 };
 
+/* Player-card paint for Kirbys 4.. (platform/kirby_paint.c).  The default
+ * build's paint table is four slots in the sim block's game struct
+ * (game.paint, paintFeet, the paintDirty bits), whose layout must not move;
+ * the wide build keeps every other slot's here, after lmpw in the padding
+ * before the wide area: snapshotted, hashed and in every image.  Indexed by
+ * slot (entries 0..3 unused: those are game.paint's).  `dirty` is a bit per
+ * slot whose palette must be reloaded; while any is set, game.paintDirty
+ * has PORT_PAINT_DIRTY_WIDE so the game's per-Kirby hook runs. */
+struct PortWidePaint {
+    u32 paint[KATAM_KIRBYS];     /* PORT_PAINT_* (port/kirby_paint.h)         */
+    u16 feet[KATAM_KIRBYS];      /* a feet colour, 0 = with the body          */
+    u32 dirty;                   /* bit s: slot s's palette to reload         */
+};
+
 #endif /* KATAM_WIDE */
 
 /* The human-slot layer's width (port/localmp.h, platform/lmpnet.c): a slot
@@ -363,6 +377,11 @@ static inline int PortWideIsObjx(u32 addr)
     return addr - WIDE_OBJX_TILES < WIDE_SZ_OBJX_TILES;
 }
 #endif
+/* Every build: more than four Kirbys are in the world, which only the GPU
+ * renderer can draw (port/wide.h KATAM_KIRBY_TILES; platform/ui/present.c
+ * draws with it while this holds, whatever the GRAPHICS setting).  Always 0
+ * in the default build. */
+int  PortWideNeedsGpu(void);
 /* Every build: the host asks for n Kirbys in all (0 in the default build,
  * which has nothing to change). */
 u32  PortWideRequestKirbys(int n);

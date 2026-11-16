@@ -33,6 +33,9 @@ void PortSettingsChanged(void);
 void PortSettingsApplyEarly(void);
 /* Which renderer is drawing right now (the setting, unless unavailable). */
 int PortShowUsingGpu(void);
+/* Could it draw with the GPU renderer (the GL path is up and the render list
+ * can be drawn)?  0 on the 2D fallback. */
+int PortShowGpuAvailable(void);
 /* The host sets this when it calls PortShowAgain at the display's rate
  * between sim frames (vsync; not turbo, not a scripted run): the condition
  * for interpolating. */

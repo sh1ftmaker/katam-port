@@ -188,8 +188,9 @@ struct PortSimBlock {
     /* The wide build's per-player tables (port/wide.h), last, page-aligned. */
     struct PortWideCtl wideCtl;     /* the live count (port/wide.h) */
     struct PortWideLmp lmpw;        /* the human-slot layer, N wide (port/wide.h) */
+    struct PortWidePaint paintw;    /* paint for Kirbys 4.. (port/wide.h) */
     u8 widePad[WIDE_SIM_OFFSET - (0xB4u + 4130u * PORT_MAX_SEATS) - sizeof(struct PortWideCtl)
-               - sizeof(struct PortWideLmp)];
+               - sizeof(struct PortWideLmp) - sizeof(struct PortWidePaint)];
     u8 wide[WIDE_BYTES];
 #endif
 };
