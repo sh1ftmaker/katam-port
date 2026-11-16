@@ -70,7 +70,7 @@ void PortCpuAiApply(u32 word)
 /* Host state: what this device last asked for, and when. */
 static u32 sAsked, sAskedAt;
 static int sPending, sEnv = -1;
-static u32 sEnvWord;
+static u32 sEnvWord, sEnvAt;
 
 void PortCpuAiSettingChanged(void)
 {
@@ -115,6 +115,11 @@ void PortCpuAiPoll(void)
         sEnv = e != NULL && *e;
         if (sEnv)
             sEnvWord = (u32)strtoul(e, NULL, 16) & ~3u;
+        /* KATAM_CPU_AI_AT=F: not before frame F (a scripted run that wants
+         * the stock brain through the opening, as tests/cpu_ai.sh's `cpuai
+         * 1300` lines do) */
+        e = getenv("KATAM_CPU_AI_AT");
+        sEnvAt = e != NULL ? (u32)strtoul(e, NULL, 10) : 0;
     }
     if (PortCpuAiLogOn() && !gPortLnOn)
         Observe(now);
@@ -124,6 +129,8 @@ void PortCpuAiPoll(void)
         if (PortLnRole() != PORT_LN_HOST || PortLnShadowRunning())
             return;
     }
+    if (sEnv && now < sEnvAt)
+        return;
     if (sEnv)
         want = sEnvWord;
     else if (PortMenuPoc())

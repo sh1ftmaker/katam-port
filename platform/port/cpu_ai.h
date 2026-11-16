@@ -22,7 +22,8 @@
  * Kirby 2 BODYGUARD, Kirby 3 EXPLORER, Kirby 4 ADVENTURER, the wide build's
  * Kirbys 5.. the same three in turn); everything else -- replays, the
  * headless tools, the node rigs without menus, the attract demo -- stays
- * CLASSIC.  KATAM_CPU_AI=WORD (hex) asks for a word in a headless run. */
+ * CLASSIC.  KATAM_CPU_AI=WORD (hex) asks for a word in a headless run
+ * (KATAM_CPU_AI_AT=F: from frame F). */
 
 #include "gba/types.h"
 
