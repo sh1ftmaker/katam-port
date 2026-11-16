@@ -22,10 +22,31 @@ struct SourcePalettes {
 /* PORT: replaced by port/ram_symbols.h -- extern struct SourcePalettes gSourcePalettes ALIGNED(4); */
 /* PORT: replaced by port/ram_symbols.h -- extern struct SourcePalettes gSourcePalettesBackup ALIGNED(4); */
 
+/* PORT: &gSourcePalettes.obj[off]; in the wide build off may be a line of a
+ * Kirby 4.. (port/wide.h KATAM_KIRBY_PAL, platform/wide_sprites.c), and the
+ * whole-palette operations below also do those lines (WIDE_OBJX_LINES). */
+#if KATAM_WIDE
+#define OBJ_SOURCE(off) ((off) < 0x100 ? &gSourcePalettes.obj[off] : PortWideObjSrcPal(off))
+/* A bank-masked transform of the wide-area lines: a line follows its console
+ * slot's bit (line & 15). */
+#define WIDE_OBJ_BANKS(mask, transform) ({                                     \
+        u32 _l;                                                                 \
+        for (_l = 16; _l < 16 + WIDE_OBJX_LINES; _l++) {                        \
+            if (((mask) >> (_l & 15)) & 1) {                                    \
+                palette = KATAM_OBJ_PAL(_l * 16);                               \
+                TRANSFORM_VISIBLE_COLORS(transform);                            \
+            }                                                                   \
+        }                                                                       \
+    })
+#else
+#define OBJ_SOURCE(off) (&gSourcePalettes.obj[off])
+#define WIDE_OBJ_BANKS(mask, transform) ((void)0)
+#endif
+
 // The sprite palette transforms inline this operation; other callers use SaveObjPaletteColors.
-static inline void SaveObjPaletteColorsInline(u8 offset, u8 num)
+static inline void SaveObjPaletteColorsInline(KATAM_PAL_OFF offset, u8 num)
 {
-    CpuCopy16(&gObjPalette[offset], &gSourcePalettes.obj[offset], num << 1);
+    CpuCopy16(KATAM_OBJ_PAL(offset), OBJ_SOURCE(offset), num << 1);
 }
 
 static void UpdatePaletteEffects(void);
@@ -235,6 +256,9 @@ static void UpdatePaletteEffects(void)
                     }
                     if (state->unk0[i].unk4 && !objRestored) {
                         CpuCopy32(gSourcePalettes.obj, gObjPalette, sizeof(gObjPalette));
+#if KATAM_WIDE
+                        PortWideObjPalRestore(); /* PORT: the wide build's lines */
+#endif
                         objRestored = TRUE;
                     }
                 }
@@ -265,6 +289,9 @@ static void UpdatePaletteEffects(void)
         if (objRestored) {
             if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_TRANSFORMATION_ENABLE) {
                 LoadObjPaletteWithTransformation(gObjPalette, 0, ARRAY_COUNT(gObjPalette));
+#if KATAM_WIDE
+                PortWideObjPalTransformAll(); /* PORT: the wide build's lines */
+#endif
             } else {
                 DmaCopy16(3, gObjPalette, gObjPalette, sizeof(gObjPalette));
                 gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
@@ -410,6 +437,7 @@ static void ApplyPaletteDarkening(struct PaletteEffect *effect)
                 palette += 16;
             }
         }
+        WIDE_OBJ_BANKS(effect->unk4, DarkenColor); /* PORT: wide build */
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     flags = effect->unk8;
@@ -459,6 +487,7 @@ static void ApplyPaletteBrightening(struct PaletteEffect *effect)
                 palette += 16;
             }
         }
+        WIDE_OBJ_BANKS(effect->unk4, BRIGHTEN_COLOR); /* PORT: wide build */
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     flags = effect->unk8;
@@ -496,6 +525,7 @@ static void ApplyPaletteTableDarkening(struct PaletteEffect *effect)
                 palette += 16;
             }
         }
+        WIDE_OBJ_BANKS(effect->unk4, DarkenColorWithTable); /* PORT: wide build */
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     flags = effect->unk8;
@@ -533,6 +563,7 @@ static void ApplyPaletteRedTint(struct PaletteEffect *effect)
                 palette += 16;
             }
         }
+        WIDE_OBJ_BANKS(effect->unk4, TintColorRed); /* PORT: wide build */
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     flags = effect->unk8;
@@ -568,6 +599,14 @@ static void ApplyPaletteWhiteFill(struct PaletteEffect *effect)
                 palette += 16;
             }
         }
+#if KATAM_WIDE
+        { /* PORT: the wide build's lines (see WIDE_OBJ_BANKS) */
+            u32 l;
+            for (l = 16; l < 16 + WIDE_OBJX_LINES; l++)
+                if ((effect->unk4 >> (l & 15)) & 1)
+                    CpuFill32(0xFFFFFFFF, KATAM_OBJ_PAL(l * 16), 16 * sizeof(*palette));
+        }
+#endif
         gMainFlags |= MAIN_FLAG_BG_PALETTE_SYNC_ENABLE | MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     flags = effect->unk8;
@@ -889,18 +928,18 @@ void BlendSpriteAnimationPalettes(u8 paletteId, u16 sourceAnim, u8 sourceVariant
     sprite.palId = paletteId;
     sprite.unk8 = 0x80000;
     if (targetAnim == 0 && targetVariant == 0)
-        CpuCopy16(&gObjPalette[paletteId * 16], target, sizeof(target));
+        CpuCopy16(KATAM_OBJ_PAL(paletteId * 16), target, sizeof(target));
     if (sourceAnim != 0 || sourceVariant != 0) {
         sprite.animId = sourceAnim;
         sprite.variant = sourceVariant;
         sub_08155128(&sprite);
     }
-    CpuCopy16(&gObjPalette[paletteId * 16], source, sizeof(source));
+    CpuCopy16(KATAM_OBJ_PAL(paletteId * 16), source, sizeof(source));
     if (targetAnim != 0 || targetVariant != 0) {
         sprite.animId = targetAnim;
         sprite.variant = targetVariant;
         sub_08155128(&sprite);
-        CpuCopy16(&gObjPalette[paletteId * 16], target, sizeof(target));
+        CpuCopy16(KATAM_OBJ_PAL(paletteId * 16), target, sizeof(target));
     }
     for (i = 1; !(i & 0xF0); i++) {
         u8 srcLow, dstLow;
@@ -934,7 +973,7 @@ void BlendSpriteAnimationPalettes(u8 paletteId, u16 sourceAnim, u8 sourceVariant
     if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_TRANSFORMATION_ENABLE)
         LoadObjPaletteWithTransformation(source, paletteId * 16, 16);
     else {
-        DmaCopy16(3, source, &gObjPalette[paletteId * 16], sizeof(source));
+        DmaCopy16(3, source, KATAM_OBJ_PAL(paletteId * 16), sizeof(source));
         gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     SaveObjPaletteColorsInline(paletteId * 16, 16);
@@ -960,7 +999,7 @@ void OffsetSpriteAnimationPalette(u8 paletteId, u16 anim, u8 variant, s8 red, s8
         sprite.variant = variant;
         sub_08155128(&sprite);
     }
-    CpuCopy16(&gObjPalette[paletteId * 16], colors, sizeof(colors));
+    CpuCopy16(KATAM_OBJ_PAL(paletteId * 16), colors, sizeof(colors));
     for (i = 1; !(i & 0xF0); i++) {
         u8 low;
         u16 color;
@@ -990,7 +1029,7 @@ void OffsetSpriteAnimationPalette(u8 paletteId, u16 anim, u8 variant, s8 red, s8
     if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_TRANSFORMATION_ENABLE)
         LoadObjPaletteWithTransformation(colors, paletteId * 16, 16);
     else {
-        DmaCopy16(3, colors, &gObjPalette[paletteId * 16], sizeof(colors));
+        DmaCopy16(3, colors, KATAM_OBJ_PAL(paletteId * 16), sizeof(colors));
         gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
     gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
@@ -1037,9 +1076,9 @@ void LoadLevelPaletteEffectSourcePalettes(const u16 **arg0, const u16 **arg1)
     CpuCopy32(*arg1, &gSourcePalettes.bg[0x60], 0x100);
 }
 
-void SaveObjPaletteColors(u8 offset, u8 num)
+void SaveObjPaletteColors(KATAM_PAL_OFF offset, u8 num)
 {
-    CpuCopy16(&gObjPalette[offset], &gSourcePalettes.obj[offset], num << 1);
+    CpuCopy16(KATAM_OBJ_PAL(offset), OBJ_SOURCE(offset), num << 1);
 }
 
 void SaveBgPaletteColors(u8 offset, u8 num)

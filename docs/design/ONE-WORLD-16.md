@@ -212,7 +212,7 @@ nothing is shared or overwritten.
 
 | rule / limit | where | what the proof does | owner's decision |
 |---|---|---|---|
-| Colours and sprite memory: the console has 4 Kirby palette pairs and 4 × 2 KiB of OBJ VRAM | 166 sites, `KATAM_HW_SLOT` | Kirby *i* uses slot *i* & 3. Kirbys 4.. look like 0..3 and their animation tiles collide on screen | colours beyond the sprays; renderer-side palettes and tiles per viewer (no PPU fallback for >4 sessions) |
+| Colours and sprite memory: the console has 4 Kirby palette pairs and 4 × 2 KiB of OBJ VRAM | `KATAM_KIRBY_TILES` / `KATAM_KIRBY_PAL`, `platform/wide_sprites.c` | **Done (GPU renderer).** Kirbys 4.. have their own 2 KiB of tiles and two palette lines in the sim block (`WIDE_OFF_OBJX`); the render list's sprite hook hands the GPU the real tile and line (`RlSprite.tileX` / `palHi`). OAM still says slot *i* & 3, so the classic (PPU) renderer shows that placeholder past 4. Kirby *i* wears the spray colour of its own `color` (no player-card paint past 4) | colours beyond the sprays; PPU fallback stays a placeholder |
 | Four-row ROM tables: spawn offsets, respawn rooms, CPU path data, pause-map offsets, colour per player | 41 sites, `KATAM_ROM_ROW` | Kirby *i* uses row *i* & 3 | where 16 players spawn and respawn |
 | The console HUD keeps sprites for 4; the pause area map keeps markers for 4 | `hud.c`, `pause_area_map.c` | shows Kirbys 0..3 only | HUD for 16 (the port's party HUD) |
 | Kirby-on-Kirby contact (standing on heads, sharing food) is 4 bits per Kirby in a u16 and a u8 mask | `object_collision.c` | only Kirbys 0..3 interact. The rest pass through each other | should 16 Kirbys stack, push, share food? |

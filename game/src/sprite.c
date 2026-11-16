@@ -908,7 +908,7 @@ s32 sub_08155400(union AnimCmd cursor, struct Sprite *sprite) {
         } else {
             DmaCopy16(3,
                 src,
-                &gObjPalette[0x10 * sprite->palId + cursor.getPalette->insertOffset],
+                KATAM_OBJ_PAL(0x10 * sprite->palId + cursor.getPalette->insertOffset),
                 cursor.getPalette->numColors * sizeof(u16));
             gMainFlags |= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
         }
@@ -1385,7 +1385,7 @@ void DisplaySprite(struct Sprite *sprite) {
                 r4->all.attr2 |= sp1C;
                 if (r4->all.attr0 & 0x2000)
                     r4->all.attr2 += r4->all.attr2 & 0x3FF;
-                r4->all.attr2 += (sprite->tilesVram - 0x6010000u) >> 5;
+                r4->all.attr2 += KATAM_OAM_TILES(sprite->tilesVram);
             }
 
             if ((sprite->unk4 >> 28) == 1 && sprite->unk8 & 0x4000000) {
@@ -1539,7 +1539,7 @@ void sub_081564D8(struct Sprite *sprite) {
                     localOamBuffer[2] |= sp28;
                     if (localOamBuffer[0] & 0x2000)
                         localOamBuffer[2] += localOamBuffer[2] & 0x3FF;
-                    localOamBuffer[2] += (sprite->tilesVram - 0x6010000u) >> 5;
+                    localOamBuffer[2] += KATAM_OAM_TILES(sprite->tilesVram);
                     oamDst = sub_08156D84((sprite->unk14 & 0x7C0) >> 6);
                     if (iwram_end == oamDst) return;
                     DmaCopy16(3, localOamBuffer, oamDst, 6);
@@ -1696,7 +1696,7 @@ void sub_081569A0(struct Sprite *sprite, u16 *sp08, u8 sp0C) {
                 oam->all.attr1 += (sp00 + x1) & 0x1FF;
                 if (oam->all.attr0 & 0x2000)
                     oam->all.attr2 += oam->all.attr2 & 0x3FF;
-                oam->all.attr2 += (sprite->tilesVram - 0x6010000u) >> 5;
+                oam->all.attr2 += KATAM_OAM_TILES(sprite->tilesVram);
                 for (i = 0; i < sp0C; ++i) {
                     OamData *r5 = sub_08156D84((sprite->unk14 & 0x7C0) >> 6);
 

@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "port/port.h"
+#include "port/backend.h"
 #include "gba/gba.h"
 #include "global.h"
 #include "main.h"
@@ -162,6 +163,12 @@ static void EmitTilePatches(const struct Sprite *sprite, union SpriteAttributes 
         base = (const u8 *)v;
     }
     dst = (s32)sprite->tilesVram;
+#if KATAM_WIDE
+    /* A wide-build Kirby 4..'s own tiles: after VRAM in the cache (RL_XTILE_BYTES). */
+    if (PortWideIsObjx((u32)dst))
+        dst = (s32)(0x06018000u + ((u32)dst - WIDE_OBJX_TILES));
+    else
+#endif
     if (dst < 0x06010000 || dst >= 0x06018000)
         return;
     runLen = tile;
@@ -173,7 +180,7 @@ static void EmitTilePatches(const struct Sprite *sprite, union SpriteAttributes 
             continue;
         }
         if (sNumEmitPatch < MAX_PATCHES
-            && (u32)(dst - 0x06000000) + runLen <= 0x18000) {
+            && (u32)(dst - 0x06000000) + runLen <= RL_VRAM_BYTES) {
             sEmitPatch[sNumEmitPatch].vramOff = (u32)(dst - 0x06000000);
             sEmitPatch[sNumEmitPatch].src = run;
             sEmitPatch[sNumEmitPatch].len = runLen;
@@ -281,7 +288,7 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         a2 |= a2bits;
         if (a0 & 0x2000)
             a2 += a2 & 0x3FF;
-        a2 += (u16)((sprite->tilesVram - 0x6010000u) >> 5);
+        a2 += (u16)KATAM_OAM_TILES(sprite->tilesVram);
 
         /* The pool hands out 128 entries; past that the game returns from
          * the call, skipping the rest of the subframes and the tile upload. */
@@ -318,6 +325,20 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant)
         p->s.space = hud ? RL_SPACE_HUD : RL_SPACE_WORLD;
         p->s.anchor = 0;
         p->s.pa = 0x100; p->s.pb = 0; p->s.pc = 0; p->s.pd = 0x100;
+        p->s.tileX = 0;
+        p->s.palHi = 0;
+        p->s.pad_ = 0;
+#if KATAM_WIDE
+        /* A Kirby 4..'s own tiles and palette lines (render_list.h). */
+        if (PortWideIsObjx(sprite->tilesVram)) {
+            u32 sub = t2 & 0x3FFu;
+            if (a0 & 0x2000)
+                sub <<= 1;
+            p->s.tileX = (u16)(0x400u + ((sprite->tilesVram - WIDE_OBJX_TILES) >> 5) + sub);
+        }
+        if ((sprite->palId >> 4) && (sprite->palId >> 4) <= WIDE_OBJX_GROUPS && (sprite->palId & 15) < 8)
+            p->s.palHi = (u8)(sprite->palId >> 4);
+#endif
         p->z = (u8)((sprite->unk14 & 0x7C0) >> 6);
         if (p->z > 0x1F) p->z = 0x1F;
         p->inOam = (u8)inOam;
@@ -438,8 +459,135 @@ static void PopCensus(void)
     sPopFramesWithMargin += (u32)margin;
 }
 
+/* --- Kirby sprite probe (KATAM_RL_KIRBYPROBE=1) ---------------------------
+ *
+ * Every frame: is each Kirby's body (base.sprite) and second sprite
+ * (sprites[1], the hat) drawn from that Kirby's own tile memory and palette
+ * lines (port/wide.h KATAM_KIRBY_TILES/PAL), as the GPU renderer will read
+ * them?  Also how many Kirbys are on the 240x160 screen at once and how full
+ * the 128-entry OAM pool gets.  Printed at exit (PortRlReportPopIn). */
+static int SpriteHidden(u16 a0);
+static int sKpEnabled = -1;
+static u32 sKpFrames, sKpPieces, sKpBad, sKpMaxOn, sKpMaxOnFrame, sKpOamPeak, sKpOamFull;
+static u32 sKpOnHist[17], sKpOnFirst[17], sKpOamDropped, sKpOamDropFrames;
+static u32 sKpSpreadMax, sKpSpreadFrame;    /* Kirbys on screen 24 px apart */
+static u32 sKpAbilMax, sKpAbilFrame;        /* Kirbys 4.. on screen with an ability */
+
+static void KirbyProbe(void)
+{
+    u32 i, on = 0, oam = 0, dropped = 0, spread = 0, abil = 0;
+    u32 seen = 0;
+    s32 ax[16], ay[16];
+
+    for (i = 0; i < sNumEmit; i++) {
+        const PendingSprite *p = &sEmit[i];
+        uintptr_t o = (uintptr_t)p->owner, k0 = (uintptr_t)&gKirbys[0];
+        u32 k, part, tile, line, want, base;
+        s32 bw, bh;
+        static const u8 kW[4][4] = { {8,16,32,64}, {16,32,32,64}, {8,8,16,32}, {8,8,8,8} };
+        static const u8 kH[4][4] = { {8,16,32,64}, {8,8,16,32}, {16,32,32,64}, {8,8,8,8} };
+
+        oam += p->inOam;
+        if (o < k0 || o >= k0 + (uintptr_t)gNumKirbys * sizeof(struct Kirby))
+            continue;
+        k = (u32)((o - k0) / sizeof(struct Kirby));
+        if (o == (uintptr_t)&gKirbys[k].base.sprite) part = 0;
+        else if (o == (uintptr_t)&gKirbys[k].sprites[1]) part = 1;
+        else continue;
+        sKpPieces++;
+        /* the tile number the GPU reads, and the palette line */
+        tile = p->s.tileX ? p->s.tileX : (u32)(p->s.attr2 & 0x3FF);
+        line = (u32)p->s.palHi * 16u + ((p->s.attr2 >> 12) & 15u);
+        base = k < 4 ? k * 64u : 0x400u + (k - 4u) * 64u;
+        want = part ? (u32)KATAM_KIRBY_PAL2(k) : (u32)KATAM_KIRBY_PAL(k);
+        /* Shared memory is fine (VRAM past the four Kirby slots, palette
+         * lines 8..15: the console's too); another Kirby's is not. */
+        if (!((tile >= base && tile < base + 64u) || (tile >= 0x100u && tile < 0x400u))
+            || !(line == want || (line >= 8u && line < 16u))) {
+            if (sKpBad < 8)
+                PortLog("[katam-port] kirby probe: frame %u Kirby %u %s: tile 0x%X (want 0x%X..), "
+                        "line %u (want %u)", (unsigned)PortFrameNumber(), (unsigned)k,
+                        part ? "sprites[1]" : "body", (unsigned)tile, (unsigned)base,
+                        (unsigned)line, (unsigned)want);
+            sKpBad++;
+        }
+        bw = kW[(p->s.attr0 >> 14) & 3][(p->s.attr1 >> 14) & 3];
+        bh = kH[(p->s.attr0 >> 14) & 3][(p->s.attr1 >> 14) & 3];
+        if (part == 0 && !(seen & (1u << k)) && p->s.space == RL_SPACE_WORLD
+            && !SpriteHidden(p->s.attr0)
+            && gKirbys[k].base.roomId == gKirbys[gLocalPlayerId].base.roomId
+            && p->s.x < PORT_SCREEN_W && p->s.y < PORT_SCREEN_H
+            && p->s.x + bw > 0 && p->s.y + bh > 0) {
+            u32 j;
+            seen |= 1u << k;
+            if (k >= 4 && gKirbys[k].ability != 0)  /* KIRBY_ABILITY_NORMAL */
+                abil++;
+            for (j = 0; j < spread; j++)
+                if (abs(ax[j] - p->ax) < 24 && abs(ay[j] - p->ay) < 24)
+                    break;
+            if (j == spread && spread < 16) {
+                ax[spread] = p->ax;
+                ay[spread] = p->ay;
+                spread++;
+            }
+            on++;
+        }
+    }
+    for (i = 0; i < sNumEmit; i++)
+        if (!sEmit[i].inOam) {
+            s32 bw, bh;
+            static const u8 kW[4][4] = { {8,16,32,64}, {16,32,32,64}, {8,8,16,32}, {8,8,8,8} };
+            static const u8 kH[4][4] = { {8,16,32,64}, {8,8,16,32}, {16,32,32,64}, {8,8,8,8} };
+            const RlSprite *t = &sEmit[i].s;
+            bw = kW[(t->attr0 >> 14) & 3][(t->attr1 >> 14) & 3];
+            bh = kH[(t->attr0 >> 14) & 3][(t->attr1 >> 14) & 3];
+            if (t->space != RL_SPACE_HUD && !SpriteHidden(t->attr0) && t->x < PORT_SCREEN_W && t->y < PORT_SCREEN_H
+                && t->x + bw > 0 && t->y + bh > 0)
+                dropped++;      /* on the 240x160 screen yet not in OAM */
+        }
+    sKpFrames++;
+    if (on > 16) on = 16;
+    if (!sKpOnHist[on]++)
+        sKpOnFirst[on] = PortFrameNumber();
+    if (on > sKpMaxOn) {
+        sKpMaxOn = on;
+        sKpMaxOnFrame = PortFrameNumber();
+    }
+    if (abil > sKpAbilMax) {
+        sKpAbilMax = abil;
+        sKpAbilFrame = PortFrameNumber();
+    }
+    if (spread > sKpSpreadMax) {
+        sKpSpreadMax = spread;
+        sKpSpreadFrame = PortFrameNumber();
+    }
+    if (oam > sKpOamPeak) sKpOamPeak = oam;
+    if (oam >= 128) sKpOamFull++;
+    sKpOamDropped += dropped;
+    sKpOamDropFrames += dropped != 0;
+}
+
 void PortRlReportPopIn(void)
 {
+    if (sKpEnabled == 1) {
+        u32 i;
+        PortLog("[katam-port] kirby probe: %u frames, %u Kirby sprites checked, %u from another "
+                "Kirby's tiles or palette: %s", (unsigned)sKpFrames, (unsigned)sKpPieces,
+                (unsigned)sKpBad, sKpBad ? "FAIL" : "PASS");
+        PortLog("[katam-port] kirby probe: most Kirbys on the 240x160 screen at once %u (frame %u); "
+                "OAM peak %u/128, full on %u frames; on-screen sprites left out of OAM %u "
+                "(on %u frames)", (unsigned)sKpMaxOn, (unsigned)sKpMaxOnFrame,
+                (unsigned)sKpOamPeak, (unsigned)sKpOamFull, (unsigned)sKpOamDropped,
+                (unsigned)sKpOamDropFrames);
+        PortLog("[katam-port] kirby probe: most Kirbys on screen 24 px apart %u (frame %u); "
+                "most Kirbys 4.. on screen with an ability %u (frame %u)",
+                (unsigned)sKpSpreadMax, (unsigned)sKpSpreadFrame, (unsigned)sKpAbilMax,
+                (unsigned)sKpAbilFrame);
+        for (i = 1; i <= 16; i++)
+            if (sKpOnHist[i])
+                PortLog("[katam-port] kirby probe:   %2u on screen: %u frames, first at %u",
+                        (unsigned)i, (unsigned)sKpOnHist[i], (unsigned)sKpOnFirst[i]);
+    }
     if (sPopEnabled != 1)
         return;
     PortLog("[katam-port] pop-in census, view %dx%d: %u frames (room entries "
@@ -468,6 +616,10 @@ void PortRlCommitSprites(void)
         sPopEnabled = getenv("KATAM_RL_POPSTAT") != NULL;
     if (sPopEnabled)
         PopCensus();
+    if (sKpEnabled < 0)
+        sKpEnabled = getenv("KATAM_RL_KIRBYPROBE") != NULL;
+    if (sKpEnabled)
+        KirbyProbe();
     memset(counts, 0, sizeof(counts));
     for (i = 0; i < sNumEmit; i++)
         counts[sEmit[i].z + 1]++;
@@ -687,8 +839,8 @@ void PortRlGetViewSize(s32 *w, s32 *h)
 
 static RlSprite sOut[RL_MAX_SPRITES + 128];
 static RlSprite sOutWin[RL_MAX_SPRITES + 128];
-static u8 sVram[0x18000];
-static u16 sPal[512];
+static u8 sVram[RL_VRAM_BYTES];
+static u16 sPal[RL_PAL_ENTRIES];
 static u32 sMapGen[4];
 static const u16 *sMapPtr[4];
 static s32 sMapW[4], sMapH[4];
@@ -832,6 +984,9 @@ static void OamToSprite(const u16 *oam, int i, RlSprite *s)
     s->attr2 = oam[i * 4 + 2];
     s->space = RL_SPACE_SCREEN;
     s->anchor = 0;
+    s->tileX = 0;
+    s->palHi = 0;
+    s->pad_ = 0;
 }
 
 static const u8 kObjW[4][4] = { {8,16,32,64}, {16,32,32,64}, {8,8,16,32}, {8,8,8,8} };
@@ -1538,7 +1693,13 @@ const RlFrame *PortRlBuildFrame(void)
 
     /* The tile cache's source: VRAM, with the off-screen sprites' frames
      * patched into a copy so they animate in the margin. */
-    memcpy(sVram, (const void *)GBA_VRAM_BASE, sizeof(sVram));
+    memcpy(sVram, (const void *)GBA_VRAM_BASE, 0x18000);
+#if KATAM_WIDE
+    /* ... then the wide build's Kirbys 4..: their tiles, as the tile queue
+     * left them at the last VBlank (as VRAM's), and their palette lines'
+     * "hardware" copy (as OBJ_PLTT; platform/wide_sprites.c). */
+    memcpy(sVram + 0x18000, (const void *)(uintptr_t)WIDE_OBJX_TILES, RL_XTILE_BYTES);
+#endif
     for (i = 0; i < (int)sNumCommitPatch; i++) {
         const TilePatch *p = &sCommitPatch[i];
         memcpy(sVram + p->vramOff, p->src, p->len);
@@ -1548,7 +1709,10 @@ const RlFrame *PortRlBuildFrame(void)
         sPopViewW = f->viewW; sPopViewH = f->viewH;
     }
     f->vram = sVram;
-    memcpy(sPal, (const void *)GBA_PLTT_BASE, sizeof(sPal));
+    memcpy(sPal, (const void *)GBA_PLTT_BASE, 512 * sizeof(u16));
+#if KATAM_WIDE
+    memcpy(sPal + 512, (const void *)(uintptr_t)WIDE_OBJX_HWPAL, RL_XPAL_LINES * 32u);
+#endif
     f->palette = sPal;
     f->light = NULL;
     if (gPortLighting)

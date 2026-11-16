@@ -304,6 +304,9 @@ void UpdateScreenDma(void) {
     
     if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE) {
         DmaCopy32(3, gObjPalette, (void*)OBJ_PLTT, OBJ_PLTT_SIZE);
+#if KATAM_WIDE
+        PortWideObjPalSync(); /* PORT: the wide build's Kirby lines (platform/wide_sprites.c) */
+#endif
         gMainFlags ^= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
 
@@ -402,6 +405,9 @@ void UpdateScreenCpuSet(void) {
     
     if (gMainFlags & MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE) {
         CpuFastCopy(gObjPalette, (void*)OBJ_PLTT, OBJ_PLTT_SIZE);
+#if KATAM_WIDE
+        PortWideObjPalSync(); /* PORT: as UpdateScreenDma */
+#endif
         gMainFlags ^= MAIN_FLAG_OBJ_PALETTE_SYNC_ENABLE;
     }
 
