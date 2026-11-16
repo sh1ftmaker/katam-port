@@ -21,11 +21,15 @@ KNOWN = {
     'game/src/rocky.c:122': 'counter >> 3 past a 16-entry table (default baseline)',
     'game/src/intro.c:3318': 'index -1 (default baseline)',
     'game/src/vert_sliding_door.c:54': 'P32[8] (default baseline)',
+    # the same macro (Macro_080A4728, gUnk_02022EC0[0][slot * 8 + n]) in the
+    # door's open and close states
+    'game/src/vert_sliding_door.c:77': 'P32[8] (as :54, the same macro)',
+    'game/src/vert_sliding_door.c:100': 'P32[8] (as :54, the same macro)',
     'game/src/object_collision.c:491': 'gCurLevelInfo[255] (default baseline)',
-    'game/src/kirby.c:23859': 'marked "TODO: UB: out-of-bounds read" in the source',
-    'game/src/kirby.c:23860': 'marked "TODO: UB: out-of-bounds read" in the source',
-    'game/src/kirby.c:23874': 'marked "TODO: UB: out-of-bounds read" in the source',
-    'game/src/kirby.c:23875': 'marked "TODO: UB: out-of-bounds read" in the source',
+    'game/src/kirby.c:23868': 'marked "TODO: UB: out-of-bounds read" in the source',
+    'game/src/kirby.c:23869': 'marked "TODO: UB: out-of-bounds read" in the source',
+    'game/src/kirby.c:23883': 'marked "TODO: UB: out-of-bounds read" in the source',
+    'game/src/kirby.c:23884': 'marked "TODO: UB: out-of-bounds read" in the source',
 }
 loc_re = re.compile(r'(game/src/[a-z0-9_]+\.c:\d+)')
 

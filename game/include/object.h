@@ -87,13 +87,15 @@ extern "C" {
         _temp = (objBase)->unk56 != 0xFF ? gCurLevelInfo[(objBase)->unk56].unk65E : 0xFF; \
         if (_temp != 0xFF) \
         { \
-            u8 _idx; \
+            KATAM_COLL_IDX _idx; /* PORT: u8 on the console, wider in the wide build (port/wide.h) */ \
             u32 _temp2 = _temp * 64 + ((objBase)->header.kind - 1) * 32; \
  \
             /* PORT: asm barrier removed */ \
+            if (KATAM_COLL_ROOM(gUnk_02022EB0[_temp][(objBase)->header.kind - 1])) { \
             _idx = gUnk_02022EB0[_temp][(objBase)->header.kind - 1]++ + _temp2; \
             gUnk_02022F50[_idx] = (objBase); \
             gUnk_02022F50[_idx + 1] = NULL; \
+            } \
         } \
     } \
 })
@@ -106,12 +108,14 @@ extern "C" {
         _temp = (objBase)->unk56 != 0xFF ? gCurLevelInfo[(objBase)->unk56].unk65E : 0xFF; \
         if (_temp != 0xFF) \
         { \
-            u8 _idx; \
+            KATAM_COLL_IDX _idx; /* PORT: port/wide.h */ \
             u32 _temp2 = _temp * 64 + ((objBase)->header.kind - 1) * 32; \
  \
+            if (KATAM_COLL_ROOM(gUnk_02022EB0[_temp][(objBase)->header.kind - 1])) { \
             _idx = gUnk_02022EB0[_temp][(objBase)->header.kind - 1]++ + _temp2; \
             gUnk_02022F50[_idx] = (objBase); \
             gUnk_02022F50[_idx + 1] = NULL; \
+            } \
         } \
     } \
 })

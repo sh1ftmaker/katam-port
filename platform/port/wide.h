@@ -103,6 +103,15 @@
 #define KATAM_COLL_IDX u8
 #endif
 
+/* May an object be added to a room slot's collision list that holds `count`
+ * (object.h SetPointerSomething)?  The console never asks; the wide build's
+ * lists stop at 31 (PortWideCollRoom, as code_0806F780.c's two adders). */
+#if KATAM_WIDE
+#define KATAM_COLL_ROOM(count) PortWideCollRoom(count)
+#else
+#define KATAM_COLL_ROOM(count) 1
+#endif
+
 /* A Kirby's row in one of the game's four-row ROM tables (spawn offsets, CPU
  * path data per room...).  PLACEHOLDER in the wide build: Kirby i uses row
  * i & 3.  Which rows Kirbys 4.. should have is design data nobody wrote. */

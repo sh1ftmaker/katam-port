@@ -1866,6 +1866,8 @@ static void ItemApply(int it, int dir)
     case IT_DEFAULTS:
         PortSettingsDefaults(&gPortSettings);
         PortSettingsChanged();
+        if (KATAM_WIDE)
+            PortWideRequestKirbys(gPortSettings.kirbys);    /* CPU KIRBYS 3, live */
         break;
     case IT_KICK:                       /* the host's device: remove a guest's */
         if (gPortLnOn && PortLnRole() == PORT_LN_HOST && dir >= 1 && dir <= 3)
