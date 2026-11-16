@@ -7,7 +7,11 @@
 // What one listing holds, and nothing else:
 //   code     the room's 4-letter code (what a joiner needs)
 //   name     the host's player-card name, sanitised (sanitizeName)
-//   n        players in the game, 1..4, as the host reports it
+//   n        players in the game, 1..max, as the host reports it
+//   max      the people the game holds: 4, or 8 in an 8-player game (the
+//            host says; 4..16, else 4)
+//   mod      the module it runs on, '16' for the 16-Kirby one (8-player
+//            games: a joiner's page loads it first), absent otherwise
 //   mode     'together' | 'roam'
 //   locked   whether the host set a password (the password itself never
 //            leaves the host's device: web/online_browse.js)
@@ -34,7 +38,8 @@ export const LIST_MAX = 200;                 // listings held at once, all IPs
 export const LIST_PER_IP = 3;                // listings one address may hold
 export const LIST_SHOWN = 50;                // listings one GET returns
 export const NAME_MAX = 8;                   // platform/port/player_card.h PORT_CARD_NAME_MAX
-export const MAX_PLAYERS = 4;
+export const MAX_PLAYERS = 4;                // a listing's max when its host gives none
+export const MAX_SEATS = 16;                 // the most a host may say
 const NAME_CHARS = /[^A-Z0-9 .!-]/g;          // platform/player_card.c kNameChars
 
 // The player card's character set, at most NAME_MAX, single spaces, trimmed;
@@ -108,13 +113,16 @@ export class PublicList {
             if (this.rooms.size >= this.max)
                 return 'limit-all';
         }
+        let max = Math.floor(Number(f.max));
+        if (!Number.isFinite(max) || max < MAX_PLAYERS || max > MAX_SEATS) max = MAX_PLAYERS;
         let n = Math.floor(Number(f.n));
         if (!Number.isFinite(n)) n = 1;
-        n = Math.max(1, Math.min(MAX_PLAYERS, n));
+        n = Math.max(1, Math.min(max, n));
         this.rooms.set(roomId, {
-            code, name: sanitizeName(f.name), n,
+            code, name: sanitizeName(f.name), n, max,
             mode: f.mode === 'roam' ? 'roam' : 'together',
             locked: f.locked === true,
+            mod: f.mod === '16' ? '16' : null,
             since: old ? old.since : t, heard: t, owner,
         });
         return 'ok';
@@ -135,20 +143,24 @@ export class PublicList {
         this.sweep();
         const t = this.now();
         const all = [...this.rooms.values()];
-        all.sort((a, b) => ((a.n >= MAX_PLAYERS) - (b.n >= MAX_PLAYERS)) || a.since - b.since
+        all.sort((a, b) => ((a.n >= a.max) - (b.n >= b.max)) || a.since - b.since
                            || (a.code < b.code ? -1 : 1));
-        return all.slice(0, this.shown).map((e) => ({
-            code: e.code, name: e.name, n: e.n, max: MAX_PLAYERS, mode: e.mode,
-            locked: e.locked, full: e.n >= MAX_PLAYERS,
-            age: Math.max(0, Math.round((t - e.heard) / 1000)),
-        }));
+        return all.slice(0, this.shown).map((e) => {
+            const o = {
+                code: e.code, name: e.name, n: e.n, max: e.max, mode: e.mode,
+                locked: e.locked, full: e.n >= e.max,
+                age: Math.max(0, Math.round((t - e.heard) / 1000)),
+            };
+            if (e.mod) o.mod = e.mod;
+            return o;
+        });
     }
 }
 
 // The HTTP face, for DirectoryService (directory.mjs): {status, body, headers?}.
 //
 //   GET  /v2/public                      -> 200 {v, games: [...], every, ttl}
-//   POST /v2/public         {code, resume, name, n, mode, locked}
+//   POST /v2/public         {code, resume, name, n, mode, locked, [max, mod]}
 //                                        -> 200 {ok, listed, every, ttl}
 //                                         | 400 bad | 403 forbidden
 //                                         | 409 limit | 429 rate

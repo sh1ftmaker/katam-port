@@ -73,6 +73,10 @@
     };
     var PERIOD = LS.PERIOD;
     var KF_EVERY = 15, KF_COUNT = 24;          /* as the rig: 360 frames of history, ~12 MiB */
+    /* the 16-Kirby module's keyframes are 940 KiB: 24 of them do not fit its
+     * heap beside the rest (192 MiB, no growth), 16 do (240 frames, ~15 MiB;
+     * tools/netproof.mjs --kf-count runs the rig the same) */
+    function kfCount() { return up() && M._PortLnSlots && M._PortLnSlots() > 8 ? 16 : KF_COUNT; }
     var P2P_WAIT_MS = 5000, DEAD_MS = 6000, PING_MS = 1000;
     var ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
     var RELAY_CHUNK = 24 * 1024, DC_CHUNK = 16 * 1024;
@@ -604,7 +608,7 @@
     function startEngine() {
         S.startWanted = false;
         var role = S.role === 'host' ? 1 : 2;
-        if (!M._PortLnStart(role, KF_EVERY, KF_COUNT, 0)) {
+        if (!M._PortLnStart(role, KF_EVERY, kfCount(), 0)) {
             log('could not start the session (no memory for the history?)');
             banner('Could not start the online game on this device (memory). Reload the page.', 0);
             ln.on = false;
@@ -636,7 +640,7 @@
             for (var s = 1; s < nSlots(); s++) S.owners[s] = M._PortLnSlotWant(s);
         } else {
             S.gs = new LS.GuestSession(engine(), txOf(S.peer.link), clock,
-                                       { codec: CODEC, leadCap: KF_EVERY * (KF_COUNT - 2) - 10, samples: false });
+                                       { codec: CODEC, leadCap: KF_EVERY * (kfCount() - 2) - 10, samples: false });
             S.gs.onSeatFull = function (seat) {
                 S.stats.refusedFull++;
                 /* the device module had given that controller the seat: park

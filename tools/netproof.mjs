@@ -74,6 +74,10 @@ const SEATS = +flag('seats', SLOTS > 4 ? Math.min(8, SLOTS) : 4);
 const DEVICES = Math.min(+flag('devices', 2), MAXDEV, SEATS);
 const R15_N = flag('r15', '2,3,4').split(',').map(Number).filter((n) => n >= 2 && n <= Math.min(MAXDEV, SEATS));
 const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
+// keyframes a guest keeps (x 15 frames of history): 24, or 16 on the 16-Kirby
+// module (what web/online.js uses: 24 of its 940 KiB keyframes do not fit
+// its 192 MiB heap beside the rest)
+const KF_COUNT = +flag('kf-count', SLOTS > 8 ? 16 : 24);
 const MAXPKT = +flag('max-packet', COPIES ? 1100 : 0);
 const HOST_OPTS = COPIES ? { copies: COPIES, maxPacketBytes: MAXPKT } : (MAXPKT ? { maxPacketBytes: MAXPKT } : {});
 // Kirbys 5.. must not pause (run.mjs pauseSlots: the pause area map traps
@@ -151,7 +155,7 @@ async function run(name, cfg, scenarioOpts = {}) {
 
 async function run1(name, cfg, scenarioOpts = {}) {
     const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600), kirbyAddr: KIRBY }, scenarioOpts)));
-    cfg = Object.assign({}, cfg, { seats: cfg.seats || SEATS, hostOpts: Object.assign({}, HOST_OPTS, cfg.hostOpts || {}),
+    cfg = Object.assign({}, cfg, { seats: cfg.seats || SEATS, hostOpts: Object.assign({}, HOST_OPTS, cfg.hostOpts || {}), kfCount: cfg.kfCount || KF_COUNT,
                                    pauseSlots: cfg.pauseSlots ?? PAUSE_SLOTS });
     const r = await runSession(Object.assign({ name, modulePath: MODULE, rom, scenario: sc }, cfg));
     const s = slim(r);
@@ -201,7 +205,7 @@ const FREE = (SCRIPTED + 300) * PERIOD;   // ms after the session start: free pl
 const HEADLINE = L(120, 30, 0.02, { reorder: 0.02, reorderMs: 30, dup: 0.01 });
 
 const report = { started: new Date().toISOString(), rom: path.basename(ROM), module: MODULE, quick: QUICK, gates: {}, notes: [],
-                 slots: SLOTS, maxDevices: MAXDEV, seats: SEATS, devices: DEVICES, copies: COPIES, maxPacket: MAXPKT, kirbyAddr: '0x' + KIRBY.toString(16) };
+                 slots: SLOTS, maxDevices: MAXDEV, seats: SEATS, devices: DEVICES, copies: COPIES, maxPacket: MAXPKT, kirbyAddr: '0x' + KIRBY.toString(16), kfCount: KF_COUNT };
 
 // ---------------------------------------------------------------------------
 async function main() {
@@ -500,13 +504,25 @@ async function main() {
                             resentRecs: pd.reduce((a, x) => a + (x.resentRecs || 0), 0), recsPerPacket: +(pd.reduce((a, x) => a + x.recs, 0) / Math.max(1, pd.reduce((a, x) => a + x.packets, 0))).toFixed(2),
                             rtoMs: pd.map((x) => x.rtoMs || 0), hostStepMs: r.host.stepMs, identical: r.compare.mismatched === 0 });
         }
+        // the bytes as the page sends them (the host hashes every 16th frame,
+        // not every one): the largest device count, the headline link
+        {
+            const n = Math.max(...R15_N);
+            const r = await run(`R15 ${n} devices @120ms j30 loss2%, hashes as the page (every 16th)`, { link: HEADLINE, durationFrames: dur, seed: 3, pageHash: true, guests: Array.from({ length: n - 1 }, (_, i) => ({ dev: i + 1 })) });
+            const pd = r.host.session.perDev || [], gm = r.guests.length ? r.guests[0].minutes * 60 : 1;
+            hostRows.push({ devices: n, link: '@120ms j30 loss2%, page hashing', upBps: Math.round(r.guests.reduce((a, g) => a + (g.link ? g.link.hg.bytes : 0), 0) / Math.max(1, gm)),
+                            downBps: Math.round(r.guests.reduce((a, g) => a + (g.link ? g.link.gh.bytes : 0), 0) / Math.max(1, gm)),
+                            maxPacket: Math.max(0, ...pd.map((x) => x.maxPacket || 0)), resends: pd.reduce((a, x) => a + (x.resends || 0), 0),
+                            resentRecs: pd.reduce((a, x) => a + (x.resentRecs || 0), 0), recsPerPacket: +(pd.reduce((a, x) => a + x.recs, 0) / Math.max(1, pd.reduce((a, x) => a + x.packets, 0))).toFixed(2),
+                            rtoMs: pd.map((x) => x.rtoMs || 0), hostStepMs: r.host.stepMs, identical: r.compare.mismatched === 0 });
+        }
         report.gates.R15 = { verdict: 'MEASURED', rows, hostRows,
             text: ['@120ms j30 loss2%', '@30ms'].map((ln) => R15_N.map((n) => {
                 const rr = rows.filter((x) => x.devices === n && x.link === ln), h = hostRows.find((x) => x.devices === n && x.link === ln) || {};
                 const avg = (k) => +(rr.reduce((a, x) => a + x[k], 0) / Math.max(1, rr.length)).toFixed(1);
                 return `${n} devices ${ln}: rewinds/min ${avg('rewindsPerMin')} (per guest ${rr.map((x) => x.rewindsPerMin).join('/')}), depth p50 ${rr.map((x) => fmt(x.depth.p50)).join('/')}, replayed f/s ${avg('replayedPerSec')}, lead p50 ${rr.map((x) => x.lead.p50).join('/')}, own px p99 ${rr.map((x) => fmt(x.own.p99)).join('/')}, others mispredicted ${avg('mispredOtherPct')}%, worst guest step ${Math.max(...rr.map((x) => x.worstGuestStepMs))} ms; ` +
                        `host up ${(h.upBps / 1000).toFixed(1)} KB/s down ${(h.downBps / 1000).toFixed(1)} KB/s, largest sealed packet ${h.maxPacket} B, ${h.recsPerPacket} records/packet, retransmits ${h.resends} (${h.resentRecs} records), identical ${h.identical}`;
-            }).join('; ')).join('; ') };
+            }).join('; ')).join('; ') + `; ${hostRows[hostRows.length - 1].devices} devices as the page hashes: host up ${(hostRows[hostRows.length - 1].upBps / 1000).toFixed(1)} KB/s, down ${(hostRows[hostRows.length - 1].downBps / 1000).toFixed(1)} KB/s, largest packet ${hostRows[hostRows.length - 1].maxPacket} B` };
     }
     // R16: player cards online -- every slot's colour sealed by the host from
     // its owner's card and every name relayed to every device, through a
@@ -682,7 +698,7 @@ async function costs() {
     out.keyframeBytes = t.kfBytes; out.keyframes = t.kfCount;
     out.historyBytes = (t.kfBytes || 0) * (t.kfCount || 0);
     out.timelineBytes = 8192 * (60 + 11 * 8 + 12);
-    out.historyFramesCovered = 15 * 24;
+    out.historyFramesCovered = 15 * (t.kfCount || KF_COUNT);
     const img = all.map((r) => r.host.session).filter((s) => s.images);
     out.imageRaw = img[0] ? img[0].imageRaw : null;
     out.imageCompressed = dist(img.map((s) => s.imageComp));
@@ -771,7 +787,7 @@ function markdown(R) {
     let s = `# Online local multiplayer: proof-of-concept rig report\n\n`;
     s += `Generated by \`node tools/netproof.mjs\` (${R.quick ? 'QUICK mode' : 'full'}) on ${R.finished}, ${R.wallSec} s wall. ROM: the player's own (${R.rom}); module ${path.relative(ROOT, R.module)}.\n`;
     s += `Every number below is measured by this run on a virtual clock (seeded, reproducible); nothing is cited.\n\n`;
-    s += `Module: ${R.slots} Kirby slots, ${R.maxDevices} devices; room seats ${R.seats}; two-device gates run with ${R.devices} devices; sealed-stream redundancy ${R.copies ? R.copies + ' copies, then on the ack timeout' : 'until acked'}${R.maxPacket ? ', packets at most ' + R.maxPacket + ' B' : ''}; Kirby array ${R.kirbyAddr}.\n\n## Gates\n\n`;
+    s += `Module: ${R.slots} Kirby slots, ${R.maxDevices} devices; room seats ${R.seats}; ${R.kfCount} keyframes; two-device gates run with ${R.devices} devices; sealed-stream redundancy ${R.copies ? R.copies + ' copies, then on the ack timeout' : 'until acked'}${R.maxPacket ? ', packets at most ' + R.maxPacket + ' B' : ''}; Kirby array ${R.kirbyAddr}.\n\n## Gates\n\n`;
     s += md(Object.entries(R.gates), [['gate', ([g]) => g], ['verdict', ([, v]) => `**${v.verdict}**`], ['numbers', ([, v]) => (v.text || '').replace(/\|/g, '/')]]);
     if (R.gates.R2) {
         s += `\n## R2 runs\n\n`;

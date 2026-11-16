@@ -82,7 +82,9 @@ export async function runSession(cfg) {
         bootT += PERIOD;
     }
     if (menus === 'session') host.M._PortMenuPocSet(1);
-    if (!host.M._PortLnStart(1, c.kfEvery, c.kfCount, c.flags | F_HASH_EVERY | (c.hostKeyframes ? F_HOST_KEYS : 0)))
+    // c.pageHash: the host hashes every 16th frame, as the page does (the
+    // sealed stream's bytes as shipped; the comparator then sees those frames)
+    if (!host.M._PortLnStart(1, c.kfEvery, c.kfCount, c.flags | (c.pageHash ? 0 : F_HASH_EVERY) | (c.hostKeyframes ? F_HOST_KEYS : 0)))
         throw new Error('host PortLnStart failed');
     host.M._PortLmpSetHostKeys(1, 0);
     if (c.rooms) host.M._PortLnEvent(7, 1, 0, 0, 0);
