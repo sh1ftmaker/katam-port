@@ -1,6 +1,7 @@
 /* PORT: the pause menu's settings page (KATAM_MENU_POC, port/menu_poc.h).
  *
- * A fourth page in the Select cycle, after the world map: the front end's
+ * A fourth page in the Select cycle, after the world map, and the one every
+ * pause opens on (pause_help.c CreatePauseMenu): the front end's
  * settings screen (platform/menu_poc.c draws both from the same functions)
  * on the pause screens' own terms -- opened and left with their page-turn
  * fade and sound (pause_help.c's PauseMenuMain changes gPauseMenus[].menuId,

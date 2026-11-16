@@ -90,8 +90,9 @@ export function human(seed, opts = {}) {
     };
 }
 
-// A reactive pause bot: open the pause menu, walk the Select cycle to the
-// SETTINGS page (menuId 8), change a value and change it back, leave with B.
+// A reactive pause bot: open the pause menu (it opens on the SETTINGS page,
+// menuId 8; else walk the Select cycle to it), change a value and change it
+// back, leave with B.
 // Online the pause menu is the device's own overlay (platform/lmpnet.c "the
 // pause overlay"): what it shows is obs.ovl's, not the shared game's.
 function pauseView(obs) {

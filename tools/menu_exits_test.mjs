@@ -441,20 +441,21 @@ async function casePause() {
         return false;
     };
     const closed = async () => { await waitFrames(p, 40); return (await pauseState(p)).paused === 0; };
-    ok('Start pauses (the help page)', await open() && (await pauseState(p)).menu === MENU.HELP);
+    // the pause opens on SETTINGS (each time: not the page left last time)
+    ok('Start pauses (on the SETTINGS page)', await open() && (await pauseState(p)).menu === MENU.SETTINGS && (await pagesModel(p)) === M.PAUSE_TOP);
+    await shot(p, 'pause-settings-top.png');
+    await step(p, 'B'); ok('SETTINGS top: B closes the pause', await closed());
+    await open(); await step(p, 'START'); ok('SETTINGS top: Start closes the pause', await closed());
+    await open();
+    await step(p, 'SELECT', 70); ok('SETTINGS top: Select turns to the help page', (await pauseState(p)).menu === MENU.HELP);
     await shot(p, 'pause-help-alone.png');
     await step(p, 'B'); ok('help page: B closes the pause', await closed());
-    await open(); await step(p, 'START'); ok('help page: Start closes the pause', await closed());
-    await open(); await step(p, 'SELECT', 70);
+    await open(); ok('the next pause opens on SETTINGS again (not the page left)', (await pauseState(p)).menu === MENU.SETTINGS);
+    await toPage(MENU.HELP); await step(p, 'START'); ok('help page: Start closes the pause', await closed());
+    await open(); await toPage(MENU.HELP); await step(p, 'SELECT', 70);
     ok('help page: Select turns the page', (await pauseState(p)).menu !== MENU.HELP);
     row('Pause: help / area map / world map pages', 'alone', 'close the pause', 'close the pause', 'next page');
     ok('Select reaches SETTINGS', await toPage(MENU.SETTINGS) && (await pagesModel(p)) === M.PAUSE_TOP);
-    await shot(p, 'pause-settings-top.png');
-    await step(p, 'B'); ok('SETTINGS top: B closes the pause', await closed());
-    await open(); ok('back on SETTINGS (the page is remembered)', await toPage(MENU.SETTINGS));
-    await step(p, 'START'); ok('SETTINGS top: Start closes the pause', await closed());
-    await open(); await toPage(MENU.SETTINGS);
-    await step(p, 'SELECT', 70); ok('SETTINGS top: Select turns to the help page', (await pauseState(p)).menu === MENU.HELP);
     row('Pause SETTINGS', 'top level', 'close the pause', 'close the pause', 'next page (help)');
     await toPage(MENU.SETTINGS);
     for (let i = 0; i < SECTIONS.length; i++) {

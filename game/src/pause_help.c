@@ -294,7 +294,17 @@ void CreatePauseMenu(void) {
 
     playerRoomFlags = GetPlayerRoomFlags();
 
-    if (playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) {
+    /* PORT: with the settings page (KATAM_MENU_POC) every pause opens on it,
+     * not on the page left last time; Select then goes on to the help page
+     * and the maps.  (Not in the single-pak game, gUnk_0203AD10 bit 2: its
+     * pause has no Select.) */
+    if (PortMenuPoc() && !(gUnk_0203AD10 & 4)) {
+        s32 playerId;
+        for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
+            gPauseMenus[playerId].menuId = MENU_PORT_SETTINGS;
+        }
+    }
+    else if (playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) {
         s32 playerId;
         for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
             gPauseMenus[playerId].menuId = MENU_HELP;
@@ -326,7 +336,7 @@ void CreatePauseMenu(void) {
         CreateWorldMap(WORLDMAP_NO_UNLOCK);
     }
     else if (gPauseMenus[gLocalPlayerId].menuId == MENU_PORT_SETTINGS && PortMenuPoc()) {
-        CreatePauseSettings();  /* PORT: left on the settings page last time */
+        CreatePauseSettings();  /* PORT: the first page (above) */
     }
     else {
         CreateHelpMenu();
@@ -613,13 +623,13 @@ static void PauseMenuMain(void) {
     if (allPressedKeys & SELECT_BUTTON) {
         enum PauseMenuId menuId = gPauseMenus[gLocalPlayerId].menuId;
 
-        /* PORT: with KATAM_MENU_POC the settings page comes after the world
-         * map (or after the help page where there is no map to show) and is
-         * followed by the help page: help -> area map -> world map ->
-         * settings -> help, help -> world map -> settings -> help in the
-         * tutorial once its big chest is open, help -> settings -> help in
-         * the Dimension Mirror, the tutorial before that and rooms the area
-         * map does not cover. */
+        /* PORT: with KATAM_MENU_POC the pause opens on the settings page,
+         * which is followed by the help page and comes after the world map
+         * (or after the help page where there is no map to show): settings
+         * -> help -> area map -> world map -> settings, settings -> help ->
+         * world map -> settings in the tutorial once its big chest is open,
+         * settings -> help -> settings in the Dimension Mirror, the tutorial
+         * before that and rooms the area map does not cover. */
         if (gPauseMenus[gLocalPlayerId].menuId == MENU_WORLDMAP) {
             menuId = PortMenuPoc() ? MENU_PORT_SETTINGS : MENU_HELP;
         }

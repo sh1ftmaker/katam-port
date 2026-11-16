@@ -17,7 +17,7 @@
  *
  *   - the pause menu gains a fourth page after the world map, the same
  *     settings screen (game/src/pause_settings.c; Select cycles to it from
- *     the help page where there is no map).
+ *     the help page where there is no map), and every pause opens on it.
  *
  * With the switch off every function here is a no-op and the game runs
  * exactly as before.  The switch is a host setting and is not recorded in

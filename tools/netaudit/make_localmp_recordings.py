@@ -31,9 +31,10 @@ The scenarios:
                    comment line it carries): Game Select's SETTINGS screen
                    with VOLUME and CAMERA changed; then START GAME >
                    MULTIPLAYER > LOCAL, which starts the file with two humans
-                   from the menu (no `option localmp`); then the pause menu's
-                   SETTINGS page opened by player 1 and by player 2, each
-                   changing a value there.
+                   from the menu (no `option localmp`); then the pause menu,
+                   which opens on its SETTINGS page, by player 1 (Select
+                   round all four pages, back to SETTINGS) and by player 2,
+                   each changing a value there.
 
 Grammar of the scripts below (as local-mp-eval's drive.py): `@F` jump to frame
 F; `+N` advance N; a key name taps it (held 4 frames, advances 10); `hN:K`
@@ -217,7 +218,7 @@ MENUS_P1 = """
 @520 D D D D D L U U R +20 B
 @700 U U U U A +40 D +20 A +60 A
 @1300 warp:117:44:9
-@1400 S +60 s +60 s +60 s +80 D D D D D L +40 B
+@1400 S +60 s +60 s +60 s +60 s +80 D D D D D L +40 B
 @2450 h60:R h30:L
 """
 MENUS_P2 = """

@@ -16,7 +16,8 @@
 //           its slot's sealed keys are 0 while it is up.  Its pages and the
 //           SETTINGS cursor move only after its own presses, while the host
 //           mashes Select.  Guest 2 pauses as well: both navigate on their
-//           own.  Guest 1 changes VOLUME on its SETTINGS > SOUND page: its
+//           own (the pause opens on SETTINGS: guest 1 stays, guest 2 turns
+//           to the help page).  Guest 1 changes VOLUME on its SETTINGS > SOUND page: its
 //           own setting, nobody else's.  Each closes with its own B / START
 //           and plays on (its keys sealed again).  The host pauses: no guest
 //           is touched, slot 0's sealed keys are 0 meanwhile.  Every final
@@ -145,7 +146,7 @@ async function caseFour() {
     say('# four: the 4-Kirby module, host + 2 guests, rewinds during every overlay');
     const g1 = device(11, [
         tap('g1 start', 400, KEY.START, open, { every: 40 }),
-        tap('g1 to SETTINGS', 520, KEY.SELECT, (o) => o.menuId === 8),
+        tap('g1 to SETTINGS', 520, KEY.SELECT, (o) => o.menuId === 8),   // (it opens there)
         tap('g1 down to SOUND', 900, KEY.DOWN, (o) => o.row === 1, { every: 40 }),
         tap('g1 open SOUND', 960, KEY.A, (o) => o.model === 11, { every: 40 }),
         tap('g1 volume down', 1040, KEY.LEFT),
@@ -190,6 +191,9 @@ async function caseFour() {
     ok('four: while the host\'s is up, no guest shows one', [g1, g2].every((d) => d.trace.filter((x) => oh.length && x.f >= oh[0][0] && x.f < oh[0][1]).every((x) => x.st === 0)));
     ok('four: guest 1\'s fork paused for guest 1 (slot 1)', g1.trace.filter((x) => x.st === 2).every((x) => x.pauser === 1));
     ok('four: guest 1 reached SETTINGS (menuId 8) and SOUND (model 11)', g1.trace.some((x) => x.st === 2 && x.menu === 8) && g1.trace.some((x) => x.model === 11));
+    ok('four: guest 1\'s pause opened on SETTINGS (no Select pressed)', !g1.taps.some((t) => t.keys & KEY.SELECT) && g1.trace.some((x) => x.st === 2 && x.menu === 8),
+       JSON.stringify(g1.taps.filter((t) => t.keys & KEY.SELECT)));
+    ok('four: guest 2\'s Select turned SETTINGS to the help page', g2.trace.some((x) => x.st === 2 && x.menu === 8) && g2.trace.some((x) => x.st === 2 && x.menu === 1));
     for (const [n, d] of [['guest 1', g1], ['guest 2', g2], ['host', hd]]) {
         const bm = changesFollowTaps(d, 'menu'), br = changesFollowTaps(d, 'row'), bo = changesFollowTaps(d, 'model');
         ok(`four: ${n}'s pages, rows and screens move only after its own presses (rewinds, others' pads: nothing)`,
@@ -287,6 +291,7 @@ async function caseEight() {
     const o4 = spans(g4.trace, 2), o5 = spans(g5.trace, 2), oh = spans(hd.trace, 2);
     ok('eight: guests 4 and 5 paused at once', o4.length === 1 && o5.length === 1 && o5[0][0] < o4[0][1]);
     ok('eight: guest 4 reached SETTINGS and moved its cursor', g4.trace.some((x) => x.st === 2 && x.menu === 8 && x.row === 3));
+    ok('eight: guest 4\'s pause opened on SETTINGS (no Select pressed)', !g4.taps.some((t) => t.keys & KEY.SELECT));
     for (const [n, d] of [['guest 4', g4], ['guest 5', g5], ['host', hd]])
         ok(`eight: ${n}'s pages and rows move only after its own presses`, !changesFollowTaps(d, 'menu').length && !changesFollowTaps(d, 'row').length);
     ok('eight: no game paused on any device', Object.values(pads).every((d) => d.trace.every((x) => !x.il)));

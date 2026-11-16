@@ -1125,7 +1125,7 @@ if (CASES.includes('exits')) {
     const codeIn = (b) => String.fromCharCode(b[6], b[7], b[8], b[9]);
     ok('exits: the room code is session state on every page', sets.every((b) => b[0] === 2 && b[5] === 1 && codeIn(b) === code), JSON.stringify(sets.map(codeIn)));
     const cmpA = makeComparer(host, ga), cmpB = makeComparer(host, gb);
-    // --- guest A pauses: its own overlay, the help page with the code
+    // --- guest A pauses: its own overlay, on SETTINGS; Select: the help page with the code
     await pauseNow(ga);
     const pz = await Promise.all(all.map(pauseOf));
     ok('exits: guest A\'s pause is its own: only guest A shows it, no game paused',
@@ -1136,6 +1136,8 @@ if (CASES.includes('exits')) {
         const f1 = await Promise.all(all.map(frame));
         ok('exits: everyone\'s game runs on behind guest A\'s pause', f1.every((f, i) => f - f0[i] > 50), JSON.stringify([f0, f1]));
     }
+    ok('exits: guest A\'s pause opens on SETTINGS', (await pauseOf(ga)).menu === 8 && (await modelOf(ga)) === 9, JSON.stringify(await pauseOf(ga)));
+    await step(ga, 'SELECT', 80);                                  // SETTINGS -> the help page
     ok('exits: the help page shows the room line on guest A\'s overlay', (await ovlOf(ga)).help === 1);
     {
         const n = await coloursIn(ga);
@@ -1806,9 +1808,11 @@ if (CASES.includes('eight')) {
             ok('eight/pause: everyone else\'s game runs on (frames)', f1.every((f, i) => f - f0[i] > 60), JSON.stringify([f0, f1]));
             ok(`eight/pause: ... and a playing Kirby (slot ${runner.slot}) moves`, k0 !== k1, `${k0} -> ${k1}`);
             await shot(hi.g, 'e-05-pause-slot4-own.png'); await shot(host, 'e-05-host-plays-on.png');
+            ok(`eight/pause: ${hi.g.name}'s pause opens on SETTINGS`, (await ovlOf(hi.g)).menu === 8, String((await ovlOf(hi.g)).menu));
+            await press(hi.g, 'SELECT'); await waitFrames(hi.g, 80);   // SETTINGS -> the help page
             {
-                const n = await coloursIn(hi.g);
-                ok(`eight/pause: ${hi.g.name}'s help page is drawn (GPU picture: many colours, not a tile pattern)`, n >= 12, `${n} colours`);
+                const n = await coloursIn(hi.g), o = await ovlOf(hi.g);
+                ok(`eight/pause: ${hi.g.name}'s help page is drawn (GPU picture: many colours, not a tile pattern)`, o.menu === 1 && n >= 12, `page ${o.menu}, ${n} colours`);
             }
             const m0 = (await ovlOf(hi.g)).menu;
             await press(lo.g, 'SELECT'); await waitFrames(lo.g, 40);
@@ -1841,6 +1845,8 @@ if (CASES.includes('eight')) {
             await hands(host); await waitFrames(host, 20);
             ok('eight/pause: the host opens its pause menu', !!hostScript && await openOn(host));
             await waitFrames(host, 30);
+            ok('eight/pause: the host\'s pause opens on SETTINGS', (await ovlOf(host)).menu === 8, String((await ovlOf(host)).menu));
+            await press(host, 'SELECT'); await waitFrames(host, 80);   // SETTINGS -> the help page
             {
                 const n = await coloursIn(host), o = await ovlOf(host);
                 ok('eight/pause: the host\'s help page is drawn (GPU picture: many colours, not a tile pattern)', o.menu === 1 && n >= 12, `page ${o.menu}, ${n} colours`);
