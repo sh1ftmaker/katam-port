@@ -201,19 +201,25 @@ cleanup() {
 trap cleanup EXIT
 trap 'echo "interrupted"; exit 130' INT TERM
 
-PORTS_TAKEN="$OUT/status/.ports"
-: >"$PORTS_TAKEN"
-port_free() {  # lo hi -> the first port nobody listens on and we have not handed out
+# Ports handed out are kept machine-wide (two checks at once -- smoke.sh and
+# full_check.sh, or two worktrees -- must not pick the same port in the gap
+# before their servers listen): "port pid" lines, a dead pid's ignored.
+PORTS_TAKEN=/tmp/katam-check-ports.$(id -u)
+PORTS_LOCK=$PORTS_TAKEN.lock
+port_free() {  # lo hi -> the first port nobody listens on and no live check has
     local p
     (
         flock 9
+        touch "$PORTS_TAKEN"
+        awk '{ if (system("kill -0 " $2 " 2>/dev/null") == 0) print }' "$PORTS_TAKEN" >"$PORTS_TAKEN.new" 2>/dev/null
+        mv -f "$PORTS_TAKEN.new" "$PORTS_TAKEN"
         for p in $(seq "$1" "$2"); do
-            grep -qx "$p" "$PORTS_TAKEN" && continue
+            grep -q "^$p " "$PORTS_TAKEN" && continue
             ss -ltnH "sport = :$p" 2>/dev/null | grep -q . && continue
-            echo "$p" >>"$PORTS_TAKEN"; echo "$p"; exit 0
+            echo "$p $$" >>"$PORTS_TAKEN"; echo "$p"; exit 0
         done
         exit 1
-    ) 9>"$SBG_LOCK"
+    ) 9>"$PORTS_LOCK"
 }
 wait_http() {  # url seconds
     local i

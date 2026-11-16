@@ -1225,7 +1225,18 @@ int PortLnSealedEventGet(u32 f, int idx, s32 *out)
 /* Events of a sealed frame arrive before its record; a duplicate record
  * (redundancy) brings its events again, which must not double them. */
 static u32 sEvStageFrame = NONE;
-static struct Ev sEvStage[16];
+/* A frame's sealed events, staged until its record arrives.  The wide build
+ * seals each slot's settings copy, name and paint (PORT_LN_EV_PSET / _NAME /
+ * _PAINT) and seats -- at a session's first frame that is several events for
+ * each of up to 16 people, far past the 4-Kirby build's 16 (a guest that
+ * dropped the rest held other copies than the host's: an RG_HOST mismatch
+ * and a repair image).  As many as the wire's u8 count can say. */
+#if KATAM_WIDE
+#define LN_EV_STAGE 255
+#else
+#define LN_EV_STAGE 16
+#endif
+static struct Ev sEvStage[LN_EV_STAGE];
 static int sEvStageN;
 
 void PortLnSealedEvent(u32 f, int type, int a, int b, int c, int d)
@@ -1236,7 +1247,7 @@ void PortLnSealedEvent(u32 f, int type, int a, int b, int c, int d)
         sEvStageFrame = f;
         sEvStageN = 0;
     }
-    if (sEvStageN < 16) {
+    if (sEvStageN < LN_EV_STAGE) {
         struct Ev *v = &sEvStage[sEvStageN++];
 
         v->frame = f; v->type = type; v->a = a; v->b = b; v->c = c; v->d = d;

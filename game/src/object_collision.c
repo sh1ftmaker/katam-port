@@ -213,8 +213,13 @@ static bool16 HandleObjectCollision(struct ObjectBase *attack, struct ObjectBase
         }
 #if KATAM_KIRBYS > 4
         /* PORT: Kirbys 4.. (unk56 is the attacker's slot) do not fit the u8;
-         * on a star stone block they go to portContactHi (star_stone_block.h).
-         * On the u8 these writes changed nothing, so skipping them is the same. */
+         * on a star stone block they go to portContactHi (star_stone_block.h),
+         * the one reader of whose bits they are.  Every other reader asks
+         * only whether unk90 is nonzero (blockin.c sub_080A4728, object.c
+         * sub_0809D1E0, scarfy.c): there a Kirby i >= 4 sets the bits of
+         * Kirby i & 3 (ORed: what that Kirby set stays set), so "some Kirby
+         * is in contact" holds for every Kirby.  Objects only (kind 1), as
+         * the star stone case. */
         if (attack->unk56 >= 4) {
             if (attack->unk56 < KATAM_KIRBYS && PORT_IS_STAR_STONE_BLOCK(object)) {
                 struct StarStoneBlock *block = (struct StarStoneBlock *)object;
@@ -222,6 +227,8 @@ static bool16 HandleObjectCollision(struct ObjectBase *attack, struct ObjectBase
 
                 block->portContactHi &= ~(3u << shift);
                 block->portContactHi |= (attackFlags == 0x20000023 ? 2u : 1u) << shift;
+            } else if (attack->unk56 < KATAM_KIRBYS && object->base.header.kind == 1) {
+                object->unk90 |= (attackFlags == 0x20000023 ? 2 : 1) << ((attack->unk56 & 3) * 2);
             }
         } else
 #endif

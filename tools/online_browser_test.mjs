@@ -2257,7 +2257,9 @@ if (CASES.includes('hostblip')) {
 // --smoke-tabs pages (default 10) on the page's default module: the host
 // through MULTIPLAYER > ONLINE > HOST GAME (16 seats), guest 1 typing the
 // code on JOIN GAME, the others by the invite link (its player card, A);
-// TOGETHER; --play seconds (smoke.sh: 8) of play with every guest's hashed
+// each guest's card a spray and a name of its own (--smoke-no-cards: none;
+// the cards' sealed names and settings at the first frame are what a
+// guest's 16-event stage once dropped); TOGETHER; --play seconds (smoke.sh: 8) of play with every guest's hashed
 // frames compared with the host's; the last guest (a slot past 8) opens its
 // pause overlay (nobody else does) and closes it; the host ends with
 // everyone still in.
@@ -2279,7 +2281,11 @@ if (CASES.includes('smoke')) {
     await press(g1, 'DOWN'); await waitFrames(g1, 10); await press(g1, 'A'); await waitFrames(g1, 20);
     await typeCode(g1, code);
     const G = [g1];
-    for (let i = 2; i < NT; i++) G.push(await openPage('guest' + i, Object.assign({ join: code }, def)));
+    for (let i = 2; i < NT; i++) {
+        const g = await openPage('guest' + i, Object.assign({ join: code }, def));
+        if (!has('smoke-no-cards')) await setCard(g, 0, `1,${(i + 3) % 14},0,0,0,G${i}`);
+        G.push(g);
+    }
     const waiting = await Promise.all(G.map((g) => until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 60000, 250)));
     say('smoke: the guests wait');
     ok(`smoke: ${NT - 1} guests wait (one by JOIN GAME, ${NT - 2} by the invite link)`, waiting.every(Boolean), waiting.map((w) => (w ? 1 : 0)).join(''));
@@ -2300,7 +2306,15 @@ if (CASES.includes('smoke')) {
     await playMany(host, G, secs, cmps, 's-play');
     for (const [i, c] of cmps.entries()) { await c.run(); ok(`smoke: ${G[i].name} identical to the host`, c.compared > 10 && c.mismatched === 0, `${c.equal}/${c.compared}`); }
     const reps = await Promise.all(G.map(async (g) => (await stats(g)).repairs));
-    ok('smoke: no repair image (the engine\'s own hashes agreed)', reps.every((r) => !r), reps.join(' '));
+    // a guest whose own hash disagreed: the regions that differ at its first mismatch
+    const diag = [];
+    for (const g of G) {
+        const fm = await telOf(g, 'firstMismatch');
+        if (fm === null || fm === 0xFFFFFFFF) continue;
+        const a = await g.ev(`katamOnline.regions(${fm})`), b = await host.ev(`katamOnline.regions(${fm})`);
+        diag.push(`${g.name} f${fm}: ` + (a && b ? Object.keys(a.rg).filter((k) => a.rg[k] !== b.rg[k]).join(',') || 'none differ' : 'no regions'));
+    }
+    ok('smoke: no repair image (the engine\'s own hashes agreed)', reps.every((r) => !r), reps.join(' ') + (diag.length ? '; ' + diag.join('; ') : ''));
     // the pause menu: the last guest (slot NT-1) opens its own and closes it
     const gp = G[G.length - 1];
     await gp.ev('window.__script = null; Module._PortSetKeys(0)'); await waitFrames(gp, 20);
