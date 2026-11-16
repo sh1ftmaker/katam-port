@@ -214,7 +214,7 @@ void PortRomCheckAnim(const struct Sprite *sprite, int site);
 #define WIDE_SZ_KIRBY      0x1A8u     /* struct Kirby                          */
 #define WIDE_SZ_ANIM       (185u * 4u) /* struct AnimInfo[185]                 */
 #define WIDE_SZ_LEVELINFO  0x668u     /* struct LevelInfo                      */
-#define WIDE_SZ_BRAIN      0xF4u      /* struct Unk_02038590                   */
+#define WIDE_SZ_BRAIN      0xF4u      /* struct CpuBrain                   */
 #define WIDE_SZ_PAUSE      0x14u      /* struct PauseMenu                      */
 #define WIDE_SZ_RS_ED0     1950u      /* gUnk_02024ED0[slot]: solidity         */
 #define WIDE_SZ_RS_D60     1954u      /* gUnk_02026D60[slot]                   */

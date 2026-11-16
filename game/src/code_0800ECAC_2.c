@@ -12,317 +12,317 @@ extern "C" {
 #include "constants/kirby.h"
 #include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
-u8 sub_0800EEBC(struct ObjectBase *);
-void sub_0800F044(struct Unk_02038590 *);
+u8 CpuNavNodeAt(struct ObjectBase *);
+void CpuScanTerrain(struct CpuBrain *);
 
-void sub_08010944(struct Unk_02038590 *);
-void sub_08010A34(struct Unk_02038590 *);
-void sub_08010AC8(struct Unk_02038590 *);
-void sub_08010B80(struct Unk_02038590 *);
-void sub_08010C34(struct Unk_02038590 *);
-void sub_08010CE8(struct Unk_02038590 *);
-void sub_08010E3C(struct Unk_02038590 *);
-void sub_08010F90(struct Unk_02038590 *);
-void sub_08011044(struct Unk_02038590 *);
-void sub_0801119C(struct Unk_02038590 *);
-void sub_08011250(struct Unk_02038590 *);
-void sub_08011324(struct Unk_02038590 *);
-void sub_0801149C(struct Unk_02038590 *);
-void sub_08011558(struct Unk_02038590 *);
-void sub_080115FC(struct Unk_02038590 *);
-void sub_08011754(struct Unk_02038590 *);
-void sub_08011A28(struct Unk_02038590 *);
-void sub_08011AD8(struct Unk_02038590 *);
-void sub_08011C2C(struct Unk_02038590 *);
-void sub_08011CE0(struct Unk_02038590 *);
-void sub_08011D94(struct Unk_02038590 *);
-void sub_08011F00(struct Unk_02038590 *);
-void sub_08011FB4(struct Unk_02038590 *);
-void sub_08012048(struct Unk_02038590 *);
-void sub_080120FC(struct Unk_02038590 *);
-void sub_08012190(struct Unk_02038590 *);
-void sub_0801232C(struct Unk_02038590 *);
-void sub_080123E0(struct Unk_02038590 *);
-bool16 sub_080124E0(struct Unk_02038590 *);
-bool16 sub_080126CC(struct Unk_02038590 *);
-bool16 sub_08012884(struct Unk_02038590 *);
-bool16 sub_08012980(struct Unk_02038590 *);
-bool16 sub_08012A88(struct Unk_02038590 *);
-bool16 sub_08012BC8(struct Unk_02038590 *);
-bool16 sub_08012C5C(struct Unk_02038590 *);
-bool16 sub_08012DD4(struct Unk_02038590 *);
-bool16 sub_08012EAC(struct Unk_02038590 *);
-bool16 sub_08012FD8(struct Unk_02038590 *);
-bool16 sub_08013174(struct Unk_02038590 *);
-bool16 sub_08013318(struct Unk_02038590 *);
-bool16 sub_08013518(struct Unk_02038590 *);
-bool16 sub_08013720(struct Unk_02038590 *);
-void sub_0801399C(struct Unk_02038590 *);
-void sub_08013C4C(struct Unk_02038590 *);
-void sub_08014928(struct Unk_02038590 *);
-void sub_080149CC(struct Unk_02038590 *);
-void sub_08014A80(struct Unk_02038590 *);
-void sub_0801519C(struct Unk_02038590 *);
-void sub_080152B0(struct Unk_02038590 *);
-void sub_08015A4C(struct Unk_02038590 *);
-void sub_08015AF0(struct Unk_02038590 *);
-void sub_08015FA0(struct Unk_02038590 *);
-void sub_080160B8(struct Unk_02038590 *);
-void sub_08016288(struct Unk_02038590 *);
-void sub_0801639C(struct Unk_02038590 *);
-void sub_080168BC(struct Unk_02038590 *);
-void sub_0801694C(struct Unk_02038590 *);
-void sub_08017B0C(struct Unk_02038590 *);
-void sub_08017144(struct Unk_02038590 *);
-void sub_08017274(struct Unk_02038590 *);
-void sub_0801737C(struct Unk_02038590 *);
-void sub_0801745C(struct Unk_02038590 *);
-void sub_080175D0(struct Unk_02038590 *);
-void sub_08017684(struct Unk_02038590 *);
-void sub_08017750(struct Unk_02038590 *);
-void sub_080178DC(struct Unk_02038590 *);
-void sub_08017B0C(struct Unk_02038590 *);
-void sub_08017C24(struct Unk_02038590 *);
-void sub_08017CC4(struct Unk_02038590 *);
-void sub_08017D40(struct Unk_02038590 *);
-void sub_08017E1C(struct Unk_02038590 *);
-void sub_08017F10(struct Unk_02038590 *);
-void sub_08018024(struct Unk_02038590 *);
-void sub_08018110(struct Unk_02038590 *);
-void sub_0801818C(struct Unk_02038590 *);
-bool16 sub_08018368(struct Unk_02038590 *);
-void sub_0801836C(struct Unk_02038590 *);
-void sub_08018374(struct Unk_02038590 *);
-void sub_08018388(struct Unk_02038590 *);
-void sub_08018394(struct Unk_02038590 *);
-void sub_080183A0(struct Unk_02038590 *);
-void sub_080183D0(struct Unk_02038590 *);
-void sub_08018400(struct Unk_02038590 *);
-void sub_08018428(struct Unk_02038590 *);
-void sub_08018458(struct Unk_02038590 *);
-void sub_08018488(struct Unk_02038590 *);
-void sub_080184A4(struct Unk_02038590 *);
-void sub_080184C4(struct Unk_02038590 *);
-void sub_080184DC(struct Unk_02038590 *);
-void sub_080184E8(struct Unk_02038590 *);
-void sub_08018504(struct Unk_02038590 *);
-void sub_0801852C(struct Unk_02038590 *);
-void sub_0801858C(struct Unk_02038590 *);
-void sub_080185EC(struct Unk_02038590 *);
-void sub_08018610(struct Unk_02038590 *);
-void sub_08018640(struct Unk_02038590 *);
-void sub_080186A4(struct Unk_02038590 *);
-void sub_080186DC(struct Unk_02038590 *);
-void sub_0801870C(struct Unk_02038590 *);
-void sub_08018758(struct Unk_02038590 *);
-void sub_08018764(struct Unk_02038590 *);
-void sub_080187B0(struct Unk_02038590 *);
-void sub_080187E8(struct Unk_02038590 *);
-void sub_08018808(struct Unk_02038590 *);
-void sub_08018828(struct Unk_02038590 *);
-void sub_08018850(struct Unk_02038590 *);
-void sub_08018864(struct Unk_02038590 *);
-void sub_08018884(struct Unk_02038590 *);
-void sub_080188BC(struct Unk_02038590 *);
-void sub_080188F0(struct Unk_02038590 *);
-void sub_08018930(struct Unk_02038590 *);
-void sub_08018944(struct Unk_02038590 *);
-void sub_080189A0(struct Unk_02038590 *);
-void sub_080189DC(struct Unk_02038590 *);
-void sub_08018A10(struct Unk_02038590 *);
-void sub_08018A3C(struct Unk_02038590 *);
-void sub_08018A50(struct Unk_02038590 *);
-void sub_08018A9C(struct Unk_02038590 *);
-void sub_08018AD0(struct Unk_02038590 *);
-void sub_08018B18(struct Unk_02038590 *);
-void sub_08018B6C(struct Unk_02038590 *);
-void sub_08018B80(struct Unk_02038590 *);
-void sub_08018BAC(struct Unk_02038590 *);
-void sub_08018BF4(struct Unk_02038590 *);
-void sub_08018C38(struct Unk_02038590 *);
-void sub_08018C80(struct Unk_02038590 *);
-void sub_08018C98(struct Unk_02038590 *);
-void sub_08018CAC(struct Unk_02038590 *);
-void sub_08018CDC(struct Unk_02038590 *);
-void sub_08018D18(struct Unk_02038590 *);
-void sub_08018D30(struct Unk_02038590 *);
-void sub_08018D44(struct Unk_02038590 *);
-void sub_08018D70(struct Unk_02038590 *);
-void sub_08018D88(struct Unk_02038590 *);
-void sub_08018D9C(struct Unk_02038590 *);
-void sub_08018DC8(struct Unk_02038590 *);
-void sub_08018DE8(struct Unk_02038590 *);
-void sub_08018E3C(struct Unk_02038590 *);
-void sub_08018E50(struct Unk_02038590 *);
-void sub_08018E7C(struct Unk_02038590 *);
-void sub_08018E94(struct Unk_02038590 *);
-void sub_08018EC8(struct Unk_02038590 *);
-void sub_08018EF4(struct Unk_02038590 *);
-void sub_08018F34(struct Unk_02038590 *);
-void sub_08018F50(struct Unk_02038590 *);
-void sub_08018F64(struct Unk_02038590 *);
-void sub_08018F7C(struct Unk_02038590 *);
-void sub_08018F9C(struct Unk_02038590 *);
-void sub_08018FBC(struct Unk_02038590 *);
-void sub_08018FD0(struct Unk_02038590 *);
-void sub_08019010(struct Unk_02038590 *);
-void sub_0801902C(struct Unk_02038590 *);
-void sub_08019060(struct Unk_02038590 *);
-void sub_08019074(struct Unk_02038590 *);
-void sub_08019094(struct Unk_02038590 *);
-void sub_080190E8(struct Unk_02038590 *);
-void sub_080190F4(struct Unk_02038590 *);
-void sub_0801910C(struct Unk_02038590 *);
-void sub_08019138(struct Unk_02038590 *);
-void sub_08019178(struct Unk_02038590 *);
-void sub_08019198(struct Unk_02038590 *);
-void sub_080191F0(struct Unk_02038590 *);
-void sub_08019248(struct Unk_02038590 *);
-void sub_08019288(struct Unk_02038590 *);
-void sub_080192BC(struct Unk_02038590 *);
-void sub_080192D4(struct Unk_02038590 *);
-void sub_08019324(struct Unk_02038590 *);
-void sub_08019358(struct Unk_02038590 *);
-void sub_08019378(struct Unk_02038590 *);
-void sub_080193B8(struct Unk_02038590 *);
-void sub_080193F8(struct Unk_02038590 *);
-void sub_08019418(struct Unk_02038590 *);
-void sub_08019438(struct Unk_02038590 *);
-void sub_0801948C(struct Unk_02038590 *);
-void sub_080194C0(struct Unk_02038590 *);
-void sub_080194E0(struct Unk_02038590 *);
-void sub_08019508(struct Unk_02038590 *);
-void sub_08019524(struct Unk_02038590 *);
-void sub_08019558(struct Unk_02038590 *);
-void sub_080195A4(struct Unk_02038590 *);
-void sub_080195C4(struct Unk_02038590 *);
-void sub_0801960C(struct Unk_02038590 *);
-void sub_08019638(struct Unk_02038590 *);
-void sub_08019664(struct Unk_02038590 *);
-void sub_080196A4(struct Unk_02038590 *);
-void sub_080196D0(struct Unk_02038590 *);
-void sub_080196E4(struct Unk_02038590 *);
-void sub_08019734(struct Unk_02038590 *, u16);
-void sub_08019758(struct Unk_02038590 *);
-void sub_08019784(struct Unk_02038590 *, u16);
-void sub_08019798(struct Unk_02038590 *);
-void sub_080197BC(struct Unk_02038590 *, u16);
-void sub_080197DC(struct Unk_02038590 *);
-void sub_08019818(struct Unk_02038590 *);
-void sub_0801984C(struct Unk_02038590 *, u16);
-void sub_08019878(struct Unk_02038590 *);
-void sub_080198C4(struct Unk_02038590 *);
-void sub_080198E0(struct Unk_02038590 *);
-void sub_08019914(struct Unk_02038590 *);
-void sub_08019930(struct Unk_02038590 *);
-void sub_0801995C(struct Unk_02038590 *);
-void sub_08019998(struct Unk_02038590 *);
-void sub_080199CC(struct Unk_02038590 *);
-void sub_080199F0(struct Unk_02038590 *);
-void sub_08019A0C(struct Unk_02038590 *);
-void sub_08019A40(struct Unk_02038590 *);
-void sub_08019A5C(struct Unk_02038590 *);
-void sub_08019A88(struct Unk_02038590 *);
-void sub_08019AA4(struct Unk_02038590 *);
-void sub_08019AD0(struct Unk_02038590 *);
-void sub_08019AF8(struct Unk_02038590 *);
-void nullsub_106(struct Unk_02038590 *);
-void sub_08019B30(struct Unk_02038590 *);
-void sub_08019B84(struct Unk_02038590 *);
-void sub_08019BF0(struct Unk_02038590 *);
-void sub_08019C4C(struct Unk_02038590 *);
+void CpuScanTargetFlying(struct CpuBrain *);
+void CpuScanTargetMouthful(struct CpuBrain *);
+void CpuScanNormal(struct CpuBrain *);
+void CpuScanFire(struct CpuBrain *);
+void CpuScanIce(struct CpuBrain *);
+void CpuScanBurning(struct CpuBrain *);
+void CpuScanWheel(struct CpuBrain *);
+void CpuScanParasol(struct CpuBrain *);
+void CpuScanCutter(struct CpuBrain *);
+void CpuScanBeam(struct CpuBrain *);
+void CpuScanStone(struct CpuBrain *);
+void CpuScanBomb(struct CpuBrain *);
+void CpuScanThrow(struct CpuBrain *);
+void CpuScanCook(struct CpuBrain *);
+void CpuScanLaser(struct CpuBrain *);
+void CpuScanUfo(struct CpuBrain *);
+void CpuScanSpark(struct CpuBrain *);
+void CpuScanTornado(struct CpuBrain *);
+void CpuScanHammer(struct CpuBrain *);
+void CpuScanSword(struct CpuBrain *);
+void CpuScanCupid(struct CpuBrain *);
+void CpuScanFighter(struct CpuBrain *);
+void CpuScanMagic(struct CpuBrain *);
+void CpuScanSmash(struct CpuBrain *);
+void CpuScanCrash(struct CpuBrain *);
+void CpuScanMissile(struct CpuBrain *);
+void CpuScanMaster(struct CpuBrain *);
+void CpuScanUnderwater(struct CpuBrain *);
+bool16 CpuBreakBlockNormal(struct CpuBrain *);
+bool16 CpuBreakBlockFireIce(struct CpuBrain *);
+bool16 CpuBreakBlockBurning(struct CpuBrain *);
+bool16 CpuBreakBlockWheel(struct CpuBrain *);
+bool16 CpuBreakBlockParasol(struct CpuBrain *);
+bool16 CpuBreakBlockShot(struct CpuBrain *);
+bool16 CpuBreakBlockBeam(struct CpuBrain *);
+bool16 CpuBreakBlockStone(struct CpuBrain *);
+bool16 CpuBreakBlockSparkSword(struct CpuBrain *);
+bool16 CpuBreakBlockCupid(struct CpuBrain *);
+bool16 CpuBreakBlockHammer(struct CpuBrain *);
+bool16 CpuBreakBlockThrow(struct CpuBrain *);
+bool16 CpuBreakBlockMissile(struct CpuBrain *);
+bool16 CpuBreakBlockTornado(struct CpuBrain *);
+void CpuScriptOpIfRoomState(struct CpuBrain *);
+void CpuGoalRoamTick(struct CpuBrain *);
+void CpuGoalOffscreenBegin(struct CpuBrain *);
+void CpuGoalOffscreenRoamBegin(struct CpuBrain *);
+void CpuGoalOffscreenRoamTick(struct CpuBrain *);
+void CpuActThink(struct CpuBrain *);
+void CpuActDecide(struct CpuBrain *);
+void CpuActWalkStride(struct CpuBrain *);
+void CpuActWalkTick(struct CpuBrain *);
+void CpuActLadder(struct CpuBrain *);
+void CpuActJump(struct CpuBrain *);
+void CpuActJumpAir(struct CpuBrain *);
+void CpuActFly(struct CpuBrain *);
+void CpuActFlySweepBegin(struct CpuBrain *);
+void CpuActFlySweepTick(struct CpuBrain *);
+void CpuActThrow(struct CpuBrain *);
+void CpuActSlide(struct CpuBrain *);
+void CpuActAirPuff(struct CpuBrain *);
+void CpuActSpit(struct CpuBrain *);
+void CpuActInhale(struct CpuBrain *);
+void CpuActSwallow(struct CpuBrain *);
+void CpuActAttack(struct CpuBrain *);
+void CpuActWaterAttack(struct CpuBrain *);
+void CpuActBomb(struct CpuBrain *);
+void CpuActThrow(struct CpuBrain *);
+void CpuActThrowAim(struct CpuBrain *);
+void CpuActUfoShot(struct CpuBrain *);
+void CpuActCupidShot(struct CpuBrain *);
+void CpuActMissile(struct CpuBrain *);
+void CpuActMissileFly(struct CpuBrain *);
+void CpuActMissileHomingSteer(struct CpuBrain *);
+void CpuActRoom397(struct CpuBrain *);
+void CpuActRoom397Tick(struct CpuBrain *);
+bool16 CpuBreakBlockNone(struct CpuBrain *);
+void CpuScanNone(struct CpuBrain *);
+void CpuScanMini(struct CpuBrain *);
+void CpuScriptOpNop(struct CpuBrain *);
+void CpuScriptOpEnd(struct CpuBrain *);
+void CpuScriptOpWait(struct CpuBrain *);
+void CpuScriptOpGoToNode(struct CpuBrain *);
+void CpuScriptOpSetAbility(struct CpuBrain *);
+void CpuScriptOpFace(struct CpuBrain *);
+void CpuScriptOpInhale(struct CpuBrain *);
+void CpuScriptOpSlide(struct CpuBrain *);
+void CpuScriptOpSkip(struct CpuBrain *);
+void CpuScriptOpRoam(struct CpuBrain *);
+void CpuGoalRoam(struct CpuBrain *);
+void CpuGoalFollowBegin(struct CpuBrain *);
+void CpuGoalRoom397Wait(struct CpuBrain *);
+void CpuSenseIdle(struct CpuBrain *);
+void CpuSenseMoving(struct CpuBrain *);
+void CpuSenseRoom397(struct CpuBrain *);
+void CpuSenseSurroundings(struct CpuBrain *);
+void CpuSenseSurroundingsAndPath(struct CpuBrain *);
+void CpuActLeaveFlight(struct CpuBrain *);
+void CpuActDropAbility(struct CpuBrain *);
+void CpuActAnswerPhone(struct CpuBrain *);
+void CpuActBackToThink(struct CpuBrain *);
+void CpuActMove(struct CpuBrain *);
+void CpuActDashFirstTap(struct CpuBrain *);
+void CpuActDashGap(struct CpuBrain *);
+void CpuActDashSecondTap(struct CpuBrain *);
+void CpuActDashHold(struct CpuBrain *);
+void CpuActWalkPauseBegin(struct CpuBrain *);
+void CpuActWalkPause(struct CpuBrain *);
+void CpuActHoldDown(struct CpuBrain *);
+void CpuActHoldDownTick(struct CpuBrain *);
+void CpuActLadderGrab(struct CpuBrain *);
+void CpuActLadderStart(struct CpuBrain *);
+void CpuActLadderClimbBegin(struct CpuBrain *);
+void CpuActJumpBegin(struct CpuBrain *);
+void CpuActFlyFromGround(struct CpuBrain *);
+void CpuActFlyJump(struct CpuBrain *);
+void CpuActFlyPuffBegin(struct CpuBrain *);
+void CpuActFlyPuff(struct CpuBrain *);
+void CpuActFlySteerBegin(struct CpuBrain *);
+void CpuActFlySteerLeg(struct CpuBrain *);
+void CpuActSwim(struct CpuBrain *);
+void CpuActSwimStrokeBegin(struct CpuBrain *);
+void CpuActSwimStroke(struct CpuBrain *);
+void CpuActSwimLeg(struct CpuBrain *);
+void CpuActUfoMove(struct CpuBrain *);
+void CpuActUfoMoveLeg(struct CpuBrain *);
+void CpuActSlideAfterTurn(struct CpuBrain *);
+void CpuActSlideBegin(struct CpuBrain *);
+void CpuActSlideCrouch(struct CpuBrain *);
+void CpuActSlideKick(struct CpuBrain *);
+void CpuActAirPuffAfterTurn(struct CpuBrain *);
+void CpuActAirPuffBegin(struct CpuBrain *);
+void CpuActAirPuffPress(struct CpuBrain *);
+void CpuActSpitAfterTurn(struct CpuBrain *);
+void CpuActSpitBegin(struct CpuBrain *);
+void CpuActSpitPress(struct CpuBrain *);
+void CpuActInhaleAfterTurn(struct CpuBrain *);
+void CpuActInhaleBegin(struct CpuBrain *);
+void CpuActSwallowBegin(struct CpuBrain *);
+void CpuActSwallowPress(struct CpuBrain *);
+void CpuActAttackAfterTurn(struct CpuBrain *);
+void CpuActAttackBegin(struct CpuBrain *);
+void CpuActAttackHold(struct CpuBrain *);
+void CpuActWaterAttackBegin(struct CpuBrain *);
+void CpuActTurn(struct CpuBrain *);
+void CpuActTurnBegin(struct CpuBrain *);
+void CpuActBombAfterTurn(struct CpuBrain *);
+void CpuActBombDraw(struct CpuBrain *);
+void CpuActBombWait(struct CpuBrain *);
+void CpuActBombThrowBegin(struct CpuBrain *);
+void CpuActBombThrow(struct CpuBrain *);
+void CpuActBombFollowBegin(struct CpuBrain *);
+void CpuActBombFollow(struct CpuBrain *);
+void CpuActBombCooldownBegin(struct CpuBrain *);
+void CpuActBombCooldown(struct CpuBrain *);
+void CpuActStoneToggle(struct CpuBrain *);
+void CpuActStoneToggleBecome(struct CpuBrain *);
+void CpuActStoneToggleBecomePress(struct CpuBrain *);
+void CpuActStoneToggleFall(struct CpuBrain *);
+void CpuActStoneToggleRevert(struct CpuBrain *);
+void CpuActStoneToggleRevertWait(struct CpuBrain *);
+void CpuActStoneDrop(struct CpuBrain *);
+void CpuActStoneDropDispatch(struct CpuBrain *);
+void CpuActStoneDropFromGround(struct CpuBrain *);
+void CpuActStoneDropJumpBegin(struct CpuBrain *);
+void CpuActStoneDropPress(struct CpuBrain *);
+void CpuActStoneDropFall(struct CpuBrain *);
+void CpuActStoneDropSitBegin(struct CpuBrain *);
+void CpuActStoneDropSit(struct CpuBrain *);
+void CpuActStoneDropRevert(struct CpuBrain *);
+void CpuActStoneDropRevertPress(struct CpuBrain *);
+void CpuActStoneDropRevertWait(struct CpuBrain *);
+void CpuActThrowAfterTurn(struct CpuBrain *);
+void CpuActThrowBegin(struct CpuBrain *);
+void CpuActThrowHoldBegin(struct CpuBrain *);
+void CpuActThrowHold(struct CpuBrain *);
+void CpuActThrowAimHold(struct CpuBrain *);
+void CpuActThrowRelease(struct CpuBrain *);
+void CpuActThrowCooldownBegin(struct CpuBrain *);
+void CpuActThrowCooldown(struct CpuBrain *);
+void CpuActUfoShotAfterTurn(struct CpuBrain *);
+void CpuActUfoShotBegin(struct CpuBrain *);
+void CpuActUfoShotCharge(struct CpuBrain *);
+void CpuActCupidShotAfterTurn(struct CpuBrain *);
+void CpuActCupidShotBegin(struct CpuBrain *);
+void CpuActMissileAfterTurn(struct CpuBrain *);
+void CpuActMissileBegin(struct CpuBrain *);
+void CpuActMissileHoming(struct CpuBrain *);
+void CpuScriptWaitBegin(struct CpuBrain *, u16);
+void CpuScriptWaitTick(struct CpuBrain *);
+void CpuScriptGoToBegin(struct CpuBrain *, u16);
+void CpuScriptGoToTick(struct CpuBrain *);
+void CpuScriptFaceBegin(struct CpuBrain *, u16);
+void CpuScriptFaceStart(struct CpuBrain *);
+void CpuScriptFaceTick(struct CpuBrain *);
+void CpuScriptInhaleBegin(struct CpuBrain *, u16);
+void CpuScriptInhalePrepare(struct CpuBrain *);
+void CpuScriptInhaleSpitFirst(struct CpuBrain *);
+void CpuScriptInhaleSpitWait(struct CpuBrain *);
+void CpuScriptInhaleLandFirst(struct CpuBrain *);
+void CpuScriptInhaleLandWait(struct CpuBrain *);
+void CpuScriptInhaleStart(struct CpuBrain *);
+void CpuScriptInhaleTick(struct CpuBrain *);
+void CpuScriptSlideBegin(struct CpuBrain *);
+void CpuScriptSlideSpitFirst(struct CpuBrain *);
+void CpuScriptSlideSpitWait(struct CpuBrain *);
+void CpuScriptSlideLandFirst(struct CpuBrain *);
+void CpuScriptSlideLandWait(struct CpuBrain *);
+void CpuScriptSlideFallFirst(struct CpuBrain *);
+void CpuScriptSlideFallWait(struct CpuBrain *);
+void CpuScriptSlideStart(struct CpuBrain *);
+void CpuScriptSlideTick(struct CpuBrain *);
+void CpuGoalIdle(struct CpuBrain *);
+void CpuGoalScriptNodeTick(struct CpuBrain *);
+void CpuGoalRoamPauseBegin(struct CpuBrain *);
+void CpuGoalFollowTick(struct CpuBrain *);
+void CpuGoalOffscreenPauseBegin(struct CpuBrain *);
 
-bool16 (*const gUnk_082DDE84[])(struct Unk_02038590 *) = {
-    [KIRBY_ABILITY_NORMAL]  = FN(sub_080124E0),
-    [KIRBY_ABILITY_FIRE]    = FN(sub_080126CC),
-    [KIRBY_ABILITY_ICE]     = FN(sub_080126CC),
-    [KIRBY_ABILITY_BURNING] = FN(sub_08012884),
-    [KIRBY_ABILITY_WHEEL]   = FN(sub_08012980),
-    [KIRBY_ABILITY_PARASOL] = FN(sub_08012A88),
-    [KIRBY_ABILITY_CUTTER]  = FN(sub_08012BC8),
-    [KIRBY_ABILITY_BEAM]    = FN(sub_08012C5C),
-    [KIRBY_ABILITY_STONE]   = FN(sub_08012DD4),
-    [KIRBY_ABILITY_BOMB]    = FN(sub_080124E0),
-    [KIRBY_ABILITY_THROW]   = FN(sub_08013318),
-    [KIRBY_ABILITY_SLEEP]   = FN(sub_080124E0),
-    [KIRBY_ABILITY_COOK]    = FN(sub_080124E0),
-    [KIRBY_ABILITY_LASER]   = FN(sub_08012BC8),
-    [KIRBY_ABILITY_UFO]     = FN(sub_08012BC8),
-    [KIRBY_ABILITY_SPARK]   = FN(sub_08012EAC),
-    [KIRBY_ABILITY_TORNADO] = FN(sub_08013720),
-    [KIRBY_ABILITY_HAMMER]  = FN(sub_08013174),
-    [KIRBY_ABILITY_SWORD]   = FN(sub_08012EAC),
-    [KIRBY_ABILITY_CUPID]   = FN(sub_08012FD8),
-    [KIRBY_ABILITY_FIGHTER] = FN(sub_080124E0),
-    [KIRBY_ABILITY_MAGIC]   = FN(sub_080124E0),
-    [KIRBY_ABILITY_SMASH]   = FN(sub_080124E0),
-    [KIRBY_ABILITY_MINI]    = FN(sub_08018368),
-    [KIRBY_ABILITY_CRASH]   = FN(sub_080124E0),
-    [KIRBY_ABILITY_MISSILE] = FN(sub_08013518),
-    [KIRBY_ABILITY_MASTER]  = FN(sub_08013174),
+bool16 (*const gCpuBreakBlockChecks[])(struct CpuBrain *) = {
+    [KIRBY_ABILITY_NORMAL]  = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_FIRE]    = FN(CpuBreakBlockFireIce),
+    [KIRBY_ABILITY_ICE]     = FN(CpuBreakBlockFireIce),
+    [KIRBY_ABILITY_BURNING] = FN(CpuBreakBlockBurning),
+    [KIRBY_ABILITY_WHEEL]   = FN(CpuBreakBlockWheel),
+    [KIRBY_ABILITY_PARASOL] = FN(CpuBreakBlockParasol),
+    [KIRBY_ABILITY_CUTTER]  = FN(CpuBreakBlockShot),
+    [KIRBY_ABILITY_BEAM]    = FN(CpuBreakBlockBeam),
+    [KIRBY_ABILITY_STONE]   = FN(CpuBreakBlockStone),
+    [KIRBY_ABILITY_BOMB]    = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_THROW]   = FN(CpuBreakBlockThrow),
+    [KIRBY_ABILITY_SLEEP]   = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_COOK]    = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_LASER]   = FN(CpuBreakBlockShot),
+    [KIRBY_ABILITY_UFO]     = FN(CpuBreakBlockShot),
+    [KIRBY_ABILITY_SPARK]   = FN(CpuBreakBlockSparkSword),
+    [KIRBY_ABILITY_TORNADO] = FN(CpuBreakBlockTornado),
+    [KIRBY_ABILITY_HAMMER]  = FN(CpuBreakBlockHammer),
+    [KIRBY_ABILITY_SWORD]   = FN(CpuBreakBlockSparkSword),
+    [KIRBY_ABILITY_CUPID]   = FN(CpuBreakBlockCupid),
+    [KIRBY_ABILITY_FIGHTER] = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_MAGIC]   = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_SMASH]   = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_MINI]    = FN(CpuBreakBlockNone),
+    [KIRBY_ABILITY_CRASH]   = FN(CpuBreakBlockNormal),
+    [KIRBY_ABILITY_MISSILE] = FN(CpuBreakBlockMissile),
+    [KIRBY_ABILITY_MASTER]  = FN(CpuBreakBlockHammer),
 };
 
-void (*const gUnk_082DDEF0[])(struct Unk_02038590 *) = {
-    [KIRBY_ABILITY_NORMAL]  = FN(sub_08010AC8),
-    [KIRBY_ABILITY_FIRE]    = FN(sub_08010B80),
-    [KIRBY_ABILITY_ICE]     = FN(sub_08010C34),
-    [KIRBY_ABILITY_BURNING] = FN(sub_08010CE8),
-    [KIRBY_ABILITY_WHEEL]   = FN(sub_08010E3C),
-    [KIRBY_ABILITY_PARASOL] = FN(sub_08010F90),
-    [KIRBY_ABILITY_CUTTER]  = FN(sub_08011044),
-    [KIRBY_ABILITY_BEAM]    = FN(sub_0801119C),
-    [KIRBY_ABILITY_STONE]   = FN(sub_08011250),
-    [KIRBY_ABILITY_BOMB]    = FN(sub_08011324),
-    [KIRBY_ABILITY_THROW]   = FN(sub_0801149C),
-    [KIRBY_ABILITY_SLEEP]   = FN(sub_0801836C),
-    [KIRBY_ABILITY_COOK]    = FN(sub_08011558),
-    [KIRBY_ABILITY_LASER]   = FN(sub_080115FC),
-    [KIRBY_ABILITY_UFO]     = FN(sub_08011754),
-    [KIRBY_ABILITY_SPARK]   = FN(sub_08011A28),
-    [KIRBY_ABILITY_TORNADO] = FN(sub_08011AD8),
-    [KIRBY_ABILITY_HAMMER]  = FN(sub_08011C2C),
-    [KIRBY_ABILITY_SWORD]   = FN(sub_08011CE0),
-    [KIRBY_ABILITY_CUPID]   = FN(sub_08011D94),
-    [KIRBY_ABILITY_FIGHTER] = FN(sub_08011F00),
-    [KIRBY_ABILITY_MAGIC]   = FN(sub_08011FB4),
-    [KIRBY_ABILITY_SMASH]   = FN(sub_08012048),
-    [KIRBY_ABILITY_MINI]    = FN(sub_08018374),
-    [KIRBY_ABILITY_CRASH]   = FN(sub_080120FC),
-    [KIRBY_ABILITY_MISSILE] = FN(sub_08012190),
-    [KIRBY_ABILITY_MASTER]  = FN(sub_0801232C),
+void (*const gCpuTargetScansLand[])(struct CpuBrain *) = {
+    [KIRBY_ABILITY_NORMAL]  = FN(CpuScanNormal),
+    [KIRBY_ABILITY_FIRE]    = FN(CpuScanFire),
+    [KIRBY_ABILITY_ICE]     = FN(CpuScanIce),
+    [KIRBY_ABILITY_BURNING] = FN(CpuScanBurning),
+    [KIRBY_ABILITY_WHEEL]   = FN(CpuScanWheel),
+    [KIRBY_ABILITY_PARASOL] = FN(CpuScanParasol),
+    [KIRBY_ABILITY_CUTTER]  = FN(CpuScanCutter),
+    [KIRBY_ABILITY_BEAM]    = FN(CpuScanBeam),
+    [KIRBY_ABILITY_STONE]   = FN(CpuScanStone),
+    [KIRBY_ABILITY_BOMB]    = FN(CpuScanBomb),
+    [KIRBY_ABILITY_THROW]   = FN(CpuScanThrow),
+    [KIRBY_ABILITY_SLEEP]   = FN(CpuScanNone),
+    [KIRBY_ABILITY_COOK]    = FN(CpuScanCook),
+    [KIRBY_ABILITY_LASER]   = FN(CpuScanLaser),
+    [KIRBY_ABILITY_UFO]     = FN(CpuScanUfo),
+    [KIRBY_ABILITY_SPARK]   = FN(CpuScanSpark),
+    [KIRBY_ABILITY_TORNADO] = FN(CpuScanTornado),
+    [KIRBY_ABILITY_HAMMER]  = FN(CpuScanHammer),
+    [KIRBY_ABILITY_SWORD]   = FN(CpuScanSword),
+    [KIRBY_ABILITY_CUPID]   = FN(CpuScanCupid),
+    [KIRBY_ABILITY_FIGHTER] = FN(CpuScanFighter),
+    [KIRBY_ABILITY_MAGIC]   = FN(CpuScanMagic),
+    [KIRBY_ABILITY_SMASH]   = FN(CpuScanSmash),
+    [KIRBY_ABILITY_MINI]    = FN(CpuScanMini),
+    [KIRBY_ABILITY_CRASH]   = FN(CpuScanCrash),
+    [KIRBY_ABILITY_MISSILE] = FN(CpuScanMissile),
+    [KIRBY_ABILITY_MASTER]  = FN(CpuScanMaster),
 };
 
-void (*const gUnk_082DDF5C[])(struct Unk_02038590 *) = {
-    [KIRBY_ABILITY_NORMAL]  = FN(sub_080123E0),
-    [KIRBY_ABILITY_FIRE]    = FN(sub_080123E0),
-    [KIRBY_ABILITY_ICE]     = FN(sub_080123E0),
-    [KIRBY_ABILITY_BURNING] = FN(sub_080123E0),
-    [KIRBY_ABILITY_WHEEL]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_PARASOL] = FN(sub_08010F90),
-    [KIRBY_ABILITY_CUTTER]  = FN(sub_080123E0),
-    [KIRBY_ABILITY_BEAM]    = FN(sub_080123E0),
-    [KIRBY_ABILITY_STONE]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_BOMB]    = FN(sub_080123E0),
-    [KIRBY_ABILITY_THROW]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_SLEEP]   = FN(sub_0801836C),
-    [KIRBY_ABILITY_COOK]    = FN(sub_080123E0),
-    [KIRBY_ABILITY_LASER]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_UFO]     = FN(sub_08011754),
-    [KIRBY_ABILITY_SPARK]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_TORNADO] = FN(sub_080123E0),
-    [KIRBY_ABILITY_HAMMER]  = FN(sub_08011C2C),
-    [KIRBY_ABILITY_SWORD]   = FN(sub_08011CE0),
-    [KIRBY_ABILITY_CUPID]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_FIGHTER] = FN(sub_080123E0),
-    [KIRBY_ABILITY_MAGIC]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_SMASH]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_MINI]    = FN(sub_08018374),
-    [KIRBY_ABILITY_CRASH]   = FN(sub_080123E0),
-    [KIRBY_ABILITY_MISSILE] = FN(sub_080123E0),
-    [KIRBY_ABILITY_MASTER]  = FN(sub_0801232C),
+void (*const gCpuTargetScansWater[])(struct CpuBrain *) = {
+    [KIRBY_ABILITY_NORMAL]  = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_FIRE]    = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_ICE]     = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_BURNING] = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_WHEEL]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_PARASOL] = FN(CpuScanParasol),
+    [KIRBY_ABILITY_CUTTER]  = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_BEAM]    = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_STONE]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_BOMB]    = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_THROW]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_SLEEP]   = FN(CpuScanNone),
+    [KIRBY_ABILITY_COOK]    = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_LASER]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_UFO]     = FN(CpuScanUfo),
+    [KIRBY_ABILITY_SPARK]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_TORNADO] = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_HAMMER]  = FN(CpuScanHammer),
+    [KIRBY_ABILITY_SWORD]   = FN(CpuScanSword),
+    [KIRBY_ABILITY_CUPID]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_FIGHTER] = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_MAGIC]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_SMASH]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_MINI]    = FN(CpuScanMini),
+    [KIRBY_ABILITY_CRASH]   = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_MISSILE] = FN(CpuScanUnderwater),
+    [KIRBY_ABILITY_MASTER]  = FN(CpuScanMaster),
 };
 
-extern const u32 gUnk_082DDFC8[] = {
+extern const u32 gCpuAbilityAttackMasks[] = {
     [KIRBY_ABILITY_NORMAL]  = 0x20000042,
     [KIRBY_ABILITY_FIRE]    = 0x20000103,
     [KIRBY_ABILITY_ICE]     = 0x20000203,
@@ -352,7 +352,7 @@ extern const u32 gUnk_082DDFC8[] = {
     [KIRBY_ABILITY_MASTER]  = 0x30007103,
 };
 
-extern const u8 gUnk_082DE034[] = {
+extern const u8 gCpuOffscreenAbilityPool[] = {
     KIRBY_ABILITY_FIRE, KIRBY_ABILITY_FIRE, KIRBY_ABILITY_FIRE, KIRBY_ABILITY_FIRE,
     KIRBY_ABILITY_ICE, KIRBY_ABILITY_ICE, KIRBY_ABILITY_ICE,
     KIRBY_ABILITY_CUTTER, KIRBY_ABILITY_CUTTER, KIRBY_ABILITY_CUTTER,
@@ -380,7 +380,7 @@ extern const u8 gUnk_082DE034[] = {
     KIRBY_ABILITY_CRASH,
 };
 
-extern const u16 gUnk_082DE074[][2] = {
+extern const u16 gCpuLinkedRooms[][2] = {
     { 0x12C, 0x144 },
     { 0x2BC, 0x2C6 },
     { 0x190, 0x1A1 },
@@ -391,7 +391,7 @@ extern const u16 gUnk_082DE074[][2] = {
     {  0x72,  0x81 },
 };
 
-struct Kirby *sub_0800FE50(struct ObjectBase *objBase, s16 *a2) {
+struct Kirby *CpuNearestHumanInRoom(struct ObjectBase *objBase, s16 *a2) {
     u16 i;
     struct Kirby *ret = NULL;
     s16 dx, dy;
@@ -418,42 +418,42 @@ struct Kirby *sub_0800FE50(struct ObjectBase *objBase, s16 *a2) {
     return ret;
 }
 
-void sub_0800FF60(struct Unk_02038590 *a1) {
-    struct Kirby *kirby = a1->unk40;
+void CpuDecideMouthful(struct CpuBrain *brain) {
+    struct Kirby *kirby = brain->kirby;
 
     if (kirby->base.flags & 0x80) {
-        if (!a1->unkA0) {
-            if (a1->unk3E > KIRBY_ABILITY_NORMAL && a1->unk3E <= KIRBY_ABILITY_MASTER
-                && (kirby->transitioningAbility & 0x1F) == a1->unk3E) {
-                if (a1->unkDC != 0xF)
-                    a1->unk0[3] = FN(sub_080175D0);
+        if (!brain->swallowCooldown) {
+            if (brain->wantAbility > KIRBY_ABILITY_NORMAL && brain->wantAbility <= KIRBY_ABILITY_MASTER
+                && (kirby->transitioningAbility & 0x1F) == brain->wantAbility) {
+                if (brain->action != CPU_ACT_SWALLOW)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallow);
             } else {
-                if (a1->unk3E == 0xFF) {
-                    if (a1->unkDC != 0xD) {
-                        a1->unkDE = 0xFFFF;
-                        a1->unk0[3] = FN(sub_0801737C);
+                if (brain->wantAbility == 0xFF) {
+                    if (brain->action != CPU_ACT_SPIT) {
+                        brain->actArg = 0xFFFF;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
                     }
                 } else {
                     if ((Rand16() & 0xFF) < 0xC0) {
                         if ((Rand16() & 0xFF) < 0xFF) {
-                            if (a1->unkDC != 0xF)
-                                a1->unk0[3] = FN(sub_080175D0);
-                        } else if (a1->unkDC != 0xD) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_0801737C);
+                            if (brain->action != CPU_ACT_SWALLOW)
+                                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallow);
+                        } else if (brain->action != CPU_ACT_SPIT) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
                         }
                     } else {
-                        a1->unkA0 = (Rand16() & 0x7F) + 0x1E;
+                        brain->swallowCooldown = (Rand16() & 0x7F) + 0x1E;
                     }
                 }
             }
         } else {
-            --a1->unkA0;
+            --brain->swallowCooldown;
         }
     }
 }
 
-u8 sub_08010034(struct LevelInfo *li, u8 a2) {
+u8 CpuPickRandomNode(struct LevelInfo *li, u8 a2) {
     const struct LevelInfo_1E8 *r4 = gUnk_08D63C28[gRoomProps[li->currentRoom].unk22];
     const struct LevelInfo_1E8_14 *r8 = r4->unk14, *r9 = &r8[a2];
     u16 array[] = {
@@ -481,147 +481,147 @@ u8 sub_08010034(struct LevelInfo *li, u8 a2) {
     return r5;
 }
 
-void sub_08010144(struct Unk_02038590 *a1) {
-    a1->unk84 = (a1->unk40->base.x > a1->unk7C
-        ? a1->unk40->base.x - a1->unk7C
-        : a1->unk7C - a1->unk40->base.x) >> 8;
-    a1->unk86 = (a1->unk40->base.y > a1->unk80
-        ? a1->unk40->base.y - a1->unk80
-        : a1->unk80 - a1->unk40->base.y) >> 8;
-    a1->unk88 = a1->unk84 > a1->unk86 ? a1->unk84 - a1->unk86 : a1->unk86 - a1->unk84;
-    a1->unk8A = sub_08154FE8((a1->unk7C - a1->unk40->base.x) >> 8, (a1->unk80 - a1->unk40->base.y) >> 8) & 0x3FF;
-    if (a1->unk1A != a1->unk3F && a1->unk3F != 0xFF) {
-        const struct LevelInfo_1E8_14 *r2 = &a1->unk14->unk1E8->unk14[a1->unk3F];
+void CpuUpdateGoalVectors(struct CpuBrain *brain) {
+    brain->goalDx = (brain->kirby->base.x > brain->goalX
+        ? brain->kirby->base.x - brain->goalX
+        : brain->goalX - brain->kirby->base.x) >> 8;
+    brain->goalDy = (brain->kirby->base.y > brain->goalY
+        ? brain->kirby->base.y - brain->goalY
+        : brain->goalY - brain->kirby->base.y) >> 8;
+    brain->goalDxDyDiff = brain->goalDx > brain->goalDy ? brain->goalDx - brain->goalDy : brain->goalDy - brain->goalDx;
+    brain->goalAngle = sub_08154FE8((brain->goalX - brain->kirby->base.x) >> 8, (brain->goalY - brain->kirby->base.y) >> 8) & 0x3FF;
+    if (brain->curNode != brain->nextNode && brain->nextNode != 0xFF) {
+        const struct LevelInfo_1E8_14 *r2 = &brain->levelInfo->unk1E8->unk14[brain->nextNode];
 
-        a1->unk94 = r2->unk20 - (a1->unk40->base.x >> 8);
-        a1->unk96 = r2->unk22 - (a1->unk40->base.y >> 8);
-        a1->unk9A = sub_08154FE8(a1->unk94, a1->unk96) & 0x3FF;
-        a1->unk94 = abs(a1->unk94);
-        a1->unk96 = abs(a1->unk96);
-        a1->unk98 = (u16)a1->unk96 < (u16)a1->unk94 ? a1->unk94 : a1->unk96;
+        brain->waypointDx = r2->unk20 - (brain->kirby->base.x >> 8);
+        brain->waypointDy = r2->unk22 - (brain->kirby->base.y >> 8);
+        brain->waypointAngle = sub_08154FE8(brain->waypointDx, brain->waypointDy) & 0x3FF;
+        brain->waypointDx = abs(brain->waypointDx);
+        brain->waypointDy = abs(brain->waypointDy);
+        brain->waypointDist = (u16)brain->waypointDy < (u16)brain->waypointDx ? brain->waypointDx : brain->waypointDy;
     } else {
-        a1->unk8C = a1->unk7C;
-        a1->unk90 = a1->unk80;
-        a1->unk94 = a1->unk84;
-        a1->unk96 = a1->unk86;
-        a1->unk98 = a1->unk88;
-        a1->unk9A = a1->unk8A;
+        brain->waypointX = brain->goalX;
+        brain->waypointY = brain->goalY;
+        brain->waypointDx = brain->goalDx;
+        brain->waypointDy = brain->goalDy;
+        brain->waypointDist = brain->goalDxDyDiff;
+        brain->waypointAngle = brain->goalAngle;
     }
 }
 
-void sub_08010294(struct Unk_02038590 *a1) {
+void CpuUpdateTargetMemory(struct CpuBrain *brain) {
     u16 i;
 
-    if (a1->unk48 && a1->unk48->base.flags & 0x1000)
-        a1->unk48 = NULL;
+    if (brain->target && brain->target->base.flags & 0x1000)
+        brain->target = NULL;
     for (i = 0; i < 4; ++i) {
-        if (a1->unk4C[i].unk4) {
-            if (a1->unk4C[i].unk4->base.flags & 0x1000)
-                a1->unk4C[i].unk4 = NULL;
+        if (brain->targetMemory[i].obj) {
+            if (brain->targetMemory[i].obj->base.flags & 0x1000)
+                brain->targetMemory[i].obj = NULL;
             else {
-                if (!a1->unk4C[i].unk0) {
-                    if (a1->unk48 == a1->unk4C[i].unk4
-                        && a1->unk48->unk80 != a1->unk4C[i].unkA) {
+                if (!brain->targetMemory[i].ignoring) {
+                    if (brain->target == brain->targetMemory[i].obj
+                        && brain->target->unk80 != brain->targetMemory[i].lastHp) {
                         Rand32();
-                        a1->unk4C[i].unk8 += 0x3C + ((gRngVal >> 0x10) & 0x7F);
-                        a1->unk4C[i].unkA = a1->unk48->unk80;
-                    } else if (!--a1->unk4C[i].unk8) {
+                        brain->targetMemory[i].timer += 0x3C + ((gRngVal >> 0x10) & 0x7F);
+                        brain->targetMemory[i].lastHp = brain->target->unk80;
+                    } else if (!--brain->targetMemory[i].timer) {
                         u32 r = Rand32();
-                        u32 tmp = a1->unk4C[i].unk8 + 0x12C;
+                        u32 tmp = brain->targetMemory[i].timer + 0x12C;
 
                         tmp += (r >> 0x10) & 0xFF;
-                        a1->unk4C[i].unk8 = tmp;
-                        a1->unk4C[i].unk0 = 1;
+                        brain->targetMemory[i].timer = tmp;
+                        brain->targetMemory[i].ignoring = 1;
                     }
-                } else if (!--a1->unk4C[i].unk8) {
-                    a1->unk4C[i].unk4 = NULL;
+                } else if (!--brain->targetMemory[i].timer) {
+                    brain->targetMemory[i].obj = NULL;
                 }
             }
         }
     }
 }
 
-bool32 sub_080103BC(struct Unk_02038590 *a1) {
+bool32 CpuUpdateFollow(struct CpuBrain *brain) {
     u16 i;
     bool32 r7;
     s16 stack;
 
-    if (!(a1->flags & 4))
-        return (a1->flags >> 4) & 1;
+    if (!(brain->flags & CPU_FLAG_FREE))
+        return (brain->flags >> 4) & 1;
     for (i = 0; i < 0x10; ++i) {
-        if (gUnk_0835105C[i] == a1->unk14->currentRoom)
+        if (gUnk_0835105C[i] == brain->levelInfo->currentRoom)
             break;
     }
     if (i < 0x10)
         return FALSE;
-    if (a1->flags & 0x10) {
+    if (brain->flags & CPU_FLAG_FOLLOWING) {
         r7 = FALSE;
-        if (!a1->unk44
-            || a1->unk14->currentRoom != a1->unk44->base.roomId) {
+        if (!brain->followKirby
+            || brain->levelInfo->currentRoom != brain->followKirby->base.roomId) {
             r7 = TRUE;
         } else {
-            s16 dx = a1->unk40->base.x >> 8 > a1->unk44->base.x >> 8
-                ? (a1->unk40->base.x >> 8) - (a1->unk44->base.x >> 8)
-                : (a1->unk44->base.x >> 8) - (a1->unk40->base.x >> 8);
-            s16 dy = a1->unk40->base.y >> 8 > a1->unk44->base.y >> 8
-                ? (a1->unk40->base.y >> 8) - (a1->unk44->base.y >> 8)
-                : (a1->unk44->base.y >> 8) - (a1->unk40->base.y >> 8);
+            s16 dx = brain->kirby->base.x >> 8 > brain->followKirby->base.x >> 8
+                ? (brain->kirby->base.x >> 8) - (brain->followKirby->base.x >> 8)
+                : (brain->followKirby->base.x >> 8) - (brain->kirby->base.x >> 8);
+            s16 dy = brain->kirby->base.y >> 8 > brain->followKirby->base.y >> 8
+                ? (brain->kirby->base.y >> 8) - (brain->followKirby->base.y >> 8)
+                : (brain->followKirby->base.y >> 8) - (brain->kirby->base.y >> 8);
             s16 max = dy < dx ? dx : dy;
 
             if (max < 0x50) {
-                if (a1->unkA2 < 0x12C0) a1->unkA2 -= max - 0x50;
-                if (a1->unkA2 > 0x12C0) a1->unkA2 = 0x12C0;
+                if (brain->nearHumanMeter < 0x12C0) brain->nearHumanMeter -= max - 0x50;
+                if (brain->nearHumanMeter > 0x12C0) brain->nearHumanMeter = 0x12C0;
             } else {
-                if (a1->unkA2 > 0x10)
-                    a1->unkA2 -= 0x10;
+                if (brain->nearHumanMeter > 0x10)
+                    brain->nearHumanMeter -= 0x10;
                 else
-                    a1->unkA2 = 0;
+                    brain->nearHumanMeter = 0;
             }
-            if (!a1->unkA2)
+            if (!brain->nearHumanMeter)
                 r7 = TRUE;
-            if (a1->unk40->base.xspeed == 0
-                && a1->unk40->base.yspeed == 0)
-                ++a1->unkA4;
+            if (brain->kirby->base.xspeed == 0
+                && brain->kirby->base.yspeed == 0)
+                ++brain->followStillFrames;
             else
-                a1->unkA4 = 0;
-            if (a1->unkA4 > 600)
+                brain->followStillFrames = 0;
+            if (brain->followStillFrames > 600)
                 r7 = TRUE;
         }
         if (r7) {
-            a1->flags &= ~0x10;
-            a1->unk44 = NULL;
-            a1->unkA2 = 0;
-            a1->unkA4 = 0;
+            brain->flags &= ~CPU_FLAG_FOLLOWING;
+            brain->followKirby = NULL;
+            brain->nearHumanMeter = 0;
+            brain->followStillFrames = 0;
         }
-        return (a1->flags >> 4) & 1;
+        return (brain->flags >> 4) & 1;
     } else {
-        struct Kirby *kirby = sub_0800FE50(&a1->unk40->base, &stack);
+        struct Kirby *kirby = CpuNearestHumanInRoom(&brain->kirby->base, &stack);
 
         if (kirby && stack < 0x50) {
-            if (a1->unkA2 < 0x12C0) a1->unkA2 -= stack - 0x50;
-            if (a1->unkA2 > 0x12C0) a1->unkA2 = 0x12C0;
+            if (brain->nearHumanMeter < 0x12C0) brain->nearHumanMeter -= stack - 0x50;
+            if (brain->nearHumanMeter > 0x12C0) brain->nearHumanMeter = 0x12C0;
         } else {
-            if (a1->unkA2 > 0x10)
-                a1->unkA2 -= 0x10;
+            if (brain->nearHumanMeter > 0x10)
+                brain->nearHumanMeter -= 0x10;
             else
-                a1->unkA2 = 0;
+                brain->nearHumanMeter = 0;
         }
-        if (a1->unkA2 > 0xB40 && kirby) {
-            a1->flags |= 0x10;
-            a1->unk44 = kirby;
-            a1->unkA4 = 0;
+        if (brain->nearHumanMeter > 0xB40 && kirby) {
+            brain->flags |= CPU_FLAG_FOLLOWING;
+            brain->followKirby = kirby;
+            brain->followStillFrames = 0;
         }
-        return (a1->flags >> 4) & 1;
+        return (brain->flags >> 4) & 1;
     }
 }
 
 // https://decomp.me/scratch/Q0OQa
-struct Object *sub_08010590(struct Unk_02038590 *a1, s32 a2, s32 a3) {
+struct Object *CpuFindTarget(struct CpuBrain *brain, s32 a2, s32 a3) {
     s32 dx, dy;
-    PTR32(struct ObjectBase) *r7 = GetRoomObjectCollisionList(&a1->unk40->base);
+    PTR32(struct ObjectBase) *r7 = GetRoomObjectCollisionList(&brain->kirby->base);
     struct Object *sp = NULL;
-    s32 x = a1->unk40->base.x;
-    s32 y = a1->unk40->base.y;
+    s32 x = brain->kirby->base.x;
+    s32 y = brain->kirby->base.y;
 
     for (; *r7; ++r7) {
         struct Object *r3 = (struct Object *)*r7;
@@ -702,7 +702,7 @@ struct Object *sub_08010590(struct Unk_02038590 *a1, s32 a2, s32 a3) {
                         if (r3->type == OBJ_ABILITY_STAR_2)
                             continue;
                     } else {
-                        if (r3->base.parent == a1->unk40) {
+                        if (r3->base.parent == brain->kirby) {
                             if (((struct Kirby *)r3->base.parent)->ability != KIRBY_ABILITY_NORMAL)
                                 continue;
                             if (r3->base.counter > 60)
@@ -725,26 +725,26 @@ struct Object *sub_08010590(struct Unk_02038590 *a1, s32 a2, s32 a3) {
                     sp = r5;
             } else {
                 if (a2 >= dx && a3 >= dy) {
-                    struct Unk_02038590_4C *r6 = NULL;
+                    struct CpuTargetMemory *r6 = NULL;
                     bool32 b = FALSE;
                     u16 i;
 
                     for (i = 0; i < 4; ++i) {
-                        if (a1->unk4C[i].unk4 == r3) {
+                        if (brain->targetMemory[i].obj == r3) {
                             b = TRUE;
-                            if (a1->unk4C[i].unk0)
+                            if (brain->targetMemory[i].ignoring)
                                 break;
                         } else {
-                            if (!a1->unk4C[i].unk4)
-                                r6 = &a1->unk4C[i];
+                            if (!brain->targetMemory[i].obj)
+                                r6 = &brain->targetMemory[i];
                         }
                     }
                     if (i == 4) {
                         if (!b && r6) {
-                            r6->unk0 = 0;
-                            r6->unk4 = r3;
-                            r6->unkA = r3->unk80;
-                            r6->unk8 = (Rand16() & 0xFF) + 0x12C;
+                            r6->ignoring = 0;
+                            r6->obj = r3;
+                            r6->lastHp = r3->unk80;
+                            r6->timer = (Rand16() & 0xFF) + 0x12C;
                         }
                         return r3;
                     }
@@ -755,28 +755,28 @@ struct Object *sub_08010590(struct Unk_02038590 *a1, s32 a2, s32 a3) {
     return sp;
 }
 
-bool32 sub_08010818(struct Unk_02038590 *a1, struct Object *obj) {
+bool32 CpuTryHopOverTarget(struct CpuBrain *brain, struct Object *obj) {
     s16 var;
 
-    switch (a1->unkDC) {
+    switch (brain->action) {
     case 7:
     case 8:
     case 0xA:
         return TRUE;
     }
-    if (a1->unk40->base.xspeed) {
-        if (a1->unk40->base.flags & 1) {
-            if (a1->unk40->base.x <= obj->base.x)
+    if (brain->kirby->base.xspeed) {
+        if (brain->kirby->base.flags & 1) {
+            if (brain->kirby->base.x <= obj->base.x)
                 return FALSE;
         } else {
-            if (a1->unk40->base.x >= obj->base.x)
+            if (brain->kirby->base.x >= obj->base.x)
                 return FALSE;
         }
-        var = (a1->unk40->base.y - obj->base.y) >> 8;
+        var = (brain->kirby->base.y - obj->base.y) >> 8;
         if (var + 7 >= 0 && var + 7 <= 0x1E) {
-            if (a1->unkDC != 7) {
-                a1->unkDE = (Rand16() & 1) + 3;
-                a1->unk0[3] = FN(sub_080160B8);
+            if (brain->action != CPU_ACT_JUMP) {
+                brain->actArg = (Rand16() & 1) + 3;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActJump);
             }
             return TRUE;
         }
@@ -784,23 +784,23 @@ bool32 sub_08010818(struct Unk_02038590 *a1, struct Object *obj) {
     return FALSE;
 }
 
-void sub_080108B8(struct Unk_02038590 *a1) {
-    u32 ability = a1->unk40->ability;
+void CpuScanForTarget(struct CpuBrain *brain) {
+    u32 ability = brain->kirby->ability;
 
     if (ability == KIRBY_ABILITY_UFO) {
-        if (a1->unk40->base.unk58 & 2)
-            CALL(gUnk_082DDF5C[KIRBY_ABILITY_UFO])(a1);
+        if (brain->kirby->base.unk58 & 2)
+            CALL(gCpuTargetScansWater[KIRBY_ABILITY_UFO])(brain);
         else
-            CALL(gUnk_082DDEF0[KIRBY_ABILITY_UFO])(a1);
-    } else if (a1->unk40->base.flags & 0x40) {
-        sub_08010944(a1);
-    } else if (a1->unk40->base.flags & 0x80) {
-        sub_08010A34(a1);
+            CALL(gCpuTargetScansLand[KIRBY_ABILITY_UFO])(brain);
+    } else if (brain->kirby->base.flags & 0x40) {
+        CpuScanTargetFlying(brain);
+    } else if (brain->kirby->base.flags & 0x80) {
+        CpuScanTargetMouthful(brain);
     } else {
-        if (a1->unk40->base.unk58 & 2)
-            CALL(gUnk_082DDF5C[ability])(a1);
+        if (brain->kirby->base.unk58 & 2)
+            CALL(gCpuTargetScansWater[ability])(brain);
         else
-            CALL(gUnk_082DDEF0[ability])(a1);
+            CALL(gCpuTargetScansLand[ability])(brain);
     }
 }
 
@@ -814,683 +814,683 @@ static inline bool32 IsOneOfTheCurrentRooms(u16 roomId) {
     return FALSE;
 }
 
-static inline bool32 sub_08011754_helper(struct Unk_02038590 *a1, u16 sl, bool16 b) {
-    u32 r8 = a1->unk14->roomWidth >> 4;
+static inline bool32 CpuRowIsClear(struct CpuBrain *brain, u16 sl, bool16 b) {
+    u32 r8 = brain->levelInfo->roomWidth >> 4;
     s16 r7 = b == TRUE ? -1 : 1;
-    u16 r4 = r7 + (a1->unk40->base.x >> 12);
-    u16 sb = a1->unk40->base.y >> 12;
+    u16 r4 = r7 + (brain->kirby->base.x >> 12);
+    u16 sb = brain->kirby->base.y >> 12;
 
     for (; sl-- && r4 < r8; r4 += r7) {
-        if (!(gCollisionAttributes[sub_080024F0(a1->unk14, r4, sb)] & 1))
+        if (!(gCollisionAttributes[sub_080024F0(brain->levelInfo, r4, sb)] & 1))
             return FALSE;
     }
     return TRUE;
 }
 
-void sub_08010944(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1800);
-    if (a1->unk48) {
-        if (!IsOneOfTheCurrentRooms(a1->unk14->currentRoom))
+void CpuScanTargetFlying(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1800);
+    if (brain->target) {
+        if (!IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom))
             return;
-        if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 3) {
-            if (a1->unkDC != 0xC) {
-                a1->unkDE = a1->unk40->base.x >= a1->unk48->base.x;
-                a1->unk0[3] = FN(sub_08017274);
+        if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 3) {
+            if (brain->action != CPU_ACT_AIR_PUFF) {
+                brain->actArg = brain->kirby->base.x >= brain->target->base.x;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAirPuff);
             }
         } else {
-            u32 ability = a1->unk40->ability;
+            u32 ability = brain->kirby->ability;
             bool32 b = FALSE;
 
             if (ability < KIRBY_ABILITY_COUNT) {
                 // TODO: better match
-                const u32 *table = gUnk_082DDFC8;
+                const u32 *table = gCpuAbilityAttackMasks;
                 const u32 *r2 = &table[ability];
-                u32 inter = a1->unk48->base.unk5C & ~7;
+                u32 inter = brain->target->base.unk5C & ~7;
                 u32 var = 0x3FFFF8 & ~inter;
 
                 if (var & *r2
-                    && (*r2 & 7) >= (a1->unk48->base.unk5C & 7))
+                    && (*r2 & 7) >= (brain->target->base.unk5C & 7))
                     b = TRUE;
             }
             if (b)
-                a1->unk0[3] = FN(sub_0801519C);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         }
     }
 }
 
-void sub_08010A34(struct Unk_02038590 *a1) {
-    if ((a1->unk40->transitioningAbility & 0x1F) != KIRBY_ABILITY_NORMAL
-        && (a1->unk40->transitioningAbility & 0x1F) < KIRBY_ABILITY_COUNT
+void CpuScanTargetMouthful(struct CpuBrain *brain) {
+    if ((brain->kirby->transitioningAbility & 0x1F) != KIRBY_ABILITY_NORMAL
+        && (brain->kirby->transitioningAbility & 0x1F) < KIRBY_ABILITY_COUNT
         && (Rand16() & 0xFF) < 0xC0) {
-        if (a1->unkDC != 0xF)
-            a1->unk0[3] = FN(sub_080175D0);
+        if (brain->action != CPU_ACT_SWALLOW)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallow);
     } else {
-        a1->unk48 = sub_08010590(a1, 0x3000, 0x1800);
-        if (a1->unk48 && a1->unkDC != 0xD) {
-            a1->unkDE = a1->unk40->base.x >= a1->unk48->base.x;
-            a1->unk0[3] = FN(sub_0801737C);
+        brain->target = CpuFindTarget(brain, 0x3000, 0x1800);
+        if (brain->target && brain->action != CPU_ACT_SPIT) {
+            brain->actArg = brain->kirby->base.x >= brain->target->base.x;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
         }
     }
 }
 
-void sub_08010AC8(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1800);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x20 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanNormal(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1800);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x20 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0xE) {
-                    a1->unkDE = b;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_0801745C);
+                if (brain->action != CPU_ACT_INHALE) {
+                    brain->actArg = b;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActInhale);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08010B80(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x100 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanFire(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x100 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08010C34(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x200 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanIce(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x200 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08010CE8(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x5000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x1100 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanBurning(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x5000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x1100 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    if (a1->unkDC != 0x10) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08017684);
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    if (brain->action != CPU_ACT_ATTACK) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08010E3C(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x5000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanWheel(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x5000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    if (a1->unkDC != 0x10) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08017684);
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    if (brain->action != CPU_ACT_ATTACK) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08010F90(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanParasol(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011044(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x2000 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanCutter(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x2000 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    if (a1->unkDC != 0x10) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08017684);
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    if (brain->action != CPU_ACT_ATTACK) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_0801119C(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x400 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanBeam(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x400 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011250(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x3000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x5000 && (a1->unk48->base.unk5C & 7) < 4) {
-                s16 r5 = (a1->unk40->base.y - a1->unk48->base.y) >> 8;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 8;
+void CpuScanStone(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x3000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x5000 && (brain->target->base.unk5C & 7) < 4) {
+                s16 r5 = (brain->kirby->base.y - brain->target->base.y) >> 8;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 8;
 
                 r0 = abs(r0);
                 if (r0 < 0x30 && r5 < 0x40) {
-                    bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+                    bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                    if (a1->unkDC != 0x15) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08019198);
+                    if (brain->action != CPU_ACT_STONE_DROP) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDrop);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011324(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x4000, 0x3000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x100 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanBomb(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x4000, 0x3000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x100 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
                 u16 r3 = 0xFFFF;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
                 s16 unk;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    unk = (a1->unk40->base.y - a1->unk48->base.y) >> 0xC;
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    unk = (brain->kirby->base.y - brain->target->base.y) >> 0xC;
                     if (unk >= 0x2FFF)
                         r3 = 2;
-                    if (a1->unkDC != 0x13) {
-                        a1->unkDE = b;
-                        a1->unkE0 = r3;
-                        a1->unk0[3] = FN(sub_080178DC);
+                    if (brain->action != CPU_ACT_BOMB) {
+                        brain->actArg = b;
+                        brain->actArg2 = r3;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBomb);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_0801149C(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x2000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x200020 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanThrow(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x2000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x200020 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = b;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = b;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011558(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x1000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x8000 && (a1->unk48->base.unk5C & 7) < 4) {
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017684);
+void CpuScanCook(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x1000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x8000 && (brain->target->base.unk5C & 7) < 4) {
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_080115FC(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x6000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x100 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanLaser(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x6000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x100 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    if (a1->unkDC != 0x10) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08017684);
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    if (brain->action != CPU_ACT_ATTACK) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011754(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x6000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-            s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanUfo(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x6000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            bool16 b = brain->kirby->base.x >= brain->target->base.x;
+            s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
             s16 sl = abs(r0);
 
-            if (Rand16() & 1 && sl < 4 && ~(a1->unk48->base.unk5C & ~7) & 0x400 && (a1->unk48->base.unk5C & 7) < 4) {
-                if (a1->unkDC != 0x17) {
-                    a1->unkDE = b;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017CC4);
+            if (Rand16() & 1 && sl < 4 && ~(brain->target->base.unk5C & ~7) & 0x400 && (brain->target->base.unk5C & 7) < 4) {
+                if (brain->action != CPU_ACT_UFO_SHOT) {
+                    brain->actArg = b;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShot);
                 }
                 return;
             }
-            if (Rand16() & 1 && ~(a1->unk48->base.unk5C & ~7) & 0x100 && (a1->unk48->base.unk5C & 7) < 4) {
-                if (sub_08011754_helper(a1, sl, b)) {
-                    if (a1->unkDC != 0x17) {
-                        a1->unkDE = b;
-                        a1->unkE0 = 1;
-                        a1->unk0[3] = FN(sub_08017CC4);
+            if (Rand16() & 1 && ~(brain->target->base.unk5C & ~7) & 0x100 && (brain->target->base.unk5C & 7) < 4) {
+                if (CpuRowIsClear(brain, sl, b)) {
+                    if (brain->action != CPU_ACT_UFO_SHOT) {
+                        brain->actArg = b;
+                        brain->actArg2 = 1;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShot);
                     }
                     return;
                 }
             }
-            if (~(a1->unk48->base.unk5C & ~7) & 0x100 && (a1->unk48->base.unk5C & 7) < 4) {
-                if (sub_08011754_helper(a1, sl, b)) {
-                    if (a1->unkDC != 0x17) {
-                        a1->unkDE = b;
-                        a1->unkE0 = 2;
-                        a1->unk0[3] = FN(sub_08017CC4);
+            if (~(brain->target->base.unk5C & ~7) & 0x100 && (brain->target->base.unk5C & 7) < 4) {
+                if (CpuRowIsClear(brain, sl, b)) {
+                    if (brain->action != CPU_ACT_UFO_SHOT) {
+                        brain->actArg = b;
+                        brain->actArg2 = 2;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShot);
                     }
                     return;
                 }
             }
-            if (~(a1->unk48->base.unk5C & ~7) & 0x1100 && (a1->unk48->base.unk5C & 7) < 4) {
-                if (a1->unkDC != 0x17) {
-                    a1->unkDE = b;
-                    a1->unkE0 = 3;
-                    a1->unk0[3] = FN(sub_08017CC4);
+            if (~(brain->target->base.unk5C & ~7) & 0x1100 && (brain->target->base.unk5C & 7) < 4) {
+                if (brain->action != CPU_ACT_UFO_SHOT) {
+                    brain->actArg = b;
+                    brain->actArg2 = 3;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShot);
                 }
             }
             return;
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011A28(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x1800, 0x1800);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x400 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanSpark(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x1800, 0x1800);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x400 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011AD8(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanTornado(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
 
-                if (sub_08011754_helper(a1, abs(r0), b)) {
-                    if (a1->unkDC != 0x10) {
-                        a1->unkDE = b;
-                        a1->unk0[3] = FN(sub_08017684);
+                if (CpuRowIsClear(brain, abs(r0), b)) {
+                    if (brain->action != CPU_ACT_ATTACK) {
+                        brain->actArg = b;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011C2C(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x2000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x5000 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanHammer(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x2000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x5000 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011CE0(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x2000 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanSword(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x2000 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011D94(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x6000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x2000 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanCupid(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x6000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x2000 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
                 s16 sp04 = abs(r0);
 
-                if (sub_08011754_helper(a1, sp04, b)) {
-                    if (a1->unkDC != 0x18) {
-                        a1->unkDE = b;
-                        a1->unkE0 = 0xFFFF;
-                        a1->unkE4.data = sp04 >> 1;
-                        a1->unk0[3] = FN(sub_08017D40);
+                if (CpuRowIsClear(brain, sp04, b)) {
+                    if (brain->action != CPU_ACT_CUPID_SHOT) {
+                        brain->actArg = b;
+                        brain->actArg2 = 0xFFFF;
+                        brain->actNext.data = sp04 >> 1;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShot);
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011F00(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x2000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanFighter(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x2000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_08011FB4(struct Unk_02038590 *a1) {
-    a1->unk48 = NULL;
-    if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-        if ((Rand16() & 0xFF) < 5 && a1->unkDC != 0x10) {
-            a1->unkDE = 0xFFFF;
-            a1->unk0[3] = FN(sub_08017684);
+void CpuScanMagic(struct CpuBrain *brain) {
+    brain->target = NULL;
+    if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+        if ((Rand16() & 0xFF) < 5 && brain->action != CPU_ACT_ATTACK) {
+            brain->actArg = 0xFFFF;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
         }
     }
 }
 
-void sub_08012048(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x2000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanSmash(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x2000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_080120FC(struct Unk_02038590 *a1) {
-    a1->unk48 = NULL;
-    if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-        if ((Rand16() & 0xFF) < 5 && a1->unkDC != 0x10) {
-            a1->unkDE = 0xFFFF;
-            a1->unk0[3] = FN(sub_08017684);
+void CpuScanCrash(struct CpuBrain *brain) {
+    brain->target = NULL;
+    if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+        if ((Rand16() & 0xFF) < 5 && brain->action != CPU_ACT_ATTACK) {
+            brain->actArg = 0xFFFF;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
         }
     }
 }
 
-void sub_08012190(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x5000, 0x2000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x1000 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool16 b = a1->unk40->base.x >= a1->unk48->base.x;
-                s16 r0 = (a1->unk40->base.x - a1->unk48->base.x) >> 0xC;
+void CpuScanMissile(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x5000, 0x2000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x1000 && (brain->target->base.unk5C & 7) < 4) {
+                bool16 b = brain->kirby->base.x >= brain->target->base.x;
+                s16 r0 = (brain->kirby->base.x - brain->target->base.x) >> 0xC;
                 s16 sp04 = abs(r0);
 
-                if (sub_08011754_helper(a1, sp04, b)) {
-                    u16 r2 = a1->unk40->base.y >> 0xC;
+                if (CpuRowIsClear(brain, sp04, b)) {
+                    u16 r2 = brain->kirby->base.y >> 0xC;
 
                     if (sp04 < 2 || !r2
-                        || (gCollisionAttributes[sub_080024F0(a1->unk14, a1->unk40->base.x >> 0xC, r2 - 1)] & 1)) {
-                        if (a1->unkDC != 0x1A) {
-                            a1->unkDE = (u32)a1->unk48->base.x >> 8;
-                            a1->unkE0 = (u32)a1->unk48->base.y >> 8;
-                            a1->unk0[3] = FN(sub_080196E4);
+                        || (gCollisionAttributes[sub_080024F0(brain->levelInfo, brain->kirby->base.x >> 0xC, r2 - 1)] & 1)) {
+                        if (brain->action != CPU_ACT_MISSILE_HOMING) {
+                            brain->actArg = (u32)brain->target->base.x >> 8;
+                            brain->actArg2 = (u32)brain->target->base.y >> 8;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileHoming);
                         }
                     }
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_0801232C(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x3000, 0x1000);
-    if (a1->unk48) {
-        if (IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            if (~(a1->unk48->base.unk5C & ~7) & 0x7100 && (a1->unk48->base.unk5C & 7) < 4) {
-                bool32 b = a1->unk40->base.x >= a1->unk48->base.x;
+void CpuScanMaster(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x3000, 0x1000);
+    if (brain->target) {
+        if (IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            if (~(brain->target->base.unk5C & ~7) & 0x7100 && (brain->target->base.unk5C & 7) < 4) {
+                bool32 b = brain->kirby->base.x >= brain->target->base.x;
 
-                if (a1->unkDC != 0x10) {
-                    a1->unkDE = b;
-                    a1->unk0[3] = FN(sub_08017684);
+                if (brain->action != CPU_ACT_ATTACK) {
+                    brain->actArg = b;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                 }
                 return;
             }
         }
-        sub_08010818(a1, a1->unk48);
+        CpuTryHopOverTarget(brain, brain->target);
     }
 }
 
-void sub_080123E0(struct Unk_02038590 *a1) {
-    a1->unk48 = sub_08010590(a1, 0x1800, 0x1800);
-    if (a1->unk48) {
-        if (~(a1->unk48->base.unk5C & ~7) & 0x40 && (a1->unk48->base.unk5C & 7) < 4) {
-            s16 ret = sub_08154FE8((a1->unk48->base.x - a1->unk40->base.x) >> 8,
-                (a1->unk48->base.y - a1->unk40->base.y) >> 8) & 0x3FF;
+void CpuScanUnderwater(struct CpuBrain *brain) {
+    brain->target = CpuFindTarget(brain, 0x1800, 0x1800);
+    if (brain->target) {
+        if (~(brain->target->base.unk5C & ~7) & 0x40 && (brain->target->base.unk5C & 7) < 4) {
+            s16 ret = sub_08154FE8((brain->target->base.x - brain->kirby->base.x) >> 8,
+                (brain->target->base.y - brain->kirby->base.y) >> 8) & 0x3FF;
 
             if (ret >= 0x80 && ret < 0x180) {
-                if (a1->unkDC != 0x11) {
-                    a1->unkDE = 0;
-                    a1->unkE0 = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017750);
+                if (brain->action != CPU_ACT_WATER_ATTACK) {
+                    brain->actArg = 0;
+                    brain->actArg2 = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttack);
                 }
             } else if (ret >= 0x180 && ret < 0x280) {
-                if (a1->unkDC != 0x11) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 2;
-                    a1->unk0[3] = FN(sub_08017750);
+                if (brain->action != CPU_ACT_WATER_ATTACK) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 2;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttack);
                 }
             } else if (ret >= 0x280 && ret < 0x380) {
-                if (a1->unkDC != 0x11) {
-                    a1->unkDE = 1;
-                    a1->unkE0 = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017750);
+                if (brain->action != CPU_ACT_WATER_ATTACK) {
+                    brain->actArg = 1;
+                    brain->actArg2 = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttack);
                 }
             } else {
-                if (a1->unkDC != 0x11) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 3;
-                    a1->unk0[3] = FN(sub_08017750);
+                if (brain->action != CPU_ACT_WATER_ATTACK) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 3;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttack);
                 }
             }
         }
     }
 }
 
-bool16 sub_080124E0(struct Unk_02038590 *a1) {
-    s8 r8 = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 r2 = (a1->unk40->base.x >> 0xC) + r8;
+bool16 CpuBreakBlockNormal(struct CpuBrain *brain) {
+    s8 r8 = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 r2 = (brain->kirby->base.x >> 0xC) + r8;
 
-    if (r2 >= 0 && r2 < a1->unk14->roomWidth >> 4) {
-        s16 r7 = (a1->unk40->base.x + r8 * 0x800) >> 0xC;
-        s16 r0 = (a1->unk40->base.y >> 0xC) - 1;
+    if (r2 >= 0 && r2 < brain->levelInfo->roomWidth >> 4) {
+        s16 r7 = (brain->kirby->base.x + r8 * 0x800) >> 0xC;
+        s16 r0 = (brain->kirby->base.y >> 0xC) - 1;
         u32 r1;
         const u32 *r4, *r4_2, *r4_3;
 
         if (r0 >= 0
-            && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, r7, r0)]) & 0x1000
+            && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, r7, r0)]) & 0x1000
             && !(r1 & 0xF00000)) {
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         } else {
-            s16 r1_2 = (a1->unk40->base.y >> 0xC) + 1;
+            s16 r1_2 = (brain->kirby->base.y >> 0xC) + 1;
             s16 r1_3;
             s16 r2_2;
 
-            if (r1_2 < a1->unk14->roomHeight >> 4
-                && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, r7, r1_2)]) & 0x1000) {
+            if (r1_2 < brain->levelInfo->roomHeight >> 4
+                && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, r7, r1_2)]) & 0x1000) {
                 if (!(r1 & 0xF00000)) {
                     if (Rand16() & 1) {
-                        if (a1->unkDC != 0x10) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_08017684);
+                        if (brain->action != CPU_ACT_ATTACK) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                         }
                         return TRUE;
                     } else {
-                        if (a1->unkDC != 0xB) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_08017144);
+                        if (brain->action != CPU_ACT_SLIDE) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                         }
                         return TRUE;
                     }
                 } else if ((r1 & 0xF00000) == 0x100000) {
-                    if (a1->unkDC != 0xB) {
-                        a1->unkDE = 0xFFFF;
-                        a1->unk0[3] = FN(sub_08017144);
+                    if (brain->action != CPU_ACT_SLIDE) {
+                        brain->actArg = 0xFFFF;
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                     }
                     return TRUE;
                 }
             }
-            r1_3 = (a1->unk40->base.x >> 0xC) + r8;
-            r2_2 = a1->unk40->base.y >> 0xC;
+            r1_3 = (brain->kirby->base.x >> 0xC) + r8;
+            r2_2 = brain->kirby->base.y >> 0xC;
             r4_3 = gCollisionAttributes;
-            r1 = r4_3[sub_080024F0(a1->unk14, r1_3, r2_2)];
+            r1 = r4_3[sub_080024F0(brain->levelInfo, r1_3, r2_2)];
             if (r1 & 0x1000) {
                 if (r1 & 0xF00000) {
                     if ((r1 & 0xF00000) == 0x100000) {
-                        if (a1->unkDC != 0xB) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_08017144);
+                        if (brain->action != CPU_ACT_SLIDE) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                         }
                     } else {
                         return FALSE;
                     }
                 } else {
                     if (Rand16() & 1) {
-                        if (a1->unkDC != 0x10) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_08017684);
+                        if (brain->action != CPU_ACT_ATTACK) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
                         }
                     } else {
-                        if (a1->unkDC != 0xB) {
-                            a1->unkDE = 0xFFFF;
-                            a1->unk0[3] = FN(sub_08017144);
+                        if (brain->action != CPU_ACT_SLIDE) {
+                            brain->actArg = 0xFFFF;
+                            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                         }
                     }
                 }
@@ -1501,90 +1501,90 @@ bool16 sub_080124E0(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_080126CC(struct Unk_02038590 *a1) {
-    s8 r8 = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 r7 = (a1->unk40->base.x + 0x1800 * r8) >> 0xC;
-    s16 r2 = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockFireIce(struct CpuBrain *brain) {
+    s8 r8 = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 r7 = (brain->kirby->base.x + 0x1800 * r8) >> 0xC;
+    s16 r2 = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (r7 >= 0
-        && r7 < a1->unk14->roomWidth >> 4
+        && r7 < brain->levelInfo->roomWidth >> 4
         && r2 >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, r7, r2)]) & 0x1000
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, r7, r2)]) & 0x1000
         && ((r1 & 0xF00000) == 0 || (r1 & 0xF00000) == 0x100000)) {
-        if (a1->unkDC != 0x10) {
-            a1->unkDE = 0xFFFF;
-            a1->unk0[3] = FN(sub_08017684);
+        if (brain->action != CPU_ACT_ATTACK) {
+            brain->actArg = 0xFFFF;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
         }
         return TRUE;
     }
-    r2 = (a1->unk40->base.y >> 0xC) + 1;
+    r2 = (brain->kirby->base.y >> 0xC) + 1;
     if (r7 >= 0
-        && r7 < a1->unk14->roomWidth >> 4
-        && r2 < a1->unk14->roomHeight >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, r7, r2)]) & 0x1000
+        && r7 < brain->levelInfo->roomWidth >> 4
+        && r2 < brain->levelInfo->roomHeight >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, r7, r2)]) & 0x1000
         && ((r1 & 0xF00000) == 0 || (r1 & 0xF00000) == 0x100000)) {
         if (Rand16() & 1) {
-            if (a1->unkDC != 0xB) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017144);
+            if (brain->action != CPU_ACT_SLIDE) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
             }
         } else {
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
         }
         return TRUE;
     }
-    r7 = (a1->unk40->base.x >> 0xC) + r8;
-    r2 = a1->unk40->base.y >> 0xC;
+    r7 = (brain->kirby->base.x >> 0xC) + r8;
+    r2 = brain->kirby->base.y >> 0xC;
     if (r7 >= 0
-        && r7 < a1->unk14->roomWidth >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, r7, r2)]) & 0x1000
+        && r7 < brain->levelInfo->roomWidth >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, r7, r2)]) & 0x1000
         && ((r1 & 0xF00000) == 0 || (r1 & 0xF00000) == 0x100000)) {
-        if (a1->unkDC != 0x10) {
-            a1->unkDE = 0xFFFF;
-            a1->unk0[3] = FN(sub_08017684);
+        if (brain->action != CPU_ACT_ATTACK) {
+            brain->actArg = 0xFFFF;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
         }
         return TRUE;
     }
     return FALSE;
 }
 
-bool16 sub_08012884(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = a1->unk40->base.x >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockBurning(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = brain->kirby->base.x >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1592,38 +1592,38 @@ bool16 sub_08012884(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012980(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = (a1->unk40->base.x >> 0xC) + a;
-    s16 c = a1->unk40->base.y >> 0xC;
+bool16 CpuBreakBlockWheel(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = (brain->kirby->base.x >> 0xC) + a;
+    s16 c = brain->kirby->base.y >> 0xC;
     const u32 *r4, *r4_2;
     u32 r1;
 
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = a1->unk40->base.x >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = brain->kirby->base.x >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1631,51 +1631,51 @@ bool16 sub_08012980(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012A88(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = a1->unk40->base.x >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockParasol(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = brain->kirby->base.x >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    c = (a1->unk40->base.y >> 0xC) + 1;
+    c = (brain->kirby->base.y >> 0xC) + 1;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1683,22 +1683,22 @@ bool16 sub_08012A88(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012BC8(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = (a1->unk40->base.x >> 0xC) + a;
-    s16 c = a1->unk40->base.y >> 0xC;
+bool16 CpuBreakBlockShot(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = (brain->kirby->base.x >> 0xC) + a;
+    s16 c = brain->kirby->base.y >> 0xC;
     const u32 *r4;
     u32 r1;
 
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1706,54 +1706,54 @@ bool16 sub_08012BC8(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012C5C(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = (a1->unk40->base.x + 0x1800 * a) >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockBeam(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = (brain->kirby->base.x + 0x1800 * a) >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
+        && b < brain->levelInfo->roomWidth >> 4
         && c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x + 0x1800 * a) >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) + 1;
+    b = (brain->kirby->base.x + 0x1800 * a) >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) + 1;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1761,34 +1761,34 @@ bool16 sub_08012C5C(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012DD4(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = a1->unk40->base.x >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockStone(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = brain->kirby->base.x >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x14) {
-                a1->unk0[3] = FN(sub_08019094);
+            if (brain->action != CPU_ACT_STONE_TOGGLE) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
             }
             return TRUE;
         }
     }
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x14) {
-                a1->unk0[3] = FN(sub_08019094);
+            if (brain->action != CPU_ACT_STONE_TOGGLE) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
             }
             return TRUE;
         }
@@ -1796,50 +1796,50 @@ bool16 sub_08012DD4(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012EAC(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = a1->unk40->base.x >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockSparkSword(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = brain->kirby->base.x >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = a1->unk40->base.x >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = brain->kirby->base.x >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1847,56 +1847,56 @@ bool16 sub_08012EAC(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08012FD8(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = (a1->unk40->base.x >> 0xC) + a;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockCupid(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = (brain->kirby->base.x >> 0xC) + a;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x18) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 2;
-                a1->unkE4.data = 0;
-                a1->unk0[3] = FN(sub_08017D40);
+            if (brain->action != CPU_ACT_CUPID_SHOT) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 2;
+                brain->actNext.data = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShot);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x18) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 0xFFFF;
-                a1->unkE4.data = 0;
-                a1->unk0[3] = FN(sub_08017D40);
+            if (brain->action != CPU_ACT_CUPID_SHOT) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 0xFFFF;
+                brain->actNext.data = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShot);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0x18) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 3;
-                a1->unkE4.data = 0;
-                a1->unk0[3] = FN(sub_08017D40);
+            if (brain->action != CPU_ACT_CUPID_SHOT) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 3;
+                brain->actNext.data = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShot);
             }
             return TRUE;
         }
@@ -1904,58 +1904,58 @@ bool16 sub_08012FD8(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08013174(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = a1->unk40->base.x >> 0xC;
-    s16 c = (a1->unk40->base.y >> 0xC) - 1;
+bool16 CpuBreakBlockHammer(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = brain->kirby->base.x >> 0xC;
+    s16 c = (brain->kirby->base.y >> 0xC) - 1;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
         case 0x300000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
         case 0x300000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x + 0x1800 * a) >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) + 1;
+    b = (brain->kirby->base.x + 0x1800 * a) >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) + 1;
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
         case 0x300000:
-            if (a1->unkDC != 0x10) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017684);
+            if (brain->action != CPU_ACT_ATTACK) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttack);
             }
             return TRUE;
         }
@@ -1963,25 +1963,25 @@ bool16 sub_08013174(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08013318(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 d = (a1->unk40->base.x >> 0xC) + a;
+bool16 CpuBreakBlockThrow(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 d = (brain->kirby->base.x >> 0xC) + a;
     s16 b, c;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
     if (d >= 0
-        && d < a1->unk14->roomWidth >> 4) {
-        b = (a1->unk40->base.x + 0x800 * a) >> 0xC;
-        c = (a1->unk40->base.y >> 0xC) - 1;
+        && d < brain->levelInfo->roomWidth >> 4) {
+        b = (brain->kirby->base.x + 0x800 * a) >> 0xC;
+        c = (brain->kirby->base.y >> 0xC) - 1;
         if (c >= 0
-            && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+            && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
             switch (r1 & 0xF00000) {
             case 0:
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return TRUE;
             }
@@ -1989,54 +1989,54 @@ bool16 sub_08013318(struct Unk_02038590 *a1) {
     } else {
         return FALSE;
     }
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
             if (Rand16() & 1) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
             } else {
-                if (a1->unkDC != 0xB) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017144);
+                if (brain->action != CPU_ACT_SLIDE) {
+                    brain->actArg = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                 }
             }
             return TRUE;
         case 0x100000:
-            if (a1->unkDC != 0xB) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017144);
+            if (brain->action != CPU_ACT_SLIDE) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
             }
             return TRUE;
         }
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = a1->unk40->base.y >> 0xC;
-    if ((r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = brain->kirby->base.y >> 0xC;
+    if ((r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
             if (Rand16() & 1) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
             } else {
-                if (a1->unkDC != 0xB) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017144);
+                if (brain->action != CPU_ACT_SLIDE) {
+                    brain->actArg = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                 }
             }
             return TRUE;
         case 0x100000:
-            if (a1->unkDC != 0xB) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017144);
+            if (brain->action != CPU_ACT_SLIDE) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
             }
             return TRUE;
         }
@@ -2044,43 +2044,43 @@ bool16 sub_08013318(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08013518(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
+bool16 CpuBreakBlockMissile(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
     s16 b, c;
     const u32 *r4, *r4_2, *r4_3;
     u32 r1;
 
-    b = a1->unk40->base.x >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) - 1;
+    b = brain->kirby->base.x >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) - 1;
     if (c >= 0
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
         case 0x200000:
-            if (a1->unkDC != 0x19) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 2;
-                a1->unkE4.data = 0x1E;
-                a1->unk0[3] = FN(sub_08017E1C);
+            if (brain->action != CPU_ACT_MISSILE) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 2;
+                brain->actNext.data = 0x1E;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissile);
             }
             return TRUE;
         }
     }
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4) {
-        b = (a1->unk40->base.x >> 0xC) + a;
-        c = a1->unk40->base.y >> 0xC;
-        if ((r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4) {
+        b = (brain->kirby->base.x >> 0xC) + a;
+        c = brain->kirby->base.y >> 0xC;
+        if ((r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
             switch (r1 & 0xF00000) {
             case 0:
             case 0x100000:
             case 0x200000:
-                if (a1->unkDC != 0x19) {
-                    a1->unkDE = a <= 0;
-                    a1->unkE0 = 0xFFFF;
-                    a1->unkE4.data = 0x1E;
-                    a1->unk0[3] = FN(sub_08017E1C);
+                if (brain->action != CPU_ACT_MISSILE) {
+                    brain->actArg = a <= 0;
+                    brain->actArg2 = 0xFFFF;
+                    brain->actNext.data = 0x1E;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissile);
                 }
                 return TRUE;
             }
@@ -2088,25 +2088,25 @@ bool16 sub_08013518(struct Unk_02038590 *a1) {
     } else {
         return FALSE;
     }
-    b = (a1->unk40->base.x >> 0xC) + a;
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = (brain->kirby->base.x >> 0xC) + a;
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_3 = gCollisionAttributes, r1 = r4_3[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
             if (Rand16() & 1) {
-                if (a1->unkDC != 0xb) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unk0[3] = FN(sub_08017144);
+                if (brain->action != CPU_ACT_SLIDE) {
+                    brain->actArg = 0xFFFF;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
                 }
             } else {
         case 0x100000:
         case 0x200000:
-                if (a1->unkDC != 0x19) {
-                    a1->unkDE = a <= 0;
-                    a1->unkE0 = 3;
-                    a1->unkE4.data = 0x1E;
-                    a1->unk0[3] = FN(sub_08017E1C);
+                if (brain->action != CPU_ACT_MISSILE) {
+                    brain->actArg = a <= 0;
+                    brain->actArg2 = 3;
+                    brain->actNext.data = 0x1E;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissile);
                 }
             }
             return TRUE;
@@ -2115,36 +2115,36 @@ bool16 sub_08013518(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-bool16 sub_08013720(struct Unk_02038590 *a1) {
-    s8 a = a1->unk40->base.flags & 1 ? -1 : 1;
-    s16 b = (a1->unk40->base.x >> 0xC) + a;
-    s16 c = a1->unk40->base.y >> 0xC;
+bool16 CpuBreakBlockTornado(struct CpuBrain *brain) {
+    s8 a = brain->kirby->base.flags & 1 ? -1 : 1;
+    s16 b = (brain->kirby->base.x >> 0xC) + a;
+    s16 c = brain->kirby->base.y >> 0xC;
     const u32 *r4, *r4_2;
     u32 r1;
 
     if (b >= 0
-        && b < a1->unk14->roomWidth >> 4
-        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+        && b < brain->levelInfo->roomWidth >> 4
+        && (r4 = gCollisionAttributes, r1 = r4[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0xB) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017144);
+            if (brain->action != CPU_ACT_SLIDE) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
             }
             return TRUE;
         }
     }
-    b = a1->unk40->base.x >> 0xC;
-    c = (a1->unk40->base.y >> 0xC) + 1;
-    if (c < a1->unk14->roomHeight >> 4
-        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(a1->unk14, b, c)]) & 0x1000) {
+    b = brain->kirby->base.x >> 0xC;
+    c = (brain->kirby->base.y >> 0xC) + 1;
+    if (c < brain->levelInfo->roomHeight >> 4
+        && (r4_2 = gCollisionAttributes, r1 = r4_2[sub_080024F0(brain->levelInfo, b, c)]) & 0x1000) {
         switch (r1 & 0xF00000) {
         case 0:
         case 0x100000:
-            if (a1->unkDC != 0xB) {
-                a1->unkDE = 0xFFFF;
-                a1->unk0[3] = FN(sub_08017144);
+            if (brain->action != CPU_ACT_SLIDE) {
+                brain->actArg = 0xFFFF;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
             }
             return TRUE;
         }
@@ -2152,89 +2152,89 @@ bool16 sub_08013720(struct Unk_02038590 *a1) {
     return FALSE;
 }
 
-void sub_08013804(struct Unk_02038590 *a1) {
-    if (!(a1->flags & 4)) {
-        if (!IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-            a1->unk0[1] = FN(sub_080184DC);
-            a1->flags |= 0xC;
-        } else if (!(a1->flags & 8)) {
-            switch (a1->unkB4[a1->unkB8]) {
-            case 0:
-                sub_08018388(a1);
+void CpuScriptStep(struct CpuBrain *brain) {
+    if (!(brain->flags & CPU_FLAG_FREE)) {
+        if (!IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoam);
+            brain->flags |= (CPU_FLAG_FREE | CPU_FLAG_SCRIPT_WAITING);
+        } else if (!(brain->flags & CPU_FLAG_SCRIPT_WAITING)) {
+            switch (brain->script[brain->scriptPc]) {
+            case CPU_OP_NOP:
+                CpuScriptOpNop(brain);
                 break;
-            case 0xFFFF:
-                sub_08018394(a1);
+            case CPU_OP_END:
+                CpuScriptOpEnd(brain);
                 break;
-            case 1:
-                sub_080183A0(a1);
+            case CPU_OP_WAIT:
+                CpuScriptOpWait(brain);
                 break;
-            case 2:
-                sub_080183D0(a1);
+            case CPU_OP_GOTO_NODE:
+                CpuScriptOpGoToNode(brain);
                 break;
-            case 3:
-                sub_08018400(a1);
+            case CPU_OP_SET_ABILITY:
+                CpuScriptOpSetAbility(brain);
                 break;
-            case 4:
-                sub_08018428(a1);
+            case CPU_OP_FACE:
+                CpuScriptOpFace(brain);
                 break;
-            case 5:
-                sub_08018458(a1);
+            case CPU_OP_INHALE:
+                CpuScriptOpInhale(brain);
                 break;
-            case 6:
-                sub_08018488(a1);
+            case CPU_OP_SLIDE:
+                CpuScriptOpSlide(brain);
                 break;
-            case 7:
+            case CPU_OP_HALT:
                 break;
-            case 8:
-                sub_080184A4(a1);
+            case CPU_OP_SKIP:
+                CpuScriptOpSkip(brain);
                 break;
-            case 9:
-                sub_0801399C(a1);
+            case CPU_OP_IF_ROOM_STATE:
+                CpuScriptOpIfRoomState(brain);
                 break;
-            case 0xA:
-                sub_080184C4(a1);
+            case CPU_OP_ROAM:
+                CpuScriptOpRoam(brain);
                 break;
             }
         }
     }
 }
 
-void sub_08013924(struct Unk_02038590 *a1) {
-    if (a1->unk40->base.flags & 0x80
-        || !--a1->unkBC) {
-        a1->unk0[0] = FN(sub_080199F0);
+void CpuScriptSlidePrepare(struct CpuBrain *brain) {
+    if (brain->kirby->base.flags & 0x80
+        || !--brain->scriptArg) {
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideSpitFirst);
     } else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         default:
-            if (a1->unk40->base.flags & 0x40)
-                a1->unk0[0] = FN(sub_08019A40);
-            else if (a1->unk40->base.flags & 0x20)
-                a1->unk0[0] = FN(sub_08019A88);
+            if (brain->kirby->base.flags & 0x40)
+                brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideLandFirst);
+            else if (brain->kirby->base.flags & 0x20)
+                brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideFallFirst);
             else
-                a1->unk0[0] = FN(sub_08019AD0);
+                brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideStart);
             break;
         case KIRBY_ABILITY_SLEEP:
         case KIRBY_ABILITY_UFO:
         case KIRBY_ABILITY_MINI:
-            a1->unk0[0] = FN(sub_08019AD0);
+            brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideStart);
             break;
         }
     }
 }
 
-void sub_0801399C(struct Unk_02038590 *a1) {
-    u16 r6 = *GetStateSlot(STATE_SLOT_ROOM, 0xF, a1->unk14->unk65E);
+void CpuScriptOpIfRoomState(struct CpuBrain *brain) {
+    u16 r6 = *GetStateSlot(STATE_SLOT_ROOM, 0xF, brain->levelInfo->unk65E);
     bool32 a = FALSE;
     u8 r7;
     u16 b, c;
 
-    ++a1->unkB8;
-    r7 = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    b = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    c = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
+    ++brain->scriptPc;
+    r7 = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    b = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    c = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
     switch (r7) {
     case 0:
         if (r6 == b)
@@ -2264,116 +2264,116 @@ void sub_0801399C(struct Unk_02038590 *a1) {
         break;
     }
     if (a)
-        a1->unkB8 += c;
+        brain->scriptPc += c;
 }
 
-void sub_08013A60(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom == 0x397)
-        a1->unk0[1] = FN(sub_08018504);
+void CpuGoalHoldBegin(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom == 0x397)
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoom397Wait);
     else {
-        a1->unk1B = 0xFF;
-        a1->unk3F = 0xFF;
-        a1->unk7C = a1->unk40->base.x;
-        a1->unk80 = a1->unk40->base.y;
-        a1->unk84 = 0;
-        a1->unk86 = 0;
-        a1->unk88 = 0;
-        a1->unk8A = 0;
-        a1->unk8C = a1->unk7C;
-        a1->unk90 = a1->unk80;
-        a1->unk94 = a1->unk84;
-        a1->unk96 = a1->unk86;
-        a1->unk98 = a1->unk88;
-        a1->unk9A = a1->unk8A;
-        a1->unk0[2] = FN(sub_0801852C);
-        a1->unk0[1] = FN(nullsub_106);
+        brain->goalNode = 0xFF;
+        brain->nextNode = 0xFF;
+        brain->goalX = brain->kirby->base.x;
+        brain->goalY = brain->kirby->base.y;
+        brain->goalDx = 0;
+        brain->goalDy = 0;
+        brain->goalDxDyDiff = 0;
+        brain->goalAngle = 0;
+        brain->waypointX = brain->goalX;
+        brain->waypointY = brain->goalY;
+        brain->waypointDx = brain->goalDx;
+        brain->waypointDy = brain->goalDy;
+        brain->waypointDist = brain->goalDxDyDiff;
+        brain->waypointAngle = brain->goalAngle;
+        brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseIdle);
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalIdle);
     }
 }
 
-static inline const struct LevelInfo_1E8 *sub_08013B00_helper(struct Unk_02038590 *a1) {
-    return a1->unk14->unk1E8;
+static inline const struct LevelInfo_1E8 *CpuNavGraph(struct CpuBrain *brain) {
+    return brain->levelInfo->unk1E8;
 }
 
-void sub_08013B00(struct Unk_02038590 *a1) {
-    const struct LevelInfo_1E8 *r5 = a1->unk14->unk1E8;
+void CpuGoalScriptNodeBegin(struct CpuBrain *brain) {
+    const struct LevelInfo_1E8 *r5 = brain->levelInfo->unk1E8;
     u8 a;
 
-    a1->flags &= ~1;
-    a1->unkCC = 0x708;
-    a = sub_0800EEBC(&a1->unk40->base);
-    if (a != a1->unk1A)
-        ++a1->unk3C;
-    a1->unk1A = a;
-    a1->unk7C = r5->unk14[a1->unk1B].unk20 << 8;
-    a1->unk80 = r5->unk14[a1->unk1B].unk22 << 8;
-    a1->unk3F = sub_08013B00_helper(a1)->unk14[a1->unk1A].unk0[a1->unk1B];
-    sub_08010144(a1);
-    a1->unk0[2] = FN(sub_0801858C);
-    a1->unk0[1] = FN(sub_08019B30);
+    brain->flags &= ~CPU_FLAG_GOAL_REACHED;
+    brain->goalTimer = 0x708;
+    a = CpuNavNodeAt(&brain->kirby->base);
+    if (a != brain->curNode)
+        ++brain->nodeChanges;
+    brain->curNode = a;
+    brain->goalX = r5->unk14[brain->goalNode].unk20 << 8;
+    brain->goalY = r5->unk14[brain->goalNode].unk22 << 8;
+    brain->nextNode = CpuNavGraph(brain)->unk14[brain->curNode].unk0[brain->goalNode];
+    CpuUpdateGoalVectors(brain);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseMoving);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalScriptNodeTick);
 }
 
-void sub_08013B98(struct Unk_02038590 *a1) {
+void CpuGoalRoamBegin(struct CpuBrain *brain) {
     const struct LevelInfo_1E8 *r5;
 
-    if (a1->unk1A == 0xFF)
-        a1->unk1A = sub_0800EEBC(&a1->unk40->base);
-    r5 = a1->unk14->unk1E8;
-    a1->unk1B = sub_08010034(a1->unk14, a1->unk1A);
-    a1->unk7C = r5->unk14[a1->unk1B].unk20 << 8;
-    a1->unk80 = r5->unk14[a1->unk1B].unk22 << 8;
-    a1->unk3F = sub_08013B00_helper(a1)->unk14[a1->unk1A].unk0[a1->unk1B];
-    sub_08010144(a1);
-    a1->unkCC = (Rand16() & 0x3FF) + 0x2D0;
-    a1->flags &= ~1;
-    a1->unk0[2] = FN(sub_0801858C);
-    a1->unk0[1] = FN(sub_08013C4C);
+    if (brain->curNode == 0xFF)
+        brain->curNode = CpuNavNodeAt(&brain->kirby->base);
+    r5 = brain->levelInfo->unk1E8;
+    brain->goalNode = CpuPickRandomNode(brain->levelInfo, brain->curNode);
+    brain->goalX = r5->unk14[brain->goalNode].unk20 << 8;
+    brain->goalY = r5->unk14[brain->goalNode].unk22 << 8;
+    brain->nextNode = CpuNavGraph(brain)->unk14[brain->curNode].unk0[brain->goalNode];
+    CpuUpdateGoalVectors(brain);
+    brain->goalTimer = (Rand16() & 0x3FF) + 0x2D0;
+    brain->flags &= ~CPU_FLAG_GOAL_REACHED;
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseMoving);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoamTick);
 }
 
-void sub_08013C4C(struct Unk_02038590 *a1) {
+void CpuGoalRoamTick(struct CpuBrain *brain) {
     u16 i;
 
     for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
-        if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom)
+        if (gCurLevelInfo[i].currentRoom == brain->levelInfo->currentRoom)
             break;
     }
     if (i >= PortHumanEnd())
-        a1->unk0[1] = FN(sub_08014928);
-    else if (sub_080103BC(a1))
-        a1->unk0[1] = FN(sub_080184E8);
-    else if (!(a1->flags & 1)) {
-        if (a1->unkCC) --a1->unkCC;
-        if (!(a1->flags & 1)
-            && (a1->unk1A == a1->unk1B || a1->unk1B == 0xFF || !a1->unkCC)) {
-            a1->flags |= 1;
-            a1->unk0[1] = FN(sub_08019B84);
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenBegin);
+    else if (CpuUpdateFollow(brain))
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalFollowBegin);
+    else if (!(brain->flags & CPU_FLAG_GOAL_REACHED)) {
+        if (brain->goalTimer) --brain->goalTimer;
+        if (!(brain->flags & CPU_FLAG_GOAL_REACHED)
+            && (brain->curNode == brain->goalNode || brain->goalNode == 0xFF || !brain->goalTimer)) {
+            brain->flags |= CPU_FLAG_GOAL_REACHED;
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoamPauseBegin);
         }
     }
 }
 
-void sub_08013D0C(struct Unk_02038590 *a1) {
+void CpuGoalRoamPauseTick(struct CpuBrain *brain) {
     u16 i;
 
     for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
-        if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom)
+        if (gCurLevelInfo[i].currentRoom == brain->levelInfo->currentRoom)
             break;
     }
     if (i >= PortHumanEnd())
-        a1->unk0[1] = FN(sub_08014928);
-    else if (sub_080103BC(a1))
-        a1->unk0[1] = FN(sub_080184E8);
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenBegin);
+    else if (CpuUpdateFollow(brain))
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalFollowBegin);
     else {
-        if (!(a1->unkCC & 0x1F))
-            sub_08010144(a1);
-        if (!--a1->unkCC)
-            a1->unk0[1] = FN(sub_08013B98);
+        if (!(brain->goalTimer & 0x1F))
+            CpuUpdateGoalVectors(brain);
+        if (!--brain->goalTimer)
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoamBegin);
     }
 }
 
-struct Kirby *sub_08013DB4(u8 a1) {
+struct Kirby *CpuPickLeader(u8 slot) {
     u16 r1;
     u16 r2;
     u32 mask;
-    u16 roomId = gCurLevelInfo[a1].currentRoom;
+    u16 roomId = gCurLevelInfo[slot].currentRoom;
     const struct Unk_08D6CD0C *sl = gUnk_08D6CD0C[roomId];
 
     /* PORT: human slots -- r2 counts the humans (the r2-th person is slot
@@ -2389,7 +2389,7 @@ struct Kirby *sub_08013DB4(u8 a1) {
     }
     if (r2 < gNumHumanPlayers) {
         r1 = Rand16();
-        mask = 3; // same issue as sub_08010034
+        mask = 3; // same issue as CpuPickRandomNode
         r2 = 0xFFFF;
         for (r1 &= mask; r1 != 0xFFFF; --r1) {
             while (1) {
@@ -2407,7 +2407,7 @@ struct Kirby *sub_08013DB4(u8 a1) {
         }
     } else {
         r1 = Rand16();
-        mask = 3; // same issue as sub_08010034
+        mask = 3; // same issue as CpuPickRandomNode
         r2 = 0xFFFF;
         for (r1 &= mask; r1 != 0xFFFF; --r1) {
             if (++r2 >= gNumHumanPlayers)
@@ -2417,7 +2417,7 @@ struct Kirby *sub_08013DB4(u8 a1) {
     return gKirbys + PortSlotOrder(r2);
 }
 
-bool32 sub_08013F48(struct Unk_02038590 *a1, u16 a2) {
+bool32 CpuWarpToRoom(struct CpuBrain *brain, u16 a2) {
     u8 a, b;
     const struct Unk_08D6CD0C *c, *d;
     u8 a_, b_;
@@ -2426,19 +2426,19 @@ bool32 sub_08013F48(struct Unk_02038590 *a1, u16 a2) {
     a_ = a;
     b_ = b;
     c = gUnk_08D6CD0C[a2];
-    d = gUnk_08D6CD0C[a1->unk14->currentRoom];
-    if (sub_080551FC(a1->unk40, a2, a_, b_)) {
+    d = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
+    if (sub_080551FC(brain->kirby, a2, a_, b_)) {
         if (d->unk46 == c->unk46)
-            ++a1->unkB0;
+            ++brain->areaWarpCount;
         else
-            a1->unkB0 = 0;
+            brain->areaWarpCount = 0;
         return TRUE;
     } else {
         return FALSE;
     }
 }
 
-u16 sub_08013FC4(struct Unk_02038590 *a1, u16 a2) {
+u16 CpuPickAreaExit(struct CpuBrain *brain, u16 a2) {
     const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a2];
     const struct Unk_08D6DCAC *a = gUnk_08D6DCAC[b->unk46];
     u16 i;
@@ -2466,7 +2466,7 @@ u16 sub_08013FC4(struct Unk_02038590 *a1, u16 a2) {
     return a->unk0[2*i + 1];
 }
 
-u16 sub_080140B0(struct Unk_02038590 *a1, u16 a2) {
+u16 CpuPickNeighborRoom(struct CpuBrain *brain, u16 a2) {
     const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a2];
     u16 i;
     u16 r;
@@ -2480,12 +2480,12 @@ u16 sub_080140B0(struct Unk_02038590 *a1, u16 a2) {
             break;
     }
     if (i == b->unk48) {
-        u16 ret = sub_08013FC4(a1, a2);
+        u16 ret = CpuPickAreaExit(brain, a2);
 
         if (ret != 0xFFFF)
             return ret;
         else
-            return a1->unk18;
+            return brain->homeRoom;
     }
     r = Rand16();
     mask = 0x1F;
@@ -2505,7 +2505,7 @@ u16 sub_080140B0(struct Unk_02038590 *a1, u16 a2) {
     return b->unk0[i][0];
 }
 
-u16 sub_080141EC(struct Unk_02038590 *a1, u16 a2, u16 *a3) {
+u16 CpuNextRoomToward(struct CpuBrain *brain, u16 a2, u16 *a3) {
     const struct Unk_08D6DCAC *a;
     const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a2];
     const struct Unk_08D6CD0C *c;
@@ -2514,22 +2514,22 @@ u16 sub_080141EC(struct Unk_02038590 *a1, u16 a2, u16 *a3) {
     u16 r4 = 0;
 
     if (*a3 == 0xFFFF) {
-        if (!a1->unkA8)
-            a1->unkA8 = &gKirbys[(a1->unk40->base.unk56 + 1) & 3];
-        *a3 = gCurLevelInfo[a1->unkA8->base.unk56].currentRoom;
+        if (!brain->leader)
+            brain->leader = &gKirbys[(brain->kirby->base.unk56 + 1) & 3];
+        *a3 = gCurLevelInfo[brain->leader->base.unk56].currentRoom;
     }
     if (b->unk47 & 8) {
-        for (i = 0; i < 8 && (a2 != gUnk_082DE074[i][0] || *a3 != gUnk_082DE074[i][1]); ++i)
+        for (i = 0; i < 8 && (a2 != gCpuLinkedRooms[i][0] || *a3 != gCpuLinkedRooms[i][1]); ++i)
             ;
         if (i == 8)
-            *a3 = r4 = a1->unk18;
+            *a3 = r4 = brain->homeRoom;
         else if (*GetStateSlot(STATE_SLOT_SESSION, i + 1, 0))
-            *a3 = r4 = a1->unk18;
+            *a3 = r4 = brain->homeRoom;
         else
             r4 = *a3;
     } else {
         if (b->unk47 & 0x87)
-            *a3 = r4 = a1->unk18;
+            *a3 = r4 = brain->homeRoom;
     }
     if (r4) return r4;
     for (i = 0; i < b->unk48 && b->unk0[i][0] != *a3; ++i)
@@ -2563,24 +2563,24 @@ u16 sub_080141EC(struct Unk_02038590 *a1, u16 a2, u16 *a3) {
             }
             *a3 = a->unk0[2 * i];
         } else {
-            *a3 = a1->unk18;
+            *a3 = brain->homeRoom;
         }
         r4 = *a3;
     } else {
-        *a3 = sub_080140B0(a1, a2);
-        if (a1->unk18 == *a3)
-            r4 = a1->unk18;
+        *a3 = CpuPickNeighborRoom(brain, a2);
+        if (brain->homeRoom == *a3)
+            r4 = brain->homeRoom;
         else
             r4 = a2;
     }
     return r4;
 }
 
-static inline u16 sub_08014454_helper(u16 roomId) {
+static inline u16 CpuLinkedRoomIndex(u16 roomId) {
     u16 i;
 
     for (i = 0; i < 8; ++i) {
-        if (roomId == gUnk_082DE074[i][0])
+        if (roomId == gCpuLinkedRooms[i][0])
             return i;
     }
     return 0xFFFF;
@@ -2590,100 +2590,100 @@ static inline u16 CurrentRoom(struct LevelInfo *li) {
     return li->currentRoom;
 }
 
-bool32 sub_08014454(struct Unk_02038590 *a1) {
-    if (a1->unkAC) {
-        --a1->unkAC;
-        if (a1->unkA8
-            && gCurLevelInfo[a1->unkA8->base.unk56].currentRoom != 0xFFFF
-            && a1->unk14->currentRoom == gCurLevelInfo[a1->unkA8->base.unk56].currentRoom)
-            a1->flags |= 0x20;
+bool32 CpuTryRoomHop(struct CpuBrain *brain) {
+    if (brain->roomHopTimer) {
+        --brain->roomHopTimer;
+        if (brain->leader
+            && gCurLevelInfo[brain->leader->base.unk56].currentRoom != 0xFFFF
+            && brain->levelInfo->currentRoom == gCurLevelInfo[brain->leader->base.unk56].currentRoom)
+            brain->flags |= CPU_FLAG_WITH_LEADER;
     } else {
-        if (!IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
+        if (!IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
             bool32 r9 = TRUE;
-            u16 r6 = a1->unk14->currentRoom;
+            u16 r6 = brain->levelInfo->currentRoom;
             const struct Unk_08D6CD0C *r2 = gUnk_08D6CD0C[r6];
 
             if (r2->unk47 & 2) {
-                if (!sub_08013F48(a1, a1->unk18))
+                if (!CpuWarpToRoom(brain, brain->homeRoom))
                     r9 = FALSE;
-                a1->unkA8 = sub_08013DB4(a1->unk40->base.unk56);
-                a1->flags &= ~0x20;
+                brain->leader = CpuPickLeader(brain->kirby->base.unk56);
+                brain->flags &= ~CPU_FLAG_WITH_LEADER;
             } else {
                 if ((r6 == 0x323 || r6 == 0x324 || r6 == 0x325)
                     && !(gCurLevelInfo[0].currentRoom == 0x323 || gCurLevelInfo[0].currentRoom == 0x324 || gCurLevelInfo[0].currentRoom == 0x325)) {
                     const struct Unk_08D6CD0C *r4, *sl;
                     u8 a, b;
 
-                    a1->unkA8 = sub_08013DB4(a1->unk40->base.unk56);
-                    a1->flags &= ~0x20;
-                    a1->unk18 = 0x321;
-                    a = gUnk_082D8D08[KATAM_ROM_ROW(a1->unk40->base.unk56)][0] >> 0xC;
-                    b = gUnk_082D8D08[KATAM_ROM_ROW(a1->unk40->base.unk56)][1] >> 0xC;
-                    sl = gUnk_08D6CD0C[a1->unk18];
-                    r4 = gUnk_08D6CD0C[CurrentRoom(a1->unk14)];
-                    if (sub_080551FC(a1->unk40, 0x321, a, b)) {
+                    brain->leader = CpuPickLeader(brain->kirby->base.unk56);
+                    brain->flags &= ~CPU_FLAG_WITH_LEADER;
+                    brain->homeRoom = 0x321;
+                    a = gUnk_082D8D08[KATAM_ROM_ROW(brain->kirby->base.unk56)][0] >> 0xC;
+                    b = gUnk_082D8D08[KATAM_ROM_ROW(brain->kirby->base.unk56)][1] >> 0xC;
+                    sl = gUnk_08D6CD0C[brain->homeRoom];
+                    r4 = gUnk_08D6CD0C[CurrentRoom(brain->levelInfo)];
+                    if (sub_080551FC(brain->kirby, 0x321, a, b)) {
                         if (r4->unk46 == sl->unk46)
-                            ++a1->unkB0;
+                            ++brain->areaWarpCount;
                         else
-                            a1->unkB0 = 0;
+                            brain->areaWarpCount = 0;
                     } else {
                         r9 = FALSE;
                     }
                 } else {
                     if (r2->unk47 & 8) {
                         u16 i;
-                        u16 r0 = sub_08014454_helper(a1->unk14->currentRoom);
+                        u16 r0 = CpuLinkedRoomIndex(brain->levelInfo->currentRoom);
 
                         for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
-                            if (gKirbys[i].base.roomId == gUnk_082DE074[r0][1])
+                            if (gKirbys[i].base.roomId == gCpuLinkedRooms[r0][1])
                                 break;
                         }
                         if (i < PortHumanEnd()) {
-                            a1->unkA8 = gKirbys + i;
-                            a1->flags &= ~0x20;
-                            a1->unkAE = gCurLevelInfo[a1->unkA8->base.unk56].currentRoom;
-                            if (!sub_08013F48(a1, sub_080141EC(a1, r6, &a1->unkAE)))
+                            brain->leader = gKirbys + i;
+                            brain->flags &= ~CPU_FLAG_WITH_LEADER;
+                            brain->destRoom = gCurLevelInfo[brain->leader->base.unk56].currentRoom;
+                            if (!CpuWarpToRoom(brain, CpuNextRoomToward(brain, r6, &brain->destRoom)))
                                 r9 = FALSE;
                         }
                     } else {
-                        if (r6 == a1->unkAE) {
-                            if (a1->unkA8 && gCurLevelInfo[a1->unkA8->base.unk56].currentRoom != 0xFFFF && !(a1->flags & 0x20)) {
+                        if (r6 == brain->destRoom) {
+                            if (brain->leader && gCurLevelInfo[brain->leader->base.unk56].currentRoom != 0xFFFF && !(brain->flags & CPU_FLAG_WITH_LEADER)) {
                                 u16 r1;
 
-                                a1->unkAE = gCurLevelInfo[a1->unkA8->base.unk56].currentRoom;
-                                r1 = sub_080141EC(a1, r6, &a1->unkAE);
+                                brain->destRoom = gCurLevelInfo[brain->leader->base.unk56].currentRoom;
+                                r1 = CpuNextRoomToward(brain, r6, &brain->destRoom);
                                 if (r6 == r1)
                                     r9 = FALSE;
-                                else if (a1->unk18 == r1) {
-                                    if (!sub_08013F48(a1, r1))
+                                else if (brain->homeRoom == r1) {
+                                    if (!CpuWarpToRoom(brain, r1))
                                         r9 = FALSE;
                                 } else {
-                                    if (!sub_08013F48(a1, r1))
+                                    if (!CpuWarpToRoom(brain, r1))
                                         r9 = FALSE;
                                 }
 
                             } else {
-                                a1->unkAE = sub_080140B0(a1, r6);
-                                a1->flags &= ~0x20;
-                                if (a1->unk18 == a1->unkAE
-                                    && !sub_08013F48(a1, a1->unkAE))
+                                brain->destRoom = CpuPickNeighborRoom(brain, r6);
+                                brain->flags &= ~CPU_FLAG_WITH_LEADER;
+                                if (brain->homeRoom == brain->destRoom
+                                    && !CpuWarpToRoom(brain, brain->destRoom))
                                     r9 = FALSE;
                             }
                         } else {
-                            u16 r1 = sub_080141EC(a1, r6, &a1->unkAE);
+                            u16 r1 = CpuNextRoomToward(brain, r6, &brain->destRoom);
 
-                            if (a1->unk18 == r1) {
-                                if (!sub_08013F48(a1, r1))
+                            if (brain->homeRoom == r1) {
+                                if (!CpuWarpToRoom(brain, r1))
                                     r9 = FALSE;
-                                a1->unkA8 = sub_08013DB4(a1->unk40->base.unk56);
-                                a1->flags &= ~0x20;
+                                brain->leader = CpuPickLeader(brain->kirby->base.unk56);
+                                brain->flags &= ~CPU_FLAG_WITH_LEADER;
                             } else {
                                 if (r6 != r1) {
-                                    if (!sub_08013F48(a1, r1))
+                                    if (!CpuWarpToRoom(brain, r1))
                                         r9 = FALSE;
                                 } else {
                                     r9 = FALSE;
-                                    a1->unkA8 = sub_08013DB4(a1->unk40->base.unk56);
+                                    brain->leader = CpuPickLeader(brain->kirby->base.unk56);
                                 }
                             }
                         }
@@ -2691,243 +2691,243 @@ bool32 sub_08014454(struct Unk_02038590 *a1) {
                 }
             }
             if (r9) {
-                const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
                 u16 r1;
 
-                if ((a1->unk14->currentRoom == 0x323 || a1->unk14->currentRoom == 0x324 || a1->unk14->currentRoom == 0x325)
+                if ((brain->levelInfo->currentRoom == 0x323 || brain->levelInfo->currentRoom == 0x324 || brain->levelInfo->currentRoom == 0x325)
                     || r0->unk47 & 0x83)
                     r1 = 0xB4;
                 else if (r0->unk47 & 8)
                     r1 = (Rand16() & 0x7F) + 0x3C;
                 else
                     r1 = (Rand16() & 0xFFF) + 0x2328;
-                a1->unkAC = r1;
+                brain->roomHopTimer = r1;
             }
             return r9;
         } else {
-            const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[a1->unk14->currentRoom];
+            const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
             u16 r1;
 
-            if ((a1->unk14->currentRoom == 0x323 || a1->unk14->currentRoom == 0x324 || a1->unk14->currentRoom == 0x325)
+            if ((brain->levelInfo->currentRoom == 0x323 || brain->levelInfo->currentRoom == 0x324 || brain->levelInfo->currentRoom == 0x325)
                 || r0->unk47 & 0x83)
                 r1 = 0xB4;
             else if (r0->unk47 & 8)
                 r1 = (Rand16() & 0x7F) + 0x3C;
             else
                 r1 = (Rand16() & 0x7FF) + 0xE10;
-            a1->unkAC = r1;
+            brain->roomHopTimer = r1;
         }
     }
     return FALSE;
 }
 
-void sub_08014928(struct Unk_02038590 *a1) {
-    const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[a1->unk14->currentRoom];
+void CpuGoalOffscreenBegin(struct CpuBrain *brain) {
+    const struct Unk_08D6CD0C *r0 = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
     u16 r1;
 
-    if ((a1->unk14->currentRoom == 0x323 || a1->unk14->currentRoom == 0x324 || a1->unk14->currentRoom == 0x325)
+    if ((brain->levelInfo->currentRoom == 0x323 || brain->levelInfo->currentRoom == 0x324 || brain->levelInfo->currentRoom == 0x325)
         || r0->unk47 & 0x83)
         r1 = 0xB4;
     else if (r0->unk47 & 8)
         r1 = (Rand16() & 0x7F) + 0x3C;
     else
         r1 = (Rand16() & 0x7FF) + 0xE10;
-    a1->unkAC = r1;
-    a1->unk0[1] = FN(sub_080149CC);
+    brain->roomHopTimer = r1;
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenRoamBegin);
 }
 
-void sub_080149CC(struct Unk_02038590 *a1) {
+void CpuGoalOffscreenRoamBegin(struct CpuBrain *brain) {
     const struct LevelInfo_1E8 *r5;
 
-    if (a1->unk1A == 0xFF)
-        a1->unk1A = sub_0800EEBC(&a1->unk40->base);
-    r5 = a1->unk14->unk1E8;
-    a1->unk1B = sub_08010034(a1->unk14, a1->unk1A);
-    a1->unk7C = r5->unk14[a1->unk1B].unk20 << 8;
-    a1->unk80 = r5->unk14[a1->unk1B].unk22 << 8;
-    a1->unk3F = sub_08013B00_helper(a1)->unk14[a1->unk1A].unk0[a1->unk1B];
-    sub_08010144(a1);
-    a1->unkCC = (Rand16() & 0x3FF) + 0x2D0;
-    a1->flags &= ~1;
-    a1->unk0[2] = FN(sub_0801858C);
-    a1->unk0[1] = FN(sub_08014A80);
+    if (brain->curNode == 0xFF)
+        brain->curNode = CpuNavNodeAt(&brain->kirby->base);
+    r5 = brain->levelInfo->unk1E8;
+    brain->goalNode = CpuPickRandomNode(brain->levelInfo, brain->curNode);
+    brain->goalX = r5->unk14[brain->goalNode].unk20 << 8;
+    brain->goalY = r5->unk14[brain->goalNode].unk22 << 8;
+    brain->nextNode = CpuNavGraph(brain)->unk14[brain->curNode].unk0[brain->goalNode];
+    CpuUpdateGoalVectors(brain);
+    brain->goalTimer = (Rand16() & 0x3FF) + 0x2D0;
+    brain->flags &= ~CPU_FLAG_GOAL_REACHED;
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseMoving);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenRoamTick);
 }
 
-void sub_08014A80(struct Unk_02038590 *a1) {
+void CpuGoalOffscreenRoamTick(struct CpuBrain *brain) {
     u16 i;
 
     for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
-        if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom) {
-            a1->unk0[1] = FN(sub_080184DC);
+        if (gCurLevelInfo[i].currentRoom == brain->levelInfo->currentRoom) {
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoam);
             return;
         }
     }
-    if (sub_08014454(a1)) {
-        a1->unk0[1] = FN(sub_080149CC);
+    if (CpuTryRoomHop(brain)) {
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenRoamBegin);
         return;
     }
-    if (!(a1->flags & 1)) {
-        if (a1->unkCC) --a1->unkCC;
-        if (!(a1->flags & 1) && (a1->unk1A == a1->unk3F || a1->unk1B == 0xFF || !a1->unkCC)) {
-            a1->flags |= 1;
-            a1->unk0[1] = FN(sub_08019C4C);
+    if (!(brain->flags & CPU_FLAG_GOAL_REACHED)) {
+        if (brain->goalTimer) --brain->goalTimer;
+        if (!(brain->flags & CPU_FLAG_GOAL_REACHED) && (brain->curNode == brain->nextNode || brain->goalNode == 0xFF || !brain->goalTimer)) {
+            brain->flags |= CPU_FLAG_GOAL_REACHED;
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenPauseBegin);
         }
     }
 }
 
-void sub_08014B28(struct Unk_02038590 *a1) {
+void CpuGoalOffscreenPauseTick(struct CpuBrain *brain) {
     u16 i;
 
     for (i = 0; i < PortHumanEnd(); i = PortHumanNext(i)) {
-        if (gCurLevelInfo[i].currentRoom == a1->unk14->currentRoom) {
-            a1->unk0[1] = FN(sub_080184DC);
+        if (gCurLevelInfo[i].currentRoom == brain->levelInfo->currentRoom) {
+            brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoam);
             return;
         }
     }
-    if (sub_08014454(a1))
-        a1->unk0[1] = FN(sub_080149CC);
-    else if (!--a1->unkCC)
-        a1->unk0[1] = FN(sub_080149CC);
+    if (CpuTryRoomHop(brain))
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenRoamBegin);
+    else if (!--brain->goalTimer)
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenRoamBegin);
 }
 
-u16 sub_08014B9C(struct Unk_02038590 *a1) {
+u16 CpuFlyKeysToWaypoint(struct CpuBrain *brain) {
     u16 ret = 0;
     struct Kirby *kirby;
 
-    if (a1->unk9A > 0x20 && a1->unk9A < 0x1E0)
+    if (brain->waypointAngle > 0x20 && brain->waypointAngle < 0x1E0)
         ret = 0x10;
-    else if (a1->unk9A > 0x220 && a1->unk9A < 0x3E0)
+    else if (brain->waypointAngle > 0x220 && brain->waypointAngle < 0x3E0)
         ret = 0x20;
-    if (a1->unk9A > 0x120 && a1->unk9A < 0x2E0)
+    if (brain->waypointAngle > 0x120 && brain->waypointAngle < 0x2E0)
         ret |= 0x40;
-    else if (a1->unk9A < 0xE0 || a1->unk9A > 0x320)
+    else if (brain->waypointAngle < 0xE0 || brain->waypointAngle > 0x320)
         ret |= 0x80;
-    kirby = a1->unk40;
+    kirby = brain->kirby;
     if (ret & 0x20 && !(ret & 0x40) && !(ret & 0x80) && kirby->base.flags & 1 && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x10 && !(ret & 0x40) && !(ret & 0x80) && !(kirby->base.flags & 1) && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x40 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 8) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     } else if (ret & 0x80 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 4) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     }
-    if (a1->unk40->base.xspeed > 0 && a1->unk26[3] == 1)
-        ret = (a1->unk9E | 0x20) & ~0x10;
-    else if (a1->unk40->base.xspeed < 0 && a1->unk26[1] == 1)
-        ret = (a1->unk9E | 0x10) & ~0x20;
-    if (a1->unk40->base.yspeed > 0 && a1->unk1C[7] == 1)
-        ret = (a1->unk9E | 0x80) & ~0x40;
-    else if (a1->unk40->base.yspeed < 0 && (a1->unk2B[2] == 1 || a1->unk2B[7] == 0xFF))
-        ret = (a1->unk9E | 0x40) & ~0x80;
+    if (brain->kirby->base.xspeed > 0 && brain->terrainRow[3] == 1)
+        ret = (brain->keys | 0x20) & ~0x10;
+    else if (brain->kirby->base.xspeed < 0 && brain->terrainRow[1] == 1)
+        ret = (brain->keys | 0x10) & ~0x20;
+    if (brain->kirby->base.yspeed > 0 && brain->terrain[7] == 1)
+        ret = (brain->keys | 0x80) & ~0x40;
+    else if (brain->kirby->base.yspeed < 0 && (brain->terrainBelow[2] == 1 || brain->terrainBelow[7] == 0xFF))
+        ret = (brain->keys | 0x40) & ~0x80;
     return ret;
 }
 
-u16 sub_08014DA4(struct Unk_02038590 *a1) {
+u16 CpuSwimKeysToWaypoint(struct CpuBrain *brain) {
     u16 ret = 0;
     struct Kirby *kirby;
 
-    if (a1->unk9A > 0x20 && a1->unk9A < 0x1E0)
+    if (brain->waypointAngle > 0x20 && brain->waypointAngle < 0x1E0)
         ret = 0x10;
-    else if (a1->unk9A > 0x220 && a1->unk9A < 0x3E0)
+    else if (brain->waypointAngle > 0x220 && brain->waypointAngle < 0x3E0)
         ret = 0x20;
-    if (a1->unk9A > 0x120 && a1->unk9A < 0x2E0)
+    if (brain->waypointAngle > 0x120 && brain->waypointAngle < 0x2E0)
         ret |= 0x40;
-    else if (a1->unk9A < 0xE0 || a1->unk9A > 0x320)
+    else if (brain->waypointAngle < 0xE0 || brain->waypointAngle > 0x320)
         ret |= 0x80;
-    kirby = a1->unk40;
+    kirby = brain->kirby;
     if (ret & 0x20 && !(ret & 0x40) && !(ret & 0x80) && kirby->base.flags & 1 && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x10 && !(ret & 0x40) && !(ret & 0x80) && !(kirby->base.flags & 1) && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x40 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 8) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     } else if (ret & 0x80 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 4) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     }
-    if (a1->unk40->base.xspeed > 0 && a1->unk26[3] == 1)
-        ret = (a1->unk9E | 0x20) & ~0x10;
-    else if (a1->unk40->base.xspeed < 0 && a1->unk26[1] == 1)
-        ret = (a1->unk9E | 0x10) & ~0x20;
-    if (a1->unk40->base.yspeed > 0 && a1->unk1C[7] == 1)
-        ret = (a1->unk9E | 0x80) & ~0x40;
-    else if (a1->unk40->base.yspeed < 0 && a1->unk2B[2] == 1)
-        ret = (a1->unk9E | 0x40) & ~0x80;
+    if (brain->kirby->base.xspeed > 0 && brain->terrainRow[3] == 1)
+        ret = (brain->keys | 0x20) & ~0x10;
+    else if (brain->kirby->base.xspeed < 0 && brain->terrainRow[1] == 1)
+        ret = (brain->keys | 0x10) & ~0x20;
+    if (brain->kirby->base.yspeed > 0 && brain->terrain[7] == 1)
+        ret = (brain->keys | 0x80) & ~0x40;
+    else if (brain->kirby->base.yspeed < 0 && brain->terrainBelow[2] == 1)
+        ret = (brain->keys | 0x40) & ~0x80;
     return ret;
 }
 
-// clone of sub_08014DA4
-u16 sub_08014FA0(struct Unk_02038590 *a1) {
+// clone of CpuSwimKeysToWaypoint
+u16 CpuUfoKeysToWaypoint(struct CpuBrain *brain) {
     u16 ret = 0;
     struct Kirby *kirby;
 
-    if (a1->unk9A > 0x20 && a1->unk9A < 0x1E0)
+    if (brain->waypointAngle > 0x20 && brain->waypointAngle < 0x1E0)
         ret = 0x10;
-    else if (a1->unk9A > 0x220 && a1->unk9A < 0x3E0)
+    else if (brain->waypointAngle > 0x220 && brain->waypointAngle < 0x3E0)
         ret = 0x20;
-    if (a1->unk9A > 0x120 && a1->unk9A < 0x2E0)
+    if (brain->waypointAngle > 0x120 && brain->waypointAngle < 0x2E0)
         ret |= 0x40;
-    else if (a1->unk9A < 0xE0 || a1->unk9A > 0x320)
+    else if (brain->waypointAngle < 0xE0 || brain->waypointAngle > 0x320)
         ret |= 0x80;
-    kirby = a1->unk40;
+    kirby = brain->kirby;
     if (ret & 0x20 && !(ret & 0x40) && !(ret & 0x80) && kirby->base.flags & 1 && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x10 && !(ret & 0x40) && !(ret & 0x80) && !(kirby->base.flags & 1) && kirby->base.unk62 & 1) {
-        if (a1->unk9A > 0x100 && a1->unk9A < 0x300)
+        if (brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300)
             ret |= 0x40;
         else
             ret |= 0x80;
     } else if (ret & 0x40 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 8) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     } else if (ret & 0x80 && !(ret & 0x10) && !(ret & 0x20) && kirby->base.unk62 & 4) {
-        if (a1->unk9A > 0x200)
+        if (brain->waypointAngle > 0x200)
             ret |= 0x20;
         else
             ret |= 0x10;
     }
-    if (a1->unk40->base.xspeed > 0 && a1->unk26[3] == 1)
-        ret = (a1->unk9E | 0x20) & ~0x10;
-    else if (a1->unk40->base.xspeed < 0 && a1->unk26[1] == 1)
-        ret = (a1->unk9E | 0x10) & ~0x20;
-    if (a1->unk40->base.yspeed > 0 && a1->unk1C[7] == 1)
-        ret = (a1->unk9E | 0x80) & ~0x40;
-    else if (a1->unk40->base.yspeed < 0 && a1->unk2B[2] == 1)
-        ret = (a1->unk9E | 0x40) & ~0x80;
+    if (brain->kirby->base.xspeed > 0 && brain->terrainRow[3] == 1)
+        ret = (brain->keys | 0x20) & ~0x10;
+    else if (brain->kirby->base.xspeed < 0 && brain->terrainRow[1] == 1)
+        ret = (brain->keys | 0x10) & ~0x20;
+    if (brain->kirby->base.yspeed > 0 && brain->terrain[7] == 1)
+        ret = (brain->keys | 0x80) & ~0x40;
+    else if (brain->kirby->base.yspeed < 0 && brain->terrainBelow[2] == 1)
+        ret = (brain->keys | 0x40) & ~0x80;
     return ret;
 }
 
-static inline bool32 sub_0801519C_helper(struct Unk_02038590 *a1) {
-    switch (a1->unk40->animationIndex) {
+static inline bool32 CpuIsHoldingThrow(struct CpuBrain *brain) {
+    switch (brain->kirby->animationIndex) {
     case 0x70 ... 0x75:
         return TRUE;
     default:
@@ -2935,197 +2935,197 @@ static inline bool32 sub_0801519C_helper(struct Unk_02038590 *a1) {
     }
 }
 
-void sub_0801519C(struct Unk_02038590 *a1) {
+void CpuActThink(struct CpuBrain *brain) {
     bool32 b;
 
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0;
-    a1->flags &= ~2;
-    if (a1->unk14->currentRoom == 0x397)
-        a1->unk0[3] = FN(sub_08018110);
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_THINK;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (brain->levelInfo->currentRoom == 0x397)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActRoom397);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_UFO:
-            a1->unk0[3] = FN(sub_080152B0);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActDecide);
             return;
         case KIRBY_ABILITY_TORNADO:
-            if (a1->unk40->base.sprite.animId == 0x13A && a1->unk40->base.sprite.variant == 1) {
-                a1->unk0[3] = FN(sub_080152B0);
+            if (brain->kirby->base.sprite.animId == 0x13A && brain->kirby->base.sprite.variant == 1) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActDecide);
                 return;
             }
             break;
         }
-        if (a1->unk40->base.flags & 0x40)
-            a1->unk0[3] = FN(sub_080186A4);
+        if (brain->kirby->base.flags & 0x40)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActLeaveFlight);
         else
-            a1->unk0[3] = FN(sub_080152B0);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActDecide);
     }
 }
 
-static inline bool32 sub_080152B0_helper_2(struct Unk_02038590 *a1) {
-    u16 var = (a1->unk40->base.y >> 0xC) + 1;
+static inline bool32 CpuIsAboveLadder(struct CpuBrain *brain) {
+    u16 var = (brain->kirby->base.y >> 0xC) + 1;
 
-    if (var < a1->unk14->roomHeight >> 4
-        && sub_08002434(a1->unk14, a1->unk40->base.x >> 0xC, var) == 0x20)
+    if (var < brain->levelInfo->roomHeight >> 4
+        && sub_08002434(brain->levelInfo, brain->kirby->base.x >> 0xC, var) == 0x20)
         return TRUE;
     else
         return FALSE;
 }
 
-static inline bool32 sub_080152B0_helper(struct Unk_02038590 *a1) {
+static inline bool32 CpuShouldAnswerPhone(struct CpuBrain *brain) {
     struct Kirby *kirby;
 
     if (PortIsHuman(gUnk_02021580)
-        && (kirby = &gKirbys[gUnk_02021580], gCurLevelInfo[kirby->base.unk56].currentRoom != a1->unk14->currentRoom)
+        && (kirby = &gKirbys[gUnk_02021580], gCurLevelInfo[kirby->base.unk56].currentRoom != brain->levelInfo->currentRoom)
         && !(kirby->base.unkC & 0x10000)
-        && (gRoomProps + a1->unk14->currentRoom)->priorityFlags & 0x10)
+        && (gRoomProps + brain->levelInfo->currentRoom)->priorityFlags & 0x10)
         return TRUE;
     else
         return FALSE;
 }
 
-void sub_080152B0(struct Unk_02038590 *a1) {
+void CpuActDecide(struct CpuBrain *brain) {
     u16 v22;
 
-    if (a1->flags & 4 && IsOneOfTheCurrentRooms(a1->unk14->currentRoom) && a1->unk3C > 0x10) {
-        u16 array[] = { a1->unk40->base.x >> 0xC, a1->unk40->base.y >> 0xC };
+    if (brain->flags & CPU_FLAG_FREE && IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom) && brain->nodeChanges > 0x10) {
+        u16 array[] = { brain->kirby->base.x >> 0xC, brain->kirby->base.y >> 0xC };
 
-        if (array[0] < a1->unk14->roomWidth >> 4
-            && array[1] < a1->unk14->roomHeight >> 4
-            && gCollisionAttributes[sub_08002434(a1->unk14, array[0], array[1])] & 0x4000) {
-            struct Unk_0888562C_3 *unk = sub_080025AC(a1->unk40->base.unk56, array[0], array[1]).pat3;
+        if (array[0] < brain->levelInfo->roomWidth >> 4
+            && array[1] < brain->levelInfo->roomHeight >> 4
+            && gCollisionAttributes[sub_08002434(brain->levelInfo, array[0], array[1])] & 0x4000) {
+            struct Unk_0888562C_3 *unk = sub_080025AC(brain->kirby->base.unk56, array[0], array[1]).pat3;
             const struct Unk_08D6CD0C *a = gUnk_08D6CD0C[unk->unk08];
 
             if (!(a->unk47 & 0x83)) {
                 u8 m = unk->unk0A, n = unk->unk0B;
-                const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
 
-                if (sub_080551FC(a1->unk40, unk->unk08, m, n)) {
+                if (sub_080551FC(brain->kirby, unk->unk08, m, n)) {
                     if (b->unk46 == a->unk46)
-                        ++a1->unkB0;
+                        ++brain->areaWarpCount;
                     else
-                        a1->unkB0 = 0;
+                        brain->areaWarpCount = 0;
                     return;
                 }
             }
         }
     }
-    if (((a1->unk2B[2] != 2 && a1->unk2B[7] == 1) || a1->unk26[2] == 0xFF)
-        && a1->unk40->ability != KIRBY_ABILITY_UFO) {
-        if (a1->unk40->base.unk58 & 2)
-            a1->unk0[3] = FN(sub_08018B18);
+    if (((brain->terrainBelow[2] != 2 && brain->terrainBelow[7] == 1) || brain->terrainRow[2] == 0xFF)
+        && brain->kirby->ability != KIRBY_ABILITY_UFO) {
+        if (brain->kirby->base.unk58 & 2)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwim);
         else
-            a1->unk0[3] = FN(sub_0801639C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
         return;
     }
-    if (sub_080152B0_helper(a1)) {
-        if (a1->unkDC != 2)
-            a1->unk0[3] = FN(sub_0801870C);
+    if (CpuShouldAnswerPhone(brain)) {
+        if (brain->action != CPU_ACT_ANSWER_PHONE)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
         return;
     }
-    if (a1->unk98 > 0x20 && (a1->unk9A < 0xE0 || a1->unk9A > 0x320)) {
+    if (brain->waypointDist > 0x20 && (brain->waypointAngle < 0xE0 || brain->waypointAngle > 0x320)) {
 
-        if (a1->unk40->animationIndex == 0x2D || a1->unk40->animationIndex == 0x2E
-            || sub_080152B0_helper_2(a1)){
-            a1->unk0[3] = FN(sub_08015FA0);
+        if (brain->kirby->animationIndex == 0x2D || brain->kirby->animationIndex == 0x2E
+            || CpuIsAboveLadder(brain)){
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadder);
             return;
         }
     }
-    if (a1->unk3E == 0xFF && a1->unk40->ability != KIRBY_ABILITY_NORMAL) {
-        if (a1->unkDC != 1)
-            a1->unk0[3] = FN(sub_080186DC);
+    if (brain->wantAbility == 0xFF && brain->kirby->ability != KIRBY_ABILITY_NORMAL) {
+        if (brain->action != CPU_ACT_DROP_ABILITY)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActDropAbility);
         return;
     }
-    if (CALL(gUnk_082DDE84[a1->unk40->ability])(a1))
+    if (CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain))
         return;
-    if ((a1->unk3C >> 2) & 1 && !IsOneOfTheCurrentRooms(a1->unk14->currentRoom)) {
-        if (a1->unk40->ability == KIRBY_ABILITY_NORMAL) {
+    if ((brain->nodeChanges >> 2) & 1 && !IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom)) {
+        if (brain->kirby->ability == KIRBY_ABILITY_NORMAL) {
             if (Rand16() < 0x400) {
-                u8 ability = gUnk_082DE034[Rand16() % ARRAY_COUNT(gUnk_082DE034)];
+                u8 ability = gCpuOffscreenAbilityPool[Rand16() % ARRAY_COUNT(gCpuOffscreenAbilityPool)];
 
                 if (gUnk_0203AD10 & 4 && ability == KIRBY_ABILITY_MAGIC)
                     ability = KIRBY_ABILITY_FIRE;
-                sub_0805BD4C(a1->unk40, ability);
+                sub_0805BD4C(brain->kirby, ability);
             }
         } else {
             if (Rand16() < 0x100) {
-                if (a1->unkDC != 1)
-                    a1->unk0[3] = FN(sub_080186DC);
+                if (brain->action != CPU_ACT_DROP_ABILITY)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActDropAbility);
                 return;
             }
         }
     }
     v22 = 0xFFFF;
-    if (a1->unk3F != 0xFF)
-        v22 = gUnk_08D63C28[gRoomProps[a1->unk14->currentRoom].unk22]->unk14[a1->unk3F].unk24;
-    if (a1->unk1A != a1->unk3F) {
-        if (a1->unk3F == 0xFF)
+    if (brain->nextNode != 0xFF)
+        v22 = gUnk_08D63C28[gRoomProps[brain->levelInfo->currentRoom].unk22]->unk14[brain->nextNode].unk24;
+    if (brain->curNode != brain->nextNode) {
+        if (brain->nextNode == 0xFF)
             return;
-    } else if (a1->unk1A == 0xFF || v22 >= a1->unk98) {
+    } else if (brain->curNode == 0xFF || v22 >= brain->waypointDist) {
         return;
     }
-    if (a1->unkDC != 3)
-        a1->unk0[3] = FN(sub_08018764);
+    if (brain->action != CPU_ACT_MOVE)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActMove);
 }
 
-void sub_080156FC(struct Unk_02038590 *a1) {
-    if (a1->unkDE-- == 0) {
-        if (sub_080152B0_helper(a1))
-            a1->unk9E = 0x100;
-        a1->unk0[3] = FN(sub_08018758);
+void CpuActAnswerPhoneWait(struct CpuBrain *brain) {
+    if (brain->actArg-- == 0) {
+        if (CpuShouldAnswerPhone(brain))
+            brain->keys = 0x100;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBackToThink);
     }
 }
 
-s8 sub_080157B0(struct Unk_02038590 *a1) {
-    u16 sp00 = a1->unk40->base.x >> 0xC;
-    u16 r5 = a1->unk40->base.y >> 0xC;
-    s16 a = a1->unk9A < 0x200 ? 1 : -1;
+s8 CpuJumpNeeded(struct CpuBrain *brain) {
+    u16 sp00 = brain->kirby->base.x >> 0xC;
+    u16 r5 = brain->kirby->base.y >> 0xC;
+    s16 a = brain->waypointAngle < 0x200 ? 1 : -1;
     u16 sp04 = sp00 + a;
     s32 r1;
 
-    if (a1->unk2B[2] < 2) {
-        if (((a1->unk9A > 0x100 && a1->unk9A < 0x300) || (Rand16() & 0xF) > 0xA)) {
-            u8 ret = a1->unk98 >> 4;
+    if (brain->terrainBelow[2] < 2) {
+        if (((brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300) || (Rand16() & 0xF) > 0xA)) {
+            u8 ret = brain->waypointDist >> 4;
 
             if (ret) return ret;
         }
-        if (a1->unk9A < 0xC0 || a1->unk9A > 0x340)
+        if (brain->waypointAngle < 0xC0 || brain->waypointAngle > 0x340)
             return 0;
     }
     r1 = a + 2;
-    if (a1->unk2B[r1] == 1 || a1->unk26[a + r1] == 1)
+    if (brain->terrainBelow[r1] == 1 || brain->terrainRow[a + r1] == 1)
         return Rand16() & 7;
-    if (!a1->unk26[r1])
+    if (!brain->terrainRow[r1])
         return 0;
-    if (a1->unk14->roomWidth >> 4 > sp04) {
-        u32 v8 = a1->unk14->roomHeight >> 4;
+    if (brain->levelInfo->roomWidth >> 4 > sp04) {
+        u32 v8 = brain->levelInfo->roomHeight >> 4;
         u16 v9 = r5 - 1;
         u16 v10 = 1;
 
         while (v10 < 0x10) {
-            if (v8 <= v9 || gCollisionAttributes[sub_080024F0(a1->unk14, sp00, v9)] & 0x200)
+            if (v8 <= v9 || gCollisionAttributes[sub_080024F0(brain->levelInfo, sp00, v9)] & 0x200)
                 return (Rand16() & 0xFF) < 5 ? v10 : -1;
-            if (!(gCollisionAttributes[sub_080024F0(a1->unk14, sp04, v9)] & 0x200))
+            if (!(gCollisionAttributes[sub_080024F0(brain->levelInfo, sp04, v9)] & 0x200))
                 return v10;
             ++v10;
             --v9;
@@ -3134,1262 +3134,1262 @@ s8 sub_080157B0(struct Unk_02038590 *a1) {
     return -1;
 }
 
-void sub_08015970(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 4;
-    a1->flags &= ~2;
-    if (a1->unk40->base.flags & 0x40)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->base.unk58 & 2)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->ability == KIRBY_ABILITY_STONE && a1->unk40->animationIndex == 0x34)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->ability == KIRBY_ABILITY_THROW && sub_0801519C_helper(a1))
-        a1->unk0[3] = FN(sub_0801519C);
-    else if ((a1->unk44 && a1->unk44->base.flags & 0x10) || (a1->unk94 < 0 || a1->unk94 > 0x40))
-        a1->unk0[3] = FN(sub_080187B0);
-    else if (a1->unk40->base.flags & 0x10)
-        a1->unk0[3] = FN(sub_08018850);
+void CpuActWalk(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_WALK;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->base.flags & 0x40)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->base.unk58 & 2)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->ability == KIRBY_ABILITY_STONE && brain->kirby->animationIndex == 0x34)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->ability == KIRBY_ABILITY_THROW && CpuIsHoldingThrow(brain))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if ((brain->followKirby && brain->followKirby->base.flags & 0x10) || (brain->waypointDx < 0 || brain->waypointDx > 0x40))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActDashFirstTap);
+    else if (brain->kirby->base.flags & 0x10)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkPauseBegin);
     else
-        a1->unk0[3] = FN(sub_08015A4C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkStride);
 }
 
-void sub_08015A4C(struct Unk_02038590 *a1) {
+void CpuActWalkStride(struct CpuBrain *brain) {
     u32 var;
 
-    if (a1->unk98 < 0x20)
+    if (brain->waypointDist < 0x20)
         var = (Rand16() & 7) + 4;
-    else if (a1->unk98 < 0x40)
+    else if (brain->waypointDist < 0x40)
         var = (Rand16() & 0xF) + 4;
     else
         var = (Rand16() & 0x1F) + 4;
-    a1->unkE8 = var;
-    a1->unkEA = a1->unk9A < 0x200 ? 0x10 : 0x20;
-    a1->unk9E = a1->unkEA;
-    a1->unk0[3] = FN(sub_08015AF0);
+    brain->actTimer = var;
+    brain->actVar = brain->waypointAngle < 0x200 ? 0x10 : 0x20;
+    brain->keys = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkTick);
 }
 
-static inline bool32 sub_08015AF0_helper(struct Unk_02038590 *a1) {
+static inline bool32 CpuIsOnLadder(struct CpuBrain *brain) {
     u16 var;
 
-    if (a1->unk40->animationIndex == 0x2D || a1->unk40->animationIndex == 0x2E)
+    if (brain->kirby->animationIndex == 0x2D || brain->kirby->animationIndex == 0x2E)
         return TRUE;
-    var = (a1->unk40->base.y >> 0xC) + 1;
-    if (var < a1->unk14->roomHeight >> 4
-        && sub_08002434(a1->unk14, a1->unk40->base.x >> 0xC, var) == 0x20)
+    var = (brain->kirby->base.y >> 0xC) + 1;
+    if (var < brain->levelInfo->roomHeight >> 4
+        && sub_08002434(brain->levelInfo, brain->kirby->base.x >> 0xC, var) == 0x20)
         return TRUE;
     else
         return FALSE;
 }
 
-void sub_08015AF0(struct Unk_02038590 *a1) {
-    if (a1->unk40->base.flags & 0x40)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->base.unk58 & 2)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->ability == KIRBY_ABILITY_STONE && a1->unk40->animationIndex == 0x34)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->ability == KIRBY_ABILITY_THROW && sub_0801519C_helper(a1))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActWalkTick(struct CpuBrain *brain) {
+    if (brain->kirby->base.flags & 0x40)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->base.unk58 & 2)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->ability == KIRBY_ABILITY_STONE && brain->kirby->animationIndex == 0x34)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->ability == KIRBY_ABILITY_THROW && CpuIsHoldingThrow(brain))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        if (sub_080152B0_helper(a1)) {
-            if (a1->unkDC != 2)
-                a1->unk0[3] = FN(sub_0801870C);
+        if (CpuShouldAnswerPhone(brain)) {
+            if (brain->action != CPU_ACT_ANSWER_PHONE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
             return;
         }
-        if (a1->unk98 < 0x50 && (a1->unk96 < 0 || a1->unk96 > 0x20)
-            && a1->unk9A > 0x160 && a1->unk9A < 0x2A0) {
-            u32 r1 = (u16)a1->unk96 >> 4;
+        if (brain->waypointDist < 0x50 && (brain->waypointDy < 0 || brain->waypointDy > 0x20)
+            && brain->waypointAngle > 0x160 && brain->waypointAngle < 0x2A0) {
+            u32 r1 = (u16)brain->waypointDy >> 4;
 
             if (r1 == 0)
                 r1 = 1;
-            if (a1->unkDC != 7) {
-                a1->unkDE = r1;
-                a1->unk0[3] = FN(sub_080160B8);
+            if (brain->action != CPU_ACT_JUMP) {
+                brain->actArg = r1;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActJump);
             }
             return;
         }
-        if ((a1->unk9A > 0x160 && a1->unk9A < 0x2A0 && (a1->unk96 < 0 || a1->unk96 >= 0x50))
-            || (a1->unk40->base.flags & 0x20 && (a1->unk2B[2] == 1 || a1->unk2B[7] == 0xFF))) {
-            a1->unk0[3] = FN(sub_0801639C);
+        if ((brain->waypointAngle > 0x160 && brain->waypointAngle < 0x2A0 && (brain->waypointDy < 0 || brain->waypointDy >= 0x50))
+            || (brain->kirby->base.flags & 0x20 && (brain->terrainBelow[2] == 1 || brain->terrainBelow[7] == 0xFF))) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
             return;
         }
-        if (a1->unk40->base.flags & 0x10
-            && (!a1->unk44 || !(a1->unk44->base.flags & 0x10))
-            && (a1->unk94 >= 0 && a1->unk94 <= 0x40))
-            a1->unkEA &= ~0x30;
-        if (a1->unk40->base.unk62 & 3)
-            a1->unkE8 = 0;
-        a1->unk9E = a1->unkEA;
-        if (!(a1->unk40->base.flags & 0x20)) {
-            s8 var = sub_080157B0(a1);
+        if (brain->kirby->base.flags & 0x10
+            && (!brain->followKirby || !(brain->followKirby->base.flags & 0x10))
+            && (brain->waypointDx >= 0 && brain->waypointDx <= 0x40))
+            brain->actVar &= ~0x30;
+        if (brain->kirby->base.unk62 & 3)
+            brain->actTimer = 0;
+        brain->keys = brain->actVar;
+        if (!(brain->kirby->base.flags & 0x20)) {
+            s8 var = CpuJumpNeeded(brain);
 
             if (var > 3) {
-                a1->unk0[3] = FN(sub_0801639C);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
                 return;
             }
             if (var > 0) {
-                if (a1->unkDC != 7) {
-                    a1->unkDE = (u8)var;
-                    a1->unk0[3] = FN(sub_080160B8);
+                if (brain->action != CPU_ACT_JUMP) {
+                    brain->actArg = (u8)var;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActJump);
                 }
                 return;
             }
         }
-        if (!a1->unkE8) {
-            if (a1->flags & 4 && IsOneOfTheCurrentRooms(a1->unk14->currentRoom) && a1->unk3C > 0x10) {
-                u16 array[] = { a1->unk40->base.x >> 0xC, a1->unk40->base.y >> 0xC };
+        if (!brain->actTimer) {
+            if (brain->flags & CPU_FLAG_FREE && IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom) && brain->nodeChanges > 0x10) {
+                u16 array[] = { brain->kirby->base.x >> 0xC, brain->kirby->base.y >> 0xC };
 
-                if (array[0] < a1->unk14->roomWidth >> 4
-                    && array[1] < a1->unk14->roomHeight >> 4
-                    && gCollisionAttributes[sub_08002434(a1->unk14, array[0], array[1])] & 0x4000) {
-                    struct Unk_0888562C_3 *unk = sub_080025AC(a1->unk40->base.unk56, array[0], array[1]).pat3;
+                if (array[0] < brain->levelInfo->roomWidth >> 4
+                    && array[1] < brain->levelInfo->roomHeight >> 4
+                    && gCollisionAttributes[sub_08002434(brain->levelInfo, array[0], array[1])] & 0x4000) {
+                    struct Unk_0888562C_3 *unk = sub_080025AC(brain->kirby->base.unk56, array[0], array[1]).pat3;
                     const struct Unk_08D6CD0C *a = gUnk_08D6CD0C[unk->unk08];
 
                     if (!(a->unk47 & 0x83)) {
                         u8 m = unk->unk0A, n = unk->unk0B;
-                        const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                        const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
 
-                        if (sub_080551FC(a1->unk40, unk->unk08, m, n)) {
+                        if (sub_080551FC(brain->kirby, unk->unk08, m, n)) {
                             if (b->unk46 == a->unk46)
-                                ++a1->unkB0;
+                                ++brain->areaWarpCount;
                             else
-                                a1->unkB0 = 0;
+                                brain->areaWarpCount = 0;
                             return;
                         }
                     }
                 }
             }
-            if (a1->unk1A == a1->unk1B && a1->unk84 < 0x30 && a1->unk86 < 0x20) {
-                a1->unk0[3] = FN(sub_0801519C);
+            if (brain->curNode == brain->goalNode && brain->goalDx < 0x30 && brain->goalDy < 0x20) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 return;
             }
-            if (a1->unk9A > 0x180 && a1->unk9A < 0x280
-                && (a1->unk96 < 0 || a1->unk96 > 0x60)) {
-                a1->unk0[3] = FN(sub_0801639C);
+            if (brain->waypointAngle > 0x180 && brain->waypointAngle < 0x280
+                && (brain->waypointDy < 0 || brain->waypointDy > 0x60)) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
                 return;
             }
-            if (a1->unk98 > 0x20 && (a1->unk9A < 0xE0 || a1->unk9A > 0x320)) {
-                if (sub_08015AF0_helper(a1)) {
-                    a1->unk0[3] = FN(sub_08015FA0);
+            if (brain->waypointDist > 0x20 && (brain->waypointAngle < 0xE0 || brain->waypointAngle > 0x320)) {
+                if (CpuIsOnLadder(brain)) {
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadder);
                     return;
                 }
             }
-            if ((a1->unk9A < 0x3D || a1->unk9A > 0x3BF)
-                && sub_080035F4(&a1->unk40->base)) {
-                a1->unk0[3] = FN(sub_08018884);
-                a1->unkDE = (Rand16() & 0x1F) + 0x3C;
+            if ((brain->waypointAngle < 0x3D || brain->waypointAngle > 0x3BF)
+                && sub_080035F4(&brain->kirby->base)) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActHoldDown);
+                brain->actArg = (Rand16() & 0x1F) + 0x3C;
             } else {
-                if (!CALL(gUnk_082DDE84[a1->unk40->ability])(a1))
-                    a1->unk0[3] = FN(sub_08015A4C);
+                if (!CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain))
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkStride);
             }
         } else {
-            --a1->unkE8;
+            --brain->actTimer;
         }
     }
 }
 
-void sub_08015FA0(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 6;
-    a1->flags &= ~2;
-    a1->unkE8 = 0;
-    if (a1->unk40->animationIndex == 0x2D || a1->unk40->animationIndex == 0x2E)
-        a1->unk0[3] = FN(sub_08018930);
-    else if (!sub_080152B0_helper_2(a1))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActLadder(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_LADDER;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    brain->actTimer = 0;
+    if (brain->kirby->animationIndex == 0x2D || brain->kirby->animationIndex == 0x2E)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderStart);
+    else if (!CpuIsAboveLadder(brain))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else
-        a1->unk0[3] = FN(sub_080188F0);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderGrab);
 }
 
-void sub_0801602C(struct Unk_02038590 *a1) {
-    if (a1->unk40->animationIndex != 0x2D && a1->unk40->animationIndex != 0x2E)
-        a1->unk0[3] = FN(sub_0801519C);
-    a1->unk9E = a1->unkEA;
-    if (!a1->unkE8) {
-        if (a1->unkEC > 3)
-            a1->unk0[3] = FN(sub_0801519C);
+void CpuActLadderClimbTick(struct CpuBrain *brain) {
+    if (brain->kirby->animationIndex != 0x2D && brain->kirby->animationIndex != 0x2E)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->keys = brain->actVar;
+    if (!brain->actTimer) {
+        if (brain->actCount > 3)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         else
-            ++a1->unkEC;
-        if (a1->unk88 < 0x20
-            && ((a1->unk9A > 0xE0 && a1->unk9A < 0x120) || (a1->unk9A > 0x2E0 && a1->unk9A < 0x320)))
-            a1->unk0[3] = FN(sub_0801519C);
-        a1->unk0[3] = FN(sub_08018944);
+            ++brain->actCount;
+        if (brain->goalDxDyDiff < 0x20
+            && ((brain->waypointAngle > 0xE0 && brain->waypointAngle < 0x120) || (brain->waypointAngle > 0x2E0 && brain->waypointAngle < 0x320)))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderClimbBegin);
     } else {
-        --a1->unkE8;
+        --brain->actTimer;
     }
 }
 
-void sub_080160B8(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 7;
-    a1->flags &= ~2;
-    if (!a1->unkDE || a1->unk40->base.flags & 0x60)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActJump(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_JUMP;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (!brain->actArg || brain->kirby->base.flags & 0x60)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        a1->unk0[3] = FN(sub_080189A0);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActJumpBegin);
     }
 }
 
-void sub_0801617C(struct Unk_02038590 *a1) {
-    a1->unk9E |= 1;
-    a1->unk9E |= a1->unk9A < 0x200 ? 0x10 : 0x20;
-    if (!--a1->unkE8) {
-        switch (a1->unkDE) {
+void CpuActJumpRise(struct CpuBrain *brain) {
+    brain->keys |= 1;
+    brain->keys |= brain->waypointAngle < 0x200 ? 0x10 : 0x20;
+    if (!--brain->actTimer) {
+        switch (brain->actArg) {
         case 1:
-            a1->unkE8 = (Rand16() & 7) + 6;
+            brain->actTimer = (Rand16() & 7) + 6;
             break;
         case 2:
-            a1->unkE8 = (Rand16() & 0xF) + 0xC;
+            brain->actTimer = (Rand16() & 0xF) + 0xC;
             break;
         case 3:
             { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
                 u32 rnd = Rand16Twice();
-                a1->unkE8 = (rnd & 7) + 0xF + (rnd & 0xF);
+                brain->actTimer = (rnd & 7) + 0xF + (rnd & 0xF);
             }
             break;
         default:
-            a1->unkE8 = (Rand16() & 0x1F) + 0x2C;
+            brain->actTimer = (Rand16() & 0x1F) + 0x2C;
             break;
         }
-        a1->unk0[3] = FN(sub_08016288);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActJumpAir);
     }
 }
 
-void sub_08016288(struct Unk_02038590 *a1) {
-    if (a1->unk1C[2] != 1)
-        a1->unk9E |= 1;
-    if (a1->unkEA) {
-        if (a1->unk9A > 0x20 && a1->unk9A < 0x200) {
-            a1->unk9E |= 0x10;
-            if (a1->unk40->base.flags & 1)
-                --a1->unkEA;
-        } else if (a1->unk9A > 0x200 && a1->unk9A < 0x3E0) {
-            a1->unk9E |= 0x20;
-            if (!(a1->unk40->base.flags & 1))
-                --a1->unkEA;
+void CpuActJumpAir(struct CpuBrain *brain) {
+    if (brain->terrain[2] != 1)
+        brain->keys |= 1;
+    if (brain->actVar) {
+        if (brain->waypointAngle > 0x20 && brain->waypointAngle < 0x200) {
+            brain->keys |= 0x10;
+            if (brain->kirby->base.flags & 1)
+                --brain->actVar;
+        } else if (brain->waypointAngle > 0x200 && brain->waypointAngle < 0x3E0) {
+            brain->keys |= 0x20;
+            if (!(brain->kirby->base.flags & 1))
+                --brain->actVar;
         }
     } else {
-        a1->unk9E |= a1->unk40->base.flags & 1 ? 0x20 : 0x10;
+        brain->keys |= brain->kirby->base.flags & 1 ? 0x20 : 0x10;
     }
-    if (a1->unk40->base.flags & 0x20 && !(a1->unk40->base.flags & 0x40)) {
-        if (a1->unk40->base.yspeed < 0) {
-            a1->unk0[3] = FN(sub_0801639C);
+    if (brain->kirby->base.flags & 0x20 && !(brain->kirby->base.flags & 0x40)) {
+        if (brain->kirby->base.yspeed < 0) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
             return;
         }
     } else {
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         return;
     }
-    if (!CALL(gUnk_082DDE84[a1->unk40->ability])(a1) && !--a1->unkE8) {
-        if (a1->unk40->base.unk62 & 3)
-            a1->unk0[3] = FN(sub_0801639C);
+    if (!CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain) && !--brain->actTimer) {
+        if (brain->kirby->base.unk62 & 3)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
         else
-            a1->unk0[3] = FN(sub_0801519C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_0801639C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 8;
-    a1->flags &= ~2;
-    if (a1->unk40->base.flags & 0x40)
-        a1->unk0[3] = FN(sub_08018A9C);
-    else if (a1->unk40->base.flags & 0x80) {
+void CpuActFly(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_FLY;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->base.flags & 0x40)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerBegin);
+    else if (brain->kirby->base.flags & 0x80) {
         if (Rand16() & 1)
-            a1->unk0[3] = FN(sub_080175D0);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallow);
         else
-            a1->unk0[3] = FN(sub_0801737C);
-    } else if (a1->unk40->base.flags & 0x20) {
-        a1->unk0[3] = FN(sub_08018A3C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
+    } else if (brain->kirby->base.flags & 0x20) {
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlyPuffBegin);
     } else {
-        a1->unk0[3] = FN(sub_080189DC);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlyFromGround);
     }
 }
 
-void sub_08016428(struct Unk_02038590 *a1) {
-    if (!(a1->unk40->base.flags & 0x40) || a1->unk40->base.unk62 & 4) {
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActFlySteerTick(struct CpuBrain *brain) {
+    if (!(brain->kirby->base.flags & 0x40) || brain->kirby->base.unk62 & 4) {
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         return;
     }
-    switch (a1->unk40->ability) {
+    switch (brain->kirby->ability) {
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->animationIndex == 0x34) {
-            if (a1->unkDC != 0x14)
-                a1->unk0[3] = FN(sub_08019094);
+        if (brain->kirby->animationIndex == 0x34) {
+            if (brain->action != CPU_ACT_STONE_TOGGLE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
             return;
         }
         break;
     case KIRBY_ABILITY_THROW:
-        if (sub_0801519C_helper(a1)) {
-            if (a1->unkDC != 0x16) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 0;
-                a1->unk0[3] = FN(sub_08017B0C);
+        if (CpuIsHoldingThrow(brain)) {
+            if (brain->action != CPU_ACT_THROW) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
             }
             return;
         }
         break;
     }
-    if (sub_080152B0_helper(a1)) {
-        if (a1->unkDC != 2)
-            a1->unk0[3] = FN(sub_0801870C);
+    if (CpuShouldAnswerPhone(brain)) {
+        if (brain->action != CPU_ACT_ANSWER_PHONE)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
         return;
     }
-    a1->unk9E = a1->unkEA;
-    if (!--a1->unkE8) {
-        if (a1->flags & 4 && IsOneOfTheCurrentRooms(a1->unk14->currentRoom) && a1->unk3C > 0x10) {
-            u16 array[] = { a1->unk40->base.x >> 0xC, a1->unk40->base.y >> 0xC };
+    brain->keys = brain->actVar;
+    if (!--brain->actTimer) {
+        if (brain->flags & CPU_FLAG_FREE && IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom) && brain->nodeChanges > 0x10) {
+            u16 array[] = { brain->kirby->base.x >> 0xC, brain->kirby->base.y >> 0xC };
 
-            if (array[0] < a1->unk14->roomWidth >> 4
-                && array[1] < a1->unk14->roomHeight >> 4
-                && gCollisionAttributes[sub_08002434(a1->unk14, array[0], array[1])] & 0x4000) {
-                struct Unk_0888562C_3 *unk = sub_080025AC(a1->unk40->base.unk56, array[0], array[1]).pat3;
+            if (array[0] < brain->levelInfo->roomWidth >> 4
+                && array[1] < brain->levelInfo->roomHeight >> 4
+                && gCollisionAttributes[sub_08002434(brain->levelInfo, array[0], array[1])] & 0x4000) {
+                struct Unk_0888562C_3 *unk = sub_080025AC(brain->kirby->base.unk56, array[0], array[1]).pat3;
                 const struct Unk_08D6CD0C *a = gUnk_08D6CD0C[unk->unk08];
 
                 if (!(a->unk47 & 0x83)) {
                     u8 m = unk->unk0A, n = unk->unk0B;
-                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
 
-                    if (sub_080551FC(a1->unk40, unk->unk08, m, n)) {
+                    if (sub_080551FC(brain->kirby, unk->unk08, m, n)) {
                         if (b->unk46 == a->unk46)
-                            ++a1->unkB0;
+                            ++brain->areaWarpCount;
                         else
-                            a1->unkB0 = 0;
+                            brain->areaWarpCount = 0;
                         return;
                     }
                 }
             }
         }
-        if (a1->unk40->base.unk58 & 2) {
-            a1->unk0[3] = FN(sub_0801519C);
+        if (brain->kirby->base.unk58 & 2) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
             return;
         }
-        if (a1->unk2B[7] != 1 && a1->unk2B[7] != 0xFF && (a1->unk8A < 0x100 || a1->unk8A > 0x300)) {
-            if (a1->unk9A < 0x80 || a1->unk9A > 0x380) {
-                a1->unk0[3] = FN(sub_0801519C);
+        if (brain->terrainBelow[7] != 1 && brain->terrainBelow[7] != 0xFF && (brain->goalAngle < 0x100 || brain->goalAngle > 0x300)) {
+            if (brain->waypointAngle < 0x80 || brain->waypointAngle > 0x380) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 return;
             }
-            if (gCollisionAttributes[sub_080024F0(a1->unk14, a1->unk40->base.x >> 0xC, (a1->unk40->base.y >> 0xC) + 1)] & 2) {
-                a1->unk0[3] = FN(sub_0801519C);
+            if (gCollisionAttributes[sub_080024F0(brain->levelInfo, brain->kirby->base.x >> 0xC, (brain->kirby->base.y >> 0xC) + 1)] & 2) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 return;
             }
-            if (a1->unk1A == a1->unk1B && a1->unk84 < 0x40 && a1->unk86 < 0x20) {
-                a1->unk0[3] = FN(sub_0801519C);
+            if (brain->curNode == brain->goalNode && brain->goalDx < 0x40 && brain->goalDy < 0x20) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 return;
             }
         }
-        if (sub_080152B0_helper(a1)) {
-            if (a1->unkDC != 2)
-                a1->unk0[3] = FN(sub_0801870C);
+        if (CpuShouldAnswerPhone(brain)) {
+            if (brain->action != CPU_ACT_ANSWER_PHONE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
             return;
         }
-        if (!a1->unkEC) {
-            u16 unk9E = a1->unk9E;
-            u8 unk62 = a1->unk40->base.unk62;
+        if (!brain->actCount) {
+            u16 unk9E = brain->keys;
+            u8 unk62 = brain->kirby->base.unk62;
 
             if (unk9E & 0x40 && unk62 & 8) {
-                a1->unkE8 = 0x40;
-                a1->unk0[3] = FN(sub_080168BC);
+                brain->actTimer = 0x40;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySweepBegin);
                 return;
             } else if (unk9E & 0x80 && unk62 & 4) {
-                a1->unkE8 = 0x80;
-                a1->unk0[3] = FN(sub_080168BC);
+                brain->actTimer = 0x80;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySweepBegin);
                 return;
             } else if (unk9E & 0x20 && unk62 & 1) {
-                a1->unkE8 = 0x20;
-                a1->unk0[3] = FN(sub_080168BC);
+                brain->actTimer = 0x20;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySweepBegin);
                 return;
             } else if (unk9E & 0x10 && unk62 & 1) {
-                a1->unkE8 = 0x10;
-                a1->unk0[3] = FN(sub_080168BC);
+                brain->actTimer = 0x10;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySweepBegin);
                 return;
             }
         } else {
-            --a1->unkEC;
+            --brain->actCount;
         }
-        if (!CALL(gUnk_082DDE84[a1->unk40->ability])(a1))
-            a1->unk0[3] = FN(sub_08018AD0);
+        if (!CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerLeg);
     }
 }
 
-void sub_080168BC(struct Unk_02038590 *a1) {
-    switch (a1->unkE8) {
+void CpuActFlySweepBegin(struct CpuBrain *brain) {
+    switch (brain->actTimer) {
     case 0x10:
     case 0x20:
-        a1->unkEA = a1->unk40->base.yspeed <= 0;
+        brain->actVar = brain->kirby->base.yspeed <= 0;
         break;
     case 0x40:
     case 0x80:
-        a1->unkEA = a1->unk40->base.xspeed <= 0;
+        brain->actVar = brain->kirby->base.xspeed <= 0;
         break;
     }
-    a1->unkEC = (Rand16() & 1) + 2;
-    a1->unkEE = (Rand16() & 0xF) + 4;
-    a1->unk0[3] = FN(sub_0801694C);
+    brain->actCount = (Rand16() & 1) + 2;
+    brain->actTimer2 = (Rand16() & 0xF) + 4;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySweepTick);
 }
 
-void sub_0801694C(struct Unk_02038590 *a1) {
-    if (!(a1->unk40->base.flags & 0x40) || a1->unk40->base.unk62 & 4) {
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActFlySweepTick(struct CpuBrain *brain) {
+    if (!(brain->kirby->base.flags & 0x40) || brain->kirby->base.unk62 & 4) {
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         return;
     }
-    switch (a1->unk40->ability) {
+    switch (brain->kirby->ability) {
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->animationIndex    == 0x34) {
-            if (a1->unkDC != 0x14)
-                a1->unk0[3] = FN(sub_08019094);
+        if (brain->kirby->animationIndex    == 0x34) {
+            if (brain->action != CPU_ACT_STONE_TOGGLE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
             return;
         }
         break;
     case KIRBY_ABILITY_THROW:
-        if (sub_0801519C_helper(a1)) {
-            if (a1->unkDC != 0x16) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 0;
-                a1->unk0[3] = FN(sub_08017B0C);
+        if (CpuIsHoldingThrow(brain)) {
+            if (brain->action != CPU_ACT_THROW) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
             }
             return;
         }
         break;
     }
-    if (sub_080152B0_helper(a1)) {
-        if (a1->unkDC != 2)
-            a1->unk0[3] = FN(sub_0801870C);
+    if (CpuShouldAnswerPhone(brain)) {
+        if (brain->action != CPU_ACT_ANSWER_PHONE)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
         return;
     }
-    switch (a1->unkE8) {
+    switch (brain->actTimer) {
     case 0x10:
     case 0x20:
-        a1->unk9E |= a1->unkE8 | (a1->unkEA ? 0x80 : 0x40);
-        if (!--a1->unkEE) {
-            a1->unkEE = (Rand16() & 0xF) + 4;
-            if ((a1->unkE8 == 0x20 && !a1->unk26[1])
-                || (a1->unkE8 == 0x10 && !a1->unk26[3]))
-                a1->unk0[3] = FN(sub_08018A9C);
+        brain->keys |= brain->actTimer | (brain->actVar ? 0x80 : 0x40);
+        if (!--brain->actTimer2) {
+            brain->actTimer2 = (Rand16() & 0xF) + 4;
+            if ((brain->actTimer == 0x20 && !brain->terrainRow[1])
+                || (brain->actTimer == 0x10 && !brain->terrainRow[3]))
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerBegin);
             else {
-                if (a1->unkEA) {
-                    if (!a1->unk2B[2]) {
+                if (brain->actVar) {
+                    if (!brain->terrainBelow[2]) {
                         while (0) ; // required for matching
                         break;
                     }
-                } else if (!a1->unk1C[7]) {
+                } else if (!brain->terrain[7]) {
                     break;
                 }
-                if (a1->unkEC-- == 0)
-                    a1->unk0[3] = FN(sub_0801519C);
+                if (brain->actCount-- == 0)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 else
-                    a1->unkEA ^= 1;
+                    brain->actVar ^= 1;
             }
         }
         break;
     case 0x40:
     case 0x80:
-        a1->unk9E |= a1->unkE8 | (a1->unkEA ? 0x20 : 0x10);
-        if (!--a1->unkEE) {
-            a1->unkEE = (Rand16() & 0xF) + 4;
-            if ((a1->unkE8 == 0x40 && !a1->unk1C[7])
-                || (a1->unkE8 == 0x80 && !a1->unk2B[2]))
-                a1->unk0[3] = FN(sub_08018A9C);
+        brain->keys |= brain->actTimer | (brain->actVar ? 0x20 : 0x10);
+        if (!--brain->actTimer2) {
+            brain->actTimer2 = (Rand16() & 0xF) + 4;
+            if ((brain->actTimer == 0x40 && !brain->terrain[7])
+                || (brain->actTimer == 0x80 && !brain->terrainBelow[2]))
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerBegin);
             else {
-                if (a1->unkEA) {
-                    if (!a1->unk26[1]) {
+                if (brain->actVar) {
+                    if (!brain->terrainRow[1]) {
                         while (0) ; // required for matching
                         break;
                     }
-                } else if (!a1->unk26[3]) {
+                } else if (!brain->terrainRow[3]) {
                     break;
                 }
-                if (a1->unkEC-- == 0)
-                    a1->unk0[3] = FN(sub_0801519C);
+                if (brain->actCount-- == 0)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 else
-                    a1->unkEA ^= 1;
+                    brain->actVar ^= 1;
             }
         }
         break;
     }
 }
 
-void sub_08016C24(struct Unk_02038590 *a1) {
-    a1->unk9E = a1->unkEA;
-    if (!--a1->unkE8) {
-        if (a1->flags & 4 && IsOneOfTheCurrentRooms(a1->unk14->currentRoom) && a1->unk3C > 0x10) {
-            u16 array[] = { a1->unk40->base.x >> 0xC, a1->unk40->base.y >> 0xC };
+void CpuActSwimTick(struct CpuBrain *brain) {
+    brain->keys = brain->actVar;
+    if (!--brain->actTimer) {
+        if (brain->flags & CPU_FLAG_FREE && IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom) && brain->nodeChanges > 0x10) {
+            u16 array[] = { brain->kirby->base.x >> 0xC, brain->kirby->base.y >> 0xC };
 
-            if (array[0] < a1->unk14->roomWidth >> 4
-                && array[1] < a1->unk14->roomHeight >> 4
-                && gCollisionAttributes[sub_08002434(a1->unk14, array[0], array[1])] & 0x4000) {
-                struct Unk_0888562C_3 *unk = sub_080025AC(a1->unk40->base.unk56, array[0], array[1]).pat3;
+            if (array[0] < brain->levelInfo->roomWidth >> 4
+                && array[1] < brain->levelInfo->roomHeight >> 4
+                && gCollisionAttributes[sub_08002434(brain->levelInfo, array[0], array[1])] & 0x4000) {
+                struct Unk_0888562C_3 *unk = sub_080025AC(brain->kirby->base.unk56, array[0], array[1]).pat3;
                 const struct Unk_08D6CD0C *a = gUnk_08D6CD0C[unk->unk08];
 
                 if (!(a->unk47 & 0x83)) {
                     u8 m = unk->unk0A, n = unk->unk0B;
-                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
 
-                    if (sub_080551FC(a1->unk40, unk->unk08, m, n)) {
+                    if (sub_080551FC(brain->kirby, unk->unk08, m, n)) {
                         if (b->unk46 == a->unk46)
-                            ++a1->unkB0;
+                            ++brain->areaWarpCount;
                         else
-                            a1->unkB0 = 0;
+                            brain->areaWarpCount = 0;
                         return;
                     }
                 }
             }
         }
-        if (a1->unk2B[7] != 1 && (a1->unk8A < 0x100 || a1->unk8A > 0x300)) {
-            if (a1->unk1A == a1->unk1B && a1->unk84 < 0x40 && a1->unk86 < 0x20) {
-                a1->unk0[3] = FN(sub_0801519C);
+        if (brain->terrainBelow[7] != 1 && (brain->goalAngle < 0x100 || brain->goalAngle > 0x300)) {
+            if (brain->curNode == brain->goalNode && brain->goalDx < 0x40 && brain->goalDy < 0x20) {
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
                 return;
             }
         }
-        if (!(a1->unk40->base.unk58 & 2)) {
-            a1->unk0[3] = FN(sub_0801639C);
+        if (!(brain->kirby->base.unk58 & 2)) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
             return;
         }
-        if (sub_080152B0_helper(a1)) {
-            if (a1->unkDC != 2)
-                a1->unk0[3] = FN(sub_0801870C);
+        if (CpuShouldAnswerPhone(brain)) {
+            if (brain->action != CPU_ACT_ANSWER_PHONE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
             return;
         }
-        if ((a1->unk9A < 0x3D || a1->unk9A >= 0x3C0)
-            && sub_080035F4(&a1->unk40->base)) {
-            a1->unk0[3] = FN(sub_08018884);
-            a1->unkDE = (Rand16() & 0x1F) + 0x3C;
+        if ((brain->waypointAngle < 0x3D || brain->waypointAngle >= 0x3C0)
+            && sub_080035F4(&brain->kirby->base)) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActHoldDown);
+            brain->actArg = (Rand16() & 0x1F) + 0x3C;
             return;
         }
-        if (!CALL(gUnk_082DDE84[a1->unk40->ability])(a1))
-            a1->unk0[3] = FN(sub_08018BAC);
+        if (!CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimLeg);
     }
 }
 
-void sub_08016EF0(struct Unk_02038590 *a1) {
-    if (a1->unk40->ability != KIRBY_ABILITY_UFO) {
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActUfoMoveTick(struct CpuBrain *brain) {
+    if (brain->kirby->ability != KIRBY_ABILITY_UFO) {
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         return;
     }
-    a1->unk9E = a1->unkEA;
-    if (!--a1->unkE8) {
-        if (a1->flags & 4 && IsOneOfTheCurrentRooms(a1->unk14->currentRoom) && a1->unk3C > 0x10) {
-            u16 array[] = { a1->unk40->base.x >> 0xC, a1->unk40->base.y >> 0xC };
+    brain->keys = brain->actVar;
+    if (!--brain->actTimer) {
+        if (brain->flags & CPU_FLAG_FREE && IsOneOfTheCurrentRooms(brain->levelInfo->currentRoom) && brain->nodeChanges > 0x10) {
+            u16 array[] = { brain->kirby->base.x >> 0xC, brain->kirby->base.y >> 0xC };
 
-            if (array[0] < a1->unk14->roomWidth >> 4
-                && array[1] < a1->unk14->roomHeight >> 4
-                && gCollisionAttributes[sub_08002434(a1->unk14, array[0], array[1])] & 0x4000) {
-                struct Unk_0888562C_3 *unk = sub_080025AC(a1->unk40->base.unk56, array[0], array[1]).pat3;
+            if (array[0] < brain->levelInfo->roomWidth >> 4
+                && array[1] < brain->levelInfo->roomHeight >> 4
+                && gCollisionAttributes[sub_08002434(brain->levelInfo, array[0], array[1])] & 0x4000) {
+                struct Unk_0888562C_3 *unk = sub_080025AC(brain->kirby->base.unk56, array[0], array[1]).pat3;
                 const struct Unk_08D6CD0C *a = gUnk_08D6CD0C[unk->unk08];
 
                 if (!(a->unk47 & 0x83)) {
                     u8 m = unk->unk0A, n = unk->unk0B;
-                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[a1->unk14->currentRoom];
+                    const struct Unk_08D6CD0C *b = gUnk_08D6CD0C[brain->levelInfo->currentRoom];
 
-                    if (sub_080551FC(a1->unk40, unk->unk08, m, n)) {
+                    if (sub_080551FC(brain->kirby, unk->unk08, m, n)) {
                         if (b->unk46 == a->unk46)
-                            ++a1->unkB0;
+                            ++brain->areaWarpCount;
                         else
-                            a1->unkB0 = 0;
+                            brain->areaWarpCount = 0;
                         return;
                     }
                 }
             }
         }
-        if (a1->unk26[2] == 1 && a1->unk88 < 0x20) {
-            a1->unk0[3] = FN(sub_0801519C);
+        if (brain->terrainRow[2] == 1 && brain->goalDxDyDiff < 0x20) {
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
             return;
         }
-        if (sub_080152B0_helper(a1)) {
-            if (a1->unkDC != 2)
-                a1->unk0[3] = FN(sub_0801870C);
+        if (CpuShouldAnswerPhone(brain)) {
+            if (brain->action != CPU_ACT_ANSWER_PHONE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhone);
             return;
         }
-        if (!CALL(gUnk_082DDE84[a1->unk40->ability])(a1))
-            a1->unk0[3] = FN(sub_08018C38);
+        if (!CALL(gCpuBreakBlockChecks[brain->kirby->ability])(brain))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoMoveLeg);
     }
 }
 
-void sub_08017144(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xB;
-    a1->flags |= 2;
-    if (a1->unk40->base.flags & 0x60)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->base.flags & 0x80) {
-        if (a1->unkDC != 0xD) {
-            a1->unkDE = 0xFFFF;
-            a1->unk0[3] = FN(sub_0801737C);
+void CpuActSlide(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_SLIDE;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->base.flags & 0x60)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->base.flags & 0x80) {
+        if (brain->action != CPU_ACT_SPIT) {
+            brain->actArg = 0xFFFF;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
         }
     } else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_SLEEP:
         case KIRBY_ABILITY_UFO:
         case KIRBY_ABILITY_MINI:
-            a1->unk0[3] = FN(sub_0801519C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
             break;
         default:
-            if (a1->unkDE != 0xFFFF) {
-                a1->unkEA = a1->unkDE;
-                if (a1->unkDC != 0x12) {
-                    a1->unkDE = a1->unkDE; // required for matching
-                    a1->unkE4.ptr = FN(sub_08018C80);
-                    a1->unk0[3] = FN(sub_08018F34);
+            if (brain->actArg != 0xFFFF) {
+                brain->actVar = brain->actArg;
+                if (brain->action != CPU_ACT_TURN) {
+                    brain->actArg = brain->actArg; // required for matching
+                    brain->actNext.ptr = FN(CpuActSlideAfterTurn);
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
                 }
             } else {
-                a1->unk0[3] = FN(sub_08018C98);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlideBegin);
             }
             break;
         }
     }
 }
 
-void sub_08017274(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xC;
-    a1->flags |= 2;
-    if (!(a1->unk40->base.flags & 0x40))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActAirPuff(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_AIR_PUFF;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (!(brain->kirby->base.flags & 0x40))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_SLEEP:
         case KIRBY_ABILITY_UFO:
         case KIRBY_ABILITY_CUPID:
-            a1->unk0[3] = FN(sub_0801519C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
             break;
         default:
-            if (a1->unkDE != 0xFFFF) {
-                a1->unkEA = a1->unkDE;
-                if (a1->unkDC != 0x12) {
-                    a1->unkDE = a1->unkDE; // required for matching
-                    a1->unkE4.ptr = FN(sub_08018D18);
-                    a1->unk0[3] = FN(sub_08018F34);
+            if (brain->actArg != 0xFFFF) {
+                brain->actVar = brain->actArg;
+                if (brain->action != CPU_ACT_TURN) {
+                    brain->actArg = brain->actArg; // required for matching
+                    brain->actNext.ptr = FN(CpuActAirPuffAfterTurn);
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
                 }
             } else {
-                a1->unk0[3] = FN(sub_08018D30);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActAirPuffBegin);
             }
             break;
         }
     }
 }
 
-void sub_0801737C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xD;
-    a1->flags |= 2;
-    if (!(a1->unk40->base.flags & 0x80))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActSpit(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_SPIT;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (!(brain->kirby->base.flags & 0x80))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        if (a1->unkDE != 0xFFFF) {
-            a1->unkEA = a1->unkDE;
-            if (a1->unkDC != 0x12) {
-                a1->unkDE = a1->unkDE; // required for matching
-                a1->unkE4.ptr = FN(sub_08018D70);
-                a1->unk0[3] = FN(sub_08018F34);
+        if (brain->actArg != 0xFFFF) {
+            brain->actVar = brain->actArg;
+            if (brain->action != CPU_ACT_TURN) {
+                brain->actArg = brain->actArg; // required for matching
+                brain->actNext.ptr = FN(CpuActSpitAfterTurn);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
             }
         } else {
-            a1->unk0[3] = FN(sub_08018D88);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpitBegin);
         }
     }
 }
 
-void sub_0801745C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xE;
-    a1->flags |= 2;
-    if (a1->unk40->base.flags & 0x80)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActInhale(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_INHALE;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->base.flags & 0x80)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        if (a1->unkDE != 0xFFFF) {
-            a1->unkEA = a1->unkDE;
-            a1->unkEC = a1->unkE0;
-            if (a1->unkDC != 0x12) {
-                a1->unkDE = a1->unkDE; // required for matching
-                a1->unkE4.ptr = FN(sub_08018DC8);
-                a1->unk0[3] = FN(sub_08018F34);
+        if (brain->actArg != 0xFFFF) {
+            brain->actVar = brain->actArg;
+            brain->actCount = brain->actArg2;
+            if (brain->action != CPU_ACT_TURN) {
+                brain->actArg = brain->actArg; // required for matching
+                brain->actNext.ptr = FN(CpuActInhaleAfterTurn);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
             }
         } else {
-            a1->unk0[3] = FN(sub_08018DE8);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActInhaleBegin);
         }
     }
 }
 
-void sub_08017548(struct Unk_02038590 *a1) {
+void CpuActInhaleHold(struct CpuBrain *brain) {
     bool32 var = FALSE;
 
-    a1->unk9E |= 2;
-    if (++a1->unkEA > 0x1E && a1->unk40->animationIndex == 0)
+    brain->keys |= 2;
+    if (++brain->actVar > 0x1E && brain->kirby->animationIndex == 0)
         var = TRUE;
-    else if (!--a1->unkE8)
+    else if (!--brain->actTimer)
         var = TRUE;
-    else if (a1->unk40->base.flags & 0x80)
+    else if (brain->kirby->base.flags & 0x80)
         var = TRUE;
     if (var) {
-        a1->unkA0 = (Rand16() & 0x7F) + 0x1E;
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->swallowCooldown = (Rand16() & 0x7F) + 0x1E;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_080175D0(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xF;
-    a1->flags &= ~2;
-    if (!(a1->unk40->base.flags & 0x80)
-        || (a1->unk40->base.flags & 0x20))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActSwallow(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_SWALLOW;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (!(brain->kirby->base.flags & 0x80)
+        || (brain->kirby->base.flags & 0x20))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        a1->unk0[3] = FN(sub_08018E3C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallowBegin);
     }
 }
 
-void sub_08017684(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x10;
-    a1->flags |= 2;
-    switch (a1->unk40->ability) {
+void CpuActAttack(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_ATTACK;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    switch (brain->kirby->ability) {
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->animationIndex == 0x34) {
-            if (a1->unkDC != 0x14)
-                a1->unk0[3] = FN(sub_08019094);
+        if (brain->kirby->animationIndex == 0x34) {
+            if (brain->action != CPU_ACT_STONE_TOGGLE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
             return;
         }
         break;
     case KIRBY_ABILITY_THROW:
-        if (sub_0801519C_helper(a1)) {
-            if (a1->unkDC != 0x16) {
-                a1->unkDE = 0xFFFF;
-                a1->unkE0 = 0;
-                a1->unk0[3] = FN(sub_08017B0C);
+        if (CpuIsHoldingThrow(brain)) {
+            if (brain->action != CPU_ACT_THROW) {
+                brain->actArg = 0xFFFF;
+                brain->actArg2 = 0;
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
             }
             return;
         }
         break;
     }
-    if (a1->unkDE != 0xFFFF) {
-        a1->unkEA = a1->unkDE;
-        if (a1->unkDC != 0x12) {
-            a1->unkDE = a1->unkDE; // required for matching
-            a1->unkE4.ptr = FN(sub_08018E7C);
-            a1->unk0[3] = FN(sub_08018F34);
+    if (brain->actArg != 0xFFFF) {
+        brain->actVar = brain->actArg;
+        if (brain->action != CPU_ACT_TURN) {
+            brain->actArg = brain->actArg; // required for matching
+            brain->actNext.ptr = FN(CpuActAttackAfterTurn);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
         }
     } else {
-        a1->unk0[3] = FN(sub_08018E94);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttackBegin);
     }
 }
 
-void sub_08017750(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x11;
-    a1->flags |= 2;
-    if (!(a1->unk40->base.unk58 & 2))
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActWaterAttack(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_WATER_ATTACK;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (!(brain->kirby->base.unk58 & 2))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         case KIRBY_ABILITY_STONE:
         case KIRBY_ABILITY_SMASH:
-            if (a1->unk40->animationIndex == 0x34) {
-                if (a1->unkDC != 0x14)
-                    a1->unk0[3] = FN(sub_08019094);
+            if (brain->kirby->animationIndex == 0x34) {
+                if (brain->action != CPU_ACT_STONE_TOGGLE)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggle);
                 return;
             }
             break;
         case KIRBY_ABILITY_THROW:
-            if (sub_0801519C_helper(a1)) {
-                if (a1->unkDC != 0x16) {
-                    a1->unkDE = 0xFFFF;
-                    a1->unkE0 = 0;
-                    a1->unk0[3] = FN(sub_08017B0C);
+            if (CpuIsHoldingThrow(brain)) {
+                if (brain->action != CPU_ACT_THROW) {
+                    brain->actArg = 0xFFFF;
+                    brain->actArg2 = 0;
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrow);
                 }
                 return;
             }
             break;
         }
-        a1->unk0[3] = FN(sub_08018EF4);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttackBegin);
     }
 }
 
-void sub_08017800(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (a1->unkDE == 1)
-        a1->unk9E |= 0x20;
-    else if (a1->unkDE == 0)
-        a1->unk9E |= 0x10;
-    if (a1->unkE0 == 2)
-        a1->unk9E |= 0x40;
-    else if (a1->unkE0 == 3)
-        a1->unk9E |= 0x80;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActWaterAttackHold(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (brain->actArg == 1)
+        brain->keys |= 0x20;
+    else if (brain->actArg == 0)
+        brain->keys |= 0x10;
+    if (brain->actArg2 == 2)
+        brain->keys |= 0x40;
+    else if (brain->actArg2 == 3)
+        brain->keys |= 0x80;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_0801786C(struct Unk_02038590 *a1) {
+void CpuActTurnTick(struct CpuBrain *brain) {
     bool32 r4 = FALSE;
 
-    if (a1->unkDE == 1) {
-        if (!(a1->unk40->base.flags & 1))
-            a1->unk9E |= 0x20;
+    if (brain->actArg == 1) {
+        if (!(brain->kirby->base.flags & 1))
+            brain->keys |= 0x20;
         else
             r4 = TRUE;
-    } else if (a1->unkDE == 0) {
-        if (a1->unk40->base.flags & 1)
-            a1->unk9E |= 0x10;
+    } else if (brain->actArg == 0) {
+        if (brain->kirby->base.flags & 1)
+            brain->keys |= 0x10;
         else
             r4 = TRUE;
     } else {
         r4 = TRUE;
     }
-    if (!--a1->unkE8)
+    if (!--brain->actTimer)
         r4 = TRUE;
     if (r4) {
-        if (!a1->unkE4.ptr)
-            a1->unk0[3] = FN(sub_0801519C);
+        if (!brain->actNext.ptr)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         else
-            a1->unk0[3] = a1->unkE4.ptr;
+            brain->layers[CPU_LAYER_ACTION] = brain->actNext.ptr;
     }
 }
 
-void sub_080178DC(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x13;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_BOMB)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActBomb(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_BOMB;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_BOMB)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        if (a1->unkDE != 0xFFFF) {
-            a1->unkEA = a1->unkDE;
-            if (a1->unkDC != 0x12) {
-                a1->unkDE = a1->unkDE; // required for matching
-                a1->unkE4.ptr = FN(sub_08018F64);
-                a1->unk0[3] = FN(sub_08018F34);
+        if (brain->actArg != 0xFFFF) {
+            brain->actVar = brain->actArg;
+            if (brain->action != CPU_ACT_TURN) {
+                brain->actArg = brain->actArg; // required for matching
+                brain->actNext.ptr = FN(CpuActBombAfterTurn);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
             }
             return;
         }
-        a1->unk0[3] = FN(sub_08018F7C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombDraw);
     }
 }
 
-void sub_08017950(struct Unk_02038590 *a1) {
-    if (a1->unk1C[2] != 1)
-        a1->unk9E |= 1;
-    if (a1->unkDE == 1)
-        a1->unk9E |= 0x20;
-    else if (a1->unkDE == 0)
-        a1->unk9E |= 0x10;
+void CpuActStoneDropJump(struct CpuBrain *brain) {
+    if (brain->terrain[2] != 1)
+        brain->keys |= 1;
+    if (brain->actArg == 1)
+        brain->keys |= 0x20;
+    else if (brain->actArg == 0)
+        brain->keys |= 0x10;
     else
-        a1->unk9E |= a1->unk40->base.flags & 1 ? 0x20 : 0x10;
-    if (a1->unk40->ability != KIRBY_ABILITY_STONE)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->base.flags & 0x40)
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->keys |= brain->kirby->base.flags & 1 ? 0x20 : 0x10;
+    if (brain->kirby->ability != KIRBY_ABILITY_STONE)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->base.flags & 0x40)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        if (!a1->unkE8) {
-            if (!(a1->unk40->base.flags & 0x20))
-                a1->unk0[3] = FN(sub_0801519C);
+        if (!brain->actTimer) {
+            if (!(brain->kirby->base.flags & 0x20))
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
             else {
-                s16 a = a1->unk40->base.y >> 0xC;
+                s16 a = brain->kirby->base.y >> 0xC;
                 s32 b;
 
-                if (a < a1->unk14->roomHeight >> 4
-                    && !(gCollisionAttributes[sub_080024F0(a1->unk14, a1->unk40->base.x >> 0xC, a)] & 0x200)) {
+                if (a < brain->levelInfo->roomHeight >> 4
+                    && !(gCollisionAttributes[sub_080024F0(brain->levelInfo, brain->kirby->base.x >> 0xC, a)] & 0x200)) {
 #if KATAM_WIDE
                     /* PORT: the wide build reaches this with no target (the
                      * console reads BIOS memory through NULL here; a native
                      * host faults).  No target: as if far away. */
-                    if (a1->unk48 == NULL)
+                    if (brain->target == NULL)
                         b = 0x10;
                     else
 #endif
-                    b = ((a1->unk40->base.x - a1->unk48->base.x) * 0x100) >> 0x10;
+                    b = ((brain->kirby->base.x - brain->target->base.x) * 0x100) >> 0x10;
                     if (b < 0) b = -b;
                     if (b < 0x10)
-                        a1->unk0[3] = FN(sub_080192BC);
+                        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropPress);
                 }
             }
         } else {
-            --a1->unkE8;
+            --brain->actTimer;
         }
     }
 }
 
-void sub_08017A4C(struct Unk_02038590 *a1) {
-    if (a1->unkDE == 1)
-        a1->unk9E |= 0x20;
-    else if (a1->unkDE == 0)
-        a1->unk9E |= 0x10;
+void CpuActStoneDropAim(struct CpuBrain *brain) {
+    if (brain->actArg == 1)
+        brain->keys |= 0x20;
+    else if (brain->actArg == 0)
+        brain->keys |= 0x10;
     else
-        a1->unk9E |= a1->unk40->base.flags & 1 ? 0x20 : 0x10;
+        brain->keys |= brain->kirby->base.flags & 1 ? 0x20 : 0x10;
     {
-        s16 a = a1->unk40->base.y >> 0xC;
+        s16 a = brain->kirby->base.y >> 0xC;
         s32 b;
 
-        if (a < a1->unk14->roomHeight >> 4
-            && !(gCollisionAttributes[sub_080024F0(a1->unk14, a1->unk40->base.x >> 0xC, a)] & 0x200)) {
-            b = ((a1->unk40->base.x - a1->unk48->base.x) * 0x100) >> 0x10;
+        if (a < brain->levelInfo->roomHeight >> 4
+            && !(gCollisionAttributes[sub_080024F0(brain->levelInfo, brain->kirby->base.x >> 0xC, a)] & 0x200)) {
+            b = ((brain->kirby->base.x - brain->target->base.x) * 0x100) >> 0x10;
             if (b < 0) b = -b;
             if (b < 0x10) {
-                a1->unk0[3] = FN(sub_080192BC);
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropPress);
                 return;
             }
         }
-        if (a1->unk40->base.flags & 0x40 || !(a1->unk40->base.flags & 0x20))
-            a1->unk0[3] = FN(sub_0801519C);
+        if (brain->kirby->base.flags & 0x40 || !(brain->kirby->base.flags & 0x20))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_08017B0C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x16;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_THROW)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (sub_0801519C_helper(a1))
-        a1->unk0[3] = FN(sub_08017C24);
-    else if (a1->unkDE != 0xFFFF) {
-        a1->unkEA = a1->unkDE;
-        a1->unkEC = a1->unkE0;
-        if (a1->unkDC != 0x12) {
-            a1->unkDE = a1->unkDE; // required for matching
-            a1->unkE4.ptr = FN(sub_08019418);
-            a1->unk0[3] = FN(sub_08018F34);
+void CpuActThrow(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_THROW;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_THROW)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (CpuIsHoldingThrow(brain))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowAim);
+    else if (brain->actArg != 0xFFFF) {
+        brain->actVar = brain->actArg;
+        brain->actCount = brain->actArg2;
+        if (brain->action != CPU_ACT_TURN) {
+            brain->actArg = brain->actArg; // required for matching
+            brain->actNext.ptr = FN(CpuActThrowAfterTurn);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
         }
     } else {
-        a1->unk0[3] = FN(sub_08019438);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowBegin);
     }
 }
 
-void sub_08017BA8(struct Unk_02038590 *a1) {
+void CpuActThrowGrab(struct CpuBrain *brain) {
     bool32 r4 = FALSE, r5 = FALSE;
 
-    a1->unk9E |= 2;
-    if (sub_0801519C_helper(a1))
+    brain->keys |= 2;
+    if (CpuIsHoldingThrow(brain))
         r5 = TRUE;
-    if ((++a1->unkEA > 0x1E && !a1->unk40->animationIndex))
+    if ((++brain->actVar > 0x1E && !brain->kirby->animationIndex))
         r4 = TRUE;
-    else if (!--a1->unkE8)
+    else if (!--brain->actTimer)
         r4 = TRUE;
     if (r5)
-        a1->unk0[3] = FN(sub_0801948C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowHoldBegin);
     else if (r4)
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08017C24(struct Unk_02038590 *a1) {
+void CpuActThrowAim(struct CpuBrain *brain) {
     u16 r;
 
-    if (a1->unk40->ability != KIRBY_ABILITY_THROW)
-        a1->unk0[3] = FN(sub_0801519C);
+    if (brain->kirby->ability != KIRBY_ABILITY_THROW)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else {
-        a1->unkE8 = 5;
-        a1->unkEA = 0;
+        brain->actTimer = 5;
+        brain->actVar = 0;
         switch (Rand16() & 3) {
         case 0:
-            a1->unkEA = 0x40;
+            brain->actVar = 0x40;
             break;
         case 1:
-            a1->unkEA = 0x80;
+            brain->actVar = 0x80;
             break;
         }
         r = Rand16() & 3;
         if (r < 2)
-            a1->unkEA |= 0x20;
+            brain->actVar |= 0x20;
         else if (r < 4) // always true
-            a1->unkEA |= 0x10;
-        a1->unk0[3] = FN(sub_080194E0);
+            brain->actVar |= 0x10;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowAimHold);
     }
 }
 
-void sub_08017CC4(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x17;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_UFO)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unkDE != 0xFFFF) {
-        a1->unkEA = a1->unkDE;
-        a1->unkEC = a1->unkE0;
-        if (a1->unkDC != 0x12) {
-            a1->unkDE = a1->unkDE; // required for matching
-            a1->unkE4.ptr = FN(sub_080195A4);
-            a1->unk0[3] = FN(sub_08018F34);
+void CpuActUfoShot(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_UFO_SHOT;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_UFO)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->actArg != 0xFFFF) {
+        brain->actVar = brain->actArg;
+        brain->actCount = brain->actArg2;
+        if (brain->action != CPU_ACT_TURN) {
+            brain->actArg = brain->actArg; // required for matching
+            brain->actNext.ptr = FN(CpuActUfoShotAfterTurn);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
         }
     } else {
-        a1->unk0[3] = FN(sub_080195C4);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShotBegin);
     }
 }
 
-void sub_08017D40(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x18;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_CUPID)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unkDE != 0xFFFF) {
-        a1->unkEA = a1->unkDE;
-        a1->unkEC = a1->unkE0;
-        a1->unkEE = a1->unkE4.data;
-        if (a1->unkDC != 0x12) {
-            a1->unkDE = a1->unkDE; // required for matching
-            a1->unkE4.ptr = FN(sub_08019638);
-            a1->unk0[3] = FN(sub_08018F34);
+void CpuActCupidShot(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_CUPID_SHOT;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_CUPID)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->actArg != 0xFFFF) {
+        brain->actVar = brain->actArg;
+        brain->actCount = brain->actArg2;
+        brain->actTimer2 = brain->actNext.data;
+        if (brain->action != CPU_ACT_TURN) {
+            brain->actArg = brain->actArg; // required for matching
+            brain->actNext.ptr = FN(CpuActCupidShotAfterTurn);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
         }
     } else {
-        a1->unk0[3] = FN(sub_08019664);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShotBegin);
     }
 }
 
-void sub_08017DC4(struct Unk_02038590 *a1) {
-    switch (a1->unkE0) {
+void CpuActCupidShotCharge(struct CpuBrain *brain) {
+    switch (brain->actArg2) {
     case 2:
-        a1->unk9E |= 0x40;
+        brain->keys |= 0x40;
         break;
     case 3:
-        a1->unk9E |= 0x80;
+        brain->keys |= 0x80;
         break;
     }
-    if (a1->unkE8 > 5)
-        a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+    if (brain->actTimer > 5)
+        brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08017E1C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x19;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_MISSILE)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unkDE != 0xFFFF) {
-        a1->unkEA = a1->unkDE;
-        a1->unkEC = a1->unkE0;
-        a1->unkEE = a1->unkE4.data;
-        if (a1->unkDC != 0x12) {
-            a1->unkDE = a1->unkDE; // required for matching
-            a1->unkE4.ptr = FN(sub_080196A4);
-            a1->unk0[3] = FN(sub_08018F34);
+void CpuActMissile(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_MISSILE;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_MISSILE)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->actArg != 0xFFFF) {
+        brain->actVar = brain->actArg;
+        brain->actCount = brain->actArg2;
+        brain->actTimer2 = brain->actNext.data;
+        if (brain->action != CPU_ACT_TURN) {
+            brain->actArg = brain->actArg; // required for matching
+            brain->actNext.ptr = FN(CpuActMissileAfterTurn);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
         }
     } else {
-        a1->unk0[3] = FN(sub_080196D0);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileBegin);
     }
 }
 
-void sub_08017EA0(struct Unk_02038590 *a1) {
-    if (a1->unkDE == 1)
-        a1->unk9E |= 0x20;
-    else if (a1->unkDE == 0)
-        a1->unk9E |= 0x10;
-    if (a1->unkE0 == 2)
-        a1->unk9E |= 0x40;
-    else if (a1->unkE0 == 3)
-        a1->unk9E |= 0x80;
-    a1->unk9E |= 2;
-    if (++a1->unkE8 > 5)
-        a1->unk0[3] = FN(sub_08017F10);
+void CpuActMissileLaunch(struct CpuBrain *brain) {
+    if (brain->actArg == 1)
+        brain->keys |= 0x20;
+    else if (brain->actArg == 0)
+        brain->keys |= 0x10;
+    if (brain->actArg2 == 2)
+        brain->keys |= 0x40;
+    else if (brain->actArg2 == 3)
+        brain->keys |= 0x80;
+    brain->keys |= 2;
+    if (++brain->actTimer > 5)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileFly);
 }
 
-void sub_08017F10(struct Unk_02038590 *a1) {
-    if (a1->unkDE == 1)
-        a1->unk9E |= 0x20;
-    else if (a1->unkDE == 0)
-        a1->unk9E |= 0x10;
-    if (a1->unkE0 == 2)
-        a1->unk9E |= 0x40;
-    else if (a1->unkE0 == 3)
-        a1->unk9E |= 0x80;
-    if (++a1->unkE8 > a1->unkE4.data) {
-        a1->unk9E |= 2;
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActMissileFly(struct CpuBrain *brain) {
+    if (brain->actArg == 1)
+        brain->keys |= 0x20;
+    else if (brain->actArg == 0)
+        brain->keys |= 0x10;
+    if (brain->actArg2 == 2)
+        brain->keys |= 0x40;
+    else if (brain->actArg2 == 3)
+        brain->keys |= 0x80;
+    if (++brain->actTimer > brain->actNext.data) {
+        brain->keys |= 2;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_08017F88(struct Unk_02038590 *a1) {
-    u16 ret = sub_08154FE8(a1->unkDE - (a1->unk40->base.x >> 8), a1->unkE0 - (a1->unk40->base.y >> 8)) & 0x3FF;
+void CpuActMissileHomingLaunch(struct CpuBrain *brain) {
+    u16 ret = sub_08154FE8(brain->actArg - (brain->kirby->base.x >> 8), brain->actArg2 - (brain->kirby->base.y >> 8)) & 0x3FF;
 
-    a1->unk9E |= 2;
+    brain->keys |= 2;
     if (ret > 0x200)
-        a1->unk9E |= 0x20;
+        brain->keys |= 0x20;
     else
-        a1->unk9E |= 0x10;
+        brain->keys |= 0x10;
     if (ret > 0x100 && ret < 0x300)
-        a1->unk9E |= 0x40;
+        brain->keys |= 0x40;
     else
-        a1->unk9E |= 0x80;
-    if (++a1->unkE8 > 5)
-        a1->unk0[3] = FN(sub_08018024);
+        brain->keys |= 0x80;
+    if (++brain->actTimer > 5)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileHomingSteer);
 }
 
-void sub_08018024(struct Unk_02038590 *a1) {
-    s16 a = a1->unk40->base.x >> 8;
-    s16 b = a1->unk40->base.y >> 8;
-    u16 ret = sub_08154FE8(a1->unkDE - a, a1->unkE0 - b) & 0x3FF;
-    s16 dx = a > a1->unkDE ? a - a1->unkDE : a1->unkDE - a;
-    s16 dy = b > a1->unkE0 ? b - a1->unkE0 : a1->unkE0 - b;
+void CpuActMissileHomingSteer(struct CpuBrain *brain) {
+    s16 a = brain->kirby->base.x >> 8;
+    s16 b = brain->kirby->base.y >> 8;
+    u16 ret = sub_08154FE8(brain->actArg - a, brain->actArg2 - b) & 0x3FF;
+    s16 dx = a > brain->actArg ? a - brain->actArg : brain->actArg - a;
+    s16 dy = b > brain->actArg2 ? b - brain->actArg2 : brain->actArg2 - b;
     s16 max = dy < dx ? dx : dy;
 
     if (ret > 0x200)
-        a1->unk9E |= 0x20;
+        brain->keys |= 0x20;
     else
-        a1->unk9E |= 0x10;
+        brain->keys |= 0x10;
     if (ret > 0x100 && ret < 0x300)
-        a1->unk9E |= 0x40;
+        brain->keys |= 0x40;
     else
-        a1->unk9E |= 0x80;
-    if (++a1->unkE8 > 0x12C || max < 0xC) {
-        a1->unk9E |= 2;
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->keys |= 0x80;
+    if (++brain->actTimer > 0x12C || max < 0xC) {
+        brain->keys |= 2;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_08018110(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x1B;
-    a1->flags |= 2;
-    a1->unkE8 = 0;
+void CpuActRoom397(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_ROOM_397;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    brain->actTimer = 0;
     { /* PORT-FORK: RNG sequenced in agbcc's order (random.h) */
         u32 rnd = Rand16Twice();
-        a1->unkEA = ((rnd & 0x1F) + 0x10) | (((rnd & 0x1F) + 0x10) << 8);
+        brain->actVar = ((rnd & 0x1F) + 0x10) | (((rnd & 0x1F) + 0x10) << 8);
     }
-    a1->unkEC = (Rand16() & 0x1F) + 0x5A;
-    a1->unk0[3] = FN(sub_0801818C);
+    brain->actCount = (Rand16() & 0x1F) + 0x5A;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActRoom397Tick);
 }
 
-void sub_0801818C(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom != 0x397) {
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActRoom397Tick(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom != 0x397) {
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         return;
     }
-    if (!a1->unkEC) {
-        a1->unk9E |= 2;
-        a1->unkEC = (Rand16() & 0x1F) + 0x5A;
+    if (!brain->actCount) {
+        brain->keys |= 2;
+        brain->actCount = (Rand16() & 0x1F) + 0x5A;
     } else {
-        --a1->unkEC;
+        --brain->actCount;
     }
-    if (!(a1->unkEA & 0xFF)) {
+    if (!(brain->actVar & 0xFF)) {
         u32 flags;
 
-        a1->unkE8 &= ~0x30;
+        brain->actTimer &= ~0x30;
         flags = 0;
-        if (a1->unk40->base.x < 0x2000)
+        if (brain->kirby->base.x < 0x2000)
             flags = 0x10;
-        else if (a1->unk40->base.x > 0xD000)
+        else if (brain->kirby->base.x > 0xD000)
             flags = 0x20;
         else {
             u16 r = Rand16() & 7;
@@ -4399,19 +4399,19 @@ void sub_0801818C(struct Unk_02038590 *a1) {
             else if (r < 4)
                 flags = 0x10;
         }
-        a1->unkE8 |= flags;
-        a1->unkEA |= (Rand16() & 0x1F) + 0x10;
+        brain->actTimer |= flags;
+        brain->actVar |= (Rand16() & 0x1F) + 0x10;
     } else {
-        --a1->unkEA;
+        --brain->actVar;
     }
-    if (!(a1->unkEA & 0xFF00)) {
+    if (!(brain->actVar & 0xFF00)) {
         u32 flags;
 
-        a1->unkE8 &= ~0xC0;
+        brain->actTimer &= ~0xC0;
         flags = 0;
-        if (a1->unk40->base.y < 0x7800)
+        if (brain->kirby->base.y < 0x7800)
             flags = 0x80;
-        else if (a1->unk40->base.y > 0x9800)
+        else if (brain->kirby->base.y > 0x9800)
             flags = 0x40;
         else {
             switch (Rand16() & 0x1F) {
@@ -4423,1268 +4423,1492 @@ void sub_0801818C(struct Unk_02038590 *a1) {
                 break;
             }
         }
-        a1->unkE8 |= flags;
-        a1->unkEA |= ((Rand16() & 0xF) + 8) << 8;
+        brain->actTimer |= flags;
+        brain->actVar |= ((Rand16() & 0xF) + 8) << 8;
     } else {
-        a1->unkEA -= 0x100;
+        brain->actVar -= 0x100;
     }
-    a1->unk9E |= a1->unkE8;
+    brain->keys |= brain->actTimer;
 }
 
-bool16 sub_08018368(struct Unk_02038590 *a1 __attribute__((unused))) {
+bool16 CpuBreakBlockNone(struct CpuBrain *brain __attribute__((unused))) {
     return FALSE;
 }
 
-void sub_0801836C(struct Unk_02038590 *a1) {
-    a1->unk48 = NULL;
+void CpuScanNone(struct CpuBrain *brain) {
+    brain->target = NULL;
 }
 
-void sub_08018374(struct Unk_02038590 *a1) {
-    a1->unk48 = NULL;
-    sub_08010818(a1, NULL);
+void CpuScanMini(struct CpuBrain *brain) {
+    brain->target = NULL;
+    CpuTryHopOverTarget(brain, NULL);
 }
 
-void nullsub_103(struct Task *a1 __attribute__((unused))) {}
+void CpuBrainTaskDestroy(struct Task *brain __attribute__((unused))) {}
 
-void sub_08018388(struct Unk_02038590 *a1) {
-    ++a1->unkB8;
+void CpuScriptOpNop(struct CpuBrain *brain) {
+    ++brain->scriptPc;
 }
 
-void sub_08018394(struct Unk_02038590 *a1) {
-    a1->flags |= 0xC;
+void CpuScriptOpEnd(struct CpuBrain *brain) {
+    brain->flags |= (CPU_FLAG_FREE | CPU_FLAG_SCRIPT_WAITING);
 }
 
-void sub_080183A0(struct Unk_02038590 *a1) {
+void CpuScriptOpWait(struct CpuBrain *brain) {
     u16 r1;
 
-    ++a1->unkB8;
-    r1 = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    a1->flags |= 8;
-    sub_08019734(a1, r1);
+    ++brain->scriptPc;
+    r1 = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    brain->flags |= CPU_FLAG_SCRIPT_WAITING;
+    CpuScriptWaitBegin(brain, r1);
 }
 
-void sub_080183D0(struct Unk_02038590 *a1) {
+void CpuScriptOpGoToNode(struct CpuBrain *brain) {
     u16 r1;
 
-    ++a1->unkB8;
-    r1 = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    a1->flags |= 8;
-    sub_08019784(a1, r1);
+    ++brain->scriptPc;
+    r1 = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    brain->flags |= CPU_FLAG_SCRIPT_WAITING;
+    CpuScriptGoToBegin(brain, r1);
 }
 
-void sub_08018400(struct Unk_02038590 *a1) {
-    ++a1->unkB8;
-    a1->unk3E = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
+void CpuScriptOpSetAbility(struct CpuBrain *brain) {
+    ++brain->scriptPc;
+    brain->wantAbility = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
 }
 
-void sub_08018428(struct Unk_02038590 *a1) {
+void CpuScriptOpFace(struct CpuBrain *brain) {
     u16 r1;
 
-    ++a1->unkB8;
-    r1 = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    a1->flags |= 8;
-    sub_080197BC(a1, r1);
+    ++brain->scriptPc;
+    r1 = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    brain->flags |= CPU_FLAG_SCRIPT_WAITING;
+    CpuScriptFaceBegin(brain, r1);
 }
 
-void sub_08018458(struct Unk_02038590 *a1) {
+void CpuScriptOpInhale(struct CpuBrain *brain) {
     u16 r1;
 
-    ++a1->unkB8;
-    r1 = a1->unkB4[a1->unkB8];
-    ++a1->unkB8;
-    a1->flags |= 8;
-    sub_0801984C(a1, r1);
+    ++brain->scriptPc;
+    r1 = brain->script[brain->scriptPc];
+    ++brain->scriptPc;
+    brain->flags |= CPU_FLAG_SCRIPT_WAITING;
+    CpuScriptInhaleBegin(brain, r1);
 }
 
-void sub_08018488(struct Unk_02038590 *a1) {
-    ++a1->unkB8;
-    a1->flags |= 8;
-    sub_080199CC(a1);
+void CpuScriptOpSlide(struct CpuBrain *brain) {
+    ++brain->scriptPc;
+    brain->flags |= CPU_FLAG_SCRIPT_WAITING;
+    CpuScriptSlideBegin(brain);
 }
 
-void sub_080184A4(struct Unk_02038590 *a1) {
+void CpuScriptOpSkip(struct CpuBrain *brain) {
     u16 r1;
 
-    ++a1->unkB8;
-    r1 = a1->unkB8;
-    a1->unkB8 = ++r1 + a1->unkB4[a1->unkB8];
+    ++brain->scriptPc;
+    r1 = brain->scriptPc;
+    brain->scriptPc = ++r1 + brain->script[brain->scriptPc];
 }
 
-void sub_080184C4(struct Unk_02038590 *a1) {
-    ++a1->unkB8;
-    a1->unk0[1] = FN(sub_080184DC);
+void CpuScriptOpRoam(struct CpuBrain *brain) {
+    ++brain->scriptPc;
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoam);
 }
 
-void nullsub_104(struct Unk_02038590 *a1 __attribute__((unused))) {}
+void CpuGoalNone(struct CpuBrain *brain __attribute__((unused))) {}
 
-void sub_080184DC(struct Unk_02038590 *a1) {
-    a1->unk0[1] = FN(sub_08013B98);
+void CpuGoalRoam(struct CpuBrain *brain) {
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoamBegin);
 }
 
-void sub_080184E8(struct Unk_02038590 *a1) {
-    a1->flags &= ~1;
-    a1->unk0[2] = FN(sub_0801858C);
-    a1->unk0[1] = FN(sub_08019BF0);
+void CpuGoalFollowBegin(struct CpuBrain *brain) {
+    brain->flags &= ~CPU_FLAG_GOAL_REACHED;
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseMoving);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalFollowTick);
 }
 
-void sub_08018504(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom != 0x397)
-        a1->unk0[1] = FN(sub_08013A60);
+void CpuGoalRoom397Wait(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom != 0x397)
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalHoldBegin);
 }
 
-void nullsub_105(struct Unk_02038590 *a1 __attribute__((unused))) {}
+void CpuSenseNone(struct CpuBrain *brain __attribute__((unused))) {}
 
-void sub_0801852C(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom == 0x397)
-        a1->unk0[2] = FN(sub_080185EC);
+void CpuSenseIdle(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom == 0x397)
+        brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseRoom397);
     else {
-        if ((gUnk_0203AD40 & 3) == (a1->unk40->base.unk56 & 3))
-            sub_08018610(a1);
-        if (!(a1->flags & 2))
-            sub_080108B8(a1);
-        sub_0800FF60(a1);
+        if ((gUnk_0203AD40 & 3) == (brain->kirby->base.unk56 & 3))
+            CpuSenseSurroundings(brain);
+        if (!(brain->flags & CPU_FLAG_ACTION_BUSY))
+            CpuScanForTarget(brain);
+        CpuDecideMouthful(brain);
     }
 }
 
-void sub_0801858C(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom == 0x397)
-        a1->unk0[2] = FN(sub_080185EC);
+void CpuSenseMoving(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom == 0x397)
+        brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseRoom397);
     else {
-        if ((gUnk_0203AD40 & 1) == (a1->unk40->base.unk56 & 1))
-            sub_08018640(a1);
-        if (!(a1->flags & 2))
-            sub_080108B8(a1);
-        sub_0800FF60(a1);
+        if ((gUnk_0203AD40 & 1) == (brain->kirby->base.unk56 & 1))
+            CpuSenseSurroundingsAndPath(brain);
+        if (!(brain->flags & CPU_FLAG_ACTION_BUSY))
+            CpuScanForTarget(brain);
+        CpuDecideMouthful(brain);
     }
 }
 
-void sub_080185EC(struct Unk_02038590 *a1) {
-    if (a1->unk14->currentRoom != 0x397)
-        a1->unk0[2] = FN(sub_0801852C);
+void CpuSenseRoom397(struct CpuBrain *brain) {
+    if (brain->levelInfo->currentRoom != 0x397)
+        brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseIdle);
 }
 
-void sub_08018610(struct Unk_02038590 *a1) {
-    u8 unk = sub_0800EEBC(&a1->unk40->base);
+void CpuSenseSurroundings(struct CpuBrain *brain) {
+    u8 unk = CpuNavNodeAt(&brain->kirby->base);
 
-    if (unk != a1->unk1A)
-        ++a1->unk3C;
-    a1->unk1A = unk;
-    sub_0800F044(a1);
-    sub_08010294(a1);
+    if (unk != brain->curNode)
+        ++brain->nodeChanges;
+    brain->curNode = unk;
+    CpuScanTerrain(brain);
+    CpuUpdateTargetMemory(brain);
 }
 
-void sub_08018640(struct Unk_02038590 *a1) {
+void CpuSenseSurroundingsAndPath(struct CpuBrain *brain) {
     u8 unk;
     bool32 b = FALSE;
 
-    sub_0800F044(a1);
-    unk = sub_0800EEBC(&a1->unk40->base);
-    if (unk != a1->unk1A)
-        ++a1->unk3C;
-    a1->unk1A = unk;
-    if (a1->unk3F != 0xFF)
+    CpuScanTerrain(brain);
+    unk = CpuNavNodeAt(&brain->kirby->base);
+    if (unk != brain->curNode)
+        ++brain->nodeChanges;
+    brain->curNode = unk;
+    if (brain->nextNode != 0xFF)
         b = TRUE;
     if (b)
-        a1->unk3F = a1->unk14->unk1E8->unk14[a1->unk1A].unk0[a1->unk1B];
-    sub_08010144(a1);
-    sub_08010294(a1);
+        brain->nextNode = brain->levelInfo->unk1E8->unk14[brain->curNode].unk0[brain->goalNode];
+    CpuUpdateGoalVectors(brain);
+    CpuUpdateTargetMemory(brain);
 }
 
-void sub_080186A4(struct Unk_02038590 *a1) {
-    if (a1->unk40->ability == KIRBY_ABILITY_CUPID)
-        a1->unk9E |= 1;
+void CpuActLeaveFlight(struct CpuBrain *brain) {
+    if (brain->kirby->ability == KIRBY_ABILITY_CUPID)
+        brain->keys |= 1;
     else
-        a1->unk9E |= 2;
-    a1->unk0[3] = FN(sub_080152B0);
+        brain->keys |= 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActDecide);
 }
 
-void sub_080186DC(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 1;
-    a1->flags &= ~2;
-    a1->unk9E |= 4;
-    a1->unk0[3] = FN(sub_0801519C);
+void CpuActDropAbility(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_DROP_ABILITY;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    brain->keys |= 4;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_0801870C(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 2;
-    a1->flags &= ~2;
-    a1->unkDE = Rand16() & 0xF;
-    a1->unk0[3] = FN(sub_080156FC);
+void CpuActAnswerPhone(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_ANSWER_PHONE;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    brain->actArg = Rand16() & 0xF;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAnswerPhoneWait);
 }
 
-void sub_08018758(struct Unk_02038590 *a1) {
-    a1->unk0[3] = FN(sub_0801519C);
+void CpuActBackToThink(struct CpuBrain *brain) {
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08018764(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 3;
-    if (a1->unk40->ability == KIRBY_ABILITY_UFO)
-        a1->unk0[3] = FN(sub_08018BF4);
-    else if (a1->unk40->base.unk58 & 2)
-        a1->unk0[3] = FN(sub_08018B18);
+void CpuActMove(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_MOVE;
+    if (brain->kirby->ability == KIRBY_ABILITY_UFO)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoMove);
+    else if (brain->kirby->base.unk58 & 2)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwim);
     else
-        a1->unk0[3] = FN(sub_08015970);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalk);
 }
 
-void sub_080187B0(struct Unk_02038590 *a1) {
+void CpuActDashFirstTap(struct CpuBrain *brain) {
     u16 r3;
 
-    a1->unkE8 = 4;
-    r3 = a1->unk9A < 0x200 ? 0x10 : 0x20;
-    a1->unkEA = r3;
-    a1->unk9E = r3;
-    a1->unk0[3] = FN(sub_080187E8);
+    brain->actTimer = 4;
+    r3 = brain->waypointAngle < 0x200 ? 0x10 : 0x20;
+    brain->actVar = r3;
+    brain->keys = r3;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActDashGap);
 }
 
-void sub_080187E8(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08018808);
+void CpuActDashGap(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActDashSecondTap);
 }
 
-void sub_08018808(struct Unk_02038590 *a1) {
-    a1->unkE8 = 4;
-    a1->unk9E = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018828);
+void CpuActDashSecondTap(struct CpuBrain *brain) {
+    brain->actTimer = 4;
+    brain->keys = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActDashHold);
 }
 
-void sub_08018828(struct Unk_02038590 *a1) {
-    a1->unk9E = a1->unkEA;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08015A4C);
+void CpuActDashHold(struct CpuBrain *brain) {
+    brain->keys = brain->actVar;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkStride);
 }
 
-void sub_08018850(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0x5A;
-    a1->unk0[3] = FN(sub_08018864);
+void CpuActWalkPauseBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0x5A;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkPause);
 }
 
-void sub_08018864(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08015A4C);
+void CpuActWalkPause(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalkStride);
 }
 
-void sub_08018884(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 5;
-    a1->flags &= ~2;
-    a1->unkE8 = 0;
-    a1->unk0[3] = FN(sub_080188BC);
+void CpuActHoldDown(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_HOLD_DOWN;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    brain->actTimer = 0;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActHoldDownTick);
 }
 
-void sub_080188BC(struct Unk_02038590 *a1) {
-    a1->unk9E = 0x80;
-    if (a1->unkDE < a1->unkE8++)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActHoldDownTick(struct CpuBrain *brain) {
+    brain->keys = 0x80;
+    if (brain->actArg < brain->actTimer++)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_080188F0(struct Unk_02038590 *a1) {
-    if (a1->unkE8++ < 10) {
-        a1->unk9E = 0x80;
-        if (a1->unk40->animationIndex == 0x2D || a1->unk40->animationIndex == 0x2E)
-            a1->unk0[3] = FN(sub_08018930);
+void CpuActLadderGrab(struct CpuBrain *brain) {
+    if (brain->actTimer++ < 10) {
+        brain->keys = 0x80;
+        if (brain->kirby->animationIndex == 0x2D || brain->kirby->animationIndex == 0x2E)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderStart);
     } else {
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     }
 }
 
-void sub_08018930(struct Unk_02038590 *a1) {
-    a1->unkEC = 0;
-    a1->unk0[3] = FN(sub_08018944);
+void CpuActLadderStart(struct CpuBrain *brain) {
+    brain->actCount = 0;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderClimbBegin);
 }
 
-void sub_08018944(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x3F) + 0x1E;
-    a1->unkEA = a1->unk9A > 0x100 && a1->unk9A < 0x300 ? 0x40 : 0x80;
-    a1->unk0[3] = FN(sub_0801602C);
+void CpuActLadderClimbBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x3F) + 0x1E;
+    brain->actVar = brain->waypointAngle > 0x100 && brain->waypointAngle < 0x300 ? 0x40 : 0x80;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActLadderClimbTick);
 }
 
-void sub_080189A0(struct Unk_02038590 *a1) {
-    a1->unkE8 = 4;
-    a1->unkEA = Rand16() & 3;
-    a1->unk0[3] = FN(sub_0801617C);
+void CpuActJumpBegin(struct CpuBrain *brain) {
+    brain->actTimer = 4;
+    brain->actVar = Rand16() & 3;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActJumpRise);
 }
 
-void sub_080189DC(struct Unk_02038590 *a1) {
-    if (a1->unk1C[7]) {
-        if (a1->unkDC != 4)
-            a1->unk0[3] = FN(sub_08015970);
+void CpuActFlyFromGround(struct CpuBrain *brain) {
+    if (brain->terrain[7]) {
+        if (brain->action != CPU_ACT_WALK)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActWalk);
     } else {
-        a1->unkE8 = 8;
-        a1->unk0[3] = FN(sub_08018A10);
+        brain->actTimer = 8;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlyJump);
     }
 }
 
-void sub_08018A10(struct Unk_02038590 *a1) {
-    a1->unk9E |= 1;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08018A3C);
+void CpuActFlyJump(struct CpuBrain *brain) {
+    brain->keys |= 1;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlyPuffBegin);
 }
 
-void sub_08018A3C(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0x10;
-    a1->unk0[3] = FN(sub_08018A50);
+void CpuActFlyPuffBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0x10;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlyPuff);
 }
 
-void sub_08018A50(struct Unk_02038590 *a1) {
-    a1->unk9E |= 0x40;
-    if (!--a1->unkE8) {
-        if (!(a1->unk40->base.flags & 0x40)) {
-            if (a1->unkDC != 3)
-                a1->unk0[3] = FN(sub_08018764);
+void CpuActFlyPuff(struct CpuBrain *brain) {
+    brain->keys |= 0x40;
+    if (!--brain->actTimer) {
+        if (!(brain->kirby->base.flags & 0x40)) {
+            if (brain->action != CPU_ACT_MOVE)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActMove);
         } else {
-            a1->unk0[3] = FN(sub_08018A9C);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerBegin);
         }
     }
 }
 
-void sub_08018A9C(struct Unk_02038590 *a1) {
-    a1->unkEC = (Rand16() & 0xF) + 8;
-    a1->unk0[3] = FN(sub_08018AD0);
+void CpuActFlySteerBegin(struct CpuBrain *brain) {
+    brain->actCount = (Rand16() & 0xF) + 8;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerLeg);
 }
 
-void sub_08018AD0(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x1F) + 0xA;
-    a1->unkEA = sub_08014B9C(a1);
-    a1->unk0[3] = FN(sub_08016428);
+void CpuActFlySteerLeg(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x1F) + 0xA;
+    brain->actVar = CpuFlyKeysToWaypoint(brain);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActFlySteerTick);
 }
 
-void sub_08018B18(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 9;
-    a1->flags &= ~2;
-    if (!(a1->unk40->base.unk58 & 2))
-        a1->unk0[3] = FN(sub_0801639C);
-    else if (a1->unk40->base.flags & 0xC0)
-        a1->unk0[3] = FN(sub_08018B6C);
+void CpuActSwim(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_SWIM;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (!(brain->kirby->base.unk58 & 2))
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActFly);
+    else if (brain->kirby->base.flags & 0xC0)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimStrokeBegin);
     else
-        a1->unk0[3] = FN(sub_08018BAC);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimLeg);
 }
 
-void sub_08018B6C(struct Unk_02038590 *a1) {
-    a1->unkE8 = 5;
-    a1->unk0[3] = FN(sub_08018B80);
+void CpuActSwimStrokeBegin(struct CpuBrain *brain) {
+    brain->actTimer = 5;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimStroke);
 }
 
-void sub_08018B80(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08018BAC);
+void CpuActSwimStroke(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimLeg);
 }
 
-void sub_08018BAC(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0xF) + 8;
-    a1->unkEA = sub_08014DA4(a1);
-    a1->unk0[3] = FN(sub_08016C24);
+void CpuActSwimLeg(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0xF) + 8;
+    brain->actVar = CpuSwimKeysToWaypoint(brain);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwimTick);
 }
 
-void sub_08018BF4(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0xA;
-    a1->flags &= ~2;
-    if (a1->unk40->ability != KIRBY_ABILITY_UFO)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActUfoMove(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_UFO_MOVE;
+    brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_UFO)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else
-        a1->unk0[3] = FN(sub_08018C38);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoMoveLeg);
 }
 
-void sub_08018C38(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0xF) + 8;
-    a1->unkEA = sub_08014FA0(a1);
-    a1->unk0[3] = FN(sub_08016EF0);
+void CpuActUfoMoveLeg(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0xF) + 8;
+    brain->actVar = CpuUfoKeysToWaypoint(brain);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoMoveTick);
 }
 
-void sub_08018C80(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018C98);
+void CpuActSlideAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlideBegin);
 }
 
-void sub_08018C98(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0x10;
-    a1->unk0[3] = FN(sub_08018CAC);
+void CpuActSlideBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0x10;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlideCrouch);
 }
 
-void sub_08018CAC(struct Unk_02038590 *a1) {
-    a1->unk9E |= 0x80;
-    if (!--a1->unkE8) {
-        a1->unkE8 = 0x1E;
-        a1->unk0[3] = FN(sub_08018CDC);
+void CpuActSlideCrouch(struct CpuBrain *brain) {
+    brain->keys |= 0x80;
+    if (!--brain->actTimer) {
+        brain->actTimer = 0x1E;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlideKick);
     }
 }
 
-void sub_08018CDC(struct Unk_02038590 *a1) {
-    a1->unk9E |= 0x81;
-    if (!a1->unkE8) {
-        if (a1->unk40->animationIndex != 0xD && a1->unk40->animationIndex != 0xE)
-            a1->unk0[3] = FN(sub_0801519C);
+void CpuActSlideKick(struct CpuBrain *brain) {
+    brain->keys |= 0x81;
+    if (!brain->actTimer) {
+        if (brain->kirby->animationIndex != 0xD && brain->kirby->animationIndex != 0xE)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     } else {
-        --a1->unkE8;
+        --brain->actTimer;
     }
 }
 
-void sub_08018D18(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018D30);
+void CpuActAirPuffAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAirPuffBegin);
 }
 
-void sub_08018D30(struct Unk_02038590 *a1) {
-    a1->unkE8 = 2;
-    a1->unk0[3] = FN(sub_08018D44);
+void CpuActAirPuffBegin(struct CpuBrain *brain) {
+    brain->actTimer = 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAirPuffPress);
 }
 
-void sub_08018D44(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActAirPuffPress(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08018D70(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018D88);
+void CpuActSpitAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpitBegin);
 }
 
-void sub_08018D88(struct Unk_02038590 *a1) {
-    a1->unkE8 = 2;
-    a1->unk0[3] = FN(sub_08018D9C);
+void CpuActSpitBegin(struct CpuBrain *brain) {
+    brain->actTimer = 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpitPress);
 }
 
-void sub_08018D9C(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActSpitPress(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08018DC8(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unkE0 = a1->unkEC;
-    a1->unk0[3] = FN(sub_08018DE8);
+void CpuActInhaleAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->actArg2 = brain->actCount;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActInhaleBegin);
 }
 
-void sub_08018DE8(struct Unk_02038590 *a1) {
-    if (!a1->unkE0)
-        a1->unkE8 = (Rand16() & 0xFF) + 0x3C;
+void CpuActInhaleBegin(struct CpuBrain *brain) {
+    if (!brain->actArg2)
+        brain->actTimer = (Rand16() & 0xFF) + 0x3C;
     else
-        a1->unkE8 = a1->unkE0;
-    a1->unkEA = 0;
-    a1->unk0[3] = FN(sub_08017548);
+        brain->actTimer = brain->actArg2;
+    brain->actVar = 0;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActInhaleHold);
 }
 
-void sub_08018E3C(struct Unk_02038590 *a1) {
-    a1->unkE8 = 2;
-    a1->unk0[3] = FN(sub_08018E50);
+void CpuActSwallowBegin(struct CpuBrain *brain) {
+    brain->actTimer = 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSwallowPress);
 }
 
-void sub_08018E50(struct Unk_02038590 *a1) {
-    a1->unk9E |= 0x80;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActSwallowPress(struct CpuBrain *brain) {
+    brain->keys |= 0x80;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08018E7C(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018E94);
+void CpuActAttackAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttackBegin);
 }
 
-void sub_08018E94(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x7F) + 5;
-    a1->unk0[3] = FN(sub_08018EC8);
+void CpuActAttackBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x7F) + 5;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActAttackHold);
 }
 
-void sub_08018EC8(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActAttackHold(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08018EF4(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x3F) + 0x10;
-    a1->unk9E |= 2;
-    a1->unk0[3] = FN(sub_08017800);
+void CpuActWaterAttackBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x3F) + 0x10;
+    brain->keys |= 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActWaterAttackHold);
 }
 
-void sub_08018F34(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x12;
-    a1->unk0[3] = FN(sub_08018F50);
+void CpuActTurn(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_TURN;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurnBegin);
 }
 
-void sub_08018F50(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0xB4;
-    a1->unk0[3] = FN(sub_0801786C);
+void CpuActTurnBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0xB4;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurnTick);
 }
 
-void sub_08018F64(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unk0[3] = FN(sub_08018F7C);
+void CpuActBombAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombDraw);
 }
 
-void sub_08018F7C(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0x10;
-    a1->unk9E |= 2;
-    a1->unk0[3] = FN(sub_08018F9C);
+void CpuActBombDraw(struct CpuBrain *brain) {
+    brain->actTimer = 0x10;
+    brain->keys |= 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombWait);
 }
 
-void sub_08018F9C(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08018FBC);
+void CpuActBombWait(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombThrowBegin);
 }
 
-void sub_08018FBC(struct Unk_02038590 *a1) {
-    a1->unkE8 = 4;
-    a1->unk0[3] = FN(sub_08018FD0);
+void CpuActBombThrowBegin(struct CpuBrain *brain) {
+    brain->actTimer = 4;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombThrow);
 }
 
-void sub_08018FD0(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (a1->unkE0 == 2)
-        a1->unk9E |= 0x40;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08019010);
+void CpuActBombThrow(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (brain->actArg2 == 2)
+        brain->keys |= 0x40;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombFollowBegin);
 }
 
-void sub_08019010(struct Unk_02038590 *a1) {
-    a1->unkE8 = 4;
-    a1->unk0[3] = FN(sub_0801902C);
-    sub_0801902C(a1);
+void CpuActBombFollowBegin(struct CpuBrain *brain) {
+    brain->actTimer = 4;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombFollow);
+    CpuActBombFollow(brain);
 }
 
-void sub_0801902C(struct Unk_02038590 *a1) {
-    if (a1->unkE0 == 2)
-        a1->unk9E |= 0x40;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08019060);
+void CpuActBombFollow(struct CpuBrain *brain) {
+    if (brain->actArg2 == 2)
+        brain->keys |= 0x40;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombCooldownBegin);
 }
 
-void sub_08019060(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0x3C;
-    a1->unk0[3] = FN(sub_08019074);
+void CpuActBombCooldownBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0x3C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActBombCooldown);
 }
 
-void sub_08019074(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActBombCooldown(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08019094(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x14;
-    a1->flags |= 2;
-    if (a1->unk40->ability != KIRBY_ABILITY_STONE)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->animationIndex == 0x34)
-        a1->unk0[3] = FN(sub_08019138);
+void CpuActStoneToggle(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_STONE_TOGGLE;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    if (brain->kirby->ability != KIRBY_ABILITY_STONE)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->animationIndex == 0x34)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleRevert);
     else
-        a1->unk0[3] = FN(sub_080190E8);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleBecome);
 }
 
-void sub_080190E8(struct Unk_02038590 *a1) {
-    a1->unk0[3] = FN(sub_080190F4);
+void CpuActStoneToggleBecome(struct CpuBrain *brain) {
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleBecomePress);
 }
 
-void sub_080190F4(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    a1->unk0[3] = FN(sub_0801910C);
+void CpuActStoneToggleBecomePress(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleFall);
 }
 
-void sub_0801910C(struct Unk_02038590 *a1) {
-    if (!a1->unkE8) {
-        if (!(a1->unk40->base.flags & 0x20))
-            a1->unk0[3] = FN(sub_08019138);
+void CpuActStoneToggleFall(struct CpuBrain *brain) {
+    if (!brain->actTimer) {
+        if (!(brain->kirby->base.flags & 0x20))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleRevert);
     } else {
-        --a1->unkE8;
+        --brain->actTimer;
     }
 }
 
-void sub_08019138(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    a1->unkE8 = (Rand16() & 0x3F) + 5;
-    a1->unk0[3] = FN(sub_08019178);
+void CpuActStoneToggleRevert(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    brain->actTimer = (Rand16() & 0x3F) + 5;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneToggleRevertWait);
 }
 
-void sub_08019178(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActStoneToggleRevertWait(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08019198(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x15;
-    a1->flags |= 2;
-    switch (a1->unk40->ability) {
+void CpuActStoneDrop(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_STONE_DROP;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    switch (brain->kirby->ability) {
     default:
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         break;
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->animationIndex == 0x34)
-            a1->unk0[3] = FN(sub_08019378);
+        if (brain->kirby->animationIndex == 0x34)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevert);
         else
-            a1->unk0[3] = FN(sub_080191F0);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropDispatch);
         break;
     }
 }
 
-void sub_080191F0(struct Unk_02038590 *a1) {
-    if (a1->unk40->ability == KIRBY_ABILITY_STONE && a1->unk40->animationIndex == 0x34)
-        a1->unk0[3] = FN(sub_08019378);
-    else if (a1->unk40->base.flags & 0x40)
-        a1->unk0[3] = FN(sub_0801519C);
-    else if (a1->unk40->base.flags & 0x20)
-        a1->unk0[3] = FN(sub_08017A4C);
+void CpuActStoneDropDispatch(struct CpuBrain *brain) {
+    if (brain->kirby->ability == KIRBY_ABILITY_STONE && brain->kirby->animationIndex == 0x34)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevert);
+    else if (brain->kirby->base.flags & 0x40)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    else if (brain->kirby->base.flags & 0x20)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropAim);
     else
-        a1->unk0[3] = FN(sub_08019248);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropFromGround);
 }
 
-void sub_08019248(struct Unk_02038590 *a1) {
-    switch (a1->unk40->ability) {
+void CpuActStoneDropFromGround(struct CpuBrain *brain) {
+    switch (brain->kirby->ability) {
     default:
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         break;
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->base.flags & 0x60)
-            a1->unk0[3] = FN(sub_0801519C);
+        if (brain->kirby->base.flags & 0x60)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         else
-            a1->unk0[3] = FN(sub_08019288);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropJumpBegin);
         break;
     }
 }
 
-void sub_08019288(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0xF) + 0xA;
-    a1->unk0[3] = FN(sub_08017950);
+void CpuActStoneDropJumpBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0xF) + 0xA;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropJump);
 }
 
-void sub_080192BC(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    a1->unk0[3] = FN(sub_080192D4);
+void CpuActStoneDropPress(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropFall);
 }
 
-void sub_080192D4(struct Unk_02038590 *a1) {
-    switch (a1->unk40->ability) {
+void CpuActStoneDropFall(struct CpuBrain *brain) {
+    switch (brain->kirby->ability) {
     default:
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         break;
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (!(a1->unk40->base.flags & 0x20) || a1->unk40->base.flags & 0x40)
-            a1->unk0[3] = FN(sub_0801519C);
-        else if (!(a1->unk40->base.flags & 0x20) && !a1->unk40->base.yspeed)
-            a1->unk0[3] = FN(sub_08019324);
+        if (!(brain->kirby->base.flags & 0x20) || brain->kirby->base.flags & 0x40)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+        else if (!(brain->kirby->base.flags & 0x20) && !brain->kirby->base.yspeed)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropSitBegin);
         break;
     }
 }
 
-void sub_08019324(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x3F) + 0xF;
-    a1->unk0[3] = FN(sub_08019358);
+void CpuActStoneDropSitBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x3F) + 0xF;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropSit);
 }
 
-void sub_08019358(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08019378);
+void CpuActStoneDropSit(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevert);
 }
 
-void sub_08019378(struct Unk_02038590 *a1) {
-    switch (a1->unk40->ability) {
+void CpuActStoneDropRevert(struct CpuBrain *brain) {
+    switch (brain->kirby->ability) {
     default:
-        a1->unk0[3] = FN(sub_0801519C);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         break;
     case KIRBY_ABILITY_STONE:
     case KIRBY_ABILITY_SMASH:
-        if (a1->unk40->animationIndex != 0x34)
-            a1->unk0[3] = FN(sub_0801519C);
+        if (brain->kirby->animationIndex != 0x34)
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         else
-            a1->unk0[3] = FN(sub_080193B8);
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevertPress);
         break;
     }
 }
 
-void sub_080193B8(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    a1->unkE8 = (Rand16() & 0x1F) + 0x1E;
-    a1->unk0[3] = FN(sub_080193F8);
+void CpuActStoneDropRevertPress(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    brain->actTimer = (Rand16() & 0x1F) + 0x1E;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevertWait);
 }
 
-void sub_080193F8(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08019378);
+void CpuActStoneDropRevertWait(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActStoneDropRevert);
 }
 
-void sub_08019418(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unkE0 = a1->unkEC;
-    a1->unk0[3] = FN(sub_08019438);
+void CpuActThrowAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->actArg2 = brain->actCount;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowBegin);
 }
 
-void sub_08019438(struct Unk_02038590 *a1) {
-    if (!a1->unkE0)
-        a1->unkE8 = (Rand16() & 0x3F) + 0x1E;
+void CpuActThrowBegin(struct CpuBrain *brain) {
+    if (!brain->actArg2)
+        brain->actTimer = (Rand16() & 0x3F) + 0x1E;
     else
-        a1->unkE8 = a1->unkE0;
-    a1->unkEA = 0;
-    a1->unk0[3] = FN(sub_08017BA8);
+        brain->actTimer = brain->actArg2;
+    brain->actVar = 0;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowGrab);
 }
 
-void sub_0801948C(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x1F) + 0x1E;
-    a1->unk0[3] = FN(sub_080194C0);
+void CpuActThrowHoldBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x1F) + 0x1E;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowHold);
 }
 
-void sub_080194C0(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08017C24);
+void CpuActThrowHold(struct CpuBrain *brain) {
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowAim);
 }
 
-void sub_080194E0(struct Unk_02038590 *a1) {
-    a1->unk9E = a1->unkEA;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_08019508);
+void CpuActThrowAimHold(struct CpuBrain *brain) {
+    brain->keys = brain->actVar;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowRelease);
 }
 
-void sub_08019508(struct Unk_02038590 *a1) {
-    a1->unk9E = a1->unkEA | 2;
-    a1->unk0[3] = FN(sub_08019524);
+void CpuActThrowRelease(struct CpuBrain *brain) {
+    brain->keys = brain->actVar | 2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowCooldownBegin);
 }
 
-void sub_08019524(struct Unk_02038590 *a1) {
-    a1->unkE8 = (Rand16() & 0x3F) + 0x1E;
-    a1->unk0[3] = FN(sub_08019558);
+void CpuActThrowCooldownBegin(struct CpuBrain *brain) {
+    brain->actTimer = (Rand16() & 0x3F) + 0x1E;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowCooldown);
 }
 
-void sub_08019558(struct Unk_02038590 *a1) {
-    if (!--a1->unkE8) {
-        if (sub_0801519C_helper(a1))
-            a1->unk0[3] = FN(sub_08019524);
+void CpuActThrowCooldown(struct CpuBrain *brain) {
+    if (!--brain->actTimer) {
+        if (CpuIsHoldingThrow(brain))
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThrowCooldownBegin);
         else {
-            a1->flags &= ~2;
-            a1->unk0[3] = FN(sub_0801519C);
+            brain->flags &= ~CPU_FLAG_ACTION_BUSY;
+            brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
         }
     }
 }
 
-void sub_080195A4(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unkE0 = a1->unkEC;
-    a1->unk0[3] = FN(sub_080195C4);
+void CpuActUfoShotAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->actArg2 = brain->actCount;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShotBegin);
 }
 
-void sub_080195C4(struct Unk_02038590 *a1) {
-    switch (a1->unkE0) {
+void CpuActUfoShotBegin(struct CpuBrain *brain) {
+    switch (brain->actArg2) {
     case 0:
-        a1->unkE8 = 4;
+        brain->actTimer = 4;
         break;
     case 1:
-        a1->unkE8 = 0x1E;
+        brain->actTimer = 0x1E;
         break;
     case 2:
-        a1->unkE8 = 0x3C;
+        brain->actTimer = 0x3C;
         break;
     default:
-        a1->unkE8 = 0x78;
+        brain->actTimer = 0x78;
         break;
     }
-    a1->unk0[3] = FN(sub_0801960C);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActUfoShotCharge);
 }
 
-void sub_0801960C(struct Unk_02038590 *a1) {
-    a1->unk9E |= 2;
-    if (!--a1->unkE8)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActUfoShotCharge(struct CpuBrain *brain) {
+    brain->keys |= 2;
+    if (!--brain->actTimer)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
 }
 
-void sub_08019638(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unkE0 = a1->unkEC;
-    a1->unkE4.data = a1->unkEE;
-    a1->unk0[3] = FN(sub_08019664);
+void CpuActCupidShotAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->actArg2 = brain->actCount;
+    brain->actNext.data = brain->actTimer2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShotBegin);
 }
 
-void sub_08019664(struct Unk_02038590 *a1) {
-    switch (a1->unkE4.data) {
+void CpuActCupidShotBegin(struct CpuBrain *brain) {
+    switch (brain->actNext.data) {
     default:
-        a1->unkE8 = 0x96;
+        brain->actTimer = 0x96;
         break;
     case 0:
-        a1->unkE8 = 0x1E;
+        brain->actTimer = 0x1E;
         break;
     case 1:
-        a1->unkE8 = 0x3C;
+        brain->actTimer = 0x3C;
         break;
     case 2:
-        a1->unkE8 = 0x64;
+        brain->actTimer = 0x64;
         break;
     }
-    a1->unk0[3] = FN(sub_08017DC4);
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActCupidShotCharge);
 }
 
-void sub_080196A4(struct Unk_02038590 *a1) {
-    a1->unkDE = a1->unkEA;
-    a1->unkE0 = a1->unkEC;
-    a1->unkE4.data = a1->unkEE;
-    a1->unk0[3] = FN(sub_080196D0);
+void CpuActMissileAfterTurn(struct CpuBrain *brain) {
+    brain->actArg = brain->actVar;
+    brain->actArg2 = brain->actCount;
+    brain->actNext.data = brain->actTimer2;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileBegin);
 }
 
-void sub_080196D0(struct Unk_02038590 *a1) {
-    a1->unkE8 = 0;
-    a1->unk0[3] = FN(sub_08017EA0);
+void CpuActMissileBegin(struct CpuBrain *brain) {
+    brain->actTimer = 0;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileLaunch);
 }
 
-void sub_080196E4(struct Unk_02038590 *a1) {
-    a1->unkDD = a1->unkDC;
-    a1->unkDC = 0x1A;
-    a1->flags |= 2;
-    a1->unkE8 = 0;
-    if (a1->unk40->ability != KIRBY_ABILITY_MISSILE)
-        a1->unk0[3] = FN(sub_0801519C);
+void CpuActMissileHoming(struct CpuBrain *brain) {
+    brain->prevAction = brain->action;
+    brain->action = CPU_ACT_MISSILE_HOMING;
+    brain->flags |= CPU_FLAG_ACTION_BUSY;
+    brain->actTimer = 0;
+    if (brain->kirby->ability != KIRBY_ABILITY_MISSILE)
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
     else
-        a1->unk0[3] = FN(sub_08017F88);
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActMissileHomingLaunch);
 }
 
-void sub_08019734(struct Unk_02038590 *a1, u16 a2) {
-    a1->unkBC = 0x3C * a2;
-    a1->unk0[0] = FN(sub_08019758);
-    a1->unk0[1] = FN(sub_08013A60);
+void CpuScriptWaitBegin(struct CpuBrain *brain, u16 a2) {
+    brain->scriptArg = 0x3C * a2;
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptWaitTick);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalHoldBegin);
 }
 
-void sub_08019758(struct Unk_02038590 *a1) {
-    if (!--a1->unkBC) {
-        a1->flags &= ~8;
-        a1->unk0[0] = FN(sub_08013804);
+void CpuScriptWaitTick(struct CpuBrain *brain) {
+    if (!--brain->scriptArg) {
+        brain->flags &= ~CPU_FLAG_SCRIPT_WAITING;
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
     }
 }
 
-void sub_08019784(struct Unk_02038590 *a1, u16 a2) {
-    a1->unk1B = a2;
-    a1->unk0[1] = FN(sub_08013B00);
-    a1->unk0[0] = FN(sub_08019798);
+void CpuScriptGoToBegin(struct CpuBrain *brain, u16 a2) {
+    brain->goalNode = a2;
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalScriptNodeBegin);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptGoToTick);
 }
 
-void sub_08019798(struct Unk_02038590 *a1) {
-    if (a1->flags & 1) {
-        a1->flags &= ~8;
-        a1->unk0[0] = FN(sub_08013804);
+void CpuScriptGoToTick(struct CpuBrain *brain) {
+    if (brain->flags & CPU_FLAG_GOAL_REACHED) {
+        brain->flags &= ~CPU_FLAG_SCRIPT_WAITING;
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
     }
 }
 
-void sub_080197BC(struct Unk_02038590 *a1, u16 a2) {
-    a1->unkBC = a2;
-    a1->unk0[0] = FN(sub_080197DC);
-    a1->unk0[1] = FN(nullsub_104);
-    a1->unk0[2] = FN(nullsub_105);
+void CpuScriptFaceBegin(struct CpuBrain *brain, u16 a2) {
+    brain->scriptArg = a2;
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptFaceStart);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalNone);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseNone);
 }
 
-void sub_080197DC(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x258;
-    a1->unk0[0] = FN(sub_08019818);
-    if (a1->unkDC != 0x12) {
-        a1->unkDE = a1->unkBC;
-        a1->unkE4.data = 0;
-        a1->unk0[3] = FN(sub_08018F34);
+void CpuScriptFaceStart(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x258;
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptFaceTick);
+    if (brain->action != CPU_ACT_TURN) {
+        brain->actArg = brain->scriptArg;
+        brain->actNext.data = 0;
+        brain->layers[CPU_LAYER_ACTION] = FN(CpuActTurn);
     }
 }
 
-void sub_08019818(struct Unk_02038590 *a1) {
-    if (a1->unkDC != 0x12 || !--a1->unkBE) {
-        a1->flags &= ~8;
-        a1->unk0[0] = FN(sub_08013804);
+void CpuScriptFaceTick(struct CpuBrain *brain) {
+    if (brain->action != CPU_ACT_TURN || !--brain->scriptTimeout) {
+        brain->flags &= ~CPU_FLAG_SCRIPT_WAITING;
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
     }
 }
 
-void sub_0801984C(struct Unk_02038590 *a1, u16 a2) {
-    a1->unkBC = 0x3C * a2;
-    a1->unk0[0] = FN(sub_08019878);
-    a1->unk0[1] = FN(nullsub_104);
-    a1->unk0[2] = FN(nullsub_105);
+void CpuScriptInhaleBegin(struct CpuBrain *brain, u16 a2) {
+    brain->scriptArg = 0x3C * a2;
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhalePrepare);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalNone);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseNone);
 }
 
-void sub_08019878(struct Unk_02038590 *a1) {
-    if (a1->unk40->base.flags & 0x80)
-        a1->unk0[0] = FN(sub_080198C4);
+void CpuScriptInhalePrepare(struct CpuBrain *brain) {
+    if (brain->kirby->base.flags & 0x80)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleSpitFirst);
     else {
-        switch (a1->unk40->ability) {
+        switch (brain->kirby->ability) {
         default:
-            if (a1->unk40->base.flags & 0x40)
-                a1->unk0[0] = FN(sub_08019914);
+            if (brain->kirby->base.flags & 0x40)
+                brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleLandFirst);
             else
-                a1->unk0[0] = FN(sub_0801995C);
+                brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleStart);
             break;
         case KIRBY_ABILITY_UFO:
         case KIRBY_ABILITY_MINI:
-            a1->unk0[0] = FN(sub_0801995C);
+            brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleStart);
             break;
         }
     }
 }
 
-void sub_080198C4(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unk0[3] = FN(sub_0801737C);
-    a1->unk0[0] = FN(sub_080198E0);
+void CpuScriptInhaleSpitFirst(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleSpitWait);
 }
 
-void sub_080198E0(struct Unk_02038590 *a1) {
-    if ((a1->unkDC != 0xD && a1->unk40->animationIndex != 0x26) || !--a1->unkBE)
-        a1->unk0[0] = FN(sub_0801995C);
+void CpuScriptInhaleSpitWait(struct CpuBrain *brain) {
+    if ((brain->action != CPU_ACT_SPIT && brain->kirby->animationIndex != 0x26) || !--brain->scriptTimeout)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleStart);
 }
 
-void sub_08019914(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unk0[3] = FN(sub_0801519C);
-    a1->unk0[0] = FN(sub_08019930);
+void CpuScriptInhaleLandFirst(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleLandWait);
 }
 
-void sub_08019930(struct Unk_02038590 *a1) {
-    if (!(a1->unk40->base.flags & 0x40) || !--a1->unkBE)
-        a1->unk0[0] = FN(sub_0801995C);
+void CpuScriptInhaleLandWait(struct CpuBrain *brain) {
+    if (!(brain->kirby->base.flags & 0x40) || !--brain->scriptTimeout)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleStart);
 }
 
-void sub_0801995C(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x3C * (a1->unkBC + 5);
-    a1->unkDE = 0xFFFF;
-    a1->unkE0 = a1->unkBC;
-    a1->unk0[3] = FN(sub_0801745C);
-    a1->unk0[0] = FN(sub_08019998);
+void CpuScriptInhaleStart(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x3C * (brain->scriptArg + 5);
+    brain->actArg = 0xFFFF;
+    brain->actArg2 = brain->scriptArg;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActInhale);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptInhaleTick);
 }
 
-void sub_08019998(struct Unk_02038590 *a1) {
-    if (!a1->unkDC || !--a1->unkBE) {
-        a1->flags &= ~8;
-        a1->unk0[0] = FN(sub_08013804);
+void CpuScriptInhaleTick(struct CpuBrain *brain) {
+    if (!brain->action || !--brain->scriptTimeout) {
+        brain->flags &= ~CPU_FLAG_SCRIPT_WAITING;
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
     }
 }
 
-void sub_080199CC(struct Unk_02038590 *a1) {
-    a1->unkBC = 4;
-    a1->unk0[0] = FN(sub_08013924);
-    a1->unk0[1] = FN(nullsub_104);
-    a1->unk0[2] = FN(nullsub_105);
+void CpuScriptSlideBegin(struct CpuBrain *brain) {
+    brain->scriptArg = 4;
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlidePrepare);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalNone);
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseNone);
 }
 
-void sub_080199F0(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unk0[3] = FN(sub_0801737C);
-    a1->unk0[0] = FN(sub_08019A0C);
+void CpuScriptSlideSpitFirst(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSpit);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideSpitWait);
 }
 
-void sub_08019A0C(struct Unk_02038590 *a1) {
-    if ((a1->unkDC != 0xD && a1->unk40->animationIndex != 0x26) || !--a1->unkBE)
-        a1->unk0[0] = FN(sub_08013924);
+void CpuScriptSlideSpitWait(struct CpuBrain *brain) {
+    if ((brain->action != CPU_ACT_SPIT && brain->kirby->animationIndex != 0x26) || !--brain->scriptTimeout)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlidePrepare);
 }
 
-void sub_08019A40(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unk0[3] = FN(sub_0801519C);
-    a1->unk0[0] = FN(sub_08019A5C);
+void CpuScriptSlideLandFirst(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideLandWait);
 }
 
-void sub_08019A5C(struct Unk_02038590 *a1) {
-    if (!(a1->unk40->base.flags & 0x40) || !--a1->unkBE)
-        a1->unk0[0] = FN(sub_08013924);
+void CpuScriptSlideLandWait(struct CpuBrain *brain) {
+    if (!(brain->kirby->base.flags & 0x40) || !--brain->scriptTimeout)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlidePrepare);
 }
 
-void sub_08019A88(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unk0[3] = FN(sub_0801519C);
-    a1->unk0[0] = FN(sub_08019AA4);
+void CpuScriptSlideFallFirst(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActThink);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideFallWait);
 }
 
-void sub_08019AA4(struct Unk_02038590 *a1) {
-    if (!(a1->unk40->base.flags & 0x20) || !--a1->unkBE)
-        a1->unk0[0] = FN(sub_08013924);
+void CpuScriptSlideFallWait(struct CpuBrain *brain) {
+    if (!(brain->kirby->base.flags & 0x20) || !--brain->scriptTimeout)
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlidePrepare);
 }
 
-void sub_08019AD0(struct Unk_02038590 *a1) {
-    a1->unkBE = 0x12C;
-    a1->unkDE = 0xFFFF;
-    a1->unk0[3] = FN(sub_08017144);
-    a1->unk0[0] = FN(sub_08019AF8);
+void CpuScriptSlideStart(struct CpuBrain *brain) {
+    brain->scriptTimeout = 0x12C;
+    brain->actArg = 0xFFFF;
+    brain->layers[CPU_LAYER_ACTION] = FN(CpuActSlide);
+    brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptSlideTick);
 }
 
-void sub_08019AF8(struct Unk_02038590 *a1) {
-    if (a1->unkDC != 0xB || !--a1->unkBE) {
-        a1->flags &= ~8;
-        a1->unk0[0] = FN(sub_08013804);
+void CpuScriptSlideTick(struct CpuBrain *brain) {
+    if (brain->action != CPU_ACT_SLIDE || !--brain->scriptTimeout) {
+        brain->flags &= ~CPU_FLAG_SCRIPT_WAITING;
+        brain->layers[CPU_LAYER_SCRIPT] = FN(CpuScriptStep);
     }
 }
 
-void nullsub_106(struct Unk_02038590 *a1 __attribute__((unused))) {}
+void CpuGoalIdle(struct CpuBrain *brain __attribute__((unused))) {}
 
-void sub_08019B30(struct Unk_02038590 *a1) {
-    if (!(a1->flags & 1)) {
-        if (a1->unkCC) --a1->unkCC;
-        if (!(a1->flags & 1) && (a1->unk1A == a1->unk3F || a1->unk1B == 0xFF || !a1->unkCC)) {
-            a1->flags |= 1;
-            a1->unk0[2] = FN(sub_0801852C);
+void CpuGoalScriptNodeTick(struct CpuBrain *brain) {
+    if (!(brain->flags & CPU_FLAG_GOAL_REACHED)) {
+        if (brain->goalTimer) --brain->goalTimer;
+        if (!(brain->flags & CPU_FLAG_GOAL_REACHED) && (brain->curNode == brain->nextNode || brain->goalNode == 0xFF || !brain->goalTimer)) {
+            brain->flags |= CPU_FLAG_GOAL_REACHED;
+            brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseIdle);
         }
     }
 }
 
-void sub_08019B84(struct Unk_02038590 *a1) {
-    if (a1->unk40->base.flags & 0x60)
-        a1->unkCC = (Rand16() & 0x1F) + 0x1E;
+void CpuGoalRoamPauseBegin(struct CpuBrain *brain) {
+    if (brain->kirby->base.flags & 0x60)
+        brain->goalTimer = (Rand16() & 0x1F) + 0x1E;
     else
-        a1->unkCC = (Rand16() & 0x7F) + 0x1E;
-    a1->unk0[2] = FN(sub_0801852C);
-    a1->unk0[1] = FN(sub_08013D0C);
+        brain->goalTimer = (Rand16() & 0x7F) + 0x1E;
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseIdle);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoamPauseTick);
 }
 
-void sub_08019BF0(struct Unk_02038590 *a1) {
-    if (!sub_080103BC(a1))
-        a1->unk0[1] = FN(sub_080184DC);
+void CpuGoalFollowTick(struct CpuBrain *brain) {
+    if (!CpuUpdateFollow(brain))
+        brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalRoam);
     else {
-        a1->unk1B = sub_0800EEBC(&a1->unk44->base);
-        a1->unk7C = a1->unk44->base.x;
-        a1->unk80 = a1->unk44->base.y;
-        a1->unk3F = a1->unk14->unk1E8->unk14[a1->unk1A].unk0[a1->unk1B];
-        sub_08010144(a1);
+        brain->goalNode = CpuNavNodeAt(&brain->followKirby->base);
+        brain->goalX = brain->followKirby->base.x;
+        brain->goalY = brain->followKirby->base.y;
+        brain->nextNode = brain->levelInfo->unk1E8->unk14[brain->curNode].unk0[brain->goalNode];
+        CpuUpdateGoalVectors(brain);
     }
 }
 
-void sub_08019C4C(struct Unk_02038590 *a1) {
-    if (a1->unk40->base.flags & 0x60)
-        a1->unkCC = (Rand16() & 0x1F) + 0x1E;
+void CpuGoalOffscreenPauseBegin(struct CpuBrain *brain) {
+    if (brain->kirby->base.flags & 0x60)
+        brain->goalTimer = (Rand16() & 0x1F) + 0x1E;
     else
-        a1->unkCC = (Rand16() & 0x7F) + 0x1E;
-    a1->unk0[2] = FN(sub_0801852C);
-    a1->unk0[1] = FN(sub_08014B28);
+        brain->goalTimer = (Rand16() & 0x7F) + 0x1E;
+    brain->layers[CPU_LAYER_SENSE] = FN(CpuSenseIdle);
+    brain->layers[CPU_LAYER_GOAL] = FN(CpuGoalOffscreenPauseTick);
 }
 
 #ifdef __cplusplus
 }
 #endif
+/* PORT-FNID: these functions were renamed from their address names, so
+ * katam.elf no longer names them; pin each code ID to its ROM address
+ * (tools/codemod_fnid.py reads these):
+ * PORT_FNID_ROM(CpuScanNormal, 0x08010AC9u)
+ * PORT_FNID_ROM(CpuScanFire, 0x08010B81u)
+ * PORT_FNID_ROM(CpuScanIce, 0x08010C35u)
+ * PORT_FNID_ROM(CpuScanBurning, 0x08010CE9u)
+ * PORT_FNID_ROM(CpuScanWheel, 0x08010E3Du)
+ * PORT_FNID_ROM(CpuScanParasol, 0x08010F91u)
+ * PORT_FNID_ROM(CpuScanCutter, 0x08011045u)
+ * PORT_FNID_ROM(CpuScanBeam, 0x0801119Du)
+ * PORT_FNID_ROM(CpuScanStone, 0x08011251u)
+ * PORT_FNID_ROM(CpuScanBomb, 0x08011325u)
+ * PORT_FNID_ROM(CpuScanThrow, 0x0801149Du)
+ * PORT_FNID_ROM(CpuScanCook, 0x08011559u)
+ * PORT_FNID_ROM(CpuScanLaser, 0x080115FDu)
+ * PORT_FNID_ROM(CpuScanUfo, 0x08011755u)
+ * PORT_FNID_ROM(CpuScanSpark, 0x08011A29u)
+ * PORT_FNID_ROM(CpuScanTornado, 0x08011AD9u)
+ * PORT_FNID_ROM(CpuScanHammer, 0x08011C2Du)
+ * PORT_FNID_ROM(CpuScanSword, 0x08011CE1u)
+ * PORT_FNID_ROM(CpuScanCupid, 0x08011D95u)
+ * PORT_FNID_ROM(CpuScanFighter, 0x08011F01u)
+ * PORT_FNID_ROM(CpuScanMagic, 0x08011FB5u)
+ * PORT_FNID_ROM(CpuScanSmash, 0x08012049u)
+ * PORT_FNID_ROM(CpuScanCrash, 0x080120FDu)
+ * PORT_FNID_ROM(CpuScanMissile, 0x08012191u)
+ * PORT_FNID_ROM(CpuScanMaster, 0x0801232Du)
+ * PORT_FNID_ROM(CpuScanUnderwater, 0x080123E1u)
+ * PORT_FNID_ROM(CpuScanNone, 0x0801836Du)
+ * PORT_FNID_ROM(CpuScanMini, 0x08018375u)
+ * PORT_FNID_ROM(CpuBreakBlockNormal, 0x080124E1u)
+ * PORT_FNID_ROM(CpuBreakBlockFireIce, 0x080126CDu)
+ * PORT_FNID_ROM(CpuBreakBlockBurning, 0x08012885u)
+ * PORT_FNID_ROM(CpuBreakBlockWheel, 0x08012981u)
+ * PORT_FNID_ROM(CpuBreakBlockParasol, 0x08012A89u)
+ * PORT_FNID_ROM(CpuBreakBlockShot, 0x08012BC9u)
+ * PORT_FNID_ROM(CpuBreakBlockBeam, 0x08012C5Du)
+ * PORT_FNID_ROM(CpuBreakBlockStone, 0x08012DD5u)
+ * PORT_FNID_ROM(CpuBreakBlockSparkSword, 0x08012EADu)
+ * PORT_FNID_ROM(CpuBreakBlockCupid, 0x08012FD9u)
+ * PORT_FNID_ROM(CpuBreakBlockHammer, 0x08013175u)
+ * PORT_FNID_ROM(CpuBreakBlockThrow, 0x08013319u)
+ * PORT_FNID_ROM(CpuBreakBlockMissile, 0x08013519u)
+ * PORT_FNID_ROM(CpuBreakBlockTornado, 0x08013721u)
+ * PORT_FNID_ROM(CpuBreakBlockNone, 0x08018369u)
+ * PORT_FNID_ROM(CpuScriptStep, 0x08013805u)
+ * PORT_FNID_ROM(CpuScriptWaitTick, 0x08019759u)
+ * PORT_FNID_ROM(CpuScriptGoToTick, 0x08019799u)
+ * PORT_FNID_ROM(CpuScriptFaceStart, 0x080197DDu)
+ * PORT_FNID_ROM(CpuScriptFaceTick, 0x08019819u)
+ * PORT_FNID_ROM(CpuScriptInhalePrepare, 0x08019879u)
+ * PORT_FNID_ROM(CpuScriptInhaleSpitFirst, 0x080198C5u)
+ * PORT_FNID_ROM(CpuScriptInhaleSpitWait, 0x080198E1u)
+ * PORT_FNID_ROM(CpuScriptInhaleLandFirst, 0x08019915u)
+ * PORT_FNID_ROM(CpuScriptInhaleLandWait, 0x08019931u)
+ * PORT_FNID_ROM(CpuScriptInhaleStart, 0x0801995Du)
+ * PORT_FNID_ROM(CpuScriptInhaleTick, 0x08019999u)
+ * PORT_FNID_ROM(CpuScriptSlidePrepare, 0x08013925u)
+ * PORT_FNID_ROM(CpuScriptSlideSpitFirst, 0x080199F1u)
+ * PORT_FNID_ROM(CpuScriptSlideSpitWait, 0x08019A0Du)
+ * PORT_FNID_ROM(CpuScriptSlideLandFirst, 0x08019A41u)
+ * PORT_FNID_ROM(CpuScriptSlideLandWait, 0x08019A5Du)
+ * PORT_FNID_ROM(CpuScriptSlideFallFirst, 0x08019A89u)
+ * PORT_FNID_ROM(CpuScriptSlideFallWait, 0x08019AA5u)
+ * PORT_FNID_ROM(CpuScriptSlideStart, 0x08019AD1u)
+ * PORT_FNID_ROM(CpuScriptSlideTick, 0x08019AF9u)
+ * PORT_FNID_ROM(CpuBrainTaskDestroy, 0x08018385u)
+ * PORT_FNID_ROM(CpuGoalNone, 0x080184D9u)
+ * PORT_FNID_ROM(CpuSenseNone, 0x08018529u)
+ * PORT_FNID_ROM(CpuGoalIdle, 0x08019B2Du)
+ * PORT_FNID_ROM(CpuGoalHoldBegin, 0x08013A61u)
+ * PORT_FNID_ROM(CpuGoalRoom397Wait, 0x08018505u)
+ * PORT_FNID_ROM(CpuGoalScriptNodeBegin, 0x08013B01u)
+ * PORT_FNID_ROM(CpuGoalScriptNodeTick, 0x08019B31u)
+ * PORT_FNID_ROM(CpuGoalRoam, 0x080184DDu)
+ * PORT_FNID_ROM(CpuGoalRoamBegin, 0x08013B99u)
+ * PORT_FNID_ROM(CpuGoalRoamTick, 0x08013C4Du)
+ * PORT_FNID_ROM(CpuGoalRoamPauseBegin, 0x08019B85u)
+ * PORT_FNID_ROM(CpuGoalRoamPauseTick, 0x08013D0Du)
+ * PORT_FNID_ROM(CpuGoalFollowBegin, 0x080184E9u)
+ * PORT_FNID_ROM(CpuGoalFollowTick, 0x08019BF1u)
+ * PORT_FNID_ROM(CpuGoalOffscreenBegin, 0x08014929u)
+ * PORT_FNID_ROM(CpuGoalOffscreenRoamBegin, 0x080149CDu)
+ * PORT_FNID_ROM(CpuGoalOffscreenRoamTick, 0x08014A81u)
+ * PORT_FNID_ROM(CpuGoalOffscreenPauseBegin, 0x08019C4Du)
+ * PORT_FNID_ROM(CpuGoalOffscreenPauseTick, 0x08014B29u)
+ * PORT_FNID_ROM(CpuSenseIdle, 0x0801852Du)
+ * PORT_FNID_ROM(CpuSenseMoving, 0x0801858Du)
+ * PORT_FNID_ROM(CpuSenseRoom397, 0x080185EDu)
+ * PORT_FNID_ROM(CpuActThink, 0x0801519Du)
+ * PORT_FNID_ROM(CpuActDecide, 0x080152B1u)
+ * PORT_FNID_ROM(CpuActLeaveFlight, 0x080186A5u)
+ * PORT_FNID_ROM(CpuActDropAbility, 0x080186DDu)
+ * PORT_FNID_ROM(CpuActAnswerPhone, 0x0801870Du)
+ * PORT_FNID_ROM(CpuActAnswerPhoneWait, 0x080156FDu)
+ * PORT_FNID_ROM(CpuActBackToThink, 0x08018759u)
+ * PORT_FNID_ROM(CpuActMove, 0x08018765u)
+ * PORT_FNID_ROM(CpuActWalk, 0x08015971u)
+ * PORT_FNID_ROM(CpuActWalkStride, 0x08015A4Du)
+ * PORT_FNID_ROM(CpuActWalkTick, 0x08015AF1u)
+ * PORT_FNID_ROM(CpuActDashFirstTap, 0x080187B1u)
+ * PORT_FNID_ROM(CpuActDashGap, 0x080187E9u)
+ * PORT_FNID_ROM(CpuActDashSecondTap, 0x08018809u)
+ * PORT_FNID_ROM(CpuActDashHold, 0x08018829u)
+ * PORT_FNID_ROM(CpuActWalkPauseBegin, 0x08018851u)
+ * PORT_FNID_ROM(CpuActWalkPause, 0x08018865u)
+ * PORT_FNID_ROM(CpuActHoldDown, 0x08018885u)
+ * PORT_FNID_ROM(CpuActHoldDownTick, 0x080188BDu)
+ * PORT_FNID_ROM(CpuActLadder, 0x08015FA1u)
+ * PORT_FNID_ROM(CpuActLadderGrab, 0x080188F1u)
+ * PORT_FNID_ROM(CpuActLadderStart, 0x08018931u)
+ * PORT_FNID_ROM(CpuActLadderClimbBegin, 0x08018945u)
+ * PORT_FNID_ROM(CpuActLadderClimbTick, 0x0801602Du)
+ * PORT_FNID_ROM(CpuActJump, 0x080160B9u)
+ * PORT_FNID_ROM(CpuActJumpBegin, 0x080189A1u)
+ * PORT_FNID_ROM(CpuActJumpRise, 0x0801617Du)
+ * PORT_FNID_ROM(CpuActJumpAir, 0x08016289u)
+ * PORT_FNID_ROM(CpuActFly, 0x0801639Du)
+ * PORT_FNID_ROM(CpuActFlyFromGround, 0x080189DDu)
+ * PORT_FNID_ROM(CpuActFlyJump, 0x08018A11u)
+ * PORT_FNID_ROM(CpuActFlyPuffBegin, 0x08018A3Du)
+ * PORT_FNID_ROM(CpuActFlyPuff, 0x08018A51u)
+ * PORT_FNID_ROM(CpuActFlySteerBegin, 0x08018A9Du)
+ * PORT_FNID_ROM(CpuActFlySteerLeg, 0x08018AD1u)
+ * PORT_FNID_ROM(CpuActFlySteerTick, 0x08016429u)
+ * PORT_FNID_ROM(CpuActFlySweepBegin, 0x080168BDu)
+ * PORT_FNID_ROM(CpuActFlySweepTick, 0x0801694Du)
+ * PORT_FNID_ROM(CpuActSwim, 0x08018B19u)
+ * PORT_FNID_ROM(CpuActSwimStrokeBegin, 0x08018B6Du)
+ * PORT_FNID_ROM(CpuActSwimStroke, 0x08018B81u)
+ * PORT_FNID_ROM(CpuActSwimLeg, 0x08018BADu)
+ * PORT_FNID_ROM(CpuActSwimTick, 0x08016C25u)
+ * PORT_FNID_ROM(CpuActUfoMove, 0x08018BF5u)
+ * PORT_FNID_ROM(CpuActUfoMoveLeg, 0x08018C39u)
+ * PORT_FNID_ROM(CpuActUfoMoveTick, 0x08016EF1u)
+ * PORT_FNID_ROM(CpuActSlide, 0x08017145u)
+ * PORT_FNID_ROM(CpuActSlideAfterTurn, 0x08018C81u)
+ * PORT_FNID_ROM(CpuActSlideBegin, 0x08018C99u)
+ * PORT_FNID_ROM(CpuActSlideCrouch, 0x08018CADu)
+ * PORT_FNID_ROM(CpuActSlideKick, 0x08018CDDu)
+ * PORT_FNID_ROM(CpuActAirPuff, 0x08017275u)
+ * PORT_FNID_ROM(CpuActAirPuffAfterTurn, 0x08018D19u)
+ * PORT_FNID_ROM(CpuActAirPuffBegin, 0x08018D31u)
+ * PORT_FNID_ROM(CpuActAirPuffPress, 0x08018D45u)
+ * PORT_FNID_ROM(CpuActSpit, 0x0801737Du)
+ * PORT_FNID_ROM(CpuActSpitAfterTurn, 0x08018D71u)
+ * PORT_FNID_ROM(CpuActSpitBegin, 0x08018D89u)
+ * PORT_FNID_ROM(CpuActSpitPress, 0x08018D9Du)
+ * PORT_FNID_ROM(CpuActInhale, 0x0801745Du)
+ * PORT_FNID_ROM(CpuActInhaleAfterTurn, 0x08018DC9u)
+ * PORT_FNID_ROM(CpuActInhaleBegin, 0x08018DE9u)
+ * PORT_FNID_ROM(CpuActInhaleHold, 0x08017549u)
+ * PORT_FNID_ROM(CpuActSwallow, 0x080175D1u)
+ * PORT_FNID_ROM(CpuActSwallowBegin, 0x08018E3Du)
+ * PORT_FNID_ROM(CpuActSwallowPress, 0x08018E51u)
+ * PORT_FNID_ROM(CpuActAttack, 0x08017685u)
+ * PORT_FNID_ROM(CpuActAttackAfterTurn, 0x08018E7Du)
+ * PORT_FNID_ROM(CpuActAttackBegin, 0x08018E95u)
+ * PORT_FNID_ROM(CpuActAttackHold, 0x08018EC9u)
+ * PORT_FNID_ROM(CpuActWaterAttack, 0x08017751u)
+ * PORT_FNID_ROM(CpuActWaterAttackBegin, 0x08018EF5u)
+ * PORT_FNID_ROM(CpuActWaterAttackHold, 0x08017801u)
+ * PORT_FNID_ROM(CpuActTurn, 0x08018F35u)
+ * PORT_FNID_ROM(CpuActTurnBegin, 0x08018F51u)
+ * PORT_FNID_ROM(CpuActTurnTick, 0x0801786Du)
+ * PORT_FNID_ROM(CpuActBomb, 0x080178DDu)
+ * PORT_FNID_ROM(CpuActBombAfterTurn, 0x08018F65u)
+ * PORT_FNID_ROM(CpuActBombDraw, 0x08018F7Du)
+ * PORT_FNID_ROM(CpuActBombWait, 0x08018F9Du)
+ * PORT_FNID_ROM(CpuActBombThrowBegin, 0x08018FBDu)
+ * PORT_FNID_ROM(CpuActBombThrow, 0x08018FD1u)
+ * PORT_FNID_ROM(CpuActBombFollowBegin, 0x08019011u)
+ * PORT_FNID_ROM(CpuActBombFollow, 0x0801902Du)
+ * PORT_FNID_ROM(CpuActBombCooldownBegin, 0x08019061u)
+ * PORT_FNID_ROM(CpuActBombCooldown, 0x08019075u)
+ * PORT_FNID_ROM(CpuActStoneToggle, 0x08019095u)
+ * PORT_FNID_ROM(CpuActStoneToggleBecome, 0x080190E9u)
+ * PORT_FNID_ROM(CpuActStoneToggleBecomePress, 0x080190F5u)
+ * PORT_FNID_ROM(CpuActStoneToggleFall, 0x0801910Du)
+ * PORT_FNID_ROM(CpuActStoneToggleRevert, 0x08019139u)
+ * PORT_FNID_ROM(CpuActStoneToggleRevertWait, 0x08019179u)
+ * PORT_FNID_ROM(CpuActStoneDrop, 0x08019199u)
+ * PORT_FNID_ROM(CpuActStoneDropDispatch, 0x080191F1u)
+ * PORT_FNID_ROM(CpuActStoneDropFromGround, 0x08019249u)
+ * PORT_FNID_ROM(CpuActStoneDropJumpBegin, 0x08019289u)
+ * PORT_FNID_ROM(CpuActStoneDropJump, 0x08017951u)
+ * PORT_FNID_ROM(CpuActStoneDropAim, 0x08017A4Du)
+ * PORT_FNID_ROM(CpuActStoneDropPress, 0x080192BDu)
+ * PORT_FNID_ROM(CpuActStoneDropFall, 0x080192D5u)
+ * PORT_FNID_ROM(CpuActStoneDropSitBegin, 0x08019325u)
+ * PORT_FNID_ROM(CpuActStoneDropSit, 0x08019359u)
+ * PORT_FNID_ROM(CpuActStoneDropRevert, 0x08019379u)
+ * PORT_FNID_ROM(CpuActStoneDropRevertPress, 0x080193B9u)
+ * PORT_FNID_ROM(CpuActStoneDropRevertWait, 0x080193F9u)
+ * PORT_FNID_ROM(CpuActThrow, 0x08017B0Du)
+ * PORT_FNID_ROM(CpuActThrowAfterTurn, 0x08019419u)
+ * PORT_FNID_ROM(CpuActThrowBegin, 0x08019439u)
+ * PORT_FNID_ROM(CpuActThrowGrab, 0x08017BA9u)
+ * PORT_FNID_ROM(CpuActThrowHoldBegin, 0x0801948Du)
+ * PORT_FNID_ROM(CpuActThrowHold, 0x080194C1u)
+ * PORT_FNID_ROM(CpuActThrowAim, 0x08017C25u)
+ * PORT_FNID_ROM(CpuActThrowAimHold, 0x080194E1u)
+ * PORT_FNID_ROM(CpuActThrowRelease, 0x08019509u)
+ * PORT_FNID_ROM(CpuActThrowCooldownBegin, 0x08019525u)
+ * PORT_FNID_ROM(CpuActThrowCooldown, 0x08019559u)
+ * PORT_FNID_ROM(CpuActUfoShot, 0x08017CC5u)
+ * PORT_FNID_ROM(CpuActUfoShotAfterTurn, 0x080195A5u)
+ * PORT_FNID_ROM(CpuActUfoShotBegin, 0x080195C5u)
+ * PORT_FNID_ROM(CpuActUfoShotCharge, 0x0801960Du)
+ * PORT_FNID_ROM(CpuActCupidShot, 0x08017D41u)
+ * PORT_FNID_ROM(CpuActCupidShotAfterTurn, 0x08019639u)
+ * PORT_FNID_ROM(CpuActCupidShotBegin, 0x08019665u)
+ * PORT_FNID_ROM(CpuActCupidShotCharge, 0x08017DC5u)
+ * PORT_FNID_ROM(CpuActMissile, 0x08017E1Du)
+ * PORT_FNID_ROM(CpuActMissileAfterTurn, 0x080196A5u)
+ * PORT_FNID_ROM(CpuActMissileBegin, 0x080196D1u)
+ * PORT_FNID_ROM(CpuActMissileLaunch, 0x08017EA1u)
+ * PORT_FNID_ROM(CpuActMissileFly, 0x08017F11u)
+ * PORT_FNID_ROM(CpuActMissileHoming, 0x080196E5u)
+ * PORT_FNID_ROM(CpuActMissileHomingLaunch, 0x08017F89u)
+ * PORT_FNID_ROM(CpuActMissileHomingSteer, 0x08018025u)
+ * PORT_FNID_ROM(CpuActRoom397, 0x08018111u)
+ * PORT_FNID_ROM(CpuActRoom397Tick, 0x0801818Du) */
 
 /* PORT-FNID begin: this file's functions the game stores as code
  * IDs, so the lookup can name statics (tools/codemod_fnid.py
  * --gen rewrites this block). */
 PORT_FNID_TABLE(game_src_code_0800ECAC_2) {
-    PORT_FNID(sub_08010AC8),
-    PORT_FNID(sub_08010B80),
-    PORT_FNID(sub_08010C34),
-    PORT_FNID(sub_08010CE8),
-    PORT_FNID(sub_08010E3C),
-    PORT_FNID(sub_08010F90),
-    PORT_FNID(sub_08011044),
-    PORT_FNID(sub_0801119C),
-    PORT_FNID(sub_08011250),
-    PORT_FNID(sub_08011324),
-    PORT_FNID(sub_0801149C),
-    PORT_FNID(sub_08011558),
-    PORT_FNID(sub_080115FC),
-    PORT_FNID(sub_08011754),
-    PORT_FNID(sub_08011A28),
-    PORT_FNID(sub_08011AD8),
-    PORT_FNID(sub_08011C2C),
-    PORT_FNID(sub_08011CE0),
-    PORT_FNID(sub_08011D94),
-    PORT_FNID(sub_08011F00),
-    PORT_FNID(sub_08011FB4),
-    PORT_FNID(sub_08012048),
-    PORT_FNID(sub_080120FC),
-    PORT_FNID(sub_08012190),
-    PORT_FNID(sub_0801232C),
-    PORT_FNID(sub_080123E0),
-    PORT_FNID(sub_080124E0),
-    PORT_FNID(sub_080126CC),
-    PORT_FNID(sub_08012884),
-    PORT_FNID(sub_08012980),
-    PORT_FNID(sub_08012A88),
-    PORT_FNID(sub_08012BC8),
-    PORT_FNID(sub_08012C5C),
-    PORT_FNID(sub_08012DD4),
-    PORT_FNID(sub_08012EAC),
-    PORT_FNID(sub_08012FD8),
-    PORT_FNID(sub_08013174),
-    PORT_FNID(sub_08013318),
-    PORT_FNID(sub_08013518),
-    PORT_FNID(sub_08013720),
-    PORT_FNID(sub_08013804),
-    PORT_FNID(sub_08013924),
-    PORT_FNID(sub_08013A60),
-    PORT_FNID(sub_08013B00),
-    PORT_FNID(sub_08013B98),
-    PORT_FNID(sub_08013C4C),
-    PORT_FNID(sub_08013D0C),
-    PORT_FNID(sub_08014928),
-    PORT_FNID(sub_080149CC),
-    PORT_FNID(sub_08014A80),
-    PORT_FNID(sub_08014B28),
-    PORT_FNID(sub_0801519C),
-    PORT_FNID(sub_080152B0),
-    PORT_FNID(sub_080156FC),
-    PORT_FNID(sub_08015970),
-    PORT_FNID(sub_08015A4C),
-    PORT_FNID(sub_08015AF0),
-    PORT_FNID(sub_08015FA0),
-    PORT_FNID(sub_0801602C),
-    PORT_FNID(sub_080160B8),
-    PORT_FNID(sub_0801617C),
-    PORT_FNID(sub_08016288),
-    PORT_FNID(sub_0801639C),
-    PORT_FNID(sub_08016428),
-    PORT_FNID(sub_080168BC),
-    PORT_FNID(sub_0801694C),
-    PORT_FNID(sub_08016C24),
-    PORT_FNID(sub_08016EF0),
-    PORT_FNID(sub_08017144),
-    PORT_FNID(sub_08017274),
-    PORT_FNID(sub_0801737C),
-    PORT_FNID(sub_0801745C),
-    PORT_FNID(sub_08017548),
-    PORT_FNID(sub_080175D0),
-    PORT_FNID(sub_08017684),
-    PORT_FNID(sub_08017750),
-    PORT_FNID(sub_08017800),
-    PORT_FNID(sub_0801786C),
-    PORT_FNID(sub_080178DC),
-    PORT_FNID(sub_08017950),
-    PORT_FNID(sub_08017A4C),
-    PORT_FNID(sub_08017B0C),
-    PORT_FNID(sub_08017BA8),
-    PORT_FNID(sub_08017C24),
-    PORT_FNID(sub_08017CC4),
-    PORT_FNID(sub_08017D40),
-    PORT_FNID(sub_08017DC4),
-    PORT_FNID(sub_08017E1C),
-    PORT_FNID(sub_08017EA0),
-    PORT_FNID(sub_08017F10),
-    PORT_FNID(sub_08017F88),
-    PORT_FNID(sub_08018024),
-    PORT_FNID(sub_08018110),
-    PORT_FNID(sub_0801818C),
-    PORT_FNID(sub_08018368),
-    PORT_FNID(sub_0801836C),
-    PORT_FNID(sub_08018374),
-    PORT_FNID(nullsub_103),
-    PORT_FNID(nullsub_104),
-    PORT_FNID(sub_080184DC),
-    PORT_FNID(sub_080184E8),
-    PORT_FNID(sub_08018504),
-    PORT_FNID(nullsub_105),
-    PORT_FNID(sub_0801852C),
-    PORT_FNID(sub_0801858C),
-    PORT_FNID(sub_080185EC),
-    PORT_FNID(sub_080186A4),
-    PORT_FNID(sub_080186DC),
-    PORT_FNID(sub_0801870C),
-    PORT_FNID(sub_08018758),
-    PORT_FNID(sub_08018764),
-    PORT_FNID(sub_080187B0),
-    PORT_FNID(sub_080187E8),
-    PORT_FNID(sub_08018808),
-    PORT_FNID(sub_08018828),
-    PORT_FNID(sub_08018850),
-    PORT_FNID(sub_08018864),
-    PORT_FNID(sub_08018884),
-    PORT_FNID(sub_080188BC),
-    PORT_FNID(sub_080188F0),
-    PORT_FNID(sub_08018930),
-    PORT_FNID(sub_08018944),
-    PORT_FNID(sub_080189A0),
-    PORT_FNID(sub_080189DC),
-    PORT_FNID(sub_08018A10),
-    PORT_FNID(sub_08018A3C),
-    PORT_FNID(sub_08018A50),
-    PORT_FNID(sub_08018A9C),
-    PORT_FNID(sub_08018AD0),
-    PORT_FNID(sub_08018B18),
-    PORT_FNID(sub_08018B6C),
-    PORT_FNID(sub_08018B80),
-    PORT_FNID(sub_08018BAC),
-    PORT_FNID(sub_08018BF4),
-    PORT_FNID(sub_08018C38),
-    PORT_FNID(sub_08018C80),
-    PORT_FNID(sub_08018C98),
-    PORT_FNID(sub_08018CAC),
-    PORT_FNID(sub_08018CDC),
-    PORT_FNID(sub_08018D18),
-    PORT_FNID(sub_08018D30),
-    PORT_FNID(sub_08018D44),
-    PORT_FNID(sub_08018D70),
-    PORT_FNID(sub_08018D88),
-    PORT_FNID(sub_08018D9C),
-    PORT_FNID(sub_08018DC8),
-    PORT_FNID(sub_08018DE8),
-    PORT_FNID(sub_08018E3C),
-    PORT_FNID(sub_08018E50),
-    PORT_FNID(sub_08018E7C),
-    PORT_FNID(sub_08018E94),
-    PORT_FNID(sub_08018EC8),
-    PORT_FNID(sub_08018EF4),
-    PORT_FNID(sub_08018F34),
-    PORT_FNID(sub_08018F50),
-    PORT_FNID(sub_08018F64),
-    PORT_FNID(sub_08018F7C),
-    PORT_FNID(sub_08018F9C),
-    PORT_FNID(sub_08018FBC),
-    PORT_FNID(sub_08018FD0),
-    PORT_FNID(sub_08019010),
-    PORT_FNID(sub_0801902C),
-    PORT_FNID(sub_08019060),
-    PORT_FNID(sub_08019074),
-    PORT_FNID(sub_08019094),
-    PORT_FNID(sub_080190E8),
-    PORT_FNID(sub_080190F4),
-    PORT_FNID(sub_0801910C),
-    PORT_FNID(sub_08019138),
-    PORT_FNID(sub_08019178),
-    PORT_FNID(sub_08019198),
-    PORT_FNID(sub_080191F0),
-    PORT_FNID(sub_08019248),
-    PORT_FNID(sub_08019288),
-    PORT_FNID(sub_080192BC),
-    PORT_FNID(sub_080192D4),
-    PORT_FNID(sub_08019324),
-    PORT_FNID(sub_08019358),
-    PORT_FNID(sub_08019378),
-    PORT_FNID(sub_080193B8),
-    PORT_FNID(sub_080193F8),
-    PORT_FNID(sub_08019418),
-    PORT_FNID(sub_08019438),
-    PORT_FNID(sub_0801948C),
-    PORT_FNID(sub_080194C0),
-    PORT_FNID(sub_080194E0),
-    PORT_FNID(sub_08019508),
-    PORT_FNID(sub_08019524),
-    PORT_FNID(sub_08019558),
-    PORT_FNID(sub_080195A4),
-    PORT_FNID(sub_080195C4),
-    PORT_FNID(sub_0801960C),
-    PORT_FNID(sub_08019638),
-    PORT_FNID(sub_08019664),
-    PORT_FNID(sub_080196A4),
-    PORT_FNID(sub_080196D0),
-    PORT_FNID(sub_080196E4),
-    PORT_FNID(sub_08019758),
-    PORT_FNID(sub_08019798),
-    PORT_FNID(sub_080197DC),
-    PORT_FNID(sub_08019818),
-    PORT_FNID(sub_08019878),
-    PORT_FNID(sub_080198C4),
-    PORT_FNID(sub_080198E0),
-    PORT_FNID(sub_08019914),
-    PORT_FNID(sub_08019930),
-    PORT_FNID(sub_0801995C),
-    PORT_FNID(sub_08019998),
-    PORT_FNID(sub_080199F0),
-    PORT_FNID(sub_08019A0C),
-    PORT_FNID(sub_08019A40),
-    PORT_FNID(sub_08019A5C),
-    PORT_FNID(sub_08019A88),
-    PORT_FNID(sub_08019AA4),
-    PORT_FNID(sub_08019AD0),
-    PORT_FNID(sub_08019AF8),
-    PORT_FNID(nullsub_106),
-    PORT_FNID(sub_08019B30),
-    PORT_FNID(sub_08019B84),
-    PORT_FNID(sub_08019BF0),
-    PORT_FNID(sub_08019C4C),
+    PORT_FNID(CpuScanNormal),
+    PORT_FNID(CpuScanFire),
+    PORT_FNID(CpuScanIce),
+    PORT_FNID(CpuScanBurning),
+    PORT_FNID(CpuScanWheel),
+    PORT_FNID(CpuScanParasol),
+    PORT_FNID(CpuScanCutter),
+    PORT_FNID(CpuScanBeam),
+    PORT_FNID(CpuScanStone),
+    PORT_FNID(CpuScanBomb),
+    PORT_FNID(CpuScanThrow),
+    PORT_FNID(CpuScanCook),
+    PORT_FNID(CpuScanLaser),
+    PORT_FNID(CpuScanUfo),
+    PORT_FNID(CpuScanSpark),
+    PORT_FNID(CpuScanTornado),
+    PORT_FNID(CpuScanHammer),
+    PORT_FNID(CpuScanSword),
+    PORT_FNID(CpuScanCupid),
+    PORT_FNID(CpuScanFighter),
+    PORT_FNID(CpuScanMagic),
+    PORT_FNID(CpuScanSmash),
+    PORT_FNID(CpuScanCrash),
+    PORT_FNID(CpuScanMissile),
+    PORT_FNID(CpuScanMaster),
+    PORT_FNID(CpuScanUnderwater),
+    PORT_FNID(CpuBreakBlockNormal),
+    PORT_FNID(CpuBreakBlockFireIce),
+    PORT_FNID(CpuBreakBlockBurning),
+    PORT_FNID(CpuBreakBlockWheel),
+    PORT_FNID(CpuBreakBlockParasol),
+    PORT_FNID(CpuBreakBlockShot),
+    PORT_FNID(CpuBreakBlockBeam),
+    PORT_FNID(CpuBreakBlockStone),
+    PORT_FNID(CpuBreakBlockSparkSword),
+    PORT_FNID(CpuBreakBlockCupid),
+    PORT_FNID(CpuBreakBlockHammer),
+    PORT_FNID(CpuBreakBlockThrow),
+    PORT_FNID(CpuBreakBlockMissile),
+    PORT_FNID(CpuBreakBlockTornado),
+    PORT_FNID(CpuScriptStep),
+    PORT_FNID(CpuScriptSlidePrepare),
+    PORT_FNID(CpuGoalHoldBegin),
+    PORT_FNID(CpuGoalScriptNodeBegin),
+    PORT_FNID(CpuGoalRoamBegin),
+    PORT_FNID(CpuGoalRoamTick),
+    PORT_FNID(CpuGoalRoamPauseTick),
+    PORT_FNID(CpuGoalOffscreenBegin),
+    PORT_FNID(CpuGoalOffscreenRoamBegin),
+    PORT_FNID(CpuGoalOffscreenRoamTick),
+    PORT_FNID(CpuGoalOffscreenPauseTick),
+    PORT_FNID(CpuActThink),
+    PORT_FNID(CpuActDecide),
+    PORT_FNID(CpuActAnswerPhoneWait),
+    PORT_FNID(CpuActWalk),
+    PORT_FNID(CpuActWalkStride),
+    PORT_FNID(CpuActWalkTick),
+    PORT_FNID(CpuActLadder),
+    PORT_FNID(CpuActLadderClimbTick),
+    PORT_FNID(CpuActJump),
+    PORT_FNID(CpuActJumpRise),
+    PORT_FNID(CpuActJumpAir),
+    PORT_FNID(CpuActFly),
+    PORT_FNID(CpuActFlySteerTick),
+    PORT_FNID(CpuActFlySweepBegin),
+    PORT_FNID(CpuActFlySweepTick),
+    PORT_FNID(CpuActSwimTick),
+    PORT_FNID(CpuActUfoMoveTick),
+    PORT_FNID(CpuActSlide),
+    PORT_FNID(CpuActAirPuff),
+    PORT_FNID(CpuActSpit),
+    PORT_FNID(CpuActInhale),
+    PORT_FNID(CpuActInhaleHold),
+    PORT_FNID(CpuActSwallow),
+    PORT_FNID(CpuActAttack),
+    PORT_FNID(CpuActWaterAttack),
+    PORT_FNID(CpuActWaterAttackHold),
+    PORT_FNID(CpuActTurnTick),
+    PORT_FNID(CpuActBomb),
+    PORT_FNID(CpuActStoneDropJump),
+    PORT_FNID(CpuActStoneDropAim),
+    PORT_FNID(CpuActThrow),
+    PORT_FNID(CpuActThrowGrab),
+    PORT_FNID(CpuActThrowAim),
+    PORT_FNID(CpuActUfoShot),
+    PORT_FNID(CpuActCupidShot),
+    PORT_FNID(CpuActCupidShotCharge),
+    PORT_FNID(CpuActMissile),
+    PORT_FNID(CpuActMissileLaunch),
+    PORT_FNID(CpuActMissileFly),
+    PORT_FNID(CpuActMissileHomingLaunch),
+    PORT_FNID(CpuActMissileHomingSteer),
+    PORT_FNID(CpuActRoom397),
+    PORT_FNID(CpuActRoom397Tick),
+    PORT_FNID(CpuBreakBlockNone),
+    PORT_FNID(CpuScanNone),
+    PORT_FNID(CpuScanMini),
+    PORT_FNID(CpuBrainTaskDestroy),
+    PORT_FNID(CpuGoalNone),
+    PORT_FNID(CpuGoalRoam),
+    PORT_FNID(CpuGoalFollowBegin),
+    PORT_FNID(CpuGoalRoom397Wait),
+    PORT_FNID(CpuSenseNone),
+    PORT_FNID(CpuSenseIdle),
+    PORT_FNID(CpuSenseMoving),
+    PORT_FNID(CpuSenseRoom397),
+    PORT_FNID(CpuActLeaveFlight),
+    PORT_FNID(CpuActDropAbility),
+    PORT_FNID(CpuActAnswerPhone),
+    PORT_FNID(CpuActBackToThink),
+    PORT_FNID(CpuActMove),
+    PORT_FNID(CpuActDashFirstTap),
+    PORT_FNID(CpuActDashGap),
+    PORT_FNID(CpuActDashSecondTap),
+    PORT_FNID(CpuActDashHold),
+    PORT_FNID(CpuActWalkPauseBegin),
+    PORT_FNID(CpuActWalkPause),
+    PORT_FNID(CpuActHoldDown),
+    PORT_FNID(CpuActHoldDownTick),
+    PORT_FNID(CpuActLadderGrab),
+    PORT_FNID(CpuActLadderStart),
+    PORT_FNID(CpuActLadderClimbBegin),
+    PORT_FNID(CpuActJumpBegin),
+    PORT_FNID(CpuActFlyFromGround),
+    PORT_FNID(CpuActFlyJump),
+    PORT_FNID(CpuActFlyPuffBegin),
+    PORT_FNID(CpuActFlyPuff),
+    PORT_FNID(CpuActFlySteerBegin),
+    PORT_FNID(CpuActFlySteerLeg),
+    PORT_FNID(CpuActSwim),
+    PORT_FNID(CpuActSwimStrokeBegin),
+    PORT_FNID(CpuActSwimStroke),
+    PORT_FNID(CpuActSwimLeg),
+    PORT_FNID(CpuActUfoMove),
+    PORT_FNID(CpuActUfoMoveLeg),
+    PORT_FNID(CpuActSlideAfterTurn),
+    PORT_FNID(CpuActSlideBegin),
+    PORT_FNID(CpuActSlideCrouch),
+    PORT_FNID(CpuActSlideKick),
+    PORT_FNID(CpuActAirPuffAfterTurn),
+    PORT_FNID(CpuActAirPuffBegin),
+    PORT_FNID(CpuActAirPuffPress),
+    PORT_FNID(CpuActSpitAfterTurn),
+    PORT_FNID(CpuActSpitBegin),
+    PORT_FNID(CpuActSpitPress),
+    PORT_FNID(CpuActInhaleAfterTurn),
+    PORT_FNID(CpuActInhaleBegin),
+    PORT_FNID(CpuActSwallowBegin),
+    PORT_FNID(CpuActSwallowPress),
+    PORT_FNID(CpuActAttackAfterTurn),
+    PORT_FNID(CpuActAttackBegin),
+    PORT_FNID(CpuActAttackHold),
+    PORT_FNID(CpuActWaterAttackBegin),
+    PORT_FNID(CpuActTurn),
+    PORT_FNID(CpuActTurnBegin),
+    PORT_FNID(CpuActBombAfterTurn),
+    PORT_FNID(CpuActBombDraw),
+    PORT_FNID(CpuActBombWait),
+    PORT_FNID(CpuActBombThrowBegin),
+    PORT_FNID(CpuActBombThrow),
+    PORT_FNID(CpuActBombFollowBegin),
+    PORT_FNID(CpuActBombFollow),
+    PORT_FNID(CpuActBombCooldownBegin),
+    PORT_FNID(CpuActBombCooldown),
+    PORT_FNID(CpuActStoneToggle),
+    PORT_FNID(CpuActStoneToggleBecome),
+    PORT_FNID(CpuActStoneToggleBecomePress),
+    PORT_FNID(CpuActStoneToggleFall),
+    PORT_FNID(CpuActStoneToggleRevert),
+    PORT_FNID(CpuActStoneToggleRevertWait),
+    PORT_FNID(CpuActStoneDrop),
+    PORT_FNID(CpuActStoneDropDispatch),
+    PORT_FNID(CpuActStoneDropFromGround),
+    PORT_FNID(CpuActStoneDropJumpBegin),
+    PORT_FNID(CpuActStoneDropPress),
+    PORT_FNID(CpuActStoneDropFall),
+    PORT_FNID(CpuActStoneDropSitBegin),
+    PORT_FNID(CpuActStoneDropSit),
+    PORT_FNID(CpuActStoneDropRevert),
+    PORT_FNID(CpuActStoneDropRevertPress),
+    PORT_FNID(CpuActStoneDropRevertWait),
+    PORT_FNID(CpuActThrowAfterTurn),
+    PORT_FNID(CpuActThrowBegin),
+    PORT_FNID(CpuActThrowHoldBegin),
+    PORT_FNID(CpuActThrowHold),
+    PORT_FNID(CpuActThrowAimHold),
+    PORT_FNID(CpuActThrowRelease),
+    PORT_FNID(CpuActThrowCooldownBegin),
+    PORT_FNID(CpuActThrowCooldown),
+    PORT_FNID(CpuActUfoShotAfterTurn),
+    PORT_FNID(CpuActUfoShotBegin),
+    PORT_FNID(CpuActUfoShotCharge),
+    PORT_FNID(CpuActCupidShotAfterTurn),
+    PORT_FNID(CpuActCupidShotBegin),
+    PORT_FNID(CpuActMissileAfterTurn),
+    PORT_FNID(CpuActMissileBegin),
+    PORT_FNID(CpuActMissileHoming),
+    PORT_FNID(CpuScriptWaitTick),
+    PORT_FNID(CpuScriptGoToTick),
+    PORT_FNID(CpuScriptFaceStart),
+    PORT_FNID(CpuScriptFaceTick),
+    PORT_FNID(CpuScriptInhalePrepare),
+    PORT_FNID(CpuScriptInhaleSpitFirst),
+    PORT_FNID(CpuScriptInhaleSpitWait),
+    PORT_FNID(CpuScriptInhaleLandFirst),
+    PORT_FNID(CpuScriptInhaleLandWait),
+    PORT_FNID(CpuScriptInhaleStart),
+    PORT_FNID(CpuScriptInhaleTick),
+    PORT_FNID(CpuScriptSlideSpitFirst),
+    PORT_FNID(CpuScriptSlideSpitWait),
+    PORT_FNID(CpuScriptSlideLandFirst),
+    PORT_FNID(CpuScriptSlideLandWait),
+    PORT_FNID(CpuScriptSlideFallFirst),
+    PORT_FNID(CpuScriptSlideFallWait),
+    PORT_FNID(CpuScriptSlideStart),
+    PORT_FNID(CpuScriptSlideTick),
+    PORT_FNID(CpuGoalIdle),
+    PORT_FNID(CpuGoalScriptNodeTick),
+    PORT_FNID(CpuGoalRoamPauseBegin),
+    PORT_FNID(CpuGoalFollowTick),
+    PORT_FNID(CpuGoalOffscreenPauseBegin),
     PORT_FNID_END
 };
 /* PORT-FNID end */

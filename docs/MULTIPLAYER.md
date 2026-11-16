@@ -729,7 +729,7 @@ every index from the human count up:
 for (curKirbyId = 0; curKirbyId < 4; curKirbyId++)
     CreateKirby(curKirbyId, &gKirbys[curKirbyId], ...);
 for (otherKirbyId = arg0; otherKirbyId < 4; otherKirbyId++)   /* arg0 = humans */
-    sub_0800ECAC(otherKirbyId, ...);
+    CpuBrainCreate(otherKirbyId, ...);
 ```
 
 So single-player is one human and three AI Kirbys, and a four-player session is
@@ -896,7 +896,7 @@ It works because of where the game reads input. `src/kirby.c:6475`:
 if (kirby->...unk56 < gUnk_0203AD30)
     r3 = gUnk_020382D0.unk8[0][kirby->...unk56];   /* the network's word    */
 else
-    r3 = gUnk_02038590[kirby->...unk56].unk9E;     /* the AI's own word     */
+    r3 = gUnk_02038590[kirby->...unk56].keys;     /* the AI's own word     */
 ```
 
 The engine holds `gUnk_0203AD30` at the number of Kirbys in play so every
@@ -1185,8 +1185,8 @@ latch. The host decides *when* from its controllers
 - Every play start gives slots 1..3 a CPU brain (`sub_080332BC` is always told
   one human), and the people join right after (`PortLmpStarted`).
   MULTIPLAYER → LOCAL is therefore "start, then a join". A person's brain
-  waits (`PortLmpBrainWaits`, in `sub_0800EF60`) and is reset
-  (`sub_0800EE04`) when the CPU takes the Kirby back.
+  waits (`PortLmpBrainWaits`, in `CpuBrainTask`) and is reset
+  (`CpuBrainReset`) when the CPU takes the Kirby back.
 - A boss's HP was set at spawn from `table[count - 1]` (object.c:2081), but its
   phase thresholds and HP bar read the live count. A count change rescales
   every live boss's HP in proportion (`RescaleBosses`). Dark Mind's first form

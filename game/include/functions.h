@@ -130,8 +130,8 @@ void sub_0800A8BC(struct Task *);
 void sub_0800A8C8(u8 arg0, u8 arg1, u8 arg2);
 void sub_0800A8F8(u8 arg0, u8 arg1, u8 arg2);
 
-void sub_0800EE04(u8, u32);
-u8 sub_0800EEBC(struct ObjectBase *);
+void CpuBrainReset(u8, u32);
+u8 CpuNavNodeAt(struct ObjectBase *);
 
 void sub_08033674(u8);
 void sub_0803E778(u8, u16, u8);

@@ -222,7 +222,8 @@ async function inviteContinue(p) {
         rec.up = true; rec.ms = Date.now() - t0; rec.frame = await frame(p);
         await waitFrames(p, 12);                    // (its keys from the frame it is in)
         for (let i = 0; i < 4 && (await p.ev('katamOnline.inviteCard()')) === 3; i++) { rec.pressed = true; await press(p, 'A'); await waitFrames(p, 20); }
-        rec.joined = (await p.ev('katamOnline.inviteCard()')) === 0;
+        /* the card's own state can sit between 3 and 0 for a moment after the A */
+        rec.joined = await until(async () => (await p.ev('katamOnline.inviteCard()')) === 0, 6000, 150);
         return rec.joined;
     } catch (e) {
         rec.error = String(e.message || e);

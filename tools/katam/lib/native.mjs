@@ -367,7 +367,7 @@ export function linkBundle({ rooms = [], tilesets = [], backgrounds = [] }) {
     // room-graph record and default cell.
     if (r.roomId >= NUM_ROOM_SLOTS) {
       // struct Unk_08D6CD0C: no neighbour list (unk48 = 0), unk47 = 0x80 (the
-      // AI helpers' "not a routing target" flag: sub_080140B0/sub_080141EC
+      // AI helpers' "not a routing target" flag: CpuPickNeighborRoom/CpuNextRoomToward
       // then send a helper back to its previous goal), the area, the room id.
       const g = new Uint8Array(ROOM_GRAPH_SIZE);
       put(g, 0x44, 2, r.roomId);

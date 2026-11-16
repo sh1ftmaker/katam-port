@@ -466,74 +466,84 @@ struct RoomProps {
 
 /* PORT: replaced by port/rom_data.h -- extern const struct RoomProps gRoomProps[]; */
 
-struct Unk_02038590_4C {
-    u32 unk0;
-    PTR32(struct Object) unk4; // TODO: may be struct ObjectBase *
-    u16 unk8;
-    s16 unkA;
+/* One remembered enemy of a CPU Kirby (CpuUpdateTargetMemory, CpuFindTarget):
+ * the brain chases a target for `timer` frames (300..555, extended by 60..187
+ * each time its HP drops), then ignores it for another 300..555 and forgets it. */
+struct CpuTargetMemory {
+    u32 ignoring;                 /* 0: chasing, 1: given up (skipped by CpuFindTarget) */
+    PTR32(struct Object) obj; // TODO: may be struct ObjectBase *
+    u16 timer;
+    s16 lastHp;                   /* obj->unk80 when last seen */
 }; /* size = 0xC */
 
-struct Unk_02038590 {
-    PTR32_FN(void, unk0[4], (struct Unk_02038590 *));
-    u32 flags;
-    PTR32(struct LevelInfo) unk14;
-    u16 unk18;
-    u8 unk1A;
-    u8 unk1B;
+/* The CPU Kirby brain, one per Kirby slot (gUnk_02038590[slot]); run every
+ * frame by the CpuBrainTask task (code_0800ECAC.c).  Four layers, each a code
+ * ID called in turn (CPU_LAYER_*, code_0800ECAC.h); the output is `keys`, a
+ * synthesised GBA pad word that kirby.c reads instead of a pad.  See
+ * docs/naming/cpu-brain.md. */
+struct CpuBrain {
+    PTR32_FN(void, layers[4], (struct CpuBrain *));
+    u32 flags;                    /* CPU_FLAG_* */
+    PTR32(struct LevelInfo) levelInfo; /* &gCurLevelInfo[slot] */
+    u16 homeRoom;                 /* fallback room for off-screen travel (start room); best guess */
+    u8 curNode;                   /* nav node under the Kirby (CpuNavNodeAt), 0xFF none */
+    u8 goalNode;                  /* nav node it is heading for, 0xFF none */
     // TODO: size of arrays
     // note: these arrays have to be put together for pointer access
-    u8 unk1C[0xA];
-    u8 unk26[5];
-    u8 unk2B[0x11];
-    u16 unk3C;
-    u8 unk3E; // something related to kirby ability
-    u8 unk3F;
-    PTR32(struct Kirby) unk40;
-    PTR32(struct Kirby) unk44;
-    PTR32(struct Object) unk48;
-    struct Unk_02038590_4C unk4C[4];
-    s32 unk7C;
-    s32 unk80;
-    u16 unk84;
-    u16 unk86;
-    u16 unk88;
-    u16 unk8A;
-    s32 unk8C;
-    s32 unk90;
-    s16 unk94;
-    s16 unk96;
-    u16 unk98;
-    s16 unk9A;
-    u16 unk9C;
-    u16 unk9E;
-    u16 unkA0;
-    u16 unkA2;
-    u16 unkA4;
-    PTR32(struct Kirby) unkA8;
-    u16 unkAC;
-    u16 unkAE;
-    u16 unkB0;
-    PTR32(const u16) unkB4; // TODO: type
-    u16 unkB8;
+    /* terrain/terrainRow/terrainBelow are one 5x5 grid around the Kirby's cell,
+     * index (dy + 2) * 5 + (dx + 2) from `terrain` (CpuScanTerrain). */
+    u8 terrain[0xA];
+    u8 terrainRow[5];
+    u8 terrainBelow[0x11];
+    u16 nodeChanges;              /* +1 each time curNode changes */
+    u8 wantAbility; // something related to kirby ability -- the script's CPU_OP_SET_ABILITY: swallow this one; 0xFF drop any
+    u8 nextNode;                  /* next hop toward goalNode (the graph's routing table) */
+    PTR32(struct Kirby) kirby;    /* &gKirbys[slot] */
+    PTR32(struct Kirby) followKirby; /* the person it sticks to (CPU_FLAG_FOLLOWING) */
+    PTR32(struct Object) target;  /* the enemy it is engaging */
+    struct CpuTargetMemory targetMemory[4];
+    s32 goalX;                    /* goal position, 24.8 */
+    s32 goalY;
+    u16 goalDx;                   /* |dx|, |dy| to the goal in pixels */
+    u16 goalDy;
+    u16 goalDxDyDiff;             /* ||dx| - |dy|| */
+    u16 goalAngle;                /* 0..0x3FF: 0 down, 0x100 right, 0x200 up, 0x300 left */
+    s32 waypointX;                /* the steering point: the goal, or the next node */
+    s32 waypointY;
+    s16 waypointDx;               /* |dx|, |dy|, max of both, angle to the steering point */
+    s16 waypointDy;
+    u16 waypointDist;
+    s16 waypointAngle;
+    u16 prevKeys;                 /* last frame's keys */
+    u16 keys;                     /* this frame's synthesised pad word (A 1, B 2, Select 4, R 0x100, ...) */
+    u16 swallowCooldown;          /* frames before it reconsiders a full mouth */
+    u16 nearHumanMeter;           /* 0..0x12C0, rises near a person; > 0xB40 starts following */
+    u16 followStillFrames;        /* frames standing still while following; > 600 stops */
+    PTR32(struct Kirby) leader;   /* the person it travels toward while off-screen */
+    u16 roomHopTimer;             /* frames until the next off-screen room hop */
+    u16 destRoom;                 /* room it is travelling toward */
+    u16 areaWarpCount;            /* room hops within one area */
+    PTR32(const u16) script; // TODO: type -- this room's script for this slot (CPU_OP_*)
+    u16 scriptPc;
     u16 unkBA;
-    u16 unkBC;
-    u16 unkBE;
+    u16 scriptArg;                /* the running command's operand / timer */
+    u16 scriptTimeout;
     u8 fillerC0[0xC];
-    u16 unkCC;
+    u16 goalTimer;                /* frames before the goal layer gives up on a node */
     u8 fillerCE[0xE];
-    u8 unkDC;
-    u8 unkDD;
-    u16 unkDE;
-    u16 unkE0;
+    u8 action;                    /* CPU_ACT_* the action layer is in */
+    u8 prevAction;
+    u16 actArg;                   /* action parameters, per action: usually 1 face left, */
+    u16 actArg2;                  /* 0 face right, 0xFFFF either; then a strength/level */
     u8 fillerE2[2];
     union {
         u32 data;
-        PTR32_FN(void, ptr, (struct Unk_02038590 *));
-    } unkE4;
-    u16 unkE8;
-    u16 unkEA;
-    u16 unkEC;
-    u16 unkEE;
+        PTR32_FN(void, ptr, (struct CpuBrain *));
+    } actNext;                    /* CPU_ACT_TURN's continuation, or a third parameter */
+    u16 actTimer;                 /* action scratch */
+    u16 actVar;
+    u16 actCount;
+    u16 actTimer2;
     u8 fillerF0[4];
 }; /* size = 0xF4 */
 
@@ -694,7 +704,7 @@ union Unk_02028EE0 {
 /* PORT: replaced by port/ram_symbols.h -- extern struct LevelInfo gCurLevelInfo[4]; */
 /* PORT: replaced by port/ram_symbols.h -- extern u16 gUnk_020382C8[5][4]; */
 /* PORT: replaced by port/ram_symbols.h -- extern u32 gUnk_02038580; */
-/* PORT: replaced by port/ram_symbols.h -- extern struct Unk_02038590 gUnk_02038590[4]; */
+/* PORT: replaced by port/ram_symbols.h -- extern struct CpuBrain gUnk_02038590[4]; */
 
 /* PORT: replaced by port/ram_symbols.h -- extern s16 gUnk_0203ACB0[]; */
 /* PORT: replaced by port/ram_symbols.h -- extern u32 gUnk_0203AD10; // bit3: Instead of buttons in the help menu, display a kirby drawing */

@@ -105,7 +105,7 @@
 #define gUnk_020382C8 (*(u16 (*)[5][4])0x020382C8)
 #define gUnk_020382D0 (*(struct Unk_020382D0 *)0x020382D0)
 #define gUnk_02038580 (*(u32 *)0x02038580)
-#define gUnk_02038590 (*(struct Unk_02038590 (*)[4])0x02038590)
+#define gUnk_02038590 (*(struct CpuBrain (*)[4])0x02038590)
 #define gUnk_02038990 (*(u16 (*)[4][0x402])0x02038990)
 #define gUnk_0203A9A0 (*(u8 *)0x0203A9A0)
 #define gUnk_0203A9B0 ((u16 *)0x0203A9B0)

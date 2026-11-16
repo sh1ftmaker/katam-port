@@ -12,11 +12,11 @@
  * The game always simulates four Kirbys in one world.  sub_0803F324 decides
  * where each one's buttons come from: slot 0 reads the pad, slots
  * 1..gNumHumanPlayers-1 read the link-cable ring (multi-cart play), the rest
- * read the CPU's output (gUnk_02038590[i].unk9E).  gNumHumanPlayers is what
+ * read the CPU's output (gUnk_02038590[i].keys).  gNumHumanPlayers is what
  * the rest of the game asks when it needs "is this Kirby a person": boss
  * health scaling, shards, chests, the borrow-a-life rule when a player runs
  * out, the pause map, who may enter a big door, and so on.  And
- * sub_080332BC, the start of play, gives CPU brains (sub_0800ECAC) only to
+ * sub_080332BC, the start of play, gives CPU brains (CpuBrainCreate) only to
  * slots >= its human count.
  *
  * So another local human is: make that slot a person in the game's eyes,
@@ -66,8 +66,8 @@
  * The CPU brains.  Every play start now gives every slot 1..3 a brain
  * (sub_080332BC is told one human, PortLmpStartHumans) and the humans join
  * right after (PortLmpStarted): MULTIPLAYER > LOCAL is "start, then a join".
- * A person's brain is frozen (sub_0800EF60 returns early for a human slot)
- * and reset (sub_0800EE04) when the CPU takes the Kirby back, so it starts
+ * A person's brain is frozen (CpuBrainTask returns early for a human slot)
+ * and reset (CpuBrainReset) when the CPU takes the Kirby back, so it starts
  * from where the Kirby is, not from where it was when the person took over.
  * Should a brain ever be missing it is created then.  Other brains that were
  * following a slot that stopped being a person follow player 1 instead.
@@ -157,9 +157,9 @@ extern "C" {
 #endif
 
 extern void sub_08055920(struct Kirby *);
-extern void sub_0800ECAC(u8, u16, u16);
-extern void sub_0800EE04(u8, u32);
-extern void sub_0800EF60(void);
+extern void CpuBrainCreate(u8, u16, u16);
+extern void CpuBrainReset(u8, u32);
+extern void CpuBrainTask(void);
 extern void sub_0803E050(u16);
 
 #define L (&gPortSim->lmp)
@@ -586,7 +586,7 @@ int PortLmpInPlay(void)
 static int InRoom(const struct Kirby *k);
 static int Movable(const struct Kirby *k);
 
-/* Slot s's CPU brain task (sub_0800ECAC: priority 0x2100 | slot). */
+/* Slot s's CPU brain task (CpuBrainCreate: priority 0x2100 | slot). */
 static struct Task *Brain(u8 s)
 {
     int i;
@@ -594,7 +594,7 @@ static struct Task *Brain(u8 s)
     for (i = 0; i < MAX_TASK_NUM; i++) {
         struct Task *t = &gTasks[i];
 
-        if (t->main == FN(sub_0800EF60) && t->priority == (u16)(0x2100 | s) && t->structOffset)
+        if (t->main == FN(CpuBrainTask) && t->priority == (u16)(0x2100 | s) && t->structOffset)
             return t;
     }
     return NULL;
@@ -657,20 +657,20 @@ static void RescaleBosses(int from, int to)
 
 static void ToCpu(u8 s)
 {
-    struct Unk_02038590 *b = &gUnk_02038590[s];
+    struct CpuBrain *b = &gUnk_02038590[s];
 
     if (Brain(s) == NULL) {
         u16 room = gCurLevelInfo[s].currentRoom != 0xFFFF ? gCurLevelInfo[s].currentRoom
                                                           : gKirbys[s].base.roomId;
 
         PortLog("[katam-port] localmp: slot %u had no CPU brain; making one", (unsigned)s);
-        sub_0800ECAC(s, room, gAIKirbyState > 199 ? 0x321 : 0x323);
+        CpuBrainCreate(s, room, gAIKirbyState > 199 ? 0x321 : 0x323);
     } else if (gCurLevelInfo[s].currentRoom != 0xFFFF) {
-        sub_0800EE04(s, 0);
+        CpuBrainReset(s, 0);
     }
-    b->unk9C = 0;
-    b->unk9E = 0;
-    b->unkA8 = &gKirbys[0];
+    b->prevKeys = 0;
+    b->keys = 0;
+    b->leader = &gKirbys[0];
     PortLmpKeyRef(s) = 0;
     PortLmpSetJoining(PortLmpJoining() & ~(1u << s));
     PortLmpPressRef(s) = 0;
@@ -711,7 +711,7 @@ static void Apply(int slot, int on, u32 old, u32 m)
             u16 g = L->groupRoom != 0xFFFF ? L->groupRoom : gKirbys[0].base.roomId;
             const u16 *gr = ROOMS() ? GroupRoomOf(Dev(s)) : NULL;
 
-            gUnk_02038590[s].unk9E = 0;
+            gUnk_02038590[s].keys = 0;
             PortLmpStrayRef(s) = 0;
             /* A joiner away from the group -- another room, mid-door, dying
              * -- is brought to the group; their own arrival somewhere (the
@@ -725,12 +725,12 @@ static void Apply(int slot, int on, u32 old, u32 m)
     }
     /* Brains that were following someone who is no longer a person. */
     for (s = 1; s < NS; s++) {
-        struct Unk_02038590 *b = &gUnk_02038590[s];
-        const struct Kirby *lead = b->unkA8;
+        struct CpuBrain *b = &gUnk_02038590[s];
+        const struct Kirby *lead = b->leader;
 
         if (!(m & (1u << s)) && lead != NULL && (old & (1u << SLOT_OF(lead)))
             && !(m & (1u << SLOT_OF(lead))))
-            b->unkA8 = &gKirbys[0];
+            b->leader = &gKirbys[0];
     }
     RescaleBosses(from, to);
     gNumHumanPlayers = (u8)to;
@@ -1640,13 +1640,13 @@ void PortLmpTaskGoneSlow(const void *structPtr)
     /* every brain: the wide build's 4.. too (their stale pointers are the
      * same divergence, ROOMS-REPORT.md F3) */
     for (k = 0; k < KATAM_KIRBYS; k++) {
-        struct Unk_02038590 *b = &gUnk_02038590[k];
+        struct CpuBrain *b = &gUnk_02038590[k];
 
-        if ((const void *)b->unk48 == structPtr)
-            b->unk48 = NULL;
+        if ((const void *)b->target == structPtr)
+            b->target = NULL;
         for (i = 0; i < 4; i++)
-            if ((const void *)b->unk4C[i].unk4 == structPtr)
-                b->unk4C[i].unk4 = NULL;
+            if ((const void *)b->targetMemory[i].obj == structPtr)
+                b->targetMemory[i].obj = NULL;
     }
 }
 
