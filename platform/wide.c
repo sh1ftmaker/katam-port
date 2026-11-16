@@ -436,6 +436,31 @@ static void Remove(u8 i)
             (unsigned)gNumTasks);
 }
 
+/* The pause maps' Kirby markers (port/wide.h KATAM_MAP_MARKERS): every
+ * Kirby while they fit; otherwise the pauser, this screen's own player, the
+ * other people, then CPU Kirbys, each lowest slot first.  Listed by slot. */
+u8 PortWideMapMarkers(u8 *out)
+{
+    u32 n = gNumKirbys < K ? gNumKirbys : K, taken = 0, s, m = 0;
+    int pass;
+
+    for (pass = 0; pass < 4; pass++)
+        for (s = 0; s < n && m < KATAM_MAP_MARKERS; s++) {
+            int want = pass == 0 ? s == gUnk_0203AD50
+                     : pass == 1 ? s == gLocalPlayerId
+                     : pass == 2 ? PortIsHuman(s) : 1;
+
+            if (want && !((taken >> s) & 1)) {
+                taken |= 1u << s;
+                m++;
+            }
+        }
+    for (s = 0, m = 0; s < n; s++)
+        if ((taken >> s) & 1)
+            out[m++] = (u8)s;
+    return (u8)m;
+}
+
 /* KATAM_WIDE_TRACE=F: every F frames, each Kirby's room and HP (a log line;
  * reads the simulation, writes nothing). */
 static void Trace(void)

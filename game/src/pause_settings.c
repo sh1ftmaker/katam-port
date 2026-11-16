@@ -260,7 +260,7 @@ static void PauseSettingsMain(void) {
         return;
     }
 
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
             gPauseMenus[playerId].menuId != MENU_PORT_SETTINGS) {
             ps->nextMenuId = gPauseMenus[playerId].menuId;

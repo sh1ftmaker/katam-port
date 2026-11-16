@@ -145,13 +145,34 @@ struct AreaMap {
     /* 0x05C */ s16 shardRotationIdx;
     /* 0x05E */ s16 shardRotation;
     /* 0x060 */ struct AreaMapArrow arrows[4];
-    /* 0x120 */ struct AreaMapSprite kirbySprites[4];
-    /* 0x1F0 */ struct AreaMapSprite abilityAccessories[4];
+    /* 0x120 */ struct AreaMapSprite kirbySprites[KATAM_MAP_MARKERS];        /* PORT: port/wide.h; [4] */
+    /* 0x1F0 */ struct AreaMapSprite abilityAccessories[KATAM_MAP_MARKERS];  /* PORT: port/wide.h; [4] */
     /* 0x2C0 */ struct AreaMapSprite textLabels[0x14];
-    /* 0x6D0 */ PTR32(const struct AreaMapRoomInfo) roomInfos[4];
+    /* 0x6D0 */ PTR32(const struct AreaMapRoomInfo) roomInfos[KATAM_KIRBYS];  /* PORT: port/wide.h; [4] */
     /* 0x6E0 */ struct AreaMapCamera cameraBg2;
     /* 0x6F4 */ struct AreaMapPalettePulse palettePulse[2];
+#if KATAM_KIRBYS > 4
+    /* PORT: the wide build's markers (port/wide.h KATAM_MAP_MARKERS):
+     * kirbySprites[m] and abilityAccessories[m] show Kirby markerKirby[m];
+     * roomInfos stays one per Kirby. */
+    u8 markerKirby[KATAM_MAP_MARKERS];
+    u8 numMarkers;
+#endif
 }; /* size = 0x714 */
+
+/* PORT: the Kirby marker m shows, how many markers there are, and the area a
+ * Kirby is in (0xFF: none on this map).  The console's: marker i is Kirby i,
+ * for the Kirbys in play, and the marker holds the area. */
+#if KATAM_KIRBYS > 4
+#define AREAMAP_MARKER_KIRBY(areamap, m) ((areamap)->markerKirby[m])
+#define AREAMAP_NUM_MARKERS(areamap)     ((areamap)->numMarkers)
+#define AREAMAP_KIRBY_AREA(areamap, id) \
+    ((areamap)->roomInfos[id] ? (areamap)->roomInfos[id]->areaId : 0xff)
+#else
+#define AREAMAP_MARKER_KIRBY(areamap, m) (m)
+#define AREAMAP_NUM_MARKERS(areamap)     KATAM_HUD_KIRBYS
+#define AREAMAP_KIRBY_AREA(areamap, id)  ((areamap)->kirbySprites[id].areaId)
+#endif
 
 struct Unk_08361A7C {
     /* 0x00 */ u8 filler0;
@@ -2555,8 +2576,15 @@ static const struct AnimInfo gUnk_083639a0[NUM_LANGUAGES][10] UNUSED = {
  * Offsets for AreaMapDrawKirbysInRoom() to correctly place kirbys such that they don't overlap when they're in the same room.
  * Laid out in x-y-pairs.
  */
+#if KATAM_KIRBYS > 4
+/* PORT: markers 4..7 (port/wide.h KATAM_MAP_MARKERS) between the console's
+ * four: the middles of the room's edges. */
+static const u8 sAreaMapNormalRoomKirbyOffsets[] = {2, 2, 14, 2, 2, 14, 14, 14, 8, 2, 2, 8, 14, 8, 8, 14};
+static const u8 sAreaMapBigRoomKirbyOffsets[] = {8, 12, 24, 12, 8, 28, 24, 28, 16, 12, 8, 20, 24, 20, 16, 28};
+#else
 static const u8 sAreaMapNormalRoomKirbyOffsets[] = {2, 2, 14, 2, 2, 14, 14, 14};
 static const u8 sAreaMapBigRoomKirbyOffsets[] = {8, 12, 24, 12, 8, 28, 24, 28};
+#endif
 
 // Array of pointers to palettes with 0x200 bytes size (except for last index, that's NULL)
 // Only the last 0x100 bytes seem to be used for each
@@ -2679,17 +2707,25 @@ inline void UNUSED MapDisableUIElementsThunk(enum MapDisableUI element) {
 }
 
 // TODO: Revisit when sprite functions are better understood
+/* PORT: `marker` is the marker's index (its OBJ tiles and draw order), the
+ * console's playerId; the wide build's Kirbys 4.. draw with their own
+ * palettes (port/wide.h KATAM_KIRBY_PAL; 0x40000: the sprite loads none). */
+#if KATAM_KIRBYS > 4
+static void AreaMapKirbySpritesInit(struct Sprite* kirby, struct Sprite* abilityAccessory, u8 playerId, u8 marker) {
+#else
 static void AreaMapKirbySpritesInit(struct Sprite* kirby, struct Sprite* abilityAccessory, u8 playerId) {
-    u16 r5 = playerId * 2 + 0xa;  // priority?
+    u8 marker = playerId;
+#endif
+    u16 r5 = marker * 2 + 0xa;  // priority?
     if (playerId == gLocalPlayerId) {
         r5 = 0x8;
     }
 
-    SpriteInitNoPointer2(kirby, (u32)OBJ_VRAM0 + 0x3800 + playerId * 0x100, (r5 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
-                         gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, playerId, 0, 0, 0x41000);
+    SpriteInitNoPointer2(kirby, (u32)OBJ_VRAM0 + 0x3800 + marker * 0x100, (r5 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
+                         gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL(playerId), 0, 0, 0x41000);
 
-    SpriteInitNoPointer2(abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + playerId * 0x100, r5 << 6, gUnk_08350B30[gKirbys[playerId].ability].animId,
-                         gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, playerId + 4, 0, 0, 0x41000);
+    SpriteInitNoPointer2(abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + marker * 0x100, r5 << 6, gUnk_08350B30[gKirbys[playerId].ability].animId,
+                         gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL2(playerId), 0, 0, 0x41000);
 }
 
 // TODO: Revisit when sprite functions are better understood
@@ -2725,6 +2761,33 @@ static inline const struct AreaMapRoomInfo* AreaMapGetRoomInfo(u16 roomId) {
  */
 static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
     u32 playerId;
+#if KATAM_KIRBYS > 4
+    /* PORT: every Kirby's room (the pauser's is read below), then the
+     * markers' (port/wide.h KATAM_MAP_MARKERS). */
+    u32 m;
+    for (playerId = 0; playerId < KATAM_KIRBYS; playerId++) {
+        const struct AreaMapRoomInfo* roomInfo = NULL;
+        if (playerId < gNumKirbys && gCurLevelInfo[playerId].currentRoom != 0xFFFF) {
+            u16 roomId = gCurLevelInfo[playerId].currentRoom;
+            if (gUnk_08D6CD0C[roomId]->unk46 != 9 && gUnk_08D6CD0C[roomId]->unk46 != 10) {
+                roomInfo = AreaMapGetRoomInfo(roomId);
+            }
+        }
+        areamap->roomInfos[playerId] = roomInfo;
+    }
+    areamap->numMarkers = PortWideMapMarkers(areamap->markerKirby);
+    for (m = 0; m < areamap->numMarkers; m++) {
+        const struct AreaMapRoomInfo* roomInfo = areamap->roomInfos[areamap->markerKirby[m]];
+        if (roomInfo) {
+            areamap->kirbySprites[m].areaId = roomInfo->areaId;
+            areamap->kirbySprites[m].globalX = roomInfo->tileStartColumn * 8;
+            areamap->kirbySprites[m].globalY = roomInfo->tileStartRow * 8;
+        }
+        else {
+            areamap->kirbySprites[m].areaId = 0xff;
+        }
+    }
+#else
     for (playerId = 0; playerId < KATAM_HUD_KIRBYS; playerId++) { /* PORT: port/wide.h */
         const struct AreaMapRoomInfo* roomInfo;
         u16 roomId = gCurLevelInfo[playerId].currentRoom;
@@ -2745,15 +2808,19 @@ static void AreaMapFindRoomsWithKirbys(struct AreaMap* areamap) {
             areamap->kirbySprites[playerId].areaId = 0xff;
         }
     }
+#endif
 }
 
 static void AreaMapDrawKirbysInRoom(struct AreaMap* areamap) {
-    u32 playerId;
+    u32 marker;  /* PORT: port/wide.h KATAM_MAP_MARKERS; the console's playerId */
     struct AreaMapCamera* cameraBg2 = &areamap->cameraBg2;
-    for (playerId = 0; playerId < KATAM_HUD_KIRBYS; playerId++) { /* PORT: port/wide.h */
+    for (marker = 0; marker < AREAMAP_NUM_MARKERS(areamap); marker++) {
         u8 xOffset, yOffset;  // offsets from room coordinates for 4 kirbys to be drawn without overlap in one room
-        struct AreaMapSprite* kirby = areamap->kirbySprites + playerId;
-        struct AreaMapSprite* abilityAccessory = areamap->abilityAccessories + playerId;
+        u32 playerId = AREAMAP_MARKER_KIRBY(areamap, marker);
+        /* PORT: the spot in the room: the console's Kirby i's, or marker m's of eight */
+        u32 spot = KATAM_KIRBYS > 4 ? marker : KATAM_ROM_ROW(playerId);
+        struct AreaMapSprite* kirby = areamap->kirbySprites + marker;
+        struct AreaMapSprite* abilityAccessory = areamap->abilityAccessories + marker;
         u32 x, y;
         bool32 isKirbyOnScreen;
         bool32 UNUSED isKirbyXOnScreen;
@@ -2763,13 +2830,13 @@ static void AreaMapDrawKirbysInRoom(struct AreaMap* areamap) {
         switch (areamap->roomInfos[playerId]->type) {
         case AREAMAP_ROOM_BIG:
         case AREAMAP_ROOM_STAR:
-            xOffset = sAreaMapBigRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2];
-            yOffset = sAreaMapBigRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2 + 1];
+            xOffset = sAreaMapBigRoomKirbyOffsets[spot * 2];
+            yOffset = sAreaMapBigRoomKirbyOffsets[spot * 2 + 1];
             break;
         case AREAMAP_ROOM_NORMAL:
         default:
-            xOffset = sAreaMapNormalRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2];
-            yOffset = sAreaMapNormalRoomKirbyOffsets[KATAM_ROM_ROW(playerId) * 2 + 1];
+            xOffset = sAreaMapNormalRoomKirbyOffsets[spot * 2];
+            yOffset = sAreaMapNormalRoomKirbyOffsets[spot * 2 + 1];
             break;
         }
 
@@ -3005,10 +3072,10 @@ static void AreaMapCameraInitPosition(struct AreaMap* areamap) {
         break;
     case AREAMAP_FOUND_MAP:
         playerId = -1;
-        if (areamap->kirbySprites[gUnk_0203AD50].areaId == areamap->cameraBg2.areaId) {
+        if (AREAMAP_KIRBY_AREA(areamap, gUnk_0203AD50) == areamap->cameraBg2.areaId) {  /* PORT: port/wide.h */
             playerId = gUnk_0203AD50;
         }
-        else if (areamap->kirbySprites[gLocalPlayerId].areaId == areamap->cameraBg2.areaId) {
+        else if (AREAMAP_KIRBY_AREA(areamap, gLocalPlayerId) == areamap->cameraBg2.areaId) {
             playerId = gLocalPlayerId;
         }
 
@@ -3151,9 +3218,15 @@ void CreateAreaMap(void) {
     areamap->cameraBg2.doZoom = 0;
 
     AreaMapBGInit(areamap);
+#if KATAM_KIRBYS > 4
+    for (id = 0; id < areamap->numMarkers; id++) {  // marker; PORT: port/wide.h KATAM_MAP_MARKERS
+        AreaMapKirbySpritesInit(&areamap->kirbySprites[id].sprite, &areamap->abilityAccessories[id].sprite, areamap->markerKirby[id], id);
+    }
+#else
     for (id = 0; id < KATAM_HUD_KIRBYS; id++) {  // playerId; PORT: port/wide.h
         AreaMapKirbySpritesInit(&areamap->kirbySprites[id].sprite, &areamap->abilityAccessories[id].sprite, id);
     }
+#endif
     AreaMapTextLabelInit(areamap);
 
     language = gLanguage;
@@ -3215,7 +3288,7 @@ void CreateAreaMap(void) {
     AreaMapCameraScroll(&areamap->cameraBg2);
     (&areamap->cameraBg2)->flags |= 0x0001;
 
-    for (playerOrAreaId = 0; playerOrAreaId < 4; playerOrAreaId++) {
+    for (playerOrAreaId = 0; playerOrAreaId < KATAM_PAUSE_MENUS; playerOrAreaId++) {
         gPauseMenus[playerOrAreaId].flags &= ~(MENU_FLAG_AREA_DESCEND | MENU_FLAG_AREA_ASCEND);
     }
 }
@@ -3251,6 +3324,14 @@ static void AreaMapUpdateDynamics(struct AreaMap* areamap) {
     for (playerId = 0; playerId < 4; playerId++) {
         sub_0803E558(playerId);
     }
+#if KATAM_KIRBYS > 4
+    /* PORT: the palettes of the other markers' Kirbys (port/wide.h) */
+    for (playerId = 0; playerId < areamap->numMarkers; playerId++) {
+        if (areamap->markerKirby[playerId] >= 4) {
+            sub_0803E558(areamap->markerKirby[playerId]);
+        }
+    }
+#endif
 
     AreaMapCameraScroll(&areamap->cameraBg2);
 
@@ -3436,14 +3517,14 @@ static void AreaMapMain(void) {
     }
 
     // Prepare switching to next area, if menu flags have been set in PauseMenuMain()
-    if (areamap->kirbySprites[gLocalPlayerId].areaId && (gPauseMenus[gLocalPlayerId].flags & (MENU_FLAG_AREA_DESCEND | MENU_FLAG_AREA_ASCEND))) {
+    if (AREAMAP_KIRBY_AREA(areamap, gLocalPlayerId) && (gPauseMenus[gLocalPlayerId].flags & (MENU_FLAG_AREA_DESCEND | MENU_FLAG_AREA_ASCEND))) {
         if (gPauseMenus[gLocalPlayerId].flags & MENU_FLAG_AREA_ASCEND) {
             areamap->gotoNextAreaMap = 1;
         }
         else {
             areamap->gotoNextAreaMap = -1;
         }
-        for (playerOrAreaId = 0; playerOrAreaId < 4; playerOrAreaId++) {
+        for (playerOrAreaId = 0; playerOrAreaId < KATAM_PAUSE_MENUS; playerOrAreaId++) {
             gPauseMenus[playerOrAreaId].flags &= ~(MENU_FLAG_AREA_DESCEND | MENU_FLAG_AREA_ASCEND);
         }
         sub_08128BEC(0x20, 1, 2);
@@ -3452,7 +3533,7 @@ static void AreaMapMain(void) {
     AreaMapUpdateDynamics(areamap);
 
     // Prepare switching to next menu, if gPauseMenus::menuId was changed in PauseMenuMain()
-    for (playerOrAreaId = 0; playerOrAreaId < 4; playerOrAreaId++) {  // playerId
+    for (playerOrAreaId = 0; playerOrAreaId < KATAM_PAUSE_MENUS; playerOrAreaId++) {  // playerId
         if (gPauseMenus[playerOrAreaId].flags & MENU_FLAG_CURRENT_PLAYER &&
             (gPauseMenus[playerOrAreaId].menuId == MENU_HELP || gPauseMenus[playerOrAreaId].menuId == MENU_WORLDMAP)) {
             areamap->nextMenuId = gPauseMenus[playerOrAreaId].menuId;

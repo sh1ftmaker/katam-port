@@ -265,7 +265,7 @@ static inline void PauseMenuInit(struct PauseMenu* pauseMenu, u32 playerId, stru
 static inline u32 GetPlayerRoomFlags(void) {
     u32 playerRoomFlags = 0;
     s32 playerId;
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         if (!(gPauseMenus[playerId].flags & MENU_FLAG_AI)) {
             playerRoomFlags |= 1 << GetKirbyRoomFlagIndex(playerId);
         }
@@ -283,12 +283,20 @@ void CreatePauseMenu(void) {
     PauseMenuInit(gPauseMenus + 1, 1, task);
     PauseMenuInit(gPauseMenus + 2, 2, task);
     PauseMenuInit(gPauseMenus + 3, 3, task);
+#if KATAM_KIRBYS > 4
+    {   /* PORT: a menu for every Kirby in play (port/wide.h KATAM_PAUSE_MENUS) */
+        s32 playerId;
+        for (playerId = 4; playerId < KATAM_PAUSE_MENUS; playerId++) {
+            PauseMenuInit(gPauseMenus + playerId, playerId, task);
+        }
+    }
+#endif
 
     playerRoomFlags = GetPlayerRoomFlags();
 
     if (playerRoomFlags & ((1 << KIRBY_IN_DIMENSION_MIRROR) | (1 << KIRBY_OUTSIDE_AREAMAP))) {
         s32 playerId;
-        for (playerId = 0; playerId < 4; playerId++) {
+        for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
             gPauseMenus[playerId].menuId = MENU_HELP;
         }
     }
@@ -296,13 +304,13 @@ void CreatePauseMenu(void) {
         if (playerRoomFlags & (1 << KIRBY_IN_TUTORIAL_ROOM)) {
             if (!HasBigChest(AREA_TUTORIAL)) {
                 s32 playerId;
-                for (playerId = 0; playerId < 4; playerId++) {
+                for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
                     gPauseMenus[playerId].menuId = MENU_HELP;
                 }
             }
             else {
                 s32 playerId;
-                for (playerId = 0; playerId < 4; playerId++) {
+                for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
                     if (gPauseMenus[playerId].menuId == MENU_AREAMAP) {
                         gPauseMenus[playerId].menuId = MENU_HELP;
                     }
@@ -483,7 +491,7 @@ static void HelpMenuMain(void) {
         DisplaySprite(&helpmenu->buttonSwitch);
     }
 
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
             (gPauseMenus[playerId].menuId == MENU_WORLDMAP || gPauseMenus[playerId].menuId == MENU_AREAMAP
              || gPauseMenus[playerId].menuId == MENU_PORT_SETTINGS)) {
@@ -561,10 +569,10 @@ static void PauseMenuMain(void) {
     u16 allPressedKeys;
     s32 playerId;
 
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         PauseMenuFetchInputs(gPauseMenus + playerId);
     }
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         if (gPauseMenus[playerId].disableInputCounter != 0) {
             gPauseMenus[playerId].flags |= MENU_FLAG_DISABLE_INPUT;
             gPauseMenus[playerId].disableInputCounter--;
@@ -573,7 +581,7 @@ static void PauseMenuMain(void) {
             gPauseMenus[playerId].flags &= ~MENU_FLAG_DISABLE_INPUT;
         }
     }
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         PauseMenuFetchInputs(gPauseMenus + playerId);
     }
 
@@ -583,7 +591,7 @@ static void PauseMenuMain(void) {
     if (gPauseMenus[gUnk_0203AD50].pressedKeys & (B_BUTTON | START_BUTTON) && !(gPauseMenus[gUnk_0203AD50].flags & MENU_FLAG_DISABLE_INPUT)
         && !(gPauseMenus[gLocalPlayerId].menuId == MENU_PORT_SETTINGS && PortPocScreenSub()
              && !(gPauseMenus[gUnk_0203AD50].pressedKeys & START_BUTTON))) {
-        for (playerId = 0; playerId < 4; playerId++) {
+        for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
             gPauseMenus[playerId].flags |= MENU_FLAG_BACK_TO_GAME;
             gPauseMenus[playerId].disableInputCounter = 60;
             if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER) {
@@ -596,7 +604,7 @@ static void PauseMenuMain(void) {
     if (gUnk_0203AD10 & 4) return;
 
     allPressedKeys = 0;
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
         if (!(gPauseMenus[playerId].flags & MENU_FLAG_DISABLE_INPUT)) {
             allPressedKeys |= gPauseMenus[playerId].pressedKeys;
         }
@@ -642,7 +650,7 @@ static void PauseMenuMain(void) {
         }
 
         if (menuId != gPauseMenus[gLocalPlayerId].menuId) {
-            for (playerId = 0; playerId < 4; playerId++) {
+            for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
                 gPauseMenus[playerId].menuId = menuId;
                 gPauseMenus[playerId].disableInputCounter = 40;
                 guard_sub_08031CE4(playerId);
@@ -657,7 +665,7 @@ static void PauseMenuMain(void) {
     if (gPauseMenus[gLocalPlayerId].menuId == MENU_AREAMAP && allPressedKeys & (R_BUTTON | L_BUTTON) &&
         !((gPauseMenus[0].flags | gPauseMenus[1].flags | gPauseMenus[2].flags | gPauseMenus[3].flags) & MENU_FLAG_ONLY_VISITED_RAINBOW_ROUTE)) {
         enum PauseMenuFlags menuDirection = allPressedKeys & R_BUTTON ? MENU_FLAG_AREA_ASCEND : MENU_FLAG_AREA_DESCEND;
-        for (playerId = 0; playerId < 4; playerId++) {
+        for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
             gPauseMenus[playerId].flags |= menuDirection;
             gPauseMenus[playerId].disableInputCounter = 40;
             guard_sub_08031CE4(playerId);
@@ -674,7 +682,7 @@ static void PauseMenuMain(void) {
  */
 void PauseMenuInitRetained(void) {
     s32 playerId;
-    for (playerId = 0; playerId < 4; playerId++) {
+    for (playerId = 0; playerId < KATAM_PAUSE_MENUS_ALL; playerId++) {
         gPauseMenus[playerId].menuId = MENU_HELP;
         gPauseMenus[playerId].zoomAreaMap = 0x10;
     }

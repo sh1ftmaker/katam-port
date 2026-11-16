@@ -124,7 +124,7 @@ struct WorldMapKirby {
 
 struct WorldMap {
     /* 0x000 */ struct Background bg;
-    /* 0x040 */ struct WorldMapKirby worldmapKirbys[4];
+    /* 0x040 */ struct WorldMapKirby worldmapKirbys[KATAM_MAP_MARKERS];  /* PORT: port/wide.h; [4] */
     /* 0x190 */ u8 filler190[0x78];
     /* 0x208 */ u16 unk208;
     /* 0x20A */ u16 unk20A;
@@ -133,6 +133,12 @@ struct WorldMap {
     /* 0x210 */ u8 nextMenuId;  // According to enum PauseMenuId
     /* 0x211 */ s8 closeCounter;
     /* 0x214 */ PTR32(struct Task) worldmapLineTask;
+#if KATAM_KIRBYS > 4
+    /* PORT: the wide build's markers (port/wide.h KATAM_MAP_MARKERS):
+     * worldmapKirbys[m] shows Kirby markerKirby[m]. */
+    u8 markerKirby[KATAM_MAP_MARKERS];
+    u8 numMarkers;
+#endif
 }; /* size = 0x218 */
 
 /*
@@ -899,10 +905,17 @@ static u16 WorldMapGetCoorFromRoom(u16 roomId, u8 playerId) {
     return coor;
 }
 
+/* PORT: `marker` is the marker's index (its OBJ tiles, draw order): the
+ * console's playerId (port/wide.h KATAM_MAP_MARKERS). */
+#if KATAM_KIRBYS > 4
+static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 playerId, u32 marker) {
+#else
 static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 playerId) {
+    u32 marker = playerId;
+#endif
     u16 spriteCoor;
 
-    u16 r9 = playerId * 2 + 10;
+    u16 r9 = marker * 2 + 10;
     if (playerId == gLocalPlayerId) {
         r9 = 8;
     }
@@ -912,17 +925,24 @@ static void WorldMapSetKirbySprites(struct WorldMapKirby* worldmapKirby, u32 pla
         worldmapKirby->flags = WORLDMAP_KIRBY_DRAW_NO_ACCESSORY;
     }
 
-    spriteCoor = WorldMapGetCoorFromRoom(gKirbys[playerId].base.roomId, playerId);
+    /* PORT: Kirbys 4.. take the spot of Kirby i & 3 (the ROM has four per
+     * room), a few pixels to the right (port/wide.h KATAM_ROM_ROW). */
+    spriteCoor = WorldMapGetCoorFromRoom(gKirbys[playerId].base.roomId, KATAM_ROM_ROW(playerId));
     if (spriteCoor == 0x0000) {
         worldmapKirby->flags |= (WORLDMAP_KIRBY_DRAW_NO_SPRITE | WORLDMAP_KIRBY_DRAW_NO_ACCESSORY);
     }
+#if KATAM_KIRBYS > 4
+    else if (playerId >= 4) {
+        spriteCoor += 6 << 8;
+    }
+#endif
     sub_0803E558(playerId);
 
-    SpriteInitNoFunc(&worldmapKirby->kirby, (u32)OBJ_VRAM0 + 0x3800 + (playerId << 8), (r9 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
-                     gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, playerId, spriteCoor >> 8, (spriteCoor & 0xff) + 7, 0x41000);
+    SpriteInitNoFunc(&worldmapKirby->kirby, (u32)OBJ_VRAM0 + 0x3800 + (marker << 8), (r9 + 1) << 6, gUnk_08350AAC[gKirbys[playerId].ability].animId,
+                     gUnk_08350AAC[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL(playerId), spriteCoor >> 8, (spriteCoor & 0xff) + 7, 0x41000);
 
-    SpriteInitNoFunc(&worldmapKirby->abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + (playerId << 8), r9 << 6,
-                     gUnk_08350B30[gKirbys[playerId].ability].animId, gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, playerId + 4,
+    SpriteInitNoFunc(&worldmapKirby->abilityAccessory, (u32)OBJ_VRAM0 + 0x3880 + (marker << 8), r9 << 6,
+                     gUnk_08350B30[gKirbys[playerId].ability].animId, gUnk_08350B30[gKirbys[playerId].ability].variant, 0, 0xff, 0x10, KATAM_KIRBY_PAL2(playerId),
                      spriteCoor >> 8, (spriteCoor & 0xff) + 7, 0x41000);
 
     sub_08155128(&worldmapKirby->kirby);
@@ -1112,6 +1132,35 @@ static void WorldMapDrawKirbys(struct WorldMap* worldmap) {
     WorldMapKirbyDraw(worldmap, 1);
     WorldMapKirbyDraw(worldmap, 2);
     WorldMapKirbyDraw(worldmap, 3);
+#if KATAM_KIRBYS > 4
+    {   /* PORT: the other markers (port/wide.h KATAM_MAP_MARKERS) */
+        u32 m;
+        for (m = 4; m < worldmap->numMarkers; m++) {
+            WorldMapKirbyDraw(worldmap, m);
+        }
+    }
+#endif
+}
+
+/* PORT: every marker's sprites; the console's four calls, for Kirbys 0..3. */
+static void WorldMapSetAllKirbySprites(struct WorldMap* worldmap) {
+#if KATAM_KIRBYS > 4
+    u32 m;
+    worldmap->numMarkers = PortWideMapMarkers(worldmap->markerKirby);
+    for (m = 0; m < KATAM_MAP_MARKERS; m++) {
+        if (m < worldmap->numMarkers) {
+            WorldMapSetKirbySprites(worldmap->worldmapKirbys + m, worldmap->markerKirby[m], m);
+        }
+        else {
+            worldmap->worldmapKirbys[m].flags = WORLDMAP_KIRBY_DRAW_NO_SPRITE | WORLDMAP_KIRBY_DRAW_NO_ACCESSORY;
+        }
+    }
+#else
+    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 0, 0);
+    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 1, 1);
+    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 2, 2);
+    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 3, 3);
+#endif
 }
 
 void CreateWorldMap(enum WorldMapDoor unlockedDoorId) {
@@ -1148,6 +1197,9 @@ void CreateWorldMap(enum WorldMapDoor unlockedDoorId) {
     worldmap->nextMenuId = 0;
     worldmap->worldmapLineTask = NULL;
     worldmap->closeCounter = 0;
+#if KATAM_KIRBYS > 4
+    worldmap->numMarkers = 0;  /* PORT: until WorldMapSetAllKirbySprites */
+#endif
 }
 
 static void WorldMapPauseInit(void) {
@@ -1181,10 +1233,7 @@ static void WorldMapPauseInit(void) {
     CpuFill16(0, BG_SCREEN_ADDR(24), 0x600);
     CpuCopy32(sWorldMapAllUnlockedTilemap, BG_SCREEN_ADDR(24), sizeof(sWorldMapAllUnlockedTilemap));
 
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 0, 0);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 1, 1);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 2, 2);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 3, 3);
+    WorldMapSetAllKirbySprites(worldmap);  /* PORT: port/wide.h KATAM_MAP_MARKERS */
 
     WorldMapRemoveLines();
 
@@ -1212,7 +1261,7 @@ static void WorldMapPauseMain(void) {
     else {
         WorldMapDrawKirbys(worldmap);
 
-        for (playerId = 0; playerId < 4; playerId++) {
+        for (playerId = 0; playerId < KATAM_PAUSE_MENUS; playerId++) {
             if (gPauseMenus[playerId].flags & MENU_FLAG_CURRENT_PLAYER &&
                 (gPauseMenus[playerId].menuId == MENU_HELP || gPauseMenus[playerId].menuId == MENU_AREAMAP
                  || gPauseMenus[playerId].menuId == MENU_PORT_SETTINGS)) {
@@ -1271,10 +1320,7 @@ static void WorldMapUnlockInitKirbyAndDoors(void) {
     gCurTask->main = FN(WorldMapUnlockWaitLineFinish);
     worldmap->worldmapLineTask = CreateWorldMapLine(worldmap->unlockedDoorId);
 
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 0, 0);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 1, 1);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 2, 2);
-    WorldMapSetKirbySprites(worldmap->worldmapKirbys + 3, 3);
+    WorldMapSetAllKirbySprites(worldmap);  /* PORT: port/wide.h KATAM_MAP_MARKERS */
 
     WorldMapRemoveLines();
 
@@ -1290,10 +1336,7 @@ static void WorldMapUnlockWaitLineFinish(void) {
     struct WorldMapLine* worldMapLine;
     struct WorldMap *tmp = TaskGetStructPtr(gCurTask), *worldmap = tmp;
 
-    WorldMapKirbyDraw(worldmap, 0);
-    WorldMapKirbyDraw(worldmap, 1);
-    WorldMapKirbyDraw(worldmap, 2);
-    WorldMapKirbyDraw(worldmap, 3);
+    WorldMapDrawKirbys(worldmap);  /* PORT: the console's four WorldMapKirbyDraw calls, and the wide build's other markers */
 
     worldMapLine = TaskGetStructPtr(worldmap->worldmapLineTask);
     if (worldMapLine->flags & LINE_FLAG_LINE_DRAW_COMPLETED) {
@@ -1342,10 +1385,7 @@ static void WorldMapUnlockMain(void) {
     u8 index, r5;
     struct WorldMap *tmp = TaskGetStructPtr(gCurTask), *worldmap = tmp;
 
-    WorldMapKirbyDraw(worldmap, 0);
-    WorldMapKirbyDraw(worldmap, 1);
-    WorldMapKirbyDraw(worldmap, 2);
-    WorldMapKirbyDraw(worldmap, 3);
+    WorldMapDrawKirbys(worldmap);  /* PORT: the console's four WorldMapKirbyDraw calls, and the wide build's other markers */
 
     if (worldmap->unlockCounter == 120) {
         sub_08124EC8();

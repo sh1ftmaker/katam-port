@@ -25,6 +25,10 @@ enum PauseMenuId {
     MENU_HELP = 1,
     MENU_WORLDMAP = 2,
     MENU_AREAMAP = 4,
+    /* PORT: pause_settings.h MENU_PORT_SETTINGS (KATAM_MENU_POC), named here
+     * so that the enum's range holds it (UBSan -fsanitize=enum flagged the
+     * help page's nextMenuId = 8); the same int type, no code changes. */
+    MENU_PORT_SETTINGS_ENUM = 8,
 };
 
 /*

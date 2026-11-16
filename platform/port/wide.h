@@ -118,13 +118,42 @@
 #define KATAM_KIRBY_PAL2(i)  (KATAM_KIRBY_PAL(i) + 4)
 
 /* The console HUD's other-Kirby icons (hud.c: struct GameplayHud keeps
- * sprites for four), and the pause area map's Kirby markers (the same).
- * PLACEHOLDER in the wide build: they show Kirbys 0..3 only, and a screen whose own player is 4.. shows no calling-Kirby icon.  A
- * HUD for more players is its own work (the port's party HUD). */
+ * sprites for four).  PLACEHOLDER in the wide build: they show Kirbys 0..3
+ * only, and a screen whose own player is 4.. shows no calling-Kirby icon.  A
+ * HUD for more players is its own work (the port's party HUD).  (The pause
+ * maps' markers have their own count: KATAM_MAP_MARKERS below.) */
 #if KATAM_WIDE
 #define KATAM_HUD_KIRBYS (gNumKirbys < 4 ? gNumKirbys : 4)
 #else
 #define KATAM_HUD_KIRBYS gNumKirbys
+#endif
+
+/* The pause screens' per-player menus (pause_help.c gPauseMenus: a menu per
+ * Kirby slot in the wide build, port/wide.h WIDE_OFF_PAUSE).  The console's
+ * loops visit four.  With more than four Kirby slots they visit every Kirby
+ * in play, so that a pauser, or a screen's own player (rooms mode), from 5 on
+ * has a menu that is set up, read and closed like 1..4's.  4 at N = 4 (W0).
+ * KATAM_PAUSE_MENUS_ALL: every entry (PauseMenuInitRetained, at power-on and
+ * each game's start, so a Kirby made later finds its menu ready). */
+#if KATAM_KIRBYS > 4
+#define KATAM_PAUSE_MENUS     ((int)(gNumKirbys > 4 ? gNumKirbys : 4))
+#define KATAM_PAUSE_MENUS_ALL KATAM_KIRBYS
+#else
+#define KATAM_PAUSE_MENUS     4
+#define KATAM_PAUSE_MENUS_ALL 4
+#endif
+
+/* The pause area map's and world map's Kirby markers (pause_area_map.c,
+ * pause_world_map.c).  The console's maps keep four, one per Kirby, each
+ * with 256 bytes of OBJ tiles at 0x06013800 + i * 0x100.  With more Kirby
+ * slots they keep up to eight, at 0x06013800 .. 0x06014000 (where the
+ * game's own OBJ VRAM heap starts, gVramHeapStartAddr): every Kirby while
+ * there are eight or fewer, otherwise the pauser, the screen's own player,
+ * the other people and then CPU Kirbys, lowest slot first, eight in all. */
+#if KATAM_KIRBYS > 4
+#define KATAM_MAP_MARKERS (KATAM_KIRBYS < 8 ? KATAM_KIRBYS : 8)
+#else
+#define KATAM_MAP_MARKERS 4
 #endif
 
 /* min(n, 4) in the wide build, n otherwise: a loop over the Kirbys that
@@ -351,6 +380,10 @@ void PortWideSetTarget(int n);
 int  PortWideTarget(void);
 u8   PortWideStartKirbys(void);
 void PortWideFrame(void);
+
+/* The pause maps' Kirby markers (KATAM_MAP_MARKERS above): fills out[] with
+ * the Kirbys that get one, lowest slot first, and returns how many. */
+u8   PortWideMapMarkers(u8 *out);
 
 /* Kirbys 4..'s sprite memory (platform/wide_sprites.c). */
 static inline u32 PortWideOamTiles(u32 v)
