@@ -386,6 +386,9 @@ void PortRlEmitSprite(const struct Sprite *sprite, int variant);
 void PortRlCommitSprites(void);
 /* With DrawToOamBuffer, in UpdateScreen: snapshot camera, layers, room. */
 void PortRlCommitScreen(void);
+/* platform/lmpnet.c, the pause overlay's fork in or out: the other bank of
+ * what the hooks recorded (rl_build.c). */
+void PortRlSwapRecording(void);
 
 #ifdef __cplusplus
 }

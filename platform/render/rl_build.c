@@ -147,6 +147,28 @@ static TilePatch sCommitPatch[MAX_PATCHES];
 static u32 sNumCommitPatch;
 static u32 sCommitSerial;
 
+/* The pause overlay (platform/lmpnet.c): a second game, the device's own
+ * fork, runs one frame between two live frames, each presented from its own
+ * commits.  So the recording above comes in two banks: the fork's is
+ * swapped in with the fork's state and out again with it
+ * (PortRlSwapRecording), and neither game's commit is ever built into the
+ * other's picture.  (The canonical shadow records nothing: Recording.) */
+#define RL_REC_PARTS(X) X(sScreen) X(sSprFrame) X(sEmit) X(sNumEmit) X(sEmitDropped) X(sEmitPatch) \
+    X(sNumEmitPatch) X(sCommitted) X(sNumCommitted) X(sCommitPatch) X(sNumCommitPatch) X(sCommitSerial)
+#define RL_REC_SIZE(v) + sizeof(v)
+static u8 sRecOther[0 RL_REC_PARTS(RL_REC_SIZE)];
+
+void PortRlSwapRecording(void)
+{
+    static u8 tmp[RL_MAX_SPRITES * sizeof(PendingSprite)];
+    u8 *o = sRecOther;
+    typedef char TmpBigEnough[sizeof tmp >= sizeof sEmit && sizeof tmp >= sizeof sScreen ? 1 : -1];
+
+#define RL_REC_SWAP(v) memcpy(tmp, &(v), sizeof(v)); memcpy(&(v), o, sizeof(v)); memcpy(o, tmp, sizeof(v)); o += sizeof(v);
+    RL_REC_PARTS(RL_REC_SWAP)
+#undef RL_REC_SWAP
+}
+
 static s32 SignExtend(s32 v, int bits)
 {
     s32 m = 1 << (bits - 1);

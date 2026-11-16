@@ -624,7 +624,7 @@ async function main() {
         texts.push(`${rooms ? 'free roam' : 'together'}: ${r.compare.equal}/${r.compare.compared} frames identical; at the end every device has paints ${p.join(' ')} and names ${r.cards.host.names.join(' ')}, feet ${r.cards.host.feet.join(' ')} (${feetOk ? 'ALICE\'s parts' : 'NOT ALICE\'s parts'}) (${sameAll ? 'the same on all ' + views.length : 'NOT the same on every device'}); ` +
                   `slot 2's colour over time ${s2.join(' -> ')} (${s2ok ? 'BOB, the game\'s own while gone, BOB, the game\'s own after the leave, then the host\'s second player' : 'NOT as expected'}); ` +
                   `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}; ` +
-                  `presented frames from another screen's or frame's commit ${[pr.host, ...pr.guests].filter(Boolean).map((x) => `${x.foreign}/${x.stale}`).join(' ')} of ${pr.host ? pr.host.builds : 0}` +
+                  `presented frames from another screen's or frame's commit ${[pr.host, ...pr.guests].filter(Boolean).map((x) => `${x.foreign}/${x.stale}${x.lastBad ? "@" + x.lastBad : ""}`).join(' ')} of ${pr.host ? pr.host.builds : 0}` +
                   `${rooms ? `, shadow runs ${pr.guests.map((x) => x.canonRuns).join('/')}` : ''} (${prOk ? 'every device its own picture' : 'NOT every device its own picture'})`);
         }
         report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };

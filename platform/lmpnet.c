@@ -86,6 +86,7 @@
 #include "pause_help.h"
 #include "in_game_interlude.h"
 #include "port/fnid.h"
+#include "render/render_list.h"   /* PortRlSwapRecording */
 #include "task.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -2347,6 +2348,7 @@ static void OvlClose(int why)
 static void OvlStop(void)
 {
     if (sOvlRun && sOvlLive != NULL) {
+        PortRlSwapRecording();
         PortRbSnapshotLoad(sOvlLive);
         PortLnExtrasLoad(sOvlLive + sSnapBytes, PortLnExtrasSize());
     }
@@ -2471,6 +2473,7 @@ static void OvlForkIn(void)
         return;
     }
     OvlSave(sOvlLive);
+    PortRlSwapRecording();      /* the render list's commits: the fork's */
     if (sOvlForkValid) {
         PortRbSnapshotLoad(sOvlFork);
         PortPocHostStateLoadOwn(sOvlFork + sSnapBytes);
@@ -2495,6 +2498,7 @@ static void OvlForkTop(void)
     OvlObserveFork();
     up = sOvlObs[0] && sOvlObs[1] == sOvlSlot;
     OvlSave(sOvlFork);
+    PortRlSwapRecording();      /* ... and the live game's back */
     PortRbSnapshotLoad(sOvlLive);
     PortLnExtrasLoad(sOvlLive + sSnapBytes, PortLnExtrasSize());
     sOvlRun = 0;
