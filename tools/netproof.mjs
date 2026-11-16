@@ -15,13 +15,29 @@
 // on one device, churn, a full game, slot reuse, the slot-table ablation),
 // R14 the link matrix on three devices, R15 feel per guest for 2/3/4 devices,
 // R16 player cards online (colours and names through joins, leaves, repairs).
+//
+// More devices (a wide module: KATAM_MAX_KIRBYS 8 or 16, eight seats):
+//   --devices N     every gate that runs two devices (R0-R5, R12) runs N
+//                   instead (guest 1 is the one measured; guests 2..N-1 play
+//                   beside it), and R13 / R16 add N-device variants (churn, a
+//                   full game, slot reuse, two local players on one device,
+//                   cards beside N devices)
+//   --r15 2,4,6,8   the device counts R15 measures (default 2,3,4)
+//   --copies K      bounded redundancy (web/ln_session.js HostSession: each
+//                   sealed record K times, then on the ack's timeout); 0 = the
+//                   old until-acked rule.  Default: 4 on a wide module, 0 on
+//                   the 4-Kirby one (what the page does)
+//   --max-packet B  no sealed packet larger than B bytes (default 1100 with
+//                   --copies, else none)
+// The Kirby address the scenario pokes comes from the module (its slot
+// count: scenario.mjs kirbyAddrOf), or KATAM_KIRBY_ADDR.
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execFileSync, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { runSession, dist, pct } from './netproof/run.mjs';
-import { buildScenario, loadRecording, BOOT_END, SCRIPTED_END } from './netproof/scenario.mjs';
+import { buildScenario, loadRecording, BOOT_END, SCRIPTED_END, kirbyAddrOf } from './netproof/scenario.mjs';
 import { layout, diffImages } from './netproof/localise.mjs';
 import { createInstance } from './netproof/instance.mjs';
 import { PERIOD } from './netproof/session.mjs';
@@ -49,7 +65,21 @@ const rom = fs.readFileSync(ROM);
 const t0 = Date.now();
 const log = (...a) => console.log(`[netproof ${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
 
-const KIRBY = 0x02020EE0, KSIZE = 0x1A8;
+// the module's widths, from one instance of it
+const probe = await createInstance({ modulePath: MODULE, rom, name: 'probe' });
+const SLOTS = probe.M._PortLnSlots ? probe.M._PortLnSlots() : 4;
+const MAXDEV = probe.M._PortLnMaxDevices ? probe.M._PortLnMaxDevices() : 4;
+const KIRBY = kirbyAddrOf(SLOTS);
+const SEATS = +flag('seats', SLOTS > 4 ? Math.min(8, SLOTS) : 4);
+const DEVICES = Math.min(+flag('devices', 2), MAXDEV, SEATS);
+const R15_N = flag('r15', '2,3,4').split(',').map(Number).filter((n) => n >= 2 && n <= Math.min(MAXDEV, SEATS));
+const COPIES = +flag('copies', SLOTS > 4 ? 4 : 0);
+const MAXPKT = +flag('max-packet', COPIES ? 1100 : 0);
+const HOST_OPTS = COPIES ? { copies: COPIES, maxPacketBytes: MAXPKT } : (MAXPKT ? { maxPacketBytes: MAXPKT } : {});
+// Kirbys 5.. must not pause (run.mjs pauseSlots: the pause area map traps
+// for them -- not the netcode's); --pause-all lets them
+const PAUSE_SLOTS = has('pause-all') || SLOTS <= 4 ? Infinity : 4;
+const guestsN = (n, extra = {}) => Array.from({ length: n - 1 }, (_, i) => Object.assign({ dev: i + 1 }, extra));
 const SCRIPTED = SCRIPTED_END - BOOT_END;          // frames of scripted scenario after the session starts
 const MATRIX_FRAMES = QUICK ? SCRIPTED + 1800 : SCRIPTED + 3600;
 const HEADLINE_FRAMES = QUICK ? SCRIPTED + 6000 : SCRIPTED + 36000;   // >= 10 min of free play
@@ -103,6 +133,8 @@ const runCost = (cfg) => (cfg.durationFrames || 6000) * (1 + (cfg.guests ? cfg.g
     (cfg.forceRewind ? 2 : 1) * (cfg.kfEvery === 1 ? 2 : 1) * (cfg.rooms ? 1.5 : 1);
 
 async function run(name, cfg, scenarioOpts = {}) {
+    // --devices N: a two-device run becomes an N-device one (guest 1 measured)
+    if (DEVICES > 2 && !cfg.guests && !cfg.twoDevices) { cfg = Object.assign({}, cfg, { guests: guestsN(DEVICES) }); name = `${name} [${DEVICES} devices]`; }
     const idx = runIndex++;
     if (PLAN) planned.push({ i: idx, name, cost: runCost(cfg) });
     if (MERGE) {
@@ -118,7 +150,9 @@ async function run(name, cfg, scenarioOpts = {}) {
 }
 
 async function run1(name, cfg, scenarioOpts = {}) {
-    const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600) }, scenarioOpts)));
+    const sc = cfg.scenario || (RECORDING && cfg.useRecording ? loadRecording(RECORDING) : buildScenario(Object.assign({ seed: cfg.seed || 1, humanFrames: Math.max(0, (cfg.durationFrames || 6000) - SCRIPTED + 600), kirbyAddr: KIRBY }, scenarioOpts)));
+    cfg = Object.assign({}, cfg, { seats: cfg.seats || SEATS, hostOpts: Object.assign({}, HOST_OPTS, cfg.hostOpts || {}),
+                                   pauseSlots: cfg.pauseSlots ?? PAUSE_SLOTS });
     const r = await runSession(Object.assign({ name, modulePath: MODULE, rom, scenario: sc }, cfg));
     const s = slim(r);
     runs.push(s);
@@ -166,7 +200,8 @@ for (const ow of [0, 30, 60, 120, 200])
 const FREE = (SCRIPTED + 300) * PERIOD;   // ms after the session start: free play, both players busy
 const HEADLINE = L(120, 30, 0.02, { reorder: 0.02, reorderMs: 30, dup: 0.01 });
 
-const report = { started: new Date().toISOString(), rom: path.basename(ROM), module: MODULE, quick: QUICK, gates: {}, notes: [] };
+const report = { started: new Date().toISOString(), rom: path.basename(ROM), module: MODULE, quick: QUICK, gates: {}, notes: [],
+                 slots: SLOTS, maxDevices: MAXDEV, seats: SEATS, devices: DEVICES, copies: COPIES, maxPacket: MAXPKT, kirbyAddr: '0x' + KIRBY.toString(16) };
 
 // ---------------------------------------------------------------------------
 async function main() {
@@ -176,7 +211,7 @@ async function main() {
         const a = await run('R0 lockstep, perfect link', { link: L(0, 0, 0), lockstep: true, durationFrames: MATRIX_FRAMES });
         const b = await run('R0 predicted, perfect link', { link: L(0, 0, 0), durationFrames: MATRIX_FRAMES });
         const c = await run('R0 guest renders, host does not', { link: L(0, 0, 0), durationFrames: QUICK ? 2000 : 4000, renderGuest: true });
-        const ok = [a, b, c].every((r) => r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected - 2);
+        const ok = [a, b, c].every((r) => r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected - 2 * Math.max(1, (r.guests || []).length));
         report.gates.R0 = { verdict: ok ? 'PASS' : 'FAIL', runs: [a, b, c].map(brief),
             text: `lockstep: ${a.compare.equal}/${a.compare.expected} frames identical, ${a.guest.tel.rewinds} rewinds; predicted: ${b.compare.equal}/${b.compare.expected}, ${b.guest.tel.rewinds} rewinds; guest rendering: ${c.compare.equal}/${c.compare.expected}` };
     }
@@ -341,20 +376,22 @@ async function main() {
     // and what the slot table must carry in an image
     if (want('R13')) {
         const B = BOOT_END, dur = QUICK ? SCRIPTED + 2400 : SCRIPTED + 6000;
+        // the four-seat cases: a room of four (on a wide module too: its seats are the room's)
+        const S4 = Math.min(4, SEATS);
         const rs = [];
-        const three = await run('R13 3 devices @120ms', { link: HEADLINE, durationFrames: dur, guests: [{ dev: 1 }, { dev: 2 }] });
-        const threeP = await run('R13 3 devices, perfect link', { link: L(0, 0, 0), durationFrames: QUICK ? 3000 : dur, guests: [{ dev: 1 }, { dev: 2 }] });
-        const four = await run('R13 4 devices @120ms', { link: HEADLINE, durationFrames: dur, guests: [{ dev: 1 }, { dev: 2 }, { dev: 3 }] });
-        const twoLocal = await run('R13 3 devices, guest 1 with two local players (4 Kirbys) @120ms', { link: HEADLINE, durationFrames: dur,
+        const three = await run('R13 3 devices @120ms', { seats: S4, link: HEADLINE, durationFrames: dur, guests: [{ dev: 1 }, { dev: 2 }] });
+        const threeP = await run('R13 3 devices, perfect link', { seats: S4, link: L(0, 0, 0), durationFrames: QUICK ? 3000 : dur, guests: [{ dev: 1 }, { dev: 2 }] });
+        const four = await run('R13 4 devices @120ms', { seats: S4, link: HEADLINE, durationFrames: dur, guests: [{ dev: 1 }, { dev: 2 }, { dev: 3 }] });
+        const twoLocal = await run('R13 3 devices, guest 1 with two local players (4 Kirbys) @120ms', { seats: S4, link: HEADLINE, durationFrames: dur,
             guests: [{ dev: 1, seats: [[B + 300, 1, 1]] }, { dev: 2 }] });
-        const fourR = await run('R13 4 devices, forced rewind 150f every 37f', { link: L(0, 0, 0), forceRewind: { every: 37, depth: 150 }, durationFrames: QUICK ? 3000 : dur,
+        const fourR = await run('R13 4 devices, forced rewind 150f every 37f', { seats: S4, link: L(0, 0, 0), forceRewind: { every: 37, depth: 150 }, durationFrames: QUICK ? 3000 : dur,
             guests: [{ dev: 1 }, { dev: 2 }, { dev: 3 }] });
         // churn: guest 2 joins late and its link drops for 8 s (gone, then back);
         // guest 3 joins when the game is full and waits; the host's second
         // player comes and goes; guest 1 leaves and a fresh instance of it
         // comes back with the same device id (it asks for its old slot);
         // guest 3's second player is refused while four play
-        const churn = await run('R13 churn: joins, leaves, a link drop and return, a full game, slot reuse @60ms', { link: L(60, 15, 0.02), durationFrames: QUICK ? 9000 : 14000,
+        const churn = await run('R13 churn: joins, leaves, a link drop and return, a full game, slot reuse @60ms', { seats: S4, link: L(60, 15, 0.02), durationFrames: QUICK ? 9000 : 14000,
             guests: [
                 { dev: 1, leave: B + 2600, rejoin: B + 3400 },
                 { dev: 2, join: B + 800, link: L(60, 15, 0.02, { outages: [[70000, 8000]] }) },
@@ -364,13 +401,13 @@ async function main() {
         // the slot table must travel in an image: the host's own second player
         // has slot 1, so a guest joining gets slot 2 -- with the table left out
         // of the image it would take slot 1 for its own
-        const ownMid = await run('R13 join after the host\'s second player took slot 1 @120ms', { link: HEADLINE, durationFrames: QUICK ? 3000 : 5000,
+        const ownMid = await run('R13 join after the host\'s second player took slot 1 @120ms', { seats: S4, link: HEADLINE, durationFrames: QUICK ? 3000 : 5000,
             joinFrame: B + 400, guests: [{ dev: 1 }], hostSeats: [[B + 1, 1, 1]] });
-        const ownAbl = await run('R13 ablation: the same without the slot table in the image', { link: HEADLINE, durationFrames: QUICK ? 3000 : 5000, noLocalise: true,
+        const ownAbl = await run('R13 ablation: the same without the slot table in the image', { seats: S4, link: HEADLINE, durationFrames: QUICK ? 3000 : 5000, noLocalise: true,
             joinFrame: B + 400, guests: [{ dev: 1 }], hostSeats: [[B + 1, 1, 1]], guestPre: (g) => g.M._PortLnSetImageSkip(0x80) });
         // slot reuse: guest 2 then guest 1 leave; guest 2 comes back first and
         // gets its own slot 2, not the lower free slot 1; then guest 1 gets 1
-        const reuse = await run('R13 slot reuse: two guests leave, each comes back to its own Kirby @60ms', { link: L(60, 15, 0.02), durationFrames: QUICK ? 4000 : 6000,
+        const reuse = await run('R13 slot reuse: two guests leave, each comes back to its own Kirby @60ms', { seats: S4, link: L(60, 15, 0.02), durationFrames: QUICK ? 4000 : 6000,
             guests: [{ dev: 1, leave: B + 1500, rejoin: B + 2600 }, { dev: 2, leave: B + 1200, rejoin: B + 2000 }, { dev: 3 }] });
         const adm = reuse.churn.filter((x) => x.what === 'admit' && x.why === 'hi');
         const reuseOk = adm.length === 2 && adm[0].dev === 2 && adm[0].slot === 2 && adm[1].dev === 1 && adm[1].slot === 1;
@@ -379,15 +416,54 @@ async function main() {
         const ch = churn.churn;
         const churnOk = ch.some((x) => x.what === 'dead') && ch.some((x) => x.why === 'back') && ch.some((x) => x.what === 'bye')
             && ch.some((x) => x.what === 'admit' && x.slot === -1) && churn.host.tel.seatFull > 0 && churn.coverage.humansMax === 4;
+        // --- N devices (a wide module, eight seats) ---
+        const wide = [];
+        let wideOk = true, wideText = '';
+        if (DEVICES > 4) {
+            const N = DEVICES;
+            const nRun = await run(`R13-${N} ${N} devices @120ms`, { link: HEADLINE, durationFrames: dur, guests: guestsN(N) });
+            const nRew = await run(`R13-${N} ${N} devices, forced rewind 150f every 37f`, { link: L(0, 0, 0), forceRewind: { every: 37, depth: 150 }, durationFrames: QUICK ? 3000 : dur, guests: guestsN(N) });
+            // two local players on one device: N-1 devices (at most 7) and guest 1's second player
+            const nl = Math.min(N, SEATS - 1);
+            const nTwo = await run(`R13-${N} ${nl} devices, guest 1 with two local players (${nl + 1} people) @120ms`, { link: HEADLINE, durationFrames: dur,
+                guests: guestsN(nl).map((g) => (g.dev === 1 ? Object.assign(g, { seats: [[B + 300, 1, 1]] }) : g)) });
+            // churn at N: guest 1 leaves and a fresh instance of it comes back
+            // (to a full game: it waits for a seat); guest 2 joins late and its
+            // link drops for 8 s; guest 3 brings three more local players, so
+            // the eight seats fill and every later ask is refused until the
+            // host's second player leaves; guests 4.. arrive one by one
+            const nChurn = await run(`R13-${N} churn: joins, leaves, a link drop and return, a full game of ${SEATS}, slot reuse @60ms`, { link: L(60, 15, 0.02), durationFrames: QUICK ? 9000 : 14000,
+                guests: [
+                    { dev: 1, leave: B + 2600, rejoin: B + 3400 },
+                    { dev: 2, join: B + 800, link: L(60, 15, 0.02, { outages: [[70000, 8000]] }) },
+                    { dev: 3, join: B + 1500, seats: [[B + 1700, 1, 1], [B + 1800, 2, 1], [B + 1900, 3, 1], [B + 7000, 1, 0], [B + 7600, 1, 1]] },
+                    ...guestsN(N).slice(3).map((g, i) => Object.assign(g, { join: B + 300 + 150 * i })),
+                ],
+                hostSeats: [[B + 1000, 1, 1], [B + 6000, 1, 0]] });
+            const nCh = nChurn.churn;
+            const nChurnOk = nCh.some((x) => x.what === 'dead') && nCh.some((x) => x.why === 'back') && nCh.some((x) => x.what === 'bye')
+                && nCh.some((x) => x.what === 'admit' && x.slot === -1) && nChurn.host.tel.seatFull > 0 && nChurn.coverage.humansMax === SEATS;
+            // slot reuse at N: guests 2 then 1 leave; 2 comes back first and
+            // gets its own slot 2, then 1 its slot 1
+            const nReuse = await run(`R13-${N} slot reuse: two of ${N - 1} guests leave, each comes back to its own Kirby @60ms`, { link: L(60, 15, 0.02), durationFrames: QUICK ? 4000 : 6000,
+                guests: guestsN(N).map((g) => (g.dev === 1 ? Object.assign(g, { leave: B + 1500, rejoin: B + 2600 }) : g.dev === 2 ? Object.assign(g, { leave: B + 1200, rejoin: B + 2000 }) : g)) });
+            const nAdm = nReuse.churn.filter((x) => x.what === 'admit' && x.why === 'hi');
+            const nReuseOk = nAdm.length === 2 && nAdm[0].dev === 2 && nAdm[0].slot === 2 && nAdm[1].dev === 1 && nAdm[1].slot === 1;
+            wide.push(nRun, nRew, nTwo, nChurn, nReuse);
+            wideOk = wide.every(okRun) && nChurnOk && nReuseOk && nRun.coverage.humansMax === N && nTwo.coverage.humansMax === nl + 1;
+            rs.push(...wide);
+            wideText = `; ${N} devices: churn ${nChurnOk ? 'ok' : 'NOT ok'} (${nCh.map((x) => `${x.what}${x.why ? '(' + x.why + ')' : ''} dev ${x.dev}${x.slot !== undefined ? ' slot ' + x.slot : ''}${x.seat !== undefined ? ' seat ' + x.seat : ''} @f${x.f}`).join(', ')}; refused while full ${nChurn.host.tel.seatFull}; most people ${nChurn.coverage.humansMax}), ` +
+                `slot reuse ${nAdm.map((x) => `device ${x.dev} back -> slot ${x.slot}`).join(', ')} (${nReuseOk ? 'each its own' : 'NOT its own'}); seat waits ${JSON.stringify(nChurn.seatWaits || [])}`;
+        }
         const owners = (r) => r.owners.map((o) => (o < 0 ? 'cpu' : `${o >> 2}.${o & 3}`)).join(' ');
         report.gates.R13 = {
-            verdict: rs.every(okRun) && churnOk && reuseOk && four.coverage.humansMax === 4 && twoLocal.coverage.humansMax === 4 && ownAbl.compare.mismatched > 0 ? 'PASS' : 'FAIL',
+            verdict: rs.every(okRun) && churnOk && reuseOk && wideOk && four.coverage.humansMax === 4 && twoLocal.coverage.humansMax === 4 && ownAbl.compare.mismatched > 0 ? 'PASS' : 'FAIL',
             runs: rs.map(brief), churn: ch, ablation: brief(ownAbl),
             perGuest: rs.map((r) => ({ name: r.name, guests: r.guests.map((g) => ({ name: g.name, joinAt: g.joinAt, leave: g.leaveFrame, compare: g.compare, rewindsPerMin: g.feel.rewindsPerMin, images: g.tel ? undefined : undefined })) })),
             text: rs.map((r) => `${r.name}: ${r.compare.equal}/${r.compare.compared} identical over ${r.guests.length} guest instance(s), Kirbys at the end ${owners(r)}, most people at once ${r.coverage.humansMax}`).join('; ') +
                   `; churn events: ${ch.map((x) => `${x.what}${x.why ? '(' + x.why + ')' : ''} dev ${x.dev}${x.slot !== undefined ? ' slot ' + x.slot : ''}${x.seat !== undefined ? ' seat ' + x.seat : ''} @f${x.f}`).join(', ')}; refused while full ${churn.host.tel.seatFull}` +
                   `; slot reuse: ${adm.map((x) => `device ${x.dev} back -> slot ${x.slot}`).join(', ')} (${reuseOk ? 'each its own' : 'NOT its own'})` +
-                  `; ablation without the slot table: ${ownAbl.compare.mismatched} mismatched frames (${ownAbl.guest.tel.imagesLoaded - 1} repairs)`,
+                  `; ablation without the slot table: ${ownAbl.compare.mismatched} mismatched frames (${ownAbl.guest.tel.imagesLoaded - 1} repairs)` + wideText,
         };
     }
     // R14: the link matrix on a three-device session (both guests on the
@@ -407,17 +483,29 @@ async function main() {
     // with 2, 3 and 4 devices; feel per guest
     if (want('R15')) {
         const dur = QUICK ? SCRIPTED + 3600 : SCRIPTED + 12000;
-        const rows = [];
-        for (const n of [2, 3, 4]) for (const [lname, link] of [['@120ms j30 loss2%', HEADLINE], ['@30ms', L(30, 5, 0)]]) {
+        const rows = [], hostRows = [];
+        for (const n of R15_N) for (const [lname, link] of [['@120ms j30 loss2%', HEADLINE], ['@30ms', L(30, 5, 0)]]) {
             const r = await run(`R15 ${n} devices ${lname}`, { link, durationFrames: dur, seed: 3, guests: Array.from({ length: n - 1 }, (_, i) => ({ dev: i + 1 })) });
+            const per = (g) => Math.max(1, g.minutes * 60);
             for (const g of r.guests) rows.push(Object.assign({ devices: n, link: lname, run: r.name, guest: g.name, identical: g.compare.mismatched === 0 }, feelOf(g),
-                { upBps: Math.round((g.link ? g.link.gh.bytes : 0) / Math.max(1, g.minutes * 60)), downBps: Math.round((g.link ? g.link.hg.bytes : 0) / Math.max(1, g.minutes * 60)) }));
+                { upBps: Math.round((g.link ? g.link.gh.bytes : 0) / per(g)), downBps: Math.round((g.link ? g.link.hg.bytes : 0) / per(g)),
+                  rewindsPerSec: +(g.feel.rewindsPerMin / 60).toFixed(2), sealedPktMax: 0 }));
+            // the host's side: upload to every guest, the largest sealed
+            // packet, the bounded-redundancy retransmits
+            const pd = r.host.session.perDev || [];
+            const gm = r.guests.length ? r.guests[0].minutes * 60 : 1;
+            hostRows.push({ devices: n, link: lname, upBps: Math.round(r.guests.reduce((a, g) => a + (g.link ? g.link.hg.bytes : 0), 0) / Math.max(1, gm)),
+                            downBps: Math.round(r.guests.reduce((a, g) => a + (g.link ? g.link.gh.bytes : 0), 0) / Math.max(1, gm)),
+                            maxPacket: Math.max(0, ...pd.map((x) => x.maxPacket || 0)), resends: pd.reduce((a, x) => a + (x.resends || 0), 0),
+                            resentRecs: pd.reduce((a, x) => a + (x.resentRecs || 0), 0), recsPerPacket: +(pd.reduce((a, x) => a + x.recs, 0) / Math.max(1, pd.reduce((a, x) => a + x.packets, 0))).toFixed(2),
+                            rtoMs: pd.map((x) => x.rtoMs || 0), hostStepMs: r.host.stepMs, identical: r.compare.mismatched === 0 });
         }
-        report.gates.R15 = { verdict: 'MEASURED', rows,
-            text: ['@120ms j30 loss2%', '@30ms'].map((ln) => [2, 3, 4].map((n) => {
-                const rr = rows.filter((x) => x.devices === n && x.link === ln);
+        report.gates.R15 = { verdict: 'MEASURED', rows, hostRows,
+            text: ['@120ms j30 loss2%', '@30ms'].map((ln) => R15_N.map((n) => {
+                const rr = rows.filter((x) => x.devices === n && x.link === ln), h = hostRows.find((x) => x.devices === n && x.link === ln) || {};
                 const avg = (k) => +(rr.reduce((a, x) => a + x[k], 0) / Math.max(1, rr.length)).toFixed(1);
-                return `${n} devices ${ln}: rewinds/min ${avg('rewindsPerMin')} (per guest ${rr.map((x) => x.rewindsPerMin).join('/')}), lead p50 ${rr.map((x) => x.lead.p50).join('/')}, own px p99 ${rr.map((x) => fmt(x.own.p99)).join('/')}, others mispredicted ${avg('mispredOtherPct')}%`;
+                return `${n} devices ${ln}: rewinds/min ${avg('rewindsPerMin')} (per guest ${rr.map((x) => x.rewindsPerMin).join('/')}), depth p50 ${rr.map((x) => fmt(x.depth.p50)).join('/')}, replayed f/s ${avg('replayedPerSec')}, lead p50 ${rr.map((x) => x.lead.p50).join('/')}, own px p99 ${rr.map((x) => fmt(x.own.p99)).join('/')}, others mispredicted ${avg('mispredOtherPct')}%, worst guest step ${Math.max(...rr.map((x) => x.worstGuestStepMs))} ms; ` +
+                       `host up ${(h.upBps / 1000).toFixed(1)} KB/s down ${(h.downBps / 1000).toFixed(1)} KB/s, largest sealed packet ${h.maxPacket} B, ${h.recsPerPacket} records/packet, retransmits ${h.resends} (${h.resentRecs} records), identical ${h.identical}`;
             }).join('; ')).join('; ') };
     }
     // R16: player cards online -- every slot's colour sealed by the host from
@@ -433,13 +521,16 @@ async function main() {
         // together, and in free roam (rooms mode: each device's own game is
         // rebuilt from the canonical one -- a paint must be in both)
         for (const rooms of [false, true]) {
-        const r = await run(`R16 cards${rooms ? ' (free roam)' : ''}: names and colours, 3 devices, joins, a drop and return, a leave, slot reuse @120ms`, { rooms,
+        const r = await run(`R16 cards${rooms ? ' (free roam)' : ''}: names and colours, ${Math.max(3, DEVICES)} devices, joins, a drop and return, a leave, slot reuse @120ms`, { rooms,
             link: HEADLINE, durationFrames: QUICK ? 4200 : 5200,
             hostCards: [[0, 0, '1,2,0,0,0,HOSTY'], [0, 1, '2,0,200,80,90,COUCH']],
             hostSeats: [[B + 3000, 1, 1]],
             guests: [
                 { dev: 1, cards: [[0, 0, '1,6,0,0,0,ALICE'], [0, 1, '1,9,0,0,0,AL2'], [B + 1200, 0, '2,0,0,0,0,ALICE|2,21']], seats: [[B + 300, 1, 1]] },
                 { dev: 2, cards: [[0, 0, '2,0,120,90,80,BOB']], leave: B + 2400, link: Object.assign({}, HEADLINE, { outages: [[13400, 8000]] }) },
+                // --devices N: guests 3.. beside them, arriving once the slots
+                // the gate watches (0..3) are settled, each with a card
+                ...(DEVICES > 3 ? guestsN(DEVICES).slice(2).map((g, i) => Object.assign(g, { join: B + 3200 + 100 * i, cards: [[0, 0, `1,${3 + i},0,0,0,G${g.dev}`]] })) : []),
             ] });
         const want0 = ['1000002', '100000a', null, '1000009'], names0 = ['HOSTY', 'ALICE', 'COUCH', 'AL2'];
         const views = [r.cards.host, ...r.cards.guests];
@@ -466,6 +557,36 @@ async function main() {
                   `card changes ${r.churn.filter((x) => x.what === 'card').length}, colour/name changes seen on the host ${r.cardTrace.length}`);
         }
         report.gates.R16 = { verdict: verdicts.every(Boolean) ? 'PASS' : 'FAIL', runs: briefs, text: texts.join('; ') };
+    }
+    // R17: bounded redundancy (--copies K) under loss: each sealed record K
+    // times, then the guest's ack is the NACK.  Heavy random loss and burst
+    // losses longer than K packets, on --devices devices: every final frame
+    // identical with retransmits doing the work; the same with the
+    // retransmit off (ablation: lost records stay lost until a stall or an
+    // image); and the bytes against the until-acked rule
+    if (want('R17') && COPIES) {
+        const N = Math.max(2, DEVICES), dur = QUICK ? SCRIPTED + 1800 : SCRIPTED + 3600;
+        const bursts = []; for (let t = FREE - 20000; t < FREE + 120000; t += 3000) bursts.push([t, 150]);
+        const cases = [
+            ['loss 10%, 150 ms burst every 3 s @120ms', L(120, 30, 0.10, { outages: bursts })],
+            ['loss 30% @60ms', L(60, 15, 0.30)],
+        ];
+        const rs = [];
+        for (const [what, link] of cases) rs.push(await run(`R17 ${N} devices, ${COPIES} copies, ${what}`, { link, durationFrames: dur, guests: guestsN(N) }));
+        const abl = await run(`R17 ablation: ${N} devices, ${COPIES} copies, no retransmit, ${cases[0][0]}`, { link: cases[0][1], durationFrames: dur, guests: guestsN(N), noLocalise: true,
+            hostOpts: { noRetransmit: true } });
+        const old = await run(`R17 the same, until acked (copies 0), ${cases[0][0]}`, { link: cases[0][1], durationFrames: dur, guests: guestsN(N),
+            hostOpts: { copies: 0, maxPacketBytes: 0 } });
+        const pd = (r) => r.host.session.perDev || [];
+        const up = (r) => Math.round(r.guests.reduce((a, g) => a + (g.link ? g.link.hg.bytes : 0), 0) / Math.max(1, (r.guests[0] ? r.guests[0].minutes : 1) * 60));
+        const rt = (r) => pd(r).reduce((a, x) => a + (x.resends || 0), 0);
+        const ok = rs.every((r) => r.compare.mismatched === 0 && r.compare.compared >= r.compare.expected * 0.9 && rt(r) > 0) && old.compare.mismatched === 0;
+        const ablHurts = abl.compare.compared < abl.compare.expected * 0.9 || (abl.guestTels || []).some((t) => t.imagesLoaded > 1) || abl.compare.mismatched > 0
+            || Math.max(...abl.guests.map((g) => g.session.capHolds || 0)) > 10 * Math.max(1, ...rs[0].guests.map((g) => g.session.capHolds || 0));
+        report.gates.R17 = { verdict: ok ? 'PASS' : 'FAIL', runs: [...rs, abl, old].map(brief),
+            text: rs.map((r) => `${r.name}: ${r.compare.equal}/${r.compare.compared} identical, retransmits ${rt(r)} (${pd(r).reduce((a, x) => a + (x.resentRecs || 0), 0)} records), largest packet ${Math.max(0, ...pd(r).map((x) => x.maxPacket || 0))} B, host up ${(up(r) / 1000).toFixed(1)} KB/s`).join('; ') +
+                  `; ablation without the retransmit: ${abl.compare.equal}/${abl.compare.compared} of ${abl.compare.expected} final frames compared, images ${(abl.guestTels || []).map((t) => t.imagesLoaded).join('/')}, lead-cap holds ${abl.guests.map((g) => g.session.capHolds || 0).join('/')} (${ablHurts ? 'stalls or needs images: the retransmit is what recovers' : 'NO visible harm'})` +
+                  `; until acked: host up ${(up(old) / 1000).toFixed(1)} KB/s, largest packet ${Math.max(0, ...pd(old).map((x) => x.maxPacket || 0))} B, ${old.compare.equal}/${old.compare.compared} identical` };
     }
     if (PLAN) { fs.writeFileSync(PLAN, JSON.stringify(planned, null, 1)); log(`planned ${planned.length} runs -> ${PLAN}`); return; }
     if (SHARD) {
@@ -649,7 +770,8 @@ const fmt = (v) => (v === null || v === undefined ? '-' : Number.isInteger(v) ? 
 function markdown(R) {
     let s = `# Online local multiplayer: proof-of-concept rig report\n\n`;
     s += `Generated by \`node tools/netproof.mjs\` (${R.quick ? 'QUICK mode' : 'full'}) on ${R.finished}, ${R.wallSec} s wall. ROM: the player's own (${R.rom}); module ${path.relative(ROOT, R.module)}.\n`;
-    s += `Every number below is measured by this run on a virtual clock (seeded, reproducible); nothing is cited.\n\n## Gates\n\n`;
+    s += `Every number below is measured by this run on a virtual clock (seeded, reproducible); nothing is cited.\n\n`;
+    s += `Module: ${R.slots} Kirby slots, ${R.maxDevices} devices; room seats ${R.seats}; two-device gates run with ${R.devices} devices; sealed-stream redundancy ${R.copies ? R.copies + ' copies, then on the ack timeout' : 'until acked'}${R.maxPacket ? ', packets at most ' + R.maxPacket + ' B' : ''}; Kirby array ${R.kirbyAddr}.\n\n## Gates\n\n`;
     s += md(Object.entries(R.gates), [['gate', ([g]) => g], ['verdict', ([, v]) => `**${v.verdict}**`], ['numbers', ([, v]) => (v.text || '').replace(/\|/g, '/')]]);
     if (R.gates.R2) {
         s += `\n## R2 runs\n\n`;
@@ -686,6 +808,9 @@ function markdown(R) {
         s += md(R.gates.R15.rows, [['devices', (x) => x.devices], ['link', (x) => x.link], ['guest', (x) => x.guest], ['identical', (x) => x.identical], ['rewinds/min', (x) => x.rewindsPerMin], ['replayed f/s', (x) => x.replayedPerSec],
             ['depth p50/90/99/max', (x) => d3(x.depth)], ['own px', (x) => d3(x.own)], ['other px', (x) => d3(x.other)], ['P1 mispredicted %', (x) => x.mispredHostPct], ['others mispredicted %', (x) => x.mispredOtherPct],
             ['own overridden %', (x) => x.ownOverriddenPct], ['key late at host %', (x) => x.hostKeyLatePct], ['lead p50/90/99/max', (x) => d3(x.lead)], ['worst step ms', (x) => x.worstGuestStepMs], ['up/down B/s', (x) => `${x.upBps}/${x.downBps}`]]);
+        if (R.gates.R15.hostRows) s += `\nThe host's side (all guests): upload, download, the largest sealed packet, records per packet, bounded-redundancy retransmits (copies ${R.copies}, packet cap ${R.maxPacket || 'none'}).\n\n` +
+            md(R.gates.R15.hostRows, [['devices', (x) => x.devices], ['link', (x) => x.link], ['host up B/s', (x) => x.upBps], ['host down B/s', (x) => x.downBps], ['largest packet B', (x) => x.maxPacket],
+                ['records/packet', (x) => x.recsPerPacket], ['retransmits (records)', (x) => `${x.resends} (${x.resentRecs})`], ['rto ms', (x) => x.rtoMs.join('/')], ['host step ms p50/90/99/max', (x) => d3(x.hostStepMs)], ['identical', (x) => x.identical]]);
     }
     if (R.gates.R8) s += `\n## R8 cost\n\n${R.gates.R8.text}\n\nWorst guest step (one presented frame including any replay) per run, ms: ${R.gates.R8.worstGuestStepMsByRun.map(([n, v]) => `${n}: ${v}`).join('; ')}\n`;
     if (R.gates.R9) s += `\n## R9 side effects under rewind\n\n${R.gates.R9.text}\n`;
