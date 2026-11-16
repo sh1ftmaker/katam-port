@@ -11,8 +11,8 @@
  *             need it and work as before.
  *   publish   a host that chose PUBLIC: POST /v2/public with the room's code
  *             and resume token (the ownership proof), the card's name, the
- *             players, the room's seats (`max`: 4, or 8 in an 8-player game)
- *             and module (`mod`: '16' for the 8-player module), the mode and
+ *             players, the room's seats (`max`: 4, or 16 in a 16-player game)
+ *             and module (`mod`: '16' for the 16-player module), the mode and
  *             whether there is a password -- at once,
  *             on every change, and as a heartbeat (every 25 s, the server's
  *             `every`).  PRIVATE again, the game ending or the page closing:
@@ -36,7 +36,7 @@
  * The list shows "players/max" from the listing's `max` when it has one, else
  * "/4".  A worker from before `max` and `mod` (netplay/listing.mjs with
  * MAX_PLAYERS 4) clamps n to 4, says max 4 and full from 4 players on, and
- * drops `mod`: an 8-player game then lists as n/4 and FULL from its fourth
+ * drops `mod`: a 16-player game then lists as n/4 and FULL from its fourth
  * player (joining it by code or invite still works; the room's version gate
  * moves a joiner on the wrong module over).
  *
@@ -158,7 +158,7 @@
         var f = { code: h.code, resume: h.resume, name: name || 'PLAYER', n: h.players(),
                   mode: M._PortOuiRoomsMode && M._PortOuiRoomsMode() ? 'roam' : 'together',
                   locked: !!str('PortObrHostPassJs') };
-        /* an 8-player game: its seats and module (a worker before them ignores both) */
+        /* a 16-player game: its seats and module (a worker before them ignores both) */
         if (h.max && h.max !== 4) f.max = h.max;
         if (h.mod) f.mod = h.mod;
         return f;

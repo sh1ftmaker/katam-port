@@ -560,7 +560,7 @@
     // remove() hands its Kirbys to the CPU.  The caller says who is
     // connected; the hub keeps no timers.
     //
-    // opts.seats: the people the room holds (4, or 8 on a wide module).  The
+    // opts.seats: the people the room holds (4, or 16 on the 16-Kirby module).  The
     // engine may seat a person in any slot below that, now that the wire
     // carries every slot's keys (PortLnSetSeatSlots); devices are 1 ..
     // min(seats, the engine's devices) - 1.
