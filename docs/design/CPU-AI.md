@@ -39,7 +39,15 @@ Common to the three new modes:
   from where it is, so it never chooses a door it cannot get to (room 709,
   three sealed chambers: before, all three Kirbys aimed at the upper-left
   door; now each takes its own chamber's door).  Rooms joined by their edges
-  rather than by door tiles are not in the graph (as before).
+  or by objects rather than by door tiles are not in the graph: a room with
+  no door it can reach (a dead end for the graph) ends after 20 s with the
+  stock warp to a neighbour from the brain's own room table.
+- **Blocks in the way**: a block (or chain) on the cell path to the door
+  within three steps is broken first: stand beside it, stop flying, face
+  it, the stock break check for the ability (CPU-HINTS.md, B).
+- **Only reachable targets**: chests, shards, bosses and food the Kirby
+  can get to from where it is; rooms wanted for a chest only if the chest
+  is reachable from the door it would enter by.
 - **Door use**: the Kirby walks (nav graph first, then 5 s turns of steering
   straight at the door when the graph stops getting it nearer) to the door
   tile it chose, and within one tile of it takes the door with
@@ -152,6 +160,25 @@ reach rooms of area 5xx through Rainbow Route's links, and stall most at
 Rainbow Route 108 / 110 / 140 (doors given up after 30 s: likely ability or
 switch gates).  No boss reached, no shard.  The BODYGUARD stays with the
 idle player in the hub all along.
+
+### With door groups, block breaking and reachable targets (`six-hints`)
+
+The same four recordings, sums over Kirbys 2-4 (time stuck = time in room
+stays longer than 30 s, past the 30 s; give-ups = doors given up after
+30 s; warps = 60 s-stuck warps + dead-end warps):
+
+| run | distinct rooms | doors walked | warps | give-ups | time stuck |
+|---|---|---|---|---|---|
+| MIXED before / after | 25 / 38 | 34 / 34 | 4 / 14 | 14 / 8 | 977 s / 850 s (566 s of it the BODYGUARD idling with the idle player, both) |
+| EXPLORER x3 | 37 / 59 | 43 / 52 | 6 / 23 | 21 / 17 | 616 s / 391 s |
+| ADVENTURER x3 | 37 / 49 | 63 / 65 | 8 / 17 | 27 / 7 | 442 s / 404 s |
+| CLASSIC | identical | | | | |
+
+They now reach Moonlight Mansion (7xx) and Olive Ocean (8xx) rooms through
+the one-way Rainbow Route rooms 103/142 (dead-end warp).  Most warps are
+the dead-end fallback (49 of 54 after; 18 stuck warps before).  Remaining
+stalls: 831/814 (8xx), 704/706 (7xx), 740 -- doors behind switches or
+objects the map cannot see.  One seed each.
 
 ## What would be needed to finish the game (prioritised)
 
