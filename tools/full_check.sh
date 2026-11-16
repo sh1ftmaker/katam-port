@@ -67,6 +67,7 @@ regress-wasm       3     -      RP_JOBS=$W tools/regress_par.sh wasm "$ROM"
 regress            3     -      RP_JOBS=$W tools/regress_par.sh native "$ROM"
 web-dev-solo       1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases solo
 web-dev-touch      1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases touch
+web-dev-touchset   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases touchset
 web-dev-frontend   1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases frontend
 web-on-errors      1     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases errors
 web-dev-gl         1     web    node tools/devices_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --shots "$D" --cases gl
