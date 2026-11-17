@@ -13,10 +13,21 @@
  *   transport  WebRTC data channels between the two browsers -- one
  *              unreliable + unordered for inputs and sealed frames, one
  *              reliable + ordered for images and control -- signalled over
- *              the room.  STUN only (stun.cloudflare.com), no TURN: if the
- *              channels are not open within 5 s, or fail later, the same
- *              traffic goes over the room's `signal` path instead (images in
- *              chunks well under the relay's 64 KiB message limit).
+ *              the room.  Three tiers, best first (link.tier()):
+ *                direct  STUN (stun.cloudflare.com): browser to browser.
+ *                turn    the same channels through a TURN server
+ *                        (turn.cloudflare.com), when the room server has
+ *                        TURN (its welcome says `turn`; credentials minted
+ *                        per member, 'turn_req' -> 'turn_creds',
+ *                        netplay/turn.mjs).  Plain ICE priority keeps a
+ *                        direct pair ahead of a relayed one.
+ *                relay   if the channels are not open within 5 s (8 s when
+ *                        TURN is in the link's config), or fail later, the
+ *                        same traffic goes over the room's `signal` path
+ *                        (WebSocket, through the room server; images in
+ *                        chunks well under its 64 KiB message limit).
+ *              A room server without TURN (or without its secrets): STUN
+ *              only, exactly as before.
  *   session    the proven logic (web/ln_session.js, the file the node rig
  *              tests): the host is authoritative and never rewinds, the
  *              guest runs ahead and rewinds (platform/lmpnet.c).  It drives
@@ -67,10 +78,14 @@
  * katamInviteCard).  Without the game's menus: joins straight away.
  * Test knobs: ?netlag=ms (one way, added to everything this page sends),
  * ?netjitter=ms (uniform 0..ms on datagrams), ?netloss=% (datagrams),
- * ?netrelay=1 (never try WebRTC), ?netserver=<base> (another room server).
+ * ?netrelay=1 (never try WebRTC), ?netturn=1 (WebRTC through TURN only:
+ * iceTransportPolicy 'relay'), ?netserver=<base> (another room server).
  *
  * window.katamOnline.stats() is the telemetry; the developer menu (?dev=1, F1): Game page
- * shows the same as text (Module.portUiQuery('online')). */
+ * shows the same as text (Module.portUiQuery('online')).  Players see each
+ * guest's ping and path in the pause SETTINGS > ONLINE list: the host's
+ * table, sent to every guest once a second (netqTick; web/ln_session.js
+ * "the connection readout"), drawn per device by platform/ui/party_hud.c. */
 (function () {
     'use strict';
     var Net = window.KatamNet, LS = window.KatamLnSession;
@@ -87,6 +102,7 @@
         jitter: Math.max(0, +q.get('netjitter') || 0),
         loss: Math.min(1, Math.max(0, (+q.get('netloss') || 0) / 100)),
         relay: q.get('netrelay') === '1',
+        turn: q.get('netturn') === '1',
     };
     var PERIOD = LS.PERIOD;
     var KF_EVERY = 15, KF_COUNT = 24;          /* as the rig: 360 frames of history, ~12 MiB */
@@ -115,6 +131,16 @@
      * network (the relay and the signalling of a new direct path need it) */
     var RETRY_MS = 2000;
     var ICE = [{ urls: 'stun:stun.cloudflare.com:3478' }];
+    /* TURN (the middle tier).  A new link waits up to TURN_WAIT_MS for
+     * credentials already being fetched; a link with TURN servers in its
+     * config gets P2P_WAIT_TURN_MS before the room's relay takes it (a
+     * relayed candidate pair is checked last, and TCP/TLS allocations take a
+     * few round trips); without TURN, P2P_WAIT_MS as ever.  Credentials are
+     * fetched again TURN_RENEW_BEFORE_MS before they run out and handed to
+     * every live peer connection (setConfiguration); after a refusal, not
+     * asked again for TURN_RETRY_MS. */
+    var TURN_WAIT_MS = 2000, P2P_WAIT_TURN_MS = 8000, TURN_ASK_TIMEOUT_MS = 5000;
+    var TURN_RENEW_BEFORE_MS = 30 * 60000, TURN_RETRY_MS = 60000;
     var RELAY_CHUNK = 24 * 1024, DC_CHUNK = 16 * 1024;
     var CONTENT = 'lmpnet1';
 
@@ -359,6 +385,113 @@
     }
     function rid() { return Math.random().toString(36).slice(2, 10); }
 
+    /* --- TURN credentials: from the room server, for this page's links ---------
+     * The room's welcome says whether it has TURN (`turn`).  If so, a member
+     * asks once another member is in the room ('turn_req'; the server mints
+     * them per member and rate-limits, netplay/session.mjs _turnRequest) and
+     * keeps the answer for its lifetime; every new peer connection, ICE
+     * restart and new peer connection of a heal uses it.  A server without
+     * TURN (or an older one, whose welcome has no `turn`): nothing is asked,
+     * nothing waited for -- STUN only, as before. */
+    var Turn = {
+        offered: false,        /* this room's server has TURN */
+        servers: [],           /* the TURN entries of the last grant */
+        expiresAt: 0,          /* nowMs() when they run out */
+        asking: null,          /* the room connection a request is out on */
+        askedAt: -1e9, waiters: [], askTimer: 0,
+        requests: 0, grants: 0, refusals: 0, lastRefusal: null,
+    };
+    function turnFresh() { return Turn.servers.length > 0 && Turn.expiresAt - nowMs() > 60000; }
+    /* the room connection says what it has: called for every Net.connect */
+    function turnWatch(net) {
+        net.on('welcome', function (w) {
+            if (net !== S.net) return;
+            Turn.offered = !!(w && w.turn) && !KNOB.relay;
+            /* (asked for once the roster shows someone to link to) */
+        });
+        net.on('roster', function (m) {
+            if (net === S.net && Turn.offered && m.members.some(function (x) { return x.mid !== net.mid && x.connected; })) turnAsk(net);
+        });
+        net.on('turn_creds', function (m) {
+            if (net !== Turn.asking) return;
+            clearTimeout(Turn.askTimer);
+            Turn.asking = null;
+            if (m.iceServers && m.iceServers.length) {
+                /* (the server filters too: TURN urls only, none on port 53, which browsers block) */
+                Turn.servers = m.iceServers.map(function (e) {
+                    var urls = [].concat(e.urls || []).filter(function (u) { return /^turns?:/i.test(u) && !/^turns?:[^?]*:53(\?|$)/i.test(u); });
+                    return urls.length ? { urls: urls, username: e.username, credential: e.credential } : null;
+                }).filter(Boolean);
+                Turn.expiresAt = nowMs() + Math.max(120, m.ttl || 0) * 1000;
+                Turn.grants++;
+                log('TURN: ' + Turn.servers.length + ' server entr' + (Turn.servers.length === 1 ? 'y' : 'ies') + ' for ' + Math.round((m.ttl || 0) / 60) + ' min');
+                turnRenewLinks();
+            } else {
+                Turn.refusals++; Turn.lastRefusal = m.why || '?';
+                log('TURN: none (' + Turn.lastRefusal + ')');
+                /* nobody to link to yet, or a request crossed: ask again when it is time */
+                if (m.why === 'alone' || m.why === 'busy') Turn.askedAt = -1e9;
+            }
+            turnWake();
+        });
+    }
+    /* ask, unless the answer in hand is good, a request is out, or the last one was refused a moment ago */
+    function turnAsk(net) {
+        if (!Turn.offered || !net || net.state !== 'open' || Turn.asking) return;
+        if (turnFresh() && Turn.expiresAt - nowMs() > TURN_RENEW_BEFORE_MS) return;
+        if (nowMs() - Turn.askedAt < TURN_RETRY_MS) return;
+        if (!net.send({ t: 'turn_req' })) return;
+        Turn.asking = net; Turn.askedAt = nowMs(); Turn.requests++;
+        clearTimeout(Turn.askTimer);
+        Turn.askTimer = setTimeout(function () { if (Turn.asking === net) { Turn.asking = null; turnWake(); } }, TURN_ASK_TIMEOUT_MS);
+    }
+    function turnWake() { Turn.waiters.splice(0).forEach(function (fn) { fn(); }); }
+    /* fn once this page has TURN credentials, or knows it will not soon:
+     * at once if TURN is off, in hand, or not being asked for; else on the
+     * answer, or after maxMs */
+    function turnReady(fn, maxMs) {
+        if (!Turn.offered || KNOB.relay || turnFresh() || !Turn.asking) { fn(); return; }
+        var done = false, once = function () { if (!done) { done = true; clearTimeout(t); fn(); } };
+        var t = setTimeout(once, maxMs);
+        Turn.waiters.push(once);
+    }
+    /* a peer connection's config: STUN, and TURN when in hand; ?netturn=1: TURN only */
+    function iceConfig() {
+        var turn = turnFresh() ? Turn.servers : [];
+        var cfg = { iceServers: ICE.concat(turn) };
+        if (KNOB.turn) cfg.iceTransportPolicy = 'relay';
+        return { rtc: cfg, turn: turn.length > 0 };
+    }
+    function liveLinks() {
+        var ls = [];
+        if (S.peer) ls.push(S.peer.link);
+        forPeers(function (p) { ls.push(p.link); });
+        return ls.filter(function (l) { return !l.closed && l.pc && l.pc.connectionState !== 'closed'; });
+    }
+    /* fresh credentials: into every live peer connection (Cloudflare's way
+     * to refresh them mid-session); its next gathering (an ICE restart) uses
+     * them, and an allocation in use is refreshed with them */
+    function turnRenewLinks() {
+        liveLinks().forEach(function (l) {
+            try { l.pc.setConfiguration(iceConfig().rtc); }
+            catch (e) { log('TURN: could not refresh a peer connection (' + e.message + ')'); }
+        });
+    }
+    function turnForget() {
+        clearTimeout(Turn.askTimer);
+        Turn.offered = false; Turn.servers = []; Turn.expiresAt = 0; Turn.asking = null; Turn.askedAt = -1e9;
+        turnWake();
+    }
+    /* before they run out: again, while the room is there */
+    setInterval(function () { if (Turn.offered && Turn.servers.length && S.net) turnAsk(S.net); }, 30000);
+    /* what the page says of a tier */
+    var TIER_LABEL = { direct: 'direct', turn: 'via TURN', relay: 'relay' };
+    function turnStats() {
+        return { offered: Turn.offered, servers: Turn.servers.length, forced: KNOB.turn,
+                 expiresInS: Turn.servers.length ? Math.max(0, Math.round((Turn.expiresAt - nowMs()) / 1000)) : null,
+                 requests: Turn.requests, grants: Turn.grants, refusals: Turn.refusals, lastRefusal: Turn.lastRefusal };
+    }
+
     /* --- the link to the other device ------------------------------------------
      * Sends over the data channels when they are open, else over the room.
      * Receives from both.  Test knobs delay / drop what this side sends. */
@@ -372,17 +505,62 @@
         this.img = { dc: null, relay: null };
         this.iceQ = []; this.haveRemote = false;
         this.sigQ = []; this.wasP2p = false; this.healAt = 0; this.healMs = HEAL_MS; this.forced = !!(KNOB.relay || forceRelay);
+        /* TURN: whether this link's peer connection has TURN servers; the
+         * selected candidate pair's kind ('direct' | 'turn', from getStats)
+         * and its candidate types; signalling heard before the peer
+         * connection exists (it waits for credentials being fetched) */
+        this.turnInConfig = false; this.iceTier = null; this.iceRoute = null; this.preSignals = null; this.pings = 0;
         this.pingTimer = setInterval(function () { self.ping(); }, PING_MS);
         /* decided a turn later: the caller sets onDecided after this returns */
         if (KNOB.relay || forceRelay) { setTimeout(function () { self.decide('relay (forced)'); }, 0); return; }
-        try { this.startP2p(); } catch (e) {
-            log('WebRTC unavailable: ' + e.message);
-            setTimeout(function () { self.decide('relay (no WebRTC)'); }, 0);
-            return;
-        }
-        this.decideTimer = setTimeout(function () { if (!self.p2p) self.decide('relay (no direct link in 5 s)'); }, P2P_WAIT_MS);
+        var waitMs = Turn.offered ? P2P_WAIT_TURN_MS : P2P_WAIT_MS;
+        this.decideTimer = setTimeout(function () {
+            if (!self.p2p) self.decide('relay (no ' + (self.turnInConfig ? 'direct or TURN' : 'direct') + ' link in ' + waitMs / 1000 + ' s)');
+        }, waitMs);
+        var start = function () {
+            if (self.closed) return;
+            var early = self.preSignals || [];
+            self.preSignals = null;
+            try { self.startP2p(); } catch (e) {
+                log('WebRTC unavailable: ' + e.message);
+                setTimeout(function () { self.decide('relay (no WebRTC)'); }, 0);
+                return;
+            }
+            early.forEach(function (d) { self.rtcSignal(d); });
+        };
+        this.preSignals = [];
+        turnReady(start, TURN_WAIT_MS);       /* (at once when there is no TURN: as before) */
     }
     Link.prototype.path = function () { return this.p2p ? 'p2p' : 'relay'; };
+    /* the tier this link is on: 'direct' (WebRTC, no relay candidate in the
+     * selected pair), 'turn' (WebRTC through a TURN server), 'relay' (the
+     * room's WebSocket).  path() is the same with 'p2p' for both of the first */
+    Link.prototype.tier = function () { return !this.p2p ? 'relay' : this.iceTier === 'turn' ? 'turn' : 'direct'; };
+    /* the selected candidate pair, from getStats: relayed on either end is TURN */
+    Link.prototype.probeTier = function (then) {
+        var self = this, pc = this.pc;
+        var done = function () { if (then) then(); };
+        if (!pc || !pc.getStats) { done(); return; }
+        pc.getStats().then(function (rep) {
+            if (pc !== self.pc) return;
+            var byId = {}, pair = null;
+            rep.forEach(function (st) { byId[st.id] = st; });
+            rep.forEach(function (st) { if (st.type === 'transport' && st.selectedCandidatePairId && byId[st.selectedCandidatePairId]) pair = byId[st.selectedCandidatePairId]; });
+            /* (Firefox: no transport stats -- the selected / nominated pair) */
+            if (!pair) rep.forEach(function (st) { if (!pair && st.type === 'candidate-pair' && (st.selected || (st.nominated && st.state === 'succeeded'))) pair = st; });
+            if (!pair) return;
+            var lc = byId[pair.localCandidateId] || {}, rc = byId[pair.remoteCandidateId] || {};
+            var tier = lc.candidateType === 'relay' || rc.candidateType === 'relay' ? 'turn' : 'direct';
+            self.iceRoute = { local: lc.candidateType || null, remote: rc.candidateType || null,
+                              protocol: lc.protocol || null, relayProtocol: lc.relayProtocol || null };
+            if (tier !== self.iceTier) {
+                if (self.iceTier || tier === 'turn') log('link: ' + (tier === 'turn' ? 'through TURN (' + (lc.candidateType === 'relay' ? 'ours, ' + (lc.relayProtocol || '?') : 'theirs') + ')' : 'direct') +
+                                                    ' -- candidates ' + self.iceRoute.local + '/' + self.iceRoute.remote);
+                if (tier === 'turn') S.stats.turnLinks = (S.stats.turnLinks || 0) + 1;
+                self.iceTier = tier;
+            }
+        }).catch(function () { /* no stats: the tier stays as it was */ }).then(done);
+    };
     Link.prototype.decide = function (why) {
         if (this.decided) return;
         this.decided = true;
@@ -417,7 +595,10 @@
     };
     Link.prototype.startP2p = function () {
         var self = this;
-        var pc = this.pc = new RTCPeerConnection({ iceServers: ICE });
+        var cfg = iceConfig();
+        if (KNOB.turn && !cfg.turn) log('link: ?netturn=1 but no TURN servers -- this link cannot connect over WebRTC');
+        var pc = this.pc = new RTCPeerConnection(cfg.rtc);
+        this.turnInConfig = cfg.turn; this.iceTier = null;
         this.dcU = pc.createDataChannel('u', { negotiated: true, id: 0, ordered: false, maxRetransmits: 0 });
         this.dcR = pc.createDataChannel('r', { negotiated: true, id: 1, ordered: true });
         [this.dcU, this.dcR].forEach(function (dc) {
@@ -452,8 +633,12 @@
         if (this.dcU.readyState === 'open' && this.dcR.readyState === 'open' && !this.p2p) {
             if (this.decided) { this.direct(); return; }
             this.p2p = true; this.wasP2p = true;
-            log('link: direct (WebRTC data channels open)');
-            this.decide('p2p');
+            var self = this;
+            /* which tier, before it is announced (the banner, the logs) */
+            this.probeTier(function () {
+                log('link: ' + (self.tier() === 'turn' ? 'through TURN' : 'direct') + ' (WebRTC data channels open)');
+                self.decide(self.tier() === 'turn' ? 'p2p (TURN)' : 'p2p');
+            });
         }
     };
     /* Back to the direct path after a fall back to the relay: the peer
@@ -466,6 +651,7 @@
         this.p2p = true; this.wasP2p = true; this.healMs = HEAL_MS;
         S.stats.directAgain++;
         log('link: direct again');
+        this.probeTier();
     };
     /* (the cut test knob, katamOnline._cut: this page's network is gone) */
     Link.prototype.cut = function () { return S.cutUntil && nowMs() < S.cutUntil; };
@@ -476,7 +662,10 @@
      * host's Link makes its own on 'repc'); the session never notices. */
     Link.prototype.heal = function () {
         var t = nowMs();
-        if (!this.guest || this.closed || this.p2p || !this.wasP2p || this.forced || this.cut()) return;
+        /* (also a link that never was direct, when TURN credentials came
+         * after its peer connection was made: one more try, with them) */
+        var turnLate = !this.turnInConfig && turnFresh();
+        if (!this.guest || this.closed || this.p2p || !(this.wasP2p || turnLate) || this.forced || this.cut()) return;
         /* (only while the host hears us over the relay: an offer it cannot get is wasted) */
         if (this.net.state !== 'open' || this.quiet() > 2000 || t - this.healAt < this.healMs) return;
         this.healAt = t;
@@ -486,6 +675,8 @@
             && this.dcR && this.dcR.readyState === 'open' && pc.restartIce) {
             S.stats.iceRestarts++;
             log('link: trying the direct path again (ICE restart)');
+            /* the TURN credentials in hand now (fresh ones, or the first) */
+            try { pc.setConfiguration(iceConfig().rtc); this.turnInConfig = turnFresh(); } catch (e) { /* as it was */ }
             try { pc.restartIce(); } catch (e) { /* the offer below says it */ }
             pc.createOffer({ iceRestart: true }).then(function (o) { return pc.setLocalDescription(o); })
                 .then(function () { if (pc === self.pc) self.sig({ k: 'sdp', d: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } }); })
@@ -527,6 +718,27 @@
             if (!this.guest && !this.forced) { S.stats.newPcs++; this.repc(); }
             return;
         case 'sdp':
+        case 'ice':
+            this.rtcSignal(d);
+            return;
+        case 'd':
+            this.recvDatagram(unb64(d.b), 'relay');
+            return;
+        case 'r':
+            this.recvReliable(d.m, 'relay');
+            return;
+        case 'ic':
+            this.recvChunk(unb64(d.b), 'relay');
+            return;
+        }
+    };
+    /* the WebRTC half of the signalling: kept while the peer connection
+     * waits for TURN credentials (the other side's offer may come first) */
+    Link.prototype.rtcSignal = function (d) {
+        var self = this, pc = this.pc;
+        if (!pc && this.preSignals) { this.preSignals.push(d); return; }
+        switch (d.k) {
+        case 'sdp':
             if (!pc) return;
             pc.setRemoteDescription(d.d).then(function () {
                 self.haveRemote = true;
@@ -541,15 +753,6 @@
             if (!pc) return;
             if (!self.haveRemote) self.iceQ.push(d.c);
             else pc.addIceCandidate(d.c).catch(function () {});
-            return;
-        case 'd':
-            this.recvDatagram(unb64(d.b), 'relay');
-            return;
-        case 'r':
-            this.recvReliable(d.m, 'relay');
-            return;
-        case 'ic':
-            this.recvChunk(unb64(d.b), 'relay');
             return;
         }
     };
@@ -627,7 +830,12 @@
             return;
         }
         if (m.t === 'ping') { this.reliable({ t: 'pong', c: m.c }); return; }
-        if (m.t === 'pong') { this.rtt = nowMs() - m.c; return; }
+        if (m.t === 'pong') {
+            this.rtt = nowMs() - m.c;
+            /* smoothed, for the connection readout (one ping a second) */
+            this.rttAvg = this.rttAvg === null || this.rttAvg === undefined ? this.rtt : 0.7 * this.rttAvg + 0.3 * this.rtt;
+            return;
+        }
         if (this.onReliable) this.onReliable(m);
     };
     Link.prototype.recvChunk = function (u8, via) {
@@ -642,7 +850,11 @@
         S.stats.imagesIn++;
         if (this.onReliable) this.onReliable({ t: 'image', F: im.hdr.F, raw: im.hdr.raw, reason: im.hdr.reason, comp: comp, dev: im.hdr.dev });
     };
-    Link.prototype.ping = function () { if (!this.closed && !this.cut()) this.reliable({ t: 'ping', c: nowMs() }); };
+    Link.prototype.ping = function () {
+        if (this.closed || this.cut()) return;
+        this.reliable({ t: 'ping', c: nowMs() });
+        if (this.p2p && ++this.pings % 10 === 0) this.probeTier();      /* (ICE may switch pairs) */
+    };
     Link.prototype.quiet = function () { return nowMs() - this.lastRecv; };
     Link.prototype.dead = function () { return nowMs() - this.lastRecv > DEAD_MS; };
     Link.prototype.close = function (bye) {
@@ -816,6 +1028,7 @@
         }
         S.session = true;
         S.live = null; S.hold = false;
+        netqClear();
         S.startedAt = nowMs();
         S.startFrame = M._PortFrameNumber();
         S.t0 = 0;
@@ -914,6 +1127,7 @@
     }
     function hostRoom(gen, v) {
         var net = S.net = Net.connect({ base: BASE, code: S.code, hello: hello(v), log: log, identity: hostIdentity(S.code), maxRetryMs: RETRY_MS });
+        turnWatch(net);
         forPeers(function (p) { p.link.net = net; });
         net.on('welcome', function () {
             if (gen !== S.gen || net !== S.net) return;
@@ -998,7 +1212,7 @@
                 if (S.peers[peer.mid] !== peer) return;
                 if (msg.t === 'ready') {
                     peer.ready = true;
-                    log('device ' + peer.dev + ' is in (' + link.path() + ')');
+                    log('device ' + peer.dev + ' is in (' + link.path() + ', ' + link.tier() + ')');
                     if (!S.session) hostUi();
                     else addToHub(peer);
                     return;
@@ -1051,7 +1265,7 @@
 
     function inviteLink() {
         var u = new URL(location.href);
-        ['join', 'netlag', 'netjitter', 'netloss', 'netrelay', 'kirbys', 'mod'].forEach(function (k) { u.searchParams.delete(k); });
+        ['join', 'netlag', 'netjitter', 'netloss', 'netrelay', 'netturn', 'kirbys', 'mod'].forEach(function (k) { u.searchParams.delete(k); });
         u.searchParams.set('mod', modName());               /* the joiner's page loads this game's module */
         u.searchParams.set('join', S.code);
         return u.toString();
@@ -1096,6 +1310,7 @@
             if (r.status === 404) return joinFail(UI.J_NOGAME, 'No game with the code ' + code + '. Check the letters.');
             if (r.status !== 200) return joinFail(UI.J_FAILED, 'Could not reach the game server. Try again.');
             var net = S.net = Net.connect({ base: BASE, code: code, hello: hello(S.ver), log: log, maxRetryMs: RETRY_MS });
+            turnWatch(net);
             var hiTimer = 0;
             /* hi to the host, S.hostMid (the room's host, or where a guest
              * the room took for it sent us) */
@@ -1225,8 +1440,8 @@
             link.reliable({ t: 'ready' });
             S.phase = 'waiting';
             ui(UI.J_WAITING);
-            if (S.invite) banner('Connected (' + (link.p2p ? 'direct' : 'relay') + '). Waiting for the host to start...', 0);
-            log('connected to the host (' + link.path() + '), waiting for the game');
+            if (S.invite) banner('Connected (' + TIER_LABEL[link.tier()] + '). Waiting for the host to start...', 0);
+            log('connected to the host (' + link.path() + ', ' + link.tier() + '), waiting for the game');
         };
         link.onDatagram = function (b) { if (peer === S.peer && S.session) S.inbox.push({ d: b }); };
         link.onReliable = function (msg) {
@@ -1236,6 +1451,8 @@
             /* every slot's name, from the host: presentation only, so at once
              * (it may come before the image does) */
             if (msg.t === 'names') { var e = engine(); if (e.setSlotNames && typeof msg.n === 'string') e.setSlotNames(msg.n); return; }
+            /* every player's connection, from the host: presentation only, at once */
+            if (msg.t === LS.NETQ_MSG) { netqIn(msg.q); return; }
             if (msg.t !== 'image') return;
             if (!S.session) { ui(UI.J_STARTING); if (S.invite) banner('Getting the game...', 0); }
             var t0 = nowMs();
@@ -1317,6 +1534,8 @@
         }
         if (up() && M._PortCardSessionEnd) M._PortCardSessionEnd();
         if (up() && M._PortOuiReset) M._PortOuiReset();
+        netqClear();
+        forPeers(function (p) { p.netqLate = null; });
         ui(UI.IDLE);
         leaveButton(false);
         banner(was === 'host' && inGame ? 'Online game ended' : 'You left the online game', 2500);
@@ -1370,6 +1589,7 @@
         S.role = null; S.phase = 'idle'; S.code = null; S.hub = null; S.pendingSid = null;
         S.banned = {};
         S.live = null; S.hold = false; S.holdLeft = 0;
+        turnForget();
         gameNotice(null);
     }
 
@@ -1472,6 +1692,42 @@
         L.gone.forEach(function (mid) { if (S.peers[mid]) guestGone(S.peers[mid], 'did not come back'); });
         setHold(L.hold, L.left);
     }
+    /* --- the connection readout (web/ln_session.js "the connection readout") --
+     * The host, once a second: each seated guest's link -- its smoothed ping
+     * round trip, direct or relayed, the share of its keys late for their
+     * frame over the last 5 s -- to every guest and to its own player list.
+     * A guest shows the host's table; one older than NETQ_STALE_MS (the host
+     * not heard from) is shown grey. */
+    var NETQ_STALE_MS = 3500;
+    function netqTick(t) {
+        if (!S.session || !S.hub || t - (S.netqAt || 0) < LS.NETQ_MS) return;
+        S.netqAt = t;
+        var rows = [];
+        forPeers(function (p) {
+            var hs = p.ready && p.dev ? S.hub.get(p.dev) : null;
+            if (!hs) return;
+            var late = (p.netqLate || (p.netqLate = new LS.NetqLate(5))).sample(hs.st);
+            rows.push(LS.netqRow(p.dev, p.link.rttAvg, p.link.p2p ? LS.NETQ_PATH.DIRECT : LS.NETQ_PATH.RELAY, late));
+        });
+        S.netq = { q: rows, at: t, stale: false };
+        S.hub.sendNetQuality(rows);
+    }
+    function netqIn(q) {
+        if (!Array.isArray(q)) return;
+        S.netq = { q: q, at: nowMs(), stale: false };
+        S.stats.netqIn = (S.stats.netqIn || 0) + 1;
+        if (S.session) { var e = engine(); if (e.setNetQuality) e.setNetQuality(q, false); }
+    }
+    function netqStale(t) {
+        if (!S.session || !S.netq || S.netq.stale || t - S.netq.at < NETQ_STALE_MS) return;
+        S.netq.stale = true;
+        var e = engine();
+        if (e.setNetQuality) e.setNetQuality(S.netq.q, true);
+    }
+    function netqClear() {
+        S.netq = null; S.netqAt = 0;
+        if (up() && M._PortNetqClear) M._PortNetqClear();
+    }
     function guestLiveness(t) {
         if (!S.peer || S.phase === 'hostleft' || S.phase === 'failed') return;
         var link = S.peer.link;
@@ -1501,8 +1757,8 @@
     setInterval(function () {
         var t = nowMs();
         try {
-            if (S.role === 'host') hostLiveness(t);
-            else if (S.role === 'guest') guestLiveness(t);
+            if (S.role === 'host') { hostLiveness(t); netqTick(t); }
+            else if (S.role === 'guest') { guestLiveness(t); netqStale(t); }
         } catch (e) { log('liveness: ' + (e.stack || e)); }
     }, 250);
 
@@ -1560,7 +1816,7 @@
         var hs = S.hub ? S.hub.get(p.dev) : null, l = p.link, slots = [];
         for (var s = 1; s < nSlots(); s++) if (S.session && (M._PortLnSlotOwner(s) >> 2) === p.dev && M._PortLnSlotOwner(s) >= 0) slots.push(s);
         var secs = Math.max(1e-3, (nowMs() - (p.at || S.startedAt || nowMs())) / 1000);
-        var o = { dev: p.dev, ready: p.ready, slots: slots, path: l.path(), dcOpen: !!l.p2p,
+        var o = { dev: p.dev, ready: p.ready, slots: slots, path: l.path(), tier: l.tier(), iceRoute: l.iceRoute, dcOpen: !!l.p2p,
                   linkRttMs: l.rtt !== null ? Math.round(l.rtt) : null, bytesIn: l.bIn, bytesOut: l.bOut, silentMs: Math.round(nowMs() - l.lastRecv),
                   /* per peer, since it connected: what this host sends it and hears from it */
                   upBps: Math.round(l.bOut / secs), downBps: Math.round(l.bIn / secs),
@@ -1585,6 +1841,8 @@
         var o = {
             role: S.role, phase: S.phase, code: S.code, session: S.session,
             path: link ? link.path() : null, dcOpen: !!(link && link.p2p), linkDecided: !!(link && link.decided),
+            /* 'direct' | 'turn' | 'relay' (Link.tier); the TURN credentials' state */
+            tier: link ? link.tier() : null, iceRoute: link ? link.iceRoute : null, turn: turnStats(),
             linkRttMs: link && link.rtt !== null ? Math.round(link.rtt) : null,
             peer: S.role === 'guest' ? !!S.peer : readyCount() > 0,
             frame: up() ? M._PortFrameNumber() : 0, sessionSec: +secs.toFixed(1), startFrame: S.startFrame,
@@ -1595,6 +1853,8 @@
             /* liveness: the host holding (ms of grace left), the notice over the picture */
             hold: S.hold, holdLeftMs: S.holdLeft, notice: S.notice, liveness: S.live ? S.live.st : null,
             sigQ: link ? link.sigQ.length : 0, quietMs: link ? Math.round(link.quiet()) : null,
+            /* the connection readout's table as this device has it: [dev, rttMs, path (1 direct, 2 relay), late %] */
+            netq: S.netq ? { rows: S.netq.q, ageMs: Math.round(nowMs() - S.netq.at), stale: S.netq.stale } : null,
         };
         o.players = o.slots.filter(Boolean).length;
         if (S.role === 'host') {
@@ -1603,7 +1863,7 @@
             o.downBps = o.peers.reduce(function (a, p) { return a + p.downBps; }, 0);
             o.devices = 1 + o.peers.filter(function (p) { return p.ready; }).length;
             if (S.hub) o.seatWaits = S.hub.st.seatWaits.slice();
-            if (o.peers.length) { var p1 = o.peers[0]; o.path = p1.path; o.dcOpen = p1.dcOpen; o.linkRttMs = p1.linkRttMs; }
+            if (o.peers.length) { var p1 = o.peers[0]; o.path = p1.path; o.tier = p1.tier; o.iceRoute = p1.iceRoute; o.dcOpen = p1.dcOpen; o.linkRttMs = p1.linkRttMs; }
         }
         if (t) {
             var mins = Math.max(secs / 60, 1e-9);
@@ -1655,12 +1915,12 @@
             if (!o.peers.length) L.push('No guests connected');
             o.peers.forEach(function (p) {
                 L.push('Dev ' + p.dev + (p.slots.length ? ' (P' + p.slots.map(function (s) { return s + 1; }).join(',P') + ')' : '') + ': ' +
-                       (p.path === 'p2p' ? 'direct' : 'relay') + (p.linkRttMs !== null ? ' ' + p.linkRttMs + ' ms' : '') +
+                       TIER_LABEL[p.tier] + (p.linkRttMs !== null ? ' ' + p.linkRttMs + ' ms' : '') +
                        (p.ready ? '' : ', connecting') + (p.keyLatePct !== undefined ? ', late ' + p.keyLatePct + '%' : '') +
                        (p.images !== undefined ? ', images ' + p.images : '') + (p.repairReqs ? ', repairs ' + p.repairReqs : ''));
             });
         } else {
-            L.push('Path: ' + (o.path === 'p2p' ? 'direct (WebRTC)' : o.path ? 'relay (room server)' : '-') +
+            L.push('Path: ' + (o.tier === 'direct' ? 'direct (WebRTC)' : o.tier === 'turn' ? 'WebRTC via TURN (relayed by Cloudflare)' : o.tier ? 'relay (room server)' : '-') +
                    (o.linkRttMs !== null ? ', link round trip ' + o.linkRttMs + ' ms' : ''));
         }
         if (o.session) {
@@ -1674,9 +1934,10 @@
             if (o.role === 'guest') L.push('Own input overridden ' + o.ownOverriddenPct + '%, others mispredicted ' + o.mispredHostPct + '% / ' + o.mispredOtherPct + '%');
             else L.push('Guest keys late at the latch ' + o.hostKeyLatePct + '%');
         }
-        if (KNOB.lag || KNOB.jitter || KNOB.loss || KNOB.relay)
+        if (Turn.offered) L.push('TURN: ' + (turnFresh() ? 'credentials for ' + Math.round((Turn.expiresAt - nowMs()) / 60000) + ' min' : 'none' + (Turn.lastRefusal ? ' (' + Turn.lastRefusal + ')' : '')));
+        if (KNOB.lag || KNOB.jitter || KNOB.loss || KNOB.relay || KNOB.turn)
             L.push('Test knobs: +' + KNOB.lag + ' ms, jitter ' + KNOB.jitter + ' ms, loss ' + (KNOB.loss * 100) + '%' +
-                   (KNOB.relay ? ', relay forced' : ''));
+                   (KNOB.relay ? ', relay forced' : '') + (KNOB.turn ? ', TURN forced' : ''));
         return L.join('\n');
     }
     /* tests: hashed frames in [from, to): [frame, lo, hi, final] */
