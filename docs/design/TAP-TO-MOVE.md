@@ -28,18 +28,18 @@ it opens up the screen to not need button controls."*
 
 | gesture | where | what Kirby does |
 |---|---|---|
-| tap | open ground, or at most 16 px (about Kirby's height) above it; higher taps hover | walks (runs, if far) there and stops on the spot; jumps, flies, drops and steps off ledges as the way needs |
-| tap | high in the air | flies there and hovers (holds the height) until the next command |
+| tap | open ground, or at most 16 px (about Kirby's height) above it | runs there (anything more than three cells; a walk for the last steps) and stops on the spot; jumps, flies, drops and steps off ledges as the way needs -- along the ground as far as it goes, then up: floating is slow |
+| tap | higher in the air | runs as near as the ground gets him, flies the rest; once there he lets go (the air out, and down) -- unless a finger still holds the target, or there is a pit, spikes or an enemy under him: then he hovers |
 | tap | inside solid ground | goes to the top of that block (or the nearest open cell) |
 | hold and drag | anywhere | the target follows the finger; let go and he stops where it was released |
 | tap | an enemy (finger-sized slop) | marks it with a red reticle; he stands off on its row at the right range, faces it, then: no ability -- inhales it (B held); a mouthful -- spits a star at it; an ability -- attacks with B (range per ability).  Puffed, he exhales at it.  The mark goes when the enemy does (or after 15 s / 6 bouts) |
 | tap | a door, mirror or star door (its picture: the door cell or the one above; a door that is an object -- the hub's mirrors, an area door -- by its own rect, 8 px more slop) | walks to it, lets the air out if puffed, presses Up |
 | tap | a treasure chest | walks into it and presses Up (that is what opens one); done when he plays the opening |
 | tap | a breakable block (star block, bomb block; finger-sized slop) | yellow ring on it; stands right beside it on ground (its row, or the row above or below in the same column, which is then the one he hits; else two cells off; else hovering beside it), faces it and hits: B (a star with a mouthful, the ability's attack, an air puff when puffed; with nothing, a long inhale -- weak blocks come in, then a star), else a slide; again; then the red ring.  Done when that cell is no longer breakable.  Hard blocks (strength 2..4) want the right ability: he tries, the game decides |
-| tap | a heavy star block (star stone blocks, the pushable kind) | stands on its row within 1..3 cells on ground, faces it, and holds B 110 frames: the strong inhale (B held 48 frames, `sub_080720F8`) is a push of 2, which is what one moves (a walk into it is 1: two Kirbys); then a walk into it, then the inhale again.  Done when it moved 8 px or fell |
+| tap | a heavy star block (star stone blocks, the pushable kind) | stands on its row within 1..3 cells on ground -- one cell further back than the nearest when he can stand there, since the inhale draws the block until it meets him (804's has to clear a cell to fall into its shaft) -- faces it, and holds B 110 frames: the strong inhale (B held 48 frames, `sub_080720F8`) is a push of 2, which is what one moves (a walk into it is 1: two Kirbys); then a walk into it, then the inhale again.  Done when it moved 8 px or fell |
 | tap | food, a 1-up, a battery, candy | walks to it (touching takes it) |
 | tap | a puzzle switch, small floor button or big switch (the switch's own rect, finger-sized slop) | yellow ring on it; walks onto it and stops there -- his body is a hit of the type both kinds take (`unk68` 0x82), so standing on it presses it, and he stays on it (a held switch stays down).  Done when the switch reports down (`unkB6` 0x101) with him stopped on it.  If it does not go down: a hop onto it, then from beside it, facing it, B, a slide, B, a slide, then the red ring.  A switch the game made inert is not one (a tap there is a walk) |
-| tap | Kirby | attacks in place (B): with a mouthful that spits, puffed it exhales; clears any target |
+| tap | Kirby | attacks in place (B): with a mouthful that spits, puffed it exhales; clears any target.  A tap nearer a switch he stands beside than his centre is the switch |
 | hold | Kirby, still (14 frames, within finger slop) | inhales for as long as the finger stays (B held): long enough, the strong inhale that moves heavy blocks; a swipe down from the hold swallows |
 | swipe down | starting on Kirby | a mouthful: swallow (Down); an ability: drop it (Select); else crouch |
 | swipe diagonally | starting on Kirby, up or down | the slide, a ground kick, that way: face it, Down 6 frames, then Down+A (Down+A from nothing is a jump) |
@@ -141,10 +141,13 @@ A cost-to-go field from the target over the room's cells (Dijkstra over
 reversed moves, at most 1950 cells, re-run when the target cell or the map
 changes or every 30 frames): every cell knows its best next step, Kirby's
 progress is the cost at his cell, and a moving target (a drag, an enemy) is
-just a re-run.  Moves and costs: across 2 on ground, 3 through air or water;
-up 4 (a jump or a flap), 2 up a slope; down 1; a one-way floor cannot be
-entered from above unless it is a drop-through one (3, Down).  Hazards +60,
-standing on solid spikes +30, the bottom row of a pit +40.  Kirby can fly, so
+just a re-run.  Moves and costs: across 2 on ground, 5 through air (a run is
+1.9 px a frame, flight sideways 1.1: a way along the ground and a climb at
+the end beats a float across, even one that drops and climbs back), 3 in
+water; up 4 (a jump or a flap), 2 up a slope; down 1; a one-way floor cannot
+be entered from above unless it is a drop-through one (3, Down).  Hazards
++60, standing on solid spikes +30, the bottom row of a pit +40, any other
+cell over a pit's column +3 (cross it high, come down over ground).  Kirby can fly, so
 nearly everything open is reachable; when the target is not (a sealed part
 of the room, behind a gate), he goes to the nearest reachable cell and, once
 there, the target is given up (red ring) rather than pushed against.
@@ -157,26 +160,43 @@ is up): a ground jump starts at 1024 and loses 38 a frame while A is held
 frames 54, the most.  A press in the air puffs Kirby up (flag 0x40) and,
 held, he climbs at 336 (1.3 px a frame) for as long as it is held; released,
 he floats down at 288 at most.  B while puffed exhales and he falls at 640.
-Walking is 332, running 476 (a double tap), flying sideways 272; a walk
-slides ~15 px to a stop, a run ~31.  He lands still puffed.  The "in the air"
-flag (0x20) is not set while puffed: on the ground or not is `unk62 & 4`.
+Walking is 332, running 476 (a double tap; flag 0x10, kept through a jump
+and with a mouthful), a running jump 504 across, flying sideways 272; a walk
+slides ~15 px to a stop, a run ~31; in the air he hardly slows by himself,
+and pressing the other way brakes 18 a frame.  He lands still puffed.  The
+"in the air" flag (0x20) is not set while puffed: on the ground or not is
+`unk62 & 4`.
 
 Each frame the next few steps of the field from Kirby's cell give:
 - **across**: Left/Right toward a point two steps out (the target itself on
-  the last cells); a run when it is far along the ground; coasting when the
-  slide alone gets there, so he stops on the spot;
+  the last cells); a run (the double tap) whenever the target is more than
+  three cells off and the next step is along the ground, not while a jump is
+  under way; coasting when the slide alone gets there (and he is moving: a
+  belt can hold him still), so he stops on the spot; in the air near the
+  target, braking the other way once the stop would reach it; in the air
+  with the way going down first (a dip), on across the way it then goes, not
+  straight down (letting go ends a run);
 - **up**: a jump held for the height the path climbs (7/14/23 frames for
-  1/2/3+ cells), then A held while puffed for the rest; up a slope is a walk;
-- **gaps and pits**: a jump at a gap, a puff when there is nothing under him;
+  1/2/3+ cells), then A held while puffed for the rest -- he puffs only for a
+  climb from where he is, not for one further on (he lands and runs there
+  first); up a slope or over a hill is a walk, never a puff;
+- **gaps and pits**: a jump at a gap (14 frames: a running jump clears most);
+  over a pit he puffs once the jump falls;
 - **down**: Down on a drop-through floor; step off to the far side of his own
-  cell when the floor beside it holds him up; exhale for a long way down;
-  dive when bobbing on water;
+  cell when the floor beside it holds him up; puffed in the air, when the way
+  goes down onto safe ground and does not climb again soon, exhale and drop
+  (then run); landed puffed, exhale unless the climb is right there; dive
+  when bobbing on water;
 - **corners**: line up in his own column before a vertical step past a
   corner; in a row with a lip above or below, keep his centre on the row's
   (he is a row tall);
-- **enemies in the way**: a hop (or a little more height in the air);
+- **enemies in the way**: a hop (sooner when running); a jump coming down
+  onto one puffs and floats over it, for a second at most (not down a shaft);
 - **a mouthful** cannot fly: when the way climbs more than a jump, swallow;
-- **arrival**: on the floor, within 6 px, slow; puffed, exhale first;
+- **arrival**: on the floor, within 6 px, slow; puffed, exhale first.  An
+  air point: within 8 px, then he lets go (see the table).  A target whose
+  floor goes (a star block under it broken, by his own exhale too) moves to
+  the floor below, or becomes that point in the air;
 - **watchdog**: no progress for 90 frames: a hop; 180: a long jump (A also
   fires a cannon he is sitting in); 330: give up (the ring goes red).
 
@@ -222,20 +242,38 @@ notice says what the taps do.
 `tests/tap_nav.sh build/lp64/katam` (a live run, taps injected through the
 devices script, then its recording replayed):
 
-    ok   hub: the ground below: Kirby at the target (f1758 205,296 159 frames)
-    ok   hub: the high platform (a flight): Kirby at the target (f2082 247,65 179 frames)
-    ok   door: room 801 -> 101 (f2448)
-    ok   101: a point along the ground: Kirby at the target (f2841 200,136 42 frames)
+    ok   hub: the ground below: Kirby at the target (f1759 202,296 160 frames)
+    ok   hub: the high platform (a flight): Kirby at the target (f2092 246,72 193 frames)
+    ok   door: room 801 -> 101 (f2453)
+    ok   101: a point along the ground: Kirby at the target (f2868 106,136 69 frames)
     ok   101: the marked enemy was inhaled
     ok   101: swipe down swallowed it (ability 7)
-    ok   door: room 101 -> 106 (f3951)
-    ok   door: room 106 -> 107 (f5431)
+    ok   door: room 101 -> 106 (f4030)
+    ok   door: room 106 -> 107 (f5334)
+    ok   310: the small switch went down under Kirby (f1940 after 213 frames)
+    ok   390: the big switch went down under Kirby (f2060 after 109 frames)
     ok   replay: 5999 frames, the live run's hash log replays identically (tap controls off and on)
-    ok   recording: keys only (381 key lines, no taps)
+    ok   recording: keys only (419 key lines, no taps)
     TAP NAV PASS
 
 Room 101 to its far door is the whole of Rainbow Route's first room: the
 hill, a block, the six-cell column (a flight), both pits.
+
+Running and floating (the "always run, float only the rest" change):
+one tap from the same start, so the two controllers face the same room --
+8 random reachable cells (3..25 cells away) in each of the 32 sweep rooms,
+256 taps each, with fresh state per tap:
+
+| | arrived | hits taken | time, taps both reached |
+|---|---|---|---|
+| before | 228 | 78 | 37595 frames |
+| running | 227 | 66 | 35434 frames (-6%) |
+
+In room 101 (Rainbow Route), a point on the ground past the hill: 318 ->
+272 frames; the air above the six-cell column: 478 -> 390, now on the
+ground for most of the way (it floated from the hill to the column before).
+Variants that floated over enemies for half a second, or not near the
+target, lost more than they won (more hits, or a room given up).
 
 `tools/tap_sweep.sh build/lp64/katam`: 32 rooms across every area (the
 warp_sweep recording's), a tap every 900 frames on a random cell Kirby can
@@ -259,9 +297,13 @@ diverged), `tests/cpu_ai.sh`, `make input-devices-test`.
 
 ## Limits (honest)
 
-- Enemies: he hops over one in his way but otherwise walks into them; in the
-  sweep he takes hits and loses abilities on long walks.  The player is
-  expected to tap them; there is no auto-defence.
+- Enemies: he hops over one in his way and floats over one he would land on,
+  but otherwise runs into them; in the sweep he takes hits and loses
+  abilities on long walks.  Running on the ground meets more of them than
+  floating above did, which the floating-over makes up for (fewer hits than
+  before, above).  The player is expected to tap them; there is no
+  auto-defence.  Letting go at an air point near a walking enemy can cost a
+  hit afterwards.
 - Ability ranges are rough (three bands); abilities with special uses
   (stone, throw, UFO, missile) are only pressed, not played.  Boss fights
   are untested.
@@ -283,12 +325,14 @@ diverged), `tests/cpu_ai.sh`, `make input-devices-test`.
   outlives its thrower (the wide build guards that NULL; wasm reads it
   harmlessly).  `tools/tap_sweep.sh` counts such a run's taps up to the end.
 - Fat fingers on a small picture: the slop is finger-sized in CSS pixels
-  (about 14-26), but a tap near Kirby is "Kirby" (16 css px), not a step.
+  (about 14-26), but a tap near Kirby is "Kirby" (16 css px), not a step
+  (a switch beside him excepted).
 
 ## Next steps
 
 1. Play it on a real iPhone and tune: slop sizes, the ring's size, whether
-   air taps should hover or snap to the ground below, run thresholds.
+   run thresholds, whether letting go at an air point should drift down
+   puffed instead of dropping.
 2. Auto-defence: mark the nearest enemy in the way when he has an ability
    (or inhale it when he has none) -- an option, so tapping stays the game.
 3. Routes across rooms: a tap on a door's destination on the pause map, or a

@@ -157,6 +157,8 @@ static struct {
     int dashPhase;              /* 0 none, 1 first tap, 2 gap                */
     int dashT, dashCool;
     int swallowCool;
+    int overEnemy;              /* frames kept up over an enemy, this time   */
+    s32 lastKx;                 /* Kirby's x the frame before (Steer)        */
     int unstick;                /* watchdog's escalation                     */
     int lastDir;
 } sC;
@@ -429,6 +431,25 @@ static int Supported(int x, int y)
     return (b & (CL_SOLID | CL_PLAT | CL_SLOPE)) != 0;
 }
 
+/* Open cells with nothing under them down to the room's bottom (a pit's
+ * column): set by Flow, for MoveCost. */
+static u8 sOverPit[NAV_CELLS];
+
+static void MarkPits(void)
+{
+    int x, y;
+
+    for (x = 0; x < sW; x++) {
+        int g = 0;                              /* ground in a row below     */
+
+        for (y = sH - 1; y >= 0; y--) {
+            sOverPit[y * sW + x] = (u8)!g;
+            if (Cl(x, y) & (CL_SOLID | CL_PLAT | CL_SLOPE | CL_WATER))
+                g = 1;
+        }
+    }
+}
+
 /* The cost of one move from (x,y) to (nx,ny), neighbours; 0 = not allowed. */
 static int MoveCost(int x, int y, int nx, int ny)
 {
@@ -447,7 +468,10 @@ static int MoveCost(int x, int y, int nx, int ny)
         if ((Cl(x, y) | to) & CL_SLOPE)
             c = 2;                              /* up a slope: a walk        */
     } else {
-        c = Supported(nx, ny) ? 2 : 3;          /* walk, or through the air */
+        /* run, or float across: a run is 1.9 px a frame, puffed flight
+         * sideways 1.1, so a way along the ground (and a climb at the end)
+         * beats one through the air, even down and back up again */
+        c = Supported(nx, ny) ? 2 : 5;
         if (to & CL_WATER)
             c = 3;
     }
@@ -457,6 +481,9 @@ static int MoveCost(int x, int y, int nx, int ny)
         c += 30;                                /* standing on spikes        */
     if (ny == sH - 1 && !Supported(nx, ny))
         c += 40;                                /* the bottom of a pit       */
+    else if (sOverPit[ny * sW + nx])
+        c += 3;                                 /* over one: cross high, come
+                                                 * down over the ground      */
     return c;
 }
 
@@ -513,6 +540,7 @@ static void Flow(int goal)
     sFlowAge = 0;
     if (goal < 0 || goal >= sW * sH)
         return;
+    MarkPits();
     sHeapN = 0;
     sDist[goal] = 0;
     HeapPush((u32)goal);
@@ -1045,6 +1073,10 @@ static void SetPush(struct Object *o)
     bx = sT.mx >> 4;
     by = (y + h - 1) >> 4;                      /* its bottom row            */
     side = (Me()->base.x >> 8) < sT.mx ? -1 : 1;
+    /* the nearest cell he can stand in -- or the one behind it, when he
+     * can stand there too: the inhale draws the block until it meets him,
+     * so standing right at it leaves it no room to come off its ledge
+     * (804's: it has to clear a cell to drop into the shaft) */
     for (pass = 0; pass < 2 && cx < 0; pass++, side = -side)
         for (d = (w + 15) / 32 + 1; d <= 3; d++) {
             int c = bx + side * d;
@@ -1053,6 +1085,8 @@ static void SetPush(struct Object *o)
                 break;
             if (Supported(c, by)) {
                 cx = c;
+                if (d < 3 && Open(c + side, by) && Supported(c + side, by))
+                    cx = c + side;
                 break;
             }
         }
@@ -1210,9 +1244,18 @@ static void GestureDown(s32 px, s32 py)
 
     GridUpdate();
     sP.kind = G_DRAG;
+    /* on Kirby -- unless the finger is nearer a switch he stands beside */
     if (NearKirby(px, py)) {
-        sP.kind = G_KIRBY;
-        return;
+        struct Kirby *k = Me();
+        s32 x, y, w, h, kdx = px - (k->base.x >> 8), kdy = py - ((k->base.y >> 8) - 2);
+
+        o = ThingAt(px, py, tol, IsSwitch);
+        if (o != NULL)
+            Box(o, &x, &y, &w, &h);
+        if (o == NULL || kdx * kdx + kdy * kdy <= (px - x - w / 2) * (px - x - w / 2) + (py - y - h / 2) * (py - y - h / 2)) {
+            sP.kind = G_KIRBY;
+            return;
+        }
     }
     if ((o = ObjAt(px, py, tol, 0)) != NULL) {
         SetEnemy(o);
@@ -1445,6 +1488,27 @@ static int EnemyAhead(s32 kx, s32 ky, int dir, int reach)
     return 0;
 }
 
+/* An enemy where a jump would come down on it: ahead of him (up to 40 px;
+ * just under him when he is not steering across) and below, down to DEPTH. */
+static int EnemyBelow(s32 kx, s32 ky, int dir, int depth)
+{
+    struct Object *ob;
+    int i = 0;
+    s32 lo = dir < 0 ? kx - 40 : kx - 12, hi = dir > 0 ? kx + 40 : kx + 12;
+
+    while ((ob = NextObject(&i)) != NULL) {
+        s32 x, y, w, h;
+
+        if (ob == sT.obj || !IsEnemy(ob))
+            continue;
+        Box(ob, &x, &y, &w, &h);
+        if (x + w < lo || x > hi || y + h < ky - 4 || y > ky + depth)
+            continue;
+        return 1;
+    }
+    return 0;
+}
+
 /* --- the controller ---------------------------------------------------------- */
 
 /* The game's physics, measured (KATAM_TAP_LOG=2 in room 801): y grows down
@@ -1464,8 +1528,11 @@ static int JumpFrames(int cells)
 typedef struct {
     int n;                      /* steps traced                              */
     int rise;                   /* of the next five, how many climb          */
+    int srise;                  /*   of those, up a slope (a walk)            */
     int first;                  /* the first step: 0 across, -1 up, 1 down   */
     int gap;                    /* the next cell across has nothing under it */
+    int across;                 /* the way's first step across: -1, 1, 0    */
+    int drop;                   /* steps straight down it starts with        */
     s32 aimX, aimY;             /* a point a few steps out (world px)        */
 } Plan;
 
@@ -1480,10 +1547,17 @@ static void PlanFrom(int s, Plan *p)
     for (i = 0; i < p->n && i < 5; i++) {
         int c = sPath[i], cx = c % sW, cy = c / sW;
 
-        if (cy < y)
+        if (cy < y) {
             p->rise++;
+            if ((Cl(x, y) | Cl(cx, cy)) & CL_SLOPE)
+                p->srise++;
+        }
         if (i == 0)
             p->first = cy < y ? -1 : cy > y ? 1 : 0;
+        if (!p->across && cx != x)
+            p->across = cx < x ? -1 : 1;
+        if (p->drop == i && cy > y && cx == x)
+            p->drop++;
         x = cx;
         y = cy;
     }
@@ -1519,6 +1593,22 @@ static int GroundBelow(int cx, int cy)
     return 0;
 }
 
+/* ... and is it safe to drop onto: no pit, no spikes? */
+static int SafeBelow(int cx, int cy)
+{
+    int y;
+
+    for (y = cy + 1; y < sH; y++) {
+        u8 c = Cl(cx, y);
+
+        if (c & CL_HAZ)
+            return 0;
+        if (c & (CL_SOLID | CL_PLAT | CL_SLOPE | CL_WATER))
+            return 1;
+    }
+    return 0;
+}
+
 /* Steer one frame toward the target along the flow.  arriveR: how near in
  * x counts as there; hover: an air target (hold the height). */
 static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
@@ -1526,7 +1616,7 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
     u32 fl = k->base.flags;
     int air = !(k->base.unk62 & KH_FLOOR), fly = (fl & KF_FLY) != 0, water = (k->base.unk58 & 2) != 0;
     int s = KirbyCell(kx, ky), scx = s % sW, scy = s / sW;
-    int dx, dy, dir, wantUp, wantDown, end, hop, holdA = 0;
+    int dx, dy, dir, wantUp, wantDown, end, hop, hill, climb, pit, holdA = 0;
     u16 keys = 0;
     Plan p;
 
@@ -1542,15 +1632,23 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
     if (end || (Abs(sT.x - kx) <= 20 && Abs(sT.y - ky) <= 10))
         dx = sT.x - kx;
     dir = dx > arriveR ? 1 : dx < -arriveR ? -1 : 0;
+    /* in the air, the way going down first (into a dip, off a ledge): keep
+     * on the way it then goes across, not straight down -- he is carried
+     * across anyway, and letting go ends a run (the corner rule below
+     * still lines him up for a hole) */
+    if (air && !water && !dir && !end && p.first > 0 && p.across)
+        dir = p.across;
     /* near the end on the ground: coast when the slide alone gets there
      * (walking Kirby slows by ~14/256 px a frame per frame: a walk slides
      * 15 px, a run 31) */
-    if (dir && !air && Abs(sT.x - kx) < 64) {
-        s32 vx = k->base.xspeed;
+    if (dir && !air && Abs(sT.x - kx) < 64 && kx != sC.lastKx) {
+        s32 vx = k->base.xspeed;                /* (and he is moving: a belt
+                                                 * can hold him still) */
 
         if ((vx > 0) == (dir > 0) && vx != 0 && vx * vx / (28 * 256) >= Abs(dx) - 2)
             dir = 0;
     }
+    sC.lastKx = kx;
     /* the path goes up or down first past a corner (the cell across, or
      * the one diagonally, is solid): line up in his own column first, or
      * he presses into the corner and hangs there */
@@ -1574,18 +1672,33 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
 
         dir = want > kx + 1 ? 1 : want < kx - 1 ? -1 : 0;
     }
+    /* in the air near the target, carried by a run or a jump (2 px a
+     * frame): he hardly slows by himself up there -- brake, the other way
+     * (18/256 px a frame per frame), once the stop would reach its x; not
+     * while still below it (a ledge to clear first) */
+    if (air && !water && (end || p.n <= 4) && ky <= sT.y && Abs(sT.x - kx) < 64) {
+        s32 vx = k->base.xspeed, tx = sT.x - kx;
+
+        if (vx != 0 && (vx > 0) == (tx > 0) && vx * vx / 9216 >= Abs(tx) - 2)
+            dir = vx > 0 ? -1 : 1;
+    }
     if (dir > 0)
         keys |= K_RIGHT;
     else if (dir < 0)
         keys |= K_LEFT;
-    /* a long way along the ground: run (a double tap, as the CPU does) */
+    /* along the ground he always runs (a double tap, as the CPU does; flags
+     * 0x10 while running, kept through a jump): anything more than a short
+     * step, unless the path's next step is up or down (lining up under a
+     * climb, stepping off into a hole: a run would overshoot) */
     if (sC.dashCool > 0)
         sC.dashCool--;
-    if (sC.dashPhase == 0 && dir && !air && !fly && !water && !(fl & 0x10) && !sC.dashCool
-        && Abs(sT.x - kx) > 80 && p.first == 0 && !p.rise && !p.gap) {
+    if (air || sC.jumpHold)
+        sC.dashPhase = 0;                       /* a jump came first: not now */
+    if (sC.dashPhase == 0 && dir && !air && !fly && !water && !(fl & 0x10) && !sC.dashCool && !sC.jumpHold
+        && Abs(sT.x - kx) > 48 && p.first == 0) {
         sC.dashPhase = 1;
         sC.dashT = 1;
-        sC.dashCool = 90;
+        sC.dashCool = 30;
     }
     if (sC.dashPhase == 1) {
         if (--sC.dashT <= 0) {
@@ -1598,9 +1711,16 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
             sC.dashPhase = 0;
     }
 
-    /* up and down: puffed, he holds the row's centre or a little above it */
-    wantUp = p.first < 0 || dy < (fly ? -3 : -6) || (hover && end && ky > sT.y + 2)
-          || (air && !GroundBelow(scx, scy) && p.first >= 0 && !(end && dy > 8));
+    /* up and down: puffed, he holds the row's centre or a little above it.
+     * Not puffed, in the air (a jump), he puffs up only to climb from where
+     * he is (climb: not for a climb further on -- he lands and runs there
+     * first -- and never for a hill, which he walks), or over a pit once
+     * the jump falls (pit: a running jump carries him across most) */
+    hill = p.rise && p.rise == p.srise && !p.gap && GroundBelow(scx, scy);
+    wantUp = p.first < 0 || dy < (fly ? -3 : -6) || (hover && end && ky > sT.y + 2);
+    climb = fly ? wantUp : !hill && (p.first < 0 || (end && dy < -6) || (hover && end && ky > sT.y + 2));
+    pit = air && !GroundBelow(scx, scy) && p.first >= 0 && !(end && dy > 8);
+    wantUp = wantUp || pit;
     /* across, in the air, into a row with solid ground above or below the
      * next cell: his body is a row tall, so he has to be inside the row to
      * pass -- keep his centre on the row's (a hair below a ceiling lip, a
@@ -1610,14 +1730,26 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
         s32 c = scy * 16 + 8;
 
         if (above && ky < c)
-            wantUp = 0;
+            wantUp = climb = pit = 0;
         else if (below && ky > c - 1)
-            wantUp = 1;
+            wantUp = climb = 1;
     }
-    /* an enemy in the way: over it (a hop, or a little more height) */
-    hop = !water && dir && !(end && Abs(sT.x - kx) < 20) && EnemyAhead(kx, ky, dir, air ? 20 : 28);
-    if (hop && air)
-        wantUp = 1;
+    /* an enemy in the way: over it (a hop; flying, a little more height --
+     * a hop itself does not puff him up) */
+    hop = !water && dir && !(end && Abs(sT.x - kx) < 20)
+       && EnemyAhead(kx, ky, dir, air ? 20 : 28 + Abs(k->base.xspeed) / 16);   /* running: sooner */
+    if (hop && air && fly)
+        wantUp = climb = 1;
+    /* coming down onto an enemy: puff up and float over it (on the ground
+     * he runs; this keeps him off them at the end of a jump) -- not where
+     * the way drops straight down past it (a shaft), and for a second at
+     * most: then he comes down whatever is there */
+    if (air && !water && dir && p.drop < 3 && !(fl & KF_MOUTH) && (fly || k->base.yspeed <= 0)
+        && EnemyBelow(kx, ky, dir, 40)) {
+        if (++sC.overEnemy <= 60)
+            wantUp = climb = 1;
+    } else if (!air)
+        sC.overEnemy = 0;
     wantDown = !wantUp && (p.first > 0 || dy > 12);
 
     /* a mouthful cannot fly: when the way climbs more than a jump (or a
@@ -1641,20 +1773,19 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
             keys |= K_DOWN;
     } else if (!air) {
         if (fly) {
-            /* landed puffed: climb on, or let the air out to walk */
-            if (wantUp)
+            /* landed puffed: climb on from here, or let the air out to run
+             * (a climb further on is a jump from the run) */
+            if (wantUp && !hill)
                 holdA = 1;
-            else if (!sC.bGap && !p.rise) {
+            else if (!sC.bGap) {
                 sC.bGap = 20;
                 Action(K_B, 2);
             }
-        } else if (p.first < 0 && dir && !p.gap
-                   && ((Cl(scx, scy) | Cl(scx + dir, scy) | Cl(scx + dir, scy + 1)) & CL_SLOPE)
-                   && p.rise <= 1) {
-            ;                                   /* up a slope: just walk     */
+        } else if (dir && !p.gap && !hop && p.rise && p.rise == p.srise && !(k->base.unk62 & KH_WALL)) {
+            ;                                   /* up a slope, a hill: walk  */
         } else if (sC.jumpHold == 0 && sC.aGap == 0
                    && (wantUp || p.gap || hop || ((k->base.unk62 & KH_WALL) && dir && p.rise))) {
-            int h = p.rise ? p.rise : wantUp ? (-dy + 15) / 16 : hop ? 2 : 1;
+            int h = p.rise ? p.rise : wantUp ? (-dy + 15) / 16 : hop || p.gap ? 2 : 1;
 
             sC.jumpHold = JumpFrames(h > 0 ? h : 1);
         } else if (p.first > 0 && (Cl(scx, scy + 1) & CL_DROP))
@@ -1662,11 +1793,14 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
     } else if (wantDown && !fly && (Cl(scx, scy + 1) & CL_WATER)) {
         keys |= K_DOWN;                         /* bobbing on water: dive    */
     } else if (sC.jumpHold == 0) {
-        /* in the air: puff up and climb while the path climbs, float down
-         * when it does not; let the air out for a long way down */
-        if (wantUp && sC.aGap == 0 && (fly || k->base.yspeed < 0x180))
+        /* in the air: puff up and climb while the path climbs (once the
+         * jump slows; over a pit, once it falls); when the way goes down
+         * onto safe ground and does not climb again soon, let the air out
+         * and drop -- floating is slow, he runs the rest */
+        if (wantUp && sC.aGap == 0 && (fly || (climb && k->base.yspeed < 0x180) || (pit && k->base.yspeed < 0)))
             holdA = 1;
-        else if (fly && !hover && !sC.bGap && sAct.frames == 0 && dy > 40 && Abs(dx) < 12) {
+        else if (fly && !wantUp && !sC.bGap && sAct.frames == 0 && !p.rise && (p.first > 0 || dy > 12)
+                 && !(hover && end) && SafeBelow(scx, scy)) {
             sC.bGap = 30;
             Action(K_B, 2);
         }
@@ -2007,7 +2141,7 @@ static u16 Drive(void)
         }
         if (!SwitchDown(sT.obj))
             sT.wasDown = 0;
-        else if (!sT.wasDown && (sT.hit || sT.arrived)) {   /* stood on: stopped on it */
+        else if ((!sT.wasDown && sT.hit) || (!sT.hit && sT.arrived)) {   /* stood on: stopped on it */
             if (Log())
                 PortLog("[tap] f%u switch down (type 0x%02X, %s) after %d frames", (unsigned)PortFrameNumber(),
                         sT.objType, sT.hit ? "hit" : "stood on", sT.frames);
@@ -2045,6 +2179,23 @@ static u16 Drive(void)
         /* as near as he can get, and that is here: say so (the red ring) */
         if (sT.unreach && sDist[KirbyCell(kx, ky)] <= 2 && (k->base.unk62 & KH_FLOOR)) {
             Fail("cannot get there");
+            return 0;
+        }
+        /* its floor gone (a star block under it broken -- his own exhale
+         * can do it): the floor below it, else that point in the air */
+        if (sT.kind == T_GO && !sT.air && !Supported(sT.cx, sT.cy)) {
+            int i;
+
+            for (i = 1; i <= 4 && sT.cy + i < sH && Open(sT.cx, sT.cy + i) && !Supported(sT.cx, sT.cy + i); i++)
+                ;
+            if (i <= 4 && sT.cy + i < sH && Open(sT.cx, sT.cy + i))
+                sT.cy += i;
+            else
+                sT.air = 1;
+            sT.y = sT.cy * 16 + 8;
+            if (Log())
+                PortLog("[tap] f%u target's floor gone: now %d,%d%s", (unsigned)PortFrameNumber(), sT.cx, sT.cy,
+                        sT.air ? " (air)" : "");
             return 0;
         }
         /* arrived? */
@@ -2093,6 +2244,17 @@ static u16 Drive(void)
                 return HitBlock(k);
             if (sT.kind == T_PUSH)
                 return MoveBlock(k);
+            /* a point in the air reached: he lets go (the air out, and
+             * down) -- no hovering there -- unless a finger still holds
+             * the target, or there is a pit, spikes or an enemy under him */
+            if (hover && sT.kind == T_GO && !(sP.on && sP.kind == G_DRAG)
+                && SafeBelow(Clamp(kx >> 4, 0, sW - 1), Clamp(ky >> 4, 0, sH - 1))
+                && !EnemyBelow(kx, ky, 0, 160)) {
+                Clear("arrived (let go)");
+                if (k->base.flags & KF_FLY)
+                    Action(K_B, 2);
+                return 0;
+            }
             if (hover) {
                 keys = Steer(k, kx, ky, 3, 1);
                 break;

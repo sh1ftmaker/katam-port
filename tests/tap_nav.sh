@@ -13,7 +13,7 @@
 #   hub 801      the ground below (12,18); the high platform (15,4), which
 #                needs a flight; the mirror door (19,14) -> Rainbow Route 101
 #   101          the nearest enemy (a Waddle Doo): inhaled; a swipe down on
-#                Kirby: swallowed, an ability; a point (12,8); the far door
+#                Kirby: swallowed, an ability; a point (6,8); the far door
 #                (83,8) across the hill, the column and both pits -> 106
 #   106          the lower door (76,7), across the room -> 107
 #
@@ -43,7 +43,7 @@ cat >"$TMP/taps.dev" <<'EOF'
 @2600 tapenemy
 @2720 swipekirby
 @2780 dumpgrid
-@2800 tapcell 12 8
+@2800 tapcell 6 8
 @3000 tapcell 83 8
 @4500 tapcell 76 7
 EOF
@@ -100,7 +100,7 @@ check_door() {  # from to
 check_arrival "hub: the ground below" 801 200 296
 check_arrival "hub: the high platform (a flight)" 801 248 72
 check_door 801 101
-check_arrival "101: a point along the ground" 101 200 136
+check_arrival "101: a point along the ground" 101 104 136
 grep -q "\[tap\] f[0-9]* enemy gone (inhaled)" "$L" && ok "101: the marked enemy was inhaled" \
     || fail "101: the marked enemy was not inhaled"
 ab=$(grep "\[tap\] grid room 101" "$L" | head -1 | sed -n 's/.* ability \([0-9]*\).*/\1/p')
