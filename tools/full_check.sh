@@ -102,6 +102,8 @@ wide-ghosts        1     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide
 cpu-ai             3     -      ROM="$ROM" tests/cpu_ai.sh build/lp64/katam
 rig-hostaway       3     -      node tools/netproof/hostaway_test.mjs --rom "$ROM" --jobs $W --out "$D"
 web-on-hostblip    4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases hostblip
+web-on-netq        3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases netq
+rig-badlink        5     -      node tools/netproof/badlink_test.mjs --rom "$ROM" --jobs $W --out "$D"
 paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test

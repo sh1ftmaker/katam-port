@@ -1656,6 +1656,64 @@ the Kirbys, `PortPartyHudSetView` the view present.c drew). On the pause
 page in a session the row shows and edits the session copy like PARTY HUD
 (`PORT_SIM_LNSET[11]` bit 4).
 
+### Connection readout in the player list
+
+Online, the pause SETTINGS > ONLINE list (one row a Kirby: `3P NAME` and
+HOST / G2 / CPU; the selected guest row's description says GUEST 2 - ...)
+has, beside each guest's row, that guest's link to the
+host: a dot (green good, yellow ok, red poor, grey not known yet or the
+table old) and the ping round trip in ms, with a cyan `R` in front for a
+link over the room relay instead of WebRTC (`R140`). The host's own rows
+keep their HOST and get nothing more; CPU rows nothing. Good is under 80 ms
+with under 5 % of its keys late at the host, ok under 180 ms and 15 %, else
+poor (`platform/ui/party_hud.h` `PORT_NETQ_*`). Every device shows every
+guest's readout.
+
+- Measured on the host (`web/online.js` `netqTick`, once a second): the
+  link's ping round trip (the reliable ping/pong it always sent, smoothed),
+  its path (`p2p` or relay), and the share of that guest's key frames heard
+  after the host had simulated their frame over the last 5 s
+  (`HostSession.st.inputFrames` / `inputsUseless`, `NetqLate`).
+- Distributed as one small reliable message to every guest,
+  `{t: 'netq', q: [[dev, rttMs, path, latePct], ...]}`
+  (`HostHub.sendNetQuality`, `web/ln_session.js` "the connection readout");
+  a guest whose table is older than 3.5 s (the host not heard) shows it
+  grey. `katamOnline.stats().netq` is the table as the device has it.
+- Drawn per device, never in game memory: the list itself is drawn into the
+  pause overlay's fork (§ "the pause overlay" in `platform/lmpnet.c`), which
+  notes the rows on screen and whose device plays each
+  (`PortNetqListBegin` / `PortNetqListRow`, only while the fork runs); the
+  readout is then an overlay over the presented picture at those rows
+  (`PortNetqDraw`, both renderers and the 2D canvas), like the party HUD.
+  The only change in game memory is the same on every device: in a session
+  the list's player rows end their value 32 px sooner, leaving the column
+  free, and a guest's device reads G2 instead of GUEST 2 so names keep
+  their room. Nothing is sealed, hashed, recorded or in a keyframe or image; the
+  4-Kirby module and its determinism are untouched.
+
+Tested by `tools/online_browser_test.mjs --cases netq` (a guest with
+`?netlag=220` shows red, a relayed guest `R`, on a guest's and the host's
+overlay, every frame identical) and the smoke case (the host's 10-player
+list shows a plate per guest row).
+
+### Bad connections at party size
+
+`tools/netproof/badlink_test.mjs` (full check: `rig-badlink`, ~40 s): 8
+devices on the 16-Kirby module, the rig's scripted players, 35 s of play.
+Control (7 good links: 50 ms round trip, jitter 8, 0.5 % loss) against one
+bad guest (300 ms, jitter 30, 5 % loss), each of two other bad links alone
+(150 ms with 60 ms jitter; 500 ms with 10 % loss) and all three at once.
+Measured: the host runs the same frames and never holds in every case; the
+good guests' holds, skips, bursts, rewind depth and misprediction of others
+are identical to control and their rewinds per minute within 0.5 %; no
+repair, no mismatch, nobody to the CPU. The bad guests stay seated with a
+lead of about their round trip (p90 18 / 25 / 39 frames, far under the cap
+of 200), 2-3 % of their keys late at the host, no repair; together they
+measure exactly as each alone. A bad link costs only its own guest (and the
+host's retransmits to it: 127 in 35 s at 10 % loss). The rig's host paces
+on a virtual clock, so the host's CPU time for those resends is not part of
+it.
+
 ### The in-game screens in a session
 
 Drawn into game memory, so only what is the same on every device:
