@@ -454,16 +454,16 @@ async function caseLocal() {
     await press(p, 'DOWN'); await waitFrames(p, 10);        // PLAYERS
     await press(p, 'A'); await waitFrames(p, 20);
     ok('A opens the PLAYERS section', (await pagesModel(p)) === SEC_PLAYERS);
-    // NAME TAGS (the third row): OFF / ON, Right turns them on
+    // NAME TAGS (the third row): ON / OFF (on by default)
     await press(p, 'DOWN'); await waitFrames(p, 10);        // PARTY HUD
     await press(p, 'DOWN'); await waitFrames(p, 10);        // NAME TAGS
     {
         const was = await p.ev('Module._PortCardTagsOn()');
         await press(p, 'RIGHT'); await waitFrames(p, 10);
-        ok('pause SETTINGS > NAME TAGS: Right turns them on', was === 0 && (await p.ev('Module._PortCardTagsOn()')) === 1);
+        ok('pause SETTINGS > NAME TAGS: Right flips them', (await p.ev('Module._PortCardTagsOn()')) === (was ? 0 : 1));
         await shot(p, 'local-08b-pause-name-tags-row.png');
         await press(p, 'LEFT'); await waitFrames(p, 10);
-        ok('... and Left off again', (await p.ev('Module._PortCardTagsOn()')) === 0);
+        ok('... and Left back again', (await p.ev('Module._PortCardTagsOn()')) === was);
     }
     // PARTY HUD: OFF / PLAYERS / ALL, Right steps it
     await press(p, 'UP'); await waitFrames(p, 10);          // PARTY HUD
@@ -795,8 +795,8 @@ async function caseReplay() {
 
 // Where the cards go: two windows, three pads joined in each.
 async function caseHudPlaces() {
-    for (const v of [{ tag: 'wide', w: 1440, h: 640, settings: 'aspect=1\nnametags=1\n' },
-                     { tag: 'phone', w: 844, h: 390, mobile: true, touch: true, settings: 'nametags=1\n' }]) {
+    for (const v of [{ tag: 'wide', w: 1440, h: 640, settings: 'aspect=1\nnametags2=1\n' },
+                     { tag: 'phone', w: 844, h: 390, mobile: true, touch: true, settings: 'nametags2=1\n' }]) {
         say(`hudplaces: ${v.tag} ${v.w}x${v.h}`);
         // (schema=2: settings without it are an older build's and are reset
         // on load -- platform/ui/settings.h)

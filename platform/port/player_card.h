@@ -77,7 +77,7 @@ void PortCardCleanName(char *name);
 /* Online: slot s is `name` on this device (NULL / "" clears it). */
 void PortCardSetSlotName(int slot, const char *name);
 /* Name tags over the Kirbys (drawn by ui/party_hud.c): the device setting
- * gPortSettings.nameTags, off by default (SETTINGS > NAME TAGS). */
+ * gPortSettings.nameTags, on by default (SETTINGS > NAME TAGS). */
 int  PortCardTagsOn(void);
 void PortCardSetTagsOn(int on);
 

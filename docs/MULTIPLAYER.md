@@ -1647,8 +1647,8 @@ beside (or above) the picture wide enough and free of the page's controls,
 the whole cards go there instead, opaque, at the HUD's size or a step or
 two smaller. The touch-pad keep-outs still push the cards clear.
 
-Name tags over the Kirbys: SETTINGS > NAME TAGS (off by default; a device
-setting, `nametags=` in the settings text). While two or more people play,
+Name tags over the Kirbys: SETTINGS > NAME TAGS (on by default; a device
+setting, `nametags2=` in the settings text). While two or more people play,
 each person's Kirby in the screen's room gets its name (or "2P") just above
 its head, this device's own players' on a plate of their colour; tags of
 Kirbys side by side stack. Presentation only (`PortPlayerTagAnchor` reads

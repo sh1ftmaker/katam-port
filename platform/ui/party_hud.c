@@ -86,7 +86,7 @@
  *
  * --- name tags -----------------------------------------------------------------
  *
- * SETTINGS > NAME TAGS (gPortSettings.nameTags, off by default): a small
+ * SETTINGS > NAME TAGS (gPortSettings.nameTags, on by default): a small
  * tag over each person's Kirby in the screen's room while two or more
  * people play -- the player card's name, or "2P" -- outlined in the Kirby's
  * light shade, on a plate of its colour for this device's own players.

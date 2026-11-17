@@ -40,7 +40,7 @@ void PortSettingsDefaults(PortSettings *s)
     s->smoothCam = 0;
     s->interp = 1;
     s->partyHud = PS_PARTY_HELPERS;
-    s->nameTags = 0;
+    s->nameTags = 1;      /* on: they only draw while two or more people play */
     s->lightOn = 0;     /* off unless the player turns it on */
     LightDefaults(s);
     s->kirbys = 4;      /* the game as it is */
@@ -220,7 +220,10 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("smoothcam2", smoothCam)
                 INT_KEY("interp", interp)
                 INT_KEY("partyhud", partyHud)
-                INT_KEY("nametags", nameTags)
+                /* "nametags2": the default changed to on (2026-11-16); the old
+                 * key was saved as 0 by anyone who touched any setting, so it
+                 * is ignored -- everyone starts from the new default once. */
+                INT_KEY("nametags2", nameTags)
                 INT_KEY("kirbys", kirbys)
                 /* (the page's older "katam.touchControls" key is not read:
                  * everyone starts from AUTO once -- web/shell.html) */
@@ -287,7 +290,7 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         s->letterbox, s->hud, s->hudScale, s->vsync, s->showFps, s->volume,
         s->mute, (double)s->uiScale);
     if (n >= 0 && n < size)
-        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags=%d\nkirbys=%d\ntouch=%d\ncpuai=%08X\n",
+        n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags2=%d\nkirbys=%d\ntouch=%d\ncpuai=%08X\n",
                       s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch, s->cpuAi);
     if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);

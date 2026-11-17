@@ -1011,11 +1011,11 @@ if (CASES.includes('three')) {
     await press(host, 'RIGHT'); await waitFrames(host, 30);       // the edit: the host's own device
     await sleep(800);
     await shot(host, 't-09b-host-pause-name-tags.png'); await shot(ga, 't-09b-guestA-pause-name-tags.png');
-    ok('session: NAME TAGS on the pause page goes to the host\'s own setting', (await host.ev('Module._PortCardTagsOn()')) === 1
-       && (await ga.ev('Module._PortCardTagsOn()')) === 0, `host ${await host.ev('Module._PortCardTagsOn()')}, guest A ${await ga.ev('Module._PortCardTagsOn()')}`);
+    ok('session: NAME TAGS on the pause page goes to the host\'s own setting', (await host.ev('Module._PortCardTagsOn()')) === 0
+       && (await ga.ev('Module._PortCardTagsOn()')) === 1, `host ${await host.ev('Module._PortCardTagsOn()')}, guest A ${await ga.ev('Module._PortCardTagsOn()')}`);
     await press(host, 'LEFT'); await waitFrames(host, 30);
     await sleep(800);
-    ok('session: ... and off again', (await host.ev('Module._PortCardTagsOn()')) === 0);
+    ok('session: ... and on again', (await host.ev('Module._PortCardTagsOn()')) === 1);
     await press(host, 'UP'); await waitFrames(host, 10);          // PARTY HUD
     await shot(host, 't-09c-host-pause-party-hud.png');
     await press(host, 'UP'); await waitFrames(host, 10);          // PLAYERS
