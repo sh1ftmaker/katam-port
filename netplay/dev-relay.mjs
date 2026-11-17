@@ -22,6 +22,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import { SessionCore } from './session.mjs';
 import { DirectoryService, CORS } from './directory.mjs';
+import { staticTurn } from './turn.mjs';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
     validClientInput, validClientPayload, decodeTaggedInput,
@@ -167,8 +168,13 @@ export function startRelay(port = 8787, opts = {}) {
 //   POST /v2/rooms, GET /v2/rooms/<CODE>, POST /v2/resume, and the
 //   WebSocket at /v2/rooms/<CODE>/ws.
 // opts.ipHeader: trust X-Forwarded-For (tests fake many IPs with it).
+// opts.turnServers: an RTCIceServer list handed to members who ask (a local
+//   TURN server in tests); opts.turn: a whole provider (turn.mjs).  Neither:
+//   no TURN, as the worker without its secrets.
 export function startV2(opts = {}, log = () => {}) {
     const service = opts.directory || new DirectoryService({ idleMs: opts.idleMs, list: opts.list });
+    const turn = opts.turn || (opts.turnServers ? staticTurn(opts.turnServers, opts.turnTtl) : null);
+    if (opts.turnServers && !turn) log('[relay] turnServers: no usable turn:/turns: entry -- no TURN');
     const rooms = new Map();          /* roomId -> {core, socks: Map, timer} */
     const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
     let nextConn = 1;
@@ -197,6 +203,7 @@ export function startV2(opts = {}, log = () => {}) {
                 if (ws) try { ws.close(c, why); } catch (e) { /* gone */ }
             },
             onOccupancy: (n) => service.touch(roomId, n),
+            turn,
             log,
         });
         rooms.set(roomId, r);
@@ -318,9 +325,20 @@ export function startV2(opts = {}, log = () => {}) {
 }
 
 /* CLI.  --no-public (or RELAY_NO_PUBLIC=1): no public game list, as the
- * worker was before it (tests of the page against an old server). */
-if (import.meta.url === `file://${process.argv[1]}`)
+ * worker was before it (tests of the page against an old server).
+ * TURN_ICE_SERVERS='[{"urls":["turn:127.0.0.1:3478?transport=udp"],
+ * "username":"u","credential":"p"}]': hand that list to members who ask
+ * (TURN_TTL seconds, default 3 h); unset: no TURN, as the worker without
+ * its secrets. */
+if (import.meta.url === `file://${process.argv[1]}`) {
+    let turnServers = null;
+    if (process.env.TURN_ICE_SERVERS) {
+        try { turnServers = JSON.parse(process.env.TURN_ICE_SERVERS); }
+        catch (e) { console.error('[relay] TURN_ICE_SERVERS is not JSON: ' + e.message); process.exit(2); }
+    }
     startRelay(parseInt(process.argv.slice(2).find((a) => /^\d+$/.test(a)) || '8787', 10),
                { host: process.env.RELAY_HOST || '127.0.0.1',
                  noPublic: process.argv.includes('--no-public') || process.env.RELAY_NO_PUBLIC === '1',
-                 ipHeader: process.env.RELAY_IP_HEADER === '1' });
+                 ipHeader: process.env.RELAY_IP_HEADER === '1',
+                 turnServers, turnTtl: +process.env.TURN_TTL || undefined });
+}

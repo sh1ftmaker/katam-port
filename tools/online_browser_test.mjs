@@ -27,6 +27,10 @@
 //           joins with the same code (by invite link) and is identical again.
 //   invite  a guest joining by ?join=CODE (the drop case's rejoin is one).
 //   relay   ?netrelay=1: the same over the room's signal path.
+//   turn    ?netturn=1 (not in the default list): the same through a TURN
+//           server on this machine (--relay-turn, a dev relay with
+//           TURN_ICE_SERVERS; tools/local_turn.mjs): both pages on the
+//           'turn' tier, path still 'p2p', every compared frame identical.
 //   errors  JOIN with a code nobody has: NO SUCH GAME.
 //   three   host + two guests (one through JOIN GAME, one by invite link):
 //           the HOST screen counts them (PLAYERS 3/4), play with latency,
@@ -587,6 +591,10 @@ if (CASES.includes('menu')) {
     ok('host sees player 2 ready', !!ready);
     const s0 = await stats(guest);
     ok('data channels open (WebRTC)', s0.dcOpen && s0.path === 'p2p', 'path ' + s0.path);
+    /* a room server without TURN (the default, and the worker without its
+     * secrets): nothing asked for, the direct tier */
+    ok('tier direct, no TURN offered', s0.tier === 'direct' && s0.turn && !s0.turn.offered && s0.turn.requests === 0,
+       `tier ${s0.tier} turn ${JSON.stringify(s0.turn)} route ${JSON.stringify(s0.iceRoute)}`);
     ok('session started', !!(await startHost(host, 'm')));
     const joined = await until(async () => { const s = await stats(guest); return s && s.session && s.joined && s.frame > 0; }, 30000);
     ok('guest took the host\'s image and plays', !!joined);
@@ -727,6 +735,61 @@ if (CASES.includes('relay')) {
     ok('relay: path is the relay on both', gs.path === 'relay' && hs.path === 'relay' && !gs.dcOpen);
     ok('relay: identical', cmp.compared > 40 && cmp.mismatched === 0, `${cmp.equal}/${cmp.compared}; repairs ${gs.repairs}`);
     await host.close(); await guest.close();
+}
+
+// --- turn: ?netturn=1 on both, through a local TURN server ----------------------
+//   --relay-turn <base>: a dev relay started with TURN_ICE_SERVERS naming a
+//   TURN server on this machine (tools/local_turn.mjs).  The page may use
+//   relayed candidates only (iceTransportPolicy 'relay'), so the session
+//   runs on the TURN tier or not at all over WebRTC.
+if (CASES.includes('turn')) {
+    say('# turn: ?netturn=1 on both, the room server hands out a local TURN server');
+    const RELAY_TURN = flag('relay-turn', '');
+    if (!ok('turn: --relay-turn given', !!RELAY_TURN)) process.exitCode = 1;
+    else {
+        const k = Object.assign({ netturn: '1', netserver: RELAY_TURN }, knobs);
+        const host = await openPage('host', k);
+        const code = await hostToWaiting(host, 't');
+        ok('turn: host room', !!code, code);
+        const guest = await openPage('guest', Object.assign({ join: code }, k));
+        const ready = await until(async () => (await screen(host)) === 2 * 256 + 4, 30000);
+        ok('turn: player 2 ready', !!ready);
+        const s0 = await stats(guest), h0 = await stats(host);
+        ok('turn: both were offered TURN and given credentials', s0.turn.offered && s0.turn.grants >= 1 && h0.turn.grants >= 1,
+           JSON.stringify([s0.turn, h0.turn]));
+        ok('turn: data channels open, path p2p (backward compatible)', s0.dcOpen && s0.path === 'p2p' && h0.path === 'p2p', s0.path + '/' + h0.path);
+        ok('turn: tier turn on both (relay candidates selected)', s0.tier === 'turn' && h0.tier === 'turn'
+           && s0.iceRoute && s0.iceRoute.local === 'relay', `${s0.tier}/${h0.tier} ${JSON.stringify(s0.iceRoute)}`);
+        ok('turn: session started', !!(await startHost(host, 't')));
+        const joined = await until(async () => { const s = await stats(guest); return s && s.session && s.joined; }, 30000);
+        ok('turn: guest joined', !!joined);
+        const base = (await stats(host)).startFrame;
+        const play = buildPlay(60 * 80, 3, 100000);
+        await setScript(host, play.k1, base, play.warps.slice(0, 1));
+        await setScript(guest, play.k2, base, []);
+        const cmp = makeComparer(host, guest);
+        await playFor(host, guest, Math.min(45, PLAY_S), cmp, 't', [20]);
+        await cmp.run();
+        const hs = await snapStats('host', host), gs = await snapStats('guest', guest);
+        results.turn = { host: hs, guest: gs, compare: { ...cmp, run: undefined, reset: undefined } };
+        ok('turn: still on the TURN tier, nothing over the room relay', gs.tier === 'turn' && hs.tier === 'turn' && gs.net.relayOut < 50,
+           `${gs.tier}/${hs.tier}, guest relay msgs out ${gs.net.relayOut}, p2p out ${gs.net.p2pOut}`);
+        ok('turn: identical', cmp.compared > 40 && cmp.mismatched === 0, `${cmp.equal}/${cmp.compared}; repairs ${gs.repairs}`);
+        await host.close(); await guest.close();
+        /* the same server, no ?netturn: TURN offered and in the config, the
+         * direct pair still wins (ICE priority: host / srflx before relay) */
+        say('# turn: without ?netturn=1, the direct tier is preferred');
+        const k2 = Object.assign({ netserver: RELAY_TURN }, knobs);
+        const host2 = await openPage('host', k2);
+        const code2 = await hostToWaiting(host2, 'td');
+        const guest2 = await openPage('guest', Object.assign({ join: code2 }, k2));
+        const ready2 = await until(async () => (await screen(host2)) === 2 * 256 + 4, 30000);
+        const d0 = await stats(guest2), dh = await stats(host2);
+        ok('turn/direct: player 2 ready, TURN given, tier direct on both', !!ready2 && d0.turn.grants >= 1 && d0.tier === 'direct' && dh.tier === 'direct',
+           `${d0.tier}/${dh.tier} ${JSON.stringify(d0.iceRoute)} grants ${d0.turn.grants}/${dh.turn.grants}`);
+        await until(async () => inviteCards[inviteCards.length - 1].joined !== undefined, 8000, 200);   /* (its card's summary) */
+        await host2.close(); await guest2.close();
+    }
 }
 
 // --- three: host + two guests, drop and rejoin, local joins on host and guest ----

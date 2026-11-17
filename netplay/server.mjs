@@ -18,6 +18,7 @@
 import { Server, routePartykitRequest } from 'partyserver';
 import { SessionCore } from './session.mjs';
 import { DirectoryService, CORS } from './directory.mjs';
+import { cloudflareTurn } from './turn.mjs';
 import {
     RoomCore, tagWords, validClientWords, joinedMsg, peerMsg, errorMsg,
     validClientInput, validClientPayload, decodeTaggedInput,
@@ -251,6 +252,11 @@ export class SessionRoom {
                 if (ws) try { ws.close(c, why); } catch (e) { /* closed */ }
             },
             onOccupancy: (n) => this._occupancy(n),
+            /* TURN credentials for members (turn.mjs): the worker secrets
+             * TURN_KEY_ID + TURN_KEY_API_TOKEN (`wrangler secret put`);
+             * without them, null -- STUN only, as before */
+            turn: cloudflareTurn(this.env, { log: (t) => console.log(t) }),
+            log: (t) => console.log(t),
         });
         const saved = await this.ctx.storage.get('state');
         if (saved) this.core.importState(saved);

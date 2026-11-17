@@ -72,3 +72,14 @@ The first deploy after this change applies migration `v2` (new SQLite DO
 classes `SessionRoom` and `Directory`); `GameRoom` (v1) is untouched, so pages
 already in the wild keep working.  The page's default server is
 `KatamNet.DEFAULT_BASE` in `web/net_session.js`.
+
+TURN (the middle tier of online play, docs/MULTIPLAYER.md §14): the worker
+mints Cloudflare Realtime TURN credentials for room members (`turn.mjs`)
+when it has two secrets, never in the repo:
+
+    npx wrangler secret put TURN_KEY_ID          # the TURN key's id
+    npx wrangler secret put TURN_KEY_API_TOKEN   # its API token
+
+Without them, rooms say `turn: false` and pages use STUN only.  The dev
+relay: `TURN_ICE_SERVERS='[{"urls":[...],"username":..,"credential":..}]'
+npm run relay` hands that list out (tests: `tools/local_turn.mjs`).
