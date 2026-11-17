@@ -1,7 +1,8 @@
 # Classifying brush pieces: the method
 
-Status: proven by hand on two brushes (sky garden Clouds, tile set 29;
-Rainbow Route Grassy soil, tile set 3). No classifier tool exists yet.
+Status: proven by hand on three brushes (sky garden Clouds, tile set 29;
+Rainbow Route Grassy soil, tile set 3; Olive Ocean Grassy dirt, tile set 4).
+No classifier tool exists yet.
 Written for whoever continues.
 
 ## The problem
@@ -66,6 +67,8 @@ Rules that keep it safe and reviewable:
 - `assets/schema/authoring/autotile/tileset-vanilla-3.json`: the second,
   below (Grassy soil, 23 pieces excluded from that brush only, no borrowing;
   one piece excluded tile-set wide).
+- `assets/schema/authoring/autotile/tileset-vanilla-4.json`: the third,
+  below (Olive Ocean's Grassy dirt, 13 pieces excluded).
 - `tools/katam/dev/brush_sheet.mjs`: learns one tile set the way the editor
   does and draws what it learned. Once per ROM:
 
@@ -123,6 +126,28 @@ set (0, 2, 5, 15, 17, 18, 28, 29). Log ends changed in one place: its gentle
 hill used to borrow the soil's grass slopes and now uses slanted logs (a
 source beside a piece that is not edge art costs more, and the soil slopes it
 borrowed stood beside the trunk foot).
+
+## Worked example 3: Olive Ocean beach dirt (tile set 4)
+
+Tile set 4 (Olive Ocean 130-135, Cabbage Cavern 191) is orange soil under
+grass. It had no preset, and its one ground style (87 pieces, 3357 cells)
+painted cut-off palm trunks, starfish and half cone shells. Unlike the
+lumber yard, nothing here belongs to another brush, so the tile set's own
+`exclude` does it. Suspects, judged in place with `--zoom`:
+
+| Pieces | In place | Decision |
+|---|---|---|
+| a grey block (`05c.5 ...`) | a steel block of a bomb chain | exclude: another material |
+| round shell, starfish | whole one-piece decorations, 70 uses each | exclude: objects (still single pieces) |
+| four cone-shell pieces | one shell straddling cells, cut four ways | exclude: comes out cut |
+| grey slopes, grey-backed ledge ends | cave rooms draw the rock wall into the piece | keep: in open air the brush takes the see-through ones |
+| edge art: palm-trunk feet (2), signpost, mountain foot | the bottoms of tall objects and background | exclude |
+| edge art: stems of a flowering palm (2) | the bottom of a plant whose leaves sit above | exclude: comes out cut |
+| edge art: fern pieces | read as whole tufts when painted | keep |
+
+Re-run and diff: the 7 excluded ground pieces left the style, plus two rare
+real ones as a side effect (a cave ceiling, 2 uses; a wall beside a bridge,
+1 use); 6 edge pieces left; nothing joined; the brush is named Grassy dirt.
 
 ## Next steps (in order)
 
