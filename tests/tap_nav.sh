@@ -12,8 +12,8 @@
 #
 #   hub 801      the ground below (12,18); the high platform (15,4), which
 #                needs a flight; the mirror door (19,14) -> Rainbow Route 101
-#   101          a point (12,8); the nearest enemy (a Waddle Doo): inhaled;
-#                a swipe down on Kirby: swallowed, an ability; the far door
+#   101          the nearest enemy (a Waddle Doo): inhaled; a swipe down on
+#                Kirby: swallowed, an ability; a point (12,8); the far door
 #                (83,8) across the hill, the column and both pits -> 106
 #   106          the lower door (76,7), across the room -> 107
 #
@@ -36,10 +36,10 @@ cat >"$TMP/taps.dev" <<'EOF'
 @1600 tapcell 12 18
 @1900 tapcell 15 4
 @2300 tapcell 19 14
-@2600 tapcell 12 8
-@2800 tapenemy
-@2900 swipekirby
-@2950 dumpgrid
+@2600 tapenemy
+@2720 swipekirby
+@2780 dumpgrid
+@2800 tapcell 12 8
 @3000 tapcell 83 8
 @4500 tapcell 76 7
 EOF

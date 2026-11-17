@@ -123,6 +123,7 @@ static struct {
     int best, stall;            /* watchdog: best cost-to-go, frames without  */
     int tries;                  /* ENEMY: attack/inhale bouts; DOOR: Up tries */
     int fail;                   /* frames left of the "gave up" marker        */
+    int unreach;                /* GO/DOOR: he cannot get there; going near   */
     s32 failX, failY;
 } sT;
 
@@ -140,6 +141,7 @@ static struct {
     int upHold;                 /* door: frames of Up                         */
     int dashPhase;              /* 0 none, 1 first tap, 2 gap                */
     int dashT, dashCool;
+    int swallowCool;
     int unstick;                /* watchdog's escalation                     */
     int lastDir;
 } sC;
@@ -285,14 +287,38 @@ static u8 Classify(u32 a, int mini)
     return c;
 }
 
-/* Rebuild the classes from the Kirby's room's live map.  Returns 1 when
- * anything changed (a block broke, a new room). */
+static struct Object *NextObject(int *i);
+static void Box(const struct Object *o, s32 *x, s32 *y, s32 *w, s32 *h);
+
+/* Objects that are walls (the game registers them as solid each frame,
+ * Macro_080A4728): sliding doors, star stone blocks, lava walls, flame
+ * columns.  Their boxes go into the grid as solid ground. */
+static int IsObstacle(const struct Object *o)
+{
+    switch (o->type) {
+    case OBJ_VERTICAL_SLIDING_DOOR: case OBJ_LAVA_WALL: case OBJ_STAR_STONE_BLOCK: case OBJ_UNKNOWN_7A:
+    case OBJ_FLAME_COLUMN: case OBJ_LARGE_STAR_STONE_BLOCK_7D: case OBJ_LARGE_STAR_STONE_BLOCK_7E:
+    case OBJ_LARGE_STAR_STONE_BLOCK_88: case OBJ_LARGE_STAR_STONE_BLOCK_89:
+        return !(o->base.flags & 0x1000);
+    case OBJ_CANNON: case OBJ_8_DIR_CANNON:
+        return 2;                               /* not a wall: avoided (it   */
+    default:                                    /* catches him; A fires it)  */
+        return 0;
+    }
+}
+
+/* Rebuild the classes from the Kirby's room's live map and its wall
+ * objects.  Returns 1 when anything changed (a block broke, a door slid,
+ * a new room). */
 static int GridUpdate(void)
 {
     struct LevelInfo *li = Li();
     const u8 *cells;
-    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, i, mini;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, i, mini, n = 0;
     u32 sig = 2166136261u;
+    s32 ob[8][4];
+    int kind[8];
+    struct Object *o;
 
     if (w <= 0 || h <= 0 || w * h > NAV_CELLS || li->unk65E >= 4) {
         sW = sH = 0;
@@ -303,6 +329,20 @@ static int GridUpdate(void)
     for (i = 0; i < w * h; i++)
         sig = (sig ^ cells[i]) * 16777619u;
     sig ^= (u32)w * 7919u + (u32)h * 104729u + (u32)mini;
+    for (i = 0; (o = NextObject(&i)) != NULL && n < 8; ) {
+        s32 x, y, bw, bh;
+
+        if (!IsObstacle(o))
+            continue;
+        Box(o, &x, &y, &bw, &bh);
+        kind[n] = IsObstacle(o);
+        ob[n][0] = x >> 4;
+        ob[n][1] = y >> 4;
+        ob[n][2] = (x + bw - 1) >> 4;
+        ob[n][3] = (y + bh - 1) >> 4;
+        sig = (sig ^ (u32)(ob[n][0] | ob[n][1] << 8 | ob[n][2] << 16 | (u32)ob[n][3] << 24)) * 16777619u;
+        n++;
+    }
     if (sig == sGridSig && sGridRoom == li->currentRoom && sW == w && sH == h)
         return 0;
     sW = w;
@@ -311,6 +351,13 @@ static int GridUpdate(void)
     sGridSig = sig;
     for (i = 0; i < w * h; i++)
         sCls[i] = Classify(gCollisionAttributes[cells[i]], mini);
+    for (i = 0; i < n; i++) {
+        int x, y;
+
+        for (y = ob[i][1] < 0 ? 0 : ob[i][1]; y <= ob[i][3] && y < h; y++)
+            for (x = ob[i][0] < 0 ? 0 : ob[i][0]; x <= ob[i][2] && x < w; x++)
+                sCls[y * w + x] = kind[i] == 1 ? CL_SOLID : (u8)(sCls[y * w + x] | CL_HAZ);
+    }
     return 1;
 }
 
@@ -710,7 +757,7 @@ static void SetGo(s32 px, s32 py)
         }
     sT.cx = cx;
     sT.cy = cy;
-    sT.x = Clamp(px, cx * 16 + 3, cx * 16 + 12);
+    sT.x = Clamp(Clamp(px, cx * 16 + 3, cx * 16 + 12), 16, sW * 16 - 16);
     sT.y = sT.air ? cy * 16 + 8 : cy * 16 + 8;
     sT.arrived = 0;
     sT.stall = 0;
@@ -1080,6 +1127,29 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
         if ((vx > 0) == (dir > 0) && vx != 0 && vx * vx / (28 * 256) >= Abs(dx) - 2)
             dir = 0;
     }
+    /* the path goes up or down first past a corner (the cell across, or
+     * the one diagonally, is solid): line up in his own column first, or
+     * he presses into the corner and hangs there */
+    if (p.first != 0 && dir && !(end && Abs(sT.x - kx) < 12)) {
+        int nx = scx + dir;
+
+        if (!Open(nx, scy) || !Open(nx, scy + p.first)) {
+            s32 c = scx * 16 + 8;
+
+            dir = c > kx + 2 ? 1 : c < kx - 2 ? -1 : 0;
+        }
+    }
+    /* the path drops straight down but he is standing: he is wider than
+     * his cell, and the floor beside it holds him up -- step off it, to
+     * the far side of his own cell */
+    if (!air && p.first > 0 && !water && (k->base.unk62 & KH_FLOOR)
+        && !(Cl(scx, scy + 1) & (CL_SOLID | CL_PLAT | CL_SLOPE))) {
+        int r = (Cl(scx + 1, scy + 1) & (CL_SOLID | CL_PLAT | CL_SLOPE)) != 0;
+        int l = (Cl(scx - 1, scy + 1) & (CL_SOLID | CL_PLAT | CL_SLOPE)) != 0;
+        s32 want = scx * 16 + 8 + (r && !l ? -5 : l && !r ? 5 : 0);
+
+        dir = want > kx + 1 ? 1 : want < kx - 1 ? -1 : 0;
+    }
     if (dir > 0)
         keys |= K_RIGHT;
     else if (dir < 0)
@@ -1104,15 +1174,40 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
             sC.dashPhase = 0;
     }
 
-    /* up and down */
-    wantUp = p.first < 0 || dy < -6 || (hover && end && ky > sT.y + 2)
+    /* up and down: puffed, he holds the row's centre or a little above it */
+    wantUp = p.first < 0 || dy < (fly ? -3 : -6) || (hover && end && ky > sT.y + 2)
           || (air && !GroundBelow(scx, scy) && p.first >= 0 && !(end && dy > 8));
+    /* across, in the air, into a row with solid ground above or below the
+     * next cell: his body is a row tall, so he has to be inside the row to
+     * pass -- keep his centre on the row's (a hair below a ceiling lip, a
+     * hair above a floor lip) */
+    if (air && dir && p.first == 0 && !water) {
+        int nx = scx + dir, above = !Open(nx, scy - 1), below = !Open(nx, scy + 1);
+        s32 c = scy * 16 + 8;
+
+        if (above && ky < c)
+            wantUp = 0;
+        else if (below && ky > c - 1)
+            wantUp = 1;
+    }
     /* an enemy in the way: over it (a hop, or a little more height) */
     hop = !water && dir && !(end && Abs(sT.x - kx) < 20) && EnemyAhead(kx, ky, dir, air ? 20 : 28);
     if (hop && air)
         wantUp = 1;
     wantDown = !wantUp && (p.first > 0 || dy > 12);
 
+    /* a mouthful cannot fly: when the way climbs more than a jump (or a
+     * pit opens under him), swallow it (Down) -- he keeps whatever it gives */
+    if (sC.swallowCool > 0)
+        sC.swallowCool--;
+    if ((fl & KF_MOUTH) && !water && sAct.frames == 0 && !sC.swallowCool
+        && ((!air && (p.rise >= 3 || dy < -44)) || (air && wantUp && !GroundBelow(scx, scy)))) {
+        if (Log())
+            PortLog("[tap] f%u swallow: the way needs flying", (unsigned)PortFrameNumber());
+        sC.swallowCool = 90;
+        Action(K_DOWN, 4);
+        return keys;
+    }
     if (water) {
         /* swimming: Up/Down steer, A strokes up */
         if (wantUp) {
@@ -1140,6 +1235,8 @@ static u16 Steer(struct Kirby *k, s32 kx, s32 ky, int arriveR, int hover)
             sC.jumpHold = JumpFrames(h > 0 ? h : 1);
         } else if (p.first > 0 && (Cl(scx, scy + 1) & CL_DROP))
             keys |= K_DOWN;                     /* through the floor         */
+    } else if (wantDown && !fly && (Cl(scx, scy + 1) & CL_WATER)) {
+        keys |= K_DOWN;                         /* bobbing on water: dive    */
     } else if (sC.jumpHold == 0) {
         /* in the air: puff up and climb while the path climbs, float down
          * when it does not; let the air out for a long way down */
@@ -1336,7 +1433,14 @@ static u16 Drive(void)
                             (unsigned)PortFrameNumber(), sT.cx, sT.cy, alt % sW, alt / sW);
                 Flow(alt);
                 sGoal = goal;                   /* (no re-flow next frame)   */
-            }
+                sT.unreach = 1;
+            } else
+                sT.unreach = 0;
+        }
+        /* as near as he can get, and that is here: say so (the red ring) */
+        if (sT.unreach && sDist[KirbyCell(kx, ky)] <= 2 && (k->base.unk62 & KH_FLOOR)) {
+            Fail("cannot get there");
+            return 0;
         }
         /* arrived? */
         dx = sT.x - kx;
@@ -1407,8 +1511,8 @@ static u16 Drive(void)
         if (sT.stall == 90 || sT.stall == 180) {
             /* a hop, then a long one: most stalls are a lip or a slope */
             sC.unstick++;
-            if ((k->base.unk62 & KH_FLOOR) && sC.jumpHold == 0)
-                sC.jumpHold = sT.stall == 90 ? 10 : 23;
+            if (!(k->base.flags & KF_FLY) && sC.jumpHold == 0)
+                sC.jumpHold = sT.stall == 90 ? 10 : 23;   /* (A also fires a cannon he sits in) */
             if (Log())
                 PortLog("[tap] f%u stalled at %d,%d: unstick %d", (unsigned)PortFrameNumber(), (int)kx, (int)ky,
                         sC.unstick);
@@ -1487,6 +1591,37 @@ int PortTapScript(const char *cmd)
         PortTapWorld(PORT_UI_MOVE, a, b, 1);
     } else if (sscanf(cmd, "up %d %d", &a, &b) == 2) {
         PortTapWorld(PORT_UI_UP, a, b, 1);
+    } else if (sscanf(cmd, "taprandom %d", &a) == 1) {
+        /* a tap on a random cell he can stand in and reach, 3..25 cells
+         * away (tools/tap_sweep.sh): the sweep's way of asking "can he get
+         * there?" in rooms nobody wrote a script for */
+        static u32 seed;
+        int s0, i, n = 0, pick = -1;
+
+        GridUpdate();
+        if (sW <= 0)
+            return 1;
+        if (!seed || a > 0)
+            seed = (u32)a * 2654435761u + 1;
+        s0 = KirbyCell(kx, ky);
+        NearestReachable(s0, kx, ky);           /* fills sSeen: what he can reach */
+        for (i = 0; i < sW * sH; i++) {
+            int x = i % sW, y = i / sW, d = Abs(x - s0 % sW) + Abs(y - s0 / sW);
+
+            if (!sSeen[i] || !Supported(x, y) || (Cl(x, y) & (CL_HAZ | CL_WATER)) || d < 3 || d > 25 || y >= sH - 1)
+                continue;
+            seed = seed * 1103515245u + 12345u;
+            if ((seed >> 16) % (u32)++n == 0)
+                pick = i;
+        }
+        if (pick < 0) {
+            PortLog("[tap] f%u taprandom: nothing in reach", (unsigned)PortFrameNumber());
+            return 1;
+        }
+        PortLog("[tap] f%u taprandom room %u cell %d,%d from %d,%d", (unsigned)PortFrameNumber(),
+                (unsigned)Li()->currentRoom, pick % sW, pick / sW, s0 % sW, s0 / sW);
+        PortTapWorld(PORT_UI_DOWN, pick % sW * 16 + 8, pick / sW * 16 + 8, 1);
+        PortTapWorld(PORT_UI_UP, pick % sW * 16 + 8, pick / sW * 16 + 8, 1);
     } else if (strcmp(cmd, "dumpgrid") == 0) {
         /* the nav classes, a row per line: # solid, - one-way, = drop-through,
          * ~ water, ^ hazard, D door, H ladder, / slope, . air, K Kirby */
