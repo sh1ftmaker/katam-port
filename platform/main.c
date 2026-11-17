@@ -53,6 +53,7 @@
 #include "port/localmp.h"
 #include "port/online_ui.h"
 #include "render/render_list.h"
+#include "ui/tap_nav.h"
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
@@ -319,7 +320,9 @@ u64 PortHostMicros(void)
 void PortSetKeys(u16 downMask)
 {
     sHostKeys = downMask & 0x03FF;
-    sKeysDown = sHostKeys;
+    /* | the tap controls' autopilot (platform/ui/tap_nav.c): this device's
+     * player 1, like a second keyboard; 0 unless it is on */
+    sKeysDown = sHostKeys | PortTapKeys();
 }
 
 /* The one place the host's buttons become the game's buttons.
@@ -607,8 +610,9 @@ u16 PortCurrentKeys(void)
      * sKeysDown here fed the timeline back to itself: the local column is
      * empty until this function reports the player's buttons, so every
      * instance reported zero, recorded zero, and nobody could move a
-     * Kirby that was standing right there on the screen. */
-    return sHostKeys;
+     * Kirby that was standing right there on the screen.  With the tap
+     * controls' keys: they are this device's input too. */
+    return sHostKeys | PortTapKeys();
 }
 
 /* The call-stack instrument described in port/backend.h.  Window first, so
@@ -1062,6 +1066,17 @@ void PortPresentFrame(void)
      * input.  Host side: it reads the simulation and writes nothing to it. */
     if (!fork)
         PortCardHostFrame();
+    /* Tap to move (platform/ui/tap_nav.c): the autopilot's buttons for this
+     * device's player 1, next to the host's own -- host side, it reads the
+     * game and writes nothing; the latch below records the keys as always.
+     * Live frames only (not the fork, not a catch-up; it is off in a
+     * replay), and nothing changes unless it is on. */
+    if (!fork && !PortRbCatchingUp() && !PortNetCatchingUp() && !PortLnCatchingUp()) {
+        u16 was = PortTapKeys(), tap = PortTapFrame(sHostKeys);
+
+        if (tap || was)
+            sKeysDown = sHostKeys | tap;
+    }
     UpdateKeyInput(1);
     sFrameCount++;
 

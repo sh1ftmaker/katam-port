@@ -2649,9 +2649,9 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * texture per slot, re-uploaded only when the caller says the pixels
  * changed, drawn with the HUD program (premultiplied, nearest or sharp
  * bilinear). */
-/* Slots: 0 the cards, 1 the "1P" tag, 2 the hint, 3.. a name tag per Kirby
- * (8 with four Kirbys). */
-#define GLR_OVERLAYS (4 + KATAM_KIRBYS)
+/* Slots: 0 the cards, 1 the "1P" tag, 2 the hint, 3.. a name tag per Kirby,
+ * then the tap controls' markers (GLR_OVERLAY_TAP, platform/ui/tap_nav.c). */
+#define GLR_OVERLAYS GLR_OVERLAY_TAP(GLR_TAP_OVERLAYS)
 static struct { GLuint tex; int w, h; } sOvl[GLR_OVERLAYS];
 
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,

@@ -18,6 +18,7 @@
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
 #include "ui/party_hud.h"
+#include "ui/tap_nav.h"
 
 /* EM_JS bodies below call UTF8ToString.  emscripten 3.1.5x stopped linking
  * the runtime helpers in by default; without this the node build traps on
@@ -594,6 +595,16 @@ void PortBlitFramebuffer(const u32 *pixels, int w, int h)
         Show(pixels, w, h, 1);
         PortWebPresent(pixels, 0, 0);       /* the page's frame counter */
         return;
+    }
+    if (pixels != NULL && w == 240 && h == 160) {
+        /* tap to move (platform/ui/tap_nav.c): the 2D canvas is the
+         * picture, 240x160, on the game camera */
+        static const int whole[4] = { 0, 0, 240, 160 };
+        s32 kx, ky, cx, cy;
+
+        PortRlFocus(&kx, &ky, &cx, &cy);
+        PortTapSetView(1, cx >> 8, cy >> 8, 0, 0, 240, 160);
+        PortTapSetWorldRect(whole, 1.0f);
     }
     if (pixels != NULL && w == 240 && h == 160 && PortPartyHudSoftSample()) {
         memcpy(sSoft, pixels, sizeof(sSoft));

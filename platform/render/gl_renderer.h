@@ -70,6 +70,11 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * or sharp bilinear with `smooth` at a fractional scale. */
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,
                     int fbW, int fbH, double x, double y, double scale, int smooth);
+/* The tap controls' markers (platform/ui/tap_nav.c) have the last slots:
+ * GLR_OVERLAY_TAP(0 .. GLR_TAP_OVERLAYS - 1), after the party HUD's
+ * (needs port/wide.h for KATAM_KIRBYS). */
+#define GLR_TAP_OVERLAYS 3
+#define GLR_OVERLAY_TAP(i) (4 + KATAM_KIRBYS + (i))
 /* GlrPresent's fit of a vw x vh picture into w x h: {x, y, w, h}, top-left
  * origin.  Integer scale when it is at least 1x. */
 void GlrFitRect(int w, int h, int vw, int vh, int dst[4]);
