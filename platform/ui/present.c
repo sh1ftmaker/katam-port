@@ -464,6 +464,10 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
                                     : (double)sDst[3] / sSrc[3],
                          sLastWorld && gPortSettings.hud == PS_HUD_STRIP,
                          gPortSettings.scaling == PS_SCALE_SMOOTH, dpr);
+    /* the connection readout over the pause page's player list (party_hud.c):
+     * only over a menu's 240x160 picture, where the list's rows are */
+    if (sDst[2] > 0 && sDst[3] > 0)
+        PortNetqDraw(fbW, fbH, sDst, sSrc[2], sSrc[3], gPortSettings.scaling == PS_SCALE_SMOOTH);
     if (sUi)
         PortUiDraw(fbW, fbH, dpr, nowMs);
 }
