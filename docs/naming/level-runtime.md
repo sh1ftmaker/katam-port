@@ -338,20 +338,20 @@ the next slot's grid.
 **Evidence:**
 - `include/data.h:693` — `extern u16 gUnk_02023508[];`
 - `wip/code.c:439` — zeroed on fresh room load.
-- `src/code_080023A4.c:1536-1543` — accessors `sub_080029BC` (get) and
-  `sub_080029CC` (add).
+- `src/code_080023A4.c:1536-1543` — accessors `GetRoomKillCount` (was `sub_080029BC`) (get) and
+  `AddRoomKillCount` (was `sub_080029CC`) (add).
 - `src/object.c:392-397` — in `ObjectDestroy`, for objects passing
   `ObjType0To37 || ObjType38To52 || ObjType53To64`, if `obj->object->unk22 & 1`
-  and `obj->unk80 <= 0`, `sub_080029CC(gCurLevelInfo[obj->base.unk56].unk65E, 1)`.
+  and `obj->unk80 <= 0`, `AddRoomKillCount(gCurLevelInfo[obj->base.unk56].unk65E, 1)`.
   `unk80 <= 0` is the "was defeated, not merely despawned" condition also used at
   `src/object.c:361-372`.
 - `src/lever_wall.c:14-18` — a lever wall with `subtype1 == 0` opens when
-  `sub_080029BC(slot) == arg0->object->unkF`, i.e. "break the wall after N
+  `GetRoomKillCount(slot) == arg0->object->unkF`, i.e. "break the wall after N
   defeats in this room".
 - `src/object_spawner.c:59` and the reference asm it mirrors
   (`asm/nonmatching/sub_0811BAAC.inc`) — a spawner reads this counter into
   `unkDC` and gates spawning on `unkDC >= object->unk18 >> 8`.
-- `src/object.c:336` — `if (sub_080029BC(...) > 1)` inside a `gUnk_0203AD10 & 4`
+- `src/object.c:336` — `if (GetRoomKillCount(...) > 1)` inside a `gUnk_0203AD10 & 4`
   (sub-game) branch for rooms `0x3BB..0x3BD`.
 - Addresses: `linker.ld:42-43`, `0x02023508` to `gUnk_02023510` at `0x02023510`
   is `8` = **4 x u16**, exact.
@@ -362,7 +362,7 @@ the next slot's grid.
   the counter is really "objects that opted in and died with `unk80 <= 0`". If
   `unk22 & 1` is set on non-enemies anywhere in the ROM data, the name overreaches.
   I did not audit the ROM object lists for that.
-- `sub_080029CC` *adds* `arg1` rather than incrementing, so a non-1 delta
+- `AddRoomKillCount` (was `sub_080029CC`) *adds* `arg1` rather than incrementing, so a non-1 delta
   somewhere would break the "count" reading. Every call site I found passes 1
   (`src/object.c:396`).
 - There is no saturation and no clamp; it is a `u16` reset only at fresh room load.
@@ -376,8 +376,8 @@ the next slot's grid.
 
 **Evidence:**
 - `include/data.h:694`; zeroed at `wip/code.c:440`.
-- `src/code_080023A4.c:1546-1553` — accessors `sub_080029E4` (get),
-  `sub_080029F4` (add).
+- `src/code_080023A4.c:1546-1553` — accessors `GetRoomItemCount` (was `sub_080029E4`) (get),
+  `AddRoomItemCount` (was `sub_080029F4`) (add).
 - Increment sites are all *pickups*, never defeats:
   `src/bonus.c:166-168` — on collecting an HP/battery/1UP/candy bonus, gated on
   `object->unk2 != 0 || object->unk3 != 31` (a real authored object, not a

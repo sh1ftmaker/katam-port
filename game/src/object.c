@@ -343,7 +343,7 @@ void ObjectDestroy(struct Task* arg0) {
     if (gUnk_0203AD10 & 4) {
         if (ObjType38To52(obj)) {
             if (obj->base.roomId >= 0x3bb && obj->base.roomId <= 0x3bd) {
-                if (sub_080029BC(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E)) > 1) {
+                if (GetRoomKillCount(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E)) > 1) {
                     *GetStateSlot(STATE_SLOT_SESSION, 9, 0xff) |= 0x80000000;
                     sub_0808859C(obj, 0x3b7, 0x5a);
                 }
@@ -405,7 +405,7 @@ void ObjectDestroy(struct Task* arg0) {
             || ObjType53To64(obj)) {
             if (obj->objTemplate->unk22 & 1) {
                 if (obj->unk80 <= 0) {
-                    sub_080029CC(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E), 1);
+                    AddRoomKillCount(EWRAM_MIRROR_U8(&gCurLevelInfo[obj->base.unk56].unk65E), 1);
                 }
             }
         }

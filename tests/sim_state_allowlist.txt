@@ -236,3 +236,9 @@ cpu_ai_modes sHintQueue scratch flood queue, written before every read
 cpu_ai_modes sHintIgn scratch flood blast marks, written before every read
 cpu_ai_modes sHintDist scratch distance field, written before every read
 cpu_ai_modes sHintChest rom-cache CPU AI door groups: per breaking tier, whether each door's arrival cell reaches a chest of the room behind it
+cpu_ai_modes sGate rom-cache CPU AI gate hints (game/src/cpu_ai_modes.c, docs/design/CPU-HINTS.md "Gates"): the sliding doors, switches, crumble blocks and walls of every room's ROM object list, rebuilt with sHintRec
+cpu_ai_modes sGateFirst rom-cache CPU AI gate hints: each room's first gate, rebuilt with sHintRec
+cpu_ai_modes sGateCount rom-cache CPU AI gate hints: each room's gate count, rebuilt with sHintRec
+cpu_ai_modes sGateTotal rom-cache CPU AI gate hints: the gate count, rebuilt with sHintRec
+cpu_ai_modes sGateOv scratch gate overlay of the map flooded next, written before every read
+cpu_ai_modes sPathFirstDy scratch the path waypoint's first step, written by PathWaypoint before PathTo reads it

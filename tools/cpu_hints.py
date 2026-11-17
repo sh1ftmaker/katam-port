@@ -6,6 +6,7 @@ cpu_hints.py -- decode the per-room hints the game ships for its CPU Kirbys.
     tools/cpu_hints.py ROM --room 204           # one room in detail
     tools/cpu_hints.py ROM --json OUT.json      # everything, machine-readable
     tools/cpu_hints.py ROM --groups             # door groups of every room
+    tools/cpu_hints.py ROM --gates              # gate hints and exit objects per room
 
 Reads the user's ROM at run time and prints; nothing ROM-derived belongs in
 the repository (write --json output to a scratch directory).  The formats are
@@ -305,6 +306,8 @@ def main():
     ap.add_argument('--room', type=int, action='append')
     ap.add_argument('--json')
     ap.add_argument('--groups', action='store_true')
+    ap.add_argument('--gates', action='store_true',
+                    help='gates (sliding doors + switches, crumble blocks, walls) and exit objects per room')
     ap.add_argument('--map', action='store_true', help='with --room: print the node map and doors')
     a = ap.parse_args()
     rom = rx.Rom(a.rom)
@@ -322,6 +325,8 @@ def main():
         for d in out:
             if d['room'] in a.room:
                 print_room(d, a.map)
+    elif a.gates:
+        print_gates(rom, out)
     elif a.groups:
         for d in out:
             if ngroups(d['navGroups']) > 1 or ngroups(d['floodGroups']) > 1:
@@ -356,6 +361,55 @@ def entrances(rooms, at):
                 masks.append(sum(1 << i for i, y in enumerate(d['doors'][:32])
                                  if seen[y['y'] * w + y['x']]))
             d['entries'].append((src['room'], ax, ay, masks))
+
+
+def gates_of(rom, d):
+    """The gate hints game/src/cpu_ai_modes.c builds (HintIndex): sliding
+    doors (the two cells above the template's floor cell, open while the
+    room-state slot unk4 is set), the counting switches of those slots (the
+    cell above their floor), crumble blocks, triggerable walls (open when
+    unkF chests (subtype1 1) / marked enemies (0) are done), and exit
+    objects (warp star: room unk1E, arrival unk1A/unk1C; cannon: room unk12,
+    arrival unk18 >> 8, unk18 & 0xFF).  docs/naming/gates.md."""
+    r = rx.resolve(rom, d['room'])
+    gates, exits = [], []
+    for o in r['objects']['objects']:
+        t, x, y = o['type'], o['x'] >> 4, o['y'] >> 4
+        if t == 0x71:
+            gates.append(('slide', x, y - 1, o['unk4'] & 0xF, ''))
+        elif t == 0x6D and not o['unk22'] & 3:
+            gates.append(('switch', x, y - 1, o['unk4'] & 0xF,
+                          'hold %d%s' % (o['unk18'], ' latch' if o['unk22'] & 4 else '')))
+        elif t == 0x74:
+            gates.append(('crumble', x, y, None, ''))
+        elif t == 0x91:
+            gates.append(('wall', x, y, None, 'needs %d %s' % (o['unkF'], 'items' if o['subtype1'] else 'kills')))
+        elif t == 0x86:
+            gates.append(('big-switch', x, y - 1, None, 'world flag %d, map unlock %d (people only)' % (
+                o['unk4'], o['unk14'])))
+        elif t == 0x97:
+            gates.append(('door-to-hub', x, y - 1, None, 'open with world flag %d' % o['unk4']))
+        elif t == 0x84:
+            exits.append(('warp star', x, y, o['unk1E'], (o['unk1A'], o['unk1C'])))
+        elif t == 0x8A:
+            exits.append(('cannon', x, (o['y'] - 1) >> 4, o['unk12'], (o['unk18'] >> 8, o['unk18'] & 0xFF)))
+    return gates, exits
+
+
+def print_gates(rom, rooms):
+    tot = collections.Counter()
+    for d in rooms:
+        gates, exits = gates_of(rom, d)
+        if not gates and not exits:
+            continue
+        print('room %d:' % d['room'])
+        for k, x, y, slot, note in gates:
+            tot[k] += 1
+            print('  %-11s (%d,%d)%s %s' % (k, x, y, '' if slot is None else ' slot %d' % slot, note))
+        for k, x, y, dest, arr in exits:
+            tot[k] += 1
+            print('  %-11s (%d,%d) -> room %d arrival %s' % (k, x, y, dest, arr))
+    print('totals: %s' % dict(tot))
 
 
 def print_room(d, show_map):

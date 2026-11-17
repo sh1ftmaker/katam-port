@@ -1,9 +1,11 @@
 # The game's per-room CPU hints, and what the CPU AI modes use
 
 Status: survey done; door groups, block breaking and reachable targets in
-use (branch `six-hints`).  Tool:
-`tools/cpu_hints.py ROM` (reads the ROM at run time; write its `--json`
-dumps to a scratch directory, never into the repository).  The brain that
+use (branch `six-hints`); gate hints and exit objects in use (branch
+`six-gates`, section D).  Tool:
+`tools/cpu_hints.py ROM` (reads the ROM at run time; `--gates` lists the
+gate hints; write its `--json` dumps to a scratch directory, never into the
+repository).  The brain that
 reads these hints: `docs/naming/cpu-brain.md`; the modes: `CPU-AI.md`.
 
 Every number below is measured on the retail ROM by `tools/cpu_hints.py`
@@ -167,8 +169,11 @@ open) and only doors that are on the map now; a route never passes back
 through the room it starts in.  The tier is the Kirby's current ability's.
 The reach sets are computed once per tier from the ROM maps and cached (a
 pure function of the loaded data, rebuilt if the room tables change);
-`KATAM_CPUAI_LOG=3` prints them, and they match `tools/cpu_hints.py` for all
-724 doors at tiers 0, 1 and 3.
+`KATAM_CPUAI_LOG=3` prints them, and they matched `tools/cpu_hints.py` for all
+724 doors at tiers 0, 1 and 3 (before `six-gates`: the floods now also pass
+crumble blocks downwards, which the tool's `flood` does not model, and the
+index has the 10 exit objects after each room's door records;
+`KATAM_CPUAI_LOG=3` prints the gates as `hint-gate` lines).
 
 ### B. Breakable blocks in the way
 
@@ -206,10 +211,82 @@ Hints: none (no script asks for an ability; no switch data).  Map-based:
 
 Not done: fetching a needed ability (the data never names one; the map
 names only the breakable level, so "inhale an enemy that gives Hammer" would
-need an enemy-to-ability table and a plan), switches, objects that block
-or open passages (sliding doors, triggerable walls, star stone blocks),
-exits that are objects or room edges (only the warp fallback above), and
-BODYGUARD in the same room as its person but cut off from it.
+need an enemy-to-ability table and a plan), and BODYGUARD in the same room
+as its person but cut off from it.  Switches, sliding doors, walls, crumble
+blocks and exit objects: section D.
+
+### D. Gates and exit objects (`six-gates`)
+
+**The hints say nothing here either** (no CPU data names a switch or a
+gate), but the room object lists do, and the link is simple: a switch and the
+sliding door it opens share a room-state slot number (template `unk4`).  The
+decoding is in `docs/naming/gates.md`; per room, built at run time from the
+loaded ROM's object lists with the door groups (`HintIndex`, the same ROM
+cache):
+
+| gate (object) | what it shuts | opener | count (ROM) |
+|---|---|---|---|
+| sliding door (0x71) | the two cells above its floor cell, while its room-state slot is 0 | the counting switches (0x6D) of the slot: stand on one; it holds the door open its `unk18` frames after one leaves (0 = only while stood on), or for good (`unk22 & 4`) | 35 doors, 35 switches, 24 rooms |
+| crumble block (0x74) | its cell (solid, breakable level 4: no ability breaks it) | stand on it, not flying: passable downwards only | 137 in 34 rooms |
+| triggerable wall (0x91) | its cell and the chain cells (0x40) joined to it | the room's chests opened (subtype 1) / marked enemies beaten (subtype 0), `unkF` of them | 5 (all "open the room's chest") |
+| big switch (0x86) -> door to the hub (0x97) | the hub door's tile (world flag `unk4`) | people only (`PortIsHuman`), starts a world-map interlude, saved | 15 switches, 22 doors |
+
+| exit object | leads to | count |
+|---|---|---|
+| warp star (0x84) | room `unk1E`, arrival `unk1A`/`unk1C` (off the map in 3 of 6: the room's default spawn instead) | 6 |
+| cannon (0x8A) | room `unk12`, arrival `unk18` | 4 |
+
+**The finding that shapes all of it: objects spawn only in people's
+views** (`CreateLevelObjects` tests every template against the views of the
+people in the room).  A room only CPUs are in has no sliding door, switch,
+rock block object, chest or warp star -- so there a sliding door is no
+obstacle at all, a crumble block can never crumble by itself, and a wall
+never opens.  (This is why the 30-s give-ups at sliding doors in the
+measured runs, where the person idles in the hub, were not the doors:
+831->825 and 708->743 are movement, not gates.)  Hence two cases:
+
+- **A person is in the room** (objects exist): a sliding door whose object is
+  shut (not open, or closing below 12 px) shuts its two cells in the floods;
+  a door it gates is still a target if one of its switches is reachable
+  (`FloodGated`: flood, open the gates whose opener the flood reaches, flood
+  again, until nothing more opens).  On the way (`GateWay`): flooded as
+  things are now, the chosen door is not reached -> find the gate whose
+  opening reaches it, go and stand on its switch (not flying -- a timed
+  switch is pressed by standing on it), stay until the door is fully open if
+  the switch holds only while stood on, else leave as soon as it starts
+  opening; while the door is reached only through an open sliding door,
+  hurry along the flood's cell path (`PathTo`) rather than the nav graph (the
+  timers are 30..300 frames).  A wall: go to the nearest reachable chest /
+  marked enemy.
+- **No person in the room** (no objects): sliding doors open; a crumble
+  block the Kirby stands on whose object is not spawned gets what the object
+  would have done (`CrumbleUnseen`: its tile record via `sub_08001408`, its
+  destroyed flag via `sub_08001678`, so it does not spawn later); walls stay
+  shut.  The ROM-level reach sets (`sHintReach`) assume this case for every
+  room but the Kirby's own (sliding doors open, crumble blocks passable
+  downwards, walls shut).
+
+Exit objects are extra records in the door index (`struct HintDoor`,
+`EXIT_STAR` / `EXIT_CANNON`, at most 32 records per room): the route takes
+them as edges; the Kirby walks to the object and goes where it would send
+it (`sub_080551FC` with the object's arrival -- warp stars and cannons take
+only people, as doors are "walked into" by `sub_080551FC` without their
+locks).  Room 142 (Rainbow Route, no door tiles, a warp star to 195) was the
+largest single source of dead-end warps (30 of 142 over nine runs); rooms
+104 and 103 before it were dead ends only because the graph ended at 142.
+Room-edge exits: none found -- the passages at room edges in the stall
+rooms (706, 708, 790, 814, ...) are door tiles in the edge columns, already
+in the door graph; a transition by walking off an edge without a door
+record was not found (not proven absent).
+
+Not done: star stone blocks (pushed onto switches, or by several Kirbys:
+they are objects too, so only in a person's room, where the person moves
+them), holding a hold-only switch for another Kirby (co-operation), big
+switches (people only in the game, and pressing one starts a world-map
+cutscene for everyone and writes the save: left to people), lighting cannon
+fuses (the cannon is taken as an exit without), ability gates beyond the
+breakable level (hammer pegs: tile 0xF6, breakable level 3 -- the Hammer tier
+already passes them).
 
 ## Coverage per area (rooms; all have a nav graph; real scripts)
 

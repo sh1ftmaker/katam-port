@@ -17,11 +17,11 @@ extern "C" {
 #include "port/localmp.h"   /* PORT: human slots (PortIsHuman) */
 
 static void sub_08119980(struct Switch *);
-static void sub_08119A20(struct Switch *);
-static void sub_08119AA8(struct Switch *);
-static void sub_08119B3C(struct Switch *);
+static void SwitchCountOnSlot(struct Switch *);
+static void SwitchWriteSlotValue(struct Switch *);
+static void BigSwitchUnlockWorld(struct Switch *);
 static void nullsub_127(void);
-static void sub_08119BB8(struct Switch *);
+static void SwitchCountAndRaiseRoomState(struct Switch *);
 static void sub_08119C0C(struct Switch *);
 
 static void (*const gUnk_08357B8C[])(void) = {
@@ -110,7 +110,7 @@ void sub_0811938C(struct Switch *arg0)
     }
 }
 
-static bool32 sub_0811942C(struct Switch *sw)
+static bool32 SwitchStillInRoom(struct Switch *sw)
 {
     if ((sw->obj.base.y >> 8) >= gCurLevelInfo[sw->obj.base.unk56].roomHeight - 20) {
         sw->obj.base.flags |= 0x40;
@@ -138,13 +138,13 @@ static bool32 sub_0811942C(struct Switch *sw)
     return TRUE;
 }
 
-static bool32 sub_081194DC(struct Switch *sw)
+static bool32 SwitchIsPressed(struct Switch *sw)
 {
     PTR32(struct ObjectBase) *list;
     s16 rect[4], other[4];
     u8 i;
 
-    if (!sub_0811942C(sw))
+    if (!SwitchStillInRoom(sw))
         return FALSE;
     list = GetRoomObjectCollisionList(&sw->obj.base);
     rect[0] = (sw->obj.base.x >> 8) + sw->obj.base.unk3C;
@@ -203,9 +203,9 @@ static bool32 sub_081194DC(struct Switch *sw)
     return FALSE;
 }
 
-static void sub_081197D4(struct Switch *sw)
+static void SwitchUpdatePress(struct Switch *sw)
 {
-    if (sub_081194DC(sw)) {
+    if (SwitchIsPressed(sw)) {
         sw->unkB6 &= ~4;
         sw->unkB6 |= 0x100;
         if (sw->unkB6 & 1) {
@@ -246,7 +246,7 @@ static void sub_08119980(struct Switch *arg0)
 {
     struct Switch *sw = arg0;
 
-    sub_081197D4(arg0);
+    SwitchUpdatePress(arg0);
     if (sw->unkB6 & 1) {
         sw->obj.unk83 = 1;
         if (sw->unkB6 & 0x400)
@@ -257,17 +257,17 @@ static void sub_08119980(struct Switch *arg0)
             sw->obj.base.flags &= ~0x10000;
     }
     if (sw->obj.objTemplate->unk22 & 1)
-        sub_08119AA8(arg0);
+        SwitchWriteSlotValue(arg0);
     else if (sw->obj.objTemplate->unk22 & 2)
-        sub_08119B3C(arg0);
+        BigSwitchUnlockWorld(arg0);
     else if (sw->obj.objTemplate->unk22 & 0x8000)
-        sub_08119BB8(arg0);
+        SwitchCountAndRaiseRoomState(arg0);
     else
-        sub_08119A20(arg0);
+        SwitchCountOnSlot(arg0);
     sw->obj.base.counter++;
 }
 
-static void sub_08119A20(struct Switch *sw)
+static void SwitchCountOnSlot(struct Switch *sw)
 {
     u32 *count;
 
@@ -290,7 +290,7 @@ static inline bool32 SlotEquals(u8 *slot, u8 a, u8 b, u8 c)
     return TRUE;
 }
 
-static void sub_08119AA8(struct Switch *sw)
+static void SwitchWriteSlotValue(struct Switch *sw)
 {
     u32 r1;
     u8 *slot = (u8 *)GetStateSlot(STATE_SLOT_ROOM, sw->obj.objTemplate->unk4, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
@@ -311,7 +311,7 @@ static void sub_08119AA8(struct Switch *sw)
     }
 }
 
-static void sub_08119B3C(struct Switch *sw)
+static void BigSwitchUnlockWorld(struct Switch *sw)
 {
     if (sw->unkB6 & 0x2000 && !(sw->unkB6 & 0x1000))
         sw->obj.base.flags |= 0xF40;
@@ -329,9 +329,9 @@ static void nullsub_127(void)
 {
 }
 
-static void sub_08119BB8(struct Switch *sw)
+static void SwitchCountAndRaiseRoomState(struct Switch *sw)
 {
-    sub_08119A20(sw);
+    SwitchCountOnSlot(sw);
     if (sw->unkB6 & 1) {
         u32 *slot = GetStateSlot(STATE_SLOT_ROOM, 0xF, EWRAM_MIRROR_U8(&gCurLevelInfo[sw->obj.base.unk56].unk65E));
 

@@ -1557,22 +1557,22 @@ struct Unk_02023720 *sub_08002984(u8 playerId, u8 *arg1)
     return NULL;
 }
 
-u16 sub_080029BC(u8 arg0)
+u16 GetRoomKillCount(u8 arg0)
 {
     return gUnk_02023508[arg0];
 }
 
-void sub_080029CC(u8 arg0, u16 arg1)
+void AddRoomKillCount(u8 arg0, u16 arg1)
 {
     gUnk_02023508[arg0] += arg1;
 }
 
-u16 sub_080029E4(u8 arg0)
+u16 GetRoomItemCount(u8 arg0)
 {
     return gUnk_02023510[arg0];
 }
 
-void sub_080029F4(u8 arg0, u16 arg1)
+void AddRoomItemCount(u8 arg0, u16 arg1)
 {
     gUnk_02023510[arg0] += arg1;
 }
