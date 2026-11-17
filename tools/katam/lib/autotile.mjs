@@ -40,7 +40,8 @@
 //   - ties are broken by a seeded draw, so repainting does not reshuffle.
 //
 // Optional hand-checked knowledge per tile set (assets/schema/authoring/
-// autotile/*.json, see RULES below) names, orders and prunes the styles; the
+// autotile/*.json, see RULES below) names, orders and prunes the styles, and
+// lists pieces ("exclude") that belong to no brush; the
 // learned styles are the fallback for every tile set without it.
 //
 // Browser-safe, no dependencies.  The editor (web/editor/) is the user.
@@ -165,7 +166,9 @@ function slopeCost(a, b) {
  */
 export function learn(rooms, empty, { opaque = () => false, pixels = null, rules = null } = {}) {
   // the blank and flat-black pieces the original leaves where the camera never looks
-  const hidden = (t) => t === empty || /^(...[.hvx]f ?){4}$/.test(t);
+  // `rules.exclude`: pieces of this tile set that are no part of any brush (steel blocks and pillars among clouds)
+  const exclude = new Set(rules && Array.isArray(rules.exclude) ? rules.exclude : []);
+  const hidden = (t) => t === empty || exclude.has(t) || /^(...[.hvx]f ?){4}$/.test(t);
   const model = { empty, rooms: [], kinds: {}, styleOf: new Map(), rim: new Set() };
   const kindCount = new Map(), airUse = new Map();
   for (const kind of Object.keys(BRUSH_KINDS)) model.kinds[kind] = { styles: [] };
