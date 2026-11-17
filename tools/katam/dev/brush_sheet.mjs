@@ -14,6 +14,10 @@
 //                    holds for under 60% of its uses); magenta = see-through
 //   paint-K-N.png    a test shape (floor, step, notch, ledge, pillar, overhang)
 //                    painted by the brush, edge art included, on a plain sky
+//   test-K-N.png     the topology test level (lib/brushtest.mjs: every ground shape and
+//                    slope join, or the kind's runs and pools) painted by the brush;
+//                    yellow frame: the brush's own piece of another shape, red: another
+//                    brush's piece; styles.json "test" has the sums and the missing shapes
 //   rim.png          the edge art the tile set draws in the air against ground
 //   zoom.png         with --zoom solid-1:10,11,17 (or rim:2,5): those pieces, numbered as
 //                    on the sheet, in place in the original, 5x5 cells around, three places each
@@ -26,7 +30,7 @@ import fs from 'node:fs'; import path from 'node:path'; import zlib from 'node:z
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const LIB = path.join(ROOT, 'tools/katam/lib');
 const imp = (n) => import(path.join(LIB, n + '.mjs'));
-const [{ nodeIO }, png, { indexVocab }, { loadRegistry }, project, grid, tiles, gfx, auto] = await Promise.all(['io', 'png', 'vocab', 'registry', 'project', 'grid', 'tiles', 'gfx', 'autotile'].map(imp));
+const [{ nodeIO }, png, { indexVocab }, { loadRegistry }, project, grid, tiles, gfx, auto, brushtest] = await Promise.all(['io', 'png', 'vocab', 'registry', 'project', 'grid', 'tiles', 'gfx', 'autotile', 'brushtest'].map(imp));
 png.setZlib({ deflate: (b) => new Uint8Array(zlib.deflateSync(b)), inflate: (b) => new Uint8Array(zlib.inflateSync(b)) });
 
 const pos = [], opt = {};
@@ -167,6 +171,32 @@ const SHAPE = [
 ];
 const SLOPE_V = { '/': 11, '\\': 12, a: 5, b: 6, c: 7, d: 8 };
 const solidV = colClass.indexOf('solid'), airV = colClass.indexOf('air');
+// the collision value each kind of brush paints: the one the original uses most (as the editor's colRep)
+const colRep = {};
+for (const [v, e] of Object.entries(registry.collisionEnum())) {
+  const c = colClass[v];
+  if (c && (colRep[c] === undefined || (e.cells || 0) > colRep[c][1])) colRep[c] = [Number(v), e.cells || 0];
+}
+const colOf = (kind) => (colRep[kind] ? colRep[kind][0] : kind === 'air' ? airV : solidV);
+/** The topology test level (lib/brushtest.mjs) painted with a style: pieces that are not the
+ *  style's own for that shape framed, yellow ('near': its own piece of another shape) or red
+ *  ('borrowed': another brush's), with the sums on a strip above. */
+function testLevel(style) {
+  const base = model.kinds.solid && model.kinds.solid.styles[0];
+  const T = brushtest.paintTest(model, style, { colOf, classOf: (v) => colClass[v], base: base === style ? null : base, salt: 7 });
+  if (!T) return null;
+  const k = 2, PS = 16 * k, top = 28, C = canvas(T.W * PS, T.H * PS + top, SKY);
+  for (let i = 0; i < T.W * T.H; i++) {
+    const x = (i % T.W) * PS, y = ((i / T.W) | 0) * PS + top;
+    if (T.art[i] !== model.empty) blit(C, T.art[i], x, y, k, SKY);
+    const c = T.how[i] === 'near' ? [255, 210, 0, 255] : T.how[i] === 'borrowed' ? [230, 0, 0, 255] : null;
+    if (c) for (let t = 0; t < PS; t++) for (const [u, v] of [[t, 0], [t, 1], [t, PS - 1], [t, PS - 2], [0, t], [1, t], [PS - 1, t], [PS - 2, t]]) C.im.set(c, ((y + v) * C.w + x + u) * 4);
+  }
+  for (let i = 0; i < C.w * top; i++) C.im.set([235, 235, 235, 255], i * 4);
+  const r = T.report;
+  text(C, 6, 6, `${style.name}  shapes ${r.shapes.own} of ${r.shapes.level} own` + (style.kind === 'solid' ? `  slopes ${r.slopes.own} of ${r.slopes.level}` : '') + `  cells ${r.cells.own} own ${r.cells.near} near ${r.cells.borrowed} borrowed`, 2);
+  return { C, report: { ...r, shapes: { ...r.shapes, missing: r.shapes.missing.map(brushtest.blobLabel) } } };
+}
 const SKY = [150, 200, 240, 255];
 function paint(style) {
   const H = SHAPE.length, W = SHAPE[0].length, art = new Array(W * H).fill(model.empty), cls = new Array(W * H).fill('air'), col = new Array(W * H).fill(airV);
@@ -196,7 +226,9 @@ for (const [kind, K] of Object.entries(model.kinds)) {
       const [role, rn] = [...e.roles].sort((a, b) => b[1] - a[1])[0];
       return { ix, tok: e.tok, uses: e.n, role, share: +(rn / e.n).toFixed(2) };
     });
-    report.styles.push({ kind, id: s.id, name: s.name, cells: s.cells.length, pieces });
+    const test = testLevel(s);
+    report.styles.push({ kind, id: s.id, name: s.name, cells: s.cells.length, test: test ? test.report : null, pieces });
+    if (test) save(test.C, `test-${kind}-${n + 1}.png`);
     const byRole = ROLES.map((ro) => [ro, pieces.filter((p) => p.role === ro)]).filter(([, l]) => l.length);
     const rows = byRole.reduce((a, [, l]) => a + Math.ceil(l.length / PER), 0);
     const C = canvas(LABEL + PER * CW + 8, 30 + rows * CH + 8, [235, 235, 235, 255]);
@@ -258,5 +290,5 @@ save(RC, 'rim.png');
 report.rim = rim;
 fs.writeFileSync(path.join(out, 'styles.json'), JSON.stringify(report, null, 1) + '\n');
 console.log(`${TS}: ${rooms.length} rooms (${report.rooms.join(' ')}), rules ${report.rules || 'none'}`);
-for (const s of report.styles) console.log(`  ${s.id.padEnd(16)} ${s.name.padEnd(16)} cells ${String(s.cells).padStart(5)}  pieces ${s.pieces.length}`);
+for (const s of report.styles) console.log(`  ${s.id.padEnd(16)} ${s.name.padEnd(16)} cells ${String(s.cells).padStart(5)}  pieces ${String(s.pieces.length).padStart(3)}` + (s.test ? `  test level: shapes ${s.test.shapes.own}/${s.test.shapes.level}` + (s.kind === 'solid' ? `, slopes ${s.test.slopes.own}/${s.test.slopes.level}` : '') + `, cells ${s.test.cells.own} own ${s.test.cells.near} near ${s.test.cells.borrowed} borrowed` : ''));
 console.log(`  rim (edge art) ${rim.length} pieces -> ${out}`);

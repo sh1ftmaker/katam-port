@@ -11,6 +11,8 @@ import { compileRoom, decompileRoom } from '../lib/room.mjs';
 import { Bindings, makeContext } from '../lib/project.mjs';
 import { Registry } from '../lib/registry.mjs';
 import { buildVocab, indexVocab } from '../lib/vocab.mjs';
+import { LEVELS, BLOBS } from '../lib/brushtest.mjs';
+import { blobOf } from '../lib/autotile.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +23,23 @@ let seed = 1;
 const rnd = (n) => { seed = (seed * 1103515245 + 12345) >>> 0; return seed % n; };
 let n = 0;
 const t = (name, f) => { f(); n++; };
+
+t('brush test levels: rooms, and every ground shape', () => {
+  for (const [kind, rows] of Object.entries(LEVELS)) {
+    const W = rows[0].length, H = rows.length;
+    assert.ok(W >= 15 && H >= 13 && W * H <= 1950, `${kind}: ${W} x ${H} is no room`);
+    for (const r of rows) { assert.equal(r.length, W, kind); assert.match(r, /^[.#\/\\abcd=H~^]+$/, kind); }
+  }
+  assert.equal(BLOBS.length, 47);
+  const rows = LEVELS.solid, W = rows[0].length, H = rows.length, seen = new Set();
+  const g = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? true : '#/\\abcd'.includes(rows[y][x]));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (rows[y][x] === '#') {
+    let m = 0;
+    [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].forEach(([dx, dy], k) => { if (g(x + dx, y + dy)) m |= 1 << k; });
+    seen.add(blobOf(m));
+  }
+  assert.deepEqual([...seen].sort((a, b) => a - b), BLOBS);
+});
 
 t('compression round trips', () => {
   for (let k = 0; k < 50; k++) {

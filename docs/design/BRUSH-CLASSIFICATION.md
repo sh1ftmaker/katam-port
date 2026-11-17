@@ -69,6 +69,8 @@ Rules that keep it safe and reviewable:
   one piece excluded tile-set wide).
 - `assets/schema/authoring/autotile/tileset-vanilla-4.json`: the third,
   below (Olive Ocean's Grassy dirt, 13 pieces excluded).
+- `tools/katam/lib/brushtest.mjs`: the test level (below), and the editor's
+  **🧪 Test level** button.
 - `tools/katam/dev/brush_sheet.mjs`: learns one tile set the way the editor
   does and draws what it learned. Once per ROM:
 
@@ -84,11 +86,71 @@ Rules that keep it safe and reviewable:
   role: FILL, TOP, CORNER TL, ... NOTCH UR, SLOPE; numbered; a red number is
   a piece whose role holds for under 60% of its uses), `paint-solid-1.png` (a
   test shape painted with the brush: step, notch, ledge, pillar, overhang,
-  1:1 and gentle slopes), `rim.png` (the edge art) and, with `--zoom`,
+  1:1 and gentle slopes), `test-solid-1.png` (the test level, below),
+  `rim.png` (the edge art) and, with `--zoom`,
   `zoom.png` (those pieces in place in the original, 5x5 cells, up to three
   rooms; `--zoom rim:2,5` for edge art). `--rules none` shows what is learned
   without the preset. The pictures are the player's ROM art: the script
   refuses to write inside the repository.
+
+## The test level
+
+One room layout per brush kind, the same for every tile set
+(`tools/katam/lib/brushtest.mjs`), so any brush can be painted on it and
+compared with any other. The ground layout (75 x 26, the most a room holds)
+contains every way a ground cell can sit among its eight neighbours -- the
+47 "blob" shapes, corners counted only where both their sides are ground
+(`blobOf` in `autotile.mjs`) -- in level-like pieces: loose blocks and bars,
+a window of one-wide lines, crosses with filled quadrants, a block with a
+hole one in from each side, a block with arms, a block, a pit, a pillar and
+a wall with ledges on the floor; and the six slopes against flat ground,
+walls, each other and a second storey (1:1 and gentle hills, a peak, a
+valley, a slope into a wall, two-high hills, gentle into 1:1 and back). The
+self-test checks that all 47 shapes are there. Platforms, ladders, water and
+hazards get small layouts of runs, stacks and pools on a floor painted with
+the tile set's first ground brush.
+
+Painting a brush on it shows, per cell, where its piece came from: its own
+piece of that shape, its own piece of the nearest shape it has (yellow), or
+another brush's piece (red). Two ways in:
+
+- **Editor**: select a terrain brush; in the Tiles tab, **🧪 Test level**
+  makes a new room in the current look, painted with that brush, with the
+  yellow and red marks (until a cell is repainted) and the sums in a toast.
+  The room can be played.
+- **`brush_sheet.mjs`** writes `test-solid-1.png` and so on, with the sums
+  and the missing shapes in `styles.json`.
+
+The ground brushes of the tile sets with presets (own shapes of 47, slopes of
+6, and the 649 ground cells of the level: own / nearest / borrowed):
+
+| Tile set | Brush | Shapes | Slopes | Own | Nearest | Borrowed |
+|---|---|---|---|---|---|---|
+| 0 | Grassy cobbles | 5 | 2 | 343 | 44 | 262 |
+| 0 | Grassy cliff | 22 | 6 | 561 | 78 | 10 |
+| 0 | Grassy hill | 25 | 6 | 563 | 78 | 8 |
+| 2 | Grassy earth | 30 | 6 | 595 | 54 | 0 |
+| 3 | Grassy soil | 5 | 6 | 404 | 245 | 0 |
+| 3 | Log frame | 44 | 6 | 621 | 28 | 0 |
+| 3 | Log ends | 23 | 0 | 519 | 59 | 71 |
+| 4 | Grassy dirt | 28 | 6 | 584 | 65 | 0 |
+| 5 | Sand | 25 | 4 | 574 | 75 | 0 |
+| 15 | Mossy stones | 36 | 6 | 605 | 44 | 0 |
+| 15 | Stone block | 14 | 0 | 467 | 182 | 0 |
+| 17 | Pink moss | 40 | 6 | 619 | 30 | 0 |
+| 17 | Stone block | 29 | 0 | 522 | 71 | 56 |
+| 18 | Snowy rock | 37 | 6 | 582 | 67 | 0 |
+| 28 | Clouds | 6 | 0 | 401 | 248 | 0 |
+| 29 | Clouds | 15 | 6 | 532 | 95 | 22 |
+| 29 | Ground 2 | 4 | 0 | 72 | 72 | 505 |
+
+(brush_sheet's seed; the editor's differs, so its counts move by a few.)
+Read with the pictures: a low shape count is expected of a material the
+original only builds one way (soil inside logs, cobbles under grass) and is
+not by itself a fault; red cells are where a brush draws another material.
+Grassy cobbles takes its walls and undersides from the cliff and hill
+brushes; tile set 29's Clouds takes the undersides of a raised shelf from
+Ground 2, which is mostly other brushes' pieces itself.
 
 ## Worked example 2: Rainbow Route dirt (tile set 3)
 
