@@ -89,6 +89,8 @@ extern "C" {
 #define K_LEFT   0x020
 #define K_UP     0x040
 #define K_DOWN   0x080
+#define K_R      0x100
+#define K_L      0x200
 
 /* struct ObjectBase.flags / unk62 as the CPU brain reads them
  * (docs/naming/cpu-brain.md, code_0800ECAC_2.c) */
@@ -110,7 +112,7 @@ static u16 sKeys;               /* what the last frame returned             */
 static u32 sTick;               /* frames stepped (host clock, for gestures) */
 
 /* The target. */
-enum { T_NONE, T_GO, T_DOOR, T_ENEMY, T_SWITCH };
+enum { T_NONE, T_GO, T_DOOR, T_ENEMY, T_SWITCH, T_BLOCK, T_PUSH };
 static struct {
     int kind;
     s32 x, y;                   /* world px: where Kirby's centre should end */
@@ -122,7 +124,11 @@ static struct {
     int hit;                    /* SWITCH: 0 stand on it, 1 hit it from beside */
     int wasDown;                /* SWITCH: already down when tapped           */
     int wait;                   /* SWITCH: frames standing at it this try     */
-    s32 mx, my;                 /* SWITCH: where the marker goes              */
+    s32 mx, my;                 /* SWITCH, BLOCK, PUSH: where the marker goes */
+    int bx, by;                 /* BLOCK: the breakable cell                  */
+    int face;                   /* BLOCK, PUSH: it is that way (-1, 1)        */
+    int chest;                  /* DOOR: a chest (Up opens it; no room change) */
+    s32 startX;                 /* PUSH: the block's x when he began          */
     int arrived;                /* frames since arrival (0: on the way)       */
     int frames;                 /* frames since set                           */
     int best, stall;            /* watchdog: best cost-to-go, frames without  */
@@ -133,7 +139,11 @@ static struct {
 } sT;
 
 /* One-shot button sequences (tap Kirby, swipe down): they pause steering. */
-static struct { u16 keys; int frames; int gap; } sAct;
+static struct {
+    u16 keys; int frames; int gap;
+    u16 next[3]; u8 nextFrames[3]; int nNext;   /* steps after this one, no gap */
+} sAct;
+static void Action(u16 keys, int frames);
 
 /* The controller's own memory. */
 static struct {
@@ -152,7 +162,7 @@ static struct {
 } sC;
 
 /* The pointers. */
-enum { G_NONE, G_KIRBY, G_DRAG, G_MARK, G_DONE };
+enum { G_NONE, G_KIRBY, G_DRAG, G_MARK, G_DONE, G_INHALE };
 static struct {
     int on, id, kind;
     s32 x0, y0, x, y;           /* world px: landing, now                     */
@@ -160,6 +170,8 @@ static struct {
     int moved;
 } sP;
 static int sSecondId = -1;      /* a second finger: attack                   */
+static u32 sSecondT0;           /* when it landed: held, with the first, = L */
+#define TAP_HOLD_L 30           /* frames of two fingers before L is held    */
 
 /* The view the last picture was drawn with. */
 static struct {
@@ -312,6 +324,19 @@ static int IsObstacle(const struct Object *o)
     }
 }
 
+/* A block he pushes by walking into it (star_stone_block.c and the large
+ * ones: every Kirby touching a side pushes, opposite sides cancel). */
+static int IsPushable(const struct Object *o)
+{
+    switch (o->type) {
+    case OBJ_STAR_STONE_BLOCK: case OBJ_LARGE_STAR_STONE_BLOCK_7D: case OBJ_LARGE_STAR_STONE_BLOCK_7E:
+    case OBJ_LARGE_STAR_STONE_BLOCK_88: case OBJ_LARGE_STAR_STONE_BLOCK_89:
+        return !(o->base.flags & 0x1000);
+    default:
+        return 0;
+    }
+}
+
 /* Rebuild the classes from the Kirby's room's live map and its wall
  * objects.  Returns 1 when anything changed (a block broke, a door slid,
  * a new room). */
@@ -376,6 +401,20 @@ static u8 Cl(int x, int y)
 }
 
 static int Open(int x, int y) { return x >= 0 && y >= 0 && x < sW && y < sH && !(Cl(x, y) & CL_SOLID); }
+
+/* A cell's live terrain attribute (the room's map as it is now). */
+static u32 Attr(int x, int y)
+{
+    struct LevelInfo *li = Li();
+
+    if (sW <= 0 || x < 0 || y < 0 || x >= sW || y >= sH || li->unk65E >= 4)
+        return 0;
+    return gCollisionAttributes[gUnk_02024ED0[li->unk65E][y * sW + x]];
+}
+
+/* A breakable block (TILE_BREAKABLE; its strength 0..4 in 0x00F00000:
+ * 0 and 1 break to any hit, harder ones want an ability's attack). */
+static int Breakable(int x, int y) { return (Attr(x, y) & 0x1000) != 0; }
 
 /* Can a Kirby stand (or hold on) here? */
 static int Supported(int x, int y)
@@ -619,6 +658,20 @@ static int IsSwitch(const struct Object *o)
     return (o->type == OBJ_SMALL_BUTTON || o->type == OBJ_BIG_BUTTON) && !(o->base.flags & 0x1040);
 }
 
+/* A treasure chest (chest.c): opened by a person pressing Up inside it. */
+static int IsChest(const struct Object *o)
+{
+    return (o->type == OBJ_SMALL_CHEST || o->type == OBJ_BIG_CHEST) && !(o->base.flags & 0x1000);
+}
+
+/* A door that is an object (the hub's mirrors, an area's door, a boss
+ * door): Up in front of it, as at a door tile. */
+static int IsDoorObj(const struct Object *o)
+{
+    return (o->type == OBJ_DOOR || o->type == OBJ_DOOR_TO_HUB || o->type == OBJ_AREA_DOOR
+            || o->type == OBJ_BOSS_CHALLENGE_DOOR) && !(o->base.flags & 0x1000);
+}
+
 /* Down now (sub_081197D4: 0x100 pressed this frame, 1 held). */
 static int SwitchDown(const struct Object *o)
 {
@@ -718,9 +771,10 @@ static struct Object *ObjAt(s32 px, s32 py, int tol, int items)
     return best;
 }
 
-/* The switch under a world point, within `tol` px of its bounds (the
- * switch's own rect, base + unk3C..unk3F, as the game tests it). */
-static struct Object *SwitchAt(s32 px, s32 py, int tol)
+/* The object (IS says which) under a world point, within `tol` px of its
+ * bounds (its own rect, base + unk3C..unk3F, as the game tests switches
+ * and chests). */
+static struct Object *ThingAt(s32 px, s32 py, int tol, int (*is)(const struct Object *))
 {
     struct Object *best = NULL, *ob;
     s32 bd = 0x7FFFFFFF;
@@ -729,7 +783,7 @@ static struct Object *SwitchAt(s32 px, s32 py, int tol)
     while ((ob = NextObject(&i)) != NULL) {
         s32 x0, y0, x1, y1, dx, dy, d;
 
-        if (!IsSwitch(ob))
+        if (!is(ob))
             continue;
         x0 = (ob->base.x >> 8) + ob->base.unk3C;
         y0 = (ob->base.y >> 8) + ob->base.unk3D;
@@ -746,6 +800,43 @@ static struct Object *SwitchAt(s32 px, s32 py, int tol)
         }
     }
     return best;
+}
+
+/* The pushable block under a world point, within `tol` px of its box. */
+static struct Object *PushAt(s32 px, s32 py, int tol)
+{
+    struct Object *ob;
+    int i = 0;
+
+    while ((ob = NextObject(&i)) != NULL) {
+        s32 x, y, w, h;
+
+        if (!IsPushable(ob))
+            continue;
+        Box(ob, &x, &y, &w, &h);
+        if (px >= x - tol && px < x + w + tol && py >= y - tol && py < y + h + tol)
+            return ob;
+    }
+    return NULL;
+}
+
+/* The breakable cell under a world point, or one within `tol` px of it:
+ * 1 and the cell. */
+static int BlockNear(s32 px, s32 py, int tol, int *ocx, int *ocy)
+{
+    static const s8 off[5][2] = { { 0, 0 }, { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
+    int i;
+
+    for (i = 0; i < 5; i++) {
+        int cx = (px + off[i][0] * tol) >> 4, cy = (py + off[i][1] * tol) >> 4;
+
+        if (Breakable(cx, cy)) {
+            *ocx = cx;
+            *ocy = cy;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* --- targets -------------------------------------------------------------------- */
@@ -788,6 +879,9 @@ static void NewTarget(int kind)
  * about Kirby's height.  Higher, he flies there and hovers.  (Was up to
  * two cells above the standing cell, about 48 px: too eager to land.) */
 #define TAP_SNAP_PX 16
+
+/* A finger held this long (frames) on Kirby without moving: inhale. */
+#define TAP_HOLD 14
 
 /* A point to go to: snapped to the ground below it when it is at most
  * TAP_SNAP_PX above it (a tap at Kirby's height), onto the top of the block
@@ -893,6 +987,120 @@ static void SetSwitch(struct Object *o)
     SwitchSpot();
 }
 
+/* A breakable block: stand right beside it (his side first), on ground,
+ * on its row or the row above or below in the same column (which is then
+ * the block he hits); else two cells off; else hover beside it.  Facing it. */
+static void SetBlock(int bx, int by)
+{
+    static const s8 rows[3] = { 0, 1, -1 };
+    struct Kirby *k = Me();
+    int side0 = (k->base.x >> 12) < bx ? -1 : 1, d, r, pass, x = -1, row = by;
+
+    NewTarget(T_BLOCK);
+    for (d = 1; d <= 2 && x < 0; d++)
+        for (r = 0; r < 3 && x < 0; r++)
+            for (pass = 0; pass < 2 && x < 0; pass++) {
+                int side = pass ? -side0 : side0, cy = by + rows[r], cx = bx + side * d, i;
+
+                if (!Breakable(bx, cy) || !Supported(cx, cy))
+                    continue;
+                for (i = 1; i <= d && Open(bx + side * i, cy); i++)
+                    ;
+                if (i > d) {
+                    x = cx;
+                    row = cy;
+                }
+            }
+    sT.air = x < 0;
+    if (x < 0)                                  /* hover beside it           */
+        x = Open(bx + side0, by) ? bx + side0 : Open(bx - side0, by) ? bx - side0 : bx + side0;
+    sT.bx = bx;
+    sT.by = row;
+    sT.mx = bx * 16 + 8;
+    sT.my = row * 16 + 8;
+    sT.cx = x;
+    sT.cy = row;
+    sT.x = x * 16 + 8;
+    sT.y = row * 16 + 8;
+    sT.face = bx < x ? -1 : 1;
+}
+
+/* A heavy star block (it wants a push of 2: two Kirbys walking into it,
+ * or one strong inhale -- B held 48 frames, code_0806F780.c sub_080720F8,
+ * 55 px of reach): stand on its row on ground, his side first, up to 3
+ * cells off, and face it. */
+static void SetPush(struct Object *o)
+{
+    s32 x, y, w, h;
+    int bx, by, side, pass, d, cx = -1;
+
+    GridUpdate();
+    NewTarget(T_PUSH);
+    sT.obj = o;
+    sT.objType = o->type;
+    Box(o, &x, &y, &w, &h);
+    sT.mx = x + w / 2;
+    sT.my = y + h / 2;
+    sT.startX = o->base.x >> 8;
+    bx = sT.mx >> 4;
+    by = (y + h - 1) >> 4;                      /* its bottom row            */
+    side = (Me()->base.x >> 8) < sT.mx ? -1 : 1;
+    for (pass = 0; pass < 2 && cx < 0; pass++, side = -side)
+        for (d = (w + 15) / 32 + 1; d <= 3; d++) {
+            int c = bx + side * d;
+
+            if (!Open(c, by))
+                break;
+            if (Supported(c, by)) {
+                cx = c;
+                break;
+            }
+        }
+    sT.air = cx < 0;                            /* no ground: hover there    */
+    if (cx < 0)
+        cx = Clamp(bx + ((Me()->base.x >> 8) < sT.mx ? -1 : 1), 0, sW - 1);
+    sT.cx = cx;
+    sT.cy = by;
+    sT.x = cx * 16 + 8;
+    sT.y = by * 16 + 8;
+    sT.face = bx < cx ? -1 : 1;
+}
+
+/* At the heavy block, facing it: a strong inhale (B 110 frames), a walk
+ * into it (60 frames), a strong inhale again. */
+static u16 MoveBlock(struct Kirby *k)
+{
+    int left = sT.face < 0, fl = k->base.flags;
+
+    if (fl & KF_FLY) {                          /* puffed: let it out first  */
+        if (!sC.bGap) {
+            sC.bGap = 20;
+            Action(K_B, 2);
+        }
+        return 0;
+    }
+    if (((fl & KF_LEFT) != 0) != left)
+        return left ? K_LEFT : K_RIGHT;
+    if (!(k->base.unk62 & KH_FLOOR) || ++sT.wait < 10)
+        return 0;
+    sT.wait = 0;
+    if (Log())
+        PortLog("[tap] f%u heavy block: try %d", (unsigned)PortFrameNumber(), sT.tries);
+    switch (sT.tries++) {
+    case 0:
+    case 2:
+        Action(K_B, 110);
+        break;
+    case 1:
+        Action(left ? K_LEFT : K_RIGHT, 60);
+        break;
+    default:
+        Fail("block: it did not move");
+        break;
+    }
+    return 0;
+}
+
 /* A door cell near a world point (the tap can be on the door's upper half,
  * a cell above the one Kirby stands in to use it): 1 and the cell. */
 static int DoorNear(s32 px, s32 py, int tol, int *ocx, int *ocy)
@@ -929,6 +1137,29 @@ static void Action(u16 keys, int frames)
     sAct.keys = keys;
     sAct.frames = frames;
     sAct.gap = 2;               /* a release first, so the press is an edge */
+    sAct.nNext = 0;
+}
+
+/* One more step after the current action, straight on (no release). */
+static void ActionThen(u16 keys, int frames)
+{
+    if (sAct.nNext < 3) {
+        sAct.next[sAct.nNext] = keys;
+        sAct.nextFrames[sAct.nNext] = (u8)frames;
+        sAct.nNext++;
+    }
+}
+
+/* The slide, a ground kick: face DIR (-1 left, 1 right, 0 as he is), crouch
+ * (Down), then A with Down still held.  Down+A from nothing is a jump. */
+static void Slide(int dir)
+{
+    if (dir) {
+        Action(dir < 0 ? K_LEFT : K_RIGHT, 2);
+        ActionThen(K_DOWN, 6);
+    } else
+        Action(K_DOWN, 6);
+    ActionThen(K_DOWN | K_A, 6);
 }
 
 static void TapKirby(void)
@@ -951,6 +1182,15 @@ static void SwipeKirby(void)
                 keys == K_SELECT ? "drop ability" : "swallow");
     Clear("swipe kirby");
     Action(keys, 6);
+}
+
+/* A swipe from Kirby, diagonally down: the slide, that way. */
+static void KickKirby(int dir)
+{
+    if (Log())
+        PortLog("[tap] f%u kirby: swipe diagonal (slide %s)", (unsigned)PortFrameNumber(), dir < 0 ? "left" : "right");
+    Clear("swipe kick");
+    Slide(dir);
 }
 
 static int NearKirby(s32 px, s32 py)
@@ -982,13 +1222,50 @@ static void GestureDown(s32 px, s32 py)
                     (int)(o->base.x >> 8), (int)(o->base.y >> 8));
         return;
     }
-    if ((o = SwitchAt(px, py, tol)) != NULL) {
+    if (!DoorNear(px, py, tol, &dcx, &dcy) && (o = ThingAt(px, py, tol + 8, IsDoorObj)) != NULL) {
+        /* a door object over no door tile: its standing cell, then Up */
+        int cx = Clamp(o->base.x >> 12, 0, sW - 1), cy = Clamp(((o->base.y >> 8) - 4) >> 4, 0, sH - 1), i;
+
+        for (i = 0; i < 2 && !Supported(cx, cy) && Open(cx, cy + 1); i++)
+            cy++;
+        SetDoor(cx, cy);
+        sP.kind = G_MARK;
+        if (Log())
+            PortLog("[tap] f%u door object type 0x%02X at %d,%d -> cell %d,%d", (unsigned)PortFrameNumber(), o->type,
+                    (int)(o->base.x >> 8), (int)(o->base.y >> 8), cx, cy);
+        return;
+    }
+    if ((o = ThingAt(px, py, tol, IsChest)) != NULL) {
+        /* a chest: walk into it and press Up, as at a door */
+        int cx = Clamp(o->base.x >> 12, 0, sW - 1), cy = Clamp(((o->base.y >> 8) - 4) >> 4, 0, sH - 1), i;
+
+        for (i = 0; i < 2 && !Supported(cx, cy) && Open(cx, cy + 1); i++)
+            cy++;                               /* stand on the floor in it  */
+        SetDoor(cx, cy);
+        sT.chest = 1;
+        sT.mx = o->base.x >> 8;
+        sT.my = (o->base.y >> 8) + o->base.unk3D / 2;
+        sP.kind = G_MARK;
+        if (Log())
+            PortLog("[tap] f%u chest type 0x%02X at %d,%d", (unsigned)PortFrameNumber(), o->type,
+                    (int)(o->base.x >> 8), (int)(o->base.y >> 8));
+        return;
+    }
+    if ((o = ThingAt(px, py, tol, IsSwitch)) != NULL) {
         SetSwitch(o);
         sP.kind = G_MARK;
         if (Log())
             PortLog("[tap] f%u switch type 0x%02X at %d,%d%s -> stand %d,%d", (unsigned)PortFrameNumber(), o->type,
                     (int)(o->base.x >> 8), (int)(o->base.y >> 8), sT.wasDown ? " (down already)" : "", (int)sT.x,
                     (int)sT.y);
+        return;
+    }
+    if ((o = PushAt(px, py, tol)) != NULL) {
+        SetPush(o);
+        sP.kind = G_MARK;
+        if (Log())
+            PortLog("[tap] f%u heavy block type 0x%02X at %d,%d -> from cell %d,%d%s", (unsigned)PortFrameNumber(),
+                    o->type, (int)sT.mx, (int)sT.my, sT.cx, sT.cy, sT.air ? " (air)" : "");
         return;
     }
     if (Log() >= 3)
@@ -999,6 +1276,14 @@ static void GestureDown(s32 px, s32 py)
         sP.kind = G_MARK;
         if (Log())
             PortLog("[tap] f%u door at cell %d,%d", (unsigned)PortFrameNumber(), dcx, dcy);
+        return;
+    }
+    if (BlockNear(px, py, tol / 2, &dcx, &dcy)) {
+        SetBlock(dcx, dcy);
+        sP.kind = G_MARK;
+        if (Log())
+            PortLog("[tap] f%u block at cell %d,%d (strength %u) -> from %d,%d%s", (unsigned)PortFrameNumber(), dcx,
+                    dcy, (unsigned)((Attr(dcx, dcy) >> 20) & 0xF), sT.cx, sT.cy, sT.air ? " (air)" : "");
         return;
     }
     if ((o = ObjAt(px, py, tol, 1)) != NULL) {  /* food and the like: walk to it */
@@ -1020,10 +1305,26 @@ static void GestureMove(s32 px, s32 py)
         sP.moved = 1;
     switch (sP.kind) {
     case G_KIRBY:
-        if (dy > far && dy > Abs(dx)) {
+    case G_INHALE:
+        /* from Kirby: straight down swallows (or drops the ability),
+         * straight up calls for help (R, the phone), diagonally (up or
+         * down) slides that way, sideways is a drag (not while inhaling:
+         * then it is only the finger wandering) */
+        if (!sP.moved)
+            break;
+        if (dy > 0 && 2 * Abs(dx) < dy) {
             SwipeKirby();
             sP.kind = G_DONE;
-        } else if (sP.moved) {
+        } else if (dy < 0 && 2 * Abs(dx) < -dy) {
+            if (Log())
+                PortLog("[tap] f%u kirby: swipe up (call for help, R)", (unsigned)PortFrameNumber());
+            Clear("swipe up");
+            Action(K_R, 6);
+            sP.kind = G_DONE;
+        } else if (3 * Abs(dy) >= Abs(dx)) {
+            KickKirby(dx < 0 ? -1 : 1);
+            sP.kind = G_DONE;
+        } else if (sP.kind == G_KIRBY) {
             sP.kind = G_DRAG;               /* dragged off Kirby: go there   */
             SetGo(px, py);
         }
@@ -1091,9 +1392,9 @@ static void Events(void)
 
         if (kind == PORT_UI_DOWN) {
             if (sP.on && id != sP.id) {         /* a second finger: attack   */
-                sSecondId = id;
-                Action(K_B, 6);
-                continue;
+                sSecondId = id;                 /* (on release, if quick: a  */
+                sSecondT0 = sTick;              /* hold is L, which must be  */
+                continue;                       /* its own fresh press)      */
             }
             memset(&sP, 0, sizeof(sP));
             sP.on = 1;
@@ -1103,8 +1404,11 @@ static void Events(void)
             sP.t0 = sTick;
             GestureDown(x, y);
         } else if (!sP.on || id != sP.id) {
-            if (id == sSecondId && kind != PORT_UI_MOVE)
+            if (id == sSecondId && kind != PORT_UI_MOVE) {
+                if (kind == PORT_UI_UP && sTick - sSecondT0 < TAP_HOLD_L)
+                    Action(K_B, 6);
                 sSecondId = -1;
+            }
         } else if (kind == PORT_UI_MOVE) {
             sP.x = x;
             sP.y = y;
@@ -1515,10 +1819,50 @@ static u16 PressSwitch(struct Kirby *k, s32 kx)
         break;
     case 1:
     case 3:
-        Action(K_DOWN | K_A, 6);
+        Slide(left ? -1 : 1);
         break;
     default:
         Fail("switch: it did not go down");
+        break;
+    }
+    return 0;
+}
+
+/* Beside a breakable block, facing it, and it is still there.  Each try
+ * waits 12 frames: B (a star with a mouthful, the ability's attack, an air
+ * puff when puffed; with nothing, a long inhale, which may pull the block
+ * or an enemy in), then a star if something came in, else a slide; again. */
+static u16 HitBlock(struct Kirby *k)
+{
+    int left = sT.face < 0, fl = k->base.flags;
+
+    if (!(fl & KF_FLY) && ((fl & KF_LEFT) != 0) != left)
+        return left ? K_LEFT : K_RIGHT;         /* turn to face it           */
+    if (!(fl & KF_FLY) && !(k->base.unk62 & KH_FLOOR))
+        return 0;
+    if (++sT.wait < 12)
+        return 0;
+    sT.wait = 0;
+    if (Log())
+        PortLog("[tap] f%u block %d,%d: try %d (%s)", (unsigned)PortFrameNumber(), sT.bx, sT.by, sT.tries,
+                (fl & KF_MOUTH) ? "mouthful" : (fl & KF_FLY) ? "puffed" : k->ability ? "ability" : "nothing");
+    switch (sT.tries++) {
+    case 0:
+    case 2:
+        if ((fl & (KF_MOUTH | KF_FLY)) || k->ability != KIRBY_ABILITY_NORMAL)
+            Action(K_B, 6);
+        else
+            Action(K_B, 40);
+        break;
+    case 1:
+    case 3:
+        if ((fl & (KF_MOUTH | KF_FLY)) || !(k->base.unk62 & KH_FLOOR))
+            Action(K_B, 6);
+        else
+            Slide(left ? -1 : 1);
+        break;
+    default:
+        Fail("block: it did not break");
         break;
     }
     return 0;
@@ -1563,8 +1907,78 @@ static u16 Drive(void)
             sAct.gap--;
             return 0;
         }
-        sAct.frames--;
-        return sAct.keys;
+        keys = sAct.keys;
+        if (--sAct.frames == 0 && sAct.nNext > 0) {
+            int j;
+
+            sAct.keys = sAct.next[0];
+            sAct.frames = sAct.nextFrames[0];
+            for (j = 1; j < sAct.nNext; j++) {
+                sAct.next[j - 1] = sAct.next[j];
+                sAct.nextFrames[j - 1] = sAct.nextFrames[j];
+            }
+            sAct.nNext--;
+        }
+        return keys;
+    }
+    /* two fingers held: L, for as long as they stay ("hold L to start
+     * over", the tutorial's last card) */
+    if (sP.on && sSecondId >= 0 && sTick - sSecondT0 >= TAP_HOLD_L) {
+        if (sTick - sSecondT0 == TAP_HOLD_L) {
+            if (Log())
+                PortLog("[tap] f%u two fingers held: L", (unsigned)PortFrameNumber());
+            Clear("two fingers");
+            sP.kind = G_DONE;                   /* lifting it is not a tap   */
+        }
+        return K_L;
+    }
+    /* a finger held still on Kirby: inhale (B) for as long as it stays */
+    if (sP.on && sP.kind == G_KIRBY && sSecondId < 0 && sTick - sP.t0 >= TAP_HOLD) {
+        s32 dx = sP.x - sP.x0, dy = sP.y - sP.y0;
+        int slop = FingerWorld(9.0f, 3, 10);
+
+        if (dx * dx + dy * dy <= slop * slop) {
+            if (Log())
+                PortLog("[tap] f%u kirby: hold (inhale)", (unsigned)PortFrameNumber());
+            Clear("hold kirby");
+            sP.kind = G_INHALE;
+        }
+    }
+    if (sP.on && sP.kind == G_INHALE)
+        return K_B;
+    /* the kinds with a thing to act on: is it done? */
+    if (sT.kind == T_BLOCK) {
+        if (!Breakable(sT.bx, sT.by)) {
+            if (Log())
+                PortLog("[tap] f%u block %d,%d broken after %d frames", (unsigned)PortFrameNumber(), sT.bx, sT.by,
+                        sT.frames);
+            Clear("block broken");
+            return 0;
+        }
+        if (sT.frames > 1200) {
+            Fail("block: gave up");
+            return 0;
+        }
+    } else if (sT.kind == T_PUSH) {
+        s32 x, y, w, h, ox;
+
+        if (!ObjLive(sT.obj, sT.objType)) {
+            Clear("block gone");
+            return 0;
+        }
+        Box(sT.obj, &x, &y, &w, &h);
+        ox = sT.obj->base.x >> 8;
+        if (Abs(ox - sT.startX) >= 8 || Abs(y + h / 2 - sT.my) >= 8) {
+            if (Log())
+                PortLog("[tap] f%u moved the block %d px (now %d,%d) after %d frames", (unsigned)PortFrameNumber(),
+                        (int)(ox - sT.startX), (int)(x + w / 2), (int)(y + h / 2), sT.frames);
+            Clear("pushed");
+            return 0;
+        }
+        if (sT.frames > 900) {
+            Fail("push: gave up");
+            return 0;
+        }
     }
     if (sT.kind == T_NONE)
         return 0;
@@ -1605,9 +2019,11 @@ static u16 Drive(void)
             return 0;
         }
         /* fall through: walk there */
+    case T_BLOCK:
+    case T_PUSH:
     case T_DOOR:
     case T_GO: {
-        int hover = sT.kind == T_GO && sT.air;
+        int hover = (sT.kind == T_GO || sT.kind == T_BLOCK || sT.kind == T_PUSH) && sT.air;
         int goal = sT.cy * sW + sT.cx;
         int dx, dy, there;
 
@@ -1646,6 +2062,12 @@ static u16 Drive(void)
                         (int)sT.x, (int)sT.y, sT.frames);
             sT.arrived++;
             if (sT.kind == T_DOOR) {
+                if (sT.chest && (k->animationIndex == 96 || k->animationIndex == 55)) {
+                    if (Log())                  /* sub_0804B6FC: the opening  */
+                        PortLog("[tap] f%u chest opened", (unsigned)PortFrameNumber());
+                    Clear("chest opened");
+                    return 0;
+                }
                 /* on the ground, not puffed, then Up */
                 if (k->base.flags & KF_FLY) {
                     if (!sC.bGap) {
@@ -1661,12 +2083,16 @@ static u16 Drive(void)
                 if (sC.upHold > 40) {
                     sC.upHold = 0;
                     if (++sT.tries > 4)
-                        Fail("door: Up did nothing");
+                        Fail(sT.chest ? "chest: Up did nothing" : "door: Up did nothing");
                 }
                 return 0;
             }
             if (sT.kind == T_SWITCH)
                 return PressSwitch(k, kx);
+            if (sT.kind == T_BLOCK)
+                return HitBlock(k);
+            if (sT.kind == T_PUSH)
+                return MoveBlock(k);
             if (hover) {
                 keys = Steer(k, kx, ky, 3, 1);
                 break;
@@ -1683,7 +2109,7 @@ static u16 Drive(void)
                 Clear("arrived");
             return 0;
         }
-        if (sT.arrived && !hover && (sT.kind == T_GO || sT.kind == T_SWITCH))
+        if (sT.arrived && !hover && sT.kind != T_DOOR)
             sT.arrived = 0;
         keys = Steer(k, kx, ky, sT.kind == T_DOOR || sT.kind == T_SWITCH ? 3 : 4, hover);
         break;
@@ -1739,6 +2165,7 @@ unsigned short PortTapFrame(unsigned short hostKeys)
         if (sT.kind != T_NONE || sAct.frames)
             Clear("manual input");
         sAct.frames = 0;
+        sAct.nNext = 0;
         sEvN = 0;
     } else {
         Events();
@@ -1765,6 +2192,11 @@ unsigned short PortTapFrame(unsigned short hostKeys)
  *   swipekirby         a swipe down from Kirby
  *   tapenemy           a tap on the nearest enemy
  *   tapswitch          a tap on the nearest switch
+ *   tappush            a tap on the nearest pushable block
+ *   downkirby / upkirby   a finger down on Kirby, and up (held between: inhale)
+ *   kickkirby L|R      a swipe from Kirby diagonally down that way
+ *   swipeupkirby       a swipe up from Kirby (R: call for help)
+ *   down2 / up2        a second finger down near Kirby, and up (held: L)
  * Returns 1 if the command was one of these. */
 int PortTapScript(const char *cmd)
 {
@@ -1822,14 +2254,14 @@ int PortTapScript(const char *cmd)
         int x, y;
 
         GridUpdate();
-        PortLog("[tap] grid room %u %dx%d kirby %d,%d ability %d flags %X hp %d", (unsigned)Li()->currentRoom, sW, sH,
-                (int)kx, (int)ky, k->ability, (unsigned)(k->base.flags & 0xFF), k->hp);
+        PortLog("[tap] grid room %u %dx%d kirby %d,%d ability %d flags %X hp %d battery %d", (unsigned)Li()->currentRoom,
+                sW, sH, (int)kx, (int)ky, k->ability, (unsigned)(k->base.flags & 0xFF), k->hp, k->battery);
         for (y = 0; y < sH; y++) {
             int n = snprintf(line, sizeof line, "[tap] %3d ", y);
 
             for (x = 0; x < sW && n < (int)sizeof(line) - 2; x++) {
                 u8 c = Cl(x, y);
-                char ch = (c & CL_HAZ) ? '^' : (c & CL_SOLID) ? '#' : (c & CL_DOOR) ? 'D' : (c & CL_DROP) ? '='
+                char ch = Breakable(x, y) ? 'B' : (c & CL_HAZ) ? '^' : (c & CL_SOLID) ? '#' : (c & CL_DOOR) ? 'D' : (c & CL_DROP) ? '='
                         : (c & CL_PLAT) ? '-' : (c & CL_WATER) ? '~' : (c & CL_LADDER) ? 'H' : (c & CL_SLOPE) ? '/' : '.';
 
                 if (x == kx >> 4 && y == ky >> 4)
@@ -1844,9 +2276,10 @@ int PortTapScript(const char *cmd)
             int i = 0;
 
             while ((ob = NextObject(&i)) != NULL) {
-                PortLog("[tap] %s type 0x%02X at %d,%d (cell %d,%d) hp %d ability %d", IsEnemy(ob) ? "enemy" : IsItem(ob) ? "item" : "object",
+                PortLog("[tap] %s type 0x%02X at %d,%d (cell %d,%d) hp %d ability %d rect %d,%d,%d,%d", IsEnemy(ob) ? "enemy" : IsItem(ob) ? "item" : "object",
                             ob->type, (int)(ob->base.x >> 8), (int)(ob->base.y >> 8), (int)(ob->base.x >> 12),
-                            (int)(ob->base.y >> 12), ob->unk80, ob->kirbyAbility);
+                            (int)(ob->base.y >> 12), ob->unk80, ob->kirbyAbility, ob->base.unk3C, ob->base.unk3D,
+                            ob->base.unk3E, ob->base.unk3F);
             }
         }
     } else if (strcmp(cmd, "tapkirby") == 0) {
@@ -1856,6 +2289,48 @@ int PortTapScript(const char *cmd)
         PortTapWorld(PORT_UI_DOWN, kx, ky, 1);
         PortTapWorld(PORT_UI_MOVE, kx, ky + 40, 1);
         PortTapWorld(PORT_UI_UP, kx, ky + 40, 1);
+    } else if (strcmp(cmd, "downkirby") == 0) {
+        PortTapWorld(PORT_UI_DOWN, kx, ky, 1);
+    } else if (strcmp(cmd, "upkirby") == 0) {
+        PortTapWorld(PORT_UI_UP, sP.on ? sP.x : kx, sP.on ? sP.y : ky, 1);
+    } else if (strcmp(cmd, "swipeupkirby") == 0) {
+        PortTapWorld(PORT_UI_DOWN, kx, ky, 1);
+        PortTapWorld(PORT_UI_MOVE, kx, ky - 40, 1);
+        PortTapWorld(PORT_UI_UP, kx, ky - 40, 1);
+    } else if (strcmp(cmd, "down2") == 0) {
+        PortTapWorld(PORT_UI_DOWN, kx + 40, ky, 2);
+    } else if (strcmp(cmd, "up2") == 0) {
+        PortTapWorld(PORT_UI_UP, kx + 40, ky, 2);
+    } else if (strncmp(cmd, "kickkirby ", 10) == 0) {
+        int dir = cmd[10] == 'L' ? -1 : 1;
+
+        PortTapWorld(PORT_UI_DOWN, kx, ky, 1);
+        PortTapWorld(PORT_UI_MOVE, kx + dir * 30, ky + 30, 1);
+        PortTapWorld(PORT_UI_UP, kx + dir * 30, ky + 30, 1);
+    } else if (strcmp(cmd, "tappush") == 0) {
+        struct Object *best = NULL, *ob;
+        s32 bd = 0x7FFFFFFF;
+        int i = 0;
+
+        while ((ob = NextObject(&i)) != NULL) {
+            s32 dx = (ob->base.x >> 8) - kx, dy = (ob->base.y >> 8) - ky, d = dx * dx + dy * dy;
+
+            if (IsPushable(ob) && d < bd) {
+                bd = d;
+                best = ob;
+            }
+        }
+        if (best == NULL) {
+            PortLog("[tap] f%u tappush: no block in the room", (unsigned)PortFrameNumber());
+            return 1;
+        }
+        {
+            s32 x, y, w, h;
+
+            Box(best, &x, &y, &w, &h);
+            PortTapWorld(PORT_UI_DOWN, x + w / 2, y + h / 2, 1);
+            PortTapWorld(PORT_UI_UP, x + w / 2, y + h / 2, 1);
+        }
     } else if (strcmp(cmd, "tapswitch") == 0) {
         /* a tap on the nearest switch in the room */
         struct Object *best = NULL, *ob;
@@ -2046,8 +2521,10 @@ void PortTapHudDraw(int fbW, int fbH, const int world[4], int smooth)
         ty = sT.failY;
     } else {
         red = sT.kind == T_DOOR;
-        tx = sT.kind == T_SWITCH ? sT.mx : sT.x;
-        ty = sT.kind == T_SWITCH ? sT.my : sT.kind == T_DOOR ? sT.cy * 16 + 4 : sT.air ? sT.y : sT.cy * 16 + 10;
+        int onThing = sT.kind == T_SWITCH || sT.kind == T_BLOCK || sT.kind == T_PUSH || sT.chest;
+
+        tx = onThing ? sT.mx : sT.x;
+        ty = onThing ? sT.my : sT.kind == T_DOOR ? sT.cy * 16 + 4 : sT.air ? sT.y : sT.cy * 16 + 10;
     }
     {
         int prev = sMkKey[0], phase = (int)((sTick / 6) % 4);

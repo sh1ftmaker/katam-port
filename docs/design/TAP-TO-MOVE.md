@@ -33,20 +33,51 @@ it opens up the screen to not need button controls."*
 | tap | inside solid ground | goes to the top of that block (or the nearest open cell) |
 | hold and drag | anywhere | the target follows the finger; let go and he stops where it was released |
 | tap | an enemy (finger-sized slop) | marks it with a red reticle; he stands off on its row at the right range, faces it, then: no ability -- inhales it (B held); a mouthful -- spits a star at it; an ability -- attacks with B (range per ability).  Puffed, he exhales at it.  The mark goes when the enemy does (or after 15 s / 6 bouts) |
-| tap | a door, mirror or star door (its picture: the door cell or the one above) | walks to it, lets the air out if puffed, presses Up |
+| tap | a door, mirror or star door (its picture: the door cell or the one above; a door that is an object -- the hub's mirrors, an area door -- by its own rect, 8 px more slop) | walks to it, lets the air out if puffed, presses Up |
+| tap | a treasure chest | walks into it and presses Up (that is what opens one); done when he plays the opening |
+| tap | a breakable block (star block, bomb block; finger-sized slop) | yellow ring on it; stands right beside it on ground (its row, or the row above or below in the same column, which is then the one he hits; else two cells off; else hovering beside it), faces it and hits: B (a star with a mouthful, the ability's attack, an air puff when puffed; with nothing, a long inhale -- weak blocks come in, then a star), else a slide; again; then the red ring.  Done when that cell is no longer breakable.  Hard blocks (strength 2..4) want the right ability: he tries, the game decides |
+| tap | a heavy star block (star stone blocks, the pushable kind) | stands on its row within 1..3 cells on ground, faces it, and holds B 110 frames: the strong inhale (B held 48 frames, `sub_080720F8`) is a push of 2, which is what one moves (a walk into it is 1: two Kirbys); then a walk into it, then the inhale again.  Done when it moved 8 px or fell |
 | tap | food, a 1-up, a battery, candy | walks to it (touching takes it) |
 | tap | a puzzle switch, small floor button or big switch (the switch's own rect, finger-sized slop) | yellow ring on it; walks onto it and stops there -- his body is a hit of the type both kinds take (`unk68` 0x82), so standing on it presses it, and he stays on it (a held switch stays down).  Done when the switch reports down (`unkB6` 0x101) with him stopped on it.  If it does not go down: a hop onto it, then from beside it, facing it, B, a slide, B, a slide, then the red ring.  A switch the game made inert is not one (a tap there is a walk) |
 | tap | Kirby | attacks in place (B): with a mouthful that spits, puffed it exhales; clears any target |
+| hold | Kirby, still (14 frames, within finger slop) | inhales for as long as the finger stays (B held): long enough, the strong inhale that moves heavy blocks; a swipe down from the hold swallows |
 | swipe down | starting on Kirby | a mouthful: swallow (Down); an ability: drop it (Select); else crouch |
-| second finger | anywhere, while one is down | attack (B) |
+| swipe diagonally | starting on Kirby, up or down | the slide, a ground kick, that way: face it, Down 6 frames, then Down+A (Down+A from nothing is a jump) |
+| swipe up | starting on Kirby | calls for help: R, the phone (a battery bar; the helpers come) |
+| second finger | anywhere, while one is down | a quick tap: attack (B, on release); held 30 frames with the first: L, held while both stay -- "hold L to start over" (48 frames of it return to the hub where the room allows) |
 | pause button | top left (the page's Start pad, restyled) | Start, as ever |
 
 A real pad or keyboard press (not Start or Select) takes the autopilot's hands
 off at once: manual input always wins.
 
-Not done: guard (R/L is the phone and a map in this game, so there is no
-cheap gesture for it yet), ladders as such (he flies past them), the throw
+Not done: guard (the game has none to teach; R/L are the phone and the
+return to the hub, above), ladders as such (he flies past them), the throw
 and stone abilities' special uses.
+
+## The tutorial, lesson by lesson
+
+The tutorial (rooms 803-805; the story before NORMAL) is "follow the
+helpers": no instruction cards until its end, the three CPU Kirbys walk
+ahead as you trip the room's triggers and demonstrate.  What each room asks
+of the player, and the tap that does it (tests/tap_tutorial.sh plays it all,
+from a new game, with the page's default CPU AI mix, fingers only but A on
+the last card):
+
+| room | the lesson | with tap to move |
+|---|---|---|
+| 803 | walk, jump, fly over the pillar's foot | tap ahead; the path jumps and flies |
+| 803 | inhale an enemy, spit it, swallow it | tap the enemy (inhale), tap Kirby (spit) or swipe down (swallow); or hold Kirby (inhale) |
+| 803 | break the star blocks under the pillar (the only way on) | tap a block: a long inhale takes it in, or a star breaks it |
+| 804 | a floor switch opens a sliding door; a second, down in a pit, holds the next | tap each switch: he stands on it |
+| 804 | a bomb block: hit it and its chain of metal blocks goes | tap it: a long inhale or a hit sets it off |
+| 804 | a heavy star block in the only gap: drag it off its ledge | tap it: the strong inhale (B held) moves it |
+| 805 | copy abilities (Sword Knight, Cupie, Flamer): take one, use it, cut blocks | tap the enemy, swipe down; tap the blocks (the ability's attack) |
+| 805 | the big chest (the map): Up inside it | tap the chest |
+| 805 | the mirror to the hub, then the card "Using L & R: call for help with R, hold L to start over" | tap the mirror; the card takes A (the pads come back while it is up); then swipe up from Kirby (R) and two fingers held (L) |
+
+The slide is no room's gate but the helpers' scripts use it in puzzle rooms
+(146, 206, 426, 617, 733, 815: "go to a node, face right, slide"), so it
+is a gesture of its own (the diagonal swipe).
 
 ## The decisions, and why
 
