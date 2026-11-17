@@ -35,6 +35,7 @@ it opens up the screen to not need button controls."*
 | tap | an enemy (finger-sized slop) | marks it with a red reticle; he stands off on its row at the right range, faces it, then: no ability -- inhales it (B held); a mouthful -- spits a star at it; an ability -- attacks with B (range per ability).  Puffed, he exhales at it.  The mark goes when the enemy does (or after 15 s / 6 bouts) |
 | tap | a door, mirror or star door (its picture: the door cell or the one above) | walks to it, lets the air out if puffed, presses Up |
 | tap | food, a 1-up, a battery, candy | walks to it (touching takes it) |
+| tap | a puzzle switch, small floor button or big switch (the switch's own rect, finger-sized slop) | yellow ring on it; walks onto it and stops there -- his body is a hit of the type both kinds take (`unk68` 0x82), so standing on it presses it, and he stays on it (a held switch stays down).  Done when the switch reports down (`unkB6` 0x101) with him stopped on it.  If it does not go down: a hop onto it, then from beside it, facing it, B, a slide, B, a slide, then the red ring.  A switch the game made inert is not one (a tap there is a walk) |
 | tap | Kirby | attacks in place (B): with a mouthful that spits, puffed it exhales; clears any target |
 | swipe down | starting on Kirby | a mouthful: swallow (Down); an ability: drop it (Select); else crouch |
 | second finger | anywhere, while one is down | attack (B) |
@@ -236,8 +237,11 @@ diverged), `tests/cpu_ai.sh`, `make input-devices-test`.
 - Water: steering and a dive work; swimming was barely exercised (the one
   water pool in the sweep sits behind a cannon).  Cannons catch him (avoided
   when there is another way; a stalled Kirby presses A, which fires one).
-- Gates, switches, ability blocks: a target behind them is "cannot get
-  there" (red); he does not press switches or fetch abilities.
+- Gates and ability blocks: a target behind them is "cannot get there"
+  (red); he does not fetch abilities.  Switches he presses when tapped
+  (tests/tap_nav.sh: a small one in room 310, a big one in 390; a timed
+  one in 610 by hand), but only ones he can reach: a switch inside the
+  puzzle it solves shows the red ring.
 - Ladders: not climbed as ladders; he flies.
 - One door per tap; no "go to the next room" route across doors (the CPU AI's
   door-group routing could do it, see "Next").

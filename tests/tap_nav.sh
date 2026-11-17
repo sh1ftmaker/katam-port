@@ -17,6 +17,10 @@
 #                (83,8) across the hill, the column and both pits -> 106
 #   106          the lower door (76,7), across the room -> 107
 #
+# Switches, two more live runs (warped in at 1400, `tapswitch` at 1720):
+#   310          a small floor switch: Kirby walks onto it, stops, it goes down
+#   390          a big switch: the same (his body's touch is the hit)
+#
 # Then the live run's own recording is replayed, without and with the tap
 # controls on: all three hash logs must be identical (the autopilot's keys
 # are recorded as keys; a replay needs nothing of it), and the recording
@@ -54,6 +58,12 @@ d=$(mktemp -d -p "$TMP")
 KATAM_TAP=1 KATAM_TAP_LOG=1 env_run "$d" "$BIN" --no-audio --turbo --frames $FRAMES \
     --mash 120:11:20:1300 --devices "$TMP/taps.dev" --warp 1400:801:24:12 \
     --record "$TMP/live.rec" --hash-log "$TMP/live.hash" "$ROM" >"$TMP/live.log" 2>&1
+for sw in 310:4:9 390:3:6; do
+    printf '@1200 poke16 203AD2C 12C\n@1500 kb a A\n@1503 kb a 0\n@1720 tapswitch\n' >"$TMP/sw.dev"
+    d=$(mktemp -d -p "$TMP")
+    KATAM_TAP=1 KATAM_TAP_LOG=1 env_run "$d" "$BIN" --no-audio --turbo --frames 2600 \
+        --mash 120:11:20:1300 --devices "$TMP/sw.dev" --warp "1400:$sw" "$ROM" >"$TMP/sw-${sw%%:*}.log" 2>&1
+done
 d=$(mktemp -d -p "$TMP")
 env_run "$d" "$BIN" --no-audio --turbo --replay "$TMP/live.rec" --hash-log "$TMP/replay.hash" \
     "$ROM" >"$TMP/replay.log" 2>&1
@@ -98,6 +108,12 @@ ab=$(grep "\[tap\] grid room 101" "$L" | head -1 | sed -n 's/.* ability \([0-9]*
     || fail "101: no ability after the swipe (${ab:-?})"
 check_door 101 106
 check_door 106 107
+for rt in 310:6D:small 390:86:big; do
+    r=${rt%%:*} t=${rt#*:} t=${t%%:*} n=${rt##*:}
+    f=$(grep -m1 "\[tap\] f[0-9]* switch down (type 0x$t, stood on)" "$TMP/sw-$r.log" | awk '{print $2, "after", $(NF-1)}')
+    [ -n "$f" ] && ok "$r: the $n switch went down under Kirby ($f frames)" \
+        || fail "$r: the $n switch never went down"
+done
 
 if [ -s "$TMP/live.hash" ] && cmp -s "$TMP/live.hash" "$TMP/replay.hash" && cmp -s "$TMP/live.hash" "$TMP/replay-tap.hash"; then
     ok "replay: $(wc -l <"$TMP/live.hash") frames, the live run's hash log replays identically (tap controls off and on)"

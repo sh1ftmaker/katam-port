@@ -56,6 +56,7 @@
 #include "kirby.h"
 #include "object.h"
 #include "task.h"
+#include "big_small_switch.h"
 #include "constants/kirby.h"
 #include "constants/object_types.h"
 #include "port/port.h"
@@ -109,15 +110,19 @@ static u16 sKeys;               /* what the last frame returned             */
 static u32 sTick;               /* frames stepped (host clock, for gestures) */
 
 /* The target. */
-enum { T_NONE, T_GO, T_DOOR, T_ENEMY };
+enum { T_NONE, T_GO, T_DOOR, T_ENEMY, T_SWITCH };
 static struct {
     int kind;
     s32 x, y;                   /* world px: where Kirby's centre should end */
     int cx, cy;                 /* its cell                                   */
     int air;                    /* GO: hover there rather than stand          */
     u16 room;
-    struct Object *obj;         /* ENEMY                                      */
+    struct Object *obj;         /* ENEMY, SWITCH                              */
     u8 objType;
+    int hit;                    /* SWITCH: 0 stand on it, 1 hit it from beside */
+    int wasDown;                /* SWITCH: already down when tapped           */
+    int wait;                   /* SWITCH: frames standing at it this try     */
+    s32 mx, my;                 /* SWITCH: where the marker goes              */
     int arrived;                /* frames since arrival (0: on the way)       */
     int frames;                 /* frames since set                           */
     int best, stall;            /* watchdog: best cost-to-go, frames without  */
@@ -604,6 +609,22 @@ static int IsItem(const struct Object *o)
             || o->type == OBJ_INVINCIBLE_CANDY);
 }
 
+/* A puzzle switch (game/src/big_small_switch.c): the small floor button or
+ * the big one (a person's hit only).  Kirby's body is itself an attack of
+ * the type both take (unk68 0x82, kirby.c), so walking onto one presses
+ * it.  0x40: the game made it inert (a big switch pressed on an earlier
+ * visit); 0x1000: gone. */
+static int IsSwitch(const struct Object *o)
+{
+    return (o->type == OBJ_SMALL_BUTTON || o->type == OBJ_BIG_BUTTON) && !(o->base.flags & 0x1040);
+}
+
+/* Down now (sub_081197D4: 0x100 pressed this frame, 1 held). */
+static int SwitchDown(const struct Object *o)
+{
+    return (((const struct Switch *)o)->unkB6 & 0x101) != 0;
+}
+
 /* An object's hitbox in world px: x y w h. */
 static void Box(const struct Object *o, s32 *x, s32 *y, s32 *w, s32 *h)
 {
@@ -646,6 +667,18 @@ static struct Object *NextObject(int *i)
     return NULL;
 }
 
+/* Still there: a live object of that type (not the slot reused). */
+static int ObjLive(const struct Object *want, u8 type)
+{
+    struct Object *ob;
+    int i = 0;
+
+    while ((ob = NextObject(&i)) != NULL)
+        if (ob == want)
+            return ob->type == type && !(ob->base.flags & 0x1000);
+    return 0;
+}
+
 /* Still there: a live object, the same kind, alive. */
 static int ObjAlive(const struct Object *want, u8 type)
 {
@@ -674,6 +707,36 @@ static struct Object *ObjAt(s32 px, s32 py, int tol, int items)
         Box(ob, &x, &y, &w, &h);
         dx = px < x ? x - px : px > x + w ? px - (x + w) : 0;
         dy = py < y ? y - py : py > y + h ? py - (y + h) : 0;
+        if (dx > tol || dy > tol)
+            continue;
+        d = dx * dx + dy * dy;
+        if (d < bd) {
+            bd = d;
+            best = ob;
+        }
+    }
+    return best;
+}
+
+/* The switch under a world point, within `tol` px of its bounds (the
+ * switch's own rect, base + unk3C..unk3F, as the game tests it). */
+static struct Object *SwitchAt(s32 px, s32 py, int tol)
+{
+    struct Object *best = NULL, *ob;
+    s32 bd = 0x7FFFFFFF;
+    int i = 0;
+
+    while ((ob = NextObject(&i)) != NULL) {
+        s32 x0, y0, x1, y1, dx, dy, d;
+
+        if (!IsSwitch(ob))
+            continue;
+        x0 = (ob->base.x >> 8) + ob->base.unk3C;
+        y0 = (ob->base.y >> 8) + ob->base.unk3D;
+        x1 = (ob->base.x >> 8) + ob->base.unk3E;
+        y1 = (ob->base.y >> 8) + ob->base.unk3F;
+        dx = px < x0 ? x0 - px : px > x1 ? px - x1 : 0;
+        dy = py < y0 ? y0 - py : py > y1 ? py - y1 : 0;
         if (dx > tol || dy > tol)
             continue;
         d = dx * dx + dy * dy;
@@ -790,6 +853,46 @@ static void SetEnemy(struct Object *o)
     sT.y = o->base.y >> 8;
 }
 
+/* Where Kirby stands for a switch: on it, or (hit) beside it on his side
+ * (the other side when his side is a wall), facing it. */
+static void SwitchSpot(void)
+{
+    struct Object *o = sT.obj;
+    s32 sx = o->base.x >> 8, sy = o->base.y >> 8, kx = Me()->base.x >> 8, x = sx;
+    int cy = (sy - 4) >> 4, side;
+
+    if (sT.hit) {
+        side = o->base.unk3E + 12;              /* its half width, and Kirby's */
+        x = kx < sx ? sx - side : sx + side;
+        if (!Open(Clamp(x, 0, sW * 16 - 1) >> 4, cy))
+            x = kx < sx ? sx + side : sx - side;
+    }
+    x = Clamp(x, 16, sW * 16 - 16);
+    while (cy > 0 && !Open(x >> 4, cy))
+        cy--;
+    sT.x = x;
+    sT.cx = x >> 4;
+    sT.cy = cy;
+    sT.y = cy * 16 + 8;
+    sT.arrived = 0;
+    sT.wait = 0;
+    sT.best = NAV_INF;
+    sGoal = -1;
+}
+
+static void SetSwitch(struct Object *o)
+{
+    GridUpdate();
+    NewTarget(T_SWITCH);
+    sT.obj = o;
+    sT.objType = o->type;
+    sT.hit = 0;                                 /* touching it is a hit      */
+    sT.wasDown = SwitchDown(o);
+    sT.mx = o->base.x >> 8;
+    sT.my = (o->base.y >> 8) + o->base.unk3D;
+    SwitchSpot();
+}
+
 /* A door cell near a world point (the tap can be on the door's upper half,
  * a cell above the one Kirby stands in to use it): 1 and the cell. */
 static int DoorNear(s32 px, s32 py, int tol, int *ocx, int *ocy)
@@ -877,6 +980,15 @@ static void GestureDown(s32 px, s32 py)
         if (Log())
             PortLog("[tap] f%u mark enemy type 0x%02X at %d,%d", (unsigned)PortFrameNumber(), o->type,
                     (int)(o->base.x >> 8), (int)(o->base.y >> 8));
+        return;
+    }
+    if ((o = SwitchAt(px, py, tol)) != NULL) {
+        SetSwitch(o);
+        sP.kind = G_MARK;
+        if (Log())
+            PortLog("[tap] f%u switch type 0x%02X at %d,%d%s -> stand %d,%d", (unsigned)PortFrameNumber(), o->type,
+                    (int)(o->base.x >> 8), (int)(o->base.y >> 8), sT.wasDown ? " (down already)" : "", (int)sT.x,
+                    (int)sT.y);
         return;
     }
     if (Log() >= 3)
@@ -1362,6 +1474,56 @@ static u16 Engage(struct Kirby *k, s32 kx, s32 ky)
 }
 
 /* One frame of the autopilot.  Returns the keys. */
+/* At the switch and it is not down.  Walking onto it nearly always does it
+ * (his body is a hit); if not, a hop onto it, then hits from beside it:
+ * face it, B (the ability's attack, a star, an air puff), a slide (Down+A),
+ * B, a slide.  Each try waits 20 frames on the ground first. */
+static u16 PressSwitch(struct Kirby *k, s32 kx)
+{
+    int left = (sT.obj->base.x >> 8) < kx;
+
+    if (k->base.flags & KF_FLY) {               /* puffed: let it out (a puff is a hit) */
+        if (!sC.bGap) {
+            sC.bGap = 20;
+            Action(K_B, 2);
+        }
+        return 0;
+    }
+    if (!(k->base.unk62 & KH_FLOOR))
+        return 0;
+    if (sT.hit && ((k->base.flags & KF_LEFT) != 0) != left)
+        return left ? K_LEFT : K_RIGHT;         /* turn to face it           */
+    if (++sT.wait < 20)
+        return 0;
+    sT.wait = 0;
+    if (Log())
+        PortLog("[tap] f%u switch: %s try %d", (unsigned)PortFrameNumber(), sT.hit ? "hit" : "stand", sT.tries);
+    if (!sT.hit) {
+        if (sT.tries++ == 0) {
+            Action(K_A, 4);                     /* a hop, landing on it      */
+            return 0;
+        }
+        sT.hit = 1;                             /* step off, hit it          */
+        sT.tries = 0;
+        SwitchSpot();
+        return 0;
+    }
+    switch (sT.tries++) {
+    case 0:
+    case 2:
+        Action(K_B, 8);
+        break;
+    case 1:
+    case 3:
+        Action(K_DOWN | K_A, 6);
+        break;
+    default:
+        Fail("switch: it did not go down");
+        break;
+    }
+    return 0;
+}
+
 static u16 Drive(void)
 {
     struct Kirby *k = Me();
@@ -1424,6 +1586,25 @@ static u16 Drive(void)
         }
         keys = Engage(k, kx, ky);
         break;
+    case T_SWITCH:
+        if (!ObjLive(sT.obj, sT.objType)) {
+            Clear("switch gone");
+            return 0;
+        }
+        if (!SwitchDown(sT.obj))
+            sT.wasDown = 0;
+        else if (!sT.wasDown && (sT.hit || sT.arrived)) {   /* stood on: stopped on it */
+            if (Log())
+                PortLog("[tap] f%u switch down (type 0x%02X, %s) after %d frames", (unsigned)PortFrameNumber(),
+                        sT.objType, sT.hit ? "hit" : "stood on", sT.frames);
+            Clear("switch down");
+            return 0;
+        }
+        if (sT.frames > 1200) {
+            Fail("switch: gave up");
+            return 0;
+        }
+        /* fall through: walk there */
     case T_DOOR:
     case T_GO: {
         int hover = sT.kind == T_GO && sT.air;
@@ -1456,7 +1637,8 @@ static u16 Drive(void)
         s = KirbyCell(kx, ky);
         there = sT.kind == T_DOOR ? (s == goal || (Abs(dx) <= 6 && Abs(dy) <= 10))
               : hover ? (Abs(dx) <= 8 && Abs(dy) <= 10)
-              : (Abs(dx) <= 6 && Abs(dy) <= 12 && (k->base.unk62 & KH_FLOOR) && Abs(k->base.xspeed) < 0x80);
+              : (Abs(dx) <= (sT.kind == T_SWITCH && !sT.hit ? 3 : 6) && Abs(dy) <= 12
+                 && (k->base.unk62 & KH_FLOOR) && Abs(k->base.xspeed) < 0x80);
         if (there) {
             if (!sT.arrived && Log())
                 PortLog("[tap] f%u arrived room %u at %d,%d (target %d,%d) after %d frames",
@@ -1483,6 +1665,8 @@ static u16 Drive(void)
                 }
                 return 0;
             }
+            if (sT.kind == T_SWITCH)
+                return PressSwitch(k, kx);
             if (hover) {
                 keys = Steer(k, kx, ky, 3, 1);
                 break;
@@ -1499,9 +1683,9 @@ static u16 Drive(void)
                 Clear("arrived");
             return 0;
         }
-        if (sT.arrived && !hover && sT.kind == T_GO)
+        if (sT.arrived && !hover && (sT.kind == T_GO || sT.kind == T_SWITCH))
             sT.arrived = 0;
-        keys = Steer(k, kx, ky, sT.kind == T_DOOR ? 3 : 4, hover);
+        keys = Steer(k, kx, ky, sT.kind == T_DOOR || sT.kind == T_SWITCH ? 3 : 4, hover);
         break;
     }
     default:
@@ -1580,6 +1764,7 @@ unsigned short PortTapFrame(unsigned short hostKeys)
  *   tapkirby           a tap on Kirby
  *   swipekirby         a swipe down from Kirby
  *   tapenemy           a tap on the nearest enemy
+ *   tapswitch          a tap on the nearest switch
  * Returns 1 if the command was one of these. */
 int PortTapScript(const char *cmd)
 {
@@ -1671,6 +1856,26 @@ int PortTapScript(const char *cmd)
         PortTapWorld(PORT_UI_DOWN, kx, ky, 1);
         PortTapWorld(PORT_UI_MOVE, kx, ky + 40, 1);
         PortTapWorld(PORT_UI_UP, kx, ky + 40, 1);
+    } else if (strcmp(cmd, "tapswitch") == 0) {
+        /* a tap on the nearest switch in the room */
+        struct Object *best = NULL, *ob;
+        s32 bd = 0x7FFFFFFF;
+        int i = 0;
+
+        while ((ob = NextObject(&i)) != NULL) {
+            s32 dx = (ob->base.x >> 8) - kx, dy = (ob->base.y >> 8) - ky, d = dx * dx + dy * dy;
+
+            if (IsSwitch(ob) && d < bd) {
+                bd = d;
+                best = ob;
+            }
+        }
+        if (best == NULL) {
+            PortLog("[tap] f%u tapswitch: no switch in the room", (unsigned)PortFrameNumber());
+            return 1;
+        }
+        PortTapWorld(PORT_UI_DOWN, best->base.x >> 8, (best->base.y >> 8) - 6, 1);
+        PortTapWorld(PORT_UI_UP, best->base.x >> 8, (best->base.y >> 8) - 6, 1);
     } else if (strcmp(cmd, "tapenemy") == 0) {
         struct Object *best = NULL, *ob;
         s32 bd = 0x7FFFFFFF;
@@ -1841,8 +2046,8 @@ void PortTapHudDraw(int fbW, int fbH, const int world[4], int smooth)
         ty = sT.failY;
     } else {
         red = sT.kind == T_DOOR;
-        tx = sT.x;
-        ty = sT.kind == T_DOOR ? sT.cy * 16 + 4 : sT.air ? sT.y : sT.cy * 16 + 10;
+        tx = sT.kind == T_SWITCH ? sT.mx : sT.x;
+        ty = sT.kind == T_SWITCH ? sT.my : sT.kind == T_DOOR ? sT.cy * 16 + 4 : sT.air ? sT.y : sT.cy * 16 + 10;
     }
     {
         int prev = sMkKey[0], phase = (int)((sTick / 6) % 4);
