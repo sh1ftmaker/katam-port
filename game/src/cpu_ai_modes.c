@@ -31,6 +31,7 @@
 #include "object_collision.h"
 #include "code_0800ECAC.h"
 #include "treasures.h"
+#include "vert_sliding_door.h"
 #include "constants/kirby.h"
 #include "constants/object_types.h"
 #include "port/localmp.h"
@@ -155,6 +156,7 @@ static bool32 BossRoomOpen(u16 room)
 }
 
 static bool32 EntryReachesChest(int t, u16 entry);
+static bool32 HumanHere(u16 room);
 
 /* `entry`: the door record it would enter `room` by (NO_REC: not known),
  * `t` its breaking tier: a room is wanted for its chests only if a chest
@@ -198,13 +200,55 @@ static bool32 Wanted(int want, u16 room, u16 target, int t, u16 entry)
 #define HINT_RECS    1024
 #define HINT_TIERS   4          /* breaks: nothing, level <= 1, <= 2, <= 3 */
 #define HINT_CELLS   1950       /* sizeof gUnk_02024ED0[0] */
+#define HINT_GATES   512
 #define NO_REC       0xFFFF
 
-static const struct Unk_0888562C_3 *sHintRec[HINT_RECS];
+/* A way out of a room: a door tile (the solidity map's tag-3 cell record)
+ * or an exit object the door records do not have -- a warp star
+ * (OBJ_WARP_STAR: template unk1E the room, unk1A/unk1C the arrival) or a
+ * cannon (OBJ_CANNON: unk12 the room, unk18 the arrival, high byte x). */
+enum { EXIT_DOOR, EXIT_STAR, EXIT_CANNON };
+struct HintDoor {
+    u16 dest;          /* the room it leads to                               */
+    u8  x, y;          /* the door cell / the object's cell                  */
+    u8  ax, ay;        /* the arrival cell + 1 (sub_080551FC's spawn point)   */
+    u8  col;           /* the door tile's collision value (EXIT_DOOR)         */
+    u8  kind;          /* EXIT_*                                             */
+};
+
+/* Gate hints: the objects that close or open a passage the collision map
+ * shows open (or shows shut when it can be opened), per room, from its ROM
+ * object list (docs/design/CPU-HINTS.md, "Gates").
+ *   GATE_SLIDE   OBJ_VERTICAL_SLIDING_DOOR: shuts the two cells above its
+ *                floor cell until the room-state slot `slot` (template
+ *                unk4) is non-zero;
+ *   GATE_SWITCH  OBJ_SMALL_BUTTON (counting mode): a Kirby standing on it
+ *                (the cell above its floor) adds one to slot `slot` and
+ *                takes it off again `timer` (template unk18) + 2 frames
+ *                after it leaves; template unk22 bit 2: it stays down;
+ *   GATE_CRUMBLE OBJ_DESTROYABLE_ROCK_BLOCK: a solid cell that crumbles
+ *                when a Kirby stands on it, not flying: passable downwards;
+ *   GATE_WALL    OBJ_TRIGGERABLE_WALL: a chain-blast source that goes off
+ *                when the room has `need` (unkF) chests/items collected
+ *                (sub 1) or marked enemies beaten (sub 0); the blast opens
+ *                the chain cells (0x40) joined to it. */
+enum { GATE_SLIDE = 1, GATE_SWITCH, GATE_CRUMBLE, GATE_WALL };
+struct HintGate {
+    u8  kind, x, y, slot;
+    u8  need, sub;
+    u16 timer;
+    u8  sp2, sp3;      /* the template's spawn flag (unk2 kind, unk3 bit)    */
+};
+
+static struct HintDoor sHintRec[HINT_RECS];
 static u16 sHintRoom[HINT_RECS];
 static u16 sHintFirst[MAX_ROOMS];   /* first record of the room, + 1; 0 none */
 static u8  sHintCount[MAX_ROOMS];
 static u16 sHintTotal;
+static struct HintGate sGate[HINT_GATES];
+static u16 sGateFirst[MAX_ROOMS];   /* first gate of the room; count in sGateCount */
+static u8  sGateCount[MAX_ROOMS];
+static u16 sGateTotal;
 static u32 sHintReach[HINT_TIERS][HINT_RECS]; /* doors of the room behind it reached from its arrival cell */
 static u8  sHintChest[HINT_TIERS][HINT_RECS]; /* a chest of the room behind it reached from its arrival cell */
 static u8  sHintBuilt;              /* bit 0: the index; bit 1 + t: tier t */
@@ -213,6 +257,10 @@ static u8  sHintCells[HINT_CELLS];  /* scratch, written before every read */
 static u8  sHintLab[HINT_CELLS];    /* scratch */
 static u16 sHintQueue[2 * HINT_CELLS];  /* scratch */
 static u8  sHintIgn[HINT_CELLS];    /* scratch: a chain explosion reaches the cell */
+static u8  sGateOv[HINT_CELLS];     /* scratch: the gates over the map flooded next (OV_*) */
+
+/* sGateOv: what the gates make of a cell */
+enum { OV_NONE, OV_SHUT, OV_DOWN, OV_OPEN };
 
 /* The highest breakable level the stock brain's block breaking
  * (gCpuBreakBlockChecks) handles for an ability, as a tier. */
@@ -255,6 +303,30 @@ static const struct Unk_0888562C_3 *RoomRecords(u16 room)
     return sm != NULL ? sm->unk4.pat3 : NULL;
 }
 
+static const struct ObjectTemplate *RoomObjects(u16 room)
+{
+    const struct LevelInfo_1E4 *ol;
+
+    if (room >= MAX_ROOMS || DoorList(room) == NULL)
+        return NULL;
+    ol = gLevelObjLists[gRoomProps[room].objectListIdx].obj;
+    return ol != NULL ? ol->unk0 : NULL;
+}
+
+#define NEXT_OBJ(o) ((const struct ObjectTemplate *)(const void *)((const u8 *)(o) + (o)->unk1))
+
+/* Room `r`'s size in cells (its foreground map); FALSE when it has none. */
+static bool32 RoomSize(u16 r, int *w, int *h)
+{
+    const struct RoomTiledBG *fg = gForegroundTilemaps[gRoomProps[r].mapDataIdx];
+
+    if (fg == NULL)
+        return FALSE;
+    *w = fg->width / 2;
+    *h = fg->height / 2;
+    return *w > 0 && *h > 0;
+}
+
 static uintptr_t HintSig(void)
 {
     uintptr_t sig = (uintptr_t)(const void *)gSolidityMaps;
@@ -267,8 +339,27 @@ static uintptr_t HintSig(void)
             sig = sig * 31 + (uintptr_t)(const void *)sm + r;
             if (sm != NULL)
                 sig ^= (uintptr_t)(const void *)sm->unk0;
+            sig = sig * 31 + (uintptr_t)(const void *)RoomObjects(r);
         }
     return sig;
+}
+
+/* An exit object's arrival: its own when it lies inside the room it leads
+ * to, else the room's default spawn point (the stock warp's,
+ * sub_08002D40) -- warp stars that fly in from off the map. */
+static void ExitArrival(struct HintDoor *e, s32 ax, s32 ay)
+{
+    int w, h;
+    u8 a, b;
+
+    if (RoomSize(e->dest, &w, &h) && ax >= 1 && ay >= 1 && ax <= w && ay <= h) {
+        e->ax = (u8)ax;
+        e->ay = (u8)ay;
+        return;
+    }
+    sub_08002D40(e->dest, &a, &b);
+    e->ax = a;
+    e->ay = b;
 }
 
 static void HintIndex(void)
@@ -276,31 +367,154 @@ static void HintIndex(void)
     u16 r;
 
     sHintTotal = 0;
+    sGateTotal = 0;
     for (r = 0; r < MAX_ROOMS; r++) {
         const struct Unk_0888562C_3 *p = RoomRecords(r);
+        const struct ObjectTemplate *o = RoomObjects(r);
         int n = 0, guard;
 
         sHintFirst[r] = 0;
         sHintCount[r] = 0;
+        sGateFirst[r] = sGateTotal;
+        sGateCount[r] = 0;
         if (p == NULL)
             continue;
         for (guard = 0; guard < 512 && p->unk00 != 0 && p->unk04 != 0; guard++) {
-            if (p->unk00 == 3 && sHintTotal < HINT_RECS && n < 0xFD) {
+            if (p->unk00 == 3 && sHintTotal < HINT_RECS && n < 32) {
+                struct HintDoor *e = &sHintRec[sHintTotal];
+
                 if (!n)
                     sHintFirst[r] = sHintTotal + 1;
-                sHintRec[sHintTotal] = p;
+                e->dest = p->unk08;
+                e->x = p->unk02;
+                e->y = p->unk03;
+                e->ax = p->unk0A;
+                e->ay = p->unk0B;
+                e->col = p->unk01;
+                e->kind = EXIT_DOOR;
                 sHintRoom[sHintTotal] = r;
                 sHintTotal++;
                 n++;
             }
             p = (const struct Unk_0888562C_3 *)(const void *)((const u8 *)p + p->unk04);
         }
+        /* the room's objects: exits, and the gates */
+        for (guard = 0; o != NULL && guard < 256 && o->unk1 != 0; guard++, o = NEXT_OBJ(o)) {
+            int kind = o->type == OBJ_WARP_STAR ? EXIT_STAR : o->type == OBJ_CANNON ? EXIT_CANNON : -1;
+            int gk = 0;
+
+            if (kind >= 0 && sHintTotal < HINT_RECS && n < 32) {
+                struct HintDoor *e = &sHintRec[sHintTotal];
+                u16 d = kind == EXIT_STAR ? o->unk1E : o->unk12;
+
+                if (d >= MAX_ROOMS || d == r || DoorList(d) == NULL || o->x < 0 || o->y < 16)
+                    continue;
+                if (!n)
+                    sHintFirst[r] = sHintTotal + 1;
+                e->dest = d;
+                e->x = (u8)(o->x >> 4);
+                e->y = (u8)(kind == EXIT_STAR ? o->y >> 4 : (o->y - 1) >> 4);
+                e->col = 0;
+                e->kind = (u8)kind;
+                if (kind == EXIT_STAR)
+                    ExitArrival(e, o->unk1A, o->unk1C);
+                else
+                    ExitArrival(e, o->unk18 >> 8, o->unk18 & 0xFF);
+                sHintRoom[sHintTotal] = r;
+                sHintTotal++;
+                n++;
+                continue;
+            }
+            switch (o->type) {
+            case OBJ_VERTICAL_SLIDING_DOOR: gk = GATE_SLIDE; break;
+            case OBJ_SMALL_BUTTON:          gk = (o->unk22 & 3) ? 0 : GATE_SWITCH; break;
+            case OBJ_DESTROYABLE_ROCK_BLOCK: gk = GATE_CRUMBLE; break;
+            case OBJ_TRIGGERABLE_WALL:      gk = o->subtype1 <= 1 ? GATE_WALL : 0; break;
+            }
+            if (gk && sGateTotal < HINT_GATES && sGateCount[r] < 32 && o->x >= 0 && o->y >= 16) {
+                struct HintGate *g = &sGate[sGateTotal++];
+
+                g->kind = (u8)gk;
+                g->x = (u8)(o->x >> 4);
+                g->y = (u8)((o->y >> 4) - (gk == GATE_SLIDE || gk == GATE_SWITCH));
+                g->slot = (u8)(o->unk4 & 0xF);
+                g->need = o->unkF;
+                g->sub = gk == GATE_SWITCH ? (o->unk22 & 4) != 0 : o->subtype1;
+                g->timer = o->unk18;
+                g->sp2 = o->unk2;
+                g->sp3 = o->unk3;
+                sGateCount[r]++;
+            }
+        }
         sHintCount[r] = (u8)n;
     }
 }
 
+/* The chain cells (attribute 0x40) joined to cell `c`, `c` too, as open. */
+static void BlastOpen(const u8 *cells, int w, int h, int c)
+{
+    int head = 0, tail = 0;
+
+    sGateOv[c] = OV_OPEN;
+    sHintQueue[tail++] = (u16)c;
+    while (head < tail) {
+        int i = sHintQueue[head++], x = i % w, y = i / w, k;
+
+        for (k = 0; k < 4; k++) {
+            int nx = x + (k == 0) - (k == 1), ny = y + (k == 2) - (k == 3), j;
+
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+                continue;
+            j = ny * w + nx;
+            if (sGateOv[j] != OV_OPEN && (gCollisionAttributes[cells[j]] & 0x40) && tail < 2 * HINT_CELLS) {
+                sGateOv[j] = OV_OPEN;
+                sHintQueue[tail++] = (u16)j;
+            }
+        }
+    }
+}
+
+/* sGateOv for room `r`'s map `cells`: the gates not in `open` shut, the
+ * ones in it open (bit i: the room's gate i).  Objects spawn only in the
+ * views of people (CreateLevelObjects), so in a room no person is in there
+ * is no sliding door to shut anything: `live` says the room's sliding
+ * doors are judged by their objects (LiveOpen), else they are open. */
+static void GateOverlay(u16 r, const u8 *cells, int w, int h, u32 open, bool32 live)
+{
+    int i;
+
+    memset(sGateOv, OV_NONE, (size_t)(w * h));
+    if (r >= MAX_ROOMS)
+        return;
+    for (i = 0; i < sGateCount[r]; i++) {
+        const struct HintGate *g = &sGate[sGateFirst[r] + i];
+        int c = g->y * w + g->x;
+
+        if (g->x >= w || g->y >= h)
+            continue;
+        switch (g->kind) {
+        case GATE_SLIDE:
+            if (live && !(open & (1u << i))) {
+                sGateOv[c] = OV_SHUT;
+                if (g->y > 0)
+                    sGateOv[c - w] = OV_SHUT;
+            }
+            break;
+        case GATE_CRUMBLE:
+            if (gCollisionAttributes[cells[c]] & 0x200)
+                sGateOv[c] = OV_DOWN;
+            break;
+        case GATE_WALL:
+            if ((open & (1u << i)) && (gCollisionAttributes[cells[c]] & 0x200))
+                BlastOpen(cells, w, h, c);
+            break;
+        }
+    }
+}
+
 /* Flood `lab` (0xFF = not reached) with `mark` from cell `start` over the
- * map `cells` (w x h), passable at `tier`.  Returns the cells reached. */
+ * map `cells` (w x h), passable at `tier`, with the gates of sGateOv.
+ * Returns the cells reached. */
 static int Flood(const u8 *cells, int w, int h, int start, u8 mark, int tier, u8 *lab)
 {
     int head = 0, tail = 0;
@@ -323,7 +537,11 @@ static int Flood(const u8 *cells, int w, int h, int start, u8 mark, int tier, u8
                 continue;
             j = ny * w + nx;
             a = gCollisionAttributes[cells[j]];
-            if ((a & 0x1240) == 0x240) {        /* chain block: only once the blast gets here */
+            if (sGateOv[j] != OV_NONE) {
+                if (sGateOv[j] == OV_SHUT || (sGateOv[j] == OV_DOWN && dy[k] != 1))
+                    continue;
+                ign = 0;                        /* a gate open, a crumble block from above */
+            } else if ((a & 0x1240) == 0x240) { /* chain block: only once the blast gets here */
                 if (tier < 1 || !sHintIgn[i])
                     continue;
                 ign = 1;
@@ -350,48 +568,129 @@ static int Flood(const u8 *cells, int w, int h, int start, u8 mark, int tier, u8
 static bool32 RomCells(u16 r, int *w, int *h)
 {
     const struct SolidityMap *sm = gSolidityMaps[gRoomProps[r].solidityMapIdx];
-    const struct RoomTiledBG *fg = gForegroundTilemaps[gRoomProps[r].mapDataIdx];
     const u8 *src;
     u32 size;
 
-    if (sm == NULL || fg == NULL || sm->unk0 == NULL)
+    if (sm == NULL || sm->unk0 == NULL || !RoomSize(r, w, h))
         return FALSE;
     src = (const u8 *)(const void *)sm->unk0;
     size = (u32)src[1] | ((u32)src[2] << 8) | ((u32)src[3] << 16);
-    *w = fg->width / 2;
-    *h = fg->height / 2;
-    if ((src[0] & 0xF0) != 0x30 || size > HINT_CELLS || (u32)(*w * *h) > size || *w <= 0)
+    if ((src[0] & 0xF0) != 0x30 || size > HINT_CELLS || (u32)(*w * *h) > size)
         return FALSE;
     RLUnCompWram(src, sHintCells);
     return TRUE;
 }
 
+/* sHintLab marks cell (x, y) or the one above or below it reached (0):
+ * where an object standing on the floor or floating can be touched. */
+static bool32 NearReached(int w, int h, int x, int y)
+{
+    int c = y * w + x;
+
+    if (x < 0 || y < 0 || x >= w || y >= h)
+        return FALSE;
+    return sHintLab[c] == 0 || (y > 0 && sHintLab[c - w] == 0) || (y + 1 < h && sHintLab[c + w] == 0);
+}
+
 /* A chest of room `r` (its ROM object list) in a cell sHintLab marks 0. */
+static int ChestsReached(u16 r, int w, int h)
+{
+    const struct ObjectTemplate *o = RoomObjects(r);
+    int guard, n = 0;
+
+    for (guard = 0; o != NULL && guard < 256 && o->unk1 != 0; guard++, o = NEXT_OBJ(o))
+        if ((o->type == OBJ_SMALL_CHEST || o->type == OBJ_BIG_CHEST)
+            && o->x >= 0 && o->y >= 0 && NearReached(w, h, o->x >> 4, o->y >> 4))
+            n++;
+    return n;
+}
+
 static bool32 ChestReached(u16 r, int w, int h)
 {
-    const struct LevelInfo_1E4 *ol = gLevelObjLists[gRoomProps[r].objectListIdx].obj;
-    const struct ObjectTemplate *o;
-    int guard;
-
-    if (ol == NULL || ol->unk0 == NULL)
-        return FALSE;
-    o = ol->unk0;
-    for (guard = 0; guard < 256 && o->unk1 != 0; guard++) {
-        if (o->type == OBJ_SMALL_CHEST || o->type == OBJ_BIG_CHEST) {
-            int x = o->x >> 4, y = o->y >> 4;
-
-            if (x >= 0 && y >= 0 && x < w && y < h
-                && (sHintLab[y * w + x] == 0 || (y > 0 && sHintLab[(y - 1) * w + x] == 0)))
-                return TRUE;
-        }
-        o = (const struct ObjectTemplate *)(const void *)((const u8 *)o + o->unk1);
-    }
-    return FALSE;
+    return ChestsReached(r, w, h) > 0;
 }
 
 static bool32 EntryReachesChest(int t, u16 entry)
 {
     return entry == NO_REC || entry >= sHintTotal || sHintChest[t][entry];
+}
+
+/* Marked enemies of room `r` (template unk22 bit 0: beating them counts,
+ * object.c) in cells sHintLab marks 0. */
+static int MarkedReached(u16 r, int w, int h)
+{
+    const struct ObjectTemplate *o = RoomObjects(r);
+    int guard, n = 0;
+
+    for (guard = 0; o != NULL && guard < 256 && o->unk1 != 0; guard++, o = NEXT_OBJ(o))
+        if (o->type < OBJ_SMALL_FOOD && (o->unk22 & 1) && o->x >= 0 && o->y >= 0
+            && NearReached(w, h, o->x >> 4, o->y >> 4))
+            n++;
+    return n;
+}
+
+/* The gates of room `r` not in `open` whose opener the flood in sHintLab
+ * reaches: a switch of a sliding door's slot; for a wall, enough chests or
+ * marked enemies (`have`: what the room has collected / beaten already). */
+static u32 GateOpeners(u16 r, int w, int h, u32 open, bool32 walls, int haveItems, int haveKills)
+{
+    u32 add = 0;
+    int i, j, items = -1, kills = -1;
+
+    for (i = 0; i < sGateCount[r]; i++) {
+        const struct HintGate *g = &sGate[sGateFirst[r] + i];
+
+        if (open & (1u << i))
+            continue;
+        if (g->kind == GATE_SLIDE) {
+            for (j = 0; j < sGateCount[r]; j++) {
+                const struct HintGate *s = &sGate[sGateFirst[r] + j];
+
+                if (s->kind == GATE_SWITCH && s->slot == g->slot && s->x < w && s->y < h
+                    && sHintLab[s->y * w + s->x] == 0) {
+                    add |= 1u << i;
+                    break;
+                }
+            }
+        } else if (g->kind == GATE_WALL && walls) {
+            if (g->sub == 1) {
+                if (items < 0)
+                    items = ChestsReached(r, w, h);
+                if (haveItems + items >= g->need)
+                    add |= 1u << i;
+            } else {
+                if (kills < 0)
+                    kills = MarkedReached(r, w, h);
+                if (haveKills + kills >= g->need)
+                    add |= 1u << i;
+            }
+        }
+    }
+    return add;
+}
+
+/* Flood room `r`'s map from `start` with its gates: those in `open` open,
+ * and (`openers`) each further one whose opener the flood reaches, until
+ * nothing more opens.  Returns the gates it took as open. */
+static u32 FloodGated(u16 r, const u8 *cells, int w, int h, int start, int tier, u32 open,
+                      bool32 live, bool32 openers, int haveItems, int haveKills)
+{
+    int iter;
+
+    for (iter = 0; iter < 8; iter++) {
+        u32 add;
+
+        GateOverlay(r, cells, w, h, open, live);
+        memset(sHintLab, 0xFF, sizeof(sHintLab));
+        Flood(cells, w, h, start, 0, tier, sHintLab);
+        if (!openers || r >= MAX_ROOMS || !sGateCount[r])
+            break;
+        add = GateOpeners(r, w, h, open, live, haveItems, haveKills);
+        if (!add)
+            break;
+        open |= add;
+    }
+    return open;
 }
 
 static void HintTier(int t)
@@ -409,20 +708,24 @@ static void HintTier(int t)
         if (!f || !RomCells(r, &w, &h))
             continue;
         f--;
-        /* every door into this room: the doors its arrival cell reaches */
+        /* every door into this room: the doors its arrival cell reaches,
+         * the gates it can open on the way open */
         for (s = 0; s < sHintTotal; s++) {
-            const struct Unk_0888562C_3 *p = sHintRec[s];
-            int x = p->unk0A - 1, y = p->unk0B - 1;
+            const struct HintDoor *p = &sHintRec[s];
+            int x = p->ax - 1, y = p->ay - 1;
             u32 m = 0;
 
-            if (p->unk08 != r || x < 0 || y < 0 || x >= w || y >= h)
+            if (p->dest != r || x < 0 || y < 0 || x >= w || y >= h)
                 continue;
-            memset(sHintLab, 0xFF, sizeof(sHintLab));
-            Flood(sHintCells, w, h, y * w + x, 0, t, sHintLab);
+            /* as a room no person is in (the likely case away from them):
+             * sliding doors open, crumble blocks passable from above,
+             * walls shut */
+            FloodGated(r, sHintCells, w, h, y * w + x, t, 0, FALSE, FALSE, 0, 0);
             for (i = 0; i < sHintCount[r] && i < 32; i++) {
-                const struct Unk_0888562C_3 *q = sHintRec[f + i];
+                const struct HintDoor *q = &sHintRec[f + i];
 
-                if (q->unk02 < w && q->unk03 < h && sHintLab[q->unk03 * w + q->unk02] == 0)
+                if (q->x < w && q->y < h && NearReached(w, h, q->x, q->y)
+                    && (q->kind != EXIT_DOOR || sHintLab[q->y * w + q->x] == 0))
                     m |= 1u << i;
             }
             sHintReach[t][s] = m;
@@ -447,9 +750,107 @@ static void HintEnsure(int t)
     }
 }
 
-/* The doors of the Kirby's room it can reach now (its live map, from its
- * cell): sHintLab holds 0 at reached cells.  FALSE if it is nowhere sane. */
-static bool32 LiveReach(struct CpuBrain *brain, int t)
+/* The live objects of the Kirby's room: every object spawned in it is on
+ * the object list (gCurLevelInfo[p].unk1F0, CreateObject) of one of the
+ * players in the room, as a node pointing at its base.unk56.  (The
+ * collision lists, GetRoomObjectCollisionList, hold only some of them when
+ * the brains run.)  Objects spawn only in people's views
+ * (CreateLevelObjects), so a room no person is in has none.  Into `out`
+ * (at most `max`); returns how many. */
+static int RoomObjectList(struct CpuBrain *brain, struct Object **out, int max)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    u32 p;
+    int n = 0;
+
+    for (p = 0; p < gNumKirbys; p++) {
+        const struct Unk_02023720 *e;
+        int guard = 0;
+
+        if (gCurLevelInfo[p].currentRoom != li->currentRoom || gCurLevelInfo[p].unk65E != li->unk65E)
+            continue;
+        for (e = gCurLevelInfo[p].unk1F0.first; e != NULL && guard < 0x40 && n < max; e = e->next, guard++) {
+            struct Object *ob;
+
+            if (e->unk08 == NULL || !e->unk0C)
+                continue;
+            ob = (struct Object *)(void *)((u8 *)e->unk08 - offsetof(struct ObjectBase, unk56));
+            if (ob->base.header.kind == 1 && !(ob->base.flags & 0x1000))
+                out[n++] = ob;
+        }
+    }
+    return n;
+}
+
+#define ROOM_OBJS 128
+
+/* The live object of `type` the ROM template at cell (tx, ty) spawned. */
+static struct Object *RoomObjectAt(struct CpuBrain *brain, u8 type, int tx, int ty)
+{
+    struct Object *o[ROOM_OBJS];
+    int n = RoomObjectList(brain, o, ROOM_OBJS), i;
+
+    for (i = 0; i < n; i++)
+        if (o[i]->type == type && o[i]->objTemplate != NULL
+            && (o[i]->objTemplate->x >> 4) == tx && (o[i]->objTemplate->y >> 4) == ty)
+            return o[i];
+    return NULL;
+}
+
+/* The live sliding door of gate `g` of the Kirby's room: open enough to
+ * pass now (open and still, or closing but not yet below 12 px).  Not
+ * spawned: by its slot. */
+static bool32 SlideOpenNow(struct CpuBrain *brain, const struct HintGate *g)
+{
+    struct Object *ob = RoomObjectAt(brain, OBJ_VERTICAL_SLIDING_DOOR, g->x, g->y + 1);
+
+    if (ob != NULL) {
+        const struct VertSlidingDoor *d = (const struct VertSlidingDoor *)(const void *)ob;
+        u16 r = brain->levelInfo->currentRoom;
+        int i;
+
+        if ((d->unkB4 & 3) == 2)                /* open and still */
+            return TRUE;
+        if ((d->unkB4 & 3) == 3)                /* closing: while still high enough */
+            return d->unkB7 >= 3;
+        if (!(d->unkB4 & 1))                    /* shut */
+            return FALSE;
+        /* opening: go now if a switch of its keeps it open a while after
+         * one leaves (timed or staying down); a switch held only while
+         * stood on, not before it is fully open */
+        for (i = 0; i < sGateCount[r]; i++) {
+            const struct HintGate *s = &sGate[sGateFirst[r] + i];
+
+            if (s->kind == GATE_SWITCH && s->slot == g->slot && (s->timer > 0 || s->sub))
+                return TRUE;
+        }
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/* The gates of the Kirby's room open now (bit i: gate i): a sliding door
+ * whose object is not spawned is no obstacle. */
+static u32 LiveOpen(struct CpuBrain *brain)
+{
+    u16 r = brain->levelInfo->currentRoom;
+    u32 open = 0;
+    int i;
+
+    if (r >= MAX_ROOMS)
+        return 0;
+    for (i = 0; i < sGateCount[r]; i++) {
+        const struct HintGate *g = &sGate[sGateFirst[r] + i];
+
+        if (g->kind == GATE_SLIDE && SlideOpenNow(brain, g))
+            open |= 1u << i;
+    }
+    return open;
+}
+
+/* The Kirby's cell in its live map (its own, else one beside it it can be
+ * in), -1 nowhere sane. */
+static int KirbyCell(struct CpuBrain *brain, int t)
 {
     struct LevelInfo *li = brain->levelInfo;
     const u8 *cells = gUnk_02024ED0[li->unk65E];
@@ -458,38 +859,60 @@ static bool32 LiveReach(struct CpuBrain *brain, int t)
     static const s8 ox[5] = { 0, 0, 0, -1, 1 }, oy[5] = { 0, -1, 1, 0, 0 };
 
     if (w <= 0 || h <= 0 || w * h > HINT_CELLS)
-        return FALSE;
-    memset(sHintLab, 0xFF, sizeof(sHintLab));
-    for (k = 0; k < 5; k++) {          /* its cell, else one beside it */
+        return -1;
+    for (k = 0; k < 5; k++) {
         int x = kx + ox[k], y = ky + oy[k];
 
-        if (x < 0 || y < 0 || x >= w || y >= h)
-            continue;
-        if (Passable(gCollisionAttributes[cells[y * w + x]], t)) {
-            Flood(cells, w, h, y * w + x, 0, t, sHintLab);
-            return TRUE;
-        }
+        if (x >= 0 && y >= 0 && x < w && y < h && Passable(gCollisionAttributes[cells[y * w + x]], t))
+            return y * w + x;
     }
-    return FALSE;
+    return -1;
+}
+
+/* The Kirby's room flooded from where it is (its live map: blocks already
+ * broken are open), into sHintLab (0 at reached cells), its gates as they
+ * are now -- and, with `openers`, also the ones whose opener it reaches.
+ * FALSE if it is nowhere sane.  sGateOv is left as the last flood used. */
+static bool32 LiveReachEx(struct CpuBrain *brain, int t, bool32 openers)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    u16 r = li->currentRoom;
+    int c = KirbyCell(brain, t);
+
+    if (c < 0)
+        return FALSE;
+    HintEnsure(t);
+    FloodGated(r, gUnk_02024ED0[li->unk65E], li->roomWidth >> 4, li->roomHeight >> 4, c, t,
+               LiveOpen(brain), HumanHere(r), openers, sub_080029E4(li->unk65E), sub_080029BC(li->unk65E));
+    return TRUE;
+}
+
+/* As things are now (the gates as they stand). */
+static bool32 LiveReach(struct CpuBrain *brain, int t)
+{
+    return LiveReachEx(brain, t, FALSE);
 }
 
 /* A door record of the Kirby's room it can use now: the door tile is in the
- * live map (not behind a switch, a wall, an object) and it can get there. */
-static bool32 DoorOpenHere(struct CpuBrain *brain, const struct Unk_0888562C_3 *p)
+ * live map (not behind a switch, a wall, an object) and it can get there;
+ * an exit object: it can get there. */
+static bool32 DoorOpenHere(struct CpuBrain *brain, const struct HintDoor *p)
 {
     struct LevelInfo *li = brain->levelInfo;
-    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, c = p->unk03 * w + p->unk02, k;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, c = p->y * w + p->x, k;
     u8 v;
 
-    if (p->unk02 >= w || p->unk03 >= h)
+    if (p->x >= w || p->y >= h)
         return FALSE;
+    if (p->kind != EXIT_DOOR)
+        return NearReached(w, h, p->x, p->y);
     v = gUnk_02024ED0[li->unk65E][c];
-    if (v != p->unk01 || !(gCollisionAttributes[v] & 0x4000))
+    if (v != p->col || !(gCollisionAttributes[v] & 0x4000))
         return FALSE;
     if (sHintLab[c] == 0)
         return TRUE;
     for (k = 0; k < 4; k++) {          /* reached beside it */
-        int x = p->unk02 + (k == 0) - (k == 1), y = p->unk03 + (k == 2) - (k == 3);
+        int x = p->x + (k == 0) - (k == 1), y = p->y + (k == 2) - (k == 3);
 
         if (x >= 0 && y >= 0 && x < w && y < h && sHintLab[y * w + x] == 0)
             return TRUE;
@@ -515,7 +938,7 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
     if (DoorList(from) == NULL)
         return NO_REC;
     HintEnsure(t);
-    if (!sHintFirst[from] || !LiveReach(brain, t))
+    if (!sHintFirst[from] || !LiveReachEx(brain, t, TRUE))   /* gates it can open count open */
         return NO_REC;
     for (i = 0; i < sHintTotal; i++)
         first[i] = NO_REC;
@@ -528,8 +951,8 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
         int bi = -1;
 
         for (i = 0; i < n; i++) {
-            const struct Unk_0888562C_3 *p = sHintRec[f + i];
-            s32 dx = p->unk02 - kx, dy = p->unk03 - ky;
+            const struct HintDoor *p = &sHintRec[f + i];
+            s32 dx = p->x - kx, dy = p->y - ky;
             u32 d = (u32)(dx * dx + dy * dy);
 
             if (!used[i] && d < best) {
@@ -541,8 +964,8 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
             break;
         used[bi] = 1;
         {
-            const struct Unk_0888562C_3 *p = sHintRec[f + bi];
-            u16 d = p->unk08;
+            const struct HintDoor *p = &sHintRec[f + bi];
+            u16 d = p->dest;
 
             if (d >= MAX_ROOMS || DoorList(d) == NULL || d == avoid || Blocked(brain, from, d)
                 || !DoorOpenHere(brain, p))
@@ -557,15 +980,15 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
         }
     }
     while (head < tail) {
-        u16 g = queue[head++], r = sHintRec[g]->unk08, rf;
+        u16 g = queue[head++], r = sHintRec[g].dest, rf;
         u32 m = sHintReach[t][g];
 
         if (r >= MAX_ROOMS || !sHintFirst[r])
             continue;
         rf = sHintFirst[r] - 1;
         for (i = 0; i < sHintCount[r] && i < 32; i++) {
-            const struct Unk_0888562C_3 *p = sHintRec[rf + i];
-            u16 d = p->unk08;
+            const struct HintDoor *p = &sHintRec[rf + i];
+            u16 d = p->dest;
 
             if (!(m & (1u << i)) || d >= MAX_ROOMS || DoorList(d) == NULL || Blocked(brain, r, d)
                 || d == from)           /* not back through the room it starts in */
@@ -593,7 +1016,7 @@ static u16 Route(struct CpuBrain *brain, u16 from, int want, u16 target)
     j = RouteEx(brain, from, want, target, NO_ROOM);
     /* only straight back: the door that brought it here was a wrong turn
      * (the two rooms would send it to and fro), so not that way again */
-    if (j != NO_REC && ST(brain)->roomFrames < 120 && sHintRec[j]->unk08 == PREV(brain) - 1)
+    if (j != NO_REC && ST(brain)->roomFrames < 120 && sHintRec[j].dest == PREV(brain) - 1)
         BlockWhy(brain, (u16)(PREV(brain) - 1), from, "no-reenter");
     return j;
 }
@@ -632,6 +1055,8 @@ static void GoToEx(struct CpuBrain *brain, s32 x, s32 y, bool32 direct)
             brain->keys |= 1;           /* a hop now and then if it is above */
     }
 }
+
+static void PathTo(struct CpuBrain *brain, int gx, int gy);
 
 static void GoTo(struct CpuBrain *brain, s32 x, s32 y)
 {
@@ -749,10 +1174,25 @@ static struct Kirby *Ward(struct CpuBrain *brain)
 
 static u16 sHintDist[HINT_CELLS];   /* scratch, written before every read */
 
-static void DistField(const u8 *cells, int w, int h, int goal, int tier)
+/* `pits`: leave out the cells open all the way down to the room's bottom
+ * edge (falling there is a death), marked in sHintIgn. */
+static void DistFieldEx(const u8 *cells, int w, int h, int goal, int tier, bool32 pits)
 {
     int head = 0, tail = 0, i;
 
+    if (pits) {
+        int x, y;
+
+        for (x = 0; x < w; x++) {
+            u8 open = 1;
+
+            for (y = h - 1; y >= 0; y--) {
+                if (gCollisionAttributes[cells[y * w + x]] & 0x206)   /* solid, top-solid, water */
+                    open = 0;
+                sHintIgn[y * w + x] = open;
+            }
+        }
+    }
     for (i = 0; i < w * h; i++)
         sHintDist[i] = 0xFFFF;
     sHintDist[goal] = 0;
@@ -767,12 +1207,18 @@ static void DistField(const u8 *cells, int w, int h, int goal, int tier)
             if (nx < 0 || ny < 0 || nx >= w || ny >= h)
                 continue;
             j = ny * w + nx;
-            if (sHintDist[j] == 0xFFFF && Passable(gCollisionAttributes[cells[j]], tier)) {
+            if (sHintDist[j] == 0xFFFF && sGateOv[j] != OV_SHUT && !(pits && sHintIgn[j])
+                && (sGateOv[j] != OV_NONE || Passable(gCollisionAttributes[cells[j]], tier))) {
                 sHintDist[j] = sHintDist[c] + 1;
                 sHintQueue[tail++] = (u16)j;
             }
         }
     }
+}
+
+static void DistField(const u8 *cells, int w, int h, int goal, int tier)
+{
+    DistFieldEx(cells, w, h, goal, tier, FALSE);
 }
 
 /* The chain trigger of the chain cell `c` belongs to, nearest (x0, y0),
@@ -819,6 +1265,46 @@ static int ChainTrigger(const u8 *cells, int w, int h, int c, int x0, int y0)
     return best;
 }
 
+/* A crumble block at (bx, by) the Kirby stands on whose object is not
+ * spawned (no person sees it, so it cannot crumble): do what the object
+ * would -- its cell's tile record (sub_08001408, as sub_0811C07C does)
+ * and its destroyed flag, so that it does not spawn later
+ * (sub_08001678, as DestroyDestroyableRockBlock does).  FALSE: not that
+ * case (the object is there and does it itself, or there is no record). */
+static bool32 CrumbleUnseen(struct CpuBrain *brain, int bx, int by)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    u16 r = li->currentRoom;
+    const struct HintGate *g = NULL;
+    const struct Unk_0888562C *rec;
+    u8 v;
+    int i, guard;
+
+    if (r >= MAX_ROOMS)
+        return FALSE;
+    for (i = 0; i < sGateCount[r]; i++)
+        if (sGate[sGateFirst[r] + i].kind == GATE_CRUMBLE && sGate[sGateFirst[r] + i].x == bx
+            && sGate[sGateFirst[r] + i].y == by)
+            g = &sGate[sGateFirst[r] + i];
+    if (g == NULL || RoomObjectAt(brain, OBJ_DESTROYABLE_ROCK_BLOCK, g->x, g->y) != NULL || li->unk1E0.pat1 == NULL)
+        return FALSE;
+    v = gUnk_02024ED0[li->unk65E][by * (li->roomWidth >> 4) + bx];
+    rec = li->unk1E0.pat1;
+    for (guard = 0; guard < 1024 && rec->unk00 != 0 && rec->unk04 != 0; guard++) {
+        if (rec->unk00 == 1 && rec->unk01 == v && rec->unk02 == bx && rec->unk03 == by) {
+            union LevelInfo_1E0 u;
+
+            u.pat1 = (struct Unk_0888562C *)(uintptr_t)rec;
+            sub_08001408(brain->kirby->base.unk56, u, NULL, NULL);
+            sub_08001678(g->sp2, g->sp3, li->unk65E, 1);
+            PortCpuAiNote(brain->kirby->base.unk56, "crumble-unseen", r, bx | (by << 8), v);
+            return TRUE;
+        }
+        rec = (const struct Unk_0888562C *)(const void *)((const u8 *)rec + rec->unk04);
+    }
+    return FALSE;
+}
+
 /* TRUE when it is dealing with a block on the way to the door (st->doorX/Y). */
 static bool32 BreakWay(struct CpuBrain *brain)
 {
@@ -828,11 +1314,12 @@ static bool32 BreakWay(struct CpuBrain *brain)
     const u8 *cells = gUnk_02024ED0[li->unk65E];
     int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
     int t = AbilityTier(k->ability), kx = k->base.x >> 12, ky = k->base.y >> 12;
-    int cur, step, block = -1, bx, by, sx, sy, s, i;
+    int cur, step, block = -1, bx, by, sx, sy, s, i, crumble = 0;
     static const s8 ox[5] = { 0, 0, 0, -1, 1 }, oy[5] = { 0, -1, 1, 0, 0 };
 
-    if (t == 0 || w <= 0 || h <= 0 || w * h > HINT_CELLS || st->doorX >= w || st->doorY >= h)
+    if (w <= 0 || h <= 0 || w * h > HINT_CELLS || st->doorX >= w || st->doorY >= h)
         return FALSE;
+    GateOverlay(li->currentRoom, cells, w, h, LiveOpen(brain), HumanHere(li->currentRoom));
     DistField(cells, w, h, st->doorY * w + st->doorX, t);
     cur = -1;
     for (i = 0; i < 5; i++) {           /* its cell, else one beside it on the path */
@@ -861,7 +1348,12 @@ static bool32 BreakWay(struct CpuBrain *brain)
         }
         if (next < 0)
             break;
-        if (!Passable(gCollisionAttributes[cells[next]], 0)) {
+        if (sGateOv[next] == OV_DOWN) {         /* a crumble block: stand on it */
+            block = next;
+            crumble = 1;
+            break;
+        }
+        if (sGateOv[next] == OV_NONE && !Passable(gCollisionAttributes[cells[next]], 0)) {
             block = next;
             break;
         }
@@ -870,6 +1362,30 @@ static bool32 BreakWay(struct CpuBrain *brain)
     if (block < 0)
         return FALSE;
     LiveReach(brain, 0);                /* sHintLab: cells it reaches without breaking */
+    if (crumble) {
+        bx = block % w;
+        by = block / w;
+        if (by == 0 || sHintLab[block - w] != 0)
+            return FALSE;
+        if ((st->destFrames % 120) == 0)
+            PortCpuAiNote(k->base.unk56, "crumble", bx | (by << 8), kx | (ky << 8), !!(k->base.flags & 0x40));
+        if (kx == bx && ky == by - 1) {         /* on it: land and wait */
+            if ((k->base.flags & 0x40) && brain->action != CPU_ACT_THINK)
+                brain->layers[CPU_LAYER_ACTION] = FN(CpuActLeaveFlight);
+            else if (k->base.flags & 0x40)
+                brain->keys |= 2;
+            else if (!(k->base.flags & 0x20))
+                CrumbleUnseen(brain, bx, by);
+            GoToEx(brain, ((s32)bx << 12) + 0x800, k->base.y, TRUE);
+            return TRUE;
+        }
+        GoToEx(brain, ((s32)bx << 12) + 0x800, ((s32)(by - 1) << 12) + 0x800, TRUE);
+        if ((kx == bx || kx - bx == 1 || bx - kx == 1) && by - 1 > ky && (k->base.flags & 0x40))
+            brain->keys |= 2;
+        return TRUE;
+    }
+    if (t == 0)
+        return FALSE;
     if (!(gCollisionAttributes[cells[block]] & 0x1000)) {
         block = ChainTrigger(cells, w, h, block, kx, ky);
         if (block < 0)
@@ -925,15 +1441,240 @@ static bool32 BreakWay(struct CpuBrain *brain)
     return TRUE;
 }
 
+/* --- gates in the way -------------------------------------------------------
+ *
+ * The chosen door may lie behind a gate the Kirby can open (the route
+ * counted it open because its opener is reachable): a sliding door whose
+ * switch it can stand on, a wall that waits for the room's chests (or
+ * marked enemies).  Flooded as things are now, the door is not reached:
+ * then find the gate whose opening reaches it, and go to its opener -- stand on the switch (not flying: a timed
+ * switch is pressed by standing) until the door is fully open, or go to the
+ * nearest chest or marked enemy the wall waits for (touching a chest opens
+ * it; the enemy scan fights the enemy). */
+
+/* The record of room `room` at (x, y) leading to `dest`; NO_REC none. */
+static u16 FindRec(u16 room, u8 x, u8 y, u16 dest)
+{
+    u16 f, i;
+
+    if (room >= MAX_ROOMS || !sHintFirst[room])
+        return NO_REC;
+    f = sHintFirst[room] - 1;
+    for (i = 0; i < sHintCount[room]; i++)
+        if (sHintRec[f + i].x == x && sHintRec[f + i].y == y && sHintRec[f + i].dest == dest)
+            return f + i;
+    return NO_REC;
+}
+
+/* sHintLab reaches cell (x, y), or one beside, above or below it. */
+static bool32 CellNear(int w, int h, int x, int y)
+{
+    return NearReached(w, h, x, y) || NearReached(w, h, x - 1, y) || NearReached(w, h, x + 1, y);
+}
+
+static bool32 GateWay(struct CpuBrain *brain)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    struct CpuAiState *st = ST(brain);
+    struct Kirby *k = brain->kirby;
+    u16 r = li->currentRoom;
+    const u8 *cells = gUnk_02024ED0[li->unk65E];
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
+    int t = AbilityTier(k->ability), c, i, pick = -1;
+    int items = sub_080029E4(li->unk65E), kills = sub_080029BC(li->unk65E);
+    s32 kx = k->base.x >> 12, ky = k->base.y >> 12;
+    u32 open, cand;
+    const struct HintGate *g;
+
+    if (r >= MAX_ROOMS || !sGateCount[r])
+        return FALSE;
+    HintEnsure(t);
+    c = KirbyCell(brain, t);
+    if (c < 0)
+        return FALSE;
+    if (!HumanHere(r))
+        return FALSE;                   /* no objects: nothing shuts, nothing opens */
+    open = LiveOpen(brain);
+    FloodGated(r, cells, w, h, c, t, open, TRUE, FALSE, 0, 0);
+    if (CellNear(w, h, st->doorX, st->doorY)) {
+        /* through a sliding door that is open now: hurry, along the cell
+         * path (the switches are timed; no time for the nav graph's
+         * detours) */
+        u32 slides = 0;
+
+        for (i = 0; i < sGateCount[r]; i++)
+            if (sGate[sGateFirst[r] + i].kind == GATE_SLIDE)
+                slides |= 1u << i;
+        if (!(open & slides))
+            return FALSE;
+        FloodGated(r, cells, w, h, c, t, open & ~slides, TRUE, FALSE, 0, 0);
+        if (CellNear(w, h, st->doorX, st->doorY))
+            return FALSE;
+        if ((st->destFrames % 120) == 0)
+            PortCpuAiNote(k->base.unk56, "gate-through", r, st->doorX | (st->doorY << 8), (int)kx | (int)(ky << 8));
+        PathTo(brain, st->doorX, st->doorY);
+        return TRUE;
+    }
+    cand = GateOpeners(r, w, h, open, TRUE, items, kills);
+    if (!cand)
+        return FALSE;
+    for (i = 0; i < sGateCount[r] && pick < 0; i++)
+        if (cand & (1u << i)) {
+            FloodGated(r, cells, w, h, c, t, open | (1u << i), TRUE, FALSE, 0, 0);
+            if (CellNear(w, h, st->doorX, st->doorY))
+                pick = i;
+        }
+    if (pick < 0)
+        return FALSE;                   /* none of them is the way to it */
+    FloodGated(r, cells, w, h, c, t, open, TRUE, FALSE, 0, 0);   /* where its opener is reached */
+    g = &sGate[sGateFirst[r] + pick];
+    if (g->kind == GATE_SLIDE) {
+        int sx = -1, sy = -1;
+        u32 bd = 0xFFFFFFFF;
+
+        for (i = 0; i < sGateCount[r]; i++) {
+            const struct HintGate *s = &sGate[sGateFirst[r] + i];
+            u32 d = (u32)((s->x - kx) * (s->x - kx) + (s->y - ky) * (s->y - ky));
+
+            if (s->kind == GATE_SWITCH && s->slot == g->slot && s->x < w && s->y < h
+                && sHintLab[s->y * w + s->x] == 0 && d < bd) {
+                bd = d;
+                sx = s->x;
+                sy = s->y;
+            }
+        }
+        if (sx < 0)
+            return FALSE;
+        if ((st->destFrames % 120) == 0)
+            PortCpuAiNote(k->base.unk56, "gate-switch", r, sx | (sy << 8),
+                          g->x | (g->y << 8) | (int)kx << 16 | (int)(ky & 0x7F) << 24);
+        {
+            s32 px = ((s32)sx << 12) + 0x800, dx = k->base.x - px;
+
+            if (ky == sy && dx < 0x600 && dx > -0x600) {
+                /* on it: land, and stay until the door is fully open */
+                if ((k->base.flags & 0x40) && brain->action != CPU_ACT_THINK)
+                    brain->layers[CPU_LAYER_ACTION] = FN(CpuActLeaveFlight);
+                else if (k->base.flags & 0x40)
+                    brain->keys |= 2;
+                brain->flags |= CPU_FLAG_ACTION_BUSY;   /* no wandering off to fight */
+                GoToEx(brain, px, k->base.y, TRUE);
+                return TRUE;
+            }
+            PathTo(brain, sx, sy);
+        }
+        return TRUE;
+    }
+    if (g->kind == GATE_WALL) {
+        struct Object *o[ROOM_OBJS], *best = NULL;
+        int n = RoomObjectList(brain, o, ROOM_OBJS);
+        s32 bd = 0x7FFFFFFF;
+
+        /* the nearest reached chest (sub 1) / live marked enemy (sub 0) */
+        for (i = 0; i < n; i++) {
+            struct Object *ob = o[i];
+            s32 d, dx, dy;
+            bool32 ok;
+
+            if (g->sub == 1)
+                ok = ob->type == OBJ_SMALL_CHEST || ob->type == OBJ_BIG_CHEST;
+            else
+                ok = ob->type < OBJ_SMALL_FOOD && ob->objTemplate != NULL && (ob->objTemplate->unk22 & 1)
+                  && ob->unk80 > 0;
+            if (!ok || !NearReached(w, h, ob->base.x >> 12, ob->base.y >> 12))
+                continue;
+            dx = (ob->base.x - k->base.x) >> 8;
+            dy = (ob->base.y - k->base.y) >> 8;
+            d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+            if (d < bd) {
+                bd = d;
+                best = ob;
+            }
+        }
+        if (best == NULL)
+            return FALSE;
+        if ((st->destFrames % 120) == 0)
+            PortCpuAiNote(k->base.unk56, "gate-wall", r, best->type, g->x | (g->y << 8));
+        GoTo(brain, best->base.x, best->base.y);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/* A cell a few steps along the flood's cell path from the Kirby to the
+ * chosen door (the live map at its tier, the gates as they are); FALSE
+ * when it has none. */
+static int sPathFirstDy;            /* PathWaypoint: the first step's dy (-1 up, 1 down) */
+
+static bool32 PathWaypoint(struct CpuBrain *brain, int gx, int gy, int *wx, int *wy)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    const u8 *cells = gUnk_02024ED0[li->unk65E];
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
+    int t = AbilityTier(brain->kirby->ability), cur = KirbyCell(brain, t), step, i;
+
+    if (cur < 0 || gx < 0 || gy < 0 || gx >= w || gy >= h)
+        return FALSE;
+    GateOverlay(li->currentRoom, cells, w, h, LiveOpen(brain), HumanHere(li->currentRoom));
+    DistFieldEx(cells, w, h, gy * w + gx, t, TRUE);
+    sPathFirstDy = 0;
+    if (sHintDist[cur] == 0xFFFF)
+        return FALSE;
+    for (step = 0; step < 3 && sHintDist[cur] > 0; step++) {
+        int x = cur % w, y = cur / w, next = -1;
+        u16 nd = sHintDist[cur];
+
+        for (i = 0; i < 4; i++) {
+            int nx = x + (i == 0) - (i == 1), ny = y + (i == 2) - (i == 3);
+
+            if (nx >= 0 && ny >= 0 && nx < w && ny < h && sHintDist[ny * w + nx] < nd) {
+                nd = sHintDist[ny * w + nx];
+                next = ny * w + nx;
+            }
+        }
+        if (next < 0)
+            break;
+        if (step == 0)
+            sPathFirstDy = next / w - y;
+        cur = next;
+    }
+    *wx = cur % w;
+    *wy = cur / w;
+    return TRUE;
+}
+
+/* Steer along the flood's cell path to cell (gx, gy); straight at it when
+ * there is none. */
+static void PathTo(struct CpuBrain *brain, int gx, int gy)
+{
+    struct Kirby *k = brain->kirby;
+    int wx, wy;
+    s32 kx = k->base.x >> 12, ky = k->base.y >> 12;
+
+    if (!PathWaypoint(brain, gx, gy, &wx, &wy)) {
+        wx = gx;
+        wy = gy;
+        sPathFirstDy = wy < ky ? -1 : wy > ky;
+    }
+    GoToEx(brain, ((s32)wx << 12) + 0x800, ((s32)wy << 12) + 0x800, TRUE);
+    /* the stock ACTION layer stands still near a point straight above or
+     * below it, and walks into a wall it must go over: the path's next
+     * step up, flap; down, let the air out / drop through */
+    if (sPathFirstDy < 0 && (gPortSim->frame.frameCount & 3) == 0)
+        brain->keys |= 1;
+    else if (sPathFirstDy > 0 && (kx - wx <= 1 && wx - kx <= 1))
+        brain->keys |= 2;
+}
+
 /* Choose door record `j` (sHintRec) of the Kirby's room. */
 static void SetDoor(struct CpuBrain *brain, u16 j)
 {
     struct CpuAiState *st = ST(brain);
-    const struct Unk_0888562C_3 *p = sHintRec[j];
+    const struct HintDoor *p = &sHintRec[j];
 
-    st->dest = p->unk08;
-    st->doorX = p->unk02;
-    st->doorY = p->unk03;
+    st->dest = p->dest;
+    st->doorX = p->x;
+    st->doorY = p->y;
     st->destFrames = 0;
     PR(brain)->best = 0;
     PR(brain)->stall = 0;
@@ -962,14 +1703,29 @@ static bool32 HeadFor(struct CpuBrain *brain)
         PortCpuAiNote(k->base.unk56, "pos", kx | (ky << 8), brain->curNode | (brain->goalNode << 8),
                       brain->nextNode | (brain->action << 8));
     if (kx - st->doorX <= 1 && st->doorX - kx <= 1 && ky - st->doorY <= 1 && st->doorY - ky <= 1) {
-        struct Unk_0888562C_3 *p = sub_080025AC(k->base.unk56, st->doorX, st->doorY).pat3;
+        u16 j = FindRec(room, st->doorX, st->doorY, dest);
 
-        if (p != NULL && p->unk08 == dest && sub_080551FC(k, dest, p->unk0A, p->unk0B)) {
-            st->doors++;
-            PortCpuAiNote(k->base.unk56, "through", room, dest, k->hp);
-            return TRUE;
+        if (j != NO_REC && sHintRec[j].kind != EXIT_DOOR) {
+            /* a warp star or a cannon: they take only people (PortIsHuman),
+             * so it goes where the object would send it, as it takes doors */
+            if (sub_080551FC(k, dest, sHintRec[j].ax, sHintRec[j].ay)) {
+                st->doors++;
+                PortCpuAiNote(k->base.unk56, "through", room, dest, k->hp);
+                PortCpuAiNote(k->base.unk56, "exit-object", room, dest, sHintRec[j].kind);
+                return TRUE;
+            }
+        } else {
+            struct Unk_0888562C_3 *p = sub_080025AC(k->base.unk56, st->doorX, st->doorY).pat3;
+
+            if (p != NULL && p->unk08 == dest && sub_080551FC(k, dest, p->unk0A, p->unk0B)) {
+                st->doors++;
+                PortCpuAiNote(k->base.unk56, "through", room, dest, k->hp);
+                return TRUE;
+            }
         }
     }
+    if (GateWay(brain))                 /* a gate on the way: open it first */
+        return TRUE;
     if (BreakWay(brain))                /* a block on the way: break it first */
         return TRUE;
     {
@@ -985,8 +1741,14 @@ static bool32 HeadFor(struct CpuBrain *brain)
         } else if (pr->stall < 0xFFFF) {
             pr->stall++;
         }
-        GoToEx(brain, ((s32)st->doorX << 12) + 0x800, ((s32)st->doorY << 12) + 0x800,
-               (pr->stall / 300) & 1);
+        if ((pr->stall / 300) & 1) {
+            /* the graph is not getting it nearer: follow the cell path of
+             * the flood (the gates as they are) a few cells ahead, else
+             * straight at the door */
+            PathTo(brain, st->doorX, st->doorY);
+        } else {
+            GoToEx(brain, ((s32)st->doorX << 12) + 0x800, ((s32)st->doorY << 12) + 0x800, FALSE);
+        }
     }
     return TRUE;
 }
@@ -1084,7 +1846,7 @@ static bool32 GoalBodyguard(struct CpuBrain *brain)
      * does off-screen) once a room has held it for a minute */
     if (st->roomFrames > ROOM_GIVEUP / 3) {
         u16 j = Route(brain, room, WANT_ROOM, gCurLevelInfo[ward->base.unk56].currentRoom);
-        u16 hop = j != NO_REC ? sHintRec[j]->unk08 : NO_ROOM;
+        u16 hop = j != NO_REC ? sHintRec[j].dest : NO_ROOM;
 
         if (CpuWarpToRoom(brain, hop != NO_ROOM ? hop : gCurLevelInfo[ward->base.unk56].currentRoom)) {
             PortCpuAiNote(brain->kirby->base.unk56, "warp", room, hop, 0);
@@ -1157,11 +1919,21 @@ void CpuAiDumpGraph(void)
         for (t = 0; t < HINT_TIERS; t++)
             HintEnsure(t);
         for (j = 0; j < sHintTotal; j++) {
-            const struct Unk_0888562C_3 *p = sHintRec[j];
+            const struct HintDoor *p = &sHintRec[j];
 
-            PortCpuAiNote(-1, "hint-door", sHintRoom[j] | (p->unk08 << 16), p->unk02 | (p->unk03 << 8),
+            PortCpuAiNote(-1, "hint-door", sHintRoom[j] | (p->dest << 16), p->x | (p->y << 8) | (p->kind << 16),
                           (int)sHintReach[0][j]);
             PortCpuAiNote(-1, "hint-reach", j, (int)sHintReach[1][j], (int)sHintReach[3][j]);
+        }
+        for (j = 0; j < MAX_ROOMS; j++) {
+            int i;
+
+            for (i = 0; i < sGateCount[j]; i++) {
+                const struct HintGate *g = &sGate[sGateFirst[j] + i];
+
+                PortCpuAiNote(-1, "hint-gate", j | (g->kind << 16), g->x | (g->y << 8) | (g->slot << 16),
+                              g->need | (g->sub << 8) | (g->timer << 16));
+            }
         }
     }
 }
