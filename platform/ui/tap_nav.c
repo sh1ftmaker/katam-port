@@ -721,12 +721,17 @@ static void NewTarget(int kind)
     sGoal = -1;
 }
 
-/* A point to go to: snapped to the ground below it when it is a little
- * above some (a tap at Kirby's height), onto the top of the block when it
- * is in solid ground, else an air point to hover at. */
+/* How far above the ground (world pixels) a tap still means "walk there":
+ * about Kirby's height.  Higher, he flies there and hovers.  (Was up to
+ * two cells above the standing cell, about 48 px: too eager to land.) */
+#define TAP_SNAP_PX 16
+
+/* A point to go to: snapped to the ground below it when it is at most
+ * TAP_SNAP_PX above it (a tap at Kirby's height), onto the top of the block
+ * when it is in solid ground, else an air point to hover at. */
 static void SetGo(s32 px, s32 py)
 {
-    int cx, cy, i;
+    int cx, cy, i, moved = 0;
 
     GridUpdate();
     if (sW <= 0)
@@ -736,6 +741,7 @@ static void SetGo(s32 px, s32 py)
     cx = px >> 4;
     cy = py >> 4;
     if (!Open(cx, cy)) {
+        moved = 1;
         for (i = 1; i <= 3 && !Open(cx, cy - i); i++)
             ;
         if (i <= 3)
@@ -749,10 +755,12 @@ static void SetGo(s32 px, s32 py)
     if (sT.kind != T_GO)
         NewTarget(T_GO);
     sT.air = 1;
-    for (i = 0; i <= 2 && cy + i < sH && Open(cx, cy + i); i++)
+    for (i = 0; i <= 1 && cy + i < sH && Open(cx, cy + i); i++)
         if (Supported(cx, cy + i)) {
-            cy += i;
-            sT.air = 0;
+            if (moved || (cy + i + 1) * 16 - py <= TAP_SNAP_PX) {
+                cy += i;
+                sT.air = 0;
+            }
             break;
         }
     sT.cx = cx;

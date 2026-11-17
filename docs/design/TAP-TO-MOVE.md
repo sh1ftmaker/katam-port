@@ -28,7 +28,7 @@ it opens up the screen to not need button controls."*
 
 | gesture | where | what Kirby does |
 |---|---|---|
-| tap | open ground, or just above it (up to 2 cells) | walks (runs, if far) there and stops on the spot; jumps, flies, drops and steps off ledges as the way needs |
+| tap | open ground, or at most 16 px (about Kirby's height) above it; higher taps hover | walks (runs, if far) there and stops on the spot; jumps, flies, drops and steps off ledges as the way needs |
 | tap | high in the air | flies there and hovers (holds the height) until the next command |
 | tap | inside solid ground | goes to the top of that block (or the nearest open cell) |
 | hold and drag | anywhere | the target follows the finger; let go and he stops where it was released |
