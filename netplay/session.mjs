@@ -11,6 +11,8 @@
 //   close(connId, code, reason)
 //   now()                         ms
 //   onOccupancy(n)                connected members, for the directory
+//   turn                          optional TURN provider (turn.mjs): room
+//                                 members may ask it for ICE servers
 //
 // and calls open / message / closed as sockets come and go, and tick()
 // whenever nextWakeIn() says (the deadline timer).
@@ -38,6 +40,16 @@ export const PROTO_VERSION = 2;
 export const MAX_SEATS = 1024;
 
 export const FRAME_MS = 1000 / 59.7275;   // the GBA's frame period
+
+// TURN credential requests (_turnRequest): token buckets, burst then one per
+// N seconds.  A page asks once per credential lifetime (3 h, turn.mjs) and
+// again only on a reload or a new join; a 16-player room asks 16 times at
+// its start.
+export const TURN_LIMITS = Object.freeze({
+    memberBurst: 3, memberEverySec: 600,     // per member identity
+    ipBurst: 8, ipEverySec: 120,             // per address, in this room
+    roomBurst: 24, roomEverySec: 60,         // the whole room
+});
 
 export const DEFAULT_PARAMS = Object.freeze({
     seats: 4,               // input columns (netsim: `seats`, u8 today)
@@ -139,11 +151,19 @@ export class SessionCore {
         this.banned = new Set();
         this.nextMid = 1;
         this.helloLimit = new RateLimiter({ capacity: 20, refillPerSec: 0.5, now: this.now });
+        // TURN credentials (turn.mjs), for members only -- see _turnRequest
+        this.turn = opts.turn || null;
+        this.turnLimits = {
+            member: new RateLimiter({ capacity: TURN_LIMITS.memberBurst, refillPerSec: 1 / TURN_LIMITS.memberEverySec, now: this.now }),
+            ip: new RateLimiter({ capacity: TURN_LIMITS.ipBurst, refillPerSec: 1 / TURN_LIMITS.ipEverySec, now: this.now }),
+            room: new RateLimiter({ capacity: TURN_LIMITS.roomBurst, refillPerSec: 1 / TURN_LIMITS.roomEverySec, now: this.now }),
+        };
         this._resetSequencer();
         this.stats = {
             sealed: 0, fills: 0, lateInputs: 0, framesMsgs: 0, bytesDown: 0, bytesUp: 0,
             desyncs: 0, syncs: 0, syncBytes: 0, syncFails: 0, sealLatencyMs: 0,
             sealLatencyMax: 0, deadlineSeals: 0,
+            turnMinted: 0, turnRefused: 0, turnFailed: 0, turnRevoked: 0,
         };
         this.nextStatsAt = 0;
         this.nextSyncId = 1;
@@ -307,10 +327,15 @@ export class SessionCore {
 
     _occupancy() { this.onOccupancy(this._connected().length); }
 
-    _forget(m) {
+    // revokeTurn: the member's TURN credentials too (left, kicked, denied);
+    // not for a member forgotten after the reconnect grace, whose direct or
+    // TURN link to the host may outlive its room socket -- those expire.
+    _forget(m, revokeTurn = true) {
         this.members.delete(m.mid);
         if (this.byIdentity.get(m.identity) === m.mid)
             this.byIdentity.delete(m.identity);
+        if (revokeTurn && m.turnUsernames && m.turnUsernames.length)
+            this._turnRevoke(m.turnUsernames.splice(0));
     }
 
     publicMember(m) {
@@ -443,7 +468,64 @@ export class SessionCore {
             t: 'welcome', mid: m.mid, role: m.role, seat: m.seat, code: this.code,
             phase: this.phase, host: this.hostMid, params: this.params,
             version: this.version, frontier: this.frontier, proto: PROTO_VERSION,
+            turn: !!this.turn,      // a 'turn_req' can be answered with servers
         });
+    }
+
+    // --- TURN credentials -----------------------------------------------------
+    //
+    // {t:'turn_req'} -> {t:'turn_creds', iceServers: [...], ttl} (seconds), or
+    // {t:'turn_creds', iceServers: [], why} with why one of
+    //   none   no TURN provider here (also its answer when minting failed)
+    //   alone  nobody else connected in the room: no link to make
+    //   rate   a limit below
+    //   busy   this member's previous request is still being minted
+    // Only members get here (past the hello / version gate; a member waiting
+    // for the host's approval is held back by _control).  The limits keep the
+    // room from being a credential tap: per member identity, per address in
+    // this room, and per room; room creation itself is rate-limited per
+    // address by the directory.  A member that leaves or is kicked has its
+    // credentials revoked (_forget).
+    _turnRequest(m) {
+        const refuse = (why) => {
+            this.stats.turnRefused++;
+            this._json(m, { t: 'turn_creds', iceServers: [], why });
+        };
+        if (!this.turn) return refuse('none');
+        if (m.turnPending) return refuse('busy');
+        if (!this._connected().some((x) => x !== m && x.role !== 'pending')) return refuse('alone');
+        const ip = (this.conns.get(m.connId) || {}).ip || '?';
+        const L = this.turnLimits;
+        if (L.member.retryAfter(m.identity) > 0 || L.ip.retryAfter(ip) > 0 || L.room.retryAfter('room') > 0)
+            return refuse('rate');
+        L.member.take(m.identity); L.ip.take(ip); L.room.take('room');
+        m.turnPending = true;
+        Promise.resolve()
+            .then(() => this.turn.mint({ roomId: this.roomId, mid: m.mid }))
+            .then((r) => {
+                m.turnPending = false;
+                const ok = r && Array.isArray(r.iceServers) && r.iceServers.length;
+                if (ok && this.members.get(m.mid) !== m) {       // gone meanwhile
+                    if (r.usernames && r.usernames.length) this._turnRevoke(r.usernames);
+                    return;
+                }
+                if (!ok) { this.stats.turnFailed++; return refuse('none'); }
+                this.stats.turnMinted++;
+                m.turnUsernames = (m.turnUsernames || []).concat(r.usernames || []).slice(-8);
+                this._json(m, { t: 'turn_creds', iceServers: r.iceServers, ttl: r.ttl | 0 });
+            }, (e) => {
+                m.turnPending = false;
+                this.stats.turnFailed++;
+                this.log('[turn] minting failed: ' + (e && e.message));
+                refuse('none');
+            });
+    }
+
+    _turnRevoke(usernames) {
+        if (!this.turn || !this.turn.revoke || !usernames.length) return;
+        this.stats.turnRevoked += usernames.length;
+        Promise.resolve().then(() => this.turn.revoke(usernames))
+            .catch((e) => this.log('[turn] revoke failed: ' + (e && e.message)));
     }
 
     // --- control messages -----------------------------------------------------
@@ -497,6 +579,9 @@ export class SessionCore {
         case 'snap_fail':
         case 'sync_done':
             this._syncMsg(m, msg);
+            return;
+        case 'turn_req':   // TURN credentials for this member's WebRTC links
+            this._turnRequest(m);
             return;
         case 'signal':     // M6 seam: WebRTC signalling relay
             {
@@ -1176,7 +1261,7 @@ export class SessionCore {
                 if (t - m.leftAt >= p.reconnectGraceMs) {
                     if (this.phase === 'playing' && m.seatLive) this._sealSeat(m);
                     this._freeSeat(m);
-                    this._forget(m);
+                    this._forget(m, false);
                     this.dirty = true;
                 }
             }

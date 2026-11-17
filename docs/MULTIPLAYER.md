@@ -1598,6 +1598,53 @@ Player 2`), and per guest in `katamOnline.stats().peers` and the menu's
 Online section (path, round trip, late keys, images, repairs). The relay
 room needed nothing: members beyond two were always allowed.
 
+### Connection tiers: direct, TURN, relay
+
+Each link is on one of three tiers (`link.tier()`, and `tier` in
+`katamOnline.stats()` and per peer; `link.path()` still says `p2p` for the
+first two and `relay` for the last):
+
+1. **direct**: WebRTC data channels browser to browser, found with STUN
+   (`stun.cloudflare.com`).
+2. **turn**: the same data channels (still unreliable/unordered for inputs,
+   UDP where the network allows) through a TURN server,
+   `turn.cloudflare.com` (Cloudflare Realtime TURN). The room server mints
+   short-lived credentials (3 h) per member: the welcome says `turn: true`
+   when it has them to give, a member asks with `{t: 'turn_req'}` once
+   someone else is in the room, and gets `{t: 'turn_creds', iceServers,
+   ttl}` (or `iceServers: []` and `why`: `none`, `alone`, `rate`, `busy`).
+   Only members past the hello / version gate are answered, with per-member,
+   per-address and per-room limits (`TURN_LIMITS`, `netplay/session.mjs`);
+   a member who leaves or is kicked has its credentials revoked. The page
+   refreshes them 30 min before they run out (`setConfiguration` on every
+   live peer connection). Plain ICE priority keeps a direct pair ahead of a
+   relayed one, so TURN is used only when the direct path fails. Port-53
+   TURN URLs are dropped (Cloudflare: browsers block them).
+3. **relay**: the room's WebSocket `signal` path through the worker (TCP),
+   if the channels are not open within 5 s, or 8 s when the link has TURN
+   servers in its config (a new link waits up to 2 s for credentials
+   already being fetched). A link that fell back tries again later (heal),
+   with the credentials in hand.
+
+The worker reads the secrets `TURN_KEY_ID` and `TURN_KEY_API_TOKEN`
+(`netplay/turn.mjs`); without them its welcome says `turn: false` and every
+page behaves as with STUN only, as before. The dev relay hands out no TURN
+servers unless started with `TURN_ICE_SERVERS` (a JSON `iceServers` list).
+
+Privacy: on a link that uses TURN, Cloudflare relays that link's game
+traffic (inputs, sealed frames, images; WebRTC encrypts it end to end with
+DTLS, so the relay carries ciphertext). Direct links are unchanged, and the
+WebSocket relay already went through Cloudflare's worker. Cost: Cloudflare
+bills TURN egress at $0.05/GB after 1,000 GB a month free (shared with the
+Realtime SFU; https://developers.cloudflare.com/realtime/pricing/).
+
+Test knobs: `?netrelay=1` (no WebRTC), `?netturn=1` (WebRTC through TURN
+only: `iceTransportPolicy: 'relay'`). `tools/online_browser_test.mjs --cases
+turn --relay-turn <dev relay with TURN_ICE_SERVERS>` runs a session with
+both pages on the `turn` tier through a local TURN server
+(`tools/local_turn.mjs`, node-turn installed outside the tree), and checks
+that without `?netturn=1` the same server's links stay `direct`.
+
 ### Verified
 
 `make netproof`: R13 (three and four devices, two local players on one
@@ -1609,8 +1656,10 @@ the game's own screens and an invite link, a drop, local joins on the host
 and on a guest, a refusal when full.
 
 Not verified: real devices, real networks, NAT traversal between more than
-two browsers (each guest has its own WebRTC link to the host; the relay
-carries any that fail).
+two browsers (each guest has its own WebRTC link to the host; TURN, then
+the relay, carries any that fail). The TURN tier is verified against a
+local TURN server only; Cloudflare's TURN service is not exercised by any
+test.
 
 ### Player cards online
 

@@ -9,9 +9,11 @@ export class Clock {
     advance(ms) { this.t += ms; }
 }
 
-export function makeRoom(params = {}, clock = new Clock()) {
+// coreOpts: more SessionCore options (a TURN provider, a log)
+export function makeRoom(params = {}, clock = new Clock(), coreOpts = {}) {
     const conns = new Map();
     const core = new SessionCore({
+        ...coreOpts,
         now: clock.now, rng: seededRng(7), params,
         send: (id, data) => { const c = conns.get(id); if (c) c.recv(data); },
         close: (id) => { const c = conns.get(id); if (c) c.open = false; },
