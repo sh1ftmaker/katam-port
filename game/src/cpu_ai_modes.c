@@ -883,7 +883,7 @@ static bool32 LiveReachEx(struct CpuBrain *brain, int t, bool32 openers)
         return FALSE;
     HintEnsure(t);
     FloodGated(r, gUnk_02024ED0[li->unk65E], li->roomWidth >> 4, li->roomHeight >> 4, c, t,
-               LiveOpen(brain), HumanHere(r), openers, sub_080029E4(li->unk65E), sub_080029BC(li->unk65E));
+               LiveOpen(brain), HumanHere(r), openers, GetRoomItemCount(li->unk65E), GetRoomKillCount(li->unk65E));
     return TRUE;
 }
 
@@ -1481,7 +1481,7 @@ static bool32 GateWay(struct CpuBrain *brain)
     const u8 *cells = gUnk_02024ED0[li->unk65E];
     int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
     int t = AbilityTier(k->ability), c, i, pick = -1;
-    int items = sub_080029E4(li->unk65E), kills = sub_080029BC(li->unk65E);
+    int items = GetRoomItemCount(li->unk65E), kills = GetRoomKillCount(li->unk65E);
     s32 kx = k->base.x >> 12, ky = k->base.y >> 12;
     u32 open, cand;
     const struct HintGate *g;

@@ -1,6 +1,7 @@
 # CPU AI modes
 
-Status: first draft (branch `six-cpuai`).  Code: `game/src/cpu_ai_modes.c`
+Status: first draft (branch `six-cpuai`); door groups (`six-hints`); gate
+hints and exit objects (`six-gates`).  Code: `game/src/cpu_ai_modes.c`
 (the brains), `platform/cpu_ai_host.c` (the setting, the input-log/online
 plumbing), `platform/port/cpu_ai.h` (the contract), a three-line hook in
 `CpuBrainTask` (`game/src/code_0800ECAC.c`), rows in
@@ -45,6 +46,21 @@ Common to the three new modes:
 - **Blocks in the way**: a block (or chain) on the cell path to the door
   within three steps is broken first: stand beside it, stop flying, face
   it, the stock break check for the ability (CPU-HINTS.md, B).
+- **Gates** (CPU-HINTS.md, D; `docs/naming/gates.md`): the room object lists
+  give sliding doors and the switches that share their room-state slot,
+  crumble blocks, triggerable walls.  Objects spawn only where people are,
+  so: in a room with a person, a shut sliding door is a wall in the floods,
+  a door behind it is still a target when one of its switches is reachable,
+  and the Kirby goes and stands on the switch (until the door is fully open
+  for a hold-only switch), then hurries through along the flood's cell path;
+  a wall waiting for the room's chest sends it to the chest.  In a room with
+  no person there are no sliding doors to stop it, and a crumble block it
+  stands on crumbles (the CPU does what the unspawned object would: its tile
+  record and its destroyed flag).
+- **Exit objects**: warp stars and cannons are edges of the route (their
+  room and arrival from the template); the Kirby walks to the object and
+  goes where it would send it, as it takes doors.  Room 142 (a warp star,
+  no door tiles) and the rooms before it are no longer dead ends.
 - **Only reachable targets**: chests, shards, bosses and food the Kirby
   can get to from where it is; rooms wanted for a chest only if the chest
   is reachable from the door it would enter by.
@@ -117,8 +133,9 @@ beat it, take its mirror shard (8 in all), then the final area and bosses.
 |---|---|
 | walk room to room toward a goal | yes (door graph routing + nav graph) -- draft quality |
 | know where the bosses are | partly: the stock brain's eight `gCpuLinkedRooms` pairs (boss-door room -> boss room) |
-| know which doors are open | partly: door tiles present in the room now, and door groups (which doors a Kirby can reach from where it is or enters, with the blocks its ability breaks); doors behind switches, objects (sliding doors, triggerable walls) or ability gates it does not have are found by failing (30 s) |
-| press big switches | no |
+| know which doors are open | partly: door tiles present in the room now, door groups (which doors a Kirby can reach from where it is or enters, with the blocks its ability breaks), sliding doors and their switches, crumble blocks, chest walls, warp stars and cannons (gate hints); ability gates it does not have are found by failing (30 s) |
+| press switches | small switches that open sliding doors: yes (with a person in the room: elsewhere there are no doors); a hold-only switch for another Kirby: no |
+| press big switches | no (the game lets only people; it starts a world-map cutscene and writes the save) |
 | use the right ability for an obstacle (hammer stakes, fuse lines, bomb blocks) | no (stock: block breaking only if it already has a fitting ability) |
 | fight a boss with a plan | no boss routine: stock attack scan, goal on the boss |
 | collect a shard | walks to a shard object if it sees one (untested end to end) |
@@ -138,6 +155,12 @@ shard is not expected from this draft.  See "Evidence" for numbers.
   every person (`CpuActDecide`: a random ability now and then).
 - EXPLORER/ADVENTURER mark rooms they enter as entered in the save (the
   pause map and completion count show rooms the CPUs found).
+- Warp stars and cannons take only people; a CPU in these modes reaching one
+  goes where it leads anyway (by `sub_080551FC`, as with doors) -- also a
+  cannon whose fuse nobody lit (room 126 -> 570).
+- A crumble block a CPU stands on in a room no person is in crumbles without
+  its object (which only spawns in a person's view), and stays crumbled in
+  that room's state as if a person had stood on it.
 
 ## Evidence
 
@@ -180,15 +203,48 @@ the dead-end fallback (49 of 54 after; 18 stuck warps before).  Remaining
 stalls: 831/814 (8xx), 704/706 (7xx), 740 -- doors behind switches or
 objects the map cannot see.  One seed each.
 
+### With gate hints and exit objects (`six-gates`)
+
+The same recordings (summed over Kirbys 2-4 as above; warps = all warps,
+in brackets the dead-end fallback ones), before -> after:
+
+| run | distinct rooms | doors walked | warps (fallback) | give-ups | time stuck |
+|---|---|---|---|---|---|
+| MIXED | 38 / 34 | 34 / 59 | 14 (12) / 2 (1) | 8 / 4 | 848 s / 722 s (564 s of it the BODYGUARD idling with the idle player, both) |
+| EXPLORER x3 | 59 / 61 | 52 / 75 | 23 (20) / 13 (12) | 17 / 13 | 391 s / 352 s |
+| ADVENTURER x3 | 49 / 60 | 65 / 77 | 17 (17) / 13 (11) | 7 / 10 | 388 s / 292 s |
+| all three | 146 / 155 | 151 / 211 | 54 (49) / 28 (24) | 32 / 27 | 1627 s / 1366 s |
+| CLASSIC | identical (rooms of every Kirby; layout-neutral check) | | | | |
+
+One seed each is noisy (a small change sends a Kirby another way), so the
+same three were also run with the player's hub warp at frames 1437 and 1471
+(nine runs, sums): distinct rooms 457 -> 473, doors 427 -> 586, warps 161
+(142 fallback) -> 99 (88), give-ups 112 -> 93, time stuck 5091 s -> 4067 s.
+The person idles in the hub in all of them, so the CPUs are always alone:
+no objects spawn, the switch logic never runs here, and the gains are the
+warp star of room 142 (30 of the 142 fallback warps before, and the dead
+ends 104 -> 103 -> 142 behind it) and crumble blocks (814 -> 829: 13
+give-ups before, 1 after).  `tests/cpu_ai.sh` covers the switch case with
+a person in the room (712).
+
+Remaining stalls (nine runs): 706 -> 707 (17 give-ups: a row of pits the
+Kirby must fly over), the Moonlight Mansion cycle 790 / 740 / 708 / 743 /
+824 (each about 13-15 dead-end warps: everything reachable is explored, the
+rest is behind the chest wall of 743 -- no chest object without a person --
+and the hub door of 790, which opens with a big switch only people press),
+814 -> 832 (11: a long chain of level-1 blocks and a chain fuse), 829 -> 811
+(8), 704 -> 711 (6: the nav graph sends it round the wrong side).  Movement,
+not knowledge, is now the larger share.
+
 ## What would be needed to finish the game (prioritised)
 
-1. Obstacle knowledge: read the room's breakable-block and switch objects
-   and the ability each needs (the stock `gCpuBreakBlockChecks` tables
-   know which ability breaks which block), and have ADVENTURER fetch an
-   ability (inhale a matching enemy; `wantAbility` already exists) before a
-   gate.
-2. Big switches: find the switch object, walk onto/hit it, then re-route
-   (the hub mirror opens).
+1. Obstacle knowledge: done for breakable blocks, switches and sliding
+   doors, crumble blocks, chest walls, warp stars and cannons (gate hints);
+   still to do: have ADVENTURER fetch an ability (inhale a matching enemy;
+   `wantAbility` already exists) before a gate, and star stone blocks.
+2. Big switches: the game lets only people press them (`PortIsHuman` in
+   `SwitchIsPressed`), and each starts a world-map interlude and sets a
+   saved world flag; a CPU press would need a rule change there.
 3. A boss routine per boss (keep distance, attack windows, inhale the
    projectiles stars) instead of the generic scan.
 4. Door locks: respect the game's own lock state so routes match what a

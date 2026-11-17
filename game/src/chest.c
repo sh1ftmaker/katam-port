@@ -347,14 +347,14 @@ static void sub_0800B97C(struct ChestItemPopup *popup) {
                 BonusCreateTomato(gKirbys);
                 PlaySfx(&gKirbys[0].base, SE_ITEM_COLLECT);
             }
-            sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
+            AddRoomItemCount(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
         }
         else if (popup->unk4C->unkE0 == 0x63) {
-            sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
+            AddRoomItemCount(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
         }
         else {
             PlaySfx(&gKirbys[popup->unk4C->unkE4].base, SE_ITEM_COLLECT);
-            sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
+            AddRoomItemCount(EWRAM_MIRROR_U8(&gCurLevelInfo[popup->unk4C->obj.base.unk56].unk65E), 1);
         }
         popup->effectObject.flags |= 0x1000;
     }
@@ -364,7 +364,7 @@ void sub_0800BD4C(struct Chest *arg0) {
     struct Chest *chest = arg0;
     if (HasChest(chest->unkE2)) {
         chest->obj.unk78 = FN(sub_0800BD9C);
-        sub_080029F4(EWRAM_MIRROR_U8(&gCurLevelInfo[chest->obj.base.unk56].unk65E), 1);
+        AddRoomItemCount(EWRAM_MIRROR_U8(&gCurLevelInfo[chest->obj.base.unk56].unk65E), 1);
     }
     else {
         chest->obj.unk78 = FN(sub_0800AEB0);

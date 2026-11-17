@@ -1820,7 +1820,7 @@ static void sub_0800BFC8(struct StarShared *ss)
     }
 }
 
-static bool32 sub_0800C084(struct WarpStar *ws, bool32 a2)
+static bool32 WarpStarTryBoard(struct WarpStar *ws, bool32 a2)
 {
     struct Kirby *kirby, *kirby2;
 
@@ -1842,7 +1842,7 @@ static bool32 sub_0800C084(struct WarpStar *ws, bool32 a2)
 
 static void sub_0800C124(struct WarpStar *ws)
 {
-    if (sub_0800C084(ws, TRUE))
+    if (WarpStarTryBoard(ws, TRUE))
     {
         ws->unk0.obj.base.flags |= 0x400;
         CreateEffectObject(&ws->unk0.obj.base, 0, 0x292, 0);
@@ -1871,7 +1871,7 @@ static void sub_0800C1C4(struct WarpStar *ws)
     s32 a[2];
     struct WarpStar *wsAlias = ws;
 
-    if (sub_0800C084(ws, FALSE))
+    if (WarpStarTryBoard(ws, FALSE))
         CreateEffectObject(&ws->unk0.obj.base, 0, 0x292, 0);
     a[0] = ws->unk0.obj.objTemplate->x * 0x100;
     ws->unk0.obj.base.x = ws->unk0.obj.objTemplate->x * 0x100;
@@ -1908,7 +1908,7 @@ static void sub_0800C270(struct WarpStar *ws)
 #endif
     u16 exp;
 
-    if (sub_0800C084(ws, FALSE))
+    if (WarpStarTryBoard(ws, FALSE))
         CreateEffectObject(&ws->unk0.obj.base, 0, 0x292, 0);
     for (i = 0; i < gNumKirbys; ++i)
         if ((STAR_MASK(&ws->unk0) >> i) & 1 && gCurLevelInfo[i].unk1EC == 1)
