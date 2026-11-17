@@ -1270,6 +1270,10 @@
   }
   body.tap-play #tb-start::after { content: "II"; font-size: 15px; letter-spacing: .12em; }
   body.tap-play #touch { opacity: 1; }
+  /* over the game's own top left icons in landscape: fainter there */
+  @media (orientation: landscape) {
+    body.tap-play #tb-start { opacity: .5; }
+  }
 
   /* Over gameplay in landscape rather than over letterboxing, so they step
      back until they are touched. */
@@ -4335,9 +4339,18 @@ var Module = (function () {
   // that finger is holding anyway, so nothing is visibly wrong.
   var STALE_RADIUS = 60;
 
+  var touchesDown = 0;
   function reconcileTouches(e) {
     if (!e.touches) return;
-    if (e.touches.length === 0) { releaseAllTouch(); return; }
+    if (e.touches.length === 0) {
+      releaseAllTouch();
+      // tap to move's fingers too, a moment later: a pointerup still on its
+      // way is a tap on Kirby, and must land first
+      setTimeout(function () { if (!touchesDown) tapReleaseAll(); }, 60);
+      touchesDown = 0;
+      return;
+    }
+    touchesDown = e.touches.length;
 
     var dropped = false;
     for (var id in pointers) {
