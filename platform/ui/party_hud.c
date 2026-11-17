@@ -94,6 +94,29 @@
  * present.c reports (PortPartyHudSetView), stacked when Kirbys stand side
  * by side, dropped when off the picture.  Drawn under the cards.
  *
+ * --- the connection readout ------------------------------------------------------
+ *
+ * Online, the pause SETTINGS > ONLINE list (platform/menu_poc.c) names every
+ * player; beside each guest's name this draws its link to the host: a dot
+ * (green good, yellow ok, red poor, grey not known or the table old) and the
+ * ping round trip in ms, "R" in cyan before it when the link goes over the
+ * room relay instead of WebRTC ("R140"), on a small plate in a column the
+ * list leaves free for it.  Good is under PORT_NETQ_GOOD_MS (80 ms) with
+ * under 5 % of its keys late for their frame at the host, ok under 180 ms
+ * and 15 %, else poor (party_hud.h).  The host's rows show the list's HOST
+ * and nothing more; the CPU's nothing.
+ *
+ * Where it comes from: the page (web/ln_session.js "the connection
+ * readout") hands the table in with PortNetqSet -- on the host its own
+ * measurements, on a guest the host's table, relayed once a second.  The
+ * list is drawn into the pause overlay's fork (platform/lmpnet.c "the pause
+ * overlay": this device's private copy of the game, never the session), and
+ * each frame it is up it notes which rows are on screen (PortNetqListBegin /
+ * PortNetqListRow); the next sample takes that, and PortNetqDraw draws the
+ * plates over the presented picture at those rows (both renderers, and the
+ * 2D canvas).  Nothing of it reaches game memory -- not even the fork's --
+ * so the readout is per device, like the cards.
+ *
  * --- colours ---------------------------------------------------------------------
  *
  * A player card's custom colour (kirby_paint.c) shades the little Kirby,
@@ -194,6 +217,95 @@ void PortPartyHudSetView(int ok, int camX, int camY, int viewX, int viewY, int v
     sView.camX = camX; sView.camY = camY;
     sView.viewX = viewX; sView.viewY = viewY;
     sView.viewW = viewW; sView.viewH = viewH;
+}
+
+/* --- the connection readout: the table and the list's rows (party_hud.h) ------- */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#define NETQ_EXPORT EMSCRIPTEN_KEEPALIVE     /* the page's calls */
+#else
+#define NETQ_EXPORT
+#endif
+typedef struct {
+    u8 known, path, stale;
+    s16 rttMs;              /* -1 not known                                  */
+    s8 latePct;             /* -1 not known                                  */
+} NetqDevice;
+typedef struct {
+    u8 n;
+    s16 colX;               /* the column's left edge, GBA x                 */
+    s16 frameY[PORT_NETQ_ROWS];
+    s8 dev[PORT_NETQ_ROWS];
+} NetqList;
+static NetqDevice sNetq[PORT_NETQ_DEVICES];
+static NetqList sNetqNoted;     /* as the list last noted it (the fork's frame) */
+static NetqList sNetqShown;     /* as last sampled                              */
+static u8 sNetqListing;         /* a note in progress (the fork runs)           */
+static u8 sNetqFresh;           /* noted since the last sample                  */
+static u8 sNetqShow;            /* the readout is up                            */
+
+NETQ_EXPORT void PortNetqClear(void)
+{
+    memset(sNetq, 0, sizeof(sNetq));
+}
+
+NETQ_EXPORT void PortNetqSet(int dev, int rttMs, int path, int latePct, int stale)
+{
+    NetqDevice *q;
+
+    if (dev < 1 || dev >= PORT_NETQ_DEVICES)
+        return;
+    q = &sNetq[dev];
+    q->known = 1;
+    q->rttMs = (s16)(rttMs < 0 ? -1 : rttMs > 9999 ? 9999 : rttMs);
+    q->path = (u8)(path == PORT_NETQ_PATH_DIRECT || path == PORT_NETQ_PATH_RELAY ? path : PORT_NETQ_PATH_UNKNOWN);
+    q->latePct = (s8)(latePct < 0 ? -1 : latePct > 100 ? 100 : latePct);
+    q->stale = stale != 0;
+}
+
+int PortNetqGrade(int rttMs, int latePct)
+{
+    if (rttMs < 0)
+        return PORT_NETQ_GRADE_UNKNOWN;
+    if (rttMs >= PORT_NETQ_OK_MS || latePct >= PORT_NETQ_OK_LATE)
+        return PORT_NETQ_GRADE_POOR;
+    if (rttMs >= PORT_NETQ_GOOD_MS || latePct >= PORT_NETQ_GOOD_LATE)
+        return PORT_NETQ_GRADE_OK;
+    return PORT_NETQ_GRADE_GOOD;
+}
+
+/* Only from this device's pause overlay (the fork is the state in memory):
+ * the shared game never shows the list online, and nothing it does may
+ * depend on this device. */
+void PortNetqListBegin(int colX)
+{
+    sNetqListing = PortLnActive() && PortLnOverlayRunning();
+    if (!sNetqListing)
+        return;
+    memset(&sNetqNoted, 0, sizeof(sNetqNoted));
+    sNetqNoted.colX = (s16)colX;
+    sNetqFresh = 1;
+}
+
+void PortNetqListRow(int frameY, int dev)
+{
+    NetqList *l = &sNetqNoted;
+
+    if (!sNetqListing || l->n >= PORT_NETQ_ROWS)
+        return;
+    l->frameY[l->n] = (s16)frameY;
+    l->dev[l->n] = (s8)(dev < -1 ? -1 : dev >= PORT_NETQ_DEVICES ? -1 : dev);
+    l->n++;
+}
+
+/* At each sample: up while the overlay's list was noted since the last one. */
+static void NetqSample(void)
+{
+    sNetqShow = sNetqFresh && PortLnActive() && PortLnOverlayOpen() == 2 && sNetqNoted.n > 0;
+    if (sNetqShow)
+        sNetqShown = sNetqNoted;
+    sNetqFresh = 0;
+    sNetqListing = 0;
 }
 
 /* --- compact cards ------------------------------------------------------------
@@ -448,6 +560,7 @@ void PortPartyHudSample(void)
     u16 room;
 
     memset(&p, 0, sizeof(p));
+    NetqSample();
     SampleTags();
     if (HudShowing() && gNumKirbys >= 2 && gNumKirbys <= PARTY_KIRBYS)
         SampleHint();
@@ -1443,6 +1556,130 @@ static void Layout(const Target *tg, const int world[4], double scale, int strip
     }
 }
 
+/* --- the connection readout: drawing --------------------------------------------
+ * One plate per guest row, NETQ_PLATE_W x NETQ_PLATE_H GBA pixels at the
+ * column's left edge and the row's lettering (frame top + 5), all rows in one
+ * canvas (overlay slot NETQ_SLOT, the last: party_hud's others are 0..3+K-1). */
+#define NETQ_PLATE_W 30
+#define NETQ_PLATE_H 10
+#define NETQ_ROW_INK 5          /* menu_poc.c: a row's lettering, frame top + 5 */
+#define NETQ_SLOT (3 + PARTY_KIRBYS)
+#define NETQ_GOOD  0x1B84       /* RGB(4, 28, 6)                                  */
+#define NETQ_OK    0x135F       /* RGB(31, 26, 4)                                 */
+#define NETQ_POOR  0x191F       /* RGB(31, 8, 6)                                  */
+#define NETQ_NONE  0x4A52       /* RGB(18, 18, 18): not known, or old             */
+#define NETQ_RELAY 0x7F92       /* RGB(18, 28, 31): the "R"                       */
+#define NETQ_EDGE  0x318C       /* RGB(12, 12, 12)                                */
+static Canvas sNetqCv;
+static u32 sNetqPx[CANVAS_W * CANVAS_H];
+static int sNetqAt[5];          /* tests: x y w h (framebuffer), plates drawn   */
+
+/* The grade a device's row shows (party_hud.h's thresholds). */
+static int NetqGradeOf(const NetqDevice *q)
+{
+    if (!q->known || q->stale)
+        return PORT_NETQ_GRADE_UNKNOWN;
+    return PortNetqGrade(q->rttMs, q->latePct);
+}
+
+/* Compose the plates; the canvas's height (0: no guest row on screen). */
+static int NetqCompose(int *y0out)
+{
+    static const u16 kGrade[4] = { NETQ_NONE, NETQ_GOOD, NETQ_OK, NETQ_POOR };
+    const NetqList *l = &sNetqShown;
+    Canvas *cv = &sNetqCv;
+    Party ident;
+    int i, y0 = 1 << 14, y1 = -(1 << 14), plates = 0;
+
+    for (i = 0; i < l->n; i++) {
+        if (l->dev[i] < 1)
+            continue;
+        if (l->frameY[i] < y0) y0 = l->frameY[i];
+        if (l->frameY[i] > y1) y1 = l->frameY[i];
+    }
+    if (y1 < y0)
+        return 0;
+    cv->w = NETQ_PLATE_W;
+    cv->h = y1 - y0 + NETQ_PLATE_H;
+    if (cv->h * cv->w > CANVAS_W * CANVAS_H)
+        cv->h = CANVAS_W * CANVAS_H / cv->w;
+    memset(cv->a, 0, sizeof(cv->a));
+    for (i = 0; i < l->n; i++) {
+        const NetqDevice *q;
+        char num[8];
+        int py, g, x, dx, dy;
+        u16 ink;
+
+        if (l->dev[i] < 1)
+            continue;           /* the host (its HOST says it) or the CPU */
+        q = &sNetq[l->dev[i]];
+        py = l->frameY[i] - y0;
+        g = NetqGradeOf(q);
+        Plate(cv, 0, py, NETQ_PLATE_W, NETQ_PLATE_H, NETQ_EDGE);
+        /* the dot: 4 x 4, its corners off */
+        for (dy = 0; dy < 4; dy++)
+            for (dx = 0; dx < 4; dx++)
+                if (!((dy == 0 || dy == 3) && (dx == 0 || dx == 3)))
+                    Put(cv, 3 + dx, py + 3 + dy, kGrade[g], 255);
+        ink = q->known && !q->stale ? 0x7FFF : NETQ_NONE;
+        x = 9;
+        if (q->known && q->path == PORT_NETQ_PATH_RELAY)
+            x += Text(cv, x, py + 2, "R", q->stale ? NETQ_NONE : NETQ_RELAY, 0, 0, 255) + 1;
+        if (q->known && q->rttMs >= 0)
+            snprintf(num, sizeof num, "%d", q->rttMs > 999 ? 999 : q->rttMs);
+        else
+            snprintf(num, sizeof num, "-");
+        Text(cv, x, py + 2, num, ink, 0, 0, 255);
+        plates++;
+    }
+    memset(&ident, 0, sizeof(ident));
+    for (i = 0; i < 3; i++) {
+        ident.lo[i] = 0;
+        ident.hi[i] = 31;
+    }
+    Finish(cv, sNetqPx, &ident, 255);
+    sNetqAt[4] = plates;
+    *y0out = y0;
+    return cv->h;
+}
+
+/* Over the 240x160 picture at pic (framebuffer x y w h). */
+static void NetqDrawOn(const Target *tg, const int pic[4])
+{
+    double kx, ky;
+    int y0 = 0, h;
+
+    memset(sNetqAt, 0, sizeof(sNetqAt));
+    if (!sNetqShow || pic[2] <= 0 || pic[3] <= 0)
+        return;
+    h = NetqCompose(&y0);
+    if (h <= 0)
+        return;
+    kx = (double)pic[2] / PORT_HUD_W;
+    ky = (double)pic[3] / PORT_HUD_H;
+    sNetqAt[0] = (int)(pic[0] + sNetqShown.colX * kx);
+    sNetqAt[1] = (int)(pic[1] + (y0 + NETQ_ROW_INK) * ky);
+    sNetqAt[2] = (int)(NETQ_PLATE_W * kx);
+    sNetqAt[3] = (int)(h * ky);
+    Emit(tg, NETQ_SLOT, sNetqPx, sNetqCv.w, h, 1, pic[0] + sNetqShown.colX * kx,
+         pic[1] + (y0 + NETQ_ROW_INK) * ky, kx);
+}
+
+void PortNetqDraw(int fbW, int fbH, const int picture[4], int srcW, int srcH, int smooth)
+{
+    Target t;
+
+    if (srcW != PORT_HUD_W || srcH != PORT_HUD_H) {
+        memset(sNetqAt, 0, sizeof(sNetqAt));
+        return;                 /* not a menu's picture: the rows are not where they were noted */
+    }
+    t.fbW = fbW;
+    t.fbH = fbH;
+    t.smooth = smooth;
+    t.soft = NULL;
+    NetqDrawOn(&t, picture);
+}
+
 void PortPartyHudDraw(int fbW, int fbH, const int world[4], double scale, int strip, int smooth, double dpr)
 {
     Target t;
@@ -1463,7 +1700,7 @@ int PortPartyHudSoftSample(void)
     PortRlFocus(&kx, &ky, &cx, &cy);
     PortPartyHudSetView(1, cx >> 8, cy >> 8, 0, 0, 240, 160);
     PortPartyHudSample();
-    return (sNow.show && sNow.n > 0) || sHintText[0] || sTagsShow;
+    return (sNow.show && sNow.n > 0) || sHintText[0] || sTagsShow || sNetqShow;
 }
 
 void PortPartyHudDrawSoft(u32 *pixels, int w, int h)
@@ -1485,6 +1722,7 @@ void PortPartyHudDrawSoft(u32 *pixels, int w, int h)
     for (k = 0; k < PARTY_KIRBYS; k++)
         sNameTagUpload[k] = 1;
     Layout(&t, world, 1.0, 0, 0.0);
+    NetqDrawOn(&t, world);
     memcpy(sKeep, keep, sizeof(keep));
 }
 
@@ -1508,6 +1746,34 @@ EMSCRIPTEN_KEEPALIVE int PortPartyHudCardJs(int i, int k)
 /* The hint line now ("" none). */
 EMSCRIPTEN_KEEPALIVE const char *PortPartyHudHintJs(void) { return sHintText; }
 EMSCRIPTEN_KEEPALIVE int PortPartyHudHintKindJs(void) { return sHintKind; }
+/* The connection readout (tests): k 0..3 where it was last drawn (x y w h,
+ * framebuffer pixels; 0 not drawn), 4 its plates; k 5 + i: row i's device
+ * (-1 the CPU, 0 the host), 5 + PORT_NETQ_ROWS + i its grade (PORT_NETQ_GRADE_*,
+ * -1 no plate); -1 past the rows. */
+EMSCRIPTEN_KEEPALIVE int PortNetqShownJs(int k)
+{
+    int i;
+
+    if (k >= 0 && k < 5)
+        return sNetqShow ? sNetqAt[k] : 0;
+    i = k - 5;
+    if (i >= 0 && i < PORT_NETQ_ROWS)
+        return sNetqShow && i < sNetqShown.n ? sNetqShown.dev[i] : -2;
+    i -= PORT_NETQ_ROWS;
+    if (i >= 0 && i < PORT_NETQ_ROWS)
+        return sNetqShow && i < sNetqShown.n && sNetqShown.dev[i] >= 1 ? NetqGradeOf(&sNetq[sNetqShown.dev[i]]) : -1;
+    return -1;
+}
+/* The table as set (tests): dev's k 0 known, 1 rtt, 2 path, 3 late %, 4 stale. */
+EMSCRIPTEN_KEEPALIVE int PortNetqTableJs(int dev, int k)
+{
+    const NetqDevice *q;
+
+    if (dev < 1 || dev >= PORT_NETQ_DEVICES)
+        return -1;
+    q = &sNetq[dev];
+    return k == 0 ? q->known : k == 1 ? q->rttMs : k == 2 ? q->path : k == 3 ? q->latePct : k == 4 ? q->stale : -1;
+}
 /* Rigs without a picture (tools/rooms/phone_optin_test.mjs): sample now. */
 EMSCRIPTEN_KEEPALIVE int PortPartyHudTestSampleJs(void) { return PortPartyHudSoftSample(); }
 #endif

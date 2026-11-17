@@ -46,3 +46,30 @@ for (let t = 0; t < 2000; t++) {
 // eight slots, all held: the bytes per record
 const full = { k0: 1, k1: 1, k2: 1, k3: 1, k: [1, 1, 1, 1, 1, 1, 1, 1], hashed: 0, ev: [] };
 console.log('4-slot byte-identical', same, 'round trips', rt, 'record with 8 pads held', L.recBytes(full), 'B; 64 of them', 23 + 64 * L.recBytes(full), 'B');
+// The connection readout (web/ln_session.js "the connection readout"): the
+// host's table reaches every guest and the host's own engine as sent, rows
+// clamped, the late share over the window; no simulation call on the way.
+{
+  const sim = [];
+  const eng = { frame: () => 100, seatRequest: () => 1, setSeatSlots() {}, slots: () => 16, maxDevices: () => 16,
+                imageRequest: () => sim.push('imageRequest'), setNetQuality: (q, stale) => sim.push(['host', q, stale]) };
+  const hub = new L.HostHub(eng, () => 0, { seats: 8 });
+  const sent = [];
+  for (const d of [1, 2]) hub.add(d, { datagram() {}, reliable: (m, n) => sent.push([d, m, n]) });
+  const rows = [L.netqRow(1, 41.6, L.NETQ_PATH.DIRECT, 2.4), L.netqRow(2, null, L.NETQ_PATH.RELAY, 250), L.netqRow(3, 12000, 0, -5)];
+  if (JSON.stringify(rows) !== JSON.stringify([[1, 42, 1, 2], [2, -1, 2, 100], [3, 9999, 0, -1]])) throw new Error('netqRow ' + JSON.stringify(rows));
+  hub.sendNetQuality(rows);
+  const msgs = sent.filter((x) => x[1].t === L.NETQ_MSG);
+  if (msgs.length !== 2 || msgs.some((x) => x[1].q !== rows || x[2] > 64)) throw new Error('netq to every guest: ' + JSON.stringify(msgs));
+  if (!sim.some((x) => x[0] === 'host' && x[1] === rows && x[2] === false)) throw new Error('netq on the host');
+  const got = [];
+  const gs = new L.GuestSession({ setNetQuality: (q, stale) => got.push([q, stale]) }, { datagram() {}, reliable() {} }, () => 5);
+  gs.onReliable(msgs[0][1]);
+  if (got.length !== 1 || got[0][0] !== rows || got[0][1] !== false || gs.netq !== rows || gs.netqAt !== 5) throw new Error('netq on a guest');
+  const late = new L.NetqLate(5);
+  if (late.sample({ inputFrames: 100, inputsUseless: 0 }) !== null) throw new Error('late: first sample');
+  if (late.sample({ inputFrames: 160, inputsUseless: 6 }) !== 10) throw new Error('late: 6 of 60');
+  for (let i = 0; i < 6; i++) late.sample({ inputFrames: 220 + 60 * i, inputsUseless: 6 });
+  if (late.sample({ inputFrames: 600, inputsUseless: 6 }) !== 0) throw new Error('late: the window forgets');
+  console.log('netq: table to', msgs.length, 'guests and the host,', msgs[0][2], 'B; late share windowed');
+}

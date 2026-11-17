@@ -186,7 +186,7 @@
         this.lastTs = 0; this.lastTsAt = 0;
         this.imageWanted = 0; this.imageReason = ''; this.imgInFlight = null;
         this.st = { packets: 0, recs: 0, images: 0, imageRaw: 0, imageComp: 0, compressMs: 0, repairReqs: 0,
-                    viewReqs: 0, inputsIn: 0, inputsUseless: 0,
+                    viewReqs: 0, inputsIn: 0, inputsUseless: 0, inputFrames: 0,
                     bytesOut: 0, bytesIn: 0, maxPacket: 0, resends: 0, resentRecs: 0, rtoMs: 0, srttMs: 0 };
         this.started = false;
     }
@@ -239,6 +239,10 @@
             if (!this.seen.has(f)) {
                 this.seen.add(f);
                 this.margins.push({ t: t, m: f - next });
+                // every frame of this guest's keys heard, and those heard
+                // after the host had simulated that frame (late: the host
+                // sealed its guess): the connection readout's late share
+                this.st.inputFrames++;
                 if (f < next) this.st.inputsUseless++;
             }
             for (var s = 0; s < 4; s++)
@@ -433,6 +437,13 @@
             // every slot's name, from the host (presentation only)
             this.st.names = (this.st.names || 0) + 1;
             if (this.e.setSlotNames && typeof msg.n === 'string') this.e.setSlotNames(msg.n);
+            return;
+        }
+        if (msg.t === NETQ_MSG) {
+            // every guest's connection, from the host (presentation only)
+            this.st.netqIn = (this.st.netqIn || 0) + 1;
+            this.netq = msg.q; this.netqAt = this.clock();
+            if (this.e.setNetQuality && Array.isArray(msg.q)) this.e.setNetQuality(msg.q, false);
             return;
         }
         if (msg.t !== 'image') return;
@@ -639,6 +650,50 @@
             }
     };
 
+    // --- the connection readout (presentation only) --------------------------------
+    // Each human player's link to the host -- its round trip, whether it is
+    // direct (WebRTC) or relayed (the room server), and the share of its keys
+    // that reached the host too late for their frame -- shown beside every
+    // player's name in the in-game player list (the pause SETTINGS > ONLINE
+    // rows: platform/menu_poc.c, the readout drawn over the picture by
+    // platform/ui/party_hud.c).  The host measures every guest's link
+    // (web/online.js netqTick); a guest knows only its own, so the host sends
+    // the whole table to every guest once a second (NETQ_MS), one small
+    // reliable message: { t: 'netq', q: [[dev, rttMs, path, latePct], ...] }
+    // (-1: not known yet).  Per-device presentation, like the names: never
+    // sealed, hashed, recorded or in a keyframe or image.
+    var NETQ_MSG = 'netq', NETQ_MS = 1000;
+    var NETQ_PATH = { UNKNOWN: 0, DIRECT: 1, RELAY: 2 };
+    // one row: a guest device's link as the host sees it
+    function netqRow(dev, rttMs, path, latePct) {
+        return [dev | 0, rttMs === null || rttMs === undefined || !(rttMs >= 0) ? -1 : Math.min(9999, Math.round(rttMs)),
+                path | 0, latePct === null || latePct === undefined || !(latePct >= 0) ? -1 : Math.min(100, Math.round(latePct))];
+    }
+    // The late share of one guest's keys over the last few readouts:
+    // HostSession.st's counts, sampled once a readout.
+    function NetqLate(windowN) { this.n = windowN || 5; this.ring = []; this.last = null; }
+    NetqLate.prototype.sample = function (st) {
+        var cur = { all: st.inputFrames || 0, late: st.inputsUseless || 0 };
+        // a new HostSession (the guest back in after a drop): counts from 0
+        if (this.last && (cur.all < this.last.all || cur.late < this.last.late)) { this.last = null; this.ring = []; }
+        if (this.last) {
+            this.ring.push({ all: cur.all - this.last.all, late: cur.late - this.last.late });
+            if (this.ring.length > this.n) this.ring.shift();
+        }
+        this.last = cur;
+        var all = 0, late = 0;
+        for (var i = 0; i < this.ring.length; i++) { all += this.ring[i].all; late += this.ring[i].late; }
+        return all > 0 ? 100 * late / all : null;
+    };
+    // The host: the table (rows from netqRow) to every guest, and to its own
+    // player list.
+    HostHub.prototype.sendNetQuality = function (rows) {
+        var ds = this.devs(), msg = { t: NETQ_MSG, q: rows };
+        this.st.netqSent = (this.st.netqSent || 0) + 1;
+        if (this.e.setNetQuality) this.e.setNetQuality(rows, false);
+        for (var i = 0; i < ds.length; i++) this.peers[ds[i]].tx.reliable(msg, 12 + 10 * rows.length);
+    };
+
     // --- liveness: what each side does when the other goes quiet ----------------
     // The page's timers (web/online.js) and the rig's (tools/netproof/run.mjs
     // with c.liveness) are these, so the rig tests the rules that ship.  Times
@@ -743,7 +798,21 @@
         eng.cardDrop = function (dev) { M._PortCardHostDropDevice(dev); };
         eng.slotNames = function () { return cstr(M, M._PortCardSlotNames()); };
         eng.setSlotNames = function (n) { M._PortCardSetSlotNames(putStr(M, sbuf, 256, n)); };
-        return settingsCalls(M, eng);
+        return netqCalls(M, settingsCalls(M, eng));
+    }
+    // the connection readout's table (platform/ui/party_hud.c PortNetqSet),
+    // absent in an older build: rows from netqRow; stale: the last table is
+    // old (the host not heard from), shown grey
+    function netqCalls(M, eng) {
+        if (!M._PortNetqClear || !M._PortNetqSet) return eng;
+        eng.setNetQuality = function (rows, stale) {
+            M._PortNetqClear();
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (r && r.length >= 4) M._PortNetqSet(r[0] | 0, r[1] | 0, r[2] | 0, r[3] | 0, stale ? 1 : 0);
+            }
+        };
+        return eng;
     }
     // the pause SETTINGS page's per-device copies (platform/menu_poc.c,
     // platform/lmpnet.c), absent in an older build or with the menus off
@@ -850,5 +919,6 @@
         encInput: encInput, decInput: decInput, encSealed: encSealed, decSealed: decSealed,
         engineOfModule: engineOfModule, cardCalls: cardCalls, wideCalls: wideCalls, recBytes: recBytes, recKeys: recKeys,
         LIVE: LIVE, HostLiveness: HostLiveness, guestWait: guestWait, countdown: countdown,
+        NETQ_MSG: NETQ_MSG, NETQ_MS: NETQ_MS, NETQ_PATH: NETQ_PATH, netqRow: netqRow, NetqLate: NetqLate,
     };
 }));

@@ -81,6 +81,15 @@
 //           comes back by its invite link in the same tab to its own Kirby;
 //           the status line says players n/8; telemetry (bytes/s, rewinds/s
 //           and depth per device, retransmits, seat wait) to the results.
+//   netq    the connection readout (not in the default list): host + two
+//           guests, guest A with ?netlag=220 (a ~230 ms round trip), guest B
+//           forced onto the relay (?netrelay=1); the host's table (each
+//           guest's ping, direct / relay) reaches both guests once a second
+//           and agrees with what the host measured; on guest A's pause
+//           overlay, SETTINGS > ONLINE: a plate beside each guest's row and
+//           none on the host's (HOST) or the CPU's, guest A's poor, guest B's
+//           relayed; the same on the host's own pause; every compared frame
+//           identical throughout (the readout is no simulation state).
 //   hostblip  the host's network cut for a while (not in the default list):
 //           host + two guests, TOGETHER, play; guest B opens its pause
 //           overlay; the host page's network is cut (katamOnline._cut: every
@@ -762,6 +771,9 @@ const screenLive = async (p) => (await frame(p)) - (await p.ev('Module._PortPocS
  * page shows, fork frames run. */
 const ovlOf = (p) => p.ev(`(function(){var q=Module._malloc(64),n=Module._PortLnOverlayObserve?Module._PortLnOverlayObserve(q):0,H=Module.HEAP32,b=q>>2;
     var r={st:n?H[b]:0,pauser:H[b+3],menu:H[b+4],row:H[b+5],model:H[b+6],help:H[b+12],shown:H[b+13]>>>0,frames:H[b+11]};Module._free(q);return r})()`);
+/* the connection readout (platform/ui/party_hud.c) as this page last drew it: plates, box, each row's device and grade */
+const netqOf = (p) => p.ev(`(function(){if(!Module._PortNetqShownJs)return null;var r={at:[0,1,2,3].map(function(k){return Module._PortNetqShownJs(k)}),
+    plates:Module._PortNetqShownJs(4),devs:[],grades:[]};for(var i=0;i<8;i++){var d=Module._PortNetqShownJs(5+i);if(d<-1)break;r.devs.push(d);r.grades.push(Module._PortNetqShownJs(13+i));}return r})()`);
 /* a field of the engine's telemetry block (platform/lmpnet.c LN_TELEMETRY) */
 const telOf = (p, name) => p.ev(`(function(){var a=Module._PortLnTelemetryNames(),t='';while(Module.HEAPU8[a])t+=String.fromCharCode(Module.HEAPU8[a++]);
     var n=t.split(',').indexOf(${JSON.stringify(name)});
@@ -2342,6 +2354,12 @@ if (CASES.includes('smoke')) {
         for (let i = 0; i < NT + 1; i++) await step(host, 'DOWN');  // the last player's row
         const lr = await ovlOf(host);
         ok(`smoke: the host's ONLINE list reaches player ${NT}'s row`, hu && lr.model === 13 && lr.row === NT + 1, JSON.stringify(lr));
+        {
+            // the connection readout beside the guests' rows on screen (platform/ui/party_hud.c)
+            const q = await until(async () => { const x = await netqOf(host); return x && x.plates > 0 ? x : null; }, 4000, 200) || await netqOf(host);
+            ok('smoke: the host\'s ONLINE list shows each guest\'s connection', !!q && q.plates > 0 && q.plates === q.devs.filter((d) => d > 0).length
+               && q.grades.filter((g) => g >= 0).every((g) => g >= 1), JSON.stringify(q));
+        }
         await shot(host, `s-05-host-online-list-${NT}.png`);
         // (rows by device: the last row is the highest device's, whichever tab that is)
         const devs = await Promise.all(G.map(async (g) => (await stats(g)).self));
@@ -2356,6 +2374,84 @@ if (CASES.includes('smoke')) {
     }
     for (const g of G) await g.close();
     await host.close();
+}
+
+// --- netq: the connection readout (platform/ui/party_hud.c, web/ln_session.js) ---------
+if (CASES.includes('netq')) {
+    say('# netq: ping and path beside every player in the ONLINE list');
+    const step = async (p, k, n = 12) => { await press(p, k); await waitFrames(p, n); };
+    const host = await openPage('host', {});
+    const code = await hostToWaiting(host, 'q');
+    ok('netq: host room', !!code, code);
+    const ga = await openPage('guestA', { join: code, netlag: 220 });
+    const gb = await openPage('guestB', { join: code, netrelay: 1 });
+    for (const g of [ga, gb])
+        ok(`netq: ${g.name} waits`, !!(await until(async () => { const st = await stats(g); return st && st.phase === 'waiting'; }, 40000)));
+    await sleep(1500);
+    ok('netq: session started', !!(await startHost(host, 'q', 0)));
+    for (const g of [ga, gb]) ok(`netq: ${g.name} took the image`, !!(await until(async () => { const st = await stats(g); return st && st.session && st.joined; }, 30000)));
+    const all = [host, ga, gb];
+    const cmps = [makeComparer(host, ga), makeComparer(host, gb)];
+    for (const c of cmps) await c.run();
+    const devA = (await stats(ga)).self, devB = (await stats(gb)).self;
+    // the table: measured on the host, the same on both guests
+    const row = (st, d) => (st && st.netq ? st.netq.rows.find((r) => r[0] === d) : null);
+    const settled = await until(async () => {
+        const h = await stats(host), a = row(h, devA), b = row(h, devB);
+        return a && b && a[1] >= 200 && b[1] >= 0 ? h : null;
+    }, 20000, 250);
+    const hs = settled || await stats(host);
+    say(`netq: host table ${JSON.stringify(hs.netq)}`);
+    ok('netq: the host measured guest A slow and direct', !!row(hs, devA) && row(hs, devA)[1] >= 200 && row(hs, devA)[2] === 1, JSON.stringify(row(hs, devA)));
+    ok('netq: the host measured guest B relayed', !!row(hs, devB) && row(hs, devB)[2] === 2 && row(hs, devB)[1] < 180, JSON.stringify(row(hs, devB)));
+    await sleep(2500);
+    for (const g of [ga, gb]) {
+        const st = await stats(g), h = await stats(host);
+        ok(`netq: ${g.name} has the host's table (fresh, both guests)`, !!st.netq && !st.netq.stale && st.netq.ageMs < 2500
+           && !!row(st, devA) && !!row(st, devB) && row(st, devB)[2] === 2 && Math.abs(row(st, devA)[1] - row(h, devA)[1]) < 120,
+           JSON.stringify(st.netq));
+    }
+    // guest A's pause overlay: SETTINGS > ONLINE
+    const toOnlineList = async (p) => {
+        await p.ev('window.__script = null; Module._PortSetKeys(0)'); await waitFrames(p, 20);
+        let up = false;
+        for (let i = 0; i < 6 && !up; i++) { await step(p, 'START', 60); up = (await ovlOf(p)).st === 2; }
+        for (let i = 0; i < 5 && (await ovlOf(p)).menu !== 8; i++) await step(p, 'SELECT', 80);
+        // by the cursor the overlay reports (a press can be lost under load)
+        for (let t = 0; t < 3 && (await ovlOf(p)).model !== 13; t++) {
+            if ((await ovlOf(p)).model !== 9) await step(p, 'B', 30);
+            for (let i = 0; i < 10 && (await ovlOf(p)).row !== 3; i++) await step(p, (await ovlOf(p)).row > 3 ? 'UP' : 'DOWN');
+            await step(p, 'A', 30);
+        }
+        for (let i = 0; i < 10 && (await ovlOf(p)).row < 3; i++) await step(p, 'DOWN');   // rows: CODE MODE P1 P2 P3 P4
+        await waitFrames(p, 20);
+        return (await ovlOf(p)).model === 13;
+    };
+    const checkOn = async (p, tag) => {
+        ok(`netq: ${tag}: SETTINGS > ONLINE on its pause overlay`, await toOnlineList(p));
+        const q = await until(async () => { const x = await netqOf(p); return x && x.plates === 2 ? x : null; }, 5000, 200) || await netqOf(p);
+        say(`netq: ${tag}: readout ${JSON.stringify(q)}`);
+        await shot(p, `q-${tag}-online-list.png`);
+        const gi = (d) => q.devs.indexOf(d);
+        ok(`netq: ${tag}: a plate for each guest, none for the host or the CPU`, !!q && q.plates === 2 && q.devs[0] === 0 && q.grades[0] === -1
+           && gi(devA) > 0 && gi(devB) > 0 && q.devs.filter((d) => d < 0).every((d, i) => true) && q.grades.filter((g) => g >= 0).length === 2,
+           JSON.stringify(q));
+        ok(`netq: ${tag}: guest A's poor (red), guest B's not`, !!q && q.grades[gi(devA)] === 3 && q.grades[gi(devB)] >= 1 && q.grades[gi(devB)] <= 2,
+           JSON.stringify(q && q.grades));
+        ok(`netq: ${tag}: drawn inside the picture's right half`, !!q && q.at[2] > 0 && q.at[3] > 0 && q.at[0] > 960 * 0.5 && q.at[0] + q.at[2] < 960,
+           JSON.stringify(q && q.at));
+        await step(p, 'START', 60);
+        ok(`netq: ${tag}: Start closes its overlay; the readout goes with it`, !!(await until(async () => !(await ovlOf(p)).st, 6000))
+           && ((await netqOf(p)).plates === 0), JSON.stringify(await netqOf(p)));
+    };
+    await checkOn(ga, 'guestA');
+    await checkOn(host, 'host');
+    for (const [i, c] of cmps.entries()) {
+        await c.run();
+        ok(`netq: ${all[i + 1].name} identical to the host throughout`, c.compared > 10 && c.mismatched === 0, `${c.equal}/${c.compared}`);
+    }
+    results.netq = { host: hs.netq, devA, devB };
+    for (const p of all) await p.close();
 }
 
 if (inviteCards.length) {

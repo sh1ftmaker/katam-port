@@ -43,6 +43,44 @@ int PortPartyHudCards(void);
 int PortPartyHudFullCards(void);
 int PortPartyHudNameTags(void);
 
+/* --- the connection readout ------------------------------------------------
+ * Each human player's link to the host beside their name in the in-game
+ * player list (the pause SETTINGS > ONLINE rows, platform/menu_poc.c): a dot
+ * (green good, yellow ok, red poor, grey not known / old) and the ping round
+ * trip in ms, "R" before it for a link over the room relay.  The host's own
+ * rows show HOST (the list's own value) and nothing more, the CPU's nothing.
+ * The table comes from the page (web/ln_session.js "the connection
+ * readout"): the host measures every guest's link and sends the table to
+ * every guest.  Per-device presentation: drawn over the presented picture,
+ * never written to game memory, recorded or hashed. */
+#define PORT_NETQ_DEVICES   16
+#define PORT_NETQ_PATH_UNKNOWN 0
+#define PORT_NETQ_PATH_DIRECT  1
+#define PORT_NETQ_PATH_RELAY   2
+/* grades: good under both, ok under both of the next, else poor */
+#define PORT_NETQ_GOOD_MS     80
+#define PORT_NETQ_OK_MS       180
+#define PORT_NETQ_GOOD_LATE   5
+#define PORT_NETQ_OK_LATE     15
+enum { PORT_NETQ_GRADE_UNKNOWN, PORT_NETQ_GRADE_GOOD, PORT_NETQ_GRADE_OK, PORT_NETQ_GRADE_POOR };
+/* The page's calls: forget the table; one guest device's row (rttMs,
+ * latePct -1: not known; stale: the table is old). */
+void PortNetqClear(void);
+void PortNetqSet(int dev, int rttMs, int path, int latePct, int stale);
+int  PortNetqGrade(int rttMs, int latePct);
+/* The list (menu_poc.c), each frame its ONLINE rows are drawn on this
+ * device's pause overlay (the fork: never the shared game): the rows on
+ * screen that show a player -- the row's frame top (GBA y) and the device
+ * that plays it (0 the host, -1 the CPU).  colX: the readout column's left
+ * edge (GBA x).  Read at the next sample; not drawn otherwise. */
+#define PORT_NETQ_ROWS 8
+void PortNetqListBegin(int colX);
+void PortNetqListRow(int frameY, int dev);
+/* present.c: over the 240x160 picture (`picture` = its x y w h in
+ * framebuffer pixels; srcW x srcH the picture's own size: drawn only when
+ * that is the GBA's 240x160, a menu's). */
+void PortNetqDraw(int fbW, int fbH, const int picture[4], int srcW, int srcH, int smooth);
+
 #ifdef __cplusplus
 }
 #endif

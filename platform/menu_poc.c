@@ -92,6 +92,7 @@
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 #include "ui/light_opts.h"  /* the LIGHTING section's rows */
+#include "ui/party_hud.h"   /* the connection readout beside the ONLINE list */
 
 /* Palette slots: the game's own, plus one for the description line. */
 #define PAL_HEADER      0           /* the screen header (unkC's palId)     */
@@ -147,6 +148,11 @@
 #define ROW_Y0          30          /* top of the first row's frame; low enough that the cursor (its glow frame is a 32-px orb) clears the header tab about as the game's does */
 #define ROW_PITCH       18
 #define ROW_VALUE_X1    192         /* values end here                      */
+/* Online, the ONLINE list's player rows end their values this much sooner:
+ * the column right of them is the connection readout's (platform/ui/
+ * party_hud.c, drawn over the picture on this device: a dot and the ping,
+ * NETQ plates 30 wide from 2 px past the value). */
+#define NETQ_COL        32
 #define HEAD_COLS       5
 #define SET_TILES       ((ROWS * ROW_COLS + HEAD_COLS + GS_DESC_COLS) * COL_TILES)
 typedef char SetTilesMatchHeader[SET_TILES == PORT_POC_SCREEN_TILES ? 1 : -1];
@@ -1590,13 +1596,16 @@ static int RowSlot(int k)
     return order[(unsigned)k % POC_SLOTS];
 }
 
+/* The row's device: HOST, CPU, or "G2" for guest 2 -- short, so the name
+ * keeps its room beside the connection readout's column (NETQ_COL); the
+ * selected row's description spells it out (GUEST 2 - ...). */
 static void SlotWho(int s, char *buf, int size)
 {
     int d = SlotDevice(s);
 
     if (d < 0) snprintf(buf, size, "CPU");
     else if (d == 0) snprintf(buf, size, "HOST");
-    else snprintf(buf, size, "GUEST %d", d);
+    else snprintf(buf, size, "G%d", d);
 }
 
 /* A list row's label: the Kirby's tag and its player's name, shortened
@@ -1618,7 +1627,7 @@ static const char *SlotLabel(int k)
     for (n = (int)strlen(name); ; n--) {
         name[n] = '\0';
         snprintf(lbl[k], sizeof lbl[0], "%dP%s%s", s + 1, n ? " " : "", name);
-        if (n == 0 || LBL_TEXT_LEFT + CellWidth(lbl[k]) + 8 + CellWidth(who) <= ROW_VALUE_X1)
+        if (n == 0 || LBL_TEXT_LEFT + CellWidth(lbl[k]) + 8 + CellWidth(who) <= ROW_VALUE_X1 - NETQ_COL)
             break;
     }
     return lbl[k];
@@ -2034,11 +2043,16 @@ static const char *ItemDesc(int it)
     case IT_MODE:
         return gPortSim->view.lmpRooms ? "EACH PLAYS ON - MEET BY PHONE" : "ONE ROOM FOR EVERYONE";
     case IT_SLOT0 ... IT_SLOT_LAST: {
-        int d = SlotDevice(RowSlot(it - IT_SLOT0));
+        /* one buffer a row: the screen rebuilds the line when the pointer
+         * changes (a move to another row), or with the slot table (gen) */
+        static char who[POC_SLOTS][40];
+        int k = (it - IT_SLOT0) % POC_SLOTS, d = SlotDevice(RowSlot(it - IT_SLOT0));
 
         if (d < 0) return "THE CPU PLAYS THIS KIRBY";
         if (d == 0) return "THE HOST PLAYS THIS KIRBY";
-        return PauserIsHost() ? "A REMOVES THIS PLAYER" : "ONLY THE HOST CAN REMOVE";
+        snprintf(who[k], sizeof who[k], "GUEST %d - %s", d,
+                 PauserIsHost() ? "A REMOVES THIS PLAYER" : "ONLY THE HOST CAN REMOVE");
+        return who[k];
     }
     case IT_RENDERER: case IT_WEBGL: case IT_GPU: case IT_SETSTORE:
         /* the whole line (as much as the description holds) */
@@ -2847,11 +2861,14 @@ static int BuildRowBanner(u16 lblAnim, u8 lblVariant)
 static void DrawRowTiles(u32 tiles, int row, int cursor)
 {
     static u8 px[PIC_H * ROW_COLS * 32];
-    int w = ROW_COLS * 32, top = TopRow(cursor), selected = row == cursor;
+    int w = ROW_COLS * 32, top = TopRow(cursor), selected = row == cursor, valX1 = ROW_VALUE_X1;
     char val[24], shown[32];
 
     if (row < top || row >= top + VisRows())
         return;
+    /* the ONLINE list's players, online: the connection readout's column */
+    if (gPortLnOn && IS_SLOT_ITEM(ModelItem(row)))
+        valX1 -= NETQ_COL;
     memcpy(px, sRowBanner, sizeof(px));
     CellText(px, w, PIC_H, LBL_TEXT_LEFT, LBL_ROW0 + 1, sModel->name(row), LBL_FILL, LBL_EDGE);
     if (sModel->oui)
@@ -2869,9 +2886,9 @@ static void DrawRowTiles(u32 tiles, int row, int cursor)
                                                || (kItem[ModelItem(row)].kind != K_SETTING
                                                    && kItem[ModelItem(row)].kind != K_TOGGLE)))
         || sModel->unavailable(row) || !val[0]
-        || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > ROW_VALUE_X1)
+        || LBL_TEXT_LEFT + CellWidth(sModel->name(row)) + 8 + CellWidth(shown) > valX1)
         snprintf(shown, sizeof(shown), "%s", val);
-    CellText(px, w, PIC_H, ROW_VALUE_X1 - CellWidth(shown), LBL_ROW0 + 1, shown,
+    CellText(px, w, PIC_H, valX1 - CellWidth(shown), LBL_ROW0 + 1, shown,
              LBL_FILL, LBL_EDGE);
     /* more rows below the last one on screen, or above the first: a small
      * triangle just past the banner's tip, in the margin (inside the banner
@@ -3176,6 +3193,8 @@ int PortPocScreenModel(void)
     return -1;
 }
 
+static void NetqNoteRows(int cursor);
+
 void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
 {
     int r;
@@ -3220,6 +3239,29 @@ void PortPocScreenDraw(u32 tiles, int row, int slide, u8 layer)
     }
     SyncDescPalette();
     DrawPic(layer, 0, DESC_Y, SetDescVram(tiles), GS_DESC_COLS, 16, PAL_DESC);
+    if (gPortLnOn && sPauseScreen && sModel == &kSecOnline && slide == 0 && PortLnOverlayRunning())
+        NetqNoteRows(row);
+}
+
+/* The connection readout (platform/ui/party_hud.c): which of the ONLINE
+ * list's rows on screen show a player, and whose device plays it.  Only on
+ * this device's pause overlay -- the fork, private to this device -- with
+ * the page steady (not sliding in); the readout itself is drawn over the
+ * picture, never here. */
+static void NetqNoteRows(int cursor)
+{
+    int r, top = TopRow(cursor);
+
+    PortNetqListBegin(ROW_FRAME_X + ROW_VALUE_X1 - NETQ_COL + 2);
+    for (r = 0; r < VisRows(); r++) {
+        int it = ModelItem(top + r), s;
+
+        if (!IS_SLOT_ITEM(it))
+            continue;
+        s = RowSlot(it - IT_SLOT0);
+        if (SlotExists(s))
+            PortNetqListRow(RowFrameY(r), SlotDevice(s));
+    }
 }
 
 static int CardFromPlayers(int slot);

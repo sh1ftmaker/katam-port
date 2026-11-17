@@ -70,7 +70,10 @@
  * ?netrelay=1 (never try WebRTC), ?netserver=<base> (another room server).
  *
  * window.katamOnline.stats() is the telemetry; the developer menu (?dev=1, F1): Game page
- * shows the same as text (Module.portUiQuery('online')). */
+ * shows the same as text (Module.portUiQuery('online')).  Players see each
+ * guest's ping and path in the pause SETTINGS > ONLINE list: the host's
+ * table, sent to every guest once a second (netqTick; web/ln_session.js
+ * "the connection readout"), drawn per device by platform/ui/party_hud.c. */
 (function () {
     'use strict';
     var Net = window.KatamNet, LS = window.KatamLnSession;
@@ -627,7 +630,12 @@
             return;
         }
         if (m.t === 'ping') { this.reliable({ t: 'pong', c: m.c }); return; }
-        if (m.t === 'pong') { this.rtt = nowMs() - m.c; return; }
+        if (m.t === 'pong') {
+            this.rtt = nowMs() - m.c;
+            /* smoothed, for the connection readout (one ping a second) */
+            this.rttAvg = this.rttAvg === null || this.rttAvg === undefined ? this.rtt : 0.7 * this.rttAvg + 0.3 * this.rtt;
+            return;
+        }
         if (this.onReliable) this.onReliable(m);
     };
     Link.prototype.recvChunk = function (u8, via) {
@@ -816,6 +824,7 @@
         }
         S.session = true;
         S.live = null; S.hold = false;
+        netqClear();
         S.startedAt = nowMs();
         S.startFrame = M._PortFrameNumber();
         S.t0 = 0;
@@ -1236,6 +1245,8 @@
             /* every slot's name, from the host: presentation only, so at once
              * (it may come before the image does) */
             if (msg.t === 'names') { var e = engine(); if (e.setSlotNames && typeof msg.n === 'string') e.setSlotNames(msg.n); return; }
+            /* every player's connection, from the host: presentation only, at once */
+            if (msg.t === LS.NETQ_MSG) { netqIn(msg.q); return; }
             if (msg.t !== 'image') return;
             if (!S.session) { ui(UI.J_STARTING); if (S.invite) banner('Getting the game...', 0); }
             var t0 = nowMs();
@@ -1317,6 +1328,8 @@
         }
         if (up() && M._PortCardSessionEnd) M._PortCardSessionEnd();
         if (up() && M._PortOuiReset) M._PortOuiReset();
+        netqClear();
+        forPeers(function (p) { p.netqLate = null; });
         ui(UI.IDLE);
         leaveButton(false);
         banner(was === 'host' && inGame ? 'Online game ended' : 'You left the online game', 2500);
@@ -1472,6 +1485,42 @@
         L.gone.forEach(function (mid) { if (S.peers[mid]) guestGone(S.peers[mid], 'did not come back'); });
         setHold(L.hold, L.left);
     }
+    /* --- the connection readout (web/ln_session.js "the connection readout") --
+     * The host, once a second: each seated guest's link -- its smoothed ping
+     * round trip, direct or relayed, the share of its keys late for their
+     * frame over the last 5 s -- to every guest and to its own player list.
+     * A guest shows the host's table; one older than NETQ_STALE_MS (the host
+     * not heard from) is shown grey. */
+    var NETQ_STALE_MS = 3500;
+    function netqTick(t) {
+        if (!S.session || !S.hub || t - (S.netqAt || 0) < LS.NETQ_MS) return;
+        S.netqAt = t;
+        var rows = [];
+        forPeers(function (p) {
+            var hs = p.ready && p.dev ? S.hub.get(p.dev) : null;
+            if (!hs) return;
+            var late = (p.netqLate || (p.netqLate = new LS.NetqLate(5))).sample(hs.st);
+            rows.push(LS.netqRow(p.dev, p.link.rttAvg, p.link.p2p ? LS.NETQ_PATH.DIRECT : LS.NETQ_PATH.RELAY, late));
+        });
+        S.netq = { q: rows, at: t, stale: false };
+        S.hub.sendNetQuality(rows);
+    }
+    function netqIn(q) {
+        if (!Array.isArray(q)) return;
+        S.netq = { q: q, at: nowMs(), stale: false };
+        S.stats.netqIn = (S.stats.netqIn || 0) + 1;
+        if (S.session) { var e = engine(); if (e.setNetQuality) e.setNetQuality(q, false); }
+    }
+    function netqStale(t) {
+        if (!S.session || !S.netq || S.netq.stale || t - S.netq.at < NETQ_STALE_MS) return;
+        S.netq.stale = true;
+        var e = engine();
+        if (e.setNetQuality) e.setNetQuality(S.netq.q, true);
+    }
+    function netqClear() {
+        S.netq = null; S.netqAt = 0;
+        if (up() && M._PortNetqClear) M._PortNetqClear();
+    }
     function guestLiveness(t) {
         if (!S.peer || S.phase === 'hostleft' || S.phase === 'failed') return;
         var link = S.peer.link;
@@ -1501,8 +1550,8 @@
     setInterval(function () {
         var t = nowMs();
         try {
-            if (S.role === 'host') hostLiveness(t);
-            else if (S.role === 'guest') guestLiveness(t);
+            if (S.role === 'host') { hostLiveness(t); netqTick(t); }
+            else if (S.role === 'guest') { guestLiveness(t); netqStale(t); }
         } catch (e) { log('liveness: ' + (e.stack || e)); }
     }, 250);
 
@@ -1595,6 +1644,8 @@
             /* liveness: the host holding (ms of grace left), the notice over the picture */
             hold: S.hold, holdLeftMs: S.holdLeft, notice: S.notice, liveness: S.live ? S.live.st : null,
             sigQ: link ? link.sigQ.length : 0, quietMs: link ? Math.round(link.quiet()) : null,
+            /* the connection readout's table as this device has it: [dev, rttMs, path (1 direct, 2 relay), late %] */
+            netq: S.netq ? { rows: S.netq.q, ageMs: Math.round(nowMs() - S.netq.at), stale: S.netq.stale } : null,
         };
         o.players = o.slots.filter(Boolean).length;
         if (S.role === 'host') {
