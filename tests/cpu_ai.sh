@@ -33,6 +33,9 @@
 #            check, CPU-HINTS.md B) -- through by frame 2900; Kirby 4 in 142
 #            (no door tiles), which takes the warp star to 195 within 10 s
 #            (before exit objects: the 20 s dead-end warp).
+#   tutorial `cpuai 1300 E79E79E4` but the story left before NORMAL (no
+#            poke, no warp): player 1 idle in the tutorial room (803).  No
+#            mode may run (before, after 10 s two CPUs walked out to 804).
 # Needs ROM=/path/to/rom.gba.
 set -uo pipefail
 
@@ -70,6 +73,8 @@ rec objects AAAAAAA8 "warp 1500 1 814 2 5
 warp 1500 2 107 3 8
 warp 1500 3 142 4 18"
 sed -i 's/^frames 12000/frames 3400/' "$TMP/objects.txt"
+rec tutorial E79E79E4
+sed -i -e 's/^frames 12000/frames 3000/' -e '/^poke16 1200 203AD2C/d' -e '/^warp 1400 /d' "$TMP/tutorial.txt"
 
 run() {  # rec out
     local d; d=$(mktemp -d -p "$TMP")
@@ -79,6 +84,7 @@ run() {  # rec out
 }
 run mix mix & run mix mix2 & run classic classic & run groups groups &
 run switch switch & run objects objects &
+run tutorial tutorial &
 wait
 
 status=0
@@ -124,5 +130,9 @@ thr=$(grep -c "\[cpuai\] f\(1[5-9]\|2[0-8]\)[0-9][0-9] k2 through 107 108 " "$TM
 ws=$(grep -c "\[cpuai\] f\(1[5-9]\|2[0-4]\)[0-9][0-9] k3 exit-object 142 195 1" "$TMP/objects.log")
 [ "$ws" -ge 1 ] && ok "objects: Kirby 4 in 142 took the warp star to 195" \
     || fail "objects: Kirby 4 in 142 did not take the warp star by f2499"
+n=$(grep -c "\[cpuai\] f[0-9]* k[0-9]" "$TMP/tutorial.log")
+r=$(grep "\[cpuai-obs\] f[0-9]* k0 room" "$TMP/tutorial.log" | tail -1 | awk '{print $NF}')
+[ "$n" = 0 ] && [ "$r" = 803 ] && ok "tutorial: the modes word set, no mode ran before NORMAL (player in $r)" \
+    || fail "tutorial: $n brain notes (a mode ran), player in ${r:-?} (want 803)"
 [ $status = 0 ] && echo "CPU AI PASS" || echo "CPU AI FAIL"
 exit $status
