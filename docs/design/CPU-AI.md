@@ -1,7 +1,9 @@
 # CPU AI modes
 
 Status: first draft (branch `six-cpuai`); door groups (`six-hints`); gate
-hints and exit objects (`six-gates`).  Code: `game/src/cpu_ai_modes.c`
+hints and exit objects (`six-gates`).  A slow planner (a Haiku agent)
+directing these brains one directive at a time: `CPU-HAIKU.md`.  Code:
+`game/src/cpu_ai_modes.c`
 (the brains), `platform/cpu_ai_host.c` (the setting, the input-log/online
 plumbing), `platform/port/cpu_ai.h` (the contract), a three-line hook in
 `CpuBrainTask` (`game/src/code_0800ECAC.c`), rows in
@@ -97,7 +99,9 @@ mouthful decision are stock.
 - Each brain's own state (chosen door, frames in room, blocked doors,
   progress toward the door) is in `struct CpuBrain`'s filler bytes
   (`fillerC0`, `fillerCE`, `fillerF0`), which the game zeroes at creation
-  and never otherwise touches: zero while CLASSIC.
+  and never otherwise touches: zero while CLASSIC.  The blocked pairs are
+  packed (20 bits each) to make room for a planner directive in the same
+  filler (`CPU-HAIKU.md`, "Where the state lives").
 - No new function pointers are stored (the hook steers the stock layers),
   so no new code IDs.
 - The word changes only at a latch: offline a recorded input-log line

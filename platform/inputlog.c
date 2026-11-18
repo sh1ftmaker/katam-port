@@ -132,6 +132,45 @@ static void AddCpuAi(u32 frame, u32 word)
     sNumCpuAis++;
 }
 
+/* Planner directives (port/cpu_ai.h, docs/design/CPU-HAIKU.md): at the
+ * latch of FRAME, CPU Kirby SLOT gets directive KIND (a name: goto_room,
+ * goto_door, goto_xy, follow, explore, fight, food, wait, auto, cancel) with
+ * operands A B C and a limit of SECS seconds.  `cpugoal FRAME SLOT KIND A B
+ * C SECS` in the file.  Kept sorted by frame; recorded live by the planner
+ * host (platform/cpu_planner.c), replayed as is -- a replay never asks the
+ * planner. */
+struct CpuGoalEv { u32 frame; u16 a; u8 slot, kind, b, c, secs; };
+static struct CpuGoalEv *sCpuGoals;
+static u32 sNumCpuGoals, sCpuGoalsCap;
+
+static void AddCpuGoal(u32 frame, u8 slot, u8 kind, u16 a, u8 b, u8 c, u8 secs)
+{
+    u32 i;
+
+    if (sNumCpuGoals == sCpuGoalsCap) {
+        u32 cap = sCpuGoalsCap ? sCpuGoalsCap * 2 : 16;
+        struct CpuGoalEv *e = (struct CpuGoalEv *)realloc(sCpuGoals, cap * sizeof *e);
+
+        if (e == NULL)
+            return;
+        sCpuGoals = e;
+        sCpuGoalsCap = cap;
+    }
+    i = sNumCpuGoals;
+    while (i > 0 && sCpuGoals[i - 1].frame > frame) {
+        sCpuGoals[i] = sCpuGoals[i - 1];
+        i--;
+    }
+    sCpuGoals[i].frame = frame;
+    sCpuGoals[i].slot = slot;
+    sCpuGoals[i].kind = kind;
+    sCpuGoals[i].a = a;
+    sCpuGoals[i].b = b;
+    sCpuGoals[i].c = c;
+    sCpuGoals[i].secs = secs;
+    sNumCpuGoals++;
+}
+
 /* Tests only: `poke16 FRAME ADDR VALUE` writes a halfword of EWRAM at the
  * latch of FRAME (as PORT_LN_EV_POKE does online) -- e.g. gAIKirbyState, to
  * test the CPU partners' rules without playing through the intro.  Recorded,
@@ -360,6 +399,7 @@ long PortInputLogLoad(const char *text, u32 len)
     sNumPokes = 0;
     sNumAbilities = 0;
     sNumCpuAis = 0;
+    sNumCpuGoals = 0;
 
     while (p < end) {
         char line[160];
@@ -431,6 +471,17 @@ long PortInputLogLoad(const char *text, u32 len)
             AddHuman(a, KIRBYS_EV, (u8)b);
         } else if (sscanf(line, "cpuai %u %x", &a, &b) == 2) {
             AddCpuAi(a, b & ~3u);       /* port/cpu_ai.h; slot 0 is a person */
+        } else if (strncmp(line, "cpugoal ", 8) == 0) {
+            char kind[16];
+            int k;
+
+            if (sscanf(line, "cpugoal %u %u %15s %u %u %u %u", &a, &b, kind, &c, &d, &e, &f) != 7
+                || b < 1 || b >= PORT_CPUAI_SLOTS || (k = PortCpuGoalKindOf(kind)) < 0
+                || c > 0xFFFF || d > 0xFF || e > 0xFF || f > 0xFF) {
+                PortError("[katam-port] replay: bad cpugoal line: %s", line);
+                return -1;
+            }
+            AddCpuGoal(a, (u8)b, (u8)k, (u16)c, (u8)d, (u8)e, (u8)f);
         } else if (sscanf(line, "paint %u %u %x", &a, &b, &c) == 3) {
             if (sscanf(line, "paint %*u %*u %*x %x", &d) != 1)
                 d = 0;
@@ -536,7 +587,8 @@ char *PortInputLogSerialize(u32 *outLen)
 {
     size_t cap = 256 + (size_t)sKeysLen * 4 + (size_t)sNumWarps * 48
                + (size_t)sNumViews * 32 + (size_t)sNumHumans * 32
-               + (size_t)sNumPaints * 40 + (size_t)sNumCpuAis * 32, len = 0;
+               + (size_t)sNumPaints * 40 + (size_t)sNumCpuAis * 32
+               + (size_t)sNumCpuGoals * 64, len = 0;
     char *s = (char *)malloc(cap);
     u32 f, w = 0, v = 0, hu = 0, pa = 0;
     int have = 0;
@@ -639,6 +691,11 @@ char *PortInputLogSerialize(u32 *outLen)
 
         for (q = 0; q < sNumCpuAis && cap - len >= 64; q++)
             EMIT("cpuai %u %08X\n", (unsigned)sCpuAis[q].frame, (unsigned)sCpuAis[q].word);
+        for (q = 0; q < sNumCpuGoals && cap - len >= 64; q++)
+            EMIT("cpugoal %u %u %s %u %u %u %u\n", (unsigned)sCpuGoals[q].frame,
+                 (unsigned)sCpuGoals[q].slot, PortCpuGoalName(sCpuGoals[q].kind),
+                 (unsigned)sCpuGoals[q].a, (unsigned)sCpuGoals[q].b, (unsigned)sCpuGoals[q].c,
+                 (unsigned)sCpuGoals[q].secs);
     }
     while (pa < sNumPaints) {
         if (cap - len < 64) break;
@@ -709,6 +766,16 @@ u32 PortInputLogScheduleCpuAi(u32 word)
     if (sReplaying)
         return 0;
     AddCpuAi(frame, word & ~3u);
+    return frame;
+}
+
+u32 PortInputLogScheduleCpuGoal(u8 slot, int kind, u32 a, u32 b, u32 c, u32 secs)
+{
+    u32 frame = sLatchedAny ? sLastLatched + 1 : 0;
+
+    if (sReplaying || slot < 1 || slot >= PORT_CPUAI_SLOTS || kind < 0 || kind >= PORT_CPUGOAL_KINDS)
+        return 0;
+    AddCpuGoal(frame, slot, (u8)kind, (u16)a, (u8)b, (u8)c, (u8)(secs > 255 ? 255 : secs));
     return frame;
 }
 
@@ -1063,6 +1130,12 @@ void PortInputLogLatch(u32 frame, u16 *keys)
     for (i = 0; i < sNumCpuAis; i++)
         if (sCpuAis[i].frame == frame)
             PortCpuAiApply(sCpuAis[i].word);
+
+    /* Planner directives (port/cpu_ai.h), the same way, after the modes. */
+    for (i = 0; i < sNumCpuGoals; i++)
+        if (sCpuGoals[i].frame == frame)
+            PortCpuGoalApply(sCpuGoals[i].slot, sCpuGoals[i].kind, sCpuGoals[i].a, sCpuGoals[i].b,
+                             sCpuGoals[i].c, sCpuGoals[i].secs);
 
     /* Player-card paint (platform/kirby_paint.c), the same way. */
     for (i = 0; i < sNumPaints; i++)

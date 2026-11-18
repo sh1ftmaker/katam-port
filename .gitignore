@@ -32,3 +32,6 @@ __pycache__/
 # Subagent worktrees -- separate checkouts, not part of this tree.
 .claude/worktrees/
 build/native-dbg/
+
+# The planner bridge's local Python environment (tools/haiku_ai/run.sh).
+tools/haiku_ai/.venv/
