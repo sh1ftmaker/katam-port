@@ -1,6 +1,6 @@
 # Tap to move
 
-Status: prototype (branch `tap-nav`).  Code: `platform/ui/tap_nav.c` (the
+Status: first version, off by default (TOUCH PADS = TAP, or `?tap=1`).  Code: `platform/ui/tap_nav.c` (the
 gestures, the nav field, the controller, the markers), a few lines in
 `platform/main.c` (the keys), `platform/ui/present.c` (the view and the
 markers), `web/shell.html` (TAP mode on the page), `platform/native/host_sdl.c`
@@ -292,8 +292,8 @@ Doo shows the reticle and he inhales it; a swipe down on him swallows it
 pause button pauses and the pads come back; SETTINGS > PLAYERS > TOUCH PADS
 steps to TAP and saves `touch=3`.
 
-Unchanged: `make regress` (as at b72ca92: only `aim`, which already
-diverged), `tests/cpu_ai.sh`, `make input-devices-test`.
+Unchanged: `make regress` (as on main at 078f94b: only `aim`, which
+diverges there too), `tests/cpu_ai.sh`, `make input-devices-test`.
 
 ## Limits (honest)
 
