@@ -29,7 +29,7 @@
 //             the pad's Start pauses, nobody joins.
 //   touch     a phone-shaped viewport, touch only: touch drives player 1,
 //             its Start never joins.
-//   touchset  SETTINGS > PLAYERS > TOUCH PADS (AUTO / ON / OFF): a desktop
+//   touchset  SETTINGS > PLAYERS > TOUCH PADS (AUTO / ON / OFF / TAP): a desktop
 //             window, wide or narrow, starts without the pads, a phone with
 //             them; the row changes them at once, saved in katam.settings
 //             ("touch=N") and kept over a reload, on the 16-Kirby module too;
@@ -658,10 +658,13 @@ async function caseTouchSet() {
         await press(p, 'A'); await waitFrames(p, 10);
         ok('A: OFF -- gone, saved touch=2', !(await padsUp(p)) && (await saved(p)) === 2);
         await press(p, 'A'); await waitFrames(p, 10);
+        ok('A: TAP -- the pads are up for the menus, saved touch=3', (await padsUp(p)) && (await saved(p)) === 3 && (await inGame(p)) === 3);
+        await press(p, 'A'); await waitFrames(p, 10);
         ok('A: AUTO -- still none on a desktop, saved touch=0', !(await padsUp(p)) && (await saved(p)) === 0);
         await press(p, 'LEFT'); await waitFrames(p, 10);
         await press(p, 'LEFT'); await waitFrames(p, 10);
-        ok('Left twice: OFF then ON', (await padsUp(p)) && (await saved(p)) === 1);
+        await press(p, 'LEFT'); await waitFrames(p, 10);
+        ok('Left three times: TAP, OFF, then ON', (await padsUp(p)) && (await saved(p)) === 1);
         await p.s('Page.reload', {});
         await sleep(500);
         await ready(p);
@@ -725,6 +728,8 @@ async function caseTouchSet() {
         ok('... for this visit: the saved setting is still OFF', (await saved(p)) === 2 && (await inGame(p)) === 2);
         ok('... and that touch pressed nothing (the menu is where it was)', (await pagesModel(p)) === model && (await screenLive(p)));
         await shot(p, 'touchset-03-phone-back.png');
+        await tap('#tb-a'); await waitFrames(p, 10);               // TAP
+        ok('phone: A -- TAP, the pads stay for the menus, saved touch=3', (await padsUp(p)) && (await saved(p)) === 3);
         await tap('#tb-a'); await waitFrames(p, 10);               // AUTO
         ok('phone: A -- AUTO, the pads stay, saved touch=0', (await padsUp(p)) && (await saved(p)) === 0);
         await p.close();
