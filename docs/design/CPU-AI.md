@@ -81,8 +81,13 @@ Common to the three new modes:
   held off.  There is no "retreat to a safe room" yet.
 - **Room scripts**: a room's CPU script (the stock SCRIPT layer) runs first;
   after 10 s in the room the mode takes over anyway.
-- **The opening** (rooms 0x323-0x325) is left to the stock brain when no
-  person is in it (it takes CPUs to the hub).
+- **The opening and the tutorial** are the stock brain's: until the story
+  reaches NORMAL (`gAIKirbyState` < `AI_KIRBY_STATE_NORMAL`, 300) every
+  Kirby is CLASSIC whatever its mode, so the tutorial's CPU scripts run as
+  the game wrote them (a mode used to take the CPUs out of tutorial room
+  0x323 to 0x324 after 10 s).  After that, the opening rooms (0x323-0x325)
+  are still left to the stock brain when no person is in them (it takes
+  CPUs to the hub).
 
 What a mode does not change: actions (walking, jumping, flying, swimming,
 attacks, swallowing) are the stock ACTION states; the enemy scan and the
