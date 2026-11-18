@@ -1,13 +1,14 @@
 {
   "format": "katam-autotile/1",
   "tileset": "tileset:vanilla/0",
-  "note": "Rainbow Route forest (rooms 101-107, 140-143, 190). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "note": "Rainbow Route forest (rooms 101-107, 140-143, 190). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped. Grassy cobbles does not borrow: the original only lays cobbles under grass, with the walls and undersides of raised ground in cliff rock, so a borrowing cobble brush drew cliff and hill pieces (262 of the test level's 649 ground cells); without, it is cobbles cut square.",
   "only": true,
   "styles": [
     {
       "kind": "solid",
       "piece": "0f0.0 036.0 0e3.0 056.0",
-      "name": "Grassy cobbles"
+      "name": "Grassy cobbles",
+      "borrow": false
     },
     {
       "kind": "solid",

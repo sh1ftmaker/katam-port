@@ -1,7 +1,8 @@
 # Classifying brush pieces: the method
 
-Status: proven by hand on three brushes (sky garden Clouds, tile set 29;
-Rainbow Route Grassy soil, tile set 3; Olive Ocean Grassy dirt, tile set 4).
+Status: proven by hand on four brushes (sky garden Clouds, tile set 29;
+Rainbow Route Grassy soil, tile set 3, and Grassy cobbles, tile set 0; Olive
+Ocean Grassy dirt, tile set 4).
 No classifier tool exists yet.
 Written for whoever continues.
 
@@ -51,6 +52,10 @@ Rules that keep it safe and reviewable:
   keeps them. A brush lacking a shape (a wall, an underside) borrows that
   shape from the other brushes of its kind; `"borrow": false` on the style
   keeps it to its own nearest shapes instead.
+- **Take what was learned apart.** A style's `take` moves pieces into it
+  from the other brushes of its kind (every cell holding them), for pieces of
+  its material the learner put in another community: tile set 29's "Ground 2"
+  was cloud undersides and walls. A brush left with no pieces is dropped.
 - **Look in place before deciding.** A piece on a sheet can be half of
   something: a cone shell cut into four pieces, the foot of a palm trunk. The
   brush copies pieces one by one, so a many-piece object comes out cut. Judge
@@ -63,7 +68,10 @@ Rules that keep it safe and reviewable:
 ## What exists
 
 - `assets/schema/authoring/autotile/tileset-vanilla-29.json`: the first
-  worked example (7 pieces excluded, brush named Clouds).
+  worked example (7 pieces excluded, brush named Clouds; it takes the 7
+  pieces of "Ground 2", below).
+- `assets/schema/authoring/autotile/tileset-vanilla-0.json`: Grassy cobbles
+  does not borrow (below).
 - `assets/schema/authoring/autotile/tileset-vanilla-3.json`: the second,
   below (Grassy soil, 23 pieces excluded from that brush only, no borrowing;
   one piece excluded tile-set wide).
@@ -118,39 +126,59 @@ another brush's piece (red). Two ways in:
   makes a new room in the current look, painted with that brush, with the
   yellow and red marks (until a cell is repainted) and the sums in a toast.
   The room can be played.
-- **`brush_sheet.mjs`** writes `test-solid-1.png` and so on, with the sums
-  and the missing shapes in `styles.json`.
+- **`brush_sheet.mjs`** writes `test-solid-1.png` and so on, with the sums,
+  the missing shapes and the borrowed pieces (whose, and their number on that
+  brush's sheet) in `styles.json`.
 
 The ground brushes of the tile sets with presets (own shapes of 47, slopes of
 6, and the 649 ground cells of the level: own / nearest / borrowed):
 
 | Tile set | Brush | Shapes | Slopes | Own | Nearest | Borrowed |
 |---|---|---|---|---|---|---|
-| 0 | Grassy cobbles | 5 | 2 | 343 | 44 | 262 |
-| 0 | Grassy cliff | 22 | 6 | 561 | 78 | 10 |
-| 0 | Grassy hill | 25 | 6 | 563 | 78 | 8 |
-| 2 | Grassy earth | 30 | 6 | 595 | 54 | 0 |
+| 0 | Grassy cobbles | 5 | 2 | 396 | 253 | 0 |
+| 0 | Grassy cliff | 22 | 6 | 564 | 74 | 11 |
+| 0 | Grassy hill | 25 | 6 | 562 | 79 | 8 |
+| 2 | Grassy earth | 30 | 6 | 596 | 53 | 0 |
 | 3 | Grassy soil | 5 | 6 | 404 | 245 | 0 |
-| 3 | Log frame | 44 | 6 | 621 | 28 | 0 |
-| 3 | Log ends | 23 | 0 | 519 | 59 | 71 |
-| 4 | Grassy dirt | 28 | 6 | 584 | 65 | 0 |
-| 5 | Sand | 25 | 4 | 574 | 75 | 0 |
+| 3 | Log frame | 44 | 6 | 622 | 27 | 0 |
+| 3 | Log ends | 23 | 0 | 508 | 68 | 73 |
+| 4 | Grassy dirt | 28 | 6 | 585 | 64 | 0 |
+| 5 | Sand | 25 | 4 | 567 | 82 | 0 |
 | 15 | Mossy stones | 36 | 6 | 605 | 44 | 0 |
 | 15 | Stone block | 14 | 0 | 467 | 182 | 0 |
-| 17 | Pink moss | 40 | 6 | 619 | 30 | 0 |
-| 17 | Stone block | 29 | 0 | 522 | 71 | 56 |
-| 18 | Snowy rock | 37 | 6 | 582 | 67 | 0 |
+| 17 | Pink moss | 40 | 6 | 621 | 28 | 0 |
+| 17 | Stone block | 29 | 0 | 523 | 70 | 56 |
+| 18 | Snowy rock | 37 | 6 | 581 | 68 | 0 |
 | 28 | Clouds | 6 | 0 | 401 | 248 | 0 |
-| 29 | Clouds | 15 | 6 | 532 | 95 | 22 |
-| 29 | Ground 2 | 4 | 0 | 72 | 72 | 505 |
+| 29 | Clouds | 16 | 6 | 571 | 78 | 0 |
 
 (brush_sheet's seed; the editor's differs, so its counts move by a few.)
 Read with the pictures: a low shape count is expected of a material the
 original only builds one way (soil inside logs, cobbles under grass) and is
 not by itself a fault; red cells are where a brush draws another material.
-Grassy cobbles takes its walls and undersides from the cliff and hill
-brushes; tile set 29's Clouds takes the undersides of a raised shelf from
-Ground 2, which is mostly other brushes' pieces itself.
+
+Two brushes had many red cells; both are fixed, by the two ways out:
+
+- **Grassy cobbles** (tile set 0) drew 262 of the 649 cells with cliff and
+  hill pieces. The pieces it borrowed are cliff rock, and the suspects on
+  the cliff's sheet that look like cobbles are, in place, breakable blocks
+  and rock columns: the original lays cobbles only under grass and draws the
+  walls and undersides of raised ground in cliff rock. There is nothing of
+  its own to take, so it has `"borrow": false` and is cut square, like
+  Grassy soil.
+- **Clouds** (tile set 29) borrowed the undersides of a raised shelf from
+  "Ground 2", whose 7 pieces are cloud: 3 ceilings, 3 right walls and a
+  notch, learned as a community apart. Clouds `take`s them (16 shapes of its
+  own instead of 15, nothing borrowed), and Ground 2, left empty, is gone.
+
+Cut square needed one change to how a brush picks among its own nearest
+shapes: the cost counted a missing edge and a wrong one alike, so the cobbles
+put grass tops under ledges and up one-wide pillars. Now a piece open on a
+side where the cell is joined costs more (`W_SPUR` in `autotile.mjs`, and the
+same in the order the nearest shapes are tried). Across the ten preset tile
+sets this moved a few cells of most brushes (the table above is after it);
+Sand's crosses and holed blocks now stay sand instead of breaking into loose
+boulders, and Log ends' borrowed slopes are reshuffled.
 
 ## Worked example 2: Rainbow Route dirt (tile set 3)
 
@@ -214,7 +242,7 @@ real ones as a side effect (a cave ceiling, 2 uses; a wall beside a bridge,
 ## Next steps (in order)
 
 1. Check the Clouds brush in the editor; look at the 2 edge pieces that moved
-   out of it, and at "Ground 2" (7 pieces) of the same tile set.
+   out of it. ("Ground 2" of the same tile set was cloud; Clouds takes it.)
 2. Move the role tagger into the editor. `brush_sheet.mjs` has one (a
    piece's dominant role over every place it is used) and lays sheets out by
    role, so gaps ("no concave corner") show; `learn()` still uses shapes only

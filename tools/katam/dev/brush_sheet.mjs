@@ -17,7 +17,8 @@
 //   test-K-N.png     the topology test level (lib/brushtest.mjs: every ground shape and
 //                    slope join, or the kind's runs and pools) painted by the brush;
 //                    yellow frame: the brush's own piece of another shape, red: another
-//                    brush's piece; styles.json "test" has the sums and the missing shapes
+//                    brush's piece; styles.json "test" has the sums, the missing shapes
+//                    and the borrowed pieces (lending style, piece number on its sheet)
 //   rim.png          the edge art the tile set draws in the air against ground
 //   zoom.png         with --zoom solid-1:10,11,17 (or rim:2,5): those pieces, numbered as
 //                    on the sheet, in place in the original, 5x5 cells around, three places each
@@ -193,9 +194,15 @@ function testLevel(style) {
     if (c) for (let t = 0; t < PS; t++) for (const [u, v] of [[t, 0], [t, 1], [t, PS - 1], [t, PS - 2], [0, t], [1, t], [PS - 1, t], [PS - 2, t]]) C.im.set(c, ((y + v) * C.w + x + u) * 4);
   }
   for (let i = 0; i < C.w * top; i++) C.im.set([235, 235, 235, 255], i * 4);
-  const r = T.report;
+  const r = T.report, from = new Map();   // borrowed cells: whose piece, which piece
+  for (let i = 0; i < T.W * T.H; i++) {
+    if (T.how[i] !== 'borrowed') continue;
+    const s = T.src[i], o = model.rooms[s >> SHIFT].style[s & MASK], key = (o ? o.id : '-') + '|' + T.art[i];
+    from.set(key, (from.get(key) || 0) + 1);
+  }
   text(C, 6, 6, `${style.name}  shapes ${r.shapes.own} of ${r.shapes.level} own` + (style.kind === 'solid' ? `  slopes ${r.slopes.own} of ${r.slopes.level}` : '') + `  cells ${r.cells.own} own ${r.cells.near} near ${r.cells.borrowed} borrowed`, 2);
-  return { C, report: { ...r, shapes: { ...r.shapes, missing: r.shapes.missing.map(brushtest.blobLabel) } } };
+  const borrowed = [...from].sort((a, b) => b[1] - a[1]).map(([key, cells]) => { const [style, tok] = key.split('|'); return { style, tok, cells }; });
+  return { C, report: { ...r, shapes: { ...r.shapes, missing: r.shapes.missing.map(brushtest.blobLabel) }, borrowed } };
 }
 const SKY = [150, 200, 240, 255];
 function paint(style) {
@@ -247,6 +254,12 @@ for (const [kind, K] of Object.entries(model.kinds)) {
     save(C, `sheet-${kind}-${n + 1}.png`);
     save(paint(s), `paint-${kind}-${n + 1}.png`);
   });
+}
+// the borrowed pieces numbered as on the lending style's sheet
+for (const s of report.styles) for (const b of (s.test && s.test.borrowed) || []) {
+  const o = report.styles.find((x) => x.id === b.style), p = o && o.pieces.find((q) => q.tok === b.tok);
+  if (o) b.style = `${o.kind}-${report.styles.filter((x) => x.kind === o.kind).indexOf(o) + 1} ${o.name}`;
+  if (p) { b.ix = p.ix; b.role = p.role; }
 }
 // --zoom solid-1:10,11,17 -- those pieces of that style where the original puts them:
 // the 5x5 cells around up to three places each (framed red), with the room id

@@ -12,7 +12,7 @@ import { Bindings, makeContext } from '../lib/project.mjs';
 import { Registry } from '../lib/registry.mjs';
 import { buildVocab, indexVocab } from '../lib/vocab.mjs';
 import { LEVELS, BLOBS } from '../lib/brushtest.mjs';
-import { blobOf } from '../lib/autotile.mjs';
+import { blobOf, learn, retile } from '../lib/autotile.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +39,36 @@ t('brush test levels: rooms, and every ground shape', () => {
     seen.add(blobOf(m));
   }
   assert.deepEqual([...seen].sort((a, b) => a - b), BLOBS);
+});
+
+t('brush presets: take, and no wrong edges when cut square', () => {
+  // three materials in synthetic rooms, a piece per role: a floor that never shows a wall or
+  // an underside (a), and floating blocks (b, c) that the learner keeps apart
+  const room = (rows, m) => {
+    const H = rows.length, W = rows[0].length, art = [], cls = [], g = (x, y) => x < 0 || y < 0 || x >= W || y >= H || rows[y][x] === '#';
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      cls.push(g(x, y) ? 'solid' : 'air');
+      const r = !g(x, y) ? -1 : !g(x, y - 1) ? 0 : !g(x, y + 1) ? 1 : !g(x - 1, y) ? 2 : !g(x + 1, y) ? 3 : 4 + ((x + y) & 1);
+      art.push(r < 0 ? EMPTY : tok(m, r));
+    }
+    return { W, H, art, cls };
+  };
+  const EMPTY = '000.0 000.0 000.0 000.0', tok = (m, r) => Array(4).fill(`${m}${r}.0`).join(' '), air = '.'.repeat(30);
+  const floor = [...Array(9).fill(air), '#####...........#####.........', ...Array(4).fill('#'.repeat(30))];
+  const blocks = [air, '..####.....######.....###.....', '..####.....######.....###.....', '..####.....######.............', '...............###....#####...',
+    '..######.......###....#####...', '..######..............#####...', air, '....#####........######.......', '....#####........######.......', '....#####........######.......', air, air, air];
+  const rooms = [room(floor, 'a'), room(floor, 'a'), room(blocks, 'b'), room(blocks, 'c')];
+  const names = (m) => m.kinds.solid.styles.map((s) => [...s.tokens].map((t) => t.slice(0, 2)).sort().join(''));
+  assert.deepEqual(names(learn(rooms, EMPTY)), ['a0a4a5', 'b0b1b2b3b4b5', 'c0c1c2c3c4c5']);
+  const took = learn(rooms, EMPTY, { rules: { styles: [{ piece: tok('b', 4), take: [0, 1, 2, 3, 4, 5].map((r) => tok('c', r)) }] } });
+  assert.deepEqual(names(took), ['b0b1b2b3b4b5c0c1c2c3c4c5', 'a0a4a5']);   // c moved into b; c, left empty, is gone
+  // the floor material on its own, painted as floating blocks and a pillar: never a top piece with ground above it
+  const m = learn(rooms, EMPTY, { rules: { styles: [{ piece: tok('a', 4), borrow: false }] } }), st = m.kinds.solid.styles[0];
+  const paint = ['...............', '..####...#.....', '..####...#.....', '..####...#.....', '.........#.....', ...Array(8).fill('#'.repeat(15))];
+  const W = 15, grid = { W, H: paint.length, art: Array(W * paint.length).fill(EMPTY), cls: [...paint.join('')].map((c) => (c === '#' ? 'solid' : 'air')) };
+  const want = new Map(grid.cls.flatMap((c, i) => (c === 'solid' ? [[i, st]] : [])));
+  retile(m, grid, [...want.keys()], want, 7);
+  grid.cls.forEach((c, i) => { if (c === 'solid' && i >= W && grid.cls[i - W] === 'solid') assert.notEqual(grid.art[i], tok('a', 0), `top piece under ground at ${i % W},${(i / W) | 0}`); });
 });
 
 t('compression round trips', () => {
