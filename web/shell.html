@@ -220,6 +220,11 @@
     body.touch-on.rom-ready { grid-template-rows: minmax(0, 1fr) var(--band); }
     body.touch-on.rom-ready.ui-open { grid-template-rows: minmax(0, 1fr) 0; }
     body.touch-on.rom-ready:not(.ui-open) #screen-wrap { padding-bottom: 0; }
+    /* Tap to move: no band.  The picture has the middle of the screen in
+       play, and the pads (menus and pauses only) lie over the bottom as
+       they do in landscape -- the picture never jumps when they come. */
+    body.tap-mode.touch-on.rom-ready { grid-template-rows: minmax(0, 1fr) 0; }
+    body.tap-mode.touch-on.rom-ready:not(.ui-open) #screen-wrap { padding-bottom: var(--safe-b); }
   }
 
   #screen, #gpu-screen {
@@ -1244,6 +1249,31 @@
   .dseg[data-seg="down"]  { left: 35%; bottom: 3%; }
   .dseg[data-seg="left"]  { left: 3%; top: 35%; }
   .dseg[data-seg="right"] { right: 3%; top: 35%; }
+
+  /* Tap to move (SETTINGS > PLAYERS > TOUCH PADS: TAP, or ?tap=1;
+     platform/ui/tap_nav.c, docs/design/TAP-TO-MOVE.md).  During play the
+     picture takes the taps and the pads go, all but Start, which becomes a
+     small pause button in the top left corner; for menus, pauses and
+     cutscenes (no HUD) the pads come back as usual. */
+  body.tap-play #touch > :not(#tb-start) { display: none; }
+  body.tap-play #tb-start {
+    top: calc(var(--safe-t) + 8px);
+    left: calc(var(--safe-l) + 8px);
+    bottom: auto;
+    translate: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    opacity: .8;
+  }
+  body.tap-play #tb-start::after { content: "II"; font-size: 15px; letter-spacing: .12em; }
+  body.tap-play #touch { opacity: 1; }
+  /* over the game's own top left icons in landscape: fainter there */
+  @media (orientation: landscape) {
+    body.tap-play #tb-start { opacity: .5; }
+  }
 
   /* Over gameplay in landscape rather than over letterboxing, so they step
      back until they are touched. */
@@ -3465,6 +3495,7 @@ var Module = (function () {
       if (list[i].present && list[i].kind === KatamInputDevices.KIND.PAD) n++;
     if (n !== padsSeen || (!p2Synced && Module.portRuntimeUp)) { padsSeen = n; p2Synced = true; syncP2(); }
     playersPage();
+    tapFrame();
     if (notices) notices.frame();
     requestAnimationFrame(inputFrame);
   }
@@ -3814,19 +3845,22 @@ var Module = (function () {
     if (!touchLayer.offsetWidth) { geomOk = false; return; }
 
     var d = dpadEl.getBoundingClientRect();
-    if (!d.width) { geomOk = false; return; }
+    // (tap to move hides every pad but Start during play: the D-pad then
+    // measures as nothing, and so do the hidden buttons, which hit nothing)
+    if (!d.width && !body.classList.contains('tap-play')) { geomOk = false; return; }
 
     var r = Math.min(d.width, d.height) / 2;
-    dpadGeom = {
+    dpadGeom = d.width ? {
       cx: d.left + d.width / 2,
       cy: d.top + d.height / 2,
       rHit: r * (1 + DPAD_SLOP),
       rDead: r * DPAD_DEAD
-    };
+    } : null;
 
     for (var i = 0; i < padButtons.length; i++) {
       var p = padButtons[i];
       var b = p.el.getBoundingClientRect();
+      if (!b.width) { p.cx = p.cy = -1e9; p.rx = p.ry = 1; continue; }
       p.cx = b.left + b.width / 2;
       p.cy = b.top + b.height / 2;
       p.rx = Math.max(1, b.width  / 2 * (1 + PAD_SLOP));
@@ -3889,7 +3923,7 @@ var Module = (function () {
   setInterval(sendKeepOuts, 500);
 
   function inDpad(x, y) {
-    if (!geomOk) return false;
+    if (!geomOk || !dpadGeom) return false;
     var dx = x - dpadGeom.cx, dy = y - dpadGeom.cy;
     return dx * dx + dy * dy <= dpadGeom.rHit * dpadGeom.rHit;
   }
@@ -3998,6 +4032,7 @@ var Module = (function () {
   shell.releaseInput = function () {
     devs.releaseKeys();
     releaseAllTouch();
+    if (typeof tapReleaseAll === 'function') tapReleaseAll();
     update();
   };
 
@@ -4151,6 +4186,91 @@ var Module = (function () {
   });
 
   //--------------------------------------------------------------------
+  // Tap to move (platform/ui/tap_nav.c, docs/design/TAP-TO-MOVE.md)
+  //
+  // SETTINGS > PLAYERS > TOUCH PADS: TAP, or ?tap=1 for this visit.  While
+  // the game is in play (its HUD is up: PortTapActiveJs) a finger on the
+  // picture is a finger on the world: the C side maps it through the view
+  // the picture was drawn with and its autopilot presses player 1's
+  // buttons, next to the page's own (platform/main.c) -- recorded as keys,
+  // as any button is.  Here only the fingers are forwarded, in canvas
+  // pixels; the pads stay for menus, pauses and cutscenes, and Start stays
+  // in play as a pause button (the pads' handler above takes it first).
+  //--------------------------------------------------------------------
+  var tapParam = /[?&]tap=1(&|$)/.test(location.search);
+  var tapPlay = false, tapHinted = false;
+  var tapPtrs = Object.create(null);           // pointerId -> 1: the picture has it
+  function tapMode() { return tapParam || touchMode === TOUCH_TAP; }
+
+  function tapCanvas() { return Module.portGlCanvas || document.getElementById('screen'); }
+
+  function tapSend(kind, e) {
+    var c = tapCanvas(), r;
+    if (!c || !Module.portRuntimeUp || !Module._PortTapPointerJs) return;
+    r = c.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    Module._PortTapPointerJs(kind, (e.clientX - r.left) * c.width / r.width,
+                             (e.clientY - r.top) * c.height / r.height, e.pointerId & 0xFFFF);
+  }
+
+  function tapReleaseAll() {
+    for (var id in tapPtrs) {
+      if (Module._PortTapPointerJs) Module._PortTapPointerJs(3, 0, 0, parseInt(id, 10) & 0xFFFF);
+    }
+    tapPtrs = Object.create(null);
+  }
+
+  // Once a frame (inputFrame): is the picture taking taps now?
+  var tapForced = false;
+  function tapFrame() {
+    var on;
+    if (tapParam && !tapForced && Module.portRuntimeUp && Module._PortTapForceJs) {
+      Module._PortTapForceJs(1);
+      tapForced = true;
+    }
+    on = tapMode() && touchOn && !uiOpen && !!Module.portRuntimeUp && !!Module._PortTapActiveJs &&
+         !!Module._PortTapActiveJs() && body.classList.contains('rom-ready') &&
+         !body.classList.contains('crashed') && !body.classList.contains('sheet-open');
+    if (on === tapPlay) return;
+    tapPlay = on;
+    body.classList.toggle('tap-play', on);
+    if (!on) tapReleaseAll();
+    // every pad but Start comes or goes: a finger on one lets go
+    releaseAllTouch();
+    measurePads();
+    sendKeepOuts();
+    if (on && !tapHinted && notices) {
+      tapHinted = true;
+      notices.show('Tap where Kirby should go', -1,
+                   'tap an enemy, block, switch or chest to deal with it - hold Kirby to inhale - ' +
+                   'swipe from Kirby: down swallows, diagonally kicks, up calls for help', 6500);
+    }
+  }
+
+  function onTapDown(e) {
+    if (!tapPlay || (e.pointerId in pointers) || !overStage(e.target)) return;
+    if (e.target && e.target.closest && e.target.closest('button, .tpad, a, input')) return;
+    e.preventDefault();
+    tapPtrs[e.pointerId] = 1;
+    tapSend(1, e);
+  }
+  function onTapMove(e) {
+    if (!(e.pointerId in tapPtrs)) return;
+    e.preventDefault();
+    tapSend(0, e);
+  }
+  function onTapUp(e) {
+    if (!(e.pointerId in tapPtrs)) return;
+    e.preventDefault();
+    delete tapPtrs[e.pointerId];
+    tapSend(e.type === 'pointercancel' ? 3 : 2, e);
+  }
+  window.addEventListener('pointerdown',   onTapDown, { passive: false });
+  window.addEventListener('pointermove',   onTapMove, { passive: false });
+  window.addEventListener('pointerup',     onTapUp,   { passive: false });
+  window.addEventListener('pointercancel', onTapUp,   { passive: false });
+
+  //--------------------------------------------------------------------
   // The other ways a finger can vanish.
   //
   // A phone does not always send pointerup. Backgrounding the app, the OS
@@ -4220,9 +4340,18 @@ var Module = (function () {
   // that finger is holding anyway, so nothing is visibly wrong.
   var STALE_RADIUS = 60;
 
+  var touchesDown = 0;
   function reconcileTouches(e) {
     if (!e.touches) return;
-    if (e.touches.length === 0) { releaseAllTouch(); return; }
+    if (e.touches.length === 0) {
+      releaseAllTouch();
+      // tap to move's fingers too, a moment later: a pointerup still on its
+      // way is a tap on Kirby, and must land first
+      setTimeout(function () { if (!touchesDown) tapReleaseAll(); }, 60);
+      touchesDown = 0;
+      return;
+    }
+    touchesDown = e.touches.length;
 
     var dropped = false;
     for (var id in pointers) {
@@ -4388,14 +4517,14 @@ var Module = (function () {
   // left as it is; the menu row shows AUTO/ON/OFF and changing it there
   // starts over from what it says.
   //--------------------------------------------------------------------
-  var TOUCH_AUTO = 0, TOUCH_ON = 1, TOUCH_OFF = 2;
+  var TOUCH_AUTO = 0, TOUCH_ON = 1, TOUCH_OFF = 2, TOUCH_TAP = 3;
   var touchMode = TOUCH_AUTO;
   var touchWoke = false;                       // the way back, this visit
 
   function touchModeOf(text) {
     var m = /(?:^|\n)touch=(\d+)/.exec(text || '');
     var n = m ? parseInt(m[1], 10) : TOUCH_AUTO;
-    return n === TOUCH_ON || n === TOUCH_OFF ? n : TOUCH_AUTO;
+    return n === TOUCH_ON || n === TOUCH_OFF || n === TOUCH_TAP ? n : TOUCH_AUTO;
   }
 
   function touchFirst() {
@@ -4407,7 +4536,7 @@ var Module = (function () {
   }
 
   function touchWanted() {
-    if (touchMode === TOUCH_ON) return true;
+    if (touchMode === TOUCH_ON || tapMode()) return true;   // TAP: the pads for the menus
     if (touchMode === TOUCH_OFF) return touchWoke;
     return touchWoke || touchFirst();
   }
@@ -4420,6 +4549,7 @@ var Module = (function () {
   function setTouchMode(mode) {
     touchMode = mode;
     touchWoke = false;
+    body.classList.toggle('tap-mode', tapMode());
     applyTouch();
   }
 
@@ -4459,7 +4589,9 @@ var Module = (function () {
   shell.touch = {
     on: function () { return touchOn; },
     mode: function () { return touchMode; },
-    toggle: function () { forceTouch(!touchOn); }
+    toggle: function () { forceTouch(!touchOn); },
+    tap: function () { return tapMode(); },
+    tapPlay: function () { return tapPlay; }
   };
 
   //--------------------------------------------------------------------
@@ -4510,6 +4642,7 @@ var Module = (function () {
   // from AUTO once (a desktop that had the pads keeps them no longer).
   try { localStorage.removeItem('katam.touchControls'); } catch (e) { /* ignore */ }
   touchMode = touchModeOf(lsGet('katam.settings'));
+  body.classList.toggle('tap-mode', tapMode());
   setTouch(touchWanted());
   syncMode();
   syncFs();

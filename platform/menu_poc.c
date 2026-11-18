@@ -1528,10 +1528,13 @@ static int Web(void)
 static void OnOff(char *buf, int size, int on) { snprintf(buf, size, "%s", on ? "ON" : "OFF"); }
 
 /* PLAYERS > TOUCH PADS: gPortSettings.touch (PS_TOUCH_*), this device's
- * own; the page shows or hides its pads from the saved text (shell.html). */
-static const char *const kTouchName[PS_TOUCH_COUNT] = { "AUTO", "ON", "OFF" };
+ * own; the page shows or hides its pads from the saved text (shell.html).
+ * TAP: tap to move (platform/ui/tap_nav.c) -- no pads during play. */
+static const char *const kTouchName[PS_TOUCH_COUNT] = { "AUTO", "ON", "OFF", "TAP" };
 static const char *TouchDesc(void)
 {
+    if (!gPortLnOn && gPortSettings.touch == PS_TOUCH_TAP)
+        return "TAP WHERE KIRBY SHOULD GO";
     if (gPortLnOn || gPortSettings.touch != PS_TOUCH_AUTO)
         return kItem[IT_TOUCH].desc;
     return HostOn("touch") ? "AUTO - SHOWN ON THIS DEVICE" : "AUTO - ON PHONES AND TABLETS";

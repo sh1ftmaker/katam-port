@@ -255,7 +255,13 @@ static void sub_0802B0D0(struct DoorToHub *door)
 static void sub_0802B0DC(struct DoorToHub *door)
 {
     door->obj.base.flags |= 0x400;
-    door->effectObjects[0]->flags |= 0x400;
+    /* PORT: a door made with template unk22 & 1 (the tutorial's door to the
+     * hub, room 805) comes here straight from its constructor, which left
+     * effectObjects[0] NULL; sub_0802ADAC makes it once the wall opens.  The
+     * GBA's write lands in the BIOS (ignored); natively it crashed the game
+     * as soon as the door was spawned. */
+    if (door->effectObjects[0] != NULL)
+        door->effectObjects[0]->flags |= 0x400;
     door->obj.unk78 = FN(sub_0802ADAC);
 }
 

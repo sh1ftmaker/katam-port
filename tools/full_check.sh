@@ -100,6 +100,8 @@ wide-stars         2     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide
 wide-blocks        2     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide_blocks.sh build/w16n/katam
 wide-ghosts        1     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide_ghosts.sh build/w16n/katam
 cpu-ai             3     -      ROM="$ROM" tests/cpu_ai.sh build/lp64/katam
+tap-nav            1     -      ROM="$ROM" tests/tap_nav.sh build/lp64/katam
+tap-tutorial       1     -      ROM="$ROM" tests/tap_tutorial.sh build/lp64/katam
 rig-hostaway       3     -      node tools/netproof/hostaway_test.mjs --rom "$ROM" --jobs $W --out "$D"
 web-on-hostblip    4     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases hostblip
 web-on-netq        3     web    node tools/online_browser_test.mjs --cdp $CDP --base $BASE --rom-url $ROM_URL --relay $RELAY --shots "$D" --cases netq

@@ -24,6 +24,7 @@
 #include "render/gl_renderer.h"
 #include "ui/settings.h"
 #include "ui/party_hud.h"
+#include "ui/tap_nav.h"
 #include "ui/ui.h"
 
 #ifdef __cplusplus
@@ -456,6 +457,11 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
     if (GlrHudActive())
         GlrPresentHud(fbW, fbH, sDst, PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst),
                       gPortSettings.scaling == PS_SCALE_SMOOTH);
+    /* The tap controls' markers (tap_nav.c) under the party HUD's cards;
+     * where the picture is, for mapping a finger onto the world. */
+    PortTapSetWorldRect(sDst, dpr);
+    if (sDst[2] > 0 && sDst[3] > 0)
+        PortTapHudDraw(fbW, fbH, sDst, gPortSettings.scaling == PS_SCALE_SMOOTH);
     /* The party HUD (party_hud.c), at the game HUD's size: the HUD scale
      * over a world picture, the picture's own scale over the PPU's. */
     if (sDst[2] > 0 && sDst[3] > 0)
@@ -549,11 +555,13 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
     /* where world pixels land, for the name tags over the Kirbys */
     if (f != NULL && f->world) {
         PortPartyHudSetView(1, f->camX, f->camY, f->viewX, f->viewY, f->viewW, f->viewH);
+        PortTapSetView(1, f->camX, f->camY, f->viewX, f->viewY, f->viewW, f->viewH);
     } else {
         s32 kx, ky, cx, cy;
 
         PortRlFocus(&kx, &ky, &cx, &cy);
         PortPartyHudSetView(f == NULL && ppuW == 240 && ppuH == 160, cx >> 8, cy >> 8, 0, 0, 240, 160);
+        PortTapSetView(f == NULL && ppuW == 240 && ppuH == 160, cx >> 8, cy >> 8, 0, 0, 240, 160);
     }
     PortPartyHudSample();
     gPortUiStatus.gpu = sUsingGpu == 1;

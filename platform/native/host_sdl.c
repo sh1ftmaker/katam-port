@@ -44,6 +44,7 @@
 #include "render/gl_api.h"
 #include "ui/settings.h"
 #include "ui/ui.h"
+#include "ui/tap_nav.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
@@ -1098,6 +1099,11 @@ static void RunStep(const char *cmd)
 {
     char a[64] = "", b[64] = "";
 
+    /* tap X Y, tapcell, tapkirby, tapenemy ... (platform/ui/tap_nav.c): a
+     * finger on the world for the tap controls' tests, never recorded */
+    if (PortTapScript(cmd))
+        return;
+
     PortLog("[katam-port] devices-script: f%ld %s", sFrames, cmd);
     if (strncmp(cmd, "plug ", 5) == 0) {
 #if SDL_VERSION_ATLEAST(2, 24, 0)
@@ -1952,11 +1958,45 @@ static int UiEvent(const SDL_Event *ev)
     }
 }
 
+/* Tap to move (platform/ui/tap_nav.c): while it is on, in play and with the
+ * menu shut, the left mouse button (or a finger) on the picture is a finger
+ * on the world.  F1 / Tab still open the menu. */
+static int TapEvent(const SDL_Event *ev)
+{
+    if (!PortTapActive() || (sUiMode && PortUiIsOpen()))
+        return 0;
+    switch (ev->type) {
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+        if (ev->button.which == SDL_TOUCH_MOUSEID || ev->button.button != SDL_BUTTON_LEFT)
+            return 0;
+        PortTapPointer(ev->type == SDL_MOUSEBUTTONDOWN ? PORT_UI_DOWN : PORT_UI_UP,
+                       ev->button.x * sDpr, ev->button.y * sDpr, 0);
+        return 1;
+    case SDL_MOUSEMOTION:
+        if (ev->motion.which == SDL_TOUCH_MOUSEID || !(ev->motion.state & SDL_BUTTON_LMASK))
+            return 0;
+        PortTapPointer(PORT_UI_MOVE, ev->motion.x * sDpr, ev->motion.y * sDpr, 0);
+        return 1;
+    case SDL_FINGERDOWN:
+    case SDL_FINGERMOTION:
+    case SDL_FINGERUP:
+        PortTapPointer(ev->type == SDL_FINGERDOWN ? PORT_UI_DOWN
+                       : ev->type == SDL_FINGERUP ? PORT_UI_UP : PORT_UI_MOVE,
+                       ev->tfinger.x * sDrawW, ev->tfinger.y * sDrawH, 1 + (int)(ev->tfinger.fingerId & 0xFFFF));
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static void HandleEvents(void)
 {
     SDL_Event ev;
 
     while (SDL_PollEvent(&ev)) {
+        if (TapEvent(&ev))
+            continue;
         if (sUiMode && UiEvent(&ev))
             continue;
         switch (ev.type) {

@@ -484,6 +484,11 @@ static int HudShowing(void)
     return 1;
 }
 
+int PortPartyHudGameHudUp(void)
+{
+    return HudShowing();
+}
+
 /* The fade the HUD is under, as lo/hi per 5-bit channel. */
 static void SampleFade(Party *p)
 {

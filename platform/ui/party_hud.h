@@ -36,6 +36,10 @@ void PortPartyHudDrawSoft(unsigned int *pixels, int w, int h);
 #define PORT_PARTY_KEEPOUTS 12
 void PortPartyHudKeepOut(int slot, int x, int y, int w, int h);
 
+/* The game's HUD is up: play, not the pause screens, menus, cutscenes or
+ * the title (the tap controls are live only then, platform/ui/tap_nav.c). */
+int PortPartyHudGameHudUp(void);
+
 /* For the tests and the menu: how many cards the last sample showed, and
  * whether the "1P" tag on the game's own bar was up. */
 int PortPartyHudCards(void);

@@ -93,6 +93,11 @@ static int CpuAiMode(struct CpuBrain *brain)
 
     if (gUnk_0203AD10 & 0x10)           /* the attract demo: the game's own */
         return PORT_CPUAI_CLASSIC;
+    /* the opening and the tutorial (the story before NORMAL): the game's
+     * own -- its CPU scripts walk the Kirbys through it, a mode leaving
+     * after FORCE_FREE takes them out of the tutorial (803 -> 804) */
+    if (gAIKirbyState < AI_KIRBY_STATE_NORMAL)
+        return PORT_CPUAI_CLASSIC;
     if (slot >= PORT_CPUAI_SLOTS)
         return PORT_CPUAI_CLASSIC;
     return PortCpuAiWordMode(gPortSim->game.reserved[0], slot);
