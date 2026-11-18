@@ -1,13 +1,42 @@
 {
   "format": "katam-autotile/1",
   "tileset": "tileset:vanilla/3",
-  "note": "Rainbow Route lumber yard (115-119, 138-139, 171-178). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped.",
+  "note": "Rainbow Route lumber yard (115-119, 138-139, 171-178). Hand-checked brush presets: each names the learned style that holds this body piece; listed styles come first, in this order; with only, unlisted styles of a listed kind are dropped. Grassy soil's exclude takes out of the dirt brush only the pieces it learned from where soil meets logs: log ends, log walls and undersides, the vine-tied joints, a slanted log and the cell under it (the log brushes keep them), a barrel (010.0...) and a blank piece the original uses as a wall at a room's edge (000.2 000.2 0eb.2 0eb.2). Without them the dirt has grass tops, fill, notches and slopes; its walls and undersides are cut from the fill. The tile set's exclude is the foot of a background tree trunk (2c6.0...), edge art of no brush. Hand-checked on the contact sheets and in place (tools/katam/dev/brush_sheet.mjs).",
   "only": true,
+  "exclude": [
+    "2c6.0 000h0 2c9.0 0eb.2"
+  ],
   "styles": [
     {
       "kind": "solid",
       "piece": "14c.2 14d.2 16c.2 16d.2",
-      "name": "Grassy soil"
+      "name": "Grassy soil",
+      "exclude": [
+        "000.2 000.2 0eb.2 0eb.2",
+        "010.0 011.0 030.0 031.0",
+        "142.1 143.1 163h1 163h1",
+        "0e2.1 023.1 102.1 043.1",
+        "089.1 08a.1 0a9.1 0aa.1",
+        "143h1 142h1 163h1 162h1",
+        "024.1 025.1 044.1 045.1",
+        "0a6.1 0a7.1 0c6.1 0c7.1",
+        "0c8.1 0c9.1 086.1 087.1",
+        "0a1h1 0a0h1 0c1h1 0c0h1",
+        "0e6.1 0e7.1 106.1 107.1",
+        "140.1 141.1 165h1 164h1",
+        "141h1 140h1 161h1 160h1",
+        "000.0 08b.1 000.0 000.0",
+        "022.1 023.1 042.1 043.1",
+        "022.1 04b.1 042.1 06b.1",
+        "026.1 027.1 046.1 047.1",
+        "027h1 026h1 047h1 046h1",
+        "029h1 028h1 087h1 086h1",
+        "04e.1 000.0 06e.1 06f.1",
+        "066.1 067.1 086.1 087.1",
+        "0a0.1 0a1.1 0c0.1 0c1.1",
+        "140.1 145.1 160.1 165.1"
+      ],
+      "borrow": false
     },
     {
       "kind": "solid",

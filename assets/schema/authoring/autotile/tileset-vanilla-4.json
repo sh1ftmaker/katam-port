@@ -1,0 +1,23 @@
+{
+  "format": "katam-autotile/1",
+  "tileset": "tileset:vanilla/4",
+  "note": "Olive Ocean beach dirt (rooms 130-135; Cabbage Cavern 191). The dirt brush is the learned ground style; exclude lists pieces that are not dirt: in the ground, a steel block (05c.5...), the round shell (106.0...), the starfish (065.0...) and the four pieces a cone shell is cut into (0c5.0..., 081.0..., 0a5.0..., 0e5.0...); in the edge art, the foot of a palm trunk (two pieces), a signpost (1a4.5...), the foot of the background mountain (2de.3...) and the stems of a flowering palm (2b1.0..., 2b3.0...). The cave versions of the slopes (grey rock drawn in) stay: in open air the brush takes the see-through ones. Hand-checked on the contact sheets and in place (tools/katam/dev/brush_sheet.mjs).",
+  "exclude": [
+    "05c.5 05d.5 07c.5 07d.5",
+    "106.0 107.0 126.0 127.0",
+    "065.0 066.0 085.0 086.0",
+    "0c5.0 0c6.0 0e5.0 0e6.0",
+    "081.0 082.0 0a5.0 0a6.0",
+    "0a5.0 0a6.0 0c5.0 0c6.0",
+    "0e5.0 0e6.0 0c2.0 0c3.0",
+    "12e.3 12f.3 108.1 109.1",
+    "12e.3 12f.3 10a.1 109.1",
+    "1a4.5 1a5.5 006.0 1c5.5",
+    "2de.3 000.0 17c.1 007.0",
+    "2b1.0 2b2.0 2d1.0 2d2.0",
+    "2b3.0 2b4.0 2d3.0 2d4.0"
+  ],
+  "styles": [
+    { "kind": "solid", "piece": "0a2.0 0a3.0 0c2.0 0c3.0", "name": "Grassy dirt" }
+  ]
+}
