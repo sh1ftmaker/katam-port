@@ -1,7 +1,7 @@
 {
   "format": "katam-autotile/1",
   "tileset": "tileset:vanilla/29",
-  "note": "Sky garden clouds (rooms 803-805, 950-951, 970). The cloud brush is the learned ground style; exclude lists pieces that are not cloud: the steel block (01a.5...), a green pillar (1e0.2...) and its two tops (1a0.2..., 1a2.2...). Hand-checked on the contact sheet of the learned style.",
+  "note": "Sky garden clouds (rooms 803-805, 950-951, 970). The cloud brush is the learned ground style; exclude lists pieces that are not cloud: the steel block (01a.5...), a green pillar (1e0.2...) and its two tops (1a0.2..., 1a2.2...). Hand-checked on the contact sheet of the learned style. take: the cloud undersides and right walls the learner put in a second ground style (Ground 2: 3 ceilings, 3 right walls and a notch, all cloud), so the cloud brush has its own and borrows none.",
   "exclude": [
     "01a.5 01b.5 03a.5 03b.5",
     "1e0.2 1e1.2 200.2 201.2",
@@ -12,6 +12,19 @@
     "1a2.2 1a3.2 1c2.2 1c3.2"
   ],
   "styles": [
-    { "kind": "solid", "piece": "001.0 001.0 001.0 001.0", "name": "Clouds" }
+    {
+      "kind": "solid",
+      "piece": "001.0 001.0 001.0 001.0",
+      "name": "Clouds",
+      "take": [
+        "14d.0 14e.0 16d.0 16e.0",
+        "14f.0 150.0 16f.0 170.0",
+        "151.0 001.0 171.0 172.0",
+        "001.0 036.0 001.0 056.0",
+        "001.0 076.0 001.0 096.0",
+        "001h0 02dh0 001h0 04dh0",
+        "0c6.0 0c7.0 24c.0 24d.0"
+      ]
+    }
   ]
 }
