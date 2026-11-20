@@ -11,6 +11,8 @@
 int PortCardFormatSettings(char *buf, int size) { (void)size; buf[0] = '\0'; return 0; }
 int PortCardParseSetting(const char *key, const char *val) { (void)key; (void)val; return 0; }
 int PortSimViewCovers(s32 w, s32 h) { (void)w; (void)h; return 0; }
+unsigned PortAccessDefaults(void) { return 0; }                /* platform/access.c */
+unsigned PortAccessClamp(unsigned w) { return w; }
 
 static int sFails;
 #define CHECK(c) do { if (!(c)) { printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c); sFails++; } } while (0)
