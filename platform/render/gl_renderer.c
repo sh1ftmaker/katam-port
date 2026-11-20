@@ -50,6 +50,7 @@
 #include "port/wide.h"          /* KATAM_KIRBYS: the party HUD's name tags */
 #include "render/gl_api.h"
 #include "render/gl_renderer.h"
+#include "render/screen_fx.h"
 #include "render/relief_glsl.h"
 #include "render/rc_glsl.h"
 #ifdef __EMSCRIPTEN__
@@ -110,6 +111,7 @@ static int sInstCap;
 #define INST_BYTES (INST_INTS * 4)
 
 static int sLastW = 240, sLastH = 160;
+static int sLastK = 1;          /* composite texels per game pixel */
 static int sLastDst[4];
 
 /* The HUD layer.  Atlas slot r holds HUD region r at HUD coordinates plus
@@ -2567,6 +2569,7 @@ void GlrDrawScaled(const RlFrame *f, int k)
     G(glBindFramebuffer)(GL_FRAMEBUFFER, 0);
     sLastW = f->viewW * k;
     sLastH = f->viewH * k;
+    sLastK = k;
     sSrcPic = 0;
 }
 
@@ -2708,6 +2711,8 @@ int GlrSourceSize(int *w, int *h)
     return sFboComp != 0;
 }
 
+int gGlrScreenFx;
+
 void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
                     int smooth, const float bg[3])
 {
@@ -2725,6 +2730,13 @@ void GlrPresentRect(int fbW, int fbH, const int src[4], const int dst[4],
     G(glClear)(GL_COLOR_BUFFER_BIT);
     if (!from || sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0)
         return;
+    /* DISPLAY > FILTER (render/screen_fx.c): drawn instead of the blit */
+    if (gGlrScreenFx > 0
+        && GlrFxDraw(sEs, sSrcPic ? sTexPic : sTexComp, src, dx, gy, dw, dh,
+                     sSrcPic ? 1 : sLastK, gGlrScreenFx)) {
+        G(glViewport)(0, 0, fbW, fbH);
+        return;
+    }
     if (smooth) {
         /* Sharp bilinear: nearest up to the largest whole multiple that fits,
          * then linear the rest of the way -- crisp pixels, no shimmer. */

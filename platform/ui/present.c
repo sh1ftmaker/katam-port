@@ -22,6 +22,7 @@
 #include "port/wide.h"
 #include "render/render_list.h"
 #include "render/gl_renderer.h"
+#include "render/screen_fx.h"
 #include "ui/settings.h"
 #include "ui/party_hud.h"
 #include "ui/ui.h"
@@ -436,6 +437,28 @@ static void CountRates(double nowMs, int sim)
     }
 }
 
+/* Where the picture sits in the canvas, for the page's screenshot and clip
+ * (web/capture.js crops to it): told only when it moves. */
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+EM_JS(void, PortWebPicRect, (int x, int y, int w, int h), {
+    Module.portPicRect = [x, y, w, h];
+});
+#endif
+static void PortShowNotePicture(const int dst[4])
+{
+#ifdef __EMSCRIPTEN__
+    static int last[4] = { -1, -1, -1, -1 };
+
+    if (memcmp(last, dst, sizeof(last)) != 0) {
+        memcpy(last, dst, sizeof(last));
+        PortWebPicRect(dst[0], dst[1], dst[2], dst[3]);
+    }
+#else
+    (void)dst;
+#endif
+}
+
 static void Draw(int fbW, int fbH, float dpr, double nowMs)
 {
     float bg[3];
@@ -451,11 +474,13 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
         memset(sSrc, 0, sizeof(sSrc));
         memset(sDst, 0, sizeof(sDst));
     }
+    gGlrScreenFx = gPortSettings.filter;     /* DISPLAY > FILTER (render/screen_fx.c) */
+    PortShowNotePicture(sDst);
     GlrPresentRect(fbW, fbH, sSrc, sDst,
-                   gPortSettings.scaling == PS_SCALE_SMOOTH, bg);
+                   PS_SCALE_SOFT(gPortSettings.scaling), bg);
     if (GlrHudActive())
         GlrPresentHud(fbW, fbH, sDst, PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst),
-                      gPortSettings.scaling == PS_SCALE_SMOOTH);
+                      PS_SCALE_SOFT(gPortSettings.scaling));
     /* The party HUD (party_hud.c), at the game HUD's size: the HUD scale
      * over a world picture, the picture's own scale over the PPU's. */
     if (sDst[2] > 0 && sDst[3] > 0)
@@ -463,11 +488,11 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
                          sLastWorld ? PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst)
                                     : (double)sDst[3] / sSrc[3],
                          sLastWorld && gPortSettings.hud == PS_HUD_STRIP,
-                         gPortSettings.scaling == PS_SCALE_SMOOTH, dpr);
+                         PS_SCALE_SOFT(gPortSettings.scaling), dpr);
     /* the connection readout over the pause page's player list (party_hud.c):
      * only over a menu's 240x160 picture, where the list's rows are */
     if (sDst[2] > 0 && sDst[3] > 0)
-        PortNetqDraw(fbW, fbH, sDst, sSrc[2], sSrc[3], gPortSettings.scaling == PS_SCALE_SMOOTH);
+        PortNetqDraw(fbW, fbH, sDst, sSrc[2], sSrc[3], PS_SCALE_SOFT(gPortSettings.scaling));
     if (sUi)
         PortUiDraw(fbW, fbH, dpr, nowMs);
 }

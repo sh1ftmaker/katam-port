@@ -548,6 +548,17 @@ static int PageDisplay(void)
         changed |= Radio("Fit (sharp)", &s.scaling, PS_SCALE_FIT);
         SameLineIfFits("Smooth");
         changed |= Radio("Smooth", &s.scaling, PS_SCALE_SMOOTH);
+        SameLineIfFits("Stretch");
+        changed |= Radio("Stretch", &s.scaling, PS_SCALE_STRETCH);
+        ImGui::TextUnformatted("Filter:");
+        ImGui::SameLine();
+        changed |= Radio("Off", &s.filter, PS_FX_OFF);
+        SameLineIfFits("LCD");
+        changed |= Radio("LCD", &s.filter, PS_FX_LCD);
+        SameLineIfFits("CRT");
+        changed |= Radio("CRT", &s.filter, PS_FX_CRT);
+        SameLineIfFits("Sharp");
+        changed |= Radio("Sharp", &s.filter, PS_FX_SHARP);
         ImGui::TextUnformatted("Borders:");
         static const unsigned kBox[] = { 0x000000, 0x0C0E11, 0x2A2E36, 0x3A2A55 };
         static const char *const kBoxN[] = { "Black", "Dark", "Grey", "Purple" };

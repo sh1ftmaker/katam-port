@@ -27,7 +27,12 @@ extern "C" {
 enum { PS_RENDER_GPU = 0, PS_RENDER_PPU = 1 };
 enum { PS_ASPECT_AUTO = 0, PS_ASPECT_3_2, PS_ASPECT_4_3, PS_ASPECT_16_10,
        PS_ASPECT_16_9, PS_ASPECT_21_9, PS_ASPECT_FILL, PS_ASPECT_COUNT };
-enum { PS_SCALE_INTEGER = 0, PS_SCALE_FIT, PS_SCALE_SMOOTH, PS_SCALE_COUNT };
+/* STRETCH fills the whole window, the shape ignored (docs/features/display.md) */
+enum { PS_SCALE_INTEGER = 0, PS_SCALE_FIT, PS_SCALE_SMOOTH, PS_SCALE_STRETCH, PS_SCALE_COUNT };
+/* DISPLAY > FILTER: a post-process on the presented picture (render/screen_fx.c) */
+enum { PS_FX_OFF = 0, PS_FX_LCD, PS_FX_CRT, PS_FX_SHARP, PS_FX_COUNT };
+/* sharp-bilinear presents: SMOOTH, and STRETCH (never a whole multiple) */
+#define PS_SCALE_SOFT(s) ((s) == PS_SCALE_SMOOTH || (s) == PS_SCALE_STRETCH)
 enum { PS_HUD_CORNERS = 0, PS_HUD_STRIP };
 enum { PS_PARTY_OFF = 0, PS_PARTY_PLAYERS, PS_PARTY_HELPERS };
 enum { PS_TOUCH_AUTO = 0, PS_TOUCH_ON, PS_TOUCH_OFF, PS_TOUCH_COUNT };
@@ -88,6 +93,9 @@ typedef struct PortSettings {
      * Kirby's mode, 2 bits per Kirby slot (PORT_CPUAI_*), default the mix
      * PORT_CPUAI_MIX.  Asked for in live play only; the host's online. */
     unsigned cpuAi;
+    /* DISPLAY > FILTER (PS_FX_*): this device's picture only, never online
+     * state; off by default (docs/features/display.md). */
+    int filter;
 } PortSettings;
 
 extern PortSettings gPortSettings;

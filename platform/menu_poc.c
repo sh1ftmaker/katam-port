@@ -909,7 +909,8 @@ static const char *const kAspect[PS_ASPECT_COUNT] = {
 static const float kZoom[] = { 0.5f, 0.67f, 0.8f, 1.0f, 1.25f, 1.5f, 2.0f };
 static const char *const kZoomName[] = { "0.5X", "0.67X", "0.8X", "1X", "1.25X", "1.5X", "2X" };
 #define NZOOM ((int)(sizeof(kZoom) / sizeof(kZoom[0])))
-static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH" };
+static const char *const kScaling[PS_SCALE_COUNT] = { "SHARP", "FIT", "SMOOTH", "STRETCH" };
+static const char *const kFilterName[PS_FX_COUNT] = { "OFF", "GBA LCD", "CRT", "SHARP" };
 static const char *const kPartyName[] = { "OFF", "PLAYERS", "ALL" };
 /* the ImGui menu's four border colours (ui_menu.cpp), and anything else */
 static const unsigned kBorder[4] = { 0x000000, 0x0C0E11, 0x2A2E36, 0x3A2A55 };
@@ -935,6 +936,7 @@ enum {
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
     IT_HUD, IT_HUDSIZE, IT_FPS, IT_FULLSCREEN, IT_VSYNC,
+    IT_FILTER, IT_SHOT, IT_CLIP,    /* docs/features/display.md */
     /* SOUND */
     IT_VOLUME, IT_MUTE,
     /* PLAYERS */
@@ -1008,6 +1010,9 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_FPS]         = { "SHOW FPS", K_SETTING, "FRAMES PER SECOND COUNTER" },
     [IT_FULLSCREEN]  = { "FULLSCREEN", K_TOGGLE, "FILL THE WHOLE SCREEN" },
     [IT_VSYNC]       = { "VSYNC", K_SETTING, "MATCH THE DISPLAY REFRESH" },
+    [IT_FILTER]      = { "FILTER", K_TOGGLE, "LCD GRID OR CRT LINES" },
+    [IT_SHOT]        = { "SCREENSHOT", K_ACTION, "SAVED AS THE MENU CLOSES" },
+    [IT_CLIP]        = { "RECORD CLIP", K_ACTION, "STARTS AS THE MENU CLOSES" },
     [IT_VOLUME]      = { "VOLUME", K_SETTING, "MUSIC AND SOUND EFFECTS" },
     [IT_MUTE]        = { "MUTE", K_SETTING, "SILENCE EVERYTHING" },
     [IT_PLAYERS]     = { "PLAYERS", K_OPEN, "CHOOSE WHO USES WHICH PAD" },
@@ -1106,6 +1111,10 @@ static const u8 kDisplayItems[] = {
     IT_FULLSCREEN,
 #else
     IT_VSYNC,
+#endif
+    IT_FILTER,
+#ifdef __EMSCRIPTEN__
+    IT_SHOT, IT_CLIP,
 #endif
 };
 static const u8 kSoundItems[] = { IT_VOLUME, IT_MUTE };
@@ -1908,6 +1917,8 @@ static void ItemValue(int it, char *buf, int size)
     /* the page's own state: per device, so never shown in a session */
     case IT_FULLSCREEN: if (!gPortLnOn) OnOff(buf, size, HostOn("fullscreen")); break;
     case IT_TOUCH:      if (!gPortLnOn) snprintf(buf, size, "%s", kTouchName[gPortSettings.touch]); break;
+    case IT_FILTER:     if (!gPortLnOn) snprintf(buf, size, "%s", kFilterName[gPortSettings.filter]); break;
+    case IT_CLIP:       if (!gPortLnOn && HostOn("capture.rec")) snprintf(buf, size, "REC"); break;
     case IT_DIAG:       if (!gPortLnOn) OnOff(buf, size, HostOn("diag")); break;
     case IT_RANDO: case IT_SEED: case IT_SIZES: case IT_ABIL: {
         unsigned v[4];
@@ -1966,7 +1977,8 @@ static const char *ItemWhyNot(int it)
 {
     /* on the 2D canvas the picture options do nothing (the GL path's) */
     int display = it == IT_GRAPHICS || it == IT_SCREEN || it == IT_ZOOM || it == IT_DYNZOOM
-               || it == IT_CAMERA || it == IT_INTERP || it == IT_PIXELS || it == IT_FPS;
+               || it == IT_CAMERA || it == IT_INTERP || it == IT_PIXELS || it == IT_FPS
+               || it == IT_FILTER;
     int game = it >= IT_EXPORT && it <= IT_RESET;
 
     if (display && PocDisplayFallback())
@@ -1999,7 +2011,8 @@ static const char *ItemWhyNot(int it)
     }
     if (game && gPortLnOn)
         return "NOT DURING AN ONLINE GAME";
-    if ((game || it == IT_FULLSCREEN || it == IT_TOUCH || it == IT_DIAG || it == IT_COPYLOG) && !Web())
+    if ((game || it == IT_FULLSCREEN || it == IT_TOUCH || it == IT_DIAG || it == IT_COPYLOG
+         || it == IT_SHOT || it == IT_CLIP) && !Web())
         return "ON THE WEB PAGE ONLY";
     if (it >= IT_RENDERER && it <= IT_SETSTORE && gPortLnOn)
         return "NOT DURING AN ONLINE GAME";
@@ -2172,6 +2185,15 @@ static void ItemApply(int it, int dir)
         PortSettingsChanged();          /* the page hears of it as it is saved */
         break;
     case IT_DIAG:       HostAct("diag", 0); break;
+    case IT_FILTER:                     /* this device's picture, saved */
+        if (PortInputLogReplaying())
+            break;
+        gPortSettings.filter = (gPortSettings.filter + (dir < 0 ? -1 : 1) + PS_FX_COUNT) % PS_FX_COUNT;
+        PortSettingsClamp(&gPortSettings);
+        PortSettingsChanged();
+        break;
+    case IT_SHOT:       HostAct("capture.shot", 0); break;
+    case IT_CLIP:       HostAct("capture.clip", 0); break;
     case IT_COPYLOG:    HostAct("log.copy", 0); break;
     case IT_EXPORT:     HostAct("save.export", 0); break;
     case IT_IMPORT:     HostAct("save.import", 0); break;

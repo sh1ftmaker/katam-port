@@ -1972,6 +1972,9 @@ var Module = (function () {
     blit();
     }
 
+    // Screenshots and clips (web/capture.js): the canvas is readable now.
+    if (window.katamCapture) window.katamCapture.frame();
+
     // FPS, sampled over half-second windows.
     fpsCount++;
     stats.frames++;
@@ -2845,6 +2848,8 @@ var Module = (function () {
 <script src="input_devices.js"></script>
 <!-- SETTINGS > PLAYERS > CONTROLS: the bindings and rumble (docs/features/remap.md) -->
 <script src="input_remap.js"></script>
+<!-- screenshots and clips (F9, F10, SETTINGS > DISPLAY) -->
+<script src="capture.js"></script>
 <script>
 //======================================================================
 // ROM loading + input. Independent of the wasm loader; safe either side
@@ -5411,6 +5416,7 @@ var Module = (function () {
     'fullscreen':  function () { return bit(shell.fullscreen && shell.fullscreen.active()); },
     'touch':       function () { return bit(shell.touch && shell.touch.on()); },
     'diag':        function () { return bit(shell.diag && shell.diag.on()); },
+    'capture.rec': function () { return bit(window.katamCapture && window.katamCapture.recording()); },
     'rando':       function () { return shell.rando ? shell.rando.get() : '0,1,1,1'; },
     'log':         function () { return shell.logTail(80).join('\n').slice(-15000); },
     'online':      function () { return window.katamOnline ? window.katamOnline.statsText() : ''; },
@@ -5471,6 +5477,9 @@ var Module = (function () {
     'save.import': withGesture(function () { shell.save.pick(); }),
     'fullscreen':  withGesture(function () { shell.fullscreen.toggle(); }),
     'log.copy':    withGesture(function () { shell.copyLog(); }),
+    // web/capture.js: taken as the menu closes
+    'capture.shot': function () { if (window.katamCapture) window.katamCapture.shot(true); },
+    'capture.clip': function () { if (window.katamCapture) window.katamCapture.clip(true); },
     'save.export': withGesture(function () { shell.save.exportNow(); }),
     // Do not: a turn later.
     'rom.forget':  function () { later(shell.romApi.forget); },

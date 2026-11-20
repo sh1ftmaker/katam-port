@@ -330,6 +330,16 @@ input-devices-test:
 	@node tools/input_devices_test.mjs
 	@node tools/input_remap_test.mjs
 
+# DISPLAY polish (docs/features/display.md): the STRETCH layout and the FILTER
+# setting, natively, plus a syntax check of the page's capture script.
+.PHONY: display-test
+display-test:
+	@mkdir -p build
+	@cc -std=gnu99 -Wall -Wextra -O1 -Iplatform -Igame/include -o build/display_settings_test \
+	    tests/display_settings_test.c platform/ui/settings.c -lm
+	@./build/display_settings_test
+	@node --check web/capture.js
+
 # The same page, in a real browser, tapped with a real finger.  shell-check
 # reasons about the source; this one answers the only question that settles a
 # touch bug -- does a tap on this control produce anything.  It builds the
@@ -836,7 +846,7 @@ dist: all web16
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
 	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
 	@cp $(OUT)/ln_session.js $(OUT)/online.js $(OUT)/online_browse.js $(DIST)/
-	@cp $(OUT)/input_devices.js $(OUT)/input_remap.js $(DIST)/
+	@cp $(OUT)/input_devices.js $(OUT)/input_remap.js $(OUT)/capture.js $(DIST)/
 	@cp web/saves.js web/pwa.js web/sw.js web/manifest.webmanifest web/icon.svg $(DIST)/
 	@python3 tools/gen_icons.py $(DIST) >/dev/null
 	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h

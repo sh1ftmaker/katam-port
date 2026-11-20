@@ -107,6 +107,7 @@ rig-badlink        5     -      node tools/netproof/badlink_test.mjs --rom "$ROM
 paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XDG_CONFIG_HOME="$D/home" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy KATAM_PAINT_SELFTEST=1 build/lp64/katam --no-audio --turbo --frames 600 "$ROM" > "$D/paint.log" 2>&1; grep paint-test "$D/paint.log"; grep -q "checks, 0 failed" "$D/paint.log"
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
+display            1     -      make -s display-test
 netplay            1     -      cd netplay && npm test --silent
 EOF
 )
@@ -125,6 +126,7 @@ netplay            1     -      cd netplay && npm test --silent
 wire               1     -      node tools/ln_wire_test.cjs
 input-devices      1     -      make -s input-devices-test
 saves              1     -      node tools/saves_test.mjs
+display            1     -      make -s display-test
 EOF
 )
 

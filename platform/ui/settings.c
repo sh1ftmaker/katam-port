@@ -97,6 +97,7 @@ void PortSettingsClamp(PortSettings *s)
     s->dynZoom = !!s->dynZoom;
     s->aspect = ClampI(s->aspect, 0, PS_ASPECT_COUNT - 1);
     s->scaling = ClampI(s->scaling, 0, PS_SCALE_COUNT - 1);
+    s->filter = ClampI(s->filter, 0, PS_FX_COUNT - 1);
     s->letterbox &= 0xFFFFFF;
     s->hud = ClampI(s->hud, 0, 1);
     s->hudScale = ClampI(s->hudScale, 0, PS_HUD_SCALE_MAX);
@@ -206,6 +207,7 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("dynzoom", dynZoom)
                 INT_KEY("aspect", aspect)
                 INT_KEY("scaling", scaling)
+                INT_KEY("filter", filter)
                 else if (strcmp(key, "letterbox") == 0) s->letterbox = (unsigned)strtoul(val, NULL, 16);
                 INT_KEY("hud", hud)
                 INT_KEY("hudscale", hudScale)
@@ -293,6 +295,8 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
         n += snprintf(buf + n, (size_t)(size - n), "smoothcam2=%d\ninterp=%d\npartyhud=%d\nnametags2=%d\nkirbys=%d\ntouch=%d\ncpuai=%08X\n",
                       s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch, s->cpuAi);
     if (n >= 0 && n < size)
+        n += snprintf(buf + n, (size_t)(size - n), "filter=%d\n", s->filter);
+    if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n),
@@ -364,6 +368,10 @@ void PortLayoutFit(const PortSettings *s, int fbW, int fbH, int srcW, int srcH,
 {
     double k = PortLayoutScale(s, fbW, fbH, srcW, srcH);
 
+    if (s->scaling == PS_SCALE_STRETCH) {
+        Centre(fbW, fbH, fbW, fbH, dst);
+        return;
+    }
     Centre(fbW, fbH, (int)(srcW * k + 0.5), (int)(srcH * k + 0.5), dst);
 }
 
@@ -391,7 +399,7 @@ void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
 
     if (fbW < 1) fbW = 1;
     if (fbH < 1) fbH = 1;
-    out->smooth = s->scaling == PS_SCALE_SMOOTH;
+    out->smooth = PS_SCALE_SOFT(s->scaling);
     if (!world) {
         out->viewW = srcW;
         out->viewH = srcH;
@@ -413,8 +421,11 @@ void PortLayoutCompute(const PortSettings *s, int fbW, int fbH, int world,
     if (out->viewW < RL_MIN_VIEW_W) out->viewW = RL_MIN_VIEW_W;
     if (out->viewH < RL_MIN_VIEW_H) out->viewH = RL_MIN_VIEW_H;
     k = PortLayoutScale(s, fbW, fbH, out->viewW, out->viewH);
-    Centre(fbW, fbH, (int)(out->viewW * k + 0.5), (int)(out->viewH * k + 0.5),
-           out->dst);
+    if (s->scaling == PS_SCALE_STRETCH)
+        Centre(fbW, fbH, fbW, fbH, out->dst);
+    else
+        Centre(fbW, fbH, (int)(out->viewW * k + 0.5), (int)(out->viewH * k + 0.5),
+               out->dst);
     (void)srcW; (void)srcH;
 }
 
