@@ -41,7 +41,7 @@ ordinary input, sent like any other press, so it cannot desync or cheat.
   (`gPocAccessRows`), the hold toggle, the flash limiter, the shake factor,
   the markers and the defaults.
 - Hooks:
-  - `menu_poc.c`: the section, `kExtRows[3]`, model 23.
+  - `menu_poc.c`: the section, `kExtRows[4]`, model 24.
   - `ui/settings.[ch]`: the `access` field and its key.
   - `main.c` PortSetKeys and `localmp.c` PortLmpSetHostKeys: HOLD B.
   - `ppu.c` and `render/rl_build.c`: FLASHING and SHAKE.
