@@ -150,6 +150,7 @@
 #include "hud.h"
 #include "sprite.h"
 #include "in_game_interlude.h"
+#include "port/access.h"   /* HOLD B */
 
 /* C linkage for the 64-bit builds -- see platform/warp.c. */
 #ifdef __cplusplus
@@ -456,7 +457,7 @@ int PortLmpSetting(void)
 void PortLmpSetHostKeys(int player, u16 mask)
 {
     if (player >= 1 && player < NS)
-        sHostKeys[player] = mask & 0x03FF;
+        sHostKeys[player] = PortAccessKeys(player, mask) & 0x03FF;   /* HOLD B */
 }
 
 u16 PortLmpHostKeys(int player)

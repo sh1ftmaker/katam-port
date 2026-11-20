@@ -96,6 +96,9 @@ typedef struct PortSettings {
     /* DISPLAY > FILTER (PS_FX_*): this device's picture only, never online
      * state; off by default (docs/features/display.md). */
     int filter;
+    /* SETTINGS > ACCESSIBILITY (platform/access.c, port/access.h): the
+     * PORT_A11Y_* bits, "access=0x.." saved; absent = PortAccessDefaults(). */
+    unsigned access;
 } PortSettings;
 
 extern PortSettings gPortSettings;

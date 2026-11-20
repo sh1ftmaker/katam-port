@@ -89,6 +89,7 @@
 #include "port/simblock.h"
 #include "port/inputlog.h"   /* PortInputLogReplaying */
 #include "port/cpu_ai.h"
+#include "port/access.h"   /* the ACCESSIBILITY section's rows */
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 #include "ui/light_opts.h"  /* the LIGHTING section's rows */
@@ -934,6 +935,7 @@ enum {
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
     IT_SEC_LIGHTING, IT_SEC_EXPERIMENTAL, IT_SEC_GOALS,
     IT_SEC_STATES,  /* GAME > SAVE STATES (platform/states_menu.c) */
+    IT_SEC_ACCESS,
     IT_MAINMENU,
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
@@ -1000,6 +1002,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_SEC_EXPERIMENTAL] = { "EXPERIMENTAL", K_SECTION, "TRY-OUTS THAT MAY GLITCH" },
     [IT_SEC_GOALS]   = { "GOALS", K_SECTION, "ACHIEVEMENTS AND RUN TIMER" },
     [IT_SEC_STATES]  = { "SAVE STATES", K_SECTION, "QUICK SAVES REWIND AND SPEED" },
+    [IT_SEC_ACCESS]  = { "ACCESSIBILITY", K_SECTION, "MARKERS FLASHING SHAKE" },
     [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
     [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
     [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
@@ -1105,7 +1108,9 @@ static const struct ItemDef kItem[IT_COUNT] = {
  * natively. */
 static const u8 kTopItems[] = {
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
-    IT_SEC_GOALS, IT_SEC_EXPERIMENTAL,
+    IT_SEC_GOALS,
+    IT_SEC_ACCESS,          /* platform/access.c */
+    IT_SEC_EXPERIMENTAL,
     IT_MAINMENU,
 };
 static const u8 kDisplayItems[] = {
@@ -1193,8 +1198,9 @@ static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
 extern const struct PortPocRows gPocLightRows;     /* LIGHTING, below */
 extern const struct PortPocRows gPocControlsRows;  /* CONTROLS (controls_ui.c) */
 extern const struct PortPocRows gPocGoalsRows;     /* GOALS (platform/ui/goals.c) */
+extern const struct PortPocRows gPocAccessRows;    /* ACCESSIBILITY (access.c) */
 extern const struct PortPocRows gPocStateRows;     /* SAVE STATES (states_menu.c) */
-static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, &gPocGoalsRows, &gPocStateRows, NULL };
+static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, &gPocGoalsRows, &gPocStateRows, &gPocAccessRows, NULL };
 u32 PortControlsGen(void);
 #define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
@@ -2546,7 +2552,7 @@ SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 2);
 SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 3);
 SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 4);
 SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 5);
-SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 7);
+SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 8);
 /* LIGHTING is a section inside EXPERIMENTAL */
 #define LIGHT_ROWS 26               /* LightOptCount(): checked as it opens */
 EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, &kSecExperimental, EXP_ROW_LIGHTING, 0);
@@ -2556,6 +2562,8 @@ EXT_SECTION(kSecControls, &gPocControlsRows, CONTROLS_ROWS, &kSecPlayers, PLAYER
 EXT_SECTION(kSecGoals, &gPocGoalsRows, PORT_GOALS_ROWS, &kTopModel, 6, 2);
 /* SAVE STATES is a section inside GAME (platform/states_menu.c) */
 EXT_SECTION(kSecStates, &gPocStateRows, 6, &kSecGame, GAME_ROW_STATES, 3);
+/* ACCESSIBILITY (platform/access.c), after GOALS, before EXPERIMENTAL on the top level */
+EXT_SECTION(kSecAccess, &gPocAccessRows, PORT_ACCESS_ROWS, &kTopModel, 7, 4);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -2620,10 +2628,11 @@ static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
     { IT_SEC_EXPERIMENTAL, &kSecExperimental }, { IT_SEC_CONTROLS, &kSecControls },
     { IT_SEC_GOALS, &kSecGoals }, { IT_SEC_STATES, &kSecStates },
+    { IT_SEC_ACCESS, &kSecAccess },
 };
 static const struct PocModel *const kSections[] = {
     &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
-    &kSecExperimental, &kSecControls, &kSecGoals, &kSecStates,
+    &kSecExperimental, &kSecControls, &kSecGoals, &kSecStates, &kSecAccess,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2835,6 +2844,7 @@ static const struct PocModel *const kModels[] = {
     &kSecControls,                  /* 21 */
     &kSecGoals,                     /* 22 */
     &kSecStates,                    /* 23 */
+    &kSecAccess,                    /* 24 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place

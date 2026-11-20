@@ -153,6 +153,7 @@
 #include "render/render_list.h"
 #include "ui/party_hud.h"
 #include "ui/settings.h"
+#include "port/access.h"     /* ACCESSIBILITY: markers, contrast */
 
 #ifdef __cplusplus
 extern "C" {
@@ -177,9 +178,9 @@ typedef struct {
 
 /* A name tag over a person's Kirby: world pixels of the top of its head. */
 typedef struct {
-    u8 on, local;
+    u8 on, local, hc;
     s32 x, y;
-    char text[PORT_CARD_NAME_MAX + 1];
+    char text[PORT_CARD_NAME_MAX + 2];  /* + an ACCESSIBILITY marker */
     u16 pal[16];
 } NameTag;
 
@@ -198,6 +199,7 @@ typedef struct {
     u8 grid;                /* more than three cards: the mini grid (Layout) */
 #endif
     u16 p1pal[16];
+    u8 a11y;                /* PORT_A11Y_MARKERS | _CONTRAST as composed      */
     Member m[PARTY_OTHERS];
 } Party;
 
@@ -538,10 +540,15 @@ static void SampleTags(void)
         if (!IsHuman(s) || !PortPlayerTagAnchor(s, &x, &y, &room))
             continue;
         name = PortPlayerName(s);
-        if (name[0])
-            snprintf(t->text, sizeof(t->text), "%s", name);
-        else
-            snprintf(t->text, sizeof(t->text), "%dP", s + 1);
+        {
+            char mk[2] = { PortAccessMarker(s), 0 };    /* "" when off */
+
+            if (name[0])
+                snprintf(t->text, sizeof(t->text), "%s%s", mk, name);
+            else
+                snprintf(t->text, sizeof(t->text), "%s%dP", mk, s + 1);
+        }
+        t->hc = (u8)PortAccessContrast();
         t->on = 1;
         t->local = (u8)IsLocal(s);
         t->x = x;
@@ -560,6 +567,7 @@ void PortPartyHudSample(void)
     u16 room;
 
     memset(&p, 0, sizeof(p));
+    p.a11y = (u8)((PortAccessMarker(0) ? PORT_A11Y_MARKERS : 0) | (PortAccessContrast() ? PORT_A11Y_CONTRAST : 0));
     NetqSample();
     SampleTags();
     if (HudShowing() && gNumKirbys >= 2 && gNumKirbys <= PARTY_KIRBYS)
@@ -730,6 +738,15 @@ static const struct { char ch; const char *rows[6]; } kFont[] = {
     { '-', { "...", "...", "###", "...", "...", "..." } },
     { '.', { ".", ".", ".", ".", ".", "#" } },
     { '!', { "#", "#", "#", "#", ".", "#" } },
+    /* ACCESSIBILITY > KIRBY MARKERS (port/access.h PortAccessMarker) */
+    { '\1', { ".....", ".###.", "#####", "#####", ".###.", "....." } },   /* circle   */
+    { '\2', { ".....", "#####", "#####", "#####", "#####", "....." } },   /* square   */
+    { '\3', { "..#..", "..#..", ".###.", ".###.", "#####", "#####" } },   /* triangle */
+    { '\4', { "..#..", ".###.", "#####", "#####", ".###.", "..#.." } },   /* diamond  */
+    { '\5', { "..#..", "..#..", "#####", "..#..", "..#..", "....." } },   /* plus     */
+    { '\6', { "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "....." } },   /* cross    */
+    { '\7', { ".#.#.", "#####", "#####", ".###.", "..#..", "....." } },   /* heart    */
+    { '\10', { ".###.", "#...#", "#...#", "#...#", ".###.", "....." } },  /* ring     */
 };
 
 static int Glyph(char ch)
@@ -853,6 +870,8 @@ static int LitTag(Canvas *cv, int x, int y, const char *s, const u16 *pal, u8 a)
 /* A dark one: everyone else's. */
 static int DarkTag(Canvas *cv, int x, int y, const char *s, const u16 *pal, u8 a)
 {
+    if (PortAccessContrast())                   /* HIGH CONTRAST: white on black */
+        return Tag(cv, x, y, s, 0x0000, 0x7FFF, a);
     return Tag(cv, x, y, s, 0x0842, pal[1], a);
 }
 
@@ -906,12 +925,15 @@ static const char *const kAbility[KIRBY_ABILITY_COUNT] = {
 #define PLATE_H 18              /* a whole card on its plate                     */
 #define COMPACT_PLATE_H 10      /* a compact one: the 8-row tag and bar, plus 2  */
 
+#define TAG_MAX 8
 static void TagFor(const Member *m, char *buf)
 {
+    char mk[2] = { PortAccessMarker(m->slot), 0 };     /* KIRBY MARKERS */
+
     if (m->human)
-        snprintf(buf, 4, "%dP", m->slot + 1);
+        snprintf(buf, TAG_MAX, "%s%dP", mk, m->slot + 1);
     else
-        snprintf(buf, 4, "CPU");
+        snprintf(buf, TAG_MAX, "%sCPU", mk);
 }
 
 static const char *StateLabel(const Member *m)
@@ -949,7 +971,7 @@ static void Plate(Canvas *cv, int x, int y, int w, int h, u16 edge)
 /* A whole card's content (icon, tag, name, bar / state or ability, lives). */
 static int FullWidth(const Member *m)
 {
-    char tag[4], lives[4];
+    char tag[TAG_MAX], lives[4];
     int top, bottom;
     const char *label = StateLabel(m);
 
@@ -965,7 +987,7 @@ static int FullWidth(const Member *m)
 /* Compact: the tag, the bar and the state when it is not OK, one row of 8. */
 static int CompactWidth(const Member *m)
 {
-    char tag[4];
+    char tag[TAG_MAX];
     const char *label = StateLabel(m);
 
     TagFor(m, tag);
@@ -978,7 +1000,7 @@ static int PlateH(const Member *m) { return m->full ? PLATE_H : COMPACT_PLATE_H;
 
 static int CardTag(Canvas *cv, int x, int y, const Member *m, u8 a)
 {
-    char tag[4];
+    char tag[TAG_MAX];
 
     TagFor(m, tag);
     if (!m->human)
@@ -1001,7 +1023,7 @@ static void Card(Canvas *cv, int x0, int x1, int y, const Member *m)
     x = x0 + 17 + CardTag(cv, x0 + 17, y, m, 255);
     /* the name, after the tag, in the Kirby's light shade (outlined) */
     if (m->name[0])
-        x += 2 + Text(cv, x + 2, y + 1, m->name, ko ? KO_INK : pal[1], 0, 1, 255) + 1;
+        x += 2 + Text(cv, x + 2, y + 1, m->name, ko ? KO_INK : PortAccessContrast() ? WHITE : pal[1], 0, 1, 255) + 1;
     Bar(cv, x + 1, y, m->hp, m->maxHp, pal, ko, 255);
 
     Text(cv, x0 + 18, y + 9, label ? label : kAbility[m->ability],
@@ -1043,7 +1065,7 @@ static int MiniBarW(const Member *m) { return m->maxHp * 2 + 1; }
 
 static int MiniWidth(const Member *m)
 {
-    char tag[4];
+    char tag[TAG_MAX];
     const char *label = StateLabel(m);
 
     TagFor(m, tag);
@@ -1104,7 +1126,7 @@ static Canvas sCards, sTag, sHint, sNameTag[PARTY_KIRBYS];
 static u32 sHintPx[HINT_W * COMPACT_PLATE_H];
 static Party sComposed;
 static int sHaveComposed;
-static u32 sCardsPx[CANVAS_W * CANVAS_H], sTagPx[16 * 8];
+static u32 sCardsPx[CANVAS_W * CANVAS_H], sTagPx[32 * 8];     /* "16P" and a marker */
 static u32 sNameTagPx[PARTY_KIRBYS][CANVAS_W * 10];
 static NameTag sNameTagDrawn[PARTY_KIRBYS];
 static u8 sNameTagFade[PARTY_KIRBYS][6];
@@ -1216,9 +1238,9 @@ tag:
 #endif
     memset(&sTag, 0, sizeof(sTag));
     {
-        char t[4];
+        char t[TAG_MAX], mk[2] = { PortAccessMarker(p->p1slot), 0 };
 
-        snprintf(t, sizeof(t), "%dP", p->p1slot + 1);
+        snprintf(t, sizeof(t), "%s%dP", mk, p->p1slot + 1);
         sTag.w = TextW(t) + 4;
         sTag.h = 8;
         if (p->p1local)
@@ -1310,6 +1332,7 @@ static void DrawNameTags(const Target *tg, const int world[4], double scale)
         if (!t->on)
             continue;
         if (memcmp(t->text, sNameTagDrawn[s].text, sizeof(t->text)) != 0 || t->local != sNameTagDrawn[s].local
+            || t->hc != sNameTagDrawn[s].hc
             || memcmp(t->pal, sNameTagDrawn[s].pal, sizeof(t->pal)) != 0 || cv->w == 0
             || memcmp(sNameTagFade[s], sTagFade.lo, 3) != 0 || memcmp(sNameTagFade[s] + 3, sTagFade.hi, 3) != 0) {
             memset(cv, 0, sizeof(*cv));
@@ -1318,6 +1341,8 @@ static void DrawNameTags(const Target *tg, const int world[4], double scale)
             cv->h = 8;
             if (t->local)
                 LitTag(cv, 0, 0, t->text, t->pal, 255);
+            else if (t->hc)                     /* HIGH CONTRAST */
+                Tag(cv, 0, 0, t->text, 0x0000, WHITE, 255);
             else
                 Text(cv, 2, 1, t->text, t->pal[1], 0, 1, 255);
             Finish(cv, sNameTagPx[s], &sTagFade, 230);

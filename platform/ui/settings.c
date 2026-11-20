@@ -8,6 +8,7 @@
 #include "port/port.h"
 #include "ui/settings.h"
 #include "port/player_card.h"
+#include "port/access.h"
 #include "render/render_list.h"
 
 #define PORT_HUD_W 240
@@ -46,6 +47,7 @@ void PortSettingsDefaults(PortSettings *s)
     s->kirbys = 4;      /* the game as it is */
     s->touch = PS_TOUCH_AUTO;
     s->cpuAi = 0xE79E79E4u;   /* PORT_CPUAI_MIX (port/cpu_ai.h) */
+    s->access = PortAccessDefaults();
 }
 
 /* The lighting settings saved by a build before LIGHT_SETTINGS_VER are
@@ -112,6 +114,7 @@ void PortSettingsClamp(PortSettings *s)
     s->nameTags = !!s->nameTags;
     s->kirbys = ClampI(s->kirbys, 4, 16);
     s->touch = ClampI(s->touch, 0, PS_TOUCH_COUNT - 1);
+    s->access = PortAccessClamp(s->access);
     s->lightOn = !!s->lightOn;
     s->lightMode = ClampI(s->lightMode, 0, 2);
     s->lightStrength = ClampF(s->lightStrength, 0.0f, 3.0f);
@@ -267,6 +270,7 @@ void PortSettingsParse(PortSettings *s, const char *text)
                 INT_KEY("lightsolid", lightSolidShade)
                 else if (strcmp(key, "lightver") == 0) lightVer = (int)strtol(val, NULL, 0);
                 /* the player cards (platform/player_card.c) */
+                else if (strcmp(key, "access") == 0) s->access = (unsigned)strtoul(val, NULL, 0);
                 else PortCardParseSetting(key, val);
 #undef INT_KEY
 #undef FLT_KEY
@@ -296,6 +300,7 @@ int PortSettingsFormat(const PortSettings *s, char *buf, int size)
                       s->smoothCam, s->interp, s->partyHud, s->nameTags, s->kirbys, s->touch, s->cpuAi);
     if (n >= 0 && n < size)
         n += snprintf(buf + n, (size_t)(size - n), "filter=%d\n", s->filter);
+        n += snprintf(buf + n, (size_t)(size - n), "access=0x%X\n", s->access);
     if (n >= 0 && n < size)
         n += PortCardFormatSettings(buf + n, size - n);
     if (n >= 0 && n < size)

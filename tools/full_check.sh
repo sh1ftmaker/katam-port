@@ -110,6 +110,7 @@ input-devices      1     -      make -s input-devices-test
 display            1     -      make -s display-test
 goals              1     -      make -s goals-test
 states             1     -      node tools/states_test.mjs build/katam-node.js "$ROM"
+access             1     -      make -s access-test
 netplay            1     -      cd netplay && npm test --silent
 EOF
 )
@@ -131,6 +132,7 @@ saves              1     -      node tools/saves_test.mjs
 display            1     -      make -s display-test
 goals              1     -      make -s goals-test
 states             1     -      node tools/states_test.mjs build/katam-node.js "$ROM"
+access             1     -      make -s access-test
 EOF
 )
 

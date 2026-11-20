@@ -45,6 +45,7 @@
 #include "main.h"
 #include "render/render_list.h"
 #include "port/lmpnet.h"   /* PortLnOverlayQuiet */
+#include "port/access.h"   /* FLASHING: REDUCED */
 
 /* C linkage for the 64-bit builds.
  *
@@ -730,6 +731,8 @@ static void ComposeScanline(int line)
     if (eva > 16) eva = 16;
     if (evb > 16) evb = 16;
     if (evy > 16) evy = 16;
+    if (effect == 2)
+        evy = PortAccessBrightUp(0, evy);   /* FLASHING: REDUCED (port/access.h) */
 
     for (col = 0; col < gPortViewW; col++) {
         int x = gPortViewX + col;

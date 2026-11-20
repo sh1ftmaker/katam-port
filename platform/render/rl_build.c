@@ -39,6 +39,7 @@
 #include "hud.h"
 #include "kirby.h"
 #include "render/render_list.h"
+#include "port/access.h"   /* FLASHING, SCREEN SHAKE */
 
 #ifdef __cplusplus
 extern "C" {
@@ -922,6 +923,11 @@ void PortRlCaptureLine(int line, s32 aff2x, s32 aff2y, s32 aff3x, s32 aff3y)
     l[RL_LINE_BLDCNT] = IO16(REG_OFFSET_BLDCNT);
     l[RL_LINE_BLDALPHA] = IO16(REG_OFFSET_BLDALPHA);
     l[RL_LINE_BLDY] = IO16(REG_OFFSET_BLDY);
+    if (((l[RL_LINE_BLDCNT] >> 6) & 3) == 2) {      /* FLASHING: REDUCED (port/access.h) */
+        u32 evy = (u32)l[RL_LINE_BLDY] & 31;
+
+        l[RL_LINE_BLDY] = (s32)(((u32)l[RL_LINE_BLDY] & ~31u) | PortAccessBrightUp(1, evy > 16 ? 16 : evy));
+    }
     l[RL_LINE_WIN0H] = IO16(REG_OFFSET_WIN0H);
     l[RL_LINE_WIN1H] = IO16(REG_OFFSET_WIN1H);
     l[RL_LINE_WIN0V] = IO16(REG_OFFSET_WIN0V);
@@ -1580,8 +1586,10 @@ const RlFrame *PortRlBuildFrame(void)
         {
             s32 hs = H < PORT_SCREEN_H ? H : PORT_SCREEN_H;
 
-            m->shakeD[0] = (s32)(((s64)sScreen.shakeX * 256 * hs) / PORT_SCREEN_H) - sScreen.shakeX * 256;
-            m->shakeD[1] = (s32)(((s64)sScreen.shakeY * 256 * hs) / PORT_SCREEN_H) - sScreen.shakeY * 256;
+            s32 keep = PortAccessShakeKeep();     /* SCREEN SHAKE (port/access.h) */
+
+            m->shakeD[0] = (s32)(((s64)sScreen.shakeX * keep * hs) / PORT_SCREEN_H) - sScreen.shakeX * 256;
+            m->shakeD[1] = (s32)(((s64)sScreen.shakeY * keep * hs) / PORT_SCREEN_H) - sScreen.shakeY * 256;
         }
         {
             /* PortRlFocus's test, on the committed frame. */

@@ -144,8 +144,9 @@
       the URL bar moved would jump under the thumb holding it.
     --------------------------------------------------------------*/
     --gut:   max(16px, 3.6vw);                 /* breathing room at the edges */
-    --dpad:  min(44vw, 30vh, 216px);
-    --face:  min(18vw, 12vh, 82px);            /* A and B */
+    /* --ts: SETTINGS > ACCESSIBILITY > TOUCH SIZE (1 .. 1.75, applyAccess) */
+    --dpad:  min(calc(44vw * var(--ts, 1)), calc(30vh * var(--ts, 1)), calc(216px * var(--ts, 1)), 58vw);
+    --face:  min(calc(18vw * var(--ts, 1)), calc(12vh * var(--ts, 1)), calc(82px * var(--ts, 1)), 24vw); /* A and B */
     --sh-h:  calc(var(--face) * .62);          /* L, R, Start, Select height */
     --x-l:   calc(var(--safe-l) + var(--gut));
     --x-r:   calc(var(--safe-r) + var(--gut));
@@ -1125,6 +1126,16 @@
     backdrop-filter: blur(7px);
     -webkit-backdrop-filter: blur(7px);
   }
+  /* SETTINGS > ACCESSIBILITY > HIGH CONTRAST (applyAccess) */
+  body.a11y-hc .tpad, body.a11y-hc #dpad {
+    color: #fff;
+    background: #000;
+    border: 2px solid #fff;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    text-shadow: none;
+  }
+  body.a11y-hc #touch { opacity: 1 !important; }
   .tpad.down {
     color: #fff;
     scale: .94;
@@ -4466,7 +4477,25 @@ var Module = (function () {
   Module.portSettingsSaved = function (text) {
     var m = touchModeOf(text);
     if (m !== touchMode) setTouchMode(m);
+    applyAccess(text);
   };
+
+  // SETTINGS > ACCESSIBILITY (platform/access.c, port/access.h): the saved
+  // "access=0x.." word -- bit 1 HIGH CONTRAST (the pads white on black),
+  // bits 6-7 TOUCH SIZE (100 125 150 175 %).  Absent: the game's first-run
+  // defaults come in with its first save.
+  var accessWord = -1;
+  function applyAccess(text) {
+    var m = /(?:^|\n)access=(0x[0-9a-fA-F]+|\d+)/.exec(text || '');
+    var w = m ? (parseInt(m[1]) & 255) : 0;
+    if (w === accessWord) return;
+    accessWord = w;
+    body.classList.toggle('a11y-hc', (w & 2) !== 0);
+    body.style.setProperty('--ts', String(1 + 0.25 * ((w >> 6) & 3)));
+    // the stage and the pads' cached rects follow the new size (fitScreen
+    // runs on every resize, and measures the pads through shell.hooks)
+    try { window.dispatchEvent(new Event('resize')); } catch (e) { /* old browser */ }
+  }
 
   // The sheet's button and the dev overlay's: ON or OFF, saved through the
   // game so the menu row agrees (before the runtime is up: this visit only).
@@ -4549,6 +4578,7 @@ var Module = (function () {
   // from AUTO once (a desktop that had the pads keeps them no longer).
   try { localStorage.removeItem('katam.touchControls'); } catch (e) { /* ignore */ }
   touchMode = touchModeOf(lsGet('katam.settings'));
+  applyAccess(lsGet('katam.settings'));
   setTouch(touchWanted());
   syncMode();
   syncFs();

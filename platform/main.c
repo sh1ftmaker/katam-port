@@ -57,6 +57,7 @@
 #include "gba/gba.h"
 #include "main.h"
 #include "multi_sio.h"
+#include "port/access.h"   /* HOLD B */
 
 /* C linkage for the 64-bit builds.
  *
@@ -319,7 +320,7 @@ u64 PortHostMicros(void)
 
 void PortSetKeys(u16 downMask)
 {
-    sHostKeys = downMask & 0x03FF;
+    sHostKeys = PortAccessKeys(0, downMask) & 0x03FF;   /* HOLD B (port/access.h) */
     sKeysDown = sHostKeys;
 }
 
