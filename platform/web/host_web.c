@@ -119,7 +119,7 @@ EMSCRIPTEN_KEEPALIVE void PortSettingsSetJs(const char *text)
 }
 EMSCRIPTEN_KEEPALIVE const char *PortSettingsTextJs(void)
 {
-    static char buf[1024];
+    static char buf[2048];
 
     PortSettingsFormat(&gPortSettings, buf, sizeof(buf));
     return buf;
@@ -254,7 +254,7 @@ void PortHostInit(int argc, char **argv)
             /* An older build's settings: kept the cards and the volume,
              * the rest is back to the defaults -- written now, so it
              * happens once (settings.h). */
-            char out[1024];
+            char out[2048];
 
             PortSettingsClamp(&gPortSettings);
             PortSettingsFormat(&gPortSettings, out, sizeof(out));
