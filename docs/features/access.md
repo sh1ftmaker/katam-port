@@ -1,6 +1,6 @@
 # ACCESSIBILITY (SETTINGS)
 
-A top-level SETTINGS section, between ADVANCED and EXPERIMENTAL. It is in
+A top-level SETTINGS section, between GOALS and EXPERIMENTAL. It is in
 the front end's SETTINGS and the pause page's. Every option is presentation,
 or this device's own buttons before the latch takes them. Nothing is written
 to game memory, so the simulation hashes and the goldens stay the same.
@@ -41,7 +41,7 @@ ordinary input, sent like any other press, so it cannot desync or cheat.
   (`gPocAccessRows`), the hold toggle, the flash limiter, the shake factor,
   the markers and the defaults.
 - Hooks:
-  - `menu_poc.c`: the section, `kExtRows[1]`, model 21.
+  - `menu_poc.c`: the section, `kExtRows[3]`, model 23.
   - `ui/settings.[ch]`: the `access` field and its key.
   - `main.c` PortSetKeys and `localmp.c` PortLmpSetHostKeys: HOLD B.
   - `ppu.c` and `render/rl_build.c`: FLASHING and SHAKE.
