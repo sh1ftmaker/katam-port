@@ -933,6 +933,7 @@ enum {
     /* the top level */
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
     IT_SEC_LIGHTING, IT_SEC_EXPERIMENTAL, IT_SEC_GOALS,
+    IT_SEC_STATES,  /* GAME > SAVE STATES (platform/states_menu.c) */
     IT_MAINMENU,
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
@@ -998,6 +999,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_SEC_LIGHTING]= { "LIGHTING", K_SECTION, "LIGHT AND SHADOWS" },
     [IT_SEC_EXPERIMENTAL] = { "EXPERIMENTAL", K_SECTION, "TRY-OUTS THAT MAY GLITCH" },
     [IT_SEC_GOALS]   = { "GOALS", K_SECTION, "ACHIEVEMENTS AND RUN TIMER" },
+    [IT_SEC_STATES]  = { "SAVE STATES", K_SECTION, "QUICK SAVES REWIND AND SPEED" },
     [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
     [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
     [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
@@ -1171,7 +1173,9 @@ static const u8 kOnlineItems[] = {
 static const u8 kGameItems[] = {
     IT_EXPORT, IT_IMPORT, IT_SLOTS, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
     IT_SIZES, IT_ABIL, IT_RESET,
+    IT_SEC_STATES,      /* last: GAME_ROW_STATES */
 };
+#define GAME_ROW_STATES ((int)ARRAY_COUNT(kGameItems) - 1)
 static const u8 kAdvancedItems[] = {
     IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
 };
@@ -1189,7 +1193,8 @@ static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
 extern const struct PortPocRows gPocLightRows;     /* LIGHTING, below */
 extern const struct PortPocRows gPocControlsRows;  /* CONTROLS (controls_ui.c) */
 extern const struct PortPocRows gPocGoalsRows;     /* GOALS (platform/ui/goals.c) */
-static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, &gPocGoalsRows, NULL };
+extern const struct PortPocRows gPocStateRows;     /* SAVE STATES (states_menu.c) */
+static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, &gPocGoalsRows, &gPocStateRows, NULL };
 u32 PortControlsGen(void);
 #define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
@@ -2549,6 +2554,8 @@ EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, &kSecExperimental, EXP_ROW
 EXT_SECTION(kSecControls, &gPocControlsRows, CONTROLS_ROWS, &kSecPlayers, PLAYERS_ROW_CONTROLS, 1);
 /* GOALS: achievements and the run timer (platform/ui/goals.c) */
 EXT_SECTION(kSecGoals, &gPocGoalsRows, PORT_GOALS_ROWS, &kTopModel, 6, 2);
+/* SAVE STATES is a section inside GAME (platform/states_menu.c) */
+EXT_SECTION(kSecStates, &gPocStateRows, 6, &kSecGame, GAME_ROW_STATES, 3);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -2612,11 +2619,11 @@ static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
     { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
     { IT_SEC_EXPERIMENTAL, &kSecExperimental }, { IT_SEC_CONTROLS, &kSecControls },
-    { IT_SEC_GOALS, &kSecGoals },
+    { IT_SEC_GOALS, &kSecGoals }, { IT_SEC_STATES, &kSecStates },
 };
 static const struct PocModel *const kSections[] = {
     &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
-    &kSecExperimental, &kSecControls, &kSecGoals,
+    &kSecExperimental, &kSecControls, &kSecGoals, &kSecStates,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2827,6 +2834,7 @@ static const struct PocModel *const kModels[] = {
     &kSecExperimental,              /* 20 */
     &kSecControls,                  /* 21 */
     &kSecGoals,                     /* 22 */
+    &kSecStates,                    /* 23 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place

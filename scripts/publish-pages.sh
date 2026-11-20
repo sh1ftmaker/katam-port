@@ -114,7 +114,7 @@ fi
 cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
 cp "$DIST"/ln_session.js "$DIST"/online.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/input_devices.js "$TARGET"/
+cp "$DIST"/input_devices.js "$DIST"/states.js "$TARGET"/
 cp "$DIST"/online_browse.js "$TARGET"/
 cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
 # Pages runs Jekyll by default, which ignores files it does not understand.

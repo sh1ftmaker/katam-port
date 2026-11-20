@@ -43,6 +43,7 @@
 #include "port/dma.h"
 #include "port/mp.h"
 #include "port/rollback.h"
+#include "port/states.h"
 #include "port/cpu_ai.h"
 #include "port/lmpnet.h"
 #include "port/player_card.h"
@@ -941,6 +942,9 @@ void PortPresentFrame(void)
     fork = PortLnOverlayRunning();
     if (!fork)
         PortLnHomeFrame();  /* the power-on picture a session is left to */
+    /* Save states, rewind (platform/states.c): local play only. */
+    if (!fork)
+        PortStFrame();
     PortRbSelfTestStep();
     PortSeatBeginFrame();
 

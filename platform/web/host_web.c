@@ -449,7 +449,17 @@ EM_ASYNC_JS(int, PortWebAwaitFrame, (int interp), {
             await new Promise(function (resolve) { setTimeout(resolve, 0); });
         return 0;
     }
-    var PERIOD = 1000 / 59.7275;
+    /* Fast-forward / slow motion (web/states.js, local play only):
+     * Module.portStSpeed() is 1, n > 1 (n frames to a paint: the extra
+     * ones go straight through) or a fraction (a longer frame period). */
+    var spd = Module.portStSpeed ? Module.portStSpeed() : 1;
+    if (spd > 1) {
+        if (((Module.portStN = (Module.portStN || 0) + 1) % spd) !== 0) {
+            Module.portFrameDue = 0;
+            return 0;
+        }
+    }
+    var PERIOD = 1000 / 59.7275 / (spd < 1 ? spd : 1);
     var due = Module.portFrameDue || 0;
     var st = Module.portPace ||
         (Module.portPace = { t0: 0, sims: 0, waits: 0, catchups: 0,

@@ -109,6 +109,7 @@ lint               1     -      make -s lint-determinism && python3 tools/check_
 input-devices      1     -      make -s input-devices-test
 display            1     -      make -s display-test
 goals              1     -      make -s goals-test
+states             1     -      node tools/states_test.mjs build/katam-node.js "$ROM"
 netplay            1     -      cd netplay && npm test --silent
 EOF
 )
@@ -129,6 +130,7 @@ input-devices      1     -      make -s input-devices-test
 saves              1     -      node tools/saves_test.mjs
 display            1     -      make -s display-test
 goals              1     -      make -s goals-test
+states             1     -      node tools/states_test.mjs build/katam-node.js "$ROM"
 EOF
 )
 
