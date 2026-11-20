@@ -429,8 +429,13 @@ static void PageGame(void)
     if (ConfirmButton("Delete stored save", "savedelete"))
         Act("save.delete");
     ImGui::EndDisabled();
+    ImGui::BeginDisabled(!haveRom);
+    if (ImGui::Button("Save slots & backups..."))
+        Act("save.slots");      /* web/saves.js */
+    ImGui::EndDisabled();
     Hint("A plain 64 KiB SRAM image (.sav), the same file an emulator reads. "
-         "Export one now and then: it is your backup.");
+         "Export one now and then: it is your backup. Slots are named copies kept "
+         "in this browser; an import always backs up the save it replaces first.");
 
     {
         /* Online play (web/online.js): the link, the session's numbers. */

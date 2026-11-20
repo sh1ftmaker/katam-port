@@ -836,6 +836,8 @@ dist: all web16
 	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
 	@cp $(OUT)/ln_session.js $(OUT)/online.js $(OUT)/online_browse.js $(DIST)/
 	@cp $(OUT)/input_devices.js $(DIST)/
+	@cp web/saves.js web/pwa.js web/sw.js web/manifest.webmanifest web/icon.svg $(DIST)/
+	@python3 tools/gen_icons.py $(DIST) >/dev/null
 	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h
 	@python3 tools/stamp_build.py --dir $(DIST) \
 	    --sim-src $(PORT_SRC)/src --sim-src platform --sim-flags '$(CFLAGS)' \
@@ -846,6 +848,7 @@ dist: all web16
 	@printf '/*.js\n  Cache-Control: public, max-age=31536000, immutable\n' >> $(DIST)/_headers
 	@printf '/\n  Cache-Control: no-cache, must-revalidate\n' >> $(DIST)/_headers
 	@printf '/index.html\n  Cache-Control: no-cache, must-revalidate\n' >> $(DIST)/_headers
+	@printf '/sw.js\n  Cache-Control: no-cache, must-revalidate\n' >> $(DIST)/_headers
 	@printf 'User-agent: *\nDisallow: /\n' > $(DIST)/robots.txt
 	@echo "  DIST    $(DIST) ($$(du -sh $(DIST) | cut -f1))"
 

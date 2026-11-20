@@ -943,7 +943,7 @@ enum {
      * wide build's POC_SLOTS; rows ordered by device, RowSlot) */
     IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT_LAST = IT_SLOT0 + POC_SLOTS - 1,
     /* GAME */
-    IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
+    IT_EXPORT, IT_IMPORT, IT_SLOTS, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
     IT_SIZES, IT_ABIL, IT_RESET,
     /* ADVANCED */
     IT_DIAG, IT_COPYLOG, IT_DEFAULTS, IT_BUILD, IT_RENDERER, IT_WEBGL, IT_GPU, IT_SETSTORE,
@@ -1056,6 +1056,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
 #endif
     [IT_EXPORT]      = { "EXPORT SAVE", K_ACTION, "A DOWNLOADS A COPY - BACKUP" },
     [IT_IMPORT]      = { "IMPORT SAVE", K_ACTION, "LOAD A SAV FILE" },
+    [IT_SLOTS]       = { "SAVE SLOTS", K_ACTION, "NAMED SAVES AND BACKUPS" },
     [IT_DELSAVE]     = { "DELETE SAVE", K_CONFIRM, "ERASE THE STORED SAVE" },
     [IT_ROMLOAD]     = { "CHANGE ROM", K_ACTION, "PICK ANOTHER ROM FILE" },
     [IT_ROMFORGET]   = { "FORGET ROM", K_CONFIRM, "ERASE THE STORED ROM" },
@@ -1152,7 +1153,7 @@ static const u8 kOnlineItems[] = {
 #endif
 };
 static const u8 kGameItems[] = {
-    IT_EXPORT, IT_IMPORT, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
+    IT_EXPORT, IT_IMPORT, IT_SLOTS, IT_DELSAVE, IT_ROMLOAD, IT_ROMFORGET, IT_RANDO, IT_SEED, IT_REROLL,
     IT_SIZES, IT_ABIL, IT_RESET,
 };
 static const u8 kAdvancedItems[] = {
@@ -2167,6 +2168,7 @@ static void ItemApply(int it, int dir)
     case IT_COPYLOG:    HostAct("log.copy", 0); break;
     case IT_EXPORT:     HostAct("save.export", 0); break;
     case IT_IMPORT:     HostAct("save.import", 0); break;
+    case IT_SLOTS:      HostAct("save.slots", 0); break;    /* web/saves.js */
     case IT_DELSAVE:    HostAct("save.delete", 0); break;
     case IT_ROMLOAD:    HostAct("rom.load", 0); break;
     case IT_ROMFORGET:  HostAct("rom.forget", 0); break;

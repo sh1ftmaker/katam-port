@@ -52,6 +52,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KATAM">
+<!-- Installable (docs/features/saves.md): the manifest, its icons (drawn by
+     tools/gen_icons.py, no ROM art) and web/pwa.js, which registers the
+     offline worker on a published build. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Kirby &amp; The Amazing Mirror — native port (WebAssembly)</title>
 <style>
   /*====================================================================
@@ -1715,6 +1721,7 @@
     <button id="saveexport" type="button" disabled>Export save…</button>
     <label class="filebtn" for="savefile">Import save…</label>
     <button id="saveforget" type="button" disabled>Delete stored save</button>
+    <button id="saveslots" type="button">Slots &amp; backups…</button>
     <span id="saveinfo">no ROM loaded</span>
   </div>
 
@@ -3089,6 +3096,13 @@ var Module = (function () {
     },
     del: function (store, key) {
       return idbWith(store, 'readwrite', function (s) { return s['delete'](key); });
+    },
+    // Every record whose key starts with `prefix` (web/saves.js: slots and
+    // backups share the save store under prefixed keys).
+    list: function (store, prefix) {
+      return idbWith(store, 'readonly', function (s) {
+        return s.getAll(IDBKeyRange.bound(prefix, prefix + '\uffff'));
+      });
     }
   };
 
@@ -4868,12 +4882,27 @@ var Module = (function () {
   }
   exportBtn.addEventListener('click', exportSave);
 
+  // What save memory holds now (or the stored record before the game has
+  // read it): what an export writes, and what a backup keeps.
+  function currentBytes() { return armed ? snapshot() : (pending ? new Uint8Array(pending) : null); }
+
   function applyImport(bytes, name) {
     // Not into an online session's save memory: it is the session's world.
     if (Module._PortLnActive && Module._PortLnActive()) {
       shell.note('Leave the online session first — its save belongs to the session.', 'warn');
       return;
     }
+    // The save about to be replaced is kept first (web/saves.js keeps the
+    // last few per ROM). If that cannot be done the import does not happen.
+    var old = currentBytes();
+    if (!shell.saveBackup || !old) { overwrite(bytes, name); return; }
+    shell.saveBackup(old, name).then(function () { overwrite(bytes, name); }, function (e) {
+      shell.note('Import cancelled: the current save could not be backed up first (' +
+                 reason(e) + '). Export it, then try again.', 'err');
+    });
+  }
+
+  function overwrite(bytes, name) {
     stopped = false;
 
     if (armed && heap()) {
@@ -4964,7 +4993,14 @@ var Module = (function () {
     hold:   function () { held = true; if (timer) { clearTimeout(timer); timer = 0; } },
     // ... and back: the guest left the session (web/online.js leave), its
     // own save memory is running again.
-    release: function () { held = false; }
+    release: function () { held = false; },
+    // For web/saves.js (slots and backups).
+    current: currentBytes,
+    key:     function () { return romKey; },
+    label:   function () { return romLabel; },
+    base:    function () { return baseName; },
+    load:    applyImport,
+    download: download
   };
 
   //--------------------------------------------------------------------
@@ -5031,6 +5067,10 @@ var Module = (function () {
   syncUi();
 })();
 </script>
+<!-- Named save slots and import backups (docs/features/saves.md), then the
+     installable page's worker registration. -->
+<script src="saves.js"></script>
+<script src="pwa.js"></script>
 
 <script>
 //======================================================================
@@ -5416,6 +5456,7 @@ var Module = (function () {
     // Do not: a turn later.
     'rom.forget':  function () { later(shell.romApi.forget); },
     'save.delete': function () { later(shell.save.del); },
+    'save.slots':  function () { later(function () { if (shell.saveSlots) shell.saveSlots.open(); }); },
     'online.leave': function () { later(function () { if (window.katamOnline) window.katamOnline.leave('from the menu'); }); },
     // the host's SETTINGS > ONLINE list: remove the device playing slot n
     'online.kick': function (n) { later(function () { if (window.katamOnline) window.katamOnline.kick(n); }); },

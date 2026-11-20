@@ -130,7 +130,8 @@ def main():
     # cannot connect".  Same cure: content-hashed URLs, per file, so an
     # unchanged file keeps its cache and a changed one busts it.
     for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js',
-                 'lobby.js', 'ln_session.js', 'online.js', 'online_browse.js', 'input_devices.js'):
+                 'lobby.js', 'ln_session.js', 'online.js', 'online_browse.js', 'input_devices.js',
+                 'saves.js', 'pwa.js'):
         f = args.dir / name
         if not f.exists():
             continue
@@ -138,6 +139,17 @@ def main():
         html = re.sub(
             r'(<script\b[^>]*\bsrc=(["\']?)%s)(\2[^>]*>)' % re.escape(name),
             r'\1?v=%s\3' % fid, html)
+
+    # The service worker (web/sw.js, docs/features/saves.md): its cache is
+    # named after this page, so a publish that changes anything the page
+    # names gets a fresh cache and the old one is deleted on activation.
+    # The page carries the same id so web/pwa.js can tell an open tab that
+    # it is older than the worker now installed.
+    sw = args.dir / 'sw.js'
+    if sw.exists():
+        sw_id = hashlib.sha256(html.encode() + sw.read_bytes()).hexdigest()[:12]
+        sw.write_text(sw.read_text().replace('__KATAM_SW_VERSION__', sw_id))
+        html = html.replace('<head>', '<head><meta name="katam-sw" content="%s">' % sw_id, 1)
 
     page.write_text(html)
     print('  STAMP   build %s, sim %s' % (build_id, sim_version))

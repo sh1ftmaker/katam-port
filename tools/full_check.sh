@@ -124,6 +124,7 @@ wide-blocks        2     -      tools/wide_native.sh $W && ROM="$ROM" tests/wide
 netplay            1     -      cd netplay && npm test --silent
 wire               1     -      node tools/ln_wire_test.cjs
 input-devices      1     -      make -s input-devices-test
+saves              1     -      node tools/saves_test.mjs
 EOF
 )
 
