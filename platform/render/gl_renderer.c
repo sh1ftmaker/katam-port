@@ -2654,7 +2654,7 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * bilinear). */
 /* Slots: 0 the cards, 1 the "1P" tag, 2 the hint, 3.. a name tag per Kirby
  * (8 with four Kirbys). */
-#define GLR_OVERLAYS (4 + KATAM_KIRBYS)
+#define GLR_OVERLAYS (GLR_OVERLAY_GOALS + 2)   /* the party HUD's, then GOALS' two */
 static struct { GLuint tex; int w, h; } sOvl[GLR_OVERLAYS];
 
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,

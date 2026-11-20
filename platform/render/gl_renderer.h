@@ -68,6 +68,9 @@ void GlrPresentHud(int fbW, int fbH, const int world[4], double scale, int smoot
  * overlay `slot` (0..3) when `dirty` or new, and drawn with its top-left at
  * framebuffer pixel (x, y), `scale` framebuffer pixels per pixel -- nearest,
  * or sharp bilinear with `smooth` at a fractional scale. */
+/* slots 0..GLR_OVERLAY_GOALS-1 the party HUD's; GLR_OVERLAY_GOALS and the
+ * one after, GOALS' toast and timer (platform/ui/goals.c) */
+#define GLR_OVERLAY_GOALS (4 + KATAM_KIRBYS)
 void GlrDrawOverlay(int slot, const u32 *pixels, int w, int h, int dirty,
                     int fbW, int fbH, double x, double y, double scale, int smooth);
 /* GlrPresent's fit of a vw x vh picture into w x h: {x, y, w, h}, top-left

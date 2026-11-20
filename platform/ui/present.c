@@ -25,6 +25,7 @@
 #include "render/screen_fx.h"
 #include "ui/settings.h"
 #include "ui/party_hud.h"
+#include "ui/goals.h"
 #include "ui/ui.h"
 
 #ifdef __cplusplus
@@ -489,6 +490,12 @@ static void Draw(int fbW, int fbH, float dpr, double nowMs)
                                     : (double)sDst[3] / sSrc[3],
                          sLastWorld && gPortSettings.hud == PS_HUD_STRIP,
                          PS_SCALE_SOFT(gPortSettings.scaling), dpr);
+    /* GOALS' toast and run timer (goals.c), at the HUD's size */
+    if (sDst[2] > 0 && sDst[3] > 0)
+        PortGoalsDraw(fbW, fbH, sDst,
+                      sLastWorld ? PortLayoutHudScale(&gPortSettings, fbW, fbH, sDst)
+                                 : (double)sDst[3] / sSrc[3],
+                      PS_SCALE_SOFT(gPortSettings.scaling));
     /* the connection readout over the pause page's player list (party_hud.c):
      * only over a menu's 240x160 picture, where the list's rows are */
     if (sDst[2] > 0 && sDst[3] > 0)
@@ -581,6 +588,7 @@ void PortShowNewFrame(int fbW, int fbH, float dpr, double nowMs,
         PortPartyHudSetView(f == NULL && ppuW == 240 && ppuH == 160, cx >> 8, cy >> 8, 0, 0, 240, 160);
     }
     PortPartyHudSample();
+    PortGoalsSample(nowMs);     /* achievements, the run timer (goals.c) */
     gPortUiStatus.gpu = sUsingGpu == 1;
     gPortUiStatus.zoomNow = zoom;
     CountRates(nowMs, 1);

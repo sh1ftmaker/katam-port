@@ -92,6 +92,7 @@
 #include "ui/settings.h"
 #include "ui/ui.h"          /* PortSettingsChanged */
 #include "ui/light_opts.h"  /* the LIGHTING section's rows */
+#include "ui/goals.h"       /* the GOALS section's rows */
 #include "ui/party_hud.h"   /* the connection readout beside the ONLINE list */
 
 /* Palette slots: the game's own, plus one for the description line. */
@@ -931,7 +932,7 @@ enum {
     IT_NONE,
     /* the top level */
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
-    IT_SEC_LIGHTING, IT_SEC_EXPERIMENTAL,
+    IT_SEC_LIGHTING, IT_SEC_EXPERIMENTAL, IT_SEC_GOALS,
     IT_MAINMENU,
     /* DISPLAY */
     IT_GRAPHICS, IT_SCREEN, IT_ZOOM, IT_DYNZOOM, IT_CAMERA, IT_INTERP, IT_PIXELS, IT_BORDERS,
@@ -996,6 +997,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_SEC_ADVANCED]= { "ADVANCED", K_SECTION, "LOG BUILD AND DEFAULTS" },
     [IT_SEC_LIGHTING]= { "LIGHTING", K_SECTION, "LIGHT AND SHADOWS" },
     [IT_SEC_EXPERIMENTAL] = { "EXPERIMENTAL", K_SECTION, "TRY-OUTS THAT MAY GLITCH" },
+    [IT_SEC_GOALS]   = { "GOALS", K_SECTION, "ACHIEVEMENTS AND RUN TIMER" },
     [IT_MAINMENU]    = { "MAIN MENU", K_CONFIRM, "BACK TO THE TITLE SCREEN" },
     [IT_GRAPHICS]    = { "GRAPHICS", K_SETTING, "ENHANCED CAN GO WIDESCREEN" },
     [IT_SCREEN]      = { "SCREEN", K_SETTING, "PICTURE SHAPE FOR ENHANCED" },
@@ -1101,7 +1103,7 @@ static const struct ItemDef kItem[IT_COUNT] = {
  * natively. */
 static const u8 kTopItems[] = {
     IT_SEC_DISPLAY, IT_SEC_SOUND, IT_SEC_PLAYERS, IT_SEC_ONLINE, IT_SEC_GAME, IT_SEC_ADVANCED,
-    IT_SEC_EXPERIMENTAL,
+    IT_SEC_GOALS, IT_SEC_EXPERIMENTAL,
     IT_MAINMENU,
 };
 static const u8 kDisplayItems[] = {
@@ -1186,7 +1188,8 @@ static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
  * EXT_SECTION and in an edit's item number. */
 extern const struct PortPocRows gPocLightRows;     /* LIGHTING, below */
 extern const struct PortPocRows gPocControlsRows;  /* CONTROLS (controls_ui.c) */
-static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, NULL };
+extern const struct PortPocRows gPocGoalsRows;     /* GOALS (platform/ui/goals.c) */
+static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, &gPocGoalsRows, NULL };
 u32 PortControlsGen(void);
 #define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
@@ -2538,12 +2541,14 @@ SECTION(kSecPlayers, "PLAYERS", kPlayersItems, &kTopModel, 2);
 SECTION(kSecOnline, "ONLINE", kOnlineItems, &kTopModel, 3);
 SECTION(kSecGame, "GAME", kGameItems, &kTopModel, 4);
 SECTION(kSecAdvanced, "ADVANCED", kAdvancedItems, &kTopModel, 5);
-SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 6);
+SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 7);
 /* LIGHTING is a section inside EXPERIMENTAL */
 #define LIGHT_ROWS 26               /* LightOptCount(): checked as it opens */
 EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, &kSecExperimental, EXP_ROW_LIGHTING, 0);
 #define CONTROLS_ROWS 15            /* PortControlsRowCount() */
 EXT_SECTION(kSecControls, &gPocControlsRows, CONTROLS_ROWS, &kSecPlayers, PLAYERS_ROW_CONTROLS, 1);
+/* GOALS: achievements and the run timer (platform/ui/goals.c) */
+EXT_SECTION(kSecGoals, &gPocGoalsRows, PORT_GOALS_ROWS, &kTopModel, 6, 2);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -2607,10 +2612,11 @@ static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
     { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
     { IT_SEC_EXPERIMENTAL, &kSecExperimental }, { IT_SEC_CONTROLS, &kSecControls },
+    { IT_SEC_GOALS, &kSecGoals },
 };
 static const struct PocModel *const kSections[] = {
     &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
-    &kSecExperimental, &kSecControls,
+    &kSecExperimental, &kSecControls, &kSecGoals,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2820,6 +2826,7 @@ static const struct PocModel *const kModels[] = {
     &kSecLighting,                  /* 19 */
     &kSecExperimental,              /* 20 */
     &kSecControls,                  /* 21 */
+    &kSecGoals,                     /* 22 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
@@ -3171,6 +3178,8 @@ static void ScreenBuild(int pause, u32 tiles, u16 lblAnim, u8 lblVariant, u16 hd
     sPauseScreen = pause;
     if (LightOptCount() != LIGHT_ROWS)
         PortLog("[menu-poc] LIGHTING has %d rows, the section %d: update LIGHT_ROWS", LightOptCount(), LIGHT_ROWS);
+    if (PortGoalsRowCount() != PORT_GOALS_ROWS)
+        PortLog("[menu-poc] GOALS has %d rows, the section %d: update PORT_GOALS_ROWS", PortGoalsRowCount(), PORT_GOALS_ROWS);
     ModelBuild(TopModel(), tiles, lblAnim, lblVariant, hdrAnim, hdrVariant, row);
 }
 

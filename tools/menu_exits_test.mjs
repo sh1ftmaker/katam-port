@@ -212,10 +212,10 @@ async function startPlay(p, opening = false) {
 
 const XBOX = 'Xbox 360 Controller (XInput STANDARD GAMEPAD)';
 const XONE = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
-const M = { BROWSE: 17, PASS: 18, LIGHTING: 19, EXPERIMENTAL: 20, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
+const M = { BROWSE: 17, PASS: 18, LIGHTING: 19, EXPERIMENTAL: 20, GOALS: 22, TOP: 0, MP: 1, ONLINE: 2, HOST: 3, JOIN: 4, PLAYERS: 5, CARD: 6, PICK: 7,
             PAUSE_TOP: 9, DISPLAY: 10, SOUND: 11, SEC_PLAYERS: 12, SEC_ONLINE: 13, GAME: 14, ADVANCED: 15, CONFIRM: 16 };
 /* the top level's sections, in order (LIGHTING is EXPERIMENTAL's first row) */
-const SECTIONS = ['DISPLAY', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED', 'EXPERIMENTAL'];
+const SECTIONS = ['DISPLAY', 'SOUND', 'SEC_PLAYERS', 'SEC_ONLINE', 'GAME', 'ADVANCED', 'GOALS', 'EXPERIMENTAL'];
 const ouiScreen = (p) => p.ev('Module._PortOuiScreen()');
 /* the pause screen (PortLnObserve works outside a session too): paused, its page */
 const pauseState = (p) => p.ev(`(function(){var q=Module._malloc(64);Module._PortLnObserve(q);
@@ -299,7 +299,7 @@ async function caseFront() {
        String(await volume(p)));
     ok('DEFAULTS > YES: lighting off again', (await lightOn(p)) === 0);
     // the gesture rows: FULLSCREEN by the keyboard (now) and by a pad (asks)
-    await step(p, 'B'); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);   // EXPERIMENTAL, wraps to DISPLAY
+    await step(p, 'B'); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8); await step(p, 'DOWN', 8);   // GOALS, EXPERIMENTAL, wraps to DISPLAY
     await step(p, 'A');
     for (let i = 0; i < 11; i++) await step(p, 'DOWN', 6);     // FULLSCREEN
     await shot(p, 'front-display-fullscreen-row.png');

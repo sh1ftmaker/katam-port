@@ -44,6 +44,7 @@
 #include "render/gl_api.h"
 #include "ui/settings.h"
 #include "ui/ui.h"
+#include "ui/goals.h"
 #include "gba/gba.h"
 
 /* C linkage for the 64-bit builds -- see tools/legacy-sync/cxxify.py.  Below the includes,
@@ -1425,6 +1426,10 @@ static int OpenUiWindow(void)
     gPortUiStatus.vsyncControl = 1;
     gPortUiStatus.drawGear = 1;
     PortShowInit(sGlEs, 1);
+    /* KATAM_GOALS_TEST=1: GOALS on in any run, its record kept nowhere
+     * (tests/goals_test.sh reads its "[goals]" log lines) */
+    if (getenv("KATAM_GOALS_TEST") != NULL && !PortGoalsActive())
+        PortGoalsInit("");
     PortLog("[katam-port] video: %s, %s, settings menu on F1 / Tab",
             SDL_GetCurrentVideoDriver(), GlrDescribe());
     return 1;
@@ -1983,6 +1988,9 @@ static void HandleEvents(void)
             case SDLK_F11:
                 ToggleFullscreen();
                 break;
+            case SDLK_F9:
+                PortGoalsTimerReset();      /* GOALS' run timer (ui/goals.c) */
+                break;
             case SDLK_RETURN:
                 if (ev.key.keysym.mod & KMOD_ALT)
                     ToggleFullscreen();
@@ -2232,6 +2240,18 @@ void PortHostInit(int argc, char **argv)
         int cliVsync = sVsync;
 
         LoadSettings();
+        if (sSettingsPath[0] && !sScripted) {
+            /* GOALS (ui/goals.c): goals.txt beside settings.ini */
+            char gp[1024];
+            char *slash = strrchr(sSettingsPath, '/'), *bs = strrchr(sSettingsPath, '\\');
+
+            if (bs && (!slash || bs > slash))
+                slash = bs;
+            size_t dir = slash ? (size_t)(slash - sSettingsPath) + 1 : 0;
+
+            snprintf(gp, sizeof gp, "%.*sgoals.txt", (int)dir, sSettingsPath);
+            PortGoalsInit(gp);
+        }
         sVsync = gPortSettings.vsync || cliVsync;
         gPortSettings.vsync = sVsync;
         PortSettingsApplyEarly();

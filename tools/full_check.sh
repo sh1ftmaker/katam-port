@@ -108,6 +108,7 @@ paint-unit         1     -      mkdir -p "$D/home" && XDG_DATA_HOME="$D/home" XD
 lint               1     -      make -s lint-determinism && python3 tools/check_sim_state.py build/lp64
 input-devices      1     -      make -s input-devices-test
 display            1     -      make -s display-test
+goals              1     -      make -s goals-test
 netplay            1     -      cd netplay && npm test --silent
 EOF
 )
@@ -127,6 +128,7 @@ wire               1     -      node tools/ln_wire_test.cjs
 input-devices      1     -      make -s input-devices-test
 saves              1     -      node tools/saves_test.mjs
 display            1     -      make -s display-test
+goals              1     -      make -s goals-test
 EOF
 )
 

@@ -198,7 +198,7 @@ UI_CXXFLAGS   := -O2 $(DBG_CFLAG) -std=gnu++17 -fno-exceptions -fno-rtti \
 WEB_NAME ?= katam
 TARGET := $(OUT)/$(WEB_NAME).html
 
-.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test input-devices-test \
+.PHONY: all sync clean serve compile stubs test debug prune dist deploy check-dist release pages abi-size-check ptr-array-check size-check relayout relayout-check shell-check shell-tap-test input-devices-test goals-test \
         lint-simstate native native-run native-test native-clean \
         arm64 arm64-clean \
         windows windows-package windows-clean \
@@ -322,6 +322,12 @@ shell-check:
 
 # web/input_devices.js (drop-in / drop-out: devices -> players) against fake
 # gamepads; no browser, no wasm, no ROM.
+# GOALS' record, run timer and splits, without the game (platform/ui/goals_core.c)
+goals-test:
+	@mkdir -p build
+	@cc -std=gnu99 -Wall -Wextra -O1 -Iplatform -o build/goals_core_test tests/goals_core_test.c platform/ui/goals_core.c -lm
+	@./build/goals_core_test
+
 input-devices-test:
 	@mkdir -p build
 	@cc -std=gnu99 -Wall -Wextra -O1 -DPORT_DEV_NO_GAME -Iplatform -Igame/include -o build/input_devices_native_test \

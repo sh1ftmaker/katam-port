@@ -37,6 +37,7 @@ EM_JS_DEPS(katam_host_web, "$UTF8ToString");
  * overrides the saved setting for one visit. */
 #include "ui/settings.h"
 #include "ui/ui.h"
+#include "ui/goals.h"
 #include "port/rollback.h"
 #include "port/netsim.h"
 
@@ -232,6 +233,7 @@ static void PortWebGlInit(void)
     gPortUiStatus.vsyncControl = 0;
     gPortUiStatus.drawGear = 0;         /* the page has its own button */
     PortShowInit(1, gpuOk);
+    PortGoalsInit(NULL);        /* GOALS: localStorage "katam.goals" (ui/goals.c) */
 }
 
 void PortHostInit(int argc, char **argv)
