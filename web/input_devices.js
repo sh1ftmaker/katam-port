@@ -187,6 +187,8 @@
     this.seatWrote = [0, 0, 0, 0];
     this.spareQuiet = 0;
     this.muted = false;                  /* the page's own menu has the input */
+    this.remap = opts.remap || null;     /* web/input_remap.js: the bindings  */
+    this.anyDown = false;
     this.wasMulti = false;
     this.kbA = this.addDevice(KIND.KEYS_A, 'keyboard-a', 'Keyboard');
     this.kbB = this.addDevice(KIND.KEYS_B, 'keyboard-b', 'Keyboard (arrows + numpad)');
@@ -412,8 +414,13 @@
   };
 
   /* --- the page's inputs ---------------------------------------------------- */
-  P.keyDown = function (code) {
-    if (KEYS_A[code] === undefined && KEYS_B[code] === undefined) return false;
+  /* repeat: the browser's auto-repeat (KeyboardEvent.repeat).  With a
+   * remap (web/input_remap.js) the keys are its profiles', and while it
+   * waits for a key to bind every fresh key is that. */
+  P.keyDown = function (code, repeat) {
+    var r = this.remap;
+    if (r && r.capturing()) { if (!repeat) r.offer('kb', code); return true; }
+    if (r ? !r.keyKnown(code) : (KEYS_A[code] === undefined && KEYS_B[code] === undefined)) return false;
     this.held[code] = 1;
     return true;
   };
@@ -432,7 +439,7 @@
    * A poll sees what gamepadconnected/disconnected say (the page also calls
    * scanPads from them), and a node test has no events. */
   P.scanPads = function () {
-    var list, seen = Object.create(null), i, k;
+    var list, seen = Object.create(null), i, k, pads = [];
     try { list = this.getGamepads() || []; } catch (e) { list = []; }
     for (i = 0; i < list.length; i++) {
       var gp = list[i];
@@ -447,8 +454,17 @@
       }
       if (!known || !known.present)
         id = this.padIds[k] = this.addDevice(KIND.PAD, gp.id || ('pad ' + k), padName(gp.id));
-      this.setKeys(id, padMask(gp, this.find(id)));
+      if (this.remap) {
+        var r = this.remap, pm = r.padMask(gp, this.find(id));
+        if (r.capturing()) r.offerPad(gp);
+        r.extras('pad:' + gp.id, pm);
+        if (pm) this.anyDown = true;
+        pads.push({ id: gp.id || ('pad ' + k), std: gp.mapping === 'standard' || (gp.buttons || []).length > 9,
+                    label: 'PAD ' + this.find(id).num });
+        this.setKeys(id, pm);
+      } else this.setKeys(id, padMask(gp, this.find(id)));
     }
+    if (this.remap) this.remap.setPads(pads);
     for (k in this.padIds)
       if (!seen[k]) { this.removeDevice(this.padIds[k]); delete this.padIds[k]; }
   };
@@ -456,15 +472,27 @@
   /* Once a frame: read everything, decide, hand the game players 2-4's masks.
    * Returns player 1's mask (for Module._PortSetKeys). */
   P.poll = function () {
-    var a = 0, b = 0, code;
-    for (code in this.held) {
-      if (KEYS_B[code] !== undefined) b |= KEYS_B[code];
-      else if (KEYS_A[code] !== undefined) a |= KEYS_A[code];
-    }
+    var a = 0, b = 0, code, r = this.remap, i;
+    if (r) {
+      a = r.keyMask('a', this.held);
+      b = r.keyMask('b', this.held);
+      r.extras('kb:a', a);
+      r.extras('kb:b', b);
+    } else
+      for (code in this.held) {
+        if (KEYS_B[code] !== undefined) b |= KEYS_B[code];
+        else if (KEYS_A[code] !== undefined) a |= KEYS_A[code];
+      }
     this.setKeys(this.kbA, a);
     this.setKeys(this.kbB, b);
     if (this.touchId) this.setKeys(this.touchId, this.touch);
+    this.anyDown = !!(a || b || this.touch);
     this.scanPads();
+    if (r) {
+      /* binding a button: the game sees nothing until it is all let go */
+      r.frame(this.anyDown);
+      if (r.holding()) for (i = 0; i < this.devs.length; i++) this.devs[i].keys = 0;
+    }
     return this.frame();
   };
 

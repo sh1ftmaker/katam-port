@@ -2843,6 +2843,8 @@ var Module = (function () {
 <!-- Input devices -> players (drop-in / drop-out local multiplayer): used
      by the Input section below. -->
 <script src="input_devices.js"></script>
+<!-- SETTINGS > PLAYERS > CONTROLS: the bindings and rumble (docs/features/remap.md) -->
+<script src="input_remap.js"></script>
 <script>
 //======================================================================
 // ROM loading + input. Independent of the wasm loader; safe either side
@@ -3447,6 +3449,20 @@ var Module = (function () {
     onEvent: function (ev) { if (notices) notices.event(ev); }
   });
   window.katamDevices = devs;
+  // SETTINGS > PLAYERS > CONTROLS (web/input_remap.js, platform/controls_ui.c):
+  // the keys and pad buttons each device uses, FULLSCREEN / MUTE, rumble.
+  var remap = window.katamRemap = KatamRemap.install(devs, Module, {
+    log: function (t) { console.log('[remap] ' + t); },
+    onAction: function (name) {
+      if (name === 'fullscreen' && Module.portUiAction) Module.portUiAction('fullscreen', 0);
+      if (name === 'mute' && Module.portRuntimeUp) {
+        try {
+          var muted = /(?:^|\n)mute=1/.test(Module.ccall('PortSettingsTextJs', 'string', [], []));
+          Module.ccall('PortSettingsSetJs', null, ['string'], ['mute=' + (muted ? 0 : 1)]);
+        } catch (e) { /* not yet */ }
+      }
+    }
+  });
 
   var lastMask = -1;
   var SEAT_HOOKS = { seats: true };
@@ -3479,6 +3495,9 @@ var Module = (function () {
       if (list[i].present && list[i].kind === KatamInputDevices.KIND.PAD) n++;
     if (n !== padsSeen || (!p2Synced && Module.portRuntimeUp)) { padsSeen = n; p2Synced = true; syncP2(); }
     playersPage();
+    if (Module.portRuntimeUp && Module._PortRumbleProbe)
+      remap.watch(Module._PortRumbleProbe, function (p) { return KatamRemap.padsOf(devs, p); },
+                  padsSeen > 0 && !uiOpen && (!Module._PortGameHudUpJs || Module._PortGameHudUpJs()));
     if (notices) notices.frame();
     requestAnimationFrame(inputFrame);
   }
@@ -3613,7 +3632,7 @@ var Module = (function () {
     if (!sawKey) { sawKey = true; syncP2(); }
     if (uiKeys(e, true)) return;
     if (!e.repeat && cardKeys(e)) return;   // the player card's NAME row
-    if (!devs.keyDown(e.code)) return;
+    if (!devs.keyDown(e.code, e.repeat)) return;
     e.preventDefault();                        // arrows/space must not scroll,
                                                // Backspace must not navigate back
     if (e.repeat) return;
@@ -5504,6 +5523,8 @@ var Module = (function () {
     f(arg);
     return true;
   };
+  // SETTINGS > PLAYERS > CONTROLS answers 'remap.*' (web/input_remap.js)
+  if (window.katamRemap) KatamRemap.hookMenu(Module, window.katamRemap);
 })();
 </script>
 

@@ -130,7 +130,7 @@ def main():
     # cannot connect".  Same cure: content-hashed URLs, per file, so an
     # unchanged file keeps its cache and a changed one busts it.
     for name in ('mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js',
-                 'lobby.js', 'ln_session.js', 'online.js', 'online_browse.js', 'input_devices.js',
+                 'lobby.js', 'ln_session.js', 'online.js', 'online_browse.js', 'input_devices.js', 'input_remap.js',
                  'saves.js', 'pwa.js'):
         f = args.dir / name
         if not f.exists():

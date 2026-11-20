@@ -27,7 +27,7 @@ const R = (p) => path.join(ROOT, p);
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-for (const f of ['katam.js', 'katam.wasm', 'mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js', 'lobby.js', 'input_devices.js', 'saves.js', 'pwa.js', 'robots.txt'])
+for (const f of ['katam.js', 'katam.wasm', 'mp_net.js', 'rb_net.js', 'rb_boot.js', 'net_session.js', 'net_game.js', 'lobby.js', 'input_devices.js', 'input_remap.js', 'saves.js', 'pwa.js', 'robots.txt'])
   if (fs.existsSync(`${dist}/${f}`)) fs.copyFileSync(`${dist}/${f}`, `${out}/${f}`);
 
 // the compiler library, content-addressed

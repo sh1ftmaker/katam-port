@@ -328,6 +328,7 @@ input-devices-test:
 	    tests/input_devices_native_test.c platform/input_devices.c
 	@./build/input_devices_native_test
 	@node tools/input_devices_test.mjs
+	@node tools/input_remap_test.mjs
 
 # The same page, in a real browser, tapped with a real finger.  shell-check
 # reasons about the source; this one answers the only question that settles a
@@ -835,7 +836,7 @@ dist: all web16
 	@cp $(OUT)/mp_net.js $(OUT)/rb_net.js $(OUT)/rb_boot.js $(DIST)/
 	@cp $(OUT)/net_session.js $(OUT)/net_game.js $(OUT)/lobby.js $(DIST)/
 	@cp $(OUT)/ln_session.js $(OUT)/online.js $(OUT)/online_browse.js $(DIST)/
-	@cp $(OUT)/input_devices.js $(DIST)/
+	@cp $(OUT)/input_devices.js $(OUT)/input_remap.js $(DIST)/
 	@cp web/saves.js web/pwa.js web/sw.js web/manifest.webmanifest web/icon.svg $(DIST)/
 	@python3 tools/gen_icons.py $(DIST) >/dev/null
 	@bash tools/gen_build_label.sh $(BUILD)/gen/build_label.h

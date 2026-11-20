@@ -958,6 +958,8 @@ enum {
     IT_CARD,
     /* EXPERIMENTAL > CPU AI (port/cpu_ai.h): every CPU Kirby, then Kirbys 2-4 */
     IT_CPUAI_ALL, IT_CPUAI_K2, IT_CPUAI_K3, IT_CPUAI_K4,
+    /* PLAYERS > CONTROLS (platform/controls_ui.c, web/input_remap.js) */
+    IT_SEC_CONTROLS,
     IT_COUNT
 };
 
@@ -1086,6 +1088,8 @@ static const struct ItemDef kItem[IT_COUNT] = {
     [IT_CPUAI_K2]    = { "KIRBY 2", K_TOGGLE, "" },
     [IT_CPUAI_K3]    = { "KIRBY 3", K_TOGGLE, "" },
     [IT_CPUAI_K4]    = { "KIRBY 4", K_TOGGLE, "" },
+    /* PLAYERS > CONTROLS: its rows are platform/controls_ui.c's */
+    [IT_SEC_CONTROLS] = { "CONTROLS", K_SECTION, "REBIND KEYS AND PAD BUTTONS" },
 };
 
 /* The sections' items.  Per build: the page's actions on the web, VSYNC
@@ -1108,10 +1112,11 @@ static const u8 kSoundItems[] = { IT_VOLUME, IT_MUTE };
 static const u8 kPlayersItems[] = {
     IT_PLAYERS, IT_PARTY, IT_TAGS,
 #ifdef __EMSCRIPTEN__
-    IT_TOUCH,
+    IT_TOUCH, IT_SEC_CONTROLS,
 #endif
     IT_CARD,
 };
+#define PLAYERS_ROW_CONTROLS 4      /* IT_SEC_CONTROLS's place above */
 static const u8 kOnlineItems[] = {
     IT_CODE, IT_MODE, IT_SLOT0, IT_SLOT0 + 1, IT_SLOT0 + 2, IT_SLOT0 + 3,
     /* the wide build: one row more per Kirby slot (the list scrolls) */
@@ -1171,7 +1176,9 @@ static const u8 kConfirmItems[] = { IT_NONE, IT_NONE };     /* NO, YES */
  * rows' definitions, before the NULL.  The index here is the one in
  * EXT_SECTION and in an edit's item number. */
 extern const struct PortPocRows gPocLightRows;     /* LIGHTING, below */
-static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, NULL };
+extern const struct PortPocRows gPocControlsRows;  /* CONTROLS (controls_ui.c) */
+static const struct PortPocRows *const kExtRows[] = { &gPocLightRows, &gPocControlsRows, NULL };
+u32 PortControlsGen(void);
 #define NEXTROWS ((int)ARRAY_COUNT(kExtRows) - 1)
 
 static int ZoomIndexOf(const PortSettings *s)
@@ -2475,6 +2482,8 @@ static u32 SecGen(void)
         g = g * 31u + gPortSim->view.lmpRooms;
         return g;
     }
+    if (sModel->ext == &gPocControlsRows)
+        g = g * 31u + PortControlsGen();
     if (Web() && (sModel->items == kDisplayItems || sModel->items == kPlayersItems
                   || sModel->items == kGameItems || sModel->items == kAdvancedItems)) {
         char b[64];
@@ -2511,6 +2520,8 @@ SECTION(kSecExperimental, "EXPERIMENTAL", kExperimentalItems, &kTopModel, 6);
 /* LIGHTING is a section inside EXPERIMENTAL */
 #define LIGHT_ROWS 26               /* LightOptCount(): checked as it opens */
 EXT_SECTION(kSecLighting, &gPocLightRows, LIGHT_ROWS, &kSecExperimental, EXP_ROW_LIGHTING, 0);
+#define CONTROLS_ROWS 15            /* PortControlsRowCount() */
+EXT_SECTION(kSecControls, &gPocControlsRows, CONTROLS_ROWS, &kSecPlayers, PLAYERS_ROW_CONTROLS, 1);
 
 /* NO / YES */
 static const char *ConfirmName(int row) { return row == 0 ? "NO" : "YES"; }
@@ -2573,11 +2584,11 @@ static const struct { u8 item; const struct PocModel *m; } kSectionOf[] = {
     { IT_SEC_DISPLAY, &kSecDisplay }, { IT_SEC_LIGHTING, &kSecLighting },
     { IT_SEC_SOUND, &kSecSound }, { IT_SEC_PLAYERS, &kSecPlayers },
     { IT_SEC_ONLINE, &kSecOnline }, { IT_SEC_GAME, &kSecGame }, { IT_SEC_ADVANCED, &kSecAdvanced },
-    { IT_SEC_EXPERIMENTAL, &kSecExperimental },
+    { IT_SEC_EXPERIMENTAL, &kSecExperimental }, { IT_SEC_CONTROLS, &kSecControls },
 };
 static const struct PocModel *const kSections[] = {
     &kSecDisplay, &kSecSound, &kSecPlayers, &kSecOnline, &kSecGame, &kSecAdvanced, &kSecLighting,
-    &kSecExperimental,
+    &kSecExperimental, &kSecControls,
 };
 
 static const struct PocModel *SectionModel(int it)
@@ -2786,6 +2797,7 @@ static const struct PocModel *const kModels[] = {
     &kBrowseModel, &kPassModel,     /* server browser */
     &kSecLighting,                  /* 19 */
     &kSecExperimental,              /* 20 */
+    &kSecControls,                  /* 21 */
 };
 
 /* The art the screen up now was built from, for a sub-screen built in place
