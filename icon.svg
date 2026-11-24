@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- The same design tools/gen_icons.py rasterises; drawn from scratch, no ROM art. -->
+  <rect width="100" height="100" fill="#101216"/>
+  <circle cx="50" cy="52" r="36" fill="#ff9ad0"/>
+  <ellipse cx="42" cy="45" rx="3.5" ry="8.5" fill="#181828"/>
+  <ellipse cx="58" cy="45" rx="3.5" ry="8.5" fill="#181828"/>
+  <ellipse cx="42" cy="41" rx="2" ry="3.5" fill="#fff"/>
+  <ellipse cx="58" cy="41" rx="2" ry="3.5" fill="#fff"/>
+  <ellipse cx="33" cy="58" rx="5" ry="2.5" fill="#ff69a0"/>
+  <ellipse cx="67" cy="58" rx="5" ry="2.5" fill="#ff69a0"/>
+  <polygon fill="#ffe066" points="80,7 83.2,15.6 92.4,16 85.2,21.7 87.6,30.5 80,25.5 72.4,30.5 74.8,21.7 67.6,16 76.8,15.6"/>
+</svg>
