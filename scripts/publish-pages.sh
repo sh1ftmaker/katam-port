@@ -101,22 +101,12 @@ for d in "$TARGET"/*/; do
     rm -rf "$d"
 done
 
-if [ "$DIST_TARGET" = dist-playtest ]; then
-    # The whole directory: the page, the game, the compiler library, data.json.
-    cp -r "$DIST"/. "$TARGET"/
-fi
-cp "$DIST"/index.html "$DIST"/katam.js "$DIST"/katam.wasm "$TARGET"/
-# The 16-Kirby module (SETTINGS > EXPERIMENTAL > CPU KIRBYS; make web16):
-# the game page's second module.  The playtest page always runs katam.js.
-if [ "$DIST_TARGET" = dist ]; then
-    cp "$DIST"/katam16.js "$DIST"/katam16.wasm "$TARGET"/
-fi
-cp "$DIST"/mp_net.js "$DIST"/rb_net.js "$DIST"/rb_boot.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/net_session.js "$DIST"/net_game.js "$DIST"/lobby.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/ln_session.js "$DIST"/online.js "$TARGET"/ 2>/dev/null || true
-cp "$DIST"/input_devices.js "$DIST"/states.js "$TARGET"/
-cp "$DIST"/online_browse.js "$TARGET"/
-cp "$DIST"/robots.txt "$TARGET"/ 2>/dev/null || true
+# The whole directory, for every page.  A hand-kept list of the game page's
+# files fell behind the page twice (online_browse.js, then saves.js,
+# input_remap.js, capture.js and the install files): the page asked for scripts
+# that were never published.  `make check-dist` has already refused game data in
+# $DIST, and the guard below checks what is staged.
+cp -r "$DIST"/. "$TARGET"/
 # Pages runs Jekyll by default, which ignores files it does not understand.
 touch "$WORKTREE/.nojekyll"
 
