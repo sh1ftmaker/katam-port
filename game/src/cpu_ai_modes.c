@@ -59,13 +59,25 @@ struct CpuAiState {
     u16 roomFrames;    /* frames in this room                                 */
     u16 destFrames;    /* frames since the door was chosen                    */
     u8  modeSeen;      /* mode + 1 last frame (a change resets the choice)    */
-    u8  doors;         /* doors walked through (diagnostics, wraps)          */
+    u8  dir;           /* the planner's directive (docs/design/CPU-HAIKU.md):
+                        * kind (PORT_CPUGOAL_*, bits 0-3) | status
+                        * (PORT_CPUGOAL_ST_*, bits 4-6); 0 = never had one.
+                        * (Was a diagnostic door counter nothing read.)      */
 };
-/* brain->fillerCE (14 bytes, 2-aligned): door choices that failed */
+/* brain->fillerCE (14 bytes, 2-aligned): door choices that failed, and the
+ * directive's operands.  The three failed (room, room) pairs used to be six
+ * u16s; rooms are below 1024 (MAX_ROOMS), so each pair is 20 bits now --
+ * (from + 1) | (to + 1) << 10, pair i at bit 20 i of the little-endian
+ * 64-bit `pairs`, the next pair to overwrite at bit 60 -- which leaves room
+ * for the directive's A, B, C and seconds.  Lossless: the modes route
+ * exactly as before. */
 struct CpuAiBlocked {
-    u16 from[3], to[3];
-    u8  next;
+    u8  pairs[8];
     u8  lastHp;
+    u8  dirB;          /* directive operand B; once it has ended, the reason  */
+    u16 dirA;          /* directive operand A                                 */
+    u8  dirC;          /* directive operand C                                 */
+    u8  dirLeft;       /* directive seconds left (ticks when frame % 60 == 0) */
 };
 
 /* brain->fillerF0 (4 bytes): progress toward the chosen door */
@@ -114,13 +126,29 @@ static const struct Unk_08930E00_2 *DoorList(u16 room)
 
 #define NEXT_ENTRY(e) ((const struct Unk_08930E00_2 *)(const void *)((const u8 *)(e) + (e)->unk01))
 
+static u64 BlBits(const struct CpuAiBlocked *bl)
+{
+    u64 v = 0;
+    int i;
+
+    for (i = 7; i >= 0; i--)
+        v = (v << 8) | bl->pairs[i];
+    return v;
+}
+
+static u32 BlPair(u16 from, u16 to)
+{
+    return ((u32)(from + 1) & 0x3FF) | (((u32)(to + 1) & 0x3FF) << 10);
+}
+
 static bool32 Blocked(struct CpuBrain *brain, u16 from, u16 to)
 {
-    struct CpuAiBlocked *bl = BL(brain);
+    u64 v = BlBits(BL(brain));
+    u32 want = BlPair(from, to);
     int i;
 
     for (i = 0; i < 3; i++)
-        if (bl->to[i] == to + 1 && bl->from[i] == from + 1)
+        if ((u32)((v >> (20 * i)) & 0xFFFFF) == want)
             return TRUE;
     return FALSE;
 }
@@ -128,12 +156,17 @@ static bool32 Blocked(struct CpuBrain *brain, u16 from, u16 to)
 static void BlockWhy(struct CpuBrain *brain, u16 from, u16 to, const char *why)
 {
     struct CpuAiBlocked *bl = BL(brain);
+    u64 v = BlBits(bl);
+    int next = (int)((v >> 60) & 3), i;
 
-    if (bl->next >= 3)
-        bl->next = 0;
-    bl->from[bl->next] = from + 1;
-    bl->to[bl->next] = to + 1;
-    bl->next++;
+    if (next >= 3)
+        next = 0;
+    v &= ~((u64)0xFFFFF << (20 * next));
+    v |= (u64)BlPair(from, to) << (20 * next);
+    next++;
+    v = (v & ~((u64)3 << 60)) | ((u64)next << 60);
+    for (i = 0; i < 8; i++)
+        bl->pairs[i] = (u8)(v >> (8 * i));
     PortCpuAiNote(brain->kirby->base.unk56, why, from, to, 0);
 }
 
@@ -141,6 +174,24 @@ static void BlockWhy(struct CpuBrain *brain, u16 from, u16 to, const char *why)
 static void Block(struct CpuBrain *brain, u16 from, u16 to)
 {
     BlockWhy(brain, from, to, "blocked");
+}
+
+/* The failed (room, room) pairs, for the planner's observation. */
+static int BlockedList(struct CpuBrain *brain, u16 *from, u16 *to)
+{
+    u64 v = BlBits(BL(brain));
+    int i, n = 0;
+
+    for (i = 0; i < 3; i++) {
+        u32 e = (u32)((v >> (20 * i)) & 0xFFFFF);
+
+        if (e & 0x3FF) {
+            from[n] = (u16)((e & 0x3FF) - 1);
+            to[n] = (u16)(((e >> 10) & 0x3FF) - 1);
+            n++;
+        }
+    }
+    return n;
 }
 
 enum { WANT_UNEXPLORED, WANT_BOSS, WANT_ROOM };
@@ -893,23 +944,34 @@ static bool32 LiveReach(struct CpuBrain *brain, int t)
     return LiveReachEx(brain, t, FALSE);
 }
 
-/* A door record of the Kirby's room it can use now: the door tile is in the
- * live map (not behind a switch, a wall, an object) and it can get there;
- * an exit object: it can get there. */
-static bool32 DoorOpenHere(struct CpuBrain *brain, const struct HintDoor *p)
+/* The door tile of record `p` is on the Kirby's live map now (not behind a
+ * switch, a wall, an object); an exit object has no tile: always. */
+static bool32 DoorTileHere(struct CpuBrain *brain, const struct HintDoor *p)
 {
     struct LevelInfo *li = brain->levelInfo;
-    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, c = p->y * w + p->x, k;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
     u8 v;
 
     if (p->x >= w || p->y >= h)
         return FALSE;
     if (p->kind != EXIT_DOOR)
-        return NearReached(w, h, p->x, p->y);
-    v = gUnk_02024ED0[li->unk65E][c];
-    if (v != p->col || !(gCollisionAttributes[v] & 0x4000))
+        return TRUE;
+    v = gUnk_02024ED0[li->unk65E][p->y * w + p->x];
+    return v == p->col && (gCollisionAttributes[v] & 0x4000);
+}
+
+/* LiveReach's flood reached the cell of record `p`, or one beside it (an
+ * exit object: its cell, or the one above or below it). */
+static bool32 DoorReached(struct CpuBrain *brain, const struct HintDoor *p)
+{
+    struct LevelInfo *li = brain->levelInfo;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, k;
+
+    if (p->x >= w || p->y >= h)
         return FALSE;
-    if (sHintLab[c] == 0)
+    if (p->kind != EXIT_DOOR)
+        return NearReached(w, h, p->x, p->y);
+    if (sHintLab[p->y * w + p->x] == 0)
         return TRUE;
     for (k = 0; k < 4; k++) {          /* reached beside it */
         int x = p->x + (k == 0) - (k == 1), y = p->y + (k == 2) - (k == 3);
@@ -920,12 +982,28 @@ static bool32 DoorOpenHere(struct CpuBrain *brain, const struct HintDoor *p)
     return FALSE;
 }
 
+/* A door record of the Kirby's room it can use now: the door tile is in the
+ * live map (not behind a switch, a wall, an object) and it can get there
+ * (LiveReach first); an exit object: it can get there. */
+static bool32 DoorOpenHere(struct CpuBrain *brain, const struct HintDoor *p)
+{
+    return DoorTileHere(brain, p) && DoorReached(brain, p);
+}
+
+/* Arriving by door record `s` puts the Kirby where it reaches door `wgrp`
+ * of the room behind it (0xFF: anywhere will do). */
+#define IN_PART(t, s, wgrp) ((wgrp) == 0xFF || ((wgrp) < 32 && (sHintReach[t][s] >> (wgrp) & 1)))
+
 /* Breadth first over (room, door group) from the Kirby's place: the door
  * record (sHintRec index) of the first door of the shortest route to a room
  * that is wanted (not `from` itself).  NO_REC when none is reachable.  Doors
  * this brain gave up on are left out, and the first step not through a door
- * back to `avoid`. */
-static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 avoid)
+ * back to `avoid`.  `wgrp` (0xFF: any) asks for an arrival in the part of
+ * the wanted room that reaches its door `wgrp` (IN_PART; then `from` itself
+ * counts, by another part); `found` (may be NULL) gets the wanted room the
+ * route ends in. */
+static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 avoid, u8 wgrp,
+                   u16 *found)
 {
     u16 first[HINT_RECS];               /* per state (the door record taken): the first door */
     u16 queue[HINT_RECS];
@@ -970,9 +1048,12 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
             if (d >= MAX_ROOMS || DoorList(d) == NULL || d == avoid || Blocked(brain, from, d)
                 || !DoorOpenHere(brain, p))
                 continue;
-            if (d != from && Wanted(want, d, target, t, f + bi))
-                return f + bi;
             s = f + bi;
+            if ((d != from || wgrp != 0xFF) && Wanted(want, d, target, t, s) && IN_PART(t, s, wgrp)) {
+                if (found != NULL)
+                    *found = d;
+                return s;
+            }
             if (sHintReach[t][s] && first[s] == NO_REC) {
                 first[s] = s;
                 queue[tail++] = s;
@@ -990,12 +1071,22 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
             const struct HintDoor *p = &sHintRec[rf + i];
             u16 d = p->dest;
 
-            if (!(m & (1u << i)) || d >= MAX_ROOMS || DoorList(d) == NULL || Blocked(brain, r, d)
-                || d == from)           /* not back through the room it starts in */
+            if (!(m & (1u << i)) || d >= MAX_ROOMS || DoorList(d) == NULL || Blocked(brain, r, d))
                 continue;
-            if (Wanted(want, d, target, t, rf + i))
-                return first[g];
             s = rf + i;
+            if (d == from) {            /* not back through the room it starts in, */
+                if (wgrp != 0xFF && Wanted(want, d, target, t, s) && IN_PART(t, s, wgrp)) {
+                    if (found != NULL)  /* unless into another part of it was asked */
+                        *found = d;
+                    return first[g];
+                }
+                continue;
+            }
+            if (Wanted(want, d, target, t, s) && IN_PART(t, s, wgrp)) {
+                if (found != NULL)
+                    *found = d;
+                return first[g];
+            }
             if (first[s] == NO_REC && tail < HINT_RECS) {
                 first[s] = first[g];
                 queue[tail++] = s;
@@ -1006,19 +1097,42 @@ static u16 RouteEx(struct CpuBrain *brain, u16 from, int want, u16 target, u16 a
 }
 
 /* Not straight back where it came from unless nothing else leads there
- * (two rooms each other's way to a goal ping-pong otherwise). */
-static u16 Route(struct CpuBrain *brain, u16 from, int want, u16 target)
+ * (two rooms each other's way to a goal ping-pong otherwise).  No side
+ * effects (the planner's view asks too): `back` (may be NULL) is set when
+ * the route found goes only straight back. */
+static u16 RouteQ(struct CpuBrain *brain, u16 from, int want, u16 target, u8 wgrp, u16 *found,
+                  bool32 *back)
 {
-    u16 j = PREV(brain) ? RouteEx(brain, from, want, target, (u16)(PREV(brain) - 1)) : NO_REC;
+    u16 j = PREV(brain) ? RouteEx(brain, from, want, target, (u16)(PREV(brain) - 1), wgrp, found)
+                        : NO_REC;
 
+    if (back != NULL)
+        *back = FALSE;
     if (j != NO_REC || !PREV(brain))
-        return j != NO_REC ? j : RouteEx(brain, from, want, target, NO_ROOM);
-    j = RouteEx(brain, from, want, target, NO_ROOM);
+        return j != NO_REC ? j : RouteEx(brain, from, want, target, NO_ROOM, wgrp, found);
+    j = RouteEx(brain, from, want, target, NO_ROOM, wgrp, found);
+    if (back != NULL)
+        *back = j != NO_REC && sHintRec[j].dest == PREV(brain) - 1;
+    return j;
+}
+
+static u16 RouteG(struct CpuBrain *brain, u16 from, int want, u16 target, u8 wgrp, u16 *found)
+{
+    bool32 back;
+    u16 j = RouteQ(brain, from, want, target, wgrp, found, &back);
+
     /* only straight back: the door that brought it here was a wrong turn
-     * (the two rooms would send it to and fro), so not that way again */
-    if (j != NO_REC && ST(brain)->roomFrames < 120 && sHintRec[j].dest == PREV(brain) - 1)
+     * (the two rooms would send it to and fro), so not that way again --
+     * unless another part of a room was asked for (out and back in by
+     * another door is the way there) */
+    if (back && wgrp == 0xFF && ST(brain)->roomFrames < 120)
         BlockWhy(brain, (u16)(PREV(brain) - 1), from, "no-reenter");
     return j;
+}
+
+static u16 Route(struct CpuBrain *brain, u16 from, int want, u16 target)
+{
+    return RouteG(brain, from, want, target, 0xFF, NULL);
 }
 
 /* --- steering ------------------------------------------------------------- */
@@ -1063,13 +1177,37 @@ static void GoTo(struct CpuBrain *brain, s32 x, s32 y)
     GoToEx(brain, x, y, FALSE);
 }
 
-static struct Object *NearestObject(struct CpuBrain *brain, int kind)
+/* Objects of a kind: 0 food, 1 a mirror shard, 2 a live boss or mid-boss,
+ * 3 a chest, 4 an enemy the stock scan would go for (CpuFindTarget). */
+static bool32 ObjIs(struct Object *ob, int kind)
+{
+    switch (kind) {
+    case 0:     /* food */
+        return ob->type == OBJ_SMALL_FOOD || ob->type == OBJ_POP_SODA || ob->type == OBJ_MEAT
+            || ob->type == OBJ_TOMATO;
+    case 1:     /* a mirror shard */
+        return ob->type == OBJ_MIRROR_SHARD;
+    case 2:     /* a boss or mid-boss, alive */
+        return ObjType38To52(ob) && ob->unk80 > 0;
+    case 4:     /* an enemy */
+        return (ob->base.flags & 0x10000000 || !(ob->base.flags & 0x8000))
+            && (ObjType0To37(ob) || (ObjType38To52(ob) && ob->unk80 > 0))
+            && ob->type != OBJ_JACK && ob->type != OBJ_COOKIN && ob->type != OBJ_MINNY
+            && ob->type != OBJ_PRANK && ob->type != OBJ_MIRRA;
+    default:    /* a chest */
+        return ob->type == OBJ_SMALL_CHEST || ob->type == OBJ_BIG_CHEST;
+    }
+}
+
+/* The nearest object of `kind` in the Kirby's room that it can get to;
+ * `count` (may be NULL) gets how many of those there are. */
+static struct Object *NearestObjectN(struct CpuBrain *brain, int kind, int *count)
 {
     PTR32(struct ObjectBase) *o = GetRoomObjectCollisionList(&brain->kirby->base);
     struct Object *best = NULL;
     s32 bd = 0x7FFFFFFF;
     struct LevelInfo *li = brain->levelInfo;
-    int w = li->roomWidth >> 4, h = li->roomHeight >> 4;
+    int w = li->roomWidth >> 4, h = li->roomHeight >> 4, n = 0;
     /* only what it can get to: its live map flooded from where it is,
      * with the blocks its ability breaks (a sealed chamber's chest, a
      * shard behind a wall are not targets) */
@@ -1077,27 +1215,11 @@ static struct Object *NearestObject(struct CpuBrain *brain, int kind)
 
     for (; o != NULL && *o; ++o) {
         struct Object *ob = (struct Object *)*o;
-        bool32 ok;
         s32 dx, dy, d;
 
         if (ob->base.flags & 0x1000)
             continue;
-        switch (kind) {
-        case 0:     /* food */
-            ok = ob->type == OBJ_SMALL_FOOD || ob->type == OBJ_POP_SODA || ob->type == OBJ_MEAT
-              || ob->type == OBJ_TOMATO;
-            break;
-        case 1:     /* a mirror shard */
-            ok = ob->type == OBJ_MIRROR_SHARD;
-            break;
-        case 2:     /* a boss or mid-boss, alive */
-            ok = ObjType38To52(ob) && ob->unk80 > 0;
-            break;
-        default:    /* a chest */
-            ok = ob->type == OBJ_SMALL_CHEST || ob->type == OBJ_BIG_CHEST;
-            break;
-        }
-        if (!ok)
+        if (!ObjIs(ob, kind))
             continue;
         if (reach) {
             int x = ob->base.x >> 12, y = ob->base.y >> 12, c = y * w + x;
@@ -1107,6 +1229,7 @@ static struct Object *NearestObject(struct CpuBrain *brain, int kind)
                     && (y + 1 >= h || sHintLab[c + w] != 0)))
                 continue;
         }
+        n++;
         dx = (ob->base.x - brain->kirby->base.x) >> 8;
         dy = (ob->base.y - brain->kirby->base.y) >> 8;
         d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
@@ -1115,7 +1238,14 @@ static struct Object *NearestObject(struct CpuBrain *brain, int kind)
             best = ob;
         }
     }
+    if (count != NULL)
+        *count = n;
     return best;
+}
+
+static struct Object *NearestObject(struct CpuBrain *brain, int kind)
+{
+    return NearestObjectN(brain, kind, NULL);
 }
 
 static bool32 HumanHere(u16 room)
@@ -1709,7 +1839,6 @@ static bool32 HeadFor(struct CpuBrain *brain)
             /* a warp star or a cannon: they take only people (PortIsHuman),
              * so it goes where the object would send it, as it takes doors */
             if (sub_080551FC(k, dest, sHintRec[j].ax, sHintRec[j].ay)) {
-                st->doors++;
                 PortCpuAiNote(k->base.unk56, "through", room, dest, k->hp);
                 PortCpuAiNote(k->base.unk56, "exit-object", room, dest, sHintRec[j].kind);
                 return TRUE;
@@ -1718,7 +1847,6 @@ static bool32 HeadFor(struct CpuBrain *brain)
             struct Unk_0888562C_3 *p = sub_080025AC(k->base.unk56, st->doorX, st->doorY).pat3;
 
             if (p != NULL && p->unk08 == dest && sub_080551FC(k, dest, p->unk0A, p->unk0B)) {
-                st->doors++;
                 PortCpuAiNote(k->base.unk56, "through", room, dest, k->hp);
                 return TRUE;
             }
@@ -1769,8 +1897,9 @@ static bool32 Mend(struct CpuBrain *brain)
     return TRUE;
 }
 
-/* Head for a room that is `want` (then `want2`, -1 none), door by door. */
-static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
+/* Head for a room that is `want` (then `want2`, -1 none), door by door;
+ * `wgrp` as RouteEx's. */
+static bool32 TravelG(struct CpuBrain *brain, int want, int want2, u16 target, u8 wgrp)
 {
     struct CpuAiState *st = ST(brain);
     u16 room = brain->levelInfo->currentRoom;
@@ -1810,10 +1939,10 @@ static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
     }
     for (tries = 0; tries < 3; tries++) {
         if (st->dest == NO_ROOM || st->dest == 0) {
-            u16 j = Route(brain, room, want, target);
+            u16 j = RouteG(brain, room, want, target, wgrp, NULL);
 
             if (j == NO_REC && want2 >= 0)
-                j = Route(brain, room, want2, target);
+                j = RouteG(brain, room, want2, target, wgrp, NULL);
             if (j == NO_REC) {
                 st->dest = NO_ROUTE;
                 return FALSE;
@@ -1826,10 +1955,16 @@ static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
     return FALSE;
 }
 
-static bool32 GoalBodyguard(struct CpuBrain *brain)
+static bool32 Travel(struct CpuBrain *brain, int want, int want2, u16 target)
+{
+    return TravelG(brain, want, want2, target, 0xFF);
+}
+
+/* Stay with `ward`: beside it in its room, else door by door to its room
+ * (BODYGUARD, and the planner's `follow`). */
+static bool32 Guard(struct CpuBrain *brain, struct Kirby *ward)
 {
     struct CpuAiState *st = ST(brain);
-    struct Kirby *ward = Ward(brain);
     u16 room = brain->levelInfo->currentRoom;
 
     if (ward == NULL)
@@ -1854,6 +1989,11 @@ static bool32 GoalBodyguard(struct CpuBrain *brain)
         }
     }
     return Travel(brain, WANT_ROOM, -1, gCurLevelInfo[ward->base.unk56].currentRoom);
+}
+
+static bool32 GoalBodyguard(struct CpuBrain *brain)
+{
+    return Guard(brain, Ward(brain));
 }
 
 static bool32 GoalExplorer(struct CpuBrain *brain, int adventurer)
@@ -1938,17 +2078,230 @@ void CpuAiDumpGraph(void)
     }
 }
 
-/* CpuBrainTask's GOAL layer for a brain whose mode is not CLASSIC.  FALSE:
- * run the stock goal layer this frame. */
+/* --- planner directives (docs/design/CPU-HAIKU.md, port/cpu_ai.h) -------
+ *
+ * A directive is the planner's order for one CPU Kirby, latched from a
+ * recorded `cpugoal` line (CpuAiDirect).  While it runs, it replaces the
+ * mode's goal; the executors are the modes' own pieces (door routes,
+ * HeadFor, GoTo, Guard, Mend, the explorer).  When it ends the mode runs
+ * again, and the planner host (platform/cpu_planner.c) sees the status and
+ * asks for the next one.  State: ST(b)->dir and BL(b)->dir*, all zero for a
+ * brain that never had one. */
+
+#define DIR_KIND(b)    (ST(b)->dir & 15)
+#define DIR_STATUS(b)  ((ST(b)->dir >> 4) & 7)
+#define DIR_RUNNING(b) (DIR_STATUS(b) == PORT_CPUGOAL_ST_RUNNING)
+
+/* Default seconds per kind (SECS 0). */
+static const u8 kDirSecs[PORT_CPUGOAL_KINDS] = { 0, 90, 30, 20, 30, 90, 30, 20, 10, 30 };
+
+static void DirEnd(struct CpuBrain *brain, int status, int why)
+{
+    struct CpuAiState *st = ST(brain);
+    struct CpuAiBlocked *bl = BL(brain);
+
+    st->dir = (u8)((st->dir & 15) | (status << 4));
+    bl->dirB = (u8)why;
+    bl->dirLeft = 0;
+    st->dest = NO_ROOM;                 /* the mode chooses its own way again */
+    PortCpuAiNote(brain->kirby->base.unk56, "goal-end", st->dir & 15, status, why);
+}
+
+/* Door record of `room` at tile (x, y), else within a tile of it. */
+static u16 FindDoor(struct CpuBrain *brain, u16 room, u8 x, u8 y)
+{
+    u16 f, i, near = NO_REC;
+
+    if (room >= MAX_ROOMS || DoorList(room) == NULL)
+        return NO_REC;
+    HintEnsure(AbilityTier(brain->kirby->ability));
+    if (!sHintFirst[room])
+        return NO_REC;
+    f = sHintFirst[room] - 1;
+    for (i = 0; i < sHintCount[room]; i++) {
+        const struct HintDoor *p = &sHintRec[f + i];
+        int dx = p->x - x, dy = p->y - y;
+
+        if (!dx && !dy)
+            return f + i;
+        if (near == NO_REC && dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1)
+            near = f + i;
+    }
+    return near;
+}
+
+/* In its room, can the Kirby get to door group `grp` -- door record `grp`
+ * of the room, the group's first (opening the gates it can on the way, as
+ * the routes count them)? */
+static bool32 InGroup(struct CpuBrain *brain, u16 room, u8 grp)
+{
+    int t = AbilityTier(brain->kirby->ability);
+
+    if (room >= MAX_ROOMS || DoorList(room) == NULL)
+        return FALSE;
+    HintEnsure(t);
+    if (!sHintFirst[room] || grp >= sHintCount[room] || !LiveReachEx(brain, t, TRUE))
+        return FALSE;
+    return DoorReached(brain, &sHintRec[sHintFirst[room] - 1 + grp]);
+}
+
+static bool32 SameRoomAs(struct CpuBrain *brain, u32 slot)
+{
+    return slot < gNumKirbys && gCurLevelInfo[slot].currentRoom == brain->levelInfo->currentRoom;
+}
+
+/* The directive's goal this frame: TRUE handled, FALSE the mode's turn
+ * (AUTO, or it has just ended). */
+static bool32 GoalDirective(struct CpuBrain *brain)
+{
+    struct CpuAiState *st = ST(brain);
+    struct CpuAiBlocked *bl = BL(brain);
+    struct Kirby *k = brain->kirby;
+    u16 room = brain->levelInfo->currentRoom;
+    s32 kx = k->base.x >> 12, ky = k->base.y >> 12;
+
+    switch (DIR_KIND(brain)) {
+    case PORT_CPUGOAL_ROOM: {
+        u8 grp = bl->dirB ? (u8)(bl->dirB - 1) : 0xFF;
+
+        if (bl->dirA >= MAX_ROOMS || DoorList(bl->dirA) == NULL) {
+            DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_BADARG);
+            return FALSE;
+        }
+        if (room == bl->dirA && (grp == 0xFF || InGroup(brain, room, grp))) {
+            DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            return FALSE;
+        }
+        if (TravelG(brain, WANT_ROOM, -1, bl->dirA, grp))
+            return TRUE;
+        /* no route left: because it just gave a door up (a gate?), or none at all */
+        DirEnd(brain, PORT_CPUGOAL_ST_FAILED,
+               st->destFrames > DOOR_GIVEUP ? PORT_CPUGOAL_WHY_GAVEUP : PORT_CPUGOAL_WHY_NOROUTE);
+        return FALSE;
+    }
+    case PORT_CPUGOAL_DOOR: {
+        u16 j = FindDoor(brain, bl->dirA, bl->dirB, bl->dirC);
+        const struct HintDoor *p;
+
+        if (j == NO_REC) {
+            DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NODOOR);
+            return FALSE;
+        }
+        p = &sHintRec[j];
+        if (room != bl->dirA) {         /* through it, or somewhere else */
+            if (room == p->dest)
+                DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            else
+                DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_LEFT);
+            return FALSE;
+        }
+        if (st->dest != p->dest || st->doorX != p->x || st->doorY != p->y) {
+            /* gates it can open count open, as for the routes (HeadFor's
+             * GateWay opens them) */
+            if (!LiveReachEx(brain, AbilityTier(k->ability), TRUE) || !DoorOpenHere(brain, p)) {
+                DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NODOOR);
+                return FALSE;
+            }
+            SetDoor(brain, j);
+        }
+        if (HeadFor(brain))
+            return TRUE;
+        DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_GAVEUP);
+        return FALSE;
+    }
+    case PORT_CPUGOAL_XY: {
+        struct CpuAiProgress *pr = PR(brain);
+        s32 dx = kx - bl->dirB, dy = ky - bl->dirC;
+        u16 dist;
+
+        if (room != bl->dirA) {
+            DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_LEFT);
+            return FALSE;
+        }
+        if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) {
+            DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            return FALSE;
+        }
+        /* as HeadFor: the nav graph, then 5 s turns straight at it */
+        dist = (u16)((dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy));
+        if (!pr->best || dist + 1 < pr->best) {
+            pr->best = dist + 1;
+            pr->stall = 0;
+        } else if (pr->stall < 0xFFFF) {
+            pr->stall++;
+        }
+        st->dest = NO_ROOM;
+        GoToEx(brain, ((s32)bl->dirB << 12) + 0x800, ((s32)bl->dirC << 12) + 0x800, (pr->stall / 300) & 1);
+        return TRUE;
+    }
+    case PORT_CPUGOAL_FOLLOW:
+        if (bl->dirA >= gNumKirbys || bl->dirA == k->base.unk56
+            || gCurLevelInfo[bl->dirA].currentRoom == 0xFFFF) {
+            DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_BADARG);
+            return FALSE;
+        }
+        return Guard(brain, &gKirbys[bl->dirA]);
+    case PORT_CPUGOAL_EXPLORE:
+        if (GoalExplorer(brain, 0))
+            return TRUE;
+        DirEnd(brain, PORT_CPUGOAL_ST_FAILED,
+               st->destFrames > DOOR_GIVEUP ? PORT_CPUGOAL_WHY_GAVEUP : PORT_CPUGOAL_WHY_NOROUTE);
+        return FALSE;
+    case PORT_CPUGOAL_FIGHT: {
+        struct Object *o = NearestObject(brain, 2);
+
+        if (o == NULL)
+            o = NearestObject(brain, 4);
+        if (o == NULL) {                /* all gone: done; none at all: a bad order */
+            if (bl->dirC)
+                DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            else
+                DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NOTHING);
+            return FALSE;
+        }
+        bl->dirC = 1;
+        st->dest = NO_ROOM;
+        GoTo(brain, o->base.x, o->base.y);  /* the SENSE layer's scan attacks */
+        return TRUE;
+    }
+    case PORT_CPUGOAL_FOOD: {
+        struct Object *food = NearestObject(brain, 0);
+
+        if (food == NULL) {
+            DirEnd(brain, PORT_CPUGOAL_ST_FAILED, PORT_CPUGOAL_WHY_NOTHING);
+            return FALSE;
+        }
+        brain->flags |= CPU_FLAG_ACTION_BUSY;   /* as Mend: no fighting on the way */
+        st->dest = NO_ROOM;
+        GoTo(brain, food->base.x, food->base.y);
+        return TRUE;
+    }
+    case PORT_CPUGOAL_WAIT:
+        if (room != bl->dirA) {         /* moved on (a door, a warp): wait here */
+            bl->dirA = room;
+            bl->dirB = (u8)kx;
+            bl->dirC = (u8)ky;
+        }
+        st->dest = NO_ROOM;
+        GoTo(brain, ((s32)bl->dirB << 12) + 0x800, ((s32)bl->dirC << 12) + 0x800);
+        return TRUE;
+    default:                            /* AUTO: the mode runs */
+        return FALSE;
+    }
+}
+
+/* CpuBrainTask's GOAL layer for a brain whose mode is not CLASSIC, or that
+ * has a planner directive.  FALSE: run the stock goal layer this frame. */
 bool32 CpuAiGoal(struct CpuBrain *brain)
 {
     struct CpuAiState *st = ST(brain);
     struct CpuAiBlocked *bl = BL(brain);
     struct Kirby *k = brain->kirby;
     int mode = CpuAiMode(brain);
+    bool32 directed = DIR_RUNNING(brain);
     u16 room = brain->levelInfo->currentRoom;
 
-    if (mode == PORT_CPUAI_CLASSIC) {
+    if (mode == PORT_CPUAI_CLASSIC && !directed) {
         st->modeSeen = 0;
         return FALSE;
     }
@@ -1957,20 +2310,44 @@ bool32 CpuAiGoal(struct CpuBrain *brain)
         st->dest = NO_ROOM;
     }
     if (st->room != room) {
+        bool32 fresh = room < MAX_ROOMS && DoorList(room) != NULL && !sub_08002A5C(room);
+
         PortCpuAiNote(k->base.unk56, "room", st->room, room, k->hp);
         PREV(brain) = st->room ? st->room + 1 : 0;
         st->room = room;
         st->dest = NO_ROOM;
         st->roomFrames = 0;
-        if (mode != PORT_CPUAI_BODYGUARD && room < MAX_ROOMS && DoorList(room) != NULL)
+        if ((mode != PORT_CPUAI_BODYGUARD || directed) && room < MAX_ROOMS && DoorList(room) != NULL)
             sub_08002A80(room);         /* the team has been here: the map shows it */
+        if (directed && DIR_KIND(brain) == PORT_CPUGOAL_EXPLORE && fresh)
+            DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
     }
     if (st->roomFrames < 0xFFFF)
         st->roomFrames++;
     if (bl->lastHp != (u8)k->hp) {
         if (k->hp < (s8)bl->lastHp)
             PortCpuAiNote(k->base.unk56, "hurt", k->hp, k->maxHp, room);
+        else if (DIR_RUNNING(brain) && DIR_KIND(brain) == PORT_CPUGOAL_FOOD)
+            DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
         bl->lastHp = (u8)k->hp;
+    }
+    /* the directive's clock: whole seconds of the simulation's frame count */
+    if (DIR_RUNNING(brain) && (gPortSim->frame.frameCount % 60) == 0 && bl->dirLeft
+        && --bl->dirLeft == 0) {
+        switch (DIR_KIND(brain)) {
+        case PORT_CPUGOAL_WAIT: case PORT_CPUGOAL_AUTO:
+            DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            break;
+        case PORT_CPUGOAL_FOLLOW:
+            if (SameRoomAs(brain, bl->dirA))
+                DirEnd(brain, PORT_CPUGOAL_ST_DONE, PORT_CPUGOAL_WHY_OK);
+            else
+                DirEnd(brain, PORT_CPUGOAL_ST_TIMEOUT, PORT_CPUGOAL_WHY_TIME);
+            break;
+        default:
+            DirEnd(brain, PORT_CPUGOAL_ST_TIMEOUT, PORT_CPUGOAL_WHY_TIME);
+            break;
+        }
     }
     if (!(brain->flags & CPU_FLAG_FREE)) {
         if (st->roomFrames < FORCE_FREE)
@@ -1983,7 +2360,11 @@ bool32 CpuAiGoal(struct CpuBrain *brain)
      * takes a CPU left there to the hub (CpuTryRoomHop) */
     if (room >= 0x323 && room <= 0x325 && !HumanHere(room))
         return FALSE;
+    if (DIR_RUNNING(brain) && GoalDirective(brain))
+        return TRUE;
     switch (mode) {
+    case PORT_CPUAI_CLASSIC:
+        return FALSE;
     case PORT_CPUAI_BODYGUARD:
         return GoalBodyguard(brain);
     case PORT_CPUAI_EXPLORER:
@@ -1991,6 +2372,223 @@ bool32 CpuAiGoal(struct CpuBrain *brain)
     default:
         return GoalExplorer(brain, 1);
     }
+}
+
+/* CpuBrainTask's test: does this brain's GOAL layer go through CpuAiGoal?
+ * Not while every mode is CLASSIC and the brain never had a directive --
+ * the stock brain, untouched. */
+bool32 CpuAiWants(struct CpuBrain *brain)
+{
+    return gPortSim->game.reserved[0] != 0 || ST(brain)->dir != 0;
+}
+
+/* The latch: `cpugoal FRAME SLOT KIND A B C SECS` (platform/inputlog.c). */
+void CpuAiDirect(u32 slot, int kind, u32 a, u32 b, u32 c, u32 secs)
+{
+    struct CpuBrain *brain;
+    struct CpuAiState *st;
+    struct CpuAiBlocked *bl;
+    struct Kirby *k;
+    u16 room;
+
+    if (slot == 0 || slot >= ARRAY_COUNT(gUnk_02038590) || slot >= PORT_CPUAI_SLOTS
+        || kind < 0 || kind >= PORT_CPUGOAL_KINDS)
+        return;
+    brain = &gUnk_02038590[slot];
+    st = ST(brain);
+    bl = BL(brain);
+    k = &gKirbys[slot];
+    room = gCurLevelInfo[slot].currentRoom;
+    if (kind == PORT_CPUGOAL_NONE) {
+        if (st->dir) {
+            st->dir = 0;
+            bl->dirA = 0;
+            bl->dirB = bl->dirC = bl->dirLeft = 0;
+            st->dest = NO_ROOM;
+        }
+        PortCpuAiNote((int)slot, "goal-cancel", room, 0, 0);
+        return;
+    }
+    if (secs == 0)
+        secs = kDirSecs[kind];
+    if (secs > 255)
+        secs = 255;
+    if ((kind == PORT_CPUGOAL_DOOR || kind == PORT_CPUGOAL_XY) && a == PORT_CPUGOAL_HERE)
+        a = room;
+    if (kind == PORT_CPUGOAL_WAIT) {    /* here, where it stands */
+        a = room;
+        b = (u32)(k->base.x >> 12) & 0xFF;
+        c = (u32)(k->base.y >> 12) & 0xFF;
+    }
+    if (kind == PORT_CPUGOAL_FIGHT)
+        c = 0;                          /* "has seen a target" */
+    if (kind == PORT_CPUGOAL_FOOD)
+        bl->lastHp = (u8)k->hp;         /* HP up from here on: done */
+    st->dir = (u8)(kind | (PORT_CPUGOAL_ST_RUNNING << 4));
+    bl->dirA = (u16)a;
+    bl->dirB = (u8)b;
+    bl->dirC = (u8)c;
+    bl->dirLeft = (u8)secs;
+    st->dest = NO_ROOM;
+    PR(brain)->best = 0;
+    PR(brain)->stall = 0;
+    PortCpuAiNote((int)slot, "goal", kind, (int)a, (int)(b | (c << 8) | (secs << 16)));
+}
+
+int CpuAiDirState(u32 slot, struct PortCpuGoalState *out)
+{
+    struct CpuBrain *brain;
+
+    memset(out, 0, sizeof *out);
+    if (slot >= ARRAY_COUNT(gUnk_02038590) || slot >= PORT_CPUAI_SLOTS)
+        return 0;
+    brain = &gUnk_02038590[slot];
+    out->kind = (u8)DIR_KIND(brain);
+    out->status = (u8)DIR_STATUS(brain);
+    out->a = BL(brain)->dirA;
+    out->b = BL(brain)->dirB;
+    out->c = BL(brain)->dirC;
+    out->left = BL(brain)->dirLeft;
+    out->why = out->status >= PORT_CPUGOAL_ST_DONE ? BL(brain)->dirB : 0;
+    return 1;
+}
+
+/* sHintLab's mark at cell (x, y) -- with `span` 3, else at the cell above
+ * or below it; 0xFF none. */
+static u8 LabNear(int w, int h, int x, int y, int span)
+{
+    int k;
+
+    for (k = 0; k < span; k++) {
+        int ny = y - (k == 1) + (k == 2);
+
+        if (x >= 0 && ny >= 0 && x < w && ny < h && sHintLab[ny * w + x] != 0xFF)
+            return sHintLab[ny * w + x];
+    }
+    return 0xFF;
+}
+
+/* The door groups of room `r` at tier `t`, for the planner's view: on its
+ * ROM map, as HintTier sees a room (sliding doors open, walls shut), each
+ * door no earlier flood reached starts one from its cell (an exit object:
+ * or the one above or below it); a door's group is the index of the door
+ * whose flood reached it first (0xFF: a door covered by a block, off the
+ * map).  goto_room's group asks for an arrival that reaches that door
+ * (IN_PART).  Scratch only. */
+static void DoorGroups(u16 r, int t, u8 *grp, int max)
+{
+    int w, h, i, n = sHintCount[r] < max ? sHintCount[r] : max;
+    u16 f;
+
+    memset(grp, 0xFF, (size_t)max);
+    if (!sHintFirst[r] || !RomCells(r, &w, &h))
+        return;
+    f = sHintFirst[r] - 1;
+    GateOverlay(r, sHintCells, w, h, 0, FALSE);
+    memset(sHintLab, 0xFF, sizeof(sHintLab));
+    for (i = 0; i < n; i++) {
+        const struct HintDoor *p = &sHintRec[f + i];
+        int span = p->kind == EXIT_DOOR ? 1 : 3, k;
+
+        if (p->x >= w || p->y >= h)
+            continue;
+        for (k = 0; k < span && LabNear(w, h, p->x, p->y, span) == 0xFF; k++) {
+            int y = p->y - (k == 1) + (k == 2), c = y * w + p->x;
+
+            if (y >= 0 && y < h && sGateOv[c] != OV_SHUT
+                && Passable(gCollisionAttributes[sHintCells[c]], t))
+                Flood(sHintCells, w, h, c, (u8)i, t, sHintLab);
+        }
+        grp[i] = LabNear(w, h, p->x, p->y, span);
+    }
+}
+
+/* What the planner is told about a CPU Kirby's room (platform/cpu_planner.c):
+ * read-only, between frames.  0 if the Kirby is not in a room. */
+int CpuAiView(u32 slot, struct PortCpuAiView *v)
+{
+    struct CpuBrain *brain;
+    u16 room, r, j;
+    int t, i, n;
+    u8 grp[PORT_CPUAI_VIEW_DOORS];
+
+    memset(v, 0, sizeof *v);
+    v->exploreRoom = v->bossRoom = NO_ROOM;
+    if (slot >= ARRAY_COUNT(gUnk_02038590) || slot >= gNumKirbys)
+        return 0;
+    brain = &gUnk_02038590[slot];
+    if (!brain->kirby || !brain->levelInfo)
+        return 0;
+    room = brain->levelInfo->currentRoom;
+    v->room = room;
+    v->prevRoom = PREV(brain) ? (u16)(PREV(brain) - 1) : NO_ROOM;
+    for (i = 0; i < 8; i++) {
+        v->bossRooms[i][0] = gCpuLinkedRooms[i][0];
+        v->bossRooms[i][1] = gCpuLinkedRooms[i][1];
+        if (*GetStateSlot(STATE_SLOT_SESSION, i + 1, 0))
+            v->bossBeaten |= (u8)(1 << i);
+    }
+    for (r = 0; r < MAX_ROOMS; r++)
+        if (DoorList(r) != NULL && sub_08002A5C(r))
+            v->roomsEntered++;
+    if (room >= MAX_ROOMS || DoorList(room) == NULL || brain->levelInfo->unk1E8 == NULL)
+        return 1;
+    v->area = gUnk_08D6CD0C[room]->unk46;
+    v->flags = gUnk_08D6CD0C[room]->unk47;
+    v->entered = sub_08002A5C(room) ? 1 : 0;
+    v->script = brain->script && brain->script[0] != CPU_OP_ROAM;
+    t = AbilityTier(brain->kirby->ability);
+    v->tier = (u8)t;
+    HintEnsure(t);
+    DoorGroups(room, t, grp, PORT_CPUAI_VIEW_DOORS);
+    /* reach: as the routes count it (the gates it can open, open) */
+    if (sHintFirst[room] && LiveReachEx(brain, t, TRUE)) {
+        u16 f = sHintFirst[room] - 1;
+
+        for (i = 0; i < sHintCount[room]; i++) {
+            const struct HintDoor *p = &sHintRec[f + i];
+
+            if (v->nDoors >= PORT_CPUAI_VIEW_DOORS) {
+                v->moreDoors++;
+                continue;
+            }
+            n = v->nDoors++;
+            v->doors[n].x = p->x;
+            v->doors[n].y = p->y;
+            v->doors[n].group = grp[i];
+            v->doors[n].open = DoorTileHere(brain, p) ? 1 : 0;
+            v->doors[n].reach = DoorReached(brain, p) ? 1 : 0;
+            v->doors[n].to = p->dest;
+            v->doors[n].entered = p->dest < MAX_ROOMS && DoorList(p->dest) != NULL
+                                  && sub_08002A5C(p->dest) ? 1 : 0;
+        }
+    }
+    /* RouteQ, not RouteG: no "no-reenter" block from a look */
+    j = RouteQ(brain, room, WANT_UNEXPLORED, 0, 0xFF, &v->exploreRoom, NULL);
+    if (j != NO_REC) {
+        v->exploreX = sHintRec[j].x;
+        v->exploreY = sHintRec[j].y;
+    } else {
+        v->exploreRoom = NO_ROOM;
+    }
+    j = RouteQ(brain, room, WANT_BOSS, 0, 0xFF, &v->bossRoom, NULL);
+    if (j != NO_REC) {
+        v->bossX = sHintRec[j].x;
+        v->bossY = sHintRec[j].y;
+    } else {
+        v->bossRoom = NO_ROOM;
+    }
+    for (i = 0; i < 5; i++) {
+        struct Object *o = NearestObjectN(brain, i, &n);
+
+        v->count[i] = (u8)(n > 255 ? 255 : n);
+        if (o != NULL) {
+            v->nearX[i] = (u8)((o->base.x >> 12) & 0xFF);
+            v->nearY[i] = (u8)((o->base.y >> 12) & 0xFF);
+        }
+    }
+    v->nBlocked = (u8)BlockedList(brain, v->blockedFrom, v->blockedTo);
+    return 1;
 }
 
 #ifdef __cplusplus

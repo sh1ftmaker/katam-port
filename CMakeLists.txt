@@ -290,6 +290,7 @@ set(NATIVE_SRCS
   platform/native/mem.c
   platform/native/mp_native.c
   platform/native/png.c
+  platform/native/planner_pipe.c
   platform/native/symtab.c)
 
 if(WIN32)

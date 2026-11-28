@@ -140,6 +140,11 @@ void PortNativeSaveTick(void);            /* once a frame: honour the debounce *
 /* png.c -- writes a PNG with no external dependency; see the file. */
 int  PortNativeWritePng(const char *path, const u32 *rgba, int w, int h);
 
+/* planner_pipe.c -- KATAM_PLANNER=CMD: the CPU Kirby planner as a child
+ * process (port/cpu_planner.h, docs/design/CPU-HAIKU.md). */
+int  PortPlannerNativeStart(const char *cmd);
+void PortPlannerNativeStop(void);
+
 /* host_sdl.c */
 extern int gPortNativeVerbose;
 extern int gPortNativeNoAudio;

@@ -762,6 +762,7 @@ static int WriteGpuShot(const char *path)
 
 static void Shutdown(int code)
 {
+    PortPlannerNativeStop();            /* no more questions, then the recording */
     WriteRecording();
     if (sHashLog != NULL) {
         fclose(sHashLog);
@@ -2347,6 +2348,10 @@ void PortHostInit(int argc, char **argv)
         sMashStart = -1;
         sNumPresses = 0;
     }
+    /* The CPU Kirby planner (docs/design/CPU-HAIKU.md): live runs only --
+     * a replay applies its recorded cpugoal lines and never asks. */
+    if (getenv("KATAM_PLANNER") != NULL && *getenv("KATAM_PLANNER"))
+        PortPlannerNativeStart(getenv("KATAM_PLANNER"));
     if (sRecordPath != NULL) {
         PortInputLogRecordStart();
         if (sRandoFlags)

@@ -45,6 +45,7 @@
 #include "port/rollback.h"
 #include "port/states.h"
 #include "port/cpu_ai.h"
+#include "port/cpu_planner.h"
 #include "port/lmpnet.h"
 #include "port/player_card.h"
 #include "port/seats.h"
@@ -349,8 +350,10 @@ static void UpdateKeyInput(int frameLatch)
      * session timeline (platform/lmpnet.c).  0 unless a session is on. */
     /* CPU AI modes (platform/cpu_ai_host.c): this device's setting is
      * asked for in live play only; nothing when it is already in force. */
-    if (frameLatch)
+    if (frameLatch) {
         PortCpuAiPoll();
+        PortPlannerPoll();              /* the CPU Kirby planner, if any (cpu_planner.c) */
+    }
     if (frameLatch && PortLnKeyOverride(&keys))
         sKeysDown = keys;
     /* The pause overlay's fork (platform/lmpnet.c): its own pad, never the
